@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate specification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate repository files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          specs=(specs/001-*/spec.md)
+          if [ "${#specs[@]}" -eq 0 ]; then
+            echo "No specification found at specs/001-*/spec.md"
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import json
+          import shutil
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          root = Path(".")
+          failures = []
+
+          def repo_files(suffixes):
+              for path in root.rglob("*"):
+                  if ".git" in path.parts or not path.is_file():
+                      continue
+                  if path.suffix.lower() in suffixes:
+                      yield path
+
+          markdown = list(repo_files({".md"}))
+          if not markdown:
+              failures.append("No markdown files found")
+          for path in markdown:
+              if not path.read_text(encoding="utf-8").strip():
+                  failures.append(f"{path}: markdown file is empty")
+
+          for path in repo_files({".json"}):
+              try:
+                  json.loads(path.read_text(encoding="utf-8"))
+              except Exception as exc:
+                  failures.append(f"{path}: invalid JSON: {exc}")
+
+          yaml_paths = list(repo_files({".yaml", ".yml"}))
+          if yaml_paths:
+              try:
+                  import yaml
+              except ModuleNotFoundError:
+                  yaml = None
+
+              if yaml is not None:
+                  for path in yaml_paths:
+                      try:
+                          yaml.safe_load(path.read_text(encoding="utf-8"))
+                      except Exception as exc:
+                          failures.append(f"{path}: invalid YAML: {exc}")
+              elif shutil.which("ruby"):
+                  cmd = [
+                      "ruby",
+                      "-e",
+                      "require 'yaml'; ARGV.each { |path| YAML.load_file(path) }",
+                      *map(str, yaml_paths),
+                  ]
+                  result = subprocess.run(cmd, text=True, capture_output=True)
+                  if result.returncode != 0:
+                      failures.append(f"YAML parser failed: {result.stderr.strip()}")
+              else:
+                  for path in yaml_paths:
+                      text = path.read_text(encoding="utf-8")
+                      for number, line in enumerate(text.splitlines(), 1):
+                          if line.startswith("\t"):
+                              failures.append(f"{path}:{number}: YAML indentation uses a tab")
+                      if text.count("{") != text.count("}") or text.count("[") != text.count("]"):
+                          failures.append(f"{path}: YAML flow delimiters are unbalanced")
+
+          if failures:
+              for failure in failures:
+                  print(failure, file=sys.stderr)
+              sys.exit(1)
+          PY
+
+  pipeline-complete:
+    name: Pipeline Complete
+    if: always()
+    needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
