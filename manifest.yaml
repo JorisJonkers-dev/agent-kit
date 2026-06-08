@@ -1,0 +1,586 @@
+version: 2
+generated: partial
+notes:
+  - "This manifest pins the current repo and installer agent surfaces. Repo skills, hooks, hook settings, commands, Spec Kit scaffold seeds, and the installer entrypoint are rendered from agent-kit templates; installer heredoc bodies, including hooks, skills, commands, settings, allowlists, and Spec Kit seeds, are rendered from partial or repo templates."
+  - "Repo skill bodies are intentionally agent-specific today; parity means every shared skill has both Claude and Codex targets unless an explicit unsupported reason is present."
+
+artifact:
+  repository: https://github.com/ExtraToast/agent-kit
+  short_coordinate: github:ExtraToast/agent-kit
+  renovate_datasource: github-releases
+  release_tag_pattern: "v{version}"
+  package_publish: none
+
+provenance:
+  spec_kit:
+    upstream_repository: https://github.com/github/spec-kit
+    upstream_tag: v0.9.5
+    upstream_commit: "9313aaeb6573333c636c7ac55439dddc256c29e1"
+    source_lock: spec-kit-source.lock
+    third_party_notices: THIRD_PARTY_NOTICES.md
+
+renderer:
+  script_path: render-agent-kit.py
+  template_root: templates/repo
+  extra_templates:
+    - source_path: templates/installer/install.sh.tpl
+      destination_path: installer/install.sh
+  include_templates:
+    - templates/installer/partials/allowlist/defaults.gitignore
+    - templates/installer/partials/hooks/pre-tool-use-edit-recall.sh
+    - templates/installer/partials/hooks/pre-tool-use-git-commit-capture.sh
+    - templates/installer/partials/hooks/stop-session-digest-claude.sh
+    - templates/installer/partials/hooks/stop-session-digest-codex.sh
+    - templates/installer/partials/hooks/user-prompt-submit-recall.sh
+    - templates/installer/partials/settings/codex-hooks.json
+    - templates/installer/partials/skills/agent-session-bootstrap.md
+    - templates/installer/partials/skills/audit.md
+    - templates/installer/partials/skills/kb-first.md
+    - templates/installer/partials/skills/token-economy.md
+    - templates/installer/partials/skills/topics.md
+  managed_paths:
+    - .agents/skills/add-public-service/SKILL.md
+    - .agents/skills/agent-session-bootstrap/SKILL.md
+    - .agents/skills/council/SKILL.md
+    - .agents/skills/fleet-change/SKILL.md
+    - .agents/skills/kb-first/SKILL.md
+    - .agents/skills/open-pr/SKILL.md
+    - .agents/skills/run-tests/SKILL.md
+    - .agents/skills/speckit-analyze/SKILL.md
+    - .agents/skills/speckit-checklist/SKILL.md
+    - .agents/skills/speckit-clarify/SKILL.md
+    - .agents/skills/speckit-constitution/SKILL.md
+    - .agents/skills/speckit-implement/SKILL.md
+    - .agents/skills/speckit-plan/SKILL.md
+    - .agents/skills/speckit-specify/SKILL.md
+    - .agents/skills/speckit-tasks/SKILL.md
+    - .agents/skills/speckit-taskstoissues/SKILL.md
+    - .agents/skills/token-economy/SKILL.md
+    - .claude/commands/speckit.analyze.md
+    - .claude/commands/speckit.checklist.md
+    - .claude/commands/speckit.clarify.md
+    - .claude/commands/speckit.constitution.md
+    - .claude/commands/speckit.implement.md
+    - .claude/commands/speckit.plan.md
+    - .claude/commands/speckit.specify.md
+    - .claude/commands/speckit.tasks.md
+    - .claude/commands/speckit.taskstoissues.md
+    - .claude/hooks/kb-stop-digest.sh
+    - .claude/hooks/kb-user-prompt-recall.sh
+    - .claude/hooks/pre-tool-use-edit-recall.sh
+    - .claude/hooks/pre-tool-use-git-commit-capture.sh
+    - .claude/settings.json
+    - .claude/skills/add-public-service/SKILL.md
+    - .claude/skills/agent-session-bootstrap/SKILL.md
+    - .claude/skills/council/SKILL.md
+    - .claude/skills/fleet-change/SKILL.md
+    - .claude/skills/kb-first/SKILL.md
+    - .claude/skills/open-pr/SKILL.md
+    - .claude/skills/run-tests/SKILL.md
+    - .claude/skills/token-economy/SKILL.md
+    - .codex/hooks.json
+    - .codex/hooks/kb-stop-digest.sh
+    - .codex/hooks/kb-user-prompt-recall.sh
+    - .codex/hooks/pre-tool-use-edit-recall.sh
+    - .codex/hooks/pre-tool-use-git-commit-capture.sh
+    - .specify/scripts/bash/check-prerequisites.sh
+    - .specify/scripts/bash/common.sh
+    - .specify/scripts/bash/create-new-feature.sh
+    - .specify/scripts/bash/setup-plan.sh
+    - .specify/scripts/bash/setup-tasks.sh
+    - .specify/templates/constitution-template.md
+    - .specify/templates/plan-template.md
+    - .specify/templates/spec-template.md
+    - .specify/templates/tasks-template.md
+    - installer/install.sh
+
+canonical_mcp_tools:
+  source: knowledge-api MCP tool contract
+  prefix: knowledge.
+
+commands:
+  - name: speckit.analyze
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-analyze/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.analyze.md
+        sha256: 76a6bd6c5ed3746a0075afaeeefc22a74f1d25686aecdee56726155143a50141
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.analyze.md"
+  - name: speckit.checklist
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-checklist/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.checklist.md
+        sha256: 4c827224cb00215326459cf46e84d0ecb5ec9e5ad08853d778562913bdef5989
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.checklist.md"
+  - name: speckit.clarify
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-clarify/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.clarify.md
+        sha256: e64db680a3b2df9e61c1339f53a18cb64bf9cdbe937409767308d81646b04ed6
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.clarify.md"
+  - name: speckit.constitution
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-constitution/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.constitution.md
+        sha256: 24d295f7727c0d4c9914548eb4b7b41fdc1c185d330401fe551bb35058f2b973
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.constitution.md"
+  - name: speckit.implement
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-implement/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.implement.md
+        sha256: 4696bcbb228a3961674467d2cfc404b9083cee2dc6e9f5047adfaff5fb91cf85
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.implement.md"
+  - name: speckit.plan
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-plan/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.plan.md
+        sha256: 20c3427f045364a96eb5593090dba576b3d1761421edd1bfe0291389b0664e94
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.plan.md"
+  - name: speckit.specify
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-specify/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.specify.md
+        sha256: f6a04756139b00046995c8cbb1c43c28a8abaaa2d22e5e0e3ead3158e3d74d64
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.specify.md"
+  - name: speckit.tasks
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-tasks/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.tasks.md
+        sha256: 5a260a032662994e2c50203954099c4af17b83a73bb1ec1a1b5309d04bf92746
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.tasks.md"
+  - name: speckit.taskstoissues
+    supported_agents: [claude]
+    unsupported:
+      codex: "Use .agents/skills/speckit-taskstoissues/SKILL.md."
+    targets:
+      - agent: claude
+        path: .claude/commands/speckit.taskstoissues.md
+        sha256: f18d5b2efc9834825fd87252ccd25cbaa2a9c40aa60f0baa9c12698ea86ebcff
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/commands/speckit.taskstoissues.md"
+
+skills:
+  - name: add-public-service
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/add-public-service/SKILL.md
+        sha256: 980e0d3014e1fc1055eae090be32689f0d2acf93d18b66e88fb5278b5c311521
+      - agent: claude
+        path: .claude/skills/add-public-service/SKILL.md
+        sha256: 7f48561cc99bc1599a5e0bb75fddd659224e96c141ecb4bdff200e4e939c09ac
+  - name: agent-session-bootstrap
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/agent-session-bootstrap/SKILL.md
+        sha256: ce0ca2c28d3bc3e6c7c8f4ad4919d64323215d0a140a9e208230aca986ea3e14
+      - agent: claude
+        path: .claude/skills/agent-session-bootstrap/SKILL.md
+        sha256: d9c050e9c9dc1714129e545559f8f42ead5f0b6bc4cb28f4af74b3610542e596
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/agent-session-bootstrap/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/agent-session-bootstrap/SKILL.md"
+  - name: council
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council/SKILL.md
+        sha256: b7f73e380fc03a5fd672b0e533459dd1a833fc56de766242a675b892e5bcf9c3
+      - agent: claude
+        path: .claude/skills/council/SKILL.md
+        sha256: 0453a7fe2373cc46cf6e17122788ef7a99a5d8c7f2e0387ff7962265c088500a
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council/SKILL.md"
+  - name: fleet-change
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/fleet-change/SKILL.md
+        sha256: 33197dd628ed943598578d8abb05e84b35d7985802292ba66565e9814a028c42
+      - agent: claude
+        path: .claude/skills/fleet-change/SKILL.md
+        sha256: da427baa764c7d17667f9faa0b2bdbb467c9a34acaeb1a4df2523d16bdb4e0c5
+  - name: kb-first
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/kb-first/SKILL.md
+        sha256: efc4ecbd85e9d516f7b6718842c055efcb8406a8911b10c4f4cdd168370f814b
+      - agent: claude
+        path: .claude/skills/kb-first/SKILL.md
+        sha256: 99f677b9e491be60b35dc72d6abbf87a064ce1f6db83b492af990a467f63881c
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/kb-first/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/kb-first/SKILL.md"
+  - name: open-pr
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/open-pr/SKILL.md
+        sha256: 6ca06fa4795b7aa15835f5f5918a90ff6a6495a76b8bc7fcf584aca3f3dfd7d1
+      - agent: claude
+        path: .claude/skills/open-pr/SKILL.md
+        sha256: 1d89e750db26d9c27668612dbdd9f4997da93edfd8d4801c8707b56b856e3c29
+  - name: run-tests
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/run-tests/SKILL.md
+        sha256: 86d817234ed8fe297acd9827af8fda222aaf792222e18f0e224f632c6e39d1f1
+      - agent: claude
+        path: .claude/skills/run-tests/SKILL.md
+        sha256: 5a302d89748cff71ed3837463b5b1c114e8cd37ddf168ac6fe66cb6183a0ac70
+  - name: token-economy
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/token-economy/SKILL.md
+        sha256: d6c34f128273a05dedabbccb12efe3b268a71aec3d2dca2af11b8f47cda69ac2
+      - agent: claude
+        path: .claude/skills/token-economy/SKILL.md
+        sha256: 6823d195dbfb99e2bab3bdeed760445d1d0db78600a46405ae605c12fca4467e
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/token-economy/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/token-economy/SKILL.md"
+  - name: speckit-analyze
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.analyze.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-analyze/SKILL.md
+        sha256: 69f5a7b05bc964aa17de0140b79cd7627a5c45251b2d4fe65c475e60c4f6407a
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-analyze/SKILL.md"
+  - name: speckit-checklist
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.checklist.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-checklist/SKILL.md
+        sha256: a2412d37d9531290f8fc6906d26b9a79af2315605b71e33db0d8a78f1dc3b3ea
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-checklist/SKILL.md"
+  - name: speckit-clarify
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.clarify.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-clarify/SKILL.md
+        sha256: 6d803f3be308a4ad7918d675b8f15511dd9de244bb66edaa14cbbe5e87897cab
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-clarify/SKILL.md"
+  - name: speckit-constitution
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.constitution.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-constitution/SKILL.md
+        sha256: cf04111fcab5e9eb0e7a8045cf14cc285c66d3a286110b0592f8cd38001a1841
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-constitution/SKILL.md"
+  - name: speckit-implement
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.implement.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-implement/SKILL.md
+        sha256: eb568acf86483a2ff53e7afd8f9f3dcfdeca02e1cc421751a02d699f4076ca92
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-implement/SKILL.md"
+  - name: speckit-plan
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.plan.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-plan/SKILL.md
+        sha256: f571eaa6e57ee003d813e5b8a968133161efdca4928a752f9b3349eaa66d5f5f
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-plan/SKILL.md"
+  - name: speckit-specify
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.specify.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-specify/SKILL.md
+        sha256: 3178bfca954336fdff4fdbf0245843168b86c631f3240ac82341a9c1c6a6411c
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-specify/SKILL.md"
+  - name: speckit-tasks
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.tasks.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-tasks/SKILL.md
+        sha256: 661bab500268b0bd348d3c74401309e604ea10331d5b10f5c408bc6832d18a5f
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-tasks/SKILL.md"
+  - name: speckit-taskstoissues
+    supported_agents: [codex]
+    unsupported:
+      claude: "Use .claude/commands/speckit.taskstoissues.md."
+    targets:
+      - agent: codex
+        path: .agents/skills/speckit-taskstoissues/SKILL.md
+        sha256: ab783756dfcef9c65070bc49d8f775a9b56050f58fd3a10baaa162cf7d42bea6
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/speckit-taskstoissues/SKILL.md"
+  - name: topics
+    supported_agents: [codex, claude]
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/topics/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/topics/SKILL.md"
+  - name: audit
+    supported_agents: [codex, claude]
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/audit/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/audit/SKILL.md"
+
+hooks:
+  - name: kb-user-prompt-recall
+    event: UserPromptSubmit
+    purpose: "Inject bounded knowledge.recall snippets before the agent sees the prompt."
+    supported_agents: [claude, codex]
+    mcp_tools: [knowledge.recall]
+    targets:
+      - agent: claude
+        path: .claude/hooks/kb-user-prompt-recall.sh
+        settings_path: .claude/settings.json
+        sha256: 241d436a91e1577f7b71d5e5fa0223c63af354056a67df4fb0d9ab6d2ae25be6
+      - agent: codex
+        path: .codex/hooks/kb-user-prompt-recall.sh
+        settings_path: .codex/hooks.json
+        sha256: 50d4579b3e774675326cc76113afebcfe5251c46ea11059cf0a567557e1a6911
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/hooks/user-prompt-submit-recall.sh"
+      codex_target_path: "${CODEX_HOME}/hooks/kb-user-prompt-recall.sh"
+  - name: kb-stop-digest
+    event: Stop
+    purpose: "Digest the transcript into capped lesson candidates and capture survivors."
+    supported_agents: [claude, codex]
+    mcp_tools: [knowledge.digest_transcript, knowledge.recall, knowledge.capture_lesson]
+    targets:
+      - agent: claude
+        path: .claude/hooks/kb-stop-digest.sh
+        settings_path: .claude/settings.json
+        sha256: e080941bb1074fc0f38b33ba2b627566a81e8303a534f1254f4455d0d1022b5e
+      - agent: codex
+        path: .codex/hooks/kb-stop-digest.sh
+        settings_path: .codex/hooks.json
+        sha256: 193522faf697ca08bc18b0b00d670195efe54d88be4dfca95324dce6910b6e01
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/hooks/stop-session-digest.sh"
+      codex_target_path: "${CODEX_HOME}/hooks/kb-stop-digest.sh"
+  - name: pre-tool-use-edit-recall
+    event: PreToolUse
+    matcher: "Edit|Write|MultiEdit|apply_patch"
+    purpose: "Recall file/module lessons before edits."
+    supported_agents: [claude, codex]
+    mcp_tools: [knowledge.recall]
+    targets:
+      - agent: claude
+        path: .claude/hooks/pre-tool-use-edit-recall.sh
+        settings_path: .claude/settings.json
+        sha256: 7d99f2f851d4156abc30f3ed9f6b220e927710a961ed630628f0393b5fe5b979
+      - agent: codex
+        path: .codex/hooks/pre-tool-use-edit-recall.sh
+        settings_path: .codex/hooks.json
+        sha256: a107e6f8a2a73346c1b05a235c2849264509acbcc631688c25fc7b22f5444c7d
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/hooks/pre-tool-use-edit-recall.sh"
+      codex_target_path: "${CODEX_HOME}/hooks/pre-tool-use-edit-recall.sh"
+  - name: pre-tool-use-git-commit-capture
+    event: PreToolUse
+    matcher: "Bash"
+    purpose: "Capture non-WIP git commit messages as candidate decisions."
+    supported_agents: [claude, codex]
+    mcp_tools: [knowledge.capture_decision]
+    targets:
+      - agent: claude
+        path: .claude/hooks/pre-tool-use-git-commit-capture.sh
+        settings_path: .claude/settings.json
+        sha256: 2eae87a39883a349f7640338ed599b16335436df6cc4f559ff2fe69319ae345b
+      - agent: codex
+        path: .codex/hooks/pre-tool-use-git-commit-capture.sh
+        settings_path: .codex/hooks.json
+        sha256: 6d2370aa565da308ce1d8e838dda18da4897cdd4a5ebeab171b4a1b8be6028c6
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/hooks/pre-tool-use-git-commit-capture.sh"
+      codex_target_path: "${CODEX_HOME}/hooks/pre-tool-use-git-commit-capture.sh"
+
+settings:
+  - agent: claude
+    path: .claude/settings.json
+    sha256: 08f4c470cd3f10e524d6d442afc510b479cb06c0e018675ef8a04f7f7a26d9fd
+  - agent: codex
+    path: .codex/hooks.json
+    sha256: ec501908b04a9b4ac1cf073f9cdb703322952267eb79583845eb139068330019
+
+specify:
+  project_seed:
+    scope: project
+    tracked_for_uninstall: false
+    targets:
+      - path: .specify/memory/constitution.md
+        sha256: 2c25335af4dd111ab7ee3b4c16c30bad551867b387f9506a9a51aa263a8fb81d
+        installer_target_path: "${PROJECT_ROOT}/.specify/memory/constitution.md"
+        mode: "0644"
+        seed_if_absent: true
+      - path: .specify/scripts/bash/check-prerequisites.sh
+        sha256: 52bd5ecddfbbd8469f6852bcec88bd9cba05afea241ec5e685647f939b01db27
+        installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/check-prerequisites.sh"
+        mode: "0755"
+        seed_if_absent: false
+      - path: .specify/scripts/bash/common.sh
+        sha256: a719f3d39a4b59d306dcc291dc2459682f746e1a29f16719a69f64b3b41e9eb2
+        installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/common.sh"
+        mode: "0755"
+        seed_if_absent: false
+      - path: .specify/scripts/bash/create-new-feature.sh
+        sha256: 23b521fcdf2c8c7907542f9e2481f72c024ab57a17fac12305631192981a99e3
+        installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/create-new-feature.sh"
+        mode: "0755"
+        seed_if_absent: false
+      - path: .specify/scripts/bash/setup-plan.sh
+        sha256: e224118718dbe677e549241ffe7a15db8099f01dcd8800ce16a53ee862e1100d
+        installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/setup-plan.sh"
+        mode: "0755"
+        seed_if_absent: false
+      - path: .specify/scripts/bash/setup-tasks.sh
+        sha256: a31dec84da229d8c80244bfbc5ca46a4a40acdbf19b84787312a64bb4be6d07d
+        installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/setup-tasks.sh"
+        mode: "0755"
+        seed_if_absent: false
+      - path: .specify/templates/constitution-template.md
+        sha256: 47b6c0c7fb8ba3019f2b7baf5c8d852060e230bf239b42cbf93e396dd05e2d96
+        installer_target_path: "${PROJECT_ROOT}/.specify/templates/constitution-template.md"
+        mode: "0644"
+        seed_if_absent: false
+      - path: .specify/templates/plan-template.md
+        sha256: 04026ce6621c81392ce8ea7f59f9374087c8798b2d95f31094c18bab3cd0fc52
+        installer_target_path: "${PROJECT_ROOT}/.specify/templates/plan-template.md"
+        mode: "0644"
+        seed_if_absent: false
+      - path: .specify/templates/spec-template.md
+        sha256: f3f75f9140dcd0cba18110ebf9952031e2e0db1c4d2cc4c207c0a0fadf7efb4b
+        installer_target_path: "${PROJECT_ROOT}/.specify/templates/spec-template.md"
+        mode: "0644"
+        seed_if_absent: false
+      - path: .specify/templates/tasks-template.md
+        sha256: fd1a24e9c990d6d43c800b5d1b9130595d40fdf983df9610a640d5142840f99f
+        installer_target_path: "${PROJECT_ROOT}/.specify/templates/tasks-template.md"
+        mode: "0644"
+        seed_if_absent: false
+
+council:
+  supported_agents: [codex, claude]
+  files:
+    - path: council/council.py
+      sha256: 857818f1e7c8b5093f2ea9461aa5e56a32d6044e468c5cc794bc23c8a5276b0b
+      mode: "0755"
+    - path: council/council.toml
+      sha256: 35ab8f0a13a260ec6b999c27439074e699749a360bf56ea7086aa90c11dc8e75
+      mode: "0644"
+    - path: council/prompts/_baseline.md
+      sha256: 6f431665af14e70f508814017b29390b5a60cec9bf597b1655b487b6376bf42a
+      mode: "0644"
+    - path: council/prompts/consolidator.md
+      sha256: 546ea1239cf7eb193136d3f79fa3280896dc732b1108ed92bcf77044a5fd2040
+      mode: "0644"
+    - path: council/prompts/critic.md
+      sha256: 6b070986b0efc447e1cecb10305e60fe9943d9f6e22cff6bbe8c7d5825efba0d
+      mode: "0644"
+    - path: council/prompts/planner.md
+      sha256: 00c933f31dddd0ab357f913dcca095dc892c2c0277ea9566612c3a8605f5d5a0
+      mode: "0644"
+    - path: council/prompts/reviser.md
+      sha256: b2517334a90822644d592efa5ae446b3c87dc493b553b71d02b81efab39950d4
+      mode: "0644"
+    - path: council/prompts/verifier.md
+      sha256: a227cd0a30f0465eb6be3e3bd4c9499fc626f5d8ba13f2bcc8fc0b9f7cca1561
+      mode: "0644"
+    - path: council/prompts/worker.md
+      sha256: fdf27d2f946f7f5a4f1bbfb21ecf2c41b852ccd6562b399b7622f343862d8182
+      mode: "0644"
+    - path: council/schemas/consolidated.schema.json
+      sha256: 22108361d8bbc20be96c8cf50f82585b47ecff12138d65b7b484a8bea09dcaac
+      mode: "0644"
+    - path: council/schemas/plan.schema.json
+      sha256: 1c3fe7c0a3c1d243cb3a25b226d339960c8de31b43d29fff367e9930b380caa1
+      mode: "0644"
+    - path: council/schemas/verdict.schema.json
+      sha256: 0133f2b50d9a629ab1ba332bec4491a465ed11d3ceab1a2f7fe48872d4315ca0
+      mode: "0644"
+
+installer:
+  path: installer/install.sh
+  sha256: bedf77cb7d595c5eb07535775864a18ed48aa1e0a9abb47651880c988bde2f87
+  supported_agents: [codex, claude]

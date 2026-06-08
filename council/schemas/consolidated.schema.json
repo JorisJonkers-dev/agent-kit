@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "council-consolidated",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["consolidated_plan_markdown", "tasks"],
+  "properties": {
+    "consolidated_plan_markdown": { "type": "string" },
+    "spec_markdown": { "type": "string" },
+    "implementation_plan_markdown": { "type": "string" },
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "objective",
+          "output_format",
+          "paths",
+          "depends_on",
+          "difficulty",
+          "model",
+          "verify",
+          "boundaries"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "objective": { "type": "string" },
+          "output_format": { "type": "string" },
+          "paths": { "type": "array", "items": { "type": "string" } },
+          "depends_on": { "type": "array", "items": { "type": "string" } },
+          "difficulty": { "type": "string", "enum": ["trivial", "moderate", "hard"] },
+          "model": { "type": "string", "enum": ["haiku", "sonnet", "opus"] },
+          "verify": { "type": "string" },
+          "boundaries": { "type": "string" }
+        }
+      }
+    }
+  }
+}

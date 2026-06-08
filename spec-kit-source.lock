@@ -1,0 +1,52 @@
+# Spec Kit Source Lock
+
+upstream_repository: https://github.com/github/spec-kit
+upstream_tag: v0.9.5
+upstream_release_date: 2026-06-05
+resolved_commit_sha: 9313aaeb6573333c636c7ac55439dddc256c29e1
+license: MIT
+
+## Copied or Adapted Paths
+
+The following upstream `.specify` scaffold paths are vendored into the
+render-managed agent-kit seed:
+
+- `.specify/templates/spec-template.md`
+- `.specify/templates/plan-template.md`
+- `.specify/templates/tasks-template.md`
+- `.specify/templates/constitution-template.md`
+- `.specify/scripts/bash/check-prerequisites.sh`
+- `.specify/scripts/bash/common.sh`
+- `.specify/scripts/bash/create-new-feature.sh`
+- `.specify/scripts/bash/setup-plan.sh`
+- `.specify/scripts/bash/setup-tasks.sh`
+
+Agent-kit also commits this repo-local seed source outside renderer ownership:
+
+- `.specify/memory/constitution.md`
+
+## Adaptation Notes
+
+- The render-managed constitution template remains a generic starter.
+- The repo-root `.specify/memory/constitution.md` is the project seed source
+  and must be hand-edited, not rendered over.
+- `.specify` is treated as seed-if-absent. Installs must never clobber an
+  existing project `.specify` directory.
+- Bash scripts preserve upstream-style feature branch directories under
+  `specs/<number>-<slug>/` and JSON outputs consumed by `/speckit.*` commands.
+
+## Upgrade Procedure
+
+Run the upstream sync outside runtime installs; never upgrade a user's
+`.specify` tree in place.
+
+1. Install or upgrade Specify CLI pinned to the candidate tag:
+   `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@vX.Y.Z`
+2. Preview upstream changes:
+   `specify self upgrade --dry-run`
+3. Resolve the tag SHA without modifying this repo:
+   `git ls-remote --tags https://github.com/github/spec-kit.git refs/tags/vX.Y.Z`
+4. Copy only the scaffold paths listed above into `templates/repo/.specify/`.
+5. Keep `.specify/memory/constitution.md` hand-edited and do not replace it
+   with the generic upstream template.
+6. Re-run shell syntax checks, render checks, and manifest validation.

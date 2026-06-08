@@ -1,0 +1,52 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh",
+            "timeout": 5,
+            "statusMessage": "Loading KB context"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env KB_AUTO_MCP_HOME=${CODEX_HOME} ${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh",
+            "timeout": 5,
+            "statusMessage": "Loading file KB context"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env KB_AUTO_MCP_HOME=${CODEX_HOME} KB_AUTO_MCP_SOURCE=codex:auto-capture:git-commit KB_AUTO_MCP_CLIENT_NAME=Codex ${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh",
+            "timeout": 5,
+            "statusMessage": "Capturing commit decision"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CODEX_HOOKS_DIR}/kb-stop-digest.sh",
+            "timeout": 60,
+            "statusMessage": "Capturing KB lessons"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "council-plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "approach",
+    "steps",
+    "risks",
+    "parallelizable_tasks",
+    "open_questions"
+  ],
+  "properties": {
+    "summary": { "type": "string" },
+    "approach": { "type": "string" },
+    "steps": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "parallelizable_tasks": { "type": "array", "items": { "type": "string" } },
+    "open_questions": { "type": "array", "items": { "type": "string" } }
+  }
+}

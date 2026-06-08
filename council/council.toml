@@ -1,0 +1,9 @@
+# council configuration. CLI flags override these per run;
+# `council config set <key> <value>` edits this file. Keys not
+# listed follow the chosen intensity preset (quick|standard|thorough|max).
+
+intensity = "standard"
+planner_a = "claude:opus"
+planner_b = "codex:gpt-5.5"
+consolidator = "claude:opus"
+verifier = "claude:sonnet"
