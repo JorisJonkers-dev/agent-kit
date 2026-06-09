@@ -33,6 +33,22 @@ jobs:
       - name: Compile Python
         run: python -m compileall render-agent-kit.py scripts council
 
+  workflow-lint:
+    name: Workflow Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download actionlint
+        id: actionlint
+        shell: bash
+        run: bash <(curl --fail --silent --show-error --location https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+      - name: Lint GitHub Actions workflows
+        shell: bash
+        run: |
+          "${{ steps.actionlint.outputs.executable }}" -color .github/workflows/*.yml
+
   render-check:
     name: Renderer Check
     runs-on: ubuntu-latest
@@ -128,7 +144,7 @@ jobs:
   pipeline-complete:
     name: Pipeline Complete
     if: always()
-    needs: [python-lint, render-check, manifest-validation, release-config]
+    needs: [python-lint, workflow-lint, render-check, manifest-validation, release-config]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all gating jobs succeeded
