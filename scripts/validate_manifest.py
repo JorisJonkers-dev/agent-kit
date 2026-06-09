@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import re
 import sys
 from collections.abc import Iterable
@@ -19,6 +20,53 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in CI setup f
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "manifest.yaml"
+ROUND3_SKELETON_DIR = ROOT / "runner-manifests"
+ROUND3_SPEC_DIR = ROOT / "specs" / "002-round3-agent-runner-manifests"
+ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR, ROUND3_SPEC_DIR)
+
+ROUND3_FORBIDDEN_PATTERNS = {
+    "personal domain or hostname": re.compile(
+        r"\b(?:jorisjonkers|esa-blueshell|blueshell|enschede|frankfurt|contabo)\b",
+        re.IGNORECASE,
+    ),
+    "concrete namespace": re.compile(r"\b(?:agents-system|assistant-system|knowledge-system)\b"),
+    "personal image prefix": re.compile(r"\bghcr\.io/extratoast/[^<\s]+", re.IGNORECASE),
+    "personal label": re.compile(r"\bpersonal-stack/[A-Za-z0-9_.-]+", re.IGNORECASE),
+    "vault path": re.compile(r"\bsecret/(?:agents|knowledge-system|platform)\b", re.IGNORECASE),
+    "ip address": re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
+    "endpoint url": re.compile(r"\bhttps?://[^\s)\"']+", re.IGNORECASE),
+}
+
+KUBERNETES_API_PREFIXES = (
+    "v1",
+    "apps/",
+    "batch/",
+    "rbac.authorization.k8s.io/",
+    "networking.k8s.io/",
+    "kustomize.config.k8s.io/",
+    "helm.toolkit.fluxcd.io/",
+    "kustomize.toolkit.fluxcd.io/",
+)
+KUBERNETES_RESOURCE_KINDS = {
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "ConfigMap",
+    "CronJob",
+    "Deployment",
+    "HelmRelease",
+    "Ingress",
+    "Kustomization",
+    "Namespace",
+    "NetworkPolicy",
+    "PersistentVolumeClaim",
+    "Pod",
+    "Role",
+    "RoleBinding",
+    "Secret",
+    "Service",
+    "ServiceAccount",
+    "StatefulSet",
+}
 
 
 def load_renderer() -> Any:
@@ -244,6 +292,61 @@ def validate_installer(manifest: dict[str, Any]) -> None:
         fail("installer contains secret-like markers: " + ",".join(matches))
 
 
+def round3_files() -> list[Path]:
+    files: list[Path] = []
+    for directory in ROUND3_VALIDATED_DIRS:
+        if not directory.is_dir():
+            fail(f"round-3 required directory is missing: {directory.relative_to(ROOT)}")
+        files.extend(path for path in directory.rglob("*") if path.is_file())
+    return sorted(files)
+
+
+def validate_round3_no_concrete_values() -> None:
+    for path in round3_files():
+        rel = path.relative_to(ROOT).as_posix()
+        text = path.read_text(errors="replace")
+        for label, pattern in ROUND3_FORBIDDEN_PATTERNS.items():
+            match = pattern.search(text)
+            if match:
+                fail(f"round-3 skeleton contains {label} in {rel}: {match.group(0)}")
+
+
+def validate_round3_parses() -> None:
+    schema_path = ROUND3_SKELETON_DIR / "runtime-package.schema.json"
+    if not schema_path.is_file():
+        fail("round-3 runtime package schema is missing")
+    schema = json.loads(schema_path.read_text())
+    if schema.get("title") != "AgentRuntimePackage":
+        fail("round-3 runtime schema title must be AgentRuntimePackage")
+
+    fixtures_dir = ROUND3_SKELETON_DIR / "fixtures"
+    if not fixtures_dir.is_dir():
+        fail("round-3 fixtures directory is missing")
+    for path in sorted(fixtures_dir.glob("*.yaml")):
+        loaded = list(yaml.safe_load_all(path.read_text()))
+        if not loaded or any(item is None for item in loaded):
+            fail(f"round-3 fixture must contain at least one YAML document: {path.relative_to(ROOT)}")
+
+
+def validate_round3_non_deployable() -> None:
+    for path in sorted((ROUND3_SKELETON_DIR / "fixtures").glob("*.yaml")):
+        for document in yaml.safe_load_all(path.read_text()):
+            if not isinstance(document, dict):
+                continue
+            api_version = str(document.get("apiVersion", ""))
+            kind = str(document.get("kind", ""))
+            if kind in KUBERNETES_RESOURCE_KINDS:
+                fail(f"round-3 fixture uses deployable Kubernetes kind {kind}: {path.relative_to(ROOT)}")
+            if any(api_version == prefix or api_version.startswith(prefix) for prefix in KUBERNETES_API_PREFIXES):
+                fail(f"round-3 fixture uses Kubernetes apiVersion {api_version}: {path.relative_to(ROOT)}")
+
+
+def validate_round3_skeleton() -> None:
+    validate_round3_no_concrete_values()
+    validate_round3_parses()
+    validate_round3_non_deployable()
+
+
 def main() -> int:
     try:
         manifest = load_manifest()
@@ -253,6 +356,7 @@ def main() -> int:
         validate_surface_parity(manifest)
         validate_council(manifest)
         validate_installer(manifest)
+        validate_round3_skeleton()
     except AssertionError as exc:
         print(f"manifest validation failed: {exc}", file=sys.stderr)
         return 1

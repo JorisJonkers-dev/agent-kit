@@ -1,0 +1,275 @@
+{
+  "$id": "agent-kit.agent-runner.runtime-package.schema.json",
+  "title": "AgentRuntimePackage",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "runtime", "handoff"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "agent-kit.extratoast.dev/v1alpha1"
+    },
+    "kind": {
+      "const": "AgentRuntimePackage"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "supportedAgents",
+        "parityPolicy",
+        "paths",
+        "entrypoint",
+        "repositories",
+        "mcpProfiles",
+        "credentials",
+        "tooling",
+        "sddSeed"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "supportedAgents": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["id", "homeEnv"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "homeEnv": {
+                "type": "string",
+                "minLength": 1
+              },
+              "configEnv": {
+                "type": "string"
+              },
+              "unsupportedReason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "parityPolicy": {
+          "type": "object",
+          "required": ["requiresExplicitUnsupportedReason"],
+          "additionalProperties": false,
+          "properties": {
+            "requiresExplicitUnsupportedReason": {
+              "type": "boolean"
+            }
+          }
+        },
+        "paths": {
+          "type": "object",
+          "required": ["home", "workspaceRoot", "agentKitSeedSource"],
+          "additionalProperties": {
+            "type": "string"
+          },
+          "properties": {
+            "home": {
+              "type": "string"
+            },
+            "workspaceRoot": {
+              "type": "string"
+            },
+            "agentKitSeedSource": {
+              "type": "string"
+            }
+          }
+        },
+        "entrypoint": {
+          "type": "object",
+          "required": ["command", "environment", "selfTests"],
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "environment": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/envVar"
+              }
+            },
+            "selfTests": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "repositories": {
+          "type": "object",
+          "required": ["primaryUrlEnv", "primaryBranchEnv", "additionalUrlsEnv", "allowListOutputEnv"],
+          "additionalProperties": false,
+          "properties": {
+            "primaryUrlEnv": {
+              "type": "string"
+            },
+            "primaryBranchEnv": {
+              "type": "string"
+            },
+            "additionalUrlsEnv": {
+              "type": "string"
+            },
+            "allowListOutputEnv": {
+              "type": "string"
+            }
+          }
+        },
+        "mcpProfiles": {
+          "type": "object",
+          "required": ["profileEnv", "profileDirectoryEnv", "profiles", "serverUrlPlaceholders"],
+          "additionalProperties": false,
+          "properties": {
+            "profileEnv": {
+              "type": "string"
+            },
+            "profileDirectoryEnv": {
+              "type": "string"
+            },
+            "profiles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "serverUrlPlaceholders": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "bearerTokenEnvVars": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "mountPath", "writable"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "mountPath": {
+                "type": "string"
+              },
+              "writable": {
+                "type": "boolean"
+              },
+              "providedBy": {
+                "enum": ["platform-blueprints", "consumer"]
+              }
+            }
+          }
+        },
+        "tooling": {
+          "type": "object",
+          "required": ["requiredExecutables", "optionalExecutables"],
+          "additionalProperties": false,
+          "properties": {
+            "requiredExecutables": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "optionalExecutables": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "sddSeed": {
+          "type": "object",
+          "required": ["sourcePath", "markerFile", "updatePolicy"],
+          "additionalProperties": false,
+          "properties": {
+            "sourcePath": {
+              "type": "string"
+            },
+            "markerFile": {
+              "type": "string"
+            },
+            "updatePolicy": {
+              "enum": ["seed-if-absent", "update-if-unmodified"]
+            }
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["platformBlueprintResponsibilities", "forbiddenRuntimeDefaults"],
+      "additionalProperties": false,
+      "properties": {
+        "platformBlueprintResponsibilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbiddenRuntimeDefaults": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "envVar": {
+      "type": "object",
+      "required": ["name", "required"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,83 @@
+apiVersion: platform-blueprints.extratoast.dev/v1alpha1
+kind: AgentRunnerDeploymentIntent
+metadata:
+  name: placeholder-agent-runner
+  description: Placeholder-only deployment intent. This is not a Kubernetes manifest.
+source:
+  runtimePackageRef:
+    name: placeholder-agent-runtime
+    version: <agent-kit-version>
+image:
+  repository: <runner-image-repository>
+  tagOrDigest: <runner-image-tag-or-digest>
+  pullPolicy: <consumer-selected-pull-policy>
+cluster:
+  namespaceRef: <agent-runner-namespace>
+  labelsRef: <agent-runner-label-set>
+  serviceAccounts:
+    runnerRef: <runner-service-account>
+    orchestratorRef: <orchestrator-service-account>
+storage:
+  credentialStores:
+    - id: claude-home
+      mountPath: <agent-home>/.claude
+      persistenceRef: <credential-persistence-template>
+      accessMode: <consumer-selected-access-mode>
+    - id: codex-home
+      mountPath: <agent-home>/.codex
+      persistenceRef: <credential-persistence-template>
+      accessMode: <consumer-selected-access-mode>
+secrets:
+  projections:
+    - id: knowledge-mcp-bearer
+      envName: <knowledge-mcp-bearer-env>
+      sourceRef: <secret-source-ref>
+    - id: git-ssh-material
+      mountPath: <secret-mount-path>
+      sourceRef: <secret-source-ref>
+    - id: github-token-helper-bearer
+      envName: <github-token-helper-bearer-env>
+      sourceRef: <secret-source-ref>
+mcp:
+  profileConfigRef: <mcp-profile-config-source>
+  serverEndpoints:
+    - id: knowledge
+      url: <knowledge-mcp-url>
+    - id: cluster
+      url: <optional-cluster-mcp-url>
+workloads:
+  authBootstrap:
+    enabled: <true-or-false>
+    commandRef: <interactive-bootstrap-command-template>
+  refreshProbe:
+    enabled: <true-or-false>
+    scheduleRef: <consumer-selected-schedule>
+    commandRef: <agent-cli-health-check-template>
+  kitInstallRefresh:
+    enabled: <true-or-false>
+    scheduleRef: <consumer-selected-schedule>
+    commandRef: <agent-kit-install-command-template>
+  runnerPodFactory:
+    controlledBy: <workspace-orchestrator>
+    podTemplateRef: <platform-rendered-template>
+security:
+  runAsRef: <non-root-security-context>
+  hostDockerSocket:
+    enabled: <true-or-false>
+    mountRef: <optional-host-socket-mount>
+  serviceAccountToken:
+    automount: <true-or-false>
+scheduling:
+  placementProfileRef: <consumer-selected-placement-profile>
+  tolerationsRef: <optional-toleration-set>
+  topologyRef: <optional-topology-policy>
+network:
+  egressProfileRef: <runner-egress-profile>
+  allowedDestinationRefs:
+    - <dns-egress-destination>
+    - <git-hosting-egress-destination>
+    - <mcp-egress-destination>
+observability:
+  logsRef: <platform-log-policy>
+  metricsRef: <platform-metrics-policy>
+  alertsRef: <platform-alert-policy>
