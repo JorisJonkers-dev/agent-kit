@@ -2,11 +2,11 @@
   "$id": "agent-kit.agent-runner.runtime-package.schema.json",
   "title": "AgentRuntimePackage",
   "type": "object",
-  "required": ["apiVersion", "kind", "metadata", "runtime", "handoff"],
+  "required": ["apiVersion", "kind", "metadata", "build", "runtime", "handoff"],
   "additionalProperties": false,
   "properties": {
     "apiVersion": {
-      "const": "agent-kit.extratoast.dev/v1alpha1"
+      "const": "agent-kit.runtime/v1alpha1"
     },
     "kind": {
       "const": "AgentRuntimePackage"
@@ -23,10 +23,41 @@
         "description": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "required": ["containerfile", "context", "args", "requiredBaseExecutables", "requiredAgentExecutables"],
+      "additionalProperties": false,
+      "properties": {
+        "containerfile": {
+          "type": "string"
         },
-        "labels": {
+        "context": {
+          "type": "string"
+        },
+        "args": {
           "type": "object",
           "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "requiredBaseExecutables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredAgentExecutables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "optionalExecutables": {
+          "type": "array",
+          "items": {
             "type": "string"
           }
         }
@@ -40,12 +71,11 @@
         "paths",
         "entrypoint",
         "repositories",
+        "githubTokenHelper",
         "mcpProfiles",
-        "credentials",
-        "tooling",
         "sddSeed"
       ],
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "supportedAgents": {
           "type": "array",
@@ -53,17 +83,12 @@
           "items": {
             "type": "object",
             "required": ["id", "homeEnv"],
-            "additionalProperties": false,
+            "additionalProperties": true,
             "properties": {
               "id": {
-                "type": "string",
-                "minLength": 1
+                "type": "string"
               },
               "homeEnv": {
-                "type": "string",
-                "minLength": 1
-              },
-              "configEnv": {
                 "type": "string"
               },
               "unsupportedReason": {
@@ -84,27 +109,18 @@
         },
         "paths": {
           "type": "object",
-          "required": ["home", "workspaceRoot", "agentKitSeedSource"],
           "additionalProperties": {
             "type": "string"
-          },
-          "properties": {
-            "home": {
-              "type": "string"
-            },
-            "workspaceRoot": {
-              "type": "string"
-            },
-            "agentKitSeedSource": {
-              "type": "string"
-            }
           }
         },
         "entrypoint": {
           "type": "object",
-          "required": ["command", "environment", "selfTests"],
-          "additionalProperties": false,
+          "required": ["path", "command", "environment", "selfTests"],
+          "additionalProperties": true,
           "properties": {
+            "path": {
+              "type": "string"
+            },
             "command": {
               "type": "array",
               "items": {
@@ -127,108 +143,69 @@
         },
         "repositories": {
           "type": "object",
-          "required": ["primaryUrlEnv", "primaryBranchEnv", "additionalUrlsEnv", "allowListOutputEnv"],
-          "additionalProperties": false,
-          "properties": {
-            "primaryUrlEnv": {
-              "type": "string"
-            },
-            "primaryBranchEnv": {
-              "type": "string"
-            },
-            "additionalUrlsEnv": {
-              "type": "string"
-            },
-            "allowListOutputEnv": {
-              "type": "string"
-            }
-          }
+          "required": ["primaryUrlEnv", "primaryBranchEnv", "additionalUrlsEnv", "allowListOutputEnv", "gitHostEnv"],
+          "additionalProperties": true
+        },
+        "githubTokenHelper": {
+          "type": "object",
+          "required": ["helperPath", "ghWrapperPath", "gitCredentialHelperPath", "mcpWrapperPath", "tokenUrlEnv", "tokenBearerEnv", "hostEnv"],
+          "additionalProperties": true
         },
         "mcpProfiles": {
           "type": "object",
-          "required": ["profileEnv", "profileDirectoryEnv", "profiles", "serverUrlPlaceholders"],
-          "additionalProperties": false,
+          "required": ["profileEnv", "profileDirectoryEnv", "placeholders", "profiles"],
+          "additionalProperties": true,
           "properties": {
-            "profileEnv": {
-              "type": "string"
-            },
-            "profileDirectoryEnv": {
-              "type": "string"
+            "placeholders": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "env"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "env": {
+                    "type": "string"
+                  }
+                }
+              }
             },
             "profiles": {
               "type": "array",
               "items": {
-                "type": "string"
-              }
-            },
-            "serverUrlPlaceholders": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "bearerTokenEnvVars": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "credentials": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "mountPath", "writable"],
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "mountPath": {
-                "type": "string"
-              },
-              "writable": {
-                "type": "boolean"
-              },
-              "providedBy": {
-                "enum": ["platform-blueprints", "consumer"]
-              }
-            }
-          }
-        },
-        "tooling": {
-          "type": "object",
-          "required": ["requiredExecutables", "optionalExecutables"],
-          "additionalProperties": false,
-          "properties": {
-            "requiredExecutables": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "optionalExecutables": {
-              "type": "array",
-              "items": {
-                "type": "string"
+                "type": "object",
+                "required": ["name", "claude", "codex"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "claude": {
+                    "type": "string"
+                  },
+                  "codex": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
         },
         "sddSeed": {
           "type": "object",
-          "required": ["sourcePath", "markerFile", "updatePolicy"],
+          "required": ["sourcePathEnv", "markerFileEnv", "updatePolicy"],
           "additionalProperties": false,
           "properties": {
-            "sourcePath": {
+            "sourcePathEnv": {
               "type": "string"
             },
-            "markerFile": {
+            "markerFileEnv": {
               "type": "string"
             },
             "updatePolicy": {
-              "enum": ["seed-if-absent", "update-if-unmodified"]
+              "enum": ["update-if-unmodified"]
             }
           }
         }
@@ -257,7 +234,7 @@
   "$defs": {
     "envVar": {
       "type": "object",
-      "required": ["name", "required"],
+      "required": ["name", "required", "description"],
       "additionalProperties": false,
       "properties": {
         "name": {

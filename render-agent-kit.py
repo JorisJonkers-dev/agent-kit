@@ -18,6 +18,8 @@ from urllib import error, request
 KIT_ROOT = Path(__file__).resolve().parent
 REPOSITORY_ROOT = KIT_ROOT
 REPO_TEMPLATE_ROOT = KIT_ROOT / "templates" / "repo"
+RUNNER_RUNTIME_TEMPLATE_ROOT = KIT_ROOT / "templates" / "runner-runtime"
+RUNNER_RUNTIME_DESTINATION = Path("runner-manifests/runtime")
 EXTRA_TEMPLATES = (
     (
         KIT_ROOT / "templates" / "installer" / "install.sh.tpl",
@@ -77,6 +79,20 @@ def template_files(destination_root: Path) -> list[RenderedFile]:
         if not source.is_file():
             continue
         relative_path = source.relative_to(REPO_TEMPLATE_ROOT)
+        files.append(
+            RenderedFile(
+                source=source,
+                destination=destination_root / relative_path,
+                relative_path=relative_path,
+            ),
+        )
+
+    if not RUNNER_RUNTIME_TEMPLATE_ROOT.is_dir():
+        raise FileNotFoundError(f"runner runtime template root does not exist: {RUNNER_RUNTIME_TEMPLATE_ROOT}")
+    for source in sorted(RUNNER_RUNTIME_TEMPLATE_ROOT.rglob("*")):
+        if not source.is_file():
+            continue
+        relative_path = RUNNER_RUNTIME_DESTINATION / source.relative_to(RUNNER_RUNTIME_TEMPLATE_ROOT)
         files.append(
             RenderedFile(
                 source=source,
@@ -409,13 +425,20 @@ def installer_artifact_check() -> DoctorCheck:
 def kb_reachability_check(require_live_kb: bool, timeout_seconds: float) -> DoctorCheck:
     kb_url = os.environ.get("KB_URL", "").rstrip("/")
     token = os.environ.get("KB_BEARER_TOKEN", "")
+    live_failure_status = "fail" if require_live_kb else "warn"
 
     if not kb_url:
-        status = "fail" if require_live_kb else "warn"
-        return DoctorCheck(name="kb-live", status=status, detail="KB_URL is not set; live MCP probe skipped")
+        return DoctorCheck(
+            name="kb-live",
+            status=live_failure_status,
+            detail="KB_URL is not set; live MCP probe skipped",
+        )
     if not token:
-        status = "fail" if require_live_kb else "warn"
-        return DoctorCheck(name="kb-live", status=status, detail="KB_BEARER_TOKEN is not set; live MCP probe skipped")
+        return DoctorCheck(
+            name="kb-live",
+            status=live_failure_status,
+            detail="KB_BEARER_TOKEN is not set; live MCP probe skipped",
+        )
 
     try:
         tools_body = mcp_post(
@@ -425,18 +448,22 @@ def kb_reachability_check(require_live_kb: bool, timeout_seconds: float) -> Doct
             timeout_seconds=timeout_seconds,
         )
     except (OSError, error.URLError, json.JSONDecodeError) as exc:
-        return DoctorCheck(name="kb-live", status="fail", detail=f"MCP tools/list probe failed: {exc}")
+        return DoctorCheck(name="kb-live", status=live_failure_status, detail=f"MCP tools/list probe failed: {exc}")
 
     if "error" in tools_body:
         return DoctorCheck(
             name="kb-live",
-            status="fail",
+            status=live_failure_status,
             detail=f"MCP tools/list returned error: {tools_body['error']}",
         )
 
     tool_names = {tool.get("name") for tool in tools_body.get("result", {}).get("tools", [])}
     if "knowledge.recall" not in tool_names:
-        return DoctorCheck(name="kb-live", status="fail", detail="MCP tools/list did not include knowledge.recall")
+        return DoctorCheck(
+            name="kb-live",
+            status=live_failure_status,
+            detail="MCP tools/list did not include knowledge.recall",
+        )
 
     recall_payload = {
         "jsonrpc": "2.0",
@@ -455,12 +482,16 @@ def kb_reachability_check(require_live_kb: bool, timeout_seconds: float) -> Doct
     try:
         recall_body = mcp_post(kb_url=kb_url, token=token, payload=recall_payload, timeout_seconds=timeout_seconds)
     except (OSError, error.URLError, json.JSONDecodeError) as exc:
-        return DoctorCheck(name="kb-live", status="fail", detail=f"MCP knowledge.recall probe failed: {exc}")
+        return DoctorCheck(
+            name="kb-live",
+            status=live_failure_status,
+            detail=f"MCP knowledge.recall probe failed: {exc}",
+        )
 
     if "error" in recall_body:
         return DoctorCheck(
             name="kb-live",
-            status="fail",
+            status=live_failure_status,
             detail=f"MCP knowledge.recall returned error: {recall_body['error']}",
         )
 

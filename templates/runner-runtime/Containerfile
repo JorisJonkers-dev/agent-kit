@@ -1,0 +1,17 @@
+ARG AGENT_RUNNER_BASE_IMAGE
+FROM ${AGENT_RUNNER_BASE_IMAGE}
+
+ARG AGENT_RUNNER_BIN_DIR=/usr/local/bin
+ARG AGENT_MCP_DIR=/etc/agent-mcp
+
+COPY entrypoint.sh ${AGENT_RUNNER_BIN_DIR}/agent-runner-entrypoint
+COPY bin/agent-github-token ${AGENT_RUNNER_BIN_DIR}/agent-github-token
+COPY bin/gh-wrapper ${AGENT_RUNNER_BIN_DIR}/gh-wrapper
+COPY bin/git-credential-agent-gh-app ${AGENT_RUNNER_BIN_DIR}/git-credential-agent-gh-app
+COPY bin/gh-mcp-wrapper ${AGENT_RUNNER_BIN_DIR}/gh-mcp-wrapper
+COPY mcp/ ${AGENT_MCP_DIR}/
+
+ENV AGENT_MCP_DIR=${AGENT_MCP_DIR}
+ENV PATH=${AGENT_RUNNER_BIN_DIR}:$PATH
+
+ENTRYPOINT ["agent-runner-entrypoint"]

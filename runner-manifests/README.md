@@ -39,6 +39,9 @@ image or entrypoint:
 
 - `runtime-package.schema.json`: descriptive schema for an
   `AgentRuntimePackage` contract.
+- `runtime/`: rendered portable runtime package artifacts owned by
+  `agent-kit`: image build input, entrypoint, token helpers, and MCP profile
+  placeholders.
 - `fixtures/runtime-package.placeholder.yaml`: placeholder runtime package
   fixture for agent-kit-owned inputs.
 - `platform-blueprints-handoff.md`: blueprint-side responsibilities and open

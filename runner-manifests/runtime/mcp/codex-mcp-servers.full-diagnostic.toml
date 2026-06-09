@@ -1,0 +1,25 @@
+[mcp_servers.knowledge]
+url = "@KNOWLEDGE_MCP_URL@/mcp"
+bearer_token_env_var = "KB_BEARER_TOKEN"
+
+[mcp_servers.git-host]
+command = "gh-mcp-wrapper"
+startup_timeout_sec = 60
+
+[mcp_servers.frontend-docs]
+url = "@FRONTEND_DOCS_MCP_URL@"
+
+[mcp_servers.ui-docs]
+url = "@UI_DOCS_MCP_URL@"
+
+[mcp_servers.playwright]
+command = "playwright-mcp"
+args = ["--headless", "--browser", "chromium"]
+
+[mcp_servers.cluster]
+url = "@CLUSTER_MCP_URL@"
+
+[mcp_servers.code-intel]
+command = "serena"
+startup_timeout_sec = 60
+args = ["start-mcp-server", "--project-from-cwd", "--context=codex", "--mode", "no-memories", "--open-web-dashboard", "false"]

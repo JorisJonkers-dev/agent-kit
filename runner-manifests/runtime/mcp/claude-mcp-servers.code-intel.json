@@ -1,0 +1,25 @@
+{
+  "knowledge": {
+    "type": "http",
+    "url": "@KNOWLEDGE_MCP_URL@/mcp",
+    "headers": {
+      "Authorization": "Bearer @KNOWLEDGE_MCP_BEARER_TOKEN@"
+    }
+  },
+  "git-host": {
+    "type": "stdio",
+    "command": "gh-mcp-wrapper"
+  },
+  "code-intel": {
+    "type": "stdio",
+    "command": "serena",
+    "args": [
+      "start-mcp-server",
+      "--project-from-cwd",
+      "--mode",
+      "no-memories",
+      "--open-web-dashboard",
+      "false"
+    ]
+  }
+}

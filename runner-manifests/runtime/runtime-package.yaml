@@ -1,0 +1,163 @@
+apiVersion: agent-kit.runtime/v1alpha1
+kind: AgentRuntimePackage
+metadata:
+  name: portable-agent-runner
+  description: Portable runtime packaging contract rendered by agent-kit.
+build:
+  containerfile: runner-manifests/runtime/Containerfile
+  context: runner-manifests/runtime
+  args:
+    AGENT_RUNNER_BASE_IMAGE: <consumer-runner-base-image>
+    AGENT_RUNNER_BIN_DIR: <runtime-bin-dir>
+    AGENT_MCP_DIR: <runtime-mcp-profile-dir>
+  requiredBaseExecutables:
+    - awk
+    - bash
+    - basename
+    - cp
+    - date
+    - find
+    - git
+    - jq
+    - mktemp
+    - sed
+    - sha256sum
+    - sh
+    - ssh
+    - tar
+    - tmux
+  requiredAgentExecutables:
+    - claude
+    - codex
+  optionalExecutables:
+    - curl
+    - gh
+    - github-mcp-server
+    - playwright-mcp
+    - serena
+runtime:
+  supportedAgents:
+    - id: claude
+      homeEnv: CLAUDE_CONFIG_DIR
+      configFile: <home-dir>/.claude.json
+    - id: codex
+      homeEnv: CODEX_HOME
+      configFile: <codex-home>/config.toml
+    - id: shell
+      homeEnv: HOME
+  parityPolicy:
+    requiresExplicitUnsupportedReason: true
+  paths:
+    homeEnv: HOME
+    workspaceRootEnv: WORKSPACE_ROOT
+    sddSourceEnv: AGENT_KIT_SDD_SOURCE
+    sddMarkerEnv: AGENT_KIT_SDD_MARKER_FILE
+    mcpDirectoryEnv: AGENT_MCP_DIR
+  entrypoint:
+    path: runner-manifests/runtime/entrypoint.sh
+    command:
+      - agent-runner-entrypoint
+    environment:
+      - name: HOME
+        required: true
+        description: Runtime home for the non-root agent user.
+      - name: CODEX_HOME
+        required: true
+        description: Codex credential and config home.
+      - name: CLAUDE_CONFIG_DIR
+        required: true
+        description: Claude credential directory.
+      - name: WORKSPACE_ROOT
+        required: true
+        description: Multi-repository workspace root.
+      - name: AGENT_KIT_EXPECTED_VERSION
+        required: false
+        description: Expected installed agent-kit version marker.
+      - name: AGENT_RUNNER_ENTRYPOINT_SELF_TEST
+        required: false
+        description: Selects a local entrypoint self-test and exits before launching the workload.
+    selfTests:
+      - agent-kit-manifest
+      - repo-allow
+      - repo-dir
+      - speckit-seed
+  repositories:
+    primaryUrlEnv: REPO_URL
+    primaryBranchEnv: REPO_BRANCH
+    additionalUrlsEnv: REPO_URLS
+    additionalUrlFormat: "url[#branch], separated by whitespace, semicolon, or newline"
+    allowListOutputEnv: REPO_ALLOW
+    gitHostEnv: AGENT_GIT_HOST
+    trust:
+      gitSafeDirectory: true
+      claudeProjectTrust: true
+      codexProjectTrust: true
+  githubTokenHelper:
+    helperPath: runner-manifests/runtime/bin/agent-github-token
+    ghWrapperPath: runner-manifests/runtime/bin/gh-wrapper
+    gitCredentialHelperPath: runner-manifests/runtime/bin/git-credential-agent-gh-app
+    mcpWrapperPath: runner-manifests/runtime/bin/gh-mcp-wrapper
+    targetRepoEnv: AGENT_GITHUB_REPO_URL
+    tokenUrlEnv: GITHUB_APP_TOKEN_URL
+    tokenBearerEnv: GITHUB_APP_TOKEN_BEARER
+    hostEnv: AGENT_GIT_HOST
+    preseededTokenEnv:
+      - GH_TOKEN
+      - GITHUB_PERSONAL_ACCESS_TOKEN
+    cacheDirEnv: GH_APP_TOKEN_CACHE_DIR
+    cacheFileEnv: GH_APP_TOKEN_CACHE
+  mcpProfiles:
+    profileEnv: AGENT_MCP_PROFILE
+    profileDirectoryEnv: AGENT_MCP_DIR
+    claudeOverrideEnv: AGENT_MCP_SERVERS_FILE
+    codexOverrideEnv: AGENT_CODEX_MCP_FILE
+    placeholders:
+      - name: KNOWLEDGE_MCP_URL
+        env: KB_URL
+      - name: KNOWLEDGE_MCP_BEARER_TOKEN
+        env: KB_BEARER_TOKEN
+      - name: CLUSTER_MCP_URL
+        env: AGENT_CLUSTER_MCP_URL
+      - name: FRONTEND_DOCS_MCP_URL
+        env: AGENT_FRONTEND_DOCS_MCP_URL
+      - name: UI_DOCS_MCP_URL
+        env: AGENT_UI_DOCS_MCP_URL
+    profiles:
+      - name: minimal
+        claude: runner-manifests/runtime/mcp/claude-mcp-servers.minimal.json
+        codex: runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
+      - name: frontend
+        claude: runner-manifests/runtime/mcp/claude-mcp-servers.frontend.json
+        codex: runner-manifests/runtime/mcp/codex-mcp-servers.frontend.toml
+      - name: cluster
+        claude: runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
+        codex: runner-manifests/runtime/mcp/codex-mcp-servers.cluster.toml
+      - name: code-intel
+        claude: runner-manifests/runtime/mcp/claude-mcp-servers.code-intel.json
+        codex: runner-manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
+      - name: full-diagnostic
+        claude: runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
+        codex: runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
+  sddSeed:
+    sourcePathEnv: AGENT_KIT_SDD_SOURCE
+    markerFileEnv: AGENT_KIT_SDD_MARKER_FILE
+    updatePolicy: update-if-unmodified
+handoff:
+  platformBlueprintResponsibilities:
+    - namespace
+    - service-account-and-rbac
+    - credential-persistence
+    - secret-projection
+    - bootstrap-and-refresh-schedules
+    - runner-pod-factory
+    - scheduling-and-security-context
+    - network-policy
+    - observability
+  forbiddenRuntimeDefaults:
+    - concrete-domain
+    - concrete-hostname
+    - concrete-ip
+    - concrete-namespace
+    - concrete-image-prefix
+    - concrete-secret-path
+    - concrete-kb-endpoint

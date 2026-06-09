@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -u
+
+REAL_GH="${AGENT_REAL_GH:-gh}"
+TOKEN_HELPER="${AGENT_GITHUB_TOKEN_HELPER:-agent-github-token}"
+
+if [ -z "${GH_TOKEN:-}" ]; then
+  token=$("$TOKEN_HELPER" 2>/dev/null || true)
+  if [ -n "$token" ]; then
+    export GH_TOKEN="$token"
+  fi
+fi
+
+exec "$REAL_GH" "$@"

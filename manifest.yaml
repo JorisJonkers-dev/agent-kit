@@ -22,6 +22,7 @@ provenance:
 renderer:
   script_path: render-agent-kit.py
   template_root: templates/repo
+  runtime_template_root: templates/runner-runtime
   extra_templates:
     - source_path: templates/installer/install.sh.tpl
       destination_path: installer/install.sh
@@ -93,6 +94,24 @@ renderer:
     - .specify/templates/spec-template.md
     - .specify/templates/tasks-template.md
     - installer/install.sh
+    - runner-manifests/runtime/Containerfile
+    - runner-manifests/runtime/bin/agent-github-token
+    - runner-manifests/runtime/bin/gh-mcp-wrapper
+    - runner-manifests/runtime/bin/gh-wrapper
+    - runner-manifests/runtime/bin/git-credential-agent-gh-app
+    - runner-manifests/runtime/build.env.example
+    - runner-manifests/runtime/entrypoint.sh
+    - runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
+    - runner-manifests/runtime/mcp/claude-mcp-servers.code-intel.json
+    - runner-manifests/runtime/mcp/claude-mcp-servers.frontend.json
+    - runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
+    - runner-manifests/runtime/mcp/claude-mcp-servers.minimal.json
+    - runner-manifests/runtime/mcp/codex-mcp-servers.cluster.toml
+    - runner-manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
+    - runner-manifests/runtime/mcp/codex-mcp-servers.frontend.toml
+    - runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
+    - runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
+    - runner-manifests/runtime/runtime-package.yaml
 
 canonical_mcp_tools:
   source: knowledge-api MCP tool contract
@@ -578,6 +597,66 @@ council:
       mode: "0644"
     - path: council/schemas/verdict.schema.json
       sha256: 0133f2b50d9a629ab1ba332bec4491a465ed11d3ceab1a2f7fe48872d4315ca0
+      mode: "0644"
+
+agent_runner_runtime:
+  supported_agents: [codex, claude, shell]
+  schema: runner-manifests/runtime-package.schema.json
+  package: runner-manifests/runtime/runtime-package.yaml
+  files:
+    - path: runner-manifests/runtime/Containerfile
+      sha256: f1c0ec450600999bb0c5230ef2291ec8c0e43cdc3629676d8e8fef6ba4181867
+      mode: "0644"
+    - path: runner-manifests/runtime/bin/agent-github-token
+      sha256: 66afeb4ee918e9c27bc324a40dca8767e6615663fa16e71b020488b2b3f2c606
+      mode: "0755"
+    - path: runner-manifests/runtime/bin/gh-mcp-wrapper
+      sha256: c1dedd9daa26021161a0623c999680286a27cdefdee5f52d63b435fc0a6ab540
+      mode: "0755"
+    - path: runner-manifests/runtime/bin/gh-wrapper
+      sha256: 7dc2061045f7e4f68293d5398da69a517c128513b00672d6e41ef88df97134be
+      mode: "0755"
+    - path: runner-manifests/runtime/bin/git-credential-agent-gh-app
+      sha256: ddc9b82c6c3ba16c6bf3c1f64f3b5b0f7cc6112f9f3450a2b28b507230e32f6f
+      mode: "0755"
+    - path: runner-manifests/runtime/build.env.example
+      sha256: a1257f248ca4a5bf6b2420759914d71f3b2f18e095dda5d3d5c9a8ebcbedbc70
+      mode: "0644"
+    - path: runner-manifests/runtime/entrypoint.sh
+      sha256: 675755dce98c9cf0fcc5e0c3b41f568261b5cbc0cbb6423a05a3b4adf39a29cc
+      mode: "0755"
+    - path: runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
+      sha256: 1305c23725509a907e6decf63756c9a8391520d3d5a9d2dae981f4bf938855dd
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/claude-mcp-servers.code-intel.json
+      sha256: bd554f54376481abec9fd6e0ac4b04c5e58b9d12f73e58383f4dc65bd9a95824
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/claude-mcp-servers.frontend.json
+      sha256: b435670b569912a2508f6279e2bd35238914d33c24b0e830faa2adb3ea932201
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
+      sha256: 66d82b29ece43a76568f540ec1f52c4bf8394f7d178a7602cef33bbc51ba8449
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/claude-mcp-servers.minimal.json
+      sha256: 87b5095a41f2de127e17b93dfdd1e721accaf630f675fae3856377c2ba9a55f6
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/codex-mcp-servers.cluster.toml
+      sha256: 3b991879e183a7f210dd32e330c07e723237f9e061da4b53ca15c7e7e76926ad
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
+      sha256: b26b42f5af957a6ce2be51ef0929c4b839342a95c2fd04b1cd65d2ac7553a144
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/codex-mcp-servers.frontend.toml
+      sha256: 4e41f4f47127305a4f38b722610548205ba1c80a99db0dc9f1150dc25353cad0
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
+      sha256: 4fdb80323b0e75016adfd770e59e703e8e95d90b5a4a3949a1884eda0f3b1bc0
+      mode: "0644"
+    - path: runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
+      sha256: 9854de6251f5a32dc9d38a32607c9c38c4a5e24f7ddd9989b5f573d0e194a55a
+      mode: "0644"
+    - path: runner-manifests/runtime/runtime-package.yaml
+      sha256: 04697aafb0313bd6faa100ae6e491a32a6999c5383b50d131112dd1750518321
       mode: "0644"
 
 installer:

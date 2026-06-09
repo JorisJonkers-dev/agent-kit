@@ -3,11 +3,16 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
+import tomllib
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -19,17 +24,19 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in CI setup f
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_SELFTEST_ENV = "AGENT_RUNTIME_SELFTEST"
 MANIFEST_PATH = ROOT / "manifest.yaml"
 ROUND3_SKELETON_DIR = ROOT / "runner-manifests"
 ROUND3_SPEC_DIR = ROOT / "specs" / "002-round3-agent-runner-manifests"
-ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR, ROUND3_SPEC_DIR)
+ROUND4_SPEC_DIR = ROOT / "specs" / "003-round4-agent-runner-runtime-packaging"
+ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR, ROUND3_SPEC_DIR, ROUND4_SPEC_DIR)
 
 ROUND3_FORBIDDEN_PATTERNS = {
     "personal domain or hostname": re.compile(
         r"\b(?:jorisjonkers|esa-blueshell|blueshell|enschede|frankfurt|contabo)\b",
         re.IGNORECASE,
     ),
-    "concrete namespace": re.compile(r"\b(?:agents-system|assistant-system|knowledge-system)\b"),
+    "concrete namespace": re.compile(r"\b(?:agents-system|assistant-system|knowledge-system(?!-version))\b"),
     "personal image prefix": re.compile(r"\bghcr\.io/extratoast/[^<\s]+", re.IGNORECASE),
     "personal label": re.compile(r"\bpersonal-stack/[A-Za-z0-9_.-]+", re.IGNORECASE),
     "vault path": re.compile(r"\bsecret/(?:agents|knowledge-system|platform)\b", re.IGNORECASE),
@@ -148,6 +155,8 @@ def validate_renderer(manifest: dict[str, Any]) -> set[str]:
         fail("renderer.script_path must be render-agent-kit.py")
     if renderer_manifest.get("template_root") != "templates/repo":
         fail("renderer.template_root must be templates/repo")
+    if renderer_manifest.get("runtime_template_root") != "templates/runner-runtime":
+        fail("renderer.runtime_template_root must be templates/runner-runtime")
 
     managed_paths = set(as_list(renderer_manifest.get("managed_paths"), "renderer.managed_paths"))
     expected = {item.relative_path.as_posix() for item in renderer.template_files(ROOT)}
@@ -318,6 +327,9 @@ def validate_round3_parses() -> None:
     schema = json.loads(schema_path.read_text())
     if schema.get("title") != "AgentRuntimePackage":
         fail("round-3 runtime schema title must be AgentRuntimePackage")
+    api_version = as_mapping(schema.get("properties"), "round-3 schema.properties").get("apiVersion", {})
+    if not isinstance(api_version, dict) or api_version.get("const") != "agent-kit.runtime/v1alpha1":
+        fail("runtime schema apiVersion const must be agent-kit.runtime/v1alpha1")
 
     fixtures_dir = ROUND3_SKELETON_DIR / "fixtures"
     if not fixtures_dir.is_dir():
@@ -347,7 +359,213 @@ def validate_round3_skeleton() -> None:
     validate_round3_non_deployable()
 
 
-def main() -> int:
+def validate_runtime_package_manifest(manifest: dict[str, Any]) -> None:
+    runtime_section = as_mapping(manifest.get("agent_runner_runtime"), "agent_runner_runtime")
+    files = as_list(runtime_section.get("files"), "agent_runner_runtime.files")
+    expected_files = {
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "runner-manifests" / "runtime").rglob("*")
+        if path.is_file()
+    }
+    manifest_files = {item.get("path") for item in files if isinstance(item, dict)}
+    if manifest_files != expected_files:
+        fail(
+            "agent_runner_runtime.files mismatch: "
+            f"manifest={sorted(manifest_files)} actual={sorted(expected_files)}",
+        )
+
+
+def validate_runtime_package_artifacts() -> None:
+    package_path = ROOT / "runner-manifests" / "runtime" / "runtime-package.yaml"
+    package = yaml.safe_load(package_path.read_text())
+    package = as_mapping(package, "runtime-package.yaml")
+    if package.get("apiVersion") != "agent-kit.runtime/v1alpha1":
+        fail("runtime package apiVersion must be agent-kit.runtime/v1alpha1")
+    if package.get("kind") != "AgentRuntimePackage":
+        fail("runtime package kind must be AgentRuntimePackage")
+
+    build = as_mapping(package.get("build"), "runtime package build")
+    for key in ("containerfile", "context"):
+        path = ROOT / str(build.get(key, ""))
+        if not path.exists():
+            fail(f"runtime package build.{key} does not exist: {build.get(key)}")
+
+    runtime = as_mapping(package.get("runtime"), "runtime package runtime")
+    entrypoint = as_mapping(runtime.get("entrypoint"), "runtime package entrypoint")
+    entrypoint_path = ROOT / str(entrypoint.get("path", ""))
+    if not entrypoint_path.is_file():
+        fail(f"runtime package entrypoint path does not exist: {entrypoint.get('path')}")
+    required_self_tests = {"agent-kit-manifest", "repo-allow", "repo-dir", "speckit-seed"}
+    actual_self_tests = set(as_list(entrypoint.get("selfTests"), "runtime package entrypoint.selfTests"))
+    if actual_self_tests != required_self_tests:
+        fail(f"runtime package selfTests mismatch: {sorted(actual_self_tests)}")
+
+    helpers = as_mapping(runtime.get("githubTokenHelper"), "runtime package githubTokenHelper")
+    for key in ("helperPath", "ghWrapperPath", "gitCredentialHelperPath", "mcpWrapperPath"):
+        helper_path = ROOT / str(helpers.get(key, ""))
+        if not helper_path.is_file():
+            fail(f"runtime package helper path does not exist: {helpers.get(key)}")
+        if not os.access(helper_path, os.X_OK):
+            fail(f"runtime package helper is not executable: {helpers.get(key)}")
+
+    profile_section = as_mapping(runtime.get("mcpProfiles"), "runtime package mcpProfiles")
+    placeholders = {
+        item.get("name")
+        for item in as_list(profile_section.get("placeholders"), "runtime package mcpProfiles.placeholders")
+        if isinstance(item, dict)
+    }
+    required_placeholders = {
+        "KNOWLEDGE_MCP_URL",
+        "KNOWLEDGE_MCP_BEARER_TOKEN",
+        "CLUSTER_MCP_URL",
+        "FRONTEND_DOCS_MCP_URL",
+        "UI_DOCS_MCP_URL",
+    }
+    if placeholders != required_placeholders:
+        fail(f"runtime MCP placeholders mismatch: {sorted(placeholders)}")
+
+    profiles = as_list(profile_section.get("profiles"), "runtime package mcpProfiles.profiles")
+    if {item.get("name") for item in profiles if isinstance(item, dict)} != {
+        "minimal",
+        "frontend",
+        "cluster",
+        "code-intel",
+        "full-diagnostic",
+    }:
+        fail("runtime MCP profiles must include minimal, frontend, cluster, code-intel, and full-diagnostic")
+    for item in profiles:
+        profile = as_mapping(item, "runtime MCP profile")
+        claude_path = ROOT / str(profile.get("claude", ""))
+        codex_path = ROOT / str(profile.get("codex", ""))
+        if not claude_path.is_file() or not codex_path.is_file():
+            fail(f"runtime MCP profile files are missing for {profile.get('name')}")
+        json.loads(claude_path.read_text())
+        tomllib.loads(codex_path.read_text())
+
+
+def run_checked(command: list[str], env: dict[str, str] | None = None, input_text: str | None = None) -> str:
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=env,
+        input=input_text,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        fail(
+            "command failed: "
+            + " ".join(command)
+            + f"\nstdout={completed.stdout}\nstderr={completed.stderr}",
+        )
+    return completed.stdout
+
+
+def validate_git_credential_preseeded_token(
+    runtime_dir: Path,
+    env: dict[str, str],
+    *,
+    expected_token: str = "preseeded-token",
+) -> None:
+    credential = runtime_dir / "bin" / "git-credential-agent-gh-app"
+    credential_output = run_checked(
+        ["bash", str(credential), "get"],
+        env={**env, "REPO_ALLOW": "owner/repo"},
+        input_text="protocol=https\nhost=git-host\npath=owner/repo.git\n\n",
+    )
+    if f"password={expected_token}" not in credential_output:
+        fail("git credential helper did not return a preseeded token for an allowed repo")
+
+
+def validate_runtime_shell_contracts(*, runtime_selftest: bool = False) -> None:
+    runtime_dir = ROOT / "runner-manifests" / "runtime"
+    entrypoint = runtime_dir / "entrypoint.sh"
+    run_checked(["sh", "-n", str(entrypoint)])
+    for path in sorted((runtime_dir / "bin").glob("*")):
+        run_checked(["bash", "-n", str(path)])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        home = tmp_path / "home"
+        workspace = tmp_path / "workspace"
+        sdd = tmp_path / "sdd"
+        repo = workspace / "repo"
+        repo_git = repo / ".git"
+        (home / ".claude").mkdir(parents=True)
+        (home / ".codex").mkdir(parents=True)
+        repo_git.mkdir(parents=True)
+        (sdd / "templates").mkdir(parents=True)
+        (sdd / "templates" / "spec-template.md").write_text("spec seed\n")
+        (sdd / "templates" / "constitution-template.md").write_text("constitution seed\n")
+
+        env = {
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": str(home),
+            "CLAUDE_CONFIG_DIR": str(home / ".claude"),
+            "CODEX_HOME": str(home / ".codex"),
+            "WORKSPACE_ROOT": str(workspace),
+            "AGENT_KIT_SDD_SOURCE": str(sdd),
+            "AGENT_GIT_HOST": "git-host",
+            "REPO_URL": "git@git-host:owner/repo.git",
+            "REPO_URLS": "ssh://git@git-host/owner/extra.git#dev;https://git-host/owner/second.git",
+        }
+        if os.environ.get("LANG"):
+            env["LANG"] = os.environ["LANG"]
+        env.update(
+            {
+                "AGENT_RUNNER_ENTRYPOINT_SELF_TEST": "repo-dir",
+            },
+        )
+
+        repo_dir = run_checked(
+            ["sh", str(entrypoint)],
+            env=env,
+        ).strip()
+        if repo_dir != "repo":
+            fail(f"entrypoint repo-dir self-test returned {repo_dir!r}")
+
+        repo_allow = run_checked(
+            ["sh", str(entrypoint)],
+            env={**env, "AGENT_RUNNER_ENTRYPOINT_SELF_TEST": "repo-allow"},
+        ).strip()
+        if repo_allow != "owner/repo owner/extra owner/second":
+            fail(f"entrypoint repo-allow self-test returned {repo_allow!r}")
+
+        run_checked(["sh", str(entrypoint)], env={**env, "AGENT_RUNNER_ENTRYPOINT_SELF_TEST": "agent-kit-manifest"})
+        run_checked(["sh", str(entrypoint)], env={**env, "AGENT_RUNNER_ENTRYPOINT_SELF_TEST": "speckit-seed"})
+        if not (repo / ".specify" / "templates" / "spec-template.md").is_file():
+            fail("entrypoint speckit-seed self-test did not seed templates")
+        if not (repo / ".specify" / "memory" / "constitution.md").is_file():
+            fail("entrypoint speckit-seed self-test did not seed constitution")
+
+        helper = runtime_dir / "bin" / "agent-github-token"
+        slug = run_checked(["bash", str(helper), "--print-slug", "git@git-host:owner/repo.git"], env=env).strip()
+        if slug != "owner/repo":
+            fail(f"agent-github-token --print-slug returned {slug!r}")
+
+        if runtime_selftest:
+            validate_git_credential_preseeded_token(runtime_dir, {**env, "GH_TOKEN": "preseeded-token"})
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Validate the agent-kit manifest against checked-in sources.")
+    parser.add_argument(
+        "--runtime-selftest",
+        action="store_true",
+        help="also run runtime-only credential helper token self-tests",
+    )
+    return parser.parse_args(argv)
+
+
+def runtime_selftest_enabled(args: argparse.Namespace) -> bool:
+    return args.runtime_selftest or os.environ.get(RUNTIME_SELFTEST_ENV) == "1"
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    runtime_selftest = runtime_selftest_enabled(args)
     try:
         manifest = load_manifest()
         validate_artifact(manifest)
@@ -356,12 +574,16 @@ def main() -> int:
         validate_surface_parity(manifest)
         validate_council(manifest)
         validate_installer(manifest)
+        validate_runtime_package_manifest(manifest)
+        validate_runtime_package_artifacts()
+        validate_runtime_shell_contracts(runtime_selftest=runtime_selftest)
         validate_round3_skeleton()
     except AssertionError as exc:
         print(f"manifest validation failed: {exc}", file=sys.stderr)
         return 1
 
-    print("manifest validation passed")
+    suffix = " with runtime self-tests" if runtime_selftest else ""
+    print(f"manifest validation passed{suffix}")
     return 0
 
 

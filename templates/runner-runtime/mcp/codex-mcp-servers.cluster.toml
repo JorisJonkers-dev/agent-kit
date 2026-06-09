@@ -1,0 +1,10 @@
+[mcp_servers.knowledge]
+url = "@KNOWLEDGE_MCP_URL@/mcp"
+bearer_token_env_var = "KB_BEARER_TOKEN"
+
+[mcp_servers.git-host]
+command = "gh-mcp-wrapper"
+startup_timeout_sec = 60
+
+[mcp_servers.cluster]
+url = "@CLUSTER_MCP_URL@"

@@ -1,4 +1,4 @@
-apiVersion: platform-blueprints.extratoast.dev/v1alpha1
+apiVersion: platform-blueprints.runtime/v1alpha1
 kind: AgentRunnerDeploymentIntent
 metadata:
   name: placeholder-agent-runner

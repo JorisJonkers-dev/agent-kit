@@ -13,6 +13,10 @@ as `ClassPathResource("installer/install.sh")`.
 - `templates/repo/`: sources for checked-in `.claude`, `.codex`, `.agents`,
   and `.specify` surfaces.
 - `templates/installer/`: installer template and partials.
+- `templates/runner-runtime/`: sources for portable agent-runner runtime
+  packaging artifacts.
+- `runner-manifests/`: runtime package artifacts and non-deployable platform
+  handoff fixtures.
 - `installer/install.sh`: generated serving artifact with `@VERSION@` and
   `@KB_URL@` placeholders.
 - `council/`: council driver, prompts, schemas, and default config.
@@ -36,12 +40,14 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/ruff check .
 .venv/bin/python scripts/validate_manifest.py
+.venv/bin/python scripts/validate_manifest.py --runtime-selftest
 python3 -m compileall render-agent-kit.py scripts council
 bash -n installer/install.sh
 ```
 
-CI runs these checks plus `render-agent-kit.py --check`, `--doctor`, and an
-`--output` smoke render. The required terminal check is `Pipeline Complete`.
+CI runs default manifest validation without the opt-in runtime credential
+self-test, plus `render-agent-kit.py --check`, `--doctor`, and an `--output`
+smoke render. The required terminal check is `Pipeline Complete`.
 
 ## Install
 

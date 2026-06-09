@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -u
+
+TOKEN_HELPER="${AGENT_GITHUB_TOKEN_HELPER:-agent-github-token}"
+
+can_retry_mint() {
+  [ -n "${GITHUB_APP_TOKEN_URL:-}" ] &&
+    [ -n "${GITHUB_APP_TOKEN_BEARER:-}" ]
+}
+
+TOKEN=""
+attempt=1
+max_attempts="${GITHUB_MCP_TOKEN_RETRIES:-4}"
+retry_sleep="${GITHUB_MCP_TOKEN_RETRY_SLEEP_SECONDS:-3}"
+case "$max_attempts" in
+  ''|*[!0-9]*) max_attempts=4 ;;
+esac
+case "$retry_sleep" in
+  ''|*[!0-9]*) retry_sleep=3 ;;
+esac
+while :; do
+  TOKEN=$("$TOKEN_HELPER" 2>/dev/null || true)
+  [ -n "$TOKEN" ] && break
+
+  if ! can_retry_mint || [ "$attempt" -ge "$max_attempts" ] 2>/dev/null; then
+    break
+  fi
+
+  echo "[gh-mcp-wrapper] WARN: Git host token unavailable; retrying before MCP startup ($attempt/$max_attempts)" >&2
+  sleep "$retry_sleep"
+  attempt=$((attempt + 1))
+done
+
+if [ -z "$TOKEN" ]; then
+  cat >&2 <<'EOF'
+[gh-mcp-wrapper] ERROR: no Git token available for the Git MCP server.
+[gh-mcp-wrapper] Set GITHUB_PERSONAL_ACCESS_TOKEN/GH_TOKEN, or provide
+[gh-mcp-wrapper] GITHUB_APP_TOKEN_URL and GITHUB_APP_TOKEN_BEARER. The runner
+[gh-mcp-wrapper] also needs REPO_URL or a current git remote inside the
+[gh-mcp-wrapper] workspace so it can mint a repo-scoped token.
+EOF
+  exit 78
+fi
+
+export GITHUB_PERSONAL_ACCESS_TOKEN="$TOKEN"
+
+TOOLSETS="${GITHUB_MCP_TOOLSETS:-repos,pull_requests,issues,actions,git}"
+EXCLUDE_TOOLS="${GITHUB_MCP_EXCLUDE_TOOLS:-create_repository,fork_repository}"
+
+args=(stdio)
+[ -n "$TOOLSETS" ] && args+=(--toolsets "$TOOLSETS")
+[ -n "$EXCLUDE_TOOLS" ] && args+=(--exclude-tools "$EXCLUDE_TOOLS")
+
+exec github-mcp-server "${args[@]}"

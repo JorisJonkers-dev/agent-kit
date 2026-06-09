@@ -1,10 +1,21 @@
-apiVersion: agent-kit.extratoast.dev/v1alpha1
+apiVersion: agent-kit.runtime/v1alpha1
 kind: AgentRuntimePackage
 metadata:
   name: placeholder-agent-runtime
   description: Placeholder-only runtime package contract for agent runner images.
-  labels:
-    portability: design-first
+build:
+  containerfile: <runtime-containerfile-path>
+  context: <runtime-build-context>
+  args:
+    AGENT_RUNNER_BASE_IMAGE: <consumer-runner-base-image>
+    AGENT_RUNNER_BIN_DIR: <runtime-bin-dir>
+    AGENT_MCP_DIR: <runtime-mcp-profile-dir>
+  requiredBaseExecutables:
+    - <base-runtime-executable>
+  requiredAgentExecutables:
+    - <agent-cli-executable>
+  optionalExecutables:
+    - <optional-runtime-executable>
 runtime:
   supportedAgents:
     - id: claude
@@ -16,10 +27,13 @@ runtime:
   parityPolicy:
     requiresExplicitUnsupportedReason: true
   paths:
-    home: <agent-home>
-    workspaceRoot: <workspace-root>
-    agentKitSeedSource: <image-path-to-agent-kit-sdd-seed>
+    homeEnv: HOME
+    workspaceRootEnv: WORKSPACE_ROOT
+    sddSourceEnv: AGENT_KIT_SDD_SOURCE
+    sddMarkerEnv: AGENT_KIT_SDD_MARKER_FILE
+    mcpDirectoryEnv: AGENT_MCP_DIR
   entrypoint:
+    path: <runtime-entrypoint-path>
     command:
       - <entrypoint-command>
     environment:
@@ -35,12 +49,6 @@ runtime:
       - name: WORKSPACE_ROOT
         required: true
         description: Multi-repository workspace root.
-      - name: AGENT_KIT_EXPECTED_VERSION
-        required: false
-        description: Expected installed agent-kit version marker.
-      - name: AGENT_MCP_PROFILE
-        required: false
-        description: MCP profile selector.
     selfTests:
       - agent-kit-manifest
       - repo-allow
@@ -51,50 +59,33 @@ runtime:
     primaryBranchEnv: REPO_BRANCH
     additionalUrlsEnv: REPO_URLS
     allowListOutputEnv: REPO_ALLOW
+    gitHostEnv: AGENT_GIT_HOST
+  githubTokenHelper:
+    helperPath: <git-token-helper-path>
+    ghWrapperPath: <gh-wrapper-path>
+    gitCredentialHelperPath: <git-credential-helper-path>
+    mcpWrapperPath: <git-mcp-wrapper-path>
+    targetRepoEnv: AGENT_GITHUB_REPO_URL
+    tokenUrlEnv: GITHUB_APP_TOKEN_URL
+    tokenBearerEnv: GITHUB_APP_TOKEN_BEARER
+    hostEnv: AGENT_GIT_HOST
   mcpProfiles:
     profileEnv: AGENT_MCP_PROFILE
     profileDirectoryEnv: AGENT_MCP_DIR
+    placeholders:
+      - name: KNOWLEDGE_MCP_URL
+        env: KB_URL
+      - name: KNOWLEDGE_MCP_BEARER_TOKEN
+        env: KB_BEARER_TOKEN
+      - name: CLUSTER_MCP_URL
+        env: AGENT_CLUSTER_MCP_URL
     profiles:
-      - minimal
-      - code-intel
-      - cluster
-      - full-diagnostic
-    serverUrlPlaceholders:
-      - <knowledge-mcp-url>
-      - <optional-cluster-mcp-url>
-      - <optional-code-intel-mcp-command>
-    bearerTokenEnvVars:
-      - <knowledge-mcp-bearer-env>
-  credentials:
-    - id: claude-home
-      mountPath: <agent-home>/.claude
-      writable: true
-      providedBy: platform-blueprints
-    - id: codex-home
-      mountPath: <agent-home>/.codex
-      writable: true
-      providedBy: platform-blueprints
-    - id: git-ssh-material
-      mountPath: <secret-mount-path>
-      writable: false
-      providedBy: platform-blueprints
-  tooling:
-    requiredExecutables:
-      - bash
-      - git
-      - jq
-      - ssh
-      - tmux
-      - claude
-      - codex
-    optionalExecutables:
-      - gh
-      - docker
-      - playwright-mcp
-      - github-mcp-server
+      - name: minimal
+        claude: <claude-minimal-mcp-profile>
+        codex: <codex-minimal-mcp-profile>
   sddSeed:
-    sourcePath: <image-path-to-agent-kit-sdd-seed>
-    markerFile: <sdd-seed-marker-file>
+    sourcePathEnv: AGENT_KIT_SDD_SOURCE
+    markerFileEnv: AGENT_KIT_SDD_MARKER_FILE
     updatePolicy: update-if-unmodified
 handoff:
   platformBlueprintResponsibilities:
