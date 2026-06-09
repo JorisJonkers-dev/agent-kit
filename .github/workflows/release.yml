@@ -30,4 +30,5 @@ jobs:
     steps:
       # agent-kit is consumed by version tag/ref, not a package registry artifact.
       - name: Publish release ref
-        run: echo "Released tag/ref: ${{ needs.release-please.outputs.tag_name }}"
+        run: |
+          echo "Released tag/ref: ${{ needs.release-please.outputs.tag_name }}"
