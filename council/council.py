@@ -83,8 +83,8 @@ BASE_ROLES = {
     "verifier": "claude:sonnet",
 }
 PRESETS = {
-    "quick":    {"rounds": 1, "codex_effort": "low",   "worker": "claude:haiku",  "max_workers": 4},
-    "standard": {"rounds": 2, "codex_effort": "high",  "worker": "claude:haiku",  "max_workers": 6},
+    "quick":    {"rounds": 1, "codex_effort": "low",   "worker": "claude:sonnet", "max_workers": 4},
+    "standard": {"rounds": 2, "codex_effort": "high",  "worker": "claude:sonnet", "max_workers": 6},
     "thorough": {"rounds": 3, "codex_effort": "high",  "worker": "claude:sonnet", "max_workers": 6},
     "max":      {"rounds": 3, "codex_effort": "xhigh", "worker": "claude:sonnet", "max_workers": 8},
 }
