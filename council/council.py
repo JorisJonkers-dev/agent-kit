@@ -1708,7 +1708,7 @@ def cmd_self_test(_args: argparse.Namespace) -> int:
     std = merge_config({}, {})
     check("default intensity is standard",
           std["intensity"] == "standard" and std["rounds"] == 2
-          and std["worker"] == "claude:haiku" and std["codex_effort"] == "high")
+          and std["worker"] == "claude:sonnet" and std["codex_effort"] == "high")
     thorough = merge_config({"intensity": "thorough"}, {})
     check("thorough preset bumps rounds + worker",
           thorough["rounds"] == 3 and thorough["worker"] == "claude:sonnet")
