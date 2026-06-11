@@ -104,7 +104,7 @@ CODEX_REASONING = os.environ.get("COUNCIL_CODEX_REASONING", "high")
 PLAN_TIMEOUT_S = int(os.environ.get("COUNCIL_PLAN_TIMEOUT_S", "1200"))
 
 # fan-out tier
-WORKER_PERMISSION_MODE = "acceptEdits"   # auto-accept edits; no command approval
+WORKER_PERMISSION_MODE = "bypassPermissions"   # YOLO: bypass approvals + sandbox so workers can build/network
 WORKER_TIMEOUT_S = int(os.environ.get("COUNCIL_WORKER_TIMEOUT_S", "1800"))
 VERIFY_TIMEOUT_S = int(os.environ.get("COUNCIL_VERIFY_TIMEOUT_S", "600"))
 WT_ROOT = Path(tempfile.gettempdir()) / "council-worktrees"
@@ -230,9 +230,15 @@ def run_codex(prompt: str, model: str, *, cwd: Optional[Path] = None,
     cmd = [
         "codex", "exec", "-m", model,
         "-c", f"model_reasoning_effort={CODEX_REASONING}",
-        "-s", sandbox, "--skip-git-repo-check",
+        "--skip-git-repo-check",
         "-o", str(last), prompt,
     ]
+    if sandbox == "bypass":
+        # YOLO: full access (network + fs), no approvals — used for fan-out
+        # workers so they can run gradle / fetch deps / build themselves.
+        cmd[6:6] = ["--dangerously-bypass-approvals-and-sandbox"]
+    else:
+        cmd[6:6] = ["-s", sandbox]
     try:
         proc = subprocess.run(
             cmd, capture_output=True, text=True,
@@ -990,7 +996,7 @@ def run_worker(run: Run, task: dict, base_ref: str, run_name: str,
             # commits the worktree below.
             if worker.cli == "codex":
                 res = run.record(run_codex(prompt, worker.model, cwd=wt,
-                                           sandbox="workspace-write",
+                                           sandbox="bypass",
                                            timeout=WORKER_TIMEOUT_S))
             else:
                 res = run.record(run_claude(prompt, worker.model, cwd=wt,
