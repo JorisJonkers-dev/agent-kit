@@ -623,7 +623,7 @@ agent_runner_runtime:
       sha256: a1257f248ca4a5bf6b2420759914d71f3b2f18e095dda5d3d5c9a8ebcbedbc70
       mode: "0644"
     - path: runner-manifests/runtime/entrypoint.sh
-      sha256: 675755dce98c9cf0fcc5e0c3b41f568261b5cbc0cbb6423a05a3b4adf39a29cc
+      sha256: 2b4812c81ce59dfee1e9c21384d44a1f86ef76cba03e0ebbef42d2c93df1075e
       mode: "0755"
     - path: runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
       sha256: 1305c23725509a907e6decf63756c9a8391520d3d5a9d2dae981f4bf938855dd

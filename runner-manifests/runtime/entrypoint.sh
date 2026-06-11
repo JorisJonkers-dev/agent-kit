@@ -327,8 +327,13 @@ if command -v git >/dev/null 2>&1; then
   fi
   if [ -n "${AGENT_GIT_HOST:-}" ]; then
     git_scheme="${AGENT_GIT_SCHEME:-https}"
-    git config --global "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "git@${AGENT_GIT_HOST}:"
-    git config --global "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "ssh://git@${AGENT_GIT_HOST}/"
+    # Both SSH URL spellings must rewrite to the credential-helper scheme.
+    # A bare `git config` per value overwrites rather than appends, so the
+    # second spelling silently dropped the first; --add keeps both. Reset
+    # first so this idempotent boot block does not accumulate duplicates.
+    git config --global --unset-all "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" 2>/dev/null || true
+    git config --global --add "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "git@${AGENT_GIT_HOST}:"
+    git config --global --add "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "ssh://git@${AGENT_GIT_HOST}/"
   fi
 fi
 
