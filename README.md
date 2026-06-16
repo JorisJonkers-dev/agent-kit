@@ -63,6 +63,24 @@ Use `--scope project` with `AGENT_KIT_PROJECT_ROOT` to install repo-local
 `.claude` and `.codex` surfaces. Use `--dry-run` to preview and `--uninstall`
 to remove managed files. See [PORTABILITY.md](PORTABILITY.md).
 
+### Full agents-system installer
+
+`installer/install-agents.sh` is a thin wrapper that installs the full client
+agents system in one shot. It delegates the base install above
+(hooks + skills + council + Spec Kit), additionally **registers the
+`knowledge` MCP server** for both Claude Code and Codex, and best-effort
+installs the kit's Python dependencies (`PyYAML`, `ruff` — council needs
+`python3`):
+
+```bash
+curl -fsSL -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
+  "${KB_URL}/install-agents.sh" | bash -s -- --scope user
+```
+
+It targets all agents by default and honors the same `--scope user|project`,
+`--dry-run`, and `--uninstall` flags. `KB_BEARER_TOKEN` is required in the
+environment.
+
 ## Release
 
 Consumers pin this kit by repository release tag, using the short coordinate

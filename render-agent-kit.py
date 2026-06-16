@@ -26,6 +26,11 @@ EXTRA_TEMPLATES = (
         Path("installer/install.sh"),
         True,
     ),
+    (
+        KIT_ROOT / "templates" / "installer" / "install-agents.sh.tpl",
+        Path("installer/install-agents.sh"),
+        False,
+    ),
 )
 INCLUDE_PATTERN = re.compile(r"^# @agent-kit-include (?P<path>[A-Za-z0-9_./-]+)$")
 # council is a multi-file skill; its install block + uninstall manifest lines are
@@ -400,26 +405,46 @@ def parity_check() -> DoctorCheck:
     )
 
 
+SERVED_INSTALLERS = (
+    Path("installer/install.sh"),
+    Path("installer/install-agents.sh"),
+)
+
+
 def installer_artifact_check() -> DoctorCheck:
-    installer = REPOSITORY_ROOT / "installer" / "install.sh"
-    if not installer.is_file():
-        return DoctorCheck(name="installer", status="fail", detail=f"missing {installer.relative_to(REPOSITORY_ROOT)}")
-
-    body = installer.read_text(errors="replace")
-    missing = [token for token in ("@VERSION@", "@KB_URL@") if token not in body]
-    if missing:
-        return DoctorCheck(name="installer", status="fail", detail="missing placeholders: " + ",".join(missing))
-
     secret_patterns = {
         "bearer token": re.compile(r"Bearer\s+[A-Za-z0-9._~+/-]{16,}=*"),
         "private key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
         "transcript block": re.compile(r"BEGIN RAW TRANSCRIPT|END RAW TRANSCRIPT", re.IGNORECASE),
     }
-    matches = [name for name, pattern in secret_patterns.items() if pattern.search(body)]
-    if matches:
-        return DoctorCheck(name="installer", status="fail", detail="secret-like markers: " + ",".join(matches))
 
-    return DoctorCheck(name="installer", status="ok", detail="serving artifact placeholders and secret scan passed")
+    for relative in SERVED_INSTALLERS:
+        installer = REPOSITORY_ROOT / relative
+        if not installer.is_file():
+            return DoctorCheck(name="installer", status="fail", detail=f"missing {relative}")
+
+        body = installer.read_text(errors="replace")
+        missing = [token for token in ("@VERSION@", "@KB_URL@") if token not in body]
+        if missing:
+            return DoctorCheck(
+                name="installer",
+                status="fail",
+                detail=f"{relative} missing placeholders: " + ",".join(missing),
+            )
+
+        matches = [name for name, pattern in secret_patterns.items() if pattern.search(body)]
+        if matches:
+            return DoctorCheck(
+                name="installer",
+                status="fail",
+                detail=f"{relative} secret-like markers: " + ",".join(matches),
+            )
+
+    return DoctorCheck(
+        name="installer",
+        status="ok",
+        detail=f"{len(SERVED_INSTALLERS)} serving artifacts passed placeholder and secret scans",
+    )
 
 
 def kb_reachability_check(require_live_kb: bool, timeout_seconds: float) -> DoctorCheck:
