@@ -671,5 +671,5 @@ installer:
       sha256: bedf77cb7d595c5eb07535775864a18ed48aa1e0a9abb47651880c988bde2f87
       mode: "0644"
     - path: installer/install-agents.sh
-      sha256: 6a6cae84ed2e5cdd7b58ea09c02333461edfe6bc68d92bed97a1c8ea0a9a3fb0
+      sha256: 027e3f975a59e497906b5e38cae9ac3d4c22fb4d5d65b19248dc0d1546d55e85
       mode: "0644"
