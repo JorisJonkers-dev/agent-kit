@@ -174,9 +174,16 @@ def validate_renderer(manifest: dict[str, Any]) -> set[str]:
     extra_templates = as_list(renderer_manifest.get("extra_templates"), "renderer.extra_templates")
     expected_extra_templates = [
         {"source_path": "templates/installer/install.sh.tpl", "destination_path": "installer/install.sh"},
+        {
+            "source_path": "templates/installer/install-agents.sh.tpl",
+            "destination_path": "installer/install-agents.sh",
+        },
     ]
     if extra_templates != expected_extra_templates:
-        fail("renderer.extra_templates must map templates/installer/install.sh.tpl to installer/install.sh")
+        fail(
+            "renderer.extra_templates must map templates/installer/install.sh.tpl to installer/install.sh "
+            "and templates/installer/install-agents.sh.tpl to installer/install-agents.sh",
+        )
 
     return managed_paths
 
@@ -281,15 +288,14 @@ def validate_council(manifest: dict[str, Any]) -> None:
         fail(f"council.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
 
 
-def validate_installer(manifest: dict[str, Any]) -> None:
-    installer = as_mapping(manifest.get("installer"), "installer")
-    if installer.get("path") != "installer/install.sh":
-        fail("installer.path must be installer/install.sh")
-
-    body = (ROOT / "installer" / "install.sh").read_text(errors="replace")
+def _scan_served_installer(relative_path: str) -> None:
+    full_path = ROOT / relative_path
+    if not full_path.is_file():
+        fail(f"served installer is missing: {relative_path}")
+    body = full_path.read_text(errors="replace")
     for token in ("@VERSION@", "@KB_URL@"):
         if token not in body:
-            fail(f"installer missing placeholder {token}")
+            fail(f"{relative_path} missing placeholder {token}")
 
     secret_patterns = {
         "bearer token": re.compile(r"Bearer\s+[A-Za-z0-9._~+/-]{16,}=*"),
@@ -298,7 +304,16 @@ def validate_installer(manifest: dict[str, Any]) -> None:
     }
     matches = [name for name, pattern in secret_patterns.items() if pattern.search(body)]
     if matches:
-        fail("installer contains secret-like markers: " + ",".join(matches))
+        fail(f"{relative_path} contains secret-like markers: " + ",".join(matches))
+
+
+def validate_installer(manifest: dict[str, Any]) -> None:
+    installer = as_mapping(manifest.get("installer"), "installer")
+    if installer.get("path") != "installer/install.sh":
+        fail("installer.path must be installer/install.sh")
+
+    _scan_served_installer("installer/install.sh")
+    _scan_served_installer("installer/install-agents.sh")
 
 
 def round3_files() -> list[Path]:
