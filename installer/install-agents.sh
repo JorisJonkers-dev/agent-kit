@@ -107,6 +107,8 @@ else
   readonly CLAUDE_MCP_FILE="${HOME}/.claude.json"
 fi
 readonly CODEX_CONFIG_FILE="${CODEX_CONFIG_HOME}/config.toml"
+readonly CLAUDE_HOOKS_DIR="${CLAUDE_HOME}/hooks"
+readonly CLAUDE_SETTINGS_FILE="${CLAUDE_HOME}/settings.json"
 readonly KB_MCP_URL="${KB_URL%/}/mcp"
 
 # -----------------------------------------------------------------
@@ -268,6 +270,109 @@ PY
 }
 
 # -----------------------------------------------------------------
+# Step 2b: wire the Claude hooks into settings.json. The base
+# installer writes the hook scripts but leaves Claude settings.json
+# to the operator (it prints manual steps). The full installer does
+# it for them, mirroring how the base installer auto-writes Codex
+# hooks.json. Idempotent and content-preserving: only the groups that
+# reference our own hook scripts are managed.
+# -----------------------------------------------------------------
+claude_hooks_merge() {
+  AK_MODE="$1" AK_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE}" AK_HOOKS_DIR="${CLAUDE_HOOKS_DIR}" \
+    python3 - <<'PY'
+import json
+import os
+import pathlib
+
+mode = os.environ["AK_MODE"]
+path = pathlib.Path(os.environ["AK_SETTINGS_FILE"])
+hooks_dir = os.environ["AK_HOOKS_DIR"]
+
+owned = {
+    "user-prompt-submit-recall.sh",
+    "pre-tool-use-edit-recall.sh",
+    "pre-tool-use-git-commit-capture.sh",
+    "stop-session-digest.sh",
+}
+
+
+def cmd(script):
+    return f"{hooks_dir}/{script}"
+
+
+desired = {
+    "UserPromptSubmit": [
+        {"matcher": ".*", "hooks": [{"type": "command", "command": cmd("user-prompt-submit-recall.sh"), "timeout": 5}]},
+    ],
+    "PreToolUse": [
+        {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": cmd("pre-tool-use-edit-recall.sh"), "timeout": 5}]},
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": cmd("pre-tool-use-git-commit-capture.sh"), "timeout": 5}]},
+    ],
+    "Stop": [
+        {"matcher": ".*", "hooks": [{"type": "command", "command": cmd("stop-session-digest.sh"), "async": True, "timeout": 60}]},
+    ],
+}
+
+data = {}
+if path.exists():
+    try:
+        data = json.loads(path.read_text() or "{}")
+    except json.JSONDecodeError:
+        data = {}
+if not isinstance(data, dict):
+    data = {}
+hooks = data.get("hooks")
+if not isinstance(hooks, dict):
+    hooks = {}
+
+
+def owns(group):
+    for hook in group.get("hooks", []) if isinstance(group, dict) else []:
+        command = hook.get("command", "") if isinstance(hook, dict) else ""
+        if command.rsplit("/", 1)[-1] in owned:
+            return True
+    return False
+
+
+for event in ("UserPromptSubmit", "PreToolUse", "Stop"):
+    existing = [g for g in hooks.get(event, []) if isinstance(g, dict) and not owns(g)]
+    if mode == "install":
+        existing = desired[event] + existing
+    if existing:
+        hooks[event] = existing
+    else:
+        hooks.pop(event, None)
+
+if hooks:
+    data["hooks"] = hooks
+else:
+    data.pop("hooks", None)
+
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+}
+
+register_claude_hooks() {
+  if [ "${DRY_RUN}" = 1 ]; then
+    log "would register Claude recall/capture/digest hooks in ${CLAUDE_SETTINGS_FILE}"
+    return
+  fi
+  claude_hooks_merge install
+  log "registered Claude hooks in ${CLAUDE_SETTINGS_FILE}"
+}
+
+remove_claude_hooks() {
+  if [ ! -e "${CLAUDE_SETTINGS_FILE}" ]; then return; fi
+  if [ "${DRY_RUN}" = 1 ]; then
+    log "would remove Claude hooks from ${CLAUDE_SETTINGS_FILE}"
+    return
+  fi
+  claude_hooks_merge remove
+  log "removed Claude hooks from ${CLAUDE_SETTINGS_FILE}"
+}
+
+# -----------------------------------------------------------------
 # Step 3: best-effort Python deps for council.
 # -----------------------------------------------------------------
 ensure_python_deps() {
@@ -298,6 +403,7 @@ if [ "${UNINSTALL}" = 1 ]; then
   delegate_base_install
   remove_claude_mcp
   remove_codex_mcp
+  remove_claude_hooks
   log "done"
   exit 0
 fi
@@ -306,14 +412,16 @@ log "installing full agents system (${INSTALLER_VERSION}, scope=${SCOPE})"
 delegate_base_install
 register_claude_mcp
 register_codex_mcp
+register_claude_hooks
 ensure_python_deps
 log "done"
 
 cat <<EOF
 agent-kit full installer complete (${INSTALLER_VERSION}, scope=${SCOPE}).
 
-Registered the knowledge MCP server (${KB_MCP_URL}) for Claude and Codex on top
-of the base hooks + skills + council + Spec Kit install.
+Registered the knowledge MCP server (${KB_MCP_URL}) for Claude and Codex and
+wired the Claude recall/capture/digest hooks into settings.json, on top of the
+base hooks + skills + council + Spec Kit install.
 
 Make sure KB_BEARER_TOKEN is set in each agent's environment:
   export KB_BEARER_TOKEN="<your-token>"
