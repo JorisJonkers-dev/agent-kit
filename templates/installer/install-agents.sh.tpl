@@ -27,6 +27,7 @@ readonly KB_URL='@KB_URL@'
 DRY_RUN=0
 UNINSTALL=0
 SCOPE=user
+INCLUDE_OPTIONAL=1
 
 usage() {
   cat <<USAGE
@@ -34,19 +35,24 @@ agent-kit full agents-system installer ${INSTALLER_VERSION}
 
 Installs the full client agents system for BOTH Claude Code and Codex:
 hooks + skills + council + Spec Kit (delegated to the base installer), the
-\`knowledge\` MCP server registration, and the kit's Python dependencies.
-Pairs with the knowledge-api MCP server at ${KB_URL}.
+Claude hook wiring, the kit's Python dependencies, and the workstation MCP
+fleet: knowledge + context7 + vuetify (HTTP), plus playwright and serena
+(stdio via npx/uvx when present). Pairs with the knowledge-api at ${KB_URL}.
+The runner-only servers github (gh-mcp-wrapper) and kubernetes (in-cluster)
+are intentionally not installed on a workstation.
 
 Usage:
   curl -fsSL -H "Authorization: Bearer \$KB_BEARER_TOKEN" \\
-    ${KB_URL}/install-agents.sh | bash [-s -- [--scope user|project] [--dry-run|--uninstall]]
+    ${KB_URL}/install-agents.sh | bash [-s -- [--scope user|project] [--no-optional] [--dry-run|--uninstall]]
 
 Options:
   --scope       Install scope. "user" writes to client config homes; "project"
                 writes to .claude/.codex under AGENT_KIT_PROJECT_ROOT or \$PWD.
                 Defaults to "user".
+  --no-optional Skip the stdio MCP servers that need extra tooling
+                (playwright via npx, serena via uvx). Install only the HTTP fleet.
   --dry-run     Print every change without modifying the filesystem.
-  --uninstall   Remove the delegated base files and the knowledge MCP entry.
+  --uninstall   Remove the delegated base files, the MCP fleet, and Claude hooks.
   --help        Show this help and exit.
 
 Environment:
@@ -68,6 +74,7 @@ while [ "$#" -gt 0 ]; do
     --scope=*) SCOPE="${1#--scope=}" ;;
     --dry-run) DRY_RUN=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --no-optional) INCLUDE_OPTIONAL=0 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "unknown option: $1" >&2; usage >&2; exit 64 ;;
   esac
@@ -128,33 +135,80 @@ delegate_base_install() {
 }
 
 # -----------------------------------------------------------------
-# Step 2: register (or remove) the knowledge MCP server.
+# Step 2: register (or remove) the portable MCP fleet for Claude and
+# Codex. The runner full-diagnostic profile has 7 servers; this
+# installs the workstation-portable subset:
+#   - knowledge  (HTTP, our KB, bearer)
+#   - context7   (HTTP, public docs)
+#   - vuetify    (HTTP, public docs)
+#   - playwright (stdio via npx)   — optional, needs node/npx
+#   - serena     (stdio via uvx)   — optional, needs uv/uvx
+# The runner-only servers are intentionally NOT installed locally:
+# github (gh-mcp-wrapper mints in-cluster App tokens) and kubernetes
+# (an in-cluster service URL unreachable from a workstation). Use the
+# fleet env knobs to opt out:
+#   --no-optional  skip the npx/uvx stdio servers entirely.
+# These hooks register/remove a fixed set of MANAGED server names, so
+# re-runs are idempotent and unrelated hand-added servers are kept.
 # -----------------------------------------------------------------
+fleet_have() { command -v "$1" >/dev/null 2>&1; }
+
+# Whether each optional stdio server qualifies (opted in AND launcher present).
+fleet_optional_state() {
+  AK_PLAYWRIGHT=0
+  AK_SERENA=0
+  if [ "${INCLUDE_OPTIONAL}" = 1 ]; then
+    if fleet_have npx; then AK_PLAYWRIGHT=1; else log "skipping playwright MCP (npx not on PATH)"; fi
+    if fleet_have uvx; then AK_SERENA=1; else log "skipping serena MCP (uvx not on PATH)"; fi
+  fi
+}
+
 register_claude_mcp() {
-  if command -v claude >/dev/null 2>&1; then
-    if [ "${DRY_RUN}" = 1 ]; then
-      log "would run: claude mcp add --scope ${SCOPE} --transport http knowledge ${KB_MCP_URL}"
-      return
-    fi
-    # Replace any existing entry so re-runs stay idempotent.
-    claude mcp remove --scope "${SCOPE}" knowledge >/dev/null 2>&1 || true
-    claude mcp add --scope "${SCOPE}" --transport http knowledge "${KB_MCP_URL}" \
-      --header "Authorization: Bearer ${KB_BEARER_TOKEN}"
-    log "registered knowledge MCP via claude CLI (scope ${SCOPE})"
-    return
-  fi
-  log "claude CLI not found; merging knowledge MCP into ${CLAUDE_MCP_FILE}"
+  fleet_optional_state
   if [ "${DRY_RUN}" = 1 ]; then
-    log "would merge knowledge MCP into ${CLAUDE_MCP_FILE}"
+    log "would register Claude MCP fleet (knowledge, context7, vuetify$([ "${AK_PLAYWRIGHT}" = 1 ] && printf ', playwright')$([ "${AK_SERENA}" = 1 ] && printf ', serena')) in ${CLAUDE_MCP_FILE}"
     return
   fi
-  AK_MCP_URL="${KB_MCP_URL}" AK_BEARER="${KB_BEARER_TOKEN}" \
-    AK_CLAUDE_MCP_FILE="${CLAUDE_MCP_FILE}" python3 - <<'PY'
+  AK_MODE=install AK_CLAUDE_MCP_FILE="${CLAUDE_MCP_FILE}" AK_KB_URL="${KB_MCP_URL}" \
+    AK_KB_BEARER="${KB_BEARER_TOKEN}" AK_PLAYWRIGHT="${AK_PLAYWRIGHT}" AK_SERENA="${AK_SERENA}" \
+    python3 - <<'PY'
 import json
 import os
 import pathlib
 
 path = pathlib.Path(os.environ["AK_CLAUDE_MCP_FILE"])
+mode = os.environ["AK_MODE"]
+managed = ["knowledge", "context7", "vuetify", "playwright", "serena"]
+
+fleet = {
+    "knowledge": {
+        "type": "http",
+        "url": os.environ["AK_KB_URL"],
+        "headers": {"Authorization": "Bearer " + os.environ["AK_KB_BEARER"]},
+    },
+    "context7": {"type": "http", "url": "https://mcp.context7.com/mcp"},
+    "vuetify": {"type": "http", "url": "https://mcp.vuetifyjs.com/mcp"},
+}
+if os.environ.get("AK_PLAYWRIGHT") == "1":
+    fleet["playwright"] = {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"],
+    }
+if os.environ.get("AK_SERENA") == "1":
+    fleet["serena"] = {
+        "type": "stdio",
+        "command": "uvx",
+        "args": [
+            "--from", "git+https://github.com/oraios/serena",
+            "serena", "start-mcp-server",
+            "--context", "claude-code",
+            "--project-from-cwd",
+            "--mode", "no-memories",
+            "--open-web-dashboard", "false",
+        ],
+    }
+
 data = {}
 if path.exists():
     try:
@@ -166,39 +220,37 @@ if not isinstance(data, dict):
 servers = data.get("mcpServers")
 if not isinstance(servers, dict):
     servers = {}
-servers["knowledge"] = {
-    "type": "http",
-    "url": os.environ["AK_MCP_URL"],
-    "headers": {"Authorization": "Bearer " + os.environ["AK_BEARER"]},
-}
-data["mcpServers"] = servers
+
+for name in managed:
+    servers.pop(name, None)
+if mode == "install":
+    servers.update(fleet)
+
+if servers:
+    data["mcpServers"] = servers
+else:
+    data.pop("mcpServers", None)
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, indent=2) + "\n")
 PY
-  log "merged knowledge MCP into ${CLAUDE_MCP_FILE}"
+  log "registered Claude MCP fleet in ${CLAUDE_MCP_FILE}"
 }
 
 remove_claude_mcp() {
-  if command -v claude >/dev/null 2>&1; then
-    if [ "${DRY_RUN}" = 1 ]; then
-      log "would run: claude mcp remove --scope ${SCOPE} knowledge"
-      return
-    fi
-    claude mcp remove --scope "${SCOPE}" knowledge >/dev/null 2>&1 || true
-    log "removed knowledge MCP via claude CLI (scope ${SCOPE})"
-    return
-  fi
   if [ ! -e "${CLAUDE_MCP_FILE}" ]; then return; fi
   if [ "${DRY_RUN}" = 1 ]; then
-    log "would remove knowledge MCP from ${CLAUDE_MCP_FILE}"
+    log "would remove the Claude MCP fleet from ${CLAUDE_MCP_FILE}"
     return
   fi
-  AK_CLAUDE_MCP_FILE="${CLAUDE_MCP_FILE}" python3 - <<'PY'
+  AK_MODE=remove AK_CLAUDE_MCP_FILE="${CLAUDE_MCP_FILE}" AK_KB_URL="${KB_MCP_URL}" \
+    AK_KB_BEARER="${KB_BEARER_TOKEN}" AK_PLAYWRIGHT=0 AK_SERENA=0 \
+    python3 - <<'PY'
 import json
 import os
 import pathlib
 
 path = pathlib.Path(os.environ["AK_CLAUDE_MCP_FILE"])
+managed = ["knowledge", "context7", "vuetify", "playwright", "serena"]
 try:
     data = json.loads(path.read_text() or "{}")
 except (json.JSONDecodeError, FileNotFoundError):
@@ -206,67 +258,124 @@ except (json.JSONDecodeError, FileNotFoundError):
 if not isinstance(data, dict):
     raise SystemExit(0)
 servers = data.get("mcpServers")
-if isinstance(servers, dict) and "knowledge" in servers:
-    del servers["knowledge"]
+if not isinstance(servers, dict):
+    raise SystemExit(0)
+for name in managed:
+    servers.pop(name, None)
+if servers:
     data["mcpServers"] = servers
-    path.write_text(json.dumps(data, indent=2) + "\n")
+else:
+    data.pop("mcpServers", None)
+path.write_text(json.dumps(data, indent=2) + "\n")
 PY
-  log "removed knowledge MCP from ${CLAUDE_MCP_FILE}"
+  log "removed the Claude MCP fleet from ${CLAUDE_MCP_FILE}"
 }
 
 register_codex_mcp() {
+  fleet_optional_state
   if [ "${DRY_RUN}" = 1 ]; then
-    log "would ensure [mcp_servers.knowledge] in ${CODEX_CONFIG_FILE}"
-    return
-  fi
-  if [ -e "${CODEX_CONFIG_FILE}" ] && grep -q '^\[mcp_servers\.knowledge\]' "${CODEX_CONFIG_FILE}"; then
-    log "preserving existing [mcp_servers.knowledge] in ${CODEX_CONFIG_FILE}"
+    log "would register Codex MCP fleet (knowledge, context7, vuetify$([ "${AK_PLAYWRIGHT}" = 1 ] && printf ', playwright')$([ "${AK_SERENA}" = 1 ] && printf ', serena')) in ${CODEX_CONFIG_FILE}"
     return
   fi
   mkdir -p "${CODEX_CONFIG_HOME}"
-  cat >> "${CODEX_CONFIG_FILE}" <<TOML
-
-[mcp_servers.knowledge]
-url = "${KB_MCP_URL}"
-bearer_token_env_var = "KB_BEARER_TOKEN"
-TOML
-  log "registered [mcp_servers.knowledge] in ${CODEX_CONFIG_FILE}"
-}
-
-remove_codex_mcp() {
-  if [ ! -e "${CODEX_CONFIG_FILE}" ]; then return; fi
-  if [ "${DRY_RUN}" = 1 ]; then
-    log "would remove [mcp_servers.knowledge] from ${CODEX_CONFIG_FILE}"
-    return
-  fi
-  if ! grep -q '^\[mcp_servers\.knowledge\]' "${CODEX_CONFIG_FILE}"; then return; fi
-  AK_CODEX_CONFIG_FILE="${CODEX_CONFIG_FILE}" python3 - <<'PY'
+  AK_MODE=install AK_CODEX_CONFIG_FILE="${CODEX_CONFIG_FILE}" AK_KB_URL="${KB_MCP_URL}" \
+    AK_PLAYWRIGHT="${AK_PLAYWRIGHT}" AK_SERENA="${AK_SERENA}" python3 - <<'PY'
 import os
 import pathlib
 import re
 
 path = pathlib.Path(os.environ["AK_CODEX_CONFIG_FILE"])
-lines = path.read_text().splitlines(keepends=True)
+mode = os.environ["AK_MODE"]
+managed = ["knowledge", "context7", "vuetify", "playwright", "serena"]
+
+
+def toml_str(value):
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def toml_arr(values):
+    return "[" + ", ".join(toml_str(v) for v in values) + "]"
+
+
+blocks = []
+blocks.append(
+    f'[mcp_servers.knowledge]\nurl = {toml_str(os.environ["AK_KB_URL"])}\n'
+    'bearer_token_env_var = "KB_BEARER_TOKEN"\n'
+)
+blocks.append(f'[mcp_servers.context7]\nurl = {toml_str("https://mcp.context7.com/mcp")}\n')
+blocks.append(f'[mcp_servers.vuetify]\nurl = {toml_str("https://mcp.vuetifyjs.com/mcp")}\n')
+if os.environ.get("AK_PLAYWRIGHT") == "1":
+    blocks.append(
+        '[mcp_servers.playwright]\ncommand = "npx"\n'
+        f'args = {toml_arr(["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"])}\n'
+    )
+if os.environ.get("AK_SERENA") == "1":
+    blocks.append(
+        '[mcp_servers.serena]\ncommand = "uvx"\nstartup_timeout_sec = 60\n'
+        f'args = {toml_arr(["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context=codex", "--project-from-cwd", "--mode", "no-memories", "--open-web-dashboard", "false"])}\n'
+    )
+
+existing = path.read_text() if path.exists() else ""
+# Strip any managed blocks we previously wrote, leaving everything else intact.
+lines = existing.splitlines(keepends=True)
 out = []
 skip = False
+managed_headers = {f"[mcp_servers.{name}]" for name in managed}
 for line in lines:
     stripped = line.strip()
-    if stripped == "[mcp_servers.knowledge]":
+    if stripped in managed_headers:
         skip = True
         continue
     if skip:
-        # End of block on the next table header.
-        if re.match(r"^\[", stripped):
+        if stripped.startswith("["):
             skip = False
         else:
             continue
     out.append(line)
 text = "".join(out)
-# Collapse any leading/trailing blank-line churn from the removal.
+if mode == "install":
+    if text and not text.endswith("\n"):
+        text += "\n"
+    text += "\n" + "\n".join(blocks)
 text = re.sub(r"\n{3,}", "\n\n", text)
 path.write_text(text.lstrip("\n"))
 PY
-  log "removed [mcp_servers.knowledge] from ${CODEX_CONFIG_FILE}"
+  log "registered Codex MCP fleet in ${CODEX_CONFIG_FILE}"
+}
+
+remove_codex_mcp() {
+  if [ ! -e "${CODEX_CONFIG_FILE}" ]; then return; fi
+  if [ "${DRY_RUN}" = 1 ]; then
+    log "would remove the Codex MCP fleet from ${CODEX_CONFIG_FILE}"
+    return
+  fi
+  AK_MODE=remove AK_CODEX_CONFIG_FILE="${CODEX_CONFIG_FILE}" AK_KB_URL="${KB_MCP_URL}" \
+    AK_PLAYWRIGHT=0 AK_SERENA=0 python3 - <<'PY'
+import os
+import pathlib
+import re
+
+path = pathlib.Path(os.environ["AK_CODEX_CONFIG_FILE"])
+managed = ["knowledge", "context7", "vuetify", "playwright", "serena"]
+managed_headers = {f"[mcp_servers.{name}]" for name in managed}
+lines = path.read_text().splitlines(keepends=True)
+out = []
+skip = False
+for line in lines:
+    stripped = line.strip()
+    if stripped in managed_headers:
+        skip = True
+        continue
+    if skip:
+        if stripped.startswith("["):
+            skip = False
+        else:
+            continue
+    out.append(line)
+text = re.sub(r"\n{3,}", "\n\n", "".join(out))
+path.write_text(text.lstrip("\n"))
+PY
+  log "removed the Codex MCP fleet from ${CODEX_CONFIG_FILE}"
 }
 
 # -----------------------------------------------------------------
@@ -419,9 +528,11 @@ log "done"
 cat <<EOF
 agent-kit full installer complete (${INSTALLER_VERSION}, scope=${SCOPE}).
 
-Registered the knowledge MCP server (${KB_MCP_URL}) for Claude and Codex and
-wired the Claude recall/capture/digest hooks into settings.json, on top of the
-base hooks + skills + council + Spec Kit install.
+Registered the MCP fleet (knowledge, context7, vuetify, and — when npx/uvx are
+present — playwright, serena) for Claude and Codex, and wired the Claude
+recall/capture/digest hooks into settings.json, on top of the base hooks +
+skills + council + Spec Kit install. The runner-only github and kubernetes
+servers are not installed on a workstation.
 
 Make sure KB_BEARER_TOKEN is set in each agent's environment:
   export KB_BEARER_TOKEN="<your-token>"
