@@ -204,9 +204,14 @@ def run_claude(prompt: str, model: str, *, cwd: Optional[Path] = None,
     if proc.returncode != 0:
         raise RuntimeError(f"claude:{model} exited {proc.returncode}: "
                            f"{proc.stderr.strip()[:500]}")
+    # Use the string-aware extractor rather than a raw json.loads: the claude
+    # CLI occasionally prefixes the `--output-format json` envelope with a
+    # warning/notice line on stdout, which made a bare json.loads fail at char 1
+    # (observed crashing stage-4 consolidation on large payloads). extract_json
+    # finds the outermost JSON object and tolerates surrounding noise.
     try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
+        data = extract_json(proc.stdout)
+    except ValueError as exc:
         raise RuntimeError(f"claude:{model} non-JSON output: {exc}: "
                            f"{proc.stdout[:300]}") from exc
     return EngineResult(
@@ -1592,6 +1597,9 @@ def cmd_self_test(_args: argparse.Namespace) -> int:
           extract_json('text\n```json\n{"a": [1,2]}\n```\nmore') == {"a": [1, 2]})
     check("extract_json with braces in string",
           extract_json('{"k": "a{b}c"}') == {"k": "a{b}c"})
+    check("extract_json tolerates a CLI warning preamble (run_claude path)",
+          extract_json('Warning: something\n{"result": "ok", "n": 2}')
+          == {"result": "ok", "n": 2})
     check("extract_json keeps code fences inside string value",
           extract_json('{"md": "see ```bash\\nx\\n``` end", "n": 1}')
           == {"md": "see ```bash\nx\n``` end", "n": 1})
