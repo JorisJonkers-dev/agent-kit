@@ -3,6 +3,12 @@ kind: AgentRuntimePackage
 metadata:
   name: portable-agent-runner
   description: Portable runtime packaging contract rendered by agent-kit.
+artifact:
+  repository: ghcr.io/jorisjonkers-dev/agent-kit/runtime-home
+  mediaType: application/vnd.jorisjonkers.agent-kit.runtime-home.v1.tar+gzip
+  tagPattern: "v{version}"
+  releaseAssetPattern: "agent-kit-runtime-home-v{version}.tar.gz"
+  digestAlgorithm: sha256
 build:
   containerfile: runner-manifests/runtime/Containerfile
   context: runner-manifests/runtime
@@ -142,6 +148,18 @@ runtime:
     sourcePathEnv: AGENT_KIT_SDD_SOURCE
     markerFileEnv: AGENT_KIT_SDD_MARKER_FILE
     updatePolicy: update-if-unmodified
+  homeBundle:
+    archiveRoot: "."
+    homeSource: "home"
+    sddSource: "sdd"
+    mcpSource: "mcp"
+    markerFile: ".agent-kit-home-install.sha256"
+    versionMarkerFile: ".knowledge-system-version"
+    installPolicy: "update-if-unmodified"
+    preserveCredentialFiles:
+      - ".claude/.credentials.json"
+      - ".codex/auth.json"
+      - ".codex/config.toml"
 handoff:
   platformBlueprintResponsibilities:
     - namespace

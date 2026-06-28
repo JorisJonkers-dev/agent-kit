@@ -8,7 +8,8 @@ description: Open a personal-stack pull request using the repo's required assign
 Create PRs in the human driver's voice, not as an assistant addressing them.
 
 ```bash
-gh pr create --assignee ExtraToast --label <label> \
+assignee="${AGENT_KIT_GH_ASSIGNEE:?set AGENT_KIT_GH_ASSIGNEE to the GitHub login that should own PRs}"
+gh pr create --assignee "$assignee" --label <label> \
   --title "..." --body "$(cat <<'EOF'
 ...
 EOF
@@ -17,7 +18,7 @@ EOF
 
 Rules:
 
-- Use `--assignee ExtraToast`.
+- Use `--assignee "$assignee"` from `AGENT_KIT_GH_ASSIGNEE`.
 - Pick the best label: `enhancement`, `bug`, `documentation`, or
   `dependencies` plus ecosystem labels for version bumps. Stack labels only
   when the PR genuinely spans categories.

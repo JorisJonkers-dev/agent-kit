@@ -13,6 +13,7 @@ import stat
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 from urllib import error, request
 
 KIT_ROOT = Path(__file__).resolve().parent
@@ -530,7 +531,7 @@ def kb_reachability_check(require_live_kb: bool, timeout_seconds: float) -> Doct
     )
 
 
-def mcp_post(kb_url: str, token: str, payload: dict, timeout_seconds: float) -> dict:
+def mcp_post(kb_url: str, token: str, payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
     probe = request.Request(
         f"{kb_url}/mcp",
         data=json.dumps(payload).encode(),
@@ -541,7 +542,7 @@ def mcp_post(kb_url: str, token: str, payload: dict, timeout_seconds: float) -> 
         method="POST",
     )
     with request.urlopen(probe, timeout=timeout_seconds) as response:
-        return json.loads(response.read().decode())
+        return cast(dict[str, Any], json.loads(response.read().decode()))
 
 
 def doctor(args: argparse.Namespace) -> int:

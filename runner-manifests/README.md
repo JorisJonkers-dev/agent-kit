@@ -20,6 +20,7 @@ image or entrypoint:
 - MCP profile merge semantics using placeholder URLs and bearer-token env names.
 - Spec Kit seed source, marker file, and update policy.
 - Required tools the runtime image must provide for normal agent workflows.
+- Published runtime-home artifact metadata for the versioned agent-kit bundle.
 
 ## Owned By Platform Blueprints
 
@@ -51,7 +52,7 @@ image or entrypoint:
 
 ## Design-First Guardrails
 
-Skeleton files must stay placeholder-only. Do not add concrete domains,
+Placeholder fixtures must stay placeholder-only. Do not add concrete domains,
 hostnames, IP addresses, namespaces, image prefixes, secret paths, queue names,
-or endpoint URLs. Do not add Kubernetes workload resources in this directory.
-The local manifest validator enforces those constraints.
+or endpoint URLs to fixtures. Do not add Kubernetes workload resources in this
+directory. The local manifest validator enforces those constraints.

@@ -3,6 +3,12 @@ kind: AgentRuntimePackage
 metadata:
   name: placeholder-agent-runtime
   description: Placeholder-only runtime package contract for agent runner images.
+artifact:
+  repository: <runtime-home-oci-repository>
+  mediaType: <runtime-home-oci-media-type>
+  tagPattern: "v{version}"
+  releaseAssetPattern: <runtime-home-release-asset-pattern>
+  digestAlgorithm: sha256
 build:
   containerfile: <runtime-containerfile-path>
   context: <runtime-build-context>

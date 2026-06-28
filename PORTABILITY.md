@@ -1,6 +1,6 @@
 # Agent Kit Portability
 
-The durable source for this kit is a pinned ExtraToast/agent-kit release tag.
+The durable source for this kit is a pinned JorisJonkers-dev/agent-kit release tag.
 Generated client homes are reinstallable state; do not treat them as the source
 of truth.
 
@@ -50,9 +50,9 @@ unless `--require-live-kb` is set.
 
 ## Restore Order
 
-1. Check out the desired ExtraToast/agent-kit release tag.
-2. Run `python3 render-agent-kit.py --check` and
-   `python3 scripts/validate_manifest.py`.
+1. Check out the desired JorisJonkers-dev/agent-kit release tag.
+2. Run `uv run python render-agent-kit.py --check` and
+   `uv run python scripts/validate_manifest.py`.
 3. Ensure the KB service serves the checked-in `installer/install.sh` as
    `ClassPathResource("installer/install.sh")`.
 4. Reinstall client homes with `/install.sh --agent all --scope user` or

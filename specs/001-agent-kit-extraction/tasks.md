@@ -8,7 +8,7 @@
 - [x] T002 [FR-18, FR-19] Copy the project constitution seed source into
   `.specify/memory/constitution.md` for installer project-scope seeding.
 - [x] T003 [FR-1, FR-2, FR-23, FR-24] Add release metadata files for
-  repository-tag versioning with short `github:ExtraToast/agent-kit`
+  repository-tag versioning with short `github:JorisJonkers-dev/agent-kit`
   coordinates.
 
 Dependencies: T001 before renderer adaptation; T002 before installer generation;

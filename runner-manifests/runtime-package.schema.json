@@ -2,7 +2,7 @@
   "$id": "agent-kit.agent-runner.runtime-package.schema.json",
   "title": "AgentRuntimePackage",
   "type": "object",
-  "required": ["apiVersion", "kind", "metadata", "build", "runtime", "handoff"],
+  "required": ["apiVersion", "kind", "metadata", "artifact", "build", "runtime", "handoff"],
   "additionalProperties": false,
   "properties": {
     "apiVersion": {
@@ -23,6 +23,28 @@
         "description": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["repository", "mediaType", "tagPattern", "releaseAssetPattern", "digestAlgorithm"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "tagPattern": {
+          "type": "string"
+        },
+        "releaseAssetPattern": {
+          "type": "string"
+        },
+        "digestAlgorithm": {
+          "const": "sha256"
         }
       }
     },

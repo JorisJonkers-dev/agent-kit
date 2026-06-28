@@ -15,7 +15,7 @@ import tempfile
 import tomllib
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn, cast
 
 try:
     import yaml
@@ -33,7 +33,7 @@ ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR, ROUND3_SPEC_DIR, ROUND4_SPEC_DIR)
 
 ROUND3_FORBIDDEN_PATTERNS = {
     "personal domain or hostname": re.compile(
-        r"\b(?:jorisjonkers|esa-blueshell|blueshell|enschede|frankfurt|contabo)\b",
+        r"\b(?:esa-blueshell|blueshell|enschede|frankfurt|contabo)\b",
         re.IGNORECASE,
     ),
     "concrete namespace": re.compile(r"\b(?:agents-system|assistant-system|knowledge-system(?!-version))\b"),
@@ -101,7 +101,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     raise AssertionError(message)
 
 
@@ -114,7 +114,7 @@ def as_list(value: Any, name: str) -> list[Any]:
 def as_mapping(value: Any, name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         fail(f"{name} must be a mapping")
-    return value
+    return cast(dict[str, Any], value)
 
 
 def all_mappings(value: Any) -> Iterable[dict[str, Any]]:
@@ -140,12 +140,18 @@ def pinned_path_entries(manifest: dict[str, Any]) -> list[dict[str, str]]:
 def validate_artifact(manifest: dict[str, Any]) -> None:
     artifact = as_mapping(manifest.get("artifact"), "artifact")
     coordinate = artifact.get("short_coordinate")
-    if coordinate != "github:ExtraToast/agent-kit":
-        fail("artifact.short_coordinate must be github:ExtraToast/agent-kit")
+    if not isinstance(coordinate, str):
+        fail("artifact.short_coordinate must be a string")
+    if artifact.get("repository") != "https://github.com/JorisJonkers-dev/agent-kit":
+        fail("artifact.repository must be https://github.com/JorisJonkers-dev/agent-kit")
+    if coordinate != "github:JorisJonkers-dev/agent-kit":
+        fail("artifact.short_coordinate must be github:JorisJonkers-dev/agent-kit")
     if re.search(r"agent-kit[-_/]agent-kit", coordinate, re.IGNORECASE):
         fail("artifact.short_coordinate repeats the agent-kit segment")
-    if artifact.get("package_publish") != "none":
-        fail("artifact.package_publish must be none for the initial tool repo release")
+    if artifact.get("package_publish") != "ghcr-oci-runtime-home":
+        fail("artifact.package_publish must be ghcr-oci-runtime-home")
+    if artifact.get("runtime_home_repository") != "ghcr.io/jorisjonkers-dev/agent-kit/runtime-home":
+        fail("artifact.runtime_home_repository must be ghcr.io/jorisjonkers-dev/agent-kit/runtime-home")
 
 
 def validate_renderer(manifest: dict[str, Any]) -> set[str]:
@@ -258,7 +264,11 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
                 fail(f"installer-only skill {name} must install to claude and codex")
 
     settings = as_list(manifest.get("settings"), "settings")
-    setting_agents = {item.get("agent") for item in settings if isinstance(item, dict)}
+    setting_agents = {
+        agent
+        for item in settings
+        if isinstance(item, dict) and isinstance((agent := item.get("agent")), str)
+    }
     if setting_agents != {"claude", "codex"}:
         fail(f"settings must include claude and codex entries: {sorted(setting_agents)}")
 
@@ -382,7 +392,11 @@ def validate_runtime_package_manifest(manifest: dict[str, Any]) -> None:
         for path in (ROOT / "runner-manifests" / "runtime").rglob("*")
         if path.is_file()
     }
-    manifest_files = {item.get("path") for item in files if isinstance(item, dict)}
+    manifest_files = {
+        path
+        for item in files
+        if isinstance(item, dict) and isinstance((path := item.get("path")), str)
+    }
     if manifest_files != expected_files:
         fail(
             "agent_runner_runtime.files mismatch: "
@@ -398,6 +412,17 @@ def validate_runtime_package_artifacts() -> None:
         fail("runtime package apiVersion must be agent-kit.runtime/v1alpha1")
     if package.get("kind") != "AgentRuntimePackage":
         fail("runtime package kind must be AgentRuntimePackage")
+
+    artifact = as_mapping(package.get("artifact"), "runtime package artifact")
+    expected_artifact = {
+        "repository": "ghcr.io/jorisjonkers-dev/agent-kit/runtime-home",
+        "mediaType": "application/vnd.jorisjonkers.agent-kit.runtime-home.v1.tar+gzip",
+        "tagPattern": "v{version}",
+        "releaseAssetPattern": "agent-kit-runtime-home-v{version}.tar.gz",
+        "digestAlgorithm": "sha256",
+    }
+    if artifact != expected_artifact:
+        fail(f"runtime package artifact mismatch: {artifact}")
 
     build = as_mapping(package.get("build"), "runtime package build")
     for key in ("containerfile", "context"):
@@ -415,6 +440,24 @@ def validate_runtime_package_artifacts() -> None:
     if actual_self_tests != required_self_tests:
         fail(f"runtime package selfTests mismatch: {sorted(actual_self_tests)}")
 
+    home_bundle = as_mapping(runtime.get("homeBundle"), "runtime package homeBundle")
+    expected_home_bundle = {
+        "archiveRoot": ".",
+        "homeSource": "home",
+        "sddSource": "sdd",
+        "mcpSource": "mcp",
+        "markerFile": ".agent-kit-home-install.sha256",
+        "versionMarkerFile": ".knowledge-system-version",
+        "installPolicy": "update-if-unmodified",
+        "preserveCredentialFiles": [
+            ".claude/.credentials.json",
+            ".codex/auth.json",
+            ".codex/config.toml",
+        ],
+    }
+    if home_bundle != expected_home_bundle:
+        fail(f"runtime package homeBundle mismatch: {home_bundle}")
+
     helpers = as_mapping(runtime.get("githubTokenHelper"), "runtime package githubTokenHelper")
     for key in ("helperPath", "ghWrapperPath", "gitCredentialHelperPath", "mcpWrapperPath"):
         helper_path = ROOT / str(helpers.get(key, ""))
@@ -425,9 +468,9 @@ def validate_runtime_package_artifacts() -> None:
 
     profile_section = as_mapping(runtime.get("mcpProfiles"), "runtime package mcpProfiles")
     placeholders = {
-        item.get("name")
+        name
         for item in as_list(profile_section.get("placeholders"), "runtime package mcpProfiles.placeholders")
-        if isinstance(item, dict)
+        if isinstance(item, dict) and isinstance((name := item.get("name")), str)
     }
     required_placeholders = {
         "KNOWLEDGE_MCP_URL",
@@ -465,8 +508,7 @@ def run_checked(command: list[str], env: dict[str, str] | None = None, input_tex
         env=env,
         input=input_text,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     if completed.returncode != 0:
