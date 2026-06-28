@@ -44,10 +44,35 @@ jobs:
         run: bash <(curl --fail --silent --show-error --location https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
       - run: '"${{ steps.actionlint.outputs.executable }}" -color .github/workflows/*.yml'
 
+  shell-lint:
+    name: Shell Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint repo-owned shell scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          repo_shell_scripts=(scripts/*.sh)
+          if [ -f build-runtime-package.sh ]; then
+            repo_shell_scripts+=(build-runtime-package.sh)
+          fi
+          if [ "${#repo_shell_scripts[@]}" -eq 0 ]; then
+            echo "No repo-owned shell scripts found" >&2
+            exit 1
+          fi
+          bash -n "${repo_shell_scripts[@]}"
+          shellcheck "${repo_shell_scripts[@]}"
+
   pipeline-complete:
     name: Pipeline Complete
     if: always()
-    needs: [python, runtime-package, workflow-lint]
+    needs: [python, runtime-package, shell-lint, workflow-lint]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@release/v1
