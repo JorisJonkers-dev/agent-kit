@@ -5,11 +5,12 @@ notes:
   - "Repo skill bodies are intentionally agent-specific today; parity means every shared skill has both Claude and Codex targets unless an explicit unsupported reason is present."
 
 artifact:
-  repository: https://github.com/ExtraToast/agent-kit
-  short_coordinate: github:ExtraToast/agent-kit
+  repository: https://github.com/JorisJonkers-dev/agent-kit
+  short_coordinate: github:JorisJonkers-dev/agent-kit
   renovate_datasource: github-releases
   release_tag_pattern: "v{version}"
-  package_publish: none
+  package_publish: ghcr-oci-runtime-home
+  runtime_home_repository: ghcr.io/jorisjonkers-dev/agent-kit/runtime-home
 
 provenance:
   spec_kit:
@@ -216,7 +217,7 @@ commands:
     targets:
       - agent: claude
         path: .claude/commands/speckit.taskstoissues.md
-        sha256: f18d5b2efc9834825fd87252ccd25cbaa2a9c40aa60f0baa9c12698ea86ebcff
+        sha256: 6d693f59010807071c50c7d1e3a2d6c6163c9ea93d53ece8265abf396a6f8935
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/commands/speckit.taskstoissues.md"
@@ -284,10 +285,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/open-pr/SKILL.md
-        sha256: 6ca06fa4795b7aa15835f5f5918a90ff6a6495a76b8bc7fcf584aca3f3dfd7d1
+        sha256: 7bf289f7c8d76688a1af8e7e9eef6dd780e999340843fd045a6e8ff923df01d0
       - agent: claude
         path: .claude/skills/open-pr/SKILL.md
-        sha256: 1d89e750db26d9c27668612dbdd9f4997da93edfd8d4801c8707b56b856e3c29
+        sha256: 7e978da6a0555e2f93e30f6de6ad7069c18fa35b003b503bcbe91f8c9ad8b9df
   - name: run-tests
     supported_agents: [codex, claude]
     targets:
@@ -405,7 +406,7 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/speckit-taskstoissues/SKILL.md
-        sha256: ab783756dfcef9c65070bc49d8f775a9b56050f58fd3a10baaa162cf7d42bea6
+        sha256: aa06e6c7b828e685c1cae2e319055417c0575a2e81f52d3a10fef8462e9b740f
     installer:
       source_path: installer/install.sh
       codex_target_path: "${CODEX_HOME}/skills/speckit-taskstoissues/SKILL.md"
@@ -659,16 +660,16 @@ agent_runner_runtime:
       sha256: 9854de6251f5a32dc9d38a32607c9c38c4a5e24f7ddd9989b5f573d0e194a55a
       mode: "0644"
     - path: runner-manifests/runtime/runtime-package.yaml
-      sha256: 04697aafb0313bd6faa100ae6e491a32a6999c5383b50d131112dd1750518321
+      sha256: 04a5df4143b01a57d62f85659adc650efbbc943ae1d49bf929261d4ad67ef77d
       mode: "0644"
 
 installer:
   path: installer/install.sh
-  sha256: ea2456ba061cb5ebb785fe7adb6a7717f8ae7e4f8033ea9b035616cef4c5558f
+  sha256: 2be5b06c3540930775762b3257a0b49816270a6d0b0ad99a68e17a2b116824db
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: ea2456ba061cb5ebb785fe7adb6a7717f8ae7e4f8033ea9b035616cef4c5558f
+      sha256: 2be5b06c3540930775762b3257a0b49816270a6d0b0ad99a68e17a2b116824db
       mode: "0644"
     - path: installer/install-agents.sh
       sha256: 63e36bf648297d50e1a89f1823560defbd54eb669d43086b7021a1818bd3b55b

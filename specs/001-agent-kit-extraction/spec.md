@@ -2,7 +2,7 @@
 
 ## Overview
 
-ExtraToast/agent-kit is the versioned source for a pinned renderer and installer kit used by downstream repositories. The kit supplies agent-facing surfaces: skills, hooks, council orchestration assets, KB hooks, settings, and Spec Kit seeds. The purpose is to replace copied or repo-local surface ownership with a reproducible artifact that downstream repositories can pin, render, verify, and update through normal dependency management.
+JorisJonkers-dev/agent-kit is the versioned source for a pinned renderer and installer kit used by downstream repositories. The kit supplies agent-facing surfaces: skills, hooks, council orchestration assets, KB hooks, settings, and Spec Kit seeds. The purpose is to replace copied or repo-local surface ownership with a reproducible artifact that downstream repositories can pin, render, verify, and update through normal dependency management.
 
 The extraction preserves the user-facing contracts currently represented by the reference renderer, manifest, templates, council assets, and installer route. The compatibility baseline is the read-only reference set under `/workspace/personal-stack/platform/agents/kit`, `/workspace/personal-stack/platform/agents/council`, and `services/knowledge-api` installer controller files. Downstream repositories must be able to render `.claude`, `.codex`, and `.agents` content from an exact kit version, detect drift in CI, and receive installer content served by the running KB service without embedding secrets.
 
@@ -10,7 +10,7 @@ Distribution intent: this repository is consumed by personal-stack and optionall
 
 ## User Scenarios
 
-1. A consumer maintainer pins ExtraToast/agent-kit to a released version, renders repo-local `.claude`, `.codex`, and `.agents` surfaces, and commits the generated result with provenance that identifies the kit version.
+1. A consumer maintainer pins JorisJonkers-dev/agent-kit to a released version, renders repo-local `.claude`, `.codex`, and `.agents` surfaces, and commits the generated result with provenance that identifies the kit version.
 2. A consumer CI run compares committed surfaces with the pinned kit render and fails when any generated skill, hook, setting, council asset, KB hook, or installer entrypoint differs.
 3. A kit maintainer changes a managed surface, updates the manifest, and verifies that all supported agent surfaces stay in parity or that any intentional gap has an explicit unsupported reason.
 4. A runtime operator downloads `/install.sh` from the KB service and receives a shell script whose version and KB URL match the running service while containing no bearer token or other secret.
@@ -18,7 +18,7 @@ Distribution intent: this repository is consumed by personal-stack and optionall
 
 ## Functional Requirements (FR-n)
 
-- FR-1: The kit must define a versioned artifact identity for ExtraToast/agent-kit that downstream repositories can pin with short coordinates.
+- FR-1: The kit must define a versioned artifact identity for JorisJonkers-dev/agent-kit that downstream repositories can pin with short coordinates.
 - FR-2: Artifact coordinates must avoid doubled plugin-marker names in consumer metadata, generated paths, and dependency update labels.
 - FR-3: Downstream repositories must render `.claude`, `.codex`, and `.agents` surfaces from a declared pinned kit version rather than from an unpinned local copy.
 - FR-4: Rendered surfaces must include or reference enough provenance for a reviewer and CI to identify the exact kit version that produced them.
@@ -82,7 +82,7 @@ Distribution intent: this repository is consumed by personal-stack and optionall
 
 ## Key Entities
 
-- Kit artifact: The released ExtraToast/agent-kit package that contains managed surfaces and metadata.
+- Kit artifact: The released JorisJonkers-dev/agent-kit package that contains managed surfaces and metadata.
 - Pinned version: The immutable version selected by a consumer repository.
 - Short coordinate: The compact dependency coordinate used by consumers and Renovate.
 - Consumer repository: A repository such as personal-stack or website that renders managed surfaces from the kit.

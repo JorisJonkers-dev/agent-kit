@@ -29,7 +29,8 @@ docs. Do not overwrite existing scripts or templates.
 4. Use titles in this format: `[SpecKit] <feature-dir-name>: <task-id> <task>`.
 5. Before creating each issue, check all repository issues by exact title. If an
    issue with the same title already exists, warn and skip it.
-6. Assign every created issue with `--assignee ExtraToast`.
+6. Assign every created issue with `--assignee "$assignee"` from
+   `AGENT_KIT_GH_ASSIGNEE`.
 7. Pick exactly one best-fit label from the existing repository labels:
    `bug`, `documentation`, or `enhancement`.
    - Use `bug` for tasks about bugs, fixes, regressions, failures, or defects.
@@ -42,6 +43,7 @@ docs. Do not overwrite existing scripts or templates.
 ```bash
 dry_run=false
 case " $ARGUMENTS " in *" --dry-run "*) dry_run=true ;; esac
+assignee="${AGENT_KIT_GH_ASSIGNEE:?set AGENT_KIT_GH_ASSIGNEE to the GitHub login that should own generated issues}"
 
 feature_dir="<FEATURE_DIR from check-prerequisites>"
 tasks_file="$feature_dir/tasks.md"
@@ -95,11 +97,11 @@ EOF
   fi
 
   if [ "$dry_run" = true ]; then
-    printf 'gh issue create --title %q --body %q --assignee ExtraToast' "$title" "$body"
+    printf 'gh issue create --title %q --body %q --assignee %q' "$title" "$body" "$assignee"
     [ "${#label_args[@]}" -eq 0 ] || printf ' --label %q' "$label"
     printf '\n'
   else
-    gh issue create --title "$title" --body "$body" --assignee ExtraToast "${label_args[@]}"
+    gh issue create --title "$title" --body "$body" --assignee "$assignee" "${label_args[@]}"
   fi
 done < <(grep -E '^- \[[ xX]\].*T[0-9]{3,}' "$tasks_file")
 ```

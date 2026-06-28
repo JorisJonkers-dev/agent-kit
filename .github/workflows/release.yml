@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   release-please:
@@ -15,10 +16,6 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      # Author the release PR with the personal-stack-agents App token (not the
-      # default GITHUB_TOKEN) so CI runs on the PR without a manual approval
-      # gate. Best-effort: falls back to GITHUB_TOKEN when the App secrets or
-      # installation are absent.
       - uses: actions/create-github-app-token@v2
         id: app-token
         continue-on-error: true
@@ -33,14 +30,33 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  publish:
+  publish-runtime-home:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      # agent-kit is consumed by version tag/ref, not a package registry artifact.
-      - name: Publish release ref
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: astral-sh/setup-uv@v5
+      - uses: oras-project/setup-oras@v1
+      - run: uv sync --frozen
+      - run: scripts/build-runtime-package.sh "${{ needs.release-please.outputs.tag_name }}" dist
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Publish OCI runtime-home artifact
         run: |
-          echo "Released tag/ref: ${{ needs.release-please.outputs.tag_name }}"
+          tag="${{ needs.release-please.outputs.tag_name }}"
+          oras push "ghcr.io/jorisjonkers-dev/agent-kit/runtime-home:${tag}" \
+            --artifact-type application/vnd.jorisjonkers.agent-kit.runtime-home.v1.tar+gzip \
+            "dist/agent-kit-runtime-home-${tag}.tar.gz:application/gzip" \
+            "dist/agent-kit-runtime-home-${tag}.tar.gz.sha256:text/plain"
+      - name: Attach release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ needs.release-please.outputs.tag_name }}"
+          gh release upload "$tag" \
+            "dist/agent-kit-runtime-home-${tag}.tar.gz" \
+            "dist/agent-kit-runtime-home-${tag}.tar.gz.sha256" \
+            --clobber

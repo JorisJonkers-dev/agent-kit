@@ -9,7 +9,8 @@ Every PR is authored in the voice of the human driver, not an assistant
 addressing them.
 
 ```bash
-gh pr create --assignee ExtraToast --label <label> \
+assignee="${AGENT_KIT_GH_ASSIGNEE:?set AGENT_KIT_GH_ASSIGNEE to the GitHub login that should own PRs}"
+gh pr create --assignee "$assignee" --label <label> \
   --title "..." --body "$(cat <<'EOF'
 ...
 EOF
@@ -18,7 +19,7 @@ EOF
 
 ## Rules
 
-- **`--assignee ExtraToast`** always.
+- **`--assignee "$assignee"`** always, sourced from `AGENT_KIT_GH_ASSIGNEE`.
 - **`--label`** the best single fit: `enhancement` (new capability),
   `bug` (fixes broken behaviour), `documentation` (docs/CLAUDE.md only),
   or `dependencies` + ecosystem (`docker`/`java`/`javascript`/

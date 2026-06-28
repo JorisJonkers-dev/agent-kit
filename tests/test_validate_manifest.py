@@ -7,6 +7,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 from types import ModuleType
+from typing import ClassVar
 
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATOR_PATH = ROOT / "scripts" / "validate_manifest.py"
@@ -22,6 +23,8 @@ def load_validator() -> ModuleType:
 
 
 class ValidateManifestRuntimeSelfTest(unittest.TestCase):
+    validator: ClassVar[ModuleType]
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.validator = load_validator()

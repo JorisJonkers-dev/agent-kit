@@ -89,8 +89,8 @@ SHA-256 checksum. Intentional single-surface gaps are represented with
 
 | Requirement | Design Element |
 | --- | --- |
-| FR-1 | Release Please tags plus `manifest.yaml` artifact metadata define the versioned ExtraToast/agent-kit source. |
-| FR-2 | Manifest short coordinate is `github:ExtraToast/agent-kit`; validator rejects repeated `agent-kit` coordinate segments. |
+| FR-1 | Release Please tags plus `manifest.yaml` artifact metadata define the versioned JorisJonkers-dev/agent-kit source. |
+| FR-2 | Manifest short coordinate is `github:JorisJonkers-dev/agent-kit`; validator rejects repeated `agent-kit` coordinate segments. |
 | FR-3 | Renderer emits all supported agent surfaces from checked-in templates. |
 | FR-4 | Manifest records artifact metadata, managed paths, and checksums; installer writes version manifests. |
 | FR-5 | Renderer CLI keeps `--check`, `--write`, `--output`, and `--doctor`. |

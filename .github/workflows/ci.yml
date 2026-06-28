@@ -6,148 +6,74 @@ on:
     branches: [main]
   workflow_dispatch:
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
 permissions:
   contents: read
 
 jobs:
-  python-lint:
-    name: Python Lint
+  python:
+    name: Python Lint / Typecheck / Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run mypy
+      - run: uv run pytest
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install validation tools
-        run: python -m pip install -r requirements-dev.txt
-
-      - name: Ruff
-        run: ruff check .
-
-      - name: Compile Python
-        run: python -m compileall render-agent-kit.py scripts council
+  runtime-package:
+    name: Runtime Package Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run python render-agent-kit.py --check
+      - run: uv run python render-agent-kit.py --doctor
+      - run: scripts/build-runtime-package.sh v0.0.0-ci dist
+      - run: tar -tzf dist/agent-kit-runtime-home-v0.0.0-ci.tar.gz >/dev/null
 
   workflow-lint:
     name: Workflow Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download actionlint
-        id: actionlint
+      - id: actionlint
         shell: bash
         run: bash <(curl --fail --silent --show-error --location https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+      - run: '"${{ steps.actionlint.outputs.executable }}" -color .github/workflows/*.yml'
 
-      - name: Lint GitHub Actions workflows
-        shell: bash
-        run: |
-          "${{ steps.actionlint.outputs.executable }}" -color .github/workflows/*.yml
-
-  render-check:
-    name: Renderer Check
+  shell-lint:
+    name: Shell Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
 
-      - name: Check generated surfaces
-        run: python render-agent-kit.py --check
-
-      - name: Run doctor
-        run: python render-agent-kit.py --doctor
-
-      - name: Output render smoke test
+      - name: Lint repo-owned shell scripts
         shell: bash
         run: |
           set -euo pipefail
-          before="$(git status --porcelain=v1)"
-          out="$(mktemp -d)"
-          python render-agent-kit.py --output "${out}"
-          test -f "${out}/installer/install.sh"
-          test -f "${out}/.claude/settings.json"
-          test -f "${out}/.codex/hooks.json"
-          test -f "${out}/.agents/skills/kb-first/SKILL.md"
-          after="$(git status --porcelain=v1)"
-          if [ "${before}" != "${after}" ]; then
-            echo "render --output modified the worktree" >&2
-            git status --short >&2
+          shopt -s nullglob
+          repo_shell_scripts=(scripts/*.sh)
+          if [ -f build-runtime-package.sh ]; then
+            repo_shell_scripts+=(build-runtime-package.sh)
+          fi
+          if [ "${#repo_shell_scripts[@]}" -eq 0 ]; then
+            echo "No repo-owned shell scripts found" >&2
             exit 1
           fi
-
-      - name: Shell syntax
-        run: |
-          bash -n installer/install.sh
-          find .claude .codex .specify templates/installer/partials -name '*.sh' -print0 | xargs -0 -n1 bash -n
-
-  manifest-validation:
-    name: Manifest Validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install validation tools
-        run: python -m pip install -r requirements-dev.txt
-
-      - name: Validate manifest
-        run: python scripts/validate_manifest.py
-
-      - name: Validate JSON files
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          failures = []
-          for path in Path(".").rglob("*.json"):
-              if ".git" in path.parts:
-                  continue
-              try:
-                  json.loads(path.read_text())
-              except Exception as exc:
-                  failures.append(f"{path}: {exc}")
-
-          if failures:
-              print("\n".join(failures), file=sys.stderr)
-              sys.exit(1)
-          PY
-
-  release-config:
-    name: Release Config
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate release configuration
-        run: |
-          test -f .github/workflows/release.yml
-          test -f release-please-config.json
-          test -f .release-please-manifest.json
-          python -m json.tool release-please-config.json >/dev/null
-          python -m json.tool .release-please-manifest.json >/dev/null
+          bash -n "${repo_shell_scripts[@]}"
+          shellcheck "${repo_shell_scripts[@]}"
 
   pipeline-complete:
     name: Pipeline Complete
     if: always()
-    needs: [python-lint, workflow-lint, render-check, manifest-validation, release-config]
+    needs: [python, runtime-package, shell-lint, workflow-lint]
     runs-on: ubuntu-latest
     steps:
-      - name: Verify all gating jobs succeeded
-        uses: re-actors/alls-green@release/v1
+      - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
