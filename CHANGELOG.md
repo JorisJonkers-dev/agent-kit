@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v1.1.0...v1.2.0) (2026-06-29)
+
+
+### Features
+
+* apply agent-kit program sweep ([#3](https://github.com/JorisJonkers-dev/agent-kit/issues/3)) ([e0d8533](https://github.com/JorisJonkers-dev/agent-kit/commit/e0d8533edf747de9cb8aa84d7c45aab65cd719bd))
+
 ## [1.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v1.0.0...v1.1.0) (2026-06-28)
 
 
