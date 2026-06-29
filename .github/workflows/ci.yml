@@ -1,60 +1,61 @@
-name: CI
+'name': 'CI'
 
-on:
-  pull_request:
-  push:
-    branches: [main]
-  workflow_dispatch:
+'on':
+  'pull_request':
+  'push':
+    'branches':
+      - 'main'
+  'workflow_dispatch':
 
-permissions:
-  contents: read
+'permissions':
+  'contents': 'read'
 
-jobs:
-  python:
-    name: Python Lint / Typecheck / Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv sync --frozen
-      - run: uv run ruff check .
-      - run: uv run mypy
-      - run: uv run pytest
+'jobs':
+  'python':
+    'name': 'Python Lint / Typecheck / Tests'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'astral-sh/setup-uv@v8.2.0'
+      - 'run': 'uv sync --frozen'
+      - 'run': 'uv run ruff check .'
+      - 'run': 'uv run mypy'
+      - 'run': 'uv run pytest'
 
-  runtime-package:
-    name: Runtime Package Contract
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv sync --frozen
-      - run: uv run python render-agent-kit.py --check
-      - run: uv run python render-agent-kit.py --doctor
-      - run: scripts/build-runtime-package.sh v0.0.0-ci dist
-      - run: tar -tzf dist/agent-kit-runtime-home-v0.0.0-ci.tar.gz >/dev/null
+  'runtime-package':
+    'name': 'Runtime Package Contract'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'astral-sh/setup-uv@v8.2.0'
+      - 'run': 'uv sync --frozen'
+      - 'run': 'uv run python render-agent-kit.py --check'
+      - 'run': 'uv run python render-agent-kit.py --doctor'
+      - 'run': 'scripts/build-runtime-package.sh v0.0.0-ci dist'
+      - 'run': 'tar -tzf dist/agent-kit-runtime-home-v0.0.0-ci.tar.gz >/dev/null'
 
-  workflow-lint:
-    name: Workflow Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - id: actionlint
-        shell: bash
-        run: bash <(curl --fail --silent --show-error --location https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-      - run: '"${{ steps.actionlint.outputs.executable }}" -color .github/workflows/*.yml'
+  'workflow-lint':
+    'name': 'Workflow Lint'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'id': 'actionlint'
+        'shell': 'bash'
+        'run': 'bash <(curl --fail --silent --show-error --location https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)'
+      - 'run': '"${{ steps.actionlint.outputs.executable }}" -color .github/workflows/*.yml'
 
-  shell-lint:
-    name: Shell Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+  'shell-lint':
+    'name': 'Shell Lint'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
 
-      - name: Install shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - 'name': 'Install shellcheck'
+        'run': 'sudo apt-get update && sudo apt-get install -y shellcheck'
 
-      - name: Lint repo-owned shell scripts
-        shell: bash
-        run: |
+      - 'name': 'Lint repo-owned shell scripts'
+        'shell': 'bash'
+        'run': |
           set -euo pipefail
           shopt -s nullglob
           repo_shell_scripts=(scripts/*.sh)
@@ -68,12 +69,16 @@ jobs:
           bash -n "${repo_shell_scripts[@]}"
           shellcheck "${repo_shell_scripts[@]}"
 
-  pipeline-complete:
-    name: Pipeline Complete
-    if: always()
-    needs: [python, runtime-package, shell-lint, workflow-lint]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: re-actors/alls-green@release/v1
-        with:
-          jobs: ${{ toJSON(needs) }}
+  'pipeline-complete':
+    'name': 'Pipeline Complete'
+    'if': 'always()'
+    'needs':
+      - 'python'
+      - 'runtime-package'
+      - 'shell-lint'
+      - 'workflow-lint'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 're-actors/alls-green@release/v1'
+        'with':
+          'jobs': '${{ toJSON(needs) }}'

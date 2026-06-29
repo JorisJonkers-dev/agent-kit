@@ -51,7 +51,7 @@ COUNCIL_SKILL_SRC = {
 SPECKIT_COMMANDS_SRC = REPO_TEMPLATE_ROOT / ".claude" / "commands"
 CODEX_SPECKIT_SKILLS_SRC = REPO_TEMPLATE_ROOT / ".agents" / "skills"
 SPECIFY_SRC = REPO_TEMPLATE_ROOT / ".specify"
-SPECIFY_CONSTITUTION_SRC = KIT_ROOT / ".specify" / "memory" / "constitution.md"
+SPECIFY_CONSTITUTION_SRC = SPECIFY_SRC / "memory" / "constitution.md"
 MANIFEST_PATH = KIT_ROOT / "manifest.yaml"
 
 
@@ -85,6 +85,8 @@ def template_files(destination_root: Path) -> list[RenderedFile]:
         if not source.is_file():
             continue
         relative_path = source.relative_to(REPO_TEMPLATE_ROOT)
+        if relative_path.parts and relative_path.parts[0] == ".specify":
+            continue
         files.append(
             RenderedFile(
                 source=source,
@@ -203,6 +205,8 @@ def specify_seed_files() -> list[tuple[Path, str, str, bool]]:
     ]
     for path in sorted(SPECIFY_SRC.rglob("*")):
         if not path.is_file():
+            continue
+        if path == SPECIFY_CONSTITUTION_SRC:
             continue
         rel = path.relative_to(REPO_TEMPLATE_ROOT).as_posix()
         mode = "0755" if path.stat().st_mode & stat.S_IXUSR else "0644"

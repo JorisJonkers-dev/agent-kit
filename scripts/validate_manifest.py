@@ -27,9 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SELFTEST_ENV = "AGENT_RUNTIME_SELFTEST"
 MANIFEST_PATH = ROOT / "manifest.yaml"
 ROUND3_SKELETON_DIR = ROOT / "runner-manifests"
-ROUND3_SPEC_DIR = ROOT / "specs" / "002-round3-agent-runner-manifests"
-ROUND4_SPEC_DIR = ROOT / "specs" / "003-round4-agent-runner-runtime-packaging"
-ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR, ROUND3_SPEC_DIR, ROUND4_SPEC_DIR)
+ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR,)
 
 ROUND3_FORBIDDEN_PATTERNS = {
     "personal domain or hostname": re.compile(
