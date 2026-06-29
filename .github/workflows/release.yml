@@ -1,60 +1,61 @@
-name: Release
+'name': 'Release'
 
-on:
-  push:
-    branches: [main]
+'on':
+  'push':
+    'branches':
+      - 'main'
 
-permissions:
-  contents: write
-  pull-requests: write
-  packages: write
+'permissions':
+  'contents': 'write'
+  'pull-requests': 'write'
+  'packages': 'write'
 
-jobs:
-  release-please:
-    runs-on: ubuntu-latest
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - uses: actions/create-github-app-token@v2
-        id: app-token
-        continue-on-error: true
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+'jobs':
+  'release-please':
+    'runs-on': 'ubuntu-latest'
+    'outputs':
+      'release_created': '${{ steps.release.outputs.release_created }}'
+      'tag_name': '${{ steps.release.outputs.tag_name }}'
+    'steps':
+      - 'uses': 'actions/create-github-app-token@v3'
+        'id': 'app-token'
+        'continue-on-error': true
+        'with':
+          'app-id': '${{ secrets.RELEASE_APP_ID }}'
+          'private-key': '${{ secrets.RELEASE_APP_PRIVATE_KEY }}'
 
-      - id: release
-        uses: googleapis/release-please-action@v4
-        with:
-          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+      - 'id': 'release'
+        'uses': 'googleapis/release-please-action@v5'
+        'with':
+          'token': '${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}'
+          'config-file': 'release-please-config.json'
+          'manifest-file': '.release-please-manifest.json'
 
-  publish-runtime-home:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
-      - uses: astral-sh/setup-uv@v5
-      - uses: oras-project/setup-oras@v1
-      - run: uv sync --frozen
-      - run: scripts/build-runtime-package.sh "${{ needs.release-please.outputs.tag_name }}" dist
-      - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Publish OCI runtime-home artifact
-        run: |
+  'publish-runtime-home':
+    'needs': 'release-please'
+    'if': '${{ needs.release-please.outputs.release_created == ''true'' }}'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+        'with':
+          'ref': '${{ needs.release-please.outputs.tag_name }}'
+      - 'uses': 'astral-sh/setup-uv@v8.2.0'
+      - 'uses': 'oras-project/setup-oras@v2'
+      - 'run': 'uv sync --frozen'
+      - 'run': 'scripts/build-runtime-package.sh "${{ needs.release-please.outputs.tag_name }}" dist'
+      - 'name': 'Login to GHCR'
+        'run': 'echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin'
+      - 'name': 'Publish OCI runtime-home artifact'
+        'run': |
           tag="${{ needs.release-please.outputs.tag_name }}"
           oras push "ghcr.io/jorisjonkers-dev/agent-kit/runtime-home:${tag}" \
             --artifact-type application/vnd.jorisjonkers.agent-kit.runtime-home.v1.tar+gzip \
             "dist/agent-kit-runtime-home-${tag}.tar.gz:application/gzip" \
             "dist/agent-kit-runtime-home-${tag}.tar.gz.sha256:text/plain"
-      - name: Attach release assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
+      - 'name': 'Attach release assets'
+        'env':
+          'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'
+        'run': |
           tag="${{ needs.release-please.outputs.tag_name }}"
           gh release upload "$tag" \
             "dist/agent-kit-runtime-home-${tag}.tar.gz" \

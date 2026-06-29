@@ -1,0 +1,21 @@
+'name': 'Repository Hygiene'
+
+'on':
+  'pull_request':
+    'types':
+      - 'opened'
+      - 'reopened'
+      - 'synchronize'
+      - 'labeled'
+      - 'unlabeled'
+
+'permissions':
+  'contents': 'read'
+  'pull-requests': 'read'
+
+'jobs':
+  'repository-hygiene':
+    'uses': 'JorisJonkers-dev/github-workflows/.github/workflows/repository-hygiene-guard.yml@v0.8.0'
+    'with':
+      'allowlist-regex': '^(\\.agents/|\\.claude/|\\.codex/|council/|templates/repo/)'
+    'secrets': 'inherit'

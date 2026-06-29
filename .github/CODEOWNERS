@@ -1,0 +1,4 @@
+# Required per repository. GitHub does not inherit CODEOWNERS from the org
+# defaults repository.
+
+* @JorisJonkers

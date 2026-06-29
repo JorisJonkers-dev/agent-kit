@@ -87,15 +87,6 @@ renderer:
     - .codex/hooks/kb-user-prompt-recall.sh
     - .codex/hooks/pre-tool-use-edit-recall.sh
     - .codex/hooks/pre-tool-use-git-commit-capture.sh
-    - .specify/scripts/bash/check-prerequisites.sh
-    - .specify/scripts/bash/common.sh
-    - .specify/scripts/bash/create-new-feature.sh
-    - .specify/scripts/bash/setup-plan.sh
-    - .specify/scripts/bash/setup-tasks.sh
-    - .specify/templates/constitution-template.md
-    - .specify/templates/plan-template.md
-    - .specify/templates/spec-template.md
-    - .specify/templates/tasks-template.md
     - installer/install.sh
     - installer/install-agents.sh
     - runner-manifests/runtime/Containerfile
@@ -512,52 +503,52 @@ specify:
     scope: project
     tracked_for_uninstall: false
     targets:
-      - path: .specify/memory/constitution.md
+      - path: templates/repo/.specify/memory/constitution.md
         sha256: 2c25335af4dd111ab7ee3b4c16c30bad551867b387f9506a9a51aa263a8fb81d
         installer_target_path: "${PROJECT_ROOT}/.specify/memory/constitution.md"
         mode: "0644"
         seed_if_absent: true
-      - path: .specify/scripts/bash/check-prerequisites.sh
+      - path: templates/repo/.specify/scripts/bash/check-prerequisites.sh
         sha256: 52bd5ecddfbbd8469f6852bcec88bd9cba05afea241ec5e685647f939b01db27
         installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/check-prerequisites.sh"
         mode: "0755"
         seed_if_absent: false
-      - path: .specify/scripts/bash/common.sh
+      - path: templates/repo/.specify/scripts/bash/common.sh
         sha256: a719f3d39a4b59d306dcc291dc2459682f746e1a29f16719a69f64b3b41e9eb2
         installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/common.sh"
         mode: "0755"
         seed_if_absent: false
-      - path: .specify/scripts/bash/create-new-feature.sh
+      - path: templates/repo/.specify/scripts/bash/create-new-feature.sh
         sha256: 23b521fcdf2c8c7907542f9e2481f72c024ab57a17fac12305631192981a99e3
         installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/create-new-feature.sh"
         mode: "0755"
         seed_if_absent: false
-      - path: .specify/scripts/bash/setup-plan.sh
+      - path: templates/repo/.specify/scripts/bash/setup-plan.sh
         sha256: e224118718dbe677e549241ffe7a15db8099f01dcd8800ce16a53ee862e1100d
         installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/setup-plan.sh"
         mode: "0755"
         seed_if_absent: false
-      - path: .specify/scripts/bash/setup-tasks.sh
+      - path: templates/repo/.specify/scripts/bash/setup-tasks.sh
         sha256: a31dec84da229d8c80244bfbc5ca46a4a40acdbf19b84787312a64bb4be6d07d
         installer_target_path: "${PROJECT_ROOT}/.specify/scripts/bash/setup-tasks.sh"
         mode: "0755"
         seed_if_absent: false
-      - path: .specify/templates/constitution-template.md
+      - path: templates/repo/.specify/templates/constitution-template.md
         sha256: 47b6c0c7fb8ba3019f2b7baf5c8d852060e230bf239b42cbf93e396dd05e2d96
         installer_target_path: "${PROJECT_ROOT}/.specify/templates/constitution-template.md"
         mode: "0644"
         seed_if_absent: false
-      - path: .specify/templates/plan-template.md
+      - path: templates/repo/.specify/templates/plan-template.md
         sha256: 04026ce6621c81392ce8ea7f59f9374087c8798b2d95f31094c18bab3cd0fc52
         installer_target_path: "${PROJECT_ROOT}/.specify/templates/plan-template.md"
         mode: "0644"
         seed_if_absent: false
-      - path: .specify/templates/spec-template.md
+      - path: templates/repo/.specify/templates/spec-template.md
         sha256: f3f75f9140dcd0cba18110ebf9952031e2e0db1c4d2cc4c207c0a0fadf7efb4b
         installer_target_path: "${PROJECT_ROOT}/.specify/templates/spec-template.md"
         mode: "0644"
         seed_if_absent: false
-      - path: .specify/templates/tasks-template.md
+      - path: templates/repo/.specify/templates/tasks-template.md
         sha256: fd1a24e9c990d6d43c800b5d1b9130595d40fdf983df9610a640d5142840f99f
         installer_target_path: "${PROJECT_ROOT}/.specify/templates/tasks-template.md"
         mode: "0644"
