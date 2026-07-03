@@ -8,6 +8,9 @@ import type {
   ConfigPaths,
   CouncilApp,
   CouncilAppLiveStatusInput,
+  CouncilAppTailInput,
+  CouncilTailTickerInput,
+  CouncilTailTickerPort,
   CouncilAppFanoutInput,
   CouncilAppFleetInput,
   EvalWorkflowInput,
@@ -18,7 +21,13 @@ import type {
 } from '../app/index.js'
 import type { ClockPort, LiveRunArtifacts, WorkerResult } from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
-import type { StatusWatchTickerPort } from '../workflows/index.js'
+import type {
+  StatusWatchTickerPort,
+  TailWorkflowFrame,
+  TailWorkflowLogReadInput,
+  TailWorkflowLogReaderPort,
+  TailWorkflowLogStatInput,
+} from '../workflows/index.js'
 
 interface ReviewPackInput {
   readonly gate: '1' | 'design' | '2'
@@ -47,6 +56,7 @@ type AppCall =
   | { readonly input: ReviewPackInput; readonly method: 'readReviewPack' }
   | { readonly input: StatusInput; readonly method: 'status' }
   | { readonly input: SuperviseInput; readonly method: 'supervise' }
+  | { readonly input: CouncilAppTailInput; readonly method: 'tail' }
   | { readonly input: TriageWorkflowInput; readonly method: 'triage' }
 
 interface RecordingAppOptions {
@@ -126,6 +136,12 @@ class RecordingApp {
   supervise(input: SuperviseInput): Promise<unknown> {
     this.calls.push({ input, method: 'supervise' })
     return Promise.resolve({ input, method: 'supervise' })
+  }
+
+  tail(input: CouncilAppTailInput): Promise<readonly TailWorkflowFrame[]> {
+    this.calls.push({ input, method: 'tail' })
+    const stream = input.stream ?? 'stdout'
+    return Promise.resolve([tailFrame(input.taskId, stream, `tail:${input.taskId}:${stream}\n`)])
   }
 
   triage(input: TriageWorkflowInput): Promise<unknown> {
@@ -240,6 +256,53 @@ function finiteStatusTicker(ticks: readonly unknown[]): StatusWatchTickerPort & 
   }
 }
 
+function finiteTailTicker(onTicks: readonly (() => void)[]): CouncilTailTickerPort & {
+  readonly intervals: readonly number[]
+} {
+  const intervals: number[] = []
+  return {
+    intervals,
+    ticks(input: CouncilTailTickerInput): AsyncIterable<void> {
+      intervals.push(input.intervalMs)
+      return finiteTailTickIterable(onTicks)
+    },
+  }
+}
+
+async function* finiteTailTickIterable(onTicks: readonly (() => void)[]): AsyncIterable<void> {
+  for (const onTick of onTicks) {
+    onTick()
+    await Promise.resolve()
+    yield
+  }
+}
+
+function bytes(text: string): Uint8Array {
+  return new TextEncoder().encode(text)
+}
+
+class MemoryTailLogReader implements TailWorkflowLogReaderPort {
+  readonly reads: TailWorkflowLogReadInput[] = []
+  readonly stats: TailWorkflowLogStatInput[] = []
+  private readonly logs = new Map<string, Uint8Array>()
+
+  set(path: string, text: string): void {
+    this.logs.set(path, bytes(text))
+  }
+
+  stat(input: TailWorkflowLogStatInput): Promise<{ readonly sizeBytes: number } | undefined> {
+    this.stats.push(input)
+    const buffer = this.logs.get(input.path)
+    return Promise.resolve(buffer === undefined ? undefined : { sizeBytes: buffer.byteLength })
+  }
+
+  read(input: TailWorkflowLogReadInput): Promise<Uint8Array> {
+    this.reads.push(input)
+    const buffer = this.logs.get(input.path) ?? new Uint8Array()
+    return Promise.resolve(buffer.subarray(input.start, input.end))
+  }
+}
+
 function cliLiveArtifacts(input: {
   readonly workerResults?: ReadonlyMap<string, WorkerResult>
 } = {}): LiveRunArtifacts {
@@ -255,6 +318,38 @@ function cliLiveArtifacts(input: {
     },
     workerResults,
     workerSupervisorSnapshots: new Map(),
+  }
+}
+
+function workerResultWithLogs(
+  taskId: string,
+  paths: { readonly stderr?: string; readonly stdout?: string },
+): WorkerResult {
+  const result: WorkerResult & {
+    readonly stderr_log_path?: string
+    readonly stdout_log_path?: string
+  } = {
+    status: 'ok',
+    task_id: taskId,
+    ...(paths.stderr === undefined ? {} : { stderr_log_path: paths.stderr }),
+    ...(paths.stdout === undefined ? {} : { stdout_log_path: paths.stdout }),
+  }
+  return result
+}
+
+function tailFrame(
+  taskId: string,
+  stream: TailWorkflowFrame['stream'],
+  text: string,
+): TailWorkflowFrame {
+  return {
+    chunks: [{ byteCount: bytes(text).byteLength, offset: 0, stream, text }],
+    cursor: { offset: bytes(text).byteLength, stream },
+    missing: false,
+    rotated: false,
+    stream,
+    taskId,
+    truncated: false,
   }
 }
 
@@ -615,6 +710,105 @@ badge     task  duration  details
     expect(ticker.intervals).toEqual([25])
   })
 
+  it('passes parsed tail flags to the app and returns chunk text verbatim', async () => {
+    const app = new RecordingApp()
+    const result = await runCli(
+      [
+        'tail',
+        'T9',
+        '--run',
+        '/runs/run-tail',
+        '--stream',
+        'stderr',
+        '--offset',
+        '12',
+        '--lines',
+        '3',
+        '--since',
+        '2026-07-03T12:00:00.000Z',
+        '--follow',
+        '--interval-ms',
+        '25',
+      ],
+      injectedRuntime(app),
+    )
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: '',
+      stdout: 'tail:T9:stderr\n',
+    })
+    expect(app.calls).toEqual([
+      {
+        input: {
+          follow: true,
+          intervalMs: 25,
+          lines: 3,
+          maxBytes: 65536,
+          offset: 12,
+          runDir: '/runs/run-tail',
+          since: '2026-07-03T12:00:00.000Z',
+          stream: 'stderr',
+          taskId: 'T9',
+        },
+        method: 'tail',
+      },
+    ])
+  })
+
+  it('passes stdout tail stream selection explicitly', async () => {
+    const app = new RecordingApp()
+
+    const result = await runCli(['tail', 'T1', '--run', '/runs/run-tail', '--stream', 'stdout'], injectedRuntime(app))
+
+    expect(result.stdout).toBe('tail:T1:stdout\n')
+    expect(app.calls).toEqual([
+      {
+        input: {
+          maxBytes: 65536,
+          runDir: '/runs/run-tail',
+          stream: 'stdout',
+          taskId: 'T1',
+        },
+        method: 'tail',
+      },
+    ])
+  })
+
+  it('renders finite follow ticks through injected tail app dependencies', async () => {
+    const path = 'workers/T1/logs/stdout.log'
+    const logs = new MemoryTailLogReader()
+    logs.set(path, 'one\n')
+    const ticker = finiteTailTicker([
+      () => {
+        logs.set(path, 'one\ntwo\n')
+      },
+      () => {
+        logs.set(path, 'one\ntwo\nthree\n')
+      },
+    ])
+    const reader = recordingLiveReader([
+      cliLiveArtifacts({
+        workerResults: new Map([['T1', workerResultWithLogs('T1', { stdout: path })]]),
+      }),
+    ])
+    const app = new RealCouncilApp({
+      liveRunDirReader: reader,
+      tailLogReader: logs,
+      tailTicker: ticker,
+    })
+
+    const result = await runCli(['tail', 'T1', '--run', '/runs/run-cli', '--follow', '--interval-ms', '10'], { app })
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: '',
+      stdout: 'one\ntwo\nthree\n',
+    })
+    expect(reader.calls).toEqual(['/runs/run-cli', '/runs/run-cli', '/runs/run-cli'])
+    expect(ticker.intervals).toEqual([10])
+  })
+
   it('passes parsed fanout execute flags to the app and keeps stdout machine-readable', async () => {
     const app = new RecordingApp()
 
@@ -812,7 +1006,6 @@ badge     task  duration  details
       'survey',
       'sync-bmad',
       'sync-skills',
-      'tail',
     ] as const) {
       await expect(runCli([command], injectedRuntime())).resolves.toEqual({
         exitCode: 0,
@@ -1040,6 +1233,44 @@ describe('runCli error handling', () => {
     await expect(runCli(['recommend'], injectedRuntime())).resolves.toEqual({
       exitCode: 2,
       stderr: '--input is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['tail', '--run', '/runs/run-tail'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: 'tail requires a task argument\n',
+      stdout: '',
+    })
+    await expect(runCli(['tail', 'T1'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--run is required\n',
+      stdout: '',
+    })
+    await expect(
+      runCli(['tail', 'T1', '--run', '/runs/run-tail', '--stream', 'combined'], injectedRuntime()),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--stream must be stdout or stderr\n',
+      stdout: '',
+    })
+    await expect(
+      runCli(['tail', 'T1', '--run', '/runs/run-tail', '--offset', '-1'], injectedRuntime()),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--offset must be a non-negative integer\n',
+      stdout: '',
+    })
+    await expect(
+      runCli(['tail', 'T1', '--run', '/runs/run-tail', '--lines', '0'], injectedRuntime()),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--lines must be a positive integer\n',
+      stdout: '',
+    })
+    await expect(
+      runCli(['tail', 'T1', '--run', '/runs/run-tail', '--interval-ms', '50'], injectedRuntime()),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--interval-ms requires --follow\n',
       stdout: '',
     })
     await expect(runCli(['supervise', '--run', '/runs/run-a', '--task', 'T1'], injectedRuntime())).resolves.toEqual({

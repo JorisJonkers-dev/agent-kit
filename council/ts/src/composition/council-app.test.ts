@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { CouncilApp, NodeProcessAdapter } from './council-app.js'
 import type {
+  CouncilTailTickerInput,
+  CouncilTailTickerPort,
   SuperviseInput,
   SuperviseRunStore,
   SuperviseWorkerSupervisor,
@@ -46,6 +48,12 @@ import type {
 } from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
 import { projectRunView, type RunSummary, type StatusWatchTickerPort } from '../workflows/index.js'
+import type {
+  TailWorkflowFrame,
+  TailWorkflowLogReadInput,
+  TailWorkflowLogReaderPort,
+  TailWorkflowLogStatInput,
+} from '../workflows/index.js'
 
 const tempRoots: string[] = []
 
@@ -644,6 +652,159 @@ describe('CouncilApp.liveStatus', () => {
 
     await expect(app.liveStatus({ once: true, runDir: '/runs/live' })).resolves.toBeUndefined()
     expect(reader.calls).toEqual(['/runs/live'])
+  })
+})
+
+describe('CouncilApp.tail', () => {
+  it('streams deterministic tail frames through injected readers and ticker', async () => {
+    const path = 'workers/T1/logs/stdout.log'
+    const reader = recordingLiveReader([
+      liveArtifacts({
+        workerResults: new Map([['T1', workerResultWithLogs('T1', { stdout: path })]]),
+      }),
+    ])
+    const logs = new MemoryTailLogReader()
+    logs.set(path, 'first\n')
+    const ticker = finiteTailTicker([
+      () => {
+        logs.set(path, 'first\nsecond\n')
+      },
+    ])
+    const app = new CouncilApp({
+      liveRunDirReader: reader,
+      tailLogReader: logs,
+      tailTicker: ticker,
+    })
+
+    const frames = await app.tail({
+      follow: true,
+      intervalMs: 33,
+      maxBytes: 100,
+      runDir: '/runs/live',
+      taskId: 'T1',
+    })
+
+    expect(frames).toEqual([
+      tailFrame('T1', 'stdout', 'first\n', {
+        cursor: 6,
+        logPath: path,
+      }),
+      tailFrame('T1', 'stdout', 'second\n', {
+        cursor: 13,
+        logPath: path,
+        offset: 6,
+      }),
+    ])
+    expect(reader.calls).toEqual(['/runs/live', '/runs/live'])
+    expect(logs.stats).toEqual([
+      { path, runDir: '/runs/live' },
+      { path, runDir: '/runs/live' },
+    ])
+    expect(logs.reads).toEqual([
+      { end: 6, path, runDir: '/runs/live', start: 0 },
+      { end: 13, path, runDir: '/runs/live', start: 0 },
+    ])
+    expect(ticker.intervals).toEqual([33])
+  })
+
+  it('reads bounded ranges from the default filesystem log reader', async () => {
+    const root = await tempRoot('council-tail-')
+    const runDir = join(root, 'run-tail')
+    const path = 'workers/T1/logs/stdout.log'
+    await mkdir(join(runDir, 'workers', 'T1', 'logs'), { recursive: true })
+    await writeFile(join(runDir, path), 'old\nnew\n', 'utf8')
+    const app = new CouncilApp({
+      liveRunDirReader: recordingLiveReader([
+        liveArtifacts({
+          workerResults: new Map([['T1', workerResultWithLogs('T1', { stdout: path })]]),
+        }),
+      ]),
+    })
+
+    await expect(app.tail({ lines: 1, maxBytes: 100, runDir, taskId: 'T1' })).resolves.toEqual([
+      tailFrame('T1', 'stdout', 'new\n', {
+        cursor: 8,
+        logPath: path,
+        offset: 4,
+        truncated: true,
+      }),
+    ])
+  })
+
+  it('reports missing default filesystem logs as deterministic frames', async () => {
+    const app = new CouncilApp({
+      liveRunDirReader: recordingLiveReader([
+        liveArtifacts({
+          workerResults: new Map([['T1', workerResultWithLogs('T1', { stdout: 'missing/stdout.log' })]]),
+        }),
+      ]),
+    })
+
+    await expect(app.tail({ maxBytes: 100, runDir: '/runs/live', taskId: 'T1' })).resolves.toEqual([
+      {
+        chunks: [],
+        cursor: { offset: 0, stream: 'stdout' },
+        logPath: 'missing/stdout.log',
+        logPathSource: 'result',
+        missing: true,
+        missingReason: 'log',
+        rotated: false,
+        stream: 'stdout',
+        taskId: 'T1',
+        truncated: false,
+      },
+    ])
+  })
+
+  it('surfaces unexpected default filesystem stat failures', async () => {
+    const root = await tempRoot('council-tail-broken-')
+    const runDir = join(root, 'not-a-directory')
+    await writeFile(runDir, 'not a directory', 'utf8')
+    const app = new CouncilApp({
+      liveRunDirReader: recordingLiveReader([
+        liveArtifacts({
+          workerResults: new Map([['T1', workerResultWithLogs('T1', { stdout: 'workers/T1/logs/stdout.log' })]]),
+        }),
+      ]),
+    })
+
+    await expect(app.tail({ maxBytes: 100, runDir, taskId: 'T1' })).rejects.toMatchObject({
+      code: 'ENOTDIR',
+    })
+  })
+
+  it('builds tail follow ticks from the injected clock when no ticker is provided', async () => {
+    const sleeps: number[] = []
+    const path = 'workers/T1/logs/stdout.log'
+    const reader = recordingLiveReader([
+      liveArtifacts({
+        workerResults: new Map([['T1', workerResultWithLogs('T1', { stdout: path })]]),
+      }),
+    ])
+    const logs = new MemoryTailLogReader({ failReadAt: 2 })
+    logs.set(path, 'one\n')
+    const app = new CouncilApp({
+      clock: fixedClock('2026-07-03T12:05:00.000Z', (ms) => {
+        sleeps.push(ms)
+        return Promise.resolve()
+      }),
+      liveRunDirReader: reader,
+      tailLogReader: logs,
+    })
+
+    await expect(
+      app.tail({
+        follow: true,
+        intervalMs: 25,
+        maxBytes: 100,
+        runDir: '/runs/live',
+        taskId: 'T1',
+      }),
+    ).rejects.toThrow('stop after tick')
+
+    expect(sleeps).toEqual([25])
+    expect(reader.calls).toEqual(['/runs/live', '/runs/live'])
+    expect(logs.reads).toHaveLength(2)
   })
 })
 
@@ -1570,6 +1731,59 @@ function finiteStatusTicker(ticks: readonly unknown[]): StatusWatchTickerPort & 
   }
 }
 
+function finiteTailTicker(onTicks: readonly (() => void)[]): CouncilTailTickerPort & {
+  readonly intervals: readonly number[]
+} {
+  const intervals: number[] = []
+  return {
+    intervals,
+    ticks(input: CouncilTailTickerInput): AsyncIterable<void> {
+      intervals.push(input.intervalMs)
+      return finiteTailTickIterable(onTicks)
+    },
+  }
+}
+
+async function* finiteTailTickIterable(onTicks: readonly (() => void)[]): AsyncIterable<void> {
+  for (const onTick of onTicks) {
+    onTick()
+    await Promise.resolve()
+    yield
+  }
+}
+
+function bytes(text: string): Uint8Array {
+  return new TextEncoder().encode(text)
+}
+
+class MemoryTailLogReader implements TailWorkflowLogReaderPort {
+  readonly reads: TailWorkflowLogReadInput[] = []
+  readonly stats: TailWorkflowLogStatInput[] = []
+  private readonly failReadAt: number | undefined
+  private readonly logs = new Map<string, Uint8Array>()
+
+  constructor(options: { readonly failReadAt?: number } = {}) {
+    this.failReadAt = options.failReadAt
+  }
+
+  set(path: string, text: string): void {
+    this.logs.set(path, bytes(text))
+  }
+
+  stat(input: TailWorkflowLogStatInput): Promise<{ readonly sizeBytes: number } | undefined> {
+    this.stats.push(input)
+    const buffer = this.logs.get(input.path)
+    return Promise.resolve(buffer === undefined ? undefined : { sizeBytes: buffer.byteLength })
+  }
+
+  read(input: TailWorkflowLogReadInput): Promise<Uint8Array> {
+    this.reads.push(input)
+    if (this.reads.length === this.failReadAt) return Promise.reject(new Error('stop after tick'))
+    const buffer = this.logs.get(input.path) ?? new Uint8Array()
+    return Promise.resolve(buffer.subarray(input.start, input.end))
+  }
+}
+
 function liveArtifacts(input: {
   readonly events?: LiveRunArtifacts['events']
   readonly workerResults?: ReadonlyMap<string, WorkerResult>
@@ -1586,6 +1800,46 @@ function liveArtifacts(input: {
     },
     workerResults,
     workerSupervisorSnapshots: new Map(),
+  }
+}
+
+function workerResultWithLogs(
+  taskId: string,
+  paths: { readonly stderr?: string; readonly stdout?: string },
+): WorkerResult {
+  const result: WorkerResult & {
+    readonly stderr_log_path?: string
+    readonly stdout_log_path?: string
+  } = {
+    status: 'ok',
+    task_id: taskId,
+    ...(paths.stderr === undefined ? {} : { stderr_log_path: paths.stderr }),
+    ...(paths.stdout === undefined ? {} : { stdout_log_path: paths.stdout }),
+  }
+  return result
+}
+
+function tailFrame(
+  taskId: string,
+  stream: TailWorkflowFrame['stream'],
+  text: string,
+  input: {
+    readonly cursor: number
+    readonly logPath: string
+    readonly offset?: number
+    readonly truncated?: boolean
+  },
+): TailWorkflowFrame {
+  return {
+    chunks: [{ byteCount: bytes(text).byteLength, offset: input.offset ?? 0, stream, text }],
+    cursor: { offset: input.cursor, stream },
+    logPath: input.logPath,
+    logPathSource: 'result',
+    missing: false,
+    rotated: false,
+    stream,
+    taskId,
+    truncated: input.truncated ?? false,
   }
 }
 
