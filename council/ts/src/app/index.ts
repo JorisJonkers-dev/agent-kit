@@ -1,24 +1,24 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 
-import { normalizeLegacyRunDir, type LegacyRunReport, type WorkerResult } from '../adapters/fs/index.js'
+import { normalizeLegacyRunDir, type LegacyRunReport, type WorkerResult } from '../contexts/runstore/adapters/fs/index.js'
 import {
   coerceConfigValue,
   CONFIG_KEYS,
   parseCouncilConfig,
   resolveCouncilConfig,
   writeCouncilConfig,
-} from '../domain/config/index.js'
-import type { CouncilConfig, ResolvedCouncilConfig } from '../domain/config/index.js'
-import type { EngineDef, JsonRecord, RunState, Task } from '../domain/contracts/index.js'
-import { planWaves } from '../domain/graph/index.js'
+} from '../contexts/config/index.js'
+import type { CouncilConfig, ResolvedCouncilConfig } from '../contexts/config/index.js'
+import type { EngineDef, JsonRecord, RunState, Task } from '../shared-kernel/index.js'
+import { planWaves } from '../contexts/graph/index.js'
 import {
   assertTasksBijection,
   parseTasksMd,
   renderTasksMd,
   validateTasks,
-} from '../domain/tasks/index.js'
-import { classifyTriage, type TriageInput, type TriageVerdict } from '../domain/triage/index.js'
+} from '../contexts/tasks/index.js'
+import { classifyTriage, type TriageInput, type TriageVerdict } from '../contexts/triage/index.js'
 import type { GhPort } from '../ports/index.js'
 
 export interface CouncilAppDeps {

@@ -5,8 +5,8 @@ import {
   type PlanInput,
   type FanoutInput,
 } from '../app/index.js'
-import type { CouncilConfig } from '../domain/config/index.js'
-import type { TriageInput } from '../domain/triage/index.js'
+import type { CouncilConfig } from '../contexts/config/index.js'
+import type { TriageInput } from '../contexts/triage/index.js'
 
 export type CliCommand =
   | 'amend'

@@ -1,4 +1,4 @@
-import type { EngineDef, JsonRecord } from '../domain/contracts/index.js'
+import type { EngineDef, JsonRecord } from '../shared-kernel/index.js'
 
 export interface EngineRunRequest {
   readonly engine: EngineDef

@@ -6,7 +6,7 @@ import type {
   RunState,
   Story,
   Task,
-} from '../domain/contracts/index.js'
+} from '../shared-kernel/index.js'
 
 export interface RunStorePort {
   readState(runId: string): Promise<RunState>
