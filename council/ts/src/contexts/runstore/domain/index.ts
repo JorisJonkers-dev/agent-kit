@@ -41,6 +41,8 @@ export interface WorkerOutputPayload {
   readonly byte_count: number
   readonly tail?: string
   readonly tail_bytes?: number
+  readonly log_path?: string
+  readonly observed_at?: string
   readonly sha256?: string
   readonly content_hash?: string
 }

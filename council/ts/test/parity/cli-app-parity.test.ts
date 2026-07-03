@@ -15,7 +15,20 @@ import {
   splitDestUrl,
 } from '../../src/app/index.js'
 import { commandRegistry, runCli } from '../../src/cli/index.js'
-import type { GhPort, GhPrRequest } from '../../src/ports/index.js'
+import type {
+  ClockPort,
+  GhPort,
+  GhPrRequest,
+  LiveRunArtifacts,
+  LiveRunDirReaderPort,
+  WorkerResult,
+} from '../../src/ports/index.js'
+import type { RunState, Task } from '../../src/shared-kernel/index.js'
+import type {
+  TailWorkflowLogReadInput,
+  TailWorkflowLogReaderPort,
+  TailWorkflowLogStatInput,
+} from '../../src/workflows/index.js'
 
 const tempRoots: string[] = []
 
@@ -154,6 +167,83 @@ describe('CLI composition', () => {
         worker_result_count: 5,
       },
     })
+  })
+
+  it('routes live status JSON and table rendering through CouncilApp without timers', async () => {
+    const artifacts = liveRunArtifacts('parity-status')
+
+    const jsonReader = new ParityLiveRunReader([artifacts])
+    const jsonResult = await runCli(['status', '--run', '/runs/parity-status', '--json'], {
+      app: new CouncilApp({
+        clock: fixedClock('2026-07-03T12:00:00.000Z'),
+        liveRunDirReader: jsonReader,
+      }),
+    })
+
+    expect(jsonResult).toMatchObject({ exitCode: 0, stderr: '' })
+    expect(JSON.parse(jsonResult.stdout)).toMatchObject({
+      run: 'parity-status',
+      tasks: [
+        {
+          state: 'succeeded',
+          taskId: 'T1',
+          terminalStatus: 'ok',
+        },
+      ],
+    })
+    expect(jsonReader.calls).toEqual(['/runs/parity-status'])
+
+    const tableReader = new ParityLiveRunReader([artifacts])
+    const tableResult = await runCli(['status', '--run', '/runs/parity-status', '--once'], {
+      app: new CouncilApp({
+        clock: fixedClock('2026-07-03T12:00:00.000Z'),
+        liveRunDirReader: tableReader,
+      }),
+    })
+
+    expect(tableResult).toEqual({
+      exitCode: 0,
+      stderr: '',
+      stdout: `run parity-status stage=fanout elapsed=0s started=- updated=-
+rollup counts=succeeded:1 ready=- critical=-
+active -
+wave 0
+badge   task  duration  details
+[OK]    T1    0s        Parity status task; terminal=ok
+`,
+    })
+    expect(tableReader.calls).toEqual(['/runs/parity-status'])
+  })
+
+  it('routes tail through CouncilApp with a finite ticker instead of real timers', async () => {
+    const path = 'workers/T1/logs/stdout.log'
+    const reader = new ParityLiveRunReader([liveRunArtifacts('parity-tail', workerResultWithStdoutLog(path))])
+    const logs = new ParityTailLogReader()
+    logs.set(path, 'first\n')
+    const ticker = finiteTailTicker([
+      () => {
+        logs.set(path, 'first\nsecond\n')
+      },
+      () => {
+        logs.set(path, 'first\nsecond\nthird\n')
+      },
+    ])
+
+    const result = await runCli(['tail', 'T1', '--run', '/runs/parity-tail', '--follow', '--interval-ms', '5'], {
+      app: new CouncilApp({
+        liveRunDirReader: reader,
+        tailLogReader: logs,
+        tailTicker: ticker,
+      }),
+    })
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: '',
+      stdout: 'first\nsecond\nthird\n',
+    })
+    expect(reader.calls).toEqual(['/runs/parity-tail', '/runs/parity-tail', '/runs/parity-tail'])
+    expect(ticker.intervals).toEqual([5])
   })
 })
 
@@ -569,6 +659,121 @@ class RecordingGh implements GhPort {
 
   viewPullRequest(): Promise<{ readonly number: number; readonly url: string }> {
     return Promise.resolve({ number: 1, url: 'https://example.test/pr/1' })
+  }
+}
+
+class ParityLiveRunReader implements LiveRunDirReaderPort {
+  readonly calls: string[] = []
+  private index = 0
+
+  constructor(private readonly artifacts: readonly LiveRunArtifacts[]) {}
+
+  readRunDir(runDir: string): Promise<LiveRunArtifacts> {
+    this.calls.push(runDir)
+    const artifact = this.artifacts[Math.min(this.index, this.artifacts.length - 1)]
+    this.index += 1
+    if (artifact === undefined) throw new Error('no live run artifacts configured')
+    return Promise.resolve(artifact)
+  }
+}
+
+class ParityTailLogReader implements TailWorkflowLogReaderPort {
+  private readonly logs = new Map<string, string>()
+
+  set(path: string, text: string): void {
+    this.logs.set(path, text)
+  }
+
+  stat(input: TailWorkflowLogStatInput): Promise<{ readonly sizeBytes: number } | undefined> {
+    const text = this.logs.get(input.path)
+    return Promise.resolve(text === undefined ? undefined : { sizeBytes: Buffer.byteLength(text) })
+  }
+
+  read(input: TailWorkflowLogReadInput): Promise<Uint8Array> {
+    const text = this.logs.get(input.path)
+    if (text === undefined) throw new Error(`missing log ${input.path}`)
+    return Promise.resolve(Buffer.from(text).subarray(input.start, input.end))
+  }
+}
+
+function fixedClock(iso: string): ClockPort {
+  return {
+    monotonicMs: () => 0,
+    now: () => new Date(iso),
+    sleep: () => Promise.resolve(),
+  }
+}
+
+function finiteTailTicker(onTicks: readonly (() => void)[]): {
+  readonly intervals: readonly number[]
+  ticks(input: { readonly intervalMs: number }): AsyncIterable<void>
+} {
+  const intervals: number[] = []
+  return {
+    get intervals() {
+      return intervals
+    },
+    async *ticks(input) {
+      intervals.push(input.intervalMs)
+      for (const onTick of onTicks) {
+        await Promise.resolve()
+        onTick()
+        yield undefined
+      }
+    },
+  }
+}
+
+function liveRunArtifacts(runId: string, result: WorkerResult = workerResult('T1')): LiveRunArtifacts {
+  const task = parityTask('T1')
+  const state: RunState = {
+    stage: 'fanout',
+    task_count: 1,
+  }
+  return {
+    events: [],
+    normalized: {
+      report: {
+        run: runId,
+        tasks: [{ status: result.status, task_id: result.task_id }],
+        waves: [['T1']],
+      },
+      runId,
+      state,
+      tasks: [task],
+      workerResults: new Map([[result.task_id, result]]),
+    },
+    workerResults: new Map([[result.task_id, result]]),
+    workerSupervisorSnapshots: new Map(),
+  }
+}
+
+function parityTask(id: 'T1'): Task {
+  return {
+    boundaries: 'Stay in the parity fixture.',
+    depends_on: [],
+    difficulty: 'trivial',
+    id,
+    model: 'haiku',
+    objective: 'Exercise status and tail parity.',
+    output_format: 'Validated CLI output.',
+    paths: ['council/ts/test/parity/cli-app-parity.test.ts'],
+    title: 'Parity status task',
+    verify: 'npx vitest run test/parity/cli-app-parity.test.ts',
+  }
+}
+
+function workerResult(taskId: 'T1'): WorkerResult {
+  return {
+    status: 'ok',
+    task_id: taskId,
+  }
+}
+
+function workerResultWithStdoutLog(path: string): WorkerResult & { readonly stdout_log_path: string } {
+  return {
+    ...workerResult('T1'),
+    stdout_log_path: path,
   }
 }
 

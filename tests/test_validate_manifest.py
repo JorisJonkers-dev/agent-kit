@@ -136,7 +136,7 @@ class ValidateManifestCouncilCommandSurface(unittest.TestCase):
         ):
             self.validator.validate_council_command_surface()
 
-    def test_cli_surface_requires_eval_and_triage_specs(self) -> None:
+    def test_cli_surface_requires_registry_specs_for_required_commands(self) -> None:
         source = """
 const COMMANDS: readonly CommandSpec[] = [
   { help: 'score a run with the eval workflow', name: 'eval' },
@@ -145,32 +145,72 @@ export async function runCli(command: string) {
   switch (command) {
     case 'eval':
       return okJson(await app.eval(parseEval(rest)))
+    case 'status':
+      return await runStatusCommand(app, parseStatus(rest))
+    case 'tail':
+      return await runTailCommand(app, parseTail(rest))
     case 'triage':
       return okJson(await app.triage(parseTriage(rest)))
   }
 }
 """
 
-        with self.assertRaisesRegex(AssertionError, "missing command registry specs: triage"):
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"required commands \(eval, status, tail, triage\) missing command registry specs: status, tail, triage",
+        ):
             self.validator.validate_council_command_surface_source(source)
 
-    def test_cli_surface_requires_eval_and_triage_dispatch_branches(self) -> None:
+    def test_cli_surface_accepts_direct_and_handler_dispatch_branches(self) -> None:
         source = """
 const COMMANDS: readonly CommandSpec[] = [
   { help: 'score a run with the eval workflow', name: 'eval' },
+  { help: 'summarize a run directory', name: 'status' },
+  { help: 'tail one task log', name: 'tail' },
   { help: 'run the triage gate and emit routing payload', name: 'triage' },
 ]
 export async function runCli(command: string) {
   switch (command) {
     case 'eval':
       return okJson(await app.eval(parseEval(rest)))
+    case 'status':
+      return await runStatusCommand(app, parseStatus(rest))
+    case 'tail':
+      return await runTailCommand(app, parseTail(rest))
+    case 'triage':
+      return okJson(await app.triage(parseTriage(rest)))
+  }
+}
+"""
+
+        self.validator.validate_council_command_surface_source(source)
+
+    def test_cli_surface_requires_dispatch_branches_for_required_commands(self) -> None:
+        source = """
+const COMMANDS: readonly CommandSpec[] = [
+  { help: 'score a run with the eval workflow', name: 'eval' },
+  { help: 'summarize a run directory', name: 'status' },
+  { help: 'tail one task log', name: 'tail' },
+  { help: 'run the triage gate and emit routing payload', name: 'triage' },
+]
+export async function runCli(command: string) {
+  switch (command) {
+    case 'eval':
+      return okJson(await app.eval(parseEval(rest)))
+    case 'status':
+      return okJson({ command: 'status', compiled: true })
+    case 'tail':
+      return okJson({ command: 'tail', compiled: true })
     case 'triage':
       return okJson({ command: 'triage', compiled: true })
   }
 }
 """
 
-        with self.assertRaisesRegex(AssertionError, "missing command dispatch branches: triage"):
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"required commands \(eval, status, tail, triage\) missing command dispatch branches: status, tail, triage",
+        ):
             self.validator.validate_council_command_surface_source(source)
 
 
@@ -225,7 +265,7 @@ class RenderAgentKitDoctor(unittest.TestCase):
 
         self.assertEqual(result.name, "manifest")
         self.assertEqual(result.status, "ok")
-        self.assertIn("council command surface validated", result.detail)
+        self.assertIn("council command surface validated: eval, status, tail, triage", result.detail)
 
     def test_manifest_check_reports_missing_manifest(self) -> None:
         with unittest.mock.patch.object(self.renderer, "MANIFEST_PATH", ROOT / "missing-manifest.yaml"):
@@ -270,7 +310,10 @@ class RenderAgentKitDoctor(unittest.TestCase):
                 return_value=self.renderer.DoctorCheck(
                     name="council-command-surface",
                     status="fail",
-                    detail="missing command dispatch branches: triage",
+                    detail=(
+                        "required commands (eval, status, tail, triage) "
+                        "missing command dispatch branches: status, tail"
+                    ),
                 ),
             ),
             unittest.mock.patch.object(
@@ -284,7 +327,11 @@ class RenderAgentKitDoctor(unittest.TestCase):
                 exit_code = self.renderer.doctor(args)
 
         self.assertEqual(exit_code, 1)
-        self.assertIn("fail council-command-surface: missing command dispatch branches: triage", output.getvalue())
+        self.assertIn(
+            "fail council-command-surface: required commands (eval, status, tail, triage) "
+            "missing command dispatch branches: status, tail",
+            output.getvalue(),
+        )
 
 
 class AssertionLoader:

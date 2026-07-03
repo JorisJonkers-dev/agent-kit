@@ -403,10 +403,11 @@ def manifest_check() -> DoctorCheck:
     except (OSError, SystemExit) as exc:
         return DoctorCheck(name="manifest", status="fail", detail=str(exc))
 
+    council_commands = getattr(validator, "REQUIRED_COUNCIL_CLI_COMMANDS_LABEL", "validated")
     return DoctorCheck(
         name="manifest",
         status="ok",
-        detail=f"kit manifest version {manifest_version()}; council command surface validated",
+        detail=f"kit manifest version {manifest_version()}; council command surface validated: {council_commands}",
     )
 
 

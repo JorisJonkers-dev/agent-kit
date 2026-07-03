@@ -86,7 +86,8 @@ ROUTING_CARD_KEYS = {
     "risk",
     "expectedOutputs",
 }
-REQUIRED_COUNCIL_CLI_COMMANDS = ("eval", "triage")
+REQUIRED_COUNCIL_CLI_COMMANDS = ("eval", "status", "tail", "triage")
+REQUIRED_COUNCIL_CLI_COMMANDS_LABEL = ", ".join(REQUIRED_COUNCIL_CLI_COMMANDS)
 
 
 def load_renderer() -> Any:
@@ -337,18 +338,49 @@ def _has_council_command_dispatch(source: str, command: str) -> bool:
     return pattern.search(source) is not None
 
 
+def _has_council_command_handler_dispatch(source: str, command: str) -> bool:
+    command_literal = re.escape(command)
+    handler_literal = "run" + "".join(part.capitalize() for part in command.split("-")) + "Command"
+    parser_literal = "parse" + "".join(part.capitalize() for part in command.split("-"))
+    pattern = re.compile(
+        r"case\s+(['\"])"
+        + command_literal
+        + r"\1\s*:\s*return\s+await\s+"
+        + re.escape(handler_literal)
+        + r"\s*\(\s*app\s*,\s*"
+        + re.escape(parser_literal)
+        + r"\s*\(",
+        re.MULTILINE | re.DOTALL,
+    )
+    return pattern.search(source) is not None
+
+
+def _has_required_council_command_dispatch(source: str, command: str) -> bool:
+    return _has_council_command_dispatch(source, command) or _has_council_command_handler_dispatch(source, command)
+
+
 def validate_council_command_surface_source(source: str) -> None:
     missing_specs = [
         command for command in REQUIRED_COUNCIL_CLI_COMMANDS if not _has_council_command_spec(source, command)
     ]
     if missing_specs:
-        fail("council command surface missing command registry specs: " + ", ".join(missing_specs))
+        fail(
+            "council command surface required commands "
+            f"({REQUIRED_COUNCIL_CLI_COMMANDS_LABEL}) missing command registry specs: "
+            + ", ".join(missing_specs),
+        )
 
     missing_dispatches = [
-        command for command in REQUIRED_COUNCIL_CLI_COMMANDS if not _has_council_command_dispatch(source, command)
+        command
+        for command in REQUIRED_COUNCIL_CLI_COMMANDS
+        if not _has_required_council_command_dispatch(source, command)
     ]
     if missing_dispatches:
-        fail("council command surface missing command dispatch branches: " + ", ".join(missing_dispatches))
+        fail(
+            "council command surface required commands "
+            f"({REQUIRED_COUNCIL_CLI_COMMANDS_LABEL}) missing command dispatch branches: "
+            + ", ".join(missing_dispatches),
+        )
 
 
 def validate_council_command_surface() -> None:

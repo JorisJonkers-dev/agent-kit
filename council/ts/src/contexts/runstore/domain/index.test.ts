@@ -220,7 +220,9 @@ describe('runstore event append plans', () => {
     const output = {
       byte_count: 128,
       content_hash: 'sha256:output-event',
+      log_path: 'workers/T1/logs/stdout.log',
       offset: 256,
+      observed_at: '2026-07-03T10:00:01.000Z',
       sha256: 'sha256:chunk',
       stream: 'stdout',
       tail: 'last line',

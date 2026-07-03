@@ -34,7 +34,9 @@ describe('worker trace projection', () => {
       workerOutputEvent({
         byte_count: 14,
         content_hash: 'sha256:stdout',
+        log_path: 'workers/T1/logs/stdout.log',
         offset: 0,
+        observed_at: '2026-07-03T10:00:01.000Z',
         sha256: 'sha256:chunk-1',
         stream: 'stdout',
         tail: 'first line',
@@ -110,6 +112,8 @@ describe('worker trace projection', () => {
         byteCount: 14,
         contentHash: 'sha256:stdout',
         kind: 'output',
+        logPath: 'workers/T1/logs/stdout.log',
+        occurredAt: '2026-07-03T10:00:01.000Z',
         offset: 0,
         sha256: 'sha256:chunk-1',
         stream: 'stdout',
@@ -191,7 +195,9 @@ describe('worker trace projection', () => {
     const next = appendWorkerTraceEvents(existing, [
       workerOutputEvent({
         byte_count: 5,
+        log_path: 'workers/T2/logs/stdout.log',
         offset: 0,
+        observed_at: '2026-07-03T10:04:00.000Z',
         stream: 'stdout',
         task_id: 'T2',
         worker_id: 'worker-T2',
@@ -210,6 +216,8 @@ describe('worker trace projection', () => {
         attempt: 1,
         byteCount: 5,
         kind: 'output',
+        logPath: 'workers/T2/logs/stdout.log',
+        occurredAt: '2026-07-03T10:04:00.000Z',
         offset: 0,
         stream: 'stdout',
         taskId: 'T2',
