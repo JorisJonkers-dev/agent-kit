@@ -5,6 +5,7 @@ import { basename, dirname, join } from 'node:path'
 import { SystemClockAdapter } from '../adapters/clock/index.js'
 import { ProcessVerificationAdapter } from '../adapters/process/index.js'
 import {
+  FsLiveRunDirReader,
   FsRunStoreAdapter,
   normalizeLegacyRunDir,
   type WorkerResult,
@@ -52,6 +53,7 @@ import type {
   DagSuperviseInput,
   DagSuperviseResult,
   GhPort,
+  LiveRunDirReaderPort,
   ProcessCommand,
   ProcessPort,
   ProcessResult,
@@ -68,6 +70,7 @@ import {
   planWorkflow,
   reviewPackWorkflow,
   resolveDagWorkerCommand,
+  statusWatchWorkflow,
   roundTripTasksMarkdownWorkflow,
   statusWorkflow as runStatusWorkflow,
   stringifyAssignments,
@@ -90,6 +93,9 @@ import type {
   PlanResult,
   ReviewPackInput,
   RunSummary,
+  StatusWatchInput,
+  StatusWatchTickerInput,
+  StatusWatchTickerPort,
   TriageWorkflowInput,
 } from '../workflows/index.js'
 
@@ -100,11 +106,14 @@ export interface CouncilAppDeps {
   readonly executeDag?: ExecuteDagDependency
   readonly gh?: GhPort
   readonly integrationWorktreePath?: string
+  readonly liveRunDirReader?: LiveRunDirReaderPort
   readonly nowIso?: () => string
   readonly process?: ProcessPort
   readonly readText?: (path: string) => Promise<string>
   readonly repoRoot?: string
   readonly status?: (input: { readonly runDir: string }) => Promise<RunSummary>
+  readonly statusTicker?: StatusWatchTickerPort
+  readonly statusWriter?: CouncilStatusOutputWriter
   readonly worktreeDependencyProvisioner?: WorktreeDependencyProvisionerPort
   readonly worktreeRoot?: string
   readonly writeText?: (path: string, text: string) => Promise<void>
@@ -117,6 +126,14 @@ export interface CouncilAppExecuteDagInput extends Omit<ExecuteDagWorkflowInput,
 export type CouncilAppFanoutInput = FanoutBaseInput & (PlanOnlyWorkflowInput | CouncilAppExecuteDagInput)
 
 export type CouncilAppFleetInput = FleetBaseInput & (PlanOnlyWorkflowInput | CouncilAppExecuteDagInput)
+
+export interface CouncilStatusOutputWriter {
+  write(output: string): Promise<void> | void
+}
+
+export interface CouncilAppLiveStatusInput extends StatusWatchInput {
+  readonly writer?: CouncilStatusOutputWriter
+}
 
 export interface RecommendInput {
   readonly profile?: LensProblemProfile
@@ -215,6 +232,25 @@ export class NodeProcessAdapter implements ProcessPort {
   }
 }
 
+const NOOP_STATUS_WRITER: CouncilStatusOutputWriter = {
+  write: () => undefined,
+}
+
+class ClockStatusTicker implements StatusWatchTickerPort {
+  private readonly clock: ClockPort
+
+  constructor(clock: ClockPort) {
+    this.clock = clock
+  }
+
+  async *ticks(input: StatusWatchTickerInput): AsyncIterable<unknown> {
+    for (;;) {
+      await this.clock.sleep(input.intervalMs)
+      yield undefined
+    }
+  }
+}
+
 export class CouncilApp {
   private readonly clock: ClockPort
   private readonly createRunStore: (root: string) => SuperviseRunStore
@@ -224,11 +260,14 @@ export class CouncilApp {
   private readonly executeDagOverride: ExecuteDagDependency | undefined
   private readonly gh: GhPort | undefined
   private readonly integrationWorktreePath: string | undefined
+  private readonly liveRunDirReader: LiveRunDirReaderPort
   private readonly nowIso: () => string
   private readonly processPort: ProcessPort
   private readonly readText: (path: string) => Promise<string>
   private readonly repoRoot: string | undefined
   private readonly statusPort: (input: { readonly runDir: string }) => Promise<RunSummary>
+  private readonly statusTicker: StatusWatchTickerPort
+  private readonly statusWriter: CouncilStatusOutputWriter
   private readonly worktreeDependencyProvisioner: WorktreeDependencyProvisionerPort
   private readonly worktreeRoot: string | undefined
   private readonly writeText: (path: string, text: string) => Promise<void>
@@ -248,6 +287,7 @@ export class CouncilApp {
     this.executeDagOverride = deps.executeDag
     this.gh = deps.gh
     this.integrationWorktreePath = deps.integrationWorktreePath
+    this.liveRunDirReader = deps.liveRunDirReader ?? new FsLiveRunDirReader()
     this.nowIso = deps.nowIso ?? (() => this.clock.now().toISOString())
     this.processPort = deps.process ?? new NodeProcessAdapter()
     this.readText = deps.readText ?? ((path) => readFile(path, 'utf8'))
@@ -258,6 +298,8 @@ export class CouncilApp {
         runStatusWorkflow(input, {
           normalizeRunDir: normalizeLegacyRunDir,
         }))
+    this.statusTicker = deps.statusTicker ?? new ClockStatusTicker(this.clock)
+    this.statusWriter = deps.statusWriter ?? NOOP_STATUS_WRITER
     this.worktreeDependencyProvisioner =
       deps.worktreeDependencyProvisioner ?? createWorktreeDependencyProvisioner()
     this.worktreeRoot = deps.worktreeRoot
@@ -295,6 +337,17 @@ export class CouncilApp {
 
   status(input: { readonly runDir: string }): Promise<RunSummary> {
     return this.statusPort(input)
+  }
+
+  async liveStatus(input: CouncilAppLiveStatusInput): Promise<void> {
+    const writer = input.writer ?? this.statusWriter
+    for await (const frame of statusWatchWorkflow(input, {
+      clock: this.clock,
+      readRunDir: (runDir) => this.liveRunDirReader.readRunDir(runDir),
+      ticker: this.statusTicker,
+    })) {
+      await writer.write(frame.output)
+    }
   }
 
   readReviewPack(input: ReviewPackInput): Promise<import('../shared-kernel/index.js').JsonRecord> {

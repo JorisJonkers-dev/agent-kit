@@ -34,9 +34,18 @@ import {
   type RunStoreEvent,
   type WorkerLifecycleEvent,
 } from '../contexts/runstore/index.js'
-import type { DagExecutorInput, DagExecutorResult, ProcessCommand, ProcessPort, ProcessResult } from '../ports/index.js'
+import type {
+  ClockPort,
+  DagExecutorInput,
+  DagExecutorResult,
+  LiveRunArtifacts,
+  ProcessCommand,
+  ProcessPort,
+  ProcessResult,
+  WorkerResult,
+} from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
-import { projectRunView, type RunSummary } from '../workflows/index.js'
+import { projectRunView, type RunSummary, type StatusWatchTickerPort } from '../workflows/index.js'
 
 const tempRoots: string[] = []
 
@@ -515,6 +524,126 @@ describe('CouncilApp native execution composition', () => {
       },
       status: 'failed',
     })
+  })
+})
+
+describe('CouncilApp.liveStatus', () => {
+  it('streams live status frames through the injected reader, clock, ticker, and writer', async () => {
+    const reader = recordingLiveReader([
+      liveArtifacts(),
+      liveArtifacts({
+        events: [
+          workerStartedEvent({
+            attempt: 1,
+            pid: 301,
+            started_at: '2026-07-03T12:00:00.000Z',
+            task_id: 'T1',
+            worker_id: 'worker-T1',
+          }),
+        ],
+      }),
+    ])
+    const ticker = finiteStatusTicker(['tick'])
+    const writes: string[] = []
+    const app = new CouncilApp({
+      clock: fixedClock('2026-07-03T12:05:00.000Z'),
+      liveRunDirReader: reader,
+      statusTicker: ticker,
+      statusWriter: {
+        write(output) {
+          writes.push(output)
+          return Promise.resolve()
+        },
+      },
+    })
+
+    await app.liveStatus({ intervalMs: 250, runDir: '/runs/live' })
+
+    expect(reader.calls).toEqual(['/runs/live', '/runs/live'])
+    expect(ticker.intervals).toEqual([250])
+    expect(writes.map((output) => output.split('\n')[1])).toEqual([
+      'rollup counts=ready:1 ready=T1 critical=T1',
+      'rollup counts=running:1 ready=- critical=T1',
+    ])
+  })
+
+  it('allows a call-scoped writer for JSON one-shot output', async () => {
+    const reader = recordingLiveReader([
+      liveArtifacts({
+        workerResults: new Map([['T1', { status: 'ok', task_id: 'T1' }]]),
+      }),
+    ])
+    const constructorWrites: string[] = []
+    const callWrites: string[] = []
+    const app = new CouncilApp({
+      clock: fixedClock('2026-07-03T12:05:00.000Z'),
+      liveRunDirReader: reader,
+      statusWriter: {
+        write(output) {
+          constructorWrites.push(output)
+          return Promise.resolve()
+        },
+      },
+    })
+
+    await app.liveStatus({
+      json: true,
+      runDir: '/runs/live',
+      writer: {
+        write(output) {
+          callWrites.push(output)
+          return Promise.resolve()
+        },
+      },
+    })
+
+    expect(reader.calls).toEqual(['/runs/live'])
+    expect(constructorWrites).toEqual([])
+    expect(callWrites).toHaveLength(1)
+    expect(callWrites[0]).toContain('"run": "run-live"')
+    expect(callWrites[0]).toContain('"state": "succeeded"')
+  })
+
+  it('builds watch ticks from the injected clock when no ticker is provided', async () => {
+    const sleeps: number[] = []
+    const reader = recordingLiveReader([liveArtifacts(), liveArtifacts()])
+    const writes: string[] = []
+    const app = new CouncilApp({
+      clock: fixedClock('2026-07-03T12:05:00.000Z', (ms) => {
+        sleeps.push(ms)
+        return Promise.resolve()
+      }),
+      liveRunDirReader: reader,
+    })
+
+    await expect(
+      app.liveStatus({
+        intervalMs: 25,
+        runDir: '/runs/live',
+        writer: {
+          write(output) {
+            writes.push(output)
+            if (writes.length === 2) throw new Error('stop after tick')
+            return Promise.resolve()
+          },
+        },
+      }),
+    ).rejects.toThrow('stop after tick')
+
+    expect(sleeps).toEqual([25])
+    expect(reader.calls).toEqual(['/runs/live', '/runs/live'])
+    expect(writes).toHaveLength(2)
+  })
+
+  it('uses the default no-op writer for one-shot live status output', async () => {
+    const reader = recordingLiveReader([liveArtifacts()])
+    const app = new CouncilApp({
+      clock: fixedClock('2026-07-03T12:05:00.000Z'),
+      liveRunDirReader: reader,
+    })
+
+    await expect(app.liveStatus({ once: true, runDir: '/runs/live' })).resolves.toBeUndefined()
+    expect(reader.calls).toEqual(['/runs/live'])
   })
 })
 
@@ -1388,6 +1517,75 @@ function supervisorSnapshot(taskId: string): SuperviseWorkerSupervisorSnapshot {
         failureFingerprints: [],
       },
     },
+  }
+}
+
+function fixedClock(iso: string, sleep: ClockPort['sleep'] = () => Promise.resolve()): ClockPort {
+  return {
+    monotonicMs: () => 0,
+    now: () => new Date(iso),
+    sleep,
+  }
+}
+
+function recordingLiveReader(reads: readonly LiveRunArtifacts[]): {
+  readonly calls: readonly string[]
+  readonly readRunDir: (runDir: string) => Promise<LiveRunArtifacts>
+} {
+  const calls: string[] = []
+  let index = 0
+  return {
+    calls,
+    readRunDir(runDir) {
+      calls.push(runDir)
+      const current = reads[index] ?? reads.at(-1)
+      index += 1
+      if (current === undefined) throw new Error('missing live status artifact')
+      return Promise.resolve(current)
+    },
+  }
+}
+
+function finiteStatusTicker(ticks: readonly unknown[]): StatusWatchTickerPort & {
+  readonly intervals: readonly number[]
+} {
+  const intervals: number[] = []
+  return {
+    intervals,
+    ticks(input) {
+      intervals.push(input.intervalMs)
+      let index = 0
+      const iterable: AsyncIterable<unknown> & AsyncIterator<unknown> = {
+        [Symbol.asyncIterator](): AsyncIterator<unknown> {
+          return iterable
+        },
+        next(): Promise<IteratorResult<unknown>> {
+          const value = ticks[index]
+          index += 1
+          return Promise.resolve(value === undefined ? { done: true, value } : { done: false, value })
+        },
+      }
+      return iterable
+    },
+  }
+}
+
+function liveArtifacts(input: {
+  readonly events?: LiveRunArtifacts['events']
+  readonly workerResults?: ReadonlyMap<string, WorkerResult>
+} = {}): LiveRunArtifacts {
+  const workerResults = input.workerResults ?? new Map<string, WorkerResult>()
+  return {
+    events: input.events ?? [],
+    normalized: {
+      report: undefined,
+      runId: 'run-live',
+      state: { stage: 'fanout' },
+      tasks: [nativeTask()],
+      workerResults,
+    },
+    workerResults,
+    workerSupervisorSnapshots: new Map(),
   }
 }
 

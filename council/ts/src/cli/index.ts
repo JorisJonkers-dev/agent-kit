@@ -3,6 +3,7 @@ import {
   PreFanoutGateError,
   type CouncilAppFanoutInput,
   type CouncilAppFleetInput,
+  type CouncilAppLiveStatusInput,
   type ConfigPaths,
   type EvalWorkflowInput,
   type PlanInput,
@@ -113,7 +114,7 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
           }),
         )
       case 'status':
-        return okJson(await app.status({ runDir: requireFlag(parseFlags(rest), 'run') }))
+        return await runStatusCommand(app, parseStatus(rest))
       case 'review-pack':
         return okJson(await app.readReviewPack(parseReviewPack(rest)))
       case 'triage':
@@ -192,6 +193,53 @@ function parseFanout(argv: readonly string[]): CouncilAppFanoutInput {
 
 function parseEval(argv: readonly string[]): EvalWorkflowInput {
   return { runDir: requireFlag(parseFlags(argv), 'run') }
+}
+
+type ParsedStatusCommand =
+  | { readonly kind: 'live'; readonly input: Omit<CouncilAppLiveStatusInput, 'writer'> }
+  | { readonly kind: 'summary'; readonly runDir: string }
+
+async function runStatusCommand(app: CouncilApp, parsed: ParsedStatusCommand): Promise<CliResult> {
+  if (parsed.kind === 'summary') {
+    return okJson(await app.status({ runDir: parsed.runDir }))
+  }
+  const chunks: string[] = []
+  await app.liveStatus({
+    ...parsed.input,
+    writer: {
+      write(output) {
+        chunks.push(output)
+      },
+    },
+  })
+  return okRaw(chunks.join(''))
+}
+
+function parseStatus(argv: readonly string[]): ParsedStatusCommand {
+  const flags = parseFlags(argv)
+  const runDir = requireFlag(flags, 'run')
+  const modes = statusModes(flags)
+  if (modes.length > 1) throw new Error('status mode must be only one of --json, --once, or --watch')
+  if (flags.has('interval-ms') && !flags.has('watch')) throw new Error('--interval-ms requires --watch')
+  const mode = modes[0]
+  if (mode === undefined) return { kind: 'summary', runDir }
+  if (mode === 'json') return { input: { json: true, runDir }, kind: 'live' }
+  if (mode === 'once') return { input: { once: true, runDir }, kind: 'live' }
+  return {
+    input: {
+      ...(flags.has('interval-ms') ? { intervalMs: parsePositiveIntegerFlag(flags, 'interval-ms') } : {}),
+      runDir,
+    },
+    kind: 'live',
+  }
+}
+
+function statusModes(flags: ReadonlyMap<string, string>): readonly ('json' | 'once' | 'watch')[] {
+  const modes: ('json' | 'once' | 'watch')[] = []
+  if (flags.has('json')) modes.push('json')
+  if (flags.has('once')) modes.push('once')
+  if (flags.has('watch')) modes.push('watch')
+  return modes
 }
 
 function parseRecommend(argv: readonly string[]): RecommendInput {
@@ -386,6 +434,15 @@ function optionalPositiveNumber(flags: ReadonlyMap<string, string>, flag: string
   return value
 }
 
+function parsePositiveIntegerFlag(flags: ReadonlyMap<string, string>, flag: string): number {
+  const raw = requireFlag(flags, flag)
+  const value = Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < 1 || String(value) !== raw) {
+    throw new Error(`--${flag} must be a positive integer`)
+  }
+  return value
+}
+
 function configOverrides(flags: ReadonlyMap<string, string>): CouncilConfig {
   const config: Record<string, unknown> = {}
   const intensity = flags.get('intensity')
@@ -430,6 +487,10 @@ function defaultConfigPaths(): ConfigPaths {
 
 function ok(stdout: string): CliResult {
   return { exitCode: 0, stderr: '', stdout: `${stdout.trimEnd()}\n` }
+}
+
+function okRaw(stdout: string): CliResult {
+  return { exitCode: 0, stderr: '', stdout }
 }
 
 function okJson(value: unknown): CliResult {
