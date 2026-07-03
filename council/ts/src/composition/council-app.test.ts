@@ -16,7 +16,8 @@ import type {
   SuperviseWorkerSupervisorSnapshot,
   SuperviseWorkerSupervisorStartRequest,
 } from './council-app.js'
-import type { WorkerLifecycleEvent } from '../contexts/runstore/index.js'
+import type { RunStoreEvent, WorkerLifecycleEvent } from '../contexts/runstore/index.js'
+import type { RunSummary } from '../workflows/index.js'
 
 const tempRoots: string[] = []
 
@@ -42,6 +43,109 @@ describe('CouncilApp.recommend', () => {
 
     expect(recommendation.lenses.length).toBeGreaterThan(0)
     expect(recommendation.workerCount).toBe(recommendation.lenses.length)
+  })
+})
+
+describe('CouncilApp.triage', () => {
+  it('runs the triage gate and emits triage.json through the injected writer', async () => {
+    const writes: { readonly path: string; readonly text: string }[] = []
+    const app = new CouncilApp({
+      writeText(path, text) {
+        writes.push({ path, text })
+        return Promise.resolve()
+      },
+    })
+
+    const payload = await app.triage({
+      runDir: '/runs/run-a',
+      signals: ['shared files'],
+      triage: {
+        clarity: 'clear',
+        kind: 'feature',
+        landscape: 'brownfield',
+        parallelism: 'high',
+        risk: 'medium',
+        size: 'medium',
+      },
+    })
+
+    expect(payload).toMatchObject({
+      council_worthy: true,
+      route: 'program',
+      topology: 'parallel',
+    })
+    expect(writes).toEqual([
+      {
+        path: '/runs/run-a/triage.json',
+        text: `${JSON.stringify(payload, null, 2)}\n`,
+      },
+    ])
+  })
+})
+
+describe('CouncilApp.eval', () => {
+  it('scores run artifacts through the injected status and runstore seams', async () => {
+    const store = new RecordingRunStore({
+      runEvents: [
+        { payload: { attempt: 1, task_id: 'T1', worker_id: 'worker-T1' }, type: 'worker_started' },
+        {
+          payload: { attempt: 2, reason: 'progress-stall', task_id: 'T1', worker_id: 'worker-T1' },
+          type: 'worker_restarted',
+        },
+      ],
+    })
+    const roots: string[] = []
+    const app = new CouncilApp({
+      createRunStore(root) {
+        roots.push(root)
+        return store
+      },
+      status(input) {
+        expect(input).toEqual({ runDir: '/runs/run-a' })
+        return Promise.resolve(evalRunSummary())
+      },
+    })
+
+    const result = await app.eval({ runDir: '/runs/run-a' })
+
+    expect(roots).toEqual(['/runs'])
+    expect(store.readEventRunIds).toEqual(['run-a'])
+    expect(result).toMatchObject({
+      run: 'run-a',
+      summary: {
+        retry_count: 1,
+        task_count: 1,
+        worker_result_count: 1,
+      },
+    })
+  })
+
+  it('treats a missing event log as an empty lifecycle stream', async () => {
+    const missingEvents = new Error('missing events') as Error & { code: string }
+    missingEvents.code = 'ENOENT'
+    const store = new RecordingRunStore({ runEventsError: missingEvents })
+    const app = new CouncilApp({
+      createRunStore: () => store,
+      status: () => Promise.resolve(evalRunSummary()),
+    })
+
+    await expect(app.eval({ runDir: '/runs/run-a' })).resolves.toMatchObject({
+      summary: {
+        retry_count: 0,
+      },
+    })
+    expect(store.readEventRunIds).toEqual(['run-a'])
+  })
+
+  it('surfaces unexpected event log read failures', async () => {
+    const blockedEvents = new Error('events denied') as Error & { code: string }
+    blockedEvents.code = 'EACCES'
+    const app = new CouncilApp({
+      createRunStore: () => new RecordingRunStore({ runEventsError: blockedEvents }),
+      status: () => Promise.resolve(evalRunSummary()),
+    })
+
+    await expect(app.eval({ runDir: '/runs/run-a' })).rejects.toThrow('events denied')
   })
 })
 
@@ -300,19 +404,26 @@ describe('CouncilApp.supervise', () => {
 
 class RecordingRunStore implements SuperviseRunStore {
   readonly events: { readonly event: WorkerLifecycleEvent; readonly runId: string }[] = []
+  readonly readEventRunIds: string[] = []
   readonly results: { readonly result: unknown; readonly runId: string; readonly taskId: string }[] = []
   readonly snapshots: {
     readonly runId: string
     readonly snapshot: SuperviseWorkerSupervisorSnapshot
     readonly taskId: string
   }[] = []
+  private readonly runEvents: readonly RunStoreEvent[]
+  private readonly runEventsError: Error | undefined
   private readonly snapshot: SuperviseWorkerSupervisorSnapshot | undefined
   private readonly snapshotError: Error | undefined
 
   constructor(options: {
+    readonly runEvents?: readonly RunStoreEvent[]
+    readonly runEventsError?: Error
     readonly snapshot?: SuperviseWorkerSupervisorSnapshot
     readonly snapshotError?: Error
   } = {}) {
+    this.runEvents = options.runEvents ?? []
+    this.runEventsError = options.runEventsError
     this.snapshot = options.snapshot
     this.snapshotError = options.snapshotError
   }
@@ -320,6 +431,12 @@ class RecordingRunStore implements SuperviseRunStore {
   appendWorkerEvent(runId: string, event: WorkerLifecycleEvent): Promise<void> {
     this.events.push({ event, runId })
     return Promise.resolve()
+  }
+
+  readEvents(runId: string): Promise<readonly RunStoreEvent[]> {
+    this.readEventRunIds.push(runId)
+    if (this.runEventsError !== undefined) return Promise.reject(this.runEventsError)
+    return Promise.resolve(this.runEvents)
   }
 
   readWorkerSupervisorSnapshot(): Promise<SuperviseWorkerSupervisorSnapshot> {
@@ -559,6 +676,43 @@ function supervisorSnapshot(taskId: string): SuperviseWorkerSupervisorSnapshot {
         failureFingerprints: [],
       },
     },
+  }
+}
+
+function evalRunSummary(): RunSummary {
+  return {
+    run: 'run-a',
+    state: { stage: 'fanout' },
+    tasks: [
+      {
+        boundaries: 'Only touch src/example.ts.',
+        depends_on: [],
+        difficulty: 'moderate',
+        id: 'T1',
+        model: 'sonnet',
+        objective: 'Score app-level eval wiring.',
+        output_format: 'Code edits',
+        paths: ['src/example.ts'],
+        title: 'Eval app wiring',
+        verify: 'npx vitest run src/example.test.ts',
+      },
+    ],
+    waves: [['T1']],
+    workerResults: [
+      {
+        files_changed: ['src/example.ts'],
+        status: 'ok',
+        task_id: 'T1',
+        verdict: {
+          engine: { cli: 'codex', model: 'gpt-5' },
+          issues: [],
+          reasons: 'complete',
+          satisfied: true,
+          task_id: 'T1',
+        },
+        verify_rc: 0,
+      },
+    ],
   }
 }
 

@@ -5,11 +5,13 @@ import type {
   ConfigCommandInput,
   ConfigPaths,
   CouncilApp,
+  EvalWorkflowInput,
   FanoutInput,
   FleetInput,
   PlanInput,
   RecommendInput,
   SuperviseInput,
+  TriageWorkflowInput,
 } from '../app/index.js'
 
 interface ReviewPackInput {
@@ -23,6 +25,7 @@ interface StatusInput {
 
 type AppCall =
   | { readonly input: ConfigCommandInput; readonly method: 'config' }
+  | { readonly input: EvalWorkflowInput; readonly method: 'eval' }
   | { readonly input: FanoutInput; readonly method: 'fanout' }
   | { readonly input: FleetInput; readonly method: 'fleet' }
   | { readonly input: PlanInput | undefined; readonly method: 'plan' }
@@ -30,6 +33,7 @@ type AppCall =
   | { readonly input: ReviewPackInput; readonly method: 'readReviewPack' }
   | { readonly input: StatusInput; readonly method: 'status' }
   | { readonly input: SuperviseInput; readonly method: 'supervise' }
+  | { readonly input: TriageWorkflowInput; readonly method: 'triage' }
 
 interface RecordingAppOptions {
   readonly configError?: Error
@@ -66,6 +70,11 @@ class RecordingApp {
     return Promise.resolve({ input, method: 'fanout' })
   }
 
+  eval(input: EvalWorkflowInput): Promise<unknown> {
+    this.calls.push({ input, method: 'eval' })
+    return Promise.resolve({ input, method: 'eval' })
+  }
+
   fleet(input: FleetInput): Promise<unknown> {
     this.calls.push({ input, method: 'fleet' })
     return Promise.resolve({ input, method: 'fleet' })
@@ -96,6 +105,11 @@ class RecordingApp {
   supervise(input: SuperviseInput): Promise<unknown> {
     this.calls.push({ input, method: 'supervise' })
     return Promise.resolve({ input, method: 'supervise' })
+  }
+
+  triage(input: TriageWorkflowInput): Promise<unknown> {
+    this.calls.push({ input, method: 'triage' })
+    return Promise.resolve({ input, method: 'triage', route: 'program' })
   }
 }
 
@@ -160,10 +174,18 @@ describe('runCli help and command dispatch', () => {
     expect(app.calls).toEqual([])
   })
 
-  it('registers the recommend command', () => {
+  it('registers the recommend, eval, and triage gate commands', () => {
+    expect(commandRegistry()).toContainEqual({
+      help: 'score a run with the eval workflow',
+      name: 'eval',
+    })
     expect(commandRegistry()).toContainEqual({
       help: 'recommend council lenses for a problem profile',
       name: 'recommend',
+    })
+    expect(commandRegistry()).toContainEqual({
+      help: 'run the triage gate and emit routing payload',
+      name: 'triage',
     })
   })
 
@@ -261,7 +283,7 @@ describe('runCli help and command dispatch', () => {
     ])
   })
 
-  it('passes parsed fanout, fleet, status, review-pack, triage, and recommend inputs to the app', async () => {
+  it('passes parsed fanout, fleet, status, review-pack, eval, triage, and recommend inputs to the app', async () => {
     const triage = {
       clarity: 'needs-questions',
       kind: 'feature',
@@ -297,6 +319,15 @@ describe('runCli help and command dispatch', () => {
     })
     expect(status.calls).toEqual([{ input: { runDir: '/runs/3' }, method: 'status' }])
 
+    const evalApp = new RecordingApp()
+    const evalResult = await runCli(['eval', '--run', '/runs/eval-a'], injectedRuntime(evalApp))
+    expect(evalResult.exitCode).toBe(0)
+    expect(evalApp.calls).toEqual([{ input: { runDir: '/runs/eval-a' }, method: 'eval' }])
+    expect(parsed(evalResult)).toEqual({
+      input: { runDir: '/runs/eval-a' },
+      method: 'eval',
+    })
+
     for (const gate of ['1', 'design', '2'] as const) {
       const reviewPack = new RecordingApp()
       await expect(
@@ -310,11 +341,22 @@ describe('runCli help and command dispatch', () => {
     const app = new RecordingApp()
     const result = await runCli(['triage', '--input', JSON.stringify(triage)], injectedRuntime(app))
     expect(result.exitCode).toBe(0)
-    expect(app.calls).toEqual([{ input: { triage }, method: 'plan' }])
+    expect(app.calls).toEqual([{ input: { triage }, method: 'triage' }])
     expect(parsed(result)).toEqual({
       input: { triage },
-      routed: true,
+      method: 'triage',
+      route: 'program',
     })
+
+    const triageRun = new RecordingApp()
+    const runResult = await runCli(
+      ['triage', '--input', JSON.stringify(triage), '--run', '/runs/triage-a'],
+      injectedRuntime(triageRun),
+    )
+    expect(runResult.exitCode).toBe(0)
+    expect(triageRun.calls).toEqual([
+      { input: { runDir: '/runs/triage-a', triage }, method: 'triage' },
+    ])
 
     const recommend = new RecordingApp()
     const profile = { kind: 'api', risk: 'high', signals: ['timeout budget'], size: 'medium' } as const
@@ -427,24 +469,6 @@ describe('runCli help and command dispatch', () => {
     expect(parsed(result)).toEqual({
       input: app.calls[0]?.input,
       method: 'supervise',
-    })
-  })
-
-  it('returns an empty object when triage planning has no triage result', async () => {
-    const app = new RecordingApp({ planResult: { command: 'plan' } })
-    const triage = {
-      clarity: 'clear',
-      kind: 'bugfix',
-      landscape: 'brownfield',
-      parallelism: 'none',
-      risk: 'low',
-      size: 'trivial',
-    } as const
-
-    await expect(runCli(['triage', '--input', JSON.stringify(triage)], injectedRuntime(app))).resolves.toEqual({
-      exitCode: 0,
-      stderr: '',
-      stdout: '{}\n',
     })
   })
 
@@ -564,6 +588,11 @@ describe('runCli error handling', () => {
       stdout: '',
     })
     await expect(runCli(['fanout'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--run is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['eval'], injectedRuntime())).resolves.toEqual({
       exitCode: 2,
       stderr: '--run is required\n',
       stdout: '',
