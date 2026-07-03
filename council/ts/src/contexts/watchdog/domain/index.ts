@@ -92,6 +92,33 @@ export interface EscalationResult {
   readonly action: EscalationAction
 }
 
+type WatchdogStatus = 'running' | 'stalled' | 'looping' | 'restarting' | 'escalated'
+
+interface WatchdogState {
+  readonly phase: EscalationPhase
+  readonly status: WatchdogStatus
+  advance(policy: TierEscalationPolicy): WatchdogTransition
+  toEscalationState(): EscalationState
+}
+
+interface WatchdogTransition {
+  readonly state: WatchdogState
+  readonly action: EscalationAction
+}
+
+interface TierEscalationPolicy {
+  afterRetryWithPreamble(): WatchdogTransition
+}
+
+interface LoopDetectionPolicy {
+  detect(actions: readonly ActionLine[], config: LoopDetectorConfig): LoopDetection | null
+}
+
+interface LoopEvaluationState {
+  readonly status: 'running' | 'looping'
+  readonly detection: LoopDetection | null
+}
+
 export function createStallDetectorState(nowMs: number, logBytes = 0): StallDetectorState {
   return { logBytes, lastGrowthAtMs: nowMs }
 }
@@ -136,7 +163,7 @@ export function appendLoopLine(
 
   return {
     state: nextState,
-    detection: detectRepeat(nextActions, config) ?? detectCycle(nextActions, config),
+    detection: classifyLoopDetection(detectLoop(nextActions, config)).detection,
   }
 }
 
@@ -165,62 +192,187 @@ export function evaluateDiskUsageCap(input: DiskUsageCapInput): DiskUsageCapDete
 }
 
 export function createEscalationState(): EscalationState {
-  return { phase: 'ready' }
+  return runningWatchdogState.toEscalationState()
 }
 
 export function advanceEscalation(
   state: EscalationState,
   config: EscalationConfig,
 ): EscalationResult {
-  switch (state.phase) {
-    case 'ready':
-      return { state: { phase: 'terminated' }, action: 'terminate' }
-    case 'terminated':
-      return {
-        state: { phase: 'retry-with-preamble' },
-        action: 'retry-with-preamble',
-      }
-    case 'retry-with-preamble':
-      return config.enableTierEscalation
-        ? { state: { phase: 'tier-escalated' }, action: 'escalate-tier' }
-        : { state: { phase: 'stalled' }, action: 'stalled' }
-    case 'tier-escalated':
-    case 'stalled':
-      return { state: { phase: 'stalled' }, action: 'stalled' }
+  const transition = watchdogStates[state.phase].advance(tierEscalationPolicy(config))
+
+  return {
+    state: transition.state.toEscalationState(),
+    action: transition.action,
   }
 }
 
-function detectRepeat(
-  actions: readonly ActionLine[],
-  config: LoopDetectorConfig,
-): LoopDetection | null {
-  const counts = new Map<string, number>()
+class RunningWatchdogState implements WatchdogState {
+  readonly phase = 'ready'
+  readonly status = 'running'
 
-  for (const action of actions) {
-    const count = (counts.get(action.normalized) ?? 0) + 1
+  advance(): WatchdogTransition {
+    return transition(terminatedRestartingWatchdogState, 'terminate')
+  }
 
-    if (count >= config.repeatLimit) {
-      return { kind: 'loop-repeat', normalized: action.normalized, count }
+  toEscalationState(): EscalationState {
+    return { phase: this.phase }
+  }
+}
+
+class TerminatedRestartingWatchdogState implements WatchdogState {
+  readonly phase = 'terminated'
+  readonly status = 'restarting'
+
+  advance(): WatchdogTransition {
+    return transition(preambleRestartingWatchdogState, 'retry-with-preamble')
+  }
+
+  toEscalationState(): EscalationState {
+    return { phase: this.phase }
+  }
+}
+
+class PreambleRestartingWatchdogState implements WatchdogState {
+  readonly phase = 'retry-with-preamble'
+  readonly status = 'restarting'
+
+  advance(policy: TierEscalationPolicy): WatchdogTransition {
+    return policy.afterRetryWithPreamble()
+  }
+
+  toEscalationState(): EscalationState {
+    return { phase: this.phase }
+  }
+}
+
+class EscalatedWatchdogState implements WatchdogState {
+  readonly phase = 'tier-escalated'
+  readonly status = 'escalated'
+
+  advance(): WatchdogTransition {
+    return transition(stalledWatchdogState, 'stalled')
+  }
+
+  toEscalationState(): EscalationState {
+    return { phase: this.phase }
+  }
+}
+
+class StalledWatchdogState implements WatchdogState {
+  readonly phase = 'stalled'
+  readonly status = 'stalled'
+
+  advance(): WatchdogTransition {
+    return transition(stalledWatchdogState, 'stalled')
+  }
+
+  toEscalationState(): EscalationState {
+    return { phase: this.phase }
+  }
+}
+
+class EnabledTierEscalationPolicy implements TierEscalationPolicy {
+  afterRetryWithPreamble(): WatchdogTransition {
+    return transition(escalatedWatchdogState, 'escalate-tier')
+  }
+}
+
+class DisabledTierEscalationPolicy implements TierEscalationPolicy {
+  afterRetryWithPreamble(): WatchdogTransition {
+    return transition(stalledWatchdogState, 'stalled')
+  }
+}
+
+class RunningLoopEvaluationState implements LoopEvaluationState {
+  readonly status = 'running'
+  readonly detection = null
+}
+
+class LoopingWatchdogState implements LoopEvaluationState {
+  readonly status = 'looping'
+
+  constructor(readonly detection: LoopDetection) {}
+}
+
+class RepeatLoopDetectionPolicy implements LoopDetectionPolicy {
+  detect(actions: readonly ActionLine[], config: LoopDetectorConfig): LoopDetection | null {
+    const counts = new Map<string, number>()
+
+    for (const action of actions) {
+      const count = (counts.get(action.normalized) ?? 0) + 1
+
+      if (count >= config.repeatLimit) {
+        return { kind: 'loop-repeat', normalized: action.normalized, count }
+      }
+
+      counts.set(action.normalized, count)
     }
 
-    counts.set(action.normalized, count)
+    return null
   }
-
-  return null
 }
 
-function detectCycle(
+class CycleLoopDetectionPolicy implements LoopDetectionPolicy {
+  detect(actions: readonly ActionLine[], config: LoopDetectorConfig): LoopDetection | null {
+    const maxGram = Math.min(config.maxCycleGram ?? 5, 5, Math.floor(actions.length / 3))
+
+    for (let gramSize = 1; gramSize <= maxGram; gramSize += 1) {
+      const offset = actions.length - gramSize
+      const sequence = actions.slice(offset).map((action) => action.verbatim)
+
+      if (matchesCycle(actions, sequence, gramSize)) {
+        return { kind: 'loop-cycle', gramSize, sequence }
+      }
+    }
+
+    return null
+  }
+}
+
+const runningWatchdogState = new RunningWatchdogState()
+const terminatedRestartingWatchdogState = new TerminatedRestartingWatchdogState()
+const preambleRestartingWatchdogState = new PreambleRestartingWatchdogState()
+const escalatedWatchdogState = new EscalatedWatchdogState()
+const stalledWatchdogState = new StalledWatchdogState()
+const enabledTierEscalationPolicy = new EnabledTierEscalationPolicy()
+const disabledTierEscalationPolicy = new DisabledTierEscalationPolicy()
+const runningLoopEvaluationState = new RunningLoopEvaluationState()
+
+const watchdogStates: Readonly<Record<EscalationPhase, WatchdogState>> = {
+  ready: runningWatchdogState,
+  terminated: terminatedRestartingWatchdogState,
+  'retry-with-preamble': preambleRestartingWatchdogState,
+  'tier-escalated': escalatedWatchdogState,
+  stalled: stalledWatchdogState,
+}
+
+const loopDetectionPolicies: readonly LoopDetectionPolicy[] = [
+  new RepeatLoopDetectionPolicy(),
+  new CycleLoopDetectionPolicy(),
+]
+
+function transition(state: WatchdogState, action: EscalationAction): WatchdogTransition {
+  return { state, action }
+}
+
+function tierEscalationPolicy(config: EscalationConfig): TierEscalationPolicy {
+  return config.enableTierEscalation ? enabledTierEscalationPolicy : disabledTierEscalationPolicy
+}
+
+function classifyLoopDetection(detection: LoopDetection | null): LoopEvaluationState {
+  return detection === null ? runningLoopEvaluationState : new LoopingWatchdogState(detection)
+}
+
+function detectLoop(
   actions: readonly ActionLine[],
   config: LoopDetectorConfig,
 ): LoopDetection | null {
-  const maxGram = Math.min(config.maxCycleGram ?? 5, 5, Math.floor(actions.length / 3))
+  for (const policy of loopDetectionPolicies) {
+    const detection = policy.detect(actions, config)
 
-  for (let gramSize = 1; gramSize <= maxGram; gramSize += 1) {
-    const offset = actions.length - gramSize
-    const sequence = actions.slice(offset).map((action) => action.verbatim)
-
-    if (matchesCycle(actions, sequence, gramSize)) {
-      return { kind: 'loop-cycle', gramSize, sequence }
+    if (detection !== null) {
+      return detection
     }
   }
 
