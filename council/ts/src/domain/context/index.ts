@@ -22,11 +22,13 @@ export {
   MODEL_TIER_ALIASES,
   normalizeModelTier,
   parseEngineSpec,
+  parseRoleClass,
   resolveModelMatrix,
 } from './model-matrix.js'
 export type {
   ModelMatrixEntry,
   ModelMatrixRequest,
+  ModelRoleClass,
   ModelTierName,
   ModelWorkload,
   ResolvedModel,

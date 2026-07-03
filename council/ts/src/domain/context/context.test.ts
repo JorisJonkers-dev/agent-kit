@@ -9,6 +9,7 @@ import {
   normalizeModelTier,
   parseContextProfile,
   parseEngineSpec,
+  parseRoleClass,
   parseSpecSections,
   resolveContextProfile,
   resolveModelMatrix,
@@ -122,6 +123,79 @@ describe('model matrix', () => {
       label: 'claude:opus',
     })
     expect(() => parseEngineSpec('legacy')).toThrow('engine must be')
+  })
+
+  it('aliases claude model names to tiers (haiku/sonnet/opus)', () => {
+    expect(normalizeModelTier('haiku')).toBe('cheap')
+    expect(normalizeModelTier('sonnet')).toBe('strong')
+    expect(normalizeModelTier('opus')).toBe('max')
+  })
+})
+
+describe('model role-class policy', () => {
+  it('routes investigate and cross-critique to codex (default scale)', () => {
+    expect(resolveModelMatrix({ roleClass: 'investigate', model_tier: 'strong' })).toMatchObject({
+      engine: { cli: 'codex', model: 'gpt-5.5' },
+      reason: 'role-class-policy',
+    })
+    expect(resolveModelMatrix({ roleClass: 'cross-critique' }).engine.cli).toBe('codex')
+  })
+
+  it('routes implement to claude and never opus unless explicit (caps max -> sonnet)', () => {
+    expect(resolveModelMatrix({ roleClass: 'implement', model_tier: 'cheap' })).toMatchObject({
+      engine: { cli: 'claude', model: 'haiku' },
+      model_tier: 'cheap',
+      reason: 'role-class-policy',
+    })
+    expect(resolveModelMatrix({ roleClass: 'implement', model_tier: 'max' })).toMatchObject({
+      engine: { cli: 'claude', model: 'sonnet' },
+      model_tier: 'strong',
+    })
+  })
+
+  it('routes consolidate-lock to strong claude, opus at the max tier', () => {
+    expect(resolveModelMatrix({ roleClass: 'consolidate-lock', model_tier: 'standard' }).engine).toMatchObject({
+      cli: 'claude',
+      model: 'haiku',
+    })
+    expect(resolveModelMatrix({ roleClass: 'consolidate-lock', model_tier: 'max' }).engine.model).toBe('opus')
+  })
+
+  it('program scale forces codex for every role except consolidate-lock (claude:opus)', () => {
+    for (const roleClass of ['investigate', 'cross-critique', 'implement'] as const) {
+      expect(resolveModelMatrix({ roleClass, programScale: true, model_tier: 'strong' })).toMatchObject({
+        engine: { cli: 'codex', model: 'gpt-5.5' },
+        reason: 'program-codex-override',
+      })
+    }
+    expect(resolveModelMatrix({ roleClass: 'consolidate-lock', programScale: true, model_tier: 'cheap' })).toEqual({
+      engine: { cli: 'claude', model: 'opus', label: 'claude:opus' },
+      model_tier: 'max',
+      reason: 'program-consolidate-lock-claude-opus',
+    })
+  })
+
+  it('keeps strict-json on claude and explicit engine above any role/program policy', () => {
+    expect(
+      resolveModelMatrix({ roleClass: 'implement', programScale: true, strictJson: true, model_tier: 'strong' }),
+    ).toMatchObject({ engine: { cli: 'claude' }, reason: 'strict-json-claude' })
+    expect(
+      resolveModelMatrix({
+        roleClass: 'investigate',
+        programScale: true,
+        engine: { cli: 'claude', model: 'opus', label: 'claude:opus' },
+      }),
+    ).toMatchObject({ reason: 'explicit-engine' })
+  })
+
+  it('parses role-class kebab canonical + underscore/alias forms, rejects unknown', () => {
+    expect(parseRoleClass('cross-critique')).toBe('cross-critique')
+    expect(parseRoleClass('cross_critique')).toBe('cross-critique')
+    expect(parseRoleClass('consolidate_lock')).toBe('consolidate-lock')
+    expect(parseRoleClass('research')).toBe('investigate')
+    expect(parseRoleClass(' implement ')).toBe('implement')
+    expect(parseRoleClass('nonsense')).toBeUndefined()
+    expect(parseRoleClass(undefined)).toBeUndefined()
   })
 })
 
