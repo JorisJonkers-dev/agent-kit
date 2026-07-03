@@ -34,6 +34,8 @@ export interface WorkerTraceOutputEntry {
   readonly byteCount: number
   readonly tail?: string
   readonly tailBytes?: number
+  readonly logPath?: string
+  readonly occurredAt?: string
   readonly sha256?: string
   readonly contentHash?: string
 }
@@ -196,6 +198,8 @@ function projectWorkerTraceEvent(
       workerId: event.payload.worker_id,
       ...(event.payload.tail === undefined ? {} : { tail: event.payload.tail }),
       ...(event.payload.tail_bytes === undefined ? {} : { tailBytes: event.payload.tail_bytes }),
+      ...(event.payload.log_path === undefined ? {} : { logPath: event.payload.log_path }),
+      ...(event.payload.observed_at === undefined ? {} : { occurredAt: event.payload.observed_at }),
       ...(event.payload.sha256 === undefined ? {} : { sha256: event.payload.sha256 }),
       ...(event.payload.content_hash === undefined ? {} : { contentHash: event.payload.content_hash }),
     }

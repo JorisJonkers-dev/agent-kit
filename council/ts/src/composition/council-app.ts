@@ -647,6 +647,8 @@ function workerLifecycleEvent(
   if (event.type === 'stdout' || event.type === 'stderr') {
     return workerOutputEvent({
       byte_count: event.byteCount,
+      log_path: event.logPath,
+      observed_at: nowIso,
       offset: event.offset,
       stream: event.type,
       tail: event.tail,
