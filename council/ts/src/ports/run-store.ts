@@ -49,6 +49,59 @@ export interface WorkerResult {
   readonly model_tier?: string
 }
 
+export type WorkerSupervisorSnapshotStatus =
+  | 'running'
+  | 'detected'
+  | 'restarting'
+  | 'exited'
+  | 'stopped'
+  | 'completed'
+  | 'failed'
+  | 'stalled'
+  | 'budget-cap'
+  | 'disk-cap'
+
+export interface WorkerSupervisorSnapshot {
+  readonly task_id: string
+  readonly attempt_id: number
+  readonly pid?: number
+  readonly restart_count: number
+  readonly model_tier?: string
+  readonly status: WorkerSupervisorSnapshotStatus
+  readonly offsets: {
+    readonly stdout: number
+    readonly stderr: number
+  }
+  readonly logs: {
+    readonly stdout: string
+    readonly stderr: string
+  }
+  readonly watchdog: {
+    readonly progress: {
+      readonly attemptStartedAtMs: number
+      readonly lastActionAtMs: number
+      readonly lastOutputAtMs: number
+      readonly lastProgressAtMs: number
+      readonly outputBytes: number
+      readonly startedAtMs: number
+    }
+    readonly loop: {
+      readonly actions: readonly {
+        readonly verbatim: string
+        readonly normalized: string
+      }[]
+    }
+    readonly retry: {
+      readonly attempts: number
+      readonly failureFingerprints: readonly string[]
+    }
+    readonly pending_detection?: Record<string, unknown>
+    readonly handling_detection: boolean
+  }
+  readonly exit_code?: number | null
+  readonly signal?: string | null
+}
+
 export interface LegacyTaskReport {
   readonly task_id: string
   readonly status?: string
@@ -81,3 +134,16 @@ export interface NormalizedRunDirectory {
 export interface LegacyRunNormalizerPort {
   normalizeRunDir(runDir: string): Promise<NormalizedRunDirectory>
 }
+
+export interface LiveRunArtifacts {
+  readonly normalized: NormalizedRunDirectory
+  readonly events: readonly RunStoreEvent[]
+  readonly workerResults: ReadonlyMap<string, WorkerResult>
+  readonly workerSupervisorSnapshots: ReadonlyMap<string, WorkerSupervisorSnapshot>
+}
+
+export interface LiveRunDirReaderPort {
+  readRunDir(runDir: string): Promise<LiveRunArtifacts>
+}
+
+export type { RunStoreEvent }
