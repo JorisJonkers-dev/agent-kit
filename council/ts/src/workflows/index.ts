@@ -1,5 +1,10 @@
 export * from './config.js'
 export * from './dag-executor.js'
+export type {
+  DagExecutorPlannedBranch,
+  DagExecutorStateResult,
+  DagExecutorStatusCounts,
+} from './dag-executor.js'
 export * from './eval.js'
 export * from './fanout.js'
 export * from './fleet.js'
