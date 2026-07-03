@@ -1,26 +1,84 @@
 export interface StallDetectorConfig {
-  readonly stallAfterS: number
+  readonly actionHeartbeatAfterMs?: number
+  readonly attemptTimeoutMs?: number
+  readonly outputCapBytes?: number
+  readonly outputHeartbeatAfterMs?: number
+  readonly progressAfterMs?: number
+  readonly stallAfterS?: number
+  readonly wallClockCapMs?: number
 }
 
 export interface StallDetectorInput extends StallDetectorConfig {
-  readonly logBytes: number
+  readonly heartbeat?: WatchdogHeartbeatSnapshot
+  readonly logBytes?: number
   readonly nowMs: number
+  readonly outputBytes?: number
 }
 
-export interface StallDetectorState {
-  readonly logBytes: number
-  readonly lastGrowthAtMs: number
+export interface WatchdogProgressState {
+  readonly attemptStartedAtMs: number
+  readonly lastActionAtMs: number
+  readonly lastOutputAtMs: number
+  readonly lastProgressAtMs: number
+  readonly outputBytes: number
+  readonly startedAtMs: number
 }
 
-export interface StallDetection {
-  readonly kind: 'stall'
-  readonly idleMs: number
-  readonly logBytes: number
+export type StallDetectorState = WatchdogProgressState
+
+export interface WatchdogHeartbeatSnapshot {
+  readonly lastActionAtMs?: number
+  readonly lastOutputAtMs?: number
+  readonly lastProgressAtMs?: number
+  readonly outputBytes?: number
 }
+
+export type StallDetection =
+  | {
+      readonly kind: 'output-heartbeat-stall'
+      readonly idleMs: number
+      readonly lastOutputAtMs: number
+    }
+  | {
+      readonly kind: 'action-heartbeat-stall'
+      readonly idleMs: number
+      readonly lastActionAtMs: number
+    }
+  | {
+      readonly kind: 'progress-stall'
+      readonly idleMs: number
+      readonly lastProgressAtMs: number
+    }
+
+export type WatchdogBudgetDetection =
+  | {
+      readonly kind: 'wall-clock-cap'
+      readonly elapsedMs: number
+      readonly capMs: number
+    }
+  | {
+      readonly kind: 'output-cap'
+      readonly outputBytes: number
+      readonly capBytes: number
+    }
+  | {
+      readonly kind: 'attempt-timeout'
+      readonly elapsedMs: number
+      readonly timeoutMs: number
+    }
+
+export type WatchdogProgressDetection = StallDetection | WatchdogBudgetDetection
+
+export type WatchdogProgressInput = StallDetectorInput
 
 export interface StallDetectorResult {
   readonly state: StallDetectorState
   readonly detection: StallDetection | null
+}
+
+export interface WatchdogProgressResult {
+  readonly state: WatchdogProgressState
+  readonly detection: WatchdogProgressDetection | null
 }
 
 export interface ActionLine {
@@ -119,27 +177,67 @@ interface LoopEvaluationState {
   readonly detection: LoopDetection | null
 }
 
+export function createWatchdogProgressState(
+  nowMs: number,
+  outputBytes = 0,
+): WatchdogProgressState {
+  return {
+    attemptStartedAtMs: nowMs,
+    lastActionAtMs: nowMs,
+    lastOutputAtMs: nowMs,
+    lastProgressAtMs: nowMs,
+    outputBytes,
+    startedAtMs: nowMs,
+  }
+}
+
 export function createStallDetectorState(nowMs: number, logBytes = 0): StallDetectorState {
-  return { logBytes, lastGrowthAtMs: nowMs }
+  return createWatchdogProgressState(nowMs, logBytes)
+}
+
+export function evaluateWatchdogProgress(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): WatchdogProgressResult {
+  const nextState = applyProgressHeartbeat(state, input)
+
+  return {
+    state: nextState,
+    detection:
+      detectWallClockCap(nextState, input) ??
+      detectOutputCap(nextState, input) ??
+      detectAttemptTimeout(nextState, input) ??
+      detectOutputHeartbeatStall(nextState, input) ??
+      detectActionHeartbeatStall(nextState, input) ??
+      detectProgressStall(nextState, input),
+  }
 }
 
 export function evaluateStall(
   state: StallDetectorState,
   input: StallDetectorInput,
 ): StallDetectorResult {
-  if (input.logBytes > state.logBytes) {
-    return {
-      state: { logBytes: input.logBytes, lastGrowthAtMs: input.nowMs },
-      detection: null,
-    }
-  }
+  const outputBytes = input.outputBytes ?? input.logBytes ?? state.outputBytes
+  const outputGrew = outputBytes > state.outputBytes
+  const heartbeat = input.heartbeat ?? (outputGrew ? { lastProgressAtMs: input.nowMs } : undefined)
+  const progressAfterMs = input.progressAfterMs ?? secondsToMs(input.stallAfterS)
 
-  const idleMs = input.nowMs - state.lastGrowthAtMs
-  const stalled = idleMs >= input.stallAfterS * 1000
+  const stallInput = {
+    ...defined('actionHeartbeatAfterMs', input.actionHeartbeatAfterMs),
+    ...defined('heartbeat', heartbeat),
+    ...defined('outputHeartbeatAfterMs', input.outputHeartbeatAfterMs),
+    ...defined('progressAfterMs', progressAfterMs),
+    nowMs: input.nowMs,
+    outputBytes,
+  }
+  const nextState = applyProgressHeartbeat(state, stallInput)
 
   return {
-    state,
-    detection: stalled ? { kind: 'stall', idleMs, logBytes: input.logBytes } : null,
+    state: nextState,
+    detection:
+      detectOutputHeartbeatStall(nextState, stallInput) ??
+      detectActionHeartbeatStall(nextState, stallInput) ??
+      detectProgressStall(nextState, stallInput),
   }
 }
 
@@ -188,6 +286,111 @@ export function extractActionLines(line: string): readonly ActionLine[] {
 export function evaluateDiskUsageCap(input: DiskUsageCapInput): DiskUsageCapDetection | null {
   return input.duBytes > input.capBytes
     ? { kind: 'disk-cap', duBytes: input.duBytes, capBytes: input.capBytes }
+    : null
+}
+
+function applyProgressHeartbeat(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): WatchdogProgressState {
+  const outputBytes = input.heartbeat?.outputBytes ?? input.outputBytes ?? state.outputBytes
+  const outputGrew = outputBytes > state.outputBytes
+
+  return {
+    attemptStartedAtMs: state.attemptStartedAtMs,
+    lastActionAtMs: input.heartbeat?.lastActionAtMs ?? state.lastActionAtMs,
+    lastOutputAtMs: input.heartbeat?.lastOutputAtMs ?? (outputGrew ? input.nowMs : state.lastOutputAtMs),
+    lastProgressAtMs: input.heartbeat?.lastProgressAtMs ?? state.lastProgressAtMs,
+    outputBytes,
+    startedAtMs: state.startedAtMs,
+  }
+}
+
+function detectWallClockCap(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): WatchdogBudgetDetection | null {
+  if (input.wallClockCapMs === undefined) {
+    return null
+  }
+
+  const elapsedMs = input.nowMs - state.startedAtMs
+
+  return elapsedMs >= input.wallClockCapMs
+    ? { kind: 'wall-clock-cap', elapsedMs, capMs: input.wallClockCapMs }
+    : null
+}
+
+function detectOutputCap(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): WatchdogBudgetDetection | null {
+  if (input.outputCapBytes === undefined) {
+    return null
+  }
+
+  return state.outputBytes > input.outputCapBytes
+    ? { kind: 'output-cap', outputBytes: state.outputBytes, capBytes: input.outputCapBytes }
+    : null
+}
+
+function detectAttemptTimeout(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): WatchdogBudgetDetection | null {
+  if (input.attemptTimeoutMs === undefined) {
+    return null
+  }
+
+  const elapsedMs = input.nowMs - state.attemptStartedAtMs
+
+  return elapsedMs >= input.attemptTimeoutMs
+    ? { kind: 'attempt-timeout', elapsedMs, timeoutMs: input.attemptTimeoutMs }
+    : null
+}
+
+function detectOutputHeartbeatStall(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): StallDetection | null {
+  if (input.outputHeartbeatAfterMs === undefined) {
+    return null
+  }
+
+  const idleMs = input.nowMs - state.lastOutputAtMs
+
+  return idleMs >= input.outputHeartbeatAfterMs
+    ? { kind: 'output-heartbeat-stall', idleMs, lastOutputAtMs: state.lastOutputAtMs }
+    : null
+}
+
+function detectActionHeartbeatStall(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): StallDetection | null {
+  if (input.actionHeartbeatAfterMs === undefined) {
+    return null
+  }
+
+  const idleMs = input.nowMs - state.lastActionAtMs
+
+  return idleMs >= input.actionHeartbeatAfterMs
+    ? { kind: 'action-heartbeat-stall', idleMs, lastActionAtMs: state.lastActionAtMs }
+    : null
+}
+
+function detectProgressStall(
+  state: WatchdogProgressState,
+  input: WatchdogProgressInput,
+): StallDetection | null {
+  if (input.progressAfterMs === undefined) {
+    return null
+  }
+
+  const idleMs = input.nowMs - state.lastProgressAtMs
+
+  return idleMs >= input.progressAfterMs
+    ? { kind: 'progress-stall', idleMs, lastProgressAtMs: state.lastProgressAtMs }
     : null
 }
 
@@ -354,6 +557,17 @@ const loopDetectionPolicies: readonly LoopDetectionPolicy[] = [
 
 function transition(state: WatchdogState, action: EscalationAction): WatchdogTransition {
   return { state, action }
+}
+
+function defined<Key extends string, Value>(
+  key: Key,
+  value: Value | undefined,
+): Partial<Record<Key, NonNullable<Value>>> {
+  return (value === undefined ? {} : { [key]: value }) as Partial<Record<Key, NonNullable<Value>>>
+}
+
+function secondsToMs(seconds: number | undefined): number | undefined {
+  return seconds === undefined ? undefined : seconds * 1000
 }
 
 function tierEscalationPolicy(config: EscalationConfig): TierEscalationPolicy {
