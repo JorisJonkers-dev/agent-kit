@@ -22,6 +22,7 @@ import {
   DESIGN_LEDGER_FILE,
   RESULT_FILE,
   STORY_FILE,
+  SUPERVISOR_FILE,
   WORKERS_DIR,
   assertDesignLedger,
   assertPathSegment,
@@ -29,8 +30,10 @@ import {
   assertStory,
   assertTasks,
   assertWorkerResult,
+  assertWorkerSupervisorSnapshot,
   parseJson,
   type WorkerResult,
+  type WorkerSupervisorSnapshot,
 } from './artifact-codec.js'
 import { EventLog } from './event-log.js'
 
@@ -139,6 +142,23 @@ export class FsRunStoreAdapter implements RunStorePort {
     assertPathSegment('taskId', taskId)
     assertWorkerResult(result, taskId)
     await this.atomicWriter.writeJson(this.runFile(runId, WORKERS_DIR, taskId, RESULT_FILE), result)
+  }
+
+  async readWorkerSupervisorSnapshot(runId: string, taskId: string): Promise<WorkerSupervisorSnapshot> {
+    return assertWorkerSupervisorSnapshot(
+      await this.readJson(runId, WORKERS_DIR, taskId, SUPERVISOR_FILE),
+      taskId,
+    )
+  }
+
+  async writeWorkerSupervisorSnapshot(
+    runId: string,
+    taskId: string,
+    snapshot: WorkerSupervisorSnapshot,
+  ): Promise<void> {
+    assertPathSegment('taskId', taskId)
+    assertWorkerSupervisorSnapshot(snapshot, taskId)
+    await this.atomicWriter.writeJson(this.runFile(runId, WORKERS_DIR, taskId, SUPERVISOR_FILE), snapshot)
   }
 
   private nextTempId(): string {

@@ -4,13 +4,18 @@ import type {
   DiskUsageCapDetection,
   LoopDetection,
   LoopDetectorConfig,
+  LoopDetectorState,
+  RetryPolicyState,
   StallDetection,
   WatchdogBudgetDetection,
+  WatchdogProgressState,
 } from '../../../watchdog/index.js'
 
 export type WorkerSupervisorStatus =
   | 'completed'
+  | 'dead-snapshot'
   | 'failed'
+  | 'stale-snapshot'
   | 'stopped'
   | 'stalled'
   | 'budget-cap'
@@ -123,6 +128,50 @@ export type WorkerSupervisorRuntimeEvent =
   | WorkerSupervisorEvent
   | { readonly type: 'terminated'; readonly signal: NodeJS.Signals; readonly pid: number | undefined }
 
+export type WorkerSupervisorSnapshotStatus =
+  | 'running'
+  | 'detected'
+  | 'restarting'
+  | 'exited'
+  | 'stopped'
+  | 'completed'
+  | 'failed'
+  | 'stalled'
+  | 'budget-cap'
+  | 'disk-cap'
+
+export interface WorkerSupervisorSnapshotOffsets {
+  readonly stdout: number
+  readonly stderr: number
+}
+
+export interface WorkerSupervisorSnapshotLogs {
+  readonly stdout: string
+  readonly stderr: string
+}
+
+export interface WorkerSupervisorWatchdogSnapshot {
+  readonly progress: WatchdogProgressState
+  readonly loop: LoopDetectorState
+  readonly retry: RetryPolicyState
+  readonly pending_detection?: WorkerSupervisorDetection
+  readonly handling_detection: boolean
+}
+
+export interface WorkerSupervisorSnapshot {
+  readonly task_id: string
+  readonly attempt_id: number
+  readonly pid?: number
+  readonly restart_count: number
+  readonly model_tier?: string
+  readonly status: WorkerSupervisorSnapshotStatus
+  readonly offsets: WorkerSupervisorSnapshotOffsets
+  readonly logs: WorkerSupervisorSnapshotLogs
+  readonly watchdog: WorkerSupervisorWatchdogSnapshot
+  readonly exit_code?: number | null
+  readonly signal?: NodeJS.Signals | null
+}
+
 export interface WorkerSupervisorDependencies {
   readonly spawn?: (
     command: string,
@@ -134,6 +183,9 @@ export interface WorkerSupervisorDependencies {
   readonly nowMs?: () => number
   readonly duBytes?: (path: string) => Promise<number>
   readonly onEvent?: (event: WorkerSupervisorEvent) => void
+  readonly onSnapshot?: (snapshot: WorkerSupervisorSnapshot) => MaybePromise<void>
+  readonly isPidAlive?: (pid: number) => boolean
+  readonly readLogFile?: (path: string) => Promise<Buffer>
 }
 
 export interface ActiveProcess {
@@ -172,10 +224,13 @@ export interface WatchdogConfig {
 export interface WorkerSupervisorRuntime {
   createChild(request: WorkerSupervisorStartRequest, run: number, input: SpawnInput): ChildProcess
   emit(event: WorkerSupervisorRuntimeEvent): void
+  snapshot(snapshot: WorkerSupervisorSnapshot): MaybePromise<void>
   now(): number
   sleep(ms: number): Promise<void>
   diskUsageBytes(path: string): Promise<number>
   killGroup(pid: number, signal: NodeJS.Signals): void
+  isPidAlive(pid: number): boolean
+  readLogFile(path: string): Promise<Buffer>
 }
 
 export type MaybePromise<T> = T | Promise<T>

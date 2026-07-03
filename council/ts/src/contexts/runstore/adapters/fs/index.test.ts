@@ -15,6 +15,7 @@ import {
 import type { ClockPort } from '../../../../ports/index.js'
 import type { DesignLedger, RunState, Story, Task } from '../../../../shared-kernel/index.js'
 import { FsRunStoreAdapter, normalizeLegacyRunDir, type WorkerResult } from './index.js'
+import type { WorkerSupervisorSnapshot } from './artifact-codec.js'
 
 const tempRoots: string[] = []
 
@@ -48,24 +49,33 @@ describe('FsRunStoreAdapter', () => {
     const story = fullStory()
     const ledger = fullLedger()
     const result = fullWorkerResult('T1')
+    const snapshot = fullSupervisorSnapshot('T1')
 
     await store.writeState('run-a', state)
     await store.writeTasks('run-a', tasks)
     await store.writeStory('run-a', story)
     await store.writeDesignLedger('run-a', ledger)
     await store.writeWorkerResult('run-a', 'T1', result)
+    await store.writeWorkerSupervisorSnapshot('run-a', 'T1', snapshot)
 
     await expect(store.readState('run-a')).resolves.toEqual(state)
     await expect(store.readTasks('run-a')).resolves.toEqual(tasks)
     await expect(store.readStory('run-a')).resolves.toEqual(story)
     await expect(store.readDesignLedger('run-a')).resolves.toEqual(ledger)
     await expect(store.readWorkerResult('run-a', 'T1')).resolves.toEqual(result)
+    await expect(store.readWorkerSupervisorSnapshot('run-a', 'T1')).resolves.toEqual(snapshot)
     await expect(readFile(join(root, 'run-a', 'state.json'), 'utf8')).resolves.toBe(
       `${JSON.stringify(state, null, 2)}\n`,
     )
+    await expect(readFile(join(root, 'run-a', 'workers', 'T1', 'supervisor.json'), 'utf8')).resolves.toBe(
+      `${JSON.stringify(snapshot, null, 2)}\n`,
+    )
     const runFiles = await readdir(join(root, 'run-a'))
     expect(runFiles.filter((file) => file.includes('.tmp'))).toEqual([])
-    await expect(readdir(join(root, 'run-a', 'workers', 'T1'))).resolves.toEqual(['result.json'])
+    await expect(readdir(join(root, 'run-a', 'workers', 'T1'))).resolves.toEqual([
+      'result.json',
+      'supervisor.json',
+    ])
   })
 
   it('appends events through the lock and reads them back in order', async () => {
@@ -284,14 +294,14 @@ describe('FsRunStoreAdapter', () => {
         status: 'ok',
         stdout_tail: 'x'.repeat(4097),
         task_id: 'T1',
-      } as unknown as WorkerResult),
+      }),
     ).rejects.toThrow('worker result.stdout_tail must be at most 4096 characters')
     await expect(
       store.writeWorkerResult('run-a', 'T1', {
         status: 'ok',
         stdout_bytes: -1,
         task_id: 'T1',
-      } as unknown as WorkerResult),
+      }),
     ).rejects.toThrow('worker result.stdout_bytes must be a non-negative integer')
     await expect(
       store.writeWorkerResult('run-a', 'T1', {
@@ -307,6 +317,39 @@ describe('FsRunStoreAdapter', () => {
         task_id: 'T1',
       } as unknown as WorkerResult),
     ).rejects.toThrow('worker result.committed must be a boolean')
+    await expect(
+      store.writeWorkerSupervisorSnapshot('run-a', 'T/1', fullSupervisorSnapshot('T/1')),
+    ).rejects.toThrow('taskId must be a single path segment')
+    await expect(
+      store.writeWorkerSupervisorSnapshot('run-a', 'T1', fullSupervisorSnapshot('T2')),
+    ).rejects.toThrow('worker supervisor snapshot task_id must match path task id: T1')
+    await expect(
+      store.writeWorkerSupervisorSnapshot('run-a', 'T1', {
+        ...fullSupervisorSnapshot('T1'),
+        attempt_id: -1,
+      }),
+    ).rejects.toThrow('worker supervisor snapshot.attempt_id must be a non-negative integer')
+    await expect(
+      store.writeWorkerSupervisorSnapshot('run-a', 'T1', {
+        ...fullSupervisorSnapshot('T1'),
+        offsets: { stderr: 0, stdout: -1 },
+      }),
+    ).rejects.toThrow('worker supervisor snapshot.offsets.stdout must be a non-negative integer')
+    await expect(
+      store.writeWorkerSupervisorSnapshot('run-a', 'T1', {
+        ...fullSupervisorSnapshot('T1'),
+        status: 'unknown',
+      } as unknown as WorkerSupervisorSnapshot),
+    ).rejects.toThrow('worker supervisor snapshot.status must be one of:')
+    await expect(
+      store.writeWorkerSupervisorSnapshot('run-a', 'T1', {
+        ...fullSupervisorSnapshot('T1'),
+        watchdog: {
+          ...fullSupervisorSnapshot('T1').watchdog,
+          progress: { outputBytes: 'bad' },
+        },
+      } as unknown as WorkerSupervisorSnapshot),
+    ).rejects.toThrow('worker supervisor snapshot.watchdog.progress.attemptStartedAtMs must be a non-negative integer')
     await expect(
       store.appendWorkerEvent('run-a', {
         payload: { status: 'ok', worker_id: 'worker-T1' },
@@ -789,5 +832,54 @@ function fullWorkerResult(taskId: string): WorkerResult {
     verify_output: 'ok',
     verify_rc: 0,
     worktree: `/tmp/${taskId}`,
+  }
+}
+
+function fullSupervisorSnapshot(taskId: string): WorkerSupervisorSnapshot {
+  return {
+    attempt_id: 2,
+    exit_code: null,
+    logs: {
+      stderr: `workers/${taskId}/logs/stderr.log`,
+      stdout: `workers/${taskId}/logs/stdout.log`,
+    },
+    model_tier: 'frontier',
+    offsets: {
+      stderr: 7,
+      stdout: 11,
+    },
+    pid: 202,
+    restart_count: 1,
+    signal: null,
+    status: 'running',
+    task_id: taskId,
+    watchdog: {
+      handling_detection: false,
+      loop: {
+        actions: [
+          {
+            normalized: '$ npm test',
+            verbatim: '$ npm test',
+          },
+        ],
+      },
+      pending_detection: {
+        idleMs: 1000,
+        kind: 'progress-stall',
+        lastProgressAtMs: 0,
+      },
+      progress: {
+        attemptStartedAtMs: 1000,
+        lastActionAtMs: 1000,
+        lastOutputAtMs: 1200,
+        lastProgressAtMs: 1200,
+        outputBytes: 18,
+        startedAtMs: 0,
+      },
+      retry: {
+        attempts: 1,
+        failureFingerprints: ['progress-stall:[]'],
+      },
+    },
   }
 }

@@ -27,6 +27,7 @@ export const STORY_FILE = 'story.json'
 export const DESIGN_LEDGER_FILE = 'design-ledger.json'
 export const WORKERS_DIR = 'workers'
 export const RESULT_FILE = 'result.json'
+export const SUPERVISOR_FILE = 'supervisor.json'
 
 export interface WorkerResult {
   readonly task_id: string
@@ -54,6 +55,59 @@ export interface WorkerResult {
   readonly stderr_log_path?: string
   readonly stdout_bytes?: number
   readonly stderr_bytes?: number
+}
+
+export type WorkerSupervisorSnapshotStatus =
+  | 'running'
+  | 'detected'
+  | 'restarting'
+  | 'exited'
+  | 'stopped'
+  | 'completed'
+  | 'failed'
+  | 'stalled'
+  | 'budget-cap'
+  | 'disk-cap'
+
+export interface WorkerSupervisorSnapshot {
+  readonly task_id: string
+  readonly attempt_id: number
+  readonly pid?: number
+  readonly restart_count: number
+  readonly model_tier?: string
+  readonly status: WorkerSupervisorSnapshotStatus
+  readonly offsets: {
+    readonly stdout: number
+    readonly stderr: number
+  }
+  readonly logs: {
+    readonly stdout: string
+    readonly stderr: string
+  }
+  readonly watchdog: {
+    readonly progress: {
+      readonly attemptStartedAtMs: number
+      readonly lastActionAtMs: number
+      readonly lastOutputAtMs: number
+      readonly lastProgressAtMs: number
+      readonly outputBytes: number
+      readonly startedAtMs: number
+    }
+    readonly loop: {
+      readonly actions: readonly {
+        readonly verbatim: string
+        readonly normalized: string
+      }[]
+    }
+    readonly retry: {
+      readonly attempts: number
+      readonly failureFingerprints: readonly string[]
+    }
+    readonly pending_detection?: JsonRecord
+    readonly handling_detection: boolean
+  }
+  readonly exit_code?: number | null
+  readonly signal?: string | null
 }
 
 export interface LegacyTaskReport {
@@ -281,6 +335,52 @@ export function assertWorkerResult(value: unknown, taskId?: string): WorkerResul
   optionalNonNegativeInteger(record, 'worker result', 'stdout_bytes')
   optionalNonNegativeInteger(record, 'worker result', 'stderr_bytes')
   return record as unknown as WorkerResult
+}
+
+export function assertWorkerSupervisorSnapshot(
+  value: unknown,
+  taskId?: string,
+): WorkerSupervisorSnapshot {
+  const record = assertRecord(value, 'worker supervisor snapshot')
+  assertAllowed(record, 'worker supervisor snapshot', [
+    'task_id',
+    'attempt_id',
+    'pid',
+    'restart_count',
+    'model_tier',
+    'status',
+    'offsets',
+    'logs',
+    'watchdog',
+    'exit_code',
+    'signal',
+  ])
+  requiredString(record, 'worker supervisor snapshot', 'task_id')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot', 'attempt_id')
+  optionalNonNegativeInteger(record, 'worker supervisor snapshot', 'pid')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot', 'restart_count')
+  optionalString(record, 'worker supervisor snapshot', 'model_tier')
+  requiredEnum(record, 'worker supervisor snapshot', 'status', [
+    'running',
+    'detected',
+    'restarting',
+    'exited',
+    'stopped',
+    'completed',
+    'failed',
+    'stalled',
+    'budget-cap',
+    'disk-cap',
+  ])
+  assertWorkerSupervisorSnapshotOffsets(record.offsets)
+  assertWorkerSupervisorSnapshotLogs(record.logs)
+  assertWorkerSupervisorSnapshotWatchdog(record.watchdog)
+  optionalIntegerOrNull(record, 'worker supervisor snapshot', 'exit_code')
+  optionalStringOrNull(record, 'worker supervisor snapshot', 'signal')
+  if (taskId !== undefined && record.task_id !== taskId) {
+    fail(`worker supervisor snapshot task_id must match path task id: ${taskId}`)
+  }
+  return record as unknown as WorkerSupervisorSnapshot
 }
 
 export function assertLegacyReport(value: unknown): LegacyRunReport {
@@ -576,6 +676,83 @@ function assertWorkerFinished(value: unknown): WorkerFinishedPayload {
   optionalString(record, 'worker finished', 'finished_at')
   optionalString(record, 'worker finished', 'content_hash')
   return record as unknown as WorkerFinishedPayload
+}
+
+function assertWorkerSupervisorSnapshotOffsets(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.offsets')
+  assertAllowed(record, 'worker supervisor snapshot.offsets', ['stdout', 'stderr'])
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.offsets', 'stdout')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.offsets', 'stderr')
+}
+
+function assertWorkerSupervisorSnapshotLogs(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.logs')
+  assertAllowed(record, 'worker supervisor snapshot.logs', ['stdout', 'stderr'])
+  requiredString(record, 'worker supervisor snapshot.logs', 'stdout')
+  requiredString(record, 'worker supervisor snapshot.logs', 'stderr')
+}
+
+function assertWorkerSupervisorSnapshotWatchdog(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.watchdog')
+  assertAllowed(record, 'worker supervisor snapshot.watchdog', [
+    'progress',
+    'loop',
+    'retry',
+    'pending_detection',
+    'handling_detection',
+  ])
+  assertWorkerSupervisorSnapshotProgress(record.progress)
+  assertWorkerSupervisorSnapshotLoop(record.loop)
+  assertWorkerSupervisorSnapshotRetry(record.retry)
+  if (record.pending_detection !== undefined) {
+    assertWorkerSupervisorSnapshotDetection(record.pending_detection)
+  }
+  requiredBoolean(record, 'worker supervisor snapshot.watchdog', 'handling_detection')
+}
+
+function assertWorkerSupervisorSnapshotProgress(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.watchdog.progress')
+  assertAllowed(record, 'worker supervisor snapshot.watchdog.progress', [
+    'attemptStartedAtMs',
+    'lastActionAtMs',
+    'lastOutputAtMs',
+    'lastProgressAtMs',
+    'outputBytes',
+    'startedAtMs',
+  ])
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.watchdog.progress', 'attemptStartedAtMs')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.watchdog.progress', 'lastActionAtMs')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.watchdog.progress', 'lastOutputAtMs')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.watchdog.progress', 'lastProgressAtMs')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.watchdog.progress', 'outputBytes')
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.watchdog.progress', 'startedAtMs')
+}
+
+function assertWorkerSupervisorSnapshotLoop(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.watchdog.loop')
+  assertAllowed(record, 'worker supervisor snapshot.watchdog.loop', ['actions'])
+  requiredArray(record, 'worker supervisor snapshot.watchdog.loop', 'actions').forEach(
+    assertWorkerSupervisorSnapshotActionLine,
+  )
+}
+
+function assertWorkerSupervisorSnapshotActionLine(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.watchdog.loop.actions entry')
+  assertAllowed(record, 'worker supervisor snapshot.watchdog.loop.actions entry', ['verbatim', 'normalized'])
+  requiredString(record, 'worker supervisor snapshot.watchdog.loop.actions entry', 'verbatim')
+  requiredString(record, 'worker supervisor snapshot.watchdog.loop.actions entry', 'normalized')
+}
+
+function assertWorkerSupervisorSnapshotRetry(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.watchdog.retry')
+  assertAllowed(record, 'worker supervisor snapshot.watchdog.retry', ['attempts', 'failureFingerprints'])
+  requiredNonNegativeInteger(record, 'worker supervisor snapshot.watchdog.retry', 'attempts')
+  requiredStringArray(record, 'worker supervisor snapshot.watchdog.retry', 'failureFingerprints')
+}
+
+function assertWorkerSupervisorSnapshotDetection(value: unknown): void {
+  const record = assertRecord(value, 'worker supervisor snapshot.watchdog.pending_detection')
+  requiredString(record, 'worker supervisor snapshot.watchdog.pending_detection', 'kind')
 }
 
 function assertAllowed(record: JsonRecord, label: string, allowed: readonly string[]): void {
