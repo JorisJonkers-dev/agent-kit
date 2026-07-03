@@ -23,6 +23,8 @@ export interface RunStorePort {
   appendAmendment(runId: string, amendment: Amendment): Promise<void>
   appendWorkerEvent(runId: string, event: WorkerLifecycleEvent): Promise<void>
   readEvents(runId: string): Promise<readonly RunStoreEvent[]>
+  readWorkerResult(runId: string, taskId: string): Promise<WorkerResult>
+  writeWorkerResult(runId: string, taskId: string, result: WorkerResult): Promise<void>
 }
 
 export interface WorkerResult {
