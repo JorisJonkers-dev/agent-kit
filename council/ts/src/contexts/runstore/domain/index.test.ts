@@ -18,6 +18,12 @@ import {
   routingVerdictEvent,
   RUNSTORE_STATE_FILE,
   RUNSTORE_TASKS_FILE,
+  workerDetectedEvent,
+  workerExitedEvent,
+  workerFinishedEvent,
+  workerOutputEvent,
+  workerRestartedEvent,
+  workerStartedEvent,
 } from './index.js'
 
 describe('runstore atomic JSON write plans', () => {
@@ -198,6 +204,76 @@ describe('runstore event append plans', () => {
     })
   })
 
+  it('wraps worker lifecycle payloads as event records', () => {
+    const started = {
+      attempt: 1,
+      command: ['npm', 'test'],
+      content_hash: 'sha256:started',
+      cwd: '/work/run-a',
+      engine: { cli: 'codex', model: 'gpt-5' },
+      model_tier: 'frontier',
+      pid: 101,
+      started_at: '2026-07-03T10:00:00.000Z',
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    } as const
+    const output = {
+      byte_count: 128,
+      content_hash: 'sha256:output-event',
+      offset: 256,
+      sha256: 'sha256:chunk',
+      stream: 'stdout',
+      tail: 'last line',
+      tail_bytes: 9,
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    } as const
+    const detected = {
+      content_hash: 'sha256:detected',
+      detected_at: '2026-07-03T10:01:00.000Z',
+      pid: 101,
+      status: 'running',
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    } as const
+    const restarted = {
+      attempt: 2,
+      content_hash: 'sha256:restarted',
+      pid: 202,
+      previous_pid: 101,
+      reason: 'stale heartbeat',
+      restarted_at: '2026-07-03T10:02:00.000Z',
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    } as const
+    const exited = {
+      content_hash: 'sha256:exited',
+      duration_ms: 3000,
+      exit_code: 0,
+      exited_at: '2026-07-03T10:03:00.000Z',
+      pid: 202,
+      signal: null,
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    } as const
+    const finished = {
+      content_hash: 'sha256:finished',
+      duration_ms: 3100,
+      finished_at: '2026-07-03T10:03:01.000Z',
+      result_path: 'workers/T1/result.json',
+      status: 'ok',
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    } as const
+
+    expect(workerStartedEvent(started)).toEqual({ type: 'worker_started', payload: started })
+    expect(workerOutputEvent(output)).toEqual({ type: 'worker_output', payload: output })
+    expect(workerDetectedEvent(detected)).toEqual({ type: 'worker_detected', payload: detected })
+    expect(workerRestartedEvent(restarted)).toEqual({ type: 'worker_restarted', payload: restarted })
+    expect(workerExitedEvent(exited)).toEqual({ type: 'worker_exited', payload: exited })
+    expect(workerFinishedEvent(finished)).toEqual({ type: 'worker_finished', payload: finished })
+  })
+
   it('plans a single event append inside the events lock', () => {
     const verdict: ReviewVerdict = {
       engine: {
@@ -271,6 +347,34 @@ describe('runstore event append plans', () => {
       'sync-file',
       'release-lock',
     ])
+  })
+
+  it('plans worker lifecycle event batches as ordered JSON Lines', () => {
+    const started = workerStartedEvent({
+      attempt: 1,
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    })
+    const output = workerOutputEvent({
+      byte_count: 4,
+      offset: 0,
+      stream: 'stderr',
+      tail: 'warn',
+      tail_bytes: 4,
+      worker_id: 'worker-T1',
+    })
+    const finished = workerFinishedEvent({
+      status: 'ok',
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    })
+
+    const plan = planEventsAppend({
+      runId: 'run-123',
+      events: [started, output, finished],
+    })
+
+    expect(plan.bytes).toBe(`${JSON.stringify(started)}\n${JSON.stringify(output)}\n${JSON.stringify(finished)}\n`)
   })
 
   it('rejects empty batches and unsafe run IDs', () => {

@@ -4,6 +4,14 @@ import { tmpdir } from 'node:os'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import {
+  workerDetectedEvent,
+  workerExitedEvent,
+  workerFinishedEvent,
+  workerOutputEvent,
+  workerRestartedEvent,
+  workerStartedEvent,
+} from '../../../runstore/index.js'
 import type { ClockPort } from '../../../../ports/index.js'
 import type { DesignLedger, RunState, Story, Task } from '../../../../shared-kernel/index.js'
 import { FsRunStoreAdapter, normalizeLegacyRunDir, type WorkerResult } from './index.js'
@@ -109,6 +117,81 @@ describe('FsRunStoreAdapter', () => {
     await expect(readdir(join(root, 'run-a'))).resolves.not.toContain('events.jsonl.lock')
   })
 
+  it('appends worker lifecycle events through the generic worker event port', async () => {
+    const root = await tempRoot()
+    const store = new FsRunStoreAdapter(root)
+    const events = [
+      workerStartedEvent({
+        attempt: 1,
+        command: ['npm', 'test'],
+        content_hash: 'sha256:started',
+        cwd: '/work/run-a',
+        engine: { cli: 'codex', model: 'gpt-5' },
+        model_tier: 'frontier',
+        pid: 101,
+        started_at: '2026-07-03T10:00:00.000Z',
+        task_id: 'T1',
+        worker_id: 'worker-T1',
+      }),
+      workerOutputEvent({
+        byte_count: 128,
+        content_hash: 'sha256:output-event',
+        offset: 256,
+        sha256: 'sha256:chunk',
+        stream: 'stdout',
+        tail: 'last line',
+        tail_bytes: 9,
+        task_id: 'T1',
+        worker_id: 'worker-T1',
+      }),
+      workerDetectedEvent({
+        content_hash: 'sha256:detected',
+        detected_at: '2026-07-03T10:01:00.000Z',
+        pid: 101,
+        status: 'running',
+        task_id: 'T1',
+        worker_id: 'worker-T1',
+      }),
+      workerRestartedEvent({
+        attempt: 2,
+        content_hash: 'sha256:restarted',
+        pid: 202,
+        previous_pid: 101,
+        reason: 'stale heartbeat',
+        restarted_at: '2026-07-03T10:02:00.000Z',
+        task_id: 'T1',
+        worker_id: 'worker-T1',
+      }),
+      workerExitedEvent({
+        content_hash: 'sha256:exited',
+        duration_ms: 3000,
+        exit_code: 0,
+        exited_at: '2026-07-03T10:03:00.000Z',
+        pid: 202,
+        signal: null,
+        task_id: 'T1',
+        worker_id: 'worker-T1',
+      }),
+      workerFinishedEvent({
+        content_hash: 'sha256:finished',
+        duration_ms: 3100,
+        finished_at: '2026-07-03T10:03:01.000Z',
+        result_path: 'workers/T1/result.json',
+        status: 'ok',
+        task_id: 'T1',
+        worker_id: 'worker-T1',
+      }),
+    ] as const
+
+    for (const event of events) await store.appendWorkerEvent('run-a', event)
+
+    await expect(store.readEvents('run-a')).resolves.toEqual(events)
+    await expect(readFile(join(root, 'run-a', 'events.jsonl'), 'utf8')).resolves.toBe(
+      events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+    )
+    await expect(readdir(join(root, 'run-a'))).resolves.not.toContain('events.jsonl.lock')
+  })
+
   it('waits for an existing event lock and times out stale locks', async () => {
     const root = await tempRoot()
     const store = new FsRunStoreAdapter(root, { lockRetryMs: 1, lockTimeoutMs: 250 })
@@ -202,6 +285,70 @@ describe('FsRunStoreAdapter', () => {
         task_id: 'T1',
       } as unknown as WorkerResult),
     ).rejects.toThrow('worker result.committed must be a boolean')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: { status: 'ok', worker_id: 'worker-T1' },
+        type: 'worker_finished',
+      } as never),
+    ).rejects.toThrow('worker finished.task_id must be a string')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: { byte_count: 1, offset: 0, stream: 'stdin', worker_id: 'worker-T1' },
+        type: 'worker_output',
+      } as never),
+    ).rejects.toThrow('worker output.stream must be one of: stdout, stderr')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: { byte_count: -1, offset: 0, stream: 'stdout', worker_id: 'worker-T1' },
+        type: 'worker_output',
+      } as never),
+    ).rejects.toThrow('worker output.byte_count must be a non-negative integer')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: {
+          byte_count: 4097,
+          offset: 0,
+          stream: 'stdout',
+          tail: 'x'.repeat(4097),
+          tail_bytes: 4097,
+          worker_id: 'worker-T1',
+        },
+        type: 'worker_output',
+      } as never),
+    ).rejects.toThrow('worker output.tail must be at most 4096 characters')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: { attempt: -1, worker_id: 'worker-T1' },
+        type: 'worker_started',
+      } as never),
+    ).rejects.toThrow('worker started.attempt must be a non-negative integer')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: { exit_code: 'ok', worker_id: 'worker-T1' },
+        type: 'worker_exited',
+      } as never),
+    ).rejects.toThrow('worker exited.exit_code must be an integer or null')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: { exit_code: 0, signal: 9, worker_id: 'worker-T1' },
+        type: 'worker_exited',
+      } as never),
+    ).rejects.toThrow('worker exited.signal must be a string or null')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: {
+          byte_count: 1,
+          offset: 0,
+          stream: 'stdout',
+          text: 'full output',
+          worker_id: 'worker-T1',
+        },
+        type: 'worker_output',
+      } as never),
+    ).rejects.toThrow('worker output.text is not allowed')
+    await expect(
+      store.appendWorkerEvent('run-a', { payload: { id: 'A1', summary: 'not worker' }, type: 'amendment' } as never),
+    ).rejects.toThrow('worker event type is required')
 
     await mkdir(join(root, 'run-b'), { recursive: true })
     await appendFile(join(root, 'run-b', 'events.jsonl'), '{"type":"unknown"}\n')
