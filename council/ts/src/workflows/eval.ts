@@ -25,6 +25,7 @@ export interface EvalWorkflowSummary {
   readonly worker_result_count: number
   readonly report_task_count: number
   readonly wave_count: number
+  readonly completed_count: number
   readonly finding_count: number
   readonly critical_finding_count: number
   readonly warning_finding_count: number
@@ -32,6 +33,10 @@ export interface EvalWorkflowSummary {
   readonly no_op_count: number
   readonly out_of_bounds_count: number
   readonly missing_worker_result_count: number
+  readonly failed_verify_count: number
+  readonly satisfied_verdict_count: number
+  readonly weak_verify_count: number
+  readonly lucky_pass_suspicion_count: number
 }
 
 export interface EvalWorkflowResult {
@@ -87,15 +92,20 @@ function workflowSummary(
   findings: readonly EvalFinding[],
 ): EvalWorkflowSummary {
   return {
+    completed_count: summary.completed_count,
     critical_finding_count: findings.filter((finding) => finding.severity === 'critical').length,
+    failed_verify_count: summary.failed_verify_count,
     finding_count: findings.length,
+    lucky_pass_suspicion_count: summary.lucky_pass_suspicion_count,
     missing_worker_result_count: summary.missing_worker_result_count,
     no_op_count: summary.no_op_count,
     out_of_bounds_count: summary.out_of_bounds_count,
     report_task_count: summary.report_task_count,
     retry_count: summary.retry_count,
+    satisfied_verdict_count: summary.satisfied_verdict_count,
     status: summary.status,
     task_count: summary.task_count,
+    weak_verify_count: summary.weak_verify_count,
     warning_finding_count: findings.filter((finding) => finding.severity === 'warning').length,
     wave_count: summary.wave_count,
     worker_result_count: summary.worker_result_count,

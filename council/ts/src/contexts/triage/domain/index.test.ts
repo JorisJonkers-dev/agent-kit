@@ -19,6 +19,65 @@ const trivialInput: TriageInput = {
   parallelism: 'none',
 }
 
+const dogfoodProfiles = [
+  {
+    expected: {
+      candidateRoutes: ['direct', 'delta'],
+      dagShape: 'single-minimal-task',
+      route: 'direct',
+    },
+    input: {
+      size: 'small',
+      landscape: 'brownfield',
+      kind: 'bugfix',
+      risk: 'low',
+      clarity: 'clear',
+      parallelism: 'none',
+    },
+    name: 'small clear low-risk direct change',
+  },
+  {
+    expected: {
+      candidateRoutes: ['program', 'full'],
+      dagShape: 'parallel-program-dag',
+      route: 'program',
+    },
+    input: {
+      size: 'large',
+      landscape: 'greenfield',
+      kind: 'feature',
+      risk: 'high',
+      clarity: 'needs-questions',
+      parallelism: 'high',
+    },
+    name: 'program-scale high-parallel work',
+  },
+  {
+    expected: {
+      candidateRoutes: ['delta'],
+      dagShape: 'delta-task-dag',
+      route: 'delta',
+    },
+    input: {
+      size: 'medium',
+      landscape: 'brownfield',
+      kind: 'refactor',
+      risk: 'high',
+      clarity: 'needs-questions',
+      parallelism: 'none',
+    },
+    name: 'tightly-coupled brownfield refactor',
+  },
+] as const satisfies readonly {
+  readonly expected: {
+    readonly candidateRoutes: readonly string[]
+    readonly dagShape: string
+    readonly route: string
+  }
+  readonly input: TriageInput
+  readonly name: string
+}[]
+
 describe('triage routing', () => {
   it('loads a schema-pinned routing matrix from the data file', () => {
     expect(loadRoutingMatrix()).toMatchObject({
@@ -52,6 +111,17 @@ describe('triage routing', () => {
       directWorkerPolicy: 'never-during-plan',
     })
     expect(verdict.stageTiers.tasking).toBe('haiku')
+  })
+
+  it.each(dogfoodProfiles)('pins the $name dogfood routing profile', ({ expected, input }) => {
+    const verdict = classifyTriage(input)
+
+    expect(verdict.route).toBe(expected.route)
+    expect(verdict.candidateRoutes).toEqual(expected.candidateRoutes)
+    expect(verdict.plan).toMatchObject({
+      dagShape: expected.dagShape,
+      executesWorkers: false,
+    })
   })
 
   it('routes critical hotfixes to direct even when other program signals exist', () => {

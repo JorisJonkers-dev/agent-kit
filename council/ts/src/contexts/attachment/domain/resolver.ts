@@ -87,7 +87,7 @@ const PATH_SIGNAL_RULES: readonly {
 }[] = [
   { pattern: /(^|\/)(app-ui|frontend|components)(\/|$)|\.(css|scss|vue|jsx|tsx)$/u, signals: ['frontend', 'ui', 'component', 'app-ui'] },
   { pattern: /fleet\.ya?ml|kubernetes|k8s|helm|ingress|traefik|platform\/(inventory|rendered)/u, signals: ['cluster', 'fleet.yaml', 'kubernetes', 'traefik'] },
-  { pattern: /dependency-cruiser|tsconfig|eslint|src\/contexts|\/domain\/|barrel|\.(ts|tsx)$/u, signals: ['code intel', 'strict typescript', 'cross-context', 'barrel'] },
+  { pattern: /dependency-cruiser|tsconfig|eslint|src\/contexts|\/domain\/|barrel/u, signals: ['code intel', 'strict typescript', 'cross-context', 'barrel'] },
   { pattern: /(^|\/)(ci|workflows?)(\/|\.|$)|\.github|test-logs?|trace/u, signals: ['diagnostic', 'failing ci', 'test logs', 'trace'] },
 ]
 

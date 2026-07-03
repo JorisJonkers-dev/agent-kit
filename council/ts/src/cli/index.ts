@@ -1,5 +1,6 @@
 import {
   CouncilApp,
+  PreFanoutGateError,
   type ConfigPaths,
   type EvalWorkflowInput,
   type FleetInput,
@@ -132,8 +133,32 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
     }
     return fail(`unknown command: ${command}`)
   } catch (error) {
+    if (error instanceof PreFanoutGateError) {
+      return fail(renderPreFanoutGateError(error))
+    }
     return fail(error instanceof Error ? error.message : String(error))
   }
+}
+
+function renderPreFanoutGateError(error: PreFanoutGateError): string {
+  return [
+    'pre-fanout static gate failed',
+    ...error.violations.map((violation) => `- ${renderPreFanoutGateViolation(error.gateName, violation)}`),
+  ].join('\n')
+}
+
+function renderPreFanoutGateViolation(
+  gateName: string,
+  violation: PreFanoutGateError['violations'][number],
+): string {
+  const fields = [`gate=${gateName}`, `kind=${violation.kind}`, `taskId=${violation.taskId}`]
+  if (violation.otherTaskId !== undefined) fields.push(`otherTaskId=${violation.otherTaskId}`)
+  if (violation.wave !== undefined) fields.push(`wave=${String(violation.wave)}`)
+  if (violation.path !== undefined) fields.push(`path=${violation.path}`)
+  if (violation.otherPath !== undefined) fields.push(`otherPath=${violation.otherPath}`)
+  if (violation.verify !== undefined) fields.push(`verify=${violation.verify}`)
+  fields.push(`message=${violation.message}`)
+  return fields.join(' ')
 }
 
 async function appSelfTest(): Promise<unknown> {
@@ -217,6 +242,7 @@ function parseSupervise(argv: readonly string[]): SuperviseInput {
     ...optionalFlag(flags, 'stdin', 'stdin'),
     ...optionalFlag(flags, 'restartPreamble', 'restart-preamble'),
     ...optionalFlag(flags, 'checkpointPreamble', 'checkpoint-preamble'),
+    ...optionalFlag(flags, 'mcpProfile', 'mcp-profile'),
     ...optionalFlag(flags, 'modelTier', 'model-tier'),
     ...optionalFlag(flags, 'escalationModelTier', 'escalation-model-tier'),
     ...optionalNumberFlag(flags, 'pollIntervalMs', 'poll-interval-ms'),

@@ -1,4 +1,5 @@
 import type { JsonRecord, JsonValue } from '../../../shared-kernel/common.js'
+import { TASK_ATTACHMENT_ACTIVE_SKILLS_MAX } from '../../../shared-kernel/index.js'
 import {
   comparableKey,
   formatPythonList,
@@ -41,9 +42,42 @@ export function validateTasks(tasks: unknown, options: ValidateTasksOptions = {}
         `warning: task ${stringifyForDisplay(task.id)} has no verify command - its result is unchecked except by the adversarial verifier`,
       )
     }
+
+    assertTaskAttachment(task)
   }
 
   assertTaskDag(tasks)
+}
+
+function assertTaskAttachment(task: JsonRecord): void {
+  if (task.attachment === undefined) {
+    return
+  }
+
+  const taskLabel = pythonRepr(stringifyForDisplay(task.id))
+  if (!isJsonRecord(task.attachment)) {
+    throw new Error(`task ${taskLabel} attachment must be an object`)
+  }
+
+  if (!('mcpProfile' in task.attachment)) {
+    throw new Error(`task ${taskLabel} attachment.mcpProfile is required`)
+  }
+  if (typeof task.attachment.mcpProfile !== 'string' || task.attachment.mcpProfile.trim().length === 0) {
+    throw new Error(`task ${taskLabel} attachment.mcpProfile must be a non-empty string`)
+  }
+
+  if (!('activeSkills' in task.attachment)) {
+    throw new Error(`task ${taskLabel} attachment.activeSkills is required`)
+  }
+  const activeSkills = task.attachment.activeSkills
+  if (!isJsonArray(activeSkills) || activeSkills.some((skill) => typeof skill !== 'string')) {
+    throw new Error(`task ${taskLabel} attachment.activeSkills must be an array of strings`)
+  }
+  if (activeSkills.length > TASK_ATTACHMENT_ACTIVE_SKILLS_MAX) {
+    throw new Error(
+      `task ${taskLabel} attachment.activeSkills must contain at most ${String(TASK_ATTACHMENT_ACTIVE_SKILLS_MAX)} skills`,
+    )
+  }
 }
 
 function assertTaskDag(tasks: readonly JsonRecord[]): void {
