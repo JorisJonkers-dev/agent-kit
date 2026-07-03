@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { PassThrough, Writable } from 'node:stream'
 import type { ChildProcess, SpawnOptions } from 'node:child_process'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   parseDuBytes,
@@ -13,6 +13,13 @@ import {
   WorkerSupervisorAdapter,
 } from './index.js'
 import type { WorkerSupervisorEvent } from './index.js'
+
+const PROCESS_TAIL_MAX_CHARS = 4096
+const tempRoots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })))
+})
 
 class FakeChild extends EventEmitter {
   readonly stdout = new PassThrough()
@@ -81,6 +88,7 @@ function deferredSleep() {
 
 describe('WorkerSupervisorAdapter', () => {
   it('spawns detached in the worktree and completes when the child exits cleanly', async () => {
+    const worktree = await tempRoot()
     const child = new FakeChild(101)
     const records: SpawnRecord[] = []
     const events: WorkerSupervisorEvent[] = []
@@ -98,7 +106,7 @@ describe('WorkerSupervisorAdapter', () => {
       id: 'T1',
       modelTier: 'cheap',
       stdin: 'initial prompt',
-      worktree: '/tmp/worktree',
+      worktree,
     })
     child.stdout.write('$ npm test\n')
     child.stdout.write('done\n')
@@ -110,11 +118,15 @@ describe('WorkerSupervisorAdapter', () => {
       restarts: 0,
       status: 'completed',
       stderr: 'warning\n',
+      stderrBytes: Buffer.byteLength('warning\n'),
+      stderrLogPath: 'workers/T1/logs/stderr.log',
       stdout: '$ npm test\ndone\n',
+      stdoutBytes: Buffer.byteLength('$ npm test\ndone\n'),
+      stdoutLogPath: 'workers/T1/logs/stdout.log',
     })
     expect(records).toHaveLength(1)
     expect(records[0]?.options).toMatchObject({
-      cwd: '/tmp/worktree',
+      cwd: worktree,
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
@@ -136,34 +148,40 @@ describe('WorkerSupervisorAdapter', () => {
     expect(events).toContainEqual(expect.objectContaining({
       attemptId: 1,
       byteCount: Buffer.byteLength('$ npm test\n'),
-      chunk: '$ npm test\n',
+      logPath: 'workers/T1/logs/stdout.log',
       modelTier: 'cheap',
       offset: 0,
       pid: 101,
       restartCount: 0,
       taskId: 'T1',
+      tail: '$ npm test\n',
+      tailBytes: Buffer.byteLength('$ npm test\n'),
       type: 'stdout',
     }))
     expect(events).toContainEqual(expect.objectContaining({
       attemptId: 1,
       byteCount: Buffer.byteLength('done\n'),
-      chunk: 'done\n',
+      logPath: 'workers/T1/logs/stdout.log',
       modelTier: 'cheap',
       offset: Buffer.byteLength('$ npm test\n'),
       pid: 101,
       restartCount: 0,
       taskId: 'T1',
+      tail: 'done\n',
+      tailBytes: Buffer.byteLength('done\n'),
       type: 'stdout',
     }))
     expect(events).toContainEqual(expect.objectContaining({
       attemptId: 1,
       byteCount: Buffer.byteLength('warning\n'),
-      chunk: 'warning\n',
+      logPath: 'workers/T1/logs/stderr.log',
       modelTier: 'cheap',
       offset: 0,
       pid: 101,
       restartCount: 0,
       taskId: 'T1',
+      tail: 'warning\n',
+      tailBytes: Buffer.byteLength('warning\n'),
       type: 'stderr',
     }))
     expect(events).toContainEqual(expect.objectContaining({
@@ -179,6 +197,63 @@ describe('WorkerSupervisorAdapter', () => {
     await flushPromises()
     await sleeper.tick()
     await flushPromises()
+    await expect(readFile(join(worktree, 'workers', 'T1', 'logs', 'stdout.log'), 'utf8')).resolves.toBe(
+      '$ npm test\ndone\n',
+    )
+    await expect(readFile(join(worktree, 'workers', 'T1', 'logs', 'stderr.log'), 'utf8')).resolves.toBe(
+      'warning\n',
+    )
+  })
+
+  it('spools full logs while exposing only bounded tails and relative log paths', async () => {
+    const worktree = await tempRoot()
+    const child = new FakeChild(121)
+    const events: WorkerSupervisorEvent[] = []
+    const stdout = `${'o'.repeat(PROCESS_TAIL_MAX_CHARS + 20)}\nfinal stdout\n`
+    const stderr = `${'e'.repeat(PROCESS_TAIL_MAX_CHARS + 10)}\nfinal stderr\n`
+    const adapter = new WorkerSupervisorAdapter({
+      onEvent: (event) => events.push(event),
+      spawn: fakeSpawn([child], []),
+    })
+    const session = adapter.start({
+      command: 'agent',
+      id: 'T1-logs',
+      worktree,
+    })
+
+    child.stdout.write(stdout)
+    child.stderr.write(stderr)
+    child.exit(0)
+
+    await expect(session.result).resolves.toMatchObject({
+      status: 'completed',
+      stderr: tail(stderr),
+      stderrBytes: Buffer.byteLength(stderr),
+      stderrLogPath: 'workers/T1-logs/logs/stderr.log',
+      stdout: tail(stdout),
+      stdoutBytes: Buffer.byteLength(stdout),
+      stdoutLogPath: 'workers/T1-logs/logs/stdout.log',
+    })
+    expect(events).toContainEqual(expect.objectContaining({
+      byteCount: Buffer.byteLength(stdout),
+      logPath: 'workers/T1-logs/logs/stdout.log',
+      tail: tail(stdout),
+      tailBytes: Buffer.byteLength(tail(stdout)),
+      type: 'stdout',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      byteCount: Buffer.byteLength(stderr),
+      logPath: 'workers/T1-logs/logs/stderr.log',
+      tail: tail(stderr),
+      tailBytes: Buffer.byteLength(tail(stderr)),
+      type: 'stderr',
+    }))
+    await expect(readFile(join(worktree, 'workers', 'T1-logs', 'logs', 'stdout.log'), 'utf8')).resolves.toBe(
+      stdout,
+    )
+    await expect(readFile(join(worktree, 'workers', 'T1-logs', 'logs', 'stderr.log'), 'utf8')).resolves.toBe(
+      stderr,
+    )
   })
 
   it('preserves an explicit COUNCIL_MODEL_TIER env value when no model tier is requested', async () => {
@@ -586,6 +661,7 @@ describe('WorkerSupervisorAdapter', () => {
   })
 
   it('uses loop detections from output and stalls without tier escalation when disabled', async () => {
+    const worktree = await tempRoot()
     const first = new FakeChild(801)
     const second = new FakeChild(802)
     const records: SpawnRecord[] = []
@@ -607,7 +683,7 @@ describe('WorkerSupervisorAdapter', () => {
       id: 'T8',
       pollIntervalMs: 1,
       watchdog: { enableTierEscalation: false, maxRestarts: 1, repeatLimit: 2, windowSize: 3 },
-      worktree: '/tmp/worktree',
+      worktree,
     })
     first.stdout.write('$ npm test\n$ npm test\n')
 
@@ -647,6 +723,99 @@ describe('WorkerSupervisorAdapter', () => {
       restarts: 0,
       status: 'stalled',
     })
+  })
+
+  it('treats wall-clock and output caps as terminal budget caps', async () => {
+    const wallClockChild = new FakeChild(911)
+    const outputChild = new FakeChild(912)
+    const wallClockSleeper = deferredSleep()
+    const outputSleeper = deferredSleep()
+    let now = 0
+    const wallClockSession = new WorkerSupervisorAdapter({
+      kill: (_pid, signal) => { wallClockChild.exit(null, signal); },
+      nowMs: () => now,
+      sleep: wallClockSleeper.sleep,
+      spawn: fakeSpawn([wallClockChild], []),
+    }).start({
+      command: 'agent',
+      id: 'T11-wall',
+      pollIntervalMs: 1,
+      watchdog: { maxRestarts: 2, wallClockCapMs: 1_000 },
+      worktree: await tempRoot(),
+    })
+
+    now = 1_000
+    await wallClockSleeper.tick()
+    await expect(wallClockSession.result).resolves.toMatchObject({
+      detection: { capMs: 1_000, elapsedMs: 1_000, kind: 'wall-clock-cap' },
+      restarts: 0,
+      status: 'budget-cap',
+    })
+
+    const outputSession = new WorkerSupervisorAdapter({
+      kill: (_pid, signal) => { outputChild.exit(null, signal); },
+      sleep: outputSleeper.sleep,
+      spawn: fakeSpawn([outputChild], []),
+    }).start({
+      command: 'agent',
+      id: 'T11-output',
+      pollIntervalMs: 1,
+      watchdog: { maxRestarts: 2, outputCapBytes: 4 },
+      worktree: await tempRoot(),
+    })
+    outputChild.stdout.write('12345')
+    await outputSleeper.tick()
+
+    await expect(outputSession.result).resolves.toMatchObject({
+      detection: { capBytes: 4, kind: 'output-cap', outputBytes: 5 },
+      restarts: 0,
+      status: 'budget-cap',
+      stdout: '12345',
+      stdoutBytes: 5,
+      stdoutLogPath: 'workers/T11-output/logs/stdout.log',
+    })
+  })
+
+  it('retries attempt timeouts once then fails fast on the repeated fingerprint', async () => {
+    const first = new FakeChild(921)
+    const second = new FakeChild(922)
+    const records: SpawnRecord[] = []
+    const sleeper = deferredSleep()
+    let now = 0
+    const adapter = new WorkerSupervisorAdapter({
+      kill: (pid, signal) => {
+        if (pid === -921) {
+          first.exit(null, signal)
+        }
+        if (pid === -922) {
+          second.exit(null, signal)
+        }
+      },
+      nowMs: () => now,
+      sleep: sleeper.sleep,
+      spawn: fakeSpawn([first, second], records),
+    })
+    const session = adapter.start({
+      command: 'agent',
+      id: 'T11-attempt',
+      pollIntervalMs: 1,
+      watchdog: { attemptTimeoutMs: 1_000, maxRestarts: 2 },
+      worktree: await tempRoot(),
+    })
+
+    now = 1_000
+    await sleeper.tick()
+    expect(records).toHaveLength(2)
+
+    now = 2_000
+    await sleeper.tick()
+
+    await expect(session.result).resolves.toMatchObject({
+      detection: { elapsedMs: 1_000, kind: 'attempt-timeout', timeoutMs: 1_000 },
+      restarts: 1,
+      status: 'stalled',
+    })
+    expect(records).toHaveLength(2)
   })
 
   it('handles children without a pid or stdin', async () => {
@@ -764,6 +933,16 @@ async function flushPromises(): Promise<void> {
   for (let index = 0; index < 5; index += 1) {
     await Promise.resolve()
   }
+}
+
+async function tempRoot(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'council-supervisor-'))
+  tempRoots.push(root)
+  return root
+}
+
+function tail(text: string): string {
+  return text.slice(-PROCESS_TAIL_MAX_CHARS)
 }
 
 function grandchildScript(marker: string): string {

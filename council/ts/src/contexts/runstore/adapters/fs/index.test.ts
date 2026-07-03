@@ -136,6 +136,7 @@ describe('FsRunStoreAdapter', () => {
       workerOutputEvent({
         byte_count: 128,
         content_hash: 'sha256:output-event',
+        log_path: 'workers/T1/logs/stdout.log',
         offset: 256,
         sha256: 'sha256:chunk',
         stream: 'stdout',
@@ -143,7 +144,7 @@ describe('FsRunStoreAdapter', () => {
         tail_bytes: 9,
         task_id: 'T1',
         worker_id: 'worker-T1',
-      }),
+      } as never),
       workerDetectedEvent({
         content_hash: 'sha256:detected',
         detected_at: '2026-07-03T10:01:00.000Z',
@@ -278,6 +279,27 @@ describe('FsRunStoreAdapter', () => {
         verdict: { issues: [], reasons: 'bad', satisfied: 'yes' },
       } as unknown as WorkerResult),
     ).rejects.toThrow('review verdict.satisfied must be a boolean')
+    await expect(
+      store.writeWorkerResult('run-a', 'T1', {
+        status: 'ok',
+        stdout_tail: 'x'.repeat(4097),
+        task_id: 'T1',
+      } as unknown as WorkerResult),
+    ).rejects.toThrow('worker result.stdout_tail must be at most 4096 characters')
+    await expect(
+      store.writeWorkerResult('run-a', 'T1', {
+        status: 'ok',
+        stdout_bytes: -1,
+        task_id: 'T1',
+      } as unknown as WorkerResult),
+    ).rejects.toThrow('worker result.stdout_bytes must be a non-negative integer')
+    await expect(
+      store.writeWorkerResult('run-a', 'T1', {
+        status: 'ok',
+        stdout_log_path: 1,
+        task_id: 'T1',
+      } as unknown as WorkerResult),
+    ).rejects.toThrow('worker result.stdout_log_path must be a string')
     await expect(
       store.writeWorkerResult('run-a', 'T1', {
         committed: 'yes',
@@ -744,6 +766,12 @@ function fullWorkerResult(taskId: string): WorkerResult {
     model_tier: 'cheap',
     out_of_bounds: [],
     status: 'ok',
+    stderr_bytes: 8,
+    stderr_log_path: `workers/${taskId}/logs/stderr.log`,
+    stderr_tail: 'warning\n',
+    stdout_bytes: 3,
+    stdout_log_path: `workers/${taskId}/logs/stdout.log`,
+    stdout_tail: 'ok\n',
     suggested_model: 'haiku',
     summary: 'Done',
     task_id: taskId,

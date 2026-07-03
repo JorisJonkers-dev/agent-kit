@@ -48,6 +48,12 @@ export interface WorkerResult {
   readonly content_hash?: string
   readonly engine?: unknown
   readonly model_tier?: string
+  readonly stdout_tail?: string
+  readonly stderr_tail?: string
+  readonly stdout_log_path?: string
+  readonly stderr_log_path?: string
+  readonly stdout_bytes?: number
+  readonly stderr_bytes?: number
 }
 
 export interface LegacyTaskReport {
@@ -240,6 +246,12 @@ export function assertWorkerResult(value: unknown, taskId?: string): WorkerResul
     'status',
     'error',
     'content_hash',
+    'stdout_tail',
+    'stderr_tail',
+    'stdout_log_path',
+    'stderr_log_path',
+    'stdout_bytes',
+    'stderr_bytes',
   ])
   requiredString(record, 'worker result', 'task_id')
   requiredString(record, 'worker result', 'status')
@@ -262,6 +274,12 @@ export function assertWorkerResult(value: unknown, taskId?: string): WorkerResul
   optionalString(record, 'worker result', 'merge')
   optionalString(record, 'worker result', 'error')
   optionalString(record, 'worker result', 'content_hash')
+  optionalBoundedString(record, 'worker result', 'stdout_tail', WORKER_OUTPUT_TAIL_MAX_CHARS)
+  optionalBoundedString(record, 'worker result', 'stderr_tail', WORKER_OUTPUT_TAIL_MAX_CHARS)
+  optionalString(record, 'worker result', 'stdout_log_path')
+  optionalString(record, 'worker result', 'stderr_log_path')
+  optionalNonNegativeInteger(record, 'worker result', 'stdout_bytes')
+  optionalNonNegativeInteger(record, 'worker result', 'stderr_bytes')
   return record as unknown as WorkerResult
 }
 
@@ -457,6 +475,7 @@ function assertWorkerOutput(value: unknown): WorkerOutputPayload {
     'byte_count',
     'tail',
     'tail_bytes',
+    'log_path',
     'sha256',
     'content_hash',
   ])
@@ -465,11 +484,9 @@ function assertWorkerOutput(value: unknown): WorkerOutputPayload {
   requiredEnum(record, 'worker output', 'stream', ['stdout', 'stderr'])
   requiredNonNegativeInteger(record, 'worker output', 'offset')
   requiredNonNegativeInteger(record, 'worker output', 'byte_count')
-  optionalString(record, 'worker output', 'tail')
-  if (typeof record.tail === 'string' && record.tail.length > WORKER_OUTPUT_TAIL_MAX_CHARS) {
-    fail(`worker output.tail must be at most ${String(WORKER_OUTPUT_TAIL_MAX_CHARS)} characters`)
-  }
+  optionalBoundedString(record, 'worker output', 'tail', WORKER_OUTPUT_TAIL_MAX_CHARS)
   optionalNonNegativeInteger(record, 'worker output', 'tail_bytes')
+  optionalString(record, 'worker output', 'log_path')
   optionalString(record, 'worker output', 'sha256')
   optionalString(record, 'worker output', 'content_hash')
   return record as unknown as WorkerOutputPayload
@@ -576,6 +593,13 @@ function requiredString(record: JsonRecord, label: string, field: string): strin
 
 function optionalString(record: JsonRecord, label: string, field: string): void {
   if (record[field] !== undefined && typeof record[field] !== 'string') fail(`${label}.${field} must be a string`)
+}
+
+function optionalBoundedString(record: JsonRecord, label: string, field: string, maxChars: number): void {
+  optionalString(record, label, field)
+  if (typeof record[field] === 'string' && record[field].length > maxChars) {
+    fail(`${label}.${field} must be at most ${String(maxChars)} characters`)
+  }
 }
 
 function optionalStringOrNull(record: JsonRecord, label: string, field: string): void {
