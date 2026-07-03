@@ -393,11 +393,15 @@ def codex_speckit_names() -> set[str]:
     return {path.parent.name.removeprefix("speckit-") for path in codex_speckit_skill_files()}
 
 
+# Deliberately one-sided surfaces; must match supported_agents in manifest.yaml.
+SINGLE_AGENT_SKILLS = frozenset({"claude-worker"})
+
+
 def parity_check() -> DoctorCheck:
     claude_skills = skill_names(REPO_TEMPLATE_ROOT / ".claude" / "skills")
     codex_skills = skill_names(REPO_TEMPLATE_ROOT / ".agents" / "skills")
     shared_codex_skills = {name for name in codex_skills if not name.startswith("speckit-")}
-    skill_diff = sorted(claude_skills ^ shared_codex_skills)
+    skill_diff = sorted((claude_skills ^ shared_codex_skills) - SINGLE_AGENT_SKILLS)
 
     commands = speckit_command_names()
     codex_speckit = codex_speckit_names()
