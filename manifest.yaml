@@ -563,7 +563,7 @@ hooks:
       - agent: codex
         path: .codex/hooks/kb-user-prompt-recall.sh
         settings_path: .codex/hooks.json
-        sha256: 50d4579b3e774675326cc76113afebcfe5251c46ea11059cf0a567557e1a6911
+        sha256: f16970775df089eac795ae66b6e478b33f59f1e68692628889f0f2374db0ebb2
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/hooks/user-prompt-submit-recall.sh"
@@ -581,7 +581,7 @@ hooks:
       - agent: codex
         path: .codex/hooks/kb-stop-digest.sh
         settings_path: .codex/hooks.json
-        sha256: 193522faf697ca08bc18b0b00d670195efe54d88be4dfca95324dce6910b6e01
+        sha256: a0a8828f2ac0cc61202162c4d28e7a1df36af1dbebcb0ef0dc915bbe8d3ecf02
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/hooks/stop-session-digest.sh"
@@ -600,7 +600,7 @@ hooks:
       - agent: codex
         path: .codex/hooks/pre-tool-use-edit-recall.sh
         settings_path: .codex/hooks.json
-        sha256: a107e6f8a2a73346c1b05a235c2849264509acbcc631688c25fc7b22f5444c7d
+        sha256: c95ea33c35660ed050e532d081196469e83f0db69a4a0813beb3a75d7298521e
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/hooks/pre-tool-use-edit-recall.sh"
@@ -619,7 +619,7 @@ hooks:
       - agent: codex
         path: .codex/hooks/pre-tool-use-git-commit-capture.sh
         settings_path: .codex/hooks.json
-        sha256: 6d2370aa565da308ce1d8e838dda18da4897cdd4a5ebeab171b4a1b8be6028c6
+        sha256: 7d2108d32690aa89e4963ff44370a60bcd9ac99a23c24dee13529e503c59deaf
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/hooks/pre-tool-use-git-commit-capture.sh"

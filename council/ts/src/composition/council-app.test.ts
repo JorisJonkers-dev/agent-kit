@@ -290,6 +290,12 @@ describe('CouncilApp.supervise', () => {
       'real ok\n',
     )
   })
+
+  it('rejects a run directory whose basename is empty', async () => {
+    await expect(new CouncilApp().supervise(superviseInput({ runDir: '/' }))).rejects.toThrow(
+      '--run must point to a run directory',
+    )
+  })
 })
 
 class RecordingRunStore implements SuperviseRunStore {

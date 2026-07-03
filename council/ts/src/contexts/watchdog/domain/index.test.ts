@@ -7,7 +7,9 @@ import {
   createEscalationState,
   createLoopDetectorState,
   createRetryPolicyState,
+  createStallDetectorState,
   evaluateDiskUsageCap,
+  evaluateStall,
   evaluateWatchdogProgress,
   extractActionLines,
 } from './index.js'
@@ -371,5 +373,33 @@ describe('escalation state machine', () => {
       state: { phase: 'stalled' },
       action: 'stalled',
     })
+  })
+})
+
+describe('legacy stall detector compatibility', () => {
+  it('treats output growth as progress and reports no stall', () => {
+    const initial = createStallDetectorState(1_000)
+    const result = evaluateStall(initial, {
+      nowMs: 1_100,
+      outputBytes: 50,
+      stallAfterS: 60,
+    })
+
+    expect(result.detection).toBeNull()
+    expect(result.state.outputBytes).toBe(50)
+    expect(result.state.lastProgressAtMs).toBe(1_100)
+  })
+
+  it('derives progress bytes from logBytes and detects a stall once heartbeats lapse', () => {
+    const initial = createStallDetectorState(1_000, 10)
+    const result = evaluateStall(initial, {
+      actionHeartbeatAfterMs: 1,
+      logBytes: 10,
+      nowMs: 1_000_000,
+      outputHeartbeatAfterMs: 1,
+      stallAfterS: 1,
+    })
+
+    expect(result.detection).not.toBeNull()
   })
 })

@@ -10,6 +10,7 @@ target/
 *.log
 *.egg-info/
 node_modules/
+node_modules
 coverage/
 *.tsbuildinfo
 council/ts-dist/

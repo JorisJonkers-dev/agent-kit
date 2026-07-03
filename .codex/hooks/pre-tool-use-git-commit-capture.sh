@@ -78,9 +78,26 @@ print(match.group(2) or match.group(3) or "", end="")
 ' 2>/dev/null)"
 [ -z "${title}" ] && exit 0
 
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-scope="project:${project}"
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+scope="$(canonical_project_scope_from_origin)"
 
 body="$(cat <<BODY
 Commit message: ${title}
@@ -91,15 +108,18 @@ BODY
 )"
 
 source="${KB_AUTO_MCP_SOURCE:-codex:auto-capture:git-commit}"
-payload="$(python3 -c 'import json,sys; print(json.dumps({
+payload="$(python3 -c 'import json,sys
+args = {
+  "title": sys.argv[1],
+  "body": sys.argv[2],
+  "source": sys.argv[4],
+  "tags": ["auto-capture","git-commit"]
+}
+if sys.argv[3]:
+    args["scope"] = sys.argv[3]
+print(json.dumps({
   "jsonrpc":"2.0","id":1,"method":"tools/call","params":{
-    "name":"knowledge.capture_decision","arguments":{
-      "title": sys.argv[1],
-      "body": sys.argv[2],
-      "scope": sys.argv[3],
-      "source": sys.argv[4],
-      "tags": ["auto-capture","git-commit"]
-    }}}))' "${title}" "${body}" "${scope}" "${source}")"
+    "name":"knowledge.capture_decision","arguments":args}}))' "${title}" "${body}" "${scope}" "${source}")"
 
 curl -sS --connect-timeout 3 --max-time 5 \
   -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
