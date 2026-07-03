@@ -1,1 +1,0 @@
-{"approach": "Use deterministic canned model output.", "engine": {"label": "codex:gpt-5.5"}, "model_tier": "fixture", "open_questions": [], "parallelizable_tasks": ["ck-a100"], "risks": [], "steps": ["plan", "fanout"], "summary": "watchdog-table-config plan from codex:gpt-5.5"}
