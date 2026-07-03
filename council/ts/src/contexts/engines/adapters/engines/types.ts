@@ -33,6 +33,10 @@ export interface EngineProcess {
   spawn(command: EngineSpawnCommand): EngineChild
 }
 
+export interface EngineDriver {
+  run(request: EngineRunRequest, ports: EngineAdapterPorts): EngineEventStream
+}
+
 export interface EngineFileStore {
   writeText(path: string, data: string): Promise<void>
   readText(path: string): Promise<string>

@@ -1,6 +1,7 @@
 export type {
   EngineAdapterPorts,
   EngineChild,
+  EngineDriver,
   EngineEvent,
   EngineEventStream,
   EngineFileStore,
