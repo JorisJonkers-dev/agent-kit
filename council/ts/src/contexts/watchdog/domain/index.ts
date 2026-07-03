@@ -1,3 +1,5 @@
+export * from './retry-policy.js'
+
 export interface StallDetectorConfig {
   readonly actionHeartbeatAfterMs?: number
   readonly attemptTimeoutMs?: number
