@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -113,6 +113,45 @@ describe('CLI composition', () => {
         retry_count: 0,
         task_count: 2,
         worker_result_count: 2,
+      },
+    })
+  })
+
+  it('dogfoods eval through CLI and app on realistic run artifacts', async () => {
+    const runDir = await writeDogfoodEvalRun()
+    const appResult = await new CouncilApp().eval({ runDir })
+    const cliResult = await runCli(['eval', '--run', runDir])
+    const cliPayload = JSON.parse(cliResult.stdout) as unknown
+
+    expect(cliResult).toMatchObject({ exitCode: 0, stderr: '' })
+    expect(cliPayload).toEqual(appResult)
+    expect(appResult).toMatchObject({
+      categories: {
+        boundary_compliance: { finding_count: 1, score: 83, status: 'warn' },
+        lucky_pass_suspicion: { finding_count: 2, score: 67, status: 'fail' },
+        no_op_rate: { finding_count: 1, score: 83, status: 'warn' },
+        out_of_bounds_edits: { finding_count: 1, score: 83, status: 'warn' },
+        result_completeness: { finding_count: 1, score: 83, status: 'warn' },
+        retries: { finding_count: 1, score: 83, status: 'warn' },
+        verify_relevance: { finding_count: 1, score: 90, status: 'warn' },
+      },
+      run: basename(runDir),
+      score: 83,
+      status: 'warn',
+      summary: {
+        completed_count: 5,
+        failed_verify_count: 1,
+        lucky_pass_suspicion_count: 2,
+        missing_worker_result_count: 1,
+        no_op_count: 1,
+        out_of_bounds_count: 1,
+        report_task_count: 6,
+        retry_count: 2,
+        satisfied_verdict_count: 5,
+        task_count: 6,
+        wave_count: 3,
+        weak_verify_count: 1,
+        worker_result_count: 5,
       },
     })
   })
@@ -545,6 +584,156 @@ async function writeLegacyPythonRuns(): Promise<string> {
   await writeWatchdogRun(join(root, 'watchdog-table-config'))
   await writeGrownSchemaRun(join(root, 'grown-schema-task'))
   return root
+}
+
+interface FixtureTask extends Record<string, unknown> {
+  readonly id: string
+  readonly paths: readonly string[]
+}
+
+async function writeDogfoodEvalRun(): Promise<string> {
+  const runDir = join(await tempRoot('council-eval-dogfood-'), 'realistic-run')
+  const tasks = dogfoodEvalTasks()
+  await writeRunJson(runDir, 'state.json', {
+    integration_branch: 'council/realistic-run/integration',
+    intensity: 'quick',
+    rounds: 1,
+    spec_id: '001-realistic-run',
+    spec_relpath: 'specs/001-realistic-run',
+    spec_slug: 'realistic-run',
+    stage: 'fanned-out',
+    task_count: tasks.length,
+  })
+  await writeRunJson(runDir, 'tasks.json', tasks)
+  await writeRunJson(runDir, 'report.json', {
+    integration_branch: 'council/realistic-run/integration',
+    run: basename(runDir),
+    tasks: tasks.map((task) => ({ status: task.id === 'T6' ? 'missing' : 'ok', task_id: task.id })),
+    waves: [['T1', 'T2'], ['T3', 'T4'], ['T5', 'T6']],
+  })
+  await writeWorkerResult(runDir, 'T1', {
+    files_changed: ['src/clean.ts'],
+    out_of_bounds: [],
+    status: 'ok',
+    task_id: 'T1',
+    verdict: dogfoodVerdict('T1'),
+    verify_rc: 0,
+  })
+  await writeWorkerResult(runDir, 'T2', {
+    files_changed: [],
+    out_of_bounds: [],
+    status: 'no-op',
+    task_id: 'T2',
+    verdict: dogfoodVerdict('T2'),
+    verify_rc: 0,
+  })
+  await writeWorkerResult(runDir, 'T3', {
+    files_changed: ['src/bounds.ts', 'docs/outside.md'],
+    out_of_bounds: ['docs/outside.md'],
+    status: 'ok',
+    task_id: 'T3',
+    verdict: dogfoodVerdict('T3'),
+    verify_rc: 0,
+  })
+  await writeWorkerResult(runDir, 'T4', {
+    files_changed: ['src/weak.ts'],
+    out_of_bounds: [],
+    status: 'ok',
+    task_id: 'T4',
+    verdict: dogfoodVerdict('T4'),
+    verify_rc: 0,
+  })
+  await writeWorkerResult(runDir, 'T5', {
+    files_changed: ['src/failed.ts'],
+    out_of_bounds: [],
+    status: 'ok',
+    task_id: 'T5',
+    verdict: dogfoodVerdict('T5'),
+    verify_rc: 2,
+  })
+  await writeEventsJsonl(runDir, [
+    { payload: dogfoodVerdict('T1'), type: 'review_verdict' },
+    {
+      payload: { attempt: 1, task_id: 'T3', worker_id: 'worker-T3' },
+      type: 'worker_started',
+    },
+    {
+      payload: {
+        attempt: 2,
+        reason: 'progress-stall',
+        task_id: 'T3',
+        worker_id: 'worker-T3',
+      },
+      type: 'worker_restarted',
+    },
+    {
+      payload: { attempt: 3, reason: 'loop', task_id: 'T3', worker_id: 'worker-T3' },
+      type: 'worker_restarted',
+    },
+    {
+      payload: {
+        result_path: 'workers/T3/result.json',
+        status: 'ok',
+        task_id: 'T3',
+        worker_id: 'worker-T3',
+      },
+      type: 'worker_finished',
+    },
+  ])
+  return runDir
+}
+
+function dogfoodEvalTasks(): readonly FixtureTask[] {
+  return [
+    dogfoodTask('T1', 'Clean task', ['src/clean.ts'], ['the targeted unit verifies the clean path']),
+    dogfoodTask('T2', 'No-op task', ['src/noop.ts'], ['the targeted unit verifies the no-op path']),
+    dogfoodTask('T3', 'Boundary task', ['src/bounds.ts'], ['the targeted unit verifies bounds handling']),
+    dogfoodTask('T4', 'Weak verify task', ['src/weak.ts'], []),
+    dogfoodTask('T5', 'Failed verify task', ['src/failed.ts'], ['the targeted unit verifies failures']),
+    dogfoodTask('T6', 'Missing result task', ['src/missing.ts'], ['the targeted unit verifies missing results']),
+  ]
+}
+
+function dogfoodTask(
+  id: string,
+  title: string,
+  paths: readonly string[],
+  verifyProves: readonly string[],
+): FixtureTask {
+  return {
+    acceptance_criteria: [`${title} is represented in eval output.`],
+    boundaries: `Only touch ${paths.join(', ')}.`,
+    depends_on: [],
+    difficulty: 'moderate',
+    id,
+    model: 'sonnet',
+    objective: `Exercise eval scoring for ${title}.`,
+    output_format: 'Patch',
+    paths,
+    title,
+    verify: 'npx vitest run src/workflows/eval.test.ts',
+    verify_proves: verifyProves,
+  }
+}
+
+function dogfoodVerdict(taskId: string): Record<string, unknown> {
+  return {
+    issues: [],
+    reasons: 'fixture reviewer was satisfied',
+    satisfied: true,
+    task_id: taskId,
+  }
+}
+
+async function writeEventsJsonl(
+  runDir: string,
+  events: readonly Record<string, unknown>[],
+): Promise<void> {
+  await writeFile(
+    join(runDir, 'events.jsonl'),
+    events.map((event) => `${JSON.stringify(event)}\n`).join(''),
+    'utf8',
+  )
 }
 
 async function writeLegacyOrdinalRun(runDir: string): Promise<void> {

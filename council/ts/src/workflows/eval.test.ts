@@ -119,12 +119,17 @@ describe('evalWorkflow', () => {
       task_id: 'T1',
     })
     expect(result.summary).toMatchObject({
+      completed_count: 1,
       critical_finding_count: 0,
+      failed_verify_count: 0,
       finding_count: 2,
+      lucky_pass_suspicion_count: 1,
       no_op_count: 1,
       retry_count: 0,
+      satisfied_verdict_count: 1,
       status: 'warn',
       task_count: 1,
+      weak_verify_count: 0,
       warning_finding_count: 2,
       worker_result_count: 1,
     })
