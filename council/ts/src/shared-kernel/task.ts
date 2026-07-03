@@ -1,4 +1,4 @@
-import type { ContentAddressed, ContextLinked } from './common.js'
+import type { ContentAddressed, ContextLinked, JsonRecord } from './common.js'
 import type { EngineTagged } from './engine.js'
 
 export type TaskId = `T${number}` | `ck-${string}`
@@ -6,6 +6,10 @@ export type TaskId = `T${number}` | `ck-${string}`
 export type TaskDifficulty = 'trivial' | 'moderate' | 'hard'
 
 export type TaskModel = 'haiku' | 'sonnet' | 'opus'
+
+export type TaskRetryPolicy = JsonRecord
+
+export type TaskResourceProfile = JsonRecord
 
 export interface Task extends ContentAddressed, ContextLinked, EngineTagged {
   readonly id: TaskId
@@ -19,6 +23,12 @@ export interface Task extends ContentAddressed, ContextLinked, EngineTagged {
   readonly verify: string
   readonly boundaries: string
   readonly acceptance_criteria?: readonly string[]
+  readonly success_criteria?: readonly string[]
+  readonly verify_proves?: readonly string[]
+  readonly failure_modes?: readonly string[]
+  readonly retry_policy?: TaskRetryPolicy
+  readonly resource_profile?: TaskResourceProfile
+  readonly human_review_required?: boolean
   readonly dev_notes?: string
   readonly spec_ref?: string
   readonly archetype?: string

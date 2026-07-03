@@ -39,12 +39,26 @@ const SCHEMA_STRING_ARRAY_FIELDS = new Set([
   'depends_on',
   'acceptance_criteria',
   'context_refs',
+  'success_criteria',
+  'verify_proves',
+  'failure_modes',
   'supersedes',
+])
+
+const SCHEMA_RECORD_FIELDS = new Set([
+  'retry_policy',
+  'resource_profile',
+])
+
+const SCHEMA_BOOLEAN_FIELDS = new Set([
+  'human_review_required',
 ])
 
 const SCHEMA_ALLOWED_FIELDS = new Set([
   ...SCHEMA_STRING_FIELDS,
   ...SCHEMA_STRING_ARRAY_FIELDS,
+  ...SCHEMA_RECORD_FIELDS,
+  ...SCHEMA_BOOLEAN_FIELDS,
   'engine',
 ])
 
@@ -77,6 +91,12 @@ export const TASKS_JSON_SCHEMA = {
       difficulty: { type: 'string', enum: ['trivial', 'moderate', 'hard'] },
       model: { type: 'string', enum: ['haiku', 'sonnet', 'opus'] },
       acceptance_criteria: { type: 'array', items: { type: 'string' } },
+      success_criteria: { type: 'array', items: { type: 'string' } },
+      verify_proves: { type: 'array', items: { type: 'string' } },
+      failure_modes: { type: 'array', items: { type: 'string' } },
+      retry_policy: { type: 'object' },
+      resource_profile: { type: 'object' },
+      human_review_required: { type: 'boolean' },
       dev_notes: { type: 'string' },
       spec_ref: { type: 'string' },
       context_refs: { type: 'array', items: { type: 'string' } },
@@ -142,6 +162,18 @@ function validateSchemaFieldTypes(task: JsonRecord, path: string, errors: string
   for (const field of SCHEMA_STRING_ARRAY_FIELDS) {
     if (field in task && !isStringArray(task[field])) {
       errors.push(`${path}.${field} must be an array of strings`)
+    }
+  }
+
+  for (const field of SCHEMA_RECORD_FIELDS) {
+    if (field in task && !isJsonRecord(task[field])) {
+      errors.push(`${path}.${field} must be an object`)
+    }
+  }
+
+  for (const field of SCHEMA_BOOLEAN_FIELDS) {
+    if (field in task && typeof task[field] !== 'boolean') {
+      errors.push(`${path}.${field} must be a boolean`)
     }
   }
 

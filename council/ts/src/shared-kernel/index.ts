@@ -17,4 +17,11 @@ export type {
   StoryTests,
   StoryUserValue,
 } from './story.js'
-export type { Task, TaskDifficulty, TaskId, TaskModel } from './task.js'
+export type {
+  Task,
+  TaskDifficulty,
+  TaskId,
+  TaskModel,
+  TaskResourceProfile,
+  TaskRetryPolicy,
+} from './task.js'
