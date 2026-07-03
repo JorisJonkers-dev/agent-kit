@@ -1,20 +1,22 @@
 import {
   CouncilApp,
   type ConfigPaths,
+  type EvalWorkflowInput,
   type FleetInput,
   type PlanInput,
   type FanoutInput,
   type RecommendInput,
   type SuperviseInput,
+  type TriageWorkflowInput,
 } from '../app/index.js'
 import type { CouncilConfig } from '../contexts/config/index.js'
-import type { TriageInput } from '../contexts/triage/index.js'
 
 export type CliCommand =
   | 'amend'
   | 'config'
   | 'context'
   | 'design'
+  | 'eval'
   | 'fanout'
   | 'fleet'
   | 'grill'
@@ -53,6 +55,7 @@ const COMMANDS: readonly CommandSpec[] = [
   { help: 'show or change council.toml while preserving unrelated lines', name: 'config' },
   { help: 'assemble context packs for downstream stages', name: 'context' },
   { help: 'run design stages D0-D5', name: 'design' },
+  { help: 'score a run with the eval workflow', name: 'eval' },
   { help: 'execute a planned task DAG', name: 'fanout' },
   { help: 'round-robin a task DAG across an explicit agent pool', name: 'fleet' },
   { help: 'adversarially question task readiness', name: 'grill' },
@@ -68,7 +71,7 @@ const COMMANDS: readonly CommandSpec[] = [
   { help: 'synchronize BMAD assets', name: 'sync-bmad' },
   { help: 'synchronize council skills', name: 'sync-skills' },
   { help: 'tail one task log', name: 'tail' },
-  { help: 'classify request routing before planning', name: 'triage' },
+  { help: 'run the triage gate and emit routing payload', name: 'triage' },
 ]
 
 export function commandRegistry(): readonly CommandSpec[] {
@@ -94,6 +97,8 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
         return okJson(await app.plan(parsePlan(rest)))
       case 'recommend':
         return okJson(await app.recommend(parseRecommend(rest)))
+      case 'eval':
+        return okJson(await app.eval(parseEval(rest)))
       case 'fanout':
         return okJson(await app.fanout(parseFanout(rest)))
       case 'fleet':
@@ -110,7 +115,7 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
       case 'review-pack':
         return okJson(await app.readReviewPack(parseReviewPack(rest)))
       case 'triage':
-        return okJson((await app.plan({ triage: parseTriage(rest) })).triage ?? {})
+        return okJson(await app.triage(parseTriage(rest)))
       case 'supervise':
         return okJson(await app.supervise(parseSupervise(rest)))
       case 'design':
@@ -154,6 +159,10 @@ function parseFanout(argv: readonly string[]): FanoutInput {
     github: flags.has('github'),
     runDir: requireFlag(flags, 'run'),
   }
+}
+
+function parseEval(argv: readonly string[]): EvalWorkflowInput {
+  return { runDir: requireFlag(parseFlags(argv), 'run') }
 }
 
 function parseRecommend(argv: readonly string[]): RecommendInput {
@@ -216,12 +225,16 @@ function parseSupervise(argv: readonly string[]): SuperviseInput {
   }
 }
 
-function parseTriage(argv: readonly string[]): TriageInput {
-  return parseTriageFlag(requireFlag(parseFlags(argv), 'input'))
+function parseTriage(argv: readonly string[]): TriageWorkflowInput {
+  const flags = parseFlags(argv)
+  return {
+    triage: parseTriageFlag(requireFlag(flags, 'input')),
+    ...(flags.has('run') ? { runDir: requireFlag(flags, 'run') } : {}),
+  }
 }
 
-function parseTriageFlag(raw: string): TriageInput {
-  const parsed = JSON.parse(raw) as TriageInput
+function parseTriageFlag(raw: string): TriageWorkflowInput['triage'] {
+  const parsed = JSON.parse(raw) as TriageWorkflowInput['triage']
   return parsed
 }
 

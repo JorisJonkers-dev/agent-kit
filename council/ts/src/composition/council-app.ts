@@ -25,26 +25,36 @@ import {
   workerOutputEvent,
   workerRestartedEvent,
   workerStartedEvent,
+  type RunStoreEvent,
   type WorkerLifecycleEvent,
 } from '../contexts/runstore/index.js'
-import { recommendLenses, type LensProblemProfile, type LensRecommendation } from '../contexts/triage/index.js'
+import {
+  recommendLenses,
+  type LensProblemProfile,
+  type LensRecommendation,
+  type TriageGatePayload,
+} from '../contexts/triage/index.js'
 import type { GhPort } from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
 import {
   assignAgents,
   configWorkflow,
+  evalWorkflow,
   fanoutWorkflow,
   fleetWorkflow,
   parseAgentsPool,
   planWorkflow,
   reviewPackWorkflow,
   roundTripTasksMarkdownWorkflow,
-  statusWorkflow,
+  statusWorkflow as runStatusWorkflow,
   stringifyAssignments,
+  triageWorkflow,
 } from '../workflows/index.js'
 import type {
   ConfigCommandInput,
   ConfigCommandResult,
+  EvalWorkflowInput,
+  EvalWorkflowResult,
   ExecutionPlan,
   FanoutInput,
   FleetInput,
@@ -52,6 +62,7 @@ import type {
   PlanResult,
   ReviewPackInput,
   RunSummary,
+  TriageWorkflowInput,
 } from '../workflows/index.js'
 
 export interface CouncilAppDeps {
@@ -60,6 +71,7 @@ export interface CouncilAppDeps {
   readonly gh?: GhPort
   readonly nowIso?: () => string
   readonly readText?: (path: string) => Promise<string>
+  readonly status?: (input: { readonly runDir: string }) => Promise<RunSummary>
   readonly writeText?: (path: string, text: string) => Promise<void>
 }
 
@@ -101,6 +113,7 @@ export interface SuperviseWorkerSupervisor {
 
 export interface SuperviseRunStore {
   appendWorkerEvent(runId: string, event: WorkerLifecycleEvent): Promise<void>
+  readEvents(runId: string): Promise<readonly RunStoreEvent[]>
   readWorkerSupervisorSnapshot(runId: string, taskId: string): Promise<SuperviseWorkerSupervisorSnapshot>
   writeWorkerResult(runId: string, taskId: string, result: WorkerResult): Promise<void>
   writeWorkerSupervisorSnapshot(
@@ -133,6 +146,7 @@ export class CouncilApp {
   private readonly gh: GhPort | undefined
   private readonly nowIso: () => string
   private readonly readText: (path: string) => Promise<string>
+  private readonly statusPort: (input: { readonly runDir: string }) => Promise<RunSummary>
   private readonly writeText: (path: string, text: string) => Promise<void>
 
   constructor(deps: CouncilAppDeps = {}) {
@@ -143,6 +157,12 @@ export class CouncilApp {
     this.gh = deps.gh
     this.nowIso = deps.nowIso ?? (() => new Date().toISOString())
     this.readText = deps.readText ?? ((path) => readFile(path, 'utf8'))
+    this.statusPort =
+      deps.status ??
+      ((input) =>
+        runStatusWorkflow(input, {
+          normalizeRunDir: normalizeLegacyRunDir,
+        }))
     this.writeText = deps.writeText ?? writeTextFile
   }
 
@@ -164,10 +184,17 @@ export class CouncilApp {
     })
   }
 
-  status(input: { readonly runDir: string }): Promise<RunSummary> {
-    return statusWorkflow(input, {
-      normalizeRunDir: normalizeLegacyRunDir,
+  eval(input: EvalWorkflowInput): Promise<EvalWorkflowResult> {
+    const target = runStoreTarget(input.runDir)
+    const store = this.createRunStore(target.root)
+    return evalWorkflow(input, {
+      readEvents: (runId) => readRunEvents(store, runId),
+      status: (statusInput) => this.status(statusInput),
     })
+  }
+
+  status(input: { readonly runDir: string }): Promise<RunSummary> {
+    return this.statusPort(input)
   }
 
   readReviewPack(input: ReviewPackInput): Promise<import('../shared-kernel/index.js').JsonRecord> {
@@ -185,6 +212,12 @@ export class CouncilApp {
 
   recommend(input: RecommendInput = {}): Promise<LensRecommendation> {
     return Promise.resolve(recommendLenses(input.profile))
+  }
+
+  triage(input: TriageWorkflowInput): Promise<TriageGatePayload> {
+    return triageWorkflow(input, {
+      writeText: this.writeText,
+    })
   }
 
   async supervise(input: SuperviseInput): Promise<WorkerResult> {
@@ -338,6 +371,15 @@ async function readExistingSnapshot(
     return await store.readWorkerSupervisorSnapshot(runId, taskId)
   } catch (error) {
     if (isErrno(error, 'ENOENT')) return undefined
+    throw error
+  }
+}
+
+async function readRunEvents(store: SuperviseRunStore, runId: string): Promise<readonly RunStoreEvent[]> {
+  try {
+    return await store.readEvents(runId)
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return []
     throw error
   }
 }

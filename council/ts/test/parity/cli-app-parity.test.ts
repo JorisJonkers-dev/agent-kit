@@ -30,6 +30,7 @@ describe('CLI composition', () => {
       'config',
       'context',
       'design',
+      'eval',
       'fanout',
       'fleet',
       'grill',
@@ -72,6 +73,47 @@ describe('CLI composition', () => {
       directTierPolicy: 'shrink-dag-only',
       executesWorkers: false,
       taskLimit: 1,
+    })
+  })
+
+  it('routes triage and eval through the composed app workflows', async () => {
+    const triageInput = {
+      clarity: 'clear',
+      kind: 'feature',
+      landscape: 'brownfield',
+      parallelism: 'high',
+      risk: 'medium',
+      size: 'medium',
+    } as const
+    const inputOnly = await runCli(['triage', '--input', JSON.stringify(triageInput)])
+
+    expect(inputOnly.exitCode).toBe(0)
+    expect(JSON.parse(inputOnly.stdout)).toMatchObject({
+      council_worthy: true,
+      input: triageInput,
+      route: 'program',
+      topology: 'parallel',
+    })
+
+    const runDir = await tempRoot('council-triage-run-')
+    const withRun = await runCli(['triage', '--input', JSON.stringify(triageInput), '--run', runDir])
+    const triageFile = JSON.parse(await readFile(join(runDir, 'triage.json'), 'utf8')) as unknown
+
+    expect(withRun.exitCode).toBe(0)
+    expect(JSON.parse(withRun.stdout)).toEqual(triageFile)
+
+    const evalRunDir = join(await writeLegacyPythonRuns(), 'legacy-ordinal-ids')
+    const evalResult = await runCli(['eval', '--run', evalRunDir])
+
+    expect(evalResult.exitCode).toBe(0)
+    expect(JSON.parse(evalResult.stdout)).toMatchObject({
+      run: 'legacy-ordinal-ids',
+      status: 'pass',
+      summary: {
+        retry_count: 0,
+        task_count: 2,
+        worker_result_count: 2,
+      },
     })
   })
 })
