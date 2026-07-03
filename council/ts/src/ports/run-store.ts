@@ -7,6 +7,7 @@ import type {
   Story,
   Task,
 } from '../shared-kernel/index.js'
+import type { RunStoreEvent, WorkerLifecycleEvent } from '../contexts/runstore/index.js'
 
 export interface RunStorePort {
   readState(runId: string): Promise<RunState>
@@ -20,6 +21,8 @@ export interface RunStorePort {
   appendReviewVerdict(runId: string, verdict: ReviewVerdict): Promise<void>
   appendRoutingVerdict(runId: string, verdict: RoutingVerdict): Promise<void>
   appendAmendment(runId: string, amendment: Amendment): Promise<void>
+  appendWorkerEvent(runId: string, event: WorkerLifecycleEvent): Promise<void>
+  readEvents(runId: string): Promise<readonly RunStoreEvent[]>
 }
 
 export interface WorkerResult {

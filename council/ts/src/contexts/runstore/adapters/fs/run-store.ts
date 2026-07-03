@@ -1,7 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { planStateWrite, planTasksWrite, type RunStoreEvent } from '../../../runstore/index.js'
+import {
+  planStateWrite,
+  planTasksWrite,
+  type RunStoreEvent,
+  type WorkerLifecycleEvent,
+} from '../../../runstore/index.js'
 import type {
   Amendment,
   DesignLedger,
@@ -116,6 +121,10 @@ export class FsRunStoreAdapter implements RunStorePort {
 
   async appendAmendment(runId: string, amendment: Amendment): Promise<void> {
     await this.eventLog.appendAmendment(runId, amendment)
+  }
+
+  async appendWorkerEvent(runId: string, event: WorkerLifecycleEvent): Promise<void> {
+    await this.eventLog.appendWorkerEvent(runId, event)
   }
 
   async readEvents(runId: string): Promise<readonly RunStoreEvent[]> {

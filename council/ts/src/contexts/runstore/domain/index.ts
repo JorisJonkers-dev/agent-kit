@@ -1,5 +1,6 @@
 import type {
   Amendment,
+  EngineDef,
   ReviewVerdict,
   RoutingVerdict,
   RunState,
@@ -17,6 +18,100 @@ export type AtomicJsonValue<TTarget extends AtomicJsonTarget> = TTarget extends 
   ? RunState
   : readonly Task[]
 
+export type WorkerOutputStream = 'stdout' | 'stderr'
+
+export interface WorkerStartedPayload {
+  readonly worker_id: string
+  readonly task_id?: string
+  readonly attempt?: number
+  readonly pid?: number
+  readonly command?: readonly string[]
+  readonly cwd?: string
+  readonly started_at?: string
+  readonly engine?: EngineDef
+  readonly model_tier?: string
+  readonly content_hash?: string
+}
+
+export interface WorkerOutputPayload {
+  readonly worker_id: string
+  readonly task_id?: string
+  readonly stream: WorkerOutputStream
+  readonly offset: number
+  readonly byte_count: number
+  readonly tail?: string
+  readonly tail_bytes?: number
+  readonly sha256?: string
+  readonly content_hash?: string
+}
+
+export interface WorkerDetectedPayload {
+  readonly worker_id: string
+  readonly task_id?: string
+  readonly pid?: number
+  readonly status?: string
+  readonly detected_at?: string
+  readonly content_hash?: string
+}
+
+export interface WorkerRestartedPayload {
+  readonly worker_id: string
+  readonly task_id?: string
+  readonly attempt: number
+  readonly previous_pid?: number
+  readonly pid?: number
+  readonly reason?: string
+  readonly restarted_at?: string
+  readonly content_hash?: string
+}
+
+export interface WorkerExitedPayload {
+  readonly worker_id: string
+  readonly task_id?: string
+  readonly pid?: number
+  readonly exit_code: number | null
+  readonly signal?: string | null
+  readonly duration_ms?: number
+  readonly exited_at?: string
+  readonly content_hash?: string
+}
+
+export interface WorkerFinishedPayload {
+  readonly worker_id: string
+  readonly task_id: string
+  readonly status: string
+  readonly result_path?: string
+  readonly duration_ms?: number
+  readonly finished_at?: string
+  readonly content_hash?: string
+}
+
+export type WorkerLifecycleEvent =
+  | {
+      readonly type: 'worker_started'
+      readonly payload: WorkerStartedPayload
+    }
+  | {
+      readonly type: 'worker_output'
+      readonly payload: WorkerOutputPayload
+    }
+  | {
+      readonly type: 'worker_detected'
+      readonly payload: WorkerDetectedPayload
+    }
+  | {
+      readonly type: 'worker_restarted'
+      readonly payload: WorkerRestartedPayload
+    }
+  | {
+      readonly type: 'worker_exited'
+      readonly payload: WorkerExitedPayload
+    }
+  | {
+      readonly type: 'worker_finished'
+      readonly payload: WorkerFinishedPayload
+    }
+
 export type RunStoreEvent =
   | {
       readonly type: 'review_verdict'
@@ -30,6 +125,7 @@ export type RunStoreEvent =
       readonly type: 'amendment'
       readonly payload: Amendment
     }
+  | WorkerLifecycleEvent
 
 export type AtomicJsonWriteStep =
   | {
@@ -119,6 +215,48 @@ export function routingVerdictEvent(payload: RoutingVerdict): RunStoreEvent {
 export function amendmentEvent(payload: Amendment): RunStoreEvent {
   return {
     type: 'amendment',
+    payload,
+  }
+}
+
+export function workerStartedEvent(payload: WorkerStartedPayload): WorkerLifecycleEvent {
+  return {
+    type: 'worker_started',
+    payload,
+  }
+}
+
+export function workerOutputEvent(payload: WorkerOutputPayload): WorkerLifecycleEvent {
+  return {
+    type: 'worker_output',
+    payload,
+  }
+}
+
+export function workerDetectedEvent(payload: WorkerDetectedPayload): WorkerLifecycleEvent {
+  return {
+    type: 'worker_detected',
+    payload,
+  }
+}
+
+export function workerRestartedEvent(payload: WorkerRestartedPayload): WorkerLifecycleEvent {
+  return {
+    type: 'worker_restarted',
+    payload,
+  }
+}
+
+export function workerExitedEvent(payload: WorkerExitedPayload): WorkerLifecycleEvent {
+  return {
+    type: 'worker_exited',
+    payload,
+  }
+}
+
+export function workerFinishedEvent(payload: WorkerFinishedPayload): WorkerLifecycleEvent {
+  return {
+    type: 'worker_finished',
     payload,
   }
 }

@@ -10,7 +10,18 @@ import type {
   Story,
   Task,
 } from '../../../../shared-kernel/index.js'
-import type { RunStoreEvent } from '../../../runstore/index.js'
+import type {
+  RunStoreEvent,
+  WorkerDetectedPayload,
+  WorkerExitedPayload,
+  WorkerFinishedPayload,
+  WorkerLifecycleEvent,
+  WorkerOutputPayload,
+  WorkerRestartedPayload,
+  WorkerStartedPayload,
+} from '../../../runstore/index.js'
+
+const WORKER_OUTPUT_TAIL_MAX_CHARS = 4096
 
 export const STORY_FILE = 'story.json'
 export const DESIGN_LEDGER_FILE = 'design-ledger.json'
@@ -277,7 +288,40 @@ export function assertRunStoreEvent(value: unknown): RunStoreEvent {
   if (record.type === 'amendment') {
     return { type: 'amendment', payload: assertAmendment(record.payload) }
   }
+  if (record.type === 'worker_started') {
+    return { type: 'worker_started', payload: assertWorkerStarted(record.payload) }
+  }
+  if (record.type === 'worker_output') {
+    return { type: 'worker_output', payload: assertWorkerOutput(record.payload) }
+  }
+  if (record.type === 'worker_detected') {
+    return { type: 'worker_detected', payload: assertWorkerDetected(record.payload) }
+  }
+  if (record.type === 'worker_restarted') {
+    return { type: 'worker_restarted', payload: assertWorkerRestarted(record.payload) }
+  }
+  if (record.type === 'worker_exited') {
+    return { type: 'worker_exited', payload: assertWorkerExited(record.payload) }
+  }
+  if (record.type === 'worker_finished') {
+    return { type: 'worker_finished', payload: assertWorkerFinished(record.payload) }
+  }
   fail(`unsupported run store event type: ${formatJsonValue(record.type)}`)
+}
+
+export function assertWorkerLifecycleEvent(value: unknown): WorkerLifecycleEvent {
+  const event = assertRunStoreEvent(value)
+  if (
+    event.type === 'worker_started' ||
+    event.type === 'worker_output' ||
+    event.type === 'worker_detected' ||
+    event.type === 'worker_restarted' ||
+    event.type === 'worker_exited' ||
+    event.type === 'worker_finished'
+  ) {
+    return event
+  }
+  fail('worker event type is required')
 }
 
 export function assertRecord(value: unknown, label: string): JsonRecord {
@@ -377,6 +421,146 @@ function assertLegacyTaskReport(value: unknown): void {
   optionalBoolean(record, 'legacy task report', 'good')
 }
 
+function assertWorkerStarted(value: unknown): WorkerStartedPayload {
+  const record = assertRecord(value, 'worker started')
+  assertAllowed(record, 'worker started', [
+    'worker_id',
+    'task_id',
+    'attempt',
+    'pid',
+    'command',
+    'cwd',
+    'started_at',
+    'engine',
+    'model_tier',
+    'content_hash',
+  ])
+  requiredString(record, 'worker started', 'worker_id')
+  optionalString(record, 'worker started', 'task_id')
+  optionalNonNegativeInteger(record, 'worker started', 'attempt')
+  optionalNonNegativeInteger(record, 'worker started', 'pid')
+  optionalStringArray(record, 'worker started', 'command')
+  optionalString(record, 'worker started', 'cwd')
+  optionalString(record, 'worker started', 'started_at')
+  optionalString(record, 'worker started', 'model_tier')
+  optionalString(record, 'worker started', 'content_hash')
+  return record as unknown as WorkerStartedPayload
+}
+
+function assertWorkerOutput(value: unknown): WorkerOutputPayload {
+  const record = assertRecord(value, 'worker output')
+  assertAllowed(record, 'worker output', [
+    'worker_id',
+    'task_id',
+    'stream',
+    'offset',
+    'byte_count',
+    'tail',
+    'tail_bytes',
+    'sha256',
+    'content_hash',
+  ])
+  requiredString(record, 'worker output', 'worker_id')
+  optionalString(record, 'worker output', 'task_id')
+  requiredEnum(record, 'worker output', 'stream', ['stdout', 'stderr'])
+  requiredNonNegativeInteger(record, 'worker output', 'offset')
+  requiredNonNegativeInteger(record, 'worker output', 'byte_count')
+  optionalString(record, 'worker output', 'tail')
+  if (typeof record.tail === 'string' && record.tail.length > WORKER_OUTPUT_TAIL_MAX_CHARS) {
+    fail(`worker output.tail must be at most ${String(WORKER_OUTPUT_TAIL_MAX_CHARS)} characters`)
+  }
+  optionalNonNegativeInteger(record, 'worker output', 'tail_bytes')
+  optionalString(record, 'worker output', 'sha256')
+  optionalString(record, 'worker output', 'content_hash')
+  return record as unknown as WorkerOutputPayload
+}
+
+function assertWorkerDetected(value: unknown): WorkerDetectedPayload {
+  const record = assertRecord(value, 'worker detected')
+  assertAllowed(record, 'worker detected', [
+    'worker_id',
+    'task_id',
+    'pid',
+    'status',
+    'detected_at',
+    'content_hash',
+  ])
+  requiredString(record, 'worker detected', 'worker_id')
+  optionalString(record, 'worker detected', 'task_id')
+  optionalNonNegativeInteger(record, 'worker detected', 'pid')
+  optionalString(record, 'worker detected', 'status')
+  optionalString(record, 'worker detected', 'detected_at')
+  optionalString(record, 'worker detected', 'content_hash')
+  return record as unknown as WorkerDetectedPayload
+}
+
+function assertWorkerRestarted(value: unknown): WorkerRestartedPayload {
+  const record = assertRecord(value, 'worker restarted')
+  assertAllowed(record, 'worker restarted', [
+    'worker_id',
+    'task_id',
+    'attempt',
+    'previous_pid',
+    'pid',
+    'reason',
+    'restarted_at',
+    'content_hash',
+  ])
+  requiredString(record, 'worker restarted', 'worker_id')
+  optionalString(record, 'worker restarted', 'task_id')
+  requiredNonNegativeInteger(record, 'worker restarted', 'attempt')
+  optionalNonNegativeInteger(record, 'worker restarted', 'previous_pid')
+  optionalNonNegativeInteger(record, 'worker restarted', 'pid')
+  optionalString(record, 'worker restarted', 'reason')
+  optionalString(record, 'worker restarted', 'restarted_at')
+  optionalString(record, 'worker restarted', 'content_hash')
+  return record as unknown as WorkerRestartedPayload
+}
+
+function assertWorkerExited(value: unknown): WorkerExitedPayload {
+  const record = assertRecord(value, 'worker exited')
+  assertAllowed(record, 'worker exited', [
+    'worker_id',
+    'task_id',
+    'pid',
+    'exit_code',
+    'signal',
+    'duration_ms',
+    'exited_at',
+    'content_hash',
+  ])
+  requiredString(record, 'worker exited', 'worker_id')
+  optionalString(record, 'worker exited', 'task_id')
+  optionalNonNegativeInteger(record, 'worker exited', 'pid')
+  requiredIntegerOrNull(record, 'worker exited', 'exit_code')
+  optionalStringOrNull(record, 'worker exited', 'signal')
+  optionalNonNegativeInteger(record, 'worker exited', 'duration_ms')
+  optionalString(record, 'worker exited', 'exited_at')
+  optionalString(record, 'worker exited', 'content_hash')
+  return record as unknown as WorkerExitedPayload
+}
+
+function assertWorkerFinished(value: unknown): WorkerFinishedPayload {
+  const record = assertRecord(value, 'worker finished')
+  assertAllowed(record, 'worker finished', [
+    'worker_id',
+    'task_id',
+    'status',
+    'result_path',
+    'duration_ms',
+    'finished_at',
+    'content_hash',
+  ])
+  requiredString(record, 'worker finished', 'worker_id')
+  requiredString(record, 'worker finished', 'task_id')
+  requiredString(record, 'worker finished', 'status')
+  optionalString(record, 'worker finished', 'result_path')
+  optionalNonNegativeInteger(record, 'worker finished', 'duration_ms')
+  optionalString(record, 'worker finished', 'finished_at')
+  optionalString(record, 'worker finished', 'content_hash')
+  return record as unknown as WorkerFinishedPayload
+}
+
 function assertAllowed(record: JsonRecord, label: string, allowed: readonly string[]): void {
   const allowedSet = new Set(allowed)
   Object.keys(record).forEach((key) => {
@@ -394,6 +578,12 @@ function optionalString(record: JsonRecord, label: string, field: string): void 
   if (record[field] !== undefined && typeof record[field] !== 'string') fail(`${label}.${field} must be a string`)
 }
 
+function optionalStringOrNull(record: JsonRecord, label: string, field: string): void {
+  if (record[field] !== undefined && record[field] !== null && typeof record[field] !== 'string') {
+    fail(`${label}.${field} must be a string or null`)
+  }
+}
+
 function requiredBoolean(record: JsonRecord, label: string, field: string): void {
   if (typeof record[field] !== 'boolean') fail(`${label}.${field} must be a boolean`)
 }
@@ -409,12 +599,35 @@ function optionalEnum(record: JsonRecord, label: string, field: string, values: 
   }
 }
 
+function requiredEnum(record: JsonRecord, label: string, field: string, values: readonly string[]): void {
+  const value = record[field]
+  if (typeof value !== 'string' || !values.includes(value)) fail(`${label}.${field} must be one of: ${values.join(', ')}`)
+}
+
 function optionalInteger(record: JsonRecord, label: string, field: string): void {
   if (record[field] !== undefined && !Number.isInteger(record[field])) fail(`${label}.${field} must be an integer`)
 }
 
+function requiredNonNegativeInteger(record: JsonRecord, label: string, field: string): void {
+  if (!Number.isInteger(record[field]) || Number(record[field]) < 0) {
+    fail(`${label}.${field} must be a non-negative integer`)
+  }
+}
+
+function optionalNonNegativeInteger(record: JsonRecord, label: string, field: string): void {
+  if (record[field] !== undefined && (!Number.isInteger(record[field]) || Number(record[field]) < 0)) {
+    fail(`${label}.${field} must be a non-negative integer`)
+  }
+}
+
 function optionalIntegerOrNull(record: JsonRecord, label: string, field: string): void {
   if (record[field] !== undefined && record[field] !== null && !Number.isInteger(record[field])) {
+    fail(`${label}.${field} must be an integer or null`)
+  }
+}
+
+function requiredIntegerOrNull(record: JsonRecord, label: string, field: string): void {
+  if (record[field] !== null && !Number.isInteger(record[field])) {
     fail(`${label}.${field} must be an integer or null`)
   }
 }

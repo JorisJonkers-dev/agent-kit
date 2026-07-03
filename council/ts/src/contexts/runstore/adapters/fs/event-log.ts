@@ -9,6 +9,7 @@ import {
   routingVerdictEvent,
   RUNSTORE_EVENTS_FILE,
   type RunStoreEvent,
+  type WorkerLifecycleEvent,
 } from '../../../runstore/index.js'
 import type { ClockPort } from '../../../../ports/index.js'
 import type { Amendment, ReviewVerdict, RoutingVerdict } from '../../../../shared-kernel/index.js'
@@ -18,6 +19,7 @@ import {
   assertPathSegment,
   assertReviewVerdict,
   assertRoutingVerdict,
+  assertWorkerLifecycleEvent,
   assertRunStoreEvent,
   isErrno,
   parseJson,
@@ -49,6 +51,10 @@ export class EventLog {
   async appendAmendment(runId: string, amendment: Amendment): Promise<void> {
     assertAmendment(amendment)
     await this.append(runId, amendmentEvent(amendment))
+  }
+
+  async appendWorkerEvent(runId: string, event: WorkerLifecycleEvent): Promise<void> {
+    await this.append(runId, assertWorkerLifecycleEvent(event))
   }
 
   async read(runId: string, eventPath: string): Promise<readonly RunStoreEvent[]> {
