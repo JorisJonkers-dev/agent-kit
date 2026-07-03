@@ -1,0 +1,29 @@
+{
+  "agents": {
+    "t1": "claude:haiku",
+    "t2": "codex:gpt-5.5",
+    "t3": "claude:haiku"
+  },
+  "config": {
+    "defaultIntensity": "standard",
+    "quickRoundOverride": 5,
+    "thoroughWorker": "claude:sonnet"
+  },
+  "splitDestUrl": "git@github.com:o/n.git",
+  "verify": {
+    "localized": "cd /tmp/wt/T1/services/foo && npm test",
+    "relative": "npm test"
+  },
+  "waves": [
+    [
+      "T1"
+    ],
+    [
+      "T2",
+      "T3"
+    ],
+    [
+      "T4"
+    ]
+  ]
+}

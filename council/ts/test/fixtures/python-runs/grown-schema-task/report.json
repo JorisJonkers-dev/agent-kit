@@ -1,0 +1,33 @@
+{
+  "run": "grown-schema-task",
+  "integration_branch": "council/grown-schema-task/integration",
+  "integration_worktree": "council/ts/test/fixtures/python-runs/.worktrees/grown-schema-task/_integration",
+  "waves": [
+    [
+      "ck-b200"
+    ]
+  ],
+  "tasks": [
+    {
+      "task_id": "ck-b200",
+      "status": "ok",
+      "merge": "ok",
+      "model": "claude:haiku",
+      "files_changed": [
+        "schema/grown.json"
+      ],
+      "verify_rc": 0,
+      "verifier_satisfied": true,
+      "out_of_bounds": [],
+      "branch": "council/grown-schema-task/ck-b200",
+      "good": true
+    }
+  ],
+  "no_verify": [],
+  "summary": {
+    "total": 1,
+    "ok": 1,
+    "failed": 0,
+    "merged": 1
+  }
+}

@@ -1,0 +1,20 @@
+export type {
+  AddTaskDelta,
+  AmendmentDelta,
+  AmendmentDeltaAction,
+  AmendmentDeltaOperation,
+  AmendmentGuardrail,
+  AmendmentGuardrailCode,
+  AmendmentTaskRecord,
+  AmendmentTaskSnapshot,
+  AmendmentTaskStatus,
+  AmendmentValidationContext,
+  AmendmentValidationIssue,
+  AmendmentValidationIssueCode,
+  AmendmentValidationResult,
+  CancelTaskDelta,
+  FollowUpTaskDelta,
+  GuideTaskDelta,
+  ModifyTaskDelta,
+} from './validator.js'
+export { validateAmendmentDelta } from './validator.js'

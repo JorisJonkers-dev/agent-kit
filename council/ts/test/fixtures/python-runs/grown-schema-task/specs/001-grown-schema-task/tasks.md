@@ -1,0 +1,39 @@
+# Tasks: 001-grown-schema-task
+
+<!-- council-tasks-format: v1 -->
+
+## ck-b200: Retain grown schema fields
+<!-- council-task-id: ck-b200 -->
+```json
+{
+  "acceptance_criteria": [
+    "Optional metadata round-trips through tasks.md."
+  ],
+  "archetype": "schema-maintenance",
+  "boundaries": "Only touch schema/grown.json.",
+  "content_hash": "sha256:fixture-grown-schema-task",
+  "context_profile": "contracts",
+  "context_refs": [
+    "kb://council/tasks/grown-schema"
+  ],
+  "depends_on": [],
+  "difficulty": "hard",
+  "discovered_from": "golden-fixture",
+  "engine": {
+    "cli": "codex",
+    "model": "gpt-5.5"
+  },
+  "id": "ck-b200",
+  "model": "opus",
+  "model_tier": "expensive",
+  "objective": "Exercise newer optional task metadata fields.",
+  "output_format": "A deterministic result with metadata preserved.",
+  "paths": [
+    "schema/grown.json"
+  ],
+  "spec_ref": "specs/001-grown-schema-task",
+  "supersedes": [],
+  "title": "Retain grown schema fields",
+  "verify": "node -e 'JSON.parse(require(\"fs\").readFileSync(\"schema/grown.json\", \"utf8\"))'"
+}
+```

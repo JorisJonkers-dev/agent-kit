@@ -1,0 +1,22 @@
+{
+  "task_id": "T2",
+  "title": "Preserve dependent ordinal task",
+  "model": "claude:haiku",
+  "suggested_model": "sonnet",
+  "branch": "council/legacy-ordinal-ids/T2",
+  "worktree": "council/ts/test/fixtures/python-runs/.worktrees/legacy-ordinal-ids/T2",
+  "committed": true,
+  "summary": "{\"approach\": \"Use deterministic canned model output.\", \"engine\": {\"label\": \"claude:haiku\"}, \"model_tier\": \"fixture\", \"open_questions\": [], \"parallelizable_tasks\": [\"T1\", \"T2\"], \"risks\": [], \"steps\": [\"plan\", \"fanout\"], \"summary\": \"legacy-ordinal-ids plan from claude:haiku\"}",
+  "files_changed": [
+    "legacy/t2.txt"
+  ],
+  "out_of_bounds": [],
+  "verify_rc": 0,
+  "verify_output": "fixture verify ok",
+  "verdict": {
+    "satisfied": true,
+    "reasons": "fixture",
+    "issues": []
+  },
+  "status": "ok"
+}

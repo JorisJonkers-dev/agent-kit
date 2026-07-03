@@ -1,0 +1,469 @@
+import { describe, expect, it } from 'vitest'
+
+import { commandRegistry, runCli, type CliCommand, type CliResult, type CommandSpec } from './index.js'
+import type {
+  ConfigCommandInput,
+  ConfigPaths,
+  CouncilApp,
+  FanoutInput,
+  FleetInput,
+  PlanInput,
+} from '../app/index.js'
+
+interface ReviewPackInput {
+  readonly gate: '1' | 'design' | '2'
+  readonly runDir: string
+}
+
+interface StatusInput {
+  readonly runDir: string
+}
+
+type AppCall =
+  | { readonly input: ConfigCommandInput; readonly method: 'config' }
+  | { readonly input: FanoutInput; readonly method: 'fanout' }
+  | { readonly input: FleetInput; readonly method: 'fleet' }
+  | { readonly input: PlanInput | undefined; readonly method: 'plan' }
+  | { readonly input: ReviewPackInput; readonly method: 'readReviewPack' }
+  | { readonly input: StatusInput; readonly method: 'status' }
+
+interface RecordingAppOptions {
+  readonly configError?: Error
+  readonly planResult?: unknown
+  readonly statusError?: unknown
+}
+
+const injectedPaths: ConfigPaths = {
+  project: '/project/.council.toml',
+  user: '/home/test/.config/council/council.toml',
+}
+
+class RecordingApp {
+  readonly calls: AppCall[] = []
+  private readonly options: RecordingAppOptions
+
+  constructor(options: RecordingAppOptions = {}) {
+    this.options = options
+  }
+
+  plan(input?: PlanInput): Promise<unknown> {
+    this.calls.push({ input, method: 'plan' })
+    return Promise.resolve(
+      this.options.planResult ?? {
+        command: 'plan',
+        input,
+        triage: { input, routed: true },
+      },
+    )
+  }
+
+  fanout(input: FanoutInput): Promise<unknown> {
+    this.calls.push({ input, method: 'fanout' })
+    return Promise.resolve({ input, method: 'fanout' })
+  }
+
+  fleet(input: FleetInput): Promise<unknown> {
+    this.calls.push({ input, method: 'fleet' })
+    return Promise.resolve({ input, method: 'fleet' })
+  }
+
+  config(input: ConfigCommandInput): Promise<unknown> {
+    this.calls.push({ input, method: 'config' })
+    if (this.options.configError !== undefined) return Promise.reject(this.options.configError)
+    return Promise.resolve({ input, method: 'config' })
+  }
+
+  status(input: StatusInput): Promise<unknown> {
+    this.calls.push({ input, method: 'status' })
+    if (this.options.statusError !== undefined) return rejectingThenable(this.options.statusError)
+    return Promise.resolve({ input, method: 'status' })
+  }
+
+  readReviewPack(input: ReviewPackInput): Promise<unknown> {
+    this.calls.push({ input, method: 'readReviewPack' })
+    return Promise.resolve({ input, method: 'readReviewPack' })
+  }
+}
+
+function asCouncilApp(app: RecordingApp): CouncilApp {
+  return app as unknown as CouncilApp
+}
+
+function injectedRuntime(app = new RecordingApp()): { readonly app: CouncilApp; readonly configPaths: ConfigPaths } {
+  return { app: asCouncilApp(app), configPaths: injectedPaths }
+}
+
+function rejectingThenable(reason: unknown): Promise<unknown> {
+  const thenable = {
+    then(_onfulfilled: (value: unknown) => void, onrejected: (reason: unknown) => void): void {
+      onrejected(reason)
+    },
+  }
+  return thenable as unknown as Promise<unknown>
+}
+
+function parsed(result: CliResult): unknown {
+  return JSON.parse(result.stdout) as unknown
+}
+
+describe('runCli help and command dispatch', () => {
+  it('renders help for no command and help flags', async () => {
+    for (const argv of [[], ['--help'], ['-h']] as const) {
+      const result = await runCli(argv, injectedRuntime())
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stderr: '',
+        stdout: `${commandRegistry().map((command) => `${command.name}\t${command.help}`).join('\n')}\n`,
+      })
+    }
+  })
+
+  it('can render help with the default app constructor', async () => {
+    await expect(runCli(['--help'])).resolves.toMatchObject({
+      exitCode: 0,
+      stderr: '',
+    })
+  })
+
+  it('runs the self-test command aliases', async () => {
+    for (const argv of [['--self-test'], ['self-test']] as const) {
+      const result = await runCli(argv, injectedRuntime())
+
+      expect(result.exitCode).toBe(0)
+      expect((parsed(result) as { readonly splitDestUrl: string }).splitDestUrl).toBe('git@github.com:o/n.git')
+    }
+  })
+
+  it('fails unknown commands before app dispatch', async () => {
+    const app = new RecordingApp()
+
+    await expect(runCli(['unknown'], injectedRuntime(app))).resolves.toEqual({
+      exitCode: 2,
+      stderr: 'unknown command: unknown\n',
+      stdout: '',
+    })
+    expect(app.calls).toEqual([])
+  })
+
+  it('keeps the post-switch fallback covered for registry entries without an implementation', async () => {
+    const registry = commandRegistry() as CommandSpec[]
+    const extra = { help: 'future test command', name: 'future-command' as CliCommand }
+    registry.push(extra)
+
+    try {
+      await expect(runCli(['future-command'], injectedRuntime())).resolves.toEqual({
+        exitCode: 2,
+        stderr: 'unknown command: future-command\n',
+        stdout: '',
+      })
+    } finally {
+      registry.pop()
+    }
+  })
+
+  it('passes parsed plan flags to the app', async () => {
+    const app = new RecordingApp()
+    const triage = {
+      clarity: 'clear',
+      kind: 'bugfix',
+      landscape: 'brownfield',
+      parallelism: 'none',
+      risk: 'low',
+      size: 'small',
+    } as const
+
+    const result = await runCli(
+      [
+        'plan',
+        '--brief',
+        'fix it',
+        '--run',
+        '/runs/1',
+        '--design',
+        '--triage',
+        JSON.stringify(triage),
+        '--intensity',
+        'quick',
+        '--rounds',
+        '3',
+        '--planner-a',
+        'claude:sonnet',
+        '--planner-b',
+        'codex:gpt-5',
+        '--consolidator',
+        'judge',
+        '--codex-effort',
+        'high',
+      ],
+      injectedRuntime(app),
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([
+      {
+        input: {
+          brief: 'fix it',
+          config: {
+            codex_effort: 'high',
+            consolidator: 'judge',
+            intensity: 'quick',
+            planner_a: 'claude:sonnet',
+            planner_b: 'codex:gpt-5',
+            rounds: 3,
+          },
+          design: true,
+          runDir: '/runs/1',
+          triage,
+        },
+        method: 'plan',
+      },
+    ])
+    expect((parsed(result) as { readonly method?: string }).method).toBeUndefined()
+  })
+
+  it('passes plan defaults when optional flags are omitted', async () => {
+    const app = new RecordingApp()
+
+    await expect(runCli(['plan'], injectedRuntime(app))).resolves.toMatchObject({
+      exitCode: 0,
+      stderr: '',
+    })
+    expect(app.calls).toEqual([
+      {
+        input: {
+          config: {},
+          design: false,
+        },
+        method: 'plan',
+      },
+    ])
+  })
+
+  it('passes parsed fanout, fleet, status, review-pack, and triage inputs to the app', async () => {
+    const triage = {
+      clarity: 'needs-questions',
+      kind: 'feature',
+      landscape: 'greenfield',
+      parallelism: 'some',
+      risk: 'medium',
+      size: 'medium',
+    } as const
+
+    const fanout = new RecordingApp()
+    await expect(
+      runCli(['fanout', '--run', '/runs/2', '--dry-run', '--github'], injectedRuntime(fanout)),
+    ).resolves.toMatchObject({ exitCode: 0, stderr: '' })
+    expect(fanout.calls).toEqual([
+      { input: { dryRun: true, github: true, runDir: '/runs/2' }, method: 'fanout' },
+    ])
+
+    const fleet = new RecordingApp()
+    await expect(
+      runCli(['fleet', '--tasks', '/runs/2/tasks.json', '--agents', 'claude:haiku', '--github'], injectedRuntime(fleet)),
+    ).resolves.toMatchObject({ exitCode: 0, stderr: '' })
+    expect(fleet.calls).toEqual([
+      {
+        input: { agents: 'claude:haiku', dryRun: false, github: true, tasksPath: '/runs/2/tasks.json' },
+        method: 'fleet',
+      },
+    ])
+
+    const status = new RecordingApp()
+    await expect(runCli(['status', '--run', '/runs/3'], injectedRuntime(status))).resolves.toMatchObject({
+      exitCode: 0,
+      stderr: '',
+    })
+    expect(status.calls).toEqual([{ input: { runDir: '/runs/3' }, method: 'status' }])
+
+    for (const gate of ['1', 'design', '2'] as const) {
+      const reviewPack = new RecordingApp()
+      await expect(
+        runCli(['review-pack', '--gate', gate, '--run', `/runs/${gate}`], injectedRuntime(reviewPack)),
+      ).resolves.toMatchObject({ exitCode: 0, stderr: '' })
+      expect(reviewPack.calls).toEqual([
+        { input: { gate, runDir: `/runs/${gate}` }, method: 'readReviewPack' },
+      ])
+    }
+
+    const app = new RecordingApp()
+    const result = await runCli(['triage', '--input', JSON.stringify(triage)], injectedRuntime(app))
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([{ input: { triage }, method: 'plan' }])
+    expect(parsed(result)).toEqual({
+      input: { triage },
+      routed: true,
+    })
+  })
+
+  it('returns an empty object when triage planning has no triage result', async () => {
+    const app = new RecordingApp({ planResult: { command: 'plan' } })
+    const triage = {
+      clarity: 'clear',
+      kind: 'bugfix',
+      landscape: 'brownfield',
+      parallelism: 'none',
+      risk: 'low',
+      size: 'trivial',
+    } as const
+
+    await expect(runCli(['triage', '--input', JSON.stringify(triage)], injectedRuntime(app))).resolves.toEqual({
+      exitCode: 0,
+      stderr: '',
+      stdout: '{}\n',
+    })
+  })
+
+  it('returns compiled placeholders for commands without TypeScript implementations yet', async () => {
+    for (const command of [
+      'amend',
+      'context',
+      'design',
+      'grill',
+      'inject',
+      'split',
+      'supervise',
+      'survey',
+      'sync-bmad',
+      'sync-skills',
+      'tail',
+    ] as const) {
+      await expect(runCli([command], injectedRuntime())).resolves.toEqual({
+        exitCode: 0,
+        stderr: '',
+        stdout: `${JSON.stringify({ command, compiled: true }, null, 2)}\n`,
+      })
+    }
+  })
+})
+
+describe('runCli config actions', () => {
+  it('passes show, get, set, unset, and path actions with injected config paths', async () => {
+    const cases = [
+      {
+        argv: ['config', 'show'],
+        input: { action: 'show', paths: injectedPaths, project: false },
+      },
+      {
+        argv: ['config', 'get', 'rounds'],
+        input: { action: 'get', key: 'rounds', paths: injectedPaths, project: false },
+      },
+      {
+        argv: ['config', 'set', 'rounds', '4', '--project'],
+        input: { action: 'set', key: 'rounds', paths: injectedPaths, project: true, value: '4' },
+      },
+      {
+        argv: ['config', 'unset', 'worker'],
+        input: { action: 'unset', key: 'worker', paths: injectedPaths, project: false },
+      },
+      {
+        argv: ['config', 'path', '--project'],
+        input: { action: 'path', paths: injectedPaths, project: true },
+      },
+    ] as const
+
+    for (const testCase of cases) {
+      const app = new RecordingApp()
+      const result = await runCli(testCase.argv, injectedRuntime(app))
+
+      expect(result.exitCode).toBe(0)
+      expect(app.calls).toEqual([{ input: testCase.input, method: 'config' }])
+    }
+  })
+
+  it('uses default config paths when runtime paths are omitted', async () => {
+    const originalHome = process.env.HOME
+    const app = new RecordingApp()
+    delete process.env.HOME
+
+    try {
+      const result = await runCli(['config', 'path'], { app: asCouncilApp(app) })
+
+      expect(result.exitCode).toBe(0)
+      expect(app.calls).toEqual([
+        {
+          input: {
+            action: 'path',
+            paths: {
+              project: '.council.toml',
+              user: './.config/council/council.toml',
+            },
+            project: false,
+          },
+          method: 'config',
+        },
+      ])
+    } finally {
+      if (originalHome === undefined) {
+        delete process.env.HOME
+      } else {
+        process.env.HOME = originalHome
+      }
+    }
+  })
+
+  it('reports config parse and app errors', async () => {
+    await expect(runCli(['config'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: 'config requires action show|get|set|unset|path\n',
+      stdout: '',
+    })
+    await expect(runCli(['config', 'edit'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: 'config requires action show|get|set|unset|path\n',
+      stdout: '',
+    })
+
+    const app = new RecordingApp({ configError: new Error('config action requires a key') })
+    await expect(runCli(['config', 'get'], injectedRuntime(app))).resolves.toEqual({
+      exitCode: 2,
+      stderr: 'config action requires a key\n',
+      stdout: '',
+    })
+  })
+})
+
+describe('runCli error handling', () => {
+  it('reports missing required flags and invalid review gates', async () => {
+    await expect(runCli(['plan', '--brief'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--brief is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['fanout'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--run is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['fleet', '--tasks', '/tmp/tasks.json'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--agents is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['status', '--run', '--other'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--run is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['review-pack', '--gate', '3', '--run', '/runs/4'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--gate must be 1, design, or 2\n',
+      stdout: '',
+    })
+    await expect(runCli(['triage'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--input is required\n',
+      stdout: '',
+    })
+  })
+
+  it('stringifies non-Error throws from app dispatch', async () => {
+    const app = new RecordingApp({ statusError: 'plain failure' })
+
+    await expect(runCli(['status', '--run', '/runs/5'], injectedRuntime(app))).resolves.toEqual({
+      exitCode: 2,
+      stderr: 'plain failure\n',
+      stdout: '',
+    })
+  })
+})

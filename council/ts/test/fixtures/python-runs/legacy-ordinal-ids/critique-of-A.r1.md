@@ -1,0 +1,1 @@
+{"approach": "Use deterministic canned model output.", "engine": {"label": "codex:gpt-5.5"}, "model_tier": "fixture", "open_questions": [], "parallelizable_tasks": ["T1", "T2"], "risks": [], "steps": ["plan", "fanout"], "summary": "legacy-ordinal-ids plan from codex:gpt-5.5"}

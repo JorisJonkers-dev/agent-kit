@@ -1,0 +1,1 @@
+Update a [watchdog] table-bearing config without losing the table.
