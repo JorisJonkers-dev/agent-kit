@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v1.2.0...v2.0.0) (2026-07-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **council:** the installed council entrypoint is now 'node ~/.claude/skills/council/council.mjs'; the python3 council.py invocation no longer exists.
+
+### Features
+
+* **council:** TypeScript orchestrator with triage, watchdog, review councils, and cross-CLI surfaces ([#6](https://github.com/JorisJonkers-dev/agent-kit/issues/6)) ([43fde60](https://github.com/JorisJonkers-dev/agent-kit/commit/43fde60dc75127c333729efb7883ae8e3981cd09))
+
 ## [1.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v1.1.0...v1.2.0) (2026-06-29)
 
 
