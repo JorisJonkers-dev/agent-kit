@@ -104,8 +104,14 @@ describe('WorkerSupervisorAdapter', () => {
     const session = adapter.start({
       args: ['run'],
       command: 'agent',
-      env: { COUNCIL_MODEL_TIER: 'explicit-env-tier', EXTRA: '1', KB_AUTO_MCP_DISABLED: '0' },
+      env: {
+        AGENT_MCP_PROFILE: 'env-profile',
+        COUNCIL_MODEL_TIER: 'explicit-env-tier',
+        EXTRA: '1',
+        KB_AUTO_MCP_DISABLED: '0',
+      },
       id: 'T1',
+      mcpProfile: 'code-intel',
       modelTier: 'cheap',
       stdin: 'initial prompt',
       worktree,
@@ -133,6 +139,7 @@ describe('WorkerSupervisorAdapter', () => {
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     expect(records[0]?.options.env).toMatchObject({
+      AGENT_MCP_PROFILE: 'code-intel',
       COUNCIL_MODEL_TIER: 'cheap',
       EXTRA: '1',
       KB_AUTO_MCP_DISABLED: '1',
@@ -529,7 +536,7 @@ describe('WorkerSupervisorAdapter', () => {
     })
     const session = adapter.start({
       command: 'agent',
-      env: { COUNCIL_MODEL_TIER: 'env-tier' },
+      env: { AGENT_MCP_PROFILE: 'env-profile', COUNCIL_MODEL_TIER: 'env-tier' },
       id: 'T1-env-tier',
       worktree: '/tmp/worktree',
     })
@@ -538,6 +545,7 @@ describe('WorkerSupervisorAdapter', () => {
 
     await expect(session.result).resolves.toMatchObject({ status: 'completed' })
     expect(records[0]?.options.env).toMatchObject({
+      AGENT_MCP_PROFILE: 'env-profile',
       COUNCIL_MODEL_TIER: 'env-tier',
       KB_AUTO_MCP_DISABLED: '1',
     })

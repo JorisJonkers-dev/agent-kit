@@ -75,6 +75,7 @@ export class WorkerSupervisorAdapter {
       ...process.env,
       ...request.env,
       KB_AUTO_MCP_DISABLED: '1',
+      ...optional('AGENT_MCP_PROFILE', request.mcpProfile),
       ...(input.modelTier === undefined ? {} : { COUNCIL_MODEL_TIER: input.modelTier }),
     }
     const child = this.spawnChild(request.command, request.args ?? [], {

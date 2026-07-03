@@ -1,5 +1,6 @@
 import { resolveContextProfile } from '../../context/index.js'
 import { recommendLenses } from '../../triage/index.js'
+import type { TaskResolvedAttachment } from '../../../shared-kernel/index.js'
 import type { ResolvedContextProfile } from '../../context/index.js'
 import type { LensProblemProfile } from '../../triage/index.js'
 
@@ -46,11 +47,9 @@ export interface RejectedAttachmentSkillCard {
   readonly score: number
 }
 
-export interface ResolvedAttachments {
-  readonly activeSkills: readonly string[]
+export interface ResolvedAttachments extends TaskResolvedAttachment {
   readonly contextProfile: ResolvedContextProfile
   readonly lensIds: readonly string[]
-  readonly mcpProfile: string
   readonly rejectedSkillCards: readonly RejectedAttachmentSkillCard[]
   readonly selectedProfiles: readonly string[]
   readonly selectedSkillCards: readonly SelectedAttachmentSkillCard[]

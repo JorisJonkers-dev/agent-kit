@@ -11,6 +11,11 @@ export type TaskRetryPolicy = JsonRecord
 
 export type TaskResourceProfile = JsonRecord
 
+export interface TaskResolvedAttachment {
+  readonly activeSkills: readonly string[]
+  readonly mcpProfile: string
+}
+
 export interface Task extends ContentAddressed, ContextLinked, EngineTagged {
   readonly id: TaskId
   readonly title: string
@@ -28,6 +33,7 @@ export interface Task extends ContentAddressed, ContextLinked, EngineTagged {
   readonly failure_modes?: readonly string[]
   readonly retry_policy?: TaskRetryPolicy
   readonly resource_profile?: TaskResourceProfile
+  readonly attachment?: TaskResolvedAttachment
   readonly human_review_required?: boolean
   readonly dev_notes?: string
   readonly spec_ref?: string
