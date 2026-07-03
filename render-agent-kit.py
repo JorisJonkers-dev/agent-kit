@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import filecmp
+import importlib.util
 import json
 import os
 import re
@@ -384,6 +385,31 @@ def manifest_version() -> str:
     return match.group(1) if match else "unknown"
 
 
+def manifest_check() -> DoctorCheck:
+    if not MANIFEST_PATH.exists():
+        return DoctorCheck(name="manifest", status="fail", detail="manifest.yaml is missing")
+
+    validator_path = KIT_ROOT / "scripts" / "validate_manifest.py"
+    spec = importlib.util.spec_from_file_location("validate_manifest", validator_path)
+    if spec is None or spec.loader is None:
+        return DoctorCheck(name="manifest", status="fail", detail="cannot load scripts/validate_manifest.py")
+
+    validator = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(validator)
+        validator.validate_council_command_surface()
+    except AssertionError as exc:
+        return DoctorCheck(name="council-command-surface", status="fail", detail=str(exc))
+    except (OSError, SystemExit) as exc:
+        return DoctorCheck(name="manifest", status="fail", detail=str(exc))
+
+    return DoctorCheck(
+        name="manifest",
+        status="ok",
+        detail=f"kit manifest version {manifest_version()}; council command surface validated",
+    )
+
+
 def skill_names(directory: Path) -> set[str]:
     if not directory.is_dir():
         return set()
@@ -580,7 +606,7 @@ def doctor(args: argparse.Namespace) -> int:
             details.append("drifted " + ",".join(str(item.relative_path) for item in findings.drifted))
         checks.append(DoctorCheck(name="render", status="fail", detail="; ".join(details)))
 
-    checks.append(DoctorCheck(name="manifest", status="ok", detail=f"kit manifest version {manifest_version()}"))
+    checks.append(manifest_check())
     checks.append(parity_check())
     checks.append(installer_artifact_check())
     checks.append(kb_reachability_check(require_live_kb=args.require_live_kb, timeout_seconds=args.kb_timeout_seconds))

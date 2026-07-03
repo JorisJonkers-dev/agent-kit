@@ -26,6 +26,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in CI setup f
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SELFTEST_ENV = "AGENT_RUNTIME_SELFTEST"
 MANIFEST_PATH = ROOT / "manifest.yaml"
+COUNCIL_CLI_INDEX_PATH = ROOT / "council" / "ts" / "src" / "cli" / "index.ts"
 ROUND3_SKELETON_DIR = ROOT / "runner-manifests"
 ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR,)
 
@@ -85,6 +86,7 @@ ROUTING_CARD_KEYS = {
     "risk",
     "expectedOutputs",
 }
+REQUIRED_COUNCIL_CLI_COMMANDS = ("eval", "triage")
 
 
 def load_renderer() -> Any:
@@ -311,6 +313,48 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
             if supported != ["claude", "codex"] and not unsupported:
                 label = item.get("name", item.get("path", section))
                 fail(f"{section} entry {label} needs parity or unsupported reason")
+
+
+def _has_council_command_spec(source: str, command: str) -> bool:
+    command_literal = re.escape(command)
+    pattern = re.compile(
+        r"\{[^{}]*\bname:\s*(['\"])" + command_literal + r"\1[^{}]*\}",
+        re.MULTILINE | re.DOTALL,
+    )
+    return pattern.search(source) is not None
+
+
+def _has_council_command_dispatch(source: str, command: str) -> bool:
+    command_literal = re.escape(command)
+    pattern = re.compile(
+        r"case\s+(['\"])"
+        + command_literal
+        + r"\1\s*:\s*return\s+okJson\s*\(\s*await\s+app\."
+        + command_literal
+        + r"\s*\(",
+        re.MULTILINE | re.DOTALL,
+    )
+    return pattern.search(source) is not None
+
+
+def validate_council_command_surface_source(source: str) -> None:
+    missing_specs = [
+        command for command in REQUIRED_COUNCIL_CLI_COMMANDS if not _has_council_command_spec(source, command)
+    ]
+    if missing_specs:
+        fail("council command surface missing command registry specs: " + ", ".join(missing_specs))
+
+    missing_dispatches = [
+        command for command in REQUIRED_COUNCIL_CLI_COMMANDS if not _has_council_command_dispatch(source, command)
+    ]
+    if missing_dispatches:
+        fail("council command surface missing command dispatch branches: " + ", ".join(missing_dispatches))
+
+
+def validate_council_command_surface() -> None:
+    if not COUNCIL_CLI_INDEX_PATH.is_file():
+        fail(f"council command surface source is missing: {COUNCIL_CLI_INDEX_PATH.relative_to(ROOT)}")
+    validate_council_command_surface_source(COUNCIL_CLI_INDEX_PATH.read_text())
 
 
 def validate_council(manifest: dict[str, Any]) -> None:
@@ -787,6 +831,7 @@ def main(argv: list[str] | None = None) -> int:
         managed_paths = validate_renderer(manifest)
         validate_checksums(manifest, managed_paths)
         validate_surface_parity(manifest)
+        validate_council_command_surface()
         validate_council(manifest)
         validate_installer(manifest)
         validate_runtime_package_manifest(manifest)
