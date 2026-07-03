@@ -1,16 +1,17 @@
 import {
   CouncilApp,
   PreFanoutGateError,
+  type CouncilAppFanoutInput,
+  type CouncilAppFleetInput,
   type ConfigPaths,
   type EvalWorkflowInput,
-  type FleetInput,
   type PlanInput,
-  type FanoutInput,
   type RecommendInput,
   type SuperviseInput,
   type TriageWorkflowInput,
 } from '../app/index.js'
 import type { CouncilConfig } from '../contexts/config/index.js'
+import type { DagConcurrency, DagEvalConfig } from '../ports/index.js'
 
 export type CliCommand =
   | 'amend'
@@ -177,13 +178,16 @@ function parsePlan(argv: readonly string[]): PlanInput {
   }
 }
 
-function parseFanout(argv: readonly string[]): FanoutInput {
+function parseFanout(argv: readonly string[]): CouncilAppFanoutInput {
   const flags = parseFlags(argv)
-  return {
+  const runDir = requireFlag(flags, 'run')
+  const input = {
     dryRun: flags.has('dry-run'),
     github: flags.has('github'),
-    runDir: requireFlag(flags, 'run'),
+    runDir,
   }
+  if (!flags.has('execute')) return input
+  return { ...input, ...parseExecuteFlags(flags, runNameFromPath(runDir)) }
 }
 
 function parseEval(argv: readonly string[]): EvalWorkflowInput {
@@ -194,14 +198,57 @@ function parseRecommend(argv: readonly string[]): RecommendInput {
   return { profile: JSON.parse(requireFlag(parseFlags(argv), 'input')) as NonNullable<RecommendInput['profile']> }
 }
 
-function parseFleet(argv: readonly string[]): FleetInput {
+function parseFleet(argv: readonly string[]): CouncilAppFleetInput {
   const flags = parseFlags(argv)
-  return {
+  const tasksPath = requireFlag(flags, 'tasks')
+  const input = {
     agents: requireFlag(flags, 'agents'),
     dryRun: flags.has('dry-run'),
     github: flags.has('github'),
-    tasksPath: requireFlag(flags, 'tasks'),
+    tasksPath,
   }
+  if (!flags.has('execute')) return input
+  return { ...input, ...parseExecuteFlags(flags, runNameFromPath(tasksPath)) }
+}
+
+function parseExecuteFlags(
+  flags: ReadonlyMap<string, string>,
+  runName: string,
+): {
+  readonly baseRef: string
+  readonly concurrency: DagConcurrency
+  readonly eval?: DagEvalConfig
+  readonly execute: true
+  readonly integrationBranch: string
+} {
+  return {
+    baseRef: flags.has('base-ref') ? requireFlag(flags, 'base-ref') : 'HEAD',
+    concurrency: parseConcurrency(flags),
+    ...(flags.has('eval') ? { eval: parseEvalFlag(flags) } : {}),
+    execute: true,
+    integrationBranch: `council/${runName}/integration`,
+  }
+}
+
+function parseConcurrency(flags: ReadonlyMap<string, string>): DagConcurrency {
+  if (!flags.has('concurrency')) return { max_parallel_tasks: 1 }
+  const raw = requireFlag(flags, 'concurrency')
+  const value = Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < 1 || String(value) !== raw) {
+    throw new Error('--concurrency must be a positive integer')
+  }
+  return { max_parallel_tasks: value }
+}
+
+function parseEvalFlag(flags: ReadonlyMap<string, string>): DagEvalConfig {
+  const command = flags.get('eval')
+  return command === undefined || command === 'true' ? { enabled: true } : { command, enabled: true }
+}
+
+function runNameFromPath(path: string): string {
+  const normalized = path.replace(/\/+$/u, '')
+  const leaf = normalized.split('/').at(-1) ?? normalized
+  return leaf.endsWith('.json') ? leaf.slice(0, -'.json'.length) : leaf
 }
 
 function parseConfig(argv: readonly string[]): {
