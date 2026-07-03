@@ -3,10 +3,34 @@ import {
   createTaskGraph,
   type PreFanoutGateViolation,
 } from '../contexts/graph/index.js'
+import type {
+  DagAgentPool,
+  DagConcurrency,
+  DagEvalConfig,
+  DagExecutorHooks,
+  DagExecutorInput,
+  DagExecutorResult,
+} from '../ports/index.js'
+import type { EngineDef, JsonRecord, Task } from '../shared-kernel/index.js'
 
 import type { RunSummary } from './status.js'
 
-export interface FanoutInput {
+export interface PlanOnlyWorkflowInput {
+  readonly execute?: false
+}
+
+export interface ExecuteDagWorkflowInput {
+  readonly baseRef: string
+  readonly concurrency: DagConcurrency
+  readonly eval?: DagEvalConfig
+  readonly execute: true
+  readonly hooks: DagExecutorHooks
+  readonly integrationBranch: string
+}
+
+export type FanoutInput = FanoutBaseInput & (PlanOnlyWorkflowInput | ExecuteDagWorkflowInput)
+
+export interface FanoutBaseInput {
   readonly dryRun: boolean
   readonly github: boolean
   readonly repoFiles?: ReadonlySet<string>
@@ -15,6 +39,7 @@ export interface FanoutInput {
 
 export interface ExecutionPlan {
   readonly agents?: Readonly<Record<string, string>>
+  readonly execution?: DagExecutorResult
   readonly github: 'disabled' | 'dry-run' | 'created'
   readonly prUrl?: string
   readonly run: string
@@ -22,9 +47,18 @@ export interface ExecutionPlan {
   readonly waves: RunSummary['waves']
 }
 
+export type ExecuteDagDependency = (input: DagExecutorInput) => Promise<DagExecutorResult>
+
 export interface FanoutWorkflowDeps {
   readonly createPullRequest: (run: string) => Promise<string>
+  readonly executeDag?: ExecuteDagDependency
   readonly status: (input: { readonly runDir: string }) => Promise<RunSummary>
+}
+
+interface ExecuteDagWorkflowRequest {
+  readonly agentPool: DagAgentPool
+  readonly runId: string
+  readonly tasks: readonly Task[]
 }
 
 export class PreFanoutGateError extends Error {
@@ -46,13 +80,18 @@ export async function fanoutWorkflow(input: FanoutInput, deps: FanoutWorkflowDep
   })
   assertPreFanoutGatePassed(gate.violations)
   const github = await resolveGithub(input.github, input.dryRun, summary.run, deps.createPullRequest)
-  return {
+  const plan: ExecutionPlan = {
     github: github.kind,
     ...(github.url ? { prUrl: github.url } : {}),
     run: summary.run,
     tasks: summary.tasks,
     waves: gate.waves,
   }
+  return executeDagIfRequested(input, deps.executeDag, plan, () => ({
+    agentPool: plannedAgentPool(summary.tasks),
+    runId: summary.run,
+    tasks: summary.tasks,
+  }))
 }
 
 export function assertPreFanoutGatePassed(
@@ -69,6 +108,37 @@ export function repoFilesForGate(
   return repoFiles ?? new Set(tasks.flatMap((task) => task.paths))
 }
 
+export async function executeDagIfRequested(
+  input: (PlanOnlyWorkflowInput | ExecuteDagWorkflowInput) & { readonly dryRun: boolean },
+  executeDag: ExecuteDagDependency | undefined,
+  plan: ExecutionPlan,
+  request: () => ExecuteDagWorkflowRequest,
+): Promise<ExecutionPlan> {
+  if (input.execute !== true) return plan
+  if (executeDag === undefined) throw new Error('executeDag dependency is required when execute=true')
+  const executeRequest = request()
+  const execution = await executeDag({
+    agent_pool: executeRequest.agentPool,
+    base_ref: input.baseRef,
+    concurrency: input.concurrency,
+    dry_run: input.dryRun,
+    ...(input.eval !== undefined ? { eval: input.eval } : {}),
+    hooks: input.hooks,
+    integration_branch: input.integrationBranch,
+    run_id: executeRequest.runId,
+    tasks: executeRequest.tasks,
+  })
+  return { ...plan, execution }
+}
+
+export function engineMetadata(engine: EngineDef): JsonRecord {
+  return {
+    cli: engine.cli,
+    label: engine.label ?? `${engine.cli}:${engine.model}`,
+    model: engine.model,
+  }
+}
+
 async function resolveGithub(
   github: boolean,
   dryRun: boolean,
@@ -78,4 +148,25 @@ async function resolveGithub(
   if (!github) return { kind: 'disabled' }
   if (dryRun) return { kind: 'dry-run' }
   return { kind: 'created', url: await createPullRequest(run) }
+}
+
+function plannedAgentPool(tasks: readonly Task[]): DagAgentPool {
+  return {
+    assignments: tasks.map((task) => ({
+      agent_id: plannedAgentId(task.id),
+      metadata: task.engine === undefined ? { model: task.model, source: 'task-model' } : engineMetadata(task.engine),
+      model: task.model,
+      task_id: task.id,
+    })),
+    available: tasks.map((task) => ({
+      id: plannedAgentId(task.id),
+      kind: task.engine?.cli ?? 'planned',
+      metadata: task.engine === undefined ? { model: task.model, source: 'task-model' } : engineMetadata(task.engine),
+      model: task.model,
+    })),
+  }
+}
+
+function plannedAgentId(taskId: string): string {
+  return `task:${taskId}`
 }

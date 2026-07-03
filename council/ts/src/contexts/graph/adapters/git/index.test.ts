@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ProcessCommand, ProcessPort, ProcessResult } from '../../../../ports/index.js'
+import { GitCliAdapter as BarrelGitCliAdapter } from '../../index.js'
+import type { GitReconcileRequest as BarrelGitReconcileRequest } from '../../index.js'
 import { GitCliAdapter, GitCommandError } from './index.js'
 
 type Handler = (command: ProcessCommand) => ProcessResult | Promise<ProcessResult>
@@ -51,6 +53,9 @@ describe('GitCliAdapter', () => {
       if (args === 'diff --staged main..feature -- src/index.ts') {
         return success('patch')
       }
+      if (args === 'show-ref --verify --quiet refs/heads/worker-a') {
+        return failure(1)
+      }
       return success()
     })
     const adapter = new GitCliAdapter(process)
@@ -88,6 +93,11 @@ describe('GitCliAdapter', () => {
       { args: ['rev-parse', '--show-toplevel'], command: 'git', cwd: '/repo/sub' },
       { args: ['branch', '--show-current'], command: 'git', cwd: '/repo' },
       {
+        args: ['show-ref', '--verify', '--quiet', 'refs/heads/worker-a'],
+        command: 'git',
+        cwd: '/repo',
+      },
+      {
         args: ['worktree', 'add', '-b', 'worker-a', '/tmp/worker-a', 'HEAD'],
         command: 'git',
         cwd: '/repo',
@@ -105,6 +115,29 @@ describe('GitCliAdapter', () => {
       },
       {
         args: ['push', '--force-with-lease', 'upstream', 'feature'],
+        command: 'git',
+        cwd: '/repo',
+      },
+    ])
+  })
+
+  it('adds a worktree for an existing branch without recreating the branch', async () => {
+    const process = new RecordingProcess(() => success())
+    const adapter = new GitCliAdapter(process)
+
+    await expect(adapter.createWorktree('/repo', 'worker-a', '/tmp/worker-a')).resolves.toEqual({
+      branch: 'worker-a',
+      path: '/tmp/worker-a',
+    })
+
+    expect(process.commands).toEqual([
+      {
+        args: ['show-ref', '--verify', '--quiet', 'refs/heads/worker-a'],
+        command: 'git',
+        cwd: '/repo',
+      },
+      {
+        args: ['worktree', 'add', '/tmp/worker-a', 'worker-a'],
         command: 'git',
         cwd: '/repo',
       },
@@ -131,6 +164,97 @@ describe('GitCliAdapter', () => {
       { args: ['diff', 'feature'], command: 'git', cwd: '/repo' },
       { args: ['push', '--set-upstream', 'origin', 'feature'], command: 'git', cwd: '/repo' },
     ])
+  })
+
+  it('commits all current changes and returns typed commit metadata', async () => {
+    const process = new RecordingProcess((command) => {
+      const args = command.args.join(' ')
+      if (args === 'status --porcelain=v1') {
+        return success(' M changed.ts\n?? fresh.ts\n')
+      }
+      if (args === 'rev-parse HEAD') {
+        return success('abc123\n')
+      }
+      if (args === 'branch --show-current') {
+        return success('worker-a\n')
+      }
+      return success()
+    })
+    const adapter = new GitCliAdapter(process)
+
+    await expect(
+      adapter.commitAll('/repo', {
+        allow_empty: true,
+        author: 'Agent <agent@example.test>',
+        message: 'T1 implement native execution',
+      }),
+    ).resolves.toEqual({
+      branch: 'worker-a',
+      commit: 'abc123',
+      files_changed: ['changed.ts', 'fresh.ts'],
+      message: 'T1 implement native execution',
+    })
+
+    expect(process.commands).toEqual([
+      { args: ['status', '--porcelain=v1'], command: 'git', cwd: '/repo' },
+      { args: ['add', '-A'], command: 'git', cwd: '/repo' },
+      {
+        args: [
+          'commit',
+          '-m',
+          'T1 implement native execution',
+          '--author',
+          'Agent <agent@example.test>',
+          '--allow-empty',
+        ],
+        command: 'git',
+        cwd: '/repo',
+      },
+      { args: ['rev-parse', 'HEAD'], command: 'git', cwd: '/repo' },
+      { args: ['branch', '--show-current'], command: 'git', cwd: '/repo' },
+    ])
+  })
+
+  it('commits all changes without optional commit flags', async () => {
+    const process = new RecordingProcess((command) => {
+      if (command.args[0] === 'status') return success(' M changed.ts\n')
+      if (command.args.join(' ') === 'rev-parse HEAD') return success('def456\n')
+      if (command.args[0] === 'branch') return success('worker-b\n')
+      return success()
+    })
+    const adapter = new GitCliAdapter(process)
+
+    await expect(
+      adapter.commitAll('/repo', {
+        message: 'T2 minimal commit',
+      }),
+    ).resolves.toEqual({
+      branch: 'worker-b',
+      commit: 'def456',
+      files_changed: ['changed.ts'],
+      message: 'T2 minimal commit',
+    })
+
+    expect(process.commands.map((command) => command.args)).toEqual([
+      ['status', '--porcelain=v1'],
+      ['add', '-A'],
+      ['commit', '-m', 'T2 minimal commit'],
+      ['rev-parse', 'HEAD'],
+      ['branch', '--show-current'],
+    ])
+  })
+
+  it('exports the git adapter and reconcile request type from the graph barrel', () => {
+    const request: BarrelGitReconcileRequest = {
+      integrationBranch: 'integration/native',
+      sourceBranch: 'worker-a',
+    }
+
+    expect(BarrelGitCliAdapter).toBe(GitCliAdapter)
+    expect(request).toEqual({
+      integrationBranch: 'integration/native',
+      sourceBranch: 'worker-a',
+    })
   })
 
   it('creates an integration branch when missing and merges the completed branch', async () => {
