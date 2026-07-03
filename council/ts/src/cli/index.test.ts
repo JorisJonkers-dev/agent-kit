@@ -9,6 +9,7 @@ import type {
   FleetInput,
   PlanInput,
   RecommendInput,
+  SuperviseInput,
 } from '../app/index.js'
 
 interface ReviewPackInput {
@@ -28,6 +29,7 @@ type AppCall =
   | { readonly input: RecommendInput; readonly method: 'recommend' }
   | { readonly input: ReviewPackInput; readonly method: 'readReviewPack' }
   | { readonly input: StatusInput; readonly method: 'status' }
+  | { readonly input: SuperviseInput; readonly method: 'supervise' }
 
 interface RecordingAppOptions {
   readonly configError?: Error
@@ -89,6 +91,11 @@ class RecordingApp {
   readReviewPack(input: ReviewPackInput): Promise<unknown> {
     this.calls.push({ input, method: 'readReviewPack' })
     return Promise.resolve({ input, method: 'readReviewPack' })
+  }
+
+  supervise(input: SuperviseInput): Promise<unknown> {
+    this.calls.push({ input, method: 'supervise' })
+    return Promise.resolve({ input, method: 'supervise' })
   }
 }
 
@@ -320,6 +327,109 @@ describe('runCli help and command dispatch', () => {
     })
   })
 
+  it('passes parsed supervise flags and command arguments to the app', async () => {
+    const app = new RecordingApp()
+
+    const result = await runCli(
+      [
+        'supervise',
+        '--run',
+        '/runs/run-a',
+        '--task',
+        'T1',
+        '--worktree',
+        '/worktrees/T1',
+        '--command',
+        'node',
+        '--stdin',
+        'initial prompt',
+        '--restart-preamble',
+        'retry prompt',
+        '--checkpoint-preamble',
+        'checkpoint prompt',
+        '--streaming-stdin',
+        '--model-tier',
+        'cheap',
+        '--escalation-model-tier',
+        'max',
+        '--poll-interval-ms',
+        '10',
+        '--kill-grace-ms',
+        '20',
+        '--stall-after-s',
+        '1',
+        '--watchdog-window',
+        '3',
+        '--watchdog-repeat-limit',
+        '2',
+        '--watchdog-max-cycle-gram',
+        '4',
+        '--max-restarts',
+        '5',
+        '--disk-cap-bytes',
+        '6',
+        '--wall-clock-cap-ms',
+        '7',
+        '--output-cap-bytes',
+        '8',
+        '--attempt-timeout-ms',
+        '9',
+        '--retry-base-backoff-ms',
+        '11',
+        '--retry-max-backoff-ms',
+        '12',
+        '--retry-jitter-ratio',
+        '0.5',
+        '--no-tier-escalation',
+        '--',
+        '-e',
+        'console.log(1)',
+      ],
+      injectedRuntime(app),
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([
+      {
+        input: {
+          args: ['-e', 'console.log(1)'],
+          checkpointPreamble: 'checkpoint prompt',
+          command: 'node',
+          escalationModelTier: 'max',
+          killGraceMs: 20,
+          modelTier: 'cheap',
+          pollIntervalMs: 10,
+          restartPreamble: 'retry prompt',
+          runDir: '/runs/run-a',
+          stdin: 'initial prompt',
+          supportsStreamingStdin: true,
+          taskId: 'T1',
+          watchdog: {
+            attemptTimeoutMs: 9,
+            diskCapBytes: 6,
+            enableTierEscalation: false,
+            maxCycleGram: 4,
+            maxRestarts: 5,
+            outputCapBytes: 8,
+            repeatLimit: 2,
+            retryBaseBackoffMs: 11,
+            retryJitterRatio: 0.5,
+            retryMaxBackoffMs: 12,
+            stallAfterS: 1,
+            wallClockCapMs: 7,
+            windowSize: 3,
+          },
+          worktree: '/worktrees/T1',
+        },
+        method: 'supervise',
+      },
+    ])
+    expect(parsed(result)).toEqual({
+      input: app.calls[0]?.input,
+      method: 'supervise',
+    })
+  })
+
   it('returns an empty object when triage planning has no triage result', async () => {
     const app = new RecordingApp({ planResult: { command: 'plan' } })
     const triage = {
@@ -346,7 +456,6 @@ describe('runCli help and command dispatch', () => {
       'grill',
       'inject',
       'split',
-      'supervise',
       'survey',
       'sync-bmad',
       'sync-skills',
@@ -482,6 +591,33 @@ describe('runCli error handling', () => {
     await expect(runCli(['recommend'], injectedRuntime())).resolves.toEqual({
       exitCode: 2,
       stderr: '--input is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['supervise', '--run', '/runs/run-a', '--task', 'T1'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--worktree is required\n',
+      stdout: '',
+    })
+    await expect(
+      runCli(
+        [
+          'supervise',
+          '--run',
+          '/runs/run-a',
+          '--task',
+          'T1',
+          '--worktree',
+          '/worktrees/T1',
+          '--command',
+          'node',
+          '--poll-interval-ms',
+          '0',
+        ],
+        injectedRuntime(),
+      ),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--poll-interval-ms must be a positive number\n',
       stdout: '',
     })
     await expect(runCli(['recommend', '--input', '{'], injectedRuntime())).resolves.toMatchObject({

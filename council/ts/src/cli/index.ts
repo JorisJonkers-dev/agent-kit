@@ -5,6 +5,7 @@ import {
   type PlanInput,
   type FanoutInput,
   type RecommendInput,
+  type SuperviseInput,
 } from '../app/index.js'
 import type { CouncilConfig } from '../contexts/config/index.js'
 import type { TriageInput } from '../contexts/triage/index.js'
@@ -110,13 +111,14 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
         return okJson(await app.readReviewPack(parseReviewPack(rest)))
       case 'triage':
         return okJson((await app.plan({ triage: parseTriage(rest) })).triage ?? {})
+      case 'supervise':
+        return okJson(await app.supervise(parseSupervise(rest)))
       case 'design':
       case 'amend':
       case 'context':
       case 'grill':
       case 'inject':
       case 'split':
-      case 'supervise':
       case 'survey':
       case 'sync-bmad':
       case 'sync-skills':
@@ -193,6 +195,27 @@ function parseReviewPack(argv: readonly string[]): { readonly gate: '1' | 'desig
   return { gate, runDir: requireFlag(flags, 'run') }
 }
 
+function parseSupervise(argv: readonly string[]): SuperviseInput {
+  const parsed = parseCommandArgs(argv)
+  const flags = parsed.flags
+  return {
+    args: parsed.args,
+    runDir: requireFlag(flags, 'run'),
+    taskId: requireFlag(flags, 'task'),
+    worktree: requireFlag(flags, 'worktree'),
+    command: requireFlag(flags, 'command'),
+    watchdog: parseSuperviseWatchdog(flags),
+    ...optionalFlag(flags, 'stdin', 'stdin'),
+    ...optionalFlag(flags, 'restartPreamble', 'restart-preamble'),
+    ...optionalFlag(flags, 'checkpointPreamble', 'checkpoint-preamble'),
+    ...optionalFlag(flags, 'modelTier', 'model-tier'),
+    ...optionalFlag(flags, 'escalationModelTier', 'escalation-model-tier'),
+    ...optionalNumberFlag(flags, 'pollIntervalMs', 'poll-interval-ms'),
+    ...optionalNumberFlag(flags, 'killGraceMs', 'kill-grace-ms'),
+    ...(flags.has('streaming-stdin') ? { supportsStreamingStdin: true } : {}),
+  }
+}
+
 function parseTriage(argv: readonly string[]): TriageInput {
   return parseTriageFlag(requireFlag(parseFlags(argv), 'input'))
 }
@@ -217,6 +240,64 @@ function parseFlags(argv: readonly string[]): Map<string, string> {
     }
   }
   return flags
+}
+
+function parseCommandArgs(argv: readonly string[]): { readonly args: readonly string[]; readonly flags: Map<string, string> } {
+  const delimiter = argv.indexOf('--')
+  return delimiter < 0
+    ? { args: [], flags: parseFlags(argv) }
+    : { args: argv.slice(delimiter + 1), flags: parseFlags(argv.slice(0, delimiter)) }
+}
+
+const SUPERVISE_WATCHDOG_NUMBER_FLAGS = [
+  ['stall-after-s', 'stallAfterS'],
+  ['watchdog-window', 'windowSize'],
+  ['watchdog-repeat-limit', 'repeatLimit'],
+  ['watchdog-max-cycle-gram', 'maxCycleGram'],
+  ['max-restarts', 'maxRestarts'],
+  ['disk-cap-bytes', 'diskCapBytes'],
+  ['wall-clock-cap-ms', 'wallClockCapMs'],
+  ['output-cap-bytes', 'outputCapBytes'],
+  ['attempt-timeout-ms', 'attemptTimeoutMs'],
+  ['retry-base-backoff-ms', 'retryBaseBackoffMs'],
+  ['retry-max-backoff-ms', 'retryMaxBackoffMs'],
+  ['retry-jitter-ratio', 'retryJitterRatio'],
+] as const
+
+function parseSuperviseWatchdog(flags: ReadonlyMap<string, string>): NonNullable<SuperviseInput['watchdog']> {
+  const watchdog: Record<string, number | boolean> = {}
+  for (const [flag, field] of SUPERVISE_WATCHDOG_NUMBER_FLAGS) {
+    const value = optionalPositiveNumber(flags, flag)
+    if (value !== undefined) watchdog[field] = value
+  }
+  if (flags.has('no-tier-escalation')) watchdog.enableTierEscalation = false
+  return watchdog
+}
+
+function optionalFlag<Key extends keyof SuperviseInput>(
+  flags: ReadonlyMap<string, string>,
+  key: Key,
+  flag: string,
+): Partial<Pick<SuperviseInput, Key>> {
+  const value = flags.get(flag)
+  return value === undefined || value === 'true' ? {} : ({ [key]: value } as Partial<Pick<SuperviseInput, Key>>)
+}
+
+function optionalNumberFlag<Key extends keyof SuperviseInput>(
+  flags: ReadonlyMap<string, string>,
+  key: Key,
+  flag: string,
+): Partial<Pick<SuperviseInput, Key>> {
+  const value = optionalPositiveNumber(flags, flag)
+  return value === undefined ? {} : ({ [key]: value } as Partial<Pick<SuperviseInput, Key>>)
+}
+
+function optionalPositiveNumber(flags: ReadonlyMap<string, string>, flag: string): number | undefined {
+  const raw = flags.get(flag)
+  if (raw === undefined) return undefined
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`--${flag} must be a positive number`)
+  return value
 }
 
 function configOverrides(flags: ReadonlyMap<string, string>): CouncilConfig {

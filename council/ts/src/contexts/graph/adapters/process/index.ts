@@ -11,6 +11,7 @@ export type {
   WorkerSupervisorResult,
   WorkerSupervisorRuntimeEvent,
   WorkerSupervisorSession,
+  WorkerSupervisorSnapshot,
   WorkerSupervisorStartRequest,
   WorkerSupervisorStatus,
   WorkerSupervisorWatchdogConfig,
