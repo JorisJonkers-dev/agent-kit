@@ -1,12 +1,18 @@
-import { open, readFile, readdir, unlink, appendFile, mkdir, mkdtemp } from 'node:fs/promises'
+import { open, readFile, readdir, unlink, appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import type { ClockPort } from '../../../../ports/index.js'
 import type { DesignLedger, RunState, Story, Task } from '../../../../shared-kernel/index.js'
 import { FsRunStoreAdapter, normalizeLegacyRunDir, type WorkerResult } from './index.js'
+
+const tempRoots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })))
+})
 
 class TimeoutClock implements ClockPort {
   private elapsed = 0
@@ -229,8 +235,8 @@ describe('FsRunStoreAdapter', () => {
 })
 
 describe('normalizeLegacyRunDir', () => {
-  it('normalizes T5 Python fixtures into typed v2 task graphs without renumbering ids', async () => {
-    const fixtures = join(process.cwd(), 'test/fixtures/python-runs')
+  it('normalizes legacy-shaped run dirs into typed v2 task graphs without renumbering ids', async () => {
+    const fixtures = await writeLegacyPythonRuns()
 
     const legacy = await normalizeLegacyRunDir(join(fixtures, 'legacy-ordinal-ids'))
     expect(legacy.runId).toBe('legacy-ordinal-ids')
@@ -315,7 +321,174 @@ describe('normalizeLegacyRunDir', () => {
 })
 
 async function tempRoot(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'council-fs-store-'))
+  const root = await mkdtemp(join(tmpdir(), 'council-fs-store-'))
+  tempRoots.push(root)
+  return root
+}
+
+async function writeLegacyPythonRuns(): Promise<string> {
+  const root = await tempRoot()
+  await writeLegacyOrdinalRun(join(root, 'legacy-ordinal-ids'))
+  await writeWatchdogRun(join(root, 'watchdog-table-config'))
+  await writeGrownSchemaRun(join(root, 'grown-schema-task'))
+  return root
+}
+
+async function writeLegacyOrdinalRun(runDir: string): Promise<void> {
+  const tasks = legacyOrdinalTasks()
+  await writeRunJson(runDir, 'state.json', {
+    integration_branch: 'council/legacy-ordinal-ids/integration',
+    intensity: 'quick',
+    rounds: 1,
+    spec_id: '001-legacy-ordinal-ids',
+    spec_relpath: 'specs/001-legacy-ordinal-ids',
+    spec_slug: 'legacy-ordinal-ids',
+    stage: 'fanned-out',
+    task_count: 2,
+  })
+  await writeRunJson(runDir, 'tasks.json', tasks)
+  await writeRunJson(runDir, 'report.json', {
+    integration_branch: 'council/legacy-ordinal-ids/integration',
+    run: 'legacy-ordinal-ids',
+    tasks: tasks.map((task) => ({ status: 'ok', task_id: task.id })),
+    waves: [['T1'], ['T2']],
+  })
+  await writeWorkerResult(runDir, 'T1', {
+    files_changed: ['legacy/t1.txt'],
+    status: 'ok',
+    task_id: 'T1',
+  })
+  await writeWorkerResult(runDir, 'T2', {
+    files_changed: ['legacy/t2.txt'],
+    status: 'ok',
+    task_id: 'T2',
+  })
+}
+
+async function writeWatchdogRun(runDir: string): Promise<void> {
+  const tasks = [
+    {
+      acceptance_criteria: ['The [watchdog] table remains present.'],
+      boundaries: 'Only touch config/service.toml.',
+      depends_on: [],
+      dev_notes: '[watchdog]\ninterval = "30s"',
+      difficulty: 'trivial',
+      id: 'ck-a100',
+      model: 'haiku',
+      objective: 'Exercise a task that mentions a [watchdog] TOML table.',
+      output_format: 'Patch',
+      paths: ['config/service.toml'],
+      title: 'Touch watchdog table config',
+      verify: "rg '\\[watchdog\\]' config/service.toml",
+    },
+  ]
+  await writeRunJson(runDir, 'state.json', {
+    integration_branch: 'council/watchdog-table-config/integration',
+    intensity: 'quick',
+    rounds: 1,
+    spec_id: '001-watchdog-table-config',
+    spec_relpath: 'specs/001-watchdog-table-config',
+    spec_slug: 'watchdog-table-config',
+    stage: 'fanned-out',
+    task_count: 1,
+  })
+  await writeRunJson(runDir, 'tasks.json', tasks)
+  await writeRunJson(runDir, 'report.json', {
+    run: 'watchdog-table-config',
+    tasks: [{ status: 'ok', task_id: 'ck-a100' }],
+    waves: [['ck-a100']],
+  })
+  await writeWorkerResult(runDir, 'ck-a100', {
+    status: 'ok',
+    task_id: 'ck-a100',
+  })
+}
+
+async function writeGrownSchemaRun(runDir: string): Promise<void> {
+  const tasks = [
+    {
+      archetype: 'schema-maintenance',
+      boundaries: 'Only touch schema/grown.json.',
+      content_hash: 'sha256:fixture-grown-schema-task',
+      context_profile: 'contracts',
+      context_refs: ['kb://council/tasks/grown-schema'],
+      depends_on: [],
+      difficulty: 'moderate',
+      engine: { cli: 'codex', model: 'gpt-5.5' },
+      id: 'ck-b200',
+      model: 'sonnet',
+      model_tier: 'expensive',
+      objective: 'Exercise a task with the grown task schema.',
+      output_format: 'Patch',
+      paths: ['schema/grown.json'],
+      supersedes: [],
+      title: 'Maintain grown schema',
+      verify: 'test -f schema/grown.json',
+    },
+  ]
+  await writeRunJson(runDir, 'state.json', {
+    intensity: 'quick',
+    rounds: 1,
+    spec_id: '001-grown-schema-task',
+    spec_relpath: 'specs/001-grown-schema-task',
+    spec_slug: 'grown-schema-task',
+    stage: 'fanned-out',
+    task_count: 1,
+  })
+  await writeRunJson(runDir, 'tasks.json', tasks)
+  await writeRunJson(runDir, 'report.json', {
+    run: 'grown-schema-task',
+    tasks: [{ status: 'ok', task_id: 'ck-b200' }],
+    waves: [['ck-b200']],
+  })
+  await writeWorkerResult(runDir, 'ck-b200', {
+    files_changed: ['schema/grown.json'],
+    status: 'ok',
+    task_id: 'ck-b200',
+    verdict: {
+      issues: [],
+      reasons: 'fixture',
+      satisfied: true,
+    },
+  })
+}
+
+function legacyOrdinalTasks(): readonly Task[] {
+  return [
+    {
+      boundaries: 'Only touch legacy/t1.txt.',
+      depends_on: [],
+      difficulty: 'trivial',
+      id: 'T1',
+      model: 'haiku',
+      objective: 'Exercise a legacy T1 task id.',
+      output_format: 'Patch',
+      paths: ['legacy/t1.txt'],
+      title: 'Legacy T1',
+      verify: 'test -f legacy/t1.txt',
+    },
+    {
+      boundaries: 'Only touch legacy/t2.txt.',
+      depends_on: ['T1'],
+      difficulty: 'trivial',
+      id: 'T2',
+      model: 'haiku',
+      objective: 'Exercise a legacy T2 task id that depends on T1.',
+      output_format: 'Patch',
+      paths: ['legacy/t2.txt'],
+      title: 'Legacy T2',
+      verify: 'test -f legacy/t2.txt',
+    },
+  ]
+}
+
+async function writeWorkerResult(runDir: string, taskId: string, result: WorkerResult): Promise<void> {
+  await writeRunJson(join(runDir, 'workers', taskId), 'result.json', result)
+}
+
+async function writeRunJson(runDir: string, file: string, value: unknown): Promise<void> {
+  await mkdir(runDir, { recursive: true })
+  await writeFile(join(runDir, file), `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
 function fullState(): RunState {
