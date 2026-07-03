@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { CouncilApp } from './council-app.js'
+import { CouncilApp, NodeProcessAdapter } from './council-app.js'
 import type {
   SuperviseInput,
   SuperviseRunStore,
@@ -16,6 +16,11 @@ import type {
   SuperviseWorkerSupervisorSnapshot,
   SuperviseWorkerSupervisorStartRequest,
 } from './council-app.js'
+import type {
+  WorktreeDependencyProvisioningRequest,
+  WorktreeDependencyProvisioningResult,
+  WorktreeDependencyProvisionerPort,
+} from '../adapters/worktree-provisioning/index.js'
 import {
   appendWorkerTraceEvents,
   createRepairLoopState,
@@ -24,6 +29,8 @@ import {
   validateWorkerTraceAppend,
 } from '../contexts/orchestration/index.js'
 import { workerOutputEvent, type RunStoreEvent, type WorkerLifecycleEvent } from '../contexts/runstore/index.js'
+import type { DagExecutorInput, DagExecutorResult, ProcessCommand, ProcessPort, ProcessResult } from '../ports/index.js'
+import type { Task } from '../shared-kernel/index.js'
 import type { RunSummary } from '../workflows/index.js'
 
 const tempRoots: string[] = []
@@ -153,6 +160,356 @@ describe('CouncilApp.eval', () => {
     })
 
     await expect(app.eval({ runDir: '/runs/run-a' })).rejects.toThrow('events denied')
+  })
+})
+
+describe('CouncilApp native execution composition', () => {
+  it('preserves fleet GitHub dry-run planning through the app workflow seam', async () => {
+    const app = new CouncilApp({
+      readText: () => Promise.resolve(JSON.stringify([nativeTask()])),
+    })
+
+    await expect(
+      app.fleet({
+        agents: 'codex:gpt-5',
+        dryRun: true,
+        github: true,
+        repoFiles: new Set(['src/native.ts']),
+        tasksPath: '/runs/run-native.json',
+      }),
+    ).resolves.toMatchObject({
+      github: 'dry-run',
+      run: 'run-native',
+    })
+  })
+
+  it('executes fanout through concrete DagExecutor adapters and supervises workers through the app seam', async () => {
+    const processPort = new NativeExecutionProcess()
+    const provisioner = new RecordingWorktreeDependencyProvisioner()
+    const store = new RecordingRunStore()
+    const supervisors: RecordingSupervisor[] = []
+    const promptWrites: { readonly path: string; readonly text: string }[] = []
+    const app = new CouncilApp({
+      createRunStore: () => store,
+      createWorkerSupervisor: (dependencies) => {
+        const supervisor = new RecordingSupervisor(dependencies, completedSupervisorResult('T1'))
+        supervisors.push(supervisor)
+        return supervisor
+      },
+      nowIso: () => '2026-07-03T13:00:00.000Z',
+      process: processPort,
+      repoRoot: '/repo',
+      integrationWorktreePath: '/repo',
+      worktreeDependencyProvisioner: provisioner,
+      worktreeRoot: '/repo/.worktrees/workers/run-native',
+      status: () => Promise.resolve(nativeRunSummary('run-native')),
+      writeText(path, text) {
+        promptWrites.push({ path, text })
+        return Promise.resolve()
+      },
+    })
+
+    const plan = await app.fanout({
+      baseRef: 'main',
+      concurrency: { max_parallel_tasks: 1 },
+      dryRun: false,
+      eval: { enabled: false },
+      execute: true,
+      github: false,
+      integrationBranch: 'integration/native',
+      repoFiles: new Set(['src/native.ts']),
+      runDir: '/runs/run-native',
+    })
+
+    expect(plan.execution).toMatchObject({
+      integration_branch: 'integration/native',
+      run_id: 'run-native',
+      status: 'succeeded',
+      task_results: [
+        {
+          branch: 'worker/T1',
+          commit: 'commit-native',
+          files_changed: ['src/native.ts'],
+          status: 'succeeded',
+          task_id: 'T1',
+          verify: {
+            command: 'npm test',
+            exit_code: 0,
+            output: 'verified\n',
+            status: 'passed',
+          },
+          worker_result: {
+            branch: 'worker/T1',
+            committed: true,
+            files_changed: ['src/native.ts'],
+            out_of_bounds: [],
+            status: 'ok',
+            task_id: 'T1',
+            verify_output: 'verified\n',
+            verify_rc: 0,
+            worktree: '/repo/.worktrees/workers/run-native/T1',
+          },
+          worktree_path: '/repo/.worktrees/workers/run-native/T1',
+        },
+      ],
+    })
+    expect(provisioner.requests).toEqual([
+      {
+        repoRoot: '/repo',
+        worktreePath: '/repo/.worktrees/workers/run-native/T1',
+      },
+    ])
+    expect(promptWrites).toEqual([
+      {
+        path: '/repo/.worktrees/workers/run-native/T1/.council/workers/T1/prompt.md',
+        text: expect.stringContaining('Task T1: Native task') as string,
+      },
+    ])
+    expect(supervisors[0]?.startRequests).toEqual([
+      {
+        args: [
+          '-lc',
+          'codex exec -m gpt-5 -c model_reasoning_effort=medium --skip-git-repo-check -o .council/workers/T1/output.json "$(cat .council/workers/T1/prompt.md)"',
+        ],
+        command: 'sh',
+        id: 'T1',
+        mcpProfile: 'code-intel',
+        modelTier: 'sonnet',
+        worktree: '/repo/.worktrees/workers/run-native/T1',
+      },
+    ])
+    expect(processPort.commands).toEqual([
+      gitCommand('/repo', ['show-ref', '--verify', '--quiet', 'refs/heads/worker/T1']),
+      gitCommand('/repo', ['worktree', 'add', '-b', 'worker/T1', '/repo/.worktrees/workers/run-native/T1', 'HEAD']),
+      {
+        args: ['-lc', 'npm test'],
+        command: 'sh',
+        cwd: '/repo/.worktrees/workers/run-native/T1',
+      },
+      gitCommand('/repo/.worktrees/workers/run-native/T1', ['status', '--porcelain=v1']),
+      gitCommand('/repo/.worktrees/workers/run-native/T1', ['status', '--porcelain=v1']),
+      gitCommand('/repo/.worktrees/workers/run-native/T1', ['add', '-A']),
+      gitCommand('/repo/.worktrees/workers/run-native/T1', ['commit', '-m', 'T1 Native task']),
+      gitCommand('/repo/.worktrees/workers/run-native/T1', ['rev-parse', 'HEAD']),
+      gitCommand('/repo/.worktrees/workers/run-native/T1', ['branch', '--show-current']),
+      gitCommand('/repo', ['show-ref', '--verify', '--quiet', 'refs/heads/integration/native']),
+      gitCommand('/repo', ['checkout', 'integration/native']),
+      gitCommand('/repo', ['merge', '--no-ff', '--no-edit', 'worker/T1']),
+      gitCommand('/repo', ['rev-parse', 'HEAD']),
+      gitCommand('/repo', ['worktree', 'remove', '--force', '/repo/.worktrees/workers/run-native/T1']),
+    ])
+    expect(store.events.map(({ event }) => event.type)).toContain('worker_started')
+    expect(store.events.at(-1)).toEqual({
+      runId: 'run-native',
+      event: {
+        payload: {
+          result_path: 'workers/T1/result.json',
+          status: 'ok',
+          task_id: 'T1',
+          worker_id: 'native-dag:T1',
+        },
+        type: 'worker_finished',
+      },
+    })
+  })
+
+  it('discovers the repo root for native execution when no repo root is injected', async () => {
+    const processPort = new NativeExecutionProcess()
+    const store = new RecordingRunStore()
+    const supervisors: RecordingSupervisor[] = []
+    const app = new CouncilApp({
+      createRunStore: () => store,
+      createWorkerSupervisor: (dependencies) => {
+        const supervisor = new RecordingSupervisor(dependencies, completedSupervisorResult('T1'))
+        supervisors.push(supervisor)
+        return supervisor
+      },
+      process: processPort,
+      status: () => Promise.resolve(nativeRunSummary('run-native')),
+      worktreeDependencyProvisioner: new RecordingWorktreeDependencyProvisioner(),
+      writeText: () => Promise.resolve(),
+    })
+
+    await expect(
+      app.fanout({
+        baseRef: 'main',
+        concurrency: { max_parallel_tasks: 1 },
+        dryRun: false,
+        execute: true,
+        github: false,
+        integrationBranch: 'integration/native',
+        repoFiles: new Set(['src/native.ts']),
+        runDir: '/runs/run-native',
+      }),
+    ).resolves.toMatchObject({
+      execution: {
+        run_id: 'run-native',
+        status: 'succeeded',
+      },
+    })
+
+    expect(processPort.commands[0]).toEqual(gitCommand(process.cwd(), ['rev-parse', '--show-toplevel']))
+    expect(supervisors[0]?.startRequests[0]?.worktree).toBe('/repo/.worktrees/workers/run-native/T1')
+  })
+
+  it('injects a fake DagExecutor into fleet execute paths for tests', async () => {
+    const executeDag = vi.fn(async (input: DagExecutorInput) => {
+      const task = onlyTaskResult(input.tasks)
+      const assignment = onlyTaskResult(input.agent_pool.assignments)
+      await input.hooks.provision({
+        assignment,
+        base_ref: input.base_ref,
+        integration_branch: input.integration_branch,
+        run_id: input.run_id,
+        task,
+      })
+      await input.hooks.supervise({
+        assignment,
+        branch: `worker/${task.id}`,
+        dry_run: input.dry_run,
+        run_id: input.run_id,
+        task,
+        worktree_path: `/tmp/${task.id}`,
+      })
+      await input.hooks.verify({
+        assignment,
+        command: task.verify,
+        run_id: input.run_id,
+        task,
+        worktree_path: `/tmp/${task.id}`,
+      })
+      return nativeExecutionResult(input)
+    })
+    const app = new CouncilApp({
+      executeDag,
+      readText: () => Promise.resolve(JSON.stringify([nativeTask()])),
+    })
+
+    const plan = await app.fleet({
+      agents: 'codex:gpt-5',
+      baseRef: 'main',
+      concurrency: { max_parallel_tasks: 1 },
+      dryRun: false,
+      eval: { enabled: false },
+      execute: true,
+      github: false,
+      integrationBranch: 'integration/native',
+      repoFiles: new Set(['src/native.ts']),
+      tasksPath: '/runs/run-native.json',
+    })
+
+    expect(plan.execution).toMatchObject({
+      run_id: 'run-native',
+      status: 'succeeded',
+    })
+    expect(executeDag).toHaveBeenCalledTimes(1)
+    expect(executeDag.mock.calls[0]?.[0]).toMatchObject({
+      base_ref: 'main',
+      integration_branch: 'integration/native',
+      run_id: 'run-native',
+      tasks: [nativeTask()],
+    })
+  })
+
+  it('runs requested eval after executor completion and attaches the eval result to execution output', async () => {
+    const calls: string[] = []
+    const executeDag = vi.fn((input: DagExecutorInput) => {
+      calls.push('execute')
+      return Promise.resolve(nativeExecutionResult(input))
+    })
+    const app = new CouncilApp({
+      createRunStore: () => new RecordingRunStore(),
+      executeDag,
+      status: () => {
+        calls.push(calls.includes('execute') ? 'eval-status' : 'plan-status')
+        return Promise.resolve(nativeRunSummary('run-native'))
+      },
+    })
+
+    const plan = await app.fanout({
+      baseRef: 'main',
+      concurrency: { max_parallel_tasks: 1 },
+      dryRun: false,
+      eval: { command: 'council eval', enabled: true, require_clean_boundaries: true },
+      execute: true,
+      github: false,
+      integrationBranch: 'integration/native',
+      repoFiles: new Set(['src/native.ts']),
+      runDir: '/runs/run-native',
+    })
+
+    expect(calls).toEqual(['plan-status', 'execute', 'eval-status'])
+    expect(plan.execution?.eval).toEqual({
+      command: 'council eval',
+      exit_code: 0,
+      metadata: {
+        critical_finding_count: 0,
+        finding_count: 0,
+        score: 100,
+        status: 'pass',
+        warning_finding_count: 0,
+      },
+      output: 'pass score=100 findings=0',
+      status: 'passed',
+    })
+  })
+
+  it('marks failing eval output as a failed execution eval result', async () => {
+    const summaries = [nativeRunSummary('run-native'), failedEvalRunSummary('run-native')]
+    const app = new CouncilApp({
+      createRunStore: () => new RecordingRunStore(),
+      executeDag: (input) => Promise.resolve(nativeExecutionResult(input)),
+      status: () => Promise.resolve(summaries.shift() ?? failedEvalRunSummary('run-native')),
+    })
+
+    const plan = await app.fanout({
+      baseRef: 'main',
+      concurrency: { max_parallel_tasks: 1 },
+      dryRun: false,
+      eval: { enabled: true },
+      execute: true,
+      github: false,
+      integrationBranch: 'integration/native',
+      repoFiles: new Set(['src/native.ts']),
+      runDir: '/runs/run-native',
+    })
+
+    expect(plan.execution?.eval).toMatchObject({
+      exit_code: 1,
+      metadata: {
+        status: 'fail',
+      },
+      status: 'failed',
+    })
+  })
+
+  it('honors require_clean_boundaries by failing warning-level eval output', async () => {
+    const summaries = [nativeRunSummary('run-native'), weakVerifyRunSummary('run-native')]
+    const app = new CouncilApp({
+      createRunStore: () => new RecordingRunStore(),
+      executeDag: (input) => Promise.resolve(nativeExecutionResult(input)),
+      status: () => Promise.resolve(summaries.shift() ?? weakVerifyRunSummary('run-native')),
+    })
+
+    const plan = await app.fanout({
+      baseRef: 'main',
+      concurrency: { max_parallel_tasks: 1 },
+      dryRun: false,
+      eval: { enabled: true, require_clean_boundaries: true },
+      execute: true,
+      github: false,
+      integrationBranch: 'integration/native',
+      repoFiles: new Set(['src/native.ts']),
+      runDir: '/runs/run-native',
+    })
+
+    expect(plan.execution?.eval).toMatchObject({
+      exit_code: 1,
+      metadata: {
+        status: 'warn',
+      },
+      status: 'failed',
+    })
   })
 })
 
@@ -612,6 +969,102 @@ describe('CouncilApp.supervise', () => {
   })
 })
 
+describe('NodeProcessAdapter', () => {
+  it('executes commands asynchronously with cwd and environment overrides', async () => {
+    const root = await tempRoot('node-process-adapter-')
+    const resolvedRoot = await realpath(root)
+    const adapter = new NodeProcessAdapter()
+
+    await expect(
+      adapter.exec({
+        args: ['-e', 'process.stdout.write(`${process.cwd()} ${process.env.NODE_PROCESS_ADAPTER_TEST ?? ""}`)'],
+        command: process.execPath,
+        cwd: root,
+        env: { NODE_PROCESS_ADAPTER_TEST: 'ok' },
+      }),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stderr: '',
+      stdout: `${resolvedRoot} ok`,
+    })
+  })
+
+  it('captures stderr output from commands', async () => {
+    const adapter = new NodeProcessAdapter()
+
+    await expect(
+      adapter.exec({
+        args: ['-e', 'process.stderr.write("problem\\n")'],
+        command: process.execPath,
+      }),
+    ).resolves.toEqual({
+      exitCode: 0,
+      stderr: 'problem\n',
+      stdout: '',
+    })
+  })
+
+  it('terminates commands that exceed their timeout', async () => {
+    const adapter = new NodeProcessAdapter()
+
+    const result = await adapter.exec({
+      args: ['-e', 'setTimeout(() => undefined, 1000)'],
+      command: process.execPath,
+      timeoutMs: 1,
+    })
+
+    expect(result).toMatchObject({
+      exitCode: 124,
+      stderr: '',
+      stdout: '',
+    })
+  })
+})
+
+class NativeExecutionProcess implements ProcessPort {
+  readonly commands: ProcessCommand[] = []
+
+  exec(command: ProcessCommand): Promise<ProcessResult> {
+    this.commands.push(command)
+    if (command.command === 'git') {
+      return Promise.resolve(this.gitResult(command.args))
+    }
+    return Promise.resolve({
+      exitCode: 0,
+      stderr: '',
+      stdout: 'verified\n',
+    })
+  }
+
+  private gitResult(args: readonly string[]): ProcessResult {
+    if (args[0] === 'show-ref' && args.at(-1) === 'refs/heads/worker/T1') {
+      return processResult(1)
+    }
+    if (args[0] === 'status') {
+      return processResult(0, ' M src/native.ts\n')
+    }
+    if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
+      return processResult(0, '/repo\n')
+    }
+    if (args[0] === 'rev-parse') {
+      return processResult(0, 'commit-native\n')
+    }
+    if (args[0] === 'branch') {
+      return processResult(0, 'worker/T1\n')
+    }
+    return processResult(0)
+  }
+}
+
+class RecordingWorktreeDependencyProvisioner implements WorktreeDependencyProvisionerPort {
+  readonly requests: WorktreeDependencyProvisioningRequest[] = []
+
+  provision(request: WorktreeDependencyProvisioningRequest): Promise<WorktreeDependencyProvisioningResult> {
+    this.requests.push(request)
+    return Promise.resolve({ status: 'copied', strategy: 'copy' })
+  }
+}
+
 class RecordingRunStore implements SuperviseRunStore {
   readonly events: { readonly event: WorkerLifecycleEvent; readonly runId: string }[] = []
   readonly readEventRunIds: string[] = []
@@ -930,4 +1383,126 @@ async function tempRoot(prefix: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), prefix))
   tempRoots.push(root)
   return root
+}
+
+function gitCommand(cwd: string, args: readonly string[]): ProcessCommand {
+  return {
+    args,
+    command: 'git',
+    cwd,
+  }
+}
+
+function processResult(exitCode: number, stdout = '', stderr = ''): ProcessResult {
+  return {
+    exitCode,
+    stderr,
+    stdout,
+  }
+}
+
+function onlyTaskResult<T>(items: readonly T[]): T {
+  expect(items).toHaveLength(1)
+  const item = items[0]
+  expect(item).toBeDefined()
+  if (item === undefined) {
+    throw new Error('missing task result')
+  }
+  return item
+}
+
+function nativeExecutionResult(input: DagExecutorInput): DagExecutorResult {
+  return {
+    base_ref: input.base_ref,
+    dry_run: input.dry_run,
+    failed_tasks: [],
+    integration_branch: input.integration_branch,
+    run_id: input.run_id,
+    skipped_tasks: [],
+    status: 'succeeded',
+    task_results: input.tasks.map((task) => ({
+      status: 'succeeded',
+      task_id: task.id,
+    })),
+  }
+}
+
+function nativeRunSummary(run: string): RunSummary {
+  return {
+    run,
+    state: { stage: 'fanout' },
+    tasks: [nativeTask()],
+    waves: [['T1']],
+    workerResults: [
+      {
+        files_changed: ['src/native.ts'],
+        status: 'ok',
+        task_id: 'T1',
+        verify_rc: 0,
+      },
+    ],
+  }
+}
+
+function weakVerifyRunSummary(run: string): RunSummary {
+  const weakTask = {
+    ...nativeTask(),
+    verify: 'echo ok',
+    verify_proves: [],
+  }
+  return {
+    ...nativeRunSummary(run),
+    tasks: [weakTask],
+    workerResults: [
+      {
+        files_changed: ['src/native.ts'],
+        status: 'ok',
+        task_id: 'T1',
+        verify_rc: 0,
+      },
+    ],
+  }
+}
+
+function failedEvalRunSummary(run: string): RunSummary {
+  const failingTask = {
+    ...nativeTask(),
+    paths: ['src/native.ts'],
+    verify: 'echo ok',
+    verify_proves: [],
+  }
+  return {
+    ...nativeRunSummary(run),
+    tasks: [failingTask],
+    workerResults: [
+      {
+        files_changed: ['docs/outside.md'],
+        out_of_bounds: ['docs/outside.md'],
+        status: 'no-op',
+        task_id: 'T1',
+        verify_rc: 1,
+      },
+    ],
+  }
+}
+
+function nativeTask(): Task {
+  return {
+    attachment: {
+      activeSkills: ['typescript'],
+      mcpProfile: 'code-intel',
+    },
+    boundaries: 'Only touch src/native.ts.',
+    depends_on: [],
+    difficulty: 'moderate',
+    engine: { cli: 'codex', model: 'gpt-5' },
+    id: 'T1',
+    model: 'sonnet',
+    objective: 'Execute native DAG wiring.',
+    output_format: 'Code edits',
+    paths: ['src/native.ts'],
+    title: 'Native task',
+    verify: 'npm test',
+    verify_proves: ['npm test exercises the native task behavior'],
+  }
 }
