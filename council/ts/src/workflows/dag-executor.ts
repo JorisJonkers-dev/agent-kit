@@ -1,4 +1,5 @@
 import {
+  applyBoundsGate,
   applyPreFanoutGate,
   createTaskGraph,
   dispatchReadySet,
@@ -19,11 +20,35 @@ import type {
   DagTaskResult,
   DagTaskStatus,
   DagVerifyResult,
+  GitDagExecutorPort,
   WorkerResult,
 } from '../ports/index.js'
 import type { Task, TaskId } from '../shared-kernel/index.js'
 
+export interface DagExecutorDependencyProvisioningRequest {
+  readonly repoRoot: string
+  readonly worktreePath: string
+}
+
+export interface DagExecutorDependencyProvisionerPort {
+  provision(request: DagExecutorDependencyProvisioningRequest): Promise<unknown>
+}
+
+export type DagExecutorExecutionGitPort = Pick<
+  GitDagExecutorPort,
+  'changedFiles' | 'commitAll' | 'createWorktree' | 'reconcileIntegrationBranch' | 'removeWorktree'
+>
+
+export interface DagExecutorExecutionPorts {
+  readonly dependency_provisioner: DagExecutorDependencyProvisionerPort
+  readonly git: DagExecutorExecutionGitPort
+  readonly integration_worktree_path: string
+  readonly repo_root: string
+  readonly worktree_root: string
+}
+
 export interface DagExecutorStateInput extends DagExecutorInput {
+  readonly execution?: DagExecutorExecutionPorts
   readonly repoFiles: ReadonlySet<string>
 }
 
@@ -63,6 +88,19 @@ interface FailureDetails {
   readonly worker_result?: WorkerResult
   readonly worktree_path?: string
 }
+
+interface PreparedTaskWorkspace {
+  readonly assignment: DagAgentAssignment
+  readonly branch: string
+  readonly cleanup?: () => Promise<void>
+  readonly worktreePath: string
+}
+
+interface FailedTaskWorkspace {
+  readonly outcome: TaskExecutionOutcome
+}
+
+type TaskWorkspacePreparation = FailedTaskWorkspace | PreparedTaskWorkspace
 
 export async function executeDagExecutorState(
   input: DagExecutorStateInput,
@@ -143,6 +181,44 @@ async function executeTask(
   task: Task,
   assignment: DagAgentAssignment,
 ): Promise<TaskExecutionOutcome> {
+  const workspace = await prepareTaskWorkspace(input, task, assignment)
+  if ('outcome' in workspace) {
+    return workspace.outcome
+  }
+
+  try {
+    return await executePreparedTask(input, task, workspace)
+  } finally {
+    if (workspace.cleanup !== undefined) {
+      await workspace.cleanup()
+    }
+  }
+}
+
+async function prepareTaskWorkspace(
+  input: DagExecutorStateInput,
+  task: Task,
+  assignment: DagAgentAssignment,
+): Promise<TaskWorkspacePreparation> {
+  if (input.execution !== undefined) {
+    const execution = input.execution
+    const worktree = await execution.git.createWorktree(
+      execution.integration_worktree_path,
+      `worker/${task.id}`,
+      worktreePathFor(execution.worktree_root, task.id),
+    )
+    await execution.dependency_provisioner.provision({
+      repoRoot: execution.repo_root,
+      worktreePath: worktree.path,
+    })
+    return {
+      assignment,
+      branch: worktree.branch,
+      cleanup: () => execution.git.removeWorktree(execution.integration_worktree_path, worktree.path),
+      worktreePath: worktree.path,
+    }
+  }
+
   const provision = await input.hooks.provision({
     assignment,
     base_ref: input.base_ref,
@@ -152,58 +228,167 @@ async function executeTask(
   })
 
   if (provision.status !== 'provisioned') {
-    return failedOutcome(task, assignment, provision.error ?? `provision reported ${provision.status}`)
+    return {
+      outcome: failedOutcome(task, assignment, provision.error ?? `provision reported ${provision.status}`),
+    }
   }
 
   const provisionedAssignment = provision.assignment ?? assignment
-  const branch = provision.branch ?? `worker/${task.id}`
-  const worktreePath = provision.worktree_path ?? ''
-  const supervised = await input.hooks.supervise({
+  return {
     assignment: provisionedAssignment,
-    branch,
+    branch: provision.branch ?? `worker/${task.id}`,
+    worktreePath: provision.worktree_path ?? '',
+  }
+}
+
+async function executePreparedTask(
+  input: DagExecutorStateInput,
+  task: Task,
+  workspace: PreparedTaskWorkspace,
+): Promise<TaskExecutionOutcome> {
+  const supervised = await input.hooks.supervise({
+    assignment: workspace.assignment,
+    branch: workspace.branch,
     dry_run: input.dry_run,
     run_id: input.run_id,
     task,
-    worktree_path: worktreePath,
+    worktree_path: workspace.worktreePath,
   })
 
   if (supervised.status !== 'succeeded') {
-    return failedOutcome(task, provisionedAssignment, `worker reported ${supervised.status}`, {
-      branch,
+    return failedOutcome(task, workspace.assignment, `worker reported ${supervised.status}`, {
+      branch: workspace.branch,
       worker_result: supervised.result,
-      worktree_path: worktreePath,
+      worktree_path: workspace.worktreePath,
     })
   }
 
   const verified = await input.hooks.verify({
-    assignment: provisionedAssignment,
+    assignment: workspace.assignment,
     command: task.verify,
     run_id: input.run_id,
     task,
-    worktree_path: worktreePath,
+    worktree_path: workspace.worktreePath,
   })
 
   if (verified.status !== 'passed') {
-    return failedOutcome(task, provisionedAssignment, verifyFailureMessage(verified), {
-      branch,
+    return failedOutcome(task, workspace.assignment, verifyFailureMessage(verified), {
+      branch: workspace.branch,
       verify: verified,
       worker_result: supervised.result,
-      worktree_path: worktreePath,
+      worktree_path: workspace.worktreePath,
     })
+  }
+
+  if (input.execution !== undefined) {
+    return finalizeExecutedTask(input, input.execution, task, workspace, supervised.result, verified)
   }
 
   return {
     graphState: 'closed',
     result: {
-      assignment: provisionedAssignment,
-      branch,
+      assignment: workspace.assignment,
+      branch: workspace.branch,
       status: 'succeeded',
       task_id: task.id,
       verify: verified,
       worker_result: supervised.result,
-      worktree_path: worktreePath,
+      worktree_path: workspace.worktreePath,
     },
   }
+}
+
+async function finalizeExecutedTask(
+  input: DagExecutorStateInput,
+  execution: DagExecutorExecutionPorts,
+  task: Task,
+  workspace: PreparedTaskWorkspace,
+  workerResult: WorkerResult,
+  verified: DagVerifyResult,
+): Promise<TaskExecutionOutcome> {
+  const filesChanged = await execution.git.changedFiles(workspace.worktreePath)
+  const bounds = applyBoundsGate({
+    allowedPaths: task.paths,
+    filesChanged,
+    taskId: task.id,
+  })
+  const boundedWorkerResult = workerResultWithExecutionDetails({
+    bounds,
+    branch: workspace.branch,
+    committed: false,
+    verified,
+    workerResult,
+    worktreePath: workspace.worktreePath,
+  })
+
+  if (bounds.status !== 'ok') {
+    return failedOutcome(task, workspace.assignment, `bounds gate reported ${bounds.status}`, {
+      branch: workspace.branch,
+      verify: verified,
+      worker_result: boundedWorkerResult,
+      worktree_path: workspace.worktreePath,
+    })
+  }
+
+  const committed = await execution.git.commitAll(workspace.worktreePath, {
+    message: commitMessageFor(task),
+  })
+  await execution.git.reconcileIntegrationBranch(execution.integration_worktree_path, {
+    baseBranch: input.base_ref,
+    integrationBranch: input.integration_branch,
+    sourceBranch: committed.branch,
+  })
+
+  return {
+    graphState: 'closed',
+    result: {
+      assignment: workspace.assignment,
+      branch: committed.branch,
+      commit: committed.commit,
+      files_changed: bounds.files_changed,
+      status: 'succeeded',
+      task_id: task.id,
+      verify: verified,
+      worker_result: workerResultWithExecutionDetails({
+        bounds,
+        branch: committed.branch,
+        committed: true,
+        verified,
+        workerResult,
+        worktreePath: workspace.worktreePath,
+      }),
+      worktree_path: workspace.worktreePath,
+    },
+  }
+}
+
+function workerResultWithExecutionDetails(input: {
+  readonly bounds: ReturnType<typeof applyBoundsGate>
+  readonly branch: string
+  readonly committed: boolean
+  readonly verified: DagVerifyResult
+  readonly workerResult: WorkerResult
+  readonly worktreePath: string
+}): WorkerResult {
+  return {
+    ...input.workerResult,
+    branch: input.branch,
+    committed: input.committed,
+    files_changed: input.bounds.files_changed,
+    out_of_bounds: input.bounds.out_of_bounds,
+    status: input.bounds.status === 'ok' ? input.workerResult.status : input.bounds.status,
+    verify_rc: input.verified.exit_code,
+    worktree: input.worktreePath,
+    ...(input.verified.output === undefined ? {} : { verify_output: input.verified.output }),
+  }
+}
+
+function commitMessageFor(task: Task): string {
+  return `${task.id} ${task.title}`
+}
+
+function worktreePathFor(worktreeRoot: string, taskId: TaskId): string {
+  return `${worktreeRoot.replace(/\/$/u, '')}/${taskId}`
 }
 
 function assignmentFor(
