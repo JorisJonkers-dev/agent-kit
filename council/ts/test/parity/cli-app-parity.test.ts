@@ -31,6 +31,7 @@ describe('CLI composition', () => {
       'grill',
       'inject',
       'plan',
+      'recommend',
       'review-pack',
       'self-test',
       'split',

@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { normalizeLegacyRunDir } from '../adapters/runstore/index.js'
 import { resolveCouncilConfig } from '../contexts/config/index.js'
 import { planWaves } from '../contexts/graph/index.js'
+import { recommendLenses, type LensProblemProfile, type LensRecommendation } from '../contexts/triage/index.js'
 import type { GhPort } from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
 import {
@@ -34,6 +35,10 @@ export interface CouncilAppDeps {
   readonly gh?: GhPort
   readonly readText?: (path: string) => Promise<string>
   readonly writeText?: (path: string, text: string) => Promise<void>
+}
+
+export interface RecommendInput {
+  readonly profile?: LensProblemProfile
 }
 
 export interface SelfTestGolden {
@@ -97,6 +102,10 @@ export class CouncilApp {
       readText: this.readText,
       writeText: this.writeText,
     })
+  }
+
+  recommend(input: RecommendInput = {}): Promise<LensRecommendation> {
+    return Promise.resolve(recommendLenses(input.profile))
   }
 
   roundTripTasksMarkdown(tasksPath: string): Promise<readonly import('../shared-kernel/index.js').JsonRecord[]> {

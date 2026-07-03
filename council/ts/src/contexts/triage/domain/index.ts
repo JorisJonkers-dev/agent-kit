@@ -1,5 +1,7 @@
 import matrixJson from './routing-matrix.json' with { type: 'json' }
 
+export * from './recommendation.js'
+
 export type TriageRoute = 'direct' | 'delta' | 'full' | 'program'
 export type TriageSize = 'trivial' | 'small' | 'medium' | 'large' | 'program'
 export type TriageLandscape = 'brownfield' | 'greenfield'

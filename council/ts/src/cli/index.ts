@@ -4,6 +4,7 @@ import {
   type FleetInput,
   type PlanInput,
   type FanoutInput,
+  type RecommendInput,
 } from '../app/index.js'
 import type { CouncilConfig } from '../contexts/config/index.js'
 import type { TriageInput } from '../contexts/triage/index.js'
@@ -18,6 +19,7 @@ export type CliCommand =
   | 'grill'
   | 'inject'
   | 'plan'
+  | 'recommend'
   | 'review-pack'
   | 'self-test'
   | 'split'
@@ -55,6 +57,7 @@ const COMMANDS: readonly CommandSpec[] = [
   { help: 'adversarially question task readiness', name: 'grill' },
   { help: 'inject operator guidance into a supervised worker', name: 'inject' },
   { help: 'compose planning stages without auto-executing workers', name: 'plan' },
+  { help: 'recommend council lenses for a problem profile', name: 'recommend' },
   { help: 'assemble checkpoint review packs', name: 'review-pack' },
   { help: 'run TS parity checks for Python self-test cases', name: 'self-test' },
   { help: 'extract a subtree into a destination repo', name: 'split' },
@@ -88,6 +91,8 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
     switch (command) {
       case 'plan':
         return okJson(await app.plan(parsePlan(rest)))
+      case 'recommend':
+        return okJson(await app.recommend(parseRecommend(rest)))
       case 'fanout':
         return okJson(await app.fanout(parseFanout(rest)))
       case 'fleet':
@@ -147,6 +152,10 @@ function parseFanout(argv: readonly string[]): FanoutInput {
     github: flags.has('github'),
     runDir: requireFlag(flags, 'run'),
   }
+}
+
+function parseRecommend(argv: readonly string[]): RecommendInput {
+  return { profile: JSON.parse(requireFlag(parseFlags(argv), 'input')) as NonNullable<RecommendInput['profile']> }
 }
 
 function parseFleet(argv: readonly string[]): FleetInput {

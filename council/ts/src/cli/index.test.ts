@@ -8,6 +8,7 @@ import type {
   FanoutInput,
   FleetInput,
   PlanInput,
+  RecommendInput,
 } from '../app/index.js'
 
 interface ReviewPackInput {
@@ -24,6 +25,7 @@ type AppCall =
   | { readonly input: FanoutInput; readonly method: 'fanout' }
   | { readonly input: FleetInput; readonly method: 'fleet' }
   | { readonly input: PlanInput | undefined; readonly method: 'plan' }
+  | { readonly input: RecommendInput; readonly method: 'recommend' }
   | { readonly input: ReviewPackInput; readonly method: 'readReviewPack' }
   | { readonly input: StatusInput; readonly method: 'status' }
 
@@ -65,6 +67,11 @@ class RecordingApp {
   fleet(input: FleetInput): Promise<unknown> {
     this.calls.push({ input, method: 'fleet' })
     return Promise.resolve({ input, method: 'fleet' })
+  }
+
+  recommend(input: RecommendInput): Promise<unknown> {
+    this.calls.push({ input, method: 'recommend' })
+    return Promise.resolve({ input, method: 'recommend' })
   }
 
   config(input: ConfigCommandInput): Promise<unknown> {
@@ -144,6 +151,13 @@ describe('runCli help and command dispatch', () => {
       stdout: '',
     })
     expect(app.calls).toEqual([])
+  })
+
+  it('registers the recommend command', () => {
+    expect(commandRegistry()).toContainEqual({
+      help: 'recommend council lenses for a problem profile',
+      name: 'recommend',
+    })
   })
 
   it('keeps the post-switch fallback covered for registry entries without an implementation', async () => {
@@ -240,7 +254,7 @@ describe('runCli help and command dispatch', () => {
     ])
   })
 
-  it('passes parsed fanout, fleet, status, review-pack, and triage inputs to the app', async () => {
+  it('passes parsed fanout, fleet, status, review-pack, triage, and recommend inputs to the app', async () => {
     const triage = {
       clarity: 'needs-questions',
       kind: 'feature',
@@ -293,6 +307,16 @@ describe('runCli help and command dispatch', () => {
     expect(parsed(result)).toEqual({
       input: { triage },
       routed: true,
+    })
+
+    const recommend = new RecordingApp()
+    const profile = { kind: 'api', risk: 'high', signals: ['timeout budget'], size: 'medium' } as const
+    const recommendation = await runCli(['recommend', '--input', JSON.stringify(profile)], injectedRuntime(recommend))
+    expect(recommendation.exitCode).toBe(0)
+    expect(recommend.calls).toEqual([{ input: { profile }, method: 'recommend' }])
+    expect(parsed(recommendation)).toEqual({
+      input: { profile },
+      method: 'recommend',
     })
   })
 
@@ -453,6 +477,15 @@ describe('runCli error handling', () => {
     await expect(runCli(['triage'], injectedRuntime())).resolves.toEqual({
       exitCode: 2,
       stderr: '--input is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['recommend'], injectedRuntime())).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--input is required\n',
+      stdout: '',
+    })
+    await expect(runCli(['recommend', '--input', '{'], injectedRuntime())).resolves.toMatchObject({
+      exitCode: 2,
       stdout: '',
     })
   })
