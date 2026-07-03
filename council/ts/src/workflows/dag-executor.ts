@@ -70,9 +70,30 @@ export interface DagExecutorStateSnapshot {
   readonly task_states: readonly DagExecutorTaskState[]
 }
 
+export interface DagExecutorStatusCounts {
+  readonly blocked: number
+  readonly failed: number
+  readonly pending: number
+  readonly running: number
+  readonly skipped: number
+  readonly succeeded: number
+  readonly total: number
+}
+
+export interface DagExecutorPlannedBranch {
+  readonly branch: string
+  readonly task_id: TaskId
+  readonly worktree_path?: string
+}
+
 export interface DagExecutorStateResult extends DagExecutorResult {
+  readonly assignments: readonly DagAgentAssignment[]
+  readonly human_summary: string
+  readonly planned_branches: readonly DagExecutorPlannedBranch[]
   readonly pre_fanout_gate: PreFanoutGateResult
   readonly state: DagExecutorStateSnapshot
+  readonly status_counts: DagExecutorStatusCounts
+  readonly waves: readonly (readonly TaskId[])[]
 }
 
 interface TaskExecutionOutcome {
@@ -108,6 +129,10 @@ interface FailedTaskWorkspace {
 }
 
 type TaskWorkspacePreparation = FailedTaskWorkspace | PreparedTaskWorkspace
+
+type MutableStatusCounts = {
+  -readonly [Key in keyof DagExecutorStatusCounts]: DagExecutorStatusCounts[Key]
+}
 
 export async function executeDagExecutorState(
   input: DagExecutorStateInput,
@@ -618,17 +643,24 @@ function resultFor(
   skippedTasks: readonly DagSkippedTask[],
   failedTasks: readonly DagFailedTask[],
 ): DagExecutorStateResult {
+  const state = snapshotFor(graph, dispatched, taskResults)
+  const statusCounts = statusCountsFor(state.task_states)
   return {
+    assignments: assignmentsFor(input),
     base_ref: input.base_ref,
     dry_run: input.dry_run,
     failed_tasks: failedTasks,
+    human_summary: humanSummaryFor(status, statusCounts),
     integration_branch: input.integration_branch,
+    planned_branches: plannedBranchesFor(input),
     pre_fanout_gate: preFanoutGate,
     run_id: input.run_id,
     skipped_tasks: skippedTasks,
-    state: snapshotFor(graph, dispatched, taskResults),
+    state,
     status,
+    status_counts: statusCounts,
     task_results: taskResults,
+    waves: preFanoutGate.waves,
   }
 }
 
@@ -648,4 +680,41 @@ function snapshotFor(
       task_id: node.task.id,
     })),
   }
+}
+
+function assignmentsFor(input: DagExecutorStateInput): readonly DagAgentAssignment[] {
+  const assignmentByTaskId = new Map(input.agent_pool.assignments.map((assignment) => [assignment.task_id, assignment]))
+  return input.tasks.map((task) => assignmentFor(task, assignmentByTaskId))
+}
+
+function plannedBranchesFor(input: DagExecutorStateInput): readonly DagExecutorPlannedBranch[] {
+  return input.tasks.map((task) => ({
+    branch: `worker/${task.id}`,
+    task_id: task.id,
+    ...(input.execution === undefined
+      ? {}
+      : { worktree_path: worktreePathFor(input.execution.worktree_root, task.id) }),
+  }))
+}
+
+function statusCountsFor(taskStates: readonly DagExecutorTaskState[]): DagExecutorStatusCounts {
+  const counts: MutableStatusCounts = {
+    blocked: 0,
+    failed: 0,
+    pending: 0,
+    running: 0,
+    skipped: 0,
+    succeeded: 0,
+    total: taskStates.length,
+  }
+  for (const taskState of taskStates) {
+    counts[taskState.status] += 1
+  }
+  return counts
+}
+
+function humanSummaryFor(status: DagExecutorStatus, counts: DagExecutorStatusCounts): string {
+  return `${status}: ${String(counts.succeeded)} succeeded, ${String(counts.failed)} failed, ${String(
+    counts.skipped,
+  )} skipped, ${String(counts.blocked)} blocked, ${String(counts.pending)} pending, ${String(counts.running)} running`
 }
