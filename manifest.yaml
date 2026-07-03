@@ -45,6 +45,14 @@ renderer:
   managed_paths:
     - .agents/skills/add-public-service/SKILL.md
     - .agents/skills/agent-session-bootstrap/SKILL.md
+    - .agents/skills/claude-worker/SKILL.md
+    - .agents/skills/council-amend/SKILL.md
+    - .agents/skills/council-design/SKILL.md
+    - .agents/skills/council-grill/SKILL.md
+    - .agents/skills/council-inject/SKILL.md
+    - .agents/skills/council-run/SKILL.md
+    - .agents/skills/council-supervise/SKILL.md
+    - .agents/skills/council-triage/SKILL.md
     - .agents/skills/council/SKILL.md
     - .agents/skills/fleet-change/SKILL.md
     - .agents/skills/kb-first/SKILL.md
@@ -60,6 +68,8 @@ renderer:
     - .agents/skills/speckit-tasks/SKILL.md
     - .agents/skills/speckit-taskstoissues/SKILL.md
     - .agents/skills/token-economy/SKILL.md
+    - .claude/agents/codex-med.md
+    - .claude/agents/codex-xhigh.md
     - .claude/commands/speckit.analyze.md
     - .claude/commands/speckit.checklist.md
     - .claude/commands/speckit.clarify.md
@@ -76,6 +86,13 @@ renderer:
     - .claude/settings.json
     - .claude/skills/add-public-service/SKILL.md
     - .claude/skills/agent-session-bootstrap/SKILL.md
+    - .claude/skills/council-amend/SKILL.md
+    - .claude/skills/council-design/SKILL.md
+    - .claude/skills/council-grill/SKILL.md
+    - .claude/skills/council-inject/SKILL.md
+    - .claude/skills/council-run/SKILL.md
+    - .claude/skills/council-supervise/SKILL.md
+    - .claude/skills/council-triage/SKILL.md
     - .claude/skills/council/SKILL.md
     - .claude/skills/fleet-change/SKILL.md
     - .claude/skills/kb-first/SKILL.md
@@ -87,8 +104,8 @@ renderer:
     - .codex/hooks/kb-user-prompt-recall.sh
     - .codex/hooks/pre-tool-use-edit-recall.sh
     - .codex/hooks/pre-tool-use-git-commit-capture.sh
-    - installer/install.sh
     - installer/install-agents.sh
+    - installer/install.sh
     - runner-manifests/runtime/Containerfile
     - runner-manifests/runtime/bin/agent-github-token
     - runner-manifests/runtime/bin/gh-mcp-wrapper
@@ -236,15 +253,133 @@ skills:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/skills/agent-session-bootstrap/SKILL.md"
       codex_target_path: "${CODEX_HOME}/skills/agent-session-bootstrap/SKILL.md"
+  - name: council-amend
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council-amend/SKILL.md
+        sha256: e1ddd5dc2744e6fd30c0a750d0a13945cc75da3c1a918f374d5c500c36793a14
+      - agent: claude
+        path: .claude/skills/council-amend/SKILL.md
+        sha256: 6aa6b39b8a54be030b2d26cb1db3554a55078d7d2dfbcd594893e5230d2d76e4
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council-amend/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council-amend/SKILL.md"
+  - name: council-design
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council-design/SKILL.md
+        sha256: 3b8786ecf042dd473ee0ee586b3f843d6b23b95fcc339ddaf271cf6ab9483fd1
+      - agent: claude
+        path: .claude/skills/council-design/SKILL.md
+        sha256: a79f7609469170f39ba54d109f39f5fe2cda040d4f5f416356c4192bb4cc42f5
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council-design/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council-design/SKILL.md"
+  - name: council-grill
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council-grill/SKILL.md
+        sha256: 20a4c868486e5c5dd001e454caefb0553609f83d5463f72a5ffe1298e812c38a
+      - agent: claude
+        path: .claude/skills/council-grill/SKILL.md
+        sha256: 86bae122f746c33ddb6d5ef09f869819b70ac00fa9a4ae0e62afa6c2c94383af
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council-grill/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council-grill/SKILL.md"
+  - name: council-inject
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council-inject/SKILL.md
+        sha256: a48edc0bd8dca93cea13dfac7d39c6a763ecf555419fee306eafc84bf22d7e1e
+      - agent: claude
+        path: .claude/skills/council-inject/SKILL.md
+        sha256: f266cf7422737f873b4f2a5e605a83d49a5292ca2a05f4f3fe243ba38222740b
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council-inject/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council-inject/SKILL.md"
+  - name: council-run
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council-run/SKILL.md
+        sha256: 916d51b4023bcb440a4c8617b14111aa56107dd415b9e6580085bed6eecf4aa5
+      - agent: claude
+        path: .claude/skills/council-run/SKILL.md
+        sha256: 032e6a56d610e51cc45c01cc37524065a523e1497a4dc5ce02a7ee6d4f829b2d
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council-run/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council-run/SKILL.md"
+  - name: council-supervise
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council-supervise/SKILL.md
+        sha256: 8b6ecf69849792bbb4cefdae538a6dbaa7415136d587a32a5be23ec03d5d0567
+      - agent: claude
+        path: .claude/skills/council-supervise/SKILL.md
+        sha256: c1e945e4a3296ae5c40cc95af9b09ad511594534963d65473b4ffc883e66a3f0
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council-supervise/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council-supervise/SKILL.md"
+  - name: council-triage
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/council-triage/SKILL.md
+        sha256: d2e88f39799878657807fe694771337d77ce6048f6b28a72922831d9169e84db
+      - agent: claude
+        path: .claude/skills/council-triage/SKILL.md
+        sha256: ab6c4503e24a5aadf4d52ceadfd7d72dabd23a0de1916cd6f4f404c04e15b368
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/council-triage/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/council-triage/SKILL.md"
+  - name: claude-worker
+    supported_agents: [codex]
+    targets:
+      - agent: codex
+        path: .agents/skills/claude-worker/SKILL.md
+        sha256: 9b7d005206a5009eac458e321e20d670b096629ee6a6c9949cda89c065d4df6c
+    installer:
+      source_path: installer/install.sh
+      codex_target_path: "${CODEX_HOME}/skills/claude-worker/SKILL.md"
+  - name: agent-codex-med
+    supported_agents: [claude]
+    targets:
+      - agent: claude
+        path: .claude/agents/codex-med.md
+        sha256: 8baecdbe41412b666a6c35d1fdd87ca934cc64665d2ba1ff63262347b8f6519c
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/agents/codex-med.md"
+  - name: agent-codex-xhigh
+    supported_agents: [claude]
+    targets:
+      - agent: claude
+        path: .claude/agents/codex-xhigh.md
+        sha256: ada0b5f8876071b01df1907137d4e9ebe4f41396c72360c3fab8337c396cd8f0
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/agents/codex-xhigh.md"
   - name: council
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council/SKILL.md
-        sha256: b7f73e380fc03a5fd672b0e533459dd1a833fc56de766242a675b892e5bcf9c3
+        sha256: 88ee32bac5b3aa183cad3df6c766b25df5aa3728511096abafb40a2bffd166f7
       - agent: claude
         path: .claude/skills/council/SKILL.md
-        sha256: 0453a7fe2373cc46cf6e17122788ef7a99a5d8c7f2e0387ff7962265c088500a
+        sha256: 949b6f093e9c903b2abf26defbf7428f412a9a542268b0e69ba616d00130df82
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/skills/council/SKILL.md"
@@ -557,11 +692,11 @@ specify:
 council:
   supported_agents: [codex, claude]
   files:
-    - path: council/council.py
-      sha256: 2265a50da3a434de2773797f989c03af19b5a82371095a952b219627934d89e9
+    - path: council/council.mjs
+      sha256: 3983fb8e941064bae389a4152df3adec29c0d484fa76d8045923782714ee26c8
       mode: "0755"
     - path: council/council.toml
-      sha256: 35ab8f0a13a260ec6b999c27439074e699749a360bf56ea7086aa90c11dc8e75
+      sha256: 96c88e5c707f99a35d832c68f947286181c8387bdad3d206ecd26b8d47f71d11
       mode: "0644"
     - path: council/prompts/_baseline.md
       sha256: 6f431665af14e70f508814017b29390b5a60cec9bf597b1655b487b6376bf42a
@@ -569,14 +704,77 @@ council:
     - path: council/prompts/consolidator.md
       sha256: 546ea1239cf7eb193136d3f79fa3280896dc732b1108ed92bcf77044a5fd2040
       mode: "0644"
+    - path: council/prompts/correct_course.md
+      sha256: a5b8e26a544fa6dab17595fd46f02dce0ae4877d8a2b6a385e2d6dd4a5c5e278
+      mode: "0644"
     - path: council/prompts/critic.md
       sha256: 6b070986b0efc447e1cecb10305e60fe9943d9f6e22cff6bbe8c7d5825efba0d
+      mode: "0644"
+    - path: council/prompts/design_consolidator.md
+      sha256: 821e4a6129122984468606205e4a7ab68e232e9f8254b393f6bef641fd3f18cc
+      mode: "0644"
+    - path: council/prompts/design_lens.md
+      sha256: 53decf29164b503215af6048a516354350956f3fced3e23716dbc48520bccbd4
+      mode: "0644"
+    - path: council/prompts/design_vote.md
+      sha256: 446dc42075440aabbb618339e8c933272e24a748fabbbe8a19325090994008c1
+      mode: "0644"
+    - path: council/prompts/designer.md
+      sha256: bfaf96a603f43a1cfd14aa229bc8a739089cd54f0072e2822ef2ac76f08952da
+      mode: "0644"
+    - path: council/prompts/grill.md
+      sha256: b813bad36785691002a319b32a60dc0459f79d60027b647874d3af0ee65387b8
       mode: "0644"
     - path: council/prompts/planner.md
       sha256: 00c933f31dddd0ab357f913dcca095dc892c2c0277ea9566612c3a8605f5d5a0
       mode: "0644"
+    - path: council/prompts/review_triage.md
+      sha256: fcae262db1c36e19562572b1ec84650920dd60f1cf26e77beb86e8868a5b1e5a
+      mode: "0644"
+    - path: council/prompts/reviewer_acceptance.md
+      sha256: ab9dd6272984bd8a9f62018ee42b1645c6a574dbf2557851a104f50c649edc10
+      mode: "0644"
+    - path: council/prompts/reviewer_adversarial.md
+      sha256: d708ad7c14ba9252716042fad8bbf893bc83e934830d78d8ec70cc25b81e8c22
+      mode: "0644"
+    - path: council/prompts/reviewer_edgecase.md
+      sha256: b28b46438a2745552bb0faab430cc5f73b58c160ad933727b0a4bda504151e81
+      mode: "0644"
+    - path: council/prompts/reviewpack/checkpoint-1.html
+      sha256: e402bf43a6a54b7fb1e405d62289f1771fe74b00a0d068e438c235a91f923fa2
+      mode: "0644"
+    - path: council/prompts/reviewpack/checkpoint-1.md
+      sha256: fd811c3b3a47e0cecb046e103c8284b57d17b4cf3138585b5a43f17aa25b9ec0
+      mode: "0644"
+    - path: council/prompts/reviewpack/checkpoint-2.html
+      sha256: 6a72ace65ab1e74cc69e7f303453dbfc3ad85ef319ac6ed6aa5a04ef69490875
+      mode: "0644"
+    - path: council/prompts/reviewpack/checkpoint-2.md
+      sha256: 28535ab287877316621c561a652d02c1c662d2b280e68824c6f181ca217c27a9
+      mode: "0644"
+    - path: council/prompts/reviewpack/design-checkpoint.html
+      sha256: 9f655c6fb6b336d5c5d39ce42795c2cd37eca99261da5930b8e072e747b1887a
+      mode: "0644"
+    - path: council/prompts/reviewpack/design-checkpoint.md
+      sha256: 89bdd625ddff5b7b11e01f505d54add6659225acad43d07eeb017e5195fe36ee
+      mode: "0644"
     - path: council/prompts/reviser.md
       sha256: b2517334a90822644d592efa5ae446b3c87dc493b553b71d02b81efab39950d4
+      mode: "0644"
+    - path: council/prompts/story_author.md
+      sha256: b94102edcb002b854f51bef4f561c9c60b789b87226aec964d21b928c1c49105
+      mode: "0644"
+    - path: council/prompts/story_check.md
+      sha256: 1f4a67721f10bc0512a6ab68c60237f9862bad773f98988af4d6703a995be06a
+      mode: "0644"
+    - path: council/prompts/story_template.md
+      sha256: 7d3bf462e8d62cf2c528ad430fbf99fed9e0b11b4a0f201fad64842787ce90ba
+      mode: "0644"
+    - path: council/prompts/survey.md
+      sha256: d3d57af5ec0ab020ae0e4f832bd22ce9a6d2eb600e6f7a78a02fcb3ba0b0029c
+      mode: "0644"
+    - path: council/prompts/triage_judge.md
+      sha256: fde1d65e5c0886d439e3916688fbc70d196c1f1b78886b1cd42bd2d7a38db6e5
       mode: "0644"
     - path: council/prompts/verifier.md
       sha256: a227cd0a30f0465eb6be3e3bd4c9499fc626f5d8ba13f2bcc8fc0b9f7cca1561
@@ -584,23 +782,46 @@ council:
     - path: council/prompts/worker.md
       sha256: fdf27d2f946f7f5a4f1bbfb21ecf2c41b852ccd6562b399b7622f343862d8182
       mode: "0644"
+    - path: council/schemas/amendment.schema.json
+      sha256: ab4b7000d8a64991ae94c82fd70f4370e5f991f28b4070c77b376da3ddd553e9
+      mode: "0644"
     - path: council/schemas/consolidated.schema.json
-      sha256: 22108361d8bbc20be96c8cf50f82585b47ecff12138d65b7b484a8bea09dcaac
+      sha256: bb91356b4a7ba2d09d4d032ae4ca31d0f637bec9abb889f8116d3a4092eb3a2f
+      mode: "0644"
+    - path: council/schemas/context-pack.schema.json
+      sha256: 52caf7f2045cca8f186ca7bd8dab1f7ac0098672fafe53b2123fb654b18d8986
+      mode: "0644"
+    - path: council/schemas/design-ledger.schema.json
+      sha256: f733ba83fdc44ee71a27a04cdd808ad8872c8de1386fa62a6c58a38caffadd84
+      mode: "0644"
+    - path: council/schemas/events.schema.json
+      sha256: 214c0fa0d1f6c02a464fdfc7aeeb134af2b5345a8674eec9fcb5393a099043df
       mode: "0644"
     - path: council/schemas/plan.schema.json
-      sha256: 1c3fe7c0a3c1d243cb3a25b226d339960c8de31b43d29fff367e9930b380caa1
+      sha256: dee920332c9d7441af942994676924bddd33fa2af53fff16d0c10d8d2bf2c236
+      mode: "0644"
+    - path: council/schemas/review-verdict.schema.json
+      sha256: 48bd3fb678d1092cecee6c9bd2f229d7a67d3d543d53381de2e13abe996c6f99
+      mode: "0644"
+    - path: council/schemas/routing-verdict.schema.json
+      sha256: 27628d23bce085c52efea8d0e40101b797f82856124d6693df02f631c7daeb91
+      mode: "0644"
+    - path: council/schemas/run-state.schema.json
+      sha256: 3c5c655724e199977678acd223a93ea7263af151e5b1d1ee2570a19c5f2b291c
       mode: "0644"
     - path: council/schemas/verdict.schema.json
-      sha256: 0133f2b50d9a629ab1ba332bec4491a465ed11d3ceab1a2f7fe48872d4315ca0
+      sha256: 479f0f1c9c24f6a38c91044c8bcd48f4381af99fd0e4b76881ebb09411207aad
       mode: "0644"
-
+    - path: council/schemas/worker-result.schema.json
+      sha256: 9ea80441aa00cd871a0ce1931779bef2a20d78853dc8e7fa820bdd3927c8643a
+      mode: "0644"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
   schema: runner-manifests/runtime-package.schema.json
   package: runner-manifests/runtime/runtime-package.yaml
   files:
     - path: runner-manifests/runtime/Containerfile
-      sha256: f1c0ec450600999bb0c5230ef2291ec8c0e43cdc3629676d8e8fef6ba4181867
+      sha256: 8a5bb41f5c10fea71a6bb1c91eb2c83b93f6a621d60546844fa40652f90bdb07
       mode: "0644"
     - path: runner-manifests/runtime/bin/agent-github-token
       sha256: 66afeb4ee918e9c27bc324a40dca8767e6615663fa16e71b020488b2b3f2c606
@@ -651,17 +872,17 @@ agent_runner_runtime:
       sha256: 9854de6251f5a32dc9d38a32607c9c38c4a5e24f7ddd9989b5f573d0e194a55a
       mode: "0644"
     - path: runner-manifests/runtime/runtime-package.yaml
-      sha256: 04a5df4143b01a57d62f85659adc650efbbc943ae1d49bf929261d4ad67ef77d
+      sha256: eb4706aa878b64ae645100dbce9c835d394720207400f8cd87883bde378618b7
       mode: "0644"
 
 installer:
   path: installer/install.sh
-  sha256: 2be5b06c3540930775762b3257a0b49816270a6d0b0ad99a68e17a2b116824db
+  sha256: e92450c5084980f734ef73f8bf5e6752ffd5f22b9e9a286dd2721b31e49352b7
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: 2be5b06c3540930775762b3257a0b49816270a6d0b0ad99a68e17a2b116824db
+      sha256: e92450c5084980f734ef73f8bf5e6752ffd5f22b9e9a286dd2721b31e49352b7
       mode: "0644"
     - path: installer/install-agents.sh
-      sha256: 63e36bf648297d50e1a89f1823560defbd54eb669d43086b7021a1818bd3b55b
+      sha256: eba3f6ef25b5530aa412518cc05569a863c08428ed7e974e904d34aaa5482767
       mode: "0644"

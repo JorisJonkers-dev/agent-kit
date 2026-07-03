@@ -26,6 +26,7 @@ build:
     - git
     - jq
     - mktemp
+    - node # >=22
     - sed
     - sha256sum
     - sh
