@@ -9,6 +9,7 @@ import {
   type PreFanoutGateResult,
   type TaskGraph,
 } from '../contexts/graph/index.js'
+import { workerFinishedEvent } from '../contexts/runstore/index.js'
 import type {
   DagAgentAssignment,
   DagExecutorInput,
@@ -21,6 +22,7 @@ import type {
   DagTaskStatus,
   DagVerifyResult,
   GitDagExecutorPort,
+  RunStorePort,
   WorkerResult,
 } from '../ports/index.js'
 import type { Task, TaskId } from '../shared-kernel/index.js'
@@ -47,9 +49,12 @@ export interface DagExecutorExecutionPorts {
   readonly worktree_root: string
 }
 
+export type DagExecutorRunStorePort = Pick<RunStorePort, 'appendWorkerEvent' | 'writeWorkerResult'>
+
 export interface DagExecutorStateInput extends DagExecutorInput {
   readonly execution?: DagExecutorExecutionPorts
   readonly repoFiles: ReadonlySet<string>
+  readonly run_store?: DagExecutorRunStorePort
 }
 
 export interface DagExecutorTaskState {
@@ -84,6 +89,8 @@ interface BlockedResults {
 interface FailureDetails {
   readonly assignment?: DagAgentAssignment
   readonly branch?: string
+  readonly commit?: string
+  readonly files_changed?: readonly string[]
   readonly verify?: DagVerifyResult
   readonly worker_result?: WorkerResult
   readonly worktree_path?: string
@@ -147,15 +154,16 @@ export async function executeDagExecutorState(
       readyTasks.map((task) => executeTask(input, task, assignmentFor(task, assignmentByTaskId))),
     )
 
-    batch.forEach((outcome) => {
+    for (const outcome of batch) {
       taskResults.push(outcome.result)
+      await persistTaskResult(input, outcome.result)
       if (outcome.failed !== undefined) {
         failedTasks.push(outcome.failed)
         graph = propagateStalled(graph, outcome.result.task_id)
-        return
+        continue
       }
       graph = markTaskState(graph, outcome.result.task_id, outcome.graphState)
-    })
+    }
 
     ready = dispatchReadySet(graph, limit)
   }
@@ -163,6 +171,9 @@ export async function executeDagExecutorState(
   const blocked = blockedResultsFor(graph, taskResults)
   taskResults.push(...blocked.taskResults)
   skippedTasks.push(...blocked.skippedTasks)
+  for (const taskResult of blocked.taskResults) {
+    await persistTaskResult(input, taskResult)
+  }
 
   return resultFor(
     input,
@@ -258,7 +269,7 @@ async function executePreparedTask(
   if (supervised.status !== 'succeeded') {
     return failedOutcome(task, workspace.assignment, `worker reported ${supervised.status}`, {
       branch: workspace.branch,
-      worker_result: supervised.result,
+      worker_result: workerResultWithWorkspace(supervised.result, workspace),
       worktree_path: workspace.worktreePath,
     })
   }
@@ -275,7 +286,11 @@ async function executePreparedTask(
     return failedOutcome(task, workspace.assignment, verifyFailureMessage(verified), {
       branch: workspace.branch,
       verify: verified,
-      worker_result: supervised.result,
+      worker_result: workerResultWithWorkspace(supervised.result, workspace, {
+        status: 'verify-failed',
+        verify_rc: verified.exit_code,
+        ...(verified.output === undefined ? {} : { verify_output: verified.output }),
+      }),
       worktree_path: workspace.worktreePath,
     })
   }
@@ -330,14 +345,55 @@ async function finalizeExecutedTask(
     })
   }
 
+  if (bounds.files_changed.length === 0) {
+    const error = 'no changes to commit'
+    return failedOutcome(task, workspace.assignment, error, {
+      branch: workspace.branch,
+      files_changed: bounds.files_changed,
+      verify: verified,
+      worker_result: {
+        ...boundedWorkerResult,
+        error,
+        status: 'no-op',
+      },
+      worktree_path: workspace.worktreePath,
+    })
+  }
+
   const committed = await execution.git.commitAll(workspace.worktreePath, {
     message: commitMessageFor(task),
   })
-  await execution.git.reconcileIntegrationBranch(execution.integration_worktree_path, {
-    baseBranch: input.base_ref,
-    integrationBranch: input.integration_branch,
-    sourceBranch: committed.branch,
+  const committedWorkerResult = workerResultWithExecutionDetails({
+    bounds,
+    branch: committed.branch,
+    committed: true,
+    verified,
+    workerResult,
+    worktreePath: workspace.worktreePath,
   })
+  try {
+    await execution.git.reconcileIntegrationBranch(execution.integration_worktree_path, {
+      baseBranch: input.base_ref,
+      integrationBranch: input.integration_branch,
+      sourceBranch: committed.branch,
+    })
+  } catch (error) {
+    const failure = `reconcile failed: ${errorMessage(error)}`
+    const conflicted = isMergeConflict(error)
+    return failedOutcome(task, workspace.assignment, failure, {
+      branch: committed.branch,
+      commit: committed.commit,
+      files_changed: bounds.files_changed,
+      verify: verified,
+      worker_result: {
+        ...committedWorkerResult,
+        error: failure,
+        merge: conflicted ? 'conflict' : 'failed',
+        status: conflicted ? 'merge-conflict' : 'reconcile-failed',
+      },
+      worktree_path: workspace.worktreePath,
+    })
+  }
 
   return {
     graphState: 'closed',
@@ -349,16 +405,22 @@ async function finalizeExecutedTask(
       status: 'succeeded',
       task_id: task.id,
       verify: verified,
-      worker_result: workerResultWithExecutionDetails({
-        bounds,
-        branch: committed.branch,
-        committed: true,
-        verified,
-        workerResult,
-        worktreePath: workspace.worktreePath,
-      }),
+      worker_result: committedWorkerResult,
       worktree_path: workspace.worktreePath,
     },
+  }
+}
+
+function workerResultWithWorkspace(
+  workerResult: WorkerResult,
+  workspace: PreparedTaskWorkspace,
+  overrides: Partial<WorkerResult> = {},
+): WorkerResult {
+  return {
+    ...workerResult,
+    branch: workspace.branch,
+    worktree: workspace.worktreePath,
+    ...overrides,
   }
 }
 
@@ -381,6 +443,31 @@ function workerResultWithExecutionDetails(input: {
     worktree: input.worktreePath,
     ...(input.verified.output === undefined ? {} : { verify_output: input.verified.output }),
   }
+}
+
+async function persistTaskResult(input: DagExecutorStateInput, taskResult: DagTaskResult): Promise<void> {
+  if (input.run_store === undefined || taskResult.worker_result === undefined) {
+    return
+  }
+
+  await input.run_store.writeWorkerResult(input.run_id, taskResult.task_id, taskResult.worker_result)
+  await input.run_store.appendWorkerEvent(
+    input.run_id,
+    workerFinishedEvent({
+      result_path: `workers/${taskResult.task_id}/result.json`,
+      status: taskResult.worker_result.status,
+      task_id: taskResult.task_id,
+      worker_id: `native-dag:${taskResult.task_id}`,
+    }),
+  )
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function isMergeConflict(error: unknown): boolean {
+  return errorMessage(error).toLowerCase().includes('conflict')
 }
 
 function commitMessageFor(task: Task): string {
@@ -467,6 +554,7 @@ function blockedResultsFor(graph: TaskGraph, existingResults: readonly DagTaskRe
       skipped_reason: reason,
       status: 'skipped',
       task_id: node.task.id,
+      worker_result: skippedWorkerResult(node.task, reason, dependencyTaskId),
     }
     const skippedTask: DagSkippedTask =
       dependencyTaskId === undefined
@@ -480,6 +568,26 @@ function blockedResultsFor(graph: TaskGraph, existingResults: readonly DagTaskRe
   }
 
   return { skippedTasks, taskResults }
+}
+
+function skippedWorkerResult(
+  task: Task,
+  reason: DagSkipReason,
+  dependencyTaskId: TaskId | undefined,
+): WorkerResult {
+  const failure = reason === 'dependency-skipped' ? 'skipped' : 'failed'
+  const error =
+    dependencyTaskId === undefined
+      ? `skipped because ${reason}`
+      : `skipped because dependency ${dependencyTaskId} ${failure}`
+  return {
+    ...(task.content_hash === undefined ? {} : { content_hash: task.content_hash }),
+    error,
+    files_changed: [],
+    status: 'skipped',
+    task_id: task.id,
+    verify_rc: null,
+  }
 }
 
 function executorStatus(
