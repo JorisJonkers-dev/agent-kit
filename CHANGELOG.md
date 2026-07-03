@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v2.0.0...v3.0.0) (2026-07-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **hooks:** installs no longer register a UserPromptSubmit recall hook.
+
+### Features
+
+* **council:** live observability — status --watch + tail ([#13](https://github.com/JorisJonkers-dev/agent-kit/issues/13)) ([80a4a88](https://github.com/JorisJonkers-dev/agent-kit/commit/80a4a8885efa1ab199b5113fad25f4f11bf2edd6))
+* **council:** native DAG executor for fanout/fleet (--execute) ([#9](https://github.com/JorisJonkers-dev/agent-kit/issues/9)) ([0472566](https://github.com/JorisJonkers-dev/agent-kit/commit/0472566e08ae90f57b5f1eece096c10a7c56f6ce))
+* **hooks:** remove the UserPromptSubmit knowledge-recall hook ([#12](https://github.com/JorisJonkers-dev/agent-kit/issues/12)) ([1202b78](https://github.com/JorisJonkers-dev/agent-kit/commit/1202b7845422995dc3bb6401e5a394f7a31b82ac))
+
+
+### Bug Fixes
+
+* **hooks:** default recall hook to fast mode so it stays under its timeout ([#11](https://github.com/JorisJonkers-dev/agent-kit/issues/11)) ([bedeba2](https://github.com/JorisJonkers-dev/agent-kit/commit/bedeba2a161f9bfa99d7d914651d66ee81f510c1))
+
 ## [2.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v1.2.0...v2.0.0) (2026-07-03)
 
 
