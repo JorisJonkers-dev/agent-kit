@@ -877,11 +877,11 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: 20986794e1f8775bd95530f23b0ad174d9e54bce706c16452d998175de422679
+  sha256: a214ba8f9b3a4c34abb48e2055a7b78b744039b55d65119321de2c6a43efcf53
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: 20986794e1f8775bd95530f23b0ad174d9e54bce706c16452d998175de422679
+      sha256: a214ba8f9b3a4c34abb48e2055a7b78b744039b55d65119321de2c6a43efcf53
       mode: "0644"
     - path: installer/install-agents.sh
       sha256: eba3f6ef25b5530aa412518cc05569a863c08428ed7e974e904d34aaa5482767
