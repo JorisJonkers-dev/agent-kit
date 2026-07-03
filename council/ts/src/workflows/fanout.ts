@@ -1,8 +1,11 @@
+import { applyPreFanoutGate, createTaskGraph } from '../contexts/graph/index.js'
+
 import type { RunSummary } from './status.js'
 
 export interface FanoutInput {
   readonly dryRun: boolean
   readonly github: boolean
+  readonly repoFiles?: ReadonlySet<string>
   readonly runDir: string
 }
 
@@ -22,14 +25,33 @@ export interface FanoutWorkflowDeps {
 
 export async function fanoutWorkflow(input: FanoutInput, deps: FanoutWorkflowDeps): Promise<ExecutionPlan> {
   const summary = await deps.status({ runDir: input.runDir })
+  const gate = applyPreFanoutGate({
+    graph: createTaskGraph(summary.tasks),
+    repoFiles: repoFilesForGate(summary.tasks, input.repoFiles),
+  })
+  assertPreFanoutGatePassed(gate.violations)
   const github = await resolveGithub(input.github, input.dryRun, summary.run, deps.createPullRequest)
   return {
     github: github.kind,
     ...(github.url ? { prUrl: github.url } : {}),
     run: summary.run,
     tasks: summary.tasks,
-    waves: summary.waves,
+    waves: gate.waves,
   }
+}
+
+export function assertPreFanoutGatePassed(
+  violations: readonly { readonly message: string }[],
+): void {
+  if (violations.length === 0) return
+  throw new Error(`pre-fanout static gate failed: ${violations.map(({ message }) => message).join('; ')}`)
+}
+
+export function repoFilesForGate(
+  tasks: RunSummary['tasks'],
+  repoFiles: ReadonlySet<string> | undefined,
+): ReadonlySet<string> {
+  return repoFiles ?? new Set(tasks.flatMap((task) => task.paths))
 }
 
 async function resolveGithub(

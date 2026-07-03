@@ -1,14 +1,15 @@
 import { basename } from 'node:path'
 
-import { planWaves } from '../contexts/graph/index.js'
+import { applyPreFanoutGate, createTaskGraph } from '../contexts/graph/index.js'
 import { assertTasksBijection, parseTasksMd, renderTasksMd, validateTasks } from '../contexts/tasks/index.js'
 import type { EngineDef, JsonRecord, Task } from '../shared-kernel/index.js'
-import type { ExecutionPlan } from './fanout.js'
+import { assertPreFanoutGatePassed, repoFilesForGate, type ExecutionPlan } from './fanout.js'
 
 export interface FleetInput {
   readonly agents: string
   readonly dryRun: boolean
   readonly github: boolean
+  readonly repoFiles?: ReadonlySet<string>
   readonly tasksPath: string
 }
 
@@ -19,7 +20,11 @@ export interface FleetWorkflowDeps {
 
 export async function fleetWorkflow(input: FleetInput, deps: FleetWorkflowDeps): Promise<ExecutionPlan> {
   const tasks = await readTasksJson(input.tasksPath, deps.readText)
-  const waves = planWaves(tasks)
+  const gate = applyPreFanoutGate({
+    graph: createTaskGraph(tasks),
+    repoFiles: repoFilesForGate(tasks, input.repoFiles),
+  })
+  assertPreFanoutGatePassed(gate.violations)
   const ids = tasks.map((task) => task.id)
   const agents = assignAgents(ids, parseAgentsPool(input.agents))
   const run = basename(input.tasksPath, '.json')
@@ -30,7 +35,7 @@ export async function fleetWorkflow(input: FleetInput, deps: FleetWorkflowDeps):
     ...(github.url ? { prUrl: github.url } : {}),
     run,
     tasks,
-    waves,
+    waves: gate.waves,
   }
 }
 
