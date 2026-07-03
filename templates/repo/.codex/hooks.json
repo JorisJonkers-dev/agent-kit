@@ -1,17 +1,5 @@
 {
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/kb-user-prompt-recall.sh\"",
-            "timeout": 5,
-            "statusMessage": "Loading KB context"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write|apply_patch",

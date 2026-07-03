@@ -398,7 +398,6 @@ path = pathlib.Path(os.environ["AK_SETTINGS_FILE"])
 hooks_dir = os.environ["AK_HOOKS_DIR"]
 
 owned = {
-    "user-prompt-submit-recall.sh",
     "pre-tool-use-edit-recall.sh",
     "pre-tool-use-git-commit-capture.sh",
     "stop-session-digest.sh",
@@ -410,9 +409,6 @@ def cmd(script):
 
 
 desired = {
-    "UserPromptSubmit": [
-        {"matcher": ".*", "hooks": [{"type": "command", "command": cmd("user-prompt-submit-recall.sh"), "timeout": 5}]},
-    ],
     "PreToolUse": [
         {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": cmd("pre-tool-use-edit-recall.sh"), "timeout": 5}]},
         {"matcher": "Bash", "hooks": [{"type": "command", "command": cmd("pre-tool-use-git-commit-capture.sh"), "timeout": 5}]},
@@ -443,7 +439,7 @@ def owns(group):
     return False
 
 
-for event in ("UserPromptSubmit", "PreToolUse", "Stop"):
+for event in ("PreToolUse", "Stop"):
     existing = [g for g in hooks.get(event, []) if isinstance(g, dict) and not owns(g)]
     if mode == "install":
         existing = desired[event] + existing
