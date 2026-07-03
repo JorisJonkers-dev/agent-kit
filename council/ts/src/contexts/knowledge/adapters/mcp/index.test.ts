@@ -44,11 +44,12 @@ function recordingFetch(responses: readonly KnowledgeMcpFetchResponse[]): {
   let nextResponse = 0
 
   return {
-    fetch: async (url, init) => {
-      const response = responses[nextResponse] as KnowledgeMcpFetchResponse
+    fetch: (url, init) => {
+      const response = responses[nextResponse]
+      if (response === undefined) return Promise.reject(new Error('missing fake MCP response'))
       nextResponse += 1
       requests.push({ init, url })
-      return response
+      return Promise.resolve(response)
     },
     requests,
   }

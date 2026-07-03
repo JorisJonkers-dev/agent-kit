@@ -83,12 +83,29 @@ export type KnowledgeEmissionMapping =
       readonly note: KnowledgeArchiveNoteRequest
     }
 
+export type KnowledgeDecisionEmissionMapping = Extract<
+  KnowledgeEmissionMapping,
+  { readonly classification: 'decision' }
+>
+export type KnowledgeLessonEmissionMapping = Extract<
+  KnowledgeEmissionMapping,
+  { readonly classification: 'lesson' }
+>
+export type KnowledgeArchivalEmissionMapping = Extract<
+  KnowledgeEmissionMapping,
+  { readonly classification: 'archival' }
+>
+
 interface CommonEmissionFields {
   readonly scope?: string
   readonly tags?: readonly string[]
   readonly source: string
 }
 
+export function mapKnowledgeEmission(input: KnowledgeDecisionEmission): KnowledgeDecisionEmissionMapping
+export function mapKnowledgeEmission(input: KnowledgeLessonEmission): KnowledgeLessonEmissionMapping
+export function mapKnowledgeEmission(input: KnowledgeArchivalEmission): KnowledgeArchivalEmissionMapping
+export function mapKnowledgeEmission(input: KnowledgeEmission): KnowledgeEmissionMapping
 export function mapKnowledgeEmission(input: KnowledgeEmission): KnowledgeEmissionMapping {
   assertCuratedBody(input.bodySource)
 

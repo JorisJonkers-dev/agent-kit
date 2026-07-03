@@ -14,6 +14,19 @@ export type RetryPolicyDetectionKind =
 
 export interface RetryPolicyDetection {
   readonly kind: RetryPolicyDetectionKind
+  readonly capBytes?: number
+  readonly count?: number
+  readonly duBytes?: number
+  readonly elapsedMs?: number
+  readonly gramSize?: number
+  readonly idleMs?: number
+  readonly lastActionAtMs?: number
+  readonly lastOutputAtMs?: number
+  readonly lastProgressAtMs?: number
+  readonly normalized?: string
+  readonly outputBytes?: number
+  readonly sequence?: readonly string[]
+  readonly timeoutMs?: number
 }
 
 export interface RetryPolicyConfig {
