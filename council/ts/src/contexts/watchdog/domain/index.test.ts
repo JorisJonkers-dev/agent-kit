@@ -3,46 +3,167 @@ import { describe, expect, it } from 'vitest'
 import {
   advanceEscalation,
   appendLoopLine,
+  createWatchdogProgressState,
   createEscalationState,
   createLoopDetectorState,
-  createStallDetectorState,
   evaluateDiskUsageCap,
-  evaluateStall,
+  evaluateWatchdogProgress,
   extractActionLines,
 } from './index.js'
 
-describe('stall detector', () => {
-  it('tracks log growth and reports a stall after the configured idle period', () => {
-    const initial = createStallDetectorState(1_000)
+describe('progress watchdog', () => {
+  it('tracks output heartbeats without treating byte count alone as progress', () => {
+    const initial = createWatchdogProgressState(1_000)
 
-    const beforeLimit = evaluateStall(initial, {
-      logBytes: 0,
-      nowMs: 2_999,
-      stallAfterS: 2,
+    const afterOutput = evaluateWatchdogProgress(initial, {
+      nowMs: 1_500,
+      outputBytes: 12,
+      outputHeartbeatAfterMs: 1_000,
+      progressAfterMs: 1_000,
     })
 
-    expect(beforeLimit).toEqual({ state: initial, detection: null })
-
-    const afterGrowth = evaluateStall(beforeLimit.state, {
-      logBytes: 12,
-      nowMs: 3_000,
-      stallAfterS: 2,
-    })
-
-    expect(afterGrowth).toEqual({
-      state: { logBytes: 12, lastGrowthAtMs: 3_000 },
+    expect(afterOutput).toEqual({
+      state: {
+        attemptStartedAtMs: 1_000,
+        lastActionAtMs: 1_000,
+        lastOutputAtMs: 1_500,
+        lastProgressAtMs: 1_000,
+        outputBytes: 12,
+        startedAtMs: 1_000,
+      },
       detection: null,
     })
 
     expect(
-      evaluateStall(afterGrowth.state, {
-        logBytes: 12,
-        nowMs: 5_000,
-        stallAfterS: 2,
+      evaluateWatchdogProgress(afterOutput.state, {
+        nowMs: 2_500,
+        outputBytes: 12,
+        outputHeartbeatAfterMs: 1_000,
       }),
     ).toEqual({
-      state: afterGrowth.state,
-      detection: { kind: 'stall', idleMs: 2_000, logBytes: 12 },
+      state: afterOutput.state,
+      detection: {
+        idleMs: 1_000,
+        kind: 'output-heartbeat-stall',
+        lastOutputAtMs: 1_500,
+      },
+    })
+  })
+
+  it('uses optional heartbeat snapshots for action and progress clocks', () => {
+    const initial = createWatchdogProgressState(1_000)
+    const snapshotted = evaluateWatchdogProgress(initial, {
+      heartbeat: {
+        lastActionAtMs: 4_900,
+        lastOutputAtMs: 4_700,
+        lastProgressAtMs: 4_800,
+        outputBytes: 33,
+      },
+      nowMs: 5_000,
+      actionHeartbeatAfterMs: 1_000,
+      outputHeartbeatAfterMs: 1_000,
+      progressAfterMs: 1_000,
+    })
+
+    expect(snapshotted).toEqual({
+      state: {
+        attemptStartedAtMs: 1_000,
+        lastActionAtMs: 4_900,
+        lastOutputAtMs: 4_700,
+        lastProgressAtMs: 4_800,
+        outputBytes: 33,
+        startedAtMs: 1_000,
+      },
+      detection: null,
+    })
+
+    expect(
+      evaluateWatchdogProgress(snapshotted.state, {
+        nowMs: 5_900,
+        actionHeartbeatAfterMs: 1_000,
+      }),
+    ).toEqual({
+      state: snapshotted.state,
+      detection: {
+        idleMs: 1_000,
+        kind: 'action-heartbeat-stall',
+        lastActionAtMs: 4_900,
+      },
+    })
+
+    expect(
+      evaluateWatchdogProgress(snapshotted.state, {
+        nowMs: 5_800,
+        progressAfterMs: 1_000,
+      }),
+    ).toEqual({
+      state: snapshotted.state,
+      detection: {
+        idleMs: 1_000,
+        kind: 'progress-stall',
+        lastProgressAtMs: 4_800,
+      },
+    })
+  })
+
+  it('reports wall-clock, output, and attempt budget detections deterministically', () => {
+    const initial = createWatchdogProgressState(1_000, 10)
+    const secondAttempt = {
+      ...initial,
+      attemptStartedAtMs: 2_000,
+      lastActionAtMs: 2_000,
+      lastOutputAtMs: 2_000,
+      lastProgressAtMs: 2_000,
+    }
+
+    expect(
+      evaluateWatchdogProgress(initial, {
+        nowMs: 3_000,
+        wallClockCapMs: 2_000,
+      }),
+    ).toEqual({
+      state: initial,
+      detection: { capMs: 2_000, elapsedMs: 2_000, kind: 'wall-clock-cap' },
+    })
+
+    expect(
+      evaluateWatchdogProgress(initial, {
+        nowMs: 1_100,
+        outputBytes: 20,
+        outputCapBytes: 20,
+      }),
+    ).toEqual({
+      state: {
+        ...initial,
+        lastOutputAtMs: 1_100,
+        outputBytes: 20,
+      },
+      detection: null,
+    })
+
+    expect(
+      evaluateWatchdogProgress(initial, {
+        nowMs: 1_100,
+        outputBytes: 21,
+        outputCapBytes: 20,
+      }),
+    ).toEqual({
+      state: {
+        ...initial,
+        lastOutputAtMs: 1_100,
+        outputBytes: 21,
+      },
+      detection: { capBytes: 20, kind: 'output-cap', outputBytes: 21 },
+    })
+
+    expect(
+      evaluateWatchdogProgress(secondAttempt, {
+        nowMs: 3_000,
+        attemptTimeoutMs: 1_000,
+      }),
+    ).toEqual({
+      state: secondAttempt,
+      detection: { elapsedMs: 1_000, kind: 'attempt-timeout', timeoutMs: 1_000 },
     })
   })
 })
