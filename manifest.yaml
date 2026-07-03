@@ -559,11 +559,11 @@ hooks:
       - agent: claude
         path: .claude/hooks/kb-user-prompt-recall.sh
         settings_path: .claude/settings.json
-        sha256: 635880042fefe02e41db10fd275e5102c13a720177c549523882c8fa5ffaf5ba
+        sha256: 4bf41a17b41b2a8efb0c8e7d55ff7b1791ce8c8622e4cbfa8898a77bce55a87a
       - agent: codex
         path: .codex/hooks/kb-user-prompt-recall.sh
         settings_path: .codex/hooks.json
-        sha256: f16970775df089eac795ae66b6e478b33f59f1e68692628889f0f2374db0ebb2
+        sha256: e586a67ea32ec5b16e5769c1da12f7ade9d04ea888ce5b1b5dddae2d5281fc52
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/hooks/user-prompt-submit-recall.sh"
@@ -877,11 +877,11 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: a214ba8f9b3a4c34abb48e2055a7b78b744039b55d65119321de2c6a43efcf53
+  sha256: 344ae566d6a5d60e5e265560ea108ac95f26e1eba994c036bc2e7368f0950323
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: a214ba8f9b3a4c34abb48e2055a7b78b744039b55d65119321de2c6a43efcf53
+      sha256: 344ae566d6a5d60e5e265560ea108ac95f26e1eba994c036bc2e7368f0950323
       mode: "0644"
     - path: installer/install-agents.sh
       sha256: eba3f6ef25b5530aa412518cc05569a863c08428ed7e974e904d34aaa5482767
