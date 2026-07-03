@@ -559,7 +559,7 @@ hooks:
       - agent: claude
         path: .claude/hooks/kb-user-prompt-recall.sh
         settings_path: .claude/settings.json
-        sha256: 241d436a91e1577f7b71d5e5fa0223c63af354056a67df4fb0d9ab6d2ae25be6
+        sha256: 635880042fefe02e41db10fd275e5102c13a720177c549523882c8fa5ffaf5ba
       - agent: codex
         path: .codex/hooks/kb-user-prompt-recall.sh
         settings_path: .codex/hooks.json
@@ -577,7 +577,7 @@ hooks:
       - agent: claude
         path: .claude/hooks/kb-stop-digest.sh
         settings_path: .claude/settings.json
-        sha256: e080941bb1074fc0f38b33ba2b627566a81e8303a534f1254f4455d0d1022b5e
+        sha256: b9fc024c8ad7304c74fca3f8a0b5c9327fb56b2890b034fb12ef55ed8ee9960b
       - agent: codex
         path: .codex/hooks/kb-stop-digest.sh
         settings_path: .codex/hooks.json
@@ -596,7 +596,7 @@ hooks:
       - agent: claude
         path: .claude/hooks/pre-tool-use-edit-recall.sh
         settings_path: .claude/settings.json
-        sha256: 7d99f2f851d4156abc30f3ed9f6b220e927710a961ed630628f0393b5fe5b979
+        sha256: 8df5b9e24a993d7f4d9c3852fe82c788847ba21708262a4728a4bcdb329c7417
       - agent: codex
         path: .codex/hooks/pre-tool-use-edit-recall.sh
         settings_path: .codex/hooks.json
@@ -615,7 +615,7 @@ hooks:
       - agent: claude
         path: .claude/hooks/pre-tool-use-git-commit-capture.sh
         settings_path: .claude/settings.json
-        sha256: 2eae87a39883a349f7640338ed599b16335436df6cc4f559ff2fe69319ae345b
+        sha256: 5da21007a4a2fa65e14c7851754c9792364593448b751f30e9db7c216486f482
       - agent: codex
         path: .codex/hooks/pre-tool-use-git-commit-capture.sh
         settings_path: .codex/hooks.json
@@ -877,11 +877,11 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: 9ca537ee006be17be02a8de65f7e2e7b3b6a3701557dcbfb25015728367b7ec8
+  sha256: 20986794e1f8775bd95530f23b0ad174d9e54bce706c16452d998175de422679
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: 9ca537ee006be17be02a8de65f7e2e7b3b6a3701557dcbfb25015728367b7ec8
+      sha256: 20986794e1f8775bd95530f23b0ad174d9e54bce706c16452d998175de422679
       mode: "0644"
     - path: installer/install-agents.sh
       sha256: eba3f6ef25b5530aa412518cc05569a863c08428ed7e974e904d34aaa5482767
