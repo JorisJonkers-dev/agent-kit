@@ -1,0 +1,55 @@
+{
+  "summary": "Seed-if-absent council context pack for agent-kit. Built at 2026-07-02T22:50:34Z from checked-in repository docs, manifests, schemas, and templates; regeneration must preserve locally edited fragments.",
+  "refs": [
+    "README.md",
+    "PORTABILITY.md",
+    "manifest.yaml",
+    "pyproject.toml",
+    "council/README.md",
+    "council/council.toml",
+    "council/schemas/context-pack.schema.json",
+    "templates/repo/.specify/memory/constitution.md",
+    "runner-manifests/README.md"
+  ],
+  "files": [
+    ".council/context/gh-conventions.md",
+    ".council/context/org-repos.md",
+    ".council/context/toolchain.md",
+    ".council/context/repo-map.md",
+    ".council/context/constitution-digest.md",
+    ".council/context/domain-glossary.md"
+  ],
+  "snippets": [
+    {
+      "ref": "gh-conventions",
+      "path": ".council/context/gh-conventions.md",
+      "text": "GitHub identity and publishing conventions for the JorisJonkers-dev agent-kit artifact."
+    },
+    {
+      "ref": "org-repos",
+      "path": ".council/context/org-repos.md",
+      "text": "Repository and adjacent artifact coordinates used by this kit."
+    },
+    {
+      "ref": "toolchain",
+      "path": ".council/context/toolchain.md",
+      "text": "Local development, render, validation, and council execution tools."
+    },
+    {
+      "ref": "repo-map",
+      "path": ".council/context/repo-map.md",
+      "text": "High-level source layout and ownership boundaries."
+    },
+    {
+      "ref": "constitution-digest",
+      "path": ".council/context/constitution-digest.md",
+      "text": "Digest of the checked-in project constitution seed and workflow guardrails."
+    },
+    {
+      "ref": "domain-glossary",
+      "path": ".council/context/domain-glossary.md",
+      "text": "Common domain terms for agent-kit, council, Spec Kit, installer, runtime, and KB surfaces."
+    }
+  ],
+  "profile": "seed-if-absent"
+}
