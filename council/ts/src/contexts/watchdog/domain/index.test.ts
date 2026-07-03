@@ -6,6 +6,7 @@ import {
   createWatchdogProgressState,
   createEscalationState,
   createLoopDetectorState,
+  createRetryPolicyState,
   evaluateDiskUsageCap,
   evaluateWatchdogProgress,
   extractActionLines,
@@ -333,6 +334,12 @@ describe('disk usage cap detector', () => {
       duBytes: 11,
       capBytes: 10,
     })
+  })
+})
+
+describe('watchdog domain barrel', () => {
+  it('exports retry policy surface', () => {
+    expect(createRetryPolicyState()).toEqual({ attempts: 0, failureFingerprints: [] })
   })
 })
 
