@@ -265,6 +265,31 @@ describe('triageReviewFindings', () => {
     ])
   })
 
+  it('keeps a merged duplicate blocking when advisory evidence appears first', () => {
+    expect(
+      triageReviewFindings({
+        reports: [
+          {
+            reviewer: 'spec',
+            findings: [advisoryFinding('Missing lock', 'naming is unclear', 'AC-1')],
+          },
+          {
+            reviewer: 'impl',
+            findings: [blockingFinding('missing lock', 'guard is absent', 'AC-1')],
+          },
+        ],
+      }).findings,
+    ).toEqual([
+      {
+        severity: 'blocking',
+        claim: 'Missing lock',
+        evidence: ['naming is unclear', 'guard is absent'],
+        reviewers: ['spec', 'impl'],
+        ac_ref: 'AC-1',
+      },
+    ])
+  })
+
   it('approves with an empty fix list after a matching AC-specific refutation', () => {
     expect(
       triageReviewFindings({
