@@ -371,7 +371,9 @@ def validate_council_command_surface_source(source: str) -> None:
         )
 
     missing_dispatches = [
-        command for command in REQUIRED_COUNCIL_CLI_COMMANDS if not _has_required_council_command_dispatch(source, command)
+        command
+        for command in REQUIRED_COUNCIL_CLI_COMMANDS
+        if not _has_required_council_command_dispatch(source, command)
     ]
     if missing_dispatches:
         fail(
