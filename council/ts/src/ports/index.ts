@@ -42,7 +42,12 @@ export type {
   LegacyRunNormalizerPort,
   LegacyRunReport,
   LegacyTaskReport,
+  LiveRunArtifacts,
+  LiveRunDirReaderPort,
   NormalizedRunDirectory,
+  RunStoreEvent,
   RunStorePort,
   WorkerResult,
+  WorkerSupervisorSnapshot,
+  WorkerSupervisorSnapshotStatus,
 } from './run-store.js'
