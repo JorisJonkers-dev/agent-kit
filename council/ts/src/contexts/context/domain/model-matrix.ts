@@ -1,4 +1,4 @@
-import type { EngineDef, EngineTagged } from '../../../domain/contracts/index.js'
+import type { EngineDef, EngineTagged } from '../../../shared-kernel/index.js'
 
 export type ModelTierName = 'cheap' | 'standard' | 'strong' | 'max'
 export type ModelWorkload = 'single' | 'bulk' | 'strict-json'

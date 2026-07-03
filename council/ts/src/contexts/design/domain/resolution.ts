@@ -1,4 +1,4 @@
-import type { DesignLedger, DesignLedgerEntry } from '../../../domain/contracts/design-ledger.js'
+import type { DesignLedger, DesignLedgerEntry } from '../../../shared-kernel/design-ledger.js'
 import type {
   DesignCritiqueAssignment,
   DesignCritiqueRound,

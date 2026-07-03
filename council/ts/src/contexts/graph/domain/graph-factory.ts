@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import type { Task, TaskId } from '../../../domain/contracts/task.js'
+import type { Task, TaskId } from '../../../shared-kernel/task.js'
 
 import type {
   CreateTaskGraphOptions,

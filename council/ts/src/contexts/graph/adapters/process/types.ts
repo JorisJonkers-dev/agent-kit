@@ -5,7 +5,7 @@ import type {
   LoopDetection,
   LoopDetectorConfig,
   StallDetection,
-} from '../../../../domain/watchdog/index.js'
+} from '../../../watchdog/index.js'
 
 export type WorkerSupervisorStatus = 'completed' | 'failed' | 'stopped' | 'stalled' | 'disk-cap'
 export type WorkerSupervisorDetection = StallDetection | LoopDetection | DiskUsageCapDetection

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TaskId } from '../../../domain/contracts/task.js'
+import type { TaskId } from '../../../shared-kernel/task.js'
 
 import {
   applyBoundsGate,

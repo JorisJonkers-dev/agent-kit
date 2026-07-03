@@ -9,7 +9,7 @@ import {
   validateTasks,
   validateTasksJsonSchema,
 } from './index.js'
-import type { JsonRecord } from '../../../domain/contracts/common.js'
+import type { JsonRecord } from '../../../shared-kernel/common.js'
 
 const fullTask: JsonRecord = {
   acceptance_criteria: ['keeps bijection'],

@@ -1,4 +1,4 @@
-import type { Task } from '../../../domain/contracts/task.js'
+import type { Task } from '../../../shared-kernel/task.js'
 
 export interface SpecSection {
   readonly ref: string

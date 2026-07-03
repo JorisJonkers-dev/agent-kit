@@ -4,11 +4,11 @@ import {
   issueStateAfterMirror,
   renderTaskIssueBody,
   selectBestFitLabels,
-} from '../../../../domain/github/index.js'
+} from '../../../github/index.js'
 import type {
   ExistingGithubIssue,
   ExistingGithubMilestone,
-} from '../../../../domain/github/index.js'
+} from '../../../github/index.js'
 import {
   addJoinedOption,
   existingLabelName,

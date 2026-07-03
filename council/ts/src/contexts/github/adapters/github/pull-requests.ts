@@ -1,4 +1,4 @@
-import { renderPullRequestBody } from '../../../../domain/github/index.js'
+import { renderPullRequestBody } from '../../../github/index.js'
 import type { GhPr } from '../../../../ports/index.js'
 import {
   hasPullRequestShape,

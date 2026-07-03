@@ -1,4 +1,4 @@
-import type { Task, TaskId } from '../../../domain/contracts/task.js'
+import type { Task, TaskId } from '../../../shared-kernel/task.js'
 
 export type GraphEdgeKind = 'depends_on' | 'discovered_from' | 'supersedes'
 

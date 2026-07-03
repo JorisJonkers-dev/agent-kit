@@ -1,4 +1,4 @@
-import type { JsonRecord, JsonValue } from '../../../domain/contracts/common.js'
+import type { JsonRecord, JsonValue } from '../../../shared-kernel/common.js'
 import {
   comparableKey,
   formatPythonList,

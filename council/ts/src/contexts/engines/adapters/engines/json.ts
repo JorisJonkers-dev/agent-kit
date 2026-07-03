@@ -1,4 +1,4 @@
-import type { JsonRecord } from '../../../../domain/contracts/index.js'
+import type { JsonRecord } from '../../../../shared-kernel/index.js'
 
 export function parseJsonRecord(line: string): JsonRecord | null {
   try {

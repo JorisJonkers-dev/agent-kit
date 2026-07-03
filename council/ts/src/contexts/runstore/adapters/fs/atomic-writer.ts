@@ -2,7 +2,7 @@ import { constants } from 'node:fs'
 import { mkdir, open, rename } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
-import type { AtomicJsonWritePlan } from '../../../../domain/runstore/index.js'
+import type { AtomicJsonWritePlan } from '../../../runstore/index.js'
 import { assertPathSegment } from './artifact-codec.js'
 
 export class AtomicWriter {

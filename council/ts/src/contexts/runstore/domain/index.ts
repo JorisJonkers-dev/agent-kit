@@ -4,7 +4,7 @@ import type {
   RoutingVerdict,
   RunState,
   Task,
-} from '../../../domain/contracts/index.js'
+} from '../../../shared-kernel/index.js'
 
 export const RUNSTORE_STATE_FILE = 'state.json'
 export const RUNSTORE_TASKS_FILE = 'tasks.json'

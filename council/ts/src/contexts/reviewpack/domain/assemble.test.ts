@@ -7,7 +7,7 @@ import type {
   RoutingVerdict,
   Story,
   Task,
-} from '../../../domain/contracts/index.js'
+} from '../../../shared-kernel/index.js'
 import {
   assembleCheckpointOnePack,
   assembleCheckpointTwoPack,

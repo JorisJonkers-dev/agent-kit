@@ -1,4 +1,4 @@
-import type { JsonRecord } from '../../../../domain/contracts/index.js'
+import type { JsonRecord } from '../../../../shared-kernel/index.js'
 import type {
   EngineChild,
   EngineEvent,

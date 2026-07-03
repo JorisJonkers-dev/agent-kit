@@ -1,5 +1,5 @@
-import type { JsonRecord, JsonValue } from '../../../../domain/contracts/index.js'
-import type { EngineResultExtraction } from '../../../../domain/engines/index.js'
+import type { JsonRecord, JsonValue } from '../../../../shared-kernel/index.js'
+import type { EngineResultExtraction } from '../../../engines/index.js'
 import type { EngineAdapterPorts } from './types.js'
 import { isJsonRecord } from './json.js'
 

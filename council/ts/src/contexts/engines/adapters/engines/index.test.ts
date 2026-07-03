@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { EngineDef } from '../../../../domain/engines/index.js'
+import type { EngineDef } from '../../../engines/index.js'
 import {
   CHECKPOINT_RESUME_INJECTION,
   CLAUDE_STDIN_INJECTION,

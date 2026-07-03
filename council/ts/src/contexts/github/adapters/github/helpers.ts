@@ -1,7 +1,7 @@
 import type {
   ExistingGithubLabel,
   ExistingGithubMilestone,
-} from '../../../../domain/github/index.js'
+} from '../../../github/index.js'
 import type { GhPr } from '../../../../ports/index.js'
 import type { GithubAdapterContext, MethodOptions } from './types.js'
 

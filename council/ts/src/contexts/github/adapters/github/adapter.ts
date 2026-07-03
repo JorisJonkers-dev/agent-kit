@@ -2,7 +2,7 @@ import type {
   ExistingGithubIssue,
   ExistingGithubLabel,
   ExistingGithubMilestone,
-} from '../../../../domain/github/index.js'
+} from '../../../github/index.js'
 import type { GhPr, ProcessPort } from '../../../../ports/index.js'
 import { addComment as addGithubComment } from './comments.js'
 import { GhCommandClient } from './gh-client.js'

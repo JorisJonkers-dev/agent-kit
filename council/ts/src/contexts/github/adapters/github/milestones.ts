@@ -1,5 +1,5 @@
-import { chooseMilestone } from '../../../../domain/github/index.js'
-import type { ExistingGithubMilestone } from '../../../../domain/github/index.js'
+import { chooseMilestone } from '../../../github/index.js'
+import type { ExistingGithubMilestone } from '../../../github/index.js'
 import {
   hasMilestoneShape,
   isDryRun,

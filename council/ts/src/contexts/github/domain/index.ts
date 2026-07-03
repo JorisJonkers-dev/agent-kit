@@ -1,4 +1,4 @@
-import type { Story, Task } from '../../../domain/contracts/index.js'
+import type { Story, Task } from '../../../shared-kernel/index.js'
 
 export interface ExistingGithubLabel {
   readonly name: string

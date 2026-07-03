@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Task } from '../../../../domain/contracts/index.js'
+import type { Task } from '../../../../shared-kernel/index.js'
 import type { ProcessCommand, ProcessPort, ProcessResult } from '../../../../ports/index.js'
 import {
   GithubCliAdapter,

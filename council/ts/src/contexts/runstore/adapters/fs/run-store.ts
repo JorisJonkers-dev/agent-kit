@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { planStateWrite, planTasksWrite, type RunStoreEvent } from '../../../../domain/runstore/index.js'
+import { planStateWrite, planTasksWrite, type RunStoreEvent } from '../../../runstore/index.js'
 import type {
   Amendment,
   DesignLedger,
@@ -10,7 +10,7 @@ import type {
   RunState,
   Story,
   Task,
-} from '../../../../domain/contracts/index.js'
+} from '../../../../shared-kernel/index.js'
 import type { ClockPort, RunStorePort } from '../../../../ports/index.js'
 import { AtomicWriter } from './atomic-writer.js'
 import {

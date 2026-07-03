@@ -1,4 +1,4 @@
-import type { Story, Task, TaskDifficulty } from '../../../domain/contracts/index.js'
+import type { Story, Task, TaskDifficulty } from '../../../shared-kernel/index.js'
 
 export type ReviewFindingSeverity = 'blocking' | 'advisory'
 

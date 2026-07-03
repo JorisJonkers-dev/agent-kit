@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 
 import type { ClockPort } from '../../../../ports/index.js'
-import type { DesignLedger, RunState, Story, Task } from '../../../../domain/contracts/index.js'
+import type { DesignLedger, RunState, Story, Task } from '../../../../shared-kernel/index.js'
 import { FsRunStoreAdapter, normalizeLegacyRunDir, type WorkerResult } from './index.js'
 
 class TimeoutClock implements ClockPort {

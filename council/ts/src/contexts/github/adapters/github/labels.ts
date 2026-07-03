@@ -1,4 +1,4 @@
-import type { ExistingGithubLabel } from '../../../../domain/github/index.js'
+import type { ExistingGithubLabel } from '../../../github/index.js'
 import {
   hasName,
   isBootstrapEnabled,

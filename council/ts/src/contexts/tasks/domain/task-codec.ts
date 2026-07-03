@@ -1,4 +1,4 @@
-import type { JsonRecord } from '../../../domain/contracts/common.js'
+import type { JsonRecord } from '../../../shared-kernel/common.js'
 import {
   isJsonRecord,
   jsonErrorMessage,

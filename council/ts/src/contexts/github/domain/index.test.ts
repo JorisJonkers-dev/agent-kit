@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Story, Task } from '../../../domain/contracts/index.js'
+import type { Story, Task } from '../../../shared-kernel/index.js'
 import {
   buildStatusLabelTransition,
   chooseMilestone,

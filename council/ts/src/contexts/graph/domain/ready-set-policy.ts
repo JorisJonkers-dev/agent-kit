@@ -1,4 +1,4 @@
-import type { TaskId } from '../../../domain/contracts/task.js'
+import type { TaskId } from '../../../shared-kernel/task.js'
 
 import { graphFromNodes } from './graph-factory.js'
 import type { GraphNode, GraphTaskState, TaskGraph } from './types.js'

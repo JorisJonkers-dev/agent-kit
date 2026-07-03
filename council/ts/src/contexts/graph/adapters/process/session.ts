@@ -6,13 +6,13 @@ import {
   createStallDetectorState,
   evaluateDiskUsageCap,
   evaluateStall,
-} from '../../../../domain/watchdog/index.js'
+} from '../../../watchdog/index.js'
 import type {
   EscalationState,
   LoopDetection,
   LoopDetectorState,
   StallDetectorState,
-} from '../../../../domain/watchdog/index.js'
+} from '../../../watchdog/index.js'
 
 import { terminateActiveProcess } from './process-group-control.js'
 import {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { DesignLedger } from '../../../domain/contracts/design-ledger.js'
+import type { DesignLedger } from '../../../shared-kernel/design-ledger.js'
 import {
   buildAdversarialCritiqueRounds,
   buildLockSpecMergeInputs,

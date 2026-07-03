@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 
-import { createTaskGraph, type TaskGraph } from '../../../../domain/graph/index.js'
-import type { RunState, Task } from '../../../../domain/contracts/index.js'
+import { createTaskGraph, type TaskGraph } from '../../../graph/index.js'
+import type { RunState, Task } from '../../../../shared-kernel/index.js'
 import {
   RESULT_FILE,
   WORKERS_DIR,

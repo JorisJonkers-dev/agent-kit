@@ -1,5 +1,5 @@
-import type { Story, Task } from '../../../../domain/contracts/index.js'
-import type { ExistingGithubIssue } from '../../../../domain/github/index.js'
+import type { Story, Task } from '../../../../shared-kernel/index.js'
+import type { ExistingGithubIssue } from '../../../github/index.js'
 import type { GhCommandClient } from './gh-client.js'
 
 export interface GithubCliAdapterOptions {

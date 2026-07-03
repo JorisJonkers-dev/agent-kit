@@ -1,4 +1,4 @@
-import { assertTasksJsonSchema, validateTasks } from '../../../../domain/tasks/index.js'
+import { assertTasksJsonSchema, validateTasks } from '../../../tasks/index.js'
 import type {
   Amendment,
   DesignLedger,
@@ -9,8 +9,8 @@ import type {
   RunState,
   Story,
   Task,
-} from '../../../../domain/contracts/index.js'
-import type { RunStoreEvent } from '../../../../domain/runstore/index.js'
+} from '../../../../shared-kernel/index.js'
+import type { RunStoreEvent } from '../../../runstore/index.js'
 
 export const STORY_FILE = 'story.json'
 export const DESIGN_LEDGER_FILE = 'design-ledger.json'

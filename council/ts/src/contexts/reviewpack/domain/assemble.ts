@@ -6,7 +6,7 @@ import type {
   Story,
   Task,
   TaskId,
-} from '../../../domain/contracts/index.js'
+} from '../../../shared-kernel/index.js'
 import type {
   CheckpointOneInput,
   CheckpointOnePack,

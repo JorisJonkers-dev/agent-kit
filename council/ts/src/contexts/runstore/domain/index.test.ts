@@ -6,7 +6,7 @@ import type {
   RoutingVerdict,
   RunState,
   Task,
-} from '../../../domain/contracts/index.js'
+} from '../../../shared-kernel/index.js'
 import {
   amendmentEvent,
   planAtomicJsonWrite,

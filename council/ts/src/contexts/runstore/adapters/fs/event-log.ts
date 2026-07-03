@@ -9,9 +9,9 @@ import {
   routingVerdictEvent,
   RUNSTORE_EVENTS_FILE,
   type RunStoreEvent,
-} from '../../../../domain/runstore/index.js'
+} from '../../../runstore/index.js'
 import type { ClockPort } from '../../../../ports/index.js'
-import type { Amendment, ReviewVerdict, RoutingVerdict } from '../../../../domain/contracts/index.js'
+import type { Amendment, ReviewVerdict, RoutingVerdict } from '../../../../shared-kernel/index.js'
 import { syncFile } from './atomic-writer.js'
 import {
   assertAmendment,

@@ -1,4 +1,4 @@
-import type { JsonRecord } from '../../../../domain/contracts/index.js'
+import type { JsonRecord } from '../../../../shared-kernel/index.js'
 import type { EngineAdapterPorts, EngineEventStream, EngineRunRequest } from './types.js'
 import { expandCommand } from './commands.js'
 import { CHECKPOINT_RESUME_INJECTION, checkpointResumeInjection } from './injection.js'

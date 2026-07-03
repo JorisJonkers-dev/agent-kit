@@ -1,4 +1,4 @@
-import type { EngineDef } from '../../../../domain/engines/index.js'
+import type { EngineDef } from '../../../engines/index.js'
 import type { EngineRunRequest, EngineSpawnCommand } from './types.js'
 
 export function expandCommand(engine: EngineDef, request: EngineRunRequest): EngineSpawnCommand {

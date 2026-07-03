@@ -1,4 +1,4 @@
-import type { EngineDef, Task } from '../../../domain/contracts/index.js'
+import type { EngineDef, Task } from '../../../shared-kernel/index.js'
 
 export type ContextFragmentKind = 'summary' | 'ref' | 'file' | 'snippet' | 'spec-section'
 
