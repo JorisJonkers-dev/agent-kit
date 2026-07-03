@@ -170,6 +170,7 @@ describe('CouncilApp.supervise', () => {
     const result = await app.supervise({
       args: ['-e', 'console.log("ok")'],
       command: 'node',
+      mcpProfile: 'code-intel',
       modelTier: 'cheap',
       runDir: '/runs/run-a',
       taskId: 'T1',
@@ -183,6 +184,7 @@ describe('CouncilApp.supervise', () => {
         args: ['-e', 'console.log("ok")'],
         command: 'node',
         id: 'T1',
+        mcpProfile: 'code-intel',
         modelTier: 'cheap',
         watchdog: { maxRestarts: 1, stallAfterS: 1 },
         worktree: '/worktrees/T1',

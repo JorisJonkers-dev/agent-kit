@@ -242,6 +242,7 @@ function parseSupervise(argv: readonly string[]): SuperviseInput {
     ...optionalFlag(flags, 'stdin', 'stdin'),
     ...optionalFlag(flags, 'restartPreamble', 'restart-preamble'),
     ...optionalFlag(flags, 'checkpointPreamble', 'checkpoint-preamble'),
+    ...optionalFlag(flags, 'mcpProfile', 'mcp-profile'),
     ...optionalFlag(flags, 'modelTier', 'model-tier'),
     ...optionalFlag(flags, 'escalationModelTier', 'escalation-model-tier'),
     ...optionalNumberFlag(flags, 'pollIntervalMs', 'poll-interval-ms'),
