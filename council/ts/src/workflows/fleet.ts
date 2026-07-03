@@ -2,10 +2,22 @@ import { basename } from 'node:path'
 
 import { applyPreFanoutGate, createTaskGraph } from '../contexts/graph/index.js'
 import { assertTasksBijection, parseTasksMd, renderTasksMd, validateTasks } from '../contexts/tasks/index.js'
+import type { DagAgentPool } from '../ports/index.js'
 import type { EngineDef, JsonRecord, Task } from '../shared-kernel/index.js'
-import { assertPreFanoutGatePassed, repoFilesForGate, type ExecutionPlan } from './fanout.js'
+import {
+  assertPreFanoutGatePassed,
+  engineMetadata,
+  executeDagIfRequested,
+  repoFilesForGate,
+  type ExecuteDagDependency,
+  type ExecuteDagWorkflowInput,
+  type ExecutionPlan,
+  type PlanOnlyWorkflowInput,
+} from './fanout.js'
 
-export interface FleetInput {
+export type FleetInput = FleetBaseInput & (PlanOnlyWorkflowInput | ExecuteDagWorkflowInput)
+
+export interface FleetBaseInput {
   readonly agents: string
   readonly dryRun: boolean
   readonly github: boolean
@@ -15,6 +27,7 @@ export interface FleetInput {
 
 export interface FleetWorkflowDeps {
   readonly createPullRequest: (run: string) => Promise<string>
+  readonly executeDag?: ExecuteDagDependency
   readonly readText: (path: string) => Promise<string>
 }
 
@@ -26,10 +39,11 @@ export async function fleetWorkflow(input: FleetInput, deps: FleetWorkflowDeps):
   })
   assertPreFanoutGatePassed(gate.violations)
   const ids = tasks.map((task) => task.id)
-  const agents = assignAgents(ids, parseAgentsPool(input.agents))
+  const agentPool = parseAgentsPool(input.agents) as readonly [EngineDef, ...EngineDef[]]
+  const agents = assignAgents(ids, agentPool)
   const run = basename(input.tasksPath, '.json')
   const github = await resolveGithub(input.github, input.dryRun, run, deps.createPullRequest)
-  return {
+  const plan: ExecutionPlan = {
     agents: stringifyAssignments(agents),
     github: github.kind,
     ...(github.url ? { prUrl: github.url } : {}),
@@ -37,6 +51,11 @@ export async function fleetWorkflow(input: FleetInput, deps: FleetWorkflowDeps):
     tasks,
     waves: gate.waves,
   }
+  return executeDagIfRequested(input, deps.executeDag, plan, () => ({
+    agentPool: dagAgentPoolFromFleet(tasks, agentPool),
+    runId: run,
+    tasks,
+  }))
 }
 
 export async function roundTripTasksMarkdownWorkflow(
@@ -89,6 +108,33 @@ export function stringifyAssignments(assignments: ReadonlyMap<string, EngineDef>
   return Object.fromEntries(
     [...assignments.entries()].map(([taskId, engine]) => [taskId, `${engine.cli}:${engine.model}`]),
   )
+}
+
+function dagAgentPoolFromFleet(
+  tasks: readonly Task[],
+  agents: readonly [EngineDef, ...EngineDef[]],
+): DagAgentPool {
+  return {
+    assignments: tasks.map((task, taskIndex) => {
+      const agentIndex = taskIndex % agents.length
+      const agent = agents[agentIndex] ?? agents[0]
+      return {
+        agent_id: fleetAgentId(agent, agentIndex),
+        metadata: engineMetadata(agent),
+        model: task.model,
+        task_id: task.id,
+      }
+    }),
+    available: agents.map((agent, index) => ({
+      id: fleetAgentId(agent, index),
+      kind: agent.cli,
+      metadata: engineMetadata(agent),
+    })),
+  }
+}
+
+function fleetAgentId(agent: EngineDef, index: number): string {
+  return `${agent.label ?? `${agent.cli}:${agent.model}`}#${String(index + 1)}`
 }
 
 async function readTasksJson(path: string, readText: (path: string) => Promise<string>): Promise<readonly Task[]> {
