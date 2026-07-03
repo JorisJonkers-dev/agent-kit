@@ -89,6 +89,33 @@ runtime:
       - name: minimal
         claude: <claude-minimal-mcp-profile>
         codex: <codex-minimal-mcp-profile>
+  attachmentProfiles:
+    active:
+      profiles:
+        - minimal
+      skillCards:
+        - placeholder-routing-card
+      fullSkills:
+        - placeholder-skill
+    profiles:
+      - name: minimal
+        mcpProfile: minimal
+        skillCards:
+          - name: placeholder-routing-card
+            purpose: Route focused placeholder work to the minimal runtime profile.
+            positiveTriggers:
+              - Placeholder runtime metadata needs attachment-card validation.
+              - Manifest validation should exercise MCP profile references.
+            negativeTriggers:
+              - The fixture is used only for Kubernetes non-deployable checks.
+              - No attachment metadata is being parsed by the current validation.
+            requiredMcpProfile: minimal
+            risk: low
+            expectedOutputs:
+              - Placeholder routing decision for the runtime package fixture.
+              - Validation evidence that the attachment profile shape is accepted.
+        fullSkills:
+          - placeholder-skill
   sddSeed:
     sourcePathEnv: AGENT_KIT_SDD_SOURCE
     markerFileEnv: AGENT_KIT_SDD_MARKER_FILE

@@ -786,7 +786,7 @@ council:
       sha256: ab4b7000d8a64991ae94c82fd70f4370e5f991f28b4070c77b376da3ddd553e9
       mode: "0644"
     - path: council/schemas/consolidated.schema.json
-      sha256: bb91356b4a7ba2d09d4d032ae4ca31d0f637bec9abb889f8116d3a4092eb3a2f
+      sha256: 8d905e6edb3201d6dbb22987f18e1277dadb37237d5b0adb3d1fbfae9abfb5e7
       mode: "0644"
     - path: council/schemas/context-pack.schema.json
       sha256: 52caf7f2045cca8f186ca7bd8dab1f7ac0098672fafe53b2123fb654b18d8986
@@ -872,7 +872,7 @@ agent_runner_runtime:
       sha256: 9854de6251f5a32dc9d38a32607c9c38c4a5e24f7ddd9989b5f573d0e194a55a
       mode: "0644"
     - path: runner-manifests/runtime/runtime-package.yaml
-      sha256: eb4706aa878b64ae645100dbce9c835d394720207400f8cd87883bde378618b7
+      sha256: c6d37843e38d6e6a13031d53e6cfd07b982b987240e79a3b7b06b92bded55275
       mode: "0644"
 
 installer:
