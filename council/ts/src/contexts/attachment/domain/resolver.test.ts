@@ -79,7 +79,7 @@ const catalog = parseAttachmentProfilesConfig(
 describe('resolveAttachments', () => {
   it('returns deterministic frontend attachments for identical task input', () => {
     const input = {
-      paths: ['services/app-ui/src/components/NavTabs.vue'],
+      paths: ['services/app-ui/src/components/NavTabs.tsx'],
       signals: ['keyboard navigation', 'component polish'],
       taskKind: 'ui-tweak',
     }
@@ -96,6 +96,9 @@ describe('resolveAttachments', () => {
     })
     expect(first.activeSkills).toEqual(['design-review', 'accessibility-pass', 'frontend-build'])
     expect(first.selectedSkillCards.map((skill) => skill.name)).toEqual(['design-review', 'accessibility-pass'])
+    expect(first.activeSkills).not.toContain('fleet-change')
+    expect(first.activeSkills).not.toContain('ci-diagnostic')
+    expect(first.activeSkills).not.toContain('dependency-map')
     expect(first.contextProfile.profile).toBe('implementer')
     expect(first.lensIds.length).toBeGreaterThan(0)
   })
@@ -164,6 +167,23 @@ describe('resolveAttachments', () => {
       reason: 'negative-trigger',
       score: -28,
     })
+  })
+
+  it('falls back to bounded minimal attachments for generic unknown-kind edits', () => {
+    const resolved = resolveAttachments(
+      {
+        contextProfile: 'minimal',
+        paths: ['scripts/one-off-maintenance.ts'],
+        signals: ['rename helper'],
+        taskKind: 'unrecognized-kind',
+      },
+      catalog,
+    )
+
+    expect(resolved.mcpProfile).toBe('minimal')
+    expect(resolved.activeSkills).toEqual(['kb-first', 'run-tests'])
+    expect(resolved.selectedProfiles).toEqual(['minimal'])
+    expect(resolved.selectedSkillCards).toEqual([])
   })
 
   it('lets conflicting positive and negative triggers suppress high-profile escalation', () => {
