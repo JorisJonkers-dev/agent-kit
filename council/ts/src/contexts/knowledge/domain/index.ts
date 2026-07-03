@@ -1,3 +1,4 @@
+export * from './capture-service.js'
 export * from './emit-mapping.js'
 export * from './scope-policy.js'
 
