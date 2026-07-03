@@ -1,5 +1,7 @@
 export const SKILL_CARD_RISKS = ['low', 'medium', 'high'] as const
 
+export * from './resolver.js'
+
 export type SkillCardRisk = (typeof SKILL_CARD_RISKS)[number]
 
 export interface SkillCardConfig {
