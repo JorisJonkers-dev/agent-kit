@@ -22,10 +22,11 @@ description: Use when configuring Claude Code or Codex sessions, hooks, skills, 
      the task needs those tools.
    - Prefer `AGENT_MCP_PROFILE` for one runner and
      `AGENT_RUNTIME_DEFAULT_MCP_PROFILE` only when changing the fleet default.
-4. Register bounded recall hooks:
-   - `UserPromptSubmit`: short prompt recall, `limit=3`, `mode=hybrid`.
+4. Register bounded automatic hooks:
    - `PreToolUse` for edits: path/module recall, deduped per session.
    - `Stop`: transcript digest with a per-session capture cap.
+   Prompt-level KB recall stays on demand through the recall skill or
+   `knowledge.recall` MCP tool.
 5. Keep hooks silent on KB failure and add `KB_AUTO_MCP_DISABLED=1` as a panic
    switch.
 6. Add or update global memory files so future sessions know to consult and

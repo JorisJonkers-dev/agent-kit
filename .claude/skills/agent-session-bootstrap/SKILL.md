@@ -11,7 +11,8 @@ Checklist:
 2. Keep runner MCP profiles narrow: `minimal` by default, wider
    `frontend`/`cluster`/`code-intel`/`full-diagnostic` profiles only when the
    task needs those tools.
-3. Register `UserPromptSubmit`, edit/commit `PreToolUse`, and `Stop` hooks.
+3. Register edit/commit `PreToolUse` and `Stop` hooks. Prompt-level KB recall
+   stays on demand through the recall skill or `knowledge.recall` MCP tool.
 4. Keep hooks silent on KB failure and controlled by `KB_AUTO_MCP_DISABLED=1`.
 5. Add project/global memory files so future sessions consult and update the KB.
 6. Validate with a small hook payload and a `knowledge.recall` call.

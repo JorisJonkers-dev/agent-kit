@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 
 const repoRoot = resolve(import.meta.dirname, '../../../../../..')
 const hookSurfacePaths = [
-  'templates/installer/partials/hooks/user-prompt-submit-recall.sh',
   'templates/installer/partials/hooks/pre-tool-use-edit-recall.sh',
   'templates/installer/partials/hooks/pre-tool-use-git-commit-capture.sh',
   'templates/installer/partials/hooks/stop-session-digest-claude.sh',

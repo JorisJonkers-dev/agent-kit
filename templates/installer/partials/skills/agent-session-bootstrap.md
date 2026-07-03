@@ -19,10 +19,10 @@ Checklist:
    or `full-diagnostic` only when the task needs those tools. Prefer
    `AGENT_MCP_PROFILE` for one runner and
    `AGENT_RUNTIME_DEFAULT_MCP_PROFILE` only for fleet-wide default changes.
-4. Register bounded recall hooks:
-   `UserPromptSubmit` with `limit=3`/`mode=hybrid`,
-   `PreToolUse` edit recall deduped per session, and `Stop` transcript
-   digest with a per-session capture cap.
+4. Register bounded automatic hooks:
+   `PreToolUse` edit recall deduped per session and `Stop` transcript
+   digest with a per-session capture cap. Prompt-level KB recall stays
+   on demand through the recall skill or `knowledge.recall` MCP tool.
 5. Keep hooks silent on KB failure and add `KB_AUTO_MCP_DISABLED=1` as
    a panic switch.
 6. Add or update memory files so future sessions know to consult and

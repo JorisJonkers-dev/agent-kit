@@ -35,7 +35,6 @@ renderer:
     - templates/installer/partials/hooks/pre-tool-use-git-commit-capture.sh
     - templates/installer/partials/hooks/stop-session-digest-claude.sh
     - templates/installer/partials/hooks/stop-session-digest-codex.sh
-    - templates/installer/partials/hooks/user-prompt-submit-recall.sh
     - templates/installer/partials/settings/codex-hooks.json
     - templates/installer/partials/skills/agent-session-bootstrap.md
     - templates/installer/partials/skills/audit.md
@@ -80,7 +79,6 @@ renderer:
     - .claude/commands/speckit.tasks.md
     - .claude/commands/speckit.taskstoissues.md
     - .claude/hooks/kb-stop-digest.sh
-    - .claude/hooks/kb-user-prompt-recall.sh
     - .claude/hooks/pre-tool-use-edit-recall.sh
     - .claude/hooks/pre-tool-use-git-commit-capture.sh
     - .claude/settings.json
@@ -101,7 +99,6 @@ renderer:
     - .claude/skills/token-economy/SKILL.md
     - .codex/hooks.json
     - .codex/hooks/kb-stop-digest.sh
-    - .codex/hooks/kb-user-prompt-recall.sh
     - .codex/hooks/pre-tool-use-edit-recall.sh
     - .codex/hooks/pre-tool-use-git-commit-capture.sh
     - installer/install-agents.sh
@@ -245,10 +242,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/agent-session-bootstrap/SKILL.md
-        sha256: ce0ca2c28d3bc3e6c7c8f4ad4919d64323215d0a140a9e208230aca986ea3e14
+        sha256: 0e55dc55ad2c0b8f1f1a32eee62a2ea1762a2e01e0364cb10f5760d1528ee580
       - agent: claude
         path: .claude/skills/agent-session-bootstrap/SKILL.md
-        sha256: d9c050e9c9dc1714129e545559f8f42ead5f0b6bc4cb28f4af74b3610542e596
+        sha256: b2797b45c4356d137c0c5f389b4a4e2c4c7250f7030b53081e8a60d451d4ddfb
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/skills/agent-session-bootstrap/SKILL.md"
@@ -550,24 +547,6 @@ skills:
       codex_target_path: "${CODEX_HOME}/skills/audit/SKILL.md"
 
 hooks:
-  - name: kb-user-prompt-recall
-    event: UserPromptSubmit
-    purpose: "Inject bounded knowledge.recall snippets before the agent sees the prompt."
-    supported_agents: [claude, codex]
-    mcp_tools: [knowledge.recall]
-    targets:
-      - agent: claude
-        path: .claude/hooks/kb-user-prompt-recall.sh
-        settings_path: .claude/settings.json
-        sha256: 4bf41a17b41b2a8efb0c8e7d55ff7b1791ce8c8622e4cbfa8898a77bce55a87a
-      - agent: codex
-        path: .codex/hooks/kb-user-prompt-recall.sh
-        settings_path: .codex/hooks.json
-        sha256: e586a67ea32ec5b16e5769c1da12f7ade9d04ea888ce5b1b5dddae2d5281fc52
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/hooks/user-prompt-submit-recall.sh"
-      codex_target_path: "${CODEX_HOME}/hooks/kb-user-prompt-recall.sh"
   - name: kb-stop-digest
     event: Stop
     purpose: "Digest the transcript into capped lesson candidates and capture survivors."
@@ -628,10 +607,10 @@ hooks:
 settings:
   - agent: claude
     path: .claude/settings.json
-    sha256: 08f4c470cd3f10e524d6d442afc510b479cb06c0e018675ef8a04f7f7a26d9fd
+    sha256: d9cf9ac8a85463ca29cfa4f5a1c4a6c3c61aafbeec181bda79aa778e3d960cf8
   - agent: codex
     path: .codex/hooks.json
-    sha256: ec501908b04a9b4ac1cf073f9cdb703322952267eb79583845eb139068330019
+    sha256: 5692c6242d8ce2510483ea35e0a89054c6a385361b50dc58a19fd8492148fa99
 
 specify:
   project_seed:
@@ -877,12 +856,12 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: 344ae566d6a5d60e5e265560ea108ac95f26e1eba994c036bc2e7368f0950323
+  sha256: fc096cfa7f00794dac51c6ea33ff6d6f6be67938992b5dc5f86a4a80b32aa160
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: 344ae566d6a5d60e5e265560ea108ac95f26e1eba994c036bc2e7368f0950323
+      sha256: fc096cfa7f00794dac51c6ea33ff6d6f6be67938992b5dc5f86a4a80b32aa160
       mode: "0644"
     - path: installer/install-agents.sh
-      sha256: eba3f6ef25b5530aa412518cc05569a863c08428ed7e974e904d34aaa5482767
+      sha256: c2b20ca13df242056eb4b6591abdc830d5685a17ec7a7cde23c2886189fd14f4
       mode: "0644"

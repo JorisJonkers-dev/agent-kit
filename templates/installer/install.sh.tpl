@@ -156,7 +156,6 @@ claude_agent_managed_paths=(
 )
 
 claude_managed_paths=(
-  "${HOOKS_DIR}/user-prompt-submit-recall.sh"
   "${HOOKS_DIR}/pre-tool-use-edit-recall.sh"
   "${HOOKS_DIR}/pre-tool-use-git-commit-capture.sh"
   "${HOOKS_DIR}/stop-session-digest.sh"
@@ -172,7 +171,6 @@ claude_managed_paths=(
 )
 
 codex_managed_paths=(
-  "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh"
   "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh"
   "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh"
   "${CODEX_HOOKS_DIR}/kb-stop-digest.sh"
@@ -208,17 +206,6 @@ if [ "${UNINSTALL}" = 1 ]; then
   fi
   log "done"
   exit 0
-fi
-
-# -----------------------------------------------------------------
-# Hook: UserPromptSubmit recall
-# -----------------------------------------------------------------
-read -r -d '' USER_PROMPT_SUBMIT_HOOK <<'HOOK' || true
-# @agent-kit-include partials/hooks/user-prompt-submit-recall.sh
-HOOK
-
-if [ "${INSTALL_CLAUDE}" = 1 ]; then
-  write_file "${HOOKS_DIR}/user-prompt-submit-recall.sh" 0755 "${USER_PROMPT_SUBMIT_HOOK}"
 fi
 
 # -----------------------------------------------------------------
@@ -362,7 +349,6 @@ read -r -d '' CODEX_HOOKS_JSON <<HOOKS || true
 HOOKS
 
 if [ "${INSTALL_CODEX}" = 1 ]; then
-  write_file "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh" 0755 "${USER_PROMPT_SUBMIT_HOOK}"
   write_file "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh" 0755 "${PRE_TOOL_USE_EDIT_HOOK}"
   write_file "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" 0755 "${PRE_TOOL_USE_GIT_COMMIT_HOOK}"
   write_file "${CODEX_HOOKS_DIR}/kb-stop-digest.sh" 0755 "${CODEX_STOP_DIGEST_HOOK}"
@@ -420,14 +406,9 @@ if [ "${INSTALL_CLAUDE}" = 1 ]; then
 
 Claude next steps:
 
-  1. Register the four hooks in ${CLAUDE_HOME}/settings.json under the
+  1. Register the PreToolUse and Stop hooks in ${CLAUDE_HOME}/settings.json under the
      matching "hooks.<event>" arrays. Suggested config:
 
-     "UserPromptSubmit": [
-       { "matcher": ".*", "hooks": [
-         { "type": "command",
-           "command": "${HOOKS_DIR}/user-prompt-submit-recall.sh",
-           "timeout": 5 } ] } ],
      "PreToolUse": [
        { "matcher": "Edit|Write|MultiEdit", "hooks": [
          { "type": "command",
@@ -454,8 +435,7 @@ if [ "${INSTALL_CODEX}" = 1 ]; then
 
 Codex next steps:
 
-  1. ${CODEX_HOOKS_CONFIG} has been written with UserPromptSubmit, PreToolUse,
-     and Stop hooks.
+  1. ${CODEX_HOOKS_CONFIG} has been written with PreToolUse and Stop hooks.
   2. Make sure KB_BEARER_TOKEN is set in the Codex environment:
        export KB_BEARER_TOKEN="<your-token>"
 EOF
