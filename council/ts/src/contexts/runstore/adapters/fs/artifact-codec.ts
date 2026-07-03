@@ -576,6 +576,7 @@ function assertWorkerOutput(value: unknown): WorkerOutputPayload {
     'tail',
     'tail_bytes',
     'log_path',
+    'observed_at',
     'sha256',
     'content_hash',
   ])
@@ -587,6 +588,7 @@ function assertWorkerOutput(value: unknown): WorkerOutputPayload {
   optionalBoundedString(record, 'worker output', 'tail', WORKER_OUTPUT_TAIL_MAX_CHARS)
   optionalNonNegativeInteger(record, 'worker output', 'tail_bytes')
   optionalString(record, 'worker output', 'log_path')
+  optionalString(record, 'worker output', 'observed_at')
   optionalString(record, 'worker output', 'sha256')
   optionalString(record, 'worker output', 'content_hash')
   return record as unknown as WorkerOutputPayload

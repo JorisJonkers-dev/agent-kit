@@ -28,10 +28,15 @@ import {
   projectWorkerTrace,
   validateWorkerTraceAppend,
 } from '../contexts/orchestration/index.js'
-import { workerOutputEvent, type RunStoreEvent, type WorkerLifecycleEvent } from '../contexts/runstore/index.js'
+import {
+  workerOutputEvent,
+  workerStartedEvent,
+  type RunStoreEvent,
+  type WorkerLifecycleEvent,
+} from '../contexts/runstore/index.js'
 import type { DagExecutorInput, DagExecutorResult, ProcessCommand, ProcessPort, ProcessResult } from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
-import type { RunSummary } from '../workflows/index.js'
+import { projectRunView, type RunSummary } from '../workflows/index.js'
 
 const tempRoots: string[] = []
 
@@ -580,7 +585,9 @@ describe('CouncilApp.supervise', () => {
         event: {
           payload: {
             byte_count: 3,
+            log_path: 'workers/T1/logs/stdout.log',
             offset: 0,
+            observed_at: '2026-07-03T10:00:00.000Z',
             stream: 'stdout',
             tail: 'ok\n',
             tail_bytes: 3,
@@ -595,7 +602,9 @@ describe('CouncilApp.supervise', () => {
         event: {
           payload: {
             byte_count: 5,
+            log_path: 'workers/T1/logs/stderr.log',
             offset: 0,
+            observed_at: '2026-07-03T10:00:00.000Z',
             stream: 'stderr',
             tail: 'warn\n',
             tail_bytes: 5,
@@ -705,6 +714,8 @@ describe('CouncilApp.supervise', () => {
         attempt: 1,
         byteCount: 3,
         kind: 'output',
+        logPath: 'workers/T6/logs/stdout.log',
+        occurredAt: '2026-07-03T12:00:00.000Z',
         offset: 0,
         stream: 'stdout',
         tail: 'ok\n',
@@ -716,6 +727,8 @@ describe('CouncilApp.supervise', () => {
         attempt: 1,
         byteCount: 5,
         kind: 'output',
+        logPath: 'workers/T6/logs/stderr.log',
+        occurredAt: '2026-07-03T12:00:00.000Z',
         offset: 0,
         stream: 'stderr',
         tail: 'warn\n',
@@ -769,7 +782,9 @@ describe('CouncilApp.supervise', () => {
     const appendedTrace = appendWorkerTraceEvents(trace, [
       workerOutputEvent({
         byte_count: 12,
+        log_path: 'workers/T6/logs/stderr.log',
         offset: 5,
+        observed_at: '2026-07-03T12:00:01.000Z',
         stream: 'stderr',
         tail: 'still fails\n',
         tail_bytes: 12,
@@ -783,6 +798,8 @@ describe('CouncilApp.supervise', () => {
       attempt: 2,
       byteCount: 12,
       kind: 'output',
+      logPath: 'workers/T6/logs/stderr.log',
+      occurredAt: '2026-07-03T12:00:01.000Z',
       offset: 5,
       stream: 'stderr',
       tail: 'still fails\n',
@@ -875,6 +892,38 @@ describe('CouncilApp.supervise', () => {
       reason: 'repair-attempt-consumed',
       state: { repairAttemptConsumed: true },
     })
+  })
+
+  it('uses output event timestamps for RunView freshness when terminal timestamps are absent', () => {
+    const view = projectRunView({
+      clock: { now: () => new Date('2026-07-03T12:10:00.000Z') },
+      events: [
+        workerStartedEvent({
+          started_at: '2026-07-03T12:00:00.000Z',
+          task_id: 'T1',
+          worker_id: 'worker-T1',
+        }),
+        workerOutputEvent({
+          byte_count: 3,
+          log_path: 'workers/T1/logs/stdout.log',
+          observed_at: '2026-07-03T12:04:00.000Z',
+          offset: 0,
+          stream: 'stdout',
+          task_id: 'T1',
+          worker_id: 'worker-T1',
+        }),
+      ],
+      summary: {
+        run: 'run-a',
+        state: { stage: 'fanout' },
+        tasks: [nativeTask()],
+        waves: [['T1']],
+        workerResults: [],
+      },
+    })
+
+    expect(view.tasks[0]?.updatedAt).toBe('2026-07-03T12:04:00.000Z')
+    expect(view.rollup.updatedAt).toBe('2026-07-03T12:04:00.000Z')
   })
 
   it('reattaches from a saved snapshot and writes terminal result statuses', async () => {

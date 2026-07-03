@@ -265,6 +265,7 @@ function applyRunStoreEvent(
     applyWorkerIdentity(projection, event.payload.worker_id)
     projection.state = 'running'
     projection.eventFields.add('state')
+    applyUpdatedAt(projection, event.payload.observed_at)
     return
   }
 

@@ -148,13 +148,14 @@ describe('FsRunStoreAdapter', () => {
         content_hash: 'sha256:output-event',
         log_path: 'workers/T1/logs/stdout.log',
         offset: 256,
+        observed_at: '2026-07-03T10:00:01.000Z',
         sha256: 'sha256:chunk',
         stream: 'stdout',
         tail: 'last line',
         tail_bytes: 9,
         task_id: 'T1',
         worker_id: 'worker-T1',
-      } as never),
+      }),
       workerDetectedEvent({
         content_hash: 'sha256:detected',
         detected_at: '2026-07-03T10:01:00.000Z',
@@ -201,6 +202,25 @@ describe('FsRunStoreAdapter', () => {
       events.map((event) => JSON.stringify(event)).join('\n') + '\n',
     )
     await expect(readdir(join(root, 'run-a'))).resolves.not.toContain('events.jsonl.lock')
+  })
+
+  it('reads legacy worker output events without optional output metadata', async () => {
+    const root = await tempRoot()
+    const store = new FsRunStoreAdapter(root)
+    const legacyOutput = workerOutputEvent({
+      byte_count: 12,
+      offset: 0,
+      stream: 'stderr',
+      tail: 'legacy tail',
+      tail_bytes: 11,
+      task_id: 'T1',
+      worker_id: 'worker-T1',
+    })
+
+    await mkdir(join(root, 'run-legacy'), { recursive: true })
+    await appendFile(join(root, 'run-legacy', 'events.jsonl'), `${JSON.stringify(legacyOutput)}\n`)
+
+    await expect(store.readEvents('run-legacy')).resolves.toEqual([legacyOutput])
   })
 
   it('waits for an existing event lock and times out stale locks', async () => {
@@ -399,6 +419,18 @@ describe('FsRunStoreAdapter', () => {
         type: 'worker_exited',
       } as never),
     ).rejects.toThrow('worker exited.signal must be a string or null')
+    await expect(
+      store.appendWorkerEvent('run-a', {
+        payload: {
+          byte_count: 1,
+          observed_at: 1,
+          offset: 0,
+          stream: 'stdout',
+          worker_id: 'worker-T1',
+        },
+        type: 'worker_output',
+      } as never),
+    ).rejects.toThrow('worker output.observed_at must be a string')
     await expect(
       store.appendWorkerEvent('run-a', {
         payload: {
