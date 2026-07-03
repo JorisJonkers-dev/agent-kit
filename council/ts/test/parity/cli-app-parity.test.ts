@@ -147,6 +147,36 @@ describe('plan and GitHub gating', () => {
     expect(gh.requests[0]?.title).toBe('Council legacy-ordinal-ids')
   })
 
+  it('routes CLI fleet through round-robin assignment and non-dry-run PR creation', async () => {
+    const gh = new RecordingGh()
+    const app = new CouncilApp({ gh })
+    const tasksPath = join(fixturesRoot, 'legacy-ordinal-ids', 'tasks.json')
+
+    const result = await runCli(
+      ['fleet', '--tasks', tasksPath, '--agents', 'claude:haiku,codex:gpt-5.5', '--github'],
+      { app },
+    )
+
+    expect(result).toMatchObject({ exitCode: 0, stderr: '' })
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      agents: {
+        T1: 'claude:haiku',
+        T2: 'codex:gpt-5.5',
+      },
+      github: 'created',
+      prUrl: 'https://example.test/pr/1',
+      run: 'tasks',
+    })
+    expect(gh.requests).toEqual([
+      {
+        body: 'Council run tasks',
+        cwd: '.',
+        draft: true,
+        title: 'Council tasks',
+      },
+    ])
+  })
+
   it('requires an adapter for non-dry-run GitHub fanout', async () => {
     await expect(
       new CouncilApp().fanout({

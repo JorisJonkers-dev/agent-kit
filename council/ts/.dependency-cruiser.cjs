@@ -12,7 +12,7 @@ module.exports = {
       name: 'shared-kernel-is-pure',
       severity: 'error',
       from: { path: '^src/shared-kernel/' },
-      to: { path: '^src/(contexts|adapters|app|cli|ports)/|^node:' },
+      to: { path: '^src/(contexts|adapters|app|cli|composition|ports|workflows)/|^node:' },
     },
     {
       // A context's domain is the pure core: no adapters (its own or others'),
@@ -48,6 +48,22 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/app/' },
       to: { path: '^src/contexts/[^/]+/domain/.+' },
+    },
+    {
+      // Workflow orchestration reaches contexts only through their public
+      // barrels. Concrete adapters are injected by composition.
+      name: 'workflows-use-context-barrels',
+      severity: 'error',
+      from: { path: '^src/workflows/' },
+      to: { path: '^src/contexts/[^/]+/(domain|adapters)/.+' },
+    },
+    {
+      // Composition stays out of context internals; adapter wiring belongs in
+      // the top-level adapters layer or public context barrels.
+      name: 'composition-uses-context-barrels',
+      severity: 'error',
+      from: { path: '^src/composition/' },
+      to: { path: '^src/contexts/[^/]+/(domain|adapters)/.+' },
     },
   ],
   options: {
