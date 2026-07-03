@@ -6,9 +6,9 @@ import type {
   ConfigCommandInput,
   ConfigPaths,
   CouncilApp,
+  CouncilAppFanoutInput,
+  CouncilAppFleetInput,
   EvalWorkflowInput,
-  FanoutInput,
-  FleetInput,
   PlanInput,
   RecommendInput,
   SuperviseInput,
@@ -27,8 +27,8 @@ interface StatusInput {
 type AppCall =
   | { readonly input: ConfigCommandInput; readonly method: 'config' }
   | { readonly input: EvalWorkflowInput; readonly method: 'eval' }
-  | { readonly input: FanoutInput; readonly method: 'fanout' }
-  | { readonly input: FleetInput; readonly method: 'fleet' }
+  | { readonly input: CouncilAppFanoutInput; readonly method: 'fanout' }
+  | { readonly input: CouncilAppFleetInput; readonly method: 'fleet' }
   | { readonly input: PlanInput | undefined; readonly method: 'plan' }
   | { readonly input: RecommendInput; readonly method: 'recommend' }
   | { readonly input: ReviewPackInput; readonly method: 'readReviewPack' }
@@ -67,10 +67,10 @@ class RecordingApp {
     )
   }
 
-  fanout(input: FanoutInput): Promise<unknown> {
+  fanout(input: CouncilAppFanoutInput): Promise<unknown> {
     this.calls.push({ input, method: 'fanout' })
     if (this.options.fanoutError !== undefined) return Promise.reject(this.options.fanoutError)
-    return Promise.resolve({ input, method: 'fanout' })
+    return Promise.resolve(recordingDispatchResult('fanout', input))
   }
 
   eval(input: EvalWorkflowInput): Promise<unknown> {
@@ -78,9 +78,9 @@ class RecordingApp {
     return Promise.resolve({ input, method: 'eval' })
   }
 
-  fleet(input: FleetInput): Promise<unknown> {
+  fleet(input: CouncilAppFleetInput): Promise<unknown> {
     this.calls.push({ input, method: 'fleet' })
-    return Promise.resolve({ input, method: 'fleet' })
+    return Promise.resolve(recordingDispatchResult('fleet', input))
   }
 
   recommend(input: RecommendInput): Promise<unknown> {
@@ -131,6 +131,22 @@ function rejectingThenable(reason: unknown): Promise<unknown> {
     },
   }
   return thenable as unknown as Promise<unknown>
+}
+
+function recordingDispatchResult(
+  method: 'fanout' | 'fleet',
+  input: CouncilAppFanoutInput | CouncilAppFleetInput,
+): unknown {
+  if (input.execute !== true) return { input, method }
+  return {
+    execution: {
+      human_summary: `${method} executed in dry-run mode`,
+      run_id: method,
+      status: 'dry-run',
+    },
+    input,
+    method,
+  }
 }
 
 function parsed(result: CliResult): unknown {
@@ -369,6 +385,86 @@ describe('runCli help and command dispatch', () => {
     expect(parsed(recommendation)).toEqual({
       input: { profile },
       method: 'recommend',
+    })
+  })
+
+  it('passes parsed fanout execute flags to the app and keeps stdout machine-readable', async () => {
+    const app = new RecordingApp()
+
+    const result = await runCli(['fanout', '--run', '/runs/run-cli', '--execute'], injectedRuntime(app))
+
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([
+      {
+        input: {
+          baseRef: 'HEAD',
+          concurrency: { max_parallel_tasks: 1 },
+          dryRun: false,
+          execute: true,
+          github: false,
+          integrationBranch: 'council/run-cli/integration',
+          runDir: '/runs/run-cli',
+        },
+        method: 'fanout',
+      },
+    ])
+    expect(parsed(result)).toEqual({
+      execution: {
+        human_summary: 'fanout executed in dry-run mode',
+        run_id: 'fanout',
+        status: 'dry-run',
+      },
+      input: app.calls[0]?.input,
+      method: 'fanout',
+    })
+  })
+
+  it('passes parsed fleet execute flags to the app and preserves execution summaries in JSON stdout', async () => {
+    const app = new RecordingApp()
+
+    const result = await runCli(
+      [
+        'fleet',
+        '--tasks',
+        '/runs/fleet-cli.json',
+        '--agents',
+        'codex:gpt-5,claude:sonnet',
+        '--execute',
+        '--dry-run',
+        '--eval',
+        '--base-ref',
+        'origin/main',
+        '--concurrency',
+        '3',
+      ],
+      injectedRuntime(app),
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([
+      {
+        input: {
+          agents: 'codex:gpt-5,claude:sonnet',
+          baseRef: 'origin/main',
+          concurrency: { max_parallel_tasks: 3 },
+          dryRun: true,
+          eval: { enabled: true },
+          execute: true,
+          github: false,
+          integrationBranch: 'council/fleet-cli/integration',
+          tasksPath: '/runs/fleet-cli.json',
+        },
+        method: 'fleet',
+      },
+    ])
+    expect(parsed(result)).toEqual({
+      execution: {
+        human_summary: 'fleet executed in dry-run mode',
+        run_id: 'fleet',
+        status: 'dry-run',
+      },
+      input: app.calls[0]?.input,
+      method: 'fleet',
     })
   })
 
@@ -638,6 +734,32 @@ describe('runCli error handling', () => {
     await expect(runCli(['fleet', '--tasks', '/tmp/tasks.json'], injectedRuntime())).resolves.toEqual({
       exitCode: 2,
       stderr: '--agents is required\n',
+      stdout: '',
+    })
+    await expect(
+      runCli(['fanout', '--run', '/runs/run-cli', '--execute', '--concurrency'], injectedRuntime()),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--concurrency is required\n',
+      stdout: '',
+    })
+    await expect(
+      runCli(
+        [
+          'fleet',
+          '--tasks',
+          '/tmp/tasks.json',
+          '--agents',
+          'codex:gpt-5',
+          '--execute',
+          '--concurrency',
+          '1.5',
+        ],
+        injectedRuntime(),
+      ),
+    ).resolves.toEqual({
+      exitCode: 2,
+      stderr: '--concurrency must be a positive integer\n',
       stdout: '',
     })
     await expect(runCli(['status', '--run', '--other'], injectedRuntime())).resolves.toEqual({
