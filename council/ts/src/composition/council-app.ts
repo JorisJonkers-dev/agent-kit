@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, open as openFile, readFile, stat as statFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 import { SystemClockAdapter } from '../adapters/clock/index.js'
@@ -71,6 +71,7 @@ import {
   reviewPackWorkflow,
   resolveDagWorkerCommand,
   statusWatchWorkflow,
+  tailWorkflow,
   roundTripTasksMarkdownWorkflow,
   statusWorkflow as runStatusWorkflow,
   stringifyAssignments,
@@ -96,6 +97,9 @@ import type {
   StatusWatchInput,
   StatusWatchTickerInput,
   StatusWatchTickerPort,
+  TailWorkflowFrame,
+  TailWorkflowInput,
+  TailWorkflowLogReaderPort,
   TriageWorkflowInput,
 } from '../workflows/index.js'
 
@@ -114,6 +118,8 @@ export interface CouncilAppDeps {
   readonly status?: (input: { readonly runDir: string }) => Promise<RunSummary>
   readonly statusTicker?: StatusWatchTickerPort
   readonly statusWriter?: CouncilStatusOutputWriter
+  readonly tailLogReader?: TailWorkflowLogReaderPort
+  readonly tailTicker?: CouncilTailTickerPort
   readonly worktreeDependencyProvisioner?: WorktreeDependencyProvisionerPort
   readonly worktreeRoot?: string
   readonly writeText?: (path: string, text: string) => Promise<void>
@@ -133,6 +139,20 @@ export interface CouncilStatusOutputWriter {
 
 export interface CouncilAppLiveStatusInput extends StatusWatchInput {
   readonly writer?: CouncilStatusOutputWriter
+}
+
+export interface CouncilAppTailInput extends TailWorkflowInput {
+  readonly intervalMs?: number
+}
+
+export type CouncilAppTailFrame = TailWorkflowFrame
+
+export interface CouncilTailTickerInput {
+  readonly intervalMs: number
+}
+
+export interface CouncilTailTickerPort {
+  ticks(input: CouncilTailTickerInput): AsyncIterable<void>
 }
 
 export interface RecommendInput {
@@ -251,6 +271,52 @@ class ClockStatusTicker implements StatusWatchTickerPort {
   }
 }
 
+class ClockTailTicker implements CouncilTailTickerPort {
+  private readonly clock: ClockPort
+
+  constructor(clock: ClockPort) {
+    this.clock = clock
+  }
+
+  async *ticks(input: CouncilTailTickerInput): AsyncIterable<void> {
+    for (;;) {
+      await this.clock.sleep(input.intervalMs)
+      yield
+    }
+  }
+}
+
+class FsTailWorkflowLogReader implements TailWorkflowLogReaderPort {
+  async stat(input: { readonly path: string; readonly runDir: string }): Promise<{ readonly sizeBytes: number } | undefined> {
+    try {
+      const stats = await statFile(tailLogFilePath(input))
+      return { sizeBytes: stats.size }
+    } catch (error) {
+      if (isErrno(error, 'ENOENT')) return undefined
+      throw error
+    }
+  }
+
+  async read(input: {
+    readonly end: number
+    readonly path: string
+    readonly runDir: string
+    readonly start: number
+  }): Promise<Uint8Array> {
+    const length = Math.max(0, input.end - input.start)
+    const file = await openFile(tailLogFilePath(input), 'r')
+    try {
+      const buffer = Buffer.alloc(length)
+      const result = await file.read(buffer, 0, length, input.start)
+      return buffer.subarray(0, result.bytesRead)
+    } finally {
+      await file.close()
+    }
+  }
+}
+
+const DEFAULT_TAIL_INTERVAL_MS = 1000
+
 export class CouncilApp {
   private readonly clock: ClockPort
   private readonly createRunStore: (root: string) => SuperviseRunStore
@@ -268,6 +334,8 @@ export class CouncilApp {
   private readonly statusPort: (input: { readonly runDir: string }) => Promise<RunSummary>
   private readonly statusTicker: StatusWatchTickerPort
   private readonly statusWriter: CouncilStatusOutputWriter
+  private readonly tailLogReader: TailWorkflowLogReaderPort
+  private readonly tailTicker: CouncilTailTickerPort
   private readonly worktreeDependencyProvisioner: WorktreeDependencyProvisionerPort
   private readonly worktreeRoot: string | undefined
   private readonly writeText: (path: string, text: string) => Promise<void>
@@ -300,6 +368,8 @@ export class CouncilApp {
         }))
     this.statusTicker = deps.statusTicker ?? new ClockStatusTicker(this.clock)
     this.statusWriter = deps.statusWriter ?? NOOP_STATUS_WRITER
+    this.tailLogReader = deps.tailLogReader ?? new FsTailWorkflowLogReader()
+    this.tailTicker = deps.tailTicker ?? new ClockTailTicker(this.clock)
     this.worktreeDependencyProvisioner =
       deps.worktreeDependencyProvisioner ?? createWorktreeDependencyProvisioner()
     this.worktreeRoot = deps.worktreeRoot
@@ -348,6 +418,23 @@ export class CouncilApp {
     })) {
       await writer.write(frame.output)
     }
+  }
+
+  async tail(input: CouncilAppTailInput): Promise<readonly TailWorkflowFrame[]> {
+    const frames: TailWorkflowFrame[] = []
+    for await (const frame of tailWorkflow(input, {
+      artifacts: this.liveRunDirReader,
+      logs: this.tailLogReader,
+      ticker: {
+        ticks: () =>
+          this.tailTicker.ticks({
+            intervalMs: input.intervalMs ?? DEFAULT_TAIL_INTERVAL_MS,
+          }),
+      },
+    })) {
+      frames.push(frame)
+    }
+    return frames
   }
 
   readReviewPack(input: ReviewPackInput): Promise<import('../shared-kernel/index.js').JsonRecord> {
@@ -635,6 +722,10 @@ function runStoreTarget(runDir: string): { readonly root: string; readonly runId
     root: dirname(runDir),
     runId,
   }
+}
+
+function tailLogFilePath(input: { readonly path: string; readonly runDir: string }): string {
+  return join(input.runDir, input.path)
 }
 
 async function readExistingSnapshot(
