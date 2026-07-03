@@ -1,4 +1,21 @@
-import type { GitPort, GitWorktree, ProcessCommand, ProcessPort, ProcessResult } from '../../../../ports/index.js'
+import type {
+  GitCommitAllRequest,
+  GitCommitAllResult,
+  GitDagExecutorPort,
+  GitReconcileRequest,
+  GitReconcileResult,
+  GitWorktree,
+  ProcessCommand,
+  ProcessPort,
+  ProcessResult,
+} from '../../../../ports/index.js'
+
+export type {
+  GitCommitAllRequest,
+  GitCommitAllResult,
+  GitReconcileRequest,
+  GitReconcileResult,
+} from '../../../../ports/index.js'
 
 export type GitStatusCode = ' ' | '!' | '?' | 'A' | 'C' | 'D' | 'M' | 'R' | 'U'
 
@@ -14,18 +31,6 @@ export interface GitDiffOptions {
   readonly head?: string
   readonly staged?: boolean
   readonly paths?: readonly string[]
-}
-
-export interface GitReconcileRequest {
-  readonly integrationBranch: string
-  readonly sourceBranch: string
-  readonly baseBranch?: string
-}
-
-export interface GitReconcileResult {
-  readonly integrationBranch: string
-  readonly sourceBranch: string
-  readonly head: string
 }
 
 export interface GitPushRequest {
@@ -55,7 +60,7 @@ export class GitCommandError extends Error {
   }
 }
 
-export class GitCliAdapter implements GitPort {
+export class GitCliAdapter implements GitDagExecutorPort {
   private integrationQueue: Promise<void> = Promise.resolve()
   private readonly process: ProcessPort
 
@@ -74,6 +79,15 @@ export class GitCliAdapter implements GitPort {
   }
 
   async createWorktree(cwd: string, branch: string, path: string): Promise<GitWorktree> {
+    const branchRef = `refs/heads/${branch}`
+    const existing = await this.git(cwd, ['show-ref', '--verify', '--quiet', branchRef], {
+      acceptedExitCodes: [0, 1],
+    })
+    if (existing.exitCode === 0) {
+      await this.git(cwd, ['worktree', 'add', path, branch])
+      return { branch, path }
+    }
+
     await this.git(cwd, ['worktree', 'add', '-b', branch, path, 'HEAD'])
     return { branch, path }
   }
@@ -114,6 +128,29 @@ export class GitCliAdapter implements GitPort {
 
     const result = await this.git(cwd, args)
     return result.stdout
+  }
+
+  async commitAll(cwd: string, request: GitCommitAllRequest): Promise<GitCommitAllResult> {
+    const filesChanged = await this.changedFiles(cwd)
+    await this.git(cwd, ['add', '-A'])
+
+    const commitArgs = ['commit', '-m', request.message]
+    if (request.author !== undefined) {
+      commitArgs.push('--author', request.author)
+    }
+    if (request.allow_empty === true) {
+      commitArgs.push('--allow-empty')
+    }
+    await this.git(cwd, commitArgs)
+
+    const commit = await this.git(cwd, ['rev-parse', 'HEAD'])
+    const branch = await this.currentBranch(cwd)
+    return {
+      branch,
+      commit: commit.stdout.trim(),
+      files_changed: filesChanged,
+      message: request.message,
+    }
   }
 
   async reconcileIntegrationBranch(
