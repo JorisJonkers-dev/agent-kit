@@ -129,12 +129,20 @@ def council_toolkit_files() -> list[tuple[str, str]]:
     for path in sorted(COUNCIL_SRC.rglob("*")):
         if not path.is_file():
             continue
-        if "__pycache__" in path.parts or path.suffix == ".pyc":
+        rel_path = path.relative_to(COUNCIL_SRC)
+        if (
+            "__pycache__" in path.parts
+            or "node_modules" in rel_path.parts
+            or "coverage" in rel_path.parts
+            or path.suffix == ".pyc"
+            or path.name.endswith(".tsbuildinfo")
+            or (rel_path.parts and rel_path.parts[0] == "ts")
+        ):
             continue
-        rel = path.relative_to(COUNCIL_SRC).as_posix()
+        rel = rel_path.as_posix()
         if rel == "README.md":
             continue
-        files.append((rel, "0755" if rel == "council.py" else "0644"))
+        files.append((rel, "0755" if rel == "council.mjs" else "0644"))
     return files
 
 

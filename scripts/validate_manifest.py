@@ -254,12 +254,13 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
                     installer_targets.add("claude")
                 if installer.get("codex_target_path"):
                     installer_targets.add("codex")
-            if targets and (sorted(supported or []) != ["claude", "codex"] or targets != {"claude", "codex"}):
-                fail(f"shared skill {name} must target claude and codex")
-            if not targets and (
-                sorted(supported or []) != ["claude", "codex"] or installer_targets != {"claude", "codex"}
-            ):
-                fail(f"installer-only skill {name} must install to claude and codex")
+            supported_set = set(supported or [])
+            if not supported_set or not supported_set <= {"claude", "codex"}:
+                fail(f"skill {name} must declare supported_agents from claude/codex")
+            if targets and targets != supported_set:
+                fail(f"skill {name} targets {sorted(targets)} but supports {sorted(supported_set)}")
+            if not targets and installer_targets != supported_set:
+                fail(f"installer-only skill {name} must install to {sorted(supported_set)}")
 
     settings = as_list(manifest.get("settings"), "settings")
     setting_agents = {
@@ -290,7 +291,16 @@ def validate_council(manifest: dict[str, Any]) -> None:
     actual_files = {
         path.relative_to(ROOT).as_posix()
         for path in (ROOT / "council").rglob("*")
-        if path.is_file() and path.name != "README.md" and "__pycache__" not in path.parts and path.suffix != ".pyc"
+        if (
+            path.is_file()
+            and path.name != "README.md"
+            and "__pycache__" not in path.parts
+            and "node_modules" not in path.relative_to(ROOT / "council").parts
+            and "coverage" not in path.relative_to(ROOT / "council").parts
+            and path.suffix != ".pyc"
+            and not path.name.endswith(".tsbuildinfo")
+            and path.relative_to(ROOT / "council").parts[:1] != ("ts",)
+        )
     }
     if manifest_files != actual_files:
         fail(f"council.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")

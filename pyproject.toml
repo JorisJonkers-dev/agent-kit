@@ -29,14 +29,10 @@ target-version = "py311"
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-"council/council.py" = ["B023", "B904", "B905", "RUF005", "UP035", "UP037", "UP045"]
 "scripts/validate_manifest.py" = ["UP022"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["render-agent-kit.py", "scripts", "council"]
+files = ["render-agent-kit.py", "scripts"]
 
-[[tool.mypy.overrides]]
-module = "council"
-ignore_errors = true
