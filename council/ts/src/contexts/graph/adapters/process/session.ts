@@ -28,9 +28,12 @@ import type {
   MaybePromise,
   SpawnInput,
   WatchdogConfig,
+  WorkerSupervisorEventContext,
+  WorkerSupervisorEventDetail,
   WorkerSupervisorDetection,
   WorkerSupervisorResult,
   WorkerSupervisorRuntime,
+  WorkerSupervisorRuntimeEvent,
   WorkerSupervisorSession,
   WorkerSupervisorStartRequest,
   WorkerSupervisorStatus,
@@ -48,6 +51,8 @@ export class RunningWorker implements WorkerSupervisorSession {
   private run = 0
   private stdout = ''
   private stderr = ''
+  private stdoutBytes = 0
+  private stderrBytes = 0
   private logBytes = 0
   private restarts = 0
   private modelTier: string | undefined
@@ -81,13 +86,13 @@ export class RunningWorker implements WorkerSupervisorSession {
 
     if (this.request.supportsStreamingStdin === true && this.active.child.stdin?.writable === true) {
       this.active.child.stdin.write(`${turn}\n`)
-      this.supervisor.emit({ mode: 'streaming-stdin', type: 'injected' })
+      this.emit({ mode: 'streaming-stdin', type: 'injected' })
       return { mode: 'streaming-stdin', restarted: false }
     }
 
     const preamble = joinPrompt(this.request.checkpointPreamble ?? 'Resume from checkpoint.', turn) ?? ''
     await this.restartWithPreamble(preamble, this.modelTier)
-    this.supervisor.emit({ mode: 'checkpoint-and-resume', type: 'injected' })
+    this.emit({ mode: 'checkpoint-and-resume', type: 'injected' })
     return { mode: 'checkpoint-and-resume', restarted: true }
   }
 
@@ -95,7 +100,7 @@ export class RunningWorker implements WorkerSupervisorSession {
     if (!this.finished) {
       await this.terminate(this.active, 'SIGTERM')
       this.finish('stopped', null, null, undefined)
-      this.supervisor.emit({ reason, type: 'stopped' })
+      this.emit({ reason, type: 'stopped' })
     }
   }
 
@@ -150,11 +155,11 @@ export class RunningWorker implements WorkerSupervisorSession {
   private handleDetection(detection: WorkerSupervisorDetection): MaybePromise<void> {
     if (!this.handlingDetection && !this.finished) {
       this.handlingDetection = true
-      this.supervisor.emit({ detection, type: 'detected' })
+      this.emit({ detection, type: 'detected' }, this.active, detection)
 
       const handled =
         detection.kind === 'disk-cap'
-          ? thenMaybe(this.terminate(this.active, 'SIGTERM'), () => {
+          ? thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
               this.finish('disk-cap', null, null, detection)
             })
           : this.advanceRestartPolicy(detection)
@@ -176,7 +181,7 @@ export class RunningWorker implements WorkerSupervisorSession {
     this.escalationState = first.state
 
     if (first.action === 'terminate') {
-      return thenMaybe(this.terminate(this.active, 'SIGTERM'), () => {
+      return thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
         const next = advanceEscalation(this.escalationState, {
           enableTierEscalation: this.watchdog.enableTierEscalation,
         })
@@ -198,11 +203,11 @@ export class RunningWorker implements WorkerSupervisorSession {
 
     if (action === 'escalate-tier' && this.request.escalationModelTier !== undefined) {
       this.modelTier = this.request.escalationModelTier
-      this.supervisor.emit({ modelTier: this.modelTier, type: 'tier-escalated' })
+      this.emit({ modelTier: this.modelTier, type: 'tier-escalated' }, this.active, detection)
       return this.restartWithPreamble(this.restartPreamble(detection), this.modelTier, detection)
     }
 
-    return thenMaybe(this.terminate(this.active, 'SIGTERM'), () => {
+    return thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
       this.finish('stalled', null, null, detection)
     })
   }
@@ -212,7 +217,8 @@ export class RunningWorker implements WorkerSupervisorSession {
     modelTier: string | undefined,
     detection?: WorkerSupervisorDetection,
   ): MaybePromise<void> {
-    return thenMaybe(this.terminate(this.active, 'SIGTERM'), () => {
+    const previousPid = this.active.child.pid
+    return thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
       if (this.restarts >= this.watchdog.maxRestarts) {
         this.finish('stalled', null, null, detection)
         return
@@ -221,8 +227,16 @@ export class RunningWorker implements WorkerSupervisorSession {
       this.restarts += 1
       this.pendingLoopDetection = null
       this.stallState = createStallDetectorState(this.supervisor.now(), this.logBytes)
-      this.active = this.spawn(spawnInput(preamble, modelTier))
-      this.supervisor.emit({ preamble, restart: this.restarts, type: 'restarted' })
+      this.active = this.spawn({
+        ...spawnInput(preamble, modelTier),
+        ...optional('detection', detection),
+      })
+      this.emit({
+        preamble,
+        ...optional('previousPid', previousPid),
+        restart: this.restarts,
+        type: 'restarted',
+      }, this.active, detection)
     })
   }
 
@@ -231,10 +245,14 @@ export class RunningWorker implements WorkerSupervisorSession {
     const run = this.run
     const child = this.supervisor.createChild(this.request, run, input)
     const active: ActiveProcess = {
+      attemptId: run,
       child,
+      ...optional('detection', input.detection),
       exitCode: null,
       exited: false,
       exitedPromise: Promise.resolve(),
+      ...optional('modelTier', input.modelTier),
+      restartCount: this.restarts,
       signal: null,
       terminating: false,
     }
@@ -243,27 +261,32 @@ export class RunningWorker implements WorkerSupervisorSession {
         active.exited = true
         active.exitCode = exitCode
         active.signal = signal
-        this.supervisor.emit({ exitCode, signal, type: 'exited' })
+        this.emit({ exitCode, signal, type: 'exited' }, active, active.detection)
         if (this.active === active && !this.finished && !active.terminating) {
           this.finish(exitCode === 0 ? 'completed' : 'failed', exitCode, signal, undefined)
         }
         resolve()
       })
     })
-    child.stdout?.on('data', (chunk: Buffer | string) => { this.recordOutput('stdout', chunk); })
-    child.stderr?.on('data', (chunk: Buffer | string) => { this.recordOutput('stderr', chunk); })
+    child.stdout?.on('data', (chunk: Buffer | string) => { this.recordOutput(active, 'stdout', chunk); })
+    child.stderr?.on('data', (chunk: Buffer | string) => { this.recordOutput(active, 'stderr', chunk); })
     return active
   }
 
-  private recordOutput(stream: 'stdout' | 'stderr', chunk: Buffer | string): void {
+  private recordOutput(active: ActiveProcess, stream: 'stdout' | 'stderr', chunk: Buffer | string): void {
     const text = chunk.toString()
-    this.logBytes += Buffer.byteLength(text)
+    const byteCount = Buffer.byteLength(text)
+    this.logBytes += byteCount
     if (stream === 'stdout') {
+      const offset = this.stdoutBytes
       this.stdout += text
-      this.supervisor.emit({ chunk: text, type: 'stdout' })
+      this.stdoutBytes += byteCount
+      this.emit({ byteCount, chunk: text, offset, type: 'stdout' }, active, active.detection)
     } else {
+      const offset = this.stderrBytes
       this.stderr += text
-      this.supervisor.emit({ chunk: text, type: 'stderr' })
+      this.stderrBytes += byteCount
+      this.emit({ byteCount, chunk: text, offset, type: 'stderr' }, active, active.detection)
     }
 
     for (const line of text.split(/\r?\n/u)) {
@@ -273,8 +296,15 @@ export class RunningWorker implements WorkerSupervisorSession {
     }
   }
 
-  private terminate(active: ActiveProcess, signal: NodeJS.Signals): MaybePromise<void> {
-    return terminateActiveProcess(active, signal, this.supervisor, this.killGraceMs)
+  private terminate(
+    active: ActiveProcess,
+    signal: NodeJS.Signals,
+    detection?: WorkerSupervisorDetection,
+  ): MaybePromise<void> {
+    if (detection !== undefined) {
+      active.detection = detection
+    }
+    return terminateActiveProcess(active, signal, this.terminationRuntime(active, detection), this.killGraceMs)
   }
 
   private isFinished(): boolean {
@@ -286,6 +316,49 @@ export class RunningWorker implements WorkerSupervisorSession {
       this.request.restartPreamble ?? 'Previous attempt was interrupted by the watchdog.',
       `Watchdog detection: ${detection.kind}.`,
     ) ?? ''
+  }
+
+  private terminationRuntime(
+    active: ActiveProcess,
+    detection: WorkerSupervisorDetection | undefined,
+  ): WorkerSupervisorRuntime {
+    const emitTerminated = (event: WorkerSupervisorRuntimeEvent): void => {
+      const terminated = event as Extract<WorkerSupervisorRuntimeEvent, { readonly type: 'terminated' }>
+      this.emit({ signal: terminated.signal, type: 'terminated' }, active, detection ?? active.detection)
+    }
+    return {
+      createChild: this.supervisor.createChild.bind(this.supervisor),
+      diskUsageBytes: this.supervisor.diskUsageBytes.bind(this.supervisor),
+      emit: emitTerminated,
+      killGroup: this.supervisor.killGroup.bind(this.supervisor),
+      now: this.supervisor.now.bind(this.supervisor),
+      sleep: this.supervisor.sleep.bind(this.supervisor),
+    }
+  }
+
+  private emit(
+    detail: WorkerSupervisorEventDetail,
+    active: ActiveProcess = this.active,
+    detection: WorkerSupervisorDetection | undefined = active.detection,
+  ): void {
+    this.supervisor.emit({
+      ...this.eventContext(active, detection),
+      ...detail,
+    })
+  }
+
+  private eventContext(
+    active: ActiveProcess,
+    detection: WorkerSupervisorDetection | undefined,
+  ): WorkerSupervisorEventContext {
+    return {
+      attemptId: active.attemptId,
+      ...optional('detection', detection),
+      ...optional('modelTier', active.modelTier),
+      ...optional('pid', active.child.pid),
+      restartCount: active.restartCount,
+      taskId: this.request.id,
+    }
   }
 
   private finish(

@@ -94,13 +94,14 @@ describe('WorkerSupervisorAdapter', () => {
     const session = adapter.start({
       args: ['run'],
       command: 'agent',
-      env: { EXTRA: '1' },
+      env: { COUNCIL_MODEL_TIER: 'explicit-env-tier', EXTRA: '1', KB_AUTO_MCP_DISABLED: '0' },
       id: 'T1',
       modelTier: 'cheap',
       stdin: 'initial prompt',
       worktree: '/tmp/worktree',
     })
     child.stdout.write('$ npm test\n')
+    child.stdout.write('done\n')
     child.stderr.write('warning\n')
     child.exit(0)
 
@@ -109,7 +110,7 @@ describe('WorkerSupervisorAdapter', () => {
       restarts: 0,
       status: 'completed',
       stderr: 'warning\n',
-      stdout: '$ npm test\n',
+      stdout: '$ npm test\ndone\n',
     })
     expect(records).toHaveLength(1)
     expect(records[0]?.options).toMatchObject({
@@ -117,14 +118,89 @@ describe('WorkerSupervisorAdapter', () => {
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
-    expect(records[0]?.options.env).toMatchObject({ COUNCIL_MODEL_TIER: 'cheap', EXTRA: '1' })
+    expect(records[0]?.options.env).toMatchObject({
+      COUNCIL_MODEL_TIER: 'cheap',
+      EXTRA: '1',
+      KB_AUTO_MCP_DISABLED: '1',
+    })
     expect(child.writes).toEqual(['initial prompt\n'])
-    expect(events.some((event) => event.type === 'started' && event.pid === 101)).toBe(true)
-    expect(events.some((event) => event.type === 'stdout')).toBe(true)
-    expect(events.some((event) => event.type === 'stderr')).toBe(true)
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 1,
+      modelTier: 'cheap',
+      pid: 101,
+      restart: 1,
+      restartCount: 0,
+      taskId: 'T1',
+      type: 'started',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 1,
+      byteCount: Buffer.byteLength('$ npm test\n'),
+      chunk: '$ npm test\n',
+      modelTier: 'cheap',
+      offset: 0,
+      pid: 101,
+      restartCount: 0,
+      taskId: 'T1',
+      type: 'stdout',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 1,
+      byteCount: Buffer.byteLength('done\n'),
+      chunk: 'done\n',
+      modelTier: 'cheap',
+      offset: Buffer.byteLength('$ npm test\n'),
+      pid: 101,
+      restartCount: 0,
+      taskId: 'T1',
+      type: 'stdout',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 1,
+      byteCount: Buffer.byteLength('warning\n'),
+      chunk: 'warning\n',
+      modelTier: 'cheap',
+      offset: 0,
+      pid: 101,
+      restartCount: 0,
+      taskId: 'T1',
+      type: 'stderr',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 1,
+      exitCode: 0,
+      modelTier: 'cheap',
+      pid: 101,
+      restartCount: 0,
+      signal: null,
+      taskId: 'T1',
+      type: 'exited',
+    }))
     await flushPromises()
     await sleeper.tick()
     await flushPromises()
+  })
+
+  it('preserves an explicit COUNCIL_MODEL_TIER env value when no model tier is requested', async () => {
+    const child = new FakeChild(111)
+    const records: SpawnRecord[] = []
+    const adapter = new WorkerSupervisorAdapter({
+      spawn: fakeSpawn([child], records),
+    })
+    const session = adapter.start({
+      command: 'agent',
+      env: { COUNCIL_MODEL_TIER: 'env-tier' },
+      id: 'T1-env-tier',
+      worktree: '/tmp/worktree',
+    })
+
+    child.exit(0)
+
+    await expect(session.result).resolves.toMatchObject({ status: 'completed' })
+    expect(records[0]?.options.env).toMatchObject({
+      COUNCIL_MODEL_TIER: 'env-tier',
+      KB_AUTO_MCP_DISABLED: '1',
+    })
   })
 
   it('terminates the process group, retries with preamble, escalates tier, then stalls', async () => {
@@ -171,12 +247,67 @@ describe('WorkerSupervisorAdapter', () => {
     expect(records).toHaveLength(2)
     expect(records[1]?.child.writes[0]).toContain('Continue after watchdog.')
     expect(records[1]?.options.cwd).toBe('/tmp/worktree')
+    expect(records[1]?.options.env).toMatchObject({
+      COUNCIL_MODEL_TIER: 'cheap',
+      KB_AUTO_MCP_DISABLED: '1',
+    })
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 1,
+      detection: expect.objectContaining({ kind: 'progress-stall' }),
+      modelTier: 'cheap',
+      pid: 201,
+      restartCount: 0,
+      taskId: 'T2',
+      type: 'detected',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 1,
+      detection: expect.objectContaining({ kind: 'progress-stall' }),
+      modelTier: 'cheap',
+      pid: 201,
+      restartCount: 0,
+      signal: 'SIGTERM',
+      taskId: 'T2',
+      type: 'terminated',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 2,
+      detection: expect.objectContaining({ kind: 'progress-stall' }),
+      modelTier: 'cheap',
+      pid: 202,
+      restart: 2,
+      restartCount: 1,
+      taskId: 'T2',
+      type: 'started',
+    }))
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 2,
+      detection: expect.objectContaining({ kind: 'progress-stall' }),
+      modelTier: 'cheap',
+      pid: 202,
+      previousPid: 201,
+      restart: 1,
+      restartCount: 1,
+      taskId: 'T2',
+      type: 'restarted',
+    }))
 
     now = 2_000
     await sleeper.tick()
     expect(records).toHaveLength(3)
-    expect(records[2]?.options.env).toMatchObject({ COUNCIL_MODEL_TIER: 'max' })
-    expect(events.some((event) => event.type === 'tier-escalated' && event.modelTier === 'max')).toBe(true)
+    expect(records[2]?.options.env).toMatchObject({
+      COUNCIL_MODEL_TIER: 'max',
+      KB_AUTO_MCP_DISABLED: '1',
+    })
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 2,
+      detection: expect.objectContaining({ kind: 'progress-stall' }),
+      modelTier: 'max',
+      pid: 202,
+      restartCount: 1,
+      taskId: 'T2',
+      type: 'tier-escalated',
+    }))
 
     now = 3_000
     await flushPromises()
