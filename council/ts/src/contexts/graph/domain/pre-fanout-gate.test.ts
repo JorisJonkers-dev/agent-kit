@@ -29,19 +29,33 @@ function repoFiles(...paths: readonly string[]): ReadonlySet<string> {
 describe('pre-fanout gate', () => {
   it('rejects the P0-style parallel merge-conflict hazard within one ready wave', () => {
     const graph = createTaskGraph([
-      task({ id: 'T1', objective: 'wire fanout gate', paths: ['src/workflows/fanout.ts'] }),
-      task({ id: 'T2', objective: 'emit fanout diagnostics', paths: ['src/workflows/fanout.ts'] }),
+      task({
+        id: 'T1',
+        objective: 'wire fanout supervision',
+        paths: ['council/ts/src/contexts/graph/adapters/process/session.ts'],
+      }),
+      task({
+        id: 'T2',
+        objective: 'emit session diagnostics',
+        paths: ['council/ts/src/contexts/graph/adapters/process/session.ts'],
+      }),
     ])
 
-    expect(applyPreFanoutGate({ graph, repoFiles: repoFiles('src/workflows/fanout.ts') })).toEqual({
+    expect(
+      applyPreFanoutGate({
+        graph,
+        repoFiles: repoFiles('council/ts/src/contexts/graph/adapters/process/session.ts'),
+      }),
+    ).toEqual({
       ok: false,
       violations: [
         {
           kind: 'same-wave-path-overlap',
-          message: 'tasks T1 and T2 both declare src/workflows/fanout.ts in ready wave 0',
-          otherPath: 'src/workflows/fanout.ts',
+          message:
+            'tasks T1 and T2 both declare council/ts/src/contexts/graph/adapters/process/session.ts in ready wave 0',
+          otherPath: 'council/ts/src/contexts/graph/adapters/process/session.ts',
           otherTaskId: 'T2',
-          path: 'src/workflows/fanout.ts',
+          path: 'council/ts/src/contexts/graph/adapters/process/session.ts',
           taskId: 'T1',
           wave: 0,
         },

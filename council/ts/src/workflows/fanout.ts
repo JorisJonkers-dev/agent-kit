@@ -1,4 +1,8 @@
-import { applyPreFanoutGate, createTaskGraph } from '../contexts/graph/index.js'
+import {
+  applyPreFanoutGate,
+  createTaskGraph,
+  type PreFanoutGateViolation,
+} from '../contexts/graph/index.js'
 
 import type { RunSummary } from './status.js'
 
@@ -23,6 +27,17 @@ export interface FanoutWorkflowDeps {
   readonly status: (input: { readonly runDir: string }) => Promise<RunSummary>
 }
 
+export class PreFanoutGateError extends Error {
+  readonly gateName = 'pre-fanout-static'
+  readonly violations: readonly PreFanoutGateViolation[]
+
+  constructor(violations: readonly PreFanoutGateViolation[]) {
+    super(`pre-fanout static gate failed: ${violations.map(({ message }) => message).join('; ')}`)
+    this.name = 'PreFanoutGateError'
+    this.violations = violations
+  }
+}
+
 export async function fanoutWorkflow(input: FanoutInput, deps: FanoutWorkflowDeps): Promise<ExecutionPlan> {
   const summary = await deps.status({ runDir: input.runDir })
   const gate = applyPreFanoutGate({
@@ -41,10 +56,10 @@ export async function fanoutWorkflow(input: FanoutInput, deps: FanoutWorkflowDep
 }
 
 export function assertPreFanoutGatePassed(
-  violations: readonly { readonly message: string }[],
+  violations: readonly PreFanoutGateViolation[],
 ): void {
   if (violations.length === 0) return
-  throw new Error(`pre-fanout static gate failed: ${violations.map(({ message }) => message).join('; ')}`)
+  throw new PreFanoutGateError(violations)
 }
 
 export function repoFilesForGate(
