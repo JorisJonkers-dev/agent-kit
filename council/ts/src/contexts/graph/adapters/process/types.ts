@@ -5,10 +5,21 @@ import type {
   LoopDetection,
   LoopDetectorConfig,
   StallDetection,
+  WatchdogBudgetDetection,
 } from '../../../watchdog/index.js'
 
-export type WorkerSupervisorStatus = 'completed' | 'failed' | 'stopped' | 'stalled' | 'disk-cap'
-export type WorkerSupervisorDetection = StallDetection | LoopDetection | DiskUsageCapDetection
+export type WorkerSupervisorStatus =
+  | 'completed'
+  | 'failed'
+  | 'stopped'
+  | 'stalled'
+  | 'budget-cap'
+  | 'disk-cap'
+export type WorkerSupervisorDetection =
+  | StallDetection
+  | LoopDetection
+  | WatchdogBudgetDetection
+  | DiskUsageCapDetection
 export type InjectDeliveryMode = 'streaming-stdin' | 'checkpoint-and-resume'
 
 export interface WorkerSupervisorWatchdogConfig {
@@ -19,6 +30,12 @@ export interface WorkerSupervisorWatchdogConfig {
   readonly maxRestarts?: number
   readonly enableTierEscalation?: boolean
   readonly diskCapBytes?: number
+  readonly wallClockCapMs?: number
+  readonly outputCapBytes?: number
+  readonly attemptTimeoutMs?: number
+  readonly retryBaseBackoffMs?: number
+  readonly retryMaxBackoffMs?: number
+  readonly retryJitterRatio?: number
 }
 
 export interface WorkerSupervisorStartRequest {
@@ -45,6 +62,10 @@ export interface WorkerSupervisorResult {
   readonly signal: NodeJS.Signals | null
   readonly stdout: string
   readonly stderr: string
+  readonly stdoutBytes: number
+  readonly stderrBytes: number
+  readonly stdoutLogPath: string
+  readonly stderrLogPath: string
   readonly restarts: number
   readonly modelTier?: string
   readonly detection?: WorkerSupervisorDetection
@@ -72,8 +93,22 @@ export interface WorkerSupervisorEventContext {
 
 export type WorkerSupervisorEventDetail =
   | { readonly type: 'started'; readonly restart: number }
-  | { readonly type: 'stdout'; readonly chunk: string; readonly offset: number; readonly byteCount: number }
-  | { readonly type: 'stderr'; readonly chunk: string; readonly offset: number; readonly byteCount: number }
+  | {
+      readonly type: 'stdout'
+      readonly tail: string
+      readonly offset: number
+      readonly byteCount: number
+      readonly tailBytes: number
+      readonly logPath: string
+    }
+  | {
+      readonly type: 'stderr'
+      readonly tail: string
+      readonly offset: number
+      readonly byteCount: number
+      readonly tailBytes: number
+      readonly logPath: string
+    }
   | { readonly type: 'detected'; readonly detection: WorkerSupervisorDetection }
   | { readonly type: 'terminated'; readonly signal: NodeJS.Signals }
   | { readonly type: 'restarted'; readonly restart: number; readonly previousPid?: number; readonly preamble: string }
@@ -126,6 +161,12 @@ export interface WatchdogConfig {
   readonly maxRestarts: number
   readonly enableTierEscalation: boolean
   readonly diskCapBytes?: number
+  readonly wallClockCapMs?: number
+  readonly outputCapBytes?: number
+  readonly attemptTimeoutMs?: number
+  readonly retryBaseBackoffMs?: number
+  readonly retryMaxBackoffMs?: number
+  readonly retryJitterRatio?: number
 }
 
 export interface WorkerSupervisorRuntime {

@@ -1,17 +1,22 @@
+import { appendFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+
 import {
-  advanceEscalation,
   appendLoopLine,
-  createEscalationState,
   createLoopDetectorState,
-  createStallDetectorState,
+  createRetryPolicyState,
+  createWatchdogProgressState,
+  decideRetry,
   evaluateDiskUsageCap,
-  evaluateStall,
+  evaluateWatchdogProgress,
 } from '../../../watchdog/index.js'
 import type {
-  EscalationState,
   LoopDetection,
   LoopDetectorState,
-  StallDetectorState,
+  RetryDecision,
+  RetryPolicyConfig,
+  RetryPolicyState,
+  WatchdogProgressState,
 } from '../../../watchdog/index.js'
 
 import { terminateActiveProcess } from './process-group-control.js'
@@ -45,20 +50,21 @@ export class RunningWorker implements WorkerSupervisorSession {
   private readonly supervisor: WorkerSupervisorRuntime
   private readonly request: WorkerSupervisorStartRequest
   private readonly watchdog: WatchdogConfig
+  private readonly logs: WorkerLogSpool
   private readonly pollIntervalMs: number
   private readonly killGraceMs: number
   private active: ActiveProcess
   private run = 0
-  private stdout = ''
-  private stderr = ''
+  private stdoutTail = ''
+  private stderrTail = ''
   private stdoutBytes = 0
   private stderrBytes = 0
   private logBytes = 0
   private restarts = 0
   private modelTier: string | undefined
-  private stallState: StallDetectorState
+  private progressState: WatchdogProgressState
   private loopState: LoopDetectorState = createLoopDetectorState()
-  private escalationState: EscalationState = createEscalationState()
+  private retryState: RetryPolicyState = createRetryPolicyState()
   private pendingLoopDetection: LoopDetection | null = null
   private handlingDetection = false
   private finished = false
@@ -67,11 +73,12 @@ export class RunningWorker implements WorkerSupervisorSession {
   constructor(supervisor: WorkerSupervisorRuntime, request: WorkerSupervisorStartRequest) {
     this.supervisor = supervisor
     this.request = request
-    this.watchdog = normalizeWatchdogConfig(request.watchdog)
+    this.watchdog = normalizeSessionWatchdogConfig(request.watchdog)
+    this.logs = new WorkerLogSpool(request.worktree, request.id)
     this.pollIntervalMs = request.pollIntervalMs ?? 15_000
     this.killGraceMs = request.killGraceMs ?? 5_000
     this.modelTier = request.modelTier
-    this.stallState = createStallDetectorState(supervisor.now())
+    this.progressState = createWatchdogProgressState(supervisor.now())
     this.result = new Promise<WorkerSupervisorResult>((resolve) => {
       this.resolveResult = resolve
     })
@@ -143,13 +150,19 @@ export class RunningWorker implements WorkerSupervisorSession {
       return detection
     }
 
-    const stall = evaluateStall(this.stallState, {
-      logBytes: this.logBytes,
-      nowMs: this.supervisor.now(),
-      stallAfterS: this.watchdog.stallAfterS,
+    const nowMs = this.supervisor.now()
+    const outputGrew = this.logBytes > this.progressState.outputBytes
+    const progress = evaluateWatchdogProgress(this.progressState, {
+      ...optional('attemptTimeoutMs', this.watchdog.attemptTimeoutMs),
+      ...optional('heartbeat', outputGrew ? { lastProgressAtMs: nowMs } : undefined),
+      nowMs,
+      ...optional('outputCapBytes', this.watchdog.outputCapBytes),
+      outputBytes: this.logBytes,
+      progressAfterMs: this.watchdog.stallAfterS * 1000,
+      ...optional('wallClockCapMs', this.watchdog.wallClockCapMs),
     })
-    this.stallState = stall.state
-    return stall.detection
+    this.progressState = progress.state
+    return progress.detection
   }
 
   private handleDetection(detection: WorkerSupervisorDetection): MaybePromise<void> {
@@ -157,12 +170,7 @@ export class RunningWorker implements WorkerSupervisorSession {
       this.handlingDetection = true
       this.emit({ detection, type: 'detected' }, this.active, detection)
 
-      const handled =
-        detection.kind === 'disk-cap'
-          ? thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
-              this.finish('disk-cap', null, null, detection)
-            })
-          : this.advanceRestartPolicy(detection)
+      const handled = this.applyRetryPolicy(detection)
 
       if (isPromiseLike(handled)) {
         return handled.finally(() => {
@@ -174,41 +182,26 @@ export class RunningWorker implements WorkerSupervisorSession {
     }
   }
 
-  private advanceRestartPolicy(detection: WorkerSupervisorDetection): MaybePromise<void> {
-    const first = advanceEscalation(this.escalationState, {
-      enableTierEscalation: this.watchdog.enableTierEscalation,
+  private applyRetryPolicy(detection: WorkerSupervisorDetection): MaybePromise<void> {
+    const decision = decideRetry({
+      config: this.retryPolicyConfig(),
+      detection,
+      fingerprint: detectionFingerprint(detection),
+      state: this.retryState,
     })
-    this.escalationState = first.state
+    this.retryState = decision.state
 
-    if (first.action === 'terminate') {
-      return thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
-        const next = advanceEscalation(this.escalationState, {
-          enableTierEscalation: this.watchdog.enableTierEscalation,
-        })
-        this.escalationState = next.state
-        return this.applyEscalationAction(next.action, detection)
-      })
-    }
-
-    return this.applyEscalationAction(first.action, detection)
-  }
-
-  private applyEscalationAction(
-    action: ReturnType<typeof advanceEscalation>['action'],
-    detection: WorkerSupervisorDetection,
-  ): MaybePromise<void> {
-    if (action === 'retry-with-preamble') {
-      return this.restartWithPreamble(this.restartPreamble(detection), this.modelTier, detection)
-    }
-
-    if (action === 'escalate-tier' && this.request.escalationModelTier !== undefined) {
-      this.modelTier = this.request.escalationModelTier
-      this.emit({ modelTier: this.modelTier, type: 'tier-escalated' }, this.active, detection)
-      return this.restartWithPreamble(this.restartPreamble(detection), this.modelTier, detection)
+    if (decision.kind === 'retry') {
+      const previousPid = this.active.child.pid
+      return thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () =>
+        thenMaybe(this.sleepBeforeRetry(decision), () => {
+          this.restartAfterTermination(this.restartPreamble(detection), previousPid, detection)
+        }),
+      )
     }
 
     return thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
-      this.finish('stalled', null, null, detection)
+      this.finish(statusForRetryDecision(decision, detection), null, null, detection)
     })
   }
 
@@ -219,25 +212,39 @@ export class RunningWorker implements WorkerSupervisorSession {
   ): MaybePromise<void> {
     const previousPid = this.active.child.pid
     return thenMaybe(this.terminate(this.active, 'SIGTERM', detection), () => {
-      if (this.restarts >= this.watchdog.maxRestarts) {
-        this.finish('stalled', null, null, detection)
-        return
-      }
-
-      this.restarts += 1
-      this.pendingLoopDetection = null
-      this.stallState = createStallDetectorState(this.supervisor.now(), this.logBytes)
-      this.active = this.spawn({
-        ...spawnInput(preamble, modelTier),
-        ...optional('detection', detection),
-      })
-      this.emit({
-        preamble,
-        ...optional('previousPid', previousPid),
-        restart: this.restarts,
-        type: 'restarted',
-      }, this.active, detection)
+      this.restartAfterTermination(preamble, previousPid, detection, modelTier)
     })
+  }
+
+  private restartAfterTermination(
+    preamble: string,
+    previousPid: number | undefined,
+    detection?: WorkerSupervisorDetection,
+    requestedModelTier = this.modelTier,
+  ): void {
+    if (this.restarts >= this.watchdog.maxRestarts) {
+      this.finish('stalled', null, null, detection)
+      return
+    }
+
+    const modelTier = this.nextRetryModelTier(requestedModelTier, detection)
+    this.restarts += 1
+    this.pendingLoopDetection = null
+    this.progressState = nextAttemptProgressState(
+      this.progressState,
+      this.supervisor.now(),
+      this.logBytes,
+    )
+    this.active = this.spawn({
+      ...spawnInput(preamble, modelTier),
+      ...optional('detection', detection),
+    })
+    this.emit({
+      preamble,
+      ...optional('previousPid', previousPid),
+      restart: this.restarts,
+      type: 'restarted',
+    }, this.active, detection)
   }
 
   private spawn(input: SpawnInput): ActiveProcess {
@@ -279,14 +286,32 @@ export class RunningWorker implements WorkerSupervisorSession {
     this.logBytes += byteCount
     if (stream === 'stdout') {
       const offset = this.stdoutBytes
-      this.stdout += text
+      this.logs.append(stream, text)
+      this.stdoutTail = appendTail(this.stdoutTail, text)
       this.stdoutBytes += byteCount
-      this.emit({ byteCount, chunk: text, offset, type: 'stdout' }, active, active.detection)
+      const tail = tailOf(text)
+      this.emit({
+        byteCount,
+        logPath: this.logs.stdoutLogPath,
+        offset,
+        tail,
+        tailBytes: Buffer.byteLength(tail),
+        type: 'stdout',
+      }, active, active.detection)
     } else {
       const offset = this.stderrBytes
-      this.stderr += text
+      this.logs.append(stream, text)
+      this.stderrTail = appendTail(this.stderrTail, text)
       this.stderrBytes += byteCount
-      this.emit({ byteCount, chunk: text, offset, type: 'stderr' }, active, active.detection)
+      const tail = tailOf(text)
+      this.emit({
+        byteCount,
+        logPath: this.logs.stderrLogPath,
+        offset,
+        tail,
+        tailBytes: Buffer.byteLength(tail),
+        type: 'stderr',
+      }, active, active.detection)
     }
 
     for (const line of text.split(/\r?\n/u)) {
@@ -377,9 +402,135 @@ export class RunningWorker implements WorkerSupervisorSession {
         restarts: this.restarts,
         signal,
         status,
-        stderr: this.stderr,
-        stdout: this.stdout,
+        stderr: this.stderrTail,
+        stderrBytes: this.stderrBytes,
+        stderrLogPath: this.logs.stderrLogPath,
+        stdout: this.stdoutTail,
+        stdoutBytes: this.stdoutBytes,
+        stdoutLogPath: this.logs.stdoutLogPath,
       })
     }
   }
+
+  private retryPolicyConfig(): RetryPolicyConfig {
+    return {
+      baseBackoffMs: this.watchdog.retryBaseBackoffMs ?? 0,
+      ...optional('jitterRatio', this.watchdog.retryJitterRatio),
+      maxAttempts: this.watchdog.maxRestarts + 1,
+      ...optional('maxBackoffMs', this.watchdog.retryMaxBackoffMs),
+    }
+  }
+
+  private sleepBeforeRetry(decision: Extract<RetryDecision, { readonly kind: 'retry' }>): MaybePromise<void> {
+    return decision.delayMs <= 0 ? undefined : this.supervisor.sleep(decision.delayMs)
+  }
+
+  private nextRetryModelTier(
+    requestedModelTier: string | undefined,
+    detection: WorkerSupervisorDetection | undefined,
+  ): string | undefined {
+    if (
+      this.watchdog.enableTierEscalation &&
+      this.restarts > 0 &&
+      this.request.escalationModelTier !== undefined &&
+      this.modelTier !== this.request.escalationModelTier
+    ) {
+      this.modelTier = this.request.escalationModelTier
+      this.emit({ modelTier: this.modelTier, type: 'tier-escalated' }, this.active, detection)
+      return this.modelTier
+    }
+
+    return requestedModelTier
+  }
+}
+
+const PROCESS_OUTPUT_TAIL_MAX_CHARS = 4096
+const FINGERPRINT_VOLATILE_FIELDS = new Set(['idleMs', 'elapsedMs', 'outputBytes', 'duBytes', 'count'])
+
+class WorkerLogSpool {
+  readonly stdoutLogPath: string
+  readonly stderrLogPath: string
+  private readonly stdoutFile: string
+  private readonly stderrFile: string
+  private readonly logDir: string
+  private initialized = false
+
+  constructor(worktree: string, taskId: string) {
+    const relativeLogDir = `workers/${taskId}/logs`
+    this.stdoutLogPath = `${relativeLogDir}/stdout.log`
+    this.stderrLogPath = `${relativeLogDir}/stderr.log`
+    this.logDir = join(worktree, 'workers', taskId, 'logs')
+    this.stdoutFile = join(this.logDir, 'stdout.log')
+    this.stderrFile = join(this.logDir, 'stderr.log')
+  }
+
+  append(stream: 'stdout' | 'stderr', text: string): void {
+    this.ensureLogDir()
+    appendFileSync(stream === 'stdout' ? this.stdoutFile : this.stderrFile, text, 'utf8')
+  }
+
+  private ensureLogDir(): void {
+    if (!this.initialized) {
+      mkdirSync(this.logDir, { recursive: true })
+      this.initialized = true
+    }
+  }
+}
+
+function normalizeSessionWatchdogConfig(config: WorkerSupervisorStartRequest['watchdog']): WatchdogConfig {
+  return {
+    ...normalizeWatchdogConfig(config),
+    ...optional('attemptTimeoutMs', config?.attemptTimeoutMs),
+    ...optional('outputCapBytes', config?.outputCapBytes),
+    ...optional('retryBaseBackoffMs', config?.retryBaseBackoffMs),
+    ...optional('retryJitterRatio', config?.retryJitterRatio),
+    ...optional('retryMaxBackoffMs', config?.retryMaxBackoffMs),
+    ...optional('wallClockCapMs', config?.wallClockCapMs),
+  }
+}
+
+function nextAttemptProgressState(
+  state: WatchdogProgressState,
+  nowMs: number,
+  outputBytes: number,
+): WatchdogProgressState {
+  return {
+    ...state,
+    attemptStartedAtMs: nowMs,
+    lastActionAtMs: nowMs,
+    lastOutputAtMs: nowMs,
+    lastProgressAtMs: nowMs,
+    outputBytes,
+  }
+}
+
+function appendTail(current: string, next: string): string {
+  return tailOf(`${current}${next}`)
+}
+
+function tailOf(text: string): string {
+  return text.slice(-PROCESS_OUTPUT_TAIL_MAX_CHARS)
+}
+
+function detectionFingerprint(detection: WorkerSupervisorDetection): string {
+  const details = Object.entries(detection)
+    .filter(([key]) => key !== 'kind' && !FINGERPRINT_VOLATILE_FIELDS.has(key))
+    .sort(([left], [right]) => left.localeCompare(right))
+
+  return `${detection.kind}:${JSON.stringify(details)}`
+}
+
+function statusForRetryDecision(
+  decision: Exclude<RetryDecision, { readonly kind: 'retry' }>,
+  detection: WorkerSupervisorDetection,
+): WorkerSupervisorStatus {
+  if (detection.kind === 'disk-cap') {
+    return 'disk-cap'
+  }
+
+  if (decision.kind === 'terminal' && decision.classification.kind === 'non-retryable') {
+    return 'budget-cap'
+  }
+
+  return 'stalled'
 }

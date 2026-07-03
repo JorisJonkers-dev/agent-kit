@@ -14,7 +14,6 @@ export type RetryPolicyDetectionKind =
 
 export interface RetryPolicyDetection {
   readonly kind: RetryPolicyDetectionKind
-  readonly [detail: string]: unknown
 }
 
 export interface RetryPolicyConfig {
