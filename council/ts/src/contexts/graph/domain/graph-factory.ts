@@ -241,3 +241,10 @@ function firstContentOwner(nodes: ReadonlyMap<TaskId, GraphNode>, contentHash: s
   }
   return undefined
 }
+
+export function planWaves(
+  drafts: readonly GraphTaskDraft[],
+  options: CreateTaskGraphOptions = {},
+): readonly (readonly TaskId[])[] {
+  return projectWaveView(createTaskGraph(drafts, options))
+}

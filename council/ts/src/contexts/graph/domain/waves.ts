@@ -1,7 +1,6 @@
 import type { TaskId } from '../../../shared-kernel/task.js'
 
-import { createTaskGraph } from './graph-factory.js'
-import type { CreateTaskGraphOptions, GraphTaskDraft, TaskGraph } from './types.js'
+import type { TaskGraph } from './types.js'
 
 export function projectWaveView(graph: TaskGraph): readonly (readonly TaskId[])[] {
   const remaining = new Map<TaskId, readonly TaskId[]>()
@@ -26,11 +25,4 @@ export function projectWaveView(graph: TaskGraph): readonly (readonly TaskId[])[
     })
   }
   return waves
-}
-
-export function planWaves(
-  drafts: readonly GraphTaskDraft[],
-  options: CreateTaskGraphOptions = {},
-): readonly (readonly TaskId[])[] {
-  return projectWaveView(createTaskGraph(drafts, options))
 }
