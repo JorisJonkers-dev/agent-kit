@@ -1,3 +1,6 @@
+export * from './emit-mapping.js'
+export * from './scope-policy.js'
+
 export type KnowledgeRecallMode = 'fast' | 'hybrid' | 'deep'
 
 export interface KnowledgeRecallRequest {
