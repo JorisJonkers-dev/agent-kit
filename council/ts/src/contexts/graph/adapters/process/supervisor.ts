@@ -12,9 +12,11 @@ import type {
   SpawnInput,
   WorkerSupervisorDependencies,
   WorkerSupervisorEvent,
+  WorkerSupervisorRuntimeEvent,
   WorkerSupervisorSession,
   WorkerSupervisorStartRequest,
 } from './types.js'
+import { optional } from './types.js'
 
 export class WorkerSupervisorAdapter {
   private readonly spawnChild: NonNullable<WorkerSupervisorDependencies['spawn']>
@@ -43,6 +45,7 @@ export class WorkerSupervisorAdapter {
     const env = {
       ...process.env,
       ...request.env,
+      KB_AUTO_MCP_DISABLED: '1',
       ...(input.modelTier === undefined ? {} : { COUNCIL_MODEL_TIER: input.modelTier }),
     }
     const child = this.spawnChild(request.command, request.args ?? [], {
@@ -52,13 +55,22 @@ export class WorkerSupervisorAdapter {
       stdio: ['pipe', 'pipe', 'pipe'],
     })
 
-    this.onEvent({ pid: child.pid, restart: run, type: 'started' })
+    this.onEvent({
+      attemptId: run,
+      ...optional('detection', input.detection),
+      ...optional('modelTier', input.modelTier),
+      ...optional('pid', child.pid),
+      restart: run,
+      restartCount: run - 1,
+      taskId: request.id,
+      type: 'started',
+    })
     writeInitialStdin(child, joinPrompt(input.preamble, request.stdin))
     return child
   }
 
-  emit(event: WorkerSupervisorEvent): void {
-    this.onEvent(event)
+  emit(event: WorkerSupervisorRuntimeEvent): void {
+    this.onEvent(event as WorkerSupervisorEvent)
   }
 
   now(): number {
