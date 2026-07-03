@@ -1,16 +1,2 @@
-export type {
-  GuidanceAppendResult,
-  GuidanceEntry,
-  GuidanceInboxItem,
-  GuidanceInboxStatus,
-  GuidanceInput,
-  GuidanceSource,
-  GuidanceState,
-} from './inbox.js'
-export {
-  appendGuidance,
-  emptyGuidanceState,
-  guidanceForTask,
-  pendingInbox,
-  updateInboxStatus,
-} from './inbox.js'
+// Compatibility barrel: moved to src/contexts/guidance/. Re-exports only.
+export * from '../../contexts/guidance/index.js'

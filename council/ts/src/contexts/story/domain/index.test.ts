@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Task } from '../contracts/task.js'
+import type { Task } from '../../../domain/contracts/task.js'
 import { renderStoryMarkdown, validateStoryReadiness } from './index.js'
 
 const BASE_TASK: Task = {

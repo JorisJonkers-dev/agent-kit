@@ -1,20 +1,2 @@
-export type {
-  AddTaskDelta,
-  AmendmentDelta,
-  AmendmentDeltaAction,
-  AmendmentDeltaOperation,
-  AmendmentGuardrail,
-  AmendmentGuardrailCode,
-  AmendmentTaskRecord,
-  AmendmentTaskSnapshot,
-  AmendmentTaskStatus,
-  AmendmentValidationContext,
-  AmendmentValidationIssue,
-  AmendmentValidationIssueCode,
-  AmendmentValidationResult,
-  CancelTaskDelta,
-  FollowUpTaskDelta,
-  GuideTaskDelta,
-  ModifyTaskDelta,
-} from './validator.js'
-export { validateAmendmentDelta } from './validator.js'
+// Compatibility barrel: moved to src/contexts/amend/. Re-exports only.
+export * from '../../contexts/amend/index.js'

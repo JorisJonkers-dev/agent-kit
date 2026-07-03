@@ -6,7 +6,7 @@ import type {
   Story,
   Task,
   TaskId,
-} from '../contracts/index.js'
+} from '../../../domain/contracts/index.js'
 
 export interface SpendEstimateInput {
   readonly rounds?: number
