@@ -693,7 +693,7 @@ council:
   supported_agents: [codex, claude]
   files:
     - path: council/council.mjs
-      sha256: 3983fb8e941064bae389a4152df3adec29c0d484fa76d8045923782714ee26c8
+      sha256: eb4531a5760b381e35fe543226079fd6e7885facb6638f11237894121c1f6ff6
       mode: "0755"
     - path: council/council.toml
       sha256: 96c88e5c707f99a35d832c68f947286181c8387bdad3d206ecd26b8d47f71d11
@@ -877,11 +877,11 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: e92450c5084980f734ef73f8bf5e6752ffd5f22b9e9a286dd2721b31e49352b7
+  sha256: 9ca537ee006be17be02a8de65f7e2e7b3b6a3701557dcbfb25015728367b7ec8
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: e92450c5084980f734ef73f8bf5e6752ffd5f22b9e9a286dd2721b31e49352b7
+      sha256: 9ca537ee006be17be02a8de65f7e2e7b3b6a3701557dcbfb25015728367b7ec8
       mode: "0644"
     - path: installer/install-agents.sh
       sha256: eba3f6ef25b5530aa412518cc05569a863c08428ed7e974e904d34aaa5482767

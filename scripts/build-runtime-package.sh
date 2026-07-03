@@ -10,6 +10,12 @@ trap 'rm -rf "$stage"' EXIT
 
 mkdir -p "$out_dir" "$stage/rendered" "$stage/package/home" "$stage/package/sdd"
 
+(
+  cd "$root/council/ts"
+  npm ci
+  npm run build
+)
+
 "$python_bin" "$root/render-agent-kit.py" --output "$stage/rendered"
 
 stage_council_skill() {
@@ -32,12 +38,29 @@ if spec is None or spec.loader is None:
 renderer = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = renderer
 spec.loader.exec_module(renderer)
-for rel, mode in renderer.council_toolkit_files():
+toolkit = renderer.council_toolkit_files()
+for rel, mode in toolkit:
     source = root / "council" / rel
     target = dest / rel
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, target)
     target.chmod(int(mode, 8))
+
+dist = root / "council" / "ts-dist"
+if not (dist / "cli" / "index.js").is_file():
+    raise SystemExit("council/ts-dist is missing; package build did not produce the council CLI")
+for source in sorted(path for path in dist.rglob("*") if path.is_file()):
+    rel = source.relative_to(dist)
+    if (
+        "__pycache__" in source.parts
+        or source.suffix in {".map", ".pyc"}
+        or source.name.endswith(".tsbuildinfo")
+    ):
+        continue
+    target = dest / "ts-dist" / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    target.chmod(0o644)
 PY
 }
 

@@ -135,12 +135,17 @@ def council_toolkit_files() -> list[tuple[str, str]]:
             or "node_modules" in rel_path.parts
             or "coverage" in rel_path.parts
             or path.suffix == ".pyc"
+            or path.suffix == ".map"
             or path.name.endswith(".tsbuildinfo")
-            or (rel_path.parts and rel_path.parts[0] == "ts")
+            or (rel_path.parts and rel_path.parts[0] in {"ts", "ts-dist"})
         ):
             continue
         rel = rel_path.as_posix()
         if rel == "README.md":
+            continue
+        if rel not in {"council.mjs", "council.toml"} and (
+            not rel_path.parts or rel_path.parts[0] not in {"prompts", "schemas"}
+        ):
             continue
         files.append((rel, "0755" if rel == "council.mjs" else "0644"))
     return files

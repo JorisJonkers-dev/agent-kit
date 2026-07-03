@@ -287,7 +287,7 @@ fi
 # @agent-kit-codex-speckit-bundle
 
 # -----------------------------------------------------------------
-# Skill: council (multi-file toolkit — driver + prompts + schemas +
+# Skill: council (multi-file toolkit — launcher + prompts + schemas +
 # default config). Installs into ${SKILLS_DIR}/council and
 # ${CODEX_SKILLS_DIR}/council. council.toml is preserved on upgrade.
 # -----------------------------------------------------------------

@@ -12,10 +12,14 @@ import re
 import subprocess
 import sys
 import tempfile
-import tomllib
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, NoReturn, cast
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
+    import tomli as tomllib
 
 try:
     import yaml
@@ -285,9 +289,11 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
 
 
 def validate_council(manifest: dict[str, Any]) -> None:
+    renderer = load_renderer()
     council = as_mapping(manifest.get("council"), "council")
     files = as_list(council.get("files"), "council.files")
     manifest_files = {item.get("path") for item in files}
+    rendered_files = {f"council/{rel}" for rel, _mode in renderer.council_toolkit_files()}
     actual_files = {
         path.relative_to(ROOT).as_posix()
         for path in (ROOT / "council").rglob("*")
@@ -298,10 +304,17 @@ def validate_council(manifest: dict[str, Any]) -> None:
             and "node_modules" not in path.relative_to(ROOT / "council").parts
             and "coverage" not in path.relative_to(ROOT / "council").parts
             and path.suffix != ".pyc"
+            and path.suffix != ".map"
             and not path.name.endswith(".tsbuildinfo")
-            and path.relative_to(ROOT / "council").parts[:1] != ("ts",)
+            and path.relative_to(ROOT / "council").parts[:1] not in (("ts",), ("ts-dist",))
+            and (
+                path.relative_to(ROOT / "council").as_posix() in {"council.mjs", "council.toml"}
+                or path.relative_to(ROOT / "council").parts[:1] in (("prompts",), ("schemas",))
+            )
         )
     }
+    if rendered_files != actual_files:
+        fail(f"council renderer mismatch: rendered={sorted(rendered_files)} actual={sorted(actual_files)}")
     if manifest_files != actual_files:
         fail(f"council.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
 
