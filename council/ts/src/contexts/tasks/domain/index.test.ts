@@ -23,16 +23,22 @@ const fullTask: JsonRecord = {
   difficulty: 'moderate',
   discovered_from: 'planner',
   engine: { cli: 'codex', label: 'worker', model: 'gpt-5' },
+  failure_modes: ['misses regression'],
+  human_review_required: true,
   id: 'T1',
   model: 'haiku',
   model_tier: 'cheap',
   objective: 'Change exactly one thing',
   output_format: 'Code edits',
   paths: ['council/ts/src/domain/tasks'],
+  resource_profile: { max_parallelism: 1, memory: 'standard' },
+  retry_policy: { max_attempts: 2, strategy: 'linear' },
   spec_ref: '007-sdd-aware-council',
+  success_criteria: ['all gates pass'],
   supersedes: ['ck-abcd'],
   title: 'Implement one thing',
   verify: 'npm test',
+  verify_proves: ['focused and full gates passed'],
 }
 
 const dependentTask: JsonRecord = {
@@ -92,6 +98,10 @@ describe('tasks markdown bijection', () => {
     "label": "worker",
     "model": "gpt-5"
   },
+  "failure_modes": [
+    "misses regression"
+  ],
+  "human_review_required": true,
   "id": "T1",
   "model": "haiku",
   "model_tier": "cheap",
@@ -100,12 +110,26 @@ describe('tasks markdown bijection', () => {
   "paths": [
     "council/ts/src/domain/tasks"
   ],
+  "resource_profile": {
+    "max_parallelism": 1,
+    "memory": "standard"
+  },
+  "retry_policy": {
+    "max_attempts": 2,
+    "strategy": "linear"
+  },
   "spec_ref": "007-sdd-aware-council",
+  "success_criteria": [
+    "all gates pass"
+  ],
   "supersedes": [
     "ck-abcd"
   ],
   "title": "Implement one thing",
-  "verify": "npm test"
+  "verify": "npm test",
+  "verify_proves": [
+    "focused and full gates passed"
+  ]
 }
 \`\`\`
 `)
@@ -238,11 +262,17 @@ describe('tasks JSON Schema layer', () => {
         depends_on: ['bad'],
         difficulty: 'huge',
         extra: true,
+        failure_modes: 'wrong',
+        human_review_required: 'wrong',
         id: 'bad',
         model: 'llama',
         paths: [1],
+        resource_profile: 'wrong',
+        retry_policy: 'wrong',
+        success_criteria: 'wrong',
         supersedes: ['bad'],
         title: 1,
+        verify_proves: 'wrong',
       },
     ])
 
@@ -254,6 +284,12 @@ describe('tasks JSON Schema layer', () => {
       '$[1].paths must be an array of strings',
       '$[1].acceptance_criteria must be an array of strings',
       '$[1].context_refs must be an array of strings',
+      '$[1].success_criteria must be an array of strings',
+      '$[1].verify_proves must be an array of strings',
+      '$[1].failure_modes must be an array of strings',
+      '$[1].retry_policy must be an object',
+      '$[1].resource_profile must be an object',
+      '$[1].human_review_required must be a boolean',
       '$[1].id must match a council task id',
       '$[1].depends_on[0] must match a council task id',
       '$[1].supersedes[0] must match a council task id',
