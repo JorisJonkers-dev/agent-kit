@@ -69,15 +69,11 @@ canonical_project_scope_from_origin() {
 repo_scope="$(canonical_project_scope_from_origin)"
 scope="${KB_RECALL_SCOPE:-${repo_scope}}"
 
-# Adaptive mode: short prompts rarely need semantic search.
-prompt_len="${#prompt}"
-if [ -n "${KB_RECALL_HOOK_MODE:-}" ]; then
-  mode="${KB_RECALL_HOOK_MODE}"
-elif [ "${prompt_len}" -lt 80 ]; then
-  mode="fast"
-else
-  mode="hybrid"
-fi
+# Mode: default to fast (single-leg FTS, ~50ms) so the hook reliably stays
+# under its settings timeout. Hybrid (pgvector+Ollama) can take seconds when
+# Ollama is cold — that plus the fast fallback blew the 5s budget on every
+# long prompt. Opt into hybrid explicitly via KB_RECALL_HOOK_MODE=hybrid.
+mode="${KB_RECALL_HOOK_MODE:-fast}"
 limit="${KB_RECALL_HOOK_LIMIT:-3}"
 min_score="${KB_RECALL_MIN_SCORE:-0.004}"
 
@@ -92,7 +88,7 @@ print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":
 
 call_recall() {
   payload="$(recall_payload "$1" "$2" "$3" "$4")" || return 1
-  curl -sS --connect-timeout 3 --max-time 5 \
+  curl -sS --connect-timeout 2 --max-time 3 \
     -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "${payload}" \
