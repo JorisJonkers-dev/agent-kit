@@ -13,6 +13,32 @@ export type ResultExtraction =
       readonly error: string
     }
 
+interface GenericResultExtractionContext {
+  readonly stdout: string
+  readonly outputFile: string
+  readonly jsonRecords: readonly JsonRecord[]
+  readonly ports: EngineAdapterPorts
+}
+
+interface GenericResultExtractionStrategy {
+  extract(context: GenericResultExtractionContext): Promise<ResultExtraction> | ResultExtraction
+}
+
+type ResultExtractionFactory = (
+  extraction: EngineResultExtraction,
+) => GenericResultExtractionStrategy
+
+const RESULT_EXTRACTION_FACTORIES: Readonly<
+  Record<EngineResultExtraction['mode'], ResultExtractionFactory>
+> = Object.freeze({
+  json_path: (extraction) =>
+    new JsonPathResultExtractionStrategy(
+      (extraction as Extract<EngineResultExtraction, { readonly mode: 'json_path' }>).path,
+    ),
+  output_file: () => OUTPUT_FILE_RESULT_EXTRACTION,
+  stdout: () => STDOUT_RESULT_EXTRACTION,
+})
+
 export async function extractGenericResult(
   extraction: EngineResultExtraction,
   stdout: string,
@@ -20,14 +46,12 @@ export async function extractGenericResult(
   jsonRecords: readonly JsonRecord[],
   ports: EngineAdapterPorts,
 ): Promise<ResultExtraction> {
-  switch (extraction.mode) {
-    case 'output_file':
-      return { text: await ports.files.readText(outputFile) }
-    case 'stdout':
-      return { text: stdout }
-    case 'json_path':
-      return extractJsonPathResult(jsonRecords, extraction.path)
-  }
+  return RESULT_EXTRACTION_FACTORIES[extraction.mode](extraction).extract({
+    stdout,
+    outputFile,
+    jsonRecords,
+    ports,
+  })
 }
 
 export function resultText(value: JsonValue | undefined): string {
@@ -80,6 +104,29 @@ function extractJsonPathResult(
 
   return { text: resultText(value) }
 }
+
+class OutputFileResultExtractionStrategy implements GenericResultExtractionStrategy {
+  async extract(context: GenericResultExtractionContext): Promise<ResultExtraction> {
+    return { text: await context.ports.files.readText(context.outputFile) }
+  }
+}
+
+class StdoutResultExtractionStrategy implements GenericResultExtractionStrategy {
+  extract(context: GenericResultExtractionContext): ResultExtraction {
+    return { text: context.stdout }
+  }
+}
+
+class JsonPathResultExtractionStrategy implements GenericResultExtractionStrategy {
+  constructor(private readonly path: readonly string[]) {}
+
+  extract(context: GenericResultExtractionContext): ResultExtraction {
+    return extractJsonPathResult(context.jsonRecords, this.path)
+  }
+}
+
+const OUTPUT_FILE_RESULT_EXTRACTION = new OutputFileResultExtractionStrategy()
+const STDOUT_RESULT_EXTRACTION = new StdoutResultExtractionStrategy()
 
 function readJsonPath(record: JsonRecord, path: readonly string[]): JsonValue | undefined {
   let current: JsonValue | undefined = record
