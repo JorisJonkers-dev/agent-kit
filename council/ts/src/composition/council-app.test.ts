@@ -16,7 +16,14 @@ import type {
   SuperviseWorkerSupervisorSnapshot,
   SuperviseWorkerSupervisorStartRequest,
 } from './council-app.js'
-import type { RunStoreEvent, WorkerLifecycleEvent } from '../contexts/runstore/index.js'
+import {
+  appendWorkerTraceEvents,
+  createRepairLoopState,
+  decideRepairLoop,
+  projectWorkerTrace,
+  validateWorkerTraceAppend,
+} from '../contexts/orchestration/index.js'
+import { workerOutputEvent, type RunStoreEvent, type WorkerLifecycleEvent } from '../contexts/runstore/index.js'
 import type { RunSummary } from '../workflows/index.js'
 
 const tempRoots: string[] = []
@@ -310,6 +317,207 @@ describe('CouncilApp.supervise', () => {
       worktree: '/worktrees/T1',
     })
     expect(store.results).toEqual([{ result, runId: 'run-a', taskId: 'T1' }])
+  })
+
+  it('projects app-produced failure lifecycle events into append-only traces and repair decisions', async () => {
+    const store = new RecordingRunStore()
+    const app = new CouncilApp({
+      createRunStore: () => store,
+      createWorkerSupervisor: (dependencies) => new RecordingSupervisor(dependencies, supervisorResult('T6', 'failed')),
+      nowIso: () => '2026-07-03T12:00:00.000Z',
+    })
+
+    const result = await app.supervise(superviseInput({ modelTier: 'cheap', taskId: 'T6' }))
+    const trace = projectWorkerTrace(store.events.map(({ event }) => event))
+
+    expect(result.status).toBe('failed')
+    expect(trace).toEqual([
+      {
+        attempt: 1,
+        command: ['node'],
+        cwd: '/worktrees/T6',
+        kind: 'attempt',
+        modelTier: 'cheap',
+        occurredAt: '2026-07-03T12:00:00.000Z',
+        pid: 101,
+        sourceEventType: 'worker_started',
+        taskId: 'T6',
+        workerId: 'worker-T6',
+      },
+      {
+        attempt: 1,
+        byteCount: 3,
+        kind: 'output',
+        offset: 0,
+        stream: 'stdout',
+        tail: 'ok\n',
+        tailBytes: 3,
+        taskId: 'T6',
+        workerId: 'worker-T6',
+      },
+      {
+        attempt: 1,
+        byteCount: 5,
+        kind: 'output',
+        offset: 0,
+        stream: 'stderr',
+        tail: 'warn\n',
+        tailBytes: 5,
+        taskId: 'T6',
+        workerId: 'worker-T6',
+      },
+      {
+        attempt: 1,
+        kind: 'detection',
+        occurredAt: '2026-07-03T12:00:00.000Z',
+        pid: 101,
+        status: 'progress-stall',
+        taskId: 'T6',
+        workerId: 'worker-T6',
+      },
+      {
+        attempt: 2,
+        kind: 'attempt',
+        occurredAt: '2026-07-03T12:00:00.000Z',
+        pid: 102,
+        previousPid: 101,
+        reason: 'progress-stall',
+        sourceEventType: 'worker_restarted',
+        taskId: 'T6',
+        workerId: 'worker-T6',
+      },
+      {
+        attempt: 2,
+        exitCode: 0,
+        kind: 'result',
+        occurredAt: '2026-07-03T12:00:00.000Z',
+        pid: 102,
+        signal: null,
+        sourceEventType: 'worker_exited',
+        taskId: 'T6',
+        workerId: 'worker-T6',
+      },
+      {
+        attempt: 2,
+        kind: 'result',
+        occurredAt: '2026-07-03T12:00:00.000Z',
+        resultPath: 'workers/T6/result.json',
+        sourceEventType: 'worker_finished',
+        status: 'failed',
+        taskId: 'T6',
+        workerId: 'worker-T6',
+      },
+    ])
+
+    const appendedTrace = appendWorkerTraceEvents(trace, [
+      workerOutputEvent({
+        byte_count: 12,
+        offset: 5,
+        stream: 'stderr',
+        tail: 'still fails\n',
+        tail_bytes: 12,
+        task_id: 'T6',
+        worker_id: 'worker-T6',
+      }),
+    ])
+
+    expect(appendedTrace.slice(0, trace.length)).toEqual(trace)
+    expect(appendedTrace.at(-1)).toEqual({
+      attempt: 2,
+      byteCount: 12,
+      kind: 'output',
+      offset: 5,
+      stream: 'stderr',
+      tail: 'still fails\n',
+      tailBytes: 12,
+      taskId: 'T6',
+      workerId: 'worker-T6',
+    })
+    expect(() => {
+      validateWorkerTraceAppend(
+        trace,
+        trace.map((entry, index) => (index === 0 && entry.kind === 'attempt' ? { ...entry, pid: 999 } : entry)),
+      )
+    }).toThrow('worker trace append mutates prior entry at index 0')
+    expect(() => {
+      validateWorkerTraceAppend(trace, trace.slice(1))
+    }).toThrow('worker trace append removed prior entries')
+
+    const firstDecision = decideRepairLoop({
+      maxTailChars: 4,
+      state: createRepairLoopState(),
+      task: {
+        id: 'T6',
+        verify: 'npm test',
+      },
+      trace,
+      workerResult: {
+        status: 'verify-failed',
+        verifyOutput: 'expected repairable verification failure',
+        verifyRc: 1,
+      },
+    })
+
+    expect(firstDecision).toEqual({
+      kind: 'repair',
+      plan: {
+        artifacts: {
+          stderrTail: 'arn\n',
+          stdoutTail: 'ok\n',
+          traceSummary: {
+            attempts: [1, 2],
+            detections: ['progress-stall'],
+            latestResultStatus: 'failed',
+            resultStatuses: ['worker_exited:exit-0', 'worker_finished:failed'],
+            taskId: 'T6',
+            workerIds: ['worker-T6'],
+          },
+          verifyOutput: 'expected repairable verification failure',
+          verifyRc: 1,
+          workerResultStatus: 'verify-failed',
+        },
+        attempt: 1,
+        taskId: 'T6',
+        verifyCommand: 'npm test',
+      },
+      state: { repairAttemptConsumed: true },
+    })
+
+    expect(
+      decideRepairLoop({
+        maxTailChars: 4,
+        state: firstDecision.state,
+        task: {
+          id: 'T6',
+          verify: 'npm test',
+        },
+        trace,
+        workerResult: {
+          status: 'verify-failed',
+          verifyOutput: 'still failing after repair',
+          verifyRc: 1,
+        },
+      }),
+    ).toEqual({
+      artifacts: {
+        stderrTail: 'arn\n',
+        stdoutTail: 'ok\n',
+        traceSummary: {
+          attempts: [1, 2],
+          detections: ['progress-stall'],
+          latestResultStatus: 'failed',
+          resultStatuses: ['worker_exited:exit-0', 'worker_finished:failed'],
+          taskId: 'T6',
+          workerIds: ['worker-T6'],
+        },
+        verifyOutput: 'still failing after repair',
+        verifyRc: 1,
+        workerResultStatus: 'verify-failed',
+      },
+      kind: 'terminal-failure',
+      reason: 'repair-attempt-consumed',
+      state: { repairAttemptConsumed: true },
+    })
   })
 
   it('reattaches from a saved snapshot and writes terminal result statuses', async () => {
