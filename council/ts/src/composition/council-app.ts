@@ -89,6 +89,7 @@ export interface SuperviseInput {
   readonly restartPreamble?: string
   readonly checkpointPreamble?: string
   readonly supportsStreamingStdin?: boolean
+  readonly mcpProfile?: string
   readonly modelTier?: string
   readonly escalationModelTier?: string
   readonly pollIntervalMs?: number
@@ -394,6 +395,7 @@ function workerStartRequest(input: SuperviseInput): SuperviseWorkerSupervisorSta
     ...optional('restartPreamble', input.restartPreamble),
     ...optional('checkpointPreamble', input.checkpointPreamble),
     ...optional('supportsStreamingStdin', input.supportsStreamingStdin),
+    ...optional('mcpProfile', input.mcpProfile),
     ...optional('modelTier', input.modelTier),
     ...optional('escalationModelTier', input.escalationModelTier),
     ...optional('pollIntervalMs', input.pollIntervalMs),
