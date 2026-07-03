@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "council-verdict",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-review-verdict",
   "type": "object",
   "additionalProperties": false,
   "required": ["satisfied", "reasons", "issues"],
@@ -9,11 +10,9 @@
     "reasons": { "type": "string" },
     "issues": { "type": "array", "items": { "type": "string" } },
     "task_id": { "type": "string" },
-    "dev_notes": { "type": "string" },
-    "spec_ref": { "type": "string" },
-    "context_refs": { "type": "array", "items": { "type": "string" } },
-    "content_hash": { "type": "string" },
+    "reviewer": { "type": "string" },
     "engine": {},
-    "model_tier": { "type": "string" }
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
   }
 }
