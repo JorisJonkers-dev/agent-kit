@@ -54,11 +54,17 @@ const SCHEMA_BOOLEAN_FIELDS = new Set([
   'human_review_required',
 ])
 
+const ATTACHMENT_FIELDS = new Set([
+  'activeSkills',
+  'mcpProfile',
+])
+
 const SCHEMA_ALLOWED_FIELDS = new Set([
   ...SCHEMA_STRING_FIELDS,
   ...SCHEMA_STRING_ARRAY_FIELDS,
   ...SCHEMA_RECORD_FIELDS,
   ...SCHEMA_BOOLEAN_FIELDS,
+  'attachment',
   'engine',
 ])
 
@@ -91,6 +97,15 @@ export const TASKS_JSON_SCHEMA = {
       difficulty: { type: 'string', enum: ['trivial', 'moderate', 'hard'] },
       model: { type: 'string', enum: ['haiku', 'sonnet', 'opus'] },
       acceptance_criteria: { type: 'array', items: { type: 'string' } },
+      attachment: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['activeSkills', 'mcpProfile'],
+        properties: {
+          activeSkills: { type: 'array', items: { type: 'string' } },
+          mcpProfile: { type: 'string' },
+        },
+      },
       success_criteria: { type: 'array', items: { type: 'string' } },
       verify_proves: { type: 'array', items: { type: 'string' } },
       failure_modes: { type: 'array', items: { type: 'string' } },
@@ -206,5 +221,41 @@ function validateSchemaFieldTypes(task: JsonRecord, path: string, errors: string
 
   if (typeof task.model === 'string' && !['haiku', 'sonnet', 'opus'].includes(task.model)) {
     errors.push(`${path}.model must be haiku, sonnet, or opus`)
+  }
+
+  validateAttachment(task.attachment, path, errors)
+}
+
+function validateAttachment(
+  attachment: JsonRecord[string] | undefined,
+  path: string,
+  errors: string[],
+): void {
+  if (attachment === undefined) {
+    return
+  }
+
+  if (!isJsonRecord(attachment)) {
+    errors.push(`${path}.attachment must be an object`)
+    return
+  }
+
+  for (const field of Object.keys(attachment)) {
+    if (!ATTACHMENT_FIELDS.has(field)) {
+      errors.push(`${path}.attachment.${field} is not allowed by schema`)
+    }
+  }
+
+  if (!('activeSkills' in attachment)) {
+    errors.push(`${path}.attachment.activeSkills is required`)
+  }
+  if (!('mcpProfile' in attachment)) {
+    errors.push(`${path}.attachment.mcpProfile is required`)
+  }
+  if ('mcpProfile' in attachment && typeof attachment.mcpProfile !== 'string') {
+    errors.push(`${path}.attachment.mcpProfile must be a string`)
+  }
+  if ('activeSkills' in attachment && !isStringArray(attachment.activeSkills)) {
+    errors.push(`${path}.attachment.activeSkills must be an array of strings`)
   }
 }

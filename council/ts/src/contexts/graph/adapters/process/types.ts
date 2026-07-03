@@ -53,6 +53,7 @@ export interface WorkerSupervisorStartRequest {
   readonly restartPreamble?: string
   readonly checkpointPreamble?: string
   readonly supportsStreamingStdin?: boolean
+  readonly mcpProfile?: string
   readonly modelTier?: string
   readonly escalationModelTier?: string
   readonly pollIntervalMs?: number

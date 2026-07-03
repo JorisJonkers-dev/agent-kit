@@ -22,6 +22,7 @@ export type {
   TaskDifficulty,
   TaskId,
   TaskModel,
+  TaskResolvedAttachment,
   TaskResourceProfile,
   TaskRetryPolicy,
 } from './task.js'

@@ -14,6 +14,10 @@ import type { JsonRecord } from '../../../shared-kernel/common.js'
 const fullTask: JsonRecord = {
   acceptance_criteria: ['keeps bijection'],
   archetype: 'implementation',
+  attachment: {
+    activeSkills: ['kb-first', 'run-tests'],
+    mcpProfile: 'code-intel',
+  },
   boundaries: 'Stay in scope',
   content_hash: 'sha256:abc',
   context_profile: 'focused',
@@ -83,6 +87,13 @@ describe('tasks markdown bijection', () => {
     "keeps bijection"
   ],
   "archetype": "implementation",
+  "attachment": {
+    "activeSkills": [
+      "kb-first",
+      "run-tests"
+    ],
+    "mcpProfile": "code-intel"
+  },
   "boundaries": "Stay in scope",
   "content_hash": "sha256:abc",
   "context_profile": "focused",
@@ -300,6 +311,42 @@ describe('tasks JSON Schema layer', () => {
     expect(() => { assertTasksJsonSchema([{ ...fullTask, id: 'bad' }]); }).toThrow(
       'tasks JSON Schema validation failed: $[0].id must match a council task id',
     )
+  })
+
+  it('rejects malformed attachment objects', () => {
+    expect(validateTasksJsonSchema([
+      {
+        ...fullTask,
+        attachment: 'wrong',
+      },
+      {
+        ...fullTask,
+        attachment: {
+          activeSkills: ['kb-first', 1],
+          extra: true,
+          mcpProfile: 2,
+        },
+      },
+      {
+        ...fullTask,
+        attachment: {
+          mcpProfile: 'minimal',
+        },
+      },
+      {
+        ...fullTask,
+        attachment: {
+          activeSkills: [],
+        },
+      },
+    ]).errors).toEqual([
+      '$[0].attachment must be an object',
+      '$[1].attachment.extra is not allowed by schema',
+      '$[1].attachment.mcpProfile must be a string',
+      '$[1].attachment.activeSkills must be an array of strings',
+      '$[2].attachment.activeSkills is required',
+      '$[3].attachment.mcpProfile is required',
+    ])
   })
 
   it('reports missing required fields', () => {

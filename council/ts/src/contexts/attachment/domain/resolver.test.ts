@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { parseAttachmentProfilesConfig, resolveAttachments } from './index.js'
 import type { AttachmentProfilesConfig } from './index.js'
+import type { TaskResolvedAttachment } from '../../../shared-kernel/index.js'
 
 const MCP_PROFILES = ['minimal', 'frontend', 'cluster', 'code-intel', 'full-diagnostic'] as const
 
@@ -85,9 +86,14 @@ describe('resolveAttachments', () => {
 
     const first = resolveAttachments(input, catalog)
     const second = resolveAttachments(input, catalog)
+    const taskAttachment: TaskResolvedAttachment = first
 
     expect(first).toEqual(second)
     expect(first.mcpProfile).toBe('frontend')
+    expect(taskAttachment).toMatchObject({
+      activeSkills: ['design-review', 'accessibility-pass', 'frontend-build'],
+      mcpProfile: 'frontend',
+    })
     expect(first.activeSkills).toEqual(['design-review', 'accessibility-pass', 'frontend-build'])
     expect(first.selectedSkillCards.map((skill) => skill.name)).toEqual(['design-review', 'accessibility-pass'])
     expect(first.contextProfile.profile).toBe('implementer')
