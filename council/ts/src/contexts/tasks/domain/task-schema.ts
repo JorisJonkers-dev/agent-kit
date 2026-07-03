@@ -1,4 +1,5 @@
 import type { JsonRecord } from '../../../shared-kernel/common.js'
+import { TASK_ATTACHMENT_ACTIVE_SKILLS_MAX } from '../../../shared-kernel/index.js'
 import { isJsonArray, isJsonRecord, isStringArray } from './task-json.js'
 
 const REQUIRED_SCHEMA_FIELDS = [
@@ -102,8 +103,12 @@ export const TASKS_JSON_SCHEMA = {
         additionalProperties: false,
         required: ['activeSkills', 'mcpProfile'],
         properties: {
-          activeSkills: { type: 'array', items: { type: 'string' } },
-          mcpProfile: { type: 'string' },
+          activeSkills: {
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: TASK_ATTACHMENT_ACTIVE_SKILLS_MAX,
+          },
+          mcpProfile: { type: 'string', minLength: 1, pattern: '\\S' },
         },
       },
       success_criteria: { type: 'array', items: { type: 'string' } },
@@ -255,7 +260,19 @@ function validateAttachment(
   if ('mcpProfile' in attachment && typeof attachment.mcpProfile !== 'string') {
     errors.push(`${path}.attachment.mcpProfile must be a string`)
   }
+  if (
+    typeof attachment.mcpProfile === 'string' &&
+    attachment.mcpProfile.trim().length === 0
+  ) {
+    errors.push(`${path}.attachment.mcpProfile must be a non-empty string`)
+  }
   if ('activeSkills' in attachment && !isStringArray(attachment.activeSkills)) {
     errors.push(`${path}.attachment.activeSkills must be an array of strings`)
+  }
+  if (
+    isJsonArray(attachment.activeSkills) &&
+    attachment.activeSkills.length > TASK_ATTACHMENT_ACTIVE_SKILLS_MAX
+  ) {
+    errors.push(`${path}.attachment.activeSkills must contain at most ${String(TASK_ATTACHMENT_ACTIVE_SKILLS_MAX)} skills`)
   }
 }
