@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { EventEmitter } from 'node:events'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough, Writable } from 'node:stream'
+import { spawn as nodeSpawn } from 'node:child_process'
 import type { ChildProcess, SpawnOptions } from 'node:child_process'
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -13,6 +14,7 @@ import {
   WorkerSupervisorAdapter,
 } from './index.js'
 import type { WorkerSupervisorEvent } from './index.js'
+import type { WorkerSupervisorSnapshot } from './types.js'
 
 const PROCESS_TAIL_MAX_CHARS = 4096
 const tempRoots: string[] = []
@@ -205,6 +207,269 @@ describe('WorkerSupervisorAdapter', () => {
     )
   })
 
+  it('writes supervisor snapshots on start, output, detection, restart, and exit', async () => {
+    const worktree = await tempRoot()
+    const first = new FakeChild(131)
+    const second = new FakeChild(132)
+    const snapshots: WorkerSupervisorSnapshot[] = []
+    const sleeper = deferredSleep()
+    let now = 0
+    const adapter = new WorkerSupervisorAdapter({
+      kill: (pid, signal) => {
+        if (pid === -131) {
+          first.exit(null, signal)
+        }
+      },
+      nowMs: () => now,
+      onSnapshot: (snapshot) => { snapshots.push(snapshot); },
+      sleep: sleeper.sleep,
+      spawn: fakeSpawn([first, second], []),
+    })
+    const session = adapter.start({
+      command: 'agent',
+      id: 'T1-snapshot',
+      modelTier: 'cheap',
+      pollIntervalMs: 1,
+      watchdog: { maxRestarts: 1, stallAfterS: 1 },
+      worktree,
+    })
+
+    expect(snapshots).toContainEqual(expect.objectContaining({
+      attempt_id: 1,
+      model_tier: 'cheap',
+      offsets: { stderr: 0, stdout: 0 },
+      pid: 131,
+      restart_count: 0,
+      status: 'running',
+      task_id: 'T1-snapshot',
+    }))
+
+    first.stdout.write('before stall\n')
+    expect(snapshots).toContainEqual(expect.objectContaining({
+      attempt_id: 1,
+      offsets: { stderr: 0, stdout: Buffer.byteLength('before stall\n') },
+      pid: 131,
+      status: 'running',
+    }))
+
+    now = 1_000
+    await sleeper.tick()
+    await flushPromises()
+    now = 2_000
+    await sleeper.tick()
+    await flushPromises()
+
+    expect(snapshots.some((snapshot) =>
+      snapshot.attempt_id === 1 &&
+      snapshot.pid === 131 &&
+      snapshot.status === 'detected' &&
+      snapshot.watchdog.pending_detection?.kind === 'progress-stall',
+    )).toBe(true)
+    expect(snapshots).toContainEqual(expect.objectContaining({
+      attempt_id: 2,
+      pid: 132,
+      restart_count: 1,
+      status: 'restarting',
+    }))
+
+    second.exit(0)
+
+    await expect(session.result).resolves.toMatchObject({ status: 'completed' })
+    expect(snapshots).toContainEqual(expect.objectContaining({
+      attempt_id: 2,
+      exit_code: 0,
+      pid: 132,
+      signal: null,
+      status: 'exited',
+    }))
+  })
+
+  it('reattaches to a live pid from saved offsets without replaying prior output', async () => {
+    const worktree = await tempRoot()
+    const taskId = 'T1-reattach'
+    const logDir = join(worktree, 'workers', taskId, 'logs')
+    const priorStdout = 'old stdout\n'
+    const priorStderr = 'old stderr\n'
+    await mkdir(logDir, { recursive: true })
+    await writeFile(join(logDir, 'stdout.log'), priorStdout, 'utf8')
+    await writeFile(join(logDir, 'stderr.log'), priorStderr, 'utf8')
+
+    const events: WorkerSupervisorEvent[] = []
+    const snapshots: WorkerSupervisorSnapshot[] = []
+    const sleeper = deferredSleep()
+    let live = true
+    const adapter = new WorkerSupervisorAdapter({
+      isPidAlive: () => live,
+      onEvent: (event) => events.push(event),
+      onSnapshot: (snapshot) => { snapshots.push(snapshot); },
+      sleep: sleeper.sleep,
+    })
+    const session = adapter.reattach({
+      command: 'agent',
+      id: taskId,
+      pollIntervalMs: 1,
+      worktree,
+    }, supervisorSnapshot(taskId, {
+      offsets: {
+        stderr: Buffer.byteLength(priorStderr),
+        stdout: Buffer.byteLength(priorStdout),
+      },
+      pid: 4242,
+    }))
+
+    await expect(session.inject('continue')).rejects.toThrow('does not have an attached stdin')
+    await appendFile(join(logDir, 'stdout.log'), 'new stdout\n', 'utf8')
+    await appendFile(join(logDir, 'stderr.log'), 'new stderr\n', 'utf8')
+    await sleeper.tick()
+
+    expect(events.filter((event) => event.type === 'started')).toEqual([])
+    await waitFor(() => {
+      expect(events).toContainEqual(expect.objectContaining({
+        attemptId: 2,
+        byteCount: Buffer.byteLength('new stdout\n'),
+        offset: Buffer.byteLength(priorStdout),
+        pid: 4242,
+        restartCount: 1,
+        tail: 'new stdout\n',
+        type: 'stdout',
+      }))
+      return Promise.resolve()
+    })
+    expect(events).toContainEqual(expect.objectContaining({
+      attemptId: 2,
+      byteCount: Buffer.byteLength('new stderr\n'),
+      offset: Buffer.byteLength(priorStderr),
+      pid: 4242,
+      restartCount: 1,
+      tail: 'new stderr\n',
+      type: 'stderr',
+    }))
+    expect(snapshots).toContainEqual(expect.objectContaining({
+      offsets: {
+        stderr: Buffer.byteLength(`${priorStderr}new stderr\n`),
+        stdout: Buffer.byteLength(`${priorStdout}new stdout\n`),
+      },
+      pid: 4242,
+      status: 'running',
+    }))
+
+    live = false
+    await sleeper.tick()
+    await flushPromises()
+
+    await expect(session.result).resolves.toMatchObject({
+      exitCode: null,
+      status: 'dead-snapshot',
+    })
+  })
+
+  it('classifies stale and dead snapshots as terminal without emitting lifecycle events', async () => {
+    const events: WorkerSupervisorEvent[] = []
+    const adapter = new WorkerSupervisorAdapter({
+      isPidAlive: () => false,
+      onEvent: (event) => events.push(event),
+    })
+    const request = {
+      command: 'agent',
+      id: 'T1-terminal-snapshot',
+      worktree: '/tmp/worktree',
+    }
+    const stale = adapter.reattach(request, supervisorSnapshot(request.id, {
+      pid: 5151,
+      status: 'exited',
+    }))
+    await expect(stale.result).resolves.toMatchObject({ status: 'stale-snapshot' })
+    await stale.stop('already terminal')
+    await expect(stale.inject('continue')).rejects.toThrow('terminal snapshot')
+
+    const dead = adapter.reattach(request, supervisorSnapshot(request.id, { pid: 6161 }))
+    await expect(dead.result).resolves.toMatchObject({ status: 'dead-snapshot' })
+    const defaultDead = new WorkerSupervisorAdapter().reattach(
+      request,
+      supervisorSnapshot(request.id, { pid: 99_999_999 }),
+    )
+    await expect(defaultDead.result).resolves.toMatchObject({ status: 'dead-snapshot' })
+
+    expect(() => {
+      adapter.reattach(request, supervisorSnapshot('other-task', { pid: 7171 }))
+    }).toThrow('supervisor snapshot task_id must match request id: T1-terminal-snapshot')
+
+    expect(events).toEqual([])
+  })
+
+  it('surfaces unexpected default pid liveness failures during reattach', () => {
+    const originalKill: typeof process.kill = process.kill.bind(process)
+    const error = new Error('permission denied') as NodeJS.ErrnoException
+    error.code = 'EPERM'
+    process.kill = ((pid: number, signal?: NodeJS.Signals | number) => {
+      void pid
+      void signal
+      throw error
+    })
+    try {
+      expect(() => {
+        new WorkerSupervisorAdapter().reattach({
+          command: 'agent',
+          id: 'T1-liveness-error',
+          worktree: '/tmp/worktree',
+        }, supervisorSnapshot('T1-liveness-error', { pid: 7171 }))
+      }).toThrow('permission denied')
+    } finally {
+      process.kill = originalKill
+    }
+  })
+
+  it('stops a reattached watcher before the next poll resumes', async () => {
+    const sleeper = deferredSleep()
+    const kills: number[] = []
+    const adapter = new WorkerSupervisorAdapter({
+      isPidAlive: () => true,
+      kill: (pid) => { kills.push(pid); },
+      sleep: sleeper.sleep,
+    })
+    const session = adapter.reattach({
+      command: 'agent',
+      id: 'T1-stop-reattach',
+      pollIntervalMs: 1,
+      worktree: '/tmp/worktree',
+    }, supervisorSnapshot('T1-stop-reattach', { pid: 8181 }))
+
+    await session.stop('operator')
+    await sleeper.tick()
+
+    expect(kills).toEqual([-8181])
+    await expect(session.result).resolves.toMatchObject({ status: 'stopped' })
+  })
+
+  it('classifies a reattached snapshot as stale when logs are shorter than saved offsets', async () => {
+    const worktree = await tempRoot()
+    const taskId = 'T1-truncated'
+    const logDir = join(worktree, 'workers', taskId, 'logs')
+    const sleeper = deferredSleep()
+    await mkdir(logDir, { recursive: true })
+    await writeFile(join(logDir, 'stdout.log'), 'short\n', 'utf8')
+    await writeFile(join(logDir, 'stderr.log'), '', 'utf8')
+    const session = new WorkerSupervisorAdapter({
+      isPidAlive: () => true,
+      sleep: sleeper.sleep,
+    }).reattach({
+      command: 'agent',
+      id: taskId,
+      pollIntervalMs: 1,
+      worktree,
+    }, supervisorSnapshot(taskId, {
+      offsets: {
+        stderr: 0,
+        stdout: 99,
+      },
+      pid: 9191,
+    }))
+
+    await sleeper.tick()
+
+    await expect(session.result).resolves.toMatchObject({ status: 'stale-snapshot' })
+  })
+
   it('spools full logs while exposing only bounded tails and relative log paths', async () => {
     const worktree = await tempRoot()
     const child = new FakeChild(121)
@@ -326,46 +591,46 @@ describe('WorkerSupervisorAdapter', () => {
       COUNCIL_MODEL_TIER: 'cheap',
       KB_AUTO_MCP_DISABLED: '1',
     })
-    expect(events).toContainEqual(expect.objectContaining({
-      attemptId: 1,
-      detection: expect.objectContaining({ kind: 'progress-stall' }),
-      modelTier: 'cheap',
-      pid: 201,
-      restartCount: 0,
-      taskId: 'T2',
-      type: 'detected',
-    }))
-    expect(events).toContainEqual(expect.objectContaining({
-      attemptId: 1,
-      detection: expect.objectContaining({ kind: 'progress-stall' }),
-      modelTier: 'cheap',
-      pid: 201,
-      restartCount: 0,
-      signal: 'SIGTERM',
-      taskId: 'T2',
-      type: 'terminated',
-    }))
-    expect(events).toContainEqual(expect.objectContaining({
-      attemptId: 2,
-      detection: expect.objectContaining({ kind: 'progress-stall' }),
-      modelTier: 'cheap',
-      pid: 202,
-      restart: 2,
-      restartCount: 1,
-      taskId: 'T2',
-      type: 'started',
-    }))
-    expect(events).toContainEqual(expect.objectContaining({
-      attemptId: 2,
-      detection: expect.objectContaining({ kind: 'progress-stall' }),
-      modelTier: 'cheap',
-      pid: 202,
-      previousPid: 201,
-      restart: 1,
-      restartCount: 1,
-      taskId: 'T2',
-      type: 'restarted',
-    }))
+    expect(events.some((event) =>
+      event.type === 'detected' &&
+      event.attemptId === 1 &&
+      event.detection.kind === 'progress-stall' &&
+      event.modelTier === 'cheap' &&
+      event.pid === 201 &&
+      event.restartCount === 0 &&
+      event.taskId === 'T2',
+    )).toBe(true)
+    expect(events.some((event) =>
+      event.type === 'terminated' &&
+      event.attemptId === 1 &&
+      event.detection?.kind === 'progress-stall' &&
+      event.modelTier === 'cheap' &&
+      event.pid === 201 &&
+      event.restartCount === 0 &&
+      event.signal === 'SIGTERM' &&
+      event.taskId === 'T2',
+    )).toBe(true)
+    expect(events.some((event) =>
+      event.type === 'started' &&
+      event.attemptId === 2 &&
+      event.detection?.kind === 'progress-stall' &&
+      event.modelTier === 'cheap' &&
+      event.pid === 202 &&
+      event.restart === 2 &&
+      event.restartCount === 1 &&
+      event.taskId === 'T2',
+    )).toBe(true)
+    expect(events.some((event) =>
+      event.type === 'restarted' &&
+      event.attemptId === 2 &&
+      event.detection?.kind === 'progress-stall' &&
+      event.modelTier === 'cheap' &&
+      event.pid === 202 &&
+      event.previousPid === 201 &&
+      event.restart === 1 &&
+      event.restartCount === 1 &&
+      event.taskId === 'T2',
+    )).toBe(true)
 
     now = 2_000
     await sleeper.tick()
@@ -374,15 +639,15 @@ describe('WorkerSupervisorAdapter', () => {
       COUNCIL_MODEL_TIER: 'max',
       KB_AUTO_MCP_DISABLED: '1',
     })
-    expect(events).toContainEqual(expect.objectContaining({
-      attemptId: 2,
-      detection: expect.objectContaining({ kind: 'progress-stall' }),
-      modelTier: 'max',
-      pid: 202,
-      restartCount: 1,
-      taskId: 'T2',
-      type: 'tier-escalated',
-    }))
+    expect(events.some((event) =>
+      event.type === 'tier-escalated' &&
+      event.attemptId === 2 &&
+      event.detection?.kind === 'progress-stall' &&
+      event.modelTier === 'max' &&
+      event.pid === 202 &&
+      event.restartCount === 1 &&
+      event.taskId === 'T2',
+    )).toBe(true)
 
     now = 3_000
     await flushPromises()
@@ -575,6 +840,29 @@ describe('WorkerSupervisorAdapter', () => {
     await expect(session.result).resolves.toMatchObject({ restarts: 1, status: 'completed' })
   })
 
+  it('stalls checkpoint-and-resume inject when the restart cap is exhausted', async () => {
+    const child = new FakeChild(611)
+    const records: SpawnRecord[] = []
+    const adapter = new WorkerSupervisorAdapter({
+      kill: (_pid, signal) => { child.exit(null, signal); },
+      spawn: fakeSpawn([child], records),
+    })
+    const session = adapter.start({
+      command: 'agent',
+      id: 'T6-restart-cap',
+      watchdog: { maxRestarts: 0 },
+      worktree: '/tmp/worktree',
+    })
+
+    await expect(session.inject('new operator turn')).resolves.toEqual({
+      mode: 'checkpoint-and-resume',
+      restarted: true,
+    })
+
+    expect(records).toHaveLength(1)
+    await expect(session.result).resolves.toMatchObject({ restarts: 0, status: 'stalled' })
+  })
+
   it('stops immediately on disk cap detection', async () => {
     const child = new FakeChild(701)
     const records: SpawnRecord[] = []
@@ -695,6 +983,38 @@ describe('WorkerSupervisorAdapter', () => {
     await expect(session.result).resolves.toMatchObject({
       status: 'stalled',
     })
+  })
+
+  it('retries loop-cycle detections with a stable multi-field fingerprint', async () => {
+    const worktree = await tempRoot()
+    const first = new FakeChild(851)
+    const second = new FakeChild(852)
+    const records: SpawnRecord[] = []
+    const sleeper = deferredSleep()
+    const adapter = new WorkerSupervisorAdapter({
+      kill: (pid, signal) => {
+        if (pid === -851) {
+          first.exit(null, signal)
+        }
+      },
+      sleep: sleeper.sleep,
+      spawn: fakeSpawn([first, second], records),
+    })
+    const session = adapter.start({
+      command: 'agent',
+      id: 'T8-cycle',
+      pollIntervalMs: 1,
+      watchdog: { maxCycleGram: 2, maxRestarts: 1, repeatLimit: 10, windowSize: 6 },
+      worktree,
+    })
+    first.stdout.write('$ a\n$ b\n$ a\n$ b\n$ a\n$ b\n')
+
+    await sleeper.tick()
+
+    expect(records).toHaveLength(2)
+    expect(second.writes.join('')).toContain('Watchdog detection: loop-cycle.')
+    second.exit(0)
+    await expect(session.result).resolves.toMatchObject({ restarts: 1, status: 'completed' })
   })
 
   it('marks stalled instead of restarting when the restart cap is exhausted', async () => {
@@ -901,6 +1221,37 @@ describe('process adapter OS integration', () => {
     await expect(session.result).resolves.toMatchObject({ exitCode: 7, status: 'failed' })
   })
 
+  it('reattaches to a real live pid through default liveness and stops it', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'council-reattach-'))
+    const child = nodeSpawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], {
+      detached: true,
+      stdio: 'ignore',
+    })
+    if (child.pid === undefined) {
+      throw new Error('expected child pid')
+    }
+    const snapshots: WorkerSupervisorSnapshot[] = []
+    const adapter = new WorkerSupervisorAdapter({
+      onSnapshot: (snapshot) => { snapshots.push(snapshot); },
+      sleep: () => new Promise(() => undefined),
+    })
+    const session = adapter.reattach({
+      command: 'agent',
+      id: 'real-reattach',
+      worktree: dir,
+    }, supervisorSnapshot('real-reattach', { pid: child.pid }))
+
+    await session.stop('test complete')
+
+    await expect(session.result).resolves.toMatchObject({ status: 'stopped' })
+    expect(snapshots).toContainEqual(expect.objectContaining({
+      pid: child.pid,
+      status: 'stopped',
+      task_id: 'real-reattach',
+    }))
+    await rm(dir, { force: true, recursive: true })
+  })
+
   it('supports direct process-group kill errors outside the supervisor session', () => {
     const adapter = new WorkerSupervisorAdapter({
       kill: () => {
@@ -943,6 +1294,45 @@ async function tempRoot(): Promise<string> {
 
 function tail(text: string): string {
   return text.slice(-PROCESS_TAIL_MAX_CHARS)
+}
+
+function supervisorSnapshot(
+  taskId: string,
+  overrides: Partial<WorkerSupervisorSnapshot> = {},
+): WorkerSupervisorSnapshot {
+  return {
+    attempt_id: 2,
+    logs: {
+      stderr: `workers/${taskId}/logs/stderr.log`,
+      stdout: `workers/${taskId}/logs/stdout.log`,
+    },
+    model_tier: 'cheap',
+    offsets: {
+      stderr: 0,
+      stdout: 0,
+    },
+    pid: 4242,
+    restart_count: 1,
+    status: 'running',
+    task_id: taskId,
+    watchdog: {
+      handling_detection: false,
+      loop: { actions: [] },
+      progress: {
+        attemptStartedAtMs: 100,
+        lastActionAtMs: 100,
+        lastOutputAtMs: 100,
+        lastProgressAtMs: 100,
+        outputBytes: 0,
+        startedAtMs: 0,
+      },
+      retry: {
+        attempts: 0,
+        failureFingerprints: [],
+      },
+    },
+    ...overrides,
+  }
 }
 
 function grandchildScript(marker: string): string {

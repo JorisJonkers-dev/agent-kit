@@ -19,7 +19,7 @@ import type {
   WatchdogProgressState,
 } from '../../../watchdog/index.js'
 
-import { terminateActiveProcess } from './process-group-control.js'
+import { terminateActiveProcess, tryKillProcessGroup } from './process-group-control.js'
 import {
   isPromiseLike,
   joinPrompt,
@@ -40,6 +40,8 @@ import type {
   WorkerSupervisorRuntime,
   WorkerSupervisorRuntimeEvent,
   WorkerSupervisorSession,
+  WorkerSupervisorSnapshot,
+  WorkerSupervisorSnapshotStatus,
   WorkerSupervisorStartRequest,
   WorkerSupervisorStatus,
 } from './types.js'
@@ -83,6 +85,7 @@ export class RunningWorker implements WorkerSupervisorSession {
       this.resolveResult = resolve
     })
     this.active = this.spawn({ ...optional('modelTier', this.modelTier) })
+    this.writeSnapshot('running', this.active)
     void this.poll()
   }
 
@@ -355,9 +358,12 @@ export class RunningWorker implements WorkerSupervisorSession {
       createChild: this.supervisor.createChild.bind(this.supervisor),
       diskUsageBytes: this.supervisor.diskUsageBytes.bind(this.supervisor),
       emit: emitTerminated,
+      isPidAlive: this.supervisor.isPidAlive.bind(this.supervisor),
       killGroup: this.supervisor.killGroup.bind(this.supervisor),
       now: this.supervisor.now.bind(this.supervisor),
+      readLogFile: this.supervisor.readLogFile.bind(this.supervisor),
       sleep: this.supervisor.sleep.bind(this.supervisor),
+      snapshot: this.supervisor.snapshot.bind(this.supervisor),
     }
   }
 
@@ -370,6 +376,7 @@ export class RunningWorker implements WorkerSupervisorSession {
       ...this.eventContext(active, detection),
       ...detail,
     })
+    this.writeSnapshot(snapshotStatusForDetail(detail, detection), active, detection, detail)
   }
 
   private eventContext(
@@ -394,6 +401,10 @@ export class RunningWorker implements WorkerSupervisorSession {
   ): void {
     if (!this.finished) {
       this.finished = true
+      const snapshotStatus = snapshotStatusForResult(status)
+      if (snapshotStatus !== null) {
+        this.writeSnapshot(snapshotStatus, this.active, detection)
+      }
       this.resolveResult({
         ...optional('detection', detection),
         exitCode,
@@ -410,6 +421,39 @@ export class RunningWorker implements WorkerSupervisorSession {
         stdoutLogPath: this.logs.stdoutLogPath,
       })
     }
+  }
+
+  private writeSnapshot(
+    status: WorkerSupervisorSnapshotStatus,
+    active: ActiveProcess,
+    detection: WorkerSupervisorDetection | undefined = active.detection,
+    detail?: WorkerSupervisorEventDetail,
+  ): void {
+    void this.supervisor.snapshot({
+      ...exitSnapshotFields(detail),
+      logs: {
+        stderr: this.logs.stderrLogPath,
+        stdout: this.logs.stdoutLogPath,
+      },
+      ...optional('model_tier', active.modelTier),
+      offsets: {
+        stderr: this.stderrBytes,
+        stdout: this.stdoutBytes,
+      },
+      ...optional('pid', active.child.pid),
+      restart_count: active.restartCount,
+      status,
+      task_id: this.request.id,
+      attempt_id: active.attemptId,
+      watchdog: watchdogSnapshot(
+        this.progressState,
+        this.loopState,
+        this.retryState,
+        this.pendingLoopDetection,
+        this.handlingDetection,
+        detection,
+      ),
+    })
   }
 
   private retryPolicyConfig(): RetryPolicyConfig {
@@ -441,6 +485,231 @@ export class RunningWorker implements WorkerSupervisorSession {
     }
 
     return requestedModelTier
+  }
+}
+
+export class ReattachedWorker implements WorkerSupervisorSession {
+  readonly result: Promise<WorkerSupervisorResult>
+  private readonly supervisor: WorkerSupervisorRuntime
+  private readonly request: WorkerSupervisorStartRequest
+  private readonly pid: number
+  private readonly attemptId: number
+  private readonly restartCount: number
+  private readonly modelTier: string | undefined
+  private readonly logs: WorkerSupervisorSnapshot['logs']
+  private readonly pollIntervalMs: number
+  private stdoutTail = ''
+  private stderrTail = ''
+  private stdoutBytes: number
+  private stderrBytes: number
+  private progressState: WatchdogProgressState
+  private loopState: LoopDetectorState
+  private retryState: RetryPolicyState
+  private pendingDetection: WorkerSupervisorDetection | null
+  private finished = false
+  private resolveResult!: (result: WorkerSupervisorResult) => void
+
+  constructor(
+    supervisor: WorkerSupervisorRuntime,
+    request: WorkerSupervisorStartRequest,
+    snapshot: WorkerSupervisorSnapshot & { readonly pid: number },
+  ) {
+    this.supervisor = supervisor
+    this.request = request
+    this.pid = snapshot.pid
+    this.attemptId = snapshot.attempt_id
+    this.restartCount = snapshot.restart_count
+    this.modelTier = snapshot.model_tier
+    this.logs = snapshot.logs
+    this.pollIntervalMs = request.pollIntervalMs ?? 15_000
+    this.stdoutBytes = snapshot.offsets.stdout
+    this.stderrBytes = snapshot.offsets.stderr
+    this.progressState = snapshot.watchdog.progress
+    this.loopState = snapshot.watchdog.loop
+    this.retryState = snapshot.watchdog.retry
+    this.pendingDetection = snapshot.watchdog.pending_detection ?? null
+    this.result = new Promise<WorkerSupervisorResult>((resolve) => {
+      this.resolveResult = resolve
+    })
+    void this.poll()
+  }
+
+  inject(): Promise<InjectDelivery> {
+    return Promise.reject(new Error(`worker ${this.request.id} does not have an attached stdin`))
+  }
+
+  stop(reason = 'requested'): Promise<void> {
+    if (!this.finished) {
+      if (tryKillProcessGroup(this.pid, 'SIGTERM', this.supervisor.killGroup.bind(this.supervisor))) {
+        this.emit({ signal: 'SIGTERM', type: 'terminated' })
+      }
+      this.finish('stopped', null, null)
+      this.emit({ reason, type: 'stopped' })
+    }
+    return Promise.resolve()
+  }
+
+  private async poll(): Promise<void> {
+    while (!this.finished) {
+      await this.supervisor.sleep(this.pollIntervalMs)
+      if (this.isFinished()) {
+        return
+      }
+      const fresh = await this.collectOutput()
+      if (!fresh) {
+        return
+      }
+      if (!this.supervisor.isPidAlive(this.pid)) {
+        this.finish('dead-snapshot', null, null)
+        return
+      }
+    }
+  }
+
+  private isFinished(): boolean {
+    return this.finished
+  }
+
+  private async collectOutput(): Promise<boolean> {
+    return (await this.collectStream('stdout')) && (await this.collectStream('stderr'))
+  }
+
+  private async collectStream(stream: 'stdout' | 'stderr'): Promise<boolean> {
+    const offset = stream === 'stdout' ? this.stdoutBytes : this.stderrBytes
+    const logPath = stream === 'stdout' ? this.logs.stdout : this.logs.stderr
+    const bytes = await this.supervisor.readLogFile(join(this.request.worktree, logPath))
+    if (bytes.length < offset) {
+      this.finish('stale-snapshot', null, null)
+      return false
+    }
+    if (bytes.length === offset) {
+      return true
+    }
+
+    const next = bytes.subarray(offset)
+    this.recordOutput(stream, next.toString('utf8'), offset, next.length)
+    return true
+  }
+
+  private recordOutput(
+    stream: 'stdout' | 'stderr',
+    text: string,
+    offset: number,
+    byteCount: number,
+  ): void {
+    const nowMs = this.supervisor.now()
+    this.progressState = {
+      ...this.progressState,
+      lastOutputAtMs: nowMs,
+      lastProgressAtMs: nowMs,
+      outputBytes: this.stdoutBytes + this.stderrBytes + byteCount,
+    }
+
+    if (stream === 'stdout') {
+      this.stdoutTail = appendTail(this.stdoutTail, text)
+      this.stdoutBytes += byteCount
+      const tail = tailOf(text)
+      this.emit({
+        byteCount,
+        logPath: this.logs.stdout,
+        offset,
+        tail,
+        tailBytes: Buffer.byteLength(tail),
+        type: 'stdout',
+      })
+    } else {
+      this.stderrTail = appendTail(this.stderrTail, text)
+      this.stderrBytes += byteCount
+      const tail = tailOf(text)
+      this.emit({
+        byteCount,
+        logPath: this.logs.stderr,
+        offset,
+        tail,
+        tailBytes: Buffer.byteLength(tail),
+        type: 'stderr',
+      })
+    }
+
+    for (const line of text.split(/\r?\n/u)) {
+      const loop = appendLoopLine(this.loopState, line, normalizeSessionWatchdogConfig(this.request.watchdog).loop)
+      this.loopState = loop.state
+      this.pendingDetection = this.pendingDetection ?? loop.detection
+    }
+  }
+
+  private emit(detail: WorkerSupervisorEventDetail): void {
+    this.supervisor.emit({
+      ...this.eventContext(),
+      ...detail,
+    })
+    this.writeSnapshot(snapshotStatusForDetail(detail, this.pendingDetection ?? undefined), detail)
+  }
+
+  private eventContext(): WorkerSupervisorEventContext {
+    return {
+      attemptId: this.attemptId,
+      ...optional('modelTier', this.modelTier),
+      pid: this.pid,
+      restartCount: this.restartCount,
+      taskId: this.request.id,
+    }
+  }
+
+  private finish(
+    status: WorkerSupervisorStatus,
+    exitCode: number | null,
+    signal: NodeJS.Signals | null,
+  ): void {
+    if (!this.finished) {
+      this.finished = true
+      const snapshotStatus = snapshotStatusForResult(status)
+      if (snapshotStatus !== null) {
+        this.writeSnapshot(snapshotStatus)
+      }
+      this.resolveResult({
+        exitCode,
+        id: this.request.id,
+        ...optional('modelTier', this.modelTier),
+        restarts: this.restartCount,
+        signal,
+        status,
+        stderr: this.stderrTail,
+        stderrBytes: this.stderrBytes,
+        stderrLogPath: this.logs.stderr,
+        stdout: this.stdoutTail,
+        stdoutBytes: this.stdoutBytes,
+        stdoutLogPath: this.logs.stdout,
+      })
+    }
+  }
+
+  private writeSnapshot(
+    status: WorkerSupervisorSnapshotStatus,
+    detail?: WorkerSupervisorEventDetail,
+  ): void {
+    void this.supervisor.snapshot({
+      ...exitSnapshotFields(detail),
+      logs: this.logs,
+      ...optional('model_tier', this.modelTier),
+      offsets: {
+        stderr: this.stderrBytes,
+        stdout: this.stdoutBytes,
+      },
+      pid: this.pid,
+      restart_count: this.restartCount,
+      status,
+      task_id: this.request.id,
+      attempt_id: this.attemptId,
+      watchdog: watchdogSnapshot(
+        this.progressState,
+        this.loopState,
+        this.retryState,
+        this.pendingDetection,
+        false,
+        this.pendingDetection ?? undefined,
+      ),
+    })
   }
 }
 
@@ -501,6 +770,57 @@ function nextAttemptProgressState(
     lastOutputAtMs: nowMs,
     lastProgressAtMs: nowMs,
     outputBytes,
+  }
+}
+
+function snapshotStatusForResult(status: WorkerSupervisorStatus): WorkerSupervisorSnapshotStatus | null {
+  return status === 'dead-snapshot' || status === 'stale-snapshot' ? null : status
+}
+
+function snapshotStatusForDetail(
+  detail: WorkerSupervisorEventDetail,
+  detection: WorkerSupervisorDetection | undefined,
+): WorkerSupervisorSnapshotStatus {
+  if (detail.type === 'detected') {
+    return 'detected'
+  }
+  if (detail.type === 'restarted') {
+    return 'restarting'
+  }
+  if (detail.type === 'exited') {
+    return 'exited'
+  }
+  if (detail.type === 'stopped') {
+    return 'stopped'
+  }
+  return detection === undefined ? 'running' : 'detected'
+}
+
+function exitSnapshotFields(
+  detail: WorkerSupervisorEventDetail | undefined,
+): Pick<WorkerSupervisorSnapshot, 'exit_code' | 'signal'> | Record<string, never> {
+  return detail?.type === 'exited'
+    ? {
+        exit_code: detail.exitCode,
+        signal: detail.signal,
+      }
+    : {}
+}
+
+function watchdogSnapshot(
+  progress: WatchdogProgressState,
+  loop: LoopDetectorState,
+  retry: RetryPolicyState,
+  pendingDetection: WorkerSupervisorDetection | null,
+  handlingDetection: boolean,
+  detection: WorkerSupervisorDetection | undefined,
+): WorkerSupervisorSnapshot['watchdog'] {
+  return {
+    handling_detection: handlingDetection,
+    loop,
+    ...optional('pending_detection', pendingDetection ?? detection),
+    progress,
+    retry,
   }
 }
 
