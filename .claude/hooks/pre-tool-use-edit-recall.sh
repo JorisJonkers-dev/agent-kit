@@ -56,9 +56,27 @@ marker="${STATE_DIR}/sessions/${session}/edit-${path_hash}"
 [ -e "${marker}" ] && exit 0
 : > "${marker}"
 
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-scope="${KB_RECALL_SCOPE:-project:${project}}"
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+repo_scope="$(canonical_project_scope_from_origin)"
+scope="${KB_RECALL_SCOPE:-${repo_scope}}"
 
 basename="$(basename "${file_path}")"
 parent="$(basename "$(dirname "${file_path}")")"

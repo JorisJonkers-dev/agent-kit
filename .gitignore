@@ -9,6 +9,18 @@ out/
 target/
 *.log
 *.egg-info/
+node_modules/
+node_modules
+coverage/
+*.tsbuildinfo
+council/ts-dist/
+council/ts/*.tsbuildinfo
+council/ts/toolkit-files.json
+
+# Local vendoring and council run artifacts.
+BMAD-METHOD/
+spec-compare/
+.council/runs/
 
 # Local env and editor files
 .env

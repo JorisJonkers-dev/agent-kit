@@ -22,16 +22,16 @@ models plan/critique/judge while cheap models fan out. Full rationale and source
 
 ```bash
 # stages 1-4: produce a consolidated plan + tasks.json (no execution)
-python3 platform/agents/council/council.py plan --brief brief.md
+node council/council.mjs plan --brief brief.md
 
 # preview cost (no model calls)
-python3 platform/agents/council/council.py plan --estimate
+node council/council.mjs plan --estimate
 
 # resume an interrupted run (stages are idempotent on their output files)
-python3 platform/agents/council/council.py plan --brief brief.md --run .council/runs/<id>
+node council/council.mjs plan --brief brief.md --run .council/runs/<id>
 
 # pure-function checks, no model calls
-python3 platform/agents/council/council.py --self-test
+node council/council.mjs --self-test
 ```
 
 `plan` prints the run dir on stdout. Inspect `consolidated_plan.md` and
@@ -39,10 +39,10 @@ python3 platform/agents/council/council.py --self-test
 
 ```bash
 # stages 5-6: execute the task DAG with cheap workers, verify, reconcile
-python3 platform/agents/council/council.py fanout --run .council/runs/<id>
+node council/council.mjs fanout --run .council/runs/<id>
 
 # preview the wave/worker plan (no execution)
-python3 platform/agents/council/council.py fanout --run .council/runs/<id> --estimate
+node council/council.mjs fanout --run .council/runs/<id> --estimate
 ```
 
 `fanout` topologically sorts `tasks.json` into waves. Within a wave, workers run
@@ -57,7 +57,7 @@ run dir.
 
 ```bash
 # ad-hoc, engine-agnostic worker pool over any tasks.json (no plan phase)
-python3 platform/agents/council/council.py fleet \
+node council/council.mjs fleet \
   --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
 ```
 
@@ -69,10 +69,10 @@ or Codex — and runs them through the same worktree/verify/reconcile path as
 
 ```bash
 # preview only:
-python3 platform/agents/council/council.py split \
+node council/council.mjs split \
   --path services/foo --dest myorg/foo --dry-run
 # extract (history preserved), create the remote, push:
-python3 platform/agents/council/council.py split --path services/foo --dest myorg/foo
+node council/council.mjs split --path services/foo --dest myorg/foo
 ```
 
 `split` runs `git subtree split` on a throwaway `council/split/<name>` branch so
@@ -94,17 +94,17 @@ Driven by an intensity preset plus optional per-role overrides in `council.toml`
 | `max` | 3 | xhigh | sonnet | 8 |
 
 ```bash
-council.py plan --brief b.md --intensity thorough     # one-off
-council.py config show                                # resolved config + sources
-council.py config set intensity thorough              # persist (user-global)
-council.py config set planner_b codex:gpt-5.5
-council.py config set worker claude:sonnet --project  # persist for THIS repo only
-council.py config unset worker                         # back to preset
+council.mjs plan --brief b.md --intensity thorough     # one-off
+council.mjs config show                                # resolved config + sources
+council.mjs config set intensity thorough              # persist (user-global)
+council.mjs config set planner_b codex:gpt-5.5
+council.mjs config set worker claude:sonnet --project  # persist for THIS repo only
+council.mjs config unset worker                         # back to preset
 ```
 
 Override flags: `--intensity`, `--rounds`, `--planner-a`, `--planner-b`,
 `--consolidator`, `--worker`, `--verifier`, `--codex-effort`, `--max-workers`.
-Workers must be `claude:<model>` (codex workers aren't supported yet).
+Workers may be `claude:<model>` or `codex:<model>`.
 
 **Config layering** (each overrides the previous):
 1. intensity preset

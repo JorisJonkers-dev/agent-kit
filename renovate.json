@@ -1,4 +1,73 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>JorisJonkers-dev/renovate-config"]
+  "extends": ["github>JorisJonkers-dev/renovate-config"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update BMAD Method source lock release pins.",
+      "managerFilePatterns": ["/^bmad-source\\.lock$/"],
+      "matchStrings": [
+        "upstream_repository: https://github\\.com/bmad-code-org/BMAD-METHOD(?:\\.git)?\\s+upstream_tag: (?<currentValue>\\S+)(?:\\s+upstream_tag_commit: (?<currentDigest>[a-f0-9]{7,40}))?"
+      ],
+      "depNameTemplate": "bmad-code-org/BMAD-METHOD",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Update spec-compare source lock ref pins.",
+      "managerFilePatterns": ["/^spec-compare-source\\.lock$/"],
+      "matchStrings": [
+        "upstream_repository: (?<packageName>https://github\\.com/cameronsjo/spec-compare(?:\\.git)?)\\s+source_ref: (?<currentValue>\\S+)(?:\\s+resolved_commit_sha: (?<currentDigest>[a-f0-9]{7,40}))?"
+      ],
+      "depNameTemplate": "cameronsjo/spec-compare",
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "description": "Update imported skill source lock ref pins.",
+      "managerFilePatterns": ["/^skills-source\\.lock$/"],
+      "matchStrings": [
+        "- upstream_repository: (?<packageName>https://github\\.com/(?<depName>mattpocock/skills|obra/superpowers)(?:\\.git)?)\\s+(?:  [^\\n]+\\s+)*?  source_ref: (?<currentValue>\\S+)(?:\\s+(?:  [^\\n]+\\s+)*?  resolved_commit_sha: (?<currentDigest>[a-f0-9]{7,40}))?"
+      ],
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "description": "Update Spec Kit source lock release pins.",
+      "managerFilePatterns": ["/^spec-kit-source\\.lock$/"],
+      "matchStrings": [
+        "upstream_repository: https://github\\.com/github/spec-kit(?:\\.git)?\\s+upstream_tag: (?<currentValue>\\S+)(?:\\s+upstream_release_date: \\S+)?(?:\\s+resolved_commit_sha: (?<currentDigest>[a-f0-9]{7,40}))?"
+      ],
+      "depNameTemplate": "github/spec-kit",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchFileNames": ["bmad-source.lock"],
+      "prBodyNotes": [
+        "Run the BMAD source sync command for `bmad-source.lock` before merging so the adapted source stays aligned with this pin."
+      ]
+    },
+    {
+      "matchFileNames": ["spec-compare-source.lock"],
+      "prBodyNotes": [
+        "Run the spec-compare source sync command for `spec-compare-source.lock` before merging so the adapted source stays aligned with this pin."
+      ]
+    },
+    {
+      "matchFileNames": ["skills-source.lock"],
+      "prBodyNotes": [
+        "Run the skills source sync command for `skills-source.lock` before merging so the adapted source stays aligned with this pin."
+      ]
+    },
+    {
+      "matchFileNames": ["spec-kit-source.lock"],
+      "prBodyNotes": [
+        "Run the Spec Kit source sync command for `spec-kit-source.lock` before merging so the adapted source stays aligned with this pin."
+      ]
+    }
+  ]
 }

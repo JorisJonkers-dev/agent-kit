@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jorisjonkers.dev/council/routing-matrix.schema.json",
+  "title": "Council routing matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "source",
+    "dimensions",
+    "useCaseScores",
+    "routeProfiles",
+    "routeRules",
+    "stageAdjustments"
+  ],
+  "properties": {
+    "$schema": { "const": "./routing-matrix.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "source": { "type": "object" },
+    "dimensions": { "type": "object" },
+    "useCaseScores": { "type": "array" },
+    "routeProfiles": { "type": "array" },
+    "routeRules": { "type": "array" },
+    "stageAdjustments": { "type": "array" }
+  }
+}

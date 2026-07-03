@@ -112,6 +112,7 @@ else
   readonly CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 fi
 readonly HOOKS_DIR="${CLAUDE_HOME}/hooks"
+readonly AGENTS_DIR="${CLAUDE_HOME}/agents"
 readonly COMMANDS_DIR="${CLAUDE_HOME}/commands"
 readonly SKILLS_DIR="${CLAUDE_HOME}/skills"
 readonly MANIFEST="${CLAUDE_HOME}/.knowledge-system-version"
@@ -151,11 +152,15 @@ remove_file() {
 readonly STATE_DIR="${CLAUDE_HOME}/state"
 readonly ALLOWLIST="${CLAUDE_HOME}/.knowledge-system-allowlist"
 
+claude_agent_managed_paths=(
+)
+
 claude_managed_paths=(
   "${HOOKS_DIR}/user-prompt-submit-recall.sh"
   "${HOOKS_DIR}/pre-tool-use-edit-recall.sh"
   "${HOOKS_DIR}/pre-tool-use-git-commit-capture.sh"
   "${HOOKS_DIR}/stop-session-digest.sh"
+  "${claude_agent_managed_paths[@]}"
 # @agent-kit-speckit-commands-managed
   "${SKILLS_DIR}/topics/SKILL.md"
   "${SKILLS_DIR}/audit/SKILL.md"
@@ -282,7 +287,7 @@ fi
 # @agent-kit-codex-speckit-bundle
 
 # -----------------------------------------------------------------
-# Skill: council (multi-file toolkit — driver + prompts + schemas +
+# Skill: council (multi-file toolkit — launcher + prompts + schemas +
 # default config). Installs into ${SKILLS_DIR}/council and
 # ${CODEX_SKILLS_DIR}/council. council.toml is preserved on upgrade.
 # -----------------------------------------------------------------

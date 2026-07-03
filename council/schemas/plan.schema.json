@@ -17,6 +17,16 @@
     "steps": { "type": "array", "items": { "type": "string" } },
     "risks": { "type": "array", "items": { "type": "string" } },
     "parallelizable_tasks": { "type": "array", "items": { "type": "string" } },
-    "open_questions": { "type": "array", "items": { "type": "string" } }
+    "open_questions": { "type": "array", "items": { "type": "string" } },
+    "dev_notes": { "type": "string" },
+    "spec_ref": { "type": "string" },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "archetype": { "type": "string" },
+    "context_profile": { "type": "string" },
+    "discovered_from": { "type": "string" },
+    "supersedes": { "type": "array", "items": { "type": "string" } },
+    "content_hash": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" }
   }
 }

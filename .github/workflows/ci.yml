@@ -34,6 +34,18 @@
       - 'run': 'scripts/build-runtime-package.sh v0.0.0-ci dist'
       - 'run': 'tar -tzf dist/agent-kit-runtime-home-v0.0.0-ci.tar.gz >/dev/null'
 
+  'node':
+    'name': 'Node CI'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'actions/setup-node@v6'
+        'with':
+          'node-version': '22'
+          'cache': 'npm'
+          'cache-dependency-path': 'council/ts/package-lock.json'
+      - 'run': 'cd council/ts && npm ci && npm run build && npm test'
+
   'workflow-lint':
     'name': 'Workflow Lint'
     'runs-on': 'ubuntu-latest'
@@ -73,6 +85,7 @@
     'name': 'Pipeline Complete'
     'if': 'always()'
     'needs':
+      - 'node'
       - 'python'
       - 'runtime-package'
       - 'shell-lint'

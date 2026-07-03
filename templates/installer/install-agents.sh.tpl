@@ -7,8 +7,8 @@
 #      by fetching and running the sibling install.sh from the same KB.
 #   2. Registers the `knowledge` MCP server with each agent (the NEW
 #      capability this installer adds over the base installer).
-#   3. Best-effort installs the kit's Python dependencies (council needs
-#      python3).
+#   3. Checks council runtime prerequisites (python3 and Node >=22) and
+#      best-effort installs the kit's Python dependencies.
 #
 # It installs for ALL agents (claude + codex) by default. Use
 # `--scope user|project` to choose the client homes to manage, `--dry-run`
@@ -482,8 +482,28 @@ remove_claude_hooks() {
 }
 
 # -----------------------------------------------------------------
-# Step 3: best-effort Python deps for council.
+# Step 3: council runtime prerequisites and best-effort Python deps.
 # -----------------------------------------------------------------
+ensure_node_runtime() {
+  if ! command -v node >/dev/null 2>&1; then
+    log "WARNING: node is not on PATH; council requires Node >=22 — install node manually"
+    return
+  fi
+  local node_version node_major
+  node_version="$(node --version 2>/dev/null || true)"
+  node_major="${node_version#v}"
+  node_major="${node_major%%.*}"
+  case "${node_major}" in
+    ""|*[!0-9]*)
+      log "WARNING: could not parse node version '${node_version}'; council requires Node >=22"
+      return
+      ;;
+  esac
+  if [ "${node_major}" -lt 22 ]; then
+    log "WARNING: node ${node_version} is on PATH; council requires Node >=22"
+  fi
+}
+
 ensure_python_deps() {
   if ! command -v python3 >/dev/null 2>&1; then
     log "WARNING: python3 is not on PATH; council requires it — install python3 manually"
@@ -522,6 +542,7 @@ delegate_base_install
 register_claude_mcp
 register_codex_mcp
 register_claude_hooks
+ensure_node_runtime
 ensure_python_deps
 log "done"
 

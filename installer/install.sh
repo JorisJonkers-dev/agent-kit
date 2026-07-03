@@ -112,6 +112,7 @@ else
   readonly CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 fi
 readonly HOOKS_DIR="${CLAUDE_HOME}/hooks"
+readonly AGENTS_DIR="${CLAUDE_HOME}/agents"
 readonly COMMANDS_DIR="${CLAUDE_HOME}/commands"
 readonly SKILLS_DIR="${CLAUDE_HOME}/skills"
 readonly MANIFEST="${CLAUDE_HOME}/.knowledge-system-version"
@@ -151,11 +152,15 @@ remove_file() {
 readonly STATE_DIR="${CLAUDE_HOME}/state"
 readonly ALLOWLIST="${CLAUDE_HOME}/.knowledge-system-allowlist"
 
+claude_agent_managed_paths=(
+)
+
 claude_managed_paths=(
   "${HOOKS_DIR}/user-prompt-submit-recall.sh"
   "${HOOKS_DIR}/pre-tool-use-edit-recall.sh"
   "${HOOKS_DIR}/pre-tool-use-git-commit-capture.sh"
   "${HOOKS_DIR}/stop-session-digest.sh"
+  "${claude_agent_managed_paths[@]}"
   "${COMMANDS_DIR}/speckit.analyze.md"
   "${COMMANDS_DIR}/speckit.checklist.md"
   "${COMMANDS_DIR}/speckit.clarify.md"
@@ -171,18 +176,47 @@ claude_managed_paths=(
   "${SKILLS_DIR}/token-economy/SKILL.md"
   "${SKILLS_DIR}/agent-session-bootstrap/SKILL.md"
   "${SKILLS_DIR}/council/SKILL.md"
-  "${SKILLS_DIR}/council/council.py"
+  "${SKILLS_DIR}/council/council.mjs"
   "${SKILLS_DIR}/council/council.toml"
   "${SKILLS_DIR}/council/prompts/_baseline.md"
   "${SKILLS_DIR}/council/prompts/consolidator.md"
+  "${SKILLS_DIR}/council/prompts/correct_course.md"
   "${SKILLS_DIR}/council/prompts/critic.md"
+  "${SKILLS_DIR}/council/prompts/design_consolidator.md"
+  "${SKILLS_DIR}/council/prompts/design_lens.md"
+  "${SKILLS_DIR}/council/prompts/design_vote.md"
+  "${SKILLS_DIR}/council/prompts/designer.md"
+  "${SKILLS_DIR}/council/prompts/grill.md"
   "${SKILLS_DIR}/council/prompts/planner.md"
+  "${SKILLS_DIR}/council/prompts/review_triage.md"
+  "${SKILLS_DIR}/council/prompts/reviewer_acceptance.md"
+  "${SKILLS_DIR}/council/prompts/reviewer_adversarial.md"
+  "${SKILLS_DIR}/council/prompts/reviewer_edgecase.md"
+  "${SKILLS_DIR}/council/prompts/reviewpack/checkpoint-1.html"
+  "${SKILLS_DIR}/council/prompts/reviewpack/checkpoint-1.md"
+  "${SKILLS_DIR}/council/prompts/reviewpack/checkpoint-2.html"
+  "${SKILLS_DIR}/council/prompts/reviewpack/checkpoint-2.md"
+  "${SKILLS_DIR}/council/prompts/reviewpack/design-checkpoint.html"
+  "${SKILLS_DIR}/council/prompts/reviewpack/design-checkpoint.md"
   "${SKILLS_DIR}/council/prompts/reviser.md"
+  "${SKILLS_DIR}/council/prompts/story_author.md"
+  "${SKILLS_DIR}/council/prompts/story_check.md"
+  "${SKILLS_DIR}/council/prompts/story_template.md"
+  "${SKILLS_DIR}/council/prompts/survey.md"
+  "${SKILLS_DIR}/council/prompts/triage_judge.md"
   "${SKILLS_DIR}/council/prompts/verifier.md"
   "${SKILLS_DIR}/council/prompts/worker.md"
+  "${SKILLS_DIR}/council/schemas/amendment.schema.json"
   "${SKILLS_DIR}/council/schemas/consolidated.schema.json"
+  "${SKILLS_DIR}/council/schemas/context-pack.schema.json"
+  "${SKILLS_DIR}/council/schemas/design-ledger.schema.json"
+  "${SKILLS_DIR}/council/schemas/events.schema.json"
   "${SKILLS_DIR}/council/schemas/plan.schema.json"
+  "${SKILLS_DIR}/council/schemas/review-verdict.schema.json"
+  "${SKILLS_DIR}/council/schemas/routing-verdict.schema.json"
+  "${SKILLS_DIR}/council/schemas/run-state.schema.json"
   "${SKILLS_DIR}/council/schemas/verdict.schema.json"
+  "${SKILLS_DIR}/council/schemas/worker-result.schema.json"
   "${ALLOWLIST}"
 )
 
@@ -206,18 +240,47 @@ codex_managed_paths=(
   "${CODEX_SKILLS_DIR}/token-economy/SKILL.md"
   "${CODEX_SKILLS_DIR}/agent-session-bootstrap/SKILL.md"
   "${CODEX_SKILLS_DIR}/council/SKILL.md"
-  "${CODEX_SKILLS_DIR}/council/council.py"
+  "${CODEX_SKILLS_DIR}/council/council.mjs"
   "${CODEX_SKILLS_DIR}/council/council.toml"
   "${CODEX_SKILLS_DIR}/council/prompts/_baseline.md"
   "${CODEX_SKILLS_DIR}/council/prompts/consolidator.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/correct_course.md"
   "${CODEX_SKILLS_DIR}/council/prompts/critic.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/design_consolidator.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/design_lens.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/design_vote.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/designer.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/grill.md"
   "${CODEX_SKILLS_DIR}/council/prompts/planner.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/review_triage.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewer_acceptance.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewer_adversarial.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewer_edgecase.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewpack/checkpoint-1.html"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewpack/checkpoint-1.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewpack/checkpoint-2.html"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewpack/checkpoint-2.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewpack/design-checkpoint.html"
+  "${CODEX_SKILLS_DIR}/council/prompts/reviewpack/design-checkpoint.md"
   "${CODEX_SKILLS_DIR}/council/prompts/reviser.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/story_author.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/story_check.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/story_template.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/survey.md"
+  "${CODEX_SKILLS_DIR}/council/prompts/triage_judge.md"
   "${CODEX_SKILLS_DIR}/council/prompts/verifier.md"
   "${CODEX_SKILLS_DIR}/council/prompts/worker.md"
+  "${CODEX_SKILLS_DIR}/council/schemas/amendment.schema.json"
   "${CODEX_SKILLS_DIR}/council/schemas/consolidated.schema.json"
+  "${CODEX_SKILLS_DIR}/council/schemas/context-pack.schema.json"
+  "${CODEX_SKILLS_DIR}/council/schemas/design-ledger.schema.json"
+  "${CODEX_SKILLS_DIR}/council/schemas/events.schema.json"
   "${CODEX_SKILLS_DIR}/council/schemas/plan.schema.json"
+  "${CODEX_SKILLS_DIR}/council/schemas/review-verdict.schema.json"
+  "${CODEX_SKILLS_DIR}/council/schemas/routing-verdict.schema.json"
+  "${CODEX_SKILLS_DIR}/council/schemas/run-state.schema.json"
   "${CODEX_SKILLS_DIR}/council/schemas/verdict.schema.json"
+  "${CODEX_SKILLS_DIR}/council/schemas/worker-result.schema.json"
   "${CODEX_ALLOWLIST}"
   "${CODEX_HOOKS_CONFIG}"
 )
@@ -305,10 +368,27 @@ if isinstance(messages, list) and messages:
 # Skip trivially-short prompts — overhead > value.
 [ "${#prompt}" -lt "${KB_RECALL_MIN_PROMPT_CHARS:-40}" ] && exit 0
 
-# Scope recall to the current repo when running inside a git checkout.
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-scope="${KB_RECALL_SCOPE:-project:${project}}"
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+repo_scope="$(canonical_project_scope_from_origin)"
+scope="${KB_RECALL_SCOPE:-${repo_scope}}"
 
 # Adaptive mode: short prompts rarely need semantic search.
 prompt_len="${#prompt}"
@@ -1468,1896 +1548,20 @@ if [ "${INSTALL_CODEX}" = 1 ]; then
 fi
 
 # -----------------------------------------------------------------
-# Skill: council (multi-file toolkit — driver + prompts + schemas +
+# Skill: council (multi-file toolkit — launcher + prompts + schemas +
 # default config). Installs into ${SKILLS_DIR}/council and
 # ${CODEX_SKILLS_DIR}/council. council.toml is preserved on upgrade.
 # -----------------------------------------------------------------
 # council — generated by render-agent-kit.py from council/. Edit the source, not here.
-read -r -d '' COUNCIL_FILE_council_py <<'COUNCIL_FILE_council_py_EOF' || true
-#!/usr/bin/env python3
-"""council — cross-model planning + fan-out orchestrator.
-
-`plan` runs stages 1-4: two different model families plan a brief independently,
-critique each other's plan for two rounds, then a single judge consolidates one
-plan plus a parallel task DAG. `fanout` (added separately) executes that DAG.
-
-The script is engine-agnostic — it shells out to `claude -p` and `codex exec`
-and runs identically whether the host session is Claude or Codex. All state is
-plain JSON/Markdown under .council/runs/<id>/ so a run is resumable and the
-hand-offs between stages are structured rather than free-text.
-
-Stdlib only. See platform/agents/council/README.md.
-"""
-
-from __future__ import annotations
-
-import argparse
-import concurrent.futures
-import json
-import os
-import re
-import shlex
-import shutil
-import subprocess
-import sys
-import tempfile
-import time
-import tomllib
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Callable, Optional, TypeVar
-
-HERE = Path(__file__).resolve().parent
-PROMPTS_DIR = HERE / "prompts"
-SCHEMAS_DIR = HERE / "schemas"
-
-
-def repo_root() -> Path:
-    """The repository council operates on — the git toplevel of the CURRENT
-    working directory (i.e. the project the agent invoked council from), NOT the
-    directory the toolkit happens to live in. This is what makes a globally
-    installed council orchestrate whatever project you're in."""
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True,
-        )
-        return Path(out.stdout.strip())
-    except Exception:
-        return Path.cwd()
-
-
-# HERE is where the toolkit lives (prompts, schemas, user config); REPO_ROOT is
-# the project being worked on. They differ once council is installed globally.
-REPO_ROOT = repo_root()
-RUNS_ROOT = REPO_ROOT / ".council" / "runs"
-
-
-# --------------------------------------------------------------------------
-# engines
-# --------------------------------------------------------------------------
-
-@dataclass(frozen=True)
-class Engine:
-    """A model behind one of the two CLIs."""
-    cli: str      # "claude" | "codex"
-    model: str    # alias (claude) or model id (codex)
-
-    @property
-    def label(self) -> str:
-        return f"{self.cli}:{self.model}"
-
-
-# Model tiers are driven by an intensity preset plus optional per-role overrides
-# (council.toml + CLI flags). A preset bundles the dials that scale with effort;
-# the expensive-tier role models stay constant across presets. Expensive models
-# plan / critique / judge (errors propagate there); cheap models do the fan-out.
-BASE_ROLES = {
-    "planner_a": "claude:opus",
-    "planner_b": "codex:gpt-5.5",
-    "consolidator": "claude:opus",
-    "verifier": "claude:sonnet",
-}
-PRESETS = {
-    "quick":    {"rounds": 1, "codex_effort": "low",   "worker": "claude:haiku",  "max_workers": 4},
-    "standard": {"rounds": 2, "codex_effort": "high",  "worker": "claude:haiku",  "max_workers": 6},
-    "thorough": {"rounds": 3, "codex_effort": "high",  "worker": "claude:sonnet", "max_workers": 6},
-    "max":      {"rounds": 3, "codex_effort": "xhigh", "worker": "claude:sonnet", "max_workers": 8},
-}
-DEFAULT_INTENSITY = "standard"
-ROLE_KEYS = ("planner_a", "planner_b", "consolidator", "worker", "verifier")
-INT_KEYS = ("rounds", "max_workers")
-CODEX_EFFORTS = ("low", "medium", "high", "xhigh")
-CONFIG_KEYS = ("intensity",) + ROLE_KEYS + ("codex_effort",) + INT_KEYS
-# User-global config lives next to the toolkit (council.toml beside the script,
-# i.e. the committed default in-repo, or ~/.claude/skills/council/ when
-# installed). A per-project ./.council.toml in the target repo overrides it.
-USER_CONFIG_PATH = HERE / "council.toml"
-PROJECT_CONFIG_PATH = REPO_ROOT / ".council.toml"
-
-# codex reasoning effort; resolved per-run from config and set at command entry.
-CODEX_REASONING = os.environ.get("COUNCIL_CODEX_REASONING", "high")
-PLAN_TIMEOUT_S = int(os.environ.get("COUNCIL_PLAN_TIMEOUT_S", "1200"))
-
-# fan-out tier
-WORKER_PERMISSION_MODE = "acceptEdits"   # auto-accept edits; no command approval
-WORKER_TIMEOUT_S = int(os.environ.get("COUNCIL_WORKER_TIMEOUT_S", "1800"))
-VERIFY_TIMEOUT_S = int(os.environ.get("COUNCIL_VERIFY_TIMEOUT_S", "600"))
-WT_ROOT = Path(tempfile.gettempdir()) / "council-worktrees"
-SPEC_DIR_RE = re.compile(r"^(\d{3})-([a-z0-9][a-z0-9-]*)$")
-TASK_BLOCK_RE = re.compile(
-    r"^## (?P<header_id>[^\n:]+)(?::[^\n]*)?\n"
-    r"<!-- council-task-id: (?P<marker_id>[^>]+) -->\n"
-    r"```json\n(?P<body>.*?)\n```",
-    re.MULTILINE | re.DOTALL,
-)
-MAX_CONSTITUTION_CHARS = 6000
-MAX_TEMPLATE_FIELD_CHARS = 12000
-EMBEDDED_CONSTITUTION = """# Constitution
-
-No project `.specify/memory/constitution.md` was found. Apply the repository's
-agent guide, keep changes minimal, validate against real files, and preserve
-human authorship.
-"""
-EMBEDDED_SPEC_TEMPLATE = """# Feature Specification: {{feature_name}}
-
-**Feature Branch**: `{{feature_id}}`
-**Created**: {{date}}
-
-## User Brief
-
-{{brief}}
-
-## Requirements
-
-- Implement the brief as described, grounded in the real repository.
-- Keep scope additive and preserve existing council canonical artifacts.
-
-## Success Criteria
-
-- `consolidated_plan.md` and `tasks.json` remain canonical.
-- `tasks.md` round-trips exactly to `tasks.json` through council markers.
-"""
-EMBEDDED_PLAN_TEMPLATE = """# Implementation Plan: {{feature_name}}
-
-**Feature Branch**: `{{feature_id}}`
-**Created**: {{date}}
-
-## Summary
-
-{{summary}}
-
-## Consolidated Plan
-
-{{consolidated_plan}}
-"""
-EMBEDDED_TASKS_TEMPLATE = """# Tasks: {{feature_id}}
-
-<!-- council-tasks-format: v1 -->
-"""
-
-
-@dataclass(frozen=True)
-class SpecRef:
-    number: int
-    slug: str
-
-    @property
-    def name(self) -> str:
-        return f"{self.number:03d}-{self.slug}"
-
-    @property
-    def relpath(self) -> str:
-        return f"specs/{self.name}"
-
-
-@dataclass
-class EngineResult:
-    label: str
-    text: str
-    cost_usd: Optional[float] = None
-    raw: Optional[dict] = None
-
-
-def child_env() -> dict:
-    """Environment for sub-invocations: silence the KB hooks so council's own
-    prompts never get recalled into or digested out to the knowledge base."""
-    env = dict(os.environ)
-    env["KB_AUTO_MCP_DISABLED"] = "1"
-    return env
-
-
-def run_claude(prompt: str, model: str, *, cwd: Optional[Path] = None,
-               permission_mode: str = "plan",
-               timeout: int = PLAN_TIMEOUT_S) -> EngineResult:
-    # "plan" = read-only repo access, no edits: correct for the planning tier.
-    cmd = ["claude", "-p", "--model", model, "--output-format", "json",
-           "--permission-mode", permission_mode]
-    proc = subprocess.run(
-        cmd, input=prompt, capture_output=True, text=True,
-        cwd=str(cwd or REPO_ROOT), env=child_env(), timeout=timeout,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"claude:{model} exited {proc.returncode}: "
-                           f"{proc.stderr.strip()[:500]}")
-    # Use the string-aware extractor rather than a raw json.loads: the claude
-    # CLI occasionally prefixes the `--output-format json` envelope with a
-    # warning/notice line on stdout, which made a bare json.loads fail at char 1
-    # (observed crashing stage-4 consolidation on large payloads). extract_json
-    # finds the outermost JSON object and tolerates surrounding noise.
-    try:
-        data = extract_json(proc.stdout)
-    except ValueError as exc:
-        raise RuntimeError(f"claude:{model} non-JSON output: {exc}: "
-                           f"{proc.stdout[:300]}") from exc
-    return EngineResult(
-        label=f"claude:{model}",
-        text=str(data.get("result", "")),
-        cost_usd=data.get("total_cost_usd"),
-        raw=data,
-    )
-
-
-def run_codex(prompt: str, model: str, *, cwd: Optional[Path] = None,
-              timeout: int = PLAN_TIMEOUT_S, sandbox: str = "read-only") -> EngineResult:
-    # `-o` writes only the final assistant message to a file; stdout is noisy
-    # (banner + hook wrappers) so we read the message back from the file.
-    # sandbox is "read-only" for planning and "workspace-write" for a worker
-    # that must edit files in its worktree.
-    last = Path(
-        subprocess.run(["mktemp"], capture_output=True, text=True, check=True)
-        .stdout.strip()
-    )
-    cmd = [
-        "codex", "exec", "-m", model,
-        "-c", f"model_reasoning_effort={CODEX_REASONING}",
-        "-s", sandbox, "--skip-git-repo-check",
-        "-o", str(last), prompt,
-    ]
-    try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True,
-            cwd=str(cwd or REPO_ROOT), env=child_env(), timeout=timeout,
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"codex:{model} exited {proc.returncode}: "
-                               f"{proc.stderr.strip()[:500]}")
-        text = last.read_text().strip()
-    finally:
-        last.unlink(missing_ok=True)
-    return EngineResult(label=f"codex:{model}", text=text)
-
-
-def run_engine(engine: Engine, prompt: str, *, cwd: Optional[Path] = None,
-               timeout: int = PLAN_TIMEOUT_S, retries: int = 1) -> EngineResult:
-    def once() -> EngineResult:
-        if engine.cli == "claude":
-            return run_claude(prompt, engine.model, cwd=cwd, timeout=timeout)
-        if engine.cli == "codex":
-            return run_codex(prompt, engine.model, cwd=cwd, timeout=timeout)
-        raise ValueError(f"unknown cli: {engine.cli}")
-
-    last: Exception = RuntimeError("no attempt")
-    for attempt in range(retries + 1):
-        try:
-            return once()
-        except (RuntimeError, ValueError) as exc:
-            last = exc
-            if attempt < retries:
-                log(f"{engine.label} attempt {attempt + 1} failed ({exc}); retrying")
-                time.sleep(3)
-    raise last
-
-
-# --------------------------------------------------------------------------
-# small helpers
-# --------------------------------------------------------------------------
-
-T = TypeVar("T")
-
-
-def parallel(thunks: list[Callable[[], T]]) -> list[T]:
-    """Run thunks concurrently, return results in order. Raises if any raises."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(thunks)) as ex:
-        futs = [ex.submit(t) for t in thunks]
-        return [f.result() for f in futs]
-
-
-def render(template: str, **values: str) -> str:
-    """Replace {{key}} tokens. Double braces avoid clashing with JSON braces."""
-    out = template
-    for key, val in values.items():
-        out = out.replace("{{" + key + "}}", val)
-    return out
-
-
-def load_prompt(name: str) -> str:
-    return (PROMPTS_DIR / f"{name}.md").read_text()
-
-
-# Durable rules every agent must follow regardless of role (no attribution,
-# match conventions, stay in scope, validate against real code). Injected into
-# every prompt via the {{baseline}} token. Loaded once at import.
-BASELINE_PROMPT = load_prompt("_baseline")
-
-
-def load_schema_text(name: str) -> str:
-    return json.dumps(json.loads((SCHEMAS_DIR / f"{name}.schema.json").read_text()),
-                      indent=2)
-
-
-def extract_json(text: str) -> dict:
-    """Pull a JSON object out of a model reply, tolerating ```json fences and
-    surrounding prose. Tries a clean parse first (so backticks or braces inside
-    string values survive), then a string-aware scan from the first brace."""
-    stripped = text.strip()
-    try:
-        obj = json.loads(stripped)
-        if isinstance(obj, dict):
-            return obj
-    except json.JSONDecodeError:
-        pass
-    start = stripped.find("{")
-    if start == -1:
-        raise ValueError(f"no JSON object found in reply: {text[:200]}")
-    depth = 0
-    in_str = False
-    esc = False
-    for i in range(start, len(stripped)):
-        ch = stripped[i]
-        if in_str:
-            if esc:
-                esc = False
-            elif ch == "\\":
-                esc = True
-            elif ch == '"':
-                in_str = False
-            continue
-        if ch == '"':
-            in_str = True
-        elif ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return json.loads(stripped[start:i + 1])
-    raise ValueError(f"unbalanced JSON in reply: {text[:200]}")
-
-
-def plan_waves(tasks: list[dict]) -> list[list[str]]:
-    """Topologically group task ids into parallel waves (Kahn's algorithm).
-    Raises on unknown dependency or cycle. Pure — covered by --self-test."""
-    ids = {t["id"] for t in tasks}
-    deps = {t["id"]: list(t.get("depends_on", [])) for t in tasks}
-    for tid, ds in deps.items():
-        for d in ds:
-            if d not in ids:
-                raise ValueError(f"task {tid!r} depends on unknown task {d!r}")
-    remaining = dict(deps)
-    done: set[str] = set()
-    waves: list[list[str]] = []
-    while remaining:
-        ready = sorted(t for t, ds in remaining.items()
-                       if all(d in done for d in ds))
-        if not ready:
-            raise ValueError(f"dependency cycle among tasks: "
-                             f"{sorted(remaining)}")
-        waves.append(ready)
-        for t in ready:
-            done.add(t)
-            del remaining[t]
-    return waves
-
-
-# --------------------------------------------------------------------------
-# run directory / state
-# --------------------------------------------------------------------------
-
-@dataclass
-class Run:
-    path: Path
-    costs: list[tuple[str, float]] = field(default_factory=list)
-
-    @classmethod
-    def create(cls, brief: str, slug: Optional[str]) -> "Run":
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        slug = slug or _slugify(brief.splitlines()[0] if brief.strip() else "run")
-        path = RUNS_ROOT / f"{stamp}-{slug}"
-        path.mkdir(parents=True, exist_ok=True)
-        return cls(path)
-
-    @classmethod
-    def open(cls, path: Path) -> "Run":
-        if not path.exists():
-            raise SystemExit(f"run dir not found: {path}")
-        return cls(path)
-
-    def write_text(self, name: str, text: str) -> None:
-        (self.path / name).write_text(text)
-
-    def write_json(self, name: str, obj: object) -> None:
-        (self.path / name).write_text(json.dumps(obj, indent=2))
-
-    def read_json(self, name: str) -> dict:
-        return json.loads((self.path / name).read_text())
-
-    def has(self, name: str) -> bool:
-        return (self.path / name).exists()
-
-    def record(self, res: EngineResult) -> EngineResult:
-        if res.cost_usd is not None:
-            self.costs.append((res.label, res.cost_usd))
-        return res
-
-    def set_state(self, **kw: object) -> None:
-        state = {}
-        if self.has("state.json"):
-            state = self.read_json("state.json")
-        state.update(kw)
-        self.write_json("state.json", state)
-
-
-def _slugify(text: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return (s[:48] or "run")
-
-
-def _first_line(text: str) -> str:
-    for line in text.splitlines():
-        if line.strip():
-            return line.strip()
-    return "run"
-
-
-def derive_feature_slug(brief: str, explicit_slug: Optional[str]) -> str:
-    return _slugify(explicit_slug or _first_line(brief))
-
-
-def _bounded(text: str, limit: int) -> str:
-    if len(text) <= limit:
-        return text
-    return text[:limit].rstrip() + "\n\n[truncated]"
-
-
-def _constitution_path(repo: Path = REPO_ROOT) -> Path:
-    return repo / ".specify" / "memory" / "constitution.md"
-
-
-def read_constitution_context(repo: Path = REPO_ROOT) -> str:
-    path = _constitution_path(repo)
-    text = path.read_text() if path.exists() else EMBEDDED_CONSTITUTION
-    return _bounded(text.strip(), MAX_CONSTITUTION_CHARS)
-
-
-def _constitution_placeholder_reason(text: str) -> Optional[str]:
-    stripped = text.strip()
-    if not stripped:
-        return "constitution is empty"
-    lower = stripped.lower()
-    markers = (
-        "[project name]",
-        "[insert",
-        "[fill",
-        "[todo",
-        "{{",
-        "todo:",
-        "tbd",
-        "placeholder",
-    )
-    for marker in markers:
-        if marker in lower:
-            return f"constitution contains placeholder marker {marker!r}"
-    return None
-
-
-def constitution_failure(repo: Path = REPO_ROOT) -> Optional[str]:
-    path = _constitution_path(repo)
-    if not path.exists():
-        return f"missing constitution at {path}"
-    reason = _constitution_placeholder_reason(path.read_text())
-    if reason:
-        return f"{reason} at {path}"
-    return None
-
-
-def _spec_numbers(specs_root: Path) -> list[int]:
-    if not specs_root.exists():
-        return []
-    nums = []
-    for child in specs_root.iterdir():
-        m = SPEC_DIR_RE.match(child.name)
-        if m:
-            nums.append(int(m.group(1)))
-    return nums
-
-
-def allocate_spec_ref(slug: str, specs_root: Path) -> SpecRef:
-    slug = _slugify(slug)
-    children = specs_root.iterdir() if specs_root.exists() else ()
-    for child in children:
-        m = SPEC_DIR_RE.match(child.name)
-        if m and m.group(2) == slug:
-            raise ValueError(f"spec path already exists: {child}")
-    ref = SpecRef((max(_spec_numbers(specs_root)) if specs_root.exists() else 0) + 1,
-                  slug)
-    path = specs_root / ref.name
-    if path.exists():
-        raise ValueError(f"spec path already exists: {path}")
-    return ref
-
-
-def spec_ref_from_state(state: dict) -> Optional[SpecRef]:
-    rel = state.get("spec_relpath")
-    if not isinstance(rel, str):
-        return None
-    name = Path(rel).name
-    m = SPEC_DIR_RE.match(name)
-    if not m:
-        return None
-    return SpecRef(int(m.group(1)), m.group(2))
-
-
-def prepare_spec_ref(run: Run, brief: str, explicit_slug: Optional[str]) -> SpecRef:
-    state = run.read_json("state.json") if run.has("state.json") else {}
-    existing = spec_ref_from_state(state)
-    if existing:
-        return existing
-    ref = allocate_spec_ref(derive_feature_slug(brief, explicit_slug),
-                            REPO_ROOT / "specs")
-    run_target = run.path / ref.relpath
-    repo_target = REPO_ROOT / ref.relpath
-    if run_target.exists():
-        raise ValueError(f"spec path already exists: {run_target}")
-    if repo_target.exists():
-        raise ValueError(f"spec path already exists: {repo_target}")
-    run.set_state(spec_id=ref.name, spec_slug=ref.slug, spec_relpath=ref.relpath)
-    return ref
-
-
-def read_spec_dir(path_s: Optional[str]) -> dict[str, str]:
-    if not path_s:
-        return {}
-    path = Path(path_s)
-    if not path.exists():
-        raise SystemExit(f"spec dir not found: {path}")
-    if not path.is_dir():
-        raise SystemExit(f"--spec-dir must be a directory: {path}")
-    out = {}
-    for name in ("spec.md", "plan.md", "tasks.md"):
-        p = path / name
-        if p.exists():
-            out[name] = p.read_text()
-    return out
-
-
-def load_sdd_template(name: str, fallback: str) -> str:
-    path = REPO_ROOT / ".specify" / "templates" / name
-    return path.read_text() if path.exists() else fallback
-
-
-def render_sdd_template(template: str, values: dict[str, str]) -> str:
-    out = template
-    for key, val in values.items():
-        bounded = _bounded(val, MAX_TEMPLATE_FIELD_CHARS)
-        out = out.replace("{{" + key + "}}", bounded)
-        out = out.replace("[" + key.upper() + "]", bounded)
-        out = out.replace("[" + key + "]", bounded)
-    return out
-
-
-def render_tasks_md(tasks: list[dict], spec_ref: Optional[SpecRef] = None) -> str:
-    feature_id = spec_ref.name if spec_ref else "council"
-    template = load_sdd_template("tasks-template.md", EMBEDDED_TASKS_TEMPLATE)
-    header = render_sdd_template(template, {
-        "feature_id": feature_id,
-        "feature_name": feature_id,
-    }).strip()
-    if "<!-- council-tasks-format: v1 -->" not in header:
-        header += "\n\n<!-- council-tasks-format: v1 -->"
-    lines = [header, ""]
-    for task in tasks:
-        tid = str(task["id"])
-        task_title = str(task.get("title", tid)).replace("\n", " ").strip() or tid
-        lines += [
-            f"## {tid}: {task_title}",
-            f"<!-- council-task-id: {tid} -->",
-            "```json",
-            json.dumps(task, indent=2, sort_keys=True),
-            "```",
-            "",
-        ]
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def parse_tasks_md(text: str) -> list[dict]:
-    tasks: list[dict] = []
-    for match in TASK_BLOCK_RE.finditer(text):
-        header_id = match.group("header_id").strip()
-        marker_id = match.group("marker_id").strip()
-        if header_id != marker_id:
-            raise ValueError(f"task marker mismatch: header {header_id!r}, "
-                             f"marker {marker_id!r}")
-        try:
-            task = json.loads(match.group("body"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"task {marker_id!r} JSON block is invalid: {exc}") from exc
-        if not isinstance(task, dict):
-            raise ValueError(f"task {marker_id!r} JSON block must be an object")
-        if str(task.get("id", "")).strip() != marker_id:
-            raise ValueError(f"task {marker_id!r} JSON id does not match marker")
-        tasks.append(task)
-    if not tasks:
-        raise ValueError("no council task JSON blocks found in tasks.md")
-    seen: set[str] = set()
-    for task in tasks:
-        tid = str(task["id"])
-        if tid in seen:
-            raise ValueError(f"duplicate task id in tasks.md: {tid}")
-        seen.add(tid)
-    return tasks
-
-
-def _normalise_tasks(tasks: list[dict]) -> object:
-    return json.loads(json.dumps(tasks, sort_keys=True))
-
-
-def assert_tasks_bijection(tasks: list[dict], tasks_md_text: str) -> None:
-    parsed = parse_tasks_md(tasks_md_text)
-    validate_tasks(parsed)
-    if _normalise_tasks(parsed) != _normalise_tasks(tasks):
-        raise ValueError("tasks.md does not match tasks.json")
-
-
-def run_spec_dir(run: Run) -> Optional[Path]:
-    state = run.read_json("state.json") if run.has("state.json") else {}
-    ref = spec_ref_from_state(state)
-    if ref:
-        return run.path / ref.relpath
-    specs = run.path / "specs"
-    matches = sorted(p for p in specs.glob("[0-9][0-9][0-9]-*") if p.is_dir())
-    return matches[-1] if matches else None
-
-
-def regenerate_command(run: Run) -> str:
-    return ("council plan --run " + shlex.quote(str(run.path)) +
-            " --brief " + shlex.quote(str(run.path / "brief.md")))
-
-
-def analyze_checkpoint(run: Run, tasks: list[dict]) -> None:
-    failures = []
-    constitution = constitution_failure()
-    if constitution:
-        failures.append(constitution)
-    spec_dir = run_spec_dir(run)
-    tasks_md = spec_dir / "tasks.md" if spec_dir else None
-    if not tasks_md or not tasks_md.exists():
-        failures.append("missing tasks.md for tasks.json")
-    else:
-        try:
-            assert_tasks_bijection(tasks, tasks_md.read_text())
-        except ValueError as exc:
-            failures.append(str(exc))
-    if failures:
-        raise ValueError("analyze gate checkpoint 1 failed:\n- "
-                         + "\n- ".join(failures)
-                         + f"\nRegenerate with: {regenerate_command(run)}")
-
-
-def analyze_tasks_file(tasks: list[dict], tasks_path: Path) -> None:
-    failures = []
-    constitution = constitution_failure()
-    if constitution:
-        failures.append(constitution)
-    tasks_md = tasks_path.with_name("tasks.md")
-    if tasks_md.exists():
-        try:
-            assert_tasks_bijection(tasks, tasks_md.read_text())
-        except ValueError as exc:
-            failures.append(str(exc))
-    if failures:
-        cmd = ("council plan --brief " + shlex.quote(str(tasks_path.parent / "spec.md"))
-               + " --spec-dir " + shlex.quote(str(tasks_path.parent)))
-        raise ValueError("analyze gate checkpoint 1 failed:\n- "
-                         + "\n- ".join(failures)
-                         + f"\nRegenerate with: {cmd}")
-
-
-def build_spec_md(brief: str, obj: dict, ref: SpecRef,
-                  seed: dict[str, str]) -> str:
-    if seed.get("spec.md"):
-        return seed["spec.md"]
-    if obj.get("spec_markdown"):
-        return str(obj["spec_markdown"]).strip() + "\n"
-    template = load_sdd_template("spec-template.md", EMBEDDED_SPEC_TEMPLATE)
-    return render_sdd_template(template, {
-        "feature_name": ref.slug.replace("-", " ").title(),
-        "feature_id": ref.name,
-        "date": time.strftime("%Y-%m-%d"),
-        "brief": brief.strip(),
-    }).rstrip() + "\n"
-
-
-def build_plan_md(brief: str, obj: dict, ref: SpecRef,
-                  seed: dict[str, str]) -> str:
-    if seed.get("plan.md"):
-        return seed["plan.md"]
-    for key in ("implementation_plan_markdown", "plan_markdown"):
-        if obj.get(key):
-            return str(obj[key]).strip() + "\n"
-    template = load_sdd_template("plan-template.md", EMBEDDED_PLAN_TEMPLATE)
-    return render_sdd_template(template, {
-        "feature_name": ref.slug.replace("-", " ").title(),
-        "feature_id": ref.name,
-        "date": time.strftime("%Y-%m-%d"),
-        "brief": brief.strip(),
-        "summary": str(obj.get("summary", "")).strip() or _first_line(brief),
-        "consolidated_plan": str(obj.get("consolidated_plan_markdown", "")).strip(),
-    }).rstrip() + "\n"
-
-
-def write_sdd_artifacts(run: Run, brief: str, obj: dict, ref: SpecRef,
-                        seed: dict[str, str]) -> None:
-    tasks = obj.get("tasks", [])
-    if seed.get("tasks.md"):
-        assert_tasks_bijection(tasks, seed["tasks.md"])
-    spec_dir = run.path / ref.relpath
-    spec_dir.mkdir(parents=True, exist_ok=True)
-    (spec_dir / "spec.md").write_text(build_spec_md(brief, obj, ref, seed))
-    (spec_dir / "plan.md").write_text(build_plan_md(brief, obj, ref, seed))
-    (spec_dir / "tasks.md").write_text(render_tasks_md(tasks, ref))
-
-
-def copy_run_specs_to_worktree(run: Run, worktree: Path) -> None:
-    specs_root = run.path / "specs"
-    if not specs_root.exists():
-        return
-    copied = []
-    for src in sorted(p for p in specs_root.iterdir()
-                      if p.is_dir() and SPEC_DIR_RE.match(p.name)):
-        dest = worktree / "specs" / src.name
-        if dest.exists():
-            raise ValueError(f"spec path already exists in integration worktree: "
-                             f"specs/{src.name}")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(src, dest)
-        copied.append(f"specs/{src.name}")
-    if not copied:
-        return
-    git("add", "-A", "--", "specs", cwd=worktree)
-    dirty = git("status", "--porcelain", "--", "specs", cwd=worktree).stdout.strip()
-    if dirty:
-        git("-c", "user.name=council", "-c", "user.email=council@local",
-            "commit", "-q", "-m", "council: add spec artifacts", cwd=worktree)
-        log(f"committed Spec Kit artifacts: {', '.join(copied)}")
-
-
-def _split_dest_url(owner: str, name: str) -> str:
-    """Canonical SSH remote for a GitHub owner/name. Pure (covered by
-    --self-test). In runner workspaces git rewrites git@github.com: to https so
-    the App-token credential helper serves the push."""
-    return f"git@github.com:{owner}/{name}.git"
-
-
-# --------------------------------------------------------------------------
-# stages 1-4
-# --------------------------------------------------------------------------
-
-def stage_plan(run: Run, brief: str, a: Engine, b: Engine,
-               constitution_context: str) -> tuple[dict, dict]:
-    if run.has("planA.v1.json") and run.has("planB.v1.json"):
-        log("stage 1: dual plans already present, skipping")
-        return run.read_json("planA.v1.json"), run.read_json("planB.v1.json")
-    log(f"stage 1: independent plans  {a.label} ║ {b.label}")
-    schema = load_schema_text("plan")
-    tmpl = load_prompt("planner")
-
-    def mk(engine: Engine) -> Callable[[], EngineResult]:
-        prompt = render(tmpl, engine_label=engine.label, brief=brief,
-                        repo_root=str(REPO_ROOT), schema=schema,
-                        baseline=BASELINE_PROMPT,
-                        constitution=constitution_context)
-        return lambda: run.record(run_engine(engine, prompt))
-
-    res_a, res_b = parallel([mk(a), mk(b)])
-    plan_a, plan_b = extract_json(res_a.text), extract_json(res_b.text)
-    run.write_json("planA.v1.json", plan_a)
-    run.write_json("planB.v1.json", plan_b)
-    return plan_a, plan_b
-
-
-def stage_critique_round(run: Run, brief: str, a: Engine, b: Engine,
-                         plan_a: dict, plan_b: dict, rnd: int,
-                         constitution_context: str) -> tuple[dict, dict]:
-    out_a, out_b = f"planA.v{rnd + 1}.json", f"planB.v{rnd + 1}.json"
-    if run.has(out_a) and run.has(out_b):
-        log(f"stage 2: critique round {rnd} already present, skipping")
-        return run.read_json(out_a), run.read_json(out_b)
-    log(f"stage 2: cross-critique round {rnd}  ({a.label} ⇄ {b.label})")
-    critic_tmpl = load_prompt("critic")
-    schema = load_schema_text("plan")
-
-    # Cross: each model critiques the OTHER's plan.
-    def crit(critic: Engine, plan: dict) -> Callable[[], EngineResult]:
-        prompt = render(critic_tmpl, engine_label=critic.label, brief=brief,
-                        repo_root=str(REPO_ROOT),
-                        plan=json.dumps(plan, indent=2),
-                        baseline=BASELINE_PROMPT,
-                        constitution=constitution_context)
-        return lambda: run.record(run_engine(critic, prompt))
-
-    crit_of_a, crit_of_b = parallel([crit(b, plan_a), crit(a, plan_b)])
-    run.write_text(f"critique-of-A.r{rnd}.md", crit_of_a.text)
-    run.write_text(f"critique-of-B.r{rnd}.md", crit_of_b.text)
-
-    # Each author revises its own plan using the critique it received.
-    rev_tmpl = load_prompt("reviser")
-
-    def rev(author: Engine, plan: dict, critique: str) -> Callable[[], EngineResult]:
-        prompt = render(rev_tmpl, engine_label=author.label, brief=brief,
-                        repo_root=str(REPO_ROOT), plan=json.dumps(plan, indent=2),
-                        critique=critique, schema=schema,
-                        baseline=BASELINE_PROMPT,
-                        constitution=constitution_context)
-        return lambda: run.record(run_engine(author, prompt))
-
-    rev_a, rev_b = parallel([rev(a, plan_a, crit_of_a.text),
-                             rev(b, plan_b, crit_of_b.text)])
-    next_a, next_b = extract_json(rev_a.text), extract_json(rev_b.text)
-    run.write_json(out_a, next_a)
-    run.write_json(out_b, next_b)
-    return next_a, next_b
-
-
-def stage_consolidate(run: Run, brief: str, plan_a: dict, plan_b: dict,
-                      rounds: int, consolidator: Engine,
-                      constitution_context: str, spec_ref: SpecRef,
-                      spec_seed: dict[str, str]) -> dict:
-    if run.has("tasks.json") and run.has("consolidated_plan.md"):
-        log("stage 4: consolidation already present, skipping")
-        tasks = run.read_json("tasks.json")
-        obj = {
-            "consolidated_plan_markdown": (run.path / "consolidated_plan.md").read_text(),
-            "tasks": tasks,
-        }
-        write_sdd_artifacts(run, brief, obj, spec_ref, spec_seed)
-        analyze_checkpoint(run, tasks)
-        return tasks
-    log(f"stage 4: consolidation  ({consolidator.label})")
-    history_parts = []
-    for r in range(1, rounds + 1):
-        for side in ("A", "B"):
-            name = f"critique-of-{side}.r{r}.md"
-            if run.has(name):
-                history_parts.append(f"## Round {r} — critique of plan {side}\n"
-                                     + (run.path / name).read_text())
-    prompt = render(
-        load_prompt("consolidator"), brief=brief, repo_root=str(REPO_ROOT),
-        plan_a=json.dumps(plan_a, indent=2), plan_b=json.dumps(plan_b, indent=2),
-        history="\n\n".join(history_parts) or "(no critiques recorded)",
-        schema=load_schema_text("consolidated"),
-        baseline=BASELINE_PROMPT,
-        constitution=constitution_context,
-    )
-    res = run.record(run_engine(consolidator, prompt))
-    obj = extract_json(res.text)
-    tasks = obj.get("tasks", [])
-    validate_tasks(tasks)
-    run.write_text("consolidated_plan.md", obj.get("consolidated_plan_markdown", ""))
-    run.write_json("tasks.json", tasks)
-    write_sdd_artifacts(run, brief, obj, spec_ref, spec_seed)
-    analyze_checkpoint(run, tasks)
-    return tasks
-
-
-def validate_tasks(tasks: list[dict]) -> None:
-    """Structural + DAG validation (we don't ship a full JSON-Schema validator;
-    this checks the fields fan-out actually relies on)."""
-    if not isinstance(tasks, list) or not tasks:
-        raise ValueError("consolidator returned no tasks")
-    required = {"id", "objective", "depends_on", "paths", "model", "verify"}
-    seen: set[str] = set()
-    for t in tasks:
-        missing = required - t.keys()
-        if missing:
-            raise ValueError(f"task {t.get('id', '?')} missing fields: {sorted(missing)}")
-        if t["id"] in seen:
-            raise ValueError(f"duplicate task id: {t['id']}")
-        seen.add(t["id"])
-        if not str(t.get("verify", "")).strip():
-            log(f"warning: task {t['id']} has no verify command — its result "
-                "is unchecked except by the adversarial verifier")
-    plan_waves(tasks)  # raises on cycle / unknown dep
-
-
-# --------------------------------------------------------------------------
-# stages 5-6: fan-out + verify + reconcile
-# --------------------------------------------------------------------------
-
-def git(*args: str, cwd: Optional[Path] = None, check: bool = True,
-        timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=str(cwd or REPO_ROOT),
-                          capture_output=True, text=True, check=check,
-                          timeout=timeout)
-
-
-def gh(*args: str, check: bool = True,
-       timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(["gh", *args], cwd=str(REPO_ROOT),
-                          capture_output=True, text=True, check=check,
-                          timeout=timeout)
-
-
-def have_git_subtree() -> bool:
-    r = subprocess.run(["git", "subtree", "-h"], capture_output=True, text=True)
-    return "is not a git command" not in (r.stdout + r.stderr).lower()
-
-
-def parallel_bounded(thunks: list[Callable[[], T]], cap: int) -> list[T]:
-    """Run thunks with at most `cap` concurrent, preserving order. Thunks must
-    not raise (wrap failures into return values)."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, cap)) as ex:
-        return list(ex.map(lambda t: t(), thunks))
-
-
-def localize_verify(cmd: str, repo_root: str, cwd: str) -> str:
-    """Point a verify command at the worktree it runs in. The consolidator is
-    told to write repo-relative commands, but a stray absolute repo-root path
-    (e.g. `cd /workspace/services/foo`) would otherwise check the host tree, not
-    the worker's worktree. Rewrite the repo root to the worktree so such a
-    command still verifies the right files. Pure (covered by --self-test)."""
-    if repo_root and repo_root != cwd and repo_root in cmd:
-        return cmd.replace(repo_root, cwd)
-    return cmd
-
-
-def run_verify(cmd: str, cwd: Path) -> tuple[Optional[int], str]:
-    if not cmd.strip():
-        return None, "(no verify command)"
-    cmd = localize_verify(cmd, str(REPO_ROOT), str(cwd))
-    try:
-        proc = subprocess.run(["bash", "-lc", cmd], cwd=str(cwd),
-                              capture_output=True, text=True, env=child_env(),
-                              timeout=VERIFY_TIMEOUT_S)
-        return proc.returncode, (proc.stdout + proc.stderr)[-8000:]
-    except subprocess.TimeoutExpired:
-        return 124, f"(verify timed out after {VERIFY_TIMEOUT_S}s)"
-
-
-def run_verifier(run: Run, task: dict, diff: str, verify_cmd: str,
-                 verify_rc: Optional[int], verify_out: str,
-                 verifier: Engine) -> Optional[dict]:
-    prompt = render(
-        load_prompt("verifier"), objective=task.get("objective", ""),
-        output_format=task.get("output_format", ""),
-        paths="\n".join(f"- {p}" for p in task.get("paths", [])) or "(none)",
-        diff=diff[:16000] or "(no changes)", verify_cmd=verify_cmd or "(none)",
-        verify_rc=str(verify_rc), verify_output=verify_out[:6000] or "(none)",
-        schema=load_schema_text("verdict"),
-        baseline=BASELINE_PROMPT,
-    )
-    try:
-        res = run.record(run_engine(verifier, prompt, retries=0))
-        return extract_json(res.text)
-    except Exception as exc:  # verifier is advisory; never fail the run on it
-        log(f"verifier for {task['id']} errored: {exc}")
-        return None
-
-
-def run_worker(run: Run, task: dict, base_ref: str, run_name: str,
-               worker: Engine, verifier: Engine) -> dict:
-    tid = task["id"]
-    paths = list(task.get("paths", []))
-    branch = f"council/{run_name}/{tid}"
-    wt = WT_ROOT / run_name / tid
-    result: dict = {"task_id": tid, "title": task.get("title", tid),
-                    "model": worker.label, "suggested_model": task.get("model"),
-                    "branch": branch, "worktree": str(wt), "committed": False}
-    try:
-        wt.parent.mkdir(parents=True, exist_ok=True)
-        git("worktree", "remove", "--force", str(wt), check=False)
-        git("branch", "-D", branch, check=False)
-        git("worktree", "add", "--force", "-b", branch, str(wt), base_ref)
-
-        if paths:
-            prompt = render(
-                load_prompt("worker"), title=task.get("title", tid),
-                objective=task["objective"],
-                paths="\n".join(f"- {p}" for p in paths),
-                boundaries=task.get("boundaries", ""),
-                output_format=task.get("output_format", ""), cwd=str(wt),
-                baseline=BASELINE_PROMPT)
-            # Engine-agnostic: claude with auto-accepted edits, or codex with a
-            # writable sandbox. Either way the orchestrator (not the worker)
-            # commits the worktree below.
-            if worker.cli == "codex":
-                res = run.record(run_codex(prompt, worker.model, cwd=wt,
-                                           sandbox="workspace-write",
-                                           timeout=WORKER_TIMEOUT_S))
-            else:
-                res = run.record(run_claude(prompt, worker.model, cwd=wt,
-                                            permission_mode=WORKER_PERMISSION_MODE,
-                                            timeout=WORKER_TIMEOUT_S))
-            result["summary"] = res.text[-2000:]
-        else:
-            result["summary"] = "(verify-only task: no files to edit)"
-
-        git("add", "-A", cwd=wt)
-        dirty = git("status", "--porcelain", cwd=wt).stdout.strip()
-        if dirty:
-            git("-c", "user.name=council", "-c", "user.email=council@local",
-                "commit", "-q", "-m", f"council: {tid}", cwd=wt)
-            result["committed"] = True
-            result["files_changed"] = git(
-                "diff", "--name-only", f"{base_ref}..HEAD", cwd=wt
-            ).stdout.split()
-            diff = git("diff", f"{base_ref}..HEAD", cwd=wt, timeout=120).stdout
-        else:
-            result["files_changed"] = []
-            diff = ""
-
-        out_of_bounds = [f for f in result["files_changed"] if f not in paths]
-        result["out_of_bounds"] = out_of_bounds
-
-        verify_cmd = task.get("verify", "")
-        rc, out = run_verify(verify_cmd, wt)
-        result["verify_rc"] = rc
-        result["verify_output"] = out[-4000:]
-
-        verdict = run_verifier(run, task, diff, verify_cmd, rc, out, verifier)
-        result["verdict"] = verdict
-
-        if out_of_bounds:
-            result["status"] = "out-of-bounds"
-        elif paths and not result["committed"]:
-            result["status"] = "no-op"
-        elif rc not in (None, 0):
-            result["status"] = "verify-failed"
-        elif verdict is not None and not verdict.get("satisfied", True):
-            result["status"] = "rejected"
-        else:
-            result["status"] = "ok"
-    except Exception as exc:
-        result["status"] = "error"
-        result["error"] = str(exc)[:500]
-    finally:
-        wdir = run.path / "workers" / tid
-        wdir.mkdir(parents=True, exist_ok=True)
-        (wdir / "result.json").write_text(json.dumps(result, indent=2))
-    return result
-
-
-def execute_dag(run: Run, tasks: list[dict], worker_for: Callable[[str], Engine],
-                verifier: Engine, cap: int, keep_worktrees: bool) -> tuple[dict, str]:
-    """Execute a validated task DAG: topologically sort into waves, run each
-    wave's tasks concurrently in isolated worktrees (worker chosen per task by
-    worker_for(task_id)), verify, then reconcile committed worktrees onto an
-    integration branch in dependency order. Nothing touches the host branch.
-    Shared by fanout (constant worker) and fleet (round-robin pool). Returns
-    (report, integration_branch)."""
-    by_id = {t["id"]: t for t in tasks}
-    waves = plan_waves(tasks)
-    run_name = run.path.name
-    base = git("rev-parse", "HEAD").stdout.strip()
-    integ_branch = f"council/{run_name}/integration"
-    integ_wt = WT_ROOT / run_name / "_integration"
-    integ_wt.parent.mkdir(parents=True, exist_ok=True)
-    git("worktree", "remove", "--force", str(integ_wt), check=False)
-    git("branch", "-D", integ_branch, check=False)
-    git("worktree", "add", "--force", "-b", integ_branch, str(integ_wt), base)
-    copy_run_specs_to_worktree(run, integ_wt)
-    log(f"exec: {len(tasks)} task(s) in {len(waves)} wave(s); base {base[:8]}; "
-        f"integration branch {integ_branch}; concurrency {cap}")
-
-    results: dict[str, dict] = {}
-    for wi, wave in enumerate(waves, 1):
-        wave_base = git("rev-parse", "HEAD", cwd=integ_wt).stdout.strip()
-        log(f"wave {wi}/{len(waves)}: {wave}  (base {wave_base[:8]})")
-        thunks = [(lambda t=t: run_worker(run, by_id[t], wave_base, run_name,
-                                           worker_for(t), verifier))
-                  for t in wave]
-        for tid, res in zip(wave, parallel_bounded(thunks, cap)):
-            results[tid] = res
-            log(f"  [{tid}] {res['status']} ({res['model']})"
-                + (f" ({len(res.get('files_changed', []))} files)"
-                   if res.get("committed") else ""))
-        # reconcile this wave into the integration branch, in order
-        for tid in wave:
-            res = results[tid]
-            if not res.get("committed"):
-                res["merge"] = "nothing-to-merge"
-                continue
-            m = git("merge", "--no-ff", "-m", f"council merge {tid}",
-                    f"council/{run_name}/{tid}", cwd=integ_wt, check=False)
-            if m.returncode != 0:
-                git("merge", "--abort", cwd=integ_wt, check=False)
-                res["merge"] = "conflict"
-                log(f"  [{tid}] merge CONFLICT — left out of integration")
-            else:
-                res["merge"] = "ok"
-
-    if not keep_worktrees:
-        for tid in by_id:
-            git("worktree", "remove", "--force", str(WT_ROOT / run_name / tid),
-                check=False)
-
-    report = build_report(run, integ_branch, str(integ_wt), waves, results, tasks)
-    run.write_json("report.json", report)
-    run.write_text("report.md", render_report_md(report))
-    run.set_state(stage="fanned-out", integration_branch=integ_branch)
-    s = report["summary"]
-    log(f"done: {s['ok']}/{s['total']} ok, {s['failed']} failed, "
-        f"{s['merged']} merged into {integ_branch}")
-    return report, integ_branch
-
-
-def cmd_fanout(args: argparse.Namespace) -> int:
-    run = Run.open(Path(args.run))
-    if not run.has("tasks.json"):
-        raise SystemExit(f"no tasks.json in {run.path}; run `plan` first")
-    tasks = run.read_json("tasks.json")
-    validate_tasks(tasks)
-    analyze_checkpoint(run, tasks)
-    waves = plan_waves(tasks)
-
-    cfg = resolve_config({"intensity": args.intensity, "worker": args.worker,
-                          "verifier": args.verifier, "codex_effort": args.codex_effort,
-                          "max_workers": args.max_workers})
-    global CODEX_REASONING
-    CODEX_REASONING = cfg["codex_effort"]
-    worker = parse_engine_value(cfg["worker"])
-    verifier = parse_engine_value(cfg["verifier"])
-    cores = max(1, (os.cpu_count() or 3) - 2)
-    cap = min(cfg["max_workers"], cores)
-
-    if args.estimate:
-        print(f"council fanout — {len(tasks)} tasks in {len(waves)} wave(s); "
-              f"intensity {cfg['intensity']}; worker {worker.label}; "
-              f"verifier {verifier.label}; concurrency {cap}")
-        for i, wave in enumerate(waves, 1):
-            print(f"  wave {i}: {', '.join(wave)}")
-        print("Each task spawns one worker + one verifier. Worktrees are "
-              "isolated; nothing is merged into your branch — results land on an "
-              "integration branch for review.")
-        return 0
-
-    _report, integ_branch = execute_dag(run, tasks, lambda _tid: worker,
-                                        verifier, cap, args.keep_worktrees)
-    print(integ_branch)  # stdout: integration branch for the host to surface
-    return 0
-
-
-def parse_agents_pool(spec: str) -> list[Engine]:
-    """Expand an agent-pool spec into an ordered list of engines. Grammar:
-    "<cli>:<model>[*<count>](,<cli>:<model>[*<count>])*", e.g.
-    "codex:gpt-5.5*3,claude:haiku*2" -> three codex + two claude engines. Pure
-    (covered by --self-test). Raises ValueError on a malformed spec."""
-    pool: list[Engine] = []
-    for raw in spec.split(","):
-        part = raw.strip()
-        if not part:
-            continue
-        engine_spec, star, count_s = part.partition("*")
-        cli, _, model = engine_spec.strip().partition(":")
-        if cli not in ("claude", "codex") or not model:
-            raise ValueError(f"agent must be claude:<model> or codex:<model>, "
-                             f"got {engine_spec.strip()!r}")
-        if star:
-            try:
-                count = int(count_s)
-            except ValueError as exc:
-                raise ValueError(f"bad count in agent spec {part!r}") from exc
-        else:
-            count = 1
-        if count <= 0:
-            raise ValueError(f"agent count must be >= 1 in {part!r}")
-        pool.extend(Engine(cli, model) for _ in range(count))
-    if not pool:
-        raise ValueError(f"empty agent pool from spec {spec!r}")
-    return pool
-
-
-def assign_agents(task_ids: list[str], pool: list[Engine]) -> dict[str, Engine]:
-    """Round-robin assign each task id to an engine from the pool. Pure."""
-    if not pool:
-        raise ValueError("cannot assign tasks to an empty agent pool")
-    return {tid: pool[i % len(pool)] for i, tid in enumerate(task_ids)}
-
-
-def cmd_fleet(args: argparse.Namespace) -> int:
-    tasks_path = Path(args.tasks)
-    if not tasks_path.exists():
-        raise SystemExit(f"tasks file not found: {tasks_path}")
-    tasks = json.loads(tasks_path.read_text())
-    validate_tasks(tasks)
-    analyze_tasks_file(tasks, tasks_path)
-    waves = plan_waves(tasks)
-    pool = parse_agents_pool(args.agents)
-
-    cfg = resolve_config({"intensity": args.intensity, "verifier": args.verifier,
-                          "codex_effort": args.codex_effort,
-                          "max_workers": args.max_workers})
-    global CODEX_REASONING
-    CODEX_REASONING = cfg["codex_effort"]
-    verifier = parse_engine_value(cfg["verifier"])
-    cap = min(cfg["max_workers"], max(1, (os.cpu_count() or 3) - 2))
-    ordered_ids = [tid for wave in waves for tid in wave]
-    assignment = assign_agents(ordered_ids, pool)
-
-    if args.estimate:
-        print(f"council fleet — {len(tasks)} tasks in {len(waves)} wave(s); "
-              f"pool [{', '.join(e.label for e in pool)}]; "
-              f"verifier {verifier.label}; concurrency {cap}")
-        for i, wave in enumerate(waves, 1):
-            print(f"  wave {i}: "
-                  + ", ".join(f"{t}->{assignment[t].label}" for t in wave))
-        return 0
-
-    run = Run.create(f"fleet-{tasks_path.stem}", args.slug)
-    run.write_json("tasks.json", tasks)
-    run.set_state(stage="fleet", agents=[e.label for e in pool])
-    log(f"run dir: {run.path}")
-    _report, integ_branch = execute_dag(run, tasks, lambda tid: assignment[tid],
-                                        verifier, cap, args.keep_worktrees)
-    print(integ_branch)
-    return 0
-
-
-def cmd_split(args: argparse.Namespace) -> int:
-    """Carve a path subtree out into a new GitHub repo with its history
-    preserved (git subtree split). Never touches the host branch — it works on
-    a throwaway council/split/<name> branch."""
-    path = args.path.rstrip("/")
-    if not (REPO_ROOT / path).exists():
-        raise SystemExit(f"path not found in repo: {path}")
-    owner, sep, name = args.dest.partition("/")
-    if not sep or not owner or not name or "/" in name:
-        raise SystemExit(f"--dest must be owner/name, got {args.dest!r}")
-    if not have_git_subtree():
-        raise SystemExit("git subtree is unavailable; install git-subtree "
-                         "(git contrib / git-extras package)")
-    dest_url = _split_dest_url(owner, name)
-    branch = f"council/split/{_slugify(name)}"
-
-    if args.dry_run:
-        print(f"[dry-run] extract '{path}' into {owner}/{name}, history preserved:")
-        print(f"  git subtree split --prefix {path} -b {branch}")
-        if args.push:
-            print(f"  gh repo create {owner}/{name} --{args.visibility}   "
-                  "# if it does not already exist")
-            print(f"  git push {dest_url} {branch}:main")
-        print(f"  # then, as a separate change, optionally replace the in-repo "
-              f"copy:\n  #   git rm -r {path} && git submodule add {dest_url} {path}")
-        return 0
-
-    git("branch", "-D", branch, check=False)
-    log(f"splitting {path} -> {branch} (history-preserving)")
-    git("subtree", "split", "--prefix", path, "-b", branch, timeout=600)
-
-    if not args.push:
-        print(f"created local branch {branch} with the extracted history of "
-              f"{path}. Push it to a new repo when ready:")
-        print(f"  gh repo create {owner}/{name} --{args.visibility}")
-        print(f"  git push {dest_url} {branch}:main")
-        return 0
-
-    try:
-        if gh("repo", "view", f"{owner}/{name}", check=False).returncode == 0:
-            log(f"{owner}/{name} already exists; skipping create")
-        else:
-            log(f"creating {owner}/{name} ({args.visibility})")
-            gh("repo", "create", f"{owner}/{name}", f"--{args.visibility}")
-        log(f"pushing {branch} -> {dest_url}:main")
-        git("push", dest_url, f"{branch}:main")
-    except subprocess.CalledProcessError as exc:
-        detail = (exc.stderr or exc.stdout or str(exc)).strip()[:300]
-        raise SystemExit(f"split push failed (branch {branch} kept for retry): "
-                         f"{detail}")
-    git("branch", "-D", branch, check=False)
-
-    print(f"extracted {path} into {owner}/{name} with history preserved.")
-    print("To replace the in-repo copy with a reference, in a separate change:")
-    print(f"  git rm -r {path}")
-    print(f"  git submodule add {dest_url} {path}")
-    return 0
-
-
-def build_report(run: Run, integ_branch: str, integ_wt: str,
-                 waves: list[list[str]], results: dict[str, dict],
-                 task_defs: list[dict]) -> dict:
-    task_map = {t["id"]: t for t in task_defs}
-    no_verify = sorted(tid for tid in results
-                       if not str(task_map.get(tid, {}).get("verify", "")).strip())
-    rows = []
-    ok = failed = merged = 0
-    for tid, r in results.items():
-        good = r.get("status") == "ok" and r.get("merge") in ("ok", None)
-        ok += 1 if r.get("status") == "ok" else 0
-        failed += 0 if r.get("status") == "ok" else 1
-        merged += 1 if r.get("merge") == "ok" else 0
-        rows.append({
-            "task_id": tid, "status": r.get("status"),
-            "merge": r.get("merge"), "model": r.get("model"),
-            "files_changed": r.get("files_changed", []),
-            "verify_rc": r.get("verify_rc"),
-            "verifier_satisfied": (r.get("verdict") or {}).get("satisfied"),
-            "out_of_bounds": r.get("out_of_bounds", []),
-            "branch": r.get("branch"), "good": good,
-        })
-    return {
-        "run": run.path.name, "integration_branch": integ_branch,
-        "integration_worktree": integ_wt, "waves": waves, "tasks": rows,
-        "no_verify": no_verify,
-        "summary": {"total": len(results), "ok": ok, "failed": failed,
-                    "merged": merged},
-    }
-
-
-def render_report_md(report: dict) -> str:
-    s = report["summary"]
-    lines = [f"# council fan-out report — {report['run']}", "",
-             f"- integration branch: `{report['integration_branch']}`",
-             f"- worktree: `{report['integration_worktree']}`",
-             f"- result: **{s['ok']}/{s['total']} ok**, {s['failed']} failed, "
-             f"{s['merged']} merged", "", "## Tasks", "",
-             "| task | status | merge | model | files | verify | verifier |",
-             "|---|---|---|---|---|---|---|"]
-    for t in report["tasks"]:
-        lines.append(
-            f"| {t['task_id']} | {t['status']} | {t['merge']} | {t['model']} "
-            f"| {len(t['files_changed'])} | "
-            f"{'-' if t['verify_rc'] is None else t['verify_rc']} "
-            f"| {t['verifier_satisfied']} |")
-    failures = [t for t in report["tasks"] if not t["good"]]
-    if failures:
-        lines += ["", "## Needs attention", ""]
-        for t in failures:
-            note = t["status"]
-            if t["merge"] == "conflict":
-                note += " + merge conflict"
-            if t["out_of_bounds"]:
-                note += f" (touched out-of-bounds: {t['out_of_bounds']})"
-            lines.append(f"- `{t['task_id']}`: {note}")
-    no_verify = report.get("no_verify", [])
-    if no_verify:
-        lines += ["", "## Tasks with no verify command", "",
-                  "These ran without an automated check — only the adversarial "
-                  "verifier reviewed them:", ""]
-        lines += [f"- `{tid}`" for tid in no_verify]
-    lines += ["", f"Review: `git -C {report['integration_worktree']} log --oneline`"
-              f" or `git checkout {report['integration_branch']}`."]
-    return "\n".join(lines) + "\n"
-
-
-# --------------------------------------------------------------------------
-# commands
-# --------------------------------------------------------------------------
-
-def log(msg: str) -> None:
-    print(f"[council] {msg}", file=sys.stderr, flush=True)
-
-
-def read_brief(arg: str) -> str:
-    if arg == "-":
-        return sys.stdin.read()
-    p = Path(arg)
-    if p.exists():
-        return p.read_text()
-    return arg
-
-
-def cmd_plan(args: argparse.Namespace) -> int:
-    cfg = resolve_config({"intensity": args.intensity, "planner_a": args.planner_a,
-                          "planner_b": args.planner_b, "consolidator": args.consolidator,
-                          "rounds": args.rounds, "codex_effort": args.codex_effort})
-    global CODEX_REASONING
-    CODEX_REASONING = cfg["codex_effort"]
-    a = parse_engine_value(cfg["planner_a"])
-    b = parse_engine_value(cfg["planner_b"])
-    consolidator = parse_engine_value(cfg["consolidator"])
-    rounds = cfg["rounds"]
-
-    if args.estimate:
-        calls = 2 + rounds * 4 + 1
-        print(f"council plan — intensity {cfg['intensity']}, "
-              f"estimated model calls: {calls}")
-        print(f"  stage 1 dual plans      : 2  ({a.label}, {b.label})")
-        print(f"  stage 2 critique+revise : {rounds * 4}  ({rounds} rounds x "
-              f"[2 critiques + 2 revisions])")
-        print(f"  stage 4 consolidation   : 1  ({consolidator.label})")
-        print(f"  codex reasoning effort  : {cfg['codex_effort']}")
-        print("These are expensive-tier calls; fan-out (cheap workers) is "
-              "separate. Multi-agent runs ~15x the tokens of a single chat — "
-              "use council only for large, decomposable work.")
-        return 0
-
-    brief = read_brief(args.brief)
-    run = Run.open(Path(args.run)) if args.run else Run.create(brief, args.slug)
-    run.write_text("brief.md", brief)
-    spec_ref = prepare_spec_ref(run, brief, args.slug)
-    spec_seed = read_spec_dir(args.spec_dir)
-    constitution_context = read_constitution_context()
-    run.set_state(stage="plan", intensity=cfg["intensity"], rounds=rounds,
-                  planner_a=a.label, planner_b=b.label,
-                  spec_id=spec_ref.name, spec_slug=spec_ref.slug,
-                  spec_relpath=spec_ref.relpath,
-                  spec_dir=args.spec_dir)
-    log(f"run dir: {run.path}")
-    log(f"intensity {cfg['intensity']}: {a.label} ║ {b.label}, {rounds} round(s), "
-        f"codex effort {cfg['codex_effort']}")
-
-    plan_a, plan_b = stage_plan(run, brief, a, b, constitution_context)
-    for rnd in range(1, rounds + 1):
-        plan_a, plan_b = stage_critique_round(
-            run, brief, a, b, plan_a, plan_b, rnd, constitution_context)
-    tasks = stage_consolidate(run, brief, plan_a, plan_b, rounds, consolidator,
-                              constitution_context, spec_ref, spec_seed)
-    run.set_state(stage="planned", task_count=len(tasks))
-
-    waves = plan_waves(tasks)
-    total = sum(c for _, c in run.costs)
-    log(f"done: {len(tasks)} tasks in {len(waves)} wave(s); "
-        f"recorded claude cost ${total:.2f} (codex cost not reported by CLI)")
-    print(str(run.path))  # stdout: the run dir, for the host to pick up
-    return 0
-
-
-def parse_engine_value(spec: str) -> Engine:
-    """spec form: "cli:model" e.g. "claude:opus" or "codex:gpt-5.5"."""
-    cli, _, model = spec.partition(":")
-    if cli not in ("claude", "codex") or not model:
-        raise SystemExit(f"engine must be claude:<model> or codex:<model>, "
-                         f"got {spec!r}")
-    return Engine(cli, model)
-
-
-# --------------------------------------------------------------------------
-# config: intensity presets + per-role overrides (council.toml)
-# --------------------------------------------------------------------------
-
-def load_config_at(path: Path) -> dict:
-    if not path.exists():
-        return {}
-    with path.open("rb") as fh:
-        raw = tomllib.load(fh)
-    return {k: v for k, v in raw.items() if k in CONFIG_KEYS}
-
-
-def merge_config(file_cfg: dict, cli_overrides: dict) -> dict:
-    """Resolve final settings: intensity preset < council.toml < CLI flags.
-    Pure (no IO) so it is covered by --self-test."""
-    intensity = (cli_overrides.get("intensity") or file_cfg.get("intensity")
-                 or DEFAULT_INTENSITY)
-    if intensity not in PRESETS:
-        raise ValueError(f"unknown intensity {intensity!r}; choose from "
-                         f"{', '.join(PRESETS)}")
-    resolved = dict(BASE_ROLES)
-    resolved.update(PRESETS[intensity])
-    for src in (file_cfg, cli_overrides):
-        for key, val in src.items():
-            if key == "intensity" or val is None or key not in CONFIG_KEYS:
-                continue
-            resolved[key] = val
-    resolved["intensity"] = intensity
-    return resolved
-
-
-def resolve_config(cli_overrides: dict) -> dict:
-    # precedence: preset < user council.toml < project .council.toml < CLI
-    file_cfg = {**load_config_at(USER_CONFIG_PATH),
-                **load_config_at(PROJECT_CONFIG_PATH)}
-    return merge_config(file_cfg, cli_overrides)
-
-
-def coerce_config_value(key: str, raw: str):
-    """Validate + type a `config set` value. Raises ValueError on bad input
-    (callers convert to a clean CLI exit)."""
-    if key not in CONFIG_KEYS:
-        raise ValueError(f"unknown key {key!r}; choose from {', '.join(CONFIG_KEYS)}")
-    if key == "intensity":
-        if raw not in PRESETS:
-            raise ValueError(f"intensity must be one of {', '.join(PRESETS)}")
-        return raw
-    if key in INT_KEYS:
-        try:
-            return int(raw)
-        except ValueError:
-            raise ValueError(f"{key} must be an integer, got {raw!r}")
-    if key == "codex_effort":
-        if raw not in CODEX_EFFORTS:
-            raise ValueError(f"codex_effort must be one of {', '.join(CODEX_EFFORTS)}")
-        return raw
-    if key in ROLE_KEYS:
-        if ":" not in raw or raw.split(":", 1)[0] not in ("claude", "codex"):
-            raise ValueError(f"{key} must be claude:<model> or codex:<model>, "
-                             f"got {raw!r}")
-        return raw
-    return raw
-
-
-def save_config_at(path: Path, cfg: dict) -> None:
-    lines = ["# council configuration. CLI flags override these per run;",
-             "# `council config set <key> <value>` edits this file. Keys not",
-             "# listed follow the chosen intensity preset (quick|standard|"
-             "thorough|max).", ""]
-    for key in CONFIG_KEYS:
-        if key in cfg and cfg[key] is not None:
-            val = cfg[key]
-            if isinstance(val, bool):  # not expected, but keep TOML valid
-                lines.append(f"{key} = {str(val).lower()}")
-            elif isinstance(val, int):
-                lines.append(f"{key} = {val}")
-            else:
-                lines.append(f'{key} = "{val}"')
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n")
-
-
-def cmd_config(args: argparse.Namespace) -> int:
-    target = PROJECT_CONFIG_PATH if getattr(args, "project", False) else USER_CONFIG_PATH
-    action = args.action
-    if action == "path":
-        print(f"user:    {USER_CONFIG_PATH}")
-        print(f"project: {PROJECT_CONFIG_PATH}")
-        return 0
-    if action == "show":
-        user_cfg = load_config_at(USER_CONFIG_PATH)
-        proj_cfg = load_config_at(PROJECT_CONFIG_PATH)
-        resolved = resolve_config({})
-        print(f"user config:    {USER_CONFIG_PATH}"
-              f"{'' if USER_CONFIG_PATH.exists() else '  (none)'}")
-        print(f"project config: {PROJECT_CONFIG_PATH}"
-              f"{'' if PROJECT_CONFIG_PATH.exists() else '  (none)'}")
-        print(f"intensity: {resolved['intensity']}")
-        for key in CONFIG_KEYS[1:]:
-            src = (" (project)" if key in proj_cfg
-                   else " (user)" if key in user_cfg else "")
-            print(f"  {key} = {resolved[key]}{src}")
-        return 0
-    if action == "get":
-        if not args.key or args.key not in CONFIG_KEYS:
-            raise SystemExit(f"config get requires a known key "
-                             f"({', '.join(CONFIG_KEYS)})")
-        print(resolve_config({})[args.key])
-        return 0
-    if action == "set":
-        if not args.key or args.value is None:
-            raise SystemExit("config set requires <key> <value>")
-        file_cfg = load_config_at(target)
-        try:
-            file_cfg[args.key] = coerce_config_value(args.key, args.value)
-        except ValueError as exc:
-            raise SystemExit(str(exc))
-        save_config_at(target, file_cfg)
-        print(f"set {args.key} = {file_cfg[args.key]!r} in {target}")
-        return 0
-    if action == "unset":
-        if not args.key:
-            raise SystemExit("config unset requires a key")
-        file_cfg = load_config_at(target)
-        if args.key in file_cfg:
-            del file_cfg[args.key]
-            save_config_at(target, file_cfg)
-            print(f"unset {args.key} in {target}")
-        else:
-            print(f"{args.key} not set in {target}")
-        return 0
-    raise SystemExit(f"unknown config action {action!r}")
-
-
-def cmd_self_test(_args: argparse.Namespace) -> int:
-    failures: list[str] = []
-
-    def check(name: str, cond: bool) -> None:
-        if not cond:
-            failures.append(name)
-        print(f"  {'ok  ' if cond else 'FAIL'} {name}")
-
-    # plan_waves
-    tasks = [
-        {"id": "a", "depends_on": []},
-        {"id": "b", "depends_on": ["a"]},
-        {"id": "c", "depends_on": ["a"]},
-        {"id": "d", "depends_on": ["b", "c"]},
-    ]
-    check("plan_waves groups by dependency",
-          plan_waves(tasks) == [["a"], ["b", "c"], ["d"]])
-    check("plan_waves rejects cycle", _raises(
-        lambda: plan_waves([{"id": "x", "depends_on": ["y"]},
-                            {"id": "y", "depends_on": ["x"]}])))
-    check("plan_waves rejects unknown dep", _raises(
-        lambda: plan_waves([{"id": "x", "depends_on": ["nope"]}])))
-
-    # extract_json
-    check("extract_json plain", extract_json('{"a": 1}') == {"a": 1})
-    check("extract_json fenced",
-          extract_json('text\n```json\n{"a": [1,2]}\n```\nmore') == {"a": [1, 2]})
-    check("extract_json with braces in string",
-          extract_json('{"k": "a{b}c"}') == {"k": "a{b}c"})
-    check("extract_json tolerates a CLI warning preamble (run_claude path)",
-          extract_json('Warning: something\n{"result": "ok", "n": 2}')
-          == {"result": "ok", "n": 2})
-    check("extract_json keeps code fences inside string value",
-          extract_json('{"md": "see ```bash\\nx\\n``` end", "n": 1}')
-          == {"md": "see ```bash\nx\n``` end", "n": 1})
-    check("extract_json outer fence with inner fences",
-          extract_json('```json\n{"md": "a ```inner``` b"}\n```')
-          == {"md": "a ```inner``` b"})
-    check("extract_json none raises", _raises(lambda: extract_json("no json here")))
-
-    # render
-    check("render replaces tokens",
-          render("hi {{name}} {{name}}", name="x") == "hi x x")
-    check("render leaves JSON braces",
-          render('{"x": {{v}}}', v="1") == '{"x": 1}')
-
-    # validate_tasks
-    check("validate_tasks rejects empty", _raises(lambda: validate_tasks([])))
-    check("validate_tasks rejects missing fields",
-          _raises(lambda: validate_tasks([{"id": "a"}])))
-
-    # baseline rules + verify checks
-    check("_baseline loadable and non-empty", bool(BASELINE_PROMPT.strip()))
-    global log
-    captured: list[str] = []
-    orig_log = log
-    log = lambda m: captured.append(m)  # noqa: E731
-    try:
-        validate_tasks([{"id": "t1", "objective": "o", "depends_on": [],
-                         "paths": [], "model": "haiku", "verify": "  "}])
-    finally:
-        log = orig_log
-    check("validate_tasks warns on empty verify",
-          any("no verify" in m for m in captured))
-
-    # Spec Kit task markdown + analyze helpers
-    sample_task = {
-        "id": "T1",
-        "title": "Implement one thing",
-        "objective": "Change exactly one thing",
-        "output_format": "Code edits",
-        "paths": ["platform/agents/council/council.py"],
-        "depends_on": [],
-        "difficulty": "moderate",
-        "model": "haiku",
-        "verify": "python3 platform/agents/council/council.py --self-test",
-        "boundaries": "Stay in scope",
-    }
-    rendered_tasks = render_tasks_md([sample_task], SpecRef(7, "sdd-aware-council"))
-    check("tasks.json -> tasks.md -> parse roundtrips",
-          parse_tasks_md(rendered_tasks) == [sample_task])
-    edited_tasks = rendered_tasks.replace("Change exactly one thing",
-                                          "Change a different thing")
-    check("tasks.md bijection mismatch hard-fails",
-          _raises(lambda: assert_tasks_bijection([sample_task], edited_tasks)))
-    bad_marker = rendered_tasks.replace("<!-- council-task-id: T1 -->",
-                                        "<!-- council-task-id: T2 -->")
-    check("tasks.md parser rejects marker/header mismatch",
-          _raises(lambda: parse_tasks_md(bad_marker)))
-    gate_msg = ""
-    try:
-        analyze_checkpoint(Run(Path("/tmp/council-self-test-run")), [sample_task])
-    except ValueError as exc:
-        gate_msg = str(exc)
-    check("analyze gate names checkpoint 1 and regenerate command",
-          "analyze gate checkpoint 1 failed" in gate_msg
-          and "Regenerate with: council plan --run" in gate_msg)
-
-    # constitution handling is bounded and limited to reasoning roles.
-    check("constitution context is bounded",
-          len(read_constitution_context()) <= MAX_CONSTITUTION_CHARS + 20)
-    for role in ("planner", "critic", "reviser", "consolidator"):
-        check(f"constitution token present in {role}",
-              "{{constitution}}" in load_prompt(role))
-    check("constitution token absent from worker",
-          "{{constitution}}" not in load_prompt("worker"))
-    check("constitution token absent from verifier",
-          "{{constitution}}" not in load_prompt("verifier"))
-    with tempfile.TemporaryDirectory() as td:
-        repo = Path(td)
-        check("constitution failure detects missing file",
-              "missing constitution" in (constitution_failure(repo) or ""))
-        cpath = repo / ".specify" / "memory" / "constitution.md"
-        cpath.parent.mkdir(parents=True)
-        cpath.write_text("# Constitution\n\n[PROJECT NAME]\n")
-        check("constitution failure detects placeholder",
-              "placeholder" in (constitution_failure(repo) or ""))
-        cpath.write_text("# Constitution\n\nShip small, verified changes.\n")
-        check("constitution failure accepts concrete file",
-              constitution_failure(repo) is None)
-
-    # Spec numbering and slug derivation
-    check("free-text brief derives slug from first line",
-          derive_feature_slug("Fuse council with Spec Kit\nextra", None)
-          == "fuse-council-with-spec-kit")
-    check("explicit --slug is reused for spec slug",
-          derive_feature_slug("ignored", "My Feature") == "my-feature")
-    with tempfile.TemporaryDirectory() as td:
-        specs = Path(td) / "specs"
-        specs.mkdir()
-        (specs / "001-old").mkdir()
-        ref = allocate_spec_ref("new feature", specs)
-        check("NNN allocation uses max(existing)+1",
-              ref == SpecRef(2, "new-feature"))
-        (specs / "003-duplicate").mkdir()
-        check("NNN allocation fail-fast on existing slug",
-              _raises(lambda: allocate_spec_ref("duplicate", specs)))
-
-    # merge_config (intensity presets + precedence)
-    std = merge_config({}, {})
-    check("default intensity is standard",
-          std["intensity"] == "standard" and std["rounds"] == 2
-          and std["worker"] == "claude:haiku" and std["codex_effort"] == "high")
-    thorough = merge_config({"intensity": "thorough"}, {})
-    check("thorough preset bumps rounds + worker",
-          thorough["rounds"] == 3 and thorough["worker"] == "claude:sonnet")
-    check("cli overrides preset",
-          merge_config({"intensity": "quick"}, {"rounds": 5})["rounds"] == 5)
-    check("file overrides preset, cli overrides file",
-          merge_config({"worker": "claude:sonnet"},
-                       {"worker": "claude:opus"})["worker"] == "claude:opus")
-    check("file intensity used when no cli",
-          merge_config({"intensity": "max"}, {})["codex_effort"] == "xhigh")
-    check("merge_config rejects bad intensity",
-          _raises(lambda: merge_config({}, {"intensity": "nope"})))
-    check("coerce rejects unknown key",
-          _raises(lambda: coerce_config_value("bogus", "x")))
-    check("coerce accepts codex worker",
-          coerce_config_value("worker", "codex:gpt-5.5") == "codex:gpt-5.5")
-    check("coerce types ints", coerce_config_value("rounds", "3") == 3)
-
-    # parse_agents_pool + assign_agents (engine-agnostic fleet)
-    check("parse_agents_pool expands counts in order",
-          parse_agents_pool("codex:gpt-5.5*2,claude:haiku*1")
-          == [Engine("codex", "gpt-5.5"), Engine("codex", "gpt-5.5"),
-              Engine("claude", "haiku")])
-    check("parse_agents_pool defaults count to 1",
-          parse_agents_pool("claude:opus") == [Engine("claude", "opus")])
-    check("parse_agents_pool rejects zero count",
-          _raises(lambda: parse_agents_pool("codex:x*0")))
-    check("parse_agents_pool rejects unknown cli",
-          _raises(lambda: parse_agents_pool("ollama:x*1")))
-    check("parse_agents_pool rejects malformed spec",
-          _raises(lambda: parse_agents_pool("notvalid")))
-    check("assign_agents round-robins",
-          assign_agents(["t1", "t2", "t3"],
-                        [Engine("claude", "haiku"), Engine("codex", "gpt-5.5")])
-          == {"t1": Engine("claude", "haiku"),
-              "t2": Engine("codex", "gpt-5.5"),
-              "t3": Engine("claude", "haiku")})
-    check("assign_agents rejects empty pool",
-          _raises(lambda: assign_agents(["t1"], [])))
-
-    # split
-    check("_split_dest_url canonical ssh remote",
-          _split_dest_url("o", "n") == "git@github.com:o/n.git")
-
-    # localize_verify (verify runs in the worktree, not the host repo root)
-    check("localize_verify rewrites repo root to the worktree",
-          localize_verify("cd /workspace/services/foo && npm test",
-                          "/workspace", "/tmp/wt/T1")
-          == "cd /tmp/wt/T1/services/foo && npm test")
-    check("localize_verify leaves relative commands untouched",
-          localize_verify("npm test", "/workspace", "/tmp/wt/T1") == "npm test")
-
-    print(f"\n{'PASS' if not failures else 'FAIL: ' + ', '.join(failures)}")
-    return 1 if failures else 0
-
-
-def _raises(fn: Callable[[], object]) -> bool:
-    try:
-        fn()
-        return False
-    except Exception:
-        return True
-
-
-def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="council", description=__doc__)
-    p.add_argument("--self-test", action="store_true",
-                   help="run pure-function checks (no model calls) and exit")
-    sub = p.add_subparsers(dest="command")
-
-    pl = sub.add_parser("plan", help="stages 1-4: dual plans, critique, consolidate")
-    pl.add_argument("--brief", help="brief file path, or - for stdin")
-    pl.add_argument("--run", help="existing run dir to resume")
-    pl.add_argument("--slug", help="slug for the run dir name")
-    pl.add_argument("--spec-dir", help="existing specs/NNN-slug dir to consume")
-    pl.add_argument("--intensity", choices=list(PRESETS),
-                    help="preset (overrides council.toml for this run)")
-    pl.add_argument("--rounds", type=int, default=None, help="override critique rounds")
-    pl.add_argument("--planner-a", default=None, help="override, form cli:model")
-    pl.add_argument("--planner-b", default=None, help="override, form cli:model")
-    pl.add_argument("--consolidator", default=None, help="override, form cli:model")
-    pl.add_argument("--codex-effort", default=None, choices=list(CODEX_EFFORTS),
-                    help="override codex reasoning effort")
-    pl.add_argument("--estimate", action="store_true",
-                    help="print planned call count and exit without spending")
-    pl.set_defaults(func=cmd_plan)
-
-    fo = sub.add_parser("fanout", help="stages 5-6: execute the task DAG, "
-                                       "verify, reconcile onto a branch")
-    fo.add_argument("--run", required=True, help="run dir with a tasks.json")
-    fo.add_argument("--intensity", choices=list(PRESETS),
-                    help="preset (overrides council.toml for this run)")
-    fo.add_argument("--max-workers", type=int, default=None,
-                    help="override max concurrent workers (clamped to cores-2)")
-    fo.add_argument("--worker", default=None,
-                    help="override worker engine, form claude:model or codex:model")
-    fo.add_argument("--verifier", default=None, help="override verifier, form cli:model")
-    fo.add_argument("--codex-effort", default=None, choices=list(CODEX_EFFORTS),
-                    help="override codex reasoning effort")
-    fo.add_argument("--keep-worktrees", action="store_true",
-                    help="keep per-task worktrees for inspection")
-    fo.add_argument("--estimate", action="store_true",
-                    help="print the wave/worker plan and exit without spending")
-    fo.set_defaults(func=cmd_fanout)
-
-    fl = sub.add_parser("fleet", help="run a task DAG against an ad-hoc, "
-                                      "engine-agnostic worker pool (no plan phase)")
-    fl.add_argument("--tasks", required=True,
-                    help="path to a tasks.json (any DAG; need not come from `plan`)")
-    fl.add_argument("--agents", required=True,
-                    help="pool spec, e.g. 'codex:gpt-5.5*3,claude:haiku*2' — "
-                         "round-robined across the tasks")
-    fl.add_argument("--verifier", default=None, help="override verifier, form cli:model")
-    fl.add_argument("--intensity", choices=list(PRESETS),
-                    help="preset (only its verifier/max-workers/codex-effort apply)")
-    fl.add_argument("--codex-effort", default=None, choices=list(CODEX_EFFORTS),
-                    help="codex reasoning effort for codex agents in the pool")
-    fl.add_argument("--max-workers", type=int, default=None,
-                    help="override max concurrent workers (clamped to cores-2)")
-    fl.add_argument("--keep-worktrees", action="store_true",
-                    help="keep per-task worktrees for inspection")
-    fl.add_argument("--slug", help="slug for the run dir name")
-    fl.add_argument("--estimate", action="store_true",
-                    help="print the pool/wave/assignment plan and exit")
-    fl.set_defaults(func=cmd_fleet)
-
-    sp = sub.add_parser("split", help="extract a path subtree into a new GitHub "
-                                      "repo, preserving that path's history")
-    sp.add_argument("--path", required=True,
-                    help="path under the repo to extract, e.g. services/foo")
-    sp.add_argument("--dest", required=True, help="new repo as owner/name")
-    sp.add_argument("--visibility", choices=["private", "public"],
-                    default="private", help="new repo visibility (default private)")
-    sp.add_argument("--no-push", dest="push", action="store_false",
-                    help="only create the local extracted branch; don't create "
-                         "or push the remote")
-    sp.add_argument("--dry-run", action="store_true",
-                    help="print the commands and exit without touching anything")
-    sp.set_defaults(func=cmd_split, push=True)
-
-    cf = sub.add_parser("config", help="show or change model/intensity config "
-                                       "(council.toml)")
-    cf.add_argument("action", choices=["show", "get", "set", "unset", "path"])
-    cf.add_argument("key", nargs="?", help="config key (see `config show`)")
-    cf.add_argument("value", nargs="?", help="value (for `set`)")
-    cf.add_argument("--project", action="store_true",
-                    help="target the per-project .council.toml instead of the "
-                         "user-global config (for set/unset)")
-    cf.set_defaults(func=cmd_config)
-    return p
-
-
-def main(argv: Optional[list[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
-    if args.self_test:
-        return cmd_self_test(args)
-    if not getattr(args, "command", None):
-        build_parser().print_help()
-        return 2
-    if args.command == "plan" and not args.estimate and not args.brief:
-        raise SystemExit("plan requires --brief (or --brief -)")
-    try:
-        return args.func(args)
-    except ValueError as exc:  # e.g. bad intensity in council.toml
-        print(f"council: {exc}", file=sys.stderr)
-        return 2
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-COUNCIL_FILE_council_py_EOF
+read -r -d '' COUNCIL_FILE_council_mjs <<'COUNCIL_FILE_council_mjs_EOF' || true
+#!/usr/bin/env node
+import { runCli } from './ts-dist/cli/index.js'
+
+const result = await runCli(process.argv.slice(2))
+if (result.stdout) process.stdout.write(result.stdout)
+if (result.stderr) process.stderr.write(result.stderr)
+process.exitCode = result.exitCode
+COUNCIL_FILE_council_mjs_EOF
 read -r -d '' COUNCIL_FILE_council_toml <<'COUNCIL_FILE_council_toml_EOF' || true
 # council configuration. CLI flags override these per run;
 # `council config set <key> <value>` edits this file. Keys not
@@ -3368,6 +1572,110 @@ planner_a = "claude:opus"
 planner_b = "codex:gpt-5.5"
 consolidator = "claude:opus"
 verifier = "claude:sonnet"
+
+# Watchdog defaults bound stalled or looping subprocesses during long runs.
+[watchdog]
+stall_after_s = 300
+window = 40
+repeat_limit = 6
+max_restarts = 1
+escalate_model = "claude:opus"
+disk_cap_gib = 2
+
+# Design mode runs multiple lenses before consolidation and voting.
+[design]
+lenses = ["architecture", "implementation", "risk"]
+rounds = 2
+
+[design.stages.survey]
+engine = "claude:sonnet"
+effort = "medium"
+
+[design.stages.lens]
+engine = "claude:sonnet"
+effort = "high"
+
+[design.stages.consolidate]
+engine = "claude:opus"
+effort = "high"
+
+[design.stages.vote]
+engine = "codex:gpt-5.5"
+effort = "high"
+
+# Review council is opt-in; fix rounds stay bounded by default.
+[review]
+council = false
+max_fix_rounds = 2
+
+[review.difficulty]
+trivial = "claude:haiku"
+moderate = "claude:haiku"
+hard = "claude:sonnet"
+
+# GitHub integration is disabled until an assignee is configured.
+[github]
+enabled = false
+assignee = ""
+
+# Engine entries are argv templates. Placeholders: {prompt_file}, {model},
+# {effort}, and {output}.
+[engines]
+
+[engines.claude]
+argv = ["sh", "-lc", "COUNCIL_EFFORT={effort} claude -p --model {model} --output-format json --permission-mode plan < {prompt_file} > {output}"]
+stream_format = "json"
+result_extraction = "json.result"
+
+[engines.codex]
+argv = ["sh", "-lc", "codex exec -m {model} -c model_reasoning_effort={effort} --skip-git-repo-check -o {output} \"$(cat {prompt_file})\""]
+stream_format = "text"
+result_extraction = "output_file"
+
+# Triage may override the model chosen for difficulty or route classes.
+[triage]
+
+[triage.matrix_overrides]
+trivial = "claude:haiku"
+moderate = "claude:haiku"
+hard = "claude:sonnet"
+
+# Context packs older than this should be regenerated before reuse.
+[context]
+pack_stale_after_s = 86400
+
+# Keep the shipped model matrix aligned with the built-in intensity presets.
+[model_matrix]
+
+[model_matrix.roles]
+planner_a = "claude:opus"
+planner_b = "codex:gpt-5.5"
+consolidator = "claude:opus"
+verifier = "claude:sonnet"
+
+[model_matrix.intensity.quick]
+rounds = 1
+codex_effort = "low"
+worker = "claude:haiku"
+max_workers = 4
+
+[model_matrix.intensity.standard]
+rounds = 2
+codex_effort = "high"
+worker = "claude:haiku"
+max_workers = 6
+
+[model_matrix.intensity.thorough]
+rounds = 3
+codex_effort = "high"
+worker = "claude:sonnet"
+max_workers = 6
+
+[model_matrix.intensity.max]
+rounds = 3
+codex_effort = "xhigh"
+worker = "claude:sonnet"
+max_workers = 8
 COUNCIL_FILE_council_toml_EOF
 read -r -d '' COUNCIL_FILE_prompts__baseline_md <<'COUNCIL_FILE_prompts__baseline_md_EOF' || true
 # Baseline rules (apply to every task, every agent)
@@ -3455,6 +1763,45 @@ Return ONLY a JSON object — no prose, no code fences — matching this schema:
 
 {{schema}}
 COUNCIL_FILE_prompts_consolidator_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_correct_course_md <<'COUNCIL_FILE_prompts_correct_course_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/tasks/correct-course.md and .bmad-core/checklists/change-checklist.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a course-correction planner. The current plan has
+encountered new information, failure, or changed requirements.
+
+# Original Objective
+
+{{objective}}
+
+# Current Plan or Work
+
+{{current_plan}}
+
+# New Information
+
+{{new_information}}
+
+# Repository
+
+Use {{repo_root}} to verify the current implementation state and available
+paths.
+
+# Your Job
+
+Decide how to recover with the smallest responsible change:
+
+- what changed and why it matters
+- whether the objective, scope, acceptance criteria, or design must change
+- what work should be kept, reverted, deferred, or rewritten
+- new risks introduced by the correction
+- updated validation needed to prove completion
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown with `RECOMMENDATION:` continue, adjust, pause, or
+restart; then list required changes and validation.
+COUNCIL_FILE_prompts_correct_course_md_EOF
 read -r -d '' COUNCIL_FILE_prompts_critic_md <<'COUNCIL_FILE_prompts_critic_md_EOF' || true
 You are {{engine_label}}, an ADVERSARIAL plan reviewer. The plan below was
 written by a DIFFERENT model for the brief below. Default stance: the plan is
@@ -3495,6 +1842,207 @@ Return a concise Markdown critique: a bulleted list of concrete problems, each
 with WHY it matters and a suggested fix. End with one line: `VERDICT:` followed
 by the single most important thing to change.
 COUNCIL_FILE_prompts_critic_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_design_consolidator_md <<'COUNCIL_FILE_prompts_design_consolidator_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/tasks/create-doc.md and .bmad-core/templates/architecture-tmpl.yaml per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, an impartial design consolidator. Merge the strongest
+parts of multiple proposals into one implementable design.
+
+# Brief
+
+{{brief}}
+
+# Proposals
+
+{{proposals}}
+
+# Review Notes
+
+{{reviews}}
+
+# Repository
+
+Ground the final design in {{repo_root}}. Do not invent paths, APIs, or
+commands.
+
+# Your Job
+
+Produce one coherent design that:
+
+- preserves the best supported decisions from each proposal
+- resolves contradictions explicitly
+- keeps the scope no larger than the brief requires
+- names real implementation touchpoints where possible
+- identifies dependencies, sequencing, and validation
+- separates decisions from open questions
+
+{{baseline}}
+
+# Constitution
+
+{{constitution}}
+
+# Output
+
+Return concise Markdown with final design, rationale, implementation outline,
+validation plan, risks, and rejected alternatives.
+COUNCIL_FILE_prompts_design_consolidator_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_design_lens_md <<'COUNCIL_FILE_prompts_design_lens_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/checklists/architect-checklist.md and .bmad-core/checklists/po-master-checklist.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, applying one focused design lens to a proposal.
+
+# Lens
+
+{{lens}}
+
+# Brief
+
+{{brief}}
+
+# Proposal
+
+{{proposal}}
+
+# Repository
+
+Use {{repo_root}} to validate any repository-specific claim.
+
+# Your Job
+
+Assess the proposal only through the named lens. Useful lenses include:
+architecture, usability, maintainability, security, operations, data integrity,
+testability, accessibility, and delivery risk.
+
+For this lens, identify:
+
+- strengths that should be preserved because they reduce real risk
+- weaknesses that matter for the objective
+- missing decisions or unresolved constraints
+- concrete changes that would improve the design
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown. End with `LENS VERDICT:` strong, acceptable,
+needs-revision, or unsafe.
+COUNCIL_FILE_prompts_design_lens_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_design_vote_md <<'COUNCIL_FILE_prompts_design_vote_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/tasks/advanced-elicitation.md and .bmad-core/checklists/po-master-checklist.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a design voter. Choose the option most likely to
+succeed for the stated objective and constraints.
+
+# Brief
+
+{{brief}}
+
+# Options
+
+{{options}}
+
+# Evaluation Criteria
+
+{{criteria}}
+
+# Repository
+
+Use {{repo_root}} to verify claims about current code, cost, and feasibility.
+
+# Your Job
+
+Compare the options on:
+
+- fit to user value and acceptance criteria
+- simplicity and delivery risk
+- consistency with existing architecture and conventions
+- testability and operational safety
+- ability to evolve without unnecessary lock-in
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown with:
+
+- `VOTE:` the chosen option
+- ranked alternatives
+- decisive reasons
+- conditions or changes required before implementation
+COUNCIL_FILE_prompts_design_vote_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_designer_md <<'COUNCIL_FILE_prompts_designer_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/agents/ux-expert.md and .bmad-core/tasks/create-front-end-spec.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a product-minded software designer. Produce a design
+that is useful, buildable, and consistent with the existing system.
+
+# Brief
+
+{{brief}}
+
+# Repository
+
+Inspect {{repo_root}} for current architecture, UI patterns, APIs, constraints,
+and naming. Ground the design in real files and existing conventions.
+
+# Your Job
+
+Create a design proposal that covers:
+
+- target users and primary workflows
+- information architecture or component boundaries
+- data flow, state, permissions, and error states
+- interaction details and accessibility expectations when UI is involved
+- implementation constraints, risks, and open questions
+- validation strategy
+
+Keep the design neutral and implementation-ready. Avoid speculative features
+that are not needed for the brief.
+
+{{baseline}}
+
+# Constitution
+
+{{constitution}}
+
+# Output
+
+Return concise Markdown with headings for problem, proposed design, alternatives
+rejected, implementation notes, validation, risks, and open questions.
+COUNCIL_FILE_prompts_designer_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_grill_md <<'COUNCIL_FILE_prompts_grill_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/tasks/advanced-elicitation.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a rigorous questioner. Pressure-test the proposal
+before implementation.
+
+# Brief
+
+{{brief}}
+
+# Proposal
+
+{{proposal}}
+
+# Repository
+
+Use {{repo_root}} to verify repository-specific claims.
+
+# Your Job
+
+Ask the questions most likely to expose hidden risk:
+
+- What assumption would make this fail if wrong?
+- What important case is missing from the design?
+- Where does this conflict with existing code or operations?
+- What proof will show the work is complete?
+- What can be cut without harming the objective?
+
+Do not answer your own questions unless the repository provides direct evidence.
+
+{{baseline}}
+
+# Output
+
+Return a prioritized Markdown list of questions. For each question, include why
+it matters and what evidence would resolve it.
+COUNCIL_FILE_prompts_grill_md_EOF
 read -r -d '' COUNCIL_FILE_prompts_planner_md <<'COUNCIL_FILE_prompts_planner_md_EOF' || true
 You are {{engine_label}}, an expert software architect producing an INDEPENDENT
 plan. Another model is planning the same brief in parallel; do not coordinate —
@@ -3534,6 +2082,1019 @@ Field guidance:
   "objective — the files/paths it touches".
 - open_questions: anything genuinely ambiguous in the brief (empty if none).
 COUNCIL_FILE_prompts_planner_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_review_triage_md <<'COUNCIL_FILE_prompts_review_triage_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/tasks/review-story.md and .bmad-core/templates/qa-gate-tmpl.yaml per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a review triage judge. Convert review findings into a
+clear decision and an ordered repair list.
+
+# Objective
+
+{{objective}}
+
+# Review Findings
+
+{{findings}}
+
+# Acceptance Criteria
+
+{{acceptance_criteria}}
+
+# Repository
+
+Use {{repo_root}} only to resolve disputes about concrete paths or behavior.
+
+# Your Job
+
+Deduplicate overlapping findings, discard unsupported opinions, and classify
+remaining issues:
+
+- Blocker: objective cannot be accepted until fixed
+- Major: accepted only with explicit follow-up or risk owner
+- Minor: improves quality but does not block acceptance
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown with:
+
+- `DECISION:` pass, pass-with-fixes, or fail
+- blocker list
+- major list
+- minor list
+- ordered repair plan with the smallest viable set of changes
+COUNCIL_FILE_prompts_review_triage_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewer_acceptance_md <<'COUNCIL_FILE_prompts_reviewer_acceptance_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/tasks/review-story.md and .bmad-core/checklists/story-dod-checklist.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, an acceptance reviewer. Judge whether the delivered
+work satisfies the promised behavior, not whether it looks busy.
+
+# Acceptance Criteria
+
+{{acceptance_criteria}}
+
+# Delivered Work
+
+{{materials}}
+
+# Validation Evidence
+
+{{validation}}
+
+# Repository
+
+Use {{repo_root}} to verify affected paths, tests, and behavior.
+
+# Your Job
+
+For each acceptance criterion:
+
+- mark satisfied, partially satisfied, or not satisfied
+- cite the evidence from code, tests, docs, or command output
+- identify any missing proof
+- name the smallest follow-up needed when the criterion is not fully met
+
+{{baseline}}
+
+# Output
+
+Return a Markdown table followed by `VERDICT:` pass, pass-with-fixes, or fail.
+COUNCIL_FILE_prompts_reviewer_acceptance_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewer_adversarial_md <<'COUNCIL_FILE_prompts_reviewer_adversarial_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/agents/qa.md and .bmad-core/tasks/review-story.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, an adversarial reviewer. Assume the change is flawed
+until the evidence proves otherwise.
+
+# Objective
+
+{{objective}}
+
+# Materials Under Review
+
+{{materials}}
+
+# Repository
+
+Read files in {{repo_root}} to verify claims. Prefer concrete failures over
+general concerns.
+
+# Your Job
+
+Find issues that could make the work fail in production or fail review:
+
+- incorrect assumptions about current code behavior
+- missing validation, migrations, permissions, error handling, or rollback
+- brittle logic, race conditions, security gaps, or data loss risks
+- user-visible regressions and compatibility breaks
+- tests that pass without proving the requested behavior
+
+Do not praise the work. Do not restate it. Focus on actionable defects.
+
+{{baseline}}
+
+# Output
+
+Return Markdown bullets ordered by severity. Each bullet must include why it
+matters and the smallest credible fix. End with `VERDICT:` pass, pass-with-fixes,
+or fail.
+COUNCIL_FILE_prompts_reviewer_adversarial_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewer_edgecase_md <<'COUNCIL_FILE_prompts_reviewer_edgecase_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/agents/qa.md and .bmad-core/checklists/story-dod-checklist.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, an edge-case reviewer. Look past the happy path and
+stress the work against real-world inputs, states, and timing.
+
+# Objective
+
+{{objective}}
+
+# Materials Under Review
+
+{{materials}}
+
+# Repository
+
+Use {{repo_root}} to inspect existing behavior, fixtures, schemas, and tests.
+
+# Your Job
+
+Identify edge cases in:
+
+- empty, missing, duplicated, malformed, or very large inputs
+- partial failures, retries, timeouts, cancellation, and concurrency
+- permissions, authentication state, and environment differences
+- first-run, upgrade, downgrade, and rollback paths
+- mobile, accessibility, localization, and browser differences when relevant
+- tests that omit boundary values or failure paths
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown. Group findings by risk area. For each finding, provide
+the scenario, expected behavior, likely current gap, and a concrete test or fix.
+COUNCIL_FILE_prompts_reviewer_edgecase_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewpack_checkpoint_1_html <<'COUNCIL_FILE_prompts_reviewpack_checkpoint_1_html_EOF' || true
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --text: #18202b;
+      --muted: #5d6878;
+      --line: #dce1ea;
+      --accent: #1b6fb8;
+      --ok: #177245;
+      --warn: #a05a00;
+      --bad: #b42318;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 28px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.18;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 760;
+    }
+
+    h2 {
+      margin-bottom: 12px;
+      font-size: 1.18rem;
+    }
+
+    h3 {
+      font-size: 1rem;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: .9rem;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      grid-column: span 12;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .panel.half {
+      grid-column: span 6;
+    }
+
+    .panel.third {
+      grid-column: span 4;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .92rem;
+    }
+
+    th,
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 650;
+      background: #f2f5f9;
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #101822;
+      color: #ecf3ff;
+      font-size: .85rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f5f7fa;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .ok {
+      color: var(--ok);
+    }
+
+    .warn {
+      color: var(--warn);
+    }
+
+    .bad {
+      color: var(--bad);
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 24px 14px 36px;
+      }
+
+      header {
+        display: block;
+      }
+
+      .meta {
+        margin-top: 8px;
+        text-align: left;
+        white-space: normal;
+      }
+
+      .panel.half,
+      .panel.third {
+        grid-column: span 12;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <span class="pill">Gate 1</span>
+        <h1>{{title}}</h1>
+      </div>
+      <div class="meta">{{generated_at}}</div>
+    </header>
+
+    <section class="grid" aria-label="Checkpoint 1 review pack">
+      <article class="panel half">
+        <h2>Routing Verdict</h2>
+        <div class="stack">{{routing_verdicts}}</div>
+      </article>
+
+      <article class="panel half">
+        <h2>Spend Estimate</h2>
+        {{spend_estimate}}
+      </article>
+
+      <article class="panel">
+        <h2>Task DAG By Depth</h2>
+        <div class="stack">{{dag_by_depth}}</div>
+      </article>
+
+      <article class="panel half">
+        <h2>Stories</h2>
+        <div class="stack">{{story_cards}}</div>
+      </article>
+
+      <article class="panel half">
+        <h2>Grill Ledger</h2>
+        {{grill_ledger}}
+      </article>
+
+      <article class="panel">
+        <h2>Source Data</h2>
+        <pre>{{raw_json}}</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
+COUNCIL_FILE_prompts_reviewpack_checkpoint_1_html_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewpack_checkpoint_1_md <<'COUNCIL_FILE_prompts_reviewpack_checkpoint_1_md_EOF' || true
+# {{title}}
+
+Generated: {{generated_at}}
+
+## Routing Verdict
+
+{{routing_verdicts}}
+
+## Spend Estimate
+
+{{spend_estimate}}
+
+## Task DAG By Depth
+
+{{dag_by_depth}}
+
+## Stories
+
+{{story_cards}}
+
+## Grill Ledger
+
+{{grill_ledger}}
+
+## Source Data
+
+```json
+{{raw_json}}
+```
+COUNCIL_FILE_prompts_reviewpack_checkpoint_1_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewpack_checkpoint_2_html <<'COUNCIL_FILE_prompts_reviewpack_checkpoint_2_html_EOF' || true
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --text: #18202b;
+      --muted: #5d6878;
+      --line: #dce1ea;
+      --accent: #1b6fb8;
+      --ok: #177245;
+      --warn: #a05a00;
+      --bad: #b42318;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 28px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.18;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 760;
+    }
+
+    h2 {
+      margin-bottom: 12px;
+      font-size: 1.18rem;
+    }
+
+    h3 {
+      font-size: 1rem;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: .9rem;
+      text-align: right;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      grid-column: span 12;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .panel.half {
+      grid-column: span 6;
+    }
+
+    .panel.third {
+      grid-column: span 4;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .92rem;
+    }
+
+    th,
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 650;
+      background: #f2f5f9;
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #101822;
+      color: #ecf3ff;
+      font-size: .85rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f5f7fa;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .ok {
+      color: var(--ok);
+    }
+
+    .warn {
+      color: var(--warn);
+    }
+
+    .bad {
+      color: var(--bad);
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 24px 14px 36px;
+      }
+
+      header {
+        display: block;
+      }
+
+      .meta {
+        margin-top: 8px;
+        text-align: left;
+      }
+
+      .panel.half,
+      .panel.third {
+        grid-column: span 12;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <span class="pill">Gate 2</span>
+        <h1>{{title}}</h1>
+      </div>
+      <div class="meta">
+        <div>Run: {{run}}</div>
+        <div>Integration branch: {{integration_branch}}</div>
+        <div>{{generated_at}}</div>
+      </div>
+    </header>
+
+    <section class="grid" aria-label="Checkpoint 2 review pack">
+      <article class="panel">
+        <h2>Summary</h2>
+        {{summary}}
+      </article>
+
+      <article class="panel half">
+        <h2>Integration</h2>
+        {{integration}}
+      </article>
+
+      <article class="panel half">
+        <h2>Pull Request</h2>
+        {{pr}}
+      </article>
+
+      <article class="panel">
+        <h2>Task Outcomes</h2>
+        {{task_outcomes}}
+      </article>
+
+      <article class="panel half">
+        <h2>Diff Stats</h2>
+        {{diff_stats}}
+      </article>
+
+      <article class="panel half">
+        <h2>No-Verify Tasks</h2>
+        {{no_verify_tasks}}
+      </article>
+
+      <article class="panel half">
+        <h2>Discovered Work</h2>
+        <div class="stack">{{discovered_work}}</div>
+      </article>
+
+      <article class="panel half">
+        <h2>Pruning Proposals</h2>
+        <div class="stack">{{pruning_proposals}}</div>
+      </article>
+
+      <article class="panel">
+        <h2>Source Data</h2>
+        <pre>{{raw_json}}</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
+COUNCIL_FILE_prompts_reviewpack_checkpoint_2_html_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewpack_checkpoint_2_md <<'COUNCIL_FILE_prompts_reviewpack_checkpoint_2_md_EOF' || true
+# {{title}}
+
+Generated: {{generated_at}}
+
+Run: {{run}}
+
+Integration branch: {{integration_branch}}
+
+## Summary
+
+{{summary}}
+
+## Integration
+
+{{integration}}
+
+## Pull Request
+
+{{pr}}
+
+## Task Outcomes
+
+{{task_outcomes}}
+
+## Diff Stats
+
+{{diff_stats}}
+
+## No-Verify Tasks
+
+{{no_verify_tasks}}
+
+## Discovered Work
+
+{{discovered_work}}
+
+## Pruning Proposals
+
+{{pruning_proposals}}
+
+## Source Data
+
+```json
+{{raw_json}}
+```
+COUNCIL_FILE_prompts_reviewpack_checkpoint_2_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewpack_design_checkpoint_html <<'COUNCIL_FILE_prompts_reviewpack_design_checkpoint_html_EOF' || true
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --text: #18202b;
+      --muted: #5d6878;
+      --line: #dce1ea;
+      --accent: #1b6fb8;
+      --ok: #177245;
+      --warn: #a05a00;
+      --bad: #b42318;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 28px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.18;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 760;
+    }
+
+    h2 {
+      margin-bottom: 12px;
+      font-size: 1.18rem;
+    }
+
+    h3 {
+      font-size: 1rem;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: .9rem;
+      text-align: right;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      grid-column: span 12;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .panel.half {
+      grid-column: span 6;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .92rem;
+    }
+
+    th,
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 650;
+      background: #f2f5f9;
+    }
+
+    .spec {
+      max-height: 620px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 18px;
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #101822;
+      color: #ecf3ff;
+      font-size: .85rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f5f7fa;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .ok {
+      color: var(--ok);
+    }
+
+    .warn {
+      color: var(--warn);
+    }
+
+    .bad {
+      color: var(--bad);
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 24px 14px 36px;
+      }
+
+      header {
+        display: block;
+      }
+
+      .meta {
+        margin-top: 8px;
+        text-align: left;
+      }
+
+      .panel.half {
+        grid-column: span 12;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <span class="pill">Design</span>
+        <h1>{{title}}</h1>
+      </div>
+      <div class="meta">
+        <div>Spec: {{spec_ref}}</div>
+        <div>Locked by: {{locked_by}}</div>
+        <div>{{generated_at}}</div>
+      </div>
+    </header>
+
+    <section class="grid" aria-label="Design checkpoint review pack">
+      <article class="panel half">
+        <h2>Section Index</h2>
+        {{section_index}}
+      </article>
+
+      <article class="panel half">
+        <h2>Vote Counts</h2>
+        {{vote_counts}}
+      </article>
+
+      <article class="panel">
+        <h2>Vote Table</h2>
+        {{vote_rows}}
+      </article>
+
+      <article class="panel half">
+        <h2>Settled Ledger</h2>
+        <div class="stack">{{settled_ledger}}</div>
+      </article>
+
+      <article class="panel half">
+        <h2>Contested Ledger</h2>
+        <div class="stack">{{contested_ledger}}</div>
+      </article>
+
+      <article class="panel">
+        <h2>Locked Spec</h2>
+        <div class="spec">{{locked_spec}}</div>
+      </article>
+
+      <article class="panel">
+        <h2>Source Data</h2>
+        <pre>{{raw_json}}</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
+COUNCIL_FILE_prompts_reviewpack_design_checkpoint_html_EOF
+read -r -d '' COUNCIL_FILE_prompts_reviewpack_design_checkpoint_md <<'COUNCIL_FILE_prompts_reviewpack_design_checkpoint_md_EOF' || true
+# {{title}}
+
+Generated: {{generated_at}}
+
+Spec: {{spec_ref}}
+
+Locked by: {{locked_by}}
+
+## Section Index
+
+{{section_index}}
+
+## Vote Counts
+
+{{vote_counts}}
+
+## Vote Table
+
+{{vote_rows}}
+
+## Settled Ledger
+
+{{settled_ledger}}
+
+## Contested Ledger
+
+{{contested_ledger}}
+
+## Locked Spec
+
+{{locked_spec}}
+
+## Source Data
+
+```json
+{{raw_json}}
+```
+COUNCIL_FILE_prompts_reviewpack_design_checkpoint_md_EOF
 read -r -d '' COUNCIL_FILE_prompts_reviser_md <<'COUNCIL_FILE_prompts_reviser_md_EOF' || true
 You are {{engine_label}}. You wrote the plan below. A reviewer from a DIFFERENT
 model has critiqued it. Revise your plan to address every valid point —
@@ -3565,6 +3126,217 @@ schema:
 
 {{schema}}
 COUNCIL_FILE_prompts_reviser_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_story_author_md <<'COUNCIL_FILE_prompts_story_author_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/agents/sm.md and .bmad-core/tasks/create-next-story.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a precise story author. Convert the brief into a
+small, implementable engineering story grounded in the real repository.
+
+# Brief
+
+{{brief}}
+
+# Repository
+
+Read files in {{repo_root}} as needed. Validate paths, commands, APIs, schemas,
+and existing patterns against the actual codebase. Do not invent repository
+facts.
+
+# Your Job
+
+Write one story that a worker can implement without needing hidden context.
+Keep it narrow enough to verify independently. Include:
+
+- the user or operator value
+- exact acceptance criteria
+- implementation notes tied to real files and existing patterns
+- tests or validation commands that prove the story is complete
+- explicit out-of-scope items when they prevent accidental expansion
+
+If the brief is too large, choose the next smallest coherent slice and name the
+remaining slices separately.
+
+{{baseline}}
+
+# Constitution
+
+{{constitution}}
+
+# Output
+
+Return concise Markdown using the story template structure. Do not include
+speculation as fact; mark unresolved questions clearly.
+COUNCIL_FILE_prompts_story_author_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_story_check_md <<'COUNCIL_FILE_prompts_story_check_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/checklists/story-draft-checklist.md and .bmad-core/tasks/execute-checklist.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a story readiness reviewer. Treat the story as a work
+order that will be handed to an isolated implementation agent.
+
+# Brief
+
+{{brief}}
+
+# Story
+
+{{story}}
+
+# Repository
+
+Use {{repo_root}} to verify file paths, commands, and assumptions. A story that
+depends on invented facts is not ready.
+
+# Review Criteria
+
+Check whether the story:
+
+- states the user or operator value plainly
+- has acceptance criteria that are observable and testable
+- names real files, modules, commands, or config where implementation notes do
+  so
+- is small enough to implement independently
+- separates in-scope and out-of-scope work
+- includes meaningful validation that would fail if the story were incomplete
+- calls out dependencies, migrations, rollout concerns, or risks
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown with:
+
+- `READY:` yes or no
+- blocking issues, each with a concrete fix
+- non-blocking improvements, if any
+- the single most important change before implementation
+COUNCIL_FILE_prompts_story_check_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_story_template_md <<'COUNCIL_FILE_prompts_story_template_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/templates/story-tmpl.yaml per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+# Story: {{title}}
+
+## Status
+
+Draft
+
+## Goal
+
+{{goal}}
+
+## User Value
+
+As a {{actor}},
+I want {{capability}},
+so that {{outcome}}.
+
+## Context
+
+{{context}}
+
+## Acceptance Criteria
+
+1. {{acceptance_criterion_1}}
+2. {{acceptance_criterion_2}}
+3. {{acceptance_criterion_3}}
+
+## Scope
+
+In scope:
+- {{in_scope_item}}
+
+Out of scope:
+- {{out_of_scope_item}}
+
+## Implementation Notes
+
+- Files likely involved: {{files}}
+- Existing patterns to follow: {{patterns}}
+- Dependencies or sequencing: {{dependencies}}
+- Data, config, or migration considerations: {{data_config_migration}}
+
+## Tests
+
+- Unit: {{unit_tests}}
+- Integration: {{integration_tests}}
+- Manual or workflow: {{manual_tests}}
+
+## Definition of Done
+
+- Acceptance criteria are implemented and independently verifiable.
+- Tests or checks listed above pass.
+- User-facing behavior, docs, and config are updated only where required.
+- No unrelated files or behavior are changed.
+COUNCIL_FILE_prompts_story_template_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_survey_md <<'COUNCIL_FILE_prompts_survey_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/tasks/advanced-elicitation.md and .bmad-core/agents/analyst.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a discovery surveyor. Gather the facts needed to make
+a grounded decision without expanding scope.
+
+# Topic
+
+{{topic}}
+
+# Repository
+
+Inspect {{repo_root}} for existing behavior, patterns, ownership boundaries,
+and validation commands.
+
+# Your Job
+
+Survey the current state:
+
+- relevant files, modules, commands, schemas, and tests
+- current user or operator workflows
+- constraints from architecture, deployment, permissions, or data shape
+- prior art already present in the repository
+- unknowns that require human input or external information
+
+Distinguish observation from inference.
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown with facts, implications, unknowns, and recommended
+next decision.
+COUNCIL_FILE_prompts_survey_md_EOF
+read -r -d '' COUNCIL_FILE_prompts_triage_judge_md <<'COUNCIL_FILE_prompts_triage_judge_md_EOF' || true
+<!-- Provenance: adapted from .bmad-core/agents/po.md and .bmad-core/tasks/execute-checklist.md per bmad-source.lock (67f4499e); MIT, Copyright (c) 2025 BMad Code, LLC. -->
+You are {{engine_label}}, a neutral triage judge. Decide what should happen
+next based on evidence, constraints, and user value.
+
+# Objective
+
+{{objective}}
+
+# Items to Triage
+
+{{items}}
+
+# Evidence
+
+{{evidence}}
+
+# Repository
+
+Use {{repo_root}} to verify concrete repository claims when needed.
+
+# Your Job
+
+For each item, classify it as:
+
+- Do now: required to satisfy the objective or avoid unacceptable risk
+- Do later: valuable but not required for this objective
+- Drop: unsupported, duplicate, or outside scope
+- Needs input: blocked on a decision or fact not available in the repository
+
+Prefer the smallest set of do-now items that makes the outcome correct and
+reviewable.
+
+{{baseline}}
+
+# Output
+
+Return concise Markdown with the classification table, the final do-now list,
+blocked questions, and `DECISION:` proceed, proceed-with-fixes, or stop.
+COUNCIL_FILE_prompts_triage_judge_md_EOF
 read -r -d '' COUNCIL_FILE_prompts_verifier_md <<'COUNCIL_FILE_prompts_verifier_md_EOF' || true
 You are an ADVERSARIAL verifier. A worker claims to have completed the task
 below. Your job is to decide whether the diff ACTUALLY accomplishes the
@@ -3645,6 +3417,29 @@ End with a short plain-text summary: what you changed, in which files, and any
 caveat the orchestrator should know. This summary is read by the orchestrator,
 not a human — be terse and factual.
 COUNCIL_FILE_prompts_worker_md_EOF
+read -r -d '' COUNCIL_FILE_schemas_amendment_schema_json <<'COUNCIL_FILE_schemas_amendment_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-amendment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "summary"],
+  "properties": {
+    "id": { "type": "string" },
+    "summary": { "type": "string" },
+    "reason": { "type": "string" },
+    "status": { "type": "string" },
+    "task_refs": { "type": "array", "items": { "type": "string" } },
+    "supersedes": { "type": "array", "items": { "type": "string" } },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "discovered_from": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}
+COUNCIL_FILE_schemas_amendment_schema_json_EOF
 read -r -d '' COUNCIL_FILE_schemas_consolidated_schema_json <<'COUNCIL_FILE_schemas_consolidated_schema_json_EOF' || true
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -3652,6 +3447,14 @@ read -r -d '' COUNCIL_FILE_schemas_consolidated_schema_json <<'COUNCIL_FILE_sche
   "type": "object",
   "additionalProperties": false,
   "required": ["consolidated_plan_markdown", "tasks"],
+  "definitions": {
+    "taskId": {
+      "oneOf": [
+        { "type": "string", "pattern": "^T[0-9]+$" },
+        { "type": "string", "pattern": "^ck-[0-9a-f]{4,}$" }
+      ]
+    }
+  },
   "properties": {
     "consolidated_plan_markdown": { "type": "string" },
     "spec_markdown": { "type": "string" },
@@ -3682,14 +3485,31 @@ read -r -d '' COUNCIL_FILE_schemas_consolidated_schema_json <<'COUNCIL_FILE_sche
           "boundaries"
         ],
         "properties": {
-          "id": { "type": "string" },
+          "id": { "$ref": "#/definitions/taskId" },
           "title": { "type": "string" },
           "objective": { "type": "string" },
           "output_format": { "type": "string" },
           "paths": { "type": "array", "items": { "type": "string" } },
-          "depends_on": { "type": "array", "items": { "type": "string" } },
+          "depends_on": { "type": "array", "items": { "$ref": "#/definitions/taskId" } },
           "difficulty": { "type": "string", "enum": ["trivial", "moderate", "hard"] },
           "model": { "type": "string", "enum": ["haiku", "sonnet", "opus"] },
+          "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+          "success_criteria": { "type": "array", "items": { "type": "string" } },
+          "verify_proves": { "type": "array", "items": { "type": "string" } },
+          "failure_modes": { "type": "array", "items": { "type": "string" } },
+          "retry_policy": { "type": "object" },
+          "resource_profile": { "type": "object" },
+          "human_review_required": { "type": "boolean" },
+          "dev_notes": { "type": "string" },
+          "spec_ref": { "type": "string" },
+          "context_refs": { "type": "array", "items": { "type": "string" } },
+          "archetype": { "type": "string" },
+          "context_profile": { "type": "string" },
+          "discovered_from": { "type": "string" },
+          "supersedes": { "type": "array", "items": { "$ref": "#/definitions/taskId" } },
+          "content_hash": { "type": "string" },
+          "engine": {},
+          "model_tier": { "type": "string" },
           "verify": { "type": "string" },
           "boundaries": { "type": "string" }
         }
@@ -3698,6 +3518,94 @@ read -r -d '' COUNCIL_FILE_schemas_consolidated_schema_json <<'COUNCIL_FILE_sche
   }
 }
 COUNCIL_FILE_schemas_consolidated_schema_json_EOF
+read -r -d '' COUNCIL_FILE_schemas_context_pack_schema_json <<'COUNCIL_FILE_schemas_context_pack_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-context-pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary"],
+  "properties": {
+    "summary": { "type": "string" },
+    "refs": { "type": "array", "items": { "type": "string" } },
+    "files": { "type": "array", "items": { "type": "string" } },
+    "snippets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "text"],
+        "properties": {
+          "ref": { "type": "string" },
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "content_hash": { "type": "string" }
+        }
+      }
+    },
+    "profile": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}
+COUNCIL_FILE_schemas_context_pack_schema_json_EOF
+read -r -d '' COUNCIL_FILE_schemas_design_ledger_schema_json <<'COUNCIL_FILE_schemas_design_ledger_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-design-ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "decision"],
+        "properties": {
+          "id": { "type": "string" },
+          "decision": { "type": "string" },
+          "rationale": { "type": "string" },
+          "status": { "type": "string" },
+          "task_refs": { "type": "array", "items": { "type": "string" } },
+          "context_refs": { "type": "array", "items": { "type": "string" } },
+          "supersedes": { "type": "array", "items": { "type": "string" } },
+          "content_hash": { "type": "string" }
+        }
+      }
+    },
+    "content_hash": { "type": "string" }
+  }
+}
+COUNCIL_FILE_schemas_design_ledger_schema_json_EOF
+read -r -d '' COUNCIL_FILE_schemas_events_schema_json <<'COUNCIL_FILE_schemas_events_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-events",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["type"],
+    "properties": {
+      "type": { "type": "string" },
+      "run": { "type": "string" },
+      "task_id": { "type": "string" },
+      "stage": { "type": "string" },
+      "timestamp": { "type": "string" },
+      "message": { "type": "string" },
+      "data": {},
+      "engine": {},
+      "model_tier": { "type": "string" },
+      "content_hash": { "type": "string" }
+    }
+  }
+}
+COUNCIL_FILE_schemas_events_schema_json_EOF
 read -r -d '' COUNCIL_FILE_schemas_plan_schema_json <<'COUNCIL_FILE_schemas_plan_schema_json_EOF' || true
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -3718,10 +3626,83 @@ read -r -d '' COUNCIL_FILE_schemas_plan_schema_json <<'COUNCIL_FILE_schemas_plan
     "steps": { "type": "array", "items": { "type": "string" } },
     "risks": { "type": "array", "items": { "type": "string" } },
     "parallelizable_tasks": { "type": "array", "items": { "type": "string" } },
-    "open_questions": { "type": "array", "items": { "type": "string" } }
+    "open_questions": { "type": "array", "items": { "type": "string" } },
+    "dev_notes": { "type": "string" },
+    "spec_ref": { "type": "string" },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "archetype": { "type": "string" },
+    "context_profile": { "type": "string" },
+    "discovered_from": { "type": "string" },
+    "supersedes": { "type": "array", "items": { "type": "string" } },
+    "content_hash": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" }
   }
 }
 COUNCIL_FILE_schemas_plan_schema_json_EOF
+read -r -d '' COUNCIL_FILE_schemas_review_verdict_schema_json <<'COUNCIL_FILE_schemas_review_verdict_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-review-verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["satisfied", "reasons", "issues"],
+  "properties": {
+    "satisfied": { "type": "boolean" },
+    "reasons": { "type": "string" },
+    "issues": { "type": "array", "items": { "type": "string" } },
+    "task_id": { "type": "string" },
+    "reviewer": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}
+COUNCIL_FILE_schemas_review_verdict_schema_json_EOF
+read -r -d '' COUNCIL_FILE_schemas_routing_verdict_schema_json <<'COUNCIL_FILE_schemas_routing_verdict_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-routing-verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["route", "reasons"],
+  "properties": {
+    "route": { "type": "string" },
+    "reasons": { "type": "string" },
+    "task_id": { "type": "string" },
+    "candidate_routes": { "type": "array", "items": { "type": "string" } },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "content_hash": { "type": "string" }
+  }
+}
+COUNCIL_FILE_schemas_routing_verdict_schema_json_EOF
+read -r -d '' COUNCIL_FILE_schemas_run_state_schema_json <<'COUNCIL_FILE_schemas_run_state_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-run-state",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stage": { "type": "string" },
+    "intensity": { "type": "string" },
+    "rounds": { "type": "integer", "minimum": 0 },
+    "task_count": { "type": "integer", "minimum": 0 },
+    "spec_id": { "type": "string" },
+    "spec_slug": { "type": "string" },
+    "spec_relpath": { "type": "string" },
+    "agents": { "type": "array", "items": { "type": "string" } },
+    "integration_branch": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}
+COUNCIL_FILE_schemas_run_state_schema_json_EOF
 read -r -d '' COUNCIL_FILE_schemas_verdict_schema_json <<'COUNCIL_FILE_schemas_verdict_schema_json_EOF' || true
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -3732,267 +3713,464 @@ read -r -d '' COUNCIL_FILE_schemas_verdict_schema_json <<'COUNCIL_FILE_schemas_v
   "properties": {
     "satisfied": { "type": "boolean" },
     "reasons": { "type": "string" },
-    "issues": { "type": "array", "items": { "type": "string" } }
+    "issues": { "type": "array", "items": { "type": "string" } },
+    "task_id": { "type": "string" },
+    "dev_notes": { "type": "string" },
+    "spec_ref": { "type": "string" },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "content_hash": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" }
   }
 }
 COUNCIL_FILE_schemas_verdict_schema_json_EOF
+read -r -d '' COUNCIL_FILE_schemas_worker_result_schema_json <<'COUNCIL_FILE_schemas_worker_result_schema_json_EOF' || true
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-worker-result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "status"],
+  "properties": {
+    "task_id": { "type": "string" },
+    "title": { "type": "string" },
+    "model": { "type": "string" },
+    "suggested_model": { "type": "string", "enum": ["haiku", "sonnet", "opus"] },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "branch": { "type": "string" },
+    "worktree": { "type": "string" },
+    "committed": { "type": "boolean" },
+    "summary": { "type": "string" },
+    "files_changed": { "type": "array", "items": { "type": "string" } },
+    "out_of_bounds": { "type": "array", "items": { "type": "string" } },
+    "verify_rc": { "type": ["integer", "null"] },
+    "verify_output": { "type": "string" },
+    "verdict": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "satisfied": { "type": "boolean" },
+        "reasons": { "type": "string" },
+        "issues": { "type": "array", "items": { "type": "string" } },
+        "task_id": { "type": "string" },
+        "dev_notes": { "type": "string" },
+        "spec_ref": { "type": "string" },
+        "context_refs": { "type": "array", "items": { "type": "string" } },
+        "content_hash": { "type": "string" },
+        "engine": {},
+        "model_tier": { "type": "string" }
+      }
+    },
+    "merge": { "type": "string" },
+    "status": { "type": "string" },
+    "error": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}
+COUNCIL_FILE_schemas_worker_result_schema_json_EOF
 read -r -d '' COUNCIL_SKILL_claude <<'COUNCIL_SKILL_claude_EOF' || true
 ---
 name: council
-description: Orchestrate a large, decomposable problem across two model families — Claude and Codex plan it independently, cross-critique for two rounds, a judge consolidates one plan plus a parallel task DAG, then cheap workers fan out execution in isolated worktrees. Use for big parallelizable work; NOT for small or tightly-coupled/sequential changes (use a normal session for those).
+description: Orchestrate a large, decomposable problem across Claude and Codex with triage, cross-model planning, grill, design checkpoint, guarded fan-out, review council, and resumable status/tail. Use for big parallelizable work; NOT for small or tightly-coupled/sequential changes.
 ---
 
 # council
 
-A cross-model orchestrator for problems too big for one pass. The driver is
-`~/.claude/skills/council/council.py` (stdlib-only; shells out to `claude -p` and
-`codex exec`); inside the personal-stack repo it also lives at
-`platform/agents/council/council.py`. Your job around it is the human-facing
-part: clarify the brief and present the two checkpoints.
+A cross-model orchestrator for problems too big for one pass. The current driver
+is the installed TypeScript CLI, invoked through the `council` launcher or, if
+the launcher is not on `PATH`, the skill-local CLI under
+`~/.claude/skills/council`. It shells out to `claude -p` and `codex exec` and
+targets the repository of the current working directory.
 
-**Run it from the project you want council to work on** — it targets the
-repository of the current working directory, so a globally installed council
-orchestrates whatever repo you're in. It installs into `~/.claude/skills/council`
-(and `~/.codex/skills/council`) via the agent-kit installer
-(`curl …/install.sh | bash`); re-run that to upgrade.
+Your job around it is the human-facing part: clarify the brief, route small work
+away from council, present checkpoints, and keep the user in control of
+expensive fan-out.
 
-## When to use / when not
+Run it from the project you want council to work on. It installs into
+`~/.claude/skills/council` (and `~/.codex/skills/council`) via the agent-kit
+installer (`curl .../install.sh | bash`); re-run that to upgrade.
 
-- **Use it** when the work is large, decomposes into independent parallel
-  pieces, and is worth the spend (multi-agent runs roughly 15x the tokens of a
-  single chat).
-- **Do not use it** for small changes, or for tightly-coupled / sequential work
-  where every step depends on the last — multi-agent *hurts* there. Just do
-  those in a normal session.
+## When To Use
 
-## The loop
+- Use it when the work is large, decomposes into independent parallel pieces,
+  and is worth the spend.
+- Do not use it for small changes, or for tightly-coupled / sequential work
+  where every step depends on the last. Handle those in a normal session.
 
-1. **Clarify (you → user).** Read the request. If scope, constraints,
-   definition-of-done, or the repo area are ambiguous, ask 2-3 targeted
-   questions with `AskUserQuestion`. Skip if already clear. Write the result to
-   a `brief.md`.
-2. **Plan (council.py).** Run the `plan` phase — two independent plans, two
-   cross-critique rounds, one consolidation:
+## The Loop
+
+1. Clarify. If scope, constraints, definition of done, or repo area are
+   ambiguous, ask 2-3 targeted questions with `AskUserQuestion`; otherwise
+   skip. Write the result to `brief.md`.
+2. Start council with the TypeScript CLI:
    ```bash
-   python3 ~/.claude/skills/council/council.py plan --brief brief.md
+   council run --brief brief.md
    ```
-   It prints the run dir. (`--estimate` first if you want the call count.)
-3. **Checkpoint 1 (you → user).** Show the user `consolidated_plan.md` and the
-   `tasks.json` DAG from the run dir. Let them approve or edit before any fan-out
-   spend. This is the cheap gate before the expensive wave.
-4. **Fan out (council.py).** On approval:
+   If the shell shim is unavailable, use the installed skill-local CLI:
    ```bash
-   python3 ~/.claude/skills/council/council.py fanout --run <run-dir>
+   node ~/.claude/skills/council/council.mjs run --brief brief.md
    ```
-   Cheap workers execute the DAG in isolated worktrees; results land on a
-   `council/<run>/integration` branch. Your working branch is untouched.
-5. **Checkpoint 2 (you → user).** Present `report.md`: what merged, what failed,
-   the integration branch to review. Collect feedback; re-loop into `plan` or
-   re-run specific tasks as needed.
+   Use `--estimate` before a run when the user wants the call count and rough
+   cost envelope.
+3. Triage routing. Council first classifies the brief as `normal-session`,
+   `plan-only`, `fleet`, or `full-council`. If it routes to `normal-session`,
+   stop the run and handle the task in the current chat. If it routes to
+   `plan-only`, present the design without fan-out unless the user asks to
+   continue.
+4. Context packs. Before model calls, council builds bounded context packs for
+   each role: brief, relevant files, repo rules, prior artifacts, task
+   boundaries, and review-pack requirements. Treat those packs as the source of
+   truth for what each sub-agent was allowed to use.
+5. Plan, critique, and grill. Independent Claude and Codex planners produce
+   plans, cross-critique rounds refine them, and the grill step stress-tests the
+   design for missing dependencies, unsafe parallelism, unclear ownership,
+   validation gaps, and rollback/recovery risk.
+6. Design checkpoint. Council stops before fan-out with `design.md`,
+   `grill.md`, `consolidated_plan.md`, and `tasks.json`. Show the user the
+   recommended route, risks, task DAG, affected areas, expected spend, and the
+   command printed by the CLI to resume. Do not fan out without approval.
+7. Fan out on approval. Workers execute DAG tasks in isolated worktrees. The
+   watchdog monitors stalled workers, missing heartbeats, out-of-bounds edits,
+   and verification timeouts, then marks tasks for retry or review instead of
+   silently continuing.
+8. Monitor progress:
+   ```bash
+   council status --run <run-id>
+   council tail --run <run-id> --follow
+   ```
+   `status` is for a compact run summary; `tail` is for live worker, watchdog,
+   review, and GitHub-mirror events.
+9. Review-pack gate. Every completed task must produce a review pack with the
+   objective, allowed files, changed files, diff summary, verification output,
+   residual risks, and follow-up notes. Tasks without a valid review pack do not
+   pass the gate.
+10. Review council. Reviewers inspect the review packs and diffs, then return
+    `accept`, `fix`, or `reject`. Accepted work is reconciled onto the
+    integration branch; rejected or fix-required tasks stay out and are reported
+    with their reason.
+11. GitHub mirroring. When enabled, council mirrors run state, task status,
+    review packs, and review-council outcomes to GitHub issues, PR comments, or
+    checks. The local run directory remains canonical; GitHub is a visibility
+    mirror, not the source of truth.
+12. Final checkpoint. Present `report.md`: what merged, what failed, which
+    review packs were accepted, which tasks need another pass, and the
+    integration branch to inspect. Re-loop into design, retry selected tasks, or
+    close the council run.
 
-## Controlling models & intensity
-
-Council is driven by an **intensity preset** plus optional **per-role
-overrides**, stored in `platform/agents/council/council.toml`. Manage it
-conversationally — when the user says "use thorough intensity" or "switch the
-planners to sonnet", translate to a flag or a `config` command:
-
-| preset | rounds | codex effort | workers | max workers |
-|---|---|---|---|---|
-| `quick` | 1 | low | haiku | 4 |
-| `standard` (default) | 2 | high | haiku | 6 |
-| `thorough` | 3 | high | sonnet | 6 |
-| `max` | 3 | xhigh | sonnet | 8 |
-
-```bash
-# one-off for this run:
-python3 ~/.claude/skills/council/council.py plan --brief brief.md --intensity thorough
-python3 ~/.claude/skills/council/council.py fanout --run <dir> --worker claude:sonnet
-
-# persist defaults (edits council.toml):
-python3 ~/.claude/skills/council/council.py config show
-python3 ~/.claude/skills/council/council.py config set intensity thorough
-python3 ~/.claude/skills/council/council.py config set planner_b codex:gpt-5.5
-python3 ~/.claude/skills/council/council.py config unset worker
-```
-
-Per-role override flags: `--intensity`, `--rounds`, `--planner-a`, `--planner-b`,
-`--consolidator`, `--worker`, `--verifier`, `--codex-effort`, `--max-workers`.
-Precedence: intensity preset < `council.toml` < CLI flag. Every role — workers
-included — can be `claude:<model>` or `codex:<model>`, so a run can mix engines.
-
-## Fleet — ad-hoc, engine-agnostic worker pool
-
-`fleet` runs an existing task DAG against a declared pool of agents on either
-CLI, skipping the plan phase. Point it at any `tasks.json`, give it a pool, and
-tasks are round-robined across the pool, then verified and reconciled exactly
-like `fanout` (isolated worktrees, integration branch, your branch untouched).
-
-```bash
-python3 ~/.claude/skills/council/council.py fleet \
-  --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
-python3 ~/.claude/skills/council/council.py fleet \
-  --tasks tasks.json --agents 'claude:haiku*4' --estimate
-```
-
-The `--agents` spec is comma-separated `cli:model[*count]` entries (count
-defaults to 1). Use it to drive a mixed Claude+Codex fleet over a big,
-already-decomposed batch — e.g. cross-agent cleanups managed from either CLI.
-
-## split — extract a subtree into a new repo
-
-`split` carves a path out of the current repo into a brand-new GitHub repo with
-that path's history preserved (`git subtree split`). It works on a throwaway
-`council/split/<name>` branch and never touches your working branch.
+## Commands
 
 ```bash
-# preview the exact commands, touch nothing:
-python3 ~/.claude/skills/council/council.py split \
-  --path services/foo --dest myorg/foo --dry-run
-# extract, create the (private) remote, push:
-python3 ~/.claude/skills/council/council.py split --path services/foo --dest myorg/foo
-# extract to a local branch only; push it yourself later:
-python3 ~/.claude/skills/council/council.py split --path services/foo --dest myorg/foo --no-push
+council run --brief brief.md --preset standard
+council run --brief brief.md --estimate
+council resume --run <run-id>
+council status --run <run-id>
+council tail --run <run-id> --follow
+council config show
+council config set preset thorough
 ```
 
-`--visibility public` makes the new repo public. After extracting, it prints how
-to optionally replace the in-repo copy with a submodule in a separate change.
-The GitHub App must be installed on the destination owner for the push to
-authenticate.
+`run` owns the normal triage -> design checkpoint -> fan-out -> review council
+loop. `resume` continues from the latest checkpoint or interrupted stage. Use
+the exact resume command printed by the CLI when a run stops at a gate.
+
+## Config Knobs
+
+Council is driven by a preset plus optional per-role and per-gate overrides in
+`council.toml` and project-local `./.council.toml`. Precedence is:
+preset defaults < user `council.toml` < project `./.council.toml` < CLI flags.
+
+| preset | rounds | codex effort | worker | max workers | review council |
+|---|---:|---|---|---:|---|
+| `quick` | 1 | low | claude:haiku | 4 | single reviewer |
+| `standard` (default) | 2 | high | claude:haiku | 6 | two reviewers |
+| `thorough` | 3 | high | claude:sonnet | 6 | two reviewers + grill retry |
+| `max` | 3 | xhigh | claude:sonnet | 8 | three reviewers + grill retry |
+
+Core role knobs:
+`triager`, `planner_a`, `planner_b`, `critic_a`, `critic_b`, `griller`,
+`designer`, `worker`, `watchdog`, `reviewer`, `verifier`.
+
+Execution knobs:
+`preset`, `rounds`, `codex_effort`, `max_workers`, `worker_timeout_s`,
+`watchdog_interval_s`, `retry_limit`, `status_tail_lines`.
+
+Gate and visibility knobs:
+`design_checkpoint`, `require_context_pack`, `require_review_pack`,
+`review_council`, `github_mirror`, `github_mirror_target`.
+
+Context-pack knobs:
+`context_pack_budget`, `context_pack_max_files`, `context_pack_include_tests`,
+`review_pack_max_bytes`.
+
+Unset role and gate keys inherit from the selected preset. Keep GitHub mirroring
+off unless the user asks for it or the repository convention requires it.
+
+## Fleet
+
+Use `fleet` when the task DAG already exists and no plan/grill/design phase is
+needed:
+
+```bash
+council fleet --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
+council fleet --tasks tasks.json --agents 'claude:haiku*4' --estimate
+```
+
+The same context-pack, watchdog, review-pack, review-council, and GitHub mirror
+gates apply.
+
+## split
+
+`split` carves a path out of the current repo into a new GitHub repo with that
+path's history preserved, on a throwaway branch; the working branch is
+untouched.
+
+```bash
+council split --path services/foo --dest myorg/foo --dry-run
+council split --path services/foo --dest myorg/foo
+```
+
+`--no-push` stops at the local branch; `--visibility public` creates a public
+repo. The GitHub App must be installed on the destination owner for the push.
+
+## Phase 2 Roadmap
+
+- Council board: persistent board view for runs, lanes, task state, blockers,
+  review decisions, and integration status.
+- ACP adapter: expose the same run, status, tail, checkpoint, and review-pack
+  workflow through the Agent Client Protocol.
+- Self-hosted engine profile: preset family for local or privately hosted model
+  endpoints, with the same role, watchdog, and gate semantics.
 
 ## Notes
 
-- Both `claude` and `codex` CLIs must be authenticated.
-- Runs are resumable: stages are idempotent on their output files; re-run with
-  `--run <dir>` to continue.
-- Full design and rationale: `docs/private/council-orchestrator-design.md`.
+- Both `claude` and `codex` CLIs must be installed and authenticated.
+- Runs are resumable; use `council status` to find the latest gate and `council
+  resume` to continue.
+- Do not edit worker worktrees by hand. Feed fixes back through retry, review
+  council, or a new council run.
 COUNCIL_SKILL_claude_EOF
 read -r -d '' COUNCIL_SKILL_codex <<'COUNCIL_SKILL_codex_EOF' || true
 ---
 name: council
-description: Orchestrate a large, decomposable problem across two model families — Codex and Claude plan it independently, cross-critique for two rounds, a judge consolidates one plan plus a parallel task DAG, then cheap workers fan out execution in isolated worktrees. Use for big parallelizable work, not for small or tightly-coupled sequential changes.
+description: Orchestrate a large, decomposable problem across Codex and Claude with triage, cross-model planning, grill, design checkpoint, guarded fan-out, review council, and resumable status/tail. Use for big parallelizable work, not for small or tightly-coupled sequential changes.
 ---
 
 # council
 
-A cross-model orchestrator for problems too big for one pass. The driver is
-`~/.codex/skills/council/council.py` (stdlib-only; shells out to `codex exec`
-and `claude -p`); inside the personal-stack repo it also lives at
-`platform/agents/council/council.py`. Around it, you handle the human-facing
-part: clarify the brief and present the two checkpoints.
+A cross-model orchestrator for problems too big for one pass. The current driver
+is the installed TypeScript CLI, invoked through the `council` launcher or, if
+the launcher is not on `PATH`, the skill-local CLI under
+`~/.codex/skills/council`. It shells out to `codex exec` and `claude -p` and
+targets the repository of the current working directory.
 
-Run it from the project you want council to work on — it targets the repository
-of the current working directory. It installs into `~/.codex/skills/council`
-(and `~/.claude/skills/council`) via the agent-kit installer
-(`curl …/install.sh | bash`); re-run that to upgrade.
+Your job around it is still the human-facing part: clarify the brief, route
+small work away from council, present checkpoints, and keep the user in control
+of expensive fan-out.
+
+Run it from the project you want council to work on. It installs into
+`~/.codex/skills/council` (and `~/.claude/skills/council`) via the agent-kit
+installer (`curl .../install.sh | bash`); re-run that to upgrade.
 
 Use it for large work that decomposes into independent parallel pieces and is
-worth the spend (multi-agent uses roughly 15x the tokens of a single chat). Do
-not use it for small or tightly-coupled, sequential work — handle those in a
-normal session.
+worth the spend. Do not use it for small changes, tightly-coupled changes, or
+work where every step depends on the last.
 
-Loop:
+## The Loop
 
 1. Clarify. If scope, constraints, definition of done, or repo area are
    ambiguous, ask the user 2-3 targeted questions; otherwise skip. Write the
    result to `brief.md`.
-2. Plan:
+2. Start council with the TypeScript CLI:
    ```bash
-   python3 ~/.codex/skills/council/council.py plan --brief brief.md
+   council run --brief brief.md
    ```
-   Two independent plans, two cross-critique rounds, one consolidation. Prints
-   the run dir. Use `--estimate` for the call count first.
-3. Checkpoint 1: show the user `consolidated_plan.md` and the `tasks.json` DAG
-   from the run dir. Get approval or edits before any fan-out spend.
-4. Fan out, on approval:
+   If the shell shim is unavailable, use the installed skill-local CLI:
    ```bash
-   python3 ~/.codex/skills/council/council.py fanout --run <run-dir>
+   node ~/.codex/skills/council/council.mjs run --brief brief.md
    ```
-   Cheap workers execute the DAG in isolated worktrees; results land on a
-   `council/<run>/integration` branch. The working branch is untouched.
-5. Checkpoint 2: present `report.md` — what merged, what failed, the integration
-   branch to review. Collect feedback; re-loop into `plan` or re-run tasks.
+   Use `--estimate` before a run when the user wants the call count and rough
+   cost envelope.
+3. Triage routing. Council first classifies the brief as `normal-session`,
+   `plan-only`, `fleet`, or `full-council`. If it routes to `normal-session`,
+   stop the run and handle the task in the current chat. If it routes to
+   `plan-only`, present the design without fan-out unless the user asks to
+   continue.
+4. Context packs. Before model calls, council builds bounded context packs for
+   each role: brief, relevant files, repo rules, prior artifacts, task
+   boundaries, and review-pack requirements. Treat those packs as the source of
+   truth for what each sub-agent was allowed to use.
+5. Plan, critique, and grill. Independent Codex and Claude planners produce
+   plans, cross-critique rounds refine them, and the grill step stress-tests the
+   design for missing dependencies, unsafe parallelism, unclear ownership,
+   validation gaps, and rollback/recovery risk.
+6. Design checkpoint. Council stops before fan-out with `design.md`,
+   `grill.md`, `consolidated_plan.md`, and `tasks.json`. Show the user the
+   recommended route, risks, task DAG, affected areas, expected spend, and the
+   command printed by the CLI to resume. Do not fan out without approval.
+7. Fan out on approval. Workers execute DAG tasks in isolated worktrees. The
+   watchdog monitors stalled workers, missing heartbeats, out-of-bounds edits,
+   and verification timeouts, then marks tasks for retry or review instead of
+   silently continuing.
+8. Monitor progress:
+   ```bash
+   council status --run <run-id>
+   council tail --run <run-id> --follow
+   ```
+   `status` is for a compact run summary; `tail` is for live worker, watchdog,
+   review, and GitHub-mirror events.
+9. Review-pack gate. Every completed task must produce a review pack with the
+   objective, allowed files, changed files, diff summary, verification output,
+   residual risks, and follow-up notes. Tasks without a valid review pack do not
+   pass the gate.
+10. Review council. Reviewers inspect the review packs and diffs, then return
+    `accept`, `fix`, or `reject`. Accepted work is reconciled onto the
+    integration branch; rejected or fix-required tasks stay out and are reported
+    with their reason.
+11. GitHub mirroring. When enabled, council mirrors run state, task status,
+    review packs, and review-council outcomes to GitHub issues, PR comments, or
+    checks. The local run directory remains canonical; GitHub is a visibility
+    mirror, not the source of truth.
+12. Final checkpoint. Present `report.md`: what merged, what failed, which
+    review packs were accepted, which tasks need another pass, and the
+    integration branch to inspect. Re-loop into design, retry selected tasks, or
+    close the council run.
 
-## Controlling models & intensity
-
-Council is driven by an intensity preset plus optional per-role overrides in
-`platform/agents/council/council.toml`. Manage it conversationally — translate
-"use thorough intensity" or "switch planners to sonnet" into a flag or a
-`config` command.
-
-| preset | rounds | codex effort | workers | max workers |
-|---|---|---|---|---|
-| quick | 1 | low | haiku | 4 |
-| standard (default) | 2 | high | haiku | 6 |
-| thorough | 3 | high | sonnet | 6 |
-| max | 3 | xhigh | sonnet | 8 |
+## Commands
 
 ```bash
-# one-off:
-python3 ~/.codex/skills/council/council.py plan --brief brief.md --intensity thorough
-python3 ~/.codex/skills/council/council.py fanout --run <dir> --worker claude:sonnet
-# persist (edits council.toml):
-python3 ~/.codex/skills/council/council.py config show
-python3 ~/.codex/skills/council/council.py config set intensity thorough
-python3 ~/.codex/skills/council/council.py config set planner_b codex:gpt-5.5
+council run --brief brief.md --preset standard
+council run --brief brief.md --estimate
+council resume --run <run-id>
+council status --run <run-id>
+council tail --run <run-id> --follow
+council config show
+council config set preset thorough
 ```
 
-Override flags: `--intensity`, `--rounds`, `--planner-a`, `--planner-b`,
-`--consolidator`, `--worker`, `--verifier`, `--codex-effort`, `--max-workers`.
-Precedence: preset < council.toml < CLI flag. Every role, workers included, can
-be `codex:<model>` or `claude:<model>`, so a run can mix engines.
+`run` owns the normal triage -> design checkpoint -> fan-out -> review council
+loop. `resume` continues from the latest checkpoint or interrupted stage. Use
+the exact resume command printed by the CLI when a run stops at a gate.
 
-## Fleet — ad-hoc, engine-agnostic worker pool
+## Config Knobs
 
-`fleet` runs an existing task DAG against a declared pool of agents on either
-CLI, with no plan phase. Point it at any `tasks.json` and a pool; tasks are
-round-robined across the pool, then verified and reconciled like `fanout`.
+Council is driven by a preset plus optional per-role and per-gate overrides in
+`council.toml` and project-local `./.council.toml`. Precedence is:
+preset defaults < user `council.toml` < project `./.council.toml` < CLI flags.
+
+| preset | rounds | codex effort | worker | max workers | review council |
+|---|---:|---|---|---:|---|
+| `quick` | 1 | low | claude:haiku | 4 | single reviewer |
+| `standard` (default) | 2 | high | claude:haiku | 6 | two reviewers |
+| `thorough` | 3 | high | claude:sonnet | 6 | two reviewers + grill retry |
+| `max` | 3 | xhigh | claude:sonnet | 8 | three reviewers + grill retry |
+
+Core role knobs:
+`triager`, `planner_a`, `planner_b`, `critic_a`, `critic_b`, `griller`,
+`designer`, `worker`, `watchdog`, `reviewer`, `verifier`.
+
+Execution knobs:
+`preset`, `rounds`, `codex_effort`, `max_workers`, `worker_timeout_s`,
+`watchdog_interval_s`, `retry_limit`, `status_tail_lines`.
+
+Gate and visibility knobs:
+`design_checkpoint`, `require_context_pack`, `require_review_pack`,
+`review_council`, `github_mirror`, `github_mirror_target`.
+
+Context-pack knobs:
+`context_pack_budget`, `context_pack_max_files`, `context_pack_include_tests`,
+`review_pack_max_bytes`.
+
+Unset role and gate keys inherit from the selected preset. Keep GitHub mirroring
+off unless the user asks for it or the repository convention requires it.
+
+## Fleet
+
+Use `fleet` when the task DAG already exists and no plan/grill/design phase is
+needed:
 
 ```bash
-python3 ~/.codex/skills/council/council.py fleet \
-  --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
-python3 ~/.codex/skills/council/council.py fleet \
-  --tasks tasks.json --agents 'codex:gpt-5.5*4' --estimate
+council fleet --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
+council fleet --tasks tasks.json --agents 'codex:gpt-5.5*4' --estimate
 ```
 
-The `--agents` spec is comma-separated `cli:model[*count]` entries (count
-defaults to 1) — a mixed Codex+Claude fleet over an already-decomposed batch.
+The same context-pack, watchdog, review-pack, review-council, and GitHub mirror
+gates apply.
 
-## split — extract a subtree into a new repo
+## split
 
 `split` carves a path out of the current repo into a new GitHub repo with that
-path's history preserved (`git subtree split`), on a throwaway
-`council/split/<name>` branch; the working branch is untouched.
+path's history preserved, on a throwaway branch; the working branch is
+untouched.
 
 ```bash
-python3 ~/.codex/skills/council/council.py split \
-  --path services/foo --dest myorg/foo --dry-run
-python3 ~/.codex/skills/council/council.py split --path services/foo --dest myorg/foo
+council split --path services/foo --dest myorg/foo --dry-run
+council split --path services/foo --dest myorg/foo
 ```
 
-`--no-push` stops at the local branch; `--visibility public` for a public repo.
-The GitHub App must be installed on the destination owner for the push.
+`--no-push` stops at the local branch; `--visibility public` creates a public
+repo. The GitHub App must be installed on the destination owner for the push.
 
-Notes:
+## Phase 2 Roadmap
 
-- Both `codex` and `claude` CLIs must be authenticated.
-- Runs are resumable: stages are idempotent on their output files; re-run with
-  `--run <dir>`.
-- Full design: `docs/private/council-orchestrator-design.md`.
+- Council board: persistent board view for runs, lanes, task state, blockers,
+  review decisions, and integration status.
+- ACP adapter: expose the same run, status, tail, checkpoint, and review-pack
+  workflow through the Agent Client Protocol.
+- Self-hosted engine profile: preset family for local or privately hosted model
+  endpoints, with the same role, watchdog, and gate semantics.
+
+## Notes
+
+- Both `codex` and `claude` CLIs must be installed and authenticated.
+- Runs are resumable; use `council status` to find the latest gate and `council
+  resume` to continue.
+- Do not edit worker worktrees by hand. Feed fixes back through retry, review
+  council, or a new council run.
 COUNCIL_SKILL_codex_EOF
 install_council() {
   local dir="$1" skill="$2"
-  write_file "${dir}/council/council.py" 0755 "${COUNCIL_FILE_council_py}"
+  write_file "${dir}/council/council.mjs" 0755 "${COUNCIL_FILE_council_mjs}"
   write_file "${dir}/council/prompts/_baseline.md" 0644 "${COUNCIL_FILE_prompts__baseline_md}"
   write_file "${dir}/council/prompts/consolidator.md" 0644 "${COUNCIL_FILE_prompts_consolidator_md}"
+  write_file "${dir}/council/prompts/correct_course.md" 0644 "${COUNCIL_FILE_prompts_correct_course_md}"
   write_file "${dir}/council/prompts/critic.md" 0644 "${COUNCIL_FILE_prompts_critic_md}"
+  write_file "${dir}/council/prompts/design_consolidator.md" 0644 "${COUNCIL_FILE_prompts_design_consolidator_md}"
+  write_file "${dir}/council/prompts/design_lens.md" 0644 "${COUNCIL_FILE_prompts_design_lens_md}"
+  write_file "${dir}/council/prompts/design_vote.md" 0644 "${COUNCIL_FILE_prompts_design_vote_md}"
+  write_file "${dir}/council/prompts/designer.md" 0644 "${COUNCIL_FILE_prompts_designer_md}"
+  write_file "${dir}/council/prompts/grill.md" 0644 "${COUNCIL_FILE_prompts_grill_md}"
   write_file "${dir}/council/prompts/planner.md" 0644 "${COUNCIL_FILE_prompts_planner_md}"
+  write_file "${dir}/council/prompts/review_triage.md" 0644 "${COUNCIL_FILE_prompts_review_triage_md}"
+  write_file "${dir}/council/prompts/reviewer_acceptance.md" 0644 "${COUNCIL_FILE_prompts_reviewer_acceptance_md}"
+  write_file "${dir}/council/prompts/reviewer_adversarial.md" 0644 "${COUNCIL_FILE_prompts_reviewer_adversarial_md}"
+  write_file "${dir}/council/prompts/reviewer_edgecase.md" 0644 "${COUNCIL_FILE_prompts_reviewer_edgecase_md}"
+  write_file "${dir}/council/prompts/reviewpack/checkpoint-1.html" 0644 "${COUNCIL_FILE_prompts_reviewpack_checkpoint_1_html}"
+  write_file "${dir}/council/prompts/reviewpack/checkpoint-1.md" 0644 "${COUNCIL_FILE_prompts_reviewpack_checkpoint_1_md}"
+  write_file "${dir}/council/prompts/reviewpack/checkpoint-2.html" 0644 "${COUNCIL_FILE_prompts_reviewpack_checkpoint_2_html}"
+  write_file "${dir}/council/prompts/reviewpack/checkpoint-2.md" 0644 "${COUNCIL_FILE_prompts_reviewpack_checkpoint_2_md}"
+  write_file "${dir}/council/prompts/reviewpack/design-checkpoint.html" 0644 "${COUNCIL_FILE_prompts_reviewpack_design_checkpoint_html}"
+  write_file "${dir}/council/prompts/reviewpack/design-checkpoint.md" 0644 "${COUNCIL_FILE_prompts_reviewpack_design_checkpoint_md}"
   write_file "${dir}/council/prompts/reviser.md" 0644 "${COUNCIL_FILE_prompts_reviser_md}"
+  write_file "${dir}/council/prompts/story_author.md" 0644 "${COUNCIL_FILE_prompts_story_author_md}"
+  write_file "${dir}/council/prompts/story_check.md" 0644 "${COUNCIL_FILE_prompts_story_check_md}"
+  write_file "${dir}/council/prompts/story_template.md" 0644 "${COUNCIL_FILE_prompts_story_template_md}"
+  write_file "${dir}/council/prompts/survey.md" 0644 "${COUNCIL_FILE_prompts_survey_md}"
+  write_file "${dir}/council/prompts/triage_judge.md" 0644 "${COUNCIL_FILE_prompts_triage_judge_md}"
   write_file "${dir}/council/prompts/verifier.md" 0644 "${COUNCIL_FILE_prompts_verifier_md}"
   write_file "${dir}/council/prompts/worker.md" 0644 "${COUNCIL_FILE_prompts_worker_md}"
+  write_file "${dir}/council/schemas/amendment.schema.json" 0644 "${COUNCIL_FILE_schemas_amendment_schema_json}"
   write_file "${dir}/council/schemas/consolidated.schema.json" 0644 "${COUNCIL_FILE_schemas_consolidated_schema_json}"
+  write_file "${dir}/council/schemas/context-pack.schema.json" 0644 "${COUNCIL_FILE_schemas_context_pack_schema_json}"
+  write_file "${dir}/council/schemas/design-ledger.schema.json" 0644 "${COUNCIL_FILE_schemas_design_ledger_schema_json}"
+  write_file "${dir}/council/schemas/events.schema.json" 0644 "${COUNCIL_FILE_schemas_events_schema_json}"
   write_file "${dir}/council/schemas/plan.schema.json" 0644 "${COUNCIL_FILE_schemas_plan_schema_json}"
+  write_file "${dir}/council/schemas/review-verdict.schema.json" 0644 "${COUNCIL_FILE_schemas_review_verdict_schema_json}"
+  write_file "${dir}/council/schemas/routing-verdict.schema.json" 0644 "${COUNCIL_FILE_schemas_routing_verdict_schema_json}"
+  write_file "${dir}/council/schemas/run-state.schema.json" 0644 "${COUNCIL_FILE_schemas_run_state_schema_json}"
   write_file "${dir}/council/schemas/verdict.schema.json" 0644 "${COUNCIL_FILE_schemas_verdict_schema_json}"
+  write_file "${dir}/council/schemas/worker-result.schema.json" 0644 "${COUNCIL_FILE_schemas_worker_result_schema_json}"
   write_file "${dir}/council/SKILL.md" 0644 "$skill"
   if [ ! -e "${dir}/council/council.toml" ]; then
     write_file "${dir}/council/council.toml" 0644 "${COUNCIL_FILE_council_toml}"
@@ -4168,11 +4346,29 @@ marker="${STATE_DIR}/sessions/${session}/edit-$(printf '%s' "${file_path}" | sha
 [ -e "${marker}" ] && exit 0
 : > "${marker}"
 
-# Scope to the current repo and query by filename + parent + path; this
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+# Scope to a canonical GitHub repo and query by filename + parent + path; this
 # keeps automatic edit recall focused while still giving FTS enough terms.
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-scope="${KB_RECALL_SCOPE:-project:${project}}"
+repo_scope="$(canonical_project_scope_from_origin)"
+scope="${KB_RECALL_SCOPE:-${repo_scope}}"
 
 basename=$(basename "${file_path}")
 parent=$(basename "$(dirname "${file_path}")")
@@ -4316,11 +4512,26 @@ if not m: sys.exit(0)
 print(m.group(2) or m.group(3) or "", end="")' 2>/dev/null)
 [ -z "${title}" ] && exit 0
 
-# Scope: project:<repo-name> from origin URL, mirrors the
-# SessionStart hook's convention.
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-scope="project:${project}"
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+scope="$(canonical_project_scope_from_origin)"
 
 body=$(cat <<BODY
 Commit message: ${title}
@@ -4331,15 +4542,18 @@ BODY
 )
 
 source="${KB_AUTO_MCP_SOURCE:-claude-code:auto-capture:git-commit}"
-payload=$(python3 -c 'import json,sys; print(json.dumps({
+payload=$(python3 -c 'import json,sys
+args = {
+  "title": sys.argv[1],
+  "body": sys.argv[2],
+  "source": sys.argv[4],
+  "tags": ["auto-capture","git-commit"]
+}
+if sys.argv[3]:
+    args["scope"] = sys.argv[3]
+print(json.dumps({
   "jsonrpc":"2.0","id":1,"method":"tools/call","params":{
-    "name":"knowledge.capture_decision","arguments":{
-      "title": sys.argv[1],
-      "body": sys.argv[2],
-      "scope": sys.argv[3],
-      "source": sys.argv[4],
-      "tags": ["auto-capture","git-commit"]
-    }}}))' "${title}" "${body}" "${scope}" "${source}")
+    "name":"knowledge.capture_decision","arguments":args}}))' "${title}" "${body}" "${scope}" "${source}")
 
 curl -sS --connect-timeout 3 --max-time 5 \
   -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
@@ -4459,9 +4673,26 @@ except Exception:
     print("[]")
 ' 2>/dev/null || echo "[]")"
 
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-fallback_scope="project:${project}"
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+fallback_scope="$(canonical_project_scope_from_origin)"
 emitted=0
 
 while IFS= read -r line; do
@@ -4494,15 +4725,19 @@ except Exception:
 
   scope="${fallback_scope}"
   [ -n "${topic}" ] && scope="topic:${topic}"
-  capture_payload="$(python3 -c 'import json,sys; print(json.dumps({
+  capture_payload="$(python3 -c 'import json,sys
+args = {
+    "title": sys.argv[1],
+    "body": sys.argv[2],
+    "source": "claude-code:auto-digest:" + sys.argv[4],
+    "session_id": sys.argv[4],
+    "tags": json.loads(sys.argv[5])
+}
+if sys.argv[3]:
+    args["scope"] = sys.argv[3]
+print(json.dumps({
     "jsonrpc":"2.0","id":1,"method":"tools/call","params":{
-      "name":"knowledge.capture_lesson","arguments":{
-        "title": sys.argv[1],
-        "body": sys.argv[2],
-        "scope": sys.argv[3],
-        "source": "claude-code:auto-digest:" + sys.argv[4],
-        "session_id": sys.argv[4],
-        "tags": json.loads(sys.argv[5])}}}))' \
+      "name":"knowledge.capture_lesson","arguments":args}}))' \
     "${title}" "${body}" "${scope}" "${session}" "${tags_json}")"
   curl -sS --connect-timeout 3 --max-time 10 \
     -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
@@ -4635,9 +4870,26 @@ except Exception:
     print("[]")
 ' 2>/dev/null || echo "[]")"
 
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-fallback_scope="project:${project}"
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+fallback_scope="$(canonical_project_scope_from_origin)"
 emitted=0
 
 while IFS= read -r line; do
@@ -4670,15 +4922,19 @@ except Exception:
 
   scope="${fallback_scope}"
   [ -n "${topic}" ] && scope="topic:${topic}"
-  capture_payload="$(python3 -c 'import json,sys; print(json.dumps({
+  capture_payload="$(python3 -c 'import json,sys
+args = {
+    "title": sys.argv[1],
+    "body": sys.argv[2],
+    "source": "codex:auto-digest:" + sys.argv[4],
+    "session_id": sys.argv[4],
+    "tags": json.loads(sys.argv[5])
+}
+if sys.argv[3]:
+    args["scope"] = sys.argv[3]
+print(json.dumps({
     "jsonrpc":"2.0","id":1,"method":"tools/call","params":{
-      "name":"knowledge.capture_lesson","arguments":{
-        "title": sys.argv[1],
-        "body": sys.argv[2],
-        "scope": sys.argv[3],
-        "source": "codex:auto-digest:" + sys.argv[4],
-        "session_id": sys.argv[4],
-        "tags": json.loads(sys.argv[5])}}}))' \
+      "name":"knowledge.capture_lesson","arguments":args}}))' \
     "${title}" "${body}" "${scope}" "${session}" "${tags_json}")"
   curl -sS --connect-timeout 3 --max-time 10 \
     -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \

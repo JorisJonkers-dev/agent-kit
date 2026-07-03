@@ -129,12 +129,25 @@ def council_toolkit_files() -> list[tuple[str, str]]:
     for path in sorted(COUNCIL_SRC.rglob("*")):
         if not path.is_file():
             continue
-        if "__pycache__" in path.parts or path.suffix == ".pyc":
+        rel_path = path.relative_to(COUNCIL_SRC)
+        if (
+            "__pycache__" in path.parts
+            or "node_modules" in rel_path.parts
+            or "coverage" in rel_path.parts
+            or path.suffix == ".pyc"
+            or path.suffix == ".map"
+            or path.name.endswith(".tsbuildinfo")
+            or (rel_path.parts and rel_path.parts[0] in {"ts", "ts-dist"})
+        ):
             continue
-        rel = path.relative_to(COUNCIL_SRC).as_posix()
+        rel = rel_path.as_posix()
         if rel == "README.md":
             continue
-        files.append((rel, "0755" if rel == "council.py" else "0644"))
+        if rel not in {"council.mjs", "council.toml"} and (
+            not rel_path.parts or rel_path.parts[0] not in {"prompts", "schemas"}
+        ):
+            continue
+        files.append((rel, "0755" if rel == "council.mjs" else "0644"))
     return files
 
 
@@ -385,11 +398,15 @@ def codex_speckit_names() -> set[str]:
     return {path.parent.name.removeprefix("speckit-") for path in codex_speckit_skill_files()}
 
 
+# Deliberately one-sided surfaces; must match supported_agents in manifest.yaml.
+SINGLE_AGENT_SKILLS = frozenset({"claude-worker"})
+
+
 def parity_check() -> DoctorCheck:
     claude_skills = skill_names(REPO_TEMPLATE_ROOT / ".claude" / "skills")
     codex_skills = skill_names(REPO_TEMPLATE_ROOT / ".agents" / "skills")
     shared_codex_skills = {name for name in codex_skills if not name.startswith("speckit-")}
-    skill_diff = sorted(claude_skills ^ shared_codex_skills)
+    skill_diff = sorted((claude_skills ^ shared_codex_skills) - SINGLE_AGENT_SKILLS)
 
     commands = speckit_command_names()
     codex_speckit = codex_speckit_names()

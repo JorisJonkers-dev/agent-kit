@@ -7,6 +7,13 @@
   "properties": {
     "satisfied": { "type": "boolean" },
     "reasons": { "type": "string" },
-    "issues": { "type": "array", "items": { "type": "string" } }
+    "issues": { "type": "array", "items": { "type": "string" } },
+    "task_id": { "type": "string" },
+    "dev_notes": { "type": "string" },
+    "spec_ref": { "type": "string" },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "content_hash": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" }
   }
 }

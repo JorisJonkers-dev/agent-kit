@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-routing-verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["route", "reasons"],
+  "properties": {
+    "route": { "type": "string" },
+    "reasons": { "type": "string" },
+    "task_id": { "type": "string" },
+    "candidate_routes": { "type": "array", "items": { "type": "string" } },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "content_hash": { "type": "string" }
+  }
+}

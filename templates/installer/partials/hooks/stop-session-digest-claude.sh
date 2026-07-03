@@ -101,9 +101,26 @@ except Exception:
     print("[]")
 ' 2>/dev/null || echo "[]")"
 
-project="$(git remote get-url origin 2>/dev/null | sed -e 's#\.git$##' -e 's#.*[/:]##')"
-[ -n "${project}" ] || project="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
-fallback_scope="project:${project}"
+canonical_project_scope_from_origin() {
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "${remote}" in
+    git@github.com:*) path="${remote#git@github.com:}" ;;
+    https://github.com/*) path="${remote#https://github.com/}" ;;
+    ssh://git@github.com/*) path="${remote#ssh://git@github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  owner="${path%%/*}"
+  repo="${path#*/}"
+  [ "${repo}" != "${path}" ] || return 0
+  [ -n "${owner}" ] && [ -n "${repo}" ] || return 0
+  case "${repo}" in */*) return 0 ;; esac
+  printf 'project:%s/%s' \
+    "$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')" \
+    "$(printf '%s' "${repo}" | tr '[:upper:]' '[:lower:]')"
+}
+
+fallback_scope="$(canonical_project_scope_from_origin)"
 emitted=0
 
 while IFS= read -r line; do
@@ -136,15 +153,19 @@ except Exception:
 
   scope="${fallback_scope}"
   [ -n "${topic}" ] && scope="topic:${topic}"
-  capture_payload="$(python3 -c 'import json,sys; print(json.dumps({
+  capture_payload="$(python3 -c 'import json,sys
+args = {
+    "title": sys.argv[1],
+    "body": sys.argv[2],
+    "source": "claude-code:auto-digest:" + sys.argv[4],
+    "session_id": sys.argv[4],
+    "tags": json.loads(sys.argv[5])
+}
+if sys.argv[3]:
+    args["scope"] = sys.argv[3]
+print(json.dumps({
     "jsonrpc":"2.0","id":1,"method":"tools/call","params":{
-      "name":"knowledge.capture_lesson","arguments":{
-        "title": sys.argv[1],
-        "body": sys.argv[2],
-        "scope": sys.argv[3],
-        "source": "claude-code:auto-digest:" + sys.argv[4],
-        "session_id": sys.argv[4],
-        "tags": json.loads(sys.argv[5])}}}))' \
+      "name":"knowledge.capture_lesson","arguments":args}}))' \
     "${title}" "${body}" "${scope}" "${session}" "${tags_json}")"
   curl -sS --connect-timeout 3 --max-time 10 \
     -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \

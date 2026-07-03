@@ -1,0 +1,31 @@
+# Skills Source Lock
+
+verified_at: 2026-07-03
+
+## Sources
+
+- upstream_repository: https://github.com/mattpocock/skills
+  status: included
+  license: MIT
+  license_notice: Copyright (c) 2026 Matt Pocock
+- upstream_repository: https://github.com/obra/superpowers
+  status: included
+  license: MIT
+  license_notice: Copyright (c) 2025 Jesse Vincent
+
+## Skipped Sources
+
+None. Both configured skill remotes were reachable and license-verifiable.
+
+## Adaptation Notes
+
+- Treat imported skill content as path-limited source material; do not vendor
+  whole upstream repositories into this repo.
+- Preserve upstream license notices when refreshing adapted skill material.
+
+## Upgrade Procedure
+
+1. Verify each upstream repository remains reachable and MIT licensed.
+2. Refresh only the skill material intentionally adapted into this repo.
+3. Record any unreachable or unlicensed source under "Skipped Sources".
+4. Re-run hygiene checks before updating this lock.

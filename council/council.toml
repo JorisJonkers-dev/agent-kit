@@ -7,3 +7,107 @@ planner_a = "claude:opus"
 planner_b = "codex:gpt-5.5"
 consolidator = "claude:opus"
 verifier = "claude:sonnet"
+
+# Watchdog defaults bound stalled or looping subprocesses during long runs.
+[watchdog]
+stall_after_s = 300
+window = 40
+repeat_limit = 6
+max_restarts = 1
+escalate_model = "claude:opus"
+disk_cap_gib = 2
+
+# Design mode runs multiple lenses before consolidation and voting.
+[design]
+lenses = ["architecture", "implementation", "risk"]
+rounds = 2
+
+[design.stages.survey]
+engine = "claude:sonnet"
+effort = "medium"
+
+[design.stages.lens]
+engine = "claude:sonnet"
+effort = "high"
+
+[design.stages.consolidate]
+engine = "claude:opus"
+effort = "high"
+
+[design.stages.vote]
+engine = "codex:gpt-5.5"
+effort = "high"
+
+# Review council is opt-in; fix rounds stay bounded by default.
+[review]
+council = false
+max_fix_rounds = 2
+
+[review.difficulty]
+trivial = "claude:haiku"
+moderate = "claude:haiku"
+hard = "claude:sonnet"
+
+# GitHub integration is disabled until an assignee is configured.
+[github]
+enabled = false
+assignee = ""
+
+# Engine entries are argv templates. Placeholders: {prompt_file}, {model},
+# {effort}, and {output}.
+[engines]
+
+[engines.claude]
+argv = ["sh", "-lc", "COUNCIL_EFFORT={effort} claude -p --model {model} --output-format json --permission-mode plan < {prompt_file} > {output}"]
+stream_format = "json"
+result_extraction = "json.result"
+
+[engines.codex]
+argv = ["sh", "-lc", "codex exec -m {model} -c model_reasoning_effort={effort} --skip-git-repo-check -o {output} \"$(cat {prompt_file})\""]
+stream_format = "text"
+result_extraction = "output_file"
+
+# Triage may override the model chosen for difficulty or route classes.
+[triage]
+
+[triage.matrix_overrides]
+trivial = "claude:haiku"
+moderate = "claude:haiku"
+hard = "claude:sonnet"
+
+# Context packs older than this should be regenerated before reuse.
+[context]
+pack_stale_after_s = 86400
+
+# Keep the shipped model matrix aligned with the built-in intensity presets.
+[model_matrix]
+
+[model_matrix.roles]
+planner_a = "claude:opus"
+planner_b = "codex:gpt-5.5"
+consolidator = "claude:opus"
+verifier = "claude:sonnet"
+
+[model_matrix.intensity.quick]
+rounds = 1
+codex_effort = "low"
+worker = "claude:haiku"
+max_workers = 4
+
+[model_matrix.intensity.standard]
+rounds = 2
+codex_effort = "high"
+worker = "claude:haiku"
+max_workers = 6
+
+[model_matrix.intensity.thorough]
+rounds = 3
+codex_effort = "high"
+worker = "claude:sonnet"
+max_workers = 6
+
+[model_matrix.intensity.max]
+rounds = 3
+codex_effort = "xhigh"
+worker = "claude:sonnet"
+max_workers = 8

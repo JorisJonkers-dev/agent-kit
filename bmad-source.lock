@@ -1,0 +1,25 @@
+# BMAD Source Lock
+
+upstream_repository: https://github.com/bmad-code-org/BMAD-METHOD.git
+upstream_tag: v6.9.0
+upstream_tag_commit: 6ac4c26
+resolved_commit_sha: 67f4499e
+commits_past_tag: 24
+adaptation_source: resolved_commit_sha
+license: MIT
+trademark_caveat: BMad, BMad Method, BMAD-METHOD, and related names/marks are trademarks of BMad Code, LLC and are not licensed under MIT.
+# hygiene_guard_evidence: e0d8533edf747de9cb8aa84d7c45aab65cd719bd records the agent-kit program sweep guard baseline.
+
+## Adaptation Notes
+
+- The v6.9.0 tag is the release anchor.
+- The adapted source baseline is commit `67f4499e`, 24 commits after v6.9.0.
+- Preserve the MIT license notice and the upstream trademark caveat when
+  refreshing adapted material.
+
+## Upgrade Procedure
+
+1. Resolve the candidate tag and commit outside runtime installs.
+2. Compare the candidate against this lock's `adaptation_source`.
+3. Refresh only the explicitly adapted paths owned by the vendoring task.
+4. Re-run hygiene checks before updating this lock.

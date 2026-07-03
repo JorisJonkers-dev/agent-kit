@@ -72,6 +72,19 @@ KUBERNETES_RESOURCE_KINDS = {
     "ServiceAccount",
     "StatefulSet",
 }
+ATTACHMENT_ACTIVE_LIMIT = 12
+ROUTING_CARD_MIN_SIGNALS = 2
+ROUTING_CARD_RISKS = {"low", "medium", "high"}
+ATTACHMENT_PROFILE_KEYS = {"name", "mcpProfile", "skillCards", "fullSkills"}
+ROUTING_CARD_KEYS = {
+    "name",
+    "purpose",
+    "positiveTriggers",
+    "negativeTriggers",
+    "requiredMcpProfile",
+    "risk",
+    "expectedOutputs",
+}
 
 
 def load_renderer() -> Any:
@@ -113,6 +126,22 @@ def as_mapping(value: Any, name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         fail(f"{name} must be a mapping")
     return cast(dict[str, Any], value)
+
+
+def as_non_empty_string(value: Any, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        fail(f"{name} must be a non-empty string")
+    return value
+
+
+def as_string_list(value: Any, name: str, *, min_items: int = 0) -> list[str]:
+    items = as_list(value, name)
+    if len(items) < min_items:
+        fail(f"{name} must contain at least {min_items} item(s)")
+    result: list[str] = []
+    for index, item in enumerate(items):
+        result.append(as_non_empty_string(item, f"{name}[{index}]"))
+    return result
 
 
 def all_mappings(value: Any) -> Iterable[dict[str, Any]]:
@@ -254,12 +283,13 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
                     installer_targets.add("claude")
                 if installer.get("codex_target_path"):
                     installer_targets.add("codex")
-            if targets and (sorted(supported or []) != ["claude", "codex"] or targets != {"claude", "codex"}):
-                fail(f"shared skill {name} must target claude and codex")
-            if not targets and (
-                sorted(supported or []) != ["claude", "codex"] or installer_targets != {"claude", "codex"}
-            ):
-                fail(f"installer-only skill {name} must install to claude and codex")
+            supported_set = set(supported or [])
+            if not supported_set or not supported_set <= {"claude", "codex"}:
+                fail(f"skill {name} must declare supported_agents from claude/codex")
+            if targets and targets != supported_set:
+                fail(f"skill {name} targets {sorted(targets)} but supports {sorted(supported_set)}")
+            if not targets and installer_targets != supported_set:
+                fail(f"installer-only skill {name} must install to {sorted(supported_set)}")
 
     settings = as_list(manifest.get("settings"), "settings")
     setting_agents = {
@@ -284,14 +314,32 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
 
 
 def validate_council(manifest: dict[str, Any]) -> None:
+    renderer = load_renderer()
     council = as_mapping(manifest.get("council"), "council")
     files = as_list(council.get("files"), "council.files")
     manifest_files = {item.get("path") for item in files}
+    rendered_files = {f"council/{rel}" for rel, _mode in renderer.council_toolkit_files()}
     actual_files = {
         path.relative_to(ROOT).as_posix()
         for path in (ROOT / "council").rglob("*")
-        if path.is_file() and path.name != "README.md" and "__pycache__" not in path.parts and path.suffix != ".pyc"
+        if (
+            path.is_file()
+            and path.name != "README.md"
+            and "__pycache__" not in path.parts
+            and "node_modules" not in path.relative_to(ROOT / "council").parts
+            and "coverage" not in path.relative_to(ROOT / "council").parts
+            and path.suffix != ".pyc"
+            and path.suffix != ".map"
+            and not path.name.endswith(".tsbuildinfo")
+            and path.relative_to(ROOT / "council").parts[:1] not in (("ts",), ("ts-dist",))
+            and (
+                path.relative_to(ROOT / "council").as_posix() in {"council.mjs", "council.toml"}
+                or path.relative_to(ROOT / "council").parts[:1] in (("prompts",), ("schemas",))
+            )
+        )
     }
+    if rendered_files != actual_files:
+        fail(f"council renderer mismatch: rendered={sorted(rendered_files)} actual={sorted(actual_files)}")
     if manifest_files != actual_files:
         fail(f"council.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
 
@@ -402,6 +450,107 @@ def validate_runtime_package_manifest(manifest: dict[str, Any]) -> None:
         )
 
 
+def _validate_unique_name(name: str, seen: set[str], path: str, label: str) -> None:
+    if name in seen:
+        fail(f"{path}.name duplicates {label} {name!r}")
+    seen.add(name)
+
+
+def _validate_known_keys(item: dict[str, Any], path: str, allowed_keys: set[str]) -> None:
+    extra = sorted(set(item) - allowed_keys)
+    if extra:
+        fail(f"{path} contains unsupported field(s): {extra}")
+
+
+def _validate_routing_card_fit(card: dict[str, Any], path: str) -> None:
+    purpose = as_non_empty_string(card.get("purpose"), f"{path}.purpose")
+    if "\n" in purpose or "\r" in purpose:
+        fail(f"{path}.purpose must be one line")
+
+    positive_triggers = as_string_list(
+        card.get("positiveTriggers"),
+        f"{path}.positiveTriggers",
+        min_items=ROUTING_CARD_MIN_SIGNALS,
+    )
+    negative_triggers = as_string_list(
+        card.get("negativeTriggers"),
+        f"{path}.negativeTriggers",
+        min_items=ROUTING_CARD_MIN_SIGNALS,
+    )
+    expected_outputs = as_string_list(
+        card.get("expectedOutputs"),
+        f"{path}.expectedOutputs",
+        min_items=ROUTING_CARD_MIN_SIGNALS,
+    )
+    if set(positive_triggers) & set(negative_triggers):
+        fail(f"{path} has overlapping positive and negative triggers")
+    if len(set(positive_triggers)) != len(positive_triggers):
+        fail(f"{path}.positiveTriggers contains duplicate routing signals")
+    if len(set(negative_triggers)) != len(negative_triggers):
+        fail(f"{path}.negativeTriggers contains duplicate routing signals")
+    if len(set(expected_outputs)) != len(expected_outputs):
+        fail(f"{path}.expectedOutputs contains duplicate routing outputs")
+
+
+def _validate_runtime_attachment_profiles(runtime: dict[str, Any], mcp_profile_names: set[str]) -> None:
+    attachment_section = as_mapping(runtime.get("attachmentProfiles"), "runtime package attachmentProfiles")
+    _validate_known_keys(attachment_section, "runtime package attachmentProfiles", {"active", "profiles"})
+    profiles = as_list(attachment_section.get("profiles"), "runtime package attachmentProfiles.profiles")
+    if not profiles:
+        fail("runtime package attachmentProfiles.profiles must be non-empty")
+
+    profile_names: set[str] = set()
+    skill_card_names: set[str] = set()
+    full_skill_names: set[str] = set()
+    for profile_index, item in enumerate(profiles):
+        profile_path = f"runtime package attachmentProfiles.profiles[{profile_index}]"
+        profile = as_mapping(item, profile_path)
+        _validate_known_keys(profile, profile_path, ATTACHMENT_PROFILE_KEYS)
+        profile_name = as_non_empty_string(profile.get("name"), f"{profile_path}.name")
+        _validate_unique_name(profile_name, profile_names, profile_path, "attachment profile")
+        mcp_profile = as_non_empty_string(profile.get("mcpProfile"), f"{profile_path}.mcpProfile")
+        if mcp_profile not in mcp_profile_names:
+            fail(f"{profile_path}.mcpProfile references unknown MCP profile {mcp_profile!r}")
+
+        for card_index, card_value in enumerate(as_list(profile.get("skillCards"), f"{profile_path}.skillCards")):
+            card_path = f"{profile_path}.skillCards[{card_index}]"
+            card = as_mapping(card_value, card_path)
+            _validate_known_keys(card, card_path, ROUTING_CARD_KEYS)
+            card_name = as_non_empty_string(card.get("name"), f"{card_path}.name")
+            _validate_unique_name(card_name, skill_card_names, card_path, "routing card")
+            required_mcp_profile = as_non_empty_string(
+                card.get("requiredMcpProfile"),
+                f"{card_path}.requiredMcpProfile",
+            )
+            if required_mcp_profile not in mcp_profile_names:
+                fail(f"{card_path}.requiredMcpProfile references unknown MCP profile {required_mcp_profile!r}")
+            risk = as_non_empty_string(card.get("risk"), f"{card_path}.risk")
+            if risk not in ROUTING_CARD_RISKS:
+                fail(f"{card_path}.risk must be one of {sorted(ROUTING_CARD_RISKS)}")
+            _validate_routing_card_fit(card, card_path)
+
+        full_skill_names.update(as_string_list(profile.get("fullSkills"), f"{profile_path}.fullSkills"))
+
+    active = attachment_section.get("active", {})
+    active_section = as_mapping(active, "runtime package attachmentProfiles.active")
+    active_sets = {
+        "profiles": profile_names,
+        "skillCards": skill_card_names,
+        "fullSkills": full_skill_names,
+    }
+    _validate_known_keys(active_section, "runtime package attachmentProfiles.active", set(active_sets))
+    for key, known_values in active_sets.items():
+        path = f"runtime package attachmentProfiles.active.{key}"
+        refs = as_string_list(active_section.get(key, []), path)
+        if len(refs) > ATTACHMENT_ACTIVE_LIMIT:
+            fail(f"{path} must contain at most {ATTACHMENT_ACTIVE_LIMIT} item(s)")
+        if len(set(refs)) != len(refs):
+            fail(f"{path} contains duplicate active references")
+        for index, ref in enumerate(refs):
+            if ref not in known_values:
+                fail(f"{path}[{index}] references unknown {key} entry {ref!r}")
+
+
 def validate_runtime_package_artifacts() -> None:
     package_path = ROOT / "runner-manifests" / "runtime" / "runtime-package.yaml"
     package = yaml.safe_load(package_path.read_text())
@@ -481,7 +630,17 @@ def validate_runtime_package_artifacts() -> None:
         fail(f"runtime MCP placeholders mismatch: {sorted(placeholders)}")
 
     profiles = as_list(profile_section.get("profiles"), "runtime package mcpProfiles.profiles")
-    if {item.get("name") for item in profiles if isinstance(item, dict)} != {
+    mcp_profile_names: set[str] = set()
+    for index, item in enumerate(profiles):
+        profile = as_mapping(item, f"runtime package mcpProfiles.profiles[{index}]")
+        profile_name = as_non_empty_string(profile.get("name"), f"runtime package mcpProfiles.profiles[{index}].name")
+        _validate_unique_name(
+            profile_name,
+            mcp_profile_names,
+            f"runtime package mcpProfiles.profiles[{index}]",
+            "MCP profile",
+        )
+    if mcp_profile_names != {
         "minimal",
         "frontend",
         "cluster",
@@ -489,14 +648,15 @@ def validate_runtime_package_artifacts() -> None:
         "full-diagnostic",
     }:
         fail("runtime MCP profiles must include minimal, frontend, cluster, code-intel, and full-diagnostic")
-    for item in profiles:
-        profile = as_mapping(item, "runtime MCP profile")
+    for index, item in enumerate(profiles):
+        profile = as_mapping(item, f"runtime package mcpProfiles.profiles[{index}]")
         claude_path = ROOT / str(profile.get("claude", ""))
         codex_path = ROOT / str(profile.get("codex", ""))
         if not claude_path.is_file() or not codex_path.is_file():
             fail(f"runtime MCP profile files are missing for {profile.get('name')}")
         json.loads(claude_path.read_text())
         tomllib.loads(codex_path.read_text())
+    _validate_runtime_attachment_profiles(runtime, mcp_profile_names)
 
 
 def run_checked(command: list[str], env: dict[str, str] | None = None, input_text: str | None = None) -> str:

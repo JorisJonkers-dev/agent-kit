@@ -1,15 +1,46 @@
 # Third-Party Notices
 
-This directory vendors scaffolding adapted from GitHub Spec Kit:
+This directory vendors or adapts material from the following MIT-licensed
+sources:
 
 - Project: Spec Kit
 - Repository: https://github.com/github/spec-kit
 - Pinned tag: v0.9.5
 - License: MIT
+- Copyright notice: Copyright (c) GitHub and contributors
+
+- Project: BMAD-METHOD
+- Repository: https://github.com/bmad-code-org/BMAD-METHOD.git
+- Pinned tag: v6.9.0
+- Resolved source commit: 67f4499e
+- License: MIT
+- Copyright notice: Copyright (c) 2025 BMad Code, LLC
+- Trademark caveat: BMad, BMad Method, BMAD-METHOD, and related names/marks
+  are trademarks of BMad Code, LLC and are not licensed under MIT.
+
+- Project: spec-compare
+- Repository: https://github.com/cameronsjo/spec-compare
+- Source ref: main
+- License: MIT
+- Copyright notice: upstream repository authors and contributors
+- Extracted paths: `docs/use-case-scoring.md`, `docs/beads.md`,
+  `cheatsheet-beads-openspec.md`
+
+- Project: Skills
+- Repository: https://github.com/mattpocock/skills
+- Source ref: main
+- License: MIT
+- Copyright notice: Copyright (c) 2026 Matt Pocock
+
+- Project: Superpowers
+- Repository: https://github.com/obra/superpowers
+- Source ref: main
+- License: MIT
+- Copyright notice: Copyright (c) 2025 Jesse Vincent
 
 ## MIT License
 
-Copyright (c) GitHub and contributors
+Copyright (c) the upstream authors and contributors listed above
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

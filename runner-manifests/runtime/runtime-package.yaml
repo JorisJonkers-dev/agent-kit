@@ -26,6 +26,7 @@ build:
     - git
     - jq
     - mktemp
+    - node # >=22
     - sed
     - sha256sum
     - sh
@@ -144,6 +145,126 @@ runtime:
       - name: full-diagnostic
         claude: runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
         codex: runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
+  attachmentProfiles:
+    active:
+      profiles:
+        - minimal
+      skillCards:
+        - kb-recall
+        - validation-runner
+      fullSkills:
+        - kb-first
+        - run-tests
+    profiles:
+      - name: minimal
+        mcpProfile: minimal
+        skillCards:
+          - name: kb-recall
+            purpose: Recall focused knowledge before changing durable behavior.
+            positiveTriggers:
+              - Durable architecture or workflow behavior may depend on prior decisions.
+              - Repository conventions or captured lessons could change the implementation approach.
+            negativeTriggers:
+              - The request is a formatting-only edit with no behavior change.
+              - The needed context is already present in the current files and prompt.
+            requiredMcpProfile: minimal
+            risk: medium
+            expectedOutputs:
+              - Short summary of relevant recalled context and source note identifiers.
+              - Explicit statement when no useful prior context was found.
+          - name: validation-runner
+            purpose: Select and run the required local validation commands.
+            positiveTriggers:
+              - User acceptance criteria include named test, typecheck, lint, or render commands.
+              - Runtime manifests, generator output, or validation scripts have changed.
+            negativeTriggers:
+              - The turn is a read-only code explanation or status request.
+              - No repository files or generated artifacts were changed.
+            requiredMcpProfile: minimal
+            risk: low
+            expectedOutputs:
+              - Exact commands executed and their pass or fail status.
+              - Clear blocker report for missing local dependencies or permissions.
+        fullSkills:
+          - kb-first
+          - run-tests
+          - topics
+      - name: frontend
+        mcpProfile: frontend
+        skillCards:
+          - name: frontend-docs
+            purpose: Check UI framework docs and browser behavior for frontend changes.
+            positiveTriggers:
+              - Frontend work depends on current framework, browser, or component behavior.
+              - Visual verification needs Playwright, UI docs, or frontend-specific MCP services.
+            negativeTriggers:
+              - The change is backend-only or limited to non-UI manifest metadata.
+              - The required frontend behavior is already covered by local tests and code.
+            requiredMcpProfile: frontend
+            risk: medium
+            expectedOutputs:
+              - Source-backed frontend guidance that applies to the changed surface.
+              - Browser or screenshot verification notes when visual behavior is affected.
+        fullSkills:
+          - add-public-service
+          - token-economy
+      - name: cluster
+        mcpProfile: cluster
+        skillCards:
+          - name: cluster-runtime
+            purpose: Inspect cluster-facing runtime assumptions before platform changes.
+            positiveTriggers:
+              - Work changes fleet, runtime, ingress, or Kubernetes-facing contracts.
+              - Validation requires comparing rendered output with cluster or platform state.
+            negativeTriggers:
+              - The task is confined to local TypeScript domain logic.
+              - The platform contract is explicitly out of scope for the turn.
+            requiredMcpProfile: cluster
+            risk: high
+            expectedOutputs:
+              - Cluster-aware impact summary for changed runtime or platform contracts.
+              - Validation commands or blockers for fleet and platform render checks.
+        fullSkills:
+          - fleet-change
+          - add-public-service
+      - name: code-intel
+        mcpProfile: code-intel
+        skillCards:
+          - name: code-intel-survey
+            purpose: Use code intelligence for broad symbol and dependency exploration.
+            positiveTriggers:
+              - The change crosses multiple modules, contexts, or dependency boundaries.
+              - Symbol-level navigation is needed to avoid duplicating sibling work.
+            negativeTriggers:
+              - A narrow file read gives enough context for the requested edit.
+              - The affected code is generated or declarative metadata only.
+            requiredMcpProfile: code-intel
+            risk: medium
+            expectedOutputs:
+              - Focused map of relevant symbols, boundaries, and dependency constraints.
+              - Specific files or barrels that need updates for the implementation.
+        fullSkills:
+          - council-supervise
+          - claude-worker
+      - name: full-diagnostic
+        mcpProfile: full-diagnostic
+        skillCards:
+          - name: full-diagnostic-grill
+            purpose: Stress-test high-risk plans with all runtime diagnostics available.
+            positiveTriggers:
+              - The implementation spans runtime, frontend, cluster, and code-intel concerns.
+              - A design or patch needs adversarial review before merge.
+            negativeTriggers:
+              - The task is routine and has a complete local validation path.
+              - The additional diagnostics would not change the implementation decision.
+            requiredMcpProfile: full-diagnostic
+            risk: high
+            expectedOutputs:
+              - Concrete risk findings tied to files, commands, or acceptance criteria.
+              - Recommendation to proceed, amend, or split based on validated evidence.
+        fullSkills:
+          - council-triage
+          - council-grill
   sddSeed:
     sourcePathEnv: AGENT_KIT_SDD_SOURCE
     markerFileEnv: AGENT_KIT_SDD_MARKER_FILE

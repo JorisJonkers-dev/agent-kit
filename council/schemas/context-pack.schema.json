@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-context-pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary"],
+  "properties": {
+    "summary": { "type": "string" },
+    "refs": { "type": "array", "items": { "type": "string" } },
+    "files": { "type": "array", "items": { "type": "string" } },
+    "snippets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "text"],
+        "properties": {
+          "ref": { "type": "string" },
+          "path": { "type": "string" },
+          "text": { "type": "string" },
+          "content_hash": { "type": "string" }
+        }
+      }
+    },
+    "profile": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}
