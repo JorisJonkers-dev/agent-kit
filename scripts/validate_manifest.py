@@ -12,14 +12,10 @@ import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, NoReturn, cast
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-    import tomli as tomllib
 
 try:
     import yaml
