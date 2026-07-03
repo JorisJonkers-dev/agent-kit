@@ -143,7 +143,8 @@ function deriveParallelismScore(
   topology: TriageGateTopology,
   recommendation: TriageGateRecommendation,
 ): number {
-  const base = input.parallelism === 'high' ? 80 : input.parallelism === 'some' ? 45 : 0
+  if (input.parallelism === 'none') return 0
+  const base = input.parallelism === 'high' ? 80 : 45
   const topologyBonus = topology === 'parallel' ? 10 : topology === 'hybrid' ? 5 : 0
   const workerBonus = Math.min((recommendation.workerCount - 1) * 5, 10)
   return cappedScore(base + topologyBonus + workerBonus)
@@ -180,7 +181,15 @@ function deriveBudgetEstimate(
   route: TriageGateRoute,
   recommendation: TriageGateRecommendation,
 ): TriageGatePayload['budget_estimate'] {
-  const estimatedModelCalls = recommendation.workerCount * recommendation.rounds + (route === 'direct' ? 2 : 3)
+  if (route === 'direct') {
+    return {
+      estimated_model_calls: 3,
+      rounds: 1,
+      tier: 'small',
+      worker_count: 1,
+    }
+  }
+  const estimatedModelCalls = recommendation.workerCount * recommendation.rounds + 3
   return {
     estimated_model_calls: estimatedModelCalls,
     rounds: recommendation.rounds,
