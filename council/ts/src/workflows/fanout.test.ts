@@ -77,19 +77,63 @@ describe('fanoutWorkflow', () => {
         {
           dryRun: false,
           github: true,
-          repoFiles: new Set(['src/shared.ts']),
+          repoFiles: new Set(['council/ts/src/contexts/graph/adapters/process/session.ts']),
           runDir: 'runs/run-1',
         },
         {
           createPullRequest,
           status: () =>
             Promise.resolve(summary([
-              task({ id: 'T1', objective: 'first change', paths: ['src/shared.ts'], verify: 'npm test' }),
-              task({ id: 'T2', objective: 'second change', paths: ['src/shared.ts'], verify: 'npm test' }),
+              task({
+                id: 'T1',
+                objective: 'first session change',
+                paths: ['council/ts/src/contexts/graph/adapters/process/session.ts'],
+                verify: 'npm test',
+              }),
+              task({
+                id: 'T2',
+                objective: 'second session change',
+                paths: ['council/ts/src/contexts/graph/adapters/process/session.ts'],
+                verify: 'npm test',
+              }),
             ])),
         },
       ),
-    ).rejects.toThrow('pre-fanout static gate failed: tasks T1 and T2 both declare src/shared.ts in ready wave 0')
+    ).rejects.toMatchObject({
+      violations: [
+        {
+          kind: 'same-wave-path-overlap',
+          otherPath: 'council/ts/src/contexts/graph/adapters/process/session.ts',
+          otherTaskId: 'T2',
+          path: 'council/ts/src/contexts/graph/adapters/process/session.ts',
+          taskId: 'T1',
+          wave: 0,
+        },
+      ],
+    })
+    expect(createPullRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing injected repo files before creating a pull request', async () => {
+    const createPullRequest = vi.fn<() => Promise<string>>()
+
+    await expect(
+      fanoutWorkflow(
+        {
+          dryRun: false,
+          github: true,
+          repoFiles: new Set(['src/present.ts']),
+          runDir: 'runs/run-1',
+        },
+        {
+          createPullRequest,
+          status: () =>
+            Promise.resolve(summary([
+              task({ id: 'T1', objective: 'missing file', paths: ['src/missing.ts'], verify: 'npm test' }),
+            ])),
+        },
+      ),
+    ).rejects.toThrow('task T1 declares path src/missing.ts that is absent from the repo file set')
     expect(createPullRequest).not.toHaveBeenCalled()
   })
 
@@ -114,6 +158,31 @@ describe('fanoutWorkflow', () => {
       ),
     ).rejects.toThrow('task T1 verify command does not prove the task result')
     expect(createPullRequest).not.toHaveBeenCalled()
+  })
+
+  it('surfaces destructive verify findings before returning a dry-run plan', async () => {
+    await expect(
+      fanoutWorkflow(
+        {
+          dryRun: true,
+          github: true,
+          repoFiles: new Set(['src/destructive.ts']),
+          runDir: 'runs/run-1',
+        },
+        {
+          createPullRequest: vi.fn<() => Promise<string>>(),
+          status: () =>
+            Promise.resolve(summary([
+              task({
+                id: 'T1',
+                objective: 'destructive verify',
+                paths: ['src/destructive.ts'],
+                verify: 'git reset --hard',
+              }),
+            ])),
+        },
+      ),
+    ).rejects.toThrow('task T1 verify command contains a destructive shell command')
   })
 
   it('surfaces absolute path findings before returning a dry-run plan', async () => {

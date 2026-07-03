@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { commandRegistry, runCli, type CliCommand, type CliResult, type CommandSpec } from './index.js'
+import { PreFanoutGateError } from '../workflows/fanout.js'
 import type {
   ConfigCommandInput,
   ConfigPaths,
@@ -37,6 +38,7 @@ type AppCall =
 
 interface RecordingAppOptions {
   readonly configError?: Error
+  readonly fanoutError?: Error
   readonly planResult?: unknown
   readonly statusError?: unknown
 }
@@ -67,6 +69,7 @@ class RecordingApp {
 
   fanout(input: FanoutInput): Promise<unknown> {
     this.calls.push({ input, method: 'fanout' })
+    if (this.options.fanoutError !== undefined) return Promise.reject(this.options.fanoutError)
     return Promise.resolve({ input, method: 'fanout' })
   }
 
@@ -581,6 +584,38 @@ describe('runCli config actions', () => {
 })
 
 describe('runCli error handling', () => {
+  it('surfaces pre-fanout gate diagnostics with structured violation fields', async () => {
+    const app = new RecordingApp({
+      fanoutError: new PreFanoutGateError([
+        {
+          kind: 'same-wave-path-overlap',
+          message:
+            'tasks T1 and T2 both declare council/ts/src/contexts/graph/adapters/process/session.ts in ready wave 0',
+          otherPath: 'council/ts/src/contexts/graph/adapters/process/session.ts',
+          otherTaskId: 'T2',
+          path: 'council/ts/src/contexts/graph/adapters/process/session.ts',
+          taskId: 'T1',
+          wave: 0,
+        },
+        {
+          kind: 'non-proving-verify',
+          message: 'task T3 verify command does not prove the task result',
+          taskId: 'T3',
+          verify: 'echo ok',
+        },
+      ]),
+    })
+
+    await expect(runCli(['fanout', '--run', '/runs/overlap'], injectedRuntime(app))).resolves.toEqual({
+      exitCode: 2,
+      stderr:
+        'pre-fanout static gate failed\n' +
+        '- gate=pre-fanout-static kind=same-wave-path-overlap taskId=T1 otherTaskId=T2 wave=0 path=council/ts/src/contexts/graph/adapters/process/session.ts otherPath=council/ts/src/contexts/graph/adapters/process/session.ts message=tasks T1 and T2 both declare council/ts/src/contexts/graph/adapters/process/session.ts in ready wave 0\n' +
+        '- gate=pre-fanout-static kind=non-proving-verify taskId=T3 verify=echo ok message=task T3 verify command does not prove the task result\n',
+      stdout: '',
+    })
+  })
+
   it('reports missing required flags and invalid review gates', async () => {
     await expect(runCli(['plan', '--brief'], injectedRuntime())).resolves.toEqual({
       exitCode: 2,

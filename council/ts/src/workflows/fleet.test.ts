@@ -93,6 +93,52 @@ describe('fleetWorkflow', () => {
     expect(createPullRequest).not.toHaveBeenCalled()
   })
 
+  it('rejects same-wave overlap before assigning agents or creating GitHub output', async () => {
+    const createPullRequest = vi.fn<() => Promise<string>>()
+
+    await expect(
+      fleetWorkflow(
+        {
+          agents: '',
+          dryRun: false,
+          github: true,
+          repoFiles: new Set(['council/ts/src/contexts/graph/adapters/process/session.ts']),
+          tasksPath: 'runs/run-2.json',
+        },
+        {
+          createPullRequest,
+          readText: () =>
+            Promise.resolve(tasksJson([
+              task({
+                id: 'T1',
+                objective: 'first session change',
+                paths: ['council/ts/src/contexts/graph/adapters/process/session.ts'],
+                verify: 'npm test',
+              }),
+              task({
+                id: 'T2',
+                objective: 'second session change',
+                paths: ['council/ts/src/contexts/graph/adapters/process/session.ts'],
+                verify: 'npm test',
+              }),
+            ])),
+        },
+      ),
+    ).rejects.toMatchObject({
+      violations: [
+        {
+          kind: 'same-wave-path-overlap',
+          otherPath: 'council/ts/src/contexts/graph/adapters/process/session.ts',
+          otherTaskId: 'T2',
+          path: 'council/ts/src/contexts/graph/adapters/process/session.ts',
+          taskId: 'T1',
+          wave: 0,
+        },
+      ],
+    })
+    expect(createPullRequest).not.toHaveBeenCalled()
+  })
+
   it('surfaces missing declared file findings before returning an execution plan', async () => {
     await expect(
       fleetWorkflow(
@@ -112,5 +158,40 @@ describe('fleetWorkflow', () => {
         },
       ),
     ).rejects.toThrow('task T1 declares path src/missing.ts that is absent from the repo file set')
+  })
+
+  it('surfaces weak verify and absolute path findings before returning an execution plan', async () => {
+    await expect(
+      fleetWorkflow(
+        {
+          agents: 'claude:sonnet',
+          dryRun: true,
+          github: false,
+          repoFiles: new Set(['src/weak.ts']),
+          tasksPath: 'runs/run-2.json',
+        },
+        {
+          createPullRequest: vi.fn<() => Promise<string>>(),
+          readText: () =>
+            Promise.resolve(tasksJson([
+              task({ id: 'T1', objective: 'weak verify', paths: ['src/weak.ts'], verify: 'echo ok' }),
+              task({ id: 'T2', objective: 'absolute path', paths: ['/tmp/outside.ts'], verify: 'npm test' }),
+            ])),
+        },
+      ),
+    ).rejects.toMatchObject({
+      violations: [
+        {
+          kind: 'non-proving-verify',
+          taskId: 'T1',
+          verify: 'echo ok',
+        },
+        {
+          kind: 'absolute-task-path',
+          path: '/tmp/outside.ts',
+          taskId: 'T2',
+        },
+      ],
+    })
   })
 })
