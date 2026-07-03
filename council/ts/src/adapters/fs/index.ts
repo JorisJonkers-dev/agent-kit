@@ -1,5 +1,2 @@
-export { FsRunStoreAdapter } from './run-store.js'
-export type { FsRunStoreOptions } from './run-store.js'
-export { normalizeLegacyRunDir } from './legacy-run-dir-normalizer.js'
-export type { NormalizedRunDirectory } from './legacy-run-dir-normalizer.js'
-export type { LegacyRunReport, LegacyTaskReport, WorkerResult } from './artifact-codec.js'
+// Compatibility barrel: moved to src/contexts/runstore/adapters/fs/. Re-exports only.
+export * from '../../contexts/runstore/adapters/fs/index.js'

@@ -1,10 +1,2 @@
-export { GithubCliAdapter } from './adapter.js'
-export { GithubCommandError } from './gh-client.js'
-export type {
-  GithubCliAdapterOptions,
-  GithubCommentRequest,
-  GithubLog,
-  GithubPullRequestMirrorRequest,
-  GithubTaskIssueMirrorRequest,
-  GithubTaskIssueMirrorResult,
-} from './types.js'
+// Compatibility barrel: moved to src/contexts/github/adapters/github/. Re-exports only.
+export * from '../../contexts/github/adapters/github/index.js'
