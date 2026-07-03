@@ -1,5 +1,6 @@
 import matrixJson from './routing-matrix.json' with { type: 'json' }
 
+export * from './gate.js'
 export * from './recommendation.js'
 
 export type TriageRoute = 'direct' | 'delta' | 'full' | 'program'
