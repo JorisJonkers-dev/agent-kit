@@ -141,7 +141,7 @@ export function parseRoutingMatrix(value: unknown): RoutingMatrix {
 export const routingMatrix = loadRoutingMatrix()
 
 export function classifyTriage(input: TriageInput, matrix: RoutingMatrix = routingMatrix): TriageVerdict {
-  const matches = matrix.routeRules.filter((rule) => matchesCondition(input, rule.when))
+  const matches = matrix.routeRules.filter((rule) => matchesRouteRule(input, rule))
   const selectedRule = matches[0]
   if (selectedRule === undefined) {
     throw new Error('Routing matrix has no fallback rule')
@@ -165,6 +165,27 @@ export function classifyTriage(input: TriageInput, matrix: RoutingMatrix = routi
       directWorkerPolicy: 'never-during-plan',
     },
   }
+}
+
+function matchesRouteRule(input: TriageInput, rule: RouteRule): boolean {
+  return matchesCondition(input, rule.when) || smallClearDirectChangeMatchesTrivialRule(input, rule)
+}
+
+function smallClearDirectChangeMatchesTrivialRule(input: TriageInput, rule: RouteRule): boolean {
+  return (
+    rule.route === 'direct' &&
+    input.size === 'small' &&
+    input.landscape === 'brownfield' &&
+    input.risk === 'low' &&
+    input.clarity === 'clear' &&
+    input.parallelism === 'none' &&
+    ['ui-tweak', 'bugfix', 'maintenance'].includes(input.kind) &&
+    rule.when.size?.includes('trivial') === true &&
+    rule.when.risk?.includes('low') === true &&
+    rule.when.clarity?.includes('clear') === true &&
+    rule.when.parallelism?.includes('none') === true &&
+    rule.when.kind?.includes(input.kind) === true
+  )
 }
 
 export function matchesCondition(input: TriageInput, condition: TriageCondition): boolean {

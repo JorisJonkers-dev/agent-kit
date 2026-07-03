@@ -12,6 +12,89 @@ const baseInput: TriageInput = {
   size: 'medium',
 }
 
+const dogfoodGateProfiles: readonly {
+  readonly expected: {
+    readonly budget?: {
+      readonly estimated_model_calls: number
+      readonly rounds: number
+      readonly tier: 'small' | 'medium' | 'large' | 'program'
+      readonly worker_count: number
+    }
+    readonly budgetTier?: 'small' | 'medium' | 'large' | 'program'
+    readonly councilWorthy: boolean
+    readonly minimumVerificationScore?: number
+    readonly parallelismScore?: number
+    readonly route: string
+    readonly sharedFileRisk?: 'low' | 'medium' | 'high'
+    readonly topology: string
+    readonly verificationScore?: number
+  }
+  readonly input: TriageInput
+  readonly name: string
+}[] = [
+  {
+    expected: {
+      budget: {
+        estimated_model_calls: 3,
+        rounds: 1,
+        tier: 'small',
+        worker_count: 1,
+      },
+      councilWorthy: false,
+      parallelismScore: 0,
+      route: 'direct',
+      sharedFileRisk: 'low',
+      topology: 'single',
+      verificationScore: 20,
+    },
+    input: {
+      size: 'small',
+      landscape: 'brownfield',
+      kind: 'bugfix',
+      risk: 'low',
+      clarity: 'clear',
+      parallelism: 'none',
+    },
+    name: 'small clear low-risk direct change',
+  },
+  {
+    expected: {
+      budgetTier: 'program',
+      councilWorthy: true,
+      minimumVerificationScore: 90,
+      route: 'program',
+      sharedFileRisk: 'high',
+      topology: 'parallel',
+    },
+    input: {
+      size: 'large',
+      landscape: 'greenfield',
+      kind: 'feature',
+      risk: 'high',
+      clarity: 'needs-questions',
+      parallelism: 'high',
+    },
+    name: 'program-scale high-parallel work',
+  },
+  {
+    expected: {
+      councilWorthy: true,
+      parallelismScore: 0,
+      route: 'delta',
+      topology: 'sequential',
+    },
+    input: {
+      size: 'medium',
+      landscape: 'brownfield',
+      kind: 'refactor',
+      risk: 'high',
+      clarity: 'needs-questions',
+      parallelism: 'none',
+    },
+    name: 'tightly-coupled brownfield refactor',
+  },
+]
+
 function payloadFor(input: TriageInput, recommendation: TriageGateRecommendation = recommendLenses(triageLensProfile(input))) {
   return buildTriageGatePayload({
     input,
@@ -39,14 +122,14 @@ describe('triage gate payload', () => {
       matched_rule_id: 'trivial-clear-direct',
       council_worthy: false,
       topology: 'single',
-      parallelism_score: 10,
+      parallelism_score: 0,
       shared_file_risk: 'low',
       verification_score: 20,
       budget_estimate: {
-        worker_count: 3,
+        worker_count: 1,
         rounds: 1,
-        estimated_model_calls: 5,
-        tier: 'medium',
+        estimated_model_calls: 3,
+        tier: 'small',
       },
       classification: {
         candidate_routes: ['direct', 'delta'],
@@ -66,6 +149,25 @@ describe('triage gate payload', () => {
     })
     expect(payload.reasons).toContain('A trivial, clear, low-risk change should not fan out planning overhead.')
     expect(payload.lens_recommendation.recommended_lenses.length).toBeGreaterThan(0)
+  })
+
+  it.each(dogfoodGateProfiles)('pins the $name gate payload profile', ({ expected, input }) => {
+    const payload = payloadFor(input)
+
+    expect(payload).toMatchObject({
+      council_worthy: expected.councilWorthy,
+      route: expected.route,
+      topology: expected.topology,
+    })
+    if (expected.budget !== undefined) expect(payload.budget_estimate).toEqual(expected.budget)
+    if (expected.budgetTier !== undefined) expect(payload.budget_estimate.tier).toBe(expected.budgetTier)
+    if (expected.parallelismScore !== undefined) expect(payload.parallelism_score).toBe(expected.parallelismScore)
+    if (expected.sharedFileRisk !== undefined) expect(payload.shared_file_risk).toBe(expected.sharedFileRisk)
+    if (expected.minimumVerificationScore !== undefined) {
+      expect(payload.verification_score).toBeGreaterThanOrEqual(expected.minimumVerificationScore)
+    }
+    if (expected.verificationScore !== undefined) expect(payload.verification_score).toBe(expected.verificationScore)
+    expect(payload.plan.executes_workers).toBe(false)
   })
 
   it('maps delta, full, and program routes to deterministic sequential, hybrid, and parallel topologies', () => {
