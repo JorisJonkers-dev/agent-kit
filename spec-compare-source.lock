@@ -1,0 +1,27 @@
+# Spec Compare Source Lock
+
+upstream_repository: https://github.com/cameronsjo/spec-compare
+source_ref: main
+license: MIT
+
+## Copied or Adapted Paths
+
+The spec-compare extraction is limited to:
+
+- `docs/use-case-scoring.md`
+- `docs/beads.md`
+- `cheatsheet-beads-openspec.md`
+
+## Adaptation Notes
+
+- Upstream currently stores the cheatsheet at
+  `docs/cheatsheet-beads-openspec.md`; this lock records the adapted local
+  path requested by the vendoring baseline.
+- Do not import additional spec-compare research pages without updating this
+  lock and THIRD_PARTY_NOTICES.md.
+
+## Upgrade Procedure
+
+1. Verify the upstream repository remains reachable and MIT licensed.
+2. Refresh only the paths listed above.
+3. Re-run hygiene checks before updating this lock.
