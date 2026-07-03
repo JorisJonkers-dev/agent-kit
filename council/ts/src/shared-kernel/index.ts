@@ -26,3 +26,4 @@ export type {
   TaskResourceProfile,
   TaskRetryPolicy,
 } from './task.js'
+export { TASK_ATTACHMENT_ACTIVE_SKILLS_MAX } from './task.js'

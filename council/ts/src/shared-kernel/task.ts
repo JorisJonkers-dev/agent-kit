@@ -11,6 +11,8 @@ export type TaskRetryPolicy = JsonRecord
 
 export type TaskResourceProfile = JsonRecord
 
+export const TASK_ATTACHMENT_ACTIVE_SKILLS_MAX = 12
+
 export interface TaskResolvedAttachment {
   readonly activeSkills: readonly string[]
   readonly mcpProfile: string

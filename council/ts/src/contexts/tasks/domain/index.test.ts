@@ -10,14 +10,17 @@ import {
   validateTasksJsonSchema,
 } from './index.js'
 import type { JsonRecord } from '../../../shared-kernel/common.js'
+import { TASK_ATTACHMENT_ACTIVE_SKILLS_MAX } from '../../../shared-kernel/index.js'
+
+const fullAttachment: JsonRecord = {
+  activeSkills: ['kb-first', 'run-tests'],
+  mcpProfile: 'code-intel',
+}
 
 const fullTask: JsonRecord = {
   acceptance_criteria: ['keeps bijection'],
   archetype: 'implementation',
-  attachment: {
-    activeSkills: ['kb-first', 'run-tests'],
-    mcpProfile: 'code-intel',
-  },
+  attachment: fullAttachment,
   boundaries: 'Stay in scope',
   content_hash: 'sha256:abc',
   context_profile: 'focused',
@@ -254,11 +257,51 @@ describe('validateTasks', () => {
     )
     expect(() => { validateTasks([dependentTask, independentTask, fullTask]); }).not.toThrow()
   })
+
+  it('rejects attachments that do not match the resolved attachment contract', () => {
+    expect(() => { validateTasks([{ ...fullTask, attachment: 'wrong' }]); })
+      .toThrow("task 'T1' attachment must be an object")
+    expect(() => { validateTasks([{ ...fullTask, attachment: { activeSkills: [] } }]); })
+      .toThrow("task 'T1' attachment.mcpProfile is required")
+    expect(() => { validateTasks([{ ...fullTask, attachment: { mcpProfile: 'minimal' } }]); })
+      .toThrow("task 'T1' attachment.activeSkills is required")
+    expect(() => { validateTasks([{ ...fullTask, attachment: { ...fullAttachment, mcpProfile: 1 } }]); })
+      .toThrow("task 'T1' attachment.mcpProfile must be a non-empty string")
+    expect(() => { validateTasks([{ ...fullTask, attachment: { ...fullAttachment, mcpProfile: '  ' } }]); })
+      .toThrow("task 'T1' attachment.mcpProfile must be a non-empty string")
+    expect(() => { validateTasks([{ ...fullTask, attachment: { ...fullAttachment, activeSkills: 'kb-first' } }]); })
+      .toThrow("task 'T1' attachment.activeSkills must be an array of strings")
+    expect(() => { validateTasks([{ ...fullTask, attachment: { ...fullAttachment, activeSkills: ['kb-first', 1] } }]); })
+      .toThrow("task 'T1' attachment.activeSkills must be an array of strings")
+    expect(() => {
+      validateTasks([{
+        ...fullTask,
+        attachment: {
+          ...fullAttachment,
+          activeSkills: Array.from({ length: TASK_ATTACHMENT_ACTIVE_SKILLS_MAX + 1 }, (_, index) => `skill-${String(index)}`),
+        },
+      }])
+    }).toThrow("task 'T1' attachment.activeSkills must contain at most 12 skills")
+    expect(() => {
+      validateTasks([{
+        ...fullTask,
+        attachment: {
+          activeSkills: Array.from({ length: TASK_ATTACHMENT_ACTIVE_SKILLS_MAX }, (_, index) => `skill-${String(index)}`),
+          mcpProfile: 'minimal',
+        },
+      }])
+    }).not.toThrow()
+  })
 })
 
 describe('tasks JSON Schema layer', () => {
   it('exports the secondary schema and accepts fully shaped tasks', () => {
     expect(TASKS_JSON_SCHEMA.$comment).toContain('SECONDARY')
+    expect(TASKS_JSON_SCHEMA.items.properties.attachment.properties.activeSkills.maxItems).toBe(
+      TASK_ATTACHMENT_ACTIVE_SKILLS_MAX,
+    )
+    expect(TASKS_JSON_SCHEMA.items.properties.attachment.properties.mcpProfile.minLength).toBe(1)
+    expect(TASKS_JSON_SCHEMA.items.properties.attachment.properties.mcpProfile.pattern).toBe('\\S')
     expect(validateTasksJsonSchema([fullTask, dependentTask])).toEqual({ valid: true, errors: [] })
     expect(() => { assertTasksJsonSchema([fullTask]); }).not.toThrow()
   })
@@ -339,6 +382,20 @@ describe('tasks JSON Schema layer', () => {
           activeSkills: [],
         },
       },
+      {
+        ...fullTask,
+        attachment: {
+          ...fullAttachment,
+          mcpProfile: '  ',
+        },
+      },
+      {
+        ...fullTask,
+        attachment: {
+          ...fullAttachment,
+          activeSkills: Array.from({ length: TASK_ATTACHMENT_ACTIVE_SKILLS_MAX + 1 }, (_, index) => `skill-${String(index)}`),
+        },
+      },
     ]).errors).toEqual([
       '$[0].attachment must be an object',
       '$[1].attachment.extra is not allowed by schema',
@@ -346,6 +403,8 @@ describe('tasks JSON Schema layer', () => {
       '$[1].attachment.activeSkills must be an array of strings',
       '$[2].attachment.activeSkills is required',
       '$[3].attachment.mcpProfile is required',
+      '$[4].attachment.mcpProfile must be a non-empty string',
+      '$[5].attachment.activeSkills must contain at most 12 skills',
     ])
   })
 
