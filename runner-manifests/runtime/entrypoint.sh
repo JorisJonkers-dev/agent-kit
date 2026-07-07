@@ -316,8 +316,8 @@ esac
 check_agent_kit_manifests
 
 if command -v git >/dev/null 2>&1; then
-  git config --global user.name "${GIT_AUTHOR_NAME:-agent-runner}"
-  git config --global user.email "${GIT_AUTHOR_EMAIL:-agent-runner}"
+  git config --global user.name "${GIT_AUTHOR_NAME:-JorisJonkers Agent}"
+  git config --global user.email "${GIT_AUTHOR_EMAIL:-agents@jorisjonkers.dev}"
   git config --global init.defaultBranch "${GIT_DEFAULT_BRANCH:-main}"
   git config --global credential.helper agent-gh-app
   git config --global credential.useHttpPath true
