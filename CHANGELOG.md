@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.0.0...v3.1.0) (2026-07-07)
+
+
+### Features
+
+* **runner-runtime:** default git identity to JorisJonkers Agent ([#14](https://github.com/JorisJonkers-dev/agent-kit/issues/14)) ([8092862](https://github.com/JorisJonkers-dev/agent-kit/commit/809286227a788b5f741116ff0738e17d903e3a96))
+
 ## [3.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v2.0.0...v3.0.0) (2026-07-03)
 
 
