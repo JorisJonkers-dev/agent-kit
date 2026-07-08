@@ -1,8 +1,7 @@
 """GitHub API wrapper enforcing operation security denylist."""
 
-from typing import Any
-
 import re
+from typing import Any
 
 import requests
 
