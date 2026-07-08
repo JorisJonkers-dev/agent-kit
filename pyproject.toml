@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 license = "LicenseRef-JorisJonkers-Proprietary-1.0"
 dependencies = [
   "PyYAML>=6.0,<7",
+  "requests>=2.32,<3",
 ]
 
 [dependency-groups]
@@ -17,6 +18,9 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
 
 [tool.setuptools]
 py-modules = []

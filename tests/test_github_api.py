@@ -5,14 +5,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tools.deploy.github_api import (
-    ALLOWED_METHODS,
-    FORBIDDEN_OPERATIONS,
     ForbiddenOperationError,
+    _to_template,
     assert_allowed,
     github_api_get,
     github_api_post,
     github_api_put,
-    _to_template,
 )
 
 
@@ -28,10 +26,9 @@ class TestDenylistNormalization:
     def test_normalize_run_id(self):
         """Normalize run ID in path."""
         path = "/repos/Org/my-repo/actions/runs/12345/jobs/67890"
-        expected = "/repos/{repo}/actions/runs/{run_id}/jobs/{review_id}"
-        # Note: review_id regex will match after runs, so let's check for run_id specifically
         result = _to_template(path)
         assert "/runs/{run_id}/" in result
+        assert result.startswith("/repos/{repo}/actions/")
 
     def test_normalize_secret_name(self):
         """Normalize secret name in path."""
@@ -135,7 +132,7 @@ class TestGithubAPIGet:
 
         assert result == {"test": "data"}
         mock_get.assert_called_once()
-        args, kwargs = mock_get.call_args
+        kwargs = mock_get.call_args.kwargs
         assert "test-token" in kwargs["headers"]["Authorization"]
         assert kwargs["params"] == {"state": "open"}
 

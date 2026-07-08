@@ -1,14 +1,10 @@
 """Tests for prepare_rollback tool."""
 
-import os
-from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from tools.deploy.prepare_rollback import (
-    APP_KEY_MAX_AGE_DAYS,
-    FORBIDDEN_ENV_VARS,
     AppKeyTooOldError,
     PrivilegedEnvPresentError,
     prepare_rollback,
@@ -211,5 +207,5 @@ class TestRollbackBranchCreation:
         )
 
         assert result["merged"] is False
-        assert "rollback/agents-api/v1.2.3" == result["rollback_branch"]
+        assert result["rollback_branch"] == "rollback/agents-api/v1.2.3"
         assert "https://github.com/homelab-deploy/compare/main..." in result["rollback_pr"]

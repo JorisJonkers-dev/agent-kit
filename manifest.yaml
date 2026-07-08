@@ -53,9 +53,11 @@ renderer:
     - .agents/skills/council-supervise/SKILL.md
     - .agents/skills/council-triage/SKILL.md
     - .agents/skills/council/SKILL.md
+    - .agents/skills/deploy-status/SKILL.md
     - .agents/skills/fleet-change/SKILL.md
     - .agents/skills/kb-first/SKILL.md
     - .agents/skills/open-pr/SKILL.md
+    - .agents/skills/prepare-rollback/SKILL.md
     - .agents/skills/run-tests/SKILL.md
     - .agents/skills/speckit-analyze/SKILL.md
     - .agents/skills/speckit-checklist/SKILL.md
@@ -92,9 +94,11 @@ renderer:
     - .claude/skills/council-supervise/SKILL.md
     - .claude/skills/council-triage/SKILL.md
     - .claude/skills/council/SKILL.md
+    - .claude/skills/deploy-status/SKILL.md
     - .claude/skills/fleet-change/SKILL.md
     - .claude/skills/kb-first/SKILL.md
     - .claude/skills/open-pr/SKILL.md
+    - .claude/skills/prepare-rollback/SKILL.md
     - .claude/skills/run-tests/SKILL.md
     - .claude/skills/token-economy/SKILL.md
     - .codex/hooks.json
@@ -381,6 +385,15 @@ skills:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/skills/council/SKILL.md"
       codex_target_path: "${CODEX_HOME}/skills/council/SKILL.md"
+  - name: deploy-status
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/deploy-status/SKILL.md
+        sha256: 9aed5f4be488481a29b7c39b0ebb27f9e6aa718cabb8d9396451914321c0afea
+      - agent: claude
+        path: .claude/skills/deploy-status/SKILL.md
+        sha256: 9aed5f4be488481a29b7c39b0ebb27f9e6aa718cabb8d9396451914321c0afea
   - name: fleet-change
     supported_agents: [codex, claude]
     targets:
@@ -412,6 +425,15 @@ skills:
       - agent: claude
         path: .claude/skills/open-pr/SKILL.md
         sha256: 7e978da6a0555e2f93e30f6de6ad7069c18fa35b003b503bcbe91f8c9ad8b9df
+  - name: prepare-rollback
+    supported_agents: [codex, claude]
+    targets:
+      - agent: codex
+        path: .agents/skills/prepare-rollback/SKILL.md
+        sha256: 1bd398fe592c58a0c09cba4a5cc806bdb3a5ee8dcd9ac062773ef6634245fa3a
+      - agent: claude
+        path: .claude/skills/prepare-rollback/SKILL.md
+        sha256: 1bd398fe592c58a0c09cba4a5cc806bdb3a5ee8dcd9ac062773ef6634245fa3a
   - name: run-tests
     supported_agents: [codex, claude]
     targets:

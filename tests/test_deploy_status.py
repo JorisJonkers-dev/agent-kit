@@ -1,14 +1,10 @@
 """Tests for deploy_status tool."""
 
-import json
-import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from tools.deploy.deploy_status import (
-    CHECK_TO_ARTIFACT,
-    REQUIRED_CHECK_NAMES,
     deploy_status,
 )
 
@@ -24,7 +20,7 @@ def check_run(name: str, conclusion: str | None = None) -> dict:
     return {
         "name": name,
         "conclusion": conclusion,
-        "details_url": f"https://github.com/JorisJonkers-dev/homelab-deploy/actions/runs/12345/jobs/67890",
+        "details_url": "https://github.com/JorisJonkers-dev/homelab-deploy/actions/runs/12345/jobs/67890",
     }
 
 
