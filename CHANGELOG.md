@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.1.0...v3.2.0) (2026-07-08)
+
+
+### Features
+
+* deploy-status and prepare-rollback agent skills ([#16](https://github.com/JorisJonkers-dev/agent-kit/issues/16)) ([1749cb2](https://github.com/JorisJonkers-dev/agent-kit/commit/1749cb24c3aed54d1cbc1747db22fde801a364f1))
+
 ## [3.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.0.0...v3.1.0) (2026-07-07)
 
 
