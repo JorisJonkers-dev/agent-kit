@@ -202,8 +202,9 @@ async function runActionsRunsForShaProbe(
     command: 'sh',
     args: [
       '-c',
-      `curl -sf -H "Authorization: Bearer ${token}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${repo}/actions/runs?head_sha=${sha}"`,
+      `curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${repo}/actions/runs?head_sha=${sha}"`,
     ],
+    env: { GITHUB_TOKEN: token },
   })
   return result.stdout
 }
@@ -222,8 +223,9 @@ async function runPrMergeableProbe(
     command: 'sh',
     args: [
       '-c',
-      `curl -sf -H "Authorization: Bearer ${token}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${repo}/pulls/${pr}"`,
+      `curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${repo}/pulls/${pr}"`,
     ],
+    env: { GITHUB_TOKEN: token },
   })
   return result.stdout
 }
@@ -242,8 +244,9 @@ async function runGhcrPackageVisibleProbe(
     command: 'sh',
     args: [
       '-c',
-      `curl -sf -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${token}" "https://ghcr.io/v2/${pkg}/manifests/${version}"`,
+      `curl -sf -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $GITHUB_TOKEN" "https://ghcr.io/v2/${pkg}/manifests/${version}"`,
     ],
+    env: { GITHUB_TOKEN: token },
   })
   return result.stdout.trim() === '200' ? '{"visible":true}' : '{"visible":false}'
 }
