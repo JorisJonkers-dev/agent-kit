@@ -19,3 +19,5 @@ export * from './tail-workflow.js'
 export * from './triage.js'
 
 export * from './monitor.js'
+export * from './supervise.js'
+export * from './task-state.js'
