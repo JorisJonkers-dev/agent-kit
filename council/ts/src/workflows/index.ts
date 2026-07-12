@@ -17,3 +17,5 @@ export * from './status.js'
 export * from './tail.js'
 export * from './tail-workflow.js'
 export * from './triage.js'
+
+export * from './monitor.js'

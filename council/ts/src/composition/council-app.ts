@@ -15,6 +15,7 @@ import {
   type WorktreeDependencyProvisionerPort,
 } from '../adapters/worktree-provisioning/index.js'
 import { resolveCouncilConfig } from '../contexts/config/index.js'
+import { createMonitorFsAdapter } from '../contexts/monitor/index.js'
 import {
   GitCliAdapter,
   planWaves,
@@ -62,6 +63,15 @@ import type { JsonRecord, Task } from '../shared-kernel/index.js'
 import {
   assignAgents,
   configWorkflow,
+  monitorList,
+  monitorStatus,
+  startMonitor,
+  type MonitorListInput,
+  type MonitorListResult,
+  type MonitorStartInput,
+  type MonitorStartResult,
+  type MonitorStatusInput,
+  type MonitorStatusResult,
   evalWorkflow,
   executeDagExecutorState,
   fanoutWorkflow,
@@ -497,6 +507,39 @@ export class CouncilApp {
       }),
     )
     return result
+  }
+
+  monitor(input: MonitorStartInput): Promise<MonitorStartResult> {
+    return startMonitor(input, {
+      process: this.processPort,
+      fs: createMonitorFsAdapter(),
+      nowIso: this.nowIso,
+      nowMs: () => Math.trunc(this.clock.monotonicMs()),
+      sleep: (ms) => this.clock.sleep(ms),
+    })
+  }
+
+  monitorStatus(input: MonitorStatusInput): Promise<MonitorStatusResult> {
+    return monitorStatus(input, {
+      process: this.processPort,
+      fs: createMonitorFsAdapter(),
+      nowIso: this.nowIso,
+      /* c8 ignore next -- monitorStatus does not invoke nowMs */
+      nowMs: () => Math.trunc(this.clock.monotonicMs()),
+      /* c8 ignore next -- monitorStatus does not invoke sleep */
+      sleep: (ms) => this.clock.sleep(ms),
+    })
+  }
+
+  monitorList(input: MonitorListInput): Promise<MonitorListResult> {
+    return monitorList(input, {
+      process: this.processPort,
+      fs: createMonitorFsAdapter(),
+      nowIso: this.nowIso,
+      nowMs: () => Math.trunc(this.clock.monotonicMs()),
+      /* c8 ignore next -- monitorList does not invoke sleep */
+      sleep: (ms) => this.clock.sleep(ms),
+    })
   }
 
   roundTripTasksMarkdown(tasksPath: string): Promise<readonly import('../shared-kernel/index.js').JsonRecord[]> {

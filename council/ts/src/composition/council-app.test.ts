@@ -2007,3 +2007,128 @@ function nativeTask(): Task {
     verify_proves: ['npm test exercises the native task behavior'],
   }
 }
+
+describe('CouncilApp.monitor', () => {
+  let tempDirs: string[] = []
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })))
+  })
+
+  it('runs monitor start and returns passed status when predicate matches on first tick', async () => {
+    const execDir = await mkdtemp(join(tmpdir(), 'monitor-app-test-'))
+    tempDirs.push(execDir)
+
+    const app = new CouncilApp({
+      process: {
+        exec: vi.fn().mockResolvedValue({ stdout: 'hello world', stderr: '', exitCode: 0 }),
+      },
+    })
+
+    const result = await app.monitor({
+      name: 'test-monitor',
+      interval: '1s',
+      deadline: '60s',
+      cmd: 'echo hello',
+      until: 'hello',
+      then: '',
+      execDir,
+    })
+
+    expect(result.status).toBe('passed')
+  })
+
+  it('runs monitor start with multiple ticks exercising sleep', async () => {
+    const execDir = await mkdtemp(join(tmpdir(), 'monitor-app-test-'))
+    tempDirs.push(execDir)
+
+    let callCount = 0
+    const app = new CouncilApp({
+      process: {
+        exec: vi.fn().mockImplementation(async () => {
+          callCount += 1
+          return { stdout: callCount >= 2 ? 'matched' : 'not yet', stderr: '', exitCode: 0 }
+        }),
+      },
+    })
+
+    const result = await app.monitor({
+      name: 'multi-tick-monitor',
+      interval: '1s',
+      deadline: '60s',
+      cmd: 'probe cmd',
+      until: 'matched',
+      then: '',
+      execDir,
+    })
+
+    expect(result.status).toBe('passed')
+    expect(callCount).toBeGreaterThanOrEqual(2)
+  })
+
+  it('runs monitorStatus and returns the monitor state', async () => {
+    const execDir = await mkdtemp(join(tmpdir(), 'monitor-app-test-'))
+    tempDirs.push(execDir)
+
+    // First create a monitor state by running start
+    const startApp = new CouncilApp({
+      process: {
+        exec: vi.fn().mockResolvedValue({ stdout: 'ok', stderr: '', exitCode: 0 }),
+      },
+    })
+    await startApp.monitor({
+      name: 'status-test',
+      interval: '1s',
+      deadline: '60s',
+      cmd: 'echo ok',
+      until: 'ok',
+      then: '',
+      execDir,
+    })
+
+    // Now read status
+    const statusApp = new CouncilApp({
+      process: {
+        exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+      },
+    })
+    const result = await statusApp.monitorStatus({
+      name: 'status-test',
+      execDir,
+    })
+
+    expect(result.state.name).toBe('status-test')
+    expect(result.state.status).toBe('passed')
+  })
+
+  it('runs monitorList and returns all monitors in the exec dir', async () => {
+    const execDir = await mkdtemp(join(tmpdir(), 'monitor-app-test-'))
+    tempDirs.push(execDir)
+
+    // Create a monitor
+    const startApp = new CouncilApp({
+      process: {
+        exec: vi.fn().mockResolvedValue({ stdout: 'ready', stderr: '', exitCode: 0 }),
+      },
+    })
+    await startApp.monitor({
+      name: 'list-test',
+      interval: '1s',
+      deadline: '60s',
+      cmd: 'echo ready',
+      until: 'ready',
+      then: '',
+      execDir,
+    })
+
+    const listApp = new CouncilApp({
+      process: {
+        exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+      },
+    })
+    const result = await listApp.monitorList({ execDir })
+
+    expect(result.monitors).toHaveLength(1)
+    expect(result.monitors[0]?.name).toBe('list-test')
+  })
+})

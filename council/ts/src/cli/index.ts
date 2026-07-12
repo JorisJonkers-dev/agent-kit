@@ -16,6 +16,7 @@ import {
 import type { CouncilConfig } from '../contexts/config/index.js'
 import type { WorkerOutputStream } from '../contexts/runstore/index.js'
 import type { DagConcurrency, DagEvalConfig } from '../ports/index.js'
+import type { MonitorStartInput, MonitorStatusInput, MonitorListInput } from '../workflows/index.js'
 
 export type CliCommand =
   | 'amend'
@@ -39,6 +40,7 @@ export type CliCommand =
   | 'sync-skills'
   | 'tail'
   | 'triage'
+  | 'monitor'
 
 export interface CliResult {
   readonly exitCode: number
@@ -78,6 +80,7 @@ const COMMANDS: readonly CommandSpec[] = [
   { help: 'synchronize council skills', name: 'sync-skills' },
   { help: 'tail one task log', name: 'tail' },
   { help: 'run the triage gate and emit routing payload', name: 'triage' },
+  { help: 'poll a probe until a condition is met, then run a finalizer', name: 'monitor' },
 ]
 
 export function commandRegistry(): readonly CommandSpec[] {
@@ -126,6 +129,8 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
         return okJson(await app.supervise(parseSupervise(rest)))
       case 'tail':
         return await runTailCommand(app, parseTail(rest))
+      case 'monitor':
+        return await runMonitorCommand(app, parseMonitor(rest))
       case 'design':
       case 'amend':
       case 'context':
@@ -563,6 +568,62 @@ function okJson(value: unknown): CliResult {
 
 function fail(stderr: string): CliResult {
   return { exitCode: 2, stderr: `${stderr.trimEnd()}\n`, stdout: '' }
+}
+
+
+type ParsedMonitorCommand =
+  | { readonly kind: 'start'; readonly input: MonitorStartInput }
+  | { readonly kind: 'status'; readonly input: MonitorStatusInput }
+  | { readonly kind: 'list'; readonly input: MonitorListInput }
+
+function parseMonitor(argv: readonly string[]): ParsedMonitorCommand {
+  const [subcommand, ...rest] = argv
+  const flags = parseFlags(rest)
+  if (subcommand === 'start') {
+    return {
+      kind: 'start',
+      input: {
+        name: requireFlag(flags, 'name'),
+        interval: requireFlag(flags, 'interval'),
+        deadline: requireFlag(flags, 'deadline'),
+        cmd: requireFlag(flags, 'cmd'),
+        until: requireFlag(flags, 'until'),
+        then: requireFlag(flags, 'then'),
+        execDir: requireFlag(flags, 'exec-dir'),
+      },
+    }
+  }
+  if (subcommand === 'status') {
+    return {
+      kind: 'status',
+      input: {
+        name: requireFlag(flags, 'name'),
+        execDir: requireFlag(flags, 'exec-dir'),
+      },
+    }
+  }
+  if (subcommand === 'list') {
+    return {
+      kind: 'list',
+      input: {
+        execDir: requireFlag(flags, 'exec-dir'),
+      },
+    }
+  }
+  throw new Error(`monitor requires subcommand: start | status | list`)
+}
+
+async function runMonitorCommand(app: CouncilApp, parsed: ParsedMonitorCommand): Promise<CliResult> {
+  if (parsed.kind === 'start') {
+    const result = await app.monitor(parsed.input)
+    return ok(JSON.stringify(result, null, 2))
+  }
+  if (parsed.kind === 'status') {
+    const result = await app.monitorStatus(parsed.input)
+    return ok(JSON.stringify(result, null, 2))
+  }
+  const result = await app.monitorList(parsed.input)
+  return ok(JSON.stringify(result, null, 2))
 }
 
 /* c8 ignore start -- process entry bootstrap; not unit-testable */
