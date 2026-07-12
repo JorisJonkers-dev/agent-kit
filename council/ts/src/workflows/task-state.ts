@@ -1,4 +1,4 @@
-export interface ResumeableTaskState {
+export interface ResumableTaskState {
   readonly taskId: string
   readonly stepsDone: readonly string[]
   readonly nextStep: string

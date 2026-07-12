@@ -7,12 +7,12 @@ export interface WorkerLivenessReport {
 }
 
 export function parseWorkerLiveness(output: string): WorkerLivenessReport {
-  if (/STATUS:\s*DONE/u.test(output)) {
+  if (/STATUS:\s*DONE\s*$/u.test(output)) {
     return { kind: 'done' }
   }
 
   const waitingMatch =
-    /STATUS:\s*WAITING\(reason=([^,)]+),\s*resume-condition=([^,)]+),\s*deadline=([^,)]+)(?:,\s*monitor=([^,)]+))?\)/u.exec(
+    /STATUS:\s*WAITING\(reason=([^,)]+),\s*resume-condition=([^,)]+),\s*deadline=([^,)]+)(?:,\s*monitor=([^,)]+))?\)\s*$/u.exec(
       output,
     )
 
@@ -64,6 +64,10 @@ export function evaluateWatchdog(
   const monitorName = entry.monitorName ?? report?.monitor
 
   if (report?.kind === 'waiting' && monitorName !== undefined) {
+    if (report.deadline !== undefined && new Date(report.deadline).getTime() <= nowMs) {
+      return { kind: 'stalled', taskId: entry.taskId, reason: `deadline expired: ${report.deadline}` }
+    }
+
     const monitor = monitorList.find((m) => m.name === monitorName)
 
     if (monitor !== undefined && !monitor.dead && monitor.status === 'polling') {
@@ -108,6 +112,14 @@ export interface PollUntilGreenInput {
   readonly finalizer?: string
 }
 
+function validateSha(sha: string): void {
+  if (!/^[0-9a-f]{7,40}$/iu.test(sha)) throw new Error(`invalid SHA: ${sha}`)
+}
+
+function validateRepo(repo: string): void {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repo)) throw new Error(`invalid repo: ${repo}`)
+}
+
 function msToDurationString(ms: number): string {
   const totalSeconds = Math.round(ms / 1_000)
   const hours = Math.floor(totalSeconds / 3_600)
@@ -120,6 +132,8 @@ function msToDurationString(ms: number): string {
 }
 
 export function buildPollUntilGreenMonitorArgs(input: PollUntilGreenInput): string[] {
+  validateSha(input.sha)
+  validateRepo(input.repo)
   const interval = input.intervalMs !== undefined ? msToDurationString(input.intervalMs) : '30s'
   const deadline = input.deadlineMs !== undefined ? msToDurationString(input.deadlineMs) : '45m'
 
@@ -134,7 +148,7 @@ export function buildPollUntilGreenMonitorArgs(input: PollUntilGreenInput): stri
     '--cmd',
     `probe:actions-runs-for-sha --sha ${input.sha} --repo ${input.repo} --expected-status success`,
     '--until',
-    '.workflow_runs[0].conclusion == "success"',
+    '"conclusion": "success"',
     '--then',
     input.finalizer ?? '',
     '--exec-dir',

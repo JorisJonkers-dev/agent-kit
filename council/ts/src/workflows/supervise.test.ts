@@ -24,6 +24,11 @@ describe('parseWorkerLiveness', () => {
     expect(result.kind).toBe('done')
   })
 
+  it('returns stalled when STATUS: DONE appears in the middle (not at end)', () => {
+    const result = parseWorkerLiveness('STATUS: DONE\nThen I kept going and did more things.')
+    expect(result.kind).toBe('stalled')
+  })
+
   it('returns waiting with parsed fields for WAITING(...)', () => {
     const output =
       'STATUS: WAITING(reason=CI not green, resume-condition=check actions runs, deadline=2026-07-12T10:00:00.000Z)'
@@ -167,6 +172,25 @@ describe('evaluateWatchdog', () => {
     expect(result.kind).toBe('stale')
   })
 
+  it('returns stalled when WAITING but deadline has expired', () => {
+    const entry: WatchdogWorkerEntry = {
+      taskId: 'task-deadline',
+      lastActivityAt: new Date(baseTime - 10 * 60_000).toISOString(),
+      livenessReport: {
+        kind: 'waiting',
+        reason: 'CI running',
+        resumeCondition: 'check green',
+        deadline: '2026-07-12T09:00:00.000Z', // one hour BEFORE baseTime
+        monitor: 'ci-monitor',
+      },
+      monitorName: 'ci-monitor',
+    }
+    const monitors = [{ name: 'ci-monitor', status: 'polling', dead: false }]
+    const result = evaluateWatchdog(entry, baseTime, stallWindowMs, monitors)
+    expect(result.kind).toBe('stalled')
+    expect(result.reason).toContain('deadline expired')
+  })
+
   it('uses monitor from livenessReport when entry.monitorName is absent', () => {
     const entry: WatchdogWorkerEntry = {
       taskId: 'task-8',
@@ -229,7 +253,7 @@ describe('shouldEscalate', () => {
 describe('buildPollUntilGreenMonitorArgs', () => {
   it('produces correct argv with all required flags using defaults', () => {
     const input: PollUntilGreenInput = {
-      sha: 'abc123',
+      sha: 'abc1234',
       repo: 'owner/repo',
       monitorName: 'ci-green',
       execDir: '/tmp/exec',
@@ -247,7 +271,7 @@ describe('buildPollUntilGreenMonitorArgs', () => {
     expect(args[args.indexOf('--cmd') + 1]).toContain('abc123')
     expect(args[args.indexOf('--cmd') + 1]).toContain('owner/repo')
     expect(args).toContain('--until')
-    expect(args[args.indexOf('--until') + 1]).toBe('.workflow_runs[0].conclusion == "success"')
+    expect(args[args.indexOf('--until') + 1]).toBe('"conclusion": "success"')
     expect(args).toContain('--then')
     expect(args).toContain('--exec-dir')
     expect(args[args.indexOf('--exec-dir') + 1]).toBe('/tmp/exec')
@@ -255,7 +279,7 @@ describe('buildPollUntilGreenMonitorArgs', () => {
 
   it('uses provided intervalMs and deadlineMs when set', () => {
     const input: PollUntilGreenInput = {
-      sha: 'def456',
+      sha: 'def4567',
       repo: 'org/proj',
       monitorName: 'build-check',
       execDir: '/tmp/exec',
@@ -270,7 +294,7 @@ describe('buildPollUntilGreenMonitorArgs', () => {
 
   it('uses provided finalizer when set', () => {
     const input: PollUntilGreenInput = {
-      sha: 'abc',
+      sha: 'abc1234',
       repo: 'owner/repo',
       monitorName: 'mon',
       execDir: '/tmp/exec',
@@ -283,7 +307,7 @@ describe('buildPollUntilGreenMonitorArgs', () => {
 
   it('uses empty string for then when finalizer is absent', () => {
     const input: PollUntilGreenInput = {
-      sha: 'abc',
+      sha: 'abc1234',
       repo: 'owner/repo',
       monitorName: 'mon',
       execDir: '/tmp/exec',
@@ -295,7 +319,7 @@ describe('buildPollUntilGreenMonitorArgs', () => {
 
   it('converts sub-minute intervalMs to seconds string', () => {
     const input: PollUntilGreenInput = {
-      sha: 'abc',
+      sha: 'abc1234',
       repo: 'owner/repo',
       monitorName: 'mon',
       execDir: '/tmp/exec',
@@ -304,5 +328,27 @@ describe('buildPollUntilGreenMonitorArgs', () => {
     const args = buildPollUntilGreenMonitorArgs(input)
 
     expect(args[args.indexOf('--interval') + 1]).toBe('30s')
+  })
+})
+
+describe('buildPollUntilGreenMonitorArgs validation', () => {
+  it('throws on invalid SHA', () => {
+    const input: PollUntilGreenInput = {
+      sha: 'not-a-sha!',
+      repo: 'owner/repo',
+      monitorName: 'mon',
+      execDir: '/tmp/exec',
+    }
+    expect(() => buildPollUntilGreenMonitorArgs(input)).toThrow('invalid SHA')
+  })
+
+  it('throws on invalid repo format', () => {
+    const input: PollUntilGreenInput = {
+      sha: 'abc1234',
+      repo: 'invalid repo name',
+      monitorName: 'mon',
+      execDir: '/tmp/exec',
+    }
+    expect(() => buildPollUntilGreenMonitorArgs(input)).toThrow('invalid repo')
   })
 })
