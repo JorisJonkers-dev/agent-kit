@@ -22,6 +22,12 @@ import type {
 import type { ClockPort, LiveRunArtifacts, WorkerResult } from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
 import type {
+  MonitorListInput,
+  MonitorListResult,
+  MonitorStartInput,
+  MonitorStartResult,
+  MonitorStatusInput,
+  MonitorStatusResult,
   StatusWatchTickerPort,
   TailWorkflowFrame,
   TailWorkflowLogReadInput,
@@ -58,6 +64,9 @@ type AppCall =
   | { readonly input: SuperviseInput; readonly method: 'supervise' }
   | { readonly input: CouncilAppTailInput; readonly method: 'tail' }
   | { readonly input: TriageWorkflowInput; readonly method: 'triage' }
+  | { readonly input: MonitorStartInput; readonly method: 'monitor' }
+  | { readonly input: MonitorStatusInput; readonly method: 'monitorStatus' }
+  | { readonly input: MonitorListInput; readonly method: 'monitorList' }
 
 interface RecordingAppOptions {
   readonly configError?: Error
@@ -147,6 +156,34 @@ class RecordingApp {
   triage(input: TriageWorkflowInput): Promise<unknown> {
     this.calls.push({ input, method: 'triage' })
     return Promise.resolve({ input, method: 'triage', route: 'program' })
+  }
+
+  monitor(input: MonitorStartInput): Promise<MonitorStartResult> {
+    this.calls.push({ input, method: 'monitor' })
+    return Promise.resolve({ status: 'passed', lastOutput: 'done' })
+  }
+
+  monitorStatus(input: MonitorStatusInput): Promise<MonitorStatusResult> {
+    this.calls.push({ input, method: 'monitorStatus' })
+    return Promise.resolve({
+      state: {
+        name: input.name,
+        status: 'polling',
+        startedAt: '2026-01-01T00:00:00.000Z',
+        deadline: '2026-01-01T01:00:00.000Z',
+        lastTickAt: '2026-01-01T00:00:00.000Z',
+        lastOutput: '',
+        intervalMs: 5000,
+        cmd: 'echo',
+        until: 'done',
+        then: '',
+      },
+    })
+  }
+
+  monitorList(input: MonitorListInput): Promise<MonitorListResult> {
+    this.calls.push({ input, method: 'monitorList' })
+    return Promise.resolve({ monitors: [] })
   }
 }
 
@@ -1314,5 +1351,94 @@ describe('runCli error handling', () => {
       stderr: 'plain failure\n',
       stdout: '',
     })
+  })
+})
+
+describe('monitor command', () => {
+  it('routes monitor start through the app', async () => {
+    const app = new RecordingApp()
+    const result = await runCli(
+      [
+        'monitor',
+        'start',
+        '--name', 'test-monitor',
+        '--interval', '5s',
+        '--deadline', '60s',
+        '--cmd', 'echo hello',
+        '--until', 'hello',
+        '--then', 'echo done',
+        '--exec-dir', '/tmp/exec',
+      ],
+      injectedRuntime(app),
+    )
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([
+      {
+        method: 'monitor',
+        input: {
+          name: 'test-monitor',
+          interval: '5s',
+          deadline: '60s',
+          cmd: 'echo hello',
+          until: 'hello',
+          then: 'echo done',
+          execDir: '/tmp/exec',
+        },
+      },
+    ])
+  })
+
+  it('routes monitor status through the app', async () => {
+    const app = new RecordingApp()
+    const result = await runCli(
+      [
+        'monitor',
+        'status',
+        '--name', 'test-monitor',
+        '--exec-dir', '/tmp/exec',
+      ],
+      injectedRuntime(app),
+    )
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([
+      {
+        method: 'monitorStatus',
+        input: { name: 'test-monitor', execDir: '/tmp/exec' },
+      },
+    ])
+  })
+
+  it('routes monitor list through the app', async () => {
+    const app = new RecordingApp()
+    const result = await runCli(
+      [
+        'monitor',
+        'list',
+        '--exec-dir', '/tmp/exec',
+      ],
+      injectedRuntime(app),
+    )
+    expect(result.exitCode).toBe(0)
+    expect(app.calls).toEqual([
+      {
+        method: 'monitorList',
+        input: { execDir: '/tmp/exec' },
+      },
+    ])
+  })
+
+  it('fails when monitor has no subcommand', async () => {
+    const result = await runCli(['monitor'], injectedRuntime())
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('monitor requires subcommand')
+  })
+
+  it('fails when monitor start is missing required flags', async () => {
+    const result = await runCli(
+      ['monitor', 'start', '--name', 'test'],
+      injectedRuntime(),
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('--interval is required')
   })
 })
