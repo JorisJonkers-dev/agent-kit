@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.3.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.2.0...v3.3.0) (2026-07-12)
+
+
+### Features
+
+* **council:** stall detection with liveness contract, watchdog, and poll-until-green ([#22](https://github.com/JorisJonkers-dev/agent-kit/issues/22)) ([134d014](https://github.com/JorisJonkers-dev/agent-kit/commit/134d014ccc957af0fd146c289541729385b808c3))
+* **monitor:** add monitor primitive with poll-until-finalizer and state persistence ([#20](https://github.com/JorisJonkers-dev/agent-kit/issues/20)) ([b1c06c3](https://github.com/JorisJonkers-dev/agent-kit/commit/b1c06c3dbb16aebff8475d1147f858f102cd7a03))
+
 ## [3.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.1.0...v3.2.0) (2026-07-08)
 
 
