@@ -34,6 +34,28 @@
     },
     {
       "customType": "regex",
+      "description": "Update the pinned grill-me skill ref (mattpocock/skills) in the skills source lock.",
+      "managerFilePatterns": ["/^skills-source\\.lock$/"],
+      "matchStrings": [
+        "pinned_tag: (?<currentValue>\\S+)\\s+pinned_commit: (?<currentDigest>[a-f0-9]{7,40})"
+      ],
+      "depNameTemplate": "mattpocock/skills",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Update the pinned `skills` CLI version used to install grill-me.",
+      "managerFilePatterns": ["/^skills-source\\.lock$/"],
+      "matchStrings": [
+        "skills_cli_version: (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "skills",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "npm"
+    },
+    {
+      "customType": "regex",
       "description": "Update Spec Kit source lock release pins.",
       "managerFilePatterns": ["/^spec-kit-source\\.lock$/"],
       "matchStrings": [

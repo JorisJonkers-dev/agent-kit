@@ -28,7 +28,9 @@ sources:
 
 - Project: Skills
 - Repository: https://github.com/mattpocock/skills
-- Source ref: main
+- Pinned tag: v1.1.0
+- Resolved source commit: d574778f94cf620fcc8ce741584093bc650a61d3
+- Installed skills: grill-me (via `skills` CLI, pinned; installed by install.sh)
 - License: MIT
 - Copyright notice: Copyright (c) 2026 Matt Pocock
 

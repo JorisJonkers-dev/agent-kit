@@ -174,6 +174,7 @@ claude_managed_paths=(
   "${SKILLS_DIR}/kb-first/SKILL.md"
   "${SKILLS_DIR}/token-economy/SKILL.md"
   "${SKILLS_DIR}/agent-session-bootstrap/SKILL.md"
+  "${SKILLS_DIR}/grill-me/SKILL.md"
   "${SKILLS_DIR}/council/SKILL.md"
   "${SKILLS_DIR}/council/council.mjs"
   "${SKILLS_DIR}/council/council.toml"
@@ -237,6 +238,7 @@ codex_managed_paths=(
   "${CODEX_SKILLS_DIR}/kb-first/SKILL.md"
   "${CODEX_SKILLS_DIR}/token-economy/SKILL.md"
   "${CODEX_SKILLS_DIR}/agent-session-bootstrap/SKILL.md"
+  "${CODEX_SKILLS_DIR}/grill-me/SKILL.md"
   "${CODEX_SKILLS_DIR}/council/SKILL.md"
   "${CODEX_SKILLS_DIR}/council/council.mjs"
   "${CODEX_SKILLS_DIR}/council/council.toml"
@@ -4040,6 +4042,55 @@ install_council() {
 }
 if [ "${INSTALL_CLAUDE}" = 1 ]; then install_council "${SKILLS_DIR}" "${COUNCIL_SKILL_claude}"; fi
 if [ "${INSTALL_CODEX}" = 1 ]; then install_council "${CODEX_SKILLS_DIR}" "${COUNCIL_SKILL_codex}"; fi
+
+# -----------------------------------------------------------------
+# Third-party skill: grill-me (mattpocock/skills). Installed for both
+# CLIs via the `skills` CLI, pinned to a reviewed ref so bumping the
+# pin is a normal renovate/review event (org supply-chain posture).
+# The skill content executes inside agent context, so the ref is never
+# floating. Loud-skip philosophy: if npx or the network is unavailable
+# the step logs a warning and continues rather than failing the whole
+# install (same fallback posture as the MCP fleet registration). The
+# `skills` CLI is itself idempotent, so re-runs and upgrades converge
+# without duplicating the skill.
+# -----------------------------------------------------------------
+# Pin — reviewed 2026-07-13; see skills-source.lock and manifest.yaml
+# provenance.skills. mattpocock/skills v1.1.0 = commit
+# d574778f94cf620fcc8ce741584093bc650a61d3. Bump via renovate/review.
+readonly GRILL_ME_SOURCE='mattpocock/skills#v1.1.0'
+readonly GRILL_ME_SKILL='grill-me'
+readonly SKILLS_CLI='skills@1.5.16'
+
+install_grill_me() {
+  # ${agent} is the `skills` CLI agent name (its registry keys are
+  # "claude-code" and "codex", not "claude"); ${home} is the installer's
+  # resolved client home for that agent.
+  local agent="$1" home="$2"
+  if [ "${DRY_RUN}" = 1 ]; then
+    log "would install ${GRILL_ME_SKILL} for ${agent} from ${GRILL_ME_SOURCE} via npx ${SKILLS_CLI}"
+    return 0
+  fi
+  if ! command -v npx >/dev/null 2>&1; then
+    log "WARNING: npx is not on PATH; skipping ${GRILL_ME_SKILL} for ${agent} (install Node >=22 and re-run)"
+    return 0
+  fi
+  # The `skills` CLI resolves its home from CLAUDE_CONFIG_DIR / CODEX_HOME,
+  # so exporting the installer-resolved home lands grill-me next to the
+  # kit's own skills for both user and project scope.
+  if CLAUDE_CONFIG_DIR="${home}" CODEX_HOME="${home}" \
+      npx --yes "${SKILLS_CLI}" add "${GRILL_ME_SOURCE}" \
+        --skill="${GRILL_ME_SKILL}" --agent "${agent}" --yes --global; then
+    log "installed ${GRILL_ME_SKILL} for ${agent} from ${GRILL_ME_SOURCE}"
+  else
+    log "WARNING: ${GRILL_ME_SKILL} install for ${agent} failed (npx/network unavailable?); continuing"
+  fi
+}
+
+# The `skills` CLI expects "claude-code" (not "claude") as the Claude agent
+# name; the installer's own INSTALL_CLAUDE gating and ${CLAUDE_HOME}/${SKILLS_DIR}
+# variable names are unchanged.
+if [ "${INSTALL_CLAUDE}" = 1 ]; then install_grill_me claude-code "${CLAUDE_HOME}"; fi
+if [ "${INSTALL_CODEX}" = 1 ]; then install_grill_me codex "${CODEX_HOME}"; fi
 
 # -----------------------------------------------------------------
 # Path allowlist (gitignore-style). Hooks below skip any tool input

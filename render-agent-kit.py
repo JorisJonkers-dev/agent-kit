@@ -496,6 +496,58 @@ def installer_artifact_check() -> DoctorCheck:
     )
 
 
+THIRD_PARTY_SKILLS_SOURCE = "mattpocock/skills"
+THIRD_PARTY_SKILLS_PIN = "v1.1.0"
+
+
+def grill_me_check() -> DoctorCheck:
+    """Confirm the grill-me third-party skill is wired into both served
+    installers with a pinned (non-floating) ref, and report whether npx is
+    available. A missing npx is a warn, not a fail: the installer loud-skips
+    grill-me and continues rather than hard-failing (same fallback posture as
+    the MCP fleet)."""
+    marker = "install_grill_me"
+    pinned_source = f"{THIRD_PARTY_SKILLS_SOURCE}#{THIRD_PARTY_SKILLS_PIN}"
+    for relative in SERVED_INSTALLERS:
+        installer = REPOSITORY_ROOT / relative
+        if not installer.is_file():
+            return DoctorCheck(name="grill-me", status="fail", detail=f"missing {relative}")
+        body = installer.read_text(errors="replace")
+        # install-agents.sh delegates the base install (which carries grill-me);
+        # only install.sh must embed the pinned invocation directly.
+        if relative.name == "install.sh":
+            if marker not in body:
+                return DoctorCheck(
+                    name="grill-me",
+                    status="fail",
+                    detail=f"{relative} does not install grill-me",
+                )
+            if pinned_source not in body:
+                return DoctorCheck(
+                    name="grill-me",
+                    status="fail",
+                    detail=f"{relative} does not pin {THIRD_PARTY_SKILLS_SOURCE} to a reviewed ref",
+                )
+            if f"{THIRD_PARTY_SKILLS_SOURCE}#'" in body or f"{THIRD_PARTY_SKILLS_SOURCE}'" in body:
+                return DoctorCheck(
+                    name="grill-me",
+                    status="fail",
+                    detail=f"{relative} uses a floating {THIRD_PARTY_SKILLS_SOURCE} ref",
+                )
+
+    if shutil.which("npx") is None:
+        return DoctorCheck(
+            name="grill-me",
+            status="warn",
+            detail=f"wired + pinned to {pinned_source}; npx not on PATH so the installer will loud-skip grill-me",
+        )
+    return DoctorCheck(
+        name="grill-me",
+        status="ok",
+        detail=f"wired into both installers, pinned to {pinned_source}; npx available",
+    )
+
+
 def kb_reachability_check(require_live_kb: bool, timeout_seconds: float) -> DoctorCheck:
     kb_url = os.environ.get("KB_URL", "").rstrip("/")
     token = os.environ.get("KB_BEARER_TOKEN", "")
@@ -610,6 +662,7 @@ def doctor(args: argparse.Namespace) -> int:
     checks.append(manifest_check())
     checks.append(parity_check())
     checks.append(installer_artifact_check())
+    checks.append(grill_me_check())
     checks.append(kb_reachability_check(require_live_kb=args.require_live_kb, timeout_seconds=args.kb_timeout_seconds))
 
     print("agent kit doctor")
