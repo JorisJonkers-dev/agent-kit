@@ -1,6 +1,6 @@
 # Skills Source Lock
 
-verified_at: 2026-07-03
+verified_at: 2026-07-13
 
 ## Sources
 
@@ -8,6 +8,13 @@ verified_at: 2026-07-03
   status: included
   license: MIT
   license_notice: Copyright (c) 2026 Matt Pocock
+  # Installed for both CLIs by the served install.sh via the `skills` CLI,
+  # pinned to a reviewed ref (never floating). The commit is the immutable pin.
+  installed_via: "npx skills@1.5.16 add mattpocock/skills#v1.1.0 --skill=grill-me"
+  pinned_tag: v1.1.0
+  pinned_commit: d574778f94cf620fcc8ce741584093bc650a61d3
+  skills_cli_version: 1.5.16
+  installed_skills: [grill-me]
 - upstream_repository: https://github.com/obra/superpowers
   status: included
   license: MIT

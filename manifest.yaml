@@ -19,6 +19,18 @@ provenance:
     upstream_commit: "9313aaeb6573333c636c7ac55439dddc256c29e1"
     source_lock: spec-kit-source.lock
     third_party_notices: THIRD_PARTY_NOTICES.md
+  skills:
+    # grill-me is installed for both CLIs by the served install.sh via the
+    # `skills` CLI (`npx skills add mattpocock/skills#<ref> --skill=grill-me`),
+    # pinned to a reviewed ref. The upstream_commit is the immutable pin;
+    # bumping it is a renovate/review event.
+    upstream_repository: https://github.com/mattpocock/skills
+    upstream_tag: v1.1.0
+    upstream_commit: "d574778f94cf620fcc8ce741584093bc650a61d3"
+    skills_cli_version: 1.5.16
+    installed_skills: [grill-me]
+    source_lock: skills-source.lock
+    third_party_notices: THIRD_PARTY_NOTICES.md
 
 renderer:
   script_path: render-agent-kit.py
@@ -403,6 +415,25 @@ skills:
       - agent: claude
         path: .claude/skills/fleet-change/SKILL.md
         sha256: da427baa764c7d17667f9faa0b2bdbb467c9a34acaeb1a4df2523d16bdb4e0c5
+  - name: grill-me
+    # Third-party skill from mattpocock/skills, installed for both CLIs by the
+    # served install.sh via `npx skills add`. It has no repo file target, so it
+    # is pinned by upstream ref+commit (its immutable sha) under provenance
+    # rather than a repo-file sha256. Bumping the pin is a renovate/review event.
+    supported_agents: [codex, claude]
+    provenance:
+      source: skills-cli:mattpocock/skills
+      upstream_repository: https://github.com/mattpocock/skills
+      upstream_tag: v1.1.0
+      upstream_commit: "d574778f94cf620fcc8ce741584093bc650a61d3"
+      skill_path: skills/productivity/grill-me/SKILL.md
+      skills_cli_version: 1.5.16
+      source_lock: skills-source.lock
+      third_party_notices: THIRD_PARTY_NOTICES.md
+    installer:
+      source_path: installer/install.sh
+      target_path: "${CLAUDE_HOME}/skills/grill-me/SKILL.md"
+      codex_target_path: "${CODEX_HOME}/skills/grill-me/SKILL.md"
   - name: kb-first
     supported_agents: [codex, claude]
     targets:
@@ -878,11 +909,11 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: 89f2d200077f0f44b386d4fa93f9a46a183a1fe605663f52034e9bc55f2ff395
+  sha256: 01265e25aee91eed3bf78560b7e23871d84e7f44954538fbdf38bb273c5ee4e0
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: 89f2d200077f0f44b386d4fa93f9a46a183a1fe605663f52034e9bc55f2ff395
+      sha256: 01265e25aee91eed3bf78560b7e23871d84e7f44954538fbdf38bb273c5ee4e0
       mode: "0644"
     - path: installer/install-agents.sh
       sha256: c2b20ca13df242056eb4b6591abdc830d5685a17ec7a7cde23c2886189fd14f4
