@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.3.0...v3.3.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* **manifest:** resync stale sha256 pins for worker.md and install.sh ([#28](https://github.com/JorisJonkers-dev/agent-kit/issues/28)) ([8fade6a](https://github.com/JorisJonkers-dev/agent-kit/commit/8fade6aef9519580be63517ba2fcff5fdd6c1ec9))
+
 ## [3.3.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.2.0...v3.3.0) (2026-07-12)
 
 
