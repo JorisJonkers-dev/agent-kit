@@ -781,7 +781,7 @@ council:
       sha256: a227cd0a30f0465eb6be3e3bd4c9499fc626f5d8ba13f2bcc8fc0b9f7cca1561
       mode: "0644"
     - path: council/prompts/worker.md
-      sha256: fdf27d2f946f7f5a4f1bbfb21ecf2c41b852ccd6562b399b7622f343862d8182
+      sha256: ae25cd9c7348dc69311774904ce3f7828b99b60b4062b505e974c49604b5b7b1
       mode: "0644"
     - path: council/schemas/amendment.schema.json
       sha256: ab4b7000d8a64991ae94c82fd70f4370e5f991f28b4070c77b376da3ddd553e9
@@ -878,11 +878,11 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: fc096cfa7f00794dac51c6ea33ff6d6f6be67938992b5dc5f86a4a80b32aa160
+  sha256: 89f2d200077f0f44b386d4fa93f9a46a183a1fe605663f52034e9bc55f2ff395
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: fc096cfa7f00794dac51c6ea33ff6d6f6be67938992b5dc5f86a4a80b32aa160
+      sha256: 89f2d200077f0f44b386d4fa93f9a46a183a1fe605663f52034e9bc55f2ff395
       mode: "0644"
     - path: installer/install-agents.sh
       sha256: c2b20ca13df242056eb4b6591abdc830d5685a17ec7a7cde23c2886189fd14f4
