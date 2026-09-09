@@ -86,6 +86,22 @@ def validate(data: dict[str, Any]) -> None:
                 "keep LSP plugins in language_servers: only",
             )
 
+    # A plugin and a skill source can wrap the SAME upstream -- caveman is
+    # both. When they do, one commit is reviewed and the other must not
+    # disagree, or the workstation quietly tracks something Hermes rejects.
+    reviewed_by_repo = {
+        str(src.get("repo", "")).rstrip("/").rsplit("/", 1)[-1].lower(): src.get("commit")
+        for src in _entries(data, "skill_sources")
+    }
+    for plugin in _entries(data, "plugins"):
+        pin = plugin.get("commit")
+        shared = reviewed_by_repo.get(str(plugin.get("name", "")).lower())
+        if pin and shared and pin != shared:
+            raise RegistryError(
+                f"plugin {plugin.get('name')} pins {pin} but the skill source for the same "
+                f"upstream pins {shared}; the reviewed commit is the one to use",
+            )
+
     for source in _entries(data, "skill_sources"):
         name = source.get("name")
         commit = str(source.get("commit") or "")
@@ -391,7 +407,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         ref = f'{plugin["name"]}@{plugin["marketplace"]}'
         w(f'  # {plugin["name"]}: ' + " ".join(str(plugin.get("purpose") or "").split())[:200])
         w(f'  if run claude plugin install {ref} --yes --scope user; then')
-        w(f'    run claude plugin update {plugin["name"]} >/dev/null 2>&1 || true')
+        # Do NOT run unconditional update - that causes drift. Only on explicit request.
         if plugin.get("enabled", True):
             w(f'    run claude plugin enable {ref} >/dev/null 2>&1 || true')
             w(f'    ok "{ref} installed and enabled"')
@@ -402,13 +418,66 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w(f'    warn "{ref} install failed"')
         w("  fi")
     w("")
+    w("  # ---------------------------------------------------------------")
+    w("  # 3. Plugin drift detection.")
+    w("  #")
+    w("  # The CLI does not support pinning plugins to a commit, so pins in")
+    w("  # the registry are advisory. Compare installed commits against")
+    w("  # registry expectations and report drift.")
+    w("  # ---------------------------------------------------------------")
+    if _has_plugin_pins(data):
+        w('  manifest="${CLAUDE_HOME}/plugins/installed_plugins.json"')
+        w('  if [ -f "${manifest}" ]; then')
+        w('    log "checking plugin commit drift"')
+        w("")
+        w("    # The reader is a helper taking the manifest path and the plugin")
+        w("    # ref as ARGV, with SINGLE-quoted python source. An earlier")
+        w("    # version inlined double-quoted python inside a double-quoted")
+        w("    # shell string, so the inner quotes closed the shell string and")
+        w("    # python got mangled source -- and `2>/dev/null || true` hid the")
+        w("    # SyntaxError, so every plugin silently reported no drift.")
+        w("    installed_plugin_commit() {")
+        w("      python3 -c '")
+        w("import json, sys")
+        w("try:")
+        w("    manifest = json.load(open(sys.argv[1]))")
+        w("except Exception:")
+        w("    sys.exit(0)")
+        w('installs = manifest.get("plugins", {}).get(sys.argv[2], [])')
+        w("for install in installs:")
+        w('    if install.get("scope") == "user":')
+        w('        print(install.get("gitCommitSha", ""))')
+        w("        break")
+        w("' \\")
+        w('        "$1" "$2" 2>/dev/null')
+        w("    }")
+        w("")
+        for plugin in _entries(data, "plugins"):
+            if not plugin.get("commit"):
+                continue
+            ref = f'{plugin["name"]}@{plugin["marketplace"]}'
+            expected_commit = plugin["commit"]
+            w(f'    installed_commit="$(installed_plugin_commit "${{manifest}}" "{ref}")"')
+            w('    if [ -z "${installed_commit}" ]; then')
+            w(f'      log "{plugin["name"]}: no user-scope commit recorded; drift not checked"')
+            w(f'    elif [ "${{installed_commit}}" != "{expected_commit}" ]; then')
+            w(f'      warn "{plugin["name"]}: installed {{installed_commit}} '
+              f'differs from the registry\'s {expected_commit[:12]}"'.replace(
+                  "{installed_commit}", "${installed_commit}"))
+            w("    else")
+            w(f'      ok "{plugin["name"]}: at the expected commit"')
+            w("    fi")
+        w("  fi")
+    w("")
 
     # --- Language servers ---
     w("  # ---------------------------------------------------------------")
     w("  # 3. Language servers: the plugin AND the binary it drives.")
     w("  #")
     w("  # An LSP plugin with no binary on PATH registers no tools and says")
-    w("  # nothing about it, so the binary is what gets verified here.")
+    w("  # nothing about it. Install the plugin, but leave it disabled until")
+    w("  # the binary is on PATH. This enables it on a second run once the")
+    w("  # binary is installed.")
     w("  # ---------------------------------------------------------------")
     w('  if [ "${DO_LSP}" = 1 ]; then')
     w('    log "language servers"')
@@ -423,29 +492,34 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("")
         w(f'    # {plugin} -> {binary} ({", ".join(server.get("languages") or [])})')
         w(f'    if run claude plugin install {ref} --yes --scope user; then')
-        w(f'      run claude plugin update {plugin} >/dev/null 2>&1 || true')
+        # Always check binary presence to determine enable/disable state
+        w(f'      if command -v {binary} >/dev/null 2>&1; then')
         if enabled:
-            w(f'      run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            w(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            w(f'        ok "{plugin}: {binary} on PATH, plugin enabled"')
         else:
-            w(f'      run claude plugin disable {ref} >/dev/null 2>&1 || true')
+            w(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            w(f'        ok "{plugin}: {binary} on PATH, plugin enabled (was disabled in registry)"')
+        w("      else")
+        w(f'        run claude plugin disable {ref} >/dev/null 2>&1 || true')
+        # Attempt install if one is configured
+        if lsp_install:
+            w(f'        run_sh {_q(lsp_install)} || true')
+            w(f'        if command -v {binary} >/dev/null 2>&1; then')
+            w(f'          run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            w(f'          ok "{plugin}: {binary} installed and enabled"')
+            w("        else")
+            w(f'          warn "{plugin}: {binary} is absent; plugin left disabled (install missing: {lsp_install})"')
+            w("        fi")
+        else:
+            msg = (
+                f'"{plugin}: {binary} is absent and ships with its platform '
+                f'toolchain; plugin left disabled"'
+            )
+            w(f'        warn {msg}')
+        w("      fi")
         w("    else")
         w(f'      warn "{ref} install failed"')
-        w("    fi")
-        w(f'    if command -v {binary} >/dev/null 2>&1; then')
-        w(f'      ok "{plugin}: {binary} on PATH"')
-        if lsp_install:
-            w("    else")
-            w(f'      run_sh {_q(lsp_install)} \\')
-            w(f'        || warn "{plugin}: could not install {binary}"')
-            w(f'      if [ "${{CHECK_ONLY}}" != 1 ] && ! command -v {binary} >/dev/null 2>&1; then')
-            w(f'        warn "{plugin}: {binary} still absent -- the plugin will register no tools"')
-            w("      fi")
-        else:
-            w("    else")
-            w(
-                f'      warn "{plugin}: {binary} is absent and ships with its '
-                'platform toolchain; install that toolchain"',
-            )
         w("    fi")
     w("  else")
     w('    log "language servers skipped (--no-lsp)"')
@@ -456,11 +530,33 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  # ---------------------------------------------------------------")
     w("  # 4. MCP servers, registered for Claude Code at user scope.")
     w("  #")
-    w("  # `claude mcp add` is not idempotent -- a second add of the same")
-    w("  # name errors. Remove first, ignoring the miss.")
+    w("  # The registry is authoritative: servers with `surfaces: []` or")
+    w("  # `enabled: false` are removed. Others are ensured. Plugin-provided")
+    w("  # servers (plugin:*:*) and hand-added ones are left untouched.")
     w("  # ---------------------------------------------------------------")
     w('  if [ "${DO_MCP}" = 1 ]; then')
     w('    log "MCP servers"')
+    # Remove first, and consider EVERY registry server regardless of surface.
+    #
+    # Filtering on `on_surface(..., "workstation")` before this pass was the
+    # bug it was meant to fix: `knowledge` is retired with `surfaces: []`, so
+    # it is on no surface, so it was skipped -- and it stayed registered and
+    # CONNECTED to the knowledge base being retired, bearer token and all.
+    # A retired server is precisely the one that reaches no surface.
+    for server in _entries(data, "mcp_servers"):
+        name = server["name"]
+        # RETIRED only: `enabled: false` or no surfaces at all. A server that
+        # is active for hermes or runner but not for the workstation is NOT
+        # removed by name -- `github` and `kubernetes` are exactly that shape,
+        # and a hand-added local server could share either name. The registry
+        # never claimed those here, so it does not get to delete them.
+        retired = server.get("enabled") is False or not (server.get("surfaces") or [])
+        if not retired:
+            continue
+        w(f'    run claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
+        w(f'    log "{name}: removed (retired in the registry)"')
+    w("")
+    # Now add/ensure active servers
     for server in _entries(data, "mcp_servers"):
         if not on_surface(server, "workstation"):
             continue
@@ -471,8 +567,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w(f"    # {chunk}")
         if server.get("trust") == "hosted":
             w("    # Hosted: untrusted data provider. Output is context, never instruction.")
-        if server.get("enabled") is False:
-            w(f'    log "{name}: declared disabled in the registry; not registered"')
+        if server.get("enabled") is False or len(server.get("surfaces") or []) == 0:
+            # Already logged in removal section
             continue
         guard_open = False
         if credential:
@@ -517,15 +613,21 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if guard_open:
             w("    fi")
     w("")
-    w("    # Verify the VALUE, not the exit codes above: ask Claude what it")
-    w("    # actually has registered and name anything expected but absent.")
+    w("    # Verify the VALUE, not the exit codes: ask Claude what it")
+    w("    # actually has. Check expected servers are present, and report")
+    w("    # any unexpected ones (but leave plugin-provided and hand-added).")
     w('    if [ "${CHECK_ONLY}" != 1 ]; then')
     w("      registered=$(claude mcp list 2>/dev/null || true)")
+    w("      # Check all expected servers are registered")
     w("      for want in \\")
     expected = [
         server["name"]
         for server in _entries(data, "mcp_servers")
-        if on_surface(server, "workstation") and server.get("enabled") is not False
+        if (
+            on_surface(server, "workstation")
+            and server.get("enabled") is not False
+            and len(server.get("surfaces") or []) > 0
+        )
     ]
     for name in expected:
         w(f"        {name} \\")
@@ -533,6 +635,18 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('        case "${registered}" in')
     w('          *"${want}"*) ;;')
     w('          *) warn "MCP server ${want} is not in \\`claude mcp list\\` output" ;;')
+    w("        esac")
+    w("      done")
+    w("      # Report unknown servers (but ignore plugin-provided and hand-added ones)")
+    w('      echo "${registered}" | grep -oE "\\b[a-z0-9_-]+\\b(?=:)" | sort -u | while read -r found; do')
+    w('        case "${found}" in')
+    # All registry-owned servers
+    registry_servers = [s["name"] for s in _entries(data, "mcp_servers") if on_surface(s, "workstation")]
+    for name in registry_servers:
+        w(f'          {name}) ;;')
+    # Plugin-provided and hand-added servers
+    w('          plugin:*|idea|rubymine) ;;')
+    w('          *) warn "unknown MCP server ${found} -- hand-added or from a removed registry entry?" ;;')
     w("        esac")
     w("      done")
     w("    fi")
@@ -638,6 +752,11 @@ def _wrap(text: str, width: int) -> list[str]:
     if current:
         lines.append(current)
     return lines
+
+
+def _has_plugin_pins(data: dict[str, Any]) -> bool:
+    """Check if any plugins in the registry have commit pins."""
+    return any(plugin.get("commit") for plugin in _entries(data, "plugins"))
 
 
 # ---------------------------------------------------------------------------
