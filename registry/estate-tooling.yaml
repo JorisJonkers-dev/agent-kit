@@ -457,6 +457,13 @@ mcp_servers:
     purpose: Diagram authoring and export.
     command: drawio-mcp
     args: []
+    # The Hermes image has node, npm, npx, uv and uvx but no globally
+    # installed packages, and a `npm install -g` would not survive a pod
+    # restart. Verified in-cluster: `npx --yes @aloth/olcli@latest --version`
+    # prints 0.12.0 from inside the hermes container. npx caches under HOME,
+    # which is on the PVC, so only the first start pays the download.
+    hermes_command: npx
+    hermes_args: ["-y", "@drawio/mcp@latest"]
     timeout: 60
     surfaces: [workstation, hermes]
     trust: local
@@ -468,6 +475,9 @@ mcp_servers:
     purpose: Self-hosted Overleaf — pull, push, compile, review comments.
     command: olcli-mcp
     args: []
+    # `@aloth/olcli` ships the olcli-mcp binary; npx runs it by package.
+    hermes_command: npx
+    hermes_args: ["-y", "--package=@aloth/olcli@latest", "olcli-mcp"]
     timeout: 120
     surfaces: [workstation, hermes]
     trust: estate

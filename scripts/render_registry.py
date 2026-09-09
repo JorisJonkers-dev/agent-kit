@@ -217,8 +217,13 @@ def render_hermes_mcp(data: dict[str, Any]) -> str:
                 lines.append("    headers:")
                 lines.append(f'      Authorization: "Bearer @{credential}@"')
         else:
-            lines.append(f'    command: "{server["command"]}"')
-            args = server.get("args") or []
+            # A stdio server can need a different command per surface: the
+            # Hermes image carries node/npm/npx but no globally installed
+            # packages, and `npm install -g` there does not survive a pod
+            # restart, so Hermes runs these through npx.
+            command = server.get("hermes_command") or server["command"]
+            lines.append(f'    command: "{command}"')
+            args = server.get("hermes_args") or server.get("args") or []
             rendered_args = ", ".join(f'"{a}"' for a in args)
             lines.append(f"    args: [{rendered_args}]")
             env = server.get("env") or {}
