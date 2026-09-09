@@ -1,0 +1,90 @@
+# Memory: replacing the knowledge base
+
+## Where this stands
+
+The estate's own knowledge base is being retired. What is **done**:
+
+- Every knowledge hook is gone from the kit, and `install-agents.sh` purges
+  them from a machine that still has them.
+- `manifest.yaml` fails validation if a `hooks:` or `settings:` section
+  reappears.
+- The `knowledge` MCP server sits in the registry with `surfaces: []` — a
+  record, registered nowhere.
+
+What is **not yet done**: the replacement service does not exist. The registry
+carries a `memory` MCP entry with `enabled: false` for exactly that reason.
+Registering a URL that answers nothing would give every surface a server that
+fails at the first tool call, which is worse than having no memory.
+
+Flip `enabled: true` in the same change that lands the Deployment, never
+before.
+
+## The decision
+
+Self-host **mem0** in-cluster rather than keep building a bespoke knowledge
+service. The reasoning:
+
+- The bespoke KB was three moving parts (`knowledge-api`,
+  `knowledge-ingest-worker`, `lightrag`, plus `ollama` for embeddings) that the
+  estate maintained itself, for a capability that is now off-the-shelf.
+- Hermes already speaks to a memory provider natively (`memory.provider`), so
+  the gateway needs configuration rather than code.
+- Self-hosted keeps the estate's posture: no third-party service holding
+  session content.
+
+The alternative considered was honcho, which is what Hermes' config currently
+names. Honcho is the better fit for cross-session *user modelling*; mem0 is the
+better fit for what the KB was actually used for — durable lessons and
+decisions retrieved on demand. mem0 also has the simpler self-hosted shape.
+
+## Why the dashboard says "unavailable"
+
+Hermes' Runtime provider plugins page reports `honcho` as **unavailable** with
+"Install provider dependencies — Python dependencies". The provider's client
+libraries are not in the image, and the image is pinned by tag and digest, so
+there is nothing to install at runtime without a writable venv on the PVC.
+
+That is a symptom of the same gap: no memory backend is actually wired.
+Switching the provider name alone does not fix it — the dependency has to be
+present *and* a backend has to answer.
+
+## Bring-up, in order
+
+1. **Stand up the service in `fleet-infra`**, as `cluster/flux/apps/memory/`:
+   the mem0 server, its Postgres with pgvector in the `data` namespace, a
+   Vault-backed API key through VSO, and a default-deny NetworkPolicy.
+2. **Open the Hermes SSRF allowlist for it.** Hermes refuses RFC1918
+   destinations by default and the service resolves into `10.43.0.0/16`. The
+   failure shape is the server reporting **zero tools while the hosted ones
+   work** — not a NetworkPolicy error, and not visible in the object. Start
+   from `hermes doctor`.
+3. **Install the provider dependency** into Hermes' writable PVC venv from an
+   init container, or accept the MCP server alone and leave
+   `memory.memory_enabled: false`. The MCP path needs no provider plugin at
+   all, which is the reason to prefer it.
+4. **Point Hermes at it**: `memory.provider` and its base URL in
+   `config-configmap.yaml`, with the key as a `@MEMORY_API_KEY@` placeholder
+   the `seed-config` init container substitutes. Add the field to
+   `secret/agents/hermes` and to that script's substitution list — miss the
+   second and `sed` writes an empty string into a valid-looking config.
+5. **Flip `enabled: true`** in `registry/estate-tooling.yaml`, re-render, and
+   sync (`scripts/sync-hermes-registry.sh`).
+6. **Verify by reading a value back**, not by a Ready condition: write a
+   memory, then retrieve it from a second session.
+
+## Decommissioning the old KB
+
+Not part of the bring-up, and deliberately last. The knowledge service still
+**serves the installer** (`install.sh` / `install-agents.sh` are fetched from
+it with a bearer token), so it cannot be switched off until those artifacts are
+published somewhere else. The plan is a public, auth-free static host — a
+Garage bucket behind the public edge is the obvious fit, since the installer is
+already a public-shaped GET and the bearer token buys nothing once the content
+is not secret.
+
+Until then:
+
+- Leave `knowledge-api` running; it is the install transport.
+- **Revoke the KB bearer token** on any machine that ran the old installer. It
+  sits in plaintext in `~/.claude.json` under the `knowledge` MCP entry.
+  Unregistering the server does not revoke the token.

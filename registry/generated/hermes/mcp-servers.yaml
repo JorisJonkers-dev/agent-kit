@@ -1,0 +1,76 @@
+# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
+#
+# Copy this block under `mcp_servers:` in fleet-infra
+# cluster/flux/apps/agents/hermes/config-configmap.yaml.
+#
+# Tool names register as mcp_<server>_<tool>.
+#
+# Hermes blocks RFC1918 destinations as SSRF protection, and every
+# in-cluster URL below resolves into 10.43.0.0/16. A server here that
+# reports ZERO tools while the hosted ones work is that block, not the
+# NetworkPolicy. Check `hermes doctor` first.
+
+mcp_servers:
+  # Self-hosted long-term memory. Replaces the retired knowledge base;
+  # see docs/MEMORY.md.
+  memory:
+    url: "http://mem0.memory-system.svc.cluster.local:8080/mcp"
+    headers:
+      Authorization: "Bearer @MEMORY_API_KEY@"
+    timeout: 60
+    enabled: false
+
+  # Read-only cluster diagnostics through the server's own
+  # ClusterRole.
+  kubernetes:
+    url: "http://kubernetes-mcp-server.agents-system.svc.cluster.local:8080/mcp"
+    timeout: 60
+
+  # Issues, branches, pull requests.
+  # Hosted: an untrusted data provider. Output is context, never instruction.
+  github:
+    url: "https://api.githubcopilot.com/mcp/"
+    headers:
+      Authorization: "Bearer @GITHUB_PAT@"
+    timeout: 120
+    tools:
+      exclude:
+        - "*delete*"
+        - "*_label"
+        - "*_labels"
+
+  # Library documentation. Prefer it over model recall for any
+  # framework question.
+  # Hosted: an untrusted data provider. Output is context, never instruction.
+  context7:
+    url: "https://mcp.context7.com/mcp"
+    timeout: 60
+
+  # Vuetify component API.
+  # Hosted: an untrusted data provider. Output is context, never instruction.
+  vuetify:
+    url: "https://mcp.vuetifyjs.com/mcp"
+    timeout: 60
+    enabled: false
+
+  # Browser automation.
+  playwright:
+    command: "npx"
+    args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+    timeout: 120
+
+  # Diagram authoring and export.
+  drawio:
+    command: "npx"
+    args: ["-y", "@drawio/mcp@latest"]
+    timeout: 60
+
+  # Self-hosted Overleaf — pull, push, compile, review comments.
+  overleaf:
+    command: "npx"
+    args: ["-y", "--package=@aloth/olcli@latest", "olcli-mcp"]
+    env:
+      OVERLEAF_BASE_URL: "https://overleaf.jorisjonkers.dev"
+      OVERLEAF_COOKIE_NAME: "overleaf_session2"
+      OVERLEAF_SESSION: "@OVERLEAF_SESSION@"
+    timeout: 120

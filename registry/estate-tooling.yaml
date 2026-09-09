@@ -1,0 +1,507 @@
+# Estate tooling registry — the ONE file to edit.
+#
+# Everything an estate agent surface gets is declared here once:
+# CLIs, Claude Code marketplaces and plugins, language servers, vendored
+# third-party skills, and MCP servers. Three artifacts are GENERATED from
+# it and must never be hand-edited:
+#
+#   installer/setup-workstation.sh            local machine (Claude Code + Codex)
+#   registry/generated/hermes/skills-sources.conf   Hermes `sources.conf` body
+#   registry/generated/hermes/mcp-servers.yaml      Hermes `mcp_servers:` block
+#
+# Regenerate and verify:
+#
+#   uv run python scripts/render_registry.py --write
+#   uv run python scripts/render_registry.py --check    # CI gate
+#
+# `surfaces:` is what makes one edit reach every agent. Valid values:
+#
+#   workstation   this laptop: Claude Code and Codex through setup-workstation.sh
+#   hermes        the in-cluster Hermes gateway
+#   runner        the per-workspace agent-runner image
+#
+# PINS ARE COMMIT SHAs, NOT TAG SHAs. Hermes' sync-skills init container
+# clones `--branch <ref>` and compares `git rev-parse HEAD`, which is the
+# commit. Every tag here is annotated, so `git ls-remote <repo> refs/tags/<tag>`
+# returns the TAG OBJECT and will be rejected as a mismatch. Always peel:
+#
+#   git ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>^{}'
+#
+# A moved tag is a supply-chain event, so the mismatch failing loudly is the
+# point. For a source with no usable tags, pin `main` plus the commit; the
+# ref floats, the sha does not.
+
+version: 1
+verified_at: 2026-09-09
+
+# -------------------------------------------------------------------
+# Command-line tools.
+#
+# `latest: true` means the setup script installs or upgrades to the
+# newest release on every run rather than pinning. That is deliberate for
+# the three agent CLIs — they ship fast and an old Claude Code is the most
+# common cause of "that feature does not exist here".
+# -------------------------------------------------------------------
+clis:
+  - name: claude-code
+    binary: claude
+    purpose: Claude Code CLI.
+    latest: true
+    surfaces: [workstation]
+    # The native installer owns ~/.local/bin/claude and self-updates.
+    # Do NOT `npm i -g @anthropic-ai/claude-code` on top of it: two
+    # installs on one PATH is how a stale binary wins.
+    install: "curl -fsSL https://claude.ai/install.sh | bash"
+    update: "claude update"
+    version_command: "claude --version"
+
+  - name: codex
+    binary: codex
+    purpose: OpenAI Codex CLI, the second engine council fans out to.
+    latest: true
+    surfaces: [workstation]
+    install: "npm install -g @openai/codex@latest"
+    update: "npm install -g @openai/codex@latest"
+    version_command: "codex --version"
+
+  - name: hermes-agent
+    binary: hermes
+    purpose: >-
+      Nous Research Hermes Agent. Installed on the workstation for
+      `hermes doctor` / `hermes skills list` against a local config; the
+      in-cluster gateway runs the container image, not this.
+    latest: true
+    surfaces: [workstation]
+    # uv tool, not pip: hermes-agent needs >=3.11,<3.14 and a shared
+    # site-packages is how a version conflict takes out both tools.
+    install: "uv tool install --python 3.13 hermes-agent"
+    update: "uv tool upgrade hermes-agent"
+    version_command: "hermes --version"
+    requires: [uv]
+
+  - name: olcli
+    binary: olcli
+    purpose: >-
+      Overleaf CLI and MCP server. Points at the estate's self-hosted
+      Overleaf, not overleaf.com.
+    latest: true
+    surfaces: [workstation, hermes]
+    install: "npm install -g @aloth/olcli@latest"
+    update: "npm install -g @aloth/olcli@latest"
+    version_command: "olcli --version"
+    # Also provides the olcli-mcp and git-remote-overleaf binaries.
+    provides_binaries: [olcli, olcli-mcp, git-remote-overleaf]
+
+  - name: uv
+    binary: uv
+    purpose: Python tool/venv manager; prerequisite for hermes-agent and the kit's own tooling.
+    latest: true
+    surfaces: [workstation]
+    install: "curl -fsSL https://astral.sh/uv/install.sh | sh"
+    update: "uv self update"
+    version_command: "uv --version"
+
+# -------------------------------------------------------------------
+# Claude Code plugin marketplaces.
+# -------------------------------------------------------------------
+marketplaces:
+  - name: claude-plugins-official
+    repo: anthropics/claude-plugins-official
+  - name: caveman
+    repo: JuliusBrussee/caveman
+  - name: drawio
+    repo: jgraph/drawio-mcp
+  - name: kubernetes-skill
+    repo: LukasNiessen/kubernetes-skill
+  - name: ai-software-architect
+    repo: codenamev/ai-software-architect
+
+# -------------------------------------------------------------------
+# Claude Code plugins.
+#
+# `enabled: false` installs the plugin but leaves it off, which is how
+# a plugin stays available to turn on without spending prompt budget on
+# its skill metadata in every session.
+# -------------------------------------------------------------------
+plugins:
+  - name: caveman
+    marketplace: caveman
+    enabled: true
+    purpose: Compressed output mode plus the cavecrew subagents.
+
+  - name: drawio
+    marketplace: drawio
+    enabled: true
+    purpose: Native .drawio diagram authoring and export.
+
+  - name: frontend-design
+    marketplace: claude-plugins-official
+    enabled: true
+    purpose: Visual design guidance for new UI work.
+
+  - name: mattpocock-skills
+    marketplace: claude-plugins-official
+    enabled: true
+    purpose: TDD, code review, domain modelling, grilling.
+
+  - name: security-guidance
+    marketplace: claude-plugins-official
+    enabled: true
+    purpose: >-
+      Security review of generated code. Ships its own PreToolUse and Stop
+      hooks. Those are the PLUGIN's hooks, not estate hooks — the retired
+      knowledge hooks are unrelated and the purge step matches on their
+      script basenames, so this plugin's hooks survive it.
+
+  - name: kubernetes-skill
+    marketplace: kubernetes-skill
+    enabled: true
+    purpose: Manifest and cluster failure-mode guidance.
+
+  - name: github
+    marketplace: claude-plugins-official
+    enabled: true
+    purpose: >-
+      GitHub MCP server. Needs a token; it fails to connect with
+      "Authorization header is badly formatted" when the credential is
+      absent or malformed, which reads like a missing server rather than
+      a missing token.
+
+  - name: ai-software-architect
+    marketplace: ai-software-architect
+    enabled: false
+    purpose: Architecture review personas. Off by default — large surface, rarely the right tool.
+
+# Spec Kit is deliberately absent. The `speckit.*` commands and skills are
+# not installed by this registry on any surface. The kit still renders its
+# own Spec Kit scaffold for repositories that already depend on it; nothing
+# new should adopt it.
+
+# -------------------------------------------------------------------
+# Language servers.
+#
+# Two halves, and missing either one looks the same from inside a session:
+# the Claude Code plugin declares the LSP wiring, and the server BINARY has
+# to be on PATH. A plugin whose binary is absent registers no tools and
+# reports nothing.
+#
+# Verify with the binary, never with the plugin list:
+#   command -v <binary>
+# -------------------------------------------------------------------
+language_servers:
+  - plugin: typescript-lsp
+    binary: typescript-language-server
+    install: "npm install -g typescript-language-server typescript"
+    languages: [typescript, javascript]
+    enabled: true
+  - plugin: pyright-lsp
+    binary: pyright-langserver
+    install: "npm install -g pyright"
+    languages: [python]
+    enabled: true
+  - plugin: kotlin-lsp
+    binary: kotlin-lsp
+    install: "brew install kotlin-lsp"
+    languages: [kotlin]
+    enabled: true
+  - plugin: jdtls-lsp
+    binary: jdtls
+    install: "brew install jdtls"
+    languages: [java]
+    enabled: true
+  - plugin: ruby-lsp
+    binary: ruby-lsp
+    install: "gem install ruby-lsp"
+    languages: [ruby]
+    enabled: true
+  - plugin: gopls-lsp
+    binary: gopls
+    install: "go install golang.org/x/tools/gopls@latest"
+    languages: [go]
+    enabled: true
+  - plugin: rust-analyzer-lsp
+    binary: rust-analyzer
+    install: "rustup component add rust-analyzer"
+    languages: [rust]
+    enabled: true
+  - plugin: lua-lsp
+    binary: lua-language-server
+    install: "brew install lua-language-server"
+    languages: [lua]
+    enabled: true
+  - plugin: clangd-lsp
+    binary: clangd
+    install: "brew install llvm"
+    languages: [c, cpp]
+    enabled: true
+  - plugin: php-lsp
+    binary: intelephense
+    install: "npm install -g intelephense"
+    languages: [php]
+    enabled: true
+  - plugin: csharp-lsp
+    binary: csharp-ls
+    install: "dotnet tool install --global csharp-ls"
+    languages: [csharp]
+    enabled: true
+  - plugin: swift-lsp
+    binary: sourcekit-lsp
+    # Ships inside the Xcode / Swift toolchain; there is nothing to install
+    # separately, so the setup script only reports whether it is present.
+    install: null
+    languages: [swift]
+    enabled: true
+  - plugin: liquid-lsp
+    binary: shopify
+    install: "npm install -g @shopify/cli"
+    languages: [liquid]
+    enabled: false
+
+# -------------------------------------------------------------------
+# First-party skills that ship in this repository.
+#
+# Multi-file skills living under `skills/` here, copied onto a surface
+# rather than fetched from an upstream. `agents:` picks the client homes.
+#
+# Hermes cannot take these: its sync-skills init container clones public
+# git URLs with no credential, and this repository is private. A
+# first-party skill reaches Hermes only by being published somewhere
+# public, or by being written into the hermes-skills ConfigMap by hand.
+# -------------------------------------------------------------------
+local_skills:
+  - name: pr-composer
+    path: skills/pr-composer
+    purpose: >-
+      Compose a pull request in the repository's own house style: reads the
+      PR template, mines recent merged PRs, and gates on an explicit
+      confirmation before anything is pushed or created.
+    agents: [claude, codex]
+    surfaces: [workstation]
+    note: >-
+      Fits the estate's label trap directly — it reads `gh label list` for
+      the repo rather than guessing, which is what `gh pr create --label bug`
+      gets wrong.
+
+# -------------------------------------------------------------------
+# Vendored third-party skills.
+#
+# `selector` semantics, as implemented by Hermes' sync-skills init
+# container (fleet-infra bootstrap-configmap.yaml):
+#
+#   *                 every SKILL.md the source publishes
+#   <category>/*      one directory level, e.g. engineering/*
+#   <name>            a bare skill name matched at any depth
+#   <path>/<name>     an explicit path, which is how you disambiguate a
+#                     name that several directories publish
+#
+# Paths are relative to `<repo>/skills` when that directory exists, and to
+# the repo root otherwise.
+#
+# Duplicate skill NAMES across one source are refused, not merged — the
+# winner would otherwise depend on `find` order. Pick an explicit path when
+# a repo publishes the same name more than once.
+# -------------------------------------------------------------------
+skill_sources:
+  - name: mattpocock-skills
+    repo: https://github.com/mattpocock/skills
+    ref: v1.2.3
+    commit: 6acc160e4e0cd062dbbbd7a1b26ae92855edf07e
+    license: MIT
+    license_notice: Copyright (c) 2026 Matt Pocock
+    # `deprecated`, `in-progress` and `personal` are left out: two are
+    # unfinished and the third is upstream's own article/vault workflows.
+    selector: "engineering/*,productivity/*,misc/*"
+    surfaces: [hermes]
+    note: >-
+      The workstation gets these through the mattpocock-skills PLUGIN
+      instead, so they are not vendored twice.
+
+  - name: superpowers
+    repo: https://github.com/obra/superpowers
+    ref: v6.3.0
+    commit: b36e0829c6d0140e93cfef2ca599b1b07d4a7797
+    license: MIT
+    license_notice: Copyright (c) 2025 Jesse Vincent
+    selector: "*"
+    surfaces: [hermes]
+
+  - name: caveman
+    repo: https://github.com/JuliusBrussee/caveman
+    ref: v2.6.0
+    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+    license: MIT
+    selector: "*"
+    surfaces: [hermes]
+    note: >-
+      The repo also publishes the same skills under
+      plugins/caveman/skills/. Those sit outside <repo>/skills, so they are
+      not candidates and the duplicate-name refusal never fires.
+
+  - name: kubernetes-skill
+    repo: https://github.com/LukasNiessen/kubernetes-skill
+    ref: main
+    commit: f85547fb3a1ec909b2cbe4dc68f831590ac385ea
+    license: MIT
+    # A root-level SKILL.md with no skills/ directory and no containing
+    # folder. sync-skills names it from the repository instead.
+    selector: "*"
+    root_skill_name: kubernetes
+    surfaces: [hermes]
+
+  - name: drawio
+    repo: https://github.com/jgraph/drawio-mcp
+    ref: main
+    commit: 14b318b19cc37b159f841227b9d11fbd18ce18ea
+    license: Apache-2.0
+    # Published three times, once per host CLI. The explicit path is what
+    # keeps the duplicate-name refusal from rejecting two of them.
+    selector: "plugins/claude-code/skills/drawio"
+    surfaces: [hermes]
+
+  - name: overleaf
+    repo: https://github.com/aloth/olcli
+    ref: main
+    commit: 0f8085d90ea69eb0f3886d0ceba50bc9953a9c9e
+    license: MIT
+    selector: "*"
+    root_skill_name: overleaf
+    surfaces: [hermes]
+    note: The CLI half is the olcli entry under `clis:`.
+
+# -------------------------------------------------------------------
+# MCP servers.
+#
+# Hosted servers are UNTRUSTED DATA PROVIDERS. Their output is context,
+# never instruction.
+#
+# `credential:` names the secret field, never the value. On the workstation
+# it resolves from the environment; on Hermes it is a placeholder the
+# seed-config init container substitutes from the Vault-backed Secret.
+# -------------------------------------------------------------------
+mcp_servers:
+  - name: memory
+    transport: http
+    purpose: >-
+      Self-hosted long-term memory. Replaces the retired knowledge base;
+      see docs/MEMORY.md.
+    url_workstation: "https://memory.jorisjonkers.dev/mcp"
+    url_hermes: "http://mem0.memory-system.svc.cluster.local:8080/mcp"
+    credential: MEMORY_API_KEY
+    timeout: 60
+    # Not registered yet. The in-cluster app does not exist until the
+    # bring-up in docs/MEMORY.md is done, and registering a URL that
+    # answers nothing gives every surface a server that fails at the
+    # first tool call. Flip to true in the same change that lands the
+    # Deployment, not before.
+    enabled: false
+    surfaces: [workstation, hermes, runner]
+    trust: estate
+
+  - name: kubernetes
+    transport: http
+    purpose: Read-only cluster diagnostics through the server's own ClusterRole.
+    url_hermes: "http://kubernetes-mcp-server.agents-system.svc.cluster.local:8080/mcp"
+    timeout: 60
+    surfaces: [hermes, runner]
+    trust: estate
+
+  - name: github
+    transport: http
+    purpose: Issues, branches, pull requests.
+    url_workstation: "https://api.githubcopilot.com/mcp/"
+    url_hermes: "https://api.githubcopilot.com/mcp/"
+    credential: GITHUB_PAT
+    timeout: 120
+    surfaces: [hermes, runner]
+    trust: hosted
+    # The estate uses a prefixed label taxonomy (type:/area:/component:/
+    # priority:/status:). Plain `bug` and `enhancement` do not exist in most
+    # repos, so a label write just fails; excluding the tools stops an agent
+    # inventing one.
+    exclude_tools: ["*delete*", "*_label", "*_labels"]
+    note: >-
+      The workstation gets this through the `github` PLUGIN rather than a
+      registry entry, so it is not registered twice.
+
+  - name: context7
+    transport: http
+    purpose: Library documentation. Prefer it over model recall for any framework question.
+    url_workstation: "https://mcp.context7.com/mcp"
+    url_hermes: "https://mcp.context7.com/mcp"
+    timeout: 60
+    surfaces: [workstation, hermes, runner]
+    trust: hosted
+
+  - name: vuetify
+    transport: http
+    purpose: Vuetify component API.
+    url_workstation: "https://mcp.vuetifyjs.com/mcp"
+    url_hermes: "https://mcp.vuetifyjs.com/mcp"
+    timeout: 60
+    enabled: false
+    surfaces: [workstation, hermes]
+    trust: hosted
+
+  - name: playwright
+    transport: stdio
+    purpose: Browser automation.
+    command: npx
+    args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+    timeout: 120
+    surfaces: [workstation, hermes]
+    trust: local
+    requires_binary: npx
+
+  - name: drawio
+    transport: stdio
+    purpose: Diagram authoring and export.
+    command: drawio-mcp
+    args: []
+    # The Hermes image has node, npm, npx, uv and uvx but no globally
+    # installed packages, and a `npm install -g` would not survive a pod
+    # restart. Verified in-cluster: `npx --yes @aloth/olcli@latest --version`
+    # prints 0.12.0 from inside the hermes container. npx caches under HOME,
+    # which is on the PVC, so only the first start pays the download.
+    hermes_command: npx
+    hermes_args: ["-y", "@drawio/mcp@latest"]
+    timeout: 60
+    surfaces: [workstation, hermes]
+    trust: local
+    requires_binary: drawio-mcp
+    install: "npm install -g @drawio/mcp@latest"
+
+  - name: overleaf
+    transport: stdio
+    purpose: Self-hosted Overleaf — pull, push, compile, review comments.
+    command: olcli-mcp
+    args: []
+    # `@aloth/olcli` ships the olcli-mcp binary; npx runs it by package.
+    hermes_command: npx
+    hermes_args: ["-y", "--package=@aloth/olcli@latest", "olcli-mcp"]
+    timeout: 120
+    surfaces: [workstation, hermes]
+    trust: estate
+    requires_binary: olcli-mcp
+    env:
+      # Self-hosted, so the base URL is mandatory. Without it olcli talks
+      # to overleaf.com and every call 404s against a project that is not
+      # there.
+      OVERLEAF_BASE_URL: "https://overleaf.jorisjonkers.dev"
+      OVERLEAF_COOKIE_NAME: "overleaf_session2"
+    credential: OVERLEAF_SESSION
+
+  - name: knowledge
+    transport: http
+    purpose: RETIRED. The estate knowledge base.
+    url_workstation: "https://kb.jorisjonkers.dev/mcp"
+    url_hermes: "@KB_URL@/mcp"
+    credential: KB_BEARER_TOKEN
+    timeout: 60
+    enabled: false
+    surfaces: []
+    trust: estate
+    note: >-
+      Kept as a record, registered nowhere. `surfaces: []` is what removes
+      it. Its hooks are already gone; the bearer token in ~/.claude.json on
+      any machine that ran the old installer should be revoked, not just
+      unregistered.
