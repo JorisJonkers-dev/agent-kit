@@ -1,0 +1,140 @@
+# The tooling registry
+
+`registry/estate-tooling.yaml` is the one file to edit. Add a skill, plugin,
+CLI or MCP server there once, name the surfaces it belongs on, re-render, and
+every surface picks it up.
+
+```bash
+uv run python scripts/render_registry.py --write
+uv run python scripts/render_registry.py --check    # the CI gate
+uv run pytest tests/test_registry_render.py
+```
+
+## Generated artifacts — never hand-edit
+
+| Artifact | Consumed by |
+|---|---|
+| `installer/setup-workstation.sh` | this laptop, via [SETUP.md](SETUP.md) |
+| `registry/generated/hermes/skills-sources.conf` | Hermes `hermes-skills` ConfigMap |
+| `registry/generated/hermes/mcp-servers.yaml` | Hermes `hermes-config` ConfigMap |
+
+A hand edit to any of them fails `--check`, and so does a registry change that
+was never rendered. Both are one test.
+
+## Surfaces
+
+`surfaces:` is the mechanism that makes one edit reach several agents:
+
+| Surface | Means |
+|---|---|
+| `workstation` | Claude Code and Codex on a developer machine |
+| `hermes` | the in-cluster Hermes gateway |
+| `runner` | the per-workspace agent-runner image |
+
+`surfaces: []` is how a thing is **retired**: it stays documented, and reaches
+nowhere. That is what the `knowledge` MCP entry is now, and a test asserts it
+does not creep back into a generated artifact.
+
+## Adding a skill source
+
+```yaml
+- name: my-skills
+  repo: https://github.com/owner/repo
+  ref: v1.2.3
+  commit: <40-char COMMIT sha>
+  license: MIT
+  selector: "engineering/*"
+  surfaces: [hermes]
+```
+
+**Pin the commit, not the tag.** Hermes' `sync-skills` init container clones
+`--branch <ref>` and compares `git rev-parse HEAD`, which is a commit. Nearly
+every upstream tag here is *annotated*, so `git ls-remote <repo>
+refs/tags/<tag>` hands you the tag **object** — a value that can never match,
+and whose failure mode is a pod that vendors nothing while reporting success.
+Always peel:
+
+```bash
+git ls-remote https://github.com/owner/repo 'refs/tags/v1.2.3^{}'
+```
+
+`scripts/render_registry.py` rejects anything that is not 40 hex characters,
+and `tests/test_registry_render.py` proves the rejection fires. A moved tag is
+a supply-chain event; the loud rejection is the feature.
+
+For an upstream with no usable tags, pin `main` plus the commit. The ref
+floats, the sha does not.
+
+### Choosing a selector
+
+Paths are relative to `<repo>/skills` when that directory exists, and to the
+repo root otherwise.
+
+| Selector | Matches |
+|---|---|
+| `*` | every `SKILL.md` the source publishes |
+| `engineering/*` | one directory level |
+| `grill-me` | a bare name, at any depth |
+| `plugins/claude-code/skills/drawio` | an explicit path |
+
+See first, then choose:
+
+```bash
+git clone --depth 1 --branch v1.2.3 https://github.com/owner/repo /tmp/probe
+find /tmp/probe -name SKILL.md | sed 's|/SKILL.md$||'
+```
+
+Two traps this catches:
+
+- **Duplicate names are refused, not merged.** `jgraph/drawio-mcp` publishes
+  `drawio` three times, once per host CLI; a bare `drawio` selector matches all
+  three, the first wins on `find` order and the other two are rejected. The
+  explicit path is the fix.
+- **A root-level `SKILL.md` has no directory to take a name from.** Add
+  `root_skill_name:` and the source is vendored under that name.
+  `LukasNiessen/kubernetes-skill` and `aloth/olcli` are both this shape.
+
+## Adding an MCP server
+
+```yaml
+- name: thing
+  transport: http          # or stdio
+  purpose: One line.
+  url_workstation: "https://thing.example/mcp"
+  url_hermes: "http://thing.svc.cluster.local:8080/mcp"
+  credential: THING_API_KEY
+  timeout: 60
+  surfaces: [workstation, hermes]
+  trust: hosted            # hosted | estate | local
+```
+
+- `credential:` names the **field**, never the value. On the workstation it
+  resolves from the environment; on Hermes it is rendered as `@THING_API_KEY@`
+  for the `seed-config` init container to substitute from the Vault-backed
+  Secret. Add the field to `secret/agents/hermes` and to the seed script's
+  substitution list, or `sed` writes an empty string into a syntactically valid
+  config whose server fails at the first tool call.
+- `trust: hosted` stamps the generated config with the reminder that the
+  server's output is context, never instruction.
+- An in-cluster URL needs the Hermes SSRF allowlist. Hermes blocks RFC1918 by
+  default, so a new `10.43.0.0/16` server reports **zero tools while the hosted
+  ones work**. That is the block, not the NetworkPolicy. `hermes doctor` first.
+
+## Adding a plugin or language server
+
+Plugins go under `plugins:` and must name a marketplace that `marketplaces:`
+declares. `enabled: false` installs a plugin but leaves it off, which keeps it
+one command away without spending prompt budget on its skill metadata every
+session.
+
+LSP plugins go under `language_servers:` **only** — listing one in both places
+is rejected, because the two lists render different things and the duplicate
+would install twice. Each entry needs the `binary:` the plugin drives; that is
+what gets verified, since a plugin with no binary registers no tools silently.
+
+## Deliberate absences
+
+- **Spec Kit.** Not on any surface. A test asserts it stays out.
+- **Hooks.** The estate ships none; `manifest.yaml` fails validation if a
+  `hooks:` or `settings:` section reappears.
+- **The knowledge base.** `surfaces: []`. See [MEMORY.md](MEMORY.md).

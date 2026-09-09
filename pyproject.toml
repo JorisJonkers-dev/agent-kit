@@ -28,6 +28,10 @@ py-modules = []
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+# skills/ holds vendored first-party skill bundles that are copied onto a
+# surface verbatim. Reformatting them to this repo's lint rules would make the
+# vendored copy differ from the source of truth for no benefit.
+extend-exclude = ["skills"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
