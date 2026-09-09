@@ -61,14 +61,14 @@ mcp_servers:
 
   # Diagram authoring and export.
   drawio:
-    command: "drawio-mcp"
-    args: []
+    command: "npx"
+    args: ["-y", "@drawio/mcp@latest"]
     timeout: 60
 
   # Self-hosted Overleaf — pull, push, compile, review comments.
   overleaf:
-    command: "olcli-mcp"
-    args: []
+    command: "npx"
+    args: ["-y", "--package=@aloth/olcli@latest", "olcli-mcp"]
     env:
       OVERLEAF_BASE_URL: "https://overleaf.jorisjonkers.dev"
       OVERLEAF_COOKIE_NAME: "overleaf_session2"
