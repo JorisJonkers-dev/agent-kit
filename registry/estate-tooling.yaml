@@ -122,25 +122,41 @@ marketplaces:
 # `enabled: false` installs the plugin but leaves it off, which is how
 # a plugin stays available to turn on without spending prompt budget on
 # its skill metadata in every session.
+#
+# PLUGIN PINNING: `commit:` pins are ADVISORY only. The Claude Code CLI
+# does not support pinning plugins to a commit; they are pinned in Hermes
+# (skill_sources) but workstations always track marketplace refs. The setup
+# script reports drift when installed commit differs from registry expectation.
+# A pin moved due to a branch update is visible; holding a pin requires
+# upgrading CLI support or running `claude plugin marketplace add --sparse`
+# to limit checkout, not yet implemented here.
 # -------------------------------------------------------------------
 plugins:
   - name: caveman
     marketplace: caveman
+    # The REVIEWED commit for v2.6.0, the same value skill_sources pins and
+    # Hermes enforces. It is deliberately NOT the commit currently
+    # installed on any machine: recording what is installed turns the
+    # detector into a mirror and launders the drift it exists to find.
+    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
     enabled: true
     purpose: Compressed output mode plus the cavecrew subagents.
 
   - name: drawio
     marketplace: drawio
+    commit: 14b318b19cc37b159f841227b9d11fbd18ce18ea
     enabled: true
     purpose: Native .drawio diagram authoring and export.
 
   - name: frontend-design
     marketplace: claude-plugins-official
+    commit: 0d82eac145a50e6867d908419dccc5087b8595b0
     enabled: true
     purpose: Visual design guidance for new UI work.
 
   - name: mattpocock-skills
     marketplace: claude-plugins-official
+    commit: 5b15a47f2d7150f545fbcacbfe381787fc0230dc
     enabled: true
     purpose: TDD, code review, domain modelling, grilling.
 
@@ -155,6 +171,7 @@ plugins:
 
   - name: kubernetes-skill
     marketplace: kubernetes-skill
+    commit: f85547fb3a1ec909b2cbe4dc68f831590ac385ea
     enabled: true
     purpose: Manifest and cluster failure-mode guidance.
 
@@ -169,6 +186,7 @@ plugins:
 
   - name: ai-software-architect
     marketplace: ai-software-architect
+    commit: 6e636c8bb2f63481d70f0b7af12912fd414d5722
     enabled: false
     purpose: Architecture review personas. Off by default — large surface, rarely the right tool.
 

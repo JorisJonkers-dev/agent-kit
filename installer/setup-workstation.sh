@@ -187,7 +187,6 @@ else
   log "plugins"
   # caveman: Compressed output mode plus the cavecrew subagents.
   if run claude plugin install caveman@caveman --yes --scope user; then
-    run claude plugin update caveman >/dev/null 2>&1 || true
     run claude plugin enable caveman@caveman >/dev/null 2>&1 || true
     ok "caveman@caveman installed and enabled"
   else
@@ -195,7 +194,6 @@ else
   fi
   # drawio: Native .drawio diagram authoring and export.
   if run claude plugin install drawio@drawio --yes --scope user; then
-    run claude plugin update drawio >/dev/null 2>&1 || true
     run claude plugin enable drawio@drawio >/dev/null 2>&1 || true
     ok "drawio@drawio installed and enabled"
   else
@@ -203,7 +201,6 @@ else
   fi
   # frontend-design: Visual design guidance for new UI work.
   if run claude plugin install frontend-design@claude-plugins-official --yes --scope user; then
-    run claude plugin update frontend-design >/dev/null 2>&1 || true
     run claude plugin enable frontend-design@claude-plugins-official >/dev/null 2>&1 || true
     ok "frontend-design@claude-plugins-official installed and enabled"
   else
@@ -211,7 +208,6 @@ else
   fi
   # mattpocock-skills: TDD, code review, domain modelling, grilling.
   if run claude plugin install mattpocock-skills@claude-plugins-official --yes --scope user; then
-    run claude plugin update mattpocock-skills >/dev/null 2>&1 || true
     run claude plugin enable mattpocock-skills@claude-plugins-official >/dev/null 2>&1 || true
     ok "mattpocock-skills@claude-plugins-official installed and enabled"
   else
@@ -219,7 +215,6 @@ else
   fi
   # security-guidance: Security review of generated code. Ships its own PreToolUse and Stop hooks. Those are the PLUGIN's hooks, not estate hooks — the retired knowledge hooks are unrelated and the purge step matches on the
   if run claude plugin install security-guidance@claude-plugins-official --yes --scope user; then
-    run claude plugin update security-guidance >/dev/null 2>&1 || true
     run claude plugin enable security-guidance@claude-plugins-official >/dev/null 2>&1 || true
     ok "security-guidance@claude-plugins-official installed and enabled"
   else
@@ -227,7 +222,6 @@ else
   fi
   # kubernetes-skill: Manifest and cluster failure-mode guidance.
   if run claude plugin install kubernetes-skill@kubernetes-skill --yes --scope user; then
-    run claude plugin update kubernetes-skill >/dev/null 2>&1 || true
     run claude plugin enable kubernetes-skill@kubernetes-skill >/dev/null 2>&1 || true
     ok "kubernetes-skill@kubernetes-skill installed and enabled"
   else
@@ -235,7 +229,6 @@ else
   fi
   # github: GitHub MCP server. Needs a token; it fails to connect with "Authorization header is badly formatted" when the credential is absent or malformed, which reads like a missing server rather than a missing
   if run claude plugin install github@claude-plugins-official --yes --scope user; then
-    run claude plugin update github >/dev/null 2>&1 || true
     run claude plugin enable github@claude-plugins-official >/dev/null 2>&1 || true
     ok "github@claude-plugins-official installed and enabled"
   else
@@ -243,7 +236,6 @@ else
   fi
   # ai-software-architect: Architecture review personas. Off by default — large surface, rarely the right tool.
   if run claude plugin install ai-software-architect@ai-software-architect --yes --scope user; then
-    run claude plugin update ai-software-architect >/dev/null 2>&1 || true
     run claude plugin disable ai-software-architect@ai-software-architect >/dev/null 2>&1 || true
     ok "ai-software-architect@ai-software-architect installed, left disabled on purpose"
   else
@@ -251,229 +243,338 @@ else
   fi
 
   # ---------------------------------------------------------------
+  # 3. Plugin drift detection.
+  #
+  # The CLI does not support pinning plugins to a commit, so pins in
+  # the registry are advisory. Compare installed commits against
+  # registry expectations and report drift.
+  # ---------------------------------------------------------------
+  manifest="${CLAUDE_HOME}/plugins/installed_plugins.json"
+  if [ -f "${manifest}" ]; then
+    log "checking plugin commit drift"
+
+    # The reader is a helper taking the manifest path and the plugin
+    # ref as ARGV, with SINGLE-quoted python source. An earlier
+    # version inlined double-quoted python inside a double-quoted
+    # shell string, so the inner quotes closed the shell string and
+    # python got mangled source -- and `2>/dev/null || true` hid the
+    # SyntaxError, so every plugin silently reported no drift.
+    installed_plugin_commit() {
+      python3 -c '
+import json, sys
+try:
+    manifest = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+installs = manifest.get("plugins", {}).get(sys.argv[2], [])
+for install in installs:
+    if install.get("scope") == "user":
+        print(install.get("gitCommitSha", ""))
+        break
+' \
+        "$1" "$2" 2>/dev/null
+    }
+
+    installed_commit="$(installed_plugin_commit "${manifest}" "caveman@caveman")"
+    if [ -z "${installed_commit}" ]; then
+      log "caveman: no user-scope commit recorded; drift not checked"
+    elif [ "${installed_commit}" != "b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3" ]; then
+      warn "caveman: installed ${installed_commit} differs from the registry's b82c0ad42c2b"
+    else
+      ok "caveman: at the expected commit"
+    fi
+    installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
+    if [ -z "${installed_commit}" ]; then
+      log "drawio: no user-scope commit recorded; drift not checked"
+    elif [ "${installed_commit}" != "14b318b19cc37b159f841227b9d11fbd18ce18ea" ]; then
+      warn "drawio: installed ${installed_commit} differs from the registry's 14b318b19cc3"
+    else
+      ok "drawio: at the expected commit"
+    fi
+    installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@claude-plugins-official")"
+    if [ -z "${installed_commit}" ]; then
+      log "frontend-design: no user-scope commit recorded; drift not checked"
+    elif [ "${installed_commit}" != "0d82eac145a50e6867d908419dccc5087b8595b0" ]; then
+      warn "frontend-design: installed ${installed_commit} differs from the registry's 0d82eac145a5"
+    else
+      ok "frontend-design: at the expected commit"
+    fi
+    installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@claude-plugins-official")"
+    if [ -z "${installed_commit}" ]; then
+      log "mattpocock-skills: no user-scope commit recorded; drift not checked"
+    elif [ "${installed_commit}" != "5b15a47f2d7150f545fbcacbfe381787fc0230dc" ]; then
+      warn "mattpocock-skills: installed ${installed_commit} differs from the registry's 5b15a47f2d71"
+    else
+      ok "mattpocock-skills: at the expected commit"
+    fi
+    installed_commit="$(installed_plugin_commit "${manifest}" "kubernetes-skill@kubernetes-skill")"
+    if [ -z "${installed_commit}" ]; then
+      log "kubernetes-skill: no user-scope commit recorded; drift not checked"
+    elif [ "${installed_commit}" != "f85547fb3a1ec909b2cbe4dc68f831590ac385ea" ]; then
+      warn "kubernetes-skill: installed ${installed_commit} differs from the registry's f85547fb3a1e"
+    else
+      ok "kubernetes-skill: at the expected commit"
+    fi
+    installed_commit="$(installed_plugin_commit "${manifest}" "ai-software-architect@ai-software-architect")"
+    if [ -z "${installed_commit}" ]; then
+      log "ai-software-architect: no user-scope commit recorded; drift not checked"
+    elif [ "${installed_commit}" != "6e636c8bb2f63481d70f0b7af12912fd414d5722" ]; then
+      warn "ai-software-architect: installed ${installed_commit} differs from the registry's 6e636c8bb2f6"
+    else
+      ok "ai-software-architect: at the expected commit"
+    fi
+  fi
+
+  # ---------------------------------------------------------------
   # 3. Language servers: the plugin AND the binary it drives.
   #
   # An LSP plugin with no binary on PATH registers no tools and says
-  # nothing about it, so the binary is what gets verified here.
+  # nothing about it. Install the plugin, but leave it disabled until
+  # the binary is on PATH. This enables it on a second run once the
+  # binary is installed.
   # ---------------------------------------------------------------
   if [ "${DO_LSP}" = 1 ]; then
     log "language servers"
 
     # typescript-lsp -> typescript-language-server (typescript, javascript)
     if run claude plugin install typescript-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update typescript-lsp >/dev/null 2>&1 || true
-      run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v typescript-language-server >/dev/null 2>&1; then
+        run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "typescript-lsp: typescript-language-server on PATH, plugin enabled"
+      else
+        run claude plugin disable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'npm install -g typescript-language-server typescript' || true
+        if command -v typescript-language-server >/dev/null 2>&1; then
+          run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "typescript-lsp: typescript-language-server installed and enabled"
+        else
+          warn "typescript-lsp: typescript-language-server is absent; plugin left disabled (install missing: npm install -g typescript-language-server typescript)"
+        fi
+      fi
     else
       warn "typescript-lsp@claude-plugins-official install failed"
-    fi
-    if command -v typescript-language-server >/dev/null 2>&1; then
-      ok "typescript-lsp: typescript-language-server on PATH"
-    else
-      run_sh 'npm install -g typescript-language-server typescript' \
-        || warn "typescript-lsp: could not install typescript-language-server"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v typescript-language-server >/dev/null 2>&1; then
-        warn "typescript-lsp: typescript-language-server still absent -- the plugin will register no tools"
-      fi
     fi
 
     # pyright-lsp -> pyright-langserver (python)
     if run claude plugin install pyright-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update pyright-lsp >/dev/null 2>&1 || true
-      run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v pyright-langserver >/dev/null 2>&1; then
+        run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "pyright-lsp: pyright-langserver on PATH, plugin enabled"
+      else
+        run claude plugin disable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'npm install -g pyright' || true
+        if command -v pyright-langserver >/dev/null 2>&1; then
+          run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "pyright-lsp: pyright-langserver installed and enabled"
+        else
+          warn "pyright-lsp: pyright-langserver is absent; plugin left disabled (install missing: npm install -g pyright)"
+        fi
+      fi
     else
       warn "pyright-lsp@claude-plugins-official install failed"
-    fi
-    if command -v pyright-langserver >/dev/null 2>&1; then
-      ok "pyright-lsp: pyright-langserver on PATH"
-    else
-      run_sh 'npm install -g pyright' \
-        || warn "pyright-lsp: could not install pyright-langserver"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v pyright-langserver >/dev/null 2>&1; then
-        warn "pyright-lsp: pyright-langserver still absent -- the plugin will register no tools"
-      fi
     fi
 
     # kotlin-lsp -> kotlin-lsp (kotlin)
     if run claude plugin install kotlin-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update kotlin-lsp >/dev/null 2>&1 || true
-      run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v kotlin-lsp >/dev/null 2>&1; then
+        run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "kotlin-lsp: kotlin-lsp on PATH, plugin enabled"
+      else
+        run claude plugin disable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'brew install kotlin-lsp' || true
+        if command -v kotlin-lsp >/dev/null 2>&1; then
+          run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "kotlin-lsp: kotlin-lsp installed and enabled"
+        else
+          warn "kotlin-lsp: kotlin-lsp is absent; plugin left disabled (install missing: brew install kotlin-lsp)"
+        fi
+      fi
     else
       warn "kotlin-lsp@claude-plugins-official install failed"
-    fi
-    if command -v kotlin-lsp >/dev/null 2>&1; then
-      ok "kotlin-lsp: kotlin-lsp on PATH"
-    else
-      run_sh 'brew install kotlin-lsp' \
-        || warn "kotlin-lsp: could not install kotlin-lsp"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v kotlin-lsp >/dev/null 2>&1; then
-        warn "kotlin-lsp: kotlin-lsp still absent -- the plugin will register no tools"
-      fi
     fi
 
     # jdtls-lsp -> jdtls (java)
     if run claude plugin install jdtls-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update jdtls-lsp >/dev/null 2>&1 || true
-      run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v jdtls >/dev/null 2>&1; then
+        run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "jdtls-lsp: jdtls on PATH, plugin enabled"
+      else
+        run claude plugin disable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'brew install jdtls' || true
+        if command -v jdtls >/dev/null 2>&1; then
+          run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "jdtls-lsp: jdtls installed and enabled"
+        else
+          warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: brew install jdtls)"
+        fi
+      fi
     else
       warn "jdtls-lsp@claude-plugins-official install failed"
-    fi
-    if command -v jdtls >/dev/null 2>&1; then
-      ok "jdtls-lsp: jdtls on PATH"
-    else
-      run_sh 'brew install jdtls' \
-        || warn "jdtls-lsp: could not install jdtls"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v jdtls >/dev/null 2>&1; then
-        warn "jdtls-lsp: jdtls still absent -- the plugin will register no tools"
-      fi
     fi
 
     # ruby-lsp -> ruby-lsp (ruby)
     if run claude plugin install ruby-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update ruby-lsp >/dev/null 2>&1 || true
-      run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v ruby-lsp >/dev/null 2>&1; then
+        run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
+      else
+        run claude plugin disable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'gem install ruby-lsp' || true
+        if command -v ruby-lsp >/dev/null 2>&1; then
+          run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "ruby-lsp: ruby-lsp installed and enabled"
+        else
+          warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: gem install ruby-lsp)"
+        fi
+      fi
     else
       warn "ruby-lsp@claude-plugins-official install failed"
-    fi
-    if command -v ruby-lsp >/dev/null 2>&1; then
-      ok "ruby-lsp: ruby-lsp on PATH"
-    else
-      run_sh 'gem install ruby-lsp' \
-        || warn "ruby-lsp: could not install ruby-lsp"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v ruby-lsp >/dev/null 2>&1; then
-        warn "ruby-lsp: ruby-lsp still absent -- the plugin will register no tools"
-      fi
     fi
 
     # gopls-lsp -> gopls (go)
     if run claude plugin install gopls-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update gopls-lsp >/dev/null 2>&1 || true
-      run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v gopls >/dev/null 2>&1; then
+        run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "gopls-lsp: gopls on PATH, plugin enabled"
+      else
+        run claude plugin disable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'go install golang.org/x/tools/gopls@latest' || true
+        if command -v gopls >/dev/null 2>&1; then
+          run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "gopls-lsp: gopls installed and enabled"
+        else
+          warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: go install golang.org/x/tools/gopls@latest)"
+        fi
+      fi
     else
       warn "gopls-lsp@claude-plugins-official install failed"
-    fi
-    if command -v gopls >/dev/null 2>&1; then
-      ok "gopls-lsp: gopls on PATH"
-    else
-      run_sh 'go install golang.org/x/tools/gopls@latest' \
-        || warn "gopls-lsp: could not install gopls"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v gopls >/dev/null 2>&1; then
-        warn "gopls-lsp: gopls still absent -- the plugin will register no tools"
-      fi
     fi
 
     # rust-analyzer-lsp -> rust-analyzer (rust)
     if run claude plugin install rust-analyzer-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update rust-analyzer-lsp >/dev/null 2>&1 || true
-      run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v rust-analyzer >/dev/null 2>&1; then
+        run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
+      else
+        run claude plugin disable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'rustup component add rust-analyzer' || true
+        if command -v rust-analyzer >/dev/null 2>&1; then
+          run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+        else
+          warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: rustup component add rust-analyzer)"
+        fi
+      fi
     else
       warn "rust-analyzer-lsp@claude-plugins-official install failed"
-    fi
-    if command -v rust-analyzer >/dev/null 2>&1; then
-      ok "rust-analyzer-lsp: rust-analyzer on PATH"
-    else
-      run_sh 'rustup component add rust-analyzer' \
-        || warn "rust-analyzer-lsp: could not install rust-analyzer"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v rust-analyzer >/dev/null 2>&1; then
-        warn "rust-analyzer-lsp: rust-analyzer still absent -- the plugin will register no tools"
-      fi
     fi
 
     # lua-lsp -> lua-language-server (lua)
     if run claude plugin install lua-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update lua-lsp >/dev/null 2>&1 || true
-      run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v lua-language-server >/dev/null 2>&1; then
+        run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "lua-lsp: lua-language-server on PATH, plugin enabled"
+      else
+        run claude plugin disable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'brew install lua-language-server' || true
+        if command -v lua-language-server >/dev/null 2>&1; then
+          run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "lua-lsp: lua-language-server installed and enabled"
+        else
+          warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: brew install lua-language-server)"
+        fi
+      fi
     else
       warn "lua-lsp@claude-plugins-official install failed"
-    fi
-    if command -v lua-language-server >/dev/null 2>&1; then
-      ok "lua-lsp: lua-language-server on PATH"
-    else
-      run_sh 'brew install lua-language-server' \
-        || warn "lua-lsp: could not install lua-language-server"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v lua-language-server >/dev/null 2>&1; then
-        warn "lua-lsp: lua-language-server still absent -- the plugin will register no tools"
-      fi
     fi
 
     # clangd-lsp -> clangd (c, cpp)
     if run claude plugin install clangd-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update clangd-lsp >/dev/null 2>&1 || true
-      run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v clangd >/dev/null 2>&1; then
+        run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "clangd-lsp: clangd on PATH, plugin enabled"
+      else
+        run claude plugin disable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'brew install llvm' || true
+        if command -v clangd >/dev/null 2>&1; then
+          run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "clangd-lsp: clangd installed and enabled"
+        else
+          warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: brew install llvm)"
+        fi
+      fi
     else
       warn "clangd-lsp@claude-plugins-official install failed"
-    fi
-    if command -v clangd >/dev/null 2>&1; then
-      ok "clangd-lsp: clangd on PATH"
-    else
-      run_sh 'brew install llvm' \
-        || warn "clangd-lsp: could not install clangd"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v clangd >/dev/null 2>&1; then
-        warn "clangd-lsp: clangd still absent -- the plugin will register no tools"
-      fi
     fi
 
     # php-lsp -> intelephense (php)
     if run claude plugin install php-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update php-lsp >/dev/null 2>&1 || true
-      run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v intelephense >/dev/null 2>&1; then
+        run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "php-lsp: intelephense on PATH, plugin enabled"
+      else
+        run claude plugin disable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'npm install -g intelephense' || true
+        if command -v intelephense >/dev/null 2>&1; then
+          run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "php-lsp: intelephense installed and enabled"
+        else
+          warn "php-lsp: intelephense is absent; plugin left disabled (install missing: npm install -g intelephense)"
+        fi
+      fi
     else
       warn "php-lsp@claude-plugins-official install failed"
-    fi
-    if command -v intelephense >/dev/null 2>&1; then
-      ok "php-lsp: intelephense on PATH"
-    else
-      run_sh 'npm install -g intelephense' \
-        || warn "php-lsp: could not install intelephense"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v intelephense >/dev/null 2>&1; then
-        warn "php-lsp: intelephense still absent -- the plugin will register no tools"
-      fi
     fi
 
     # csharp-lsp -> csharp-ls (csharp)
     if run claude plugin install csharp-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update csharp-lsp >/dev/null 2>&1 || true
-      run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v csharp-ls >/dev/null 2>&1; then
+        run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
+      else
+        run claude plugin disable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'dotnet tool install --global csharp-ls' || true
+        if command -v csharp-ls >/dev/null 2>&1; then
+          run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "csharp-lsp: csharp-ls installed and enabled"
+        else
+          warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: dotnet tool install --global csharp-ls)"
+        fi
+      fi
     else
       warn "csharp-lsp@claude-plugins-official install failed"
-    fi
-    if command -v csharp-ls >/dev/null 2>&1; then
-      ok "csharp-lsp: csharp-ls on PATH"
-    else
-      run_sh 'dotnet tool install --global csharp-ls' \
-        || warn "csharp-lsp: could not install csharp-ls"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v csharp-ls >/dev/null 2>&1; then
-        warn "csharp-lsp: csharp-ls still absent -- the plugin will register no tools"
-      fi
     fi
 
     # swift-lsp -> sourcekit-lsp (swift)
     if run claude plugin install swift-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update swift-lsp >/dev/null 2>&1 || true
-      run claude plugin enable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v sourcekit-lsp >/dev/null 2>&1; then
+        run claude plugin enable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
+      else
+        run claude plugin disable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
+      fi
     else
       warn "swift-lsp@claude-plugins-official install failed"
-    fi
-    if command -v sourcekit-lsp >/dev/null 2>&1; then
-      ok "swift-lsp: sourcekit-lsp on PATH"
-    else
-      warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; install that toolchain"
     fi
 
     # liquid-lsp -> shopify (liquid)
     if run claude plugin install liquid-lsp@claude-plugins-official --yes --scope user; then
-      run claude plugin update liquid-lsp >/dev/null 2>&1 || true
-      run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+      if command -v shopify >/dev/null 2>&1; then
+        run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        ok "liquid-lsp: shopify on PATH, plugin enabled (was disabled in registry)"
+      else
+        run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+        run_sh 'npm install -g @shopify/cli' || true
+        if command -v shopify >/dev/null 2>&1; then
+          run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "liquid-lsp: shopify installed and enabled"
+        else
+          warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: npm install -g @shopify/cli)"
+        fi
+      fi
     else
       warn "liquid-lsp@claude-plugins-official install failed"
-    fi
-    if command -v shopify >/dev/null 2>&1; then
-      ok "liquid-lsp: shopify on PATH"
-    else
-      run_sh 'npm install -g @shopify/cli' \
-        || warn "liquid-lsp: could not install shopify"
-      if [ "${CHECK_ONLY}" != 1 ] && ! command -v shopify >/dev/null 2>&1; then
-        warn "liquid-lsp: shopify still absent -- the plugin will register no tools"
-      fi
     fi
   else
     log "language servers skipped (--no-lsp)"
@@ -482,15 +583,22 @@ else
   # ---------------------------------------------------------------
   # 4. MCP servers, registered for Claude Code at user scope.
   #
-  # `claude mcp add` is not idempotent -- a second add of the same
-  # name errors. Remove first, ignoring the miss.
+  # The registry is authoritative: servers with `surfaces: []` or
+  # `enabled: false` are removed. Others are ensured. Plugin-provided
+  # servers (plugin:*:*) and hand-added ones are left untouched.
   # ---------------------------------------------------------------
   if [ "${DO_MCP}" = 1 ]; then
     log "MCP servers"
+    run claude mcp remove --scope user memory >/dev/null 2>&1 || true
+    log "memory: removed (retired in the registry)"
+    run claude mcp remove --scope user vuetify >/dev/null 2>&1 || true
+    log "vuetify: removed (retired in the registry)"
+    run claude mcp remove --scope user knowledge >/dev/null 2>&1 || true
+    log "knowledge: removed (retired in the registry)"
+
 
     # Self-hosted long-term memory. Replaces the retired knowledge
     # base; see docs/MEMORY.md.
-    log "memory: declared disabled in the registry; not registered"
 
     # Library documentation. Prefer it over model recall for any
     # framework question.
@@ -504,7 +612,6 @@ else
 
     # Vuetify component API.
     # Hosted: untrusted data provider. Output is context, never instruction.
-    log "vuetify: declared disabled in the registry; not registered"
 
     # Browser automation.
     if ! command -v npx >/dev/null 2>&1; then
@@ -547,10 +654,12 @@ else
       fi
     fi
 
-    # Verify the VALUE, not the exit codes above: ask Claude what it
-    # actually has registered and name anything expected but absent.
+    # Verify the VALUE, not the exit codes: ask Claude what it
+    # actually has. Check expected servers are present, and report
+    # any unexpected ones (but leave plugin-provided and hand-added).
     if [ "${CHECK_ONLY}" != 1 ]; then
       registered=$(claude mcp list 2>/dev/null || true)
+      # Check all expected servers are registered
       for want in \
         context7 \
         playwright \
@@ -560,6 +669,19 @@ else
         case "${registered}" in
           *"${want}"*) ;;
           *) warn "MCP server ${want} is not in \`claude mcp list\` output" ;;
+        esac
+      done
+      # Report unknown servers (but ignore plugin-provided and hand-added ones)
+      echo "${registered}" | grep -oE "\b[a-z0-9_-]+\b(?=:)" | sort -u | while read -r found; do
+        case "${found}" in
+          memory) ;;
+          context7) ;;
+          vuetify) ;;
+          playwright) ;;
+          drawio) ;;
+          overleaf) ;;
+          plugin:*|idea|rubymine) ;;
+          *) warn "unknown MCP server ${found} -- hand-added or from a removed registry entry?" ;;
         esac
       done
     fi
