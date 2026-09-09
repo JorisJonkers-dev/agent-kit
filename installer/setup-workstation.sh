@@ -26,6 +26,13 @@ DO_MCP=1
 failures=0
 warnings=0
 
+# Track what needs attention after the run
+skipped_mcp_servers=()     # MCP servers skipped due to missing credentials
+missing_lsp_binaries=()    # Language servers with missing binaries
+disabled_plugins=()        # Plugins disabled (missing binary or on purpose)
+plugin_drift=()            # Plugins whose commit drifted
+new_binaries=()            # Binaries installed during this run
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --check) CHECK_ONLY=1 ;;
@@ -92,6 +99,7 @@ else
     log "claude would be installed"
   elif command -v claude >/dev/null 2>&1; then
     ok "claude installed"
+    new_binaries+=("claude")
   else
     fail "claude still not on PATH after install; open a new shell and re-run"
   fi
@@ -107,6 +115,7 @@ else
     log "codex would be installed"
   elif command -v codex >/dev/null 2>&1; then
     ok "codex installed"
+    new_binaries+=("codex")
   else
     fail "codex still not on PATH after install; open a new shell and re-run"
   fi
@@ -124,6 +133,7 @@ else
     log "hermes would be installed"
   elif command -v hermes >/dev/null 2>&1; then
     ok "hermes installed"
+    new_binaries+=("hermes")
   else
     fail "hermes still not on PATH after install; open a new shell and re-run"
   fi
@@ -140,6 +150,9 @@ else
     log "olcli would be installed"
   elif command -v olcli >/dev/null 2>&1; then
     ok "olcli installed"
+    new_binaries+=("olcli")
+    new_binaries+=("olcli-mcp")
+    new_binaries+=("git-remote-overleaf")
   else
     fail "olcli still not on PATH after install; open a new shell and re-run"
   fi
@@ -156,6 +169,7 @@ else
     log "uv would be installed"
   elif command -v uv >/dev/null 2>&1; then
     ok "uv installed"
+    new_binaries+=("uv")
   else
     fail "uv still not on PATH after install; open a new shell and re-run"
   fi
@@ -238,6 +252,7 @@ else
   if run claude plugin install ai-software-architect@ai-software-architect --yes --scope user; then
     run claude plugin disable ai-software-architect@ai-software-architect >/dev/null 2>&1 || true
     ok "ai-software-architect@ai-software-architect installed, left disabled on purpose"
+    disabled_plugins+=("ai-software-architect: disabled on purpose in registry")
   else
     warn "ai-software-architect@ai-software-architect install failed"
   fi
@@ -280,6 +295,7 @@ for install in installs:
       log "caveman: no user-scope commit recorded; drift not checked"
     elif [ "${installed_commit}" != "b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3" ]; then
       warn "caveman: installed ${installed_commit} differs from the registry's b82c0ad42c2b"
+      plugin_drift+=("caveman: ${installed_commit} vs b82c0ad42c2b")
     else
       ok "caveman: at the expected commit"
     fi
@@ -288,6 +304,7 @@ for install in installs:
       log "drawio: no user-scope commit recorded; drift not checked"
     elif [ "${installed_commit}" != "14b318b19cc37b159f841227b9d11fbd18ce18ea" ]; then
       warn "drawio: installed ${installed_commit} differs from the registry's 14b318b19cc3"
+      plugin_drift+=("drawio: ${installed_commit} vs 14b318b19cc3")
     else
       ok "drawio: at the expected commit"
     fi
@@ -296,6 +313,7 @@ for install in installs:
       log "frontend-design: no user-scope commit recorded; drift not checked"
     elif [ "${installed_commit}" != "0d82eac145a50e6867d908419dccc5087b8595b0" ]; then
       warn "frontend-design: installed ${installed_commit} differs from the registry's 0d82eac145a5"
+      plugin_drift+=("frontend-design: ${installed_commit} vs 0d82eac145a5")
     else
       ok "frontend-design: at the expected commit"
     fi
@@ -304,6 +322,7 @@ for install in installs:
       log "mattpocock-skills: no user-scope commit recorded; drift not checked"
     elif [ "${installed_commit}" != "5b15a47f2d7150f545fbcacbfe381787fc0230dc" ]; then
       warn "mattpocock-skills: installed ${installed_commit} differs from the registry's 5b15a47f2d71"
+      plugin_drift+=("mattpocock-skills: ${installed_commit} vs 5b15a47f2d71")
     else
       ok "mattpocock-skills: at the expected commit"
     fi
@@ -312,6 +331,7 @@ for install in installs:
       log "kubernetes-skill: no user-scope commit recorded; drift not checked"
     elif [ "${installed_commit}" != "f85547fb3a1ec909b2cbe4dc68f831590ac385ea" ]; then
       warn "kubernetes-skill: installed ${installed_commit} differs from the registry's f85547fb3a1e"
+      plugin_drift+=("kubernetes-skill: ${installed_commit} vs f85547fb3a1e")
     else
       ok "kubernetes-skill: at the expected commit"
     fi
@@ -320,6 +340,7 @@ for install in installs:
       log "ai-software-architect: no user-scope commit recorded; drift not checked"
     elif [ "${installed_commit}" != "6e636c8bb2f63481d70f0b7af12912fd414d5722" ]; then
       warn "ai-software-architect: installed ${installed_commit} differs from the registry's 6e636c8bb2f6"
+      plugin_drift+=("ai-software-architect: ${installed_commit} vs 6e636c8bb2f6")
     else
       ok "ai-software-architect: at the expected commit"
     fi
@@ -349,6 +370,7 @@ for install in installs:
           ok "typescript-lsp: typescript-language-server installed and enabled"
         else
           warn "typescript-lsp: typescript-language-server is absent; plugin left disabled (install missing: npm install -g typescript-language-server typescript)"
+          missing_lsp_binaries+=("typescript-lsp: install with: npm install -g typescript-language-server typescript")
         fi
       fi
     else
@@ -368,6 +390,7 @@ for install in installs:
           ok "pyright-lsp: pyright-langserver installed and enabled"
         else
           warn "pyright-lsp: pyright-langserver is absent; plugin left disabled (install missing: npm install -g pyright)"
+          missing_lsp_binaries+=("pyright-lsp: install with: npm install -g pyright")
         fi
       fi
     else
@@ -387,6 +410,7 @@ for install in installs:
           ok "kotlin-lsp: kotlin-lsp installed and enabled"
         else
           warn "kotlin-lsp: kotlin-lsp is absent; plugin left disabled (install missing: brew install kotlin-lsp)"
+          missing_lsp_binaries+=("kotlin-lsp: install with: brew install kotlin-lsp")
         fi
       fi
     else
@@ -406,6 +430,7 @@ for install in installs:
           ok "jdtls-lsp: jdtls installed and enabled"
         else
           warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: brew install jdtls)"
+          missing_lsp_binaries+=("jdtls-lsp: install with: brew install jdtls")
         fi
       fi
     else
@@ -425,6 +450,7 @@ for install in installs:
           ok "ruby-lsp: ruby-lsp installed and enabled"
         else
           warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: gem install ruby-lsp)"
+          missing_lsp_binaries+=("ruby-lsp: install with: gem install ruby-lsp")
         fi
       fi
     else
@@ -444,6 +470,7 @@ for install in installs:
           ok "gopls-lsp: gopls installed and enabled"
         else
           warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: go install golang.org/x/tools/gopls@latest)"
+          missing_lsp_binaries+=("gopls-lsp: install with: go install golang.org/x/tools/gopls@latest")
         fi
       fi
     else
@@ -463,6 +490,7 @@ for install in installs:
           ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
         else
           warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: rustup component add rust-analyzer)"
+          missing_lsp_binaries+=("rust-analyzer-lsp: install with: rustup component add rust-analyzer")
         fi
       fi
     else
@@ -482,6 +510,7 @@ for install in installs:
           ok "lua-lsp: lua-language-server installed and enabled"
         else
           warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: brew install lua-language-server)"
+          missing_lsp_binaries+=("lua-lsp: install with: brew install lua-language-server")
         fi
       fi
     else
@@ -501,6 +530,7 @@ for install in installs:
           ok "clangd-lsp: clangd installed and enabled"
         else
           warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: brew install llvm)"
+          missing_lsp_binaries+=("clangd-lsp: install with: brew install llvm")
         fi
       fi
     else
@@ -520,6 +550,7 @@ for install in installs:
           ok "php-lsp: intelephense installed and enabled"
         else
           warn "php-lsp: intelephense is absent; plugin left disabled (install missing: npm install -g intelephense)"
+          missing_lsp_binaries+=("php-lsp: install with: npm install -g intelephense")
         fi
       fi
     else
@@ -539,6 +570,7 @@ for install in installs:
           ok "csharp-lsp: csharp-ls installed and enabled"
         else
           warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: dotnet tool install --global csharp-ls)"
+          missing_lsp_binaries+=("csharp-lsp: install with: dotnet tool install --global csharp-ls")
         fi
       fi
     else
@@ -553,6 +585,7 @@ for install in installs:
       else
         run claude plugin disable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
         warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
+        missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
       fi
     else
       warn "swift-lsp@claude-plugins-official install failed"
@@ -571,6 +604,7 @@ for install in installs:
           ok "liquid-lsp: shopify installed and enabled"
         else
           warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: npm install -g @shopify/cli)"
+          missing_lsp_binaries+=("liquid-lsp: install with: npm install -g @shopify/cli")
         fi
       fi
     else
@@ -641,6 +675,7 @@ for install in installs:
     # Self-hosted Overleaf — pull, push, compile, review comments.
     if [ -z "${OVERLEAF_SESSION:-}" ]; then
       warn "overleaf: OVERLEAF_SESSION is not set; skipping (export it and re-run)"
+      skipped_mcp_servers+=("overleaf: export OVERLEAF_SESSION")
     else
       if ! command -v olcli-mcp >/dev/null 2>&1; then
         command -v olcli-mcp >/dev/null 2>&1 \
@@ -755,5 +790,63 @@ else
 fi
 
 # -----------------------------------------------------------------
-log "summary: ${failures} failure(s), ${warnings} warning(s)"
+# 7. Summary: what changed and what still needs attention.
+# -----------------------------------------------------------------
+
+log "Summary of findings:"
+
+# Report newly installed binaries that need a new shell
+if [ "${#new_binaries[@]}" -gt 0 ]; then
+  log "Binaries installed during this run (may need a new shell):"
+  for bin in "${new_binaries[@]}"; do
+    log "  - ${bin}"
+  done
+  log ""
+fi
+
+# Report MCP servers skipped due to missing credentials
+if [ "${#skipped_mcp_servers[@]}" -gt 0 ]; then
+  log "MCP servers not registered (missing credentials):"
+  for entry in "${skipped_mcp_servers[@]}"; do
+    log "  - ${entry}"
+  done
+  log ""
+fi
+
+# Report language servers with missing binaries
+if [ "${#missing_lsp_binaries[@]}" -gt 0 ]; then
+  log "Language servers with missing binaries:"
+  for entry in "${missing_lsp_binaries[@]}"; do
+    log "  - ${entry}"
+  done
+  log ""
+fi
+
+# Report plugins left disabled
+if [ "${#disabled_plugins[@]}" -gt 0 ]; then
+  log "Plugins left disabled:"
+  for entry in "${disabled_plugins[@]}"; do
+    log "  - ${entry}"
+  done
+  log ""
+fi
+
+# Report plugins with drifted commits
+if [ "${#plugin_drift[@]}" -gt 0 ]; then
+  log "Plugins with drifted commits:"
+  for entry in "${plugin_drift[@]}"; do
+    log "  - ${entry}"
+  done
+  log ""
+fi
+
+# Final summary
+if [ "${failures}" = 0 ] && [ "${warnings}" = 0 ] \
+   && [ "${#skipped_mcp_servers[@]}" = 0 ] && [ "${#missing_lsp_binaries[@]}" = 0 ] \
+   && [ "${#disabled_plugins[@]}" = 0 ] && [ "${#plugin_drift[@]}" = 0 ]; then
+  log "Setup complete: everything is ready"
+else
+  log "Setup summary: ${failures} failure(s), ${warnings} warning(s)"
+fi
+
 [ "${failures}" = 0 ]
