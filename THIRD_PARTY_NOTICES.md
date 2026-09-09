@@ -1,7 +1,13 @@
 # Third-Party Notices
 
-This directory vendors or adapts material from the following MIT-licensed
-sources:
+This directory vendors or adapts material from the following sources. All are
+MIT-licensed except where an entry says otherwise.
+
+Sources listed under "Registry skill sources" are not vendored into this
+repository. They are pinned in `registry/estate-tooling.yaml` and cloned at
+runtime by the Hermes gateway's `sync-skills` init container, which verifies
+each pinned commit and refuses the source on a mismatch. The notice is recorded
+here because the material executes inside agent context.
 
 - Project: Spec Kit
 - Repository: https://github.com/github/spec-kit
@@ -39,6 +45,49 @@ sources:
 - Source ref: main
 - License: MIT
 - Copyright notice: Copyright (c) 2025 Jesse Vincent
+
+## Registry skill sources
+
+- Project: Skills
+- Repository: https://github.com/mattpocock/skills
+- Pinned tag: v1.2.3
+- Resolved source commit: 6acc160e4e0cd062dbbbd7a1b26ae92855edf07e
+- Selector: `engineering/*,productivity/*,misc/*`
+- License: MIT
+- Copyright notice: Copyright (c) 2026 Matt Pocock
+
+- Project: Superpowers
+- Repository: https://github.com/obra/superpowers
+- Pinned tag: v6.3.0
+- Resolved source commit: b36e0829c6d0140e93cfef2ca599b1b07d4a7797
+- License: MIT
+- Copyright notice: Copyright (c) 2025 Jesse Vincent
+
+- Project: Caveman
+- Repository: https://github.com/JuliusBrussee/caveman
+- Pinned tag: v2.6.0
+- Resolved source commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+- License: MIT
+
+- Project: kubernetes-skill
+- Repository: https://github.com/LukasNiessen/kubernetes-skill
+- Source ref: main
+- Resolved source commit: f85547fb3a1ec909b2cbe4dc68f831590ac385ea
+- License: MIT
+
+- Project: drawio-mcp
+- Repository: https://github.com/jgraph/drawio-mcp
+- Source ref: main
+- Resolved source commit: 14b318b19cc37b159f841227b9d11fbd18ce18ea
+- Selector: `plugins/claude-code/skills/drawio`
+- License: Apache-2.0 (NOT MIT; see the upstream LICENSE)
+
+- Project: olcli
+- Repository: https://github.com/aloth/olcli
+- Source ref: main
+- Resolved source commit: 0f8085d90ea69eb0f3886d0ceba50bc9953a9c9e
+- License: MIT
+- Note: also installed as a CLI from npm as `@aloth/olcli`.
 
 ## MIT License
 

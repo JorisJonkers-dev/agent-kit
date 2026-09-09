@@ -1,6 +1,6 @@
 # Skills Source Lock
 
-verified_at: 2026-07-13
+verified_at: 2026-09-09
 
 ## Sources
 
@@ -19,6 +19,47 @@ verified_at: 2026-07-13
   status: included
   license: MIT
   license_notice: Copyright (c) 2025 Jesse Vincent
+  pinned_tag: v6.3.0
+  pinned_commit: b36e0829c6d0140e93cfef2ca599b1b07d4a7797
+  consumed_by: [hermes]
+
+# Sources below are pinned in registry/estate-tooling.yaml and cloned at
+# runtime by the Hermes sync-skills init container. Commits are the PEELED
+# tag commit, which is what `git rev-parse HEAD` yields after a
+# `--branch <tag>` clone; the annotated tag object sha would be rejected.
+- upstream_repository: https://github.com/mattpocock/skills
+  status: included
+  license: MIT
+  license_notice: Copyright (c) 2026 Matt Pocock
+  pinned_tag: v1.2.3
+  pinned_commit: 6acc160e4e0cd062dbbbd7a1b26ae92855edf07e
+  selector: "engineering/*,productivity/*,misc/*"
+  consumed_by: [hermes]
+- upstream_repository: https://github.com/JuliusBrussee/caveman
+  status: included
+  license: MIT
+  pinned_tag: v2.6.0
+  pinned_commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+  consumed_by: [hermes]
+- upstream_repository: https://github.com/LukasNiessen/kubernetes-skill
+  status: included
+  license: MIT
+  pinned_ref: main
+  pinned_commit: f85547fb3a1ec909b2cbe4dc68f831590ac385ea
+  consumed_by: [hermes]
+- upstream_repository: https://github.com/jgraph/drawio-mcp
+  status: included
+  license: Apache-2.0
+  pinned_ref: main
+  pinned_commit: 14b318b19cc37b159f841227b9d11fbd18ce18ea
+  selector: "plugins/claude-code/skills/drawio"
+  consumed_by: [hermes]
+- upstream_repository: https://github.com/aloth/olcli
+  status: included
+  license: MIT
+  pinned_ref: main
+  pinned_commit: 0f8085d90ea69eb0f3886d0ceba50bc9953a9c9e
+  consumed_by: [hermes, workstation]
 
 ## Skipped Sources
 

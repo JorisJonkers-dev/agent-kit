@@ -31,6 +31,18 @@
       - 'run': 'uv sync --frozen'
       - 'run': 'uv run python render-agent-kit.py --check'
       - 'run': 'uv run python render-agent-kit.py --doctor'
+      # The registry is the single source for the workstation setup script and
+      # the two Hermes ConfigMap bodies. This fails on a hand edit to a
+      # generated artifact and on a registry change that was never rendered.
+      # `!cancelled()` so one failure still surfaces the rest: a job is billed
+      # by the minute rounded up, so these belong as steps here rather than in
+      # a job of their own.
+      - 'run': 'uv run python scripts/render_registry.py --check'
+        'if': '${{ !cancelled() }}'
+      - 'run': 'bash -n installer/setup-workstation.sh'
+        'if': '${{ !cancelled() }}'
+      - 'run': 'bash -n scripts/sync-hermes-registry.sh'
+        'if': '${{ !cancelled() }}'
       - 'run': 'scripts/build-runtime-package.sh v0.0.0-ci dist'
       - 'run': 'tar -tzf dist/agent-kit-runtime-home-v0.0.0-ci.tar.gz >/dev/null'
 
