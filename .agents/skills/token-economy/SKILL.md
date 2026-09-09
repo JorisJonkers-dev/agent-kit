@@ -1,6 +1,6 @@
 ---
 name: token-economy
-description: Use when the user asks to reduce token usage, agent cost, context bloat, prompt-caching misses, RAG/LightRAG behavior, memory policies, or durable instructions. Also use when installing many skills or designing automatic KB recall so retrieval stays bounded.
+description: Use when the user asks to reduce token usage, agent cost, context bloat, prompt-caching misses, RAG/LightRAG behavior, memory policies, or durable instructions. Also use when installing many skills or designing on-demand KB recall so retrieval stays bounded.
 ---
 
 # Token Economy
@@ -11,8 +11,8 @@ description: Use when the user asks to reduce token usage, agent cost, context b
   facts in the KB and retrieve them on demand.
 - Prefer progressive disclosure: list/search first, open small file ranges next,
   fetch full files or notes only when needed.
-- Keep recall bounded: default to `limit=3` for hook-injected context and
-  `limit <= 5` for manual task setup.
+- Keep recall bounded: default to `limit <= 5` for task setup and `limit=3`
+  for a quick check.
 - Use adaptive recall mode: `fast` for prompts under 80 chars, `hybrid` for
   normal work, `deep` only after a miss, ambiguity, or non-obvious cross-topic
   dependency.
@@ -29,10 +29,11 @@ description: Use when the user asks to reduce token usage, agent cost, context b
 When reporting command results, summarize only the lines needed to support the
 decision. When explaining research, cite sources but do not paste long passages.
 
-## Automatic Capture
+## Capture
 
-Session digests should capture only reusable lessons above a confidence floor.
-Use per-session caps and dedupe against existing KB hits before writing.
+Capture is on demand, never automatic -- the estate ships no hooks. Capture only
+reusable lessons above a confidence floor, and dedupe against existing KB hits
+before writing.
 
 ## Tunable env vars
 

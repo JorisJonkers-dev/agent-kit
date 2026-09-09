@@ -13,7 +13,7 @@ curl -fsSL -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
   "${KB_URL}/install.sh" | bash -s -- --agent all --scope user
 ```
 
-Install into a repository checkout for project-local hooks and skills:
+Install into a repository checkout for project-local skills:
 
 ```bash
 curl -fsSL -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
@@ -69,7 +69,7 @@ unless `--require-live-kb` is set.
 | Installer | `installer/install.sh`, generated from `templates/installer/install.sh.tpl` | Supports `--agent claude|codex|all`, `--scope user|project`, `--dry-run`, and `--uninstall`. |
 | Agent surfaces | `.claude`, `.codex`, `.agents` | Renderer `--check` must pass; manifest parity gaps require explicit unsupported reasons. |
 | Council bundle | `council/` | Manifest `council.files` pins driver, prompts, schemas, and config. |
-| KB hooks | Hook templates and installer partials | Manifest lists canonical `knowledge.*` tool calls and CI runs shell syntax checks. |
+| KB hooks | None. Retired estate-wide; `install-agents.sh` purges any still wired into a client's settings. | `scripts/validate_manifest.py` fails if a `hooks:` or `settings:` section reappears in `manifest.yaml`. |
 | Spec Kit seed | `.specify/memory/constitution.md` plus `templates/repo/.specify` | Project-scope install seeds `.specify` files and preserves an existing constitution. |
 
 Update this matrix in the same branch as any change to renderer modes,

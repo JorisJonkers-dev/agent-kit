@@ -3,12 +3,16 @@
 #
 # This is a thin WRAPPER around the base knowledge-system installer
 # (installer/install.sh). It:
-#   1. Delegates the base install (hooks + skills + council + speckit)
+#   1. Delegates the base install (skills + council + speckit)
 #      by fetching and running the sibling install.sh from the same KB.
 #   2. Registers the `knowledge` MCP server with each agent (the NEW
 #      capability this installer adds over the base installer).
 #   3. Checks council runtime prerequisites (python3 and Node >=22) and
 #      best-effort installs the kit's Python dependencies.
+#   4. PURGES the retired knowledge-recall hook groups from Claude
+#      settings.json. The estate no longer ships agent hooks; a machine
+#      that installed them before still has them, so every run removes
+#      them rather than leaving dead commands wired to missing scripts.
 #
 # It installs for ALL agents (claude + codex) by default. Use
 # `--scope user|project` to choose the client homes to manage, `--dry-run`
@@ -34,8 +38,8 @@ usage() {
 agent-kit full agents-system installer ${INSTALLER_VERSION}
 
 Installs the full client agents system for BOTH Claude Code and Codex:
-hooks + skills + council + Spec Kit (delegated to the base installer), the
-Claude hook wiring, the kit's Python dependencies, and the workstation MCP
+skills + council + Spec Kit (delegated to the base installer), the kit's
+Python dependencies, and the workstation MCP
 fleet: knowledge + context7 + vuetify (HTTP), plus playwright and serena
 (stdio via npx/uvx when present). Pairs with the knowledge-api at ${KB_URL}.
 The runner-only servers github (gh-mcp-wrapper) and kubernetes (in-cluster)
@@ -52,7 +56,7 @@ Options:
   --no-optional Skip the stdio MCP servers that need extra tooling
                 (playwright via npx, serena via uvx). Install only the HTTP fleet.
   --dry-run     Print every change without modifying the filesystem.
-  --uninstall   Remove the delegated base files, the MCP fleet, and Claude hooks.
+  --uninstall   Remove the delegated base files and the MCP fleet.
   --help        Show this help and exit.
 
 Environment:
@@ -115,11 +119,12 @@ else
 fi
 readonly CODEX_CONFIG_FILE="${CODEX_CONFIG_HOME}/config.toml"
 readonly CLAUDE_HOOKS_DIR="${CLAUDE_HOME}/hooks"
+readonly CODEX_HOOKS_DIR="${CODEX_CONFIG_HOME}/hooks"
 readonly CLAUDE_SETTINGS_FILE="${CLAUDE_HOME}/settings.json"
 readonly KB_MCP_URL="${KB_URL%/}/mcp"
 
 # -----------------------------------------------------------------
-# Step 1: delegate the base install (hooks/skills/council/speckit)
+# Step 1: delegate the base install (skills/council/speckit)
 # by fetching and running the sibling base installer from the KB.
 # -----------------------------------------------------------------
 delegate_base_install() {
@@ -379,72 +384,73 @@ PY
 }
 
 # -----------------------------------------------------------------
-# Step 2b: wire the Claude hooks into settings.json. The base
-# installer writes the hook scripts but leaves Claude settings.json
-# to the operator (it prints manual steps). The full installer does
-# it for them, mirroring how the base installer auto-writes Codex
-# hooks.json. Idempotent and content-preserving: only the groups that
-# reference our own hook scripts are managed.
+# Step 2b: purge the retired knowledge-recall hook groups from Claude
+# settings.json.
+#
+# The estate shipped three hooks (edit recall, git-commit capture,
+# session digest) that wrote into the knowledge base. That system is
+# retired and the scripts are gone, so a settings.json that still
+# references them fires a missing command on every Edit and every Stop.
+# This runs on install AND uninstall, and only touches groups whose
+# command basename is one of ours -- an operator's own hooks survive.
 # -----------------------------------------------------------------
-claude_hooks_merge() {
-  AK_MODE="$1" AK_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE}" AK_HOOKS_DIR="${CLAUDE_HOOKS_DIR}" \
-    python3 - <<'PY'
+purge_claude_hooks() {
+  if [ ! -e "${CLAUDE_SETTINGS_FILE}" ]; then return; fi
+  if [ "${DRY_RUN}" = 1 ]; then
+    log "would purge retired knowledge hooks from ${CLAUDE_SETTINGS_FILE}"
+    return
+  fi
+  AK_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE}" python3 - <<'PURGE'
 import json
 import os
 import pathlib
+import sys
 
-mode = os.environ["AK_MODE"]
 path = pathlib.Path(os.environ["AK_SETTINGS_FILE"])
-hooks_dir = os.environ["AK_HOOKS_DIR"]
 
-owned = {
+# Retired hook scripts, by basename. Matching on the basename keeps this
+# working for both the user-scope (~/.claude/hooks/...) and project-scope
+# ($(git rev-parse --show-toplevel)/.claude/hooks/...) command forms.
+RETIRED = {
     "pre-tool-use-edit-recall.sh",
     "pre-tool-use-git-commit-capture.sh",
     "stop-session-digest.sh",
+    "kb-stop-digest.sh",
+    "kb-user-prompt-recall.sh",
+    "user-prompt-submit-recall.sh",
 }
 
-
-def cmd(script):
-    return f"{hooks_dir}/{script}"
-
-
-desired = {
-    "PreToolUse": [
-        {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", "command": cmd("pre-tool-use-edit-recall.sh"), "timeout": 5}]},
-        {"matcher": "Bash", "hooks": [{"type": "command", "command": cmd("pre-tool-use-git-commit-capture.sh"), "timeout": 5}]},
-    ],
-    "Stop": [
-        {"matcher": ".*", "hooks": [{"type": "command", "command": cmd("stop-session-digest.sh"), "async": True, "timeout": 60}]},
-    ],
-}
-
-data = {}
-if path.exists():
-    try:
-        data = json.loads(path.read_text() or "{}")
-    except json.JSONDecodeError:
-        data = {}
+try:
+    data = json.loads(path.read_text() or "{}")
+except json.JSONDecodeError:
+    print("purge: %s is not valid JSON; left untouched" % path, file=sys.stderr)
+    raise SystemExit(0)
 if not isinstance(data, dict):
-    data = {}
+    raise SystemExit(0)
+
 hooks = data.get("hooks")
 if not isinstance(hooks, dict):
-    hooks = {}
+    raise SystemExit(0)
 
 
-def owns(group):
+def retired(group):
     for hook in group.get("hooks", []) if isinstance(group, dict) else []:
         command = hook.get("command", "") if isinstance(hook, dict) else ""
-        if command.rsplit("/", 1)[-1] in owned:
-            return True
+        for token in command.replace('"', " ").split():
+            if token.rsplit("/", 1)[-1] in RETIRED:
+                return True
     return False
 
 
-for event in ("PreToolUse", "Stop"):
-    existing = [g for g in hooks.get(event, []) if isinstance(g, dict) and not owns(g)]
-    if mode == "install":
-        existing = desired[event] + existing
-    if existing:
-        hooks[event] = existing
+removed = 0
+for event in list(hooks):
+    groups = hooks.get(event)
+    if not isinstance(groups, list):
+        continue
+    kept = [g for g in groups if not retired(g)]
+    removed += len(groups) - len(kept)
+    if kept:
+        hooks[event] = kept
     else:
         hooks.pop(event, None)
 
@@ -453,28 +459,39 @@ if hooks:
 else:
     data.pop("hooks", None)
 
-path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, indent=2) + "\n")
-PY
-}
 
-register_claude_hooks() {
-  if [ "${DRY_RUN}" = 1 ]; then
-    log "would register Claude recall/capture/digest hooks in ${CLAUDE_SETTINGS_FILE}"
-    return
-  fi
-  claude_hooks_merge install
-  log "registered Claude hooks in ${CLAUDE_SETTINGS_FILE}"
-}
+# Verify the value, not the command: read the file back and assert no
+# retired basename survives anywhere in it.
+back = path.read_text()
+still = sorted(name for name in RETIRED if name in back)
+if still:
+    print("purge: FAILED, still referenced: %s" % ", ".join(still), file=sys.stderr)
+    raise SystemExit(1)
+print("purge: removed %d retired hook group(s); none remain" % removed)
+PURGE
+  log "purged retired knowledge hooks from ${CLAUDE_SETTINGS_FILE}"
 
-remove_claude_hooks() {
-  if [ ! -e "${CLAUDE_SETTINGS_FILE}" ]; then return; fi
-  if [ "${DRY_RUN}" = 1 ]; then
-    log "would remove Claude hooks from ${CLAUDE_SETTINGS_FILE}"
-    return
-  fi
-  claude_hooks_merge remove
-  log "removed Claude hooks from ${CLAUDE_SETTINGS_FILE}"
+  # The scripts themselves are retired too. Remove the files and the Codex
+  # hooks.json that pointed at them, so nothing is left half-wired.
+  local stale
+  for stale in \
+    "${CLAUDE_HOOKS_DIR}/pre-tool-use-edit-recall.sh" \
+    "${CLAUDE_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" \
+    "${CLAUDE_HOOKS_DIR}/stop-session-digest.sh" \
+    "${CLAUDE_HOOKS_DIR}/user-prompt-submit-recall.sh" \
+    "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh" \
+    "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" \
+    "${CODEX_HOOKS_DIR}/kb-stop-digest.sh" \
+    "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh" \
+    "${CODEX_CONFIG_HOME}/hooks.json"
+  do
+    if [ -e "${stale}" ]; then
+      rm -f "${stale}"
+      log "removed retired hook file ${stale}"
+    fi
+  done
+  rmdir "${CLAUDE_HOOKS_DIR}" "${CODEX_HOOKS_DIR}" 2>/dev/null || true
 }
 
 # -----------------------------------------------------------------
@@ -528,7 +545,7 @@ if [ "${UNINSTALL}" = 1 ]; then
   delegate_base_install
   remove_claude_mcp
   remove_codex_mcp
-  remove_claude_hooks
+  purge_claude_hooks
   log "done"
   exit 0
 fi
@@ -537,7 +554,7 @@ log "installing full agents system (${INSTALLER_VERSION}, scope=${SCOPE})"
 delegate_base_install
 register_claude_mcp
 register_codex_mcp
-register_claude_hooks
+purge_claude_hooks
 ensure_node_runtime
 ensure_python_deps
 log "done"
@@ -546,10 +563,10 @@ cat <<EOF
 agent-kit full installer complete (${INSTALLER_VERSION}, scope=${SCOPE}).
 
 Registered the MCP fleet (knowledge, context7, vuetify, and — when npx/uvx are
-present — playwright, serena) for Claude and Codex, and wired the Claude
-recall/capture/digest hooks into settings.json, on top of the base hooks +
-skills + council + Spec Kit install. The runner-only github and kubernetes
-servers are not installed on a workstation.
+present — playwright, serena) for Claude and Codex on top of the base skills +
+council + Spec Kit install, and purged the retired knowledge-recall hook groups
+from settings.json. The runner-only github and kubernetes servers are not
+installed on a workstation.
 
 Make sure KB_BEARER_TOKEN is set in each agent's environment:
   export KB_BEARER_TOKEN="<your-token>"
