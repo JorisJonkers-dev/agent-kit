@@ -1,5 +1,6 @@
 """Tests for prepare_rollback tool."""
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -73,8 +74,9 @@ class TestPrepareRollbackAppKeyAge:
         self, mock_get_sha, mock_fetch, mock_github_token
     ):
         """Reject when App key is older than 90 days."""
-        # Simulate a key created 91 days ago (as of 2026-07-08)
-        old_date = "2026-04-08"  # 91 days before 2026-07-08
+        # Relative to today for the same reason as the fresh-key case: a
+        # literal date drifts away from the boundary this test is about.
+        old_date = (datetime.now(UTC) - timedelta(days=91)).strftime("%Y-%m-%d")
         mock_fetch.return_value = f"App key created: {old_date}"
         mock_get_sha.return_value = "abc123"
 
@@ -94,8 +96,10 @@ class TestPrepareRollbackAppKeyAge:
         self, mock_get_sha, mock_fetch, mock_github_token
     ):
         """Accept when App key is fresh (< 90 days old)."""
-        # Simulate a key created 30 days ago
-        fresh_date = "2026-06-08"
+        # Relative to today, not a literal: a hardcoded date silently becomes
+        # older than the 90-day limit and the test starts failing on a day
+        # nobody changed anything. This one had already rotted to 93 days.
+        fresh_date = (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%d")
         mock_fetch.return_value = f"App key created: {fresh_date}"
         mock_get_sha.return_value = "abc123"
 
@@ -195,7 +199,10 @@ class TestRollbackBranchCreation:
         mock_github_token,
     ):
         """prepare_rollback returns a COMPARE URL and branch name."""
-        mock_fetch.return_value = "App key created: 2026-07-01"
+        # Fresh by construction: a literal here would cross the 90-day limit
+        # on its own and fail this test for a reason it does not test.
+        fresh = (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%d")
+        mock_fetch.return_value = f"App key created: {fresh}"
         mock_get_sha.return_value = "abc123"
         mock_get_contents.side_effect = Exception("File not found")
 

@@ -65,7 +65,14 @@ PY
 }
 
 cp -a "$stage/rendered/.claude" "$stage/package/home/.claude"
-cp -a "$stage/rendered/.codex" "$stage/package/home/.codex"
+# templates/repo/.codex holds no files now that the hooks are gone, so the
+# renderer emits no .codex directory at all and `cp -a` of it fails with
+# `cannot stat`. The council skill is still staged into .codex/skills below,
+# so create the directory and copy only if the renderer produced one.
+mkdir -p "$stage/package/home/.codex"
+if [ -d "$stage/rendered/.codex" ]; then
+  cp -a "$stage/rendered/.codex/." "$stage/package/home/.codex/"
+fi
 cp -a "$stage/rendered/.agents" "$stage/package/home/.agents"
 stage_council_skill "$root/templates/repo/.claude/skills/council/SKILL.md" "$stage/package/home/.claude/skills/council"
 stage_council_skill "$root/templates/repo/.agents/skills/council/SKILL.md" "$stage/package/home/.codex/skills/council"

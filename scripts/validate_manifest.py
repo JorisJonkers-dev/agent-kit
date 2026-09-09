@@ -294,16 +294,19 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
             if not targets and installer_targets != supported_set:
                 fail(f"installer-only skill {name} must install to {sorted(supported_set)}")
 
-    settings = as_list(manifest.get("settings"), "settings")
-    setting_agents = {
-        agent
-        for item in settings
-        if isinstance(item, dict) and isinstance((agent := item.get("agent")), str)
-    }
-    if setting_agents != {"claude", "codex"}:
-        fail(f"settings must include claude and codex entries: {sorted(setting_agents)}")
+    # The estate ships no agent hooks. The knowledge-recall hooks were
+    # retired with the knowledge base they wrote into, so both the `hooks`
+    # ledger and the `settings` ledger that existed only to wire them must
+    # stay absent. Assert that rather than trusting the removal held: a
+    # re-introduced section is exactly the drift this guard exists for.
+    for retired_section in ("hooks", "settings"):
+        if retired_section in manifest:
+            fail(
+                f"manifest must not declare a `{retired_section}` section: agent hooks "
+                "are retired estate-wide (see manifest.yaml notes)",
+            )
 
-    for section in ("hooks", "installer"):
+    for section in ("installer",):
         value = manifest.get(section)
         items = value if isinstance(value, list) else [value]
         for item in items:

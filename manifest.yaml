@@ -1,7 +1,8 @@
 version: 2
 generated: partial
 notes:
-  - "This manifest pins the current repo and installer agent surfaces. Repo skills, hooks, hook settings, commands, Spec Kit scaffold seeds, and the installer entrypoint are rendered from agent-kit templates; installer heredoc bodies, including hooks, skills, commands, settings, allowlists, and Spec Kit seeds, are rendered from partial or repo templates."
+  - "This manifest pins the current repo and installer agent surfaces. Repo skills, commands, Spec Kit scaffold seeds, and the installer entrypoint are rendered from agent-kit templates; installer heredoc bodies, including skills, commands, and Spec Kit seeds, are rendered from partial or repo templates."
+  - "The estate ships NO agent hooks. The knowledge-recall hooks (edit recall, git-commit capture, session digest) were retired with the knowledge base they wrote into; install-agents.sh purges them from an existing settings.json rather than installing anything. Do not add a hooks section back without an ADR."
   - "Repo skill bodies are intentionally agent-specific today; parity means every shared skill has both Claude and Codex targets unless an explicit unsupported reason is present."
 
 artifact:
@@ -42,12 +43,6 @@ renderer:
     - source_path: templates/installer/install-agents.sh.tpl
       destination_path: installer/install-agents.sh
   include_templates:
-    - templates/installer/partials/allowlist/defaults.gitignore
-    - templates/installer/partials/hooks/pre-tool-use-edit-recall.sh
-    - templates/installer/partials/hooks/pre-tool-use-git-commit-capture.sh
-    - templates/installer/partials/hooks/stop-session-digest-claude.sh
-    - templates/installer/partials/hooks/stop-session-digest-codex.sh
-    - templates/installer/partials/settings/codex-hooks.json
     - templates/installer/partials/skills/agent-session-bootstrap.md
     - templates/installer/partials/skills/audit.md
     - templates/installer/partials/skills/kb-first.md
@@ -92,10 +87,6 @@ renderer:
     - .claude/commands/speckit.specify.md
     - .claude/commands/speckit.tasks.md
     - .claude/commands/speckit.taskstoissues.md
-    - .claude/hooks/kb-stop-digest.sh
-    - .claude/hooks/pre-tool-use-edit-recall.sh
-    - .claude/hooks/pre-tool-use-git-commit-capture.sh
-    - .claude/settings.json
     - .claude/skills/add-public-service/SKILL.md
     - .claude/skills/agent-session-bootstrap/SKILL.md
     - .claude/skills/council-amend/SKILL.md
@@ -113,10 +104,6 @@ renderer:
     - .claude/skills/prepare-rollback/SKILL.md
     - .claude/skills/run-tests/SKILL.md
     - .claude/skills/token-economy/SKILL.md
-    - .codex/hooks.json
-    - .codex/hooks/kb-stop-digest.sh
-    - .codex/hooks/pre-tool-use-edit-recall.sh
-    - .codex/hooks/pre-tool-use-git-commit-capture.sh
     - installer/install-agents.sh
     - installer/install.sh
     - runner-manifests/runtime/Containerfile
@@ -258,10 +245,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/agent-session-bootstrap/SKILL.md
-        sha256: 0e55dc55ad2c0b8f1f1a32eee62a2ea1762a2e01e0364cb10f5760d1528ee580
+        sha256: cd47e8b6527e0c1d574c7af350f1502abca9c85714478020080614e143b7f2fe
       - agent: claude
         path: .claude/skills/agent-session-bootstrap/SKILL.md
-        sha256: b2797b45c4356d137c0c5f389b4a4e2c4c7250f7030b53081e8a60d451d4ddfb
+        sha256: cff3a1652289bc96b1dba41c62499d0f25db3ee00b00f9cad3e64748bd89dfa8
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/skills/agent-session-bootstrap/SKILL.md"
@@ -479,10 +466,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/token-economy/SKILL.md
-        sha256: d6c34f128273a05dedabbccb12efe3b268a71aec3d2dca2af11b8f47cda69ac2
+        sha256: 814c78c77a1482fc28751947eb701b848b9ce52ae460a4f1f5e4a2c366313165
       - agent: claude
         path: .claude/skills/token-economy/SKILL.md
-        sha256: 6823d195dbfb99e2bab3bdeed760445d1d0db78600a46405ae605c12fca4467e
+        sha256: 713e9388efdb22f638e02cfbffc57dd6fc0bbacdc0756825958dab030b5bd538
     installer:
       source_path: installer/install.sh
       target_path: "${CLAUDE_HOME}/skills/token-economy/SKILL.md"
@@ -599,71 +586,17 @@ skills:
       target_path: "${CLAUDE_HOME}/skills/audit/SKILL.md"
       codex_target_path: "${CODEX_HOME}/skills/audit/SKILL.md"
 
-hooks:
-  - name: kb-stop-digest
-    event: Stop
-    purpose: "Digest the transcript into capped lesson candidates and capture survivors."
-    supported_agents: [claude, codex]
-    mcp_tools: [knowledge.digest_transcript, knowledge.recall, knowledge.capture_lesson]
-    targets:
-      - agent: claude
-        path: .claude/hooks/kb-stop-digest.sh
-        settings_path: .claude/settings.json
-        sha256: b9fc024c8ad7304c74fca3f8a0b5c9327fb56b2890b034fb12ef55ed8ee9960b
-      - agent: codex
-        path: .codex/hooks/kb-stop-digest.sh
-        settings_path: .codex/hooks.json
-        sha256: a0a8828f2ac0cc61202162c4d28e7a1df36af1dbebcb0ef0dc915bbe8d3ecf02
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/hooks/stop-session-digest.sh"
-      codex_target_path: "${CODEX_HOME}/hooks/kb-stop-digest.sh"
-  - name: pre-tool-use-edit-recall
-    event: PreToolUse
-    matcher: "Edit|Write|MultiEdit|apply_patch"
-    purpose: "Recall file/module lessons before edits."
-    supported_agents: [claude, codex]
-    mcp_tools: [knowledge.recall]
-    targets:
-      - agent: claude
-        path: .claude/hooks/pre-tool-use-edit-recall.sh
-        settings_path: .claude/settings.json
-        sha256: 8df5b9e24a993d7f4d9c3852fe82c788847ba21708262a4728a4bcdb329c7417
-      - agent: codex
-        path: .codex/hooks/pre-tool-use-edit-recall.sh
-        settings_path: .codex/hooks.json
-        sha256: c95ea33c35660ed050e532d081196469e83f0db69a4a0813beb3a75d7298521e
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/hooks/pre-tool-use-edit-recall.sh"
-      codex_target_path: "${CODEX_HOME}/hooks/pre-tool-use-edit-recall.sh"
-  - name: pre-tool-use-git-commit-capture
-    event: PreToolUse
-    matcher: "Bash"
-    purpose: "Capture non-WIP git commit messages as candidate decisions."
-    supported_agents: [claude, codex]
-    mcp_tools: [knowledge.capture_decision]
-    targets:
-      - agent: claude
-        path: .claude/hooks/pre-tool-use-git-commit-capture.sh
-        settings_path: .claude/settings.json
-        sha256: 5da21007a4a2fa65e14c7851754c9792364593448b751f30e9db7c216486f482
-      - agent: codex
-        path: .codex/hooks/pre-tool-use-git-commit-capture.sh
-        settings_path: .codex/hooks.json
-        sha256: 7d2108d32690aa89e4963ff44370a60bcd9ac99a23c24dee13529e503c59deaf
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/hooks/pre-tool-use-git-commit-capture.sh"
-      codex_target_path: "${CODEX_HOME}/hooks/pre-tool-use-git-commit-capture.sh"
+# hooks: intentionally absent.
+#
+# The estate ships no agent hooks. The three knowledge-recall hooks that
+# used to live here were retired with the knowledge base they wrote into,
+# and install-agents.sh now purges them from an existing settings.json
+# instead of installing them. A `hooks:` key reappearing here means
+# something re-introduced them.
 
-settings:
-  - agent: claude
-    path: .claude/settings.json
-    sha256: d9cf9ac8a85463ca29cfa4f5a1c4a6c3c61aafbeec181bda79aa778e3d960cf8
-  - agent: codex
-    path: .codex/hooks.json
-    sha256: 5692c6242d8ce2510483ea35e0a89054c6a385361b50dc58a19fd8492148fa99
+# settings: intentionally absent for the same reason -- the only settings
+# files the kit ever managed (.claude/settings.json, .codex/hooks.json)
+# existed solely to wire those hooks.
 
 specify:
   project_seed:
@@ -909,12 +842,12 @@ agent_runner_runtime:
 
 installer:
   path: installer/install.sh
-  sha256: 01265e25aee91eed3bf78560b7e23871d84e7f44954538fbdf38bb273c5ee4e0
+  sha256: c8c841dd0a6282549aa11c2894be7f2e515ddd53a833ddf3900c2d565f835919
   supported_agents: [codex, claude]
   served_artifacts:
     - path: installer/install.sh
-      sha256: 01265e25aee91eed3bf78560b7e23871d84e7f44954538fbdf38bb273c5ee4e0
+      sha256: c8c841dd0a6282549aa11c2894be7f2e515ddd53a833ddf3900c2d565f835919
       mode: "0644"
     - path: installer/install-agents.sh
-      sha256: c2b20ca13df242056eb4b6591abdc830d5685a17ec7a7cde23c2886189fd14f4
+      sha256: 7fd73bd99ab9ac1c4ee097aa0d89596adc6b41f84efdd3549885355fb9134b39
       mode: "0644"

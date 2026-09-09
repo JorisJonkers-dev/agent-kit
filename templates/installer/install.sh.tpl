@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # knowledge-system installer for Claude Code and Codex clients.
 #
-# Writes the local hooks + skills that pair with the knowledge-api
+# Writes the local skills that pair with the knowledge-api
 # MCP server. Idempotent: re-running picks up any updates the server
 # ships in subsequent versions. Use `--agent claude|codex|all` and
 # `--scope user|project` to choose the client homes to manage. Use
@@ -26,7 +26,7 @@ usage() {
   cat <<USAGE
 knowledge-system installer ${INSTALLER_VERSION}
 
-Writes Claude Code and/or Codex hooks + skills that pair with the MCP server at
+Writes Claude Code and/or Codex skills that pair with the MCP server at
 ${KB_URL}.
 
 Usage:
@@ -111,16 +111,12 @@ else
   readonly CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   readonly CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 fi
-readonly HOOKS_DIR="${CLAUDE_HOME}/hooks"
 readonly AGENTS_DIR="${CLAUDE_HOME}/agents"
 readonly COMMANDS_DIR="${CLAUDE_HOME}/commands"
 readonly SKILLS_DIR="${CLAUDE_HOME}/skills"
 readonly MANIFEST="${CLAUDE_HOME}/.knowledge-system-version"
-readonly CODEX_HOOKS_DIR="${CODEX_HOME}/hooks"
 readonly CODEX_SKILLS_DIR="${CODEX_HOME}/skills"
-readonly CODEX_HOOKS_CONFIG="${CODEX_HOME}/hooks.json"
 readonly CODEX_MANIFEST="${CODEX_HOME}/.knowledge-system-version"
-readonly CODEX_ALLOWLIST="${CODEX_HOME}/.knowledge-system-allowlist"
 
 log() { printf 'knowledge-system installer: %s\n' "$*"; }
 
@@ -149,16 +145,11 @@ remove_file() {
   log "removed ${path}"
 }
 
-readonly STATE_DIR="${CLAUDE_HOME}/state"
-readonly ALLOWLIST="${CLAUDE_HOME}/.knowledge-system-allowlist"
 
 claude_agent_managed_paths=(
 )
 
 claude_managed_paths=(
-  "${HOOKS_DIR}/pre-tool-use-edit-recall.sh"
-  "${HOOKS_DIR}/pre-tool-use-git-commit-capture.sh"
-  "${HOOKS_DIR}/stop-session-digest.sh"
   "${claude_agent_managed_paths[@]}"
 # @agent-kit-speckit-commands-managed
   "${SKILLS_DIR}/topics/SKILL.md"
@@ -168,13 +159,9 @@ claude_managed_paths=(
   "${SKILLS_DIR}/agent-session-bootstrap/SKILL.md"
   "${SKILLS_DIR}/grill-me/SKILL.md"
 # @agent-kit-council-managed claude
-  "${ALLOWLIST}"
 )
 
 codex_managed_paths=(
-  "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh"
-  "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh"
-  "${CODEX_HOOKS_DIR}/kb-stop-digest.sh"
 # @agent-kit-codex-speckit-managed
   "${CODEX_SKILLS_DIR}/topics/SKILL.md"
   "${CODEX_SKILLS_DIR}/audit/SKILL.md"
@@ -183,8 +170,6 @@ codex_managed_paths=(
   "${CODEX_SKILLS_DIR}/agent-session-bootstrap/SKILL.md"
   "${CODEX_SKILLS_DIR}/grill-me/SKILL.md"
 # @agent-kit-council-managed codex
-  "${CODEX_ALLOWLIST}"
-  "${CODEX_HOOKS_CONFIG}"
 )
 
 managed_paths=()
@@ -331,84 +316,12 @@ install_grill_me() {
 if [ "${INSTALL_CLAUDE}" = 1 ]; then install_grill_me claude-code "${CLAUDE_HOME}"; fi
 if [ "${INSTALL_CODEX}" = 1 ]; then install_grill_me codex "${CODEX_HOME}"; fi
 
-# -----------------------------------------------------------------
-# Path allowlist (gitignore-style). Hooks below skip any tool input
-# whose target matches a pattern here. Defaults exclude paths that
-# typically carry secrets so an Edit on `.env` does not exfiltrate
-# the path to the KB recall query.
-# -----------------------------------------------------------------
-if [ "${INSTALL_CLAUDE}" = 1 ] || [ "${INSTALL_CODEX}" = 1 ]; then
-  read -r -d '' ALLOWLIST_DEFAULTS <<'ALLOW' || true
-# @agent-kit-include partials/allowlist/defaults.gitignore
-ALLOW
-fi
-
-if [ "${INSTALL_CLAUDE}" = 1 ] && [ ! -e "${ALLOWLIST}" ]; then
-  write_file "${ALLOWLIST}" 0644 "${ALLOWLIST_DEFAULTS}"
-elif [ "${INSTALL_CLAUDE}" = 1 ]; then
-  log "preserving existing ${ALLOWLIST}"
-fi
-
-if [ "${INSTALL_CODEX}" = 1 ] && [ ! -e "${CODEX_ALLOWLIST}" ]; then
-  write_file "${CODEX_ALLOWLIST}" 0644 "${ALLOWLIST_DEFAULTS}"
-elif [ "${INSTALL_CODEX}" = 1 ]; then
-  log "preserving existing ${CODEX_ALLOWLIST}"
-fi
-
-# -----------------------------------------------------------------
-# Hook: PreToolUse — Edit/Write/MultiEdit/apply_patch recall
-# -----------------------------------------------------------------
-read -r -d '' PRE_TOOL_USE_EDIT_HOOK <<'HOOK' || true
-# @agent-kit-include partials/hooks/pre-tool-use-edit-recall.sh
-HOOK
-
-if [ "${INSTALL_CLAUDE}" = 1 ]; then
-  write_file "${HOOKS_DIR}/pre-tool-use-edit-recall.sh" 0755 "${PRE_TOOL_USE_EDIT_HOOK}"
-fi
-
-# -----------------------------------------------------------------
-# Hook: PreToolUse — Bash matching `git commit` capture
-# -----------------------------------------------------------------
-read -r -d '' PRE_TOOL_USE_GIT_COMMIT_HOOK <<'HOOK' || true
-# @agent-kit-include partials/hooks/pre-tool-use-git-commit-capture.sh
-HOOK
-
-if [ "${INSTALL_CLAUDE}" = 1 ]; then
-  write_file "${HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" 0755 "${PRE_TOOL_USE_GIT_COMMIT_HOOK}"
-fi
-
-# -----------------------------------------------------------------
-# Hook: Stop — session-digest auto-capture
-# -----------------------------------------------------------------
-read -r -d '' STOP_SESSION_DIGEST_HOOK <<'HOOK' || true
-# @agent-kit-include partials/hooks/stop-session-digest-claude.sh
-HOOK
-
-if [ "${INSTALL_CLAUDE}" = 1 ]; then
-  write_file "${HOOKS_DIR}/stop-session-digest.sh" 0755 "${STOP_SESSION_DIGEST_HOOK}"
-fi
-
-# -----------------------------------------------------------------
-# Codex project hook mirror
-# -----------------------------------------------------------------
-read -r -d '' CODEX_STOP_DIGEST_HOOK <<'HOOK' || true
-# @agent-kit-include partials/hooks/stop-session-digest-codex.sh
-HOOK
-
-read -r -d '' CODEX_HOOKS_JSON <<HOOKS || true
-# @agent-kit-include partials/settings/codex-hooks.json
-HOOKS
-
 if [ "${INSTALL_CODEX}" = 1 ]; then
-  write_file "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh" 0755 "${PRE_TOOL_USE_EDIT_HOOK}"
-  write_file "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" 0755 "${PRE_TOOL_USE_GIT_COMMIT_HOOK}"
-  write_file "${CODEX_HOOKS_DIR}/kb-stop-digest.sh" 0755 "${CODEX_STOP_DIGEST_HOOK}"
   write_file "${CODEX_SKILLS_DIR}/topics/SKILL.md" 0644 "${TOPICS_SKILL}"
   write_file "${CODEX_SKILLS_DIR}/audit/SKILL.md" 0644 "${AUDIT_SKILL}"
   write_file "${CODEX_SKILLS_DIR}/kb-first/SKILL.md" 0644 "${KB_FIRST_SKILL}"
   write_file "${CODEX_SKILLS_DIR}/token-economy/SKILL.md" 0644 "${TOKEN_ECONOMY_SKILL}"
   write_file "${CODEX_SKILLS_DIR}/agent-session-bootstrap/SKILL.md" 0644 "${AGENT_SESSION_BOOTSTRAP_SKILL}"
-  write_file "${CODEX_HOOKS_CONFIG}" 0644 "${CODEX_HOOKS_JSON}"
 fi
 
 # -----------------------------------------------------------------
@@ -457,26 +370,7 @@ if [ "${INSTALL_CLAUDE}" = 1 ]; then
 
 Claude next steps:
 
-  1. Register the PreToolUse and Stop hooks in ${CLAUDE_HOME}/settings.json under the
-     matching "hooks.<event>" arrays. Suggested config:
-
-     "PreToolUse": [
-       { "matcher": "Edit|Write|MultiEdit", "hooks": [
-         { "type": "command",
-           "command": "${HOOKS_DIR}/pre-tool-use-edit-recall.sh",
-           "timeout": 5 } ] },
-       { "matcher": "Bash", "hooks": [
-         { "type": "command",
-           "command": "${HOOKS_DIR}/pre-tool-use-git-commit-capture.sh",
-           "timeout": 5 } ] } ],
-     "Stop": [
-       { "matcher": ".*", "hooks": [
-         { "type": "command",
-           "command": "${HOOKS_DIR}/stop-session-digest.sh",
-           "async": true,
-           "timeout": 60 } ] } ]
-
-  2. Make sure KB_BEARER_TOKEN is set in the Claude Code environment:
+  1. Make sure KB_BEARER_TOKEN is set in the Claude Code environment:
        export KB_BEARER_TOKEN="<your-token>"
 EOF
 fi
@@ -486,8 +380,7 @@ if [ "${INSTALL_CODEX}" = 1 ]; then
 
 Codex next steps:
 
-  1. ${CODEX_HOOKS_CONFIG} has been written with PreToolUse and Stop hooks.
-  2. Make sure KB_BEARER_TOKEN is set in the Codex environment:
+  1. Make sure KB_BEARER_TOKEN is set in the Codex environment:
        export KB_BEARER_TOKEN="<your-token>"
 EOF
 fi
@@ -496,25 +389,6 @@ cat <<EOF
 
 Verify with:  curl -sS -H "Authorization: Bearer \$KB_BEARER_TOKEN" \\
                      ${KB_URL}/mcp -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'
-
-Safety controls:
-  - Panic switch:   export KB_AUTO_MCP_DISABLED=1   (turns every hook into a no-op).
-EOF
-if [ "${INSTALL_CLAUDE}" = 1 ]; then
-  cat <<EOF
-  - Claude allowlist: edit ${ALLOWLIST}  (gitignore-style patterns).
-  - Claude state:     ${STATE_DIR}/auto-mcp.log + per-session dedupe under ${STATE_DIR}/sessions/.
-EOF
-fi
-if [ "${INSTALL_CODEX}" = 1 ]; then
-  cat <<EOF
-  - Codex allowlist:  edit ${CODEX_ALLOWLIST}  (gitignore-style patterns).
-  - Codex state:      ${CODEX_HOME}/state/auto-mcp.log + per-session dedupe under ${CODEX_HOME}/state/sessions/.
-EOF
-fi
-cat <<EOF
-  - Provenance:     every auto-capture lands with source = "<agent>:auto-capture:<hook>"
-                    or "claude-code:auto-digest:<session>" so a bulk revoke is one SQL query.
 
 Run with --agent ${AGENT} --scope ${SCOPE} --uninstall to remove every selected file this installer wrote.
 EOF
