@@ -310,6 +310,18 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  "$@"')
     w("}")
     w("")
+    w("# Runs argv, and in --check mode prints only the first argument as a")
+    w("# description. Used for the MCP registrations, whose arguments carry")
+    w("# credentials: `run` would echo the secret in its `would run:` line.")
+    w("run_redacted() {")
+    w("  local what=\"$1\"; shift")
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would run: ${what}"')
+    w("    return 0")
+    w("  fi")
+    w('  "$@"')
+    w("}")
+    w("")
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
     w("run_sh() {")
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
@@ -484,6 +496,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
             add = f"claude mcp add --scope user --transport http {name} {url}"
             if credential:
+                # Expanded by this shell into ONE argv element. Passing it
+                # through `bash -c` instead would put the secret in a command
+                # string, and shellcheck rightly flags the single-quoted
+                # `${VAR}` that requires (SC2016).
                 add += f' --header "Authorization: Bearer ${{{credential}}}"'
         else:
             args = " ".join(server.get("args") or [])
@@ -493,7 +509,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             if credential:
                 env_flags += f' --env {credential}="${{{credential}}}"'
             add = f"claude mcp add --scope user{env_flags} {name} -- {server['command']} {args}".rstrip()
-        w(f"{indent}if run_sh {_q(add)}; then")
+        w(f'{indent}if run_redacted "claude mcp add {name}" {add}; then')
         w(f'{indent}  ok "{name} registered"')
         w(f"{indent}else")
         w(f'{indent}  fail "{name} registration failed"')

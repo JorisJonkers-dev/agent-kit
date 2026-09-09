@@ -34,8 +34,9 @@ if [ ! -d "${FLEET_ROOT}/cluster/flux/apps/agents/hermes" ]; then
   exit 64
 fi
 case "${MODE}" in
-  write|--write) MODE=write ;;
-  --check) MODE=check ;;
+  # Quoted so shellcheck does not read the bare words as commands (SC2209).
+  write|--write) MODE='write' ;;
+  --check) MODE='check' ;;
   *) echo "unknown option: ${MODE}" >&2; exit 64 ;;
 esac
 
@@ -126,7 +127,7 @@ if missing and mode != "check":
 print("sync: verified every pinned commit and server key landed")
 PY
 
-if [ "${MODE}" = write ]; then
+if [ "${MODE}" = 'write' ]; then
   cat <<EOF
 
 Next, in ${FLEET_ROOT}:

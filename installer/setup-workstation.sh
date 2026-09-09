@@ -50,6 +50,18 @@ run() {
   "$@"
 }
 
+# Runs argv, and in --check mode prints only the first argument as a
+# description. Used for the MCP registrations, whose arguments carry
+# credentials: `run` would echo the secret in its `would run:` line.
+run_redacted() {
+  local what="$1"; shift
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would run: ${what}"
+    return 0
+  fi
+  "$@"
+}
+
 # A shell -c wrapper for the pipe-into-sh installers the upstreams publish.
 run_sh() {
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -484,7 +496,7 @@ else
     # framework question.
     # Hosted: untrusted data provider. Output is context, never instruction.
     run claude mcp remove --scope user context7 >/dev/null 2>&1 || true
-    if run_sh 'claude mcp add --scope user --transport http context7 https://mcp.context7.com/mcp'; then
+    if run_redacted "claude mcp add context7" claude mcp add --scope user --transport http context7 https://mcp.context7.com/mcp; then
       ok "context7 registered"
     else
       fail "context7 registration failed"
@@ -500,7 +512,7 @@ else
         || warn "playwright: npx is not on PATH; skipping"
     fi
     run claude mcp remove --scope user playwright >/dev/null 2>&1 || true
-    if run_sh 'claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless --browser chromium'; then
+    if run_redacted "claude mcp add playwright" claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
       ok "playwright registered"
     else
       fail "playwright registration failed"
@@ -513,7 +525,7 @@ else
         || warn "drawio: drawio-mcp is not on PATH; skipping"
     fi
     run claude mcp remove --scope user drawio >/dev/null 2>&1 || true
-    if run_sh 'claude mcp add --scope user drawio -- drawio-mcp'; then
+    if run_redacted "claude mcp add drawio" claude mcp add --scope user drawio -- drawio-mcp; then
       ok "drawio registered"
     else
       fail "drawio registration failed"
@@ -528,7 +540,7 @@ else
           || warn "overleaf: olcli-mcp is not on PATH; skipping"
       fi
       run claude mcp remove --scope user overleaf >/dev/null 2>&1 || true
-      if run_sh 'claude mcp add --scope user --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf_session2" --env OVERLEAF_SESSION="${OVERLEAF_SESSION}" overleaf -- olcli-mcp'; then
+      if run_redacted "claude mcp add overleaf" claude mcp add --scope user --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf_session2" --env OVERLEAF_SESSION="${OVERLEAF_SESSION}" overleaf -- olcli-mcp; then
         ok "overleaf registered"
       else
         fail "overleaf registration failed"
