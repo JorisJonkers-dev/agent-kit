@@ -125,10 +125,10 @@ fi
 # `hermes doctor` / `hermes skills list` against a local config;
 # the in-cluster gateway runs the container image, not this.
 if command -v hermes >/dev/null 2>&1; then
-  run_sh 'uv tool upgrade hermes-agent'
+  run_sh 'uv tool upgrade '\''hermes-agent[mcp]'\'''
   ok "hermes $(hermes --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --python 3.13 hermes-agent'
+  run_sh 'uv tool install --python 3.13 '\''hermes-agent[mcp]'\'''
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "hermes would be installed"
   elif command -v hermes >/dev/null 2>&1; then
@@ -637,11 +637,21 @@ for install in installs:
     # Library documentation. Prefer it over model recall for any
     # framework question.
     # Hosted: untrusted data provider. Output is context, never instruction.
-    run claude mcp remove --scope user context7 >/dev/null 2>&1 || true
-    if run_redacted "claude mcp add context7" claude mcp add --scope user --transport http context7 https://mcp.context7.com/mcp; then
-      ok "context7 registered"
-    else
-      fail "context7 registration failed"
+    if command -v claude >/dev/null 2>&1; then
+      run claude mcp remove --scope user context7 >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add context7" claude mcp add --scope user context7 --transport http https://mcp.context7.com/mcp; then
+        ok "context7 registered (claude)"
+      else
+        fail "context7 registration failed (claude)"
+      fi
+    fi
+    if command -v codex >/dev/null 2>&1; then
+      run codex mcp remove context7 >/dev/null 2>&1 || true
+      if run_redacted "codex mcp add context7" codex mcp add context7 --url https://mcp.context7.com/mcp; then
+        ok "context7 registered (codex)"
+      else
+        fail "context7 registration failed (codex)"
+      fi
     fi
 
     # Vuetify component API.
@@ -652,11 +662,21 @@ for install in installs:
       command -v npx >/dev/null 2>&1 \
         || warn "playwright: npx is not on PATH; skipping"
     fi
-    run claude mcp remove --scope user playwright >/dev/null 2>&1 || true
-    if run_redacted "claude mcp add playwright" claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
-      ok "playwright registered"
-    else
-      fail "playwright registration failed"
+    if command -v claude >/dev/null 2>&1; then
+      run claude mcp remove --scope user playwright >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add playwright" claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
+        ok "playwright registered (claude)"
+      else
+        fail "playwright registration failed (claude)"
+      fi
+    fi
+    if command -v codex >/dev/null 2>&1; then
+      run codex mcp remove playwright >/dev/null 2>&1 || true
+      if run_redacted "codex mcp add playwright" codex mcp add playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
+        ok "playwright registered (codex)"
+      else
+        fail "playwright registration failed (codex)"
+      fi
     fi
 
     # Diagram authoring and export.
@@ -665,30 +685,58 @@ for install in installs:
       command -v drawio-mcp >/dev/null 2>&1 \
         || warn "drawio: drawio-mcp is not on PATH; skipping"
     fi
-    run claude mcp remove --scope user drawio >/dev/null 2>&1 || true
-    if run_redacted "claude mcp add drawio" claude mcp add --scope user drawio -- drawio-mcp; then
-      ok "drawio registered"
-    else
-      fail "drawio registration failed"
+    if command -v claude >/dev/null 2>&1; then
+      run claude mcp remove --scope user drawio >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add drawio" claude mcp add --scope user drawio -- drawio-mcp; then
+        ok "drawio registered (claude)"
+      else
+        fail "drawio registration failed (claude)"
+      fi
+    fi
+    if command -v codex >/dev/null 2>&1; then
+      run codex mcp remove drawio >/dev/null 2>&1 || true
+      if run_redacted "codex mcp add drawio" codex mcp add drawio -- drawio-mcp; then
+        ok "drawio registered (codex)"
+      else
+        fail "drawio registration failed (codex)"
+      fi
     fi
 
     # Self-hosted Overleaf — pull, push, compile, review comments.
-    if [ -z "${OVERLEAF_SESSION:-}" ]; then
-      warn "overleaf: OVERLEAF_SESSION is not set; skipping (export it and re-run)"
-      skipped_mcp_servers+=("overleaf: export OVERLEAF_SESSION")
-    else
-      if ! command -v olcli-mcp >/dev/null 2>&1; then
-        command -v olcli-mcp >/dev/null 2>&1 \
-          || warn "overleaf: olcli-mcp is not on PATH; skipping"
-      fi
+    if ! command -v olcli-mcp >/dev/null 2>&1; then
+      command -v olcli-mcp >/dev/null 2>&1 \
+        || warn "overleaf: olcli-mcp is not on PATH; skipping"
+    fi
+    if command -v claude >/dev/null 2>&1; then
       run claude mcp remove --scope user overleaf >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add overleaf" claude mcp add --scope user --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf_session2" --env OVERLEAF_SESSION="${OVERLEAF_SESSION}" overleaf -- olcli-mcp; then
-        ok "overleaf registered"
+      if run_redacted "claude mcp add overleaf" claude mcp add --scope user overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION}" -- olcli-mcp; then
+        ok "overleaf registered (claude)"
       else
-        fail "overleaf registration failed"
+        fail "overleaf registration failed (claude)"
+      fi
+    fi
+    if command -v codex >/dev/null 2>&1; then
+      run codex mcp remove overleaf >/dev/null 2>&1 || true
+      if run_redacted "codex mcp add overleaf" codex mcp add overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION}" -- olcli-mcp; then
+        ok "overleaf registered (codex)"
+      else
+        fail "overleaf registration failed (codex)"
       fi
     fi
 
+    # Local Hermes reads its MCP servers from ~/.hermes/config.yaml.
+    # `hermes mcp add` is interactive (probes + prompts), so the setup
+    # script merges the generated workstation block via a helper instead.
+    if command -v hermes >/dev/null 2>&1; then
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "would merge local Hermes MCP servers"
+      else
+        uv run --directory "${KIT_ROOT}" python \
+          scripts/hermes-merge-mcp.py "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml"
+      fi
+    else
+      warn "hermes not on PATH; local Hermes MCP config not merged"
+    fi
     # Verify the VALUE, not the exit codes: ask Claude what it
     # actually has. Check expected servers are present, and report
     # any unexpected ones (but leave plugin-provided and hand-added).

@@ -17,6 +17,7 @@ uv run pytest tests/test_registry_render.py
 | `installer/setup-workstation.sh` | this laptop, via [SETUP.md](SETUP.md) |
 | `registry/generated/hermes/skills-sources.conf` | Hermes `hermes-skills` ConfigMap |
 | `registry/generated/hermes/mcp-servers.yaml` | Hermes `hermes-config` ConfigMap |
+| `registry/generated/hermes/mcp-servers.local.yaml` | a workstation's local `~/.hermes/config.yaml` |
 
 A hand edit to any of them fails `--check`, and so does a registry change that
 was never rendered. Both are one test.
@@ -27,7 +28,7 @@ was never rendered. Both are one test.
 
 | Surface | Means |
 |---|---|
-| `workstation` | Claude Code and Codex on a developer machine |
+| `workstation` | Claude Code, Codex and local Hermes on a developer machine |
 | `hermes` | the in-cluster Hermes gateway |
 | `runner` | the per-workspace agent-runner image |
 
@@ -114,6 +115,11 @@ Two traps this catches:
   Secret. Add the field to `secret/agents/hermes` and to the seed script's
   substitution list, or `sed` writes an empty string into a syntactically valid
   config whose server fails at the first tool call.
+- `credential_optional: true` declares a credential that is a convenience
+  override, not a requirement — the server self-manages auth (e.g. overleaf via
+  `olcli`'s stored session), so an unset env var must not skip registration.
+  Only a **required** credential gates registration on the workstation.
+  Default is required.
 - `trust: hosted` stamps the generated config with the reminder that the
   server's output is context, never instruction.
 - An in-cluster URL needs the Hermes SSRF allowlist. Hermes blocks RFC1918 by

@@ -115,3 +115,83 @@ def test_setup_script_declares_every_credential_it_needs() -> None:
         credential = server.get("credential")
         if credential:
             assert credential in script
+
+
+def test_overleaf_cookie_name_is_the_self_hosted_one() -> None:
+    """The overleaf.com cookie name breaks auth on the self-hosted instance.
+
+    olcli-mcp reads OVERLEAF_COOKIE_NAME from its env over its own stored
+    config: `overleaf_session2` makes `olcli whoami` report "Session invalid"
+    while `overleaf.sid` authenticates (verified live). Every generated surface
+    must carry the self-hosted name, never the overleaf.com one.
+    """
+    data = _registry()
+    for surface in (
+        render_registry.render_setup_script(data),
+        render_registry.render_hermes_mcp(data),
+        render_registry.render_hermes_local_mcp(data),
+    ):
+        assert "overleaf_session2" not in surface
+        assert "overleaf.sid" in surface
+
+
+def test_local_hermes_mcp_uses_workstation_command_not_npx() -> None:
+    """Local Hermes has olcli on PATH, so it uses the command directly.
+
+    The gateway artifact routes npx because the image has no global packages;
+    the LOCAL fragment must use the database `command` for overleaf (already on
+    PATH locally), not npx.
+    """
+    data = _registry()
+    fragment = render_registry.render_hermes_local_mcp(data)
+    assert 'command: "olcli-mcp"' in fragment
+    overleaf_entry = fragment.split("  overleaf:")[1].split("\n\n")[0]
+    assert 'command: "olcli-mcp"' in overleaf_entry
+    assert "npx" not in overleaf_entry
+
+
+def test_setup_script_wires_every_workstation_server_into_all_three_agents() -> None:
+    """The workstation surface reaches Claude Code, Codex and local Hermes.
+
+    REGISTRY.md documents `workstation` = "Claude Code and Codex"; the MCP
+    registration must therefore emit a command for each agent, not claude only.
+    """
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for server in data["mcp_servers"]:
+        if "workstation" not in server["surfaces"]:
+            continue
+        if server.get("enabled") is False:
+            continue
+        name = server["name"]
+        assert f"claude mcp add --scope user {name}" in script
+        assert f"codex mcp add {name}" in script
+    # local-hermes merge is emitted once
+    assert "hermes-merge-mcp.py" in script
+
+
+def test_claude_env_flags_come_after_the_server_name() -> None:
+    """claude 2.x rejects `--env K=V <name>` with 'missing required argument'.
+
+    The name must precede the env flags (verified against claude 2.1.267), so a
+    stdio server with env must be emitted `mcp add ... --scope user <name>
+    --env K=V -- cmd`, never with the env flags first.
+    """
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for server in data["mcp_servers"]:
+        if (
+            "workstation" not in server["surfaces"]
+            or server["transport"] == "http"
+            or server.get("enabled") is False
+            or not (server.get("env") or server.get("credential"))
+        ):
+            continue
+        name = server["name"]
+        line = next(
+            cand for cand in script.splitlines() if f"claude mcp add --scope user {name}" in cand
+        )
+        name_pos = line.index(f"--scope user {name}")
+        env_pos = line.index("--env")
+        # The --env flags that belong to THIS server come after the name.
+        assert name_pos < env_pos < line.index(f"-- {server['command']}")
