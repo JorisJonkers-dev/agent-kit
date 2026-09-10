@@ -1,0 +1,29 @@
+# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
+#
+# WORKSTATION surface for LOCAL Hermes (vs the in-cluster gateway, which
+# is registry/generated/hermes/mcp-servers.yaml). Merged into
+# ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.
+#
+mcp_servers:
+  context7:
+    url: "https://mcp.context7.com/mcp"
+    timeout: 60
+
+  playwright:
+    command: "npx"
+    args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+    timeout: 120
+
+  drawio:
+    command: "drawio-mcp"
+    args: []
+    timeout: 60
+
+  overleaf:
+    command: "olcli-mcp"
+    args: []
+    env:
+      OVERLEAF_BASE_URL: "https://overleaf.jorisjonkers.dev"
+      OVERLEAF_COOKIE_NAME: "overleaf.sid"
+      OVERLEAF_SESSION: "${OVERLEAF_SESSION}"
+    timeout: 120

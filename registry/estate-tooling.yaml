@@ -74,8 +74,11 @@ clis:
     surfaces: [workstation]
     # uv tool, not pip: hermes-agent needs >=3.11,<3.14 and a shared
     # site-packages is how a version conflict takes out both tools.
-    install: "uv tool install --python 3.13 hermes-agent"
-    update: "uv tool upgrade hermes-agent"
+    # The `[mcp]` extra is what lets LOCAL hermes run any MCP server at
+    # all (it is a no-op otherwise); install it up front so the local
+    # `mcp` CLI can actually register and connect servers.
+    install: "uv tool install --python 3.13 'hermes-agent[mcp]'"
+    update: "uv tool upgrade 'hermes-agent[mcp]'"
     version_command: "hermes --version"
     requires: [uv]
 
@@ -505,8 +508,18 @@ mcp_servers:
       # to overleaf.com and every call 404s against a project that is not
       # there.
       OVERLEAF_BASE_URL: "https://overleaf.jorisjonkers.dev"
-      OVERLEAF_COOKIE_NAME: "overleaf_session2"
+      # The self-hosted instance uses the legacy cookie name, not the
+      # overleaf.com one. olcli-mcp reads this env var over its own stored
+      # config, so a wrong value here breaks auth on every surface despite
+      # olcli holding a valid session (verified: overleaf_session2 ->
+      # "Session invalid", overleaf.sid -> "Authenticated").
+      OVERLEAF_COOKIE_NAME: "overleaf.sid"
+    # olcli manages its own session (stored under ~/Library/Preferences or
+    # olcli-nodejs/config.json) and works WITHOUT OVERLEAF_SESSION set. It is a
+    # convenience override, not a requirement -- treating it as mandatory makes
+    # the setup script skip overleaf whenever the var is unset, which is wrong.
     credential: OVERLEAF_SESSION
+    credential_optional: true
 
   - name: knowledge
     transport: http

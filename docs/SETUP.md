@@ -16,19 +16,30 @@ it. Edit the registry and re-render — see [REGISTRY.md](REGISTRY.md).
 
 ## Credentials
 
-The script never writes a secret. Export what you need first; anything absent
-is a warning and that one server is skipped, not a failed run.
+The script never writes a secret. Export what you need first; anything that is
+a **required** credential is skipped (a warning, not a failed run) when absent.
+Optional credentials (below) never gate registration — the server self-manages
+auth.
 
-| Variable | Used by |
-|---|---|
-| `MEMORY_API_KEY` | the `memory` MCP server |
-| `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) |
+| Variable | Used by | Required? |
+|---|---|---|
+| `MEMORY_API_KEY` | the `memory` MCP server | required |
+| `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
-`OVERLEAF_SESSION` is the `overleaf_session2` cookie from a logged-in browser
-session, or run `olcli auth` once and let the CLI store it. The self-hosted
-base URL is baked into the registry, so a bare `olcli` with no
-`OVERLEAF_BASE_URL` talks to overleaf.com and every call 404s against a
-project that is not there.
+`OVERLEAF_SESSION` is the `overleaf.sid` cookie from a logged-in browser
+session on the **self-hosted** instance — not `overleaf_session2`, which is the
+overleaf.com name and breaks auth against `overleaf.jorisjonkers.dev`
+(verified: the wrong name makes `olcli whoami` report "Session invalid"). It is
+optional, because `olcli auth` once stores the session itself; export it as an
+override, or skip it. The self-hosted base URL is baked into the registry, so a
+bare `olcli` with no `OVERLEAF_BASE_URL` talks to overleaf.com and every call
+404s against a project that is not there.
+
+Every `workstation` MCP server is registered into **Claude Code, Codex and
+local Hermes**. Codex gets each server via `codex mcp add`; local Hermes reads
+`~/.hermes/config.yaml` and is given the rendered workstation block (see
+`registry/generated/hermes/mcp-servers.local.yaml`) by
+`scripts/hermes-merge-mcp.py`.
 
 The GitHub MCP server comes from the `github` **plugin**, which manages its own
 credential. It reports `Authorization header is badly formatted` when that

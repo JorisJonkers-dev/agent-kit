@@ -4,9 +4,10 @@
 One file is edited by hand -- ``registry/estate-tooling.yaml``. Everything
 below is generated from it:
 
-* ``installer/setup-workstation.sh``            -- local Claude Code + Codex
+* ``installer/setup-workstation.sh``            -- local Claude Code + Codex + Hermes
 * ``registry/generated/hermes/skills-sources.conf`` -- Hermes ``sources.conf``
-* ``registry/generated/hermes/mcp-servers.yaml``    -- Hermes ``mcp_servers:``
+* ``registry/generated/hermes/mcp-servers.yaml``    -- Hermes ``mcp_servers:`` (gateway)
+* ``registry/generated/hermes/mcp-servers.local.yaml`` -- local Hermes ``mcp_servers:``
 
 ``--check`` renders into memory and compares, so CI fails on a hand edit to a
 generated file or on a registry change that was never rendered. ``--write``
@@ -28,6 +29,7 @@ REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 SETUP_SCRIPT = Path("installer/setup-workstation.sh")
 HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
+HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -264,9 +266,61 @@ def render_hermes_mcp(data: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-# ---------------------------------------------------------------------------
-# Workstation setup script
-# ---------------------------------------------------------------------------
+def render_hermes_local_mcp(data: dict[str, Any]) -> str:
+    """Render the WORKSTATION-FLAVOURED ``mcp_servers:`` block for local Hermes.
+
+    ``render_hermes_mcp`` targets the in-cluster gateway: it uses the
+    ``hermes_command`` (npx, because the image has no global packages), the
+    ``url_hermes`` and ``@CRED@`` placeholders for Vault substitution. Local
+    Hermes on a workstation is different: ``olcli-mcp``/``npx`` sit on PATH, so
+    the database ``command``/``args`` apply directly, and the target is the
+    user's own ``~/.hermes/config.yaml`` rather than a ConfigMap. Credentials
+    are rendered as ``${CRED}`` placeholders that Hermes interpolates at
+    connect time from its secret scope / environment -- never written to disk.
+
+    The block is merged into the local config by ``scripts/hermes-merge-mcp.py``
+    (generated setup calls it once after registering the CLI agents).
+    """
+    lines = [
+        f"# {GENERATED_BANNER}",
+        "#",
+        "# WORKSTATION surface for LOCAL Hermes (vs the in-cluster gateway, which",
+        "# is registry/generated/hermes/mcp-servers.yaml). Merged into",
+        "# ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.",
+        "#",
+        "mcp_servers:",
+    ]
+    for server in _entries(data, "mcp_servers"):
+        if not on_surface(server, "workstation"):
+            continue
+        if server.get("enabled") is False or len(server.get("surfaces") or []) == 0:
+            continue
+        name = server["name"]
+        lines.append(f"  {name}:")
+        if server["transport"] == "http":
+            url = server.get("url_workstation")
+            if not url:
+                raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
+            lines.append(f'    url: "{url}"')
+        else:
+            lines.append(f'    command: "{server["command"]}"')
+            args = server.get("args") or []
+            rendered_args = ", ".join(f'"{a}"' for a in args) if args else ""
+            lines.append(f"    args: [{rendered_args}]")
+            env = server.get("env") or {}
+            credential = server.get("credential")
+            if env or (credential and not server.get("credential_optional")):
+                lines.append("    env:")
+                for key, value in env.items():
+                    lines.append(f'      {key}: "{value}"')
+                if credential:
+                    # Hermes interpolates ${VAR} from its secret scope / env at
+                    # connect time; no plaintext secret is written to disk.
+                    lines.append(f"      {credential}: \"${{{credential}}}\"")
+        if server.get("timeout"):
+            lines.append(f"    timeout: {server['timeout']}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def render_setup_script(data: dict[str, Any]) -> str:
@@ -572,12 +626,20 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w(f'    run claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
         w(f'    log "{name}: removed (retired in the registry)"')
     w("")
-    # Now add/ensure active servers
+    # Now add/ensure active servers.
+    #
+    # Each workstation server is registered into every local agent that is
+    # present: Claude Code, Codex and local Hermes. (Claude is installed
+    # unconditionally in step 1 of this very script, so the surrounding
+    # `command -v claude` guard never wrongfully drops codex/hermes on a
+    # functioning run -- that guard exists as a defensive early-out, not a
+    # gate that should decide codex's fate.)
     for server in _entries(data, "mcp_servers"):
         if not on_surface(server, "workstation"):
             continue
         name = server["name"]
         credential = server.get("credential")
+        optional_cred = bool(server.get("credential_optional"))
         w("")
         for chunk in _wrap(str(server.get("purpose") or "").strip(), 62):
             w(f"    # {chunk}")
@@ -586,8 +648,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if server.get("enabled") is False or len(server.get("surfaces") or []) == 0:
             # Already logged in removal section
             continue
+        # A REQUIRED credential gates registration; an OPTIONAL one never does
+        # (the server self-manages auth -- e.g. overleaf via olcli -- so an
+        # unset override must not skip it, that was the #52 regression).
         guard_open = False
-        if credential:
+        if credential and not optional_cred:
             w(f'    if [ -z "${{{credential}:-}}" ]; then')
             w(f'      warn "{name}: {credential} is not set; skipping (export it and re-run)"')
             w(f'      skipped_mcp_servers+=("{name}: export {credential}")')
@@ -602,34 +667,60 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w(f'{indent}  command -v {binary} >/dev/null 2>&1 \\')
             w(f'{indent}    || warn "{name}: {binary} is not on PATH; skipping"')
             w(f"{indent}fi")
-        w(f'{indent}run claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
+        # --- Claude Code ---
+        w(f"{indent}if command -v claude >/dev/null 2>&1; then")
+        w(f'{indent}  run claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
         if server["transport"] == "http":
             url = server.get("url_workstation")
             if not url:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
-            add = f"claude mcp add --scope user --transport http {name} {url}"
-            if credential:
-                # Expanded by this shell into ONE argv element. Passing it
-                # through `bash -c` instead would put the secret in a command
-                # string, and shellcheck rightly flags the single-quoted
-                # `${VAR}` that requires (SC2016).
-                add += f' --header "Authorization: Bearer ${{{credential}}}"'
+            add = f"claude mcp add --scope user {name} --transport http {url}"
         else:
             args = " ".join(server.get("args") or [])
-            env_flags = "".join(
-                f' --env {key}="{value}"' for key, value in (server.get("env") or {}).items()
-            )
-            if credential:
-                env_flags += f' --env {credential}="${{{credential}}}"'
-            add = f"claude mcp add --scope user{env_flags} {name} -- {server['command']} {args}".rstrip()
-        w(f'{indent}if run_redacted "claude mcp add {name}" {add}; then')
-        w(f'{indent}  ok "{name} registered"')
-        w(f"{indent}else")
-        w(f'{indent}  fail "{name} registration failed"')
+            env_flags = _mcp_env_flags(server, credential, optional_cred)
+            # Name BEFORE the --env flags: claude 2.x rejects the redeclared
+            # order (`--env K=V` then the name) with "missing required argument
+            # 'commandOrUrl'". Verified against claude 2.1.267.
+            add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip()
+        w(f'{indent}  if run_redacted "claude mcp add {name}" {add}; then')
+        w(f'{indent}    ok "{name} registered (claude)"')
+        w(f"{indent}  else")
+        w(f'{indent}    fail "{name} registration failed (claude)"')
+        w(f"{indent}  fi")
+        w(f"{indent}fi")
+        # --- Codex ---
+        w(f"{indent}if command -v codex >/dev/null 2>&1; then")
+        w(f"{indent}  run codex mcp remove {name} >/dev/null 2>&1 || true")
+        if server["transport"] == "http":
+            url = server.get("url_workstation")
+            add = f"codex mcp add {name} --url {url}".rstrip()
+        else:
+            args = " ".join(server.get("args") or [])
+            env_flags = _mcp_env_flags(server, credential, optional_cred)
+            add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
+        w(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
+        w(f'{indent}    ok "{name} registered (codex)"')
+        w(f"{indent}  else")
+        w(f'{indent}    fail "{name} registration failed (codex)"')
+        w(f"{indent}  fi")
         w(f"{indent}fi")
         if guard_open:
             w("    fi")
     w("")
+    # --- local Hermes: merge the workstation-flavoured mcp_servers block ---
+    w("    # Local Hermes reads its MCP servers from ~/.hermes/config.yaml.")
+    w("    # `hermes mcp add` is interactive (probes + prompts), so the setup")
+    w("    # script merges the generated workstation block via a helper instead.")
+    w("    if command -v hermes >/dev/null 2>&1; then")
+    w("      if [ \"${CHECK_ONLY}\" = 1 ]; then")
+    w("        log \"would merge local Hermes MCP servers\"")
+    w("      else")
+    w("        uv run --directory \"${KIT_ROOT}\" python \\")
+    w(f"          scripts/hermes-merge-mcp.py \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\"")
+    w("      fi")
+    w("    else")
+    w("      warn \"hermes not on PATH; local Hermes MCP config not merged\"")
+    w("    fi")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
     w("    # actually has. Check expected servers are present, and report")
     w("    # any unexpected ones (but leave plugin-provided and hand-added).")
@@ -806,6 +897,23 @@ def render_setup_script(data: dict[str, Any]) -> str:
     return "\n".join(out) + "\n"
 
 
+def _mcp_env_flags(server: dict[str, Any], credential: str | None, optional_cred: bool) -> str:
+    """Build the ``--env KEY=VALUE`` fragment for a stdio MCP server.
+
+    Shared by the Claude and Codex registration commands. Emits one flag per
+    static ``env`` entry, plus the credential when the server declares one.
+    The optional-flag does not change emission: a credential var is emitted in
+    either case, since ``${VAR}`` expands to an empty string if unset (the
+    optional marker only controls the registration *guard*, not whether the
+    env var is passed).
+    """
+    env = server.get("env") or {}
+    flags = "".join(f' --env {key}="{value}"' for key, value in env.items())
+    if credential:
+        flags += f' --env {credential}="${{{credential}}}"'
+    return flags
+
+
 def _q(command: str) -> str:
     """Single-quote a command for embedding in the generated bash."""
     return "'" + command.replace("'", "'\\''") + "'"
@@ -844,6 +952,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         SETUP_SCRIPT: (render_setup_script(data), 0o755),
         HERMES_SOURCES: (render_hermes_sources(data), 0o644),
         HERMES_MCP: (render_hermes_mcp(data), 0o644),
+        HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
     }
 
 

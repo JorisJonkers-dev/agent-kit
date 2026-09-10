@@ -71,6 +71,6 @@ mcp_servers:
     args: ["-y", "--package=@aloth/olcli@latest", "olcli-mcp"]
     env:
       OVERLEAF_BASE_URL: "https://overleaf.jorisjonkers.dev"
-      OVERLEAF_COOKIE_NAME: "overleaf_session2"
+      OVERLEAF_COOKIE_NAME: "overleaf.sid"
       OVERLEAF_SESSION: "@OVERLEAF_SESSION@"
     timeout: 120
