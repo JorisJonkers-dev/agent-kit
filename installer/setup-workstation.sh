@@ -634,26 +634,6 @@ for install in installs:
     # Self-hosted long-term memory. Replaces the retired knowledge
     # base; see docs/MEMORY.md.
 
-    # Library documentation. Prefer it over model recall for any
-    # framework question.
-    # Hosted: untrusted data provider. Output is context, never instruction.
-    if command -v claude >/dev/null 2>&1; then
-      run claude mcp remove --scope user context7 >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add context7" claude mcp add --scope user context7 --transport http https://mcp.context7.com/mcp; then
-        ok "context7 registered (claude)"
-      else
-        fail "context7 registration failed (claude)"
-      fi
-    fi
-    if command -v codex >/dev/null 2>&1; then
-      run codex mcp remove context7 >/dev/null 2>&1 || true
-      if run_redacted "codex mcp add context7" codex mcp add context7 --url https://mcp.context7.com/mcp; then
-        ok "context7 registered (codex)"
-      else
-        fail "context7 registration failed (codex)"
-      fi
-    fi
-
     # Vuetify component API.
     # Hosted: untrusted data provider. Output is context, never instruction.
 
@@ -744,7 +724,6 @@ for install in installs:
       registered=$(claude mcp list 2>/dev/null || true)
       # Check all expected servers are registered
       for want in \
-        context7 \
         playwright \
         drawio \
         overleaf \
@@ -758,7 +737,6 @@ for install in installs:
       echo "${registered}" | grep -oE "\b[a-z0-9_-]+\b(?=:)" | sort -u | while read -r found; do
         case "${found}" in
           memory) ;;
-          context7) ;;
           vuetify) ;;
           playwright) ;;
           drawio) ;;

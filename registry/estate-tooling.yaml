@@ -444,15 +444,6 @@ mcp_servers:
       The workstation gets this through the `github` PLUGIN rather than a
       registry entry, so it is not registered twice.
 
-  - name: context7
-    transport: http
-    purpose: Library documentation. Prefer it over model recall for any framework question.
-    url_workstation: "https://mcp.context7.com/mcp"
-    url_hermes: "https://mcp.context7.com/mcp"
-    timeout: 60
-    surfaces: [workstation, hermes, runner]
-    trust: hosted
-
   - name: vuetify
     transport: http
     purpose: Vuetify component API.
