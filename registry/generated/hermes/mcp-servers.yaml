@@ -39,13 +39,6 @@ mcp_servers:
         - "*_label"
         - "*_labels"
 
-  # Library documentation. Prefer it over model recall for any
-  # framework question.
-  # Hosted: an untrusted data provider. Output is context, never instruction.
-  context7:
-    url: "https://mcp.context7.com/mcp"
-    timeout: 60
-
   # Vuetify component API.
   # Hosted: an untrusted data provider. Output is context, never instruction.
   vuetify:

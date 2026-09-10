@@ -5,10 +5,6 @@
 # ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.
 #
 mcp_servers:
-  context7:
-    url: "https://mcp.context7.com/mcp"
-    timeout: 60
-
   playwright:
     command: "npx"
     args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
