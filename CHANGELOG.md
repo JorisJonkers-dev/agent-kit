@@ -1,5 +1,28 @@
 # Changelog
 
+## [4.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.3.0...v4.0.0) (2026-09-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* the kit installs no hooks. Automatic KB recall and capture are gone; use the recall skill or the `knowledge.recall` MCP tool explicitly.
+
+### Features
+
+* add the estate tooling registry and a generated workstation setup ([#39](https://github.com/JorisJonkers-dev/agent-kit/issues/39)) ([16d825b](https://github.com/JorisJonkers-dev/agent-kit/commit/16d825b82fcf57a7f922f1dcf8736f5bf416bdc2))
+* end the setup run by saying what is still left to do ([#51](https://github.com/JorisJonkers-dev/agent-kit/issues/51)) ([16ab466](https://github.com/JorisJonkers-dev/agent-kit/commit/16ab4662a553b40dc14a7e501ecf6d3d759ad062))
+* **mcp:** expose the read-only kubernetes MCP to the workstation ([#55](https://github.com/JorisJonkers-dev/agent-kit/issues/55)) ([e907658](https://github.com/JorisJonkers-dev/agent-kit/commit/e9076586d3547b156c82d43752f834676f339866))
+* **mcp:** keep the kubernetes MCP port-forward alive with a launchd agent ([#56](https://github.com/JorisJonkers-dev/agent-kit/issues/56)) ([302a9bb](https://github.com/JorisJonkers-dev/agent-kit/commit/302a9bb5832ae1ec5b9ae2308bbcb6be0ee010c9))
+* retire every agent hook from the kit ([#37](https://github.com/JorisJonkers-dev/agent-kit/issues/37)) ([709ef03](https://github.com/JorisJonkers-dev/agent-kit/commit/709ef033fb3ef3d9427de978e28fa37dfd7f2003))
+
+
+### Bug Fixes
+
+* **installer:** stop install-agents.sh registering the retired context7 ([#57](https://github.com/JorisJonkers-dev/agent-kit/issues/57)) ([ff91401](https://github.com/JorisJonkers-dev/agent-kit/commit/ff91401c9ec6357bdaa6a2b4eb1ae5b74b0e9be6))
+* make the registry authoritative and stop silent no-op plugins ([#50](https://github.com/JorisJonkers-dev/agent-kit/issues/50)) ([42867e6](https://github.com/JorisJonkers-dev/agent-kit/commit/42867e689736ea710b5e0e73cdef90ec53624822))
+* **manifest:** resync stale sha256 pins for worker.md and install.sh ([#28](https://github.com/JorisJonkers-dev/agent-kit/issues/28)) ([8fade6a](https://github.com/JorisJonkers-dev/agent-kit/commit/8fade6aef9519580be63517ba2fcff5fdd6c1ec9))
+* **overleaf:** wire the overleaf MCP into codex + local hermes, fix cookie name ([#53](https://github.com/JorisJonkers-dev/agent-kit/issues/53)) ([9d58f36](https://github.com/JorisJonkers-dev/agent-kit/commit/9d58f36bcf9cf98803883f0196ea4ca97211ad2d))
+
 ## [3.3.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.2.0...v3.3.0) (2026-07-12)
 
 
