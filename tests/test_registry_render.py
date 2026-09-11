@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -195,3 +196,123 @@ def test_claude_env_flags_come_after_the_server_name() -> None:
         env_pos = line.index("--env")
         # The --env flags that belong to THIS server come after the name.
         assert name_pos < env_pos < line.index(f"-- {server['command']}")
+
+
+def test_port_forward_is_ensured_before_the_server_is_registered() -> None:
+    """A loopback URL registered before its forward exists points at a dead port."""
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    assert f'. "${{KIT_ROOT}}/{render_registry.PORT_FORWARD_HELPER}"' in script
+    for server in data["mcp_servers"]:
+        connect = server.get("workstation_connect")
+        if not connect or "workstation" not in server["surfaces"]:
+            continue
+        name = server["name"]
+        call = (
+            f"ensure_port_forward {name} {connect['namespace']} {connect['svc']} "
+            f"{connect['local_port']} {connect['remote_port']}"
+        )
+        assert call in script
+        assert script.index(call) < script.index(f"claude mcp add --scope user {name}")
+    # The helper is sourced before anything calls it.
+    assert script.index("port-forward-agent.sh") < script.index("ensure_port_forward kubernetes")
+
+
+# --- installer/port-forward-agent.sh, driven with stubbed system commands ---
+
+_STUBS = {
+    # launchctl keeps "loaded" state in a file; bootstrap also brings the port up.
+    "launchctl": """#!/bin/bash
+echo "$*" >> "$STATE/launchctl.log"
+case "$1" in
+  print) [ -f "$STATE/loaded" ] ;;
+  bootstrap) touch "$STATE/loaded" "$STATE/up" ;;
+  bootout) rm -f "$STATE/loaded" "$STATE/up" ;;
+esac
+""",
+    "curl": '#!/bin/bash\n[ -f "$STATE/up" ]\n',
+    "kubectl": """#!/bin/bash
+if [ "$1 $2" = "config current-context" ]; then echo prod-ctx; exit 0; fi
+echo "$*" >> "$STATE/kubectl.log"
+""",
+    "sleep": "#!/bin/bash\nexit 0\n",
+}
+
+
+def _run_helper(tmp_path: Path, os_name: str, check_only: int = 0) -> subprocess.CompletedProcess:
+    bin_dir = tmp_path / "bin"
+    state = tmp_path / "state"
+    bin_dir.mkdir(exist_ok=True)
+    state.mkdir(exist_ok=True)
+    stubs = dict(_STUBS, uname=f"#!/bin/bash\necho {os_name}\n")
+    for name, body in stubs.items():
+        path = bin_dir / name
+        path.write_text(body)
+        path.chmod(0o755)
+    script = f"""
+CHECK_ONLY={check_only}
+log()  {{ echo "log $*"; }}
+ok()   {{ echo "ok $*"; }}
+warn() {{ echo "warn $*"; }}
+fail() {{ echo "FAIL $*"; }}
+. "{KIT_ROOT / render_registry.PORT_FORWARD_HELPER}"
+ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
+"""
+    env = {
+        "HOME": str(tmp_path / "home"),
+        "PATH": f"{bin_dir}:/usr/bin:/bin",
+        "STATE": str(state),
+        "KUBECONFIG": str(tmp_path / "kubeconfig"),
+    }
+    return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, check=False)
+
+
+def _plist(tmp_path: Path) -> Path:
+    return (
+        tmp_path / "home" / "Library" / "LaunchAgents"
+        / "dev.jorisjonkers.agent-kit.port-forward.kubernetes.plist"
+    )
+
+
+def test_macos_installs_a_keepalive_launchd_agent(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "Darwin")
+    assert "FAIL" not in result.stdout and "warn" not in result.stdout, result.stdout + result.stderr
+    assert "ok kubernetes: launchd agent" in result.stdout
+
+    plist = _plist(tmp_path)
+    text = plist.read_text()
+    assert "<key>KeepAlive</key>\n  <true/>" in text
+    # Pinned to the setup-time context, loopback only, the declared ports.
+    for arg in ("port-forward", "--context", "prod-ctx", "svc/kubernetes-mcp-server",
+                "--address", "127.0.0.1", "18080:8080"):
+        assert f"<string>{arg}</string>" in text
+    assert f"<string>{tmp_path / 'kubeconfig'}</string>" in text
+    if shutil.which("plutil"):
+        lint = subprocess.run(["plutil", "-lint", str(plist)], capture_output=True, text=True, check=False)
+        assert lint.returncode == 0, lint.stdout + lint.stderr
+
+    calls = (tmp_path / "state" / "launchctl.log").read_text()
+    assert "bootstrap gui/" in calls and str(plist) in calls
+
+
+def test_macos_rerun_leaves_a_loaded_agent_alone(tmp_path: Path) -> None:
+    _run_helper(tmp_path, "Darwin")
+    log = tmp_path / "state" / "launchctl.log"
+    log.write_text("")
+    result = _run_helper(tmp_path, "Darwin")
+    assert "already loaded" in result.stdout, result.stdout
+    assert "bootstrap" not in log.read_text() and "bootout" not in log.read_text()
+
+
+def test_check_mode_installs_nothing(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "Darwin", check_only=1)
+    assert "would install launchd agent" in result.stdout, result.stdout
+    assert not _plist(tmp_path).exists()
+    assert "bootstrap" not in (tmp_path / "state" / "launchctl.log").read_text()
+
+
+def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "Linux")
+    assert "one-shot kubectl port-forward" in result.stdout, result.stdout
+    assert not _plist(tmp_path).exists()
+    assert not (tmp_path / "state" / "launchctl.log").exists()
