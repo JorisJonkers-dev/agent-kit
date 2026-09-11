@@ -41,6 +41,35 @@ local Hermes**. Codex gets each server via `codex mcp add`; local Hermes reads
 `registry/generated/hermes/mcp-servers.local.yaml`) by
 `scripts/hermes-merge-mcp.py`.
 
+### Servers reached through a port-forward
+
+A server with a `workstation_connect` block, today only `kubernetes`, is a
+ClusterIP service with no ingress route. It is registered at a loopback URL
+(`http://127.0.0.1:18080/mcp`) that a `kubectl port-forward` publishes.
+[`installer/port-forward-agent.sh`](../installer/port-forward-agent.sh) keeps
+that forward up:
+
+- **macOS**: a launchd user agent, `dev.jorisjonkers.agent-kit.port-forward.<name>`,
+  with `KeepAlive`. A bare `kubectl port-forward &` dies when the laptop
+  sleeps, the network changes or the pod restarts. After that the server drops
+  out of every session, and nothing reports it. launchd restarts the forward
+  whenever kubectl exits.
+- **Elsewhere**: a one-shot background forward, which is not kept alive.
+
+The forward is pinned to the kube context that is current when setup runs, and
+it listens on `127.0.0.1` only. If you switch clusters, re-run setup to re-pin
+it.
+
+```bash
+launchctl print gui/$(id -u)/dev.jorisjonkers.agent-kit.port-forward.kubernetes   # state
+tail -f ~/Library/Logs/agent-kit/port-forward-kubernetes.log                      # kubectl output
+launchctl bootout gui/$(id -u)/dev.jorisjonkers.agent-kit.port-forward.kubernetes  # stop until next login
+rm ~/Library/LaunchAgents/dev.jorisjonkers.agent-kit.port-forward.kubernetes.plist # remove for good
+```
+
+If a forward started by hand already holds the port, setup warns. The agent
+retries every 10s and takes over once that forward exits.
+
 The GitHub MCP server comes from the `github` **plugin**, which manages its own
 credential. It reports `Authorization header is badly formatted` when that
 credential is missing or malformed — which reads like an unconfigured server

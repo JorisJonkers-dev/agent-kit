@@ -27,6 +27,8 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 
 SETUP_SCRIPT = Path("installer/setup-workstation.sh")
+# Hand-written, sourced by SETUP_SCRIPT: keeps workstation_connect forwards alive.
+PORT_FORWARD_HELPER = Path("installer/port-forward-agent.sh")
 HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
@@ -414,6 +416,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
     w('CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"')
     w("")
+    w("# ensure_port_forward: keeps the loopback of a workstation_connect MCP")
+    w("# server alive (a launchd agent on macOS).")
+    w(f'. "${{KIT_ROOT}}/{PORT_FORWARD_HELPER}"')
+    w("")
 
     # --- CLIs ---
     w("# -----------------------------------------------------------------")
@@ -670,8 +676,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
         # A workstation_connect block means the http url_workstation is a
         # loopback exposed by a `kubectl port-forward` of a ClusterIP service.
         # The registration below would otherwise point at a dead port, so
-        # ensure the forward is up first (idempotent: a forward already
-        # answering on the local port is left alone).
+        # ensure the forward is up first. installer/port-forward-agent.sh
+        # keeps it up afterwards too (a launchd agent on macOS).
         connect = server.get("workstation_connect")
         if connect:
             svc = connect["svc"]
@@ -681,16 +687,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w("")
             w(f"    # {name} reaches the cluster via a kubectl port-forward of the")
             w(f"    # ClusterIP service {svc}.{ns} (no ingress route exists for it).")
-            w(f'    if ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:{lport}/" 2>/dev/null; then')
-            w(f'      warn "{name}: starting kubectl port-forward svc/{svc} {lport}:{rport}"')
-            w(f'      kubectl port-forward -n "{ns}" svc/{svc} {lport}:{rport} >/dev/null 2>&1 &')
-            w("      sleep 2")
-            w(
-                f'      curl -s -o /dev/null --max-time 1 "http://127.0.0.1:{lport}/" '
-                f'>/dev/null 2>&1 || warn "{name}: port-forward did not come up; '
-                f'registration may fail"'
-            )
-            w("    fi")
+            w(f"    ensure_port_forward {name} {ns} {svc} {lport} {rport}")
         # --- Claude Code ---
         w(f"{indent}if command -v claude >/dev/null 2>&1; then")
         w(f'{indent}  run claude mcp remove --scope user {name} >/dev/null 2>&1 || true')

@@ -84,6 +84,10 @@ KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
+# ensure_port_forward: keeps the loopback of a workstation_connect MCP
+# server alive (a launchd agent on macOS).
+. "${KIT_ROOT}/installer/port-forward-agent.sh"
+
 # -----------------------------------------------------------------
 # 1. Command-line tools.
 # -----------------------------------------------------------------
@@ -639,12 +643,7 @@ for install in installs:
 
     # kubernetes reaches the cluster via a kubectl port-forward of the
     # ClusterIP service kubernetes-mcp-server.agents-system (no ingress route exists for it).
-    if ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:18080/" 2>/dev/null; then
-      warn "kubernetes: starting kubectl port-forward svc/kubernetes-mcp-server 18080:8080"
-      kubectl port-forward -n "agents-system" svc/kubernetes-mcp-server 18080:8080 >/dev/null 2>&1 &
-      sleep 2
-      curl -s -o /dev/null --max-time 1 "http://127.0.0.1:18080/" >/dev/null 2>&1 || warn "kubernetes: port-forward did not come up; registration may fail"
-    fi
+    ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
     if command -v claude >/dev/null 2>&1; then
       run claude mcp remove --scope user kubernetes >/dev/null 2>&1 || true
       if run_redacted "claude mcp add kubernetes" claude mcp add --scope user kubernetes --transport http http://127.0.0.1:18080/mcp; then
