@@ -40,10 +40,11 @@ agent-kit full agents-system installer ${INSTALLER_VERSION}
 Installs the full client agents system for BOTH Claude Code and Codex:
 skills + council + Spec Kit (delegated to the base installer), the kit's
 Python dependencies, and the workstation MCP
-fleet: knowledge + context7 + vuetify (HTTP), plus playwright and serena
+fleet: knowledge + vuetify (HTTP), plus playwright and serena
 (stdio via npx/uvx when present). Pairs with the knowledge-api at ${KB_URL}.
-The runner-only servers github (gh-mcp-wrapper) and kubernetes (in-cluster)
-are intentionally not installed on a workstation.
+context7 is retired: a re-run removes it. github (gh-mcp-wrapper) is
+runner-only; kubernetes reaches a workstation through
+installer/setup-workstation.sh, not through this installer.
 
 Usage:
   curl -fsSL -H "Authorization: Bearer \$KB_BEARER_TOKEN" \\
@@ -144,14 +145,15 @@ delegate_base_install() {
 # Codex. The runner full-diagnostic profile has 7 servers; this
 # installs the workstation-portable subset:
 #   - knowledge  (HTTP, our KB, bearer)
-#   - context7   (HTTP, public docs)
 #   - vuetify    (HTTP, public docs)
 #   - playwright (stdio via npx)   — optional, needs node/npx
 #   - serena     (stdio via uvx)   — optional, needs uv/uvx
-# The runner-only servers are intentionally NOT installed locally:
-# github (gh-mcp-wrapper mints in-cluster App tokens) and kubernetes
-# (an in-cluster service URL unreachable from a workstation). Use the
-# fleet env knobs to opt out:
+# context7 is retired (it needs an OAuth account link; see #54). It stays
+# in every `managed` list below so a re-run removes an old registration,
+# but it is no longer installed.
+# github is runner-only (gh-mcp-wrapper mints in-cluster App tokens).
+# kubernetes is not installed here: setup-workstation.sh registers it
+# behind a kept-alive port-forward. Use the fleet env knobs to opt out:
 #   --no-optional  skip the npx/uvx stdio servers entirely.
 # These hooks register/remove a fixed set of MANAGED server names, so
 # re-runs are idempotent and unrelated hand-added servers are kept.
@@ -171,7 +173,7 @@ fleet_optional_state() {
 register_claude_mcp() {
   fleet_optional_state
   if [ "${DRY_RUN}" = 1 ]; then
-    log "would register Claude MCP fleet (knowledge, context7, vuetify$([ "${AK_PLAYWRIGHT}" = 1 ] && printf ', playwright')$([ "${AK_SERENA}" = 1 ] && printf ', serena')) in ${CLAUDE_MCP_FILE}"
+    log "would register Claude MCP fleet (knowledge, vuetify$([ "${AK_PLAYWRIGHT}" = 1 ] && printf ', playwright')$([ "${AK_SERENA}" = 1 ] && printf ', serena')) in ${CLAUDE_MCP_FILE}"
     return
   fi
   AK_MODE=install AK_CLAUDE_MCP_FILE="${CLAUDE_MCP_FILE}" AK_KB_URL="${KB_MCP_URL}" \
@@ -191,7 +193,6 @@ fleet = {
         "url": os.environ["AK_KB_URL"],
         "headers": {"Authorization": "Bearer " + os.environ["AK_KB_BEARER"]},
     },
-    "context7": {"type": "http", "url": "https://mcp.context7.com/mcp"},
     "vuetify": {"type": "http", "url": "https://mcp.vuetifyjs.com/mcp"},
 }
 if os.environ.get("AK_PLAYWRIGHT") == "1":
@@ -279,7 +280,7 @@ PY
 register_codex_mcp() {
   fleet_optional_state
   if [ "${DRY_RUN}" = 1 ]; then
-    log "would register Codex MCP fleet (knowledge, context7, vuetify$([ "${AK_PLAYWRIGHT}" = 1 ] && printf ', playwright')$([ "${AK_SERENA}" = 1 ] && printf ', serena')) in ${CODEX_CONFIG_FILE}"
+    log "would register Codex MCP fleet (knowledge, vuetify$([ "${AK_PLAYWRIGHT}" = 1 ] && printf ', playwright')$([ "${AK_SERENA}" = 1 ] && printf ', serena')) in ${CODEX_CONFIG_FILE}"
     return
   fi
   mkdir -p "${CODEX_CONFIG_HOME}"
@@ -307,7 +308,6 @@ blocks.append(
     f'[mcp_servers.knowledge]\nurl = {toml_str(os.environ["AK_KB_URL"])}\n'
     'bearer_token_env_var = "KB_BEARER_TOKEN"\n'
 )
-blocks.append(f'[mcp_servers.context7]\nurl = {toml_str("https://mcp.context7.com/mcp")}\n')
 blocks.append(f'[mcp_servers.vuetify]\nurl = {toml_str("https://mcp.vuetifyjs.com/mcp")}\n')
 if os.environ.get("AK_PLAYWRIGHT") == "1":
     blocks.append(
@@ -562,11 +562,12 @@ log "done"
 cat <<EOF
 agent-kit full installer complete (${INSTALLER_VERSION}, scope=${SCOPE}).
 
-Registered the MCP fleet (knowledge, context7, vuetify, and — when npx/uvx are
-present — playwright, serena) for Claude and Codex on top of the base skills +
-council + Spec Kit install, and purged the retired knowledge-recall hook groups
-from settings.json. The runner-only github and kubernetes servers are not
-installed on a workstation.
+Registered the MCP fleet (knowledge, vuetify, and — when npx/uvx are present —
+playwright, serena) for Claude and Codex on top of the base skills + council +
+Spec Kit install, removed the retired context7 server if it was registered, and
+purged the retired knowledge-recall hook groups from settings.json. The
+runner-only github server is not installed on a workstation; kubernetes comes
+from installer/setup-workstation.sh.
 
 Make sure KB_BEARER_TOKEN is set in each agent's environment:
   export KB_BEARER_TOKEN="<your-token>"
