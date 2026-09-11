@@ -5,6 +5,10 @@
 # ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.
 #
 mcp_servers:
+  kubernetes:
+    url: "http://127.0.0.1:18080/mcp"
+    timeout: 60
+
   playwright:
     command: "npx"
     args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]

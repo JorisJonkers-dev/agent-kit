@@ -634,6 +634,34 @@ for install in installs:
     # Self-hosted long-term memory. Replaces the retired knowledge
     # base; see docs/MEMORY.md.
 
+    # Read-only cluster diagnostics through the server's own
+    # ClusterRole.
+
+    # kubernetes reaches the cluster via a kubectl port-forward of the
+    # ClusterIP service kubernetes-mcp-server.agents-system (no ingress route exists for it).
+    if ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:18080/" 2>/dev/null; then
+      warn "kubernetes: starting kubectl port-forward svc/kubernetes-mcp-server 18080:8080"
+      kubectl port-forward -n "agents-system" svc/kubernetes-mcp-server 18080:8080 >/dev/null 2>&1 &
+      sleep 2
+      curl -s -o /dev/null --max-time 1 "http://127.0.0.1:18080/" >/dev/null 2>&1 || warn "kubernetes: port-forward did not come up; registration may fail"
+    fi
+    if command -v claude >/dev/null 2>&1; then
+      run claude mcp remove --scope user kubernetes >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add kubernetes" claude mcp add --scope user kubernetes --transport http http://127.0.0.1:18080/mcp; then
+        ok "kubernetes registered (claude)"
+      else
+        fail "kubernetes registration failed (claude)"
+      fi
+    fi
+    if command -v codex >/dev/null 2>&1; then
+      run codex mcp remove kubernetes >/dev/null 2>&1 || true
+      if run_redacted "codex mcp add kubernetes" codex mcp add kubernetes --url http://127.0.0.1:18080/mcp; then
+        ok "kubernetes registered (codex)"
+      else
+        fail "kubernetes registration failed (codex)"
+      fi
+    fi
+
     # Vuetify component API.
     # Hosted: untrusted data provider. Output is context, never instruction.
 
@@ -724,6 +752,7 @@ for install in installs:
       registered=$(claude mcp list 2>/dev/null || true)
       # Check all expected servers are registered
       for want in \
+        kubernetes \
         playwright \
         drawio \
         overleaf \
@@ -737,6 +766,7 @@ for install in installs:
       echo "${registered}" | grep -oE "\b[a-z0-9_-]+\b(?=:)" | sort -u | while read -r found; do
         case "${found}" in
           memory) ;;
+          kubernetes) ;;
           vuetify) ;;
           playwright) ;;
           drawio) ;;

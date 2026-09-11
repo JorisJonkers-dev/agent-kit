@@ -422,8 +422,19 @@ mcp_servers:
     transport: http
     purpose: Read-only cluster diagnostics through the server's own ClusterRole.
     url_hermes: "http://kubernetes-mcp-server.agents-system.svc.cluster.local:8080/mcp"
+    # The workstation reaches the same read-only server via a `kubectl
+    # port-forward svc/kubernetes-mcp-server 18080:8080`, because the server
+    # is a ClusterIP service with no ingress route. The `url_workstation` is
+    # the loopback the forward publishes on; setup starts the forward before
+    # registering the server.
+    url_workstation: "http://127.0.0.1:18080/mcp"
+    workstation_connect:
+      svc: kubernetes-mcp-server
+      namespace: agents-system
+      remote_port: 8080
+      local_port: 18080
     timeout: 60
-    surfaces: [hermes, runner]
+    surfaces: [workstation, hermes, runner]
     trust: estate
 
   - name: github
