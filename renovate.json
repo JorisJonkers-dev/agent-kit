@@ -4,6 +4,14 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Update the container tool pins in the tooling registry. Each container: block lists datasource, package and version on consecutive lines.",
+      "managerFilePatterns": ["/^registry/estate-tooling\\.yaml$/"],
+      "matchStrings": [
+        "datasource: (?<datasource>\\S+)\\s+package: \"?(?<depName>[^\"\\s]+)\"?\\s+version: \"?(?<currentValue>[^\"\\s]+)\"?"
+      ]
+    },
+    {
+      "customType": "regex",
       "description": "Update BMAD Method source lock release pins.",
       "managerFilePatterns": ["/^bmad-source\\.lock$/"],
       "matchStrings": [
@@ -67,6 +75,18 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "The image stays on Node 22 LTS.",
+      "matchFileNames": ["registry/estate-tooling.yaml"],
+      "matchDepNames": ["node"],
+      "allowedVersions": "22.x"
+    },
+    {
+      "description": "typescript-language-server needs tsserver, which TypeScript 7 does not ship.",
+      "matchFileNames": ["registry/estate-tooling.yaml"],
+      "matchDepNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
     {
       "matchFileNames": ["bmad-source.lock"],
       "prBodyNotes": [

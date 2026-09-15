@@ -6,6 +6,7 @@
 # it and must never be hand-edited:
 #
 #   installer/setup-workstation.sh            local machine (Claude Code + Codex)
+#   installer/setup-container.sh              the agents image, at build time
 #   registry/generated/hermes/skills-sources.conf   Hermes `sources.conf` body
 #   registry/generated/hermes/mcp-servers.yaml      Hermes `mcp_servers:` block
 #
@@ -19,6 +20,10 @@
 #   workstation   this laptop: Claude Code and Codex through setup-workstation.sh
 #   hermes        the in-cluster Hermes gateway
 #   runner        the per-workspace agent-runner image
+#   container     the agents image, through setup-container.sh
+#
+# Container pins are exact; keep datasource, package, version in that order
+# (Renovate reads them as one match). See docs/REGISTRY.md.
 #
 # PINS ARE COMMIT SHAs, NOT TAG SHAs. Hermes' sync-skills init container
 # clones `--branch <ref>` and compares `git rev-parse HEAD`, which is the
@@ -80,6 +85,48 @@ claude_profiles:
       fleet as work; its own login and its own conversation history.
 
 # -------------------------------------------------------------------
+# Container base. Debian packages follow the base image's release.
+# No Docker CLI: the agents container has no Docker socket (agents-api ADR 0001).
+# -------------------------------------------------------------------
+container_base:
+  # Shared, world-readable install locations for the non-root agent user.
+  environment:
+    UV_TOOL_DIR: /opt/uv/tools
+    UV_TOOL_BIN_DIR: /usr/local/bin
+    UV_PYTHON_INSTALL_DIR: /opt/uv/python
+    PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+  readable_paths: [/opt/uv, /ms-playwright]
+  # Needed to add the apt repositories below.
+  apt_bootstrap: [ca-certificates, curl, gnupg]
+  apt_repositories:
+    - name: adoptium
+      key_url: https://packages.adoptium.net/artifactory/api/gpg/key/public
+      url: https://packages.adoptium.net/artifactory/deb
+      components: main
+  apt_packages:
+    - bash
+    - bat
+    - bubblewrap  # Codex's sandbox
+    - build-essential
+    - clangd
+    - fd-find
+    - git
+    - jq
+    - less
+    - openssh-client
+    - procps
+    - python3
+    - python3-pip
+    - python3-venv
+    - ripgrep
+    - temurin-21-jdk
+    - tini
+    - tmux
+    - unzip
+    - xz-utils
+    - zsh
+
+# -------------------------------------------------------------------
 # Command-line tools.
 #
 # `latest: true` means the setup script installs or upgrades to the
@@ -92,22 +139,35 @@ clis:
     binary: claude
     purpose: Claude Code CLI.
     latest: true
-    surfaces: [workstation]
+    surfaces: [workstation, container]
     # The native installer owns ~/.local/bin/claude and self-updates.
     # Do NOT `npm i -g @anthropic-ai/claude-code` on top of it: two
     # installs on one PATH is how a stale binary wins.
     install: "curl -fsSL https://claude.ai/install.sh | bash"
     update: "claude update"
     version_command: "claude --version"
+    # Container uses npm: the native installer writes into root's home.
+    container:
+      datasource: npm
+      package: "@anthropic-ai/claude-code"
+      version: "2.1.272"
+      install: 'npm install -g "@anthropic-ai/claude-code@${VERSION}"'
+      requires: [node]
 
   - name: codex
     binary: codex
     purpose: OpenAI Codex CLI, the second engine council fans out to.
     latest: true
-    surfaces: [workstation]
+    surfaces: [workstation, container]
     install: "npm install -g @openai/codex@latest"
     update: "npm install -g @openai/codex@latest"
     version_command: "codex --version"
+    container:
+      datasource: npm
+      package: "@openai/codex"
+      version: "0.154.0"
+      install: 'npm install -g "@openai/codex@${VERSION}"'
+      requires: [node]
 
   - name: hermes-agent
     binary: hermes
@@ -116,7 +176,7 @@ clis:
       `hermes doctor` / `hermes skills list` against a local config; the
       in-cluster gateway runs the container image, not this.
     latest: true
-    surfaces: [workstation]
+    surfaces: [workstation, container]
     # uv tool, not pip: hermes-agent needs >=3.11,<3.14 and a shared
     # site-packages is how a version conflict takes out both tools.
     # The `[mcp]` extra is what lets LOCAL hermes run any MCP server at
@@ -126,6 +186,13 @@ clis:
     update: "uv tool upgrade 'hermes-agent[mcp]'"
     version_command: "hermes --version"
     requires: [uv]
+    # CLI only in the container; Agent Sessions use the in-cluster Hermes.
+    container:
+      datasource: pypi
+      package: "hermes-agent"
+      version: "0.19.0"
+      install: 'uv tool install --python 3.13 "hermes-agent[mcp]==${VERSION}"'
+      requires: [uv]
 
   - name: olcli
     binary: olcli
@@ -133,21 +200,148 @@ clis:
       Overleaf CLI and MCP server. Points at the estate's self-hosted
       Overleaf, not overleaf.com.
     latest: true
-    surfaces: [workstation, hermes]
+    surfaces: [workstation, hermes, container]
     install: "npm install -g @aloth/olcli@latest"
     update: "npm install -g @aloth/olcli@latest"
     version_command: "olcli --version"
     # Also provides the olcli-mcp and git-remote-overleaf binaries.
     provides_binaries: [olcli, olcli-mcp, git-remote-overleaf]
+    container:
+      datasource: npm
+      package: "@aloth/olcli"
+      version: "0.13.0"
+      install: 'npm install -g "@aloth/olcli@${VERSION}"'
+      requires: [node]
 
   - name: uv
     binary: uv
     purpose: Python tool/venv manager; prerequisite for hermes-agent and the kit's own tooling.
     latest: true
-    surfaces: [workstation]
+    surfaces: [workstation, container]
     install: "curl -fsSL https://astral.sh/uv/install.sh | sh"
     update: "uv self update"
     version_command: "uv --version"
+    container:
+      datasource: github-releases
+      package: "astral-sh/uv"
+      version: "0.12.15"
+      install: >-
+        curl -fsSL "https://github.com/astral-sh/uv/releases/download/${VERSION}/uv-${GNU_ARCH}-unknown-linux-gnu.tar.gz"
+        | tar -xz -C /usr/local/bin --strip-components=1 --wildcards '*/uv' '*/uvx'
+
+  # --- Container-only tools. The workstation brings its own. ---
+
+  - name: node
+    binary: node
+    purpose: Node.js runtime; every npm-installed tool in the image needs it.
+    surfaces: [container]
+    install: null
+    version_command: "node --version"
+    container:
+      datasource: node-version
+      package: "node"
+      version: "22.23.2"
+      install: >-
+        curl -fsSL "https://nodejs.org/dist/v${VERSION}/node-v${VERSION}-linux-${DEB_ARCH/amd64/x64}.tar.xz"
+        | tar -xJ -C /usr/local --strip-components=1 --exclude='*.md' --exclude=LICENSE --exclude=share/doc
+
+  - name: gh
+    binary: gh
+    purpose: GitHub CLI.
+    surfaces: [container]
+    install: null
+    version_command: "gh --version"
+    container:
+      datasource: github-releases
+      package: "cli/cli"
+      version: "v2.100.0"
+      install: >-
+        curl -fsSL "https://github.com/cli/cli/releases/download/${VERSION}/gh_${VERSION#v}_linux_${DEB_ARCH}.tar.gz"
+        | tar -xz -C /usr/local --strip-components=1 "gh_${VERSION#v}_linux_${DEB_ARCH}/bin/gh"
+
+  - name: go
+    binary: go
+    purpose: Go toolchain, world-readable under /usr/local/go.
+    surfaces: [container]
+    install: null
+    version_command: "go version"
+    container:
+      datasource: golang-version
+      package: "go"
+      version: "1.27.1"
+      install: >-
+        curl -fsSL "https://go.dev/dl/go${VERSION}.linux-${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local
+        && ln -sf /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/
+
+  - name: mise
+    binary: mise
+    purpose: Polyglot runtime manager, for toolchains a repository pins itself.
+    surfaces: [container]
+    install: null
+    version_command: "mise --version"
+    container:
+      datasource: github-releases
+      package: "jdx/mise"
+      version: "v2026.9.9"
+      install: >-
+        curl -fsSL -o /usr/local/bin/mise
+        "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}"
+        && chmod 755 /usr/local/bin/mise
+
+  - name: ast-grep
+    binary: ast-grep
+    purpose: Structural search and rewrite.
+    surfaces: [container]
+    install: null
+    version_command: "ast-grep --version"
+    container:
+      datasource: npm
+      package: "@ast-grep/cli"
+      version: "0.45.3"
+      install: 'npm install -g "@ast-grep/cli@${VERSION}"'
+      requires: [node]
+
+  - name: typescript
+    # tsserver, not tsc: typescript-language-server needs it, and 7.x ships none.
+    binary: tsserver
+    purpose: TypeScript compiler and tsserver; typescript-language-server drives it.
+    surfaces: [container]
+    install: null
+    version_command: "tsc --version"
+    container:
+      datasource: npm
+      package: "typescript"
+      version: "5.9.3"
+      install: 'npm install -g "typescript@${VERSION}"'
+      requires: [node]
+
+  - name: github-mcp-server
+    binary: github-mcp-server
+    purpose: GitHub's stdio MCP server; its token arrives at session start, never at build.
+    surfaces: [container]
+    install: null
+    version_command: "github-mcp-server --version"
+    container:
+      datasource: github-releases
+      package: "github/github-mcp-server"
+      version: "v1.12.1"
+      install: >-
+        case "${DEB_ARCH}" in amd64) a=x86_64 ;; arm64) a=arm64 ;; esac
+        && curl -fsSL "https://github.com/github/github-mcp-server/releases/download/${VERSION}/github-mcp-server_Linux_${a}.tar.gz"
+        | tar -xz -C /usr/local/bin github-mcp-server
+
+  - name: serena
+    binary: serena
+    purpose: LSP-backed semantic code intelligence MCP server.
+    surfaces: [container]
+    install: null
+    version_command: "serena --version"
+    container:
+      datasource: pypi
+      package: "serena-agent"
+      version: "1.7.0"
+      install: 'uv tool install --python 3.13 "serena-agent==${VERSION}"'
+      requires: [uv]
 
 # -------------------------------------------------------------------
 # Claude Code plugin marketplaces.
@@ -260,11 +454,25 @@ language_servers:
     install: "npm install -g typescript-language-server typescript"
     languages: [typescript, javascript]
     enabled: true
+    container:
+      datasource: npm
+      package: "typescript-language-server"
+      version: "6.0.0"
+      install: 'npm install -g "typescript-language-server@${VERSION}"'
+      version_command: "typescript-language-server --version"
+      requires: [node, typescript]
   - plugin: pyright-lsp
     binary: pyright-langserver
     install: "npm install -g pyright"
     languages: [python]
     enabled: true
+    container:
+      datasource: npm
+      package: "pyright"
+      version: "1.1.414"
+      install: 'npm install -g "pyright@${VERSION}"'
+      version_command: "pyright --version"
+      requires: [node]
   - plugin: kotlin-lsp
     binary: kotlin-lsp
     install: "brew install kotlin-lsp"
@@ -285,6 +493,16 @@ language_servers:
     install: "go install golang.org/x/tools/gopls@latest"
     languages: [go]
     enabled: true
+    container:
+      datasource: go
+      package: "golang.org/x/tools/gopls"
+      version: "v0.23.0"
+      install: >-
+        GOBIN=/usr/local/bin GOPATH=/tmp/gopath GOCACHE=/tmp/gocache
+        go install "golang.org/x/tools/gopls@${VERSION}"
+        && GOPATH=/tmp/gopath go clean -modcache && rm -rf /tmp/gopath /tmp/gocache
+      version_command: "gopls version"
+      requires: [go]
   - plugin: rust-analyzer-lsp
     binary: rust-analyzer
     install: "rustup component add rust-analyzer"
@@ -305,6 +523,14 @@ language_servers:
     install: "npm install -g intelephense"
     languages: [php]
     enabled: true
+    container:
+      datasource: npm
+      package: "intelephense"
+      version: "1.18.5"
+      install: 'npm install -g "intelephense@${VERSION}"'
+      # `intelephense --version` crashes instead of printing a version.
+      version_command: "npm ls -g intelephense"
+      requires: [node]
   - plugin: csharp-lsp
     binary: csharp-ls
     install: "dotnet tool install --global csharp-ls"
@@ -516,9 +742,20 @@ mcp_servers:
     command: npx
     args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
     timeout: 120
-    surfaces: [workstation, hermes]
+    surfaces: [workstation, hermes, container]
     trust: local
     requires_binary: npx
+    # Chromium comes from @playwright/mcp's own playwright, whose revision it matches.
+    container:
+      datasource: npm
+      package: "@playwright/mcp"
+      version: "0.0.81"
+      install: >-
+        npm install -g "@playwright/mcp@${VERSION}"
+        && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install --with-deps chromium
+      binary: playwright-mcp
+      version_command: "npm ls -g @playwright/mcp"
+      requires: [node]
 
   - name: drawio
     transport: stdio
@@ -533,10 +770,18 @@ mcp_servers:
     hermes_command: npx
     hermes_args: ["-y", "@drawio/mcp@latest"]
     timeout: 60
-    surfaces: [workstation, hermes]
+    surfaces: [workstation, hermes, container]
     trust: local
     requires_binary: drawio-mcp
     install: "npm install -g @drawio/mcp@latest"
+    container:
+      datasource: npm
+      package: "@drawio/mcp"
+      version: "1.5.0"
+      install: 'npm install -g "@drawio/mcp@${VERSION}"'
+      # The binary starts a server rather than printing a version.
+      version_command: "npm ls -g @drawio/mcp"
+      requires: [node]
 
   - name: overleaf
     transport: stdio

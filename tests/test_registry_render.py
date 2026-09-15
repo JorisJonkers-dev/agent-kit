@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -620,3 +622,186 @@ def test_registered_server_names_are_extracted_without_pcre(tmp_path: Path) -> N
     assert result.returncode == 0, result.stderr
     assert result.stderr == ""
     assert result.stdout.split() == ["idea", "playwright", "plugin:github:github"]
+
+
+# ---------------------------------------------------------------------------
+# Container surface: installer/setup-container.sh
+# ---------------------------------------------------------------------------
+
+
+def _raw_entry(data: dict, name: str) -> dict:
+    for key in render_registry.CONTAINER_SOURCES:
+        for item in data.get(key) or []:
+            if item.get("name", item.get("plugin")) == name:
+                return item
+    raise KeyError(name)
+
+
+def test_container_tools_are_declared() -> None:
+    names = {t["name"] for t in render_registry.container_tools(_registry())}
+    assert {"claude-code", "codex", "hermes-agent", "node", "uv"} <= names
+
+
+@pytest.mark.parametrize("version", ["", "latest", None])
+def test_a_container_tool_must_pin_a_version(version: str | None) -> None:
+    data = _registry()
+    _raw_entry(data, "codex")["container"]["version"] = version
+    with pytest.raises(render_registry.RegistryError, match="pin a version"):
+        render_registry.validate(data)
+
+
+def test_a_container_install_must_use_the_pinned_version() -> None:
+    data = _registry()
+    _raw_entry(data, "codex")["container"]["install"] = "npm install -g @openai/codex@latest"
+    with pytest.raises(render_registry.RegistryError, match=r"\$\{VERSION\}"):
+        render_registry.validate(data)
+
+
+def test_the_container_surface_and_block_go_together() -> None:
+    data = _registry()
+    del _raw_entry(data, "codex")["container"]
+    with pytest.raises(render_registry.RegistryError, match="container surface"):
+        render_registry.validate(data)
+
+    data = _registry()
+    _raw_entry(data, "codex")["surfaces"].remove("container")
+    with pytest.raises(render_registry.RegistryError, match="container surface"):
+        render_registry.validate(data)
+
+
+def test_a_container_tool_may_only_require_another_container_tool() -> None:
+    data = _registry()
+    _raw_entry(data, "codex")["container"]["requires"] = ["nope"]
+    with pytest.raises(render_registry.RegistryError, match="requires unknown"):
+        render_registry.validate(data)
+
+
+def test_container_tools_install_after_what_they_require() -> None:
+    order = [t["name"] for t in render_registry.container_tools(_registry())]
+    for tool in render_registry.container_tools(_registry()):
+        for required in tool["requires"]:
+            assert order.index(required) < order.index(tool["name"])
+
+
+def test_renovate_tracks_every_container_pin() -> None:
+    """A pin Renovate cannot see never moves, so prove the manager matches each one."""
+    renovate = json.loads((KIT_ROOT / "renovate.json").read_text())
+    manager = next(
+        m for m in renovate["customManagers"]
+        if "estate-tooling" in "".join(m["managerFilePatterns"])
+    )
+    text = (KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()
+    found = set()
+    for pattern in manager["matchStrings"]:
+        for match in re.finditer(pattern.replace("(?<", "(?P<"), text):
+            found.add((match["datasource"], match["depName"], match["currentValue"]))
+    expected = {
+        (t["datasource"], t["package"], t["version"])
+        for t in render_registry.container_tools(_registry())
+    }
+    assert found == expected
+
+
+def test_a_container_mcp_server_is_checked_by_the_binary_it_runs() -> None:
+    """An MCP server's entry name is not its binary: `drawio` runs `drawio-mcp`."""
+    data = _registry()
+    tools = {t["name"]: t for t in render_registry.container_tools(data)}
+    for server in data["mcp_servers"]:
+        tool = tools.get(server["name"])
+        if tool and server["transport"] == "stdio" and "binary" not in server["container"]:
+            assert tool["binary"] == server["requires_binary"]
+
+
+def test_a_container_tool_name_may_not_be_declared_twice() -> None:
+    data = _registry()
+    clone = copy.deepcopy(_raw_entry(data, "codex"))
+    clone.update(transport="stdio", command="codex")
+    data["mcp_servers"].append(clone)
+    with pytest.raises(render_registry.RegistryError, match="declared twice"):
+        render_registry.validate(data)
+
+
+def test_the_typescript_language_server_gets_a_tsserver() -> None:
+    """typescript-language-server drives tsserver, which typescript 7.x no longer ships."""
+    typescript = next(t for t in render_registry.container_tools(_registry()) if t["name"] == "typescript")
+    assert typescript["binary"] == "tsserver"
+
+
+def test_container_help_prints_only_the_header(tmp_path: Path) -> None:
+    script = tmp_path / "setup-container.sh"
+    script.write_text(render_registry.render_container_setup_script(_registry()))
+    result = subprocess.run(["bash", str(script), "--help"], capture_output=True, text=True, check=False)
+    assert result.returncode == 0
+    assert all(line.startswith("#") for line in result.stdout.splitlines()), result.stdout
+    assert "--check" in result.stdout
+
+
+def test_container_script_carries_no_secret() -> None:
+    data = _registry()
+    script = render_registry.render_container_setup_script(data)
+    for server in data["mcp_servers"]:
+        if server.get("credential"):
+            assert server["credential"] not in script
+    assert "@latest" not in script
+
+
+def _stub(bin_dir: Path, name: str, output: str) -> None:
+    path = bin_dir / name
+    path.write_text(f"#!/bin/sh\necho '{output}'\n")
+    path.chmod(0o755)
+
+
+def _container_check(tmp_path: Path, override: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    data = _registry()
+    script = tmp_path / "setup-container.sh"
+    script.write_text(render_registry.render_container_setup_script(data))
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    # One stub can answer for several tools (`npm ls -g`), so it prints every line.
+    outputs: dict[str, list[str]] = {}
+    for tool in render_registry.container_tools(data):
+        version = (override or {}).get(tool["name"], tool["version"])
+        line = f"{tool['package']}@{version}"
+        outputs.setdefault(tool["binary"], []).append(line)
+        outputs.setdefault(tool["version_command"].split()[0], []).append(line)
+    for name, lines in outputs.items():
+        _stub(bin_dir, name, "\n".join(dict.fromkeys(lines)))
+    _stub(bin_dir, "dpkg", "ok")
+    return subprocess.run(
+        ["bash", str(script), "--check"], capture_output=True, text=True, check=False,
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
+    )
+
+
+def test_container_check_passes_when_every_tool_is_at_its_pin(tmp_path: Path) -> None:
+    result = _container_check(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_container_check_fails_on_a_version_mismatch(tmp_path: Path) -> None:
+    result = _container_check(tmp_path, {"codex": "0.0.1"})
+    assert result.returncode != 0
+    assert "codex: expected" in result.stderr
+
+
+def test_container_check_fails_when_a_tool_is_missing(tmp_path: Path) -> None:
+    script = tmp_path / "setup-container.sh"
+    script.write_text(render_registry.render_container_setup_script(_registry()))
+    result = subprocess.run(
+        ["bash", str(script), "--check"], capture_output=True, text=True, check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode != 0
+    assert "hermes: not on PATH" in result.stderr
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="the refusal is for non-root callers")
+def test_container_install_refuses_to_run_as_non_root(tmp_path: Path) -> None:
+    script = tmp_path / "setup-container.sh"
+    script.write_text(render_registry.render_container_setup_script(_registry()))
+    result = subprocess.run(
+        ["bash", str(script)], capture_output=True, text=True, check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 77
+    assert "must run as root" in result.stderr

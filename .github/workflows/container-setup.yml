@@ -1,0 +1,30 @@
+'name': 'Container Setup'
+
+# Installs every container tool in clean Debian on both architectures, then verifies as non-root.
+'on':
+  'pull_request':
+    'paths':
+      - 'registry/estate-tooling.yaml'
+      - 'scripts/render_registry.py'
+      - 'installer/setup-container.sh'
+      - '.github/workflows/container-setup.yml'
+  'workflow_dispatch':
+
+'permissions':
+  'contents': 'read'
+
+'jobs':
+  'install':
+    'name': 'Install and verify (${{ matrix.runner }})'
+    'strategy':
+      'fail-fast': false
+      'matrix':
+        'runner':
+          - 'ubuntu-latest'
+          - 'ubuntu-24.04-arm'
+    'runs-on': '${{ matrix.runner }}'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'run': |
+          docker run --rm -v "$PWD/installer/setup-container.sh:/setup-container.sh:ro" debian:bookworm-slim \
+            bash -c 'bash /setup-container.sh && useradd -m agent && su agent -c "bash /setup-container.sh --check"'
