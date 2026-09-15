@@ -5,6 +5,7 @@ One file is edited by hand -- ``registry/estate-tooling.yaml``. Everything
 below is generated from it:
 
 * ``installer/setup-workstation.sh``            -- local Claude Code + Codex + Hermes
+* ``installer/setup-container.sh``              -- the agents image, at build time
 * ``registry/generated/hermes/skills-sources.conf`` -- Hermes ``sources.conf``
 * ``registry/generated/hermes/mcp-servers.yaml``    -- Hermes ``mcp_servers:`` (gateway)
 * ``registry/generated/hermes/mcp-servers.local.yaml`` -- local Hermes ``mcp_servers:``
@@ -28,6 +29,7 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 REGISTRY_PATH = KIT_ROOT / "registry" / "estate-tooling.yaml"
 
 SETUP_SCRIPT = Path("installer/setup-workstation.sh")
+CONTAINER_SETUP_SCRIPT = Path("installer/setup-container.sh")
 # Hand-written, sourced by SETUP_SCRIPT: keeps workstation_connect forwards alive.
 PORT_FORWARD_HELPER = Path("installer/port-forward-agent.sh")
 HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
@@ -81,7 +83,7 @@ def _entries(data: dict[str, Any], key: str) -> list[dict[str, Any]]:
 
 
 def validate(data: dict[str, Any]) -> None:
-    known_surfaces = {"workstation", "hermes", "runner"}
+    known_surfaces = {"workstation", "hermes", "runner", "container"}
 
     marketplaces = {m["name"] for m in _entries(data, "marketplaces")}
     plugin_names = {p["name"] for p in _entries(data, "plugins")}
@@ -157,6 +159,7 @@ def validate(data: dict[str, Any]) -> None:
             )
 
     _validate_claude_profiles(data)
+    _validate_container(data)
 
     for key in ("clis", "skill_sources", "mcp_servers", "local_skills"):
         for item in _entries(data, key):
@@ -228,6 +231,83 @@ def _validate_claude_profiles(data: dict[str, Any]) -> None:
                     f"claude profile {name} shares {rel!r}, which is that profile's own "
                     "history or credentials; sharing it defeats the separate profile",
                 )
+
+
+CONTAINER_SOURCES = ("clis", "mcp_servers", "language_servers")
+
+
+def _container_candidates(data: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Every registry entry that could carry a ``container:`` block, with its name."""
+    found = []
+    for key in CONTAINER_SOURCES:
+        for item in _entries(data, key):
+            found.append((str(item.get("name") or item.get("plugin")), item))
+    return found
+
+
+def _validate_container(data: dict[str, Any]) -> None:
+    candidates = _container_candidates(data)
+    blocks = {name: item["container"] for name, item in candidates if item.get("container")}
+
+    for name, item in candidates:
+        # Language servers declare no surfaces; for them the block alone decides.
+        if "surfaces" in item and bool(item.get("container")) != on_surface(item, "container"):
+            raise RegistryError(
+                f"{name}: a container: block and the container surface go together",
+            )
+
+    for name, block in blocks.items():
+        version = str(block.get("version") or "")
+        if not version or version == "latest":
+            raise RegistryError(f"container tool {name} must pin a version, not {version!r}")
+        for field in ("datasource", "package", "install", "version_command"):
+            if not block.get(field) and not (field == "version_command" and _item(data, name).get(field)):
+                raise RegistryError(f"container tool {name} must name its {field}")
+        if "${VERSION}" not in str(block["install"]):
+            raise RegistryError(f"container tool {name} install must use ${{VERSION}}")
+        for required in block.get("requires") or []:
+            if required not in blocks:
+                raise RegistryError(f"container tool {name} requires unknown tool {required!r}")
+
+
+def _item(data: dict[str, Any], name: str) -> dict[str, Any]:
+    return next(item for candidate, item in _container_candidates(data) if candidate == name)
+
+
+def container_tools(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The container tools in install order: registry order, after their requirements."""
+    tools: dict[str, dict[str, Any]] = {}
+    for name, item in _container_candidates(data):
+        block = item.get("container")
+        if not block:
+            continue
+        tools[name] = {
+            "name": name,
+            "binary": block.get("binary") or item.get("binary") or item.get("requires_binary") or name,
+            "datasource": block["datasource"],
+            "package": block["package"],
+            "version": str(block["version"]),
+            "install": " ".join(str(block["install"]).split()),
+            "version_command": block.get("version_command") or item.get("version_command"),
+            "requires": list(block.get("requires") or []),
+        }
+
+    ordered: list[dict[str, Any]] = []
+    placed: set[str] = set()
+
+    def place(name: str, trail: tuple[str, ...]) -> None:
+        if name in placed:
+            return
+        if name in trail:
+            raise RegistryError(f"container tools require each other in a cycle: {' -> '.join(trail)}")
+        for required in tools[name]["requires"]:
+            place(required, (*trail, name))
+        placed.add(name)
+        ordered.append(tools[name])
+
+    for name in tools:
+        place(name, ())
+    return ordered
 
 
 def claude_profiles(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1191,6 +1271,134 @@ def render_setup_script(data: dict[str, Any]) -> str:
     return "\n".join(out) + "\n"
 
 
+def render_container_setup_script(data: dict[str, Any]) -> str:
+    base = data.get("container_base") or {}
+    tools = container_tools(data)
+    out: list[str] = []
+    w = out.append
+
+    w("#!/usr/bin/env bash")
+    w(f"# {GENERATED_BANNER}")
+    w("#")
+    w("# Installs every tool the agents image gives its Agent Sessions, at the")
+    w("# versions the registry pins. Runs as root at image build time, where no")
+    w("# secret exists; anything that needs a credential happens at container start.")
+    w("#")
+    w("# Usage:")
+    w("#   ./setup-container.sh           install everything, then verify (root)")
+    w("#   ./setup-container.sh --check   verify only: every tool present at its pin")
+    w("")
+    w("set -euo pipefail")
+    w("")
+    w("CHECK_ONLY=0")
+    w('case "${1:-}" in')
+    w("  --check) CHECK_ONLY=1 ;;")
+    w('  "") ;;')
+    w("  --help|-h) sed -n '2,12p' \"$0\"; exit 0 ;;")
+    w('  *) echo "unknown option: $1" >&2; exit 64 ;;')
+    w("esac")
+    w("")
+    w("failures=0")
+    w("log()  { printf 'setup-container: %s\\n' \"$*\"; }")
+    w("ok()   { printf 'setup-container:   ok    %s\\n' \"$*\"; }")
+    w("fail() { printf 'setup-container:   FAIL  %s\\n' \"$*\" >&2; failures=$((failures + 1)); }")
+    w("")
+    w("# Shared, world-readable locations, so the non-root agent user can run")
+    w("# what root installed.")
+    w("export UV_TOOL_DIR=/opt/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv/python")
+    w("export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright")
+    w("export DEBIAN_FRONTEND=noninteractive")
+    w("")
+    w('case "$(uname -m)" in')
+    w("  x86_64|amd64) DEB_ARCH=amd64 GNU_ARCH=x86_64 ;;")
+    w("  aarch64|arm64) DEB_ARCH=arm64 GNU_ARCH=aarch64 ;;")
+    w('  *) echo "setup-container: unsupported architecture $(uname -m)" >&2; exit 1 ;;')
+    w("esac")
+    w("export DEB_ARCH GNU_ARCH")
+    w("")
+    w("install_tool() {")
+    w('  log "install $1 $2"')
+    w('  VERSION="$2" bash -euo pipefail -c "$3"')
+    w("}")
+    w("")
+    w("# Verifies the value, not the exit code: the tool must report the pinned")
+    w("# version, so a stale binary earlier on PATH fails the check.")
+    w("check_tool() {")
+    w('  local binary="$1" version="${2#v}" version_command="$3" output')
+    w('  if ! command -v "${binary}" >/dev/null 2>&1; then')
+    w('    fail "${binary}: not on PATH"')
+    w("    return 0")
+    w("  fi")
+    w('  output="$(bash -c "${version_command}" 2>&1 || true)"')
+    w('  if printf \'%s\\n\' "${output}" | grep -Eq "(^|[^0-9.])${version//./\\\\.}([^0-9.]|$)"; then')
+    w('    ok "${binary} ${version}"')
+    w("  else")
+    w('    fail "${binary}: expected ${version}, got: $(printf \'%s\\n\' "${output}" | head -1)"')
+    w("  fi")
+    w("}")
+    w("")
+    w("check_apt() {")
+    w('  if dpkg -s "$1" >/dev/null 2>&1; then')
+    w('    ok "apt $1"')
+    w("  else")
+    w('    fail "apt $1: not installed"')
+    w("  fi")
+    w("}")
+    w("")
+
+    packages = [str(p) for p in base.get("apt_packages") or []]
+    w('if [ "${CHECK_ONLY}" = 0 ]; then')
+    w('  if [ "$(id -u)" != 0 ]; then')
+    w('    echo "setup-container: must run as root (image build time); use --check otherwise" >&2')
+    w("    exit 77")
+    w("  fi")
+    w("")
+    w('  log "apt repositories"')
+    w("  apt-get update")
+    w("  apt-get install -y --no-install-recommends ca-certificates curl gnupg")
+    w("  # shellcheck source=/dev/null")
+    w('  codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"')
+    for repo in base.get("apt_repositories") or []:
+        name = repo["name"]
+        keyring = f"/usr/share/keyrings/{name}.gpg"
+        w(f'  curl -fsSL {_q(repo["key_url"])} | gpg --dearmor -o {keyring}')
+        w(
+            f'  echo "deb [signed-by={keyring}] {repo["url"]} ${{codename}} {repo["components"]}" '
+            f"> /etc/apt/sources.list.d/{name}.list",
+        )
+    w("  apt-get update")
+    w('  log "apt packages"')
+    w("  apt-get install -y --no-install-recommends \\")
+    for package in packages:
+        w(f"    {package} \\")
+    w("    ;")
+    w("")
+    w("  # Single quotes on purpose: install_tool expands ${VERSION} per tool.")
+    w("  # shellcheck disable=SC2016")
+    w("  {")
+    for tool in tools:
+        w(f"  install_tool {tool['name']} {_q(tool['version'])} {_q(tool['install'])}")
+    w("  }")
+    w("")
+    w("  chmod -R a+rX /opt/uv")
+    w("  npm cache clean --force >/dev/null 2>&1 || true")
+    w("  rm -rf /var/lib/apt/lists/* /root/.cache /root/.npm /tmp/*")
+    w("fi")
+    w("")
+    w('log "verify"')
+    for package in packages:
+        w(f"check_apt {package}")
+    for tool in tools:
+        w(f"check_tool {tool['binary']} {_q(tool['version'])} {_q(tool['version_command'])}")
+    w("")
+    w('if [ "${failures}" != 0 ]; then')
+    w('  log "${failures} check(s) failed"')
+    w("  exit 1")
+    w("fi")
+    w('log "every tool is at its pinned version"')
+    return "\n".join(out) + "\n"
+
+
 def _mcp_env_flags(server: dict[str, Any], credential: str | None, optional_cred: bool) -> str:
     """Build the ``--env KEY=VALUE`` fragment for a stdio MCP server.
 
@@ -1247,6 +1455,7 @@ def _has_plugin_pins(data: dict[str, Any]) -> bool:
 def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
     return {
         SETUP_SCRIPT: (render_setup_script(data), 0o755),
+        CONTAINER_SETUP_SCRIPT: (render_container_setup_script(data), 0o755),
         HERMES_SOURCES: (render_hermes_sources(data), 0o644),
         HERMES_MCP: (render_hermes_mcp(data), 0o644),
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),

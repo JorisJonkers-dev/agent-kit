@@ -41,6 +41,8 @@
         'if': '${{ !cancelled() }}'
       - 'run': 'bash -n installer/setup-workstation.sh'
         'if': '${{ !cancelled() }}'
+      - 'run': 'bash -n installer/setup-container.sh && shellcheck installer/setup-container.sh'
+        'if': '${{ !cancelled() }}'
       - 'run': 'bash -n scripts/sync-hermes-registry.sh'
         'if': '${{ !cancelled() }}'
       - 'run': 'scripts/build-runtime-package.sh v0.0.0-ci dist'

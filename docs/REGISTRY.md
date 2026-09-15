@@ -15,6 +15,7 @@ uv run pytest tests/test_registry_render.py
 | Artifact | Consumed by |
 |---|---|
 | `installer/setup-workstation.sh` | this laptop, via [SETUP.md](SETUP.md) |
+| `installer/setup-container.sh` | the agents image, at build time |
 | `registry/generated/hermes/skills-sources.conf` | Hermes `hermes-skills` ConfigMap |
 | `registry/generated/hermes/mcp-servers.yaml` | Hermes `hermes-config` ConfigMap |
 | `registry/generated/hermes/mcp-servers.local.yaml` | a workstation's local `~/.hermes/config.yaml` |
@@ -31,6 +32,7 @@ was never rendered. Both are one test.
 | `workstation` | Claude Code, Codex and local Hermes on a developer machine |
 | `hermes` | the in-cluster Hermes gateway |
 | `runner` | the per-workspace agent-runner image |
+| `container` | the agents image, through `setup-container.sh` |
 
 `surfaces: []` is how a thing is **retired**: it stays documented, and reaches
 nowhere. That is what the `knowledge` MCP entry is now, and a test asserts it
@@ -125,6 +127,48 @@ Two traps this catches:
 - An in-cluster URL needs the Hermes SSRF allowlist. Hermes blocks RFC1918 by
   default, so a new `10.43.0.0/16` server reports **zero tools while the hosted
   ones work**. That is the block, not the NetworkPolicy. `hermes doctor` first.
+
+## Adding a tool to the agents image
+
+Give the entry a `container:` block and add `container` to its `surfaces:`.
+The renderer refuses one without the other. Language servers have no
+`surfaces:`, so for them the block alone is enough.
+
+```yaml
+- name: codex
+  binary: codex
+  surfaces: [workstation, container]
+  version_command: "codex --version"
+  container:
+    datasource: npm              # a Renovate datasource
+    package: "@openai/codex"     # the Renovate depName
+    version: "0.154.0"           # exact; `latest` is rejected
+    install: 'npm install -g "@openai/codex@${VERSION}"'
+    requires: [node]             # other container tools to install first
+```
+
+- **Keep `datasource`, `package` and `version` on consecutive lines, in that
+  order.** Renovate's regex manager reads them as one match. A reordered block
+  is a pin Renovate never bumps, and `test_renovate_tracks_every_container_pin`
+  fails on it.
+- `install` runs as root at image build time with `VERSION`, `DEB_ARCH`
+  (`amd64`/`arm64`) and `GNU_ARCH` (`x86_64`/`aarch64`) set, and must use
+  `${VERSION}`. There are no secrets at build time. Anything that needs a
+  credential belongs to container start.
+- Install somewhere the non-root agent user can read: `/usr/local`, or `uv tool`
+  (the script points it at `/opt/uv`).
+- `setup-container.sh --check` reruns `version_command` and fails unless the
+  output contains the pinned version. Pick a command that prints the version
+  without starting a server; `npm ls -g <package>` works for any npm tool.
+  `container.version_command` and `container.binary` override the entry's own.
+- Debian packages go in `container_base.apt_packages`. They follow the base
+  image's release, so they carry no version of their own.
+
+Prove a change in a clean container before merging:
+
+```bash
+docker run --rm -v "$PWD/installer/setup-container.sh:/s.sh:ro" debian:bookworm-slim bash /s.sh
+```
 
 ## Adding a Claude profile
 

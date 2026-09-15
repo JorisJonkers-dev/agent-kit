@@ -4,6 +4,14 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Update the container tool pins in the tooling registry. Each container: block lists datasource, package and version on consecutive lines.",
+      "managerFilePatterns": ["/^registry/estate-tooling\\.yaml$/"],
+      "matchStrings": [
+        "datasource: (?<datasource>\\S+)\\s+package: \"?(?<depName>[^\"\\s]+)\"?\\s+version: \"?(?<currentValue>[^\"\\s]+)\"?"
+      ]
+    },
+    {
+      "customType": "regex",
       "description": "Update BMAD Method source lock release pins.",
       "managerFilePatterns": ["/^bmad-source\\.lock$/"],
       "matchStrings": [
@@ -67,6 +75,12 @@
     }
   ],
   "packageRules": [
+    {
+      "matchFileNames": ["registry/estate-tooling.yaml"],
+      "prBodyNotes": [
+        "Run `uv run python scripts/render_registry.py --write` before merging so `installer/setup-container.sh` carries the new pin."
+      ]
+    },
     {
       "matchFileNames": ["bmad-source.lock"],
       "prBodyNotes": [
