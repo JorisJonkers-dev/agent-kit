@@ -436,31 +436,13 @@ plugins:
 
   - name: hindsight-memory
     marketplace: hindsight
-    # main HEAD at review time -- vendor ships no separate tag for this
-    # plugin past v0.7.5 (`integrations/claude-code/vX` stops there); the
-    # marketplace.json at repo root now tracks main directly, matching the
-    # vendor's own `claude plugin marketplace add vectorize-io/hindsight`.
+    # main HEAD: vendor ships no tag past v0.7.5 for this plugin.
     commit: 16d4025f882ba232a2d4c72abd1eb47420e68e17
     enabled: true
-    purpose: >-
-      Automatic long-term memory for Claude Code: a SessionStart health
-      check, UserPromptSubmit auto-recall (injects relevant memories as
-      context) and a Stop auto-retain (extracts new ones) against the same
-      Hindsight backend as the memory-api MCP entry below. This is the
-      AUTOMATIC-capture path -- Codex and Hermes have no hook mechanism, so
-      they get memory-api's explicit MCP tools instead. Ships its own
-      per-agent-per-project bank scoping (dynamicBankGranularity, default
-      ["agent","project"]) and needs no registry change to get that.
+    purpose: Automatic Hindsight recall/retain for Claude Code via UserPromptSubmit/Stop hooks.
     requires_env:
-      HINDSIGHT_API_URL: >-
-        the estate Hindsight API (https://memory-api.jorisjonkers.dev) --
-        unset, the plugin falls back to a personal LOCAL daemon instead of
-        the shared estate bank, which looks like it works
-      HINDSIGHT_API_TOKEN: >-
-        per-host token minted with POST /api/v1/auth/service-tokens,
-        service MEMORY_API, while signed in to auth-api (agent-kit#41/#42
-        design) -- same token as memory-api's credential below; export it
-        once, both consumers read it
+      HINDSIGHT_API_URL: the estate Hindsight API, or it falls back to a personal local daemon
+      HINDSIGHT_API_TOKEN: per-host token from auth-api service-tokens (service MEMORY_API)
 
 # Spec Kit is deliberately absent. The `speckit.*` commands and skills are
 # not installed by this registry on any surface. The kit still renders its
@@ -711,70 +693,37 @@ mcp_servers:
     enabled: false
     surfaces: []
     trust: estate
-    note: >-
-      Kept as a record, registered nowhere -- same mechanism as `knowledge`
-      below. The estate stood up Hindsight and Basic Memory instead of
-      mem0; see memory-api and memory-mcp for the entries that replaced
-      this one, and docs/MEMORY.md for the history.
+    note: Kept as a record only, registered nowhere; replaced by memory-api and memory-mcp.
 
   - name: memory-api
     transport: http
-    purpose: >-
-      Hindsight long-term memory: explicit read/write/search knowledge
-      tools, plus the REST API the hindsight-memory Claude Code plugin uses
-      for automatic recall/retain. Registered here for Codex and Hermes,
-      which have no plugin/hook mechanism of their own; Claude Code
-      additionally gets automatic capture via that plugin (see plugins:
-      above) -- the two overlap for Claude but do not conflict, since the
-      plugin's own MCP tools run under a different name ("hindsight",
-      auto-registered from its own .mcp.json).
+    purpose: Hindsight long-term memory -- explicit read/write/search knowledge tools.
     url_workstation: "https://memory-api.jorisjonkers.dev/mcp"
     url_hermes: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp"
     credential: HINDSIGHT_API_TOKEN
-    # In-cluster Hermes reaches hindsight-api over Service DNS gated by
-    # NetworkPolicy alone -- no HINDSIGHT_API_MCP_AUTH_TOKEN is configured
-    # there (verified against api.yaml), matching Basic Memory's "network
-    # boundary, not application auth" posture. Sending the workstation
-    # bearer token here would be meaningless: Hermes never mints one.
+    # Hermes reaches this by Service DNS + NetworkPolicy alone, no header.
     credential_hermes: false
     timeout: 60
     surfaces: [workstation, hermes, runner]
     trust: estate
     note: >-
-      HINDSIGHT_API_TOKEN is a per-host, individually-revocable service
-      token: `POST /api/v1/auth/service-tokens {"service":"MEMORY_API",
-      "label":"<device>"}` while signed in to auth-api (agent-kit#41/#42
-      design), one per device, never shared between hosts. Revoke a lost
-      device with `DELETE /api/v1/auth/service-tokens/{id}` -- effective on
-      its very next request, no cache to wait out.
+      HINDSIGHT_API_TOKEN is a per-host token from auth-api's
+      service-tokens endpoint (service MEMORY_API).
 
   - name: memory-mcp
     transport: http
-    purpose: >-
-      Basic Memory: shared Markdown notes with a link-based semantic graph,
-      one shared vault per the estate's project/domain organisation. EDIT
-      notes, never --overwrite -- overwrite is last-writer-wins and
-      silently drops a concurrent edit from another agent or session
-      (verified live). Attribute your changes in the note body /
-      frontmatter (agent + session), since Basic Memory itself carries no
-      per-call identity.
+    purpose: Basic Memory -- shared Markdown notes with a semantic link graph. Edit notes, never overwrite.
     url_workstation: "https://memory-mcp.jorisjonkers.dev/mcp"
     url_hermes: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
     credential: MEMORY_MCP_TOKEN
-    # Same network-boundary posture as memory-api: Basic Memory's MCP
-    # endpoint is "unsecured by design" (its own ingressroute says so) and
-    # relies on forward-auth at the edge, not a header it checks itself --
-    # in-cluster Hermes needs no bearer token to reach it.
+    # Same network-boundary posture as memory-api: no header for Hermes.
     credential_hermes: false
     timeout: 60
     surfaces: [workstation, hermes, runner]
     trust: estate
     note: >-
-      MEMORY_MCP_TOKEN is minted the same way as HINDSIGHT_API_TOKEN, with
-      "service":"MEMORY_MCP" instead -- independent, per-host tokens for
-      two different ServicePermission hosts; neither substitutes for the
-      other, and losing one device means revoking only that device's two
-      rows.
+      MEMORY_MCP_TOKEN is minted the same way as HINDSIGHT_API_TOKEN,
+      with service MEMORY_MCP.
 
   - name: kubernetes
     transport: http

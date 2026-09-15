@@ -399,10 +399,7 @@ def render_hermes_mcp(data: dict[str, Any]) -> str:
                 raise RegistryError(f"mcp server {name} is on hermes but has no url_hermes")
             lines.append(f'    url: "{url}"')
             credential = server.get("credential")
-            # credential_hermes: false is for a server the gateway reaches by
-            # internal Service DNS + NetworkPolicy alone (no forward-auth in
-            # front of it in-cluster) -- sending the workstation bearer token
-            # here would be meaningless: Hermes never mints one.
+            # credential_hermes: false -- gateway reaches this by NetworkPolicy alone, no header.
             if credential and server.get("credential_hermes", True):
                 lines.append("    headers:")
                 lines.append(f'      Authorization: "Bearer @{credential}@"')
@@ -476,9 +473,7 @@ def render_hermes_local_mcp(data: dict[str, Any]) -> str:
             lines.append(f'    url: "{url}"')
             credential = server.get("credential")
             if credential:
-                # ${CRED} placeholder: local Hermes interpolates it from its
-                # own secret scope / environment at connect time, same as the
-                # stdio env block below -- never written to disk.
+                # Local Hermes interpolates ${CRED} from its own env at connect time.
                 lines.append("    headers:")
                 lines.append(f'      Authorization: "Bearer ${{{credential}}}"')
         else:
@@ -840,10 +835,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("  else")
         w(f'    warn "{ref} install failed"')
         w("  fi")
-        # An unset var here does not fail the install -- the plugin runs its
-        # own fallback (e.g. a personal local daemon instead of the shared
-        # estate bank), which looks identical to a working setup from inside
-        # a session. Warn instead of silently trusting the default.
+        # Unset: the plugin falls back silently, so warn instead of trusting the default.
         requires_env = plugin.get("requires_env") or {}
         for var, purpose in requires_env.items():
             purpose_escaped = str(purpose).replace('"', '\\"')
@@ -1063,9 +1055,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
             add = f"claude mcp add --scope user {name} --transport http {url}"
             if credential:
-                # Value baked in at registration time (claude stores the
-                # resolved header, not a live reference) -- same model as the
-                # stdio --env flags below.
+                # claude bakes the resolved header value in at registration time.
                 add += f' --header "Authorization: Bearer ${{{credential}}}"'
         else:
             args = " ".join(server.get("args") or [])
@@ -1087,8 +1077,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             url = server.get("url_workstation")
             add = f"codex mcp add {name} --url {url}"
             if credential:
-                # Codex reads the named env var at ITS OWN runtime, unlike
-                # claude's --header (which bakes in the value now).
+                # Unlike claude, codex reads this env var at its own runtime.
                 add += f" --bearer-token-env-var {credential}"
         else:
             args = " ".join(server.get("args") or [])

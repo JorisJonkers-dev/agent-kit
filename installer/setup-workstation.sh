@@ -423,7 +423,7 @@ else
   else
     warn "ai-software-architect@ai-software-architect install failed"
   fi
-  # hindsight-memory: Automatic long-term memory for Claude Code: a SessionStart health check, UserPromptSubmit auto-recall (injects relevant memories as context) and a Stop auto-retain (extracts new ones) against the same
+  # hindsight-memory: Automatic Hindsight recall/retain for Claude Code via UserPromptSubmit/Stop hooks.
   if run claude plugin install hindsight-memory@hindsight --yes --scope user; then
     run claude plugin enable hindsight-memory@hindsight >/dev/null 2>&1 || true
     ok "hindsight-memory@hindsight installed and enabled"
@@ -431,11 +431,11 @@ else
     warn "hindsight-memory@hindsight install failed"
   fi
   if [ -z "${HINDSIGHT_API_URL:-}" ]; then
-    warn "hindsight-memory: HINDSIGHT_API_URL is not set (the estate Hindsight API (https://memory-api.jorisjonkers.dev) -- unset, the plugin falls back to a personal LOCAL daemon instead of the shared estate bank, which looks like it works); export it and re-run"
+    warn "hindsight-memory: HINDSIGHT_API_URL is not set (the estate Hindsight API, or it falls back to a personal local daemon); export it and re-run"
     missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_URL")
   fi
   if [ -z "${HINDSIGHT_API_TOKEN:-}" ]; then
-    warn "hindsight-memory: HINDSIGHT_API_TOKEN is not set (per-host token minted with POST /api/v1/auth/service-tokens, service MEMORY_API, while signed in to auth-api (agent-kit#41/#42 design) -- same token as memory-api's credential below; export it once, both consumers read it); export it and re-run"
+    warn "hindsight-memory: HINDSIGHT_API_TOKEN is not set (per-host token from auth-api service-tokens (service MEMORY_API)); export it and re-run"
     missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_TOKEN")
   fi
 
@@ -826,15 +826,8 @@ for install in installs:
     log "knowledge: removed (retired in the registry)"
 
 
-    # Hindsight long-term memory: explicit read/write/search
-    # knowledge tools, plus the REST API the hindsight-memory Claude
-    # Code plugin uses for automatic recall/retain. Registered here
-    # for Codex and Hermes, which have no plugin/hook mechanism of
-    # their own; Claude Code additionally gets automatic capture via
-    # that plugin (see plugins: above) -- the two overlap for Claude
-    # but do not conflict, since the plugin's own MCP tools run
-    # under a different name ("hindsight", auto-registered from its
-    # own .mcp.json).
+    # Hindsight long-term memory -- explicit read/write/search
+    # knowledge tools.
     if [ -z "${HINDSIGHT_API_TOKEN:-}" ]; then
       warn "memory-api: HINDSIGHT_API_TOKEN is not set; skipping (export it and re-run)"
       skipped_mcp_servers+=("memory-api: export HINDSIGHT_API_TOKEN")
@@ -857,13 +850,8 @@ for install in installs:
       fi
     fi
 
-    # Basic Memory: shared Markdown notes with a link-based semantic
-    # graph, one shared vault per the estate's project/domain
-    # organisation. EDIT notes, never --overwrite -- overwrite is
-    # last-writer-wins and silently drops a concurrent edit from
-    # another agent or session (verified live). Attribute your
-    # changes in the note body / frontmatter (agent + session),
-    # since Basic Memory itself carries no per-call identity.
+    # Basic Memory -- shared Markdown notes with a semantic link
+    # graph. Edit notes, never overwrite.
     if [ -z "${MEMORY_MCP_TOKEN:-}" ]; then
       warn "memory-mcp: MEMORY_MCP_TOKEN is not set; skipping (export it and re-run)"
       skipped_mcp_servers+=("memory-mcp: export MEMORY_MCP_TOKEN")

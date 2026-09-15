@@ -98,11 +98,7 @@ def test_retired_knowledge_server_reaches_no_surface() -> None:
 
 
 def test_retired_memory_server_reaches_no_surface() -> None:
-    """The mem0 plan (agent-kit#41/#42) was abandoned for Hindsight + Basic Memory.
-
-    `memory` must stay retired the same way `knowledge` is, or a registry edit
-    would silently re-register a backend that no longer exists.
-    """
+    """`memory` (mem0) stays retired the same way `knowledge` does."""
     data = _registry()
     memory = next(s for s in data["mcp_servers"] if s["name"] == "memory")
     assert memory["surfaces"] == []
@@ -111,14 +107,7 @@ def test_retired_memory_server_reaches_no_surface() -> None:
 
 
 def test_workstation_http_credential_becomes_a_bearer_header() -> None:
-    """The per-host service token (agent-kit#41/#42) must reach both CLIs.
-
-    Claude bakes the resolved value into `--header` at registration time;
-    Codex reads the named env var at its own runtime via
-    `--bearer-token-env-var`. Neither flag existed before this credential
-    shape, so assert both are actually emitted, not just that the server is
-    registered.
-    """
+    """Claude gets --header, Codex gets --bearer-token-env-var, for the same credential."""
     data = _registry()
     server = next(s for s in data["mcp_servers"] if s["name"] == "memory-api")
     assert server["transport"] == "http" and "workstation" in server["surfaces"]
@@ -129,13 +118,7 @@ def test_workstation_http_credential_becomes_a_bearer_header() -> None:
 
 
 def test_hermes_gateway_skips_the_bearer_header_when_credential_hermes_is_false() -> None:
-    """In-cluster Hermes reaches memory-api/memory-mcp by NetworkPolicy alone.
-
-    It never mints a per-host service token, so `credential_hermes: false`
-    must suppress the header the workstation surface gets -- sending a
-    workstation credential placeholder into a ConfigMap Hermes has no way to
-    fill would be worse than sending nothing.
-    """
+    """credential_hermes: false suppresses the Authorization header Hermes cannot fill."""
     data = _registry()
     for name in ("memory-api", "memory-mcp"):
         server = next(s for s in data["mcp_servers"] if s["name"] == name)
@@ -148,11 +131,7 @@ def test_hermes_gateway_skips_the_bearer_header_when_credential_hermes_is_false(
 
 
 def test_local_hermes_http_credential_becomes_a_bearer_header() -> None:
-    """Local Hermes (the laptop CLI, not the in-cluster gateway) goes through
-
-    forward-auth like Claude and Codex, so it needs the same bearer header --
-    interpolated as ``${VAR}`` at Hermes' own connect time, never baked in.
-    """
+    """Local Hermes gets a ${VAR}-interpolated bearer header, like Claude and Codex."""
     data = _registry()
     fragment = render_registry.render_hermes_local_mcp(data)
     for name in ("memory-api", "memory-mcp"):
@@ -162,12 +141,7 @@ def test_local_hermes_http_credential_becomes_a_bearer_header() -> None:
 
 
 def test_plugin_required_env_is_checked_and_reported() -> None:
-    """An unset HINDSIGHT_API_URL fails silently into a personal local daemon.
-
-    That is exactly the "looks like it works" trap CLAUDE.md warns about, so
-    the script must warn by name rather than let the plugin's own fallback
-    hide it.
-    """
+    """An unset requires_env var is warned about by name, not silently ignored."""
     data = _registry()
     plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
     assert plugin.get("requires_env"), "hindsight-memory must declare requires_env"

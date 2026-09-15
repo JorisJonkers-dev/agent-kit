@@ -1,12 +1,4 @@
-"""Drift guard for scripts/sync-hermes-registry.sh's mcp_servers: splice.
-
-The banner-anchor regex must match render_hermes_mcp's ACTUAL first line, or
-a previous sync's banner is never recognised as "already there" and every
-run prepends a fresh copy on top of the last one -- a bug that looks like
-success (exit 0, "wrote config-configmap.yaml") on every single run, and was
-only visible by counting banners in a real checkout that had accumulated two
-of them.
-"""
+"""Drift guard: the banner-anchor regex must not duplicate on repeated syncs."""
 
 from __future__ import annotations
 
