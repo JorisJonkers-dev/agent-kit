@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.0.0...v4.1.0) (2026-09-15)
+
+
+### Features
+
+* **installer:** second Claude Code profile and claude-&lt;profile&gt; launcher ([#58](https://github.com/JorisJonkers-dev/agent-kit/issues/58)) ([ce69717](https://github.com/JorisJonkers-dev/agent-kit/commit/ce697172aacaa9787083fb3df526574be8500af4))
+
 ## [4.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.3.0...v4.0.0) (2026-09-11)
 
 
