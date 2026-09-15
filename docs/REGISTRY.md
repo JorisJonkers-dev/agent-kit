@@ -126,6 +126,29 @@ Two traps this catches:
   default, so a new `10.43.0.0/16` server reports **zero tools while the hosted
   ones work**. That is the block, not the NetworkPolicy. `hermes doctor` first.
 
+## Adding a Claude profile
+
+```yaml
+claude_profiles:
+  - name: work
+    primary: true
+    config_dir: "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  - name: personal
+    config_dir: "$HOME/.claude-personal"
+    shares_from: work
+    shared_paths: [skills, agents, commands, hooks, plugins, settings.json]
+```
+
+Exactly one profile is `primary:`, and it keeps the default location so a bare
+`claude` needs nothing remembered. Every other profile names the surfaces it
+shares, and setup symlinks each one back into the primary.
+
+`shared_paths:` may not name `projects`, `history.jsonl`, `sessions`,
+`.claude.json` or `.credentials.json`. Those are the profile's own state, and
+sharing them merges the histories the second profile exists to keep apart —
+the renderer rejects the edit rather than trusting it. See
+[SETUP.md](SETUP.md#two-claude-logins-one-setup).
+
 ## Adding a plugin or language server
 
 Plugins go under `plugins:` and must name a marketplace that `marketplaces:`

@@ -35,6 +35,22 @@ HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
+# Paths under a Claude Code config root that hold ONE profile's own state.
+# Sharing any of them between profiles merges the histories the profiles
+# exist to keep apart, so a `shared_paths:` naming one is refused.
+PROFILE_PRIVATE_PATHS = frozenset(
+    {
+        ".claude.json",
+        ".credentials.json",
+        "history.jsonl",
+        "projects",
+        "sessions",
+        "shell-snapshots",
+        "statsig",
+        "todos",
+    },
+)
+
 
 class RegistryError(RuntimeError):
     """The registry is malformed in a way that would render a broken artifact."""
@@ -139,6 +155,8 @@ def validate(data: dict[str, Any]) -> None:
                 "public git URLs with no credential and this repository is private",
             )
 
+    _validate_claude_profiles(data)
+
     for key in ("clis", "skill_sources", "mcp_servers", "local_skills"):
         for item in _entries(data, key):
             surfaces = item.get("surfaces")
@@ -153,6 +171,62 @@ def validate(data: dict[str, Any]) -> None:
 
 def on_surface(item: dict[str, Any], surface: str) -> bool:
     return surface in (item.get("surfaces") or [])
+
+
+def _validate_claude_profiles(data: dict[str, Any]) -> None:
+    profiles = _entries(data, "claude_profiles")
+    if not profiles:
+        raise RegistryError("claude_profiles must declare at least the primary profile")
+
+    names = [p.get("name") for p in profiles]
+    if len(set(names)) != len(names):
+        raise RegistryError("claude_profiles names must be unique")
+
+    primaries = [p for p in profiles if p.get("primary")]
+    if len(primaries) != 1:
+        raise RegistryError("claude_profiles must declare exactly one primary profile")
+
+    for profile in profiles:
+        name = profile.get("name")
+        if not profile.get("config_dir"):
+            raise RegistryError(f"claude profile {name} must name a config_dir")
+        if profile.get("primary"):
+            if profile.get("shares_from") or profile.get("shared_paths"):
+                raise RegistryError(
+                    f"claude profile {name} is the primary and shares from nothing",
+                )
+            continue
+
+        # A secondary profile that shares nothing is a second install, not a
+        # second login into the same setup -- and that is what the operator
+        # asked the registry for.
+        parent = profile.get("shares_from")
+        if parent != primaries[0].get("name"):
+            raise RegistryError(
+                f"claude profile {name} must share from the primary profile "
+                f"{primaries[0].get('name')!r}, not {parent!r}",
+            )
+        shared = profile.get("shared_paths") or []
+        if not shared:
+            raise RegistryError(f"claude profile {name} must name the paths it shares")
+        for rel in shared:
+            rel = str(rel)
+            if rel.startswith("/") or ".." in Path(rel).parts:
+                raise RegistryError(
+                    f"claude profile {name} shares {rel!r}; shared paths are relative "
+                    "to the config root and may not escape it",
+                )
+            if rel in PROFILE_PRIVATE_PATHS:
+                raise RegistryError(
+                    f"claude profile {name} shares {rel!r}, which is that profile's own "
+                    "history or credentials; sharing it defeats the separate profile",
+                )
+
+
+def claude_profiles(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every Claude Code profile, the primary first."""
+    profiles = _entries(data, "claude_profiles")
+    return sorted(profiles, key=lambda p: not p.get("primary"))
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +418,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("#   ./setup-workstation.sh --check         report only, change nothing")
     w("#   ./setup-workstation.sh --no-lsp        skip the language servers")
     w("#   ./setup-workstation.sh --no-mcp        skip MCP registration")
+    w("#   ./setup-workstation.sh --no-profiles   only the primary Claude profile")
     w("#")
     w("# Secrets are read from the environment and never written here:")
     for server in _entries(data, "mcp_servers"):
@@ -355,11 +430,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("CHECK_ONLY=0")
     w("DO_LSP=1")
     w("DO_MCP=1")
+    w("DO_PROFILES=1")
     w("failures=0")
     w("warnings=0")
     w("")
     w("# Track what needs attention after the run")
     w("skipped_mcp_servers=()     # MCP servers skipped due to missing credentials")
+    w("unshared_profile_paths=()  # Shared surfaces a secondary profile did not get")
     w("missing_lsp_binaries=()    # Language servers with missing binaries")
     w("disabled_plugins=()        # Plugins disabled (missing binary or on purpose)")
     w("plugin_drift=()            # Plugins whose commit drifted")
@@ -370,6 +447,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    --check) CHECK_ONLY=1 ;;")
     w("    --no-lsp) DO_LSP=0 ;;")
     w("    --no-mcp) DO_MCP=0 ;;")
+    w("    --no-profiles) DO_PROFILES=0 ;;")
     w("    --help|-h) sed -n '2,30p' \"$0\"; exit 0 ;;")
     w('    *) echo "unknown option: $1" >&2; exit 64 ;;')
     w("  esac")
@@ -408,6 +486,66 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    return 0")
     w("  fi")
     w('  bash -c "$1"')
+    w("}")
+    w("")
+    w("# Runs argv once per Claude profile, each with its own config root.")
+    w("# MCP servers live in a profile's own .claude.json, so the fleet has to")
+    w("# be registered per profile; plugins and skills do not, because those")
+    w("# directories are shared by symlink.")
+    w("claude_each_profile() {")
+    w("  local dir rc=0")
+    w('  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('    CLAUDE_CONFIG_DIR="${dir}" "$@" || rc=1')
+    w("  done")
+    w('  return "${rc}"')
+    w("}")
+    w("")
+    w("# Links one shared surface of the primary profile into a secondary one.")
+    w("# A real file or directory already sitting at the destination is left")
+    w("# alone: that is someone's own config, and a symlink cannot give back")
+    w("# what replacing it would lose.")
+    w("link_profile_path() {")
+    w('  local primary="$1" secondary="$2" rel="$3"')
+    w('  local src="${primary}/${rel}" dest="${secondary}/${rel}"')
+    w("  # A shared DIRECTORY that the primary does not have yet is created, so")
+    w("  # the link exists before the thing it points at does and whatever")
+    w("  # writes there later reaches both profiles. A shared FILE is not")
+    w("  # invented: an empty settings.json would look like a real answer.")
+    w('  if [ ! -e "${src}" ]; then')
+    w('    case "${rel}" in')
+    w('      *.*)')
+    w('        warn "profile: ${src} does not exist yet; ${rel} not shared"')
+    w('        unshared_profile_paths+=("${dest}: ${src} does not exist")')
+    w("        return 0")
+    w("        ;;")
+    w('      *)')
+    w('        if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('          log "would create ${src}"')
+    w("        else")
+    w('          mkdir -p "${src}"')
+    w("        fi")
+    w("        ;;")
+    w("    esac")
+    w("  fi")
+    w('  if [ -L "${dest}" ] && [ "$(readlink "${dest}")" = "${src}" ]; then')
+    w('    ok "profile: ${dest} -> ${src}"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ -e "${dest}" ] && [ ! -L "${dest}" ]; then')
+    w('    warn "profile: ${dest} exists and is not a symlink; left alone"')
+    w('    unshared_profile_paths+=("${dest}: real file or directory, not replaced")')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would link ${dest} -> ${src}"')
+    w("    return 0")
+    w("  fi")
+    w('  mkdir -p "$(dirname "${dest}")"')
+    w('  if ln -sfn "${src}" "${dest}"; then')
+    w('    ok "profile: ${dest} -> ${src}"')
+    w("  else")
+    w('    fail "profile: could not link ${dest} -> ${src}"')
+    w("  fi")
     w("}")
     w("")
     w("# This script lives in <kit>/installer, and the first-party skills it")
@@ -460,9 +598,66 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("fi")
     w("")
 
+    # --- Claude profiles ---
+    #
+    # Emitted BEFORE anything that writes into a config root: the secondary
+    # profiles have to exist, and their shared surfaces have to be symlinks
+    # into the primary, before plugins or MCP servers are written anywhere.
+    w("# -----------------------------------------------------------------")
+    w("# 2. Claude Code profiles.")
+    w("#")
+    w("# A profile is a config root: CLAUDE_CONFIG_DIR moves credentials AND")
+    w("# conversation history together, so a second login is a second root.")
+    w("# The primary keeps the default location; every secondary shares the")
+    w("# surfaces named in the registry by symlinking back into it, and keeps")
+    w("# its own projects/, sessions/, history.jsonl and .claude.json.")
+    w("# -----------------------------------------------------------------")
+    profiles = claude_profiles(data)
+    primary = profiles[0]
+    secondaries = profiles[1:]
+    w(f'# {primary["name"]}: ' + " ".join(str(primary.get("purpose") or "").split())[:200])
+    w('CLAUDE_PROFILE_DIRS=("${CLAUDE_HOME}")')
+    w("")
+    if secondaries:
+        w('if [ "${DO_PROFILES}" = 1 ]; then')
+        w('  log "claude profiles"')
+        w('  ok "${CLAUDE_HOME} (primary)"')
+        for profile in secondaries:
+            name = profile["name"]
+            config_dir = profile["config_dir"]
+            w("")
+            for chunk in _wrap(" ".join(str(profile.get("purpose") or "").split()), 62):
+                w(f"  # {chunk}")
+            w(f'  profile_dir="{config_dir}"')
+            w('  if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then')
+            w('    log "would create ${profile_dir}"')
+            w("  else")
+            w('    mkdir -p "${profile_dir}"')
+            w("  fi")
+            for rel in profile["shared_paths"]:
+                w(f'  link_profile_path "${{CLAUDE_HOME}}" "${{profile_dir}}" "{rel}"')
+            w('  CLAUDE_PROFILE_DIRS+=("${profile_dir}")')
+            # The login is the operator's to do: it is interactive, and the
+            # whole point of the second root is that it holds a DIFFERENT
+            # account, which this script has no way to choose.
+            w("")
+            w('  if [ -s "${profile_dir}/.claude.json" ]; then')
+            w(f'    ok "{name}: ${{profile_dir}} is set up"')
+            w("  else")
+            w(f'    log "{name}: log in with  CLAUDE_CONFIG_DIR=${{profile_dir}} claude  (its own account)"')
+            w("  fi")
+        w("else")
+        w('  log "secondary claude profiles skipped (--no-profiles)"')
+        w("fi")
+        w("")
+
     # --- Marketplaces ---
     w("# -----------------------------------------------------------------")
-    w("# 2. Claude Code marketplaces and plugins.")
+    w("# 3. Claude Code marketplaces and plugins.")
+    w("#")
+    w("# Installed into the PRIMARY profile only. plugins/ is a shared")
+    w("# surface and enabledPlugins lives in the shared settings.json, so a")
+    w("# second install per profile would write the same state twice.")
     w("# -----------------------------------------------------------------")
     w('if ! command -v claude >/dev/null 2>&1; then')
     w('  fail "claude is not on PATH; skipping plugins, language servers and MCP"')
@@ -491,7 +686,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("  fi")
     w("")
     w("  # ---------------------------------------------------------------")
-    w("  # 3. Plugin drift detection.")
+    w("  # 4. Plugin drift detection.")
     w("  #")
     w("  # The CLI does not support pinning plugins to a commit, so pins in")
     w("  # the registry are advisory. Compare installed commits against")
@@ -545,7 +740,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
 
     # --- Language servers ---
     w("  # ---------------------------------------------------------------")
-    w("  # 3. Language servers: the plugin AND the binary it drives.")
+    w("  # 5. Language servers: the plugin AND the binary it drives.")
     w("  #")
     w("  # An LSP plugin with no binary on PATH registers no tools and says")
     w("  # nothing about it. Install the plugin, but leave it disabled until")
@@ -604,11 +799,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
 
     # --- MCP ---
     w("  # ---------------------------------------------------------------")
-    w("  # 4. MCP servers, registered for Claude Code at user scope.")
+    w("  # 6. MCP servers, registered for Claude Code at user scope.")
     w("  #")
     w("  # The registry is authoritative: servers with `surfaces: []` or")
     w("  # `enabled: false` are removed. Others are ensured. Plugin-provided")
     w("  # servers (plugin:*:*) and hand-added ones are left untouched.")
+    w("  #")
+    w("  # Every claude call here runs once per profile: a server lives in the")
+    w("  # profile's own .claude.json, which is the one file two profiles must")
+    w("  # not share, so the fleet is registered into each of them.")
     w("  # ---------------------------------------------------------------")
     w('  if [ "${DO_MCP}" = 1 ]; then')
     w('    log "MCP servers"')
@@ -629,7 +828,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         retired = server.get("enabled") is False or not (server.get("surfaces") or [])
         if not retired:
             continue
-        w(f'    run claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
+        w(f'    run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
         w(f'    log "{name}: removed (retired in the registry)"')
     w("")
     # Now add/ensure active servers.
@@ -690,7 +889,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w(f"    ensure_port_forward {name} {ns} {svc} {lport} {rport}")
         # --- Claude Code ---
         w(f"{indent}if command -v claude >/dev/null 2>&1; then")
-        w(f'{indent}  run claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
+        w(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
         if server["transport"] == "http":
             url = server.get("url_workstation")
             if not url:
@@ -703,7 +902,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # order (`--env K=V` then the name) with "missing required argument
             # 'commandOrUrl'". Verified against claude 2.1.267.
             add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip()
-        w(f'{indent}  if run_redacted "claude mcp add {name}" {add}; then')
+        w(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
         w(f'{indent}    ok "{name} registered (claude)"')
         w(f"{indent}  else")
         w(f'{indent}    fail "{name} registration failed (claude)"')
@@ -746,7 +945,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    # actually has. Check expected servers are present, and report")
     w("    # any unexpected ones (but leave plugin-provided and hand-added).")
     w('    if [ "${CHECK_ONLY}" != 1 ]; then')
-    w("      registered=$(claude mcp list 2>/dev/null || true)")
+    w("     # Once per profile: each one answers for its own .claude.json.")
+    w('     for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('      registered=$(CLAUDE_CONFIG_DIR="${profile_dir}" claude mcp list 2>/dev/null || true)')
     w("      # Check all expected servers are registered")
     w("      for want in \\")
     expected = [
@@ -763,11 +964,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("        ; do")
     w('        case "${registered}" in')
     w('          *"${want}"*) ;;')
-    w('          *) warn "MCP server ${want} is not in \\`claude mcp list\\` output" ;;')
+    w('          *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;')
     w("        esac")
     w("      done")
     w("      # Report unknown servers (but ignore plugin-provided and hand-added ones)")
-    w('      echo "${registered}" | grep -oE "\\b[a-z0-9_-]+\\b(?=:)" | sort -u | while read -r found; do')
+    w("      # One name per line, taken from the start of the line up to the first")
+    w("      # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a")
+    w('      # "repetition-operator operand invalid" error and the whole check')
+    w("      # silently inspected nothing on macOS.")
+    w('      echo "${registered}" | sed -n \'s/^\\([a-zA-Z0-9_:-]*\\):[[:space:]].*/\\1/p\' '
+      '| sort -u | while read -r found; do')
     w('        case "${found}" in')
     # All registry-owned servers
     registry_servers = [s["name"] for s in _entries(data, "mcp_servers") if on_surface(s, "workstation")]
@@ -775,9 +981,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w(f'          {name}) ;;')
     # Plugin-provided and hand-added servers
     w('          plugin:*|idea|rubymine) ;;')
-    w('          *) warn "unknown MCP server ${found} -- hand-added or from a removed registry entry?" ;;')
+    w('          *) warn "unknown MCP server ${found} in ${profile_dir} '
+      '-- hand-added or from a removed registry entry?" ;;')
     w("        esac")
     w("      done")
+    w("     done")
     w("    fi")
     w("  else")
     w('    log "MCP registration skipped (--no-mcp)"')
@@ -787,7 +995,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
 
     # --- first-party skills ---
     w("# -----------------------------------------------------------------")
-    w("# 5. First-party skills that ship in this repository.")
+    w("# 7. First-party skills that ship in this repository.")
     w("#")
     w("# Copied, not fetched. Multi-file skills, so the whole tree moves and")
     w("# the destination is replaced rather than merged -- a stale script left")
@@ -829,7 +1037,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
 
     # --- retired hooks ---
     w("# -----------------------------------------------------------------")
-    w("# 6. Retired hooks.")
+    w("# 8. Retired hooks.")
     w("#")
     w("# The estate ships no agent hooks. install-agents.sh owns the purge;")
     w("# this only reports a machine that still has them so the operator")
@@ -855,7 +1063,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("fi")
     w("")
     w("# -----------------------------------------------------------------")
-    w("# 7. Summary: what changed and what still needs attention.")
+    w("# 9. Summary: what changed and what still needs attention.")
     w("# -----------------------------------------------------------------")
     w("")
     w("log \"Summary of findings:\"")
@@ -873,6 +1081,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('if [ "${#skipped_mcp_servers[@]}" -gt 0 ]; then')
     w('  log "MCP servers not registered (missing credentials):"')
     w('  for entry in "${skipped_mcp_servers[@]}"; do')
+    w('    log "  - ${entry}"')
+    w("  done")
+    w('  log ""')
+    w("fi")
+    w("")
+    w("# Report shared surfaces a secondary profile did not get")
+    w('if [ "${#unshared_profile_paths[@]}" -gt 0 ]; then')
+    w('  log "Profile surfaces not shared:"')
+    w('  for entry in "${unshared_profile_paths[@]}"; do')
     w('    log "  - ${entry}"')
     w("  done")
     w('  log ""')
@@ -923,15 +1140,18 @@ def _mcp_env_flags(server: dict[str, Any], credential: str | None, optional_cred
 
     Shared by the Claude and Codex registration commands. Emits one flag per
     static ``env`` entry, plus the credential when the server declares one.
-    The optional-flag does not change emission: a credential var is emitted in
-    either case, since ``${VAR}`` expands to an empty string if unset (the
-    optional marker only controls the registration *guard*, not whether the
-    env var is passed).
+
+    An OPTIONAL credential is emitted as ``${VAR:-}``. The script runs under
+    ``set -u``, and a bare ``${VAR}`` for an unset variable does not expand to
+    an empty string there -- it aborts the run, taking every step after it
+    with it. A required credential is already guarded by a ``-z`` test that
+    skips the registration, so it is only ever expanded when it is set.
     """
     env = server.get("env") or {}
     flags = "".join(f' --env {key}="{value}"' for key, value in env.items())
     if credential:
-        flags += f' --env {credential}="${{{credential}}}"'
+        default = ":-" if optional_cred else ""
+        flags += f' --env {credential}="${{{credential}{default}}}"'
     return flags
 
 

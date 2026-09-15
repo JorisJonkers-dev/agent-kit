@@ -8,6 +8,7 @@ plugins drive, and the MCP fleet.
 uv run python scripts/render_registry.py --check   # artifacts current?
 ./installer/setup-workstation.sh --check           # what would change
 ./installer/setup-workstation.sh                   # do it
+./installer/setup-workstation.sh --no-profiles     # primary Claude profile only
 ```
 
 `setup-workstation.sh` is **generated** from
@@ -86,6 +87,60 @@ upstream should not abandon the other twenty steps. It counts instead.
 
 The last line is the tally. A zero exit with warnings is a normal outcome on a
 machine that does not do Ruby or C#.
+
+## Two Claude logins, one setup
+
+`CLAUDE_CONFIG_DIR` moves a Claude Code config root whole: credentials,
+`projects/`, `history.jsonl`, `sessions/` and `.claude.json` all travel with
+it. That is what makes a second *login* a second *directory*, and it is also
+what keeps a personal conversation out of the work account's history.
+
+The registry declares the profiles under `claude_profiles:`. Today:
+
+| Profile | Config root | Holds |
+|---|---|---|
+| `work` (primary) | `~/.claude` | the default a bare `claude` uses, and every shared asset |
+| `personal` | `~/.claude-personal` | its own login and its own history; everything else is a symlink |
+
+Setup creates the secondary root and symlinks each surface named in its
+`shared_paths:` back into the primary — today `skills`, `agents`, `commands`,
+`hooks`, `plugins` and `settings.json`. So:
+
+- **Plugins install once.** `plugins/` is shared and `enabledPlugins` lives in
+  the shared `settings.json`, so a plugin installed for work is already
+  installed, and already enabled, for personal.
+- **MCP servers are registered twice.** A server lives in the profile's own
+  `.claude.json`, which is exactly the file the two profiles must not share.
+  Every `claude mcp add` in the generated script runs once per profile.
+- **Nothing stateful is shared.** The renderer refuses a `shared_paths:` entry
+  naming `projects`, `history.jsonl`, `sessions`, `.claude.json` or the
+  credentials file, and a test proves the refusal fires.
+
+Run the personal profile with the config root set:
+
+```bash
+alias cp='CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude'
+CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude   # first run: log in, personal account
+```
+
+A real file or directory already sitting where a symlink would go is **left
+alone** and reported in the summary; the script never replaces one. Fix it by
+moving your own copy aside and re-running.
+
+### The one thing to verify on macOS
+
+Claude Code stores the OAuth tokens in the login keychain under the service
+`Claude Code-credentials`. Whether that entry is namespaced per config root
+decides whether two profiles can hold two accounts at once. Check after
+logging both in:
+
+```bash
+security dump-keychain | grep -c '"svce"<blob>="Claude Code-credentials"'
+```
+
+Two entries: the profiles are independent. One: the logins overwrite each
+other and a switch means logging in again — use a separate macOS user account
+for the personal profile instead.
 
 ## Language servers have two halves
 

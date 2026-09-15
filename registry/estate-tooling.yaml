@@ -35,6 +35,51 @@ version: 1
 verified_at: 2026-09-09
 
 # -------------------------------------------------------------------
+# Claude Code profiles.
+#
+# One login per profile. CLAUDE_CONFIG_DIR moves the WHOLE config root,
+# so a second profile is a second directory: separate credentials,
+# separate `projects/`, `history.jsonl`, `sessions/` and `.claude.json`.
+# That separation is the point -- a personal conversation must not land
+# in the work account's history, and vice versa.
+#
+# What every profile shares is declared per profile in `shared_paths:`,
+# and shared by SYMLINK back into the primary. The primary keeps the
+# default location, so a bare `claude` with no environment set is the
+# primary profile and nothing has to be remembered for the common case.
+#
+# `shared_paths:` may not name per-profile state. Sharing `projects/`,
+# `history.jsonl`, `sessions/` or `.claude.json` would merge the two
+# histories back together and hand each account the other's transcripts,
+# so the renderer rejects them rather than trusting the edit.
+#
+# Plugins install once, into the primary: `plugins/` is shared, and
+# `settings.json` (shared too) is where `enabledPlugins` lives. MCP
+# servers are NOT shared -- they live in each profile's own
+# `.claude.json` -- so setup registers the fleet once per profile.
+# -------------------------------------------------------------------
+claude_profiles:
+  - name: work
+    primary: true
+    # The default location. `CLAUDE_CONFIG_DIR` still overrides it, which
+    # is what lets a throwaway root be set up without touching this one.
+    config_dir: "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+    purpose: >-
+      The default profile a bare `claude` uses, and the home of every
+      shared asset the other profiles link back to.
+
+  - name: personal
+    config_dir: "$HOME/.claude-personal"
+    shares_from: work
+    # hooks/ is shared because settings.json is: a hook command there is
+    # an absolute path into the primary's tree, so splitting the two
+    # leaves the secondary profile wired to scripts it cannot see.
+    shared_paths: [skills, agents, commands, hooks, plugins, settings.json]
+    purpose: >-
+      The personal-account profile. Same skills, plugins, LSPs and MCP
+      fleet as work; its own login and its own conversation history.
+
+# -------------------------------------------------------------------
 # Command-line tools.
 #
 # `latest: true` means the setup script installs or upgrades to the
