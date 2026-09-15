@@ -399,7 +399,11 @@ def render_hermes_mcp(data: dict[str, Any]) -> str:
                 raise RegistryError(f"mcp server {name} is on hermes but has no url_hermes")
             lines.append(f'    url: "{url}"')
             credential = server.get("credential")
-            if credential:
+            # credential_hermes: false is for a server the gateway reaches by
+            # internal Service DNS + NetworkPolicy alone (no forward-auth in
+            # front of it in-cluster) -- sending the workstation bearer token
+            # here would be meaningless: Hermes never mints one.
+            if credential and server.get("credential_hermes", True):
                 lines.append("    headers:")
                 lines.append(f'      Authorization: "Bearer @{credential}@"')
         else:
@@ -470,6 +474,13 @@ def render_hermes_local_mcp(data: dict[str, Any]) -> str:
             if not url:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
             lines.append(f'    url: "{url}"')
+            credential = server.get("credential")
+            if credential:
+                # ${CRED} placeholder: local Hermes interpolates it from its
+                # own secret scope / environment at connect time, same as the
+                # stdio env block below -- never written to disk.
+                lines.append("    headers:")
+                lines.append(f'      Authorization: "Bearer ${{{credential}}}"')
         else:
             lines.append(f'    command: "{server["command"]}"')
             args = server.get("args") or []
@@ -516,6 +527,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     for server in _entries(data, "mcp_servers"):
         if on_surface(server, "workstation") and server.get("credential"):
             w(f"#   {server['credential']}  -> the {server['name']} MCP server")
+    for plugin in _entries(data, "plugins"):
+        for var in (plugin.get("requires_env") or {}):
+            w(f"#   {var}  -> the {plugin['name']} plugin")
     w("")
     w("set -uo pipefail")
     w("")
@@ -531,6 +545,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("unshared_profile_paths=()  # Shared surfaces a secondary profile did not get")
     w("missing_lsp_binaries=()    # Language servers with missing binaries")
     w("disabled_plugins=()        # Plugins disabled (missing binary or on purpose)")
+    w("missing_plugin_env=()      # Plugins whose required env vars are unset")
     w("plugin_drift=()            # Plugins whose commit drifted")
     w("new_binaries=()            # Binaries installed during this run")
     w("")
@@ -825,6 +840,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("  else")
         w(f'    warn "{ref} install failed"')
         w("  fi")
+        # An unset var here does not fail the install -- the plugin runs its
+        # own fallback (e.g. a personal local daemon instead of the shared
+        # estate bank), which looks identical to a working setup from inside
+        # a session. Warn instead of silently trusting the default.
+        requires_env = plugin.get("requires_env") or {}
+        for var, purpose in requires_env.items():
+            purpose_escaped = str(purpose).replace('"', '\\"')
+            w(f'  if [ -z "${{{var}:-}}" ]; then')
+            w(f'    warn "{plugin["name"]}: {var} is not set ({purpose_escaped}); export it and re-run"')
+            w(f'    missing_plugin_env+=("{plugin["name"]}: export {var}")')
+            w("  fi")
     w("")
     w("  # ---------------------------------------------------------------")
     w("  # 4. Plugin drift detection.")
@@ -1036,6 +1062,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
             if not url:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
             add = f"claude mcp add --scope user {name} --transport http {url}"
+            if credential:
+                # Value baked in at registration time (claude stores the
+                # resolved header, not a live reference) -- same model as the
+                # stdio --env flags below.
+                add += f' --header "Authorization: Bearer ${{{credential}}}"'
         else:
             args = " ".join(server.get("args") or [])
             env_flags = _mcp_env_flags(server, credential, optional_cred)
@@ -1054,7 +1085,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w(f"{indent}  run codex mcp remove {name} >/dev/null 2>&1 || true")
         if server["transport"] == "http":
             url = server.get("url_workstation")
-            add = f"codex mcp add {name} --url {url}".rstrip()
+            add = f"codex mcp add {name} --url {url}"
+            if credential:
+                # Codex reads the named env var at ITS OWN runtime, unlike
+                # claude's --header (which bakes in the value now).
+                add += f" --bearer-token-env-var {credential}"
         else:
             args = " ".join(server.get("args") or [])
             env_flags = _mcp_env_flags(server, credential, optional_cred)
@@ -1245,6 +1280,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  log ""')
     w("fi")
     w("")
+    w("# Report plugins with unset required env vars")
+    w('if [ "${#missing_plugin_env[@]}" -gt 0 ]; then')
+    w('  log "Plugins with unset required env vars:"')
+    w('  for entry in "${missing_plugin_env[@]}"; do')
+    w('    log "  - ${entry}"')
+    w("  done")
+    w('  log ""')
+    w("fi")
+    w("")
     w("# Report plugins left disabled")
     w('if [ "${#disabled_plugins[@]}" -gt 0 ]; then')
     w('  log "Plugins left disabled:"')
@@ -1266,7 +1310,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# Final summary")
     w('if [ "${failures}" = 0 ] && [ "${warnings}" = 0 ] \\')
     w('   && [ "${#skipped_mcp_servers[@]}" = 0 ] && [ "${#missing_lsp_binaries[@]}" = 0 ] \\')
-    w('   && [ "${#disabled_plugins[@]}" = 0 ] && [ "${#plugin_drift[@]}" = 0 ]; then')
+    w('   && [ "${#disabled_plugins[@]}" = 0 ] && [ "${#plugin_drift[@]}" = 0 ] \\')
+    w('   && [ "${#missing_plugin_env[@]}" = 0 ]; then')
     w('  log "Setup complete: everything is ready"')
     w("else")
     w("  log \"Setup summary: ${failures} failure(s), ${warnings} warning(s)\"")

@@ -11,14 +11,28 @@
 # NetworkPolicy. Check `hermes doctor` first.
 
 mcp_servers:
-  # Self-hosted long-term memory. Replaces the retired knowledge base;
-  # see docs/MEMORY.md.
-  memory:
-    url: "http://mem0.memory-system.svc.cluster.local:8080/mcp"
-    headers:
-      Authorization: "Bearer @MEMORY_API_KEY@"
+  # Hindsight long-term memory: explicit read/write/search knowledge
+  # tools, plus the REST API the hindsight-memory Claude Code plugin
+  # uses for automatic recall/retain. Registered here for Codex and
+  # Hermes, which have no plugin/hook mechanism of their own; Claude
+  # Code additionally gets automatic capture via that plugin (see
+  # plugins: above) -- the two overlap for Claude but do not conflict,
+  # since the plugin's own MCP tools run under a different name
+  # ("hindsight", auto-registered from its own .mcp.json).
+  memory-api:
+    url: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp"
     timeout: 60
-    enabled: false
+
+  # Basic Memory: shared Markdown notes with a link-based semantic
+  # graph, one shared vault per the estate's project/domain
+  # organisation. EDIT notes, never --overwrite -- overwrite is
+  # last-writer-wins and silently drops a concurrent edit from another
+  # agent or session (verified live). Attribute your changes in the
+  # note body / frontmatter (agent + session), since Basic Memory
+  # itself carries no per-call identity.
+  memory-mcp:
+    url: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
+    timeout: 60
 
   # Read-only cluster diagnostics through the server's own
   # ClusterRole.

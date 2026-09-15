@@ -1,6 +1,19 @@
 # Memory: replacing the knowledge base
 
-## Where this stands
+## Superseded
+
+The mem0 plan below was never built. The estate stood up **Hindsight**
+(recall/retain, knowledge tools) and **Basic Memory** (shared Markdown
+vault) in-cluster instead — see agent-kit#41/#42 and
+`registry/estate-tooling.yaml`'s `memory-api` and `memory-mcp` entries,
+which replaced the `memory` entry this document originally shipped
+(now `surfaces: []`, kept as a record only). The rest of this file is
+history: it explains why the KB was retired and records the reasoning
+that led to mem0 being picked over honcho, which is still accurate, but
+the "Bring-up" and "Decision" sections describe a service that does not
+exist. Do not follow them.
+
+## Where this stood
 
 The estate's own knowledge base is being retired. What is **done**:
 

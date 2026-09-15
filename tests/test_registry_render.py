@@ -97,6 +97,88 @@ def test_retired_knowledge_server_reaches_no_surface() -> None:
     assert "kb.jorisjonkers.dev" not in render_registry.render_setup_script(data)
 
 
+def test_retired_memory_server_reaches_no_surface() -> None:
+    """The mem0 plan (agent-kit#41/#42) was abandoned for Hindsight + Basic Memory.
+
+    `memory` must stay retired the same way `knowledge` is, or a registry edit
+    would silently re-register a backend that no longer exists.
+    """
+    data = _registry()
+    memory = next(s for s in data["mcp_servers"] if s["name"] == "memory")
+    assert memory["surfaces"] == []
+    assert "\n  memory:\n" not in render_registry.render_hermes_mcp(data)
+    assert "mem0.memory-system" not in render_registry.render_setup_script(data)
+
+
+def test_workstation_http_credential_becomes_a_bearer_header() -> None:
+    """The per-host service token (agent-kit#41/#42) must reach both CLIs.
+
+    Claude bakes the resolved value into `--header` at registration time;
+    Codex reads the named env var at its own runtime via
+    `--bearer-token-env-var`. Neither flag existed before this credential
+    shape, so assert both are actually emitted, not just that the server is
+    registered.
+    """
+    data = _registry()
+    server = next(s for s in data["mcp_servers"] if s["name"] == "memory-api")
+    assert server["transport"] == "http" and "workstation" in server["surfaces"]
+    script = render_registry.render_setup_script(data)
+    cred = server["credential"]
+    assert f'--header "Authorization: Bearer ${{{cred}}}"' in script
+    assert f"--bearer-token-env-var {cred}" in script
+
+
+def test_hermes_gateway_skips_the_bearer_header_when_credential_hermes_is_false() -> None:
+    """In-cluster Hermes reaches memory-api/memory-mcp by NetworkPolicy alone.
+
+    It never mints a per-host service token, so `credential_hermes: false`
+    must suppress the header the workstation surface gets -- sending a
+    workstation credential placeholder into a ConfigMap Hermes has no way to
+    fill would be worse than sending nothing.
+    """
+    data = _registry()
+    for name in ("memory-api", "memory-mcp"):
+        server = next(s for s in data["mcp_servers"] if s["name"] == name)
+        assert server.get("credential") and server.get("credential_hermes") is False
+    fragment = render_registry.render_hermes_mcp(data)
+    for name in ("memory-api", "memory-mcp"):
+        entry = fragment.split(f"  {name}:")[1].split("\n\n")[0]
+        assert "headers" not in entry
+        assert "Authorization" not in entry
+
+
+def test_local_hermes_http_credential_becomes_a_bearer_header() -> None:
+    """Local Hermes (the laptop CLI, not the in-cluster gateway) goes through
+
+    forward-auth like Claude and Codex, so it needs the same bearer header --
+    interpolated as ``${VAR}`` at Hermes' own connect time, never baked in.
+    """
+    data = _registry()
+    fragment = render_registry.render_hermes_local_mcp(data)
+    for name in ("memory-api", "memory-mcp"):
+        cred = next(s for s in data["mcp_servers"] if s["name"] == name)["credential"]
+        entry = fragment.split(f"  {name}:")[1].split("\n\n")[0]
+        assert f'Authorization: "Bearer ${{{cred}}}"' in entry
+
+
+def test_plugin_required_env_is_checked_and_reported() -> None:
+    """An unset HINDSIGHT_API_URL fails silently into a personal local daemon.
+
+    That is exactly the "looks like it works" trap CLAUDE.md warns about, so
+    the script must warn by name rather than let the plugin's own fallback
+    hide it.
+    """
+    data = _registry()
+    plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
+    assert plugin.get("requires_env"), "hindsight-memory must declare requires_env"
+    script = render_registry.render_setup_script(data)
+    for var in plugin["requires_env"]:
+        assert f'if [ -z "${{{var}:-}}" ]; then' in script
+        assert f'missing_plugin_env+=("hindsight-memory: export {var}")' in script
+    assert 'missing_plugin_env=()' in script
+    assert '${#missing_plugin_env[@]}" = 0' in script
+
+
 def test_spec_kit_is_not_in_the_registry() -> None:
     """Spec Kit is deliberately not installed on any surface."""
     text = (KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()
