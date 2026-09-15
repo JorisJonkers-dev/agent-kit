@@ -157,8 +157,10 @@ install_profile_launcher() {
   local launcher="${bin_dir}/claude-${name}"
   local marker="# managed by agent-kit setup-workstation.sh"
   local content
-  content="$(printf '#!/usr/bin/env bash\n%s\n# Claude Code with the %s profile config root.\nexport CLAUDE_CONFIG_DIR=%q\nexec claude "$@"\n' \
-    "${marker}" "${name}" "${dir}")"
+  content="$(printf '%s\n' '#!/usr/bin/env bash' "${marker}" \
+    "# Claude Code with the ${name} profile config root." \
+    "export CLAUDE_CONFIG_DIR=$(printf '%q' "${dir}")" \
+    'exec claude "$@"')"
   if [ -e "${launcher}" ] && ! grep -qxF "${marker}" "${launcher}"; then
     warn "profile: ${launcher} exists and was not written by setup; left alone"
     unshared_profile_paths+=("${launcher}: not a managed launcher, not replaced")
@@ -168,7 +170,8 @@ install_profile_launcher() {
     ok "profile: ${launcher}"
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would write ${launcher}"
-  elif mkdir -p "${bin_dir}" && printf '%s\n' "${content}" > "${launcher}" && chmod 755 "${launcher}"; then
+  elif mkdir -p "${bin_dir}" && printf '%s\n' "${content}" > "${launcher}" \
+    && chmod 755 "${launcher}"; then
     ok "profile: wrote ${launcher}"
   else
     fail "profile: could not write ${launcher}"
