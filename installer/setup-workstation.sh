@@ -13,6 +13,7 @@
 #   ./setup-workstation.sh --check         report only, change nothing
 #   ./setup-workstation.sh --no-lsp        skip the language servers
 #   ./setup-workstation.sh --no-mcp        skip MCP registration
+#   ./setup-workstation.sh --no-profiles   only the primary Claude profile
 #
 # Secrets are read from the environment and never written here:
 #   MEMORY_API_KEY  -> the memory MCP server
@@ -23,11 +24,13 @@ set -uo pipefail
 CHECK_ONLY=0
 DO_LSP=1
 DO_MCP=1
+DO_PROFILES=1
 failures=0
 warnings=0
 
 # Track what needs attention after the run
 skipped_mcp_servers=()     # MCP servers skipped due to missing credentials
+unshared_profile_paths=()  # Shared surfaces a secondary profile did not get
 missing_lsp_binaries=()    # Language servers with missing binaries
 disabled_plugins=()        # Plugins disabled (missing binary or on purpose)
 plugin_drift=()            # Plugins whose commit drifted
@@ -38,6 +41,7 @@ while [ "$#" -gt 0 ]; do
     --check) CHECK_ONLY=1 ;;
     --no-lsp) DO_LSP=0 ;;
     --no-mcp) DO_MCP=0 ;;
+    --no-profiles) DO_PROFILES=0 ;;
     --help|-h) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
@@ -76,6 +80,107 @@ run_sh() {
     return 0
   fi
   bash -c "$1"
+}
+
+# Runs argv once per Claude profile, each with its own config root.
+# MCP servers live in a profile's own .claude.json, so the fleet has to
+# be registered per profile; plugins and skills do not, because those
+# directories are shared by symlink.
+claude_each_profile() {
+  local dir rc=0
+  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+    CLAUDE_CONFIG_DIR="${dir}" "$@" || rc=1
+  done
+  return "${rc}"
+}
+
+# Links one shared surface of the primary profile into a secondary one.
+# A real file or directory already sitting at the destination is left
+# alone: that is someone's own config, and a symlink cannot give back
+# what replacing it would lose.
+link_profile_path() {
+  local primary="$1" secondary="$2" rel="$3"
+  local src="${primary}/${rel}" dest="${secondary}/${rel}"
+  # Linking a root onto itself replaces every shared surface with a
+  # symlink to itself, and the profile stops loading anything.
+  if [ "${primary}" = "${secondary}" ] || [ "${primary}" -ef "${secondary}" ]; then
+    fail "profile: ${secondary} is the primary root; refusing to link it onto itself"
+    return 0
+  fi
+  # A shared DIRECTORY that the primary does not have yet is created, so
+  # the link exists before the thing it points at does and whatever
+  # writes there later reaches both profiles. A shared FILE is not
+  # invented: an empty settings.json would look like a real answer.
+  if [ ! -e "${src}" ]; then
+    case "${rel}" in
+      *.*)
+        warn "profile: ${src} does not exist yet; ${rel} not shared"
+        unshared_profile_paths+=("${dest}: ${src} does not exist")
+        return 0
+        ;;
+      *)
+        if [ "${CHECK_ONLY}" = 1 ]; then
+          log "would create ${src}"
+        else
+          mkdir -p "${src}"
+        fi
+        ;;
+    esac
+  fi
+  if [ -L "${dest}" ] && [ "$(readlink "${dest}")" = "${src}" ]; then
+    ok "profile: ${dest} -> ${src}"
+    return 0
+  fi
+  if [ -e "${dest}" ] && [ ! -L "${dest}" ]; then
+    warn "profile: ${dest} exists and is not a symlink; left alone"
+    unshared_profile_paths+=("${dest}: real file or directory, not replaced")
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would link ${dest} -> ${src}"
+    return 0
+  fi
+  mkdir -p "$(dirname "${dest}")"
+  if ln -sfn "${src}" "${dest}"; then
+    ok "profile: ${dest} -> ${src}"
+  else
+    fail "profile: could not link ${dest} -> ${src}"
+  fi
+}
+
+# Writes the claude-<profile> launcher for one secondary profile, so the
+# profile is a command rather than an environment variable to remember.
+# A file at that path that this script did not write is left alone.
+install_profile_launcher() {
+  local name="$1" dir="$2"
+  local bin_dir="${CLAUDE_LAUNCHER_DIR:-$HOME/.local/bin}"
+  local launcher="${bin_dir}/claude-${name}"
+  local marker="# managed by agent-kit setup-workstation.sh"
+  local content
+  content="$(printf '%s\n' '#!/usr/bin/env bash' "${marker}" \
+    "# Claude Code with the ${name} profile config root." \
+    "export CLAUDE_CONFIG_DIR=$(printf '%q' "${dir}")" \
+    'exec claude "$@"')"
+  if [ -e "${launcher}" ] && ! grep -qxF "${marker}" "${launcher}"; then
+    warn "profile: ${launcher} exists and was not written by setup; left alone"
+    unshared_profile_paths+=("${launcher}: not a managed launcher, not replaced")
+    return 0
+  fi
+  if [ -x "${launcher}" ] && [ "$(cat "${launcher}")" = "${content}" ]; then
+    ok "profile: ${launcher}"
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${launcher}"
+  elif mkdir -p "${bin_dir}" && printf '%s\n' "${content}" > "${launcher}" \
+    && chmod 755 "${launcher}"; then
+    ok "profile: wrote ${launcher}"
+  else
+    fail "profile: could not write ${launcher}"
+    return 0
+  fi
+  case ":${PATH}:" in
+    *":${bin_dir}:"*) ;;
+    *) warn "profile: ${bin_dir} is not on PATH; claude-${name} will not be found" ;;
+  esac
 }
 
 # This script lives in <kit>/installer, and the first-party skills it
@@ -180,7 +285,58 @@ else
 fi
 
 # -----------------------------------------------------------------
-# 2. Claude Code marketplaces and plugins.
+# 2. Claude Code profiles.
+#
+# A profile is a config root: CLAUDE_CONFIG_DIR moves credentials AND
+# conversation history together, so a second login is a second root.
+# The primary keeps the default location; every secondary shares the
+# surfaces named in the registry by symlinking back into it, and keeps
+# its own projects/, sessions/, history.jsonl and .claude.json.
+# -----------------------------------------------------------------
+# work: The default profile a bare `claude` uses, and the home of every shared asset the other profiles link back to.
+CLAUDE_PROFILE_DIRS=("${CLAUDE_HOME}")
+
+if [ "${DO_PROFILES}" = 1 ]; then
+  log "claude profiles"
+  ok "${CLAUDE_HOME} (primary)"
+
+  # The personal-account profile. Same skills, plugins, LSPs and
+  # MCP fleet as work; its own login and its own conversation
+  # history.
+  profile_dir="$HOME/.claude-personal"
+  if [ "${profile_dir}" = "${CLAUDE_HOME}" ] || [ "${profile_dir}" -ef "${CLAUDE_HOME}" ]; then
+    fail "personal: CLAUDE_CONFIG_DIR points at ${profile_dir}; re-run with it unset"
+  else
+    if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then
+      log "would create ${profile_dir}"
+    else
+      mkdir -p "${profile_dir}"
+    fi
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "skills"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "agents"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "commands"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "hooks"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "plugins"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "settings.json"
+    CLAUDE_PROFILE_DIRS+=("${profile_dir}")
+    install_profile_launcher "personal" "${profile_dir}"
+
+    if [ -s "${profile_dir}/.claude.json" ]; then
+      ok "personal: ${profile_dir} is set up"
+    else
+      log "personal: log in with  claude-personal  (its own account)"
+    fi
+  fi
+else
+  log "secondary claude profiles skipped (--no-profiles)"
+fi
+
+# -----------------------------------------------------------------
+# 3. Claude Code marketplaces and plugins.
+#
+# Installed into the PRIMARY profile only. plugins/ is a shared
+# surface and enabledPlugins lives in the shared settings.json, so a
+# second install per profile would write the same state twice.
 # -----------------------------------------------------------------
 if ! command -v claude >/dev/null 2>&1; then
   fail "claude is not on PATH; skipping plugins, language servers and MCP"
@@ -262,7 +418,7 @@ else
   fi
 
   # ---------------------------------------------------------------
-  # 3. Plugin drift detection.
+  # 4. Plugin drift detection.
   #
   # The CLI does not support pinning plugins to a commit, so pins in
   # the registry are advisory. Compare installed commits against
@@ -351,7 +507,7 @@ for install in installs:
   fi
 
   # ---------------------------------------------------------------
-  # 3. Language servers: the plugin AND the binary it drives.
+  # 5. Language servers: the plugin AND the binary it drives.
   #
   # An LSP plugin with no binary on PATH registers no tools and says
   # nothing about it. Install the plugin, but leave it disabled until
@@ -619,19 +775,23 @@ for install in installs:
   fi
 
   # ---------------------------------------------------------------
-  # 4. MCP servers, registered for Claude Code at user scope.
+  # 6. MCP servers, registered for Claude Code at user scope.
   #
   # The registry is authoritative: servers with `surfaces: []` or
   # `enabled: false` are removed. Others are ensured. Plugin-provided
   # servers (plugin:*:*) and hand-added ones are left untouched.
+  #
+  # Every claude call here runs once per profile: a server lives in the
+  # profile's own .claude.json, which is the one file two profiles must
+  # not share, so the fleet is registered into each of them.
   # ---------------------------------------------------------------
   if [ "${DO_MCP}" = 1 ]; then
     log "MCP servers"
-    run claude mcp remove --scope user memory >/dev/null 2>&1 || true
+    run claude_each_profile claude mcp remove --scope user memory >/dev/null 2>&1 || true
     log "memory: removed (retired in the registry)"
-    run claude mcp remove --scope user vuetify >/dev/null 2>&1 || true
+    run claude_each_profile claude mcp remove --scope user vuetify >/dev/null 2>&1 || true
     log "vuetify: removed (retired in the registry)"
-    run claude mcp remove --scope user knowledge >/dev/null 2>&1 || true
+    run claude_each_profile claude mcp remove --scope user knowledge >/dev/null 2>&1 || true
     log "knowledge: removed (retired in the registry)"
 
 
@@ -645,8 +805,8 @@ for install in installs:
     # ClusterIP service kubernetes-mcp-server.agents-system (no ingress route exists for it).
     ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
     if command -v claude >/dev/null 2>&1; then
-      run claude mcp remove --scope user kubernetes >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add kubernetes" claude mcp add --scope user kubernetes --transport http http://127.0.0.1:18080/mcp; then
+      run claude_each_profile claude mcp remove --scope user kubernetes >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add kubernetes" claude_each_profile claude mcp add --scope user kubernetes --transport http http://127.0.0.1:18080/mcp; then
         ok "kubernetes registered (claude)"
       else
         fail "kubernetes registration failed (claude)"
@@ -670,8 +830,8 @@ for install in installs:
         || warn "playwright: npx is not on PATH; skipping"
     fi
     if command -v claude >/dev/null 2>&1; then
-      run claude mcp remove --scope user playwright >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add playwright" claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
+      run claude_each_profile claude mcp remove --scope user playwright >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add playwright" claude_each_profile claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
         ok "playwright registered (claude)"
       else
         fail "playwright registration failed (claude)"
@@ -693,8 +853,8 @@ for install in installs:
         || warn "drawio: drawio-mcp is not on PATH; skipping"
     fi
     if command -v claude >/dev/null 2>&1; then
-      run claude mcp remove --scope user drawio >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add drawio" claude mcp add --scope user drawio -- drawio-mcp; then
+      run claude_each_profile claude mcp remove --scope user drawio >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add drawio" claude_each_profile claude mcp add --scope user drawio -- drawio-mcp; then
         ok "drawio registered (claude)"
       else
         fail "drawio registration failed (claude)"
@@ -715,8 +875,8 @@ for install in installs:
         || warn "overleaf: olcli-mcp is not on PATH; skipping"
     fi
     if command -v claude >/dev/null 2>&1; then
-      run claude mcp remove --scope user overleaf >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add overleaf" claude mcp add --scope user overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION}" -- olcli-mcp; then
+      run claude_each_profile claude mcp remove --scope user overleaf >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add overleaf" claude_each_profile claude mcp add --scope user overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION:-}" -- olcli-mcp; then
         ok "overleaf registered (claude)"
       else
         fail "overleaf registration failed (claude)"
@@ -724,7 +884,7 @@ for install in installs:
     fi
     if command -v codex >/dev/null 2>&1; then
       run codex mcp remove overleaf >/dev/null 2>&1 || true
-      if run_redacted "codex mcp add overleaf" codex mcp add overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION}" -- olcli-mcp; then
+      if run_redacted "codex mcp add overleaf" codex mcp add overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION:-}" -- olcli-mcp; then
         ok "overleaf registered (codex)"
       else
         fail "overleaf registration failed (codex)"
@@ -748,7 +908,9 @@ for install in installs:
     # actually has. Check expected servers are present, and report
     # any unexpected ones (but leave plugin-provided and hand-added).
     if [ "${CHECK_ONLY}" != 1 ]; then
-      registered=$(claude mcp list 2>/dev/null || true)
+     # Once per profile: each one answers for its own .claude.json.
+     for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+      registered=$(CLAUDE_CONFIG_DIR="${profile_dir}" claude mcp list 2>/dev/null || true)
       # Check all expected servers are registered
       for want in \
         kubernetes \
@@ -758,11 +920,15 @@ for install in installs:
         ; do
         case "${registered}" in
           *"${want}"*) ;;
-          *) warn "MCP server ${want} is not in \`claude mcp list\` output" ;;
+          *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;
         esac
       done
       # Report unknown servers (but ignore plugin-provided and hand-added ones)
-      echo "${registered}" | grep -oE "\b[a-z0-9_-]+\b(?=:)" | sort -u | while read -r found; do
+      # One name per line, taken from the start of the line up to the first
+      # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a
+      # "repetition-operator operand invalid" error and the whole check
+      # silently inspected nothing on macOS.
+      echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].*/\1/p' | sort -u | while read -r found; do
         case "${found}" in
           memory) ;;
           kubernetes) ;;
@@ -771,9 +937,10 @@ for install in installs:
           drawio) ;;
           overleaf) ;;
           plugin:*|idea|rubymine) ;;
-          *) warn "unknown MCP server ${found} -- hand-added or from a removed registry entry?" ;;
+          *) warn "unknown MCP server ${found} in ${profile_dir} -- hand-added or from a removed registry entry?" ;;
         esac
       done
+     done
     fi
   else
     log "MCP registration skipped (--no-mcp)"
@@ -781,7 +948,7 @@ for install in installs:
 fi
 
 # -----------------------------------------------------------------
-# 5. First-party skills that ship in this repository.
+# 7. First-party skills that ship in this repository.
 #
 # Copied, not fetched. Multi-file skills, so the whole tree moves and
 # the destination is replaced rather than merged -- a stale script left
@@ -831,7 +998,7 @@ else
 fi
 
 # -----------------------------------------------------------------
-# 6. Retired hooks.
+# 8. Retired hooks.
 #
 # The estate ships no agent hooks. install-agents.sh owns the purge;
 # this only reports a machine that still has them so the operator
@@ -845,7 +1012,7 @@ else
 fi
 
 # -----------------------------------------------------------------
-# 7. Summary: what changed and what still needs attention.
+# 9. Summary: what changed and what still needs attention.
 # -----------------------------------------------------------------
 
 log "Summary of findings:"
@@ -863,6 +1030,15 @@ fi
 if [ "${#skipped_mcp_servers[@]}" -gt 0 ]; then
   log "MCP servers not registered (missing credentials):"
   for entry in "${skipped_mcp_servers[@]}"; do
+    log "  - ${entry}"
+  done
+  log ""
+fi
+
+# Report shared surfaces a secondary profile did not get
+if [ "${#unshared_profile_paths[@]}" -gt 0 ]; then
+  log "Profile surfaces not shared:"
+  for entry in "${unshared_profile_paths[@]}"; do
     log "  - ${entry}"
   done
   log ""

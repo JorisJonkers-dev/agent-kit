@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import shutil
 import subprocess
 import sys
@@ -316,3 +317,306 @@ def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
     assert "one-shot kubectl port-forward" in result.stdout, result.stdout
     assert not _plist(tmp_path).exists()
     assert not (tmp_path / "state" / "launchctl.log").exists()
+
+
+# --- Claude Code profiles ---
+
+
+def test_exactly_one_primary_profile() -> None:
+    data = _registry()
+    data["claude_profiles"][1]["primary"] = True
+    with pytest.raises(render_registry.RegistryError, match="exactly one primary"):
+        render_registry.validate(data)
+
+
+def test_a_secondary_profile_shares_from_the_primary() -> None:
+    data = _registry()
+    data["claude_profiles"][1]["shares_from"] = "nowhere"
+    with pytest.raises(render_registry.RegistryError, match="must share from the primary"):
+        render_registry.validate(data)
+
+
+def test_a_secondary_profile_must_share_something() -> None:
+    """A profile that shares nothing is a second install, not a second login."""
+    data = _registry()
+    data["claude_profiles"][1]["shared_paths"] = []
+    with pytest.raises(render_registry.RegistryError, match="must name the paths it shares"):
+        render_registry.validate(data)
+
+
+@pytest.mark.parametrize("private", ["projects", "history.jsonl", ".claude.json", "sessions"])
+def test_history_and_credentials_may_not_be_shared(private: str) -> None:
+    """Sharing either one merges the histories the profiles exist to keep apart."""
+    data = _registry()
+    data["claude_profiles"][1]["shared_paths"] = [private]
+    with pytest.raises(render_registry.RegistryError, match="defeats the separate profile"):
+        render_registry.validate(data)
+
+
+def test_a_shared_path_may_not_escape_the_config_root() -> None:
+    data = _registry()
+    data["claude_profiles"][1]["shared_paths"] = ["../.ssh"]
+    with pytest.raises(render_registry.RegistryError, match="may not escape it"):
+        render_registry.validate(data)
+
+
+def test_setup_script_links_every_shared_surface_of_every_secondary() -> None:
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for profile in render_registry.claude_profiles(data)[1:]:
+        assert f'profile_dir="{profile["config_dir"]}"' in script
+        for rel in profile["shared_paths"]:
+            assert f'link_profile_path "${{CLAUDE_HOME}}" "${{profile_dir}}" "{rel}"' in script
+        # The profile has to exist before anything registers a server into it.
+        assert script.index(f'profile_dir="{profile["config_dir"]}"') < script.index('log "MCP servers"')
+
+
+def test_every_mcp_registration_reaches_every_profile() -> None:
+    """A server lives in a profile's own .claude.json, so one add per profile."""
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for server in data["mcp_servers"]:
+        name = server["name"]
+        retired = server.get("enabled") is False or not server.get("surfaces")
+        if retired:
+            assert f"claude_each_profile claude mcp remove --scope user {name}" in script
+            continue
+        if "workstation" not in server["surfaces"]:
+            continue
+        assert f"claude_each_profile claude mcp add --scope user {name}" in script
+        assert f"claude_each_profile claude mcp remove --scope user {name}" in script
+    # And the verification asks each profile what it actually has.
+    assert 'for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do' in script
+    assert 'CLAUDE_CONFIG_DIR="${profile_dir}" claude mcp list' in script
+
+
+def test_plugins_are_installed_once_into_the_primary() -> None:
+    """plugins/ is shared and enabledPlugins lives in the shared settings.json."""
+    script = render_registry.render_setup_script(_registry())
+    assert "claude_each_profile claude plugin" not in script
+
+
+# --- link_profile_path, driven against a real filesystem ---
+
+
+def _shell_function(name: str) -> str:
+    script = render_registry.render_setup_script(_registry())
+    start = script.index(f"{name}() {{")
+    return script[start : script.index("\n}\n", start) + 3]
+
+
+def _link(tmp_path: Path, shared: list[str], check_only: int = 0) -> subprocess.CompletedProcess:
+    primary = tmp_path / ".claude"
+    secondary = tmp_path / ".claude-personal"
+    secondary.mkdir(parents=True, exist_ok=True)
+    body = "\n".join(
+        [
+            f"CHECK_ONLY={check_only}",
+            "unshared_profile_paths=()",
+            "warnings=0",
+            "failures=0",
+            'log()  { echo "log $*"; }',
+            'ok()   { echo "ok $*"; }',
+            'warn() { echo "warn $*"; }',
+            'fail() { echo "FAIL $*"; }',
+            _shell_function("link_profile_path"),
+            *[f'link_profile_path "{primary}" "{secondary}" "{rel}"' for rel in shared],
+        ],
+    )
+    return subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
+
+
+def test_shared_surfaces_become_symlinks_into_the_primary(tmp_path: Path) -> None:
+    primary = tmp_path / ".claude"
+    (primary / "skills").mkdir(parents=True)
+    (primary / "settings.json").write_text("{}")
+
+    result = _link(tmp_path, ["skills", "settings.json"])
+    assert "FAIL" not in result.stdout, result.stdout + result.stderr
+
+    for rel in ("skills", "settings.json"):
+        dest = tmp_path / ".claude-personal" / rel
+        assert dest.is_symlink() and dest.resolve() == (primary / rel).resolve()
+
+    # Idempotent: a second run reports the link and changes nothing.
+    again = _link(tmp_path, ["skills", "settings.json"])
+    assert "warn" not in again.stdout, again.stdout
+
+
+def test_a_real_file_in_the_way_is_left_alone(tmp_path: Path) -> None:
+    """Replacing someone's own config with a symlink loses what it cannot give back."""
+    (tmp_path / ".claude" / "skills").mkdir(parents=True)
+    own = tmp_path / ".claude-personal" / "skills"
+    own.mkdir(parents=True)
+    (own / "mine.md").write_text("mine")
+
+    result = _link(tmp_path, ["skills"])
+    assert "not a symlink" in result.stdout, result.stdout
+    assert (own / "mine.md").read_text() == "mine"
+    assert not own.is_symlink()
+
+
+def test_a_missing_shared_directory_is_created_then_linked(tmp_path: Path) -> None:
+    """The link has to exist before whatever writes into it does."""
+    (tmp_path / ".claude").mkdir()
+    result = _link(tmp_path, ["skills"])
+    assert "warn" not in result.stdout, result.stdout
+    assert (tmp_path / ".claude" / "skills").is_dir()
+    assert (tmp_path / ".claude-personal" / "skills").is_symlink()
+
+
+def test_a_missing_shared_file_is_reported_not_invented(tmp_path: Path) -> None:
+    """An empty settings.json would read as a real answer to a real question."""
+    (tmp_path / ".claude").mkdir()
+    result = _link(tmp_path, ["settings.json"])
+    assert "does not exist" in result.stdout, result.stdout
+    assert not (tmp_path / ".claude" / "settings.json").exists()
+    assert not (tmp_path / ".claude-personal" / "settings.json").exists()
+
+
+def test_a_root_is_never_linked_onto_itself(tmp_path: Path) -> None:
+    """Setup run from a personal session sees CLAUDE_CONFIG_DIR as the primary."""
+    root = tmp_path / ".claude-personal"
+    (root / "skills").mkdir(parents=True)
+    body = "\n".join(
+        [
+            "CHECK_ONLY=0",
+            "unshared_profile_paths=()",
+            'log()  { echo "log $*"; }',
+            'ok()   { echo "ok $*"; }',
+            'warn() { echo "warn $*"; }',
+            'fail() { echo "FAIL $*"; }',
+            _shell_function("link_profile_path"),
+            f'link_profile_path "{root}" "{root}" skills',
+        ],
+    )
+    result = subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
+    assert "refusing to link it onto itself" in result.stdout, result.stdout
+    assert (root / "skills").is_dir() and not (root / "skills").is_symlink()
+
+
+def test_setup_script_skips_a_secondary_that_is_the_config_root() -> None:
+    script = render_registry.render_setup_script(_registry())
+    guard = script.index('if [ "${profile_dir}" = "${CLAUDE_HOME}" ]')
+    assert guard < script.index('link_profile_path "${CLAUDE_HOME}" "${profile_dir}"')
+
+
+def test_check_mode_links_nothing(tmp_path: Path) -> None:
+    (tmp_path / ".claude" / "skills").mkdir(parents=True)
+    (tmp_path / ".claude" / "agents").mkdir()
+    result = _link(tmp_path, ["skills"], check_only=1)
+    assert "would link" in result.stdout, result.stdout
+    assert not (tmp_path / ".claude-personal" / "skills").exists()
+
+
+def test_a_profile_name_must_be_a_command_name() -> None:
+    data = _registry()
+    data["claude_profiles"][1]["name"] = "my profile"
+    with pytest.raises(render_registry.RegistryError, match="lowercase letters"):
+        render_registry.validate(data)
+
+
+def test_setup_script_installs_a_launcher_for_every_secondary() -> None:
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for profile in render_registry.claude_profiles(data)[1:]:
+        assert f'install_profile_launcher "{profile["name"]}" "${{profile_dir}}"' in script
+
+
+def _launch(tmp_path: Path, check_only: int = 0) -> subprocess.CompletedProcess:
+    body = "\n".join(
+        [
+            f"CHECK_ONLY={check_only}",
+            f'CLAUDE_LAUNCHER_DIR="{tmp_path / "bin"}"',
+            f'PATH="{tmp_path / "bin"}:$PATH"',
+            "unshared_profile_paths=()",
+            'log()  { echo "log $*"; }',
+            'ok()   { echo "ok $*"; }',
+            'warn() { echo "warn $*"; }',
+            'fail() { echo "FAIL $*"; }',
+            _shell_function("install_profile_launcher"),
+            f'install_profile_launcher personal "{tmp_path / "my root"}"',
+        ],
+    )
+    return subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
+
+
+def test_the_launcher_runs_claude_with_the_profile_root(tmp_path: Path) -> None:
+    result = _launch(tmp_path)
+    assert "FAIL" not in result.stdout and "warn" not in result.stdout, result.stdout + result.stderr
+    launcher = tmp_path / "bin" / "claude-personal"
+    assert os.access(launcher, os.X_OK)
+
+    # A fake claude that reports the root it was given and its arguments.
+    fake = tmp_path / "fake"
+    fake.mkdir()
+    (fake / "claude").write_text('#!/usr/bin/env bash\necho "root=$CLAUDE_CONFIG_DIR args=$*"\n')
+    (fake / "claude").chmod(0o755)
+    env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
+    ran = subprocess.run([str(launcher), "--resume", "x y"], capture_output=True, text=True, env=env, check=False)
+    assert ran.stdout.strip() == f"root={tmp_path / 'my root'} args=--resume x y", ran.stdout + ran.stderr
+
+    # Idempotent: a second run leaves the launcher as it is.
+    again = _launch(tmp_path)
+    assert "wrote" not in again.stdout, again.stdout
+
+
+def test_a_hand_written_launcher_is_left_alone(tmp_path: Path) -> None:
+    (tmp_path / "bin").mkdir()
+    own = tmp_path / "bin" / "claude-personal"
+    own.write_text("#!/bin/sh\necho mine\n")
+    result = _launch(tmp_path)
+    assert "not written by setup" in result.stdout, result.stdout
+    assert own.read_text() == "#!/bin/sh\necho mine\n"
+
+
+def test_check_mode_writes_no_launcher(tmp_path: Path) -> None:
+    result = _launch(tmp_path, check_only=1)
+    assert "would write" in result.stdout, result.stdout
+    assert not (tmp_path / "bin" / "claude-personal").exists()
+
+
+def test_an_optional_credential_survives_being_unset(tmp_path: Path) -> None:
+    """`set -u` turns a bare ${VAR} for an unset var into an aborted run."""
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for server in data["mcp_servers"]:
+        if not server.get("credential_optional"):
+            continue
+        var = server["credential"]
+        assert f'--env {var}="${{{var}}}"' not in script
+        assert f'--env {var}="${{{var}:-}}"' in script
+
+    # And prove it against bash: the expansion, under the script's own flags.
+    probe = tmp_path / "probe.sh"
+    probe.write_text("set -uo pipefail\necho \"[${OVERLEAF_SESSION:-}]\"\necho reached-the-end\n")
+    result = subprocess.run(
+        ["bash", str(probe)], capture_output=True, text=True, check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "reached-the-end" in result.stdout
+
+
+def test_registered_server_names_are_extracted_without_pcre(tmp_path: Path) -> None:
+    """BSD grep has no lookahead: `(?=:)` errors out and inspects nothing."""
+    script = render_registry.render_setup_script(_registry())
+    assert 'grep -oE "\\b[a-z0-9_-]+\\b(?=:)"' not in script
+
+    listing = (
+        "Checking MCP server health…\n\n"
+        "plugin:github:github: https://api.githubcopilot.com/mcp/ (HTTP) - ✘ Failed\n"
+        "idea: http://127.0.0.1:64342/stream (HTTP) - ✔ Connected\n"
+        "playwright: npx -y @playwright/mcp@latest --headless - ✔ Connected\n"
+    )
+    extract = next(
+        line.strip() for line in script.splitlines() if "sort -u | while read -r found" in line
+    ).split("| sort -u")[0]
+    probe = tmp_path / "probe.sh"
+    probe.write_text(f'registered=$(cat)\n{extract} | sort -u\n')
+    result = subprocess.run(
+        ["bash", str(probe)], input=listing, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert result.stdout.split() == ["idea", "playwright", "plugin:github:github"]
