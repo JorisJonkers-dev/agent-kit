@@ -155,14 +155,17 @@ The renderer refuses one without the other. Language servers have no
   (`amd64`/`arm64`) and `GNU_ARCH` (`x86_64`/`aarch64`) set, and must use
   `${VERSION}`. There are no secrets at build time. Anything that needs a
   credential belongs to container start.
-- Install somewhere the non-root agent user can read: `/usr/local`, or `uv tool`
-  (the script points it at `/opt/uv`).
+- Install somewhere the non-root agent user can read: `/usr/local`, or a path
+  set in `container_base.environment` and listed in `readable_paths`.
 - `setup-container.sh --check` reruns `version_command` and fails unless the
   output contains the pinned version. Pick a command that prints the version
   without starting a server; `npm ls -g <package>` works for any npm tool.
   `container.version_command` and `container.binary` override the entry's own.
 - Debian packages go in `container_base.apt_packages`. They follow the base
   image's release, so they carry no version of their own.
+- Renovate bumps only the registry. `renovate-render.yml` re-renders the script
+  on that PR and pushes the result with the release app's token, which
+  re-triggers CI.
 
 Prove a change in a clean container before merging:
 

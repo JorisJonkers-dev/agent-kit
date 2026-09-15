@@ -76,10 +76,16 @@
   ],
   "packageRules": [
     {
+      "description": "The image stays on Node 22 LTS.",
       "matchFileNames": ["registry/estate-tooling.yaml"],
-      "prBodyNotes": [
-        "Run `uv run python scripts/render_registry.py --write` before merging so `installer/setup-container.sh` carries the new pin."
-      ]
+      "matchDepNames": ["node"],
+      "allowedVersions": "22.x"
+    },
+    {
+      "description": "typescript-language-server needs tsserver, which TypeScript 7 does not ship.",
+      "matchFileNames": ["registry/estate-tooling.yaml"],
+      "matchDepNames": ["typescript"],
+      "allowedVersions": "<7"
     },
     {
       "matchFileNames": ["bmad-source.lock"],

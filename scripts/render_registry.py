@@ -246,36 +246,36 @@ def _container_candidates(data: dict[str, Any]) -> list[tuple[str, dict[str, Any
 
 
 def _validate_container(data: dict[str, Any]) -> None:
-    candidates = _container_candidates(data)
-    blocks = {name: item["container"] for name, item in candidates if item.get("container")}
-
-    for name, item in candidates:
+    seen: set[str] = set()
+    for name, item in _container_candidates(data):
         # Language servers declare no surfaces; for them the block alone decides.
         if "surfaces" in item and bool(item.get("container")) != on_surface(item, "container"):
             raise RegistryError(
                 f"{name}: a container: block and the container surface go together",
             )
+        if not item.get("container"):
+            continue
+        if name in seen:
+            raise RegistryError(f"container tool name {name!r} is declared twice")
+        seen.add(name)
 
-    for name, block in blocks.items():
-        version = str(block.get("version") or "")
-        if not version or version == "latest":
-            raise RegistryError(f"container tool {name} must pin a version, not {version!r}")
+    tools = _container_tool_views(data)
+    for tool in tools.values():
+        name = tool["name"]
+        if not tool["version"] or tool["version"] in {"latest", "None"}:
+            raise RegistryError(f"container tool {name} must pin a version, not {tool['version']!r}")
         for field in ("datasource", "package", "install", "version_command"):
-            if not block.get(field) and not (field == "version_command" and _item(data, name).get(field)):
+            if not tool[field]:
                 raise RegistryError(f"container tool {name} must name its {field}")
-        if "${VERSION}" not in str(block["install"]):
+        if "${VERSION}" not in tool["install"]:
             raise RegistryError(f"container tool {name} install must use ${{VERSION}}")
-        for required in block.get("requires") or []:
-            if required not in blocks:
+        for required in tool["requires"]:
+            if required not in tools:
                 raise RegistryError(f"container tool {name} requires unknown tool {required!r}")
 
 
-def _item(data: dict[str, Any], name: str) -> dict[str, Any]:
-    return next(item for candidate, item in _container_candidates(data) if candidate == name)
-
-
-def container_tools(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """The container tools in install order: registry order, after their requirements."""
+def _container_tool_views(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Each container block merged with the fields it inherits from its entry."""
     tools: dict[str, dict[str, Any]] = {}
     for name, item in _container_candidates(data):
         block = item.get("container")
@@ -284,14 +284,19 @@ def container_tools(data: dict[str, Any]) -> list[dict[str, Any]]:
         tools[name] = {
             "name": name,
             "binary": block.get("binary") or item.get("binary") or item.get("requires_binary") or name,
-            "datasource": block["datasource"],
-            "package": block["package"],
-            "version": str(block["version"]),
-            "install": " ".join(str(block["install"]).split()),
+            "datasource": block.get("datasource"),
+            "package": block.get("package"),
+            "version": str(block.get("version") or ""),
+            "install": " ".join(str(block.get("install") or "").split()),
             "version_command": block.get("version_command") or item.get("version_command"),
             "requires": list(block.get("requires") or []),
         }
+    return tools
 
+
+def container_tools(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The container tools in install order: registry order, after their requirements."""
+    tools = _container_tool_views(data)
     ordered: list[dict[str, Any]] = []
     placed: set[str] = set()
 
@@ -1274,27 +1279,28 @@ def render_setup_script(data: dict[str, Any]) -> str:
 def render_container_setup_script(data: dict[str, Any]) -> str:
     base = data.get("container_base") or {}
     tools = container_tools(data)
-    out: list[str] = []
+    bootstrap = [str(p) for p in base.get("apt_bootstrap") or []]
+    packages = [str(p) for p in base.get("apt_packages") or []]
+    header = [
+        "#!/usr/bin/env bash",
+        f"# {GENERATED_BANNER}",
+        "#",
+        "# Installs the agents image's tools at their registry pins. Root, build time, no secrets.",
+        "#",
+        "# Usage:",
+        "#   ./setup-container.sh           install everything, then verify (root)",
+        "#   ./setup-container.sh --check   verify only: every tool present at its pin",
+    ]
+    out: list[str] = [*header, ""]
     w = out.append
 
-    w("#!/usr/bin/env bash")
-    w(f"# {GENERATED_BANNER}")
-    w("#")
-    w("# Installs every tool the agents image gives its Agent Sessions, at the")
-    w("# versions the registry pins. Runs as root at image build time, where no")
-    w("# secret exists; anything that needs a credential happens at container start.")
-    w("#")
-    w("# Usage:")
-    w("#   ./setup-container.sh           install everything, then verify (root)")
-    w("#   ./setup-container.sh --check   verify only: every tool present at its pin")
-    w("")
     w("set -euo pipefail")
     w("")
     w("CHECK_ONLY=0")
     w('case "${1:-}" in')
     w("  --check) CHECK_ONLY=1 ;;")
     w('  "") ;;')
-    w("  --help|-h) sed -n '2,12p' \"$0\"; exit 0 ;;")
+    w(f"  --help|-h) sed -n '2,{len(header)}p' \"$0\"; exit 0 ;;")
     w('  *) echo "unknown option: $1" >&2; exit 64 ;;')
     w("esac")
     w("")
@@ -1303,11 +1309,9 @@ def render_container_setup_script(data: dict[str, Any]) -> str:
     w("ok()   { printf 'setup-container:   ok    %s\\n' \"$*\"; }")
     w("fail() { printf 'setup-container:   FAIL  %s\\n' \"$*\" >&2; failures=$((failures + 1)); }")
     w("")
-    w("# Shared, world-readable locations, so the non-root agent user can run")
-    w("# what root installed.")
-    w("export UV_TOOL_DIR=/opt/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv/python")
-    w("export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright")
     w("export DEBIAN_FRONTEND=noninteractive")
+    for key, value in (base.get("environment") or {}).items():
+        w(f"export {key}={_q(str(value))}")
     w("")
     w('case "$(uname -m)" in')
     w("  x86_64|amd64) DEB_ARCH=amd64 GNU_ARCH=x86_64 ;;")
@@ -1321,8 +1325,7 @@ def render_container_setup_script(data: dict[str, Any]) -> str:
     w('  VERSION="$2" bash -euo pipefail -c "$3"')
     w("}")
     w("")
-    w("# Verifies the value, not the exit code: the tool must report the pinned")
-    w("# version, so a stale binary earlier on PATH fails the check.")
+    w("# Checks the reported version, so a stale binary earlier on PATH fails.")
     w("check_tool() {")
     w('  local binary="$1" version="${2#v}" version_command="$3" output')
     w('  if ! command -v "${binary}" >/dev/null 2>&1; then')
@@ -1346,7 +1349,6 @@ def render_container_setup_script(data: dict[str, Any]) -> str:
     w("}")
     w("")
 
-    packages = [str(p) for p in base.get("apt_packages") or []]
     w('if [ "${CHECK_ONLY}" = 0 ]; then')
     w('  if [ "$(id -u)" != 0 ]; then')
     w('    echo "setup-container: must run as root (image build time); use --check otherwise" >&2')
@@ -1355,7 +1357,8 @@ def render_container_setup_script(data: dict[str, Any]) -> str:
     w("")
     w('  log "apt repositories"')
     w("  apt-get update")
-    w("  apt-get install -y --no-install-recommends ca-certificates curl gnupg")
+    if bootstrap:
+        w(f"  apt-get install -y --no-install-recommends {' '.join(bootstrap)}")
     w("  # shellcheck source=/dev/null")
     w('  codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"')
     for repo in base.get("apt_repositories") or []:
@@ -1380,13 +1383,14 @@ def render_container_setup_script(data: dict[str, Any]) -> str:
         w(f"  install_tool {tool['name']} {_q(tool['version'])} {_q(tool['install'])}")
     w("  }")
     w("")
-    w("  chmod -R a+rX /opt/uv")
+    for path in base.get("readable_paths") or []:
+        w(f"  [ ! -e {_q(str(path))} ] || chmod -R a+rX {_q(str(path))}")
     w("  npm cache clean --force >/dev/null 2>&1 || true")
     w("  rm -rf /var/lib/apt/lists/* /root/.cache /root/.npm /tmp/*")
     w("fi")
     w("")
     w('log "verify"')
-    for package in packages:
+    for package in [*bootstrap, *packages]:
         w(f"check_apt {package}")
     for tool in tools:
         w(f"check_tool {tool['binary']} {_q(tool['version'])} {_q(tool['version_command'])}")

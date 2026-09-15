@@ -1,9 +1,6 @@
 'name': 'Container Setup'
 
-# Proves installer/setup-container.sh in a clean Debian container on both
-# image architectures: every tool installs as root, then a non-root user
-# sees each one at its pinned version. Path-filtered because a full install
-# takes minutes, and only these files can change its outcome.
+# Installs every container tool in clean Debian on both architectures, then verifies as non-root.
 'on':
   'pull_request':
     'paths':

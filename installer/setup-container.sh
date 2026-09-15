@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
 #
-# Installs every tool the agents image gives its Agent Sessions, at the
-# versions the registry pins. Runs as root at image build time, where no
-# secret exists; anything that needs a credential happens at container start.
+# Installs the agents image's tools at their registry pins. Root, build time, no secrets.
 #
 # Usage:
 #   ./setup-container.sh           install everything, then verify (root)
@@ -15,7 +13,7 @@ CHECK_ONLY=0
 case "${1:-}" in
   --check) CHECK_ONLY=1 ;;
   "") ;;
-  --help|-h) sed -n '2,12p' "$0"; exit 0 ;;
+  --help|-h) sed -n '2,8p' "$0"; exit 0 ;;
   *) echo "unknown option: $1" >&2; exit 64 ;;
 esac
 
@@ -24,11 +22,11 @@ log()  { printf 'setup-container: %s\n' "$*"; }
 ok()   { printf 'setup-container:   ok    %s\n' "$*"; }
 fail() { printf 'setup-container:   FAIL  %s\n' "$*" >&2; failures=$((failures + 1)); }
 
-# Shared, world-readable locations, so the non-root agent user can run
-# what root installed.
-export UV_TOOL_DIR=/opt/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv/python
-export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 export DEBIAN_FRONTEND=noninteractive
+export UV_TOOL_DIR='/opt/uv/tools'
+export UV_TOOL_BIN_DIR='/usr/local/bin'
+export UV_PYTHON_INSTALL_DIR='/opt/uv/python'
+export PLAYWRIGHT_BROWSERS_PATH='/ms-playwright'
 
 case "$(uname -m)" in
   x86_64|amd64) DEB_ARCH=amd64 GNU_ARCH=x86_64 ;;
@@ -42,8 +40,7 @@ install_tool() {
   VERSION="$2" bash -euo pipefail -c "$3"
 }
 
-# Verifies the value, not the exit code: the tool must report the pinned
-# version, so a stale binary earlier on PATH fails the check.
+# Checks the reported version, so a stale binary earlier on PATH fails.
 check_tool() {
   local binary="$1" version="${2#v}" version_command="$3" output
   if ! command -v "${binary}" >/dev/null 2>&1; then
@@ -86,17 +83,15 @@ if [ "${CHECK_ONLY}" = 0 ]; then
     bat \
     bubblewrap \
     build-essential \
-    ca-certificates \
     clangd \
-    curl \
     fd-find \
     git \
-    gnupg \
     jq \
     less \
     openssh-client \
     procps \
     python3 \
+    python3-pip \
     python3-venv \
     ripgrep \
     temurin-21-jdk \
@@ -120,10 +115,10 @@ if [ "${CHECK_ONLY}" = 0 ]; then
   install_tool go '1.27.1' 'curl -fsSL "https://go.dev/dl/go${VERSION}.linux-${DEB_ARCH}.tar.gz" | tar -xz -C /usr/local && ln -sf /usr/local/go/bin/go /usr/local/go/bin/gofmt /usr/local/bin/'
   install_tool mise 'v2026.9.9' 'curl -fsSL -o /usr/local/bin/mise "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}" && chmod 755 /usr/local/bin/mise'
   install_tool ast-grep '0.45.3' 'npm install -g "@ast-grep/cli@${VERSION}"'
-  install_tool typescript '7.0.2' 'npm install -g "typescript@${VERSION}"'
+  install_tool typescript '5.9.3' 'npm install -g "typescript@${VERSION}"'
   install_tool github-mcp-server 'v1.12.1' 'case "${DEB_ARCH}" in amd64) a=x86_64 ;; arm64) a=arm64 ;; esac && curl -fsSL "https://github.com/github/github-mcp-server/releases/download/${VERSION}/github-mcp-server_Linux_${a}.tar.gz" | tar -xz -C /usr/local/bin github-mcp-server'
   install_tool serena '1.7.0' 'uv tool install --python 3.13 "serena-agent==${VERSION}"'
-  install_tool playwright '0.0.81' 'npm install -g "@playwright/mcp@${VERSION}" && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install --with-deps chromium && chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}"'
+  install_tool playwright '0.0.81' 'npm install -g "@playwright/mcp@${VERSION}" && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install --with-deps chromium'
   install_tool drawio '1.5.0' 'npm install -g "@drawio/mcp@${VERSION}"'
   install_tool typescript-lsp '6.0.0' 'npm install -g "typescript-language-server@${VERSION}"'
   install_tool pyright-lsp '1.1.414' 'npm install -g "pyright@${VERSION}"'
@@ -131,27 +126,29 @@ if [ "${CHECK_ONLY}" = 0 ]; then
   install_tool php-lsp '1.18.5' 'npm install -g "intelephense@${VERSION}"'
   }
 
-  chmod -R a+rX /opt/uv
+  [ ! -e '/opt/uv' ] || chmod -R a+rX '/opt/uv'
+  [ ! -e '/ms-playwright' ] || chmod -R a+rX '/ms-playwright'
   npm cache clean --force >/dev/null 2>&1 || true
   rm -rf /var/lib/apt/lists/* /root/.cache /root/.npm /tmp/*
 fi
 
 log "verify"
+check_apt ca-certificates
+check_apt curl
+check_apt gnupg
 check_apt bash
 check_apt bat
 check_apt bubblewrap
 check_apt build-essential
-check_apt ca-certificates
 check_apt clangd
-check_apt curl
 check_apt fd-find
 check_apt git
-check_apt gnupg
 check_apt jq
 check_apt less
 check_apt openssh-client
 check_apt procps
 check_apt python3
+check_apt python3-pip
 check_apt python3-venv
 check_apt ripgrep
 check_apt temurin-21-jdk
@@ -170,7 +167,7 @@ check_tool gh 'v2.100.0' 'gh --version'
 check_tool go '1.27.1' 'go version'
 check_tool mise 'v2026.9.9' 'mise --version'
 check_tool ast-grep '0.45.3' 'ast-grep --version'
-check_tool tsc '7.0.2' 'tsc --version'
+check_tool tsserver '5.9.3' 'tsc --version'
 check_tool github-mcp-server 'v1.12.1' 'github-mcp-server --version'
 check_tool serena '1.7.0' 'serena --version'
 check_tool playwright-mcp '0.0.81' 'npm ls -g @playwright/mcp'

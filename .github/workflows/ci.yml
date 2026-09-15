@@ -41,7 +41,7 @@
         'if': '${{ !cancelled() }}'
       - 'run': 'bash -n installer/setup-workstation.sh'
         'if': '${{ !cancelled() }}'
-      - 'run': 'bash -n installer/setup-container.sh && shellcheck installer/setup-container.sh'
+      - 'run': 'bash -n installer/setup-container.sh'
         'if': '${{ !cancelled() }}'
       - 'run': 'bash -n scripts/sync-hermes-registry.sh'
         'if': '${{ !cancelled() }}'
@@ -94,6 +94,10 @@
           fi
           bash -n "${repo_shell_scripts[@]}"
           shellcheck "${repo_shell_scripts[@]}"
+
+      - 'name': 'Lint the generated container setup script'
+        'if': '${{ !cancelled() }}'
+        'run': 'shellcheck installer/setup-container.sh'
 
   'pipeline-complete':
     'name': 'Pipeline Complete'

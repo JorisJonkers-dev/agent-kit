@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -628,7 +630,7 @@ def test_registered_server_names_are_extracted_without_pcre(tmp_path: Path) -> N
 
 
 def _raw_entry(data: dict, name: str) -> dict:
-    for key in ("clis", "mcp_servers", "language_servers"):
+    for key in render_registry.CONTAINER_SOURCES:
         for item in data.get(key) or []:
             if item.get("name", item.get("plugin")) == name:
                 return item
@@ -683,9 +685,6 @@ def test_container_tools_install_after_what_they_require() -> None:
 
 def test_renovate_tracks_every_container_pin() -> None:
     """A pin Renovate cannot see never moves, so prove the manager matches each one."""
-    import json
-    import re
-
     renovate = json.loads((KIT_ROOT / "renovate.json").read_text())
     manager = next(
         m for m in renovate["customManagers"]
@@ -713,6 +712,30 @@ def test_a_container_mcp_server_is_checked_by_the_binary_it_runs() -> None:
             assert tool["binary"] == server["requires_binary"]
 
 
+def test_a_container_tool_name_may_not_be_declared_twice() -> None:
+    data = _registry()
+    clone = copy.deepcopy(_raw_entry(data, "codex"))
+    clone.update(transport="stdio", command="codex")
+    data["mcp_servers"].append(clone)
+    with pytest.raises(render_registry.RegistryError, match="declared twice"):
+        render_registry.validate(data)
+
+
+def test_the_typescript_language_server_gets_a_tsserver() -> None:
+    """typescript-language-server drives tsserver, which typescript 7.x no longer ships."""
+    typescript = next(t for t in render_registry.container_tools(_registry()) if t["name"] == "typescript")
+    assert typescript["binary"] == "tsserver"
+
+
+def test_container_help_prints_only_the_header(tmp_path: Path) -> None:
+    script = tmp_path / "setup-container.sh"
+    script.write_text(render_registry.render_container_setup_script(_registry()))
+    result = subprocess.run(["bash", str(script), "--help"], capture_output=True, text=True, check=False)
+    assert result.returncode == 0
+    assert all(line.startswith("#") for line in result.stdout.splitlines()), result.stdout
+    assert "--check" in result.stdout
+
+
 def test_container_script_carries_no_secret() -> None:
     data = _registry()
     script = render_registry.render_container_setup_script(data)
@@ -734,8 +757,7 @@ def _container_check(tmp_path: Path, override: dict[str, str] | None = None) -> 
     script.write_text(render_registry.render_container_setup_script(data))
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
-    # Several tools answer through one command (`npm ls -g ...`), so each stub
-    # prints every line meant for it.
+    # One stub can answer for several tools (`npm ls -g`), so it prints every line.
     outputs: dict[str, list[str]] = {}
     for tool in render_registry.container_tools(data):
         version = (override or {}).get(tool["name"], tool["version"])

@@ -22,12 +22,8 @@
 #   runner        the per-workspace agent-runner image
 #   container     the agents image, through setup-container.sh
 #
-# CONTAINER PINS ARE EXACT. An entry on the `container` surface carries a
-# `container:` block with `datasource`, `package` and `version`, in that
-# order: the Renovate regex manager reads those three lines as one match, so
-# reordering them hides the pin from Renovate. `install` runs as root at image
-# build time with VERSION, DEB_ARCH (amd64|arm64) and GNU_ARCH
-# (x86_64|aarch64) set, and must use ${VERSION}. No secret is available there.
+# Container pins are exact; keep datasource, package, version in that order
+# (Renovate reads them as one match). See docs/REGISTRY.md.
 #
 # PINS ARE COMMIT SHAs, NOT TAG SHAs. Hermes' sync-skills init container
 # clones `--branch <ref>` and compares `git rev-parse HEAD`, which is the
@@ -89,15 +85,19 @@ claude_profiles:
       fleet as work; its own login and its own conversation history.
 
 # -------------------------------------------------------------------
-# Container base: Debian packages the agents image installs before any
-# tool below. They follow the base image's Debian release (and the named
-# apt repositories), which the image pins by digest, so there is no
-# per-package version here.
-#
-# The Docker CLI is deliberately absent: the agents container has no
-# Docker socket (agents-api ADR 0001).
+# Container base. Debian packages follow the base image's release.
+# No Docker CLI: the agents container has no Docker socket (agents-api ADR 0001).
 # -------------------------------------------------------------------
 container_base:
+  # Shared, world-readable install locations for the non-root agent user.
+  environment:
+    UV_TOOL_DIR: /opt/uv/tools
+    UV_TOOL_BIN_DIR: /usr/local/bin
+    UV_PYTHON_INSTALL_DIR: /opt/uv/python
+    PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+  readable_paths: [/opt/uv, /ms-playwright]
+  # Needed to add the apt repositories below.
+  apt_bootstrap: [ca-certificates, curl, gnupg]
   apt_repositories:
     - name: adoptium
       key_url: https://packages.adoptium.net/artifactory/api/gpg/key/public
@@ -108,17 +108,15 @@ container_base:
     - bat
     - bubblewrap  # Codex's sandbox
     - build-essential
-    - ca-certificates
     - clangd
-    - curl
     - fd-find
     - git
-    - gnupg
     - jq
     - less
     - openssh-client
     - procps
     - python3
+    - python3-pip
     - python3-venv
     - ripgrep
     - temurin-21-jdk
@@ -148,9 +146,7 @@ clis:
     install: "curl -fsSL https://claude.ai/install.sh | bash"
     update: "claude update"
     version_command: "claude --version"
-    # The container is the exception: the native installer writes into the
-    # installing user's home, which is root at build time and invisible to
-    # the agent user, so the image takes the npm package at a fixed version.
+    # Container uses npm: the native installer writes into root's home.
     container:
       datasource: npm
       package: "@anthropic-ai/claude-code"
@@ -190,8 +186,7 @@ clis:
     update: "uv tool upgrade 'hermes-agent[mcp]'"
     version_command: "hermes --version"
     requires: [uv]
-    # In the container this is the CLI only. Agent Sessions use the
-    # in-cluster Hermes; no gateway runs in the image.
+    # CLI only in the container; Agent Sessions use the in-cluster Hermes.
     container:
       datasource: pypi
       package: "hermes-agent"
@@ -307,23 +302,22 @@ clis:
       requires: [node]
 
   - name: typescript
-    binary: tsc
-    purpose: TypeScript compiler; typescript-language-server drives it.
+    # tsserver, not tsc: typescript-language-server needs it, and 7.x ships none.
+    binary: tsserver
+    purpose: TypeScript compiler and tsserver; typescript-language-server drives it.
     surfaces: [container]
     install: null
     version_command: "tsc --version"
     container:
       datasource: npm
       package: "typescript"
-      version: "7.0.2"
+      version: "5.9.3"
       install: 'npm install -g "typescript@${VERSION}"'
       requires: [node]
 
   - name: github-mcp-server
     binary: github-mcp-server
-    purpose: >-
-      GitHub's stdio MCP server. The image only carries the binary; its
-      token is supplied at session start, never at build time.
+    purpose: GitHub's stdio MCP server; its token arrives at session start, never at build.
     surfaces: [container]
     install: null
     version_command: "github-mcp-server --version"
@@ -751,8 +745,7 @@ mcp_servers:
     surfaces: [workstation, hermes, container]
     trust: local
     requires_binary: npx
-    # Chromium's revision is tied to the playwright version @playwright/mcp
-    # depends on, so the browser is installed through that nested copy.
+    # Chromium comes from @playwright/mcp's own playwright, whose revision it matches.
     container:
       datasource: npm
       package: "@playwright/mcp"
@@ -760,7 +753,6 @@ mcp_servers:
       install: >-
         npm install -g "@playwright/mcp@${VERSION}"
         && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install --with-deps chromium
-        && chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}"
       binary: playwright-mcp
       version_command: "npm ls -g @playwright/mcp"
       requires: [node]
