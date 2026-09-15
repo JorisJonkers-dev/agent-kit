@@ -84,8 +84,17 @@ desired_skills = head + indent(sources, 4)
 # The block is the last key of config.yaml, indented four spaces inside the
 # block scalar. Anchor on the generated banner when a previous sync wrote one,
 # otherwise on `    mcp_servers:` itself, and take everything to end of file.
+#
+# The banner anchor must match render_hermes_mcp's ACTUAL first line, or a
+# previous sync's banner is never recognised as "already there": it is left
+# in place and a fresh one is prepended on top, growing by one copy every
+# run. Verified against a real checkout that had accumulated two before this
+# fix -- `git blame` had nothing to say, because every run "succeeded".
 current_config = config_cm.read_text()
-match = re.search(r"\n(    # -+\n(?:    #.*\n)*?)?    mcp_servers:\n", current_config)
+match = re.search(
+    r"\n(    # GENERATED FROM registry/estate-tooling\.yaml.*\n(?:    #.*\n|\n)*?)?    mcp_servers:\n",
+    current_config,
+)
 if match is None:
     sys.exit(f"{config_cm} has no `    mcp_servers:` block")
 desired_config = current_config[: match.start()] + "\n" + indent(mcp, 4)
