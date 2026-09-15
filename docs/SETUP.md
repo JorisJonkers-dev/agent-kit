@@ -116,12 +116,19 @@ Setup creates the secondary root and symlinks each surface named in its
   naming `projects`, `history.jsonl`, `sessions`, `.claude.json` or the
   credentials file, and a test proves the refusal fires.
 
-Run the personal profile with the config root set:
+Setup also writes a launcher per secondary profile into `~/.local/bin` (or
+`$CLAUDE_LAUNCHER_DIR`), the directory `claude` itself installs into:
 
 ```bash
-alias cp='CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude'
-CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude   # first run: log in, personal account
+claude-personal   # first run: log in, personal account
 ```
+
+The launcher only sets `CLAUDE_CONFIG_DIR` and execs `claude`. A
+`claude-<profile>` file that setup did not write is left alone and reported.
+
+Run setup from a shell **without** `CLAUDE_CONFIG_DIR` set, not from inside a
+`claude-personal` session. With it set, the personal root looks like the
+primary; setup refuses to link a root onto itself and fails that profile.
 
 A real file or directory already sitting where a symlink would go is **left
 alone** and reported in the summary; the script never replaces one. Fix it by

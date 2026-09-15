@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import shutil
 import subprocess
 import sys
@@ -473,12 +474,106 @@ def test_a_missing_shared_file_is_reported_not_invented(tmp_path: Path) -> None:
     assert not (tmp_path / ".claude-personal" / "settings.json").exists()
 
 
+def test_a_root_is_never_linked_onto_itself(tmp_path: Path) -> None:
+    """Setup run from a personal session sees CLAUDE_CONFIG_DIR as the primary."""
+    root = tmp_path / ".claude-personal"
+    (root / "skills").mkdir(parents=True)
+    body = "\n".join(
+        [
+            "CHECK_ONLY=0",
+            "unshared_profile_paths=()",
+            'log()  { echo "log $*"; }',
+            'ok()   { echo "ok $*"; }',
+            'warn() { echo "warn $*"; }',
+            'fail() { echo "FAIL $*"; }',
+            _shell_function("link_profile_path"),
+            f'link_profile_path "{root}" "{root}" skills',
+        ],
+    )
+    result = subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
+    assert "refusing to link it onto itself" in result.stdout, result.stdout
+    assert (root / "skills").is_dir() and not (root / "skills").is_symlink()
+
+
+def test_setup_script_skips_a_secondary_that_is_the_config_root() -> None:
+    script = render_registry.render_setup_script(_registry())
+    guard = script.index('if [ "${profile_dir}" = "${CLAUDE_HOME}" ]')
+    assert guard < script.index('link_profile_path "${CLAUDE_HOME}" "${profile_dir}"')
+
+
 def test_check_mode_links_nothing(tmp_path: Path) -> None:
     (tmp_path / ".claude" / "skills").mkdir(parents=True)
     (tmp_path / ".claude" / "agents").mkdir()
     result = _link(tmp_path, ["skills"], check_only=1)
     assert "would link" in result.stdout, result.stdout
     assert not (tmp_path / ".claude-personal" / "skills").exists()
+
+
+def test_a_profile_name_must_be_a_command_name() -> None:
+    data = _registry()
+    data["claude_profiles"][1]["name"] = "my profile"
+    with pytest.raises(render_registry.RegistryError, match="lowercase letters"):
+        render_registry.validate(data)
+
+
+def test_setup_script_installs_a_launcher_for_every_secondary() -> None:
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for profile in render_registry.claude_profiles(data)[1:]:
+        assert f'install_profile_launcher "{profile["name"]}" "${{profile_dir}}"' in script
+
+
+def _launch(tmp_path: Path, check_only: int = 0) -> subprocess.CompletedProcess:
+    body = "\n".join(
+        [
+            f"CHECK_ONLY={check_only}",
+            f'CLAUDE_LAUNCHER_DIR="{tmp_path / "bin"}"',
+            f'PATH="{tmp_path / "bin"}:$PATH"',
+            "unshared_profile_paths=()",
+            'log()  { echo "log $*"; }',
+            'ok()   { echo "ok $*"; }',
+            'warn() { echo "warn $*"; }',
+            'fail() { echo "FAIL $*"; }',
+            _shell_function("install_profile_launcher"),
+            f'install_profile_launcher personal "{tmp_path / "my root"}"',
+        ],
+    )
+    return subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
+
+
+def test_the_launcher_runs_claude_with_the_profile_root(tmp_path: Path) -> None:
+    result = _launch(tmp_path)
+    assert "FAIL" not in result.stdout and "warn" not in result.stdout, result.stdout + result.stderr
+    launcher = tmp_path / "bin" / "claude-personal"
+    assert os.access(launcher, os.X_OK)
+
+    # A fake claude that reports the root it was given and its arguments.
+    fake = tmp_path / "fake"
+    fake.mkdir()
+    (fake / "claude").write_text('#!/usr/bin/env bash\necho "root=$CLAUDE_CONFIG_DIR args=$*"\n')
+    (fake / "claude").chmod(0o755)
+    env = {**os.environ, "PATH": f"{fake}:{os.environ['PATH']}"}
+    ran = subprocess.run([str(launcher), "--resume", "x y"], capture_output=True, text=True, env=env, check=False)
+    assert ran.stdout.strip() == f"root={tmp_path / 'my root'} args=--resume x y", ran.stdout + ran.stderr
+
+    # Idempotent: a second run leaves the launcher as it is.
+    again = _launch(tmp_path)
+    assert "wrote" not in again.stdout, again.stdout
+
+
+def test_a_hand_written_launcher_is_left_alone(tmp_path: Path) -> None:
+    (tmp_path / "bin").mkdir()
+    own = tmp_path / "bin" / "claude-personal"
+    own.write_text("#!/bin/sh\necho mine\n")
+    result = _launch(tmp_path)
+    assert "not written by setup" in result.stdout, result.stdout
+    assert own.read_text() == "#!/bin/sh\necho mine\n"
+
+
+def test_check_mode_writes_no_launcher(tmp_path: Path) -> None:
+    result = _launch(tmp_path, check_only=1)
+    assert "would write" in result.stdout, result.stdout
+    assert not (tmp_path / "bin" / "claude-personal").exists()
 
 
 def test_an_optional_credential_survives_being_unset(tmp_path: Path) -> None:

@@ -17,6 +17,7 @@ writes them.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -188,6 +189,12 @@ def _validate_claude_profiles(data: dict[str, Any]) -> None:
 
     for profile in profiles:
         name = profile.get("name")
+        # The name becomes the claude-<name> launcher, so it has to be a
+        # plain command name.
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(name or "")):
+            raise RegistryError(
+                f"claude profile name {name!r} must be lowercase letters, digits and dashes",
+            )
         if not profile.get("config_dir"):
             raise RegistryError(f"claude profile {name} must name a config_dir")
         if profile.get("primary"):
@@ -507,6 +514,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("link_profile_path() {")
     w('  local primary="$1" secondary="$2" rel="$3"')
     w('  local src="${primary}/${rel}" dest="${secondary}/${rel}"')
+    w("  # Linking a root onto itself replaces every shared surface with a")
+    w("  # symlink to itself, and the profile stops loading anything.")
+    w('  if [ "${primary}" = "${secondary}" ] || [ "${primary}" -ef "${secondary}" ]; then')
+    w('    fail "profile: ${secondary} is the primary root; refusing to link it onto itself"')
+    w("    return 0")
+    w("  fi")
     w("  # A shared DIRECTORY that the primary does not have yet is created, so")
     w("  # the link exists before the thing it points at does and whatever")
     w("  # writes there later reaches both profiles. A shared FILE is not")
@@ -546,6 +559,38 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  else")
     w('    fail "profile: could not link ${dest} -> ${src}"')
     w("  fi")
+    w("}")
+    w("")
+    w("# Writes the claude-<profile> launcher for one secondary profile, so the")
+    w("# profile is a command rather than an environment variable to remember.")
+    w("# A file at that path that this script did not write is left alone.")
+    w("install_profile_launcher() {")
+    w('  local name="$1" dir="$2"')
+    w('  local bin_dir="${CLAUDE_LAUNCHER_DIR:-$HOME/.local/bin}"')
+    w('  local launcher="${bin_dir}/claude-${name}"')
+    w('  local marker="# managed by agent-kit setup-workstation.sh"')
+    w("  local content")
+    w("  content=\"$(printf '#!/usr/bin/env bash\\n%s\\n# Claude Code with the %s profile config root.\\nexport CLAUDE_CONFIG_DIR=%q\\nexec claude \"$@\"\\n' \\")
+    w('    "${marker}" "${name}" "${dir}")"')
+    w('  if [ -e "${launcher}" ] && ! grep -qxF "${marker}" "${launcher}"; then')
+    w('    warn "profile: ${launcher} exists and was not written by setup; left alone"')
+    w('    unshared_profile_paths+=("${launcher}: not a managed launcher, not replaced")')
+    w("    return 0")
+    w("  fi")
+    w('  if [ -x "${launcher}" ] && [ "$(cat "${launcher}")" = "${content}" ]; then')
+    w('    ok "profile: ${launcher}"')
+    w("  elif [ \"${CHECK_ONLY}\" = 1 ]; then")
+    w('    log "would write ${launcher}"')
+    w("  elif mkdir -p \"${bin_dir}\" && printf '%s\\n' \"${content}\" > \"${launcher}\" && chmod 755 \"${launcher}\"; then")
+    w('    ok "profile: wrote ${launcher}"')
+    w("  else")
+    w('    fail "profile: could not write ${launcher}"')
+    w("    return 0")
+    w("  fi")
+    w('  case ":${PATH}:" in')
+    w('    *":${bin_dir}:"*) ;;')
+    w('    *) warn "profile: ${bin_dir} is not on PATH; claude-${name} will not be found" ;;')
+    w("  esac")
     w("}")
     w("")
     w("# This script lives in <kit>/installer, and the first-party skills it")
@@ -629,22 +674,30 @@ def render_setup_script(data: dict[str, Any]) -> str:
             for chunk in _wrap(" ".join(str(profile.get("purpose") or "").split()), 62):
                 w(f"  # {chunk}")
             w(f'  profile_dir="{config_dir}"')
-            w('  if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then')
-            w('    log "would create ${profile_dir}"')
+            # Run from inside a secondary profile's session, CLAUDE_CONFIG_DIR
+            # makes that secondary the primary too. Everything below would
+            # then point the root at itself, so stop before touching it.
+            w('  if [ "${profile_dir}" = "${CLAUDE_HOME}" ] || [ "${profile_dir}" -ef "${CLAUDE_HOME}" ]; then')
+            w(f'    fail "{name}: CLAUDE_CONFIG_DIR points at ${{profile_dir}}; re-run with it unset"')
             w("  else")
-            w('    mkdir -p "${profile_dir}"')
-            w("  fi")
+            w('    if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then')
+            w('      log "would create ${profile_dir}"')
+            w("    else")
+            w('      mkdir -p "${profile_dir}"')
+            w("    fi")
             for rel in profile["shared_paths"]:
-                w(f'  link_profile_path "${{CLAUDE_HOME}}" "${{profile_dir}}" "{rel}"')
-            w('  CLAUDE_PROFILE_DIRS+=("${profile_dir}")')
+                w(f'    link_profile_path "${{CLAUDE_HOME}}" "${{profile_dir}}" "{rel}"')
+            w('    CLAUDE_PROFILE_DIRS+=("${profile_dir}")')
+            w(f'    install_profile_launcher "{name}" "${{profile_dir}}"')
             # The login is the operator's to do: it is interactive, and the
             # whole point of the second root is that it holds a DIFFERENT
             # account, which this script has no way to choose.
             w("")
-            w('  if [ -s "${profile_dir}/.claude.json" ]; then')
-            w(f'    ok "{name}: ${{profile_dir}} is set up"')
-            w("  else")
-            w(f'    log "{name}: log in with  CLAUDE_CONFIG_DIR=${{profile_dir}} claude  (its own account)"')
+            w('    if [ -s "${profile_dir}/.claude.json" ]; then')
+            w(f'      ok "{name}: ${{profile_dir}} is set up"')
+            w("    else")
+            w(f'      log "{name}: log in with  claude-{name}  (its own account)"')
+            w("    fi")
             w("  fi")
         w("else")
         w('  log "secondary claude profiles skipped (--no-profiles)"')

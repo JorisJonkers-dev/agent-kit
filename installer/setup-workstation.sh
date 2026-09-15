@@ -101,6 +101,12 @@ claude_each_profile() {
 link_profile_path() {
   local primary="$1" secondary="$2" rel="$3"
   local src="${primary}/${rel}" dest="${secondary}/${rel}"
+  # Linking a root onto itself replaces every shared surface with a
+  # symlink to itself, and the profile stops loading anything.
+  if [ "${primary}" = "${secondary}" ] || [ "${primary}" -ef "${secondary}" ]; then
+    fail "profile: ${secondary} is the primary root; refusing to link it onto itself"
+    return 0
+  fi
   # A shared DIRECTORY that the primary does not have yet is created, so
   # the link exists before the thing it points at does and whatever
   # writes there later reaches both profiles. A shared FILE is not
@@ -140,6 +146,38 @@ link_profile_path() {
   else
     fail "profile: could not link ${dest} -> ${src}"
   fi
+}
+
+# Writes the claude-<profile> launcher for one secondary profile, so the
+# profile is a command rather than an environment variable to remember.
+# A file at that path that this script did not write is left alone.
+install_profile_launcher() {
+  local name="$1" dir="$2"
+  local bin_dir="${CLAUDE_LAUNCHER_DIR:-$HOME/.local/bin}"
+  local launcher="${bin_dir}/claude-${name}"
+  local marker="# managed by agent-kit setup-workstation.sh"
+  local content
+  content="$(printf '#!/usr/bin/env bash\n%s\n# Claude Code with the %s profile config root.\nexport CLAUDE_CONFIG_DIR=%q\nexec claude "$@"\n' \
+    "${marker}" "${name}" "${dir}")"
+  if [ -e "${launcher}" ] && ! grep -qxF "${marker}" "${launcher}"; then
+    warn "profile: ${launcher} exists and was not written by setup; left alone"
+    unshared_profile_paths+=("${launcher}: not a managed launcher, not replaced")
+    return 0
+  fi
+  if [ -x "${launcher}" ] && [ "$(cat "${launcher}")" = "${content}" ]; then
+    ok "profile: ${launcher}"
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${launcher}"
+  elif mkdir -p "${bin_dir}" && printf '%s\n' "${content}" > "${launcher}" && chmod 755 "${launcher}"; then
+    ok "profile: wrote ${launcher}"
+  else
+    fail "profile: could not write ${launcher}"
+    return 0
+  fi
+  case ":${PATH}:" in
+    *":${bin_dir}:"*) ;;
+    *) warn "profile: ${bin_dir} is not on PATH; claude-${name} will not be found" ;;
+  esac
 }
 
 # This script lives in <kit>/installer, and the first-party skills it
@@ -263,23 +301,28 @@ if [ "${DO_PROFILES}" = 1 ]; then
   # MCP fleet as work; its own login and its own conversation
   # history.
   profile_dir="$HOME/.claude-personal"
-  if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then
-    log "would create ${profile_dir}"
+  if [ "${profile_dir}" = "${CLAUDE_HOME}" ] || [ "${profile_dir}" -ef "${CLAUDE_HOME}" ]; then
+    fail "personal: CLAUDE_CONFIG_DIR points at ${profile_dir}; re-run with it unset"
   else
-    mkdir -p "${profile_dir}"
-  fi
-  link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "skills"
-  link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "agents"
-  link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "commands"
-  link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "hooks"
-  link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "plugins"
-  link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "settings.json"
-  CLAUDE_PROFILE_DIRS+=("${profile_dir}")
+    if [ "${CHECK_ONLY}" = 1 ] && [ ! -d "${profile_dir}" ]; then
+      log "would create ${profile_dir}"
+    else
+      mkdir -p "${profile_dir}"
+    fi
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "skills"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "agents"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "commands"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "hooks"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "plugins"
+    link_profile_path "${CLAUDE_HOME}" "${profile_dir}" "settings.json"
+    CLAUDE_PROFILE_DIRS+=("${profile_dir}")
+    install_profile_launcher "personal" "${profile_dir}"
 
-  if [ -s "${profile_dir}/.claude.json" ]; then
-    ok "personal: ${profile_dir} is set up"
-  else
-    log "personal: log in with  CLAUDE_CONFIG_DIR=${profile_dir} claude  (its own account)"
+    if [ -s "${profile_dir}/.claude.json" ]; then
+      ok "personal: ${profile_dir} is set up"
+    else
+      log "personal: log in with  claude-personal  (its own account)"
+    fi
   fi
 else
   log "secondary claude profiles skipped (--no-profiles)"
