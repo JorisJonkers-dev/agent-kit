@@ -833,8 +833,8 @@ for install in installs:
       skipped_mcp_servers+=("memory-api: export HINDSIGHT_API_TOKEN")
     else
       if command -v claude >/dev/null 2>&1; then
-        run claude mcp remove --scope user memory-api >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add memory-api" claude mcp add --scope user memory-api --transport http https://memory-api.jorisjonkers.dev/mcp --header "Authorization: Bearer ${HINDSIGHT_API_TOKEN}"; then
+        run claude_each_profile claude mcp remove --scope user memory-api >/dev/null 2>&1 || true
+        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://memory-api.jorisjonkers.dev/mcp --header "Authorization: Bearer ${HINDSIGHT_API_TOKEN}"; then
           ok "memory-api registered (claude)"
         else
           fail "memory-api registration failed (claude)"
@@ -857,8 +857,8 @@ for install in installs:
       skipped_mcp_servers+=("memory-mcp: export MEMORY_MCP_TOKEN")
     else
       if command -v claude >/dev/null 2>&1; then
-        run claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add memory-mcp" claude mcp add --scope user memory-mcp --transport http https://memory-mcp.jorisjonkers.dev/mcp --header "Authorization: Bearer ${MEMORY_MCP_TOKEN}"; then
+        run claude_each_profile claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
+        if run_redacted "claude mcp add memory-mcp" claude_each_profile claude mcp add --scope user memory-mcp --transport http https://memory-mcp.jorisjonkers.dev/mcp --header "Authorization: Bearer ${MEMORY_MCP_TOKEN}"; then
           ok "memory-mcp registered (claude)"
         else
           fail "memory-mcp registration failed (claude)"
