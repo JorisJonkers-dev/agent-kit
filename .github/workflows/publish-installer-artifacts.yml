@@ -1,0 +1,67 @@
+'name': 'Publish Installer Artifacts'
+
+# Attaches setup-workstation.sh and the skills bundle to every published
+# release as release assets. install.sh and install-agents.sh are retired by
+# #40 and are never attached from here.
+#
+# Publishing to the public asset host (assets.jorisjonkers.dev) is a
+# separate, in-cluster concern owned by fleet-infra: a Flux-managed CronJob
+# pulls these release assets and uploads them to Garage over the ClusterIP S3
+# API, which this workflow cannot reach and does not attempt to.
+'on':
+  'release':
+    'types':
+      - 'published'
+
+'permissions':
+  'contents': 'write'
+
+'jobs':
+  'publish':
+    'name': 'Attach artifacts to the release'
+    'runs-on': 'ubuntu-latest'
+    # One job with many steps: three attaches split across three jobs would
+    # triple the bill for identical work, since jobs are billed by the
+    # minute, rounded up. Every step past staging carries
+    # `if: ${{ !cancelled() }}` so one failed attach or check still lets the
+    # rest run and report.
+    'env':
+      'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'
+      'GH_REPO': '${{ github.repository }}'
+      'TAG_NAME': '${{ github.event.release.tag_name }}'
+      'STAGE_DIR': '${{ github.workspace }}/.publish-stage'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+        'with':
+          'ref': '${{ github.event.release.tag_name }}'
+
+      - 'name': 'Stage the script and the skills bundle'
+        'run': 'scripts/publish-installer-artifacts.sh stage'
+
+      - 'name': 'Verify the retired installers are excluded'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh verify-retired-excluded'
+
+      - 'name': 'Attach setup-workstation.sh to the release'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh attach-script'
+
+      - 'name': 'Attach the skills bundle to the release'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh attach-skills'
+
+      - 'name': 'Attach the skills bundle checksum to the release'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh attach-checksum'
+
+      - 'name': 'Verify setup-workstation.sh carries the release version'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh verify-script'
+
+      - 'name': 'Verify the skills bundle matches its checksum'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh verify-skills'
+
+      - 'name': 'Verify the published checksum file'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh verify-checksum'
