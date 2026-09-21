@@ -36,6 +36,58 @@ override, or skip it. The self-hosted base URL is baked into the registry, so a
 bare `olcli` with no `OVERLEAF_BASE_URL` talks to overleaf.com and every call
 404s against a project that is not there.
 
+### Per-host service tokens (memory-api / memory-mcp)
+
+auth-api (agent-kit#41) now issues per-user, per-host bearer credentials —
+"service tokens" — for CLI/agent access to `memory-api.jorisjonkers.dev`
+(Hindsight) and `memory-mcp.jorisjonkers.dev` (Basic Memory MCP), both behind
+forward-auth. This is the contract `setup-workstation.sh` will consume once a
+follow-up lands the corresponding `mcp_servers:` entries — no ticket is filed
+for that follow-up yet, see the note below.
+
+1. While logged in to the estate (an existing `auth.jorisjonkers.dev` session
+   cookie), mint one token per host:
+
+   ```bash
+   curl -sS https://auth.jorisjonkers.dev/api/v1/auth/service-tokens \
+     -H 'Content-Type: application/json' \
+     -H "X-XSRF-TOKEN: $(<csrf-token-from-browser>)" \
+     -b "<session-cookie-from-browser>" \
+     -d '{"service":"MEMORY_API","label":"<hostname>"}'
+   # repeat with "service":"MEMORY_MCP" for the second host
+   ```
+
+   Minting requires the caller already hold the `MEMORY_API` / `MEMORY_MCP`
+   grant (`user_service_permissions`) — an admin assigns that first, the same
+   way any other service grant is assigned. The raw token is returned exactly
+   once, as `smt_...`; there is no way to retrieve it again.
+2. Send it as `Authorization: Bearer <token>` directly to the host. A token
+   minted for one host is rejected by the other, and by every other
+   forward-auth host in the estate: `/verify` checks the token's single
+   `SERVICE_MEMORY_API` or `SERVICE_MEMORY_MCP` claim against that host's own
+   permission mapping, and denies outright on a host with no mapping at all
+   (unlike a full session, which is unenforced there) — a service token never
+   gets broader reach than the two hosts it was minted for.
+3. Losing a laptop: `DELETE /api/v1/auth/service-tokens/{id}` (session-
+   authenticated) revokes that host's token immediately, with no effect on
+   any other device or host.
+
+This is a manual, one-time step per host today: minting needs a browser
+session, so it cannot be scripted headlessly without either a device-code
+grant (rejected in the auth-api design as unnecessary complexity here) or a
+human copying a session cookie. `setup-workstation.sh` storing/detecting the
+result (so re-running setup is not a second manual step) needs a follow-up
+ticket; none exists yet.
+
+**Not done in this change:** registering `memory-api` / `memory-mcp` as
+`mcp_servers:` entries in `registry/estate-tooling.yaml`. The registry
+already carries a `memory` entry (`enabled: false`) pointed at mem0 per
+[MEMORY.md](MEMORY.md)'s bring-up plan, which predates the Hindsight / Basic
+Memory platform this ticket's tokens are for. Reconciling those two — is
+mem0 still the plan, or has it been superseded — is a decision for whoever
+owns that bring-up, not something to guess into the generated registry
+here.
+
 Every `workstation` MCP server is registered into **Claude Code, Codex and
 local Hermes**. Codex gets each server via `codex mcp add`; local Hermes reads
 `~/.hermes/config.yaml` and is given the rendered workstation block (see
