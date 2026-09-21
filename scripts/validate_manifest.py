@@ -201,25 +201,11 @@ def validate_renderer(manifest: dict[str, Any]) -> set[str]:
         extra = sorted(managed_paths - expected)
         fail(f"renderer.managed_paths mismatch; missing={missing}; extra={extra}")
 
-    for path in as_list(renderer_manifest.get("include_templates"), "renderer.include_templates"):
-        if not isinstance(path, str):
-            fail("renderer.include_templates entries must be strings")
-        if not (ROOT / path).is_file():
-            fail(f"include template does not exist: {path}")
-
-    extra_templates = as_list(renderer_manifest.get("extra_templates"), "renderer.extra_templates")
-    expected_extra_templates = [
-        {"source_path": "templates/installer/install.sh.tpl", "destination_path": "installer/install.sh"},
-        {
-            "source_path": "templates/installer/install-agents.sh.tpl",
-            "destination_path": "installer/install-agents.sh",
-        },
-    ]
-    if extra_templates != expected_extra_templates:
-        fail(
-            "renderer.extra_templates must map templates/installer/install.sh.tpl to installer/install.sh "
-            "and templates/installer/install-agents.sh.tpl to installer/install-agents.sh",
-        )
+    # extra_templates/include_templates existed only to render install.sh
+    # from heredoc partials; both are retired along with it (agent-kit#40).
+    for retired_key in ("extra_templates", "include_templates"):
+        if retired_key in renderer_manifest:
+            fail(f"renderer.{retired_key} is retired along with install.sh (agent-kit#40)")
 
     return managed_paths
 
@@ -279,20 +265,17 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
             if not as_mapping(skill.get("unsupported"), f"skill {name}.unsupported").get("claude"):
                 fail(f"skill {name} must record a claude unsupported reason")
         else:
-            installer = skill.get("installer")
-            installer_targets = set()
-            if isinstance(installer, dict):
-                if installer.get("target_path"):
-                    installer_targets.add("claude")
-                if installer.get("codex_target_path"):
-                    installer_targets.add("codex")
+            # install.sh's `installer:` sub-block (and the installer-only
+            # skills that had no repo target and relied on it alone) are
+            # retired along with it (agent-kit#40); every remaining skill
+            # must have a real repo-file target.
             supported_set = set(supported or [])
             if not supported_set or not supported_set <= {"claude", "codex"}:
                 fail(f"skill {name} must declare supported_agents from claude/codex")
-            if targets and targets != supported_set:
+            if not targets:
+                fail(f"skill {name} must declare repo-file targets")
+            if targets != supported_set:
                 fail(f"skill {name} targets {sorted(targets)} but supports {sorted(supported_set)}")
-            if not targets and installer_targets != supported_set:
-                fail(f"installer-only skill {name} must install to {sorted(supported_set)}")
 
     # The estate ships no agent hooks. The knowledge-recall hooks were
     # retired with the knowledge base they wrote into, so both the `hooks`
@@ -306,17 +289,10 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
                 "are retired estate-wide (see manifest.yaml notes)",
             )
 
-    for section in ("installer",):
-        value = manifest.get(section)
-        items = value if isinstance(value, list) else [value]
-        for item in items:
-            if not isinstance(item, dict):
-                fail(f"{section} entries must be mappings")
-            supported = sorted(item.get("supported_agents") or [])
-            unsupported = item.get("unsupported")
-            if supported != ["claude", "codex"] and not unsupported:
-                label = item.get("name", item.get("path", section))
-                fail(f"{section} entry {label} needs parity or unsupported reason")
+    # The top-level `installer:` block (install.sh/install-agents.sh pins) is
+    # retired along with those files (agent-kit#40); it must stay absent.
+    if "installer" in manifest:
+        fail("manifest must not declare a top-level `installer` section: install.sh is retired")
 
 
 def _has_council_command_spec(source: str, command: str) -> bool:
@@ -423,32 +399,7 @@ def validate_council(manifest: dict[str, Any]) -> None:
         fail(f"council.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
 
 
-def _scan_served_installer(relative_path: str) -> None:
-    full_path = ROOT / relative_path
-    if not full_path.is_file():
-        fail(f"served installer is missing: {relative_path}")
-    body = full_path.read_text(errors="replace")
-    for token in ("@VERSION@", "@KB_URL@"):
-        if token not in body:
-            fail(f"{relative_path} missing placeholder {token}")
-
-    secret_patterns = {
-        "bearer token": re.compile(r"Bearer\s+[A-Za-z0-9._~+/-]{16,}=*"),
-        "private key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-        "transcript block": re.compile(r"BEGIN RAW TRANSCRIPT|END RAW TRANSCRIPT", re.IGNORECASE),
-    }
-    matches = [name for name, pattern in secret_patterns.items() if pattern.search(body)]
-    if matches:
-        fail(f"{relative_path} contains secret-like markers: " + ",".join(matches))
-
-
-def validate_installer(manifest: dict[str, Any]) -> None:
-    installer = as_mapping(manifest.get("installer"), "installer")
-    if installer.get("path") != "installer/install.sh":
-        fail("installer.path must be installer/install.sh")
-
-    _scan_served_installer("installer/install.sh")
-    _scan_served_installer("installer/install-agents.sh")
+# _scan_served_installer/validate_installer scanned install.sh/install-agents.sh; retired with them (agent-kit#40).
 
 
 def round3_files() -> list[Path]:
@@ -868,7 +819,6 @@ def main(argv: list[str] | None = None) -> int:
         validate_surface_parity(manifest)
         validate_council_command_surface()
         validate_council(manifest)
-        validate_installer(manifest)
         validate_runtime_package_manifest(manifest)
         validate_runtime_package_artifacts()
         validate_runtime_shell_contracts(runtime_selftest=runtime_selftest)

@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-events",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["type"],
+    "properties": {
+      "type": { "type": "string" },
+      "run": { "type": "string" },
+      "task_id": { "type": "string" },
+      "stage": { "type": "string" },
+      "timestamp": { "type": "string" },
+      "message": { "type": "string" },
+      "data": {},
+      "engine": {},
+      "model_tier": { "type": "string" },
+      "content_hash": { "type": "string" }
+    }
+  }
+}

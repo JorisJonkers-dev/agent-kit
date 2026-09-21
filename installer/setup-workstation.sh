@@ -14,6 +14,14 @@
 #   ./setup-workstation.sh --no-lsp        skip the language servers
 #   ./setup-workstation.sh --no-mcp        skip MCP registration
 #   ./setup-workstation.sh --no-profiles   only the primary Claude profile
+#   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /
+#                                          install-agents.sh install wrote,
+#                                          then purge retired knowledge hooks
+#                                          and exit -- does not touch anything
+#                                          this script itself manages
+#
+# AGENT_KIT_SKILLS_BUNDLE_URL overrides the published skills bundle a
+# `curl | bash` run fetches when it cannot find this repo's own skills/.
 #
 # Secrets are read from the environment and never written here:
 #   HINDSIGHT_API_TOKEN  -> the memory-api MCP server
@@ -28,6 +36,7 @@ CHECK_ONLY=0
 DO_LSP=1
 DO_MCP=1
 DO_PROFILES=1
+UNINSTALL=0
 failures=0
 warnings=0
 
@@ -46,7 +55,8 @@ while [ "$#" -gt 0 ]; do
     --no-lsp) DO_LSP=0 ;;
     --no-mcp) DO_MCP=0 ;;
     --no-profiles) DO_PROFILES=0 ;;
-    --help|-h) sed -n '2,30p' "$0"; exit 0 ;;
+    --uninstall) UNINSTALL=1 ;;
+    --help|-h) sed -n '2,34p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
   shift
@@ -196,6 +206,280 @@ CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 # ensure_port_forward: keeps the loopback of a workstation_connect MCP
 # server alive (a launchd agent on macOS).
 . "${KIT_ROOT}/installer/port-forward-agent.sh"
+
+CLAUDE_HOOKS_DIR="${CLAUDE_HOME}/hooks"
+CODEX_HOOKS_DIR="${CODEX_HOME}/hooks"
+
+# -----------------------------------------------------------------
+# The estate ships no hand-authored agent hooks. This purges the three
+# retired knowledge-recall hook groups (edit recall, git-commit
+# capture, session digest) from Claude settings.json by COMMAND
+# BASENAME, so an operator's own hooks survive, and removes the now-dead
+# hook script files themselves. Runs on every setup AND on --uninstall,
+# because a machine set up by the retired install.sh/install-agents.sh
+# is exactly the one that still has these.
+# -----------------------------------------------------------------
+purge_retired_hooks() {
+  local settings="${CLAUDE_HOME}/settings.json"
+  if [ ! -e "${settings}" ]; then
+    ok "no retired knowledge hooks (${settings} does not exist)"
+  elif ! command -v python3 >/dev/null 2>&1; then
+    warn "python3 is not on PATH; cannot purge retired hooks from ${settings}"
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    if grep -qE 'pre-tool-use-edit-recall|pre-tool-use-git-commit-capture|stop-session-digest|kb-stop-digest|user-prompt-submit-recall|kb-user-prompt-recall' "${settings}" 2>/dev/null; then
+      warn "retired knowledge hooks are still wired in ${settings}"
+    else
+      ok "no retired knowledge hooks in ${settings}"
+    fi
+  else
+    if AK_SETTINGS_FILE="${settings}" python3 - <<'PURGE'
+import json
+import os
+import pathlib
+import sys
+
+path = pathlib.Path(os.environ["AK_SETTINGS_FILE"])
+
+RETIRED = {
+    "pre-tool-use-edit-recall.sh",
+    "pre-tool-use-git-commit-capture.sh",
+    "stop-session-digest.sh",
+    "kb-stop-digest.sh",
+    "kb-user-prompt-recall.sh",
+    "user-prompt-submit-recall.sh",
+}
+
+try:
+    data = json.loads(path.read_text() or "{}")
+except json.JSONDecodeError:
+    print("purge: %s is not valid JSON; left untouched" % path, file=sys.stderr)
+    raise SystemExit(0)
+if not isinstance(data, dict):
+    raise SystemExit(0)
+
+hooks = data.get("hooks")
+if not isinstance(hooks, dict):
+    raise SystemExit(0)
+
+
+def retired(group):
+    for hook in group.get("hooks", []) if isinstance(group, dict) else []:
+        command = hook.get("command", "") if isinstance(hook, dict) else ""
+        for token in command.replace('"', " ").split():
+            if token.rsplit("/", 1)[-1] in RETIRED:
+                return True
+    return False
+
+
+removed = 0
+for event in list(hooks):
+    groups = hooks.get(event)
+    if not isinstance(groups, list):
+        continue
+    kept = [g for g in groups if not retired(g)]
+    removed += len(groups) - len(kept)
+    if kept:
+        hooks[event] = kept
+    else:
+        hooks.pop(event, None)
+
+if hooks:
+    data["hooks"] = hooks
+else:
+    data.pop("hooks", None)
+
+path.write_text(json.dumps(data, indent=2) + "\n")
+
+back = path.read_text()
+still = sorted(name for name in RETIRED if name in back)
+if still:
+    print("purge: FAILED, still referenced: %s" % ", ".join(still), file=sys.stderr)
+    raise SystemExit(1)
+print("purge: removed %d retired hook group(s); none remain" % removed)
+PURGE
+    then
+      ok "retired knowledge hooks purged from ${settings}"
+    else
+      fail "purge of retired knowledge hooks in ${settings} failed"
+    fi
+  fi
+
+  local stale
+  for stale in \
+    "${CLAUDE_HOOKS_DIR}/pre-tool-use-edit-recall.sh" \
+    "${CLAUDE_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" \
+    "${CLAUDE_HOOKS_DIR}/stop-session-digest.sh" \
+    "${CLAUDE_HOOKS_DIR}/user-prompt-submit-recall.sh" \
+    "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh" \
+    "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" \
+    "${CODEX_HOOKS_DIR}/kb-stop-digest.sh" \
+    "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh" \
+    "${CODEX_HOME}/hooks.json"
+  do
+    if [ -e "${stale}" ]; then
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "would remove retired hook file ${stale}"
+      else
+        rm -f "${stale}"
+        log "removed retired hook file ${stale}"
+      fi
+    fi
+  done
+  if [ "${CHECK_ONLY}" != 1 ]; then
+    rmdir "${CLAUDE_HOOKS_DIR}" "${CODEX_HOOKS_DIR}" 2>/dev/null || true
+  fi
+}
+
+# -----------------------------------------------------------------
+# --uninstall: remove every file the retired install.sh /
+# install-agents.sh wrote (base skills, Spec Kit commands/skills, the
+# knowledge-system version manifest) and the MCP entries they
+# registered (knowledge, context7, vuetify), then purge retired hooks
+# and exit. Does not touch anything this script itself manages -- a
+# re-run with no flags reinstalls the current local_skills afterward.
+# -----------------------------------------------------------------
+if [ "${UNINSTALL}" = 1 ]; then
+  log "uninstalling files from a previous install.sh / install-agents.sh"
+  legacy_remove() {
+    if [ ! -e "$1" ]; then return 0; fi
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would remove $1"
+    else
+      rm -f "$1"
+      log "removed $1"
+    fi
+  }
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.analyze.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.checklist.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.clarify.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.constitution.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.implement.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.plan.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.specify.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.tasks.md"
+  legacy_remove "${CLAUDE_HOME}/commands/speckit.taskstoissues.md"
+  legacy_remove "${CLAUDE_HOME}/skills/topics/SKILL.md"
+  legacy_remove "${CLAUDE_HOME}/skills/audit/SKILL.md"
+  legacy_remove "${CLAUDE_HOME}/skills/kb-first/SKILL.md"
+  legacy_remove "${CLAUDE_HOME}/skills/token-economy/SKILL.md"
+  legacy_remove "${CLAUDE_HOME}/skills/agent-session-bootstrap/SKILL.md"
+  legacy_remove "${CLAUDE_HOME}/skills/grill-me/SKILL.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/SKILL.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/council.mjs"
+  legacy_remove "${CLAUDE_HOME}/skills/council/council.toml"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/_baseline.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/consolidator.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/correct_course.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/critic.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/design_consolidator.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/design_lens.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/design_vote.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/designer.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/grill.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/planner.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/review_triage.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewer_acceptance.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewer_adversarial.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewer_edgecase.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-1.html"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-1.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-2.html"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/checkpoint-2.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/design-checkpoint.html"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviewpack/design-checkpoint.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/reviser.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/story_author.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/story_check.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/story_template.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/survey.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/triage_judge.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/verifier.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/prompts/worker.md"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/amendment.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/consolidated.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/context-pack.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/design-ledger.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/events.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/plan.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/review-verdict.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/routing-verdict.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/run-state.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/verdict.schema.json"
+  legacy_remove "${CLAUDE_HOME}/skills/council/schemas/worker-result.schema.json"
+  legacy_remove "${CLAUDE_HOME}/.knowledge-system-version"
+  legacy_remove "${CODEX_HOME}/skills/speckit-analyze/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-checklist/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-clarify/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-constitution/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-implement/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-plan/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-specify/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-tasks/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/speckit-taskstoissues/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/topics/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/audit/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/kb-first/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/token-economy/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/agent-session-bootstrap/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/grill-me/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/council/SKILL.md"
+  legacy_remove "${CODEX_HOME}/skills/council/council.mjs"
+  legacy_remove "${CODEX_HOME}/skills/council/council.toml"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/_baseline.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/consolidator.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/correct_course.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/critic.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/design_consolidator.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/design_lens.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/design_vote.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/designer.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/grill.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/planner.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/review_triage.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewer_acceptance.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewer_adversarial.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewer_edgecase.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-1.html"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-1.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-2.html"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/checkpoint-2.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/design-checkpoint.html"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviewpack/design-checkpoint.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/reviser.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/story_author.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/story_check.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/story_template.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/survey.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/triage_judge.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/verifier.md"
+  legacy_remove "${CODEX_HOME}/skills/council/prompts/worker.md"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/amendment.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/consolidated.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/context-pack.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/design-ledger.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/events.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/plan.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/review-verdict.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/routing-verdict.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/run-state.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/verdict.schema.json"
+  legacy_remove "${CODEX_HOME}/skills/council/schemas/worker-result.schema.json"
+  legacy_remove "${CODEX_HOME}/.knowledge-system-version"
+  if command -v claude >/dev/null 2>&1; then
+    run claude_each_profile claude mcp remove --scope user knowledge >/dev/null 2>&1 || true
+    run claude_each_profile claude mcp remove --scope user context7 >/dev/null 2>&1 || true
+    run claude_each_profile claude mcp remove --scope user vuetify >/dev/null 2>&1 || true
+  fi
+  if command -v codex >/dev/null 2>&1; then
+    run codex mcp remove knowledge >/dev/null 2>&1 || true
+    run codex mcp remove context7 >/dev/null 2>&1 || true
+    run codex mcp remove vuetify >/dev/null 2>&1 || true
+  fi
+  purge_retired_hooks
+  log "uninstall complete: ${failures} failure(s), ${warnings} warning(s)"
+  [ "${failures}" = 0 ]
+  exit $?
+fi
 
 # -----------------------------------------------------------------
 # 1. Command-line tools.
@@ -1034,11 +1318,44 @@ fi
 # behind from an older version is worse than a missing one.
 # -----------------------------------------------------------------
 log "first-party skills"
+# KIT_ROOT resolves from $0, so a `curl | bash` run (where $0 is the
+# shell, not this file) cannot find the skills that ship in this repo.
+# Detect that case (no registry/estate-tooling.yaml under KIT_ROOT --
+# the one thing every real checkout has and no other directory does)
+# and fetch the published skills bundle instead. agent-kit#35 publishes
+# that bundle; until it exists, the failure below is the correct one.
+SKILLS_ROOT="${KIT_ROOT}"
+if [ ! -f "${KIT_ROOT}/registry/estate-tooling.yaml" ]; then
+  log "not an agent-kit checkout; fetching the skills bundle instead"
+  bundle_url="${AGENT_KIT_SKILLS_BUNDLE_URL:-https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz}"
+  bundle_stage="$(mktemp -d)"
+  if curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz" "${bundle_url}" \
+     && curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz.sha256" "${bundle_url}.sha256"; then
+    bundle_expected="$(awk '{print $1}' "${bundle_stage}/agent-kit-skills.tar.gz.sha256")"
+    if command -v sha256sum >/dev/null 2>&1; then
+      bundle_actual="$(sha256sum "${bundle_stage}/agent-kit-skills.tar.gz" | awk '{print $1}')"
+    else
+      bundle_actual="$(shasum -a 256 "${bundle_stage}/agent-kit-skills.tar.gz" | awk '{print $1}')"
+    fi
+    if [ -n "${bundle_expected}" ] && [ "${bundle_expected}" = "${bundle_actual}" ]; then
+      if tar -xzf "${bundle_stage}/agent-kit-skills.tar.gz" -C "${bundle_stage}"; then
+        SKILLS_ROOT="${bundle_stage}"
+        ok "skills bundle verified (sha256 ${bundle_actual}) and extracted"
+      else
+        fail "skills bundle at ${bundle_url} downloaded but failed to extract; first-party skills not installed"
+      fi
+    else
+      fail "skills bundle at ${bundle_url} failed its sha256 check (expected ${bundle_expected:-<empty>}, got ${bundle_actual}); refusing to install from a corrupt or tampered bundle"
+    fi
+  else
+    fail "skills bundle unavailable at ${bundle_url} (agent-kit#35 publishes it -- it may simply not exist yet); first-party skills not installed. Set AGENT_KIT_SKILLS_BUNDLE_URL to override, or run setup-workstation.sh from an agent-kit checkout instead"
+  fi
+fi
 
 # Compose a pull request in the repository's own house style:
 # reads the PR template, mines recent merged PRs, and gates on an
 # explicit confirmation before anything is pushed or created.
-src="${KIT_ROOT}/skills/pr-composer"
+src="${SKILLS_ROOT}/skills/pr-composer"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "pr-composer: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -1076,22 +1393,232 @@ else
   fi
 fi
 
-# -----------------------------------------------------------------
-# 8. Retired hooks.
-#
-# The estate ships no agent hooks. install-agents.sh owns the purge;
-# this only reports a machine that still has them so the operator
-# knows to run it.
-# -----------------------------------------------------------------
-settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-if [ -f "${settings}" ] && grep -qE "pre-tool-use-edit-recall|pre-tool-use-git-commit-capture|stop-session-digest|kb-stop-digest|user-prompt-submit-recall" "${settings}"; then
-  warn "retired knowledge hooks are still wired in ${settings}; run install-agents.sh to purge them"
+# Cross-model orchestrator (Claude + Codex) for large,
+# decomposable work: triage, cross-model planning, grill, a design
+# checkpoint, guarded fan-out, a review council, and resumable
+# status/tail.
+src="${SKILLS_ROOT}/skills/council"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "council: ${src}/SKILL.md is missing; nothing to install"
 else
-  ok "no retired knowledge hooks in ${settings}"
+  dest="${CLAUDE_HOME}/skills/council"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "council -> ${dest}"
+    else
+      fail "council: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/council"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "council -> ${dest}"
+    else
+      fail "council: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Consult the current memory platform before designing or changing
+# behavior that may depend on prior captures, and capture durable
+# lessons near task completion.
+src="${SKILLS_ROOT}/skills/kb-first"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "kb-first: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/kb-first"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "kb-first -> ${dest}"
+    else
+      fail "kb-first: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/kb-first"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "kb-first -> ${dest}"
+    else
+      fail "kb-first: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Token-budget discipline: progressive disclosure, bounded recall,
+# narrow MCP profiles, and prompt-cache-friendly instruction
+# ordering.
+src="${SKILLS_ROOT}/skills/token-economy"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "token-economy: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/token-economy"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "token-economy -> ${dest}"
+    else
+      fail "token-economy: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/token-economy"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "token-economy -> ${dest}"
+    else
+      fail "token-economy: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Checklist for configuring a Claude Code or Codex session: config
+# layers, MCP servers and profiles, memory-file hygiene, and
+# Claude/Codex parity.
+src="${SKILLS_ROOT}/skills/agent-session-bootstrap"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "agent-session-bootstrap: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/agent-session-bootstrap"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "agent-session-bootstrap -> ${dest}"
+    else
+      fail "agent-session-bootstrap: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/agent-session-bootstrap"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "agent-session-bootstrap -> ${dest}"
+    else
+      fail "agent-session-bootstrap: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+if [ -n "${bundle_stage:-}" ] && [ -d "${bundle_stage}" ]; then
+  rm -rf "${bundle_stage}"
 fi
 
 # -----------------------------------------------------------------
-# 9. Summary: what changed and what still needs attention.
+# 8. Vendored third-party skills.
+#
+# Mirrors Hermes' sync-skills init container: clone the pinned ref,
+# verify the commit sha (a mismatch is a supply-chain event, so it
+# fails loudly rather than installing something else), then install
+# every SKILL.md the source publishes into both agent homes.
+# -----------------------------------------------------------------
+log "vendored skills"
+
+# No plugin wraps this one on the workstation, unlike caveman,
+# kubernetes-skill, drawio and mattpocock-skills. 14 skills
+# reaching only Hermes was exactly the gap agent-kit#40 closed.
+# superpowers: https://github.com/obra/superpowers@v6.3.0
+if [ "${CHECK_ONLY}" = 1 ]; then
+  log "would clone https://github.com/obra/superpowers@v6.3.0 and install its skills (superpowers)"
+else
+  if ! command -v git >/dev/null 2>&1; then
+    fail "superpowers: git is not on PATH; cannot vendor its skills"
+  else
+    vendor_stage="$(mktemp -d)"
+    if git clone --quiet --depth 1 --branch 'v6.3.0' 'https://github.com/obra/superpowers' "${vendor_stage}" >/dev/null 2>&1 \
+       && [ "$(git -C "${vendor_stage}" rev-parse HEAD 2>/dev/null)" = 'b36e0829c6d0140e93cfef2ca599b1b07d4a7797' ]; then
+      vendor_skills_root="${vendor_stage}"
+      [ -d "${vendor_stage}/skills" ] && vendor_skills_root="${vendor_stage}/skills"
+      vendor_count=0
+      while IFS= read -r vendor_skill_md; do
+        vendor_dir="$(dirname "${vendor_skill_md}")"
+        vendor_name="$(basename "${vendor_dir}")"
+        for vendor_home in "${CLAUDE_HOME}" "${CODEX_HOME}"; do
+          vendor_dest="${vendor_home}/skills/${vendor_name}"
+          rm -rf "${vendor_dest}"
+          mkdir -p "$(dirname "${vendor_dest}")"
+          cp -R "${vendor_dir}" "${vendor_dest}"
+        done
+        vendor_count=$((vendor_count + 1))
+      done < <(find "${vendor_skills_root}" -name SKILL.md)
+      if [ "${vendor_count}" -gt 0 ]; then
+        ok "superpowers: installed ${vendor_count} skill(s) from https://github.com/obra/superpowers@v6.3.0"
+      else
+        fail "superpowers: cloned https://github.com/obra/superpowers@v6.3.0 but found no SKILL.md under it"
+      fi
+    else
+      fail "superpowers: could not clone https://github.com/obra/superpowers@v6.3.0 at commit b36e0829c6d0140e93cfef2ca599b1b07d4a7797 (supply-chain mismatch or network failure)"
+    fi
+    rm -rf "${vendor_stage}"
+  fi
+fi
+
+# -----------------------------------------------------------------
+# 9. Retired hooks: actually purge them (see purge_retired_hooks above),
+# not just report them. A machine set up by the retired install.sh /
+# install-agents.sh is exactly the one that still has these.
+# -----------------------------------------------------------------
+purge_retired_hooks
+
+# -----------------------------------------------------------------
+# 10. Summary: what changed and what still needs attention.
 # -----------------------------------------------------------------
 
 log "Summary of findings:"

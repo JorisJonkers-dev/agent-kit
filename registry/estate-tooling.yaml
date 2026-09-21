@@ -586,6 +586,76 @@ local_skills:
       the repo rather than guessing, which is what `gh pr create --label bug`
       gets wrong.
 
+  - name: council
+    path: skills/council
+    purpose: >-
+      Cross-model orchestrator (Claude + Codex) for large, decomposable work:
+      triage, cross-model planning, grill, a design checkpoint, guarded
+      fan-out, a review council, and resumable status/tail.
+    agents: [claude, codex]
+    surfaces: [workstation]
+    note: >-
+      Previously shipped only by the retired install.sh, fetched from
+      knowledge-api. Content is unchanged from that install other than the
+      retired install.sh reference in SKILL.md; council.mjs/council.toml/
+      prompts/schemas mirror council/ at the repo root byte-for-byte.
+
+  - name: kb-first
+    path: skills/kb-first
+    purpose: >-
+      Consult the current memory platform before designing or changing
+      behavior that may depend on prior captures, and capture durable
+      lessons near task completion.
+    agents: [claude, codex]
+    surfaces: [workstation]
+    note: >-
+      Rewritten for the current memory platform (memory-api/Hindsight,
+      memory-mcp/Basic Memory). The original was written around the retired
+      knowledge-api's specific `knowledge.recall` tool, modes, and score
+      thresholds (fleet-infra#231); this version deliberately does not
+      invent equivalents it cannot verify, and points at each server's own
+      `tools/list` instead.
+
+  - name: token-economy
+    path: skills/token-economy
+    purpose: >-
+      Token-budget discipline: progressive disclosure, bounded recall,
+      narrow MCP profiles, and prompt-cache-friendly instruction ordering.
+    agents: [claude, codex]
+    surfaces: [workstation]
+    note: >-
+      Rewritten alongside kb-first for the same reason: the original tuned
+      knowledge-api-specific env vars (`KB_RECALL_MIN_SCORE` and friends)
+      that do nothing against memory-api/memory-mcp.
+
+  - name: agent-session-bootstrap
+    path: skills/agent-session-bootstrap
+    purpose: >-
+      Checklist for configuring a Claude Code or Codex session: config
+      layers, MCP servers and profiles, memory-file hygiene, and Claude/Codex
+      parity.
+    agents: [claude, codex]
+    surfaces: [workstation]
+    note: >-
+      Updated to reference memory-api/memory-mcp instead of the retired
+      `knowledge` MCP server, and setup-workstation.sh's retired-hook purge
+      instead of the retired install-agents.sh.
+
+  # `topics` and `audit` are NOT ported. Both are entirely built around the
+  # retired knowledge-api's curator/tagging admin surface -- closed-
+  # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,
+  # `merge_topics` -- none of which has a memory-api or memory-mcp
+  # equivalent. Porting them would mean inventing new capability, not
+  # translating existing behavior, so they are left out rather than shipped
+  # against tools that do not exist. See the agent-kit#40 PR body.
+  #
+  # `grill-me` is also NOT here: install.sh never embeds it as static
+  # content. It installs it live via `npx skills add
+  # mattpocock/skills#<ref> --skill=grill-me` (see manifest.yaml's
+  # provenance notes), and the workstation already gets the same family
+  # (grill included) through the `mattpocock-skills` Claude Code plugin
+  # above.
+
 # -------------------------------------------------------------------
 # Vendored third-party skills.
 #
@@ -627,7 +697,11 @@ skill_sources:
     license: MIT
     license_notice: Copyright (c) 2025 Jesse Vincent
     selector: "*"
-    surfaces: [hermes]
+    surfaces: [workstation, hermes]
+    note: >-
+      No plugin wraps this one on the workstation, unlike caveman,
+      kubernetes-skill, drawio and mattpocock-skills. 14 skills reaching only
+      Hermes was exactly the gap agent-kit#40 closed.
 
   - name: caveman
     repo: https://github.com/JuliusBrussee/caveman

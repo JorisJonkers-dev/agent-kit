@@ -274,12 +274,13 @@ runs the installer when it does not.
 The estate ships **no agent hooks**. The three knowledge-recall hooks are
 retired along with the knowledge base they wrote into.
 
-`setup-workstation.sh` only *reports* a machine that still has them wired.
-`install-agents.sh` does the purge: it strips hook groups from
-`settings.json` whose command basename is one of the retired scripts, deletes
-the leftover script files and `~/.codex/hooks.json`, then reads the file back
-and fails if any retired name survives. Your own hooks are matched by basename
-and left alone.
+`setup-workstation.sh` does the purge itself, on every run: it strips hook
+groups from `settings.json` whose command basename is one of the retired
+scripts, deletes the leftover script files and `~/.codex/hooks.json`, then
+reads the file back and fails if any retired name survives. Your own hooks
+are matched by basename and left alone. (Before agent-kit#40, `install-agents.sh`
+owned this; it is retired along with `install.sh`, and `--uninstall` covers
+what a machine set up by either of them still has.)
 
 Plugin-owned hooks are a different thing entirely. `security-guidance` ships
 its own `PreToolUse` and `Stop` hooks; the purge matches on the retired

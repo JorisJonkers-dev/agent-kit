@@ -1,8 +1,8 @@
 version: 2
 generated: partial
 notes:
-  - "This manifest pins the current repo and installer agent surfaces. Repo skills, commands, Spec Kit scaffold seeds, and the installer entrypoint are rendered from agent-kit templates; installer heredoc bodies, including skills, commands, and Spec Kit seeds, are rendered from partial or repo templates."
-  - "The estate ships NO agent hooks. The knowledge-recall hooks (edit recall, git-commit capture, session digest) were retired with the knowledge base they wrote into; install-agents.sh purges them from an existing settings.json rather than installing anything. Do not add a hooks section back without an ADR."
+  - "This manifest pins the current repo surfaces: repo skills, commands, and the runtime package are rendered from agent-kit templates by render-agent-kit.py. installer/setup-workstation.sh is a SEPARATE artifact, rendered from registry/estate-tooling.yaml by scripts/render_registry.py and verified by its own --check; this manifest does not pin it."
+  - "The estate ships NO agent hooks. The knowledge-recall hooks (edit recall, git-commit capture, session digest) were retired with the knowledge base they wrote into; setup-workstation.sh purges them from an existing settings.json rather than installing anything (agent-kit#40 moved this off the retired install-agents.sh). Do not add a hooks section back without an ADR."
   - "Repo skill bodies are intentionally agent-specific today; parity means every shared skill has both Claude and Codex targets unless an explicit unsupported reason is present."
 
 artifact:
@@ -21,10 +21,12 @@ provenance:
     source_lock: spec-kit-source.lock
     third_party_notices: THIRD_PARTY_NOTICES.md
   skills:
-    # grill-me is installed for both CLIs by the served install.sh via the
-    # `skills` CLI (`npx skills add mattpocock/skills#<ref> --skill=grill-me`),
-    # pinned to a reviewed ref. The upstream_commit is the immutable pin;
-    # bumping it is a renovate/review event.
+    # grill-me was installed for both CLIs by the retired install.sh via the
+    # `skills` CLI; agent-kit#40 removed install.sh and did not replace this
+    # install path (the workstation gets the same skill family, not this
+    # exact skill, through the mattpocock-skills registry plugin instead).
+    # Kept here as a provenance record for skills-source.lock / third-party
+    # notices, not as a claim that anything installs it today.
     upstream_repository: https://github.com/mattpocock/skills
     upstream_tag: v1.1.0
     upstream_commit: "d574778f94cf620fcc8ce741584093bc650a61d3"
@@ -37,17 +39,6 @@ renderer:
   script_path: render-agent-kit.py
   template_root: templates/repo
   runtime_template_root: templates/runner-runtime
-  extra_templates:
-    - source_path: templates/installer/install.sh.tpl
-      destination_path: installer/install.sh
-    - source_path: templates/installer/install-agents.sh.tpl
-      destination_path: installer/install-agents.sh
-  include_templates:
-    - templates/installer/partials/skills/agent-session-bootstrap.md
-    - templates/installer/partials/skills/audit.md
-    - templates/installer/partials/skills/kb-first.md
-    - templates/installer/partials/skills/token-economy.md
-    - templates/installer/partials/skills/topics.md
   managed_paths:
     - .agents/skills/add-public-service/SKILL.md
     - .agents/skills/agent-session-bootstrap/SKILL.md
@@ -104,8 +95,6 @@ renderer:
     - .claude/skills/prepare-rollback/SKILL.md
     - .claude/skills/run-tests/SKILL.md
     - .claude/skills/token-economy/SKILL.md
-    - installer/install-agents.sh
-    - installer/install.sh
     - runner-manifests/runtime/Containerfile
     - runner-manifests/runtime/bin/agent-github-token
     - runner-manifests/runtime/bin/gh-mcp-wrapper
@@ -138,9 +127,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.analyze.md
         sha256: 76a6bd6c5ed3746a0075afaeeefc22a74f1d25686aecdee56726155143a50141
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.analyze.md"
   - name: speckit.checklist
     supported_agents: [claude]
     unsupported:
@@ -149,9 +135,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.checklist.md
         sha256: 4c827224cb00215326459cf46e84d0ecb5ec9e5ad08853d778562913bdef5989
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.checklist.md"
   - name: speckit.clarify
     supported_agents: [claude]
     unsupported:
@@ -160,9 +143,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.clarify.md
         sha256: e64db680a3b2df9e61c1339f53a18cb64bf9cdbe937409767308d81646b04ed6
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.clarify.md"
   - name: speckit.constitution
     supported_agents: [claude]
     unsupported:
@@ -171,9 +151,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.constitution.md
         sha256: 24d295f7727c0d4c9914548eb4b7b41fdc1c185d330401fe551bb35058f2b973
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.constitution.md"
   - name: speckit.implement
     supported_agents: [claude]
     unsupported:
@@ -182,9 +159,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.implement.md
         sha256: 4696bcbb228a3961674467d2cfc404b9083cee2dc6e9f5047adfaff5fb91cf85
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.implement.md"
   - name: speckit.plan
     supported_agents: [claude]
     unsupported:
@@ -193,9 +167,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.plan.md
         sha256: 20c3427f045364a96eb5593090dba576b3d1761421edd1bfe0291389b0664e94
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.plan.md"
   - name: speckit.specify
     supported_agents: [claude]
     unsupported:
@@ -204,9 +175,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.specify.md
         sha256: f6a04756139b00046995c8cbb1c43c28a8abaaa2d22e5e0e3ead3158e3d74d64
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.specify.md"
   - name: speckit.tasks
     supported_agents: [claude]
     unsupported:
@@ -215,9 +183,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.tasks.md
         sha256: 5a260a032662994e2c50203954099c4af17b83a73bb1ec1a1b5309d04bf92746
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.tasks.md"
   - name: speckit.taskstoissues
     supported_agents: [claude]
     unsupported:
@@ -226,9 +191,6 @@ commands:
       - agent: claude
         path: .claude/commands/speckit.taskstoissues.md
         sha256: 6d693f59010807071c50c7d1e3a2d6c6163c9ea93d53ece8265abf396a6f8935
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/commands/speckit.taskstoissues.md"
 
 skills:
   - name: add-public-service
@@ -245,14 +207,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/agent-session-bootstrap/SKILL.md
-        sha256: cd47e8b6527e0c1d574c7af350f1502abca9c85714478020080614e143b7f2fe
+        sha256: 6d56bbdf76e020f3c8524f3f9e444b1473f6f08195a26e43f6e1092492e80e55
       - agent: claude
         path: .claude/skills/agent-session-bootstrap/SKILL.md
-        sha256: cff3a1652289bc96b1dba41c62499d0f25db3ee00b00f9cad3e64748bd89dfa8
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/agent-session-bootstrap/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/agent-session-bootstrap/SKILL.md"
+        sha256: dc8516eea12c7a8c097012ebede2fe14069b1059bafa0f5f29d2ba7578fe1d79
   - name: council-amend
     supported_agents: [codex, claude]
     targets:
@@ -262,10 +220,6 @@ skills:
       - agent: claude
         path: .claude/skills/council-amend/SKILL.md
         sha256: 6aa6b39b8a54be030b2d26cb1db3554a55078d7d2dfbcd594893e5230d2d76e4
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council-amend/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council-amend/SKILL.md"
   - name: council-design
     supported_agents: [codex, claude]
     targets:
@@ -275,10 +229,6 @@ skills:
       - agent: claude
         path: .claude/skills/council-design/SKILL.md
         sha256: a79f7609469170f39ba54d109f39f5fe2cda040d4f5f416356c4192bb4cc42f5
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council-design/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council-design/SKILL.md"
   - name: council-grill
     supported_agents: [codex, claude]
     targets:
@@ -288,10 +238,6 @@ skills:
       - agent: claude
         path: .claude/skills/council-grill/SKILL.md
         sha256: 86bae122f746c33ddb6d5ef09f869819b70ac00fa9a4ae0e62afa6c2c94383af
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council-grill/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council-grill/SKILL.md"
   - name: council-inject
     supported_agents: [codex, claude]
     targets:
@@ -301,10 +247,6 @@ skills:
       - agent: claude
         path: .claude/skills/council-inject/SKILL.md
         sha256: f266cf7422737f873b4f2a5e605a83d49a5292ca2a05f4f3fe243ba38222740b
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council-inject/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council-inject/SKILL.md"
   - name: council-run
     supported_agents: [codex, claude]
     targets:
@@ -314,10 +256,6 @@ skills:
       - agent: claude
         path: .claude/skills/council-run/SKILL.md
         sha256: 032e6a56d610e51cc45c01cc37524065a523e1497a4dc5ce02a7ee6d4f829b2d
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council-run/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council-run/SKILL.md"
   - name: council-supervise
     supported_agents: [codex, claude]
     targets:
@@ -327,10 +265,6 @@ skills:
       - agent: claude
         path: .claude/skills/council-supervise/SKILL.md
         sha256: c1e945e4a3296ae5c40cc95af9b09ad511594534963d65473b4ffc883e66a3f0
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council-supervise/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council-supervise/SKILL.md"
   - name: council-triage
     supported_agents: [codex, claude]
     targets:
@@ -340,50 +274,33 @@ skills:
       - agent: claude
         path: .claude/skills/council-triage/SKILL.md
         sha256: ab6c4503e24a5aadf4d52ceadfd7d72dabd23a0de1916cd6f4f404c04e15b368
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council-triage/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council-triage/SKILL.md"
   - name: claude-worker
     supported_agents: [codex]
     targets:
       - agent: codex
         path: .agents/skills/claude-worker/SKILL.md
         sha256: 9b7d005206a5009eac458e321e20d670b096629ee6a6c9949cda89c065d4df6c
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/claude-worker/SKILL.md"
   - name: agent-codex-med
     supported_agents: [claude]
     targets:
       - agent: claude
         path: .claude/agents/codex-med.md
         sha256: 8baecdbe41412b666a6c35d1fdd87ca934cc64665d2ba1ff63262347b8f6519c
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/agents/codex-med.md"
   - name: agent-codex-xhigh
     supported_agents: [claude]
     targets:
       - agent: claude
         path: .claude/agents/codex-xhigh.md
         sha256: ada0b5f8876071b01df1907137d4e9ebe4f41396c72360c3fab8337c396cd8f0
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/agents/codex-xhigh.md"
   - name: council
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council/SKILL.md
-        sha256: 88ee32bac5b3aa183cad3df6c766b25df5aa3728511096abafb40a2bffd166f7
+        sha256: 6c896bc1bfc06e7be82879e759c2243a30614b6c9092920edeb440a8912ed068
       - agent: claude
         path: .claude/skills/council/SKILL.md
-        sha256: 949b6f093e9c903b2abf26defbf7428f412a9a542268b0e69ba616d00130df82
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/council/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/council/SKILL.md"
+        sha256: bde73e754681120c476bee0612f26f2aeb828f731344d7a9f302b562474d5383
   - name: deploy-status
     supported_agents: [codex, claude]
     targets:
@@ -402,25 +319,9 @@ skills:
       - agent: claude
         path: .claude/skills/fleet-change/SKILL.md
         sha256: da427baa764c7d17667f9faa0b2bdbb467c9a34acaeb1a4df2523d16bdb4e0c5
-  - name: grill-me
-    # Third-party skill from mattpocock/skills, installed for both CLIs by the
-    # served install.sh via `npx skills add`. It has no repo file target, so it
-    # is pinned by upstream ref+commit (its immutable sha) under provenance
-    # rather than a repo-file sha256. Bumping the pin is a renovate/review event.
-    supported_agents: [codex, claude]
-    provenance:
-      source: skills-cli:mattpocock/skills
-      upstream_repository: https://github.com/mattpocock/skills
-      upstream_tag: v1.1.0
-      upstream_commit: "d574778f94cf620fcc8ce741584093bc650a61d3"
-      skill_path: skills/productivity/grill-me/SKILL.md
-      skills_cli_version: 1.5.16
-      source_lock: skills-source.lock
-      third_party_notices: THIRD_PARTY_NOTICES.md
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/grill-me/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/grill-me/SKILL.md"
+  # grill-me was an installer-only skill, served solely by the retired
+  # install.sh's `npx skills add`. Removed with it (agent-kit#40); the
+  # provenance record survives under provenance.skills above.
   - name: kb-first
     supported_agents: [codex, claude]
     targets:
@@ -430,10 +331,6 @@ skills:
       - agent: claude
         path: .claude/skills/kb-first/SKILL.md
         sha256: 99f677b9e491be60b35dc72d6abbf87a064ce1f6db83b492af990a467f63881c
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/kb-first/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/kb-first/SKILL.md"
   - name: open-pr
     supported_agents: [codex, claude]
     targets:
@@ -470,10 +367,6 @@ skills:
       - agent: claude
         path: .claude/skills/token-economy/SKILL.md
         sha256: 713e9388efdb22f638e02cfbffc57dd6fc0bbacdc0756825958dab030b5bd538
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/token-economy/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/token-economy/SKILL.md"
   - name: speckit-analyze
     supported_agents: [codex]
     unsupported:
@@ -482,9 +375,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-analyze/SKILL.md
         sha256: 69f5a7b05bc964aa17de0140b79cd7627a5c45251b2d4fe65c475e60c4f6407a
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-analyze/SKILL.md"
   - name: speckit-checklist
     supported_agents: [codex]
     unsupported:
@@ -493,9 +383,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-checklist/SKILL.md
         sha256: a2412d37d9531290f8fc6906d26b9a79af2315605b71e33db0d8a78f1dc3b3ea
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-checklist/SKILL.md"
   - name: speckit-clarify
     supported_agents: [codex]
     unsupported:
@@ -504,9 +391,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-clarify/SKILL.md
         sha256: 6d803f3be308a4ad7918d675b8f15511dd9de244bb66edaa14cbbe5e87897cab
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-clarify/SKILL.md"
   - name: speckit-constitution
     supported_agents: [codex]
     unsupported:
@@ -515,9 +399,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-constitution/SKILL.md
         sha256: cf04111fcab5e9eb0e7a8045cf14cc285c66d3a286110b0592f8cd38001a1841
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-constitution/SKILL.md"
   - name: speckit-implement
     supported_agents: [codex]
     unsupported:
@@ -526,9 +407,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-implement/SKILL.md
         sha256: eb568acf86483a2ff53e7afd8f9f3dcfdeca02e1cc421751a02d699f4076ca92
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-implement/SKILL.md"
   - name: speckit-plan
     supported_agents: [codex]
     unsupported:
@@ -537,9 +415,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-plan/SKILL.md
         sha256: f571eaa6e57ee003d813e5b8a968133161efdca4928a752f9b3349eaa66d5f5f
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-plan/SKILL.md"
   - name: speckit-specify
     supported_agents: [codex]
     unsupported:
@@ -548,9 +423,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-specify/SKILL.md
         sha256: 3178bfca954336fdff4fdbf0245843168b86c631f3240ac82341a9c1c6a6411c
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-specify/SKILL.md"
   - name: speckit-tasks
     supported_agents: [codex]
     unsupported:
@@ -559,9 +431,6 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-tasks/SKILL.md
         sha256: 661bab500268b0bd348d3c74401309e604ea10331d5b10f5c408bc6832d18a5f
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-tasks/SKILL.md"
   - name: speckit-taskstoissues
     supported_agents: [codex]
     unsupported:
@@ -570,27 +439,18 @@ skills:
       - agent: codex
         path: .agents/skills/speckit-taskstoissues/SKILL.md
         sha256: aa06e6c7b828e685c1cae2e319055417c0575a2e81f52d3a10fef8462e9b740f
-    installer:
-      source_path: installer/install.sh
-      codex_target_path: "${CODEX_HOME}/skills/speckit-taskstoissues/SKILL.md"
-  - name: topics
-    supported_agents: [codex, claude]
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/topics/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/topics/SKILL.md"
-  - name: audit
-    supported_agents: [codex, claude]
-    installer:
-      source_path: installer/install.sh
-      target_path: "${CLAUDE_HOME}/skills/audit/SKILL.md"
-      codex_target_path: "${CODEX_HOME}/skills/audit/SKILL.md"
+
+# topics and audit were installer-only skills (no repo template, served only
+# by the retired install.sh's KB-curator partials) and are removed along with
+# it (agent-kit#40): both are built around knowledge-api admin tools with no
+# memory-api/memory-mcp equivalent, so nothing replaces them. See the
+# agent-kit#40 PR body.
 
 # hooks: intentionally absent.
 #
 # The estate ships no agent hooks. The three knowledge-recall hooks that
 # used to live here were retired with the knowledge base they wrote into,
-# and install-agents.sh now purges them from an existing settings.json
+# and setup-workstation.sh now purges them from an existing settings.json
 # instead of installing them. A `hooks:` key reappearing here means
 # something re-introduced them.
 
@@ -840,14 +700,7 @@ agent_runner_runtime:
       sha256: c6d37843e38d6e6a13031d53e6cfd07b982b987240e79a3b7b06b92bded55275
       mode: "0644"
 
-installer:
-  path: installer/install.sh
-  sha256: c8c841dd0a6282549aa11c2894be7f2e515ddd53a833ddf3900c2d565f835919
-  supported_agents: [codex, claude]
-  served_artifacts:
-    - path: installer/install.sh
-      sha256: c8c841dd0a6282549aa11c2894be7f2e515ddd53a833ddf3900c2d565f835919
-      mode: "0644"
-    - path: installer/install-agents.sh
-      sha256: a3e24db2623e48836285d720c12ff0ac5fff8a35a0f352994d9709de12b37da8
-      mode: "0644"
+# The top-level `installer:` block (install.sh/install-agents.sh sha256 pins)
+# is retired along with those two files (agent-kit#40). setup-workstation.sh
+# is generated by scripts/render_registry.py and verified by its own
+# --check, not by this manifest.

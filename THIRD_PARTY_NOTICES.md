@@ -36,7 +36,8 @@ here because the material executes inside agent context.
 - Repository: https://github.com/mattpocock/skills
 - Pinned tag: v1.1.0
 - Resolved source commit: d574778f94cf620fcc8ce741584093bc650a61d3
-- Installed skills: grill-me (via `skills` CLI, pinned; installed by install.sh)
+- Installed skills: grill-me (via `skills` CLI, pinned; was installed by the
+  now-retired install.sh -- kept here as a provenance record, agent-kit#40)
 - License: MIT
 - Copyright notice: Copyright (c) 2026 Matt Pocock
 

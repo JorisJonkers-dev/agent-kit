@@ -16,8 +16,8 @@ small work away from council, present checkpoints, and keep the user in control
 of expensive fan-out.
 
 Run it from the project you want council to work on. It installs into
-`~/.codex/skills/council` (and `~/.claude/skills/council`) via the agent-kit
-installer (`curl .../install.sh | bash`); re-run that to upgrade.
+`~/.codex/skills/council` (and `~/.claude/skills/council`) via agent-kit's
+`setup-workstation.sh`; re-run that to upgrade.
 
 Use it for large work that decomposes into independent parallel pieces and is
 worth the spend. Do not use it for small changes, tightly-coupled changes, or

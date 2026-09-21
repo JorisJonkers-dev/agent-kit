@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-review-verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["satisfied", "reasons", "issues"],
+  "properties": {
+    "satisfied": { "type": "boolean" },
+    "reasons": { "type": "string" },
+    "issues": { "type": "array", "items": { "type": "string" } },
+    "task_id": { "type": "string" },
+    "reviewer": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}

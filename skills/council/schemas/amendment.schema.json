@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-amendment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "summary"],
+  "properties": {
+    "id": { "type": "string" },
+    "summary": { "type": "string" },
+    "reason": { "type": "string" },
+    "status": { "type": "string" },
+    "task_refs": { "type": "array", "items": { "type": "string" } },
+    "supersedes": { "type": "array", "items": { "type": "string" } },
+    "context_refs": { "type": "array", "items": { "type": "string" } },
+    "discovered_from": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}

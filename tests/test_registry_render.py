@@ -861,3 +861,155 @@ def test_container_install_refuses_to_run_as_non_root(tmp_path: Path) -> None:
     )
     assert result.returncode == 77
     assert "must run as root" in result.stderr
+
+
+# --- agent-kit#40: setup-workstation.sh as a superset, install.sh retired ---
+
+
+def test_estate_skills_are_local_skills_for_both_agents() -> None:
+    data = _registry()
+    by_name = {s["name"]: s for s in data["local_skills"]}
+    for name in ("council", "kb-first", "token-economy", "agent-session-bootstrap", "pr-composer"):
+        assert name in by_name, name
+        skill = by_name[name]
+        assert skill["surfaces"] == ["workstation"]
+        assert set(skill["agents"]) == {"claude", "codex"}
+        assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
+
+
+def test_retired_kb_skills_are_not_local_skills() -> None:
+    """topics, audit and grill-me have no memory-api/memory-mcp equivalent (or,
+    for grill-me, are no longer installed by this repo at all) and are
+    deliberately left out rather than shipped against a dead service."""
+    data = _registry()
+    names = {s["name"] for s in data["local_skills"]}
+    assert names.isdisjoint({"topics", "audit", "grill-me"})
+
+
+def test_kb_first_and_token_economy_do_not_reference_the_retired_kb() -> None:
+    """Mentioning that knowledge-api is retired is fine; instructing the agent
+    to actually call one of its dead tools or env vars is not."""
+    dead_tool_calls = ("knowledge.recall", "knowledge.relations", "KB_BEARER_TOKEN")
+    for name in ("kb-first", "token-economy"):
+        text = (KIT_ROOT / "skills" / name / "SKILL.md").read_text()
+        for token in dead_tool_calls:
+            assert token not in text, f"{name} still references retired {token}"
+        assert "memory-api" in text
+        assert "memory-mcp" in text
+
+
+def test_superpowers_reaches_the_workstation() -> None:
+    data = _registry()
+    source = next(s for s in data["skill_sources"] if s["name"] == "superpowers")
+    assert "workstation" in source["surfaces"]
+    script = render_registry.render_setup_script(data)
+    assert "github.com/obra/superpowers" in script
+    assert source["commit"] in script
+
+
+def test_workstation_skill_source_must_use_the_star_selector() -> None:
+    data = _registry()
+    source = next(s for s in data["skill_sources"] if s["name"] == "superpowers")
+    source["selector"] = "engineering/*"
+    with pytest.raises(render_registry.RegistryError, match="only selector"):
+        render_registry.validate(data)
+
+
+def test_setup_script_never_installs_speckit() -> None:
+    """Spec Kit stays excluded from the registry (install.sh shipped it).
+
+    The only `speckit` references left in the rendered script are the
+    --uninstall cleanup of a machine set up by that retired installer.
+    """
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for line in script.splitlines():
+        if "speckit" in line.lower():
+            assert "legacy_remove" in line, line
+
+
+def test_setup_script_fetches_a_published_bundle_when_not_a_checkout() -> None:
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    assert "AGENT_KIT_SKILLS_BUNDLE_URL" in script
+    assert "https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz" in script
+    assert '"${bundle_url}.sha256"' in script
+    assert "agent-kit#35" in script
+    # A checksum mismatch refuses to install from the bundle rather than
+    # silently trusting an unverified download.
+    assert "bundle_expected" in script and "bundle_actual" in script
+
+
+def test_uninstall_removes_a_legacy_kb_install_and_purges_hooks(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    claude_home = home / ".claude"
+    codex_home = home / ".codex"
+    (claude_home / "commands").mkdir(parents=True)
+    (claude_home / "commands" / "speckit.plan.md").write_text("legacy")
+    (claude_home / "skills" / "kb-first").mkdir(parents=True)
+    (claude_home / "skills" / "kb-first" / "SKILL.md").write_text("legacy")
+    council_dir = claude_home / "skills" / "council"
+    council_dir.mkdir(parents=True)
+    (council_dir / "council.mjs").write_text("legacy")
+    (codex_home / "skills" / "speckit-plan").mkdir(parents=True)
+    (codex_home / "skills" / "speckit-plan" / "SKILL.md").write_text("legacy")
+    settings = claude_home / "settings.json"
+    settings.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {"hooks": [{"command": "~/.claude/hooks/pre-tool-use-edit-recall.sh"}]},
+                    ],
+                },
+            },
+        ),
+    )
+
+    script = tmp_path / "setup-workstation.sh"
+    script.write_text(render_registry.render_setup_script(_registry()))
+    result = subprocess.run(
+        ["bash", str(script), "--uninstall"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            "HOME": str(home),
+            "CLAUDE_CONFIG_DIR": str(claude_home),
+            "CODEX_HOME": str(codex_home),
+            "PATH": "/usr/bin:/bin",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not (claude_home / "commands" / "speckit.plan.md").exists()
+    assert not (claude_home / "skills" / "kb-first" / "SKILL.md").exists()
+    assert not (council_dir / "council.mjs").exists()
+    assert not (codex_home / "skills" / "speckit-plan" / "SKILL.md").exists()
+    remaining = json.loads(settings.read_text())
+    assert "hooks" not in remaining
+
+
+def test_check_mode_uninstall_removes_nothing(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    claude_home = home / ".claude"
+    codex_home = home / ".codex"
+    (claude_home / "skills" / "kb-first").mkdir(parents=True)
+    (claude_home / "skills" / "kb-first" / "SKILL.md").write_text("legacy")
+
+    script = tmp_path / "setup-workstation.sh"
+    script.write_text(render_registry.render_setup_script(_registry()))
+    result = subprocess.run(
+        ["bash", str(script), "--uninstall", "--check"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            "HOME": str(home),
+            "CLAUDE_CONFIG_DIR": str(claude_home),
+            "CODEX_HOME": str(codex_home),
+            "PATH": "/usr/bin:/bin",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (claude_home / "skills" / "kb-first" / "SKILL.md").exists()
+    assert "would remove" in result.stdout

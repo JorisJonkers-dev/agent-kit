@@ -137,6 +137,18 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(f"skill source {name} must name a ref")
         if not source.get("selector"):
             raise RegistryError(f"skill source {name} must name a selector")
+        # The workstation renderer mirrors Hermes' sync-skills init
+        # container (clone at the ref, verify the commit, install every
+        # SKILL.md it finds), which only implements the "*" selector today.
+        # A narrower selector on a workstation surface would silently
+        # install the wrong set rather than the one the registry declared,
+        # so refuse it at render time instead.
+        if "workstation" in (source.get("surfaces") or []) and source.get("selector") != "*":
+            raise RegistryError(
+                f"skill source {name} targets workstation with selector "
+                f"{source.get('selector')!r}; only selector: \"*\" is supported "
+                "on the workstation surface today",
+            )
 
     for server in _entries(data, "mcp_servers"):
         name = server.get("name")
@@ -517,6 +529,14 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("#   ./setup-workstation.sh --no-lsp        skip the language servers")
     w("#   ./setup-workstation.sh --no-mcp        skip MCP registration")
     w("#   ./setup-workstation.sh --no-profiles   only the primary Claude profile")
+    w("#   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /")
+    w("#                                          install-agents.sh install wrote,")
+    w("#                                          then purge retired knowledge hooks")
+    w("#                                          and exit -- does not touch anything")
+    w("#                                          this script itself manages")
+    w("#")
+    w("# AGENT_KIT_SKILLS_BUNDLE_URL overrides the published skills bundle a")
+    w("# `curl | bash` run fetches when it cannot find this repo's own skills/.")
     w("#")
     w("# Secrets are read from the environment and never written here:")
     for server in _entries(data, "mcp_servers"):
@@ -532,6 +552,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("DO_LSP=1")
     w("DO_MCP=1")
     w("DO_PROFILES=1")
+    w("UNINSTALL=0")
     w("failures=0")
     w("warnings=0")
     w("")
@@ -550,7 +571,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    --no-lsp) DO_LSP=0 ;;")
     w("    --no-mcp) DO_MCP=0 ;;")
     w("    --no-profiles) DO_PROFILES=0 ;;")
-    w("    --help|-h) sed -n '2,30p' \"$0\"; exit 0 ;;")
+    w("    --uninstall) UNINSTALL=1 ;;")
+    w("    --help|-h) sed -n '2,34p' \"$0\"; exit 0 ;;")
     w('    *) echo "unknown option: $1" >&2; exit 64 ;;')
     w("  esac")
     w("  shift")
@@ -700,6 +722,220 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# ensure_port_forward: keeps the loopback of a workstation_connect MCP")
     w("# server alive (a launchd agent on macOS).")
     w(f'. "${{KIT_ROOT}}/{PORT_FORWARD_HELPER}"')
+    w("")
+    w('CLAUDE_HOOKS_DIR="${CLAUDE_HOME}/hooks"')
+    w('CODEX_HOOKS_DIR="${CODEX_HOME}/hooks"')
+    w("")
+
+    retired_pattern = "|".join(
+        (
+            "pre-tool-use-edit-recall",
+            "pre-tool-use-git-commit-capture",
+            "stop-session-digest",
+            "kb-stop-digest",
+            "user-prompt-submit-recall",
+            "kb-user-prompt-recall",
+        ),
+    )
+
+    # --- retired-hook purge, callable from a normal run AND --uninstall ---
+    w("# -----------------------------------------------------------------")
+    w("# The estate ships no hand-authored agent hooks. This purges the three")
+    w("# retired knowledge-recall hook groups (edit recall, git-commit")
+    w("# capture, session digest) from Claude settings.json by COMMAND")
+    w("# BASENAME, so an operator's own hooks survive, and removes the now-dead")
+    w("# hook script files themselves. Runs on every setup AND on --uninstall,")
+    w("# because a machine set up by the retired install.sh/install-agents.sh")
+    w("# is exactly the one that still has these.")
+    w("# -----------------------------------------------------------------")
+    w("purge_retired_hooks() {")
+    w('  local settings="${CLAUDE_HOME}/settings.json"')
+    w('  if [ ! -e "${settings}" ]; then')
+    w('    ok "no retired knowledge hooks (${settings} does not exist)"')
+    w('  elif ! command -v python3 >/dev/null 2>&1; then')
+    w('    warn "python3 is not on PATH; cannot purge retired hooks from ${settings}"')
+    w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+    w(f'    if grep -qE {_q(retired_pattern)} "${{settings}}" 2>/dev/null; then')
+    w('      warn "retired knowledge hooks are still wired in ${settings}"')
+    w("    else")
+    w('      ok "no retired knowledge hooks in ${settings}"')
+    w("    fi")
+    w("  else")
+    w('    if AK_SETTINGS_FILE="${settings}" python3 - <<'"'"'PURGE'"'"'')
+    w("import json")
+    w("import os")
+    w("import pathlib")
+    w("import sys")
+    w("")
+    w('path = pathlib.Path(os.environ["AK_SETTINGS_FILE"])')
+    w("")
+    w("RETIRED = {")
+    w('    "pre-tool-use-edit-recall.sh",')
+    w('    "pre-tool-use-git-commit-capture.sh",')
+    w('    "stop-session-digest.sh",')
+    w('    "kb-stop-digest.sh",')
+    w('    "kb-user-prompt-recall.sh",')
+    w('    "user-prompt-submit-recall.sh",')
+    w("}")
+    w("")
+    w("try:")
+    w('    data = json.loads(path.read_text() or "{}")')
+    w("except json.JSONDecodeError:")
+    w('    print("purge: %s is not valid JSON; left untouched" % path, file=sys.stderr)')
+    w("    raise SystemExit(0)")
+    w("if not isinstance(data, dict):")
+    w("    raise SystemExit(0)")
+    w("")
+    w('hooks = data.get("hooks")')
+    w("if not isinstance(hooks, dict):")
+    w("    raise SystemExit(0)")
+    w("")
+    w("")
+    w("def retired(group):")
+    w('    for hook in group.get("hooks", []) if isinstance(group, dict) else []:')
+    w('        command = hook.get("command", "") if isinstance(hook, dict) else ""')
+    w('        for token in command.replace(\'"\', " ").split():')
+    w('            if token.rsplit("/", 1)[-1] in RETIRED:')
+    w("                return True")
+    w("    return False")
+    w("")
+    w("")
+    w("removed = 0")
+    w("for event in list(hooks):")
+    w("    groups = hooks.get(event)")
+    w("    if not isinstance(groups, list):")
+    w("        continue")
+    w("    kept = [g for g in groups if not retired(g)]")
+    w("    removed += len(groups) - len(kept)")
+    w("    if kept:")
+    w("        hooks[event] = kept")
+    w("    else:")
+    w("        hooks.pop(event, None)")
+    w("")
+    w("if hooks:")
+    w('    data["hooks"] = hooks')
+    w("else:")
+    w('    data.pop("hooks", None)')
+    w("")
+    w('path.write_text(json.dumps(data, indent=2) + "\\n")')
+    w("")
+    w("back = path.read_text()")
+    w("still = sorted(name for name in RETIRED if name in back)")
+    w("if still:")
+    w('    print("purge: FAILED, still referenced: %s" % ", ".join(still), file=sys.stderr)')
+    w("    raise SystemExit(1)")
+    w('print("purge: removed %d retired hook group(s); none remain" % removed)')
+    w("PURGE")
+    w("    then")
+    w('      ok "retired knowledge hooks purged from ${settings}"')
+    w("    else")
+    w('      fail "purge of retired knowledge hooks in ${settings} failed"')
+    w("    fi")
+    w("  fi")
+    w("")
+    w("  local stale")
+    w('  for stale in \\')
+    w('    "${CLAUDE_HOOKS_DIR}/pre-tool-use-edit-recall.sh" \\')
+    w('    "${CLAUDE_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" \\')
+    w('    "${CLAUDE_HOOKS_DIR}/stop-session-digest.sh" \\')
+    w('    "${CLAUDE_HOOKS_DIR}/user-prompt-submit-recall.sh" \\')
+    w('    "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh" \\')
+    w('    "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" \\')
+    w('    "${CODEX_HOOKS_DIR}/kb-stop-digest.sh" \\')
+    w('    "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh" \\')
+    w('    "${CODEX_HOME}/hooks.json"')
+    w("  do")
+    w('    if [ -e "${stale}" ]; then')
+    w('      if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('        log "would remove retired hook file ${stale}"')
+    w("      else")
+    w('        rm -f "${stale}"')
+    w('        log "removed retired hook file ${stale}"')
+    w("      fi")
+    w("    fi")
+    w("  done")
+    w('  if [ "${CHECK_ONLY}" != 1 ]; then')
+    w('    rmdir "${CLAUDE_HOOKS_DIR}" "${CODEX_HOOKS_DIR}" 2>/dev/null || true')
+    w("  fi")
+    w("}")
+    w("")
+
+    # --- --uninstall: remove what a PREVIOUS install.sh/install-agents.sh wrote ---
+    council_dir = KIT_ROOT / "skills" / "council"
+    council_relative = sorted(
+        str(p.relative_to(council_dir)) for p in council_dir.rglob("*") if p.is_file()
+    )
+    speckit_names = [
+        "analyze",
+        "checklist",
+        "clarify",
+        "constitution",
+        "implement",
+        "plan",
+        "specify",
+        "tasks",
+        "taskstoissues",
+    ]
+    legacy_shared_skill_names = [
+        "topics",
+        "audit",
+        "kb-first",
+        "token-economy",
+        "agent-session-bootstrap",
+        "grill-me",
+    ]
+    legacy_claude_paths = (
+        [f"commands/speckit.{n}.md" for n in speckit_names]
+        + [f"skills/{n}/SKILL.md" for n in legacy_shared_skill_names]
+        + [f"skills/council/{p}" for p in council_relative]
+        + [".knowledge-system-version"]
+    )
+    legacy_codex_paths = (
+        [f"skills/speckit-{n}/SKILL.md" for n in speckit_names]
+        + [f"skills/{n}/SKILL.md" for n in legacy_shared_skill_names]
+        + [f"skills/council/{p}" for p in council_relative]
+        + [".knowledge-system-version"]
+    )
+    legacy_mcp_names = ["knowledge", "context7", "vuetify"]
+    w("# -----------------------------------------------------------------")
+    w("# --uninstall: remove every file the retired install.sh /")
+    w("# install-agents.sh wrote (base skills, Spec Kit commands/skills, the")
+    w("# knowledge-system version manifest) and the MCP entries they")
+    w("# registered (knowledge, context7, vuetify), then purge retired hooks")
+    w("# and exit. Does not touch anything this script itself manages -- a")
+    w("# re-run with no flags reinstalls the current local_skills afterward.")
+    w("# -----------------------------------------------------------------")
+    w('if [ "${UNINSTALL}" = 1 ]; then')
+    w('  log "uninstalling files from a previous install.sh / install-agents.sh"')
+    w("  legacy_remove() {")
+    w('    if [ ! -e "$1" ]; then return 0; fi')
+    w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('      log "would remove $1"')
+    w("    else")
+    w('      rm -f "$1"')
+    w('      log "removed $1"')
+    w("    fi")
+    w("  }")
+    for rel in legacy_claude_paths:
+        w(f'  legacy_remove "${{CLAUDE_HOME}}/{rel}"')
+    for rel in legacy_codex_paths:
+        w(f'  legacy_remove "${{CODEX_HOME}}/{rel}"')
+    w("  if command -v claude >/dev/null 2>&1; then")
+    for mcp_name in legacy_mcp_names:
+        w(
+            f'    run claude_each_profile claude mcp remove --scope user {mcp_name} '
+            ">/dev/null 2>&1 || true",
+        )
+    w("  fi")
+    w("  if command -v codex >/dev/null 2>&1; then")
+    for mcp_name in legacy_mcp_names:
+        w(f'    run codex mcp remove {mcp_name} >/dev/null 2>&1 || true')
+    w("  fi")
+    w("  purge_retired_hooks")
+    w('  log "uninstall complete: ${failures} failure(s), ${warnings} warning(s)"')
+    w('  [ "${failures}" = 0 ]')
+    w("  exit $?")
+    w("fi")
     w("")
 
     # --- CLIs ---
@@ -1169,13 +1405,58 @@ def render_setup_script(data: dict[str, Any]) -> str:
     local_skills = [s for s in _entries(data, "local_skills") if on_surface(s, "workstation")]
     if local_skills:
         w('log "first-party skills"')
+        w("# KIT_ROOT resolves from $0, so a `curl | bash` run (where $0 is the")
+        w("# shell, not this file) cannot find the skills that ship in this repo.")
+        w("# Detect that case (no registry/estate-tooling.yaml under KIT_ROOT --")
+        w("# the one thing every real checkout has and no other directory does)")
+        w("# and fetch the published skills bundle instead. agent-kit#35 publishes")
+        w("# that bundle; until it exists, the failure below is the correct one.")
+        w('SKILLS_ROOT="${KIT_ROOT}"')
+        w('if [ ! -f "${KIT_ROOT}/registry/estate-tooling.yaml" ]; then')
+        w('  log "not an agent-kit checkout; fetching the skills bundle instead"')
+        w('  bundle_url="${AGENT_KIT_SKILLS_BUNDLE_URL:-https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz}"')
+        w('  bundle_stage="$(mktemp -d)"')
+        w('  if curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz" "${bundle_url}" \\')
+        w('     && curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz.sha256" "${bundle_url}.sha256"; then')
+        w("    bundle_expected=\"$(awk '{print $1}' \"${bundle_stage}/agent-kit-skills.tar.gz.sha256\")\"")
+        w("    if command -v sha256sum >/dev/null 2>&1; then")
+        w('      bundle_actual="$(sha256sum "${bundle_stage}/agent-kit-skills.tar.gz" | awk \'{print $1}\')"')
+        w("    else")
+        w('      bundle_actual="$(shasum -a 256 "${bundle_stage}/agent-kit-skills.tar.gz" | awk \'{print $1}\')"')
+        w("    fi")
+        w('    if [ -n "${bundle_expected}" ] && [ "${bundle_expected}" = "${bundle_actual}" ]; then')
+        w('      if tar -xzf "${bundle_stage}/agent-kit-skills.tar.gz" -C "${bundle_stage}"; then')
+        w('        SKILLS_ROOT="${bundle_stage}"')
+        w('        ok "skills bundle verified (sha256 ${bundle_actual}) and extracted"')
+        w("      else")
+        w(
+            '        fail "skills bundle at ${bundle_url} downloaded but failed to '
+            'extract; first-party skills not installed"',
+        )
+        w("      fi")
+        w("    else")
+        w(
+            '      fail "skills bundle at ${bundle_url} failed its sha256 check '
+            '(expected ${bundle_expected:-<empty>}, got ${bundle_actual}); refusing '
+            'to install from a corrupt or tampered bundle"',
+        )
+        w("    fi")
+        w("  else")
+        w(
+            '    fail "skills bundle unavailable at ${bundle_url} (agent-kit#35 '
+            "publishes it -- it may simply not exist yet); first-party skills not "
+            "installed. Set AGENT_KIT_SKILLS_BUNDLE_URL to override, or run "
+            'setup-workstation.sh from an agent-kit checkout instead"',
+        )
+        w("  fi")
+        w("fi")
     for skill in local_skills:
         name = skill["name"]
         source = skill["path"]
         w("")
         for chunk in _wrap(str(skill.get("purpose") or "").strip(), 64):
             w(f"# {chunk}")
-        w(f'src="${{KIT_ROOT}}/{source}"')
+        w(f'src="${{SKILLS_ROOT}}/{source}"')
         w('if [ ! -f "${src}/SKILL.md" ]; then')
         w(f'  fail "{name}: ${{src}}/SKILL.md is missing; nothing to install"')
         w("else")
@@ -1198,37 +1479,82 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w("    fi")
             w("  fi")
         w("fi")
+    if local_skills:
+        w('if [ -n "${bundle_stage:-}" ] && [ -d "${bundle_stage}" ]; then')
+        w('  rm -rf "${bundle_stage}"')
+        w("fi")
+    w("")
+
+    # --- vendored third-party skills (skill_sources on the workstation surface) ---
+    w("# -----------------------------------------------------------------")
+    w("# 8. Vendored third-party skills.")
+    w("#")
+    w("# Mirrors Hermes' sync-skills init container: clone the pinned ref,")
+    w("# verify the commit sha (a mismatch is a supply-chain event, so it")
+    w('# fails loudly rather than installing something else), then install')
+    w("# every SKILL.md the source publishes into both agent homes.")
+    w("# -----------------------------------------------------------------")
+    vendor_sources = [s for s in _entries(data, "skill_sources") if on_surface(s, "workstation")]
+    if vendor_sources:
+        w('log "vendored skills"')
+    for source in vendor_sources:
+        vname = source["name"]
+        repo = source["repo"]
+        ref = source["ref"]
+        commit = source["commit"]
+        w("")
+        for chunk in _wrap(str(source.get("note") or "").strip(), 64):
+            w(f"# {chunk}")
+        w(f'# {vname}: {repo}@{ref}')
+        w('if [ "${CHECK_ONLY}" = 1 ]; then')
+        w(f'  log "would clone {repo}@{ref} and install its skills ({vname})"')
+        w("else")
+        w("  if ! command -v git >/dev/null 2>&1; then")
+        w(f'    fail "{vname}: git is not on PATH; cannot vendor its skills"')
+        w("  else")
+        w('    vendor_stage="$(mktemp -d)"')
+        w(f'    if git clone --quiet --depth 1 --branch {_q(ref)} {_q(repo)} "${{vendor_stage}}" >/dev/null 2>&1 \\')
+        w(f'       && [ "$(git -C "${{vendor_stage}}" rev-parse HEAD 2>/dev/null)" = {_q(commit)} ]; then')
+        w('      vendor_skills_root="${vendor_stage}"')
+        w('      [ -d "${vendor_stage}/skills" ] && vendor_skills_root="${vendor_stage}/skills"')
+        w('      vendor_count=0')
+        w('      while IFS= read -r vendor_skill_md; do')
+        w('        vendor_dir="$(dirname "${vendor_skill_md}")"')
+        w('        vendor_name="$(basename "${vendor_dir}")"')
+        w('        for vendor_home in "${CLAUDE_HOME}" "${CODEX_HOME}"; do')
+        w('          vendor_dest="${vendor_home}/skills/${vendor_name}"')
+        w('          rm -rf "${vendor_dest}"')
+        w('          mkdir -p "$(dirname "${vendor_dest}")"')
+        w('          cp -R "${vendor_dir}" "${vendor_dest}"')
+        w("        done")
+        w("        vendor_count=$((vendor_count + 1))")
+        w('      done < <(find "${vendor_skills_root}" -name SKILL.md)')
+        w('      if [ "${vendor_count}" -gt 0 ]; then')
+        w(f'        ok "{vname}: installed ${{vendor_count}} skill(s) from {repo}@{ref}"')
+        w("      else")
+        w(f'        fail "{vname}: cloned {repo}@{ref} but found no SKILL.md under it"')
+        w("      fi")
+        w("    else")
+        w(
+            f'      fail "{vname}: could not clone {repo}@{ref} at commit {commit} '
+            '(supply-chain mismatch or network failure)"',
+        )
+        w("    fi")
+        w('    rm -rf "${vendor_stage}"')
+        w("  fi")
+        w("fi")
     w("")
 
     # --- retired hooks ---
     w("# -----------------------------------------------------------------")
-    w("# 8. Retired hooks.")
-    w("#")
-    w("# The estate ships no agent hooks. install-agents.sh owns the purge;")
-    w("# this only reports a machine that still has them so the operator")
-    w("# knows to run it.")
+    w("# 9. Retired hooks: actually purge them (see purge_retired_hooks above),")
+    w("# not just report them. A machine set up by the retired install.sh /")
+    w("# install-agents.sh is exactly the one that still has these.")
     w("# -----------------------------------------------------------------")
-    w('settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"')
-    retired_pattern = "|".join(
-        (
-            "pre-tool-use-edit-recall",
-            "pre-tool-use-git-commit-capture",
-            "stop-session-digest",
-            "kb-stop-digest",
-            "user-prompt-submit-recall",
-        ),
-    )
-    w(f'if [ -f "${{settings}}" ] && grep -qE "{retired_pattern}" "${{settings}}"; then')
-    w(
-        '  warn "retired knowledge hooks are still wired in ${settings}; '
-        'run install-agents.sh to purge them"',
-    )
-    w("else")
-    w('  ok "no retired knowledge hooks in ${settings}"')
-    w("fi")
+    w("purge_retired_hooks")
     w("")
     w("# -----------------------------------------------------------------")
-    w("# 9. Summary: what changed and what still needs attention.")
+    w("# 10. Summary: what changed and what still needs attention.")
     w("# -----------------------------------------------------------------")
     w("")
     w("log \"Summary of findings:\"")

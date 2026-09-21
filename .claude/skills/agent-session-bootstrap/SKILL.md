@@ -17,7 +17,7 @@ Checklist:
 The estate ships **no agent hooks**. Recall and capture are on demand: call
 the recall skill or the `knowledge.recall` MCP tool when a task needs prior
 context. A `PreToolUse` or `Stop` hook that reaches the KB is retired
-machinery -- `install-agents.sh` removes any that a machine still has.
+machinery -- `setup-workstation.sh` removes any that a machine still has.
 
 Every Codex project skill or durable instruction must have an equivalent
 Claude implementation in the same branch. Treat Codex-only `.agents`/`.codex`
