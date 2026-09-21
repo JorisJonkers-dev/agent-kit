@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-design-ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "decision"],
+        "properties": {
+          "id": { "type": "string" },
+          "decision": { "type": "string" },
+          "rationale": { "type": "string" },
+          "status": { "type": "string" },
+          "task_refs": { "type": "array", "items": { "type": "string" } },
+          "context_refs": { "type": "array", "items": { "type": "string" } },
+          "supersedes": { "type": "array", "items": { "type": "string" } },
+          "content_hash": { "type": "string" }
+        }
+      }
+    },
+    "content_hash": { "type": "string" }
+  }
+}

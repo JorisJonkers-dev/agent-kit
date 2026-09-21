@@ -48,8 +48,8 @@ script is generated from `registry/estate-tooling.yaml` -- see
   in-cluster gateway, and verifying it landed.
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
 
-The estate ships **no agent hooks**. `install-agents.sh` purges the retired
-knowledge hooks from a machine that still has them.
+The estate ships **no agent hooks**. `setup-workstation.sh` purges the
+retired knowledge hooks from a machine that still has them, on every run.
 
 ## Layout
 
@@ -59,9 +59,9 @@ knowledge hooks from a machine that still has them.
 - `skills/`: first-party multi-file skills copied onto a surface.
 - `templates/repo/`: source templates for `.claude`, `.codex`, `.agents`, and
   project Spec Kit seed payload.
-- `templates/installer/`: installer templates and partials.
 - `templates/runner-runtime/`: source templates for runner runtime artifacts.
-- `installer/`: rendered install scripts served by the KB service.
+- `installer/`: `setup-workstation.sh` and `setup-container.sh`, generated as
+  above, plus the hand-written `port-forward-agent.sh` they source.
 - `runner-manifests/`: rendered runtime package artifacts and validation
   fixtures.
 - `council/`: council driver, prompts, schemas, and default config.
@@ -69,16 +69,22 @@ knowledge hooks from a machine that still has them.
 
 ## Install
 
-Install the rendered kit through a KB service that serves this repository's
-installer artifacts:
+From a checkout:
 
 ```bash
-curl -fsSL -H "Authorization: Bearer ${KB_BEARER_TOKEN}" \
-  "${KB_URL}/install-agents.sh" | bash -s -- --scope user
+./installer/setup-workstation.sh
 ```
 
-Use `--scope project` with `AGENT_KIT_PROJECT_ROOT` for repo-local agent
-surfaces. See [PORTABILITY.md](PORTABILITY.md).
+Or fetched over HTTP, once agent-kit#35 publishes the skills bundle:
+
+```bash
+curl -fsSL https://assets.jorisjonkers.dev/setup-workstation.sh | bash
+```
+
+`--uninstall` removes what a machine set up by the retired `install.sh` /
+`install-agents.sh` wrote (base skills, Spec Kit commands/skills, their MCP
+entries) and purges the retired knowledge hooks. See
+[PORTABILITY.md](PORTABILITY.md).
 
 ## Links
 

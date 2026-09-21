@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-run-state",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stage": { "type": "string" },
+    "intensity": { "type": "string" },
+    "rounds": { "type": "integer", "minimum": 0 },
+    "task_count": { "type": "integer", "minimum": 0 },
+    "spec_id": { "type": "string" },
+    "spec_slug": { "type": "string" },
+    "spec_relpath": { "type": "string" },
+    "agents": { "type": "array", "items": { "type": "string" } },
+    "integration_branch": { "type": "string" },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}

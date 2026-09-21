@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "JSON Schema is a SECONDARY tooling layer; validate_tasks remains the authoritative gate.",
+  "title": "council-worker-result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "status"],
+  "properties": {
+    "task_id": { "type": "string" },
+    "title": { "type": "string" },
+    "model": { "type": "string" },
+    "suggested_model": { "type": "string", "enum": ["haiku", "sonnet", "opus"] },
+    "engine": {},
+    "model_tier": { "type": "string" },
+    "branch": { "type": "string" },
+    "worktree": { "type": "string" },
+    "committed": { "type": "boolean" },
+    "summary": { "type": "string" },
+    "files_changed": { "type": "array", "items": { "type": "string" } },
+    "out_of_bounds": { "type": "array", "items": { "type": "string" } },
+    "verify_rc": { "type": ["integer", "null"] },
+    "verify_output": { "type": "string" },
+    "verdict": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "satisfied": { "type": "boolean" },
+        "reasons": { "type": "string" },
+        "issues": { "type": "array", "items": { "type": "string" } },
+        "task_id": { "type": "string" },
+        "dev_notes": { "type": "string" },
+        "spec_ref": { "type": "string" },
+        "context_refs": { "type": "array", "items": { "type": "string" } },
+        "content_hash": { "type": "string" },
+        "engine": {},
+        "model_tier": { "type": "string" }
+      }
+    },
+    "merge": { "type": "string" },
+    "status": { "type": "string" },
+    "error": { "type": "string" },
+    "content_hash": { "type": "string" }
+  }
+}

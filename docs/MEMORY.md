@@ -17,8 +17,9 @@ exist. Do not follow them.
 
 The estate's own knowledge base is being retired. What is **done**:
 
-- Every knowledge hook is gone from the kit, and `install-agents.sh` purges
-  them from a machine that still has them.
+- Every knowledge hook is gone from the kit, and `setup-workstation.sh`
+  purges them from a machine that still has them (agent-kit#40 moved this
+  off the retired `install-agents.sh`).
 - `manifest.yaml` fails validation if a `hooks:` or `settings:` section
   reappears.
 - The `knowledge` MCP server sits in the registry with `surfaces: []` — a
@@ -87,17 +88,25 @@ present *and* a backend has to answer.
 
 ## Decommissioning the old KB
 
-Not part of the bring-up, and deliberately last. The knowledge service still
-**serves the installer** (`install.sh` / `install-agents.sh` are fetched from
-it with a bearer token), so it cannot be switched off until those artifacts are
-published somewhere else. The plan is a public, auth-free static host — a
-Garage bucket behind the public edge is the obvious fit, since the installer is
-already a public-shaped GET and the bearer token buys nothing once the content
-is not secret.
+Not part of the bring-up, and deliberately last. **Update (agent-kit#40):**
+`install.sh` and `install-agents.sh` are retired; `setup-workstation.sh`
+(rendered from `registry/estate-tooling.yaml`) is the one installer now, and
+it is published from the public static host described below
+(`https://assets.jorisjonkers.dev/setup-workstation.sh`; agent-kit#35), not
+served by `knowledge-api`. The blocker this section originally described is
+resolved. The paragraph below is kept for the reasoning, not as a live plan:
 
-Until then:
+The knowledge service used to serve the installer (`install.sh` /
+`install-agents.sh` were fetched from it with a bearer token), so it could not
+be switched off until those artifacts were published somewhere else. The plan
+was a public, auth-free static host — a Garage bucket behind the public edge,
+since the installer is a public-shaped GET and the bearer token bought nothing
+once the content was not secret.
 
-- Leave `knowledge-api` running; it is the install transport.
+Remaining follow-up now that the transport dependency is gone:
+
 - **Revoke the KB bearer token** on any machine that ran the old installer. It
   sits in plaintext in `~/.claude.json` under the `knowledge` MCP entry.
   Unregistering the server does not revoke the token.
+- `knowledge-api` can now be decommissioned outright (fleet-infra#231); it is
+  no longer the install transport.
