@@ -1,31 +1,35 @@
 'name': 'Publish Installer Artifacts'
 
-# Publishes setup-workstation.sh and the skills bundle to the estate's public
-# static host on every published release. install.sh and install-agents.sh
-# are retired by #40 and are never published from here.
+# Attaches setup-workstation.sh and the skills bundle to every published
+# release as release assets. install.sh and install-agents.sh are retired by
+# #40 and are never attached from here.
+#
+# Publishing to the public asset host (assets.jorisjonkers.dev) is a
+# separate, in-cluster concern owned by fleet-infra: a Flux-managed CronJob
+# pulls these release assets and uploads them to Garage over the ClusterIP S3
+# API, which this workflow cannot reach and does not attempt to.
 'on':
   'release':
     'types':
       - 'published'
 
 'permissions':
-  'contents': 'read'
+  'contents': 'write'
 
 'jobs':
   'publish':
-    'name': 'Publish to the static host'
+    'name': 'Attach artifacts to the release'
     'runs-on': 'ubuntu-latest'
-    # One job with many steps: three uploads split across three jobs would
+    # One job with many steps: three attaches split across three jobs would
     # triple the bill for identical work, since jobs are billed by the
     # minute, rounded up. Every step past staging carries
-    # `if: ${{ !cancelled() }}` so one failed upload or check still lets the
+    # `if: ${{ !cancelled() }}` so one failed attach or check still lets the
     # rest run and report.
     'env':
+      'GH_TOKEN': '${{ secrets.GITHUB_TOKEN }}'
+      'GH_REPO': '${{ github.repository }}'
       'TAG_NAME': '${{ github.event.release.tag_name }}'
       'STAGE_DIR': '${{ github.workspace }}/.publish-stage'
-      'S3_ENDPOINT': '${{ secrets.GARAGE_S3_ENDPOINT }}'
-      'GARAGE_ACCESS_KEY_ID': '${{ secrets.GARAGE_ASSETS_ACCESS_KEY_ID }}'
-      'GARAGE_SECRET_ACCESS_KEY': '${{ secrets.GARAGE_ASSETS_SECRET_ACCESS_KEY }}'
     'steps':
       - 'uses': 'actions/checkout@v6'
         'with':
@@ -34,19 +38,23 @@
       - 'name': 'Stage the script and the skills bundle'
         'run': 'scripts/publish-installer-artifacts.sh stage'
 
-      - 'name': 'Upload setup-workstation.sh'
+      - 'name': 'Verify the retired installers are excluded'
         'if': '${{ !cancelled() }}'
-        'run': 'scripts/publish-installer-artifacts.sh upload-script'
+        'run': 'scripts/publish-installer-artifacts.sh verify-retired-excluded'
 
-      - 'name': 'Upload the skills bundle'
+      - 'name': 'Attach setup-workstation.sh to the release'
         'if': '${{ !cancelled() }}'
-        'run': 'scripts/publish-installer-artifacts.sh upload-skills'
+        'run': 'scripts/publish-installer-artifacts.sh attach-script'
 
-      - 'name': 'Upload the skills bundle checksum'
+      - 'name': 'Attach the skills bundle to the release'
         'if': '${{ !cancelled() }}'
-        'run': 'scripts/publish-installer-artifacts.sh upload-checksum'
+        'run': 'scripts/publish-installer-artifacts.sh attach-skills'
 
-      - 'name': 'Verify setup-workstation.sh is served with the release version'
+      - 'name': 'Attach the skills bundle checksum to the release'
+        'if': '${{ !cancelled() }}'
+        'run': 'scripts/publish-installer-artifacts.sh attach-checksum'
+
+      - 'name': 'Verify setup-workstation.sh carries the release version'
         'if': '${{ !cancelled() }}'
         'run': 'scripts/publish-installer-artifacts.sh verify-script'
 
@@ -57,7 +65,3 @@
       - 'name': 'Verify the published checksum file'
         'if': '${{ !cancelled() }}'
         'run': 'scripts/publish-installer-artifacts.sh verify-checksum'
-
-      - 'name': 'Verify the retired installers are not published'
-        'if': '${{ !cancelled() }}'
-        'run': 'scripts/publish-installer-artifacts.sh verify-retired-absent'

@@ -1,65 +1,75 @@
-"""End-to-end test of scripts/publish-installer-artifacts.sh against a local
-fake S3/website endpoint. Never touches the real bucket: GARAGE_S3_ENDPOINT
-and PUBLIC_URL both point at a throwaway http.server started for the test.
+"""End-to-end test of scripts/publish-installer-artifacts.sh against a fake
+`gh` CLI. Never touches a real GitHub release: a stub `gh` script on PATH
+intercepts `gh release upload`/`gh release download` and stores/serves
+assets from a local directory instead.
 """
 
 from __future__ import annotations
 
-import http.server
+import stat
 import subprocess
-import threading
-from collections.abc import Iterator
 from pathlib import Path
-from typing import ClassVar
 
 import pytest
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = KIT_ROOT / "scripts" / "publish-installer-artifacts.sh"
 
+FAKE_GH = """#!/usr/bin/env python3
+# Fake `gh` for tests: `gh release upload <tag> <file> [--clobber]` copies the
+# file into $FAKE_RELEASE_STORE/<tag>/; `gh release download <tag> --pattern
+# <name> --dir <dir> [--clobber]` copies it back out. Anything else is an error.
+import os
+import shutil
+import sys
+from pathlib import Path
 
-class _FakeObjectStore(http.server.BaseHTTPRequestHandler):
-    """Stands in for both the signed S3 write API and the anonymous website
-    read endpoint. PUT /<bucket>/<key> stores by key; GET /<key> serves it
-    back, matching the real split between S3 API and website access closely
-    enough to exercise this script's request shapes."""
+def main() -> int:
+    args = sys.argv[1:]
+    if len(args) < 2 or args[0] != "release":
+        print(f"fake gh: unsupported invocation: {args}", file=sys.stderr)
+        return 1
+    store = Path(os.environ["FAKE_RELEASE_STORE"])
+    subcommand, rest = args[1], args[2:]
+    if subcommand == "upload":
+        tag, local_file = rest[0], rest[1]
+        dest_dir = store / tag
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(local_file, dest_dir / Path(local_file).name)
+        return 0
+    if subcommand == "download":
+        tag = rest[0]
+        pattern = out_dir = None
+        flags = iter(rest[1:])
+        for flag in flags:
+            if flag == "--pattern":
+                pattern = next(flags)
+            elif flag == "--dir":
+                out_dir = next(flags)
+        assert pattern and out_dir, "test fake gh needs --pattern and --dir"
+        source = store / tag / pattern
+        if not source.exists():
+            print(f"fake gh: no asset {pattern!r} on release {tag!r}", file=sys.stderr)
+            return 1
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        shutil.copy(source, Path(out_dir) / pattern)
+        return 0
+    print(f"fake gh: unsupported subcommand {subcommand!r}", file=sys.stderr)
+    return 1
 
-    objects: ClassVar[dict[str, bytes]] = {}
-
-    def do_PUT(self) -> None:
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length)
-        key = self.path.split("/", 2)[-1]
-        _FakeObjectStore.objects[key] = body
-        self.send_response(200)
-        self.end_headers()
-
-    def do_GET(self) -> None:
-        key = self.path.lstrip("/")
-        body = _FakeObjectStore.objects.get(key)
-        if body is None:
-            self.send_response(404)
-            self.end_headers()
-            return
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format: str, *args: object) -> None:
-        pass  # keep test output quiet
+if __name__ == "__main__":
+    sys.exit(main())
+"""
 
 
 @pytest.fixture
-def fake_host() -> Iterator[str]:
-    _FakeObjectStore.objects = {}
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeObjectStore)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}"
-    finally:
-        server.shutdown()
-        thread.join(timeout=5)
+def fake_gh_bin(tmp_path: Path) -> Path:
+    bin_dir = tmp_path / "fake-bin"
+    bin_dir.mkdir()
+    gh_path = bin_dir / "gh"
+    gh_path.write_text(FAKE_GH)
+    gh_path.chmod(gh_path.stat().st_mode | stat.S_IEXEC)
+    return bin_dir
 
 
 @pytest.fixture
@@ -74,17 +84,22 @@ def fake_repo(tmp_path: Path) -> Path:
     return repo
 
 
-def run_step(step: str, repo: Path, stage_dir: Path, host: str, tag: str = "v9.9.9") -> subprocess.CompletedProcess:
+def run_step(
+    step: str,
+    repo: Path,
+    stage_dir: Path,
+    fake_gh_bin: Path,
+    release_store: Path,
+    tag: str = "v9.9.9",
+) -> subprocess.CompletedProcess:
     env = {
-        "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:/sbin",
+        "PATH": f"{fake_gh_bin}:/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:/sbin",
         "TAG_NAME": tag,
         "REPO_ROOT": str(repo),
         "STAGE_DIR": str(stage_dir),
-        "PUBLIC_URL": host,
-        "S3_ENDPOINT": host,
-        "GARAGE_ACCESS_KEY_ID": "test-key-id",
-        "GARAGE_SECRET_ACCESS_KEY": "test-secret",
-        "BUCKET": "assets.jorisjonkers.dev",
+        "FAKE_RELEASE_STORE": str(release_store),
+        "GH_TOKEN": "test-token",
+        "GH_REPO": "JorisJonkers-dev/agent-kit",
     }
     return subprocess.run(
         [str(SCRIPT), step],
@@ -98,34 +113,37 @@ def run_step(step: str, repo: Path, stage_dir: Path, host: str, tag: str = "v9.9
 
 ALL_STEPS = (
     "stage",
-    "upload-script",
-    "upload-skills",
-    "upload-checksum",
+    "verify-retired-excluded",
+    "attach-script",
+    "attach-skills",
+    "attach-checksum",
     "verify-script",
     "verify-skills",
     "verify-checksum",
-    "verify-retired-absent",
 )
 
 
-def test_full_publish_and_verify_cycle_succeeds(fake_repo: Path, fake_host: str, tmp_path: Path):
+def test_full_publish_and_verify_cycle_succeeds(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
     stage_dir = tmp_path / "stage"
+    release_store = tmp_path / "release-store"
     for step in ALL_STEPS:
-        result = run_step(step, fake_repo, stage_dir, fake_host)
+        result = run_step(step, fake_repo, stage_dir, fake_gh_bin, release_store)
         assert result.returncode == 0, f"{step} failed:\n{result.stdout}\n{result.stderr}"
 
 
-def test_rerun_on_the_same_release_is_a_no_op_that_still_verifies(fake_repo: Path, fake_host: str, tmp_path: Path):
+def test_rerun_on_the_same_release_is_a_no_op_that_still_verifies(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
     stage_dir = tmp_path / "stage"
+    release_store = tmp_path / "release-store"
     for _ in range(2):
         for step in ALL_STEPS:
-            result = run_step(step, fake_repo, stage_dir, fake_host)
+            result = run_step(step, fake_repo, stage_dir, fake_gh_bin, release_store)
             assert result.returncode == 0, f"{step} failed on rerun:\n{result.stdout}\n{result.stderr}"
 
 
-def test_skills_tarball_has_no_dot_slash_prefix_and_no_version_dir(fake_repo: Path, fake_host: str, tmp_path: Path):
+def test_skills_tarball_has_no_dot_slash_prefix_and_no_version_dir(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
     stage_dir = tmp_path / "stage"
-    assert run_step("stage", fake_repo, stage_dir, fake_host).returncode == 0
+    release_store = tmp_path / "release-store"
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store).returncode == 0
     names = subprocess.run(
         ["tar", "-tzf", str(stage_dir / "agent-kit-skills.tar.gz")],
         capture_output=True,
@@ -139,33 +157,54 @@ def test_skills_tarball_has_no_dot_slash_prefix_and_no_version_dir(fake_repo: Pa
     assert "skills/pr-composer/SKILL.md" in names
 
 
-def test_verify_script_fails_when_published_version_does_not_match_release(
-    fake_repo: Path, fake_host: str, tmp_path: Path
+def test_verify_script_fails_when_asset_version_does_not_match_release(
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path
 ):
     stage_dir = tmp_path / "stage"
-    assert run_step("stage", fake_repo, stage_dir, fake_host, tag="v1.0.0").returncode == 0
-    assert run_step("upload-script", fake_repo, stage_dir, fake_host, tag="v1.0.0").returncode == 0
-    # A different release than the one actually published must fail, not pass.
-    result = run_step("verify-script", fake_repo, stage_dir, fake_host, tag="v2.0.0")
+    release_store = tmp_path / "release-store"
+    tag = "v1.0.0"
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    assert run_step("attach-script", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    # Tamper with what the release actually holds, as if a stale asset from a
+    # different tag had been attached by hand.
+    attached = release_store / tag / "setup-workstation.sh"
+    attached.write_text(attached.read_text().replace(tag, "v0.0.1-stale"))
+    result = run_step("verify-script", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag)
     assert result.returncode != 0
     assert "version token" in result.stderr
 
 
-def test_verify_skills_fails_when_published_tarball_is_corrupted(fake_repo: Path, fake_host: str, tmp_path: Path):
+def test_verify_skills_fails_when_asset_is_corrupted(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
     stage_dir = tmp_path / "stage"
-    assert run_step("stage", fake_repo, stage_dir, fake_host).returncode == 0
-    assert run_step("upload-skills", fake_repo, stage_dir, fake_host).returncode == 0
-    # Tamper with what the fake host serves back, as if the upload landed
+    release_store = tmp_path / "release-store"
+    tag = "v9.9.9"
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    assert run_step("attach-skills", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    # Tamper with what the release actually holds, as if the attach landed
     # truncated or corrupted in transit.
-    _FakeObjectStore.objects["agent-kit-skills.tar.gz"] = b"corrupted"
-    result = run_step("verify-skills", fake_repo, stage_dir, fake_host)
+    (release_store / tag / "agent-kit-skills.tar.gz").write_bytes(b"corrupted")
+    result = run_step("verify-skills", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag)
     assert result.returncode != 0
     assert "checksum" in result.stderr
 
 
-def test_verify_retired_installers_absent_fails_if_one_is_served(fake_repo: Path, fake_host: str, tmp_path: Path):
+def test_verify_retired_excluded_fails_if_installer_file_present(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
     stage_dir = tmp_path / "stage"
-    _FakeObjectStore.objects["install.sh"] = b"echo legacy"
-    result = run_step("verify-retired-absent", fake_repo, stage_dir, fake_host)
+    release_store = tmp_path / "release-store"
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store).returncode == 0
+    (fake_repo / "installer" / "install.sh").write_text("#!/usr/bin/env bash\necho legacy\n")
+    result = run_step("verify-retired-excluded", fake_repo, stage_dir, fake_gh_bin, release_store)
     assert result.returncode != 0
     assert "install.sh" in result.stderr
+
+
+def test_verify_retired_excluded_fails_if_tarball_contains_retired_file(
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path
+):
+    stage_dir = tmp_path / "stage"
+    release_store = tmp_path / "release-store"
+    (fake_repo / "skills" / "pr-composer" / "install-agents.sh").write_text("#!/usr/bin/env bash\necho legacy\n")
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store).returncode == 0
+    result = run_step("verify-retired-excluded", fake_repo, stage_dir, fake_gh_bin, release_store)
+    assert result.returncode != 0
+    assert "install-agents.sh" in result.stderr
