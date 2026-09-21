@@ -24,8 +24,42 @@ auth.
 
 | Variable | Used by | Required? |
 |---|---|---|
-| `MEMORY_API_KEY` | the `memory` MCP server | required |
+| `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
+| `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://memory-api.jorisjonkers.dev`) | required |
+| `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
+
+`HINDSIGHT_API_TOKEN` and `MEMORY_MCP_TOKEN` are **per-host, individually
+revocable** service tokens, not shared secrets — mint one per device with
+`POST /api/v1/auth/service-tokens {"service":"MEMORY_API"|"MEMORY_MCP",
+"label":"<device>"}` while signed in to auth-api (agent-kit#41/#42 design),
+and revoke a lost device with `DELETE /api/v1/auth/service-tokens/{id}`
+without touching any other device or host. Never share one token between
+hosts, and never fall back to the account password or a long-lived shared
+key — see the [#41 design](https://github.com/JorisJonkers-dev/agent-kit/issues/41)
+for why both are explicitly rejected.
+
+`HINDSIGHT_API_URL` is not a secret, but an unset value is not loud: the
+`hindsight-memory` plugin quietly falls back to a personal **local** daemon
+instead of the shared estate bank, which looks identical to a working setup
+from inside a session. The setup script warns by name when it is unset;
+verify by checking which bank a note actually landed in, not by the plugin
+starting without an error.
+
+### Automatic vs. model-elective capture
+
+| Client | Capture |
+|---|---|
+| Claude Code | **Automatic** — the `hindsight-memory` plugin's `UserPromptSubmit`/`Stop` hooks recall and retain on every turn, no tool call needed. |
+| Codex, Hermes (laptop and in-cluster) | **Model-elective** — no hook mechanism exists, so recall/retain only happens when the model calls a `memory-api` or `memory-mcp` tool itself. |
+
+Both paths write into the same shared, per-project bank (Hindsight's default
+`dynamicBankGranularity: ["agent", "project"]` — one bank per project,
+agent-attributed within it) and the same shared Basic Memory vault. Basic
+Memory carries no per-call identity of its own, so attribute a change in the
+note body/frontmatter, and always **edit** a note — `--overwrite` is
+last-writer-wins and silently drops a concurrent edit from another agent or
+session (verified live).
 
 `OVERLEAF_SESSION` is the `overleaf.sid` cookie from a logged-in browser
 session on the **self-hosted** instance — not `overleaf_session2`, which is the

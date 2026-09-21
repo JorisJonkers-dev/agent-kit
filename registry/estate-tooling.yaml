@@ -357,6 +357,8 @@ marketplaces:
     repo: LukasNiessen/kubernetes-skill
   - name: ai-software-architect
     repo: codenamev/ai-software-architect
+  - name: hindsight
+    repo: vectorize-io/hindsight
 
 # -------------------------------------------------------------------
 # Claude Code plugins.
@@ -431,6 +433,16 @@ plugins:
     commit: 6e636c8bb2f63481d70f0b7af12912fd414d5722
     enabled: false
     purpose: Architecture review personas. Off by default — large surface, rarely the right tool.
+
+  - name: hindsight-memory
+    marketplace: hindsight
+    # main HEAD: vendor ships no tag past v0.7.5 for this plugin.
+    commit: 16d4025f882ba232a2d4c72abd1eb47420e68e17
+    enabled: true
+    purpose: Automatic Hindsight recall/retain for Claude Code via UserPromptSubmit/Stop hooks.
+    requires_env:
+      HINDSIGHT_API_URL: the estate Hindsight API, or it falls back to a personal local daemon
+      HINDSIGHT_API_TOKEN: per-host token from auth-api service-tokens (service MEMORY_API)
 
 # Spec Kit is deliberately absent. The `speckit.*` commands and skills are
 # not installed by this registry on any surface. The kit still renders its
@@ -673,21 +685,45 @@ skill_sources:
 mcp_servers:
   - name: memory
     transport: http
-    purpose: >-
-      Self-hosted long-term memory. Replaces the retired knowledge base;
-      see docs/MEMORY.md.
+    purpose: RETIRED. The mem0 self-host plan in docs/MEMORY.md was abandoned.
     url_workstation: "https://memory.jorisjonkers.dev/mcp"
     url_hermes: "http://mem0.memory-system.svc.cluster.local:8080/mcp"
     credential: MEMORY_API_KEY
     timeout: 60
-    # Not registered yet. The in-cluster app does not exist until the
-    # bring-up in docs/MEMORY.md is done, and registering a URL that
-    # answers nothing gives every surface a server that fails at the
-    # first tool call. Flip to true in the same change that lands the
-    # Deployment, not before.
     enabled: false
+    surfaces: []
+    trust: estate
+    note: Kept as a record only, registered nowhere; replaced by memory-api and memory-mcp.
+
+  - name: memory-api
+    transport: http
+    purpose: Hindsight long-term memory -- explicit read/write/search knowledge tools.
+    url_workstation: "https://memory-api.jorisjonkers.dev/mcp"
+    url_hermes: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp"
+    credential: HINDSIGHT_API_TOKEN
+    # Hermes reaches this by Service DNS + NetworkPolicy alone, no header.
+    credential_hermes: false
+    timeout: 60
     surfaces: [workstation, hermes, runner]
     trust: estate
+    note: >-
+      HINDSIGHT_API_TOKEN is a per-host token from auth-api's
+      service-tokens endpoint (service MEMORY_API).
+
+  - name: memory-mcp
+    transport: http
+    purpose: Basic Memory -- shared Markdown notes with a semantic link graph. Edit notes, never overwrite.
+    url_workstation: "https://memory-mcp.jorisjonkers.dev/mcp"
+    url_hermes: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
+    credential: MEMORY_MCP_TOKEN
+    # Same network-boundary posture as memory-api: no header for Hermes.
+    credential_hermes: false
+    timeout: 60
+    surfaces: [workstation, hermes, runner]
+    trust: estate
+    note: >-
+      MEMORY_MCP_TOKEN is minted the same way as HINDSIGHT_API_TOKEN,
+      with service MEMORY_MCP.
 
   - name: kubernetes
     transport: http

@@ -16,8 +16,11 @@
 #   ./setup-workstation.sh --no-profiles   only the primary Claude profile
 #
 # Secrets are read from the environment and never written here:
-#   MEMORY_API_KEY  -> the memory MCP server
+#   HINDSIGHT_API_TOKEN  -> the memory-api MCP server
+#   MEMORY_MCP_TOKEN  -> the memory-mcp MCP server
 #   OVERLEAF_SESSION  -> the overleaf MCP server
+#   HINDSIGHT_API_URL  -> the hindsight-memory plugin
+#   HINDSIGHT_API_TOKEN  -> the hindsight-memory plugin
 
 set -uo pipefail
 
@@ -33,6 +36,7 @@ skipped_mcp_servers=()     # MCP servers skipped due to missing credentials
 unshared_profile_paths=()  # Shared surfaces a secondary profile did not get
 missing_lsp_binaries=()    # Language servers with missing binaries
 disabled_plugins=()        # Plugins disabled (missing binary or on purpose)
+missing_plugin_env=()      # Plugins whose required env vars are unset
 plugin_drift=()            # Plugins whose commit drifted
 new_binaries=()            # Binaries installed during this run
 
@@ -357,6 +361,9 @@ else
   run claude plugin marketplace add codenamev/ai-software-architect 2>/dev/null \
     || run claude plugin marketplace update ai-software-architect >/dev/null 2>&1 \
     || warn "marketplace ai-software-architect (codenamev/ai-software-architect) could not be added or updated"
+  run claude plugin marketplace add vectorize-io/hindsight 2>/dev/null \
+    || run claude plugin marketplace update hindsight >/dev/null 2>&1 \
+    || warn "marketplace hindsight (vectorize-io/hindsight) could not be added or updated"
 
   log "plugins"
   # caveman: Compressed output mode plus the cavecrew subagents.
@@ -415,6 +422,21 @@ else
     disabled_plugins+=("ai-software-architect: disabled on purpose in registry")
   else
     warn "ai-software-architect@ai-software-architect install failed"
+  fi
+  # hindsight-memory: Automatic Hindsight recall/retain for Claude Code via UserPromptSubmit/Stop hooks.
+  if run claude plugin install hindsight-memory@hindsight --yes --scope user; then
+    run claude plugin enable hindsight-memory@hindsight >/dev/null 2>&1 || true
+    ok "hindsight-memory@hindsight installed and enabled"
+  else
+    warn "hindsight-memory@hindsight install failed"
+  fi
+  if [ -z "${HINDSIGHT_API_URL:-}" ]; then
+    warn "hindsight-memory: HINDSIGHT_API_URL is not set (the estate Hindsight API, or it falls back to a personal local daemon); export it and re-run"
+    missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_URL")
+  fi
+  if [ -z "${HINDSIGHT_API_TOKEN:-}" ]; then
+    warn "hindsight-memory: HINDSIGHT_API_TOKEN is not set (per-host token from auth-api service-tokens (service MEMORY_API)); export it and re-run"
+    missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_TOKEN")
   fi
 
   # ---------------------------------------------------------------
@@ -503,6 +525,15 @@ for install in installs:
       plugin_drift+=("ai-software-architect: ${installed_commit} vs 6e636c8bb2f6")
     else
       ok "ai-software-architect: at the expected commit"
+    fi
+    installed_commit="$(installed_plugin_commit "${manifest}" "hindsight-memory@hindsight")"
+    if [ -z "${installed_commit}" ]; then
+      log "hindsight-memory: no user-scope commit recorded; drift not checked"
+    elif [ "${installed_commit}" != "16d4025f882ba232a2d4c72abd1eb47420e68e17" ]; then
+      warn "hindsight-memory: installed ${installed_commit} differs from the registry's 16d4025f882b"
+      plugin_drift+=("hindsight-memory: ${installed_commit} vs 16d4025f882b")
+    else
+      ok "hindsight-memory: at the expected commit"
     fi
   fi
 
@@ -795,8 +826,53 @@ for install in installs:
     log "knowledge: removed (retired in the registry)"
 
 
-    # Self-hosted long-term memory. Replaces the retired knowledge
-    # base; see docs/MEMORY.md.
+    # Hindsight long-term memory -- explicit read/write/search
+    # knowledge tools.
+    if [ -z "${HINDSIGHT_API_TOKEN:-}" ]; then
+      warn "memory-api: HINDSIGHT_API_TOKEN is not set; skipping (export it and re-run)"
+      skipped_mcp_servers+=("memory-api: export HINDSIGHT_API_TOKEN")
+    else
+      if command -v claude >/dev/null 2>&1; then
+        run claude_each_profile claude mcp remove --scope user memory-api >/dev/null 2>&1 || true
+        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://memory-api.jorisjonkers.dev/mcp --header "Authorization: Bearer ${HINDSIGHT_API_TOKEN}"; then
+          ok "memory-api registered (claude)"
+        else
+          fail "memory-api registration failed (claude)"
+        fi
+      fi
+      if command -v codex >/dev/null 2>&1; then
+        run codex mcp remove memory-api >/dev/null 2>&1 || true
+        if run_redacted "codex mcp add memory-api" codex mcp add memory-api --url https://memory-api.jorisjonkers.dev/mcp --bearer-token-env-var HINDSIGHT_API_TOKEN; then
+          ok "memory-api registered (codex)"
+        else
+          fail "memory-api registration failed (codex)"
+        fi
+      fi
+    fi
+
+    # Basic Memory -- shared Markdown notes with a semantic link
+    # graph. Edit notes, never overwrite.
+    if [ -z "${MEMORY_MCP_TOKEN:-}" ]; then
+      warn "memory-mcp: MEMORY_MCP_TOKEN is not set; skipping (export it and re-run)"
+      skipped_mcp_servers+=("memory-mcp: export MEMORY_MCP_TOKEN")
+    else
+      if command -v claude >/dev/null 2>&1; then
+        run claude_each_profile claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
+        if run_redacted "claude mcp add memory-mcp" claude_each_profile claude mcp add --scope user memory-mcp --transport http https://memory-mcp.jorisjonkers.dev/mcp --header "Authorization: Bearer ${MEMORY_MCP_TOKEN}"; then
+          ok "memory-mcp registered (claude)"
+        else
+          fail "memory-mcp registration failed (claude)"
+        fi
+      fi
+      if command -v codex >/dev/null 2>&1; then
+        run codex mcp remove memory-mcp >/dev/null 2>&1 || true
+        if run_redacted "codex mcp add memory-mcp" codex mcp add memory-mcp --url https://memory-mcp.jorisjonkers.dev/mcp --bearer-token-env-var MEMORY_MCP_TOKEN; then
+          ok "memory-mcp registered (codex)"
+        else
+          fail "memory-mcp registration failed (codex)"
+        fi
+      fi
+    fi
 
     # Read-only cluster diagnostics through the server's own
     # ClusterRole.
@@ -913,6 +989,8 @@ for install in installs:
       registered=$(CLAUDE_CONFIG_DIR="${profile_dir}" claude mcp list 2>/dev/null || true)
       # Check all expected servers are registered
       for want in \
+        memory-api \
+        memory-mcp \
         kubernetes \
         playwright \
         drawio \
@@ -930,7 +1008,8 @@ for install in installs:
       # silently inspected nothing on macOS.
       echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].*/\1/p' | sort -u | while read -r found; do
         case "${found}" in
-          memory) ;;
+          memory-api) ;;
+          memory-mcp) ;;
           kubernetes) ;;
           vuetify) ;;
           playwright) ;;
@@ -1053,6 +1132,15 @@ if [ "${#missing_lsp_binaries[@]}" -gt 0 ]; then
   log ""
 fi
 
+# Report plugins with unset required env vars
+if [ "${#missing_plugin_env[@]}" -gt 0 ]; then
+  log "Plugins with unset required env vars:"
+  for entry in "${missing_plugin_env[@]}"; do
+    log "  - ${entry}"
+  done
+  log ""
+fi
+
 # Report plugins left disabled
 if [ "${#disabled_plugins[@]}" -gt 0 ]; then
   log "Plugins left disabled:"
@@ -1074,7 +1162,8 @@ fi
 # Final summary
 if [ "${failures}" = 0 ] && [ "${warnings}" = 0 ] \
    && [ "${#skipped_mcp_servers[@]}" = 0 ] && [ "${#missing_lsp_binaries[@]}" = 0 ] \
-   && [ "${#disabled_plugins[@]}" = 0 ] && [ "${#plugin_drift[@]}" = 0 ]; then
+   && [ "${#disabled_plugins[@]}" = 0 ] && [ "${#plugin_drift[@]}" = 0 ] \
+   && [ "${#missing_plugin_env[@]}" = 0 ]; then
   log "Setup complete: everything is ready"
 else
   log "Setup summary: ${failures} failure(s), ${warnings} warning(s)"

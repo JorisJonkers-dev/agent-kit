@@ -11,14 +11,17 @@
 # NetworkPolicy. Check `hermes doctor` first.
 
 mcp_servers:
-  # Self-hosted long-term memory. Replaces the retired knowledge base;
-  # see docs/MEMORY.md.
-  memory:
-    url: "http://mem0.memory-system.svc.cluster.local:8080/mcp"
-    headers:
-      Authorization: "Bearer @MEMORY_API_KEY@"
+  # Hindsight long-term memory -- explicit read/write/search knowledge
+  # tools.
+  memory-api:
+    url: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp"
     timeout: 60
-    enabled: false
+
+  # Basic Memory -- shared Markdown notes with a semantic link graph.
+  # Edit notes, never overwrite.
+  memory-mcp:
+    url: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
+    timeout: 60
 
   # Read-only cluster diagnostics through the server's own
   # ClusterRole.

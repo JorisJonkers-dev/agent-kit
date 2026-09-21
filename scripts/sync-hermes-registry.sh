@@ -80,12 +80,12 @@ if marker not in current:
 head = current[: current.index(marker) + len(marker)]
 desired_skills = head + indent(sources, 4)
 
-# --- config-configmap.yaml: replace the mcp_servers: block ------------------
-# The block is the last key of config.yaml, indented four spaces inside the
-# block scalar. Anchor on the generated banner when a previous sync wrote one,
-# otherwise on `    mcp_servers:` itself, and take everything to end of file.
+# The banner anchor must match render_hermes_mcp's first line, or each sync prepends another copy.
 current_config = config_cm.read_text()
-match = re.search(r"\n(    # -+\n(?:    #.*\n)*?)?    mcp_servers:\n", current_config)
+match = re.search(
+    r"\n(    # GENERATED FROM registry/estate-tooling\.yaml.*\n(?:    #.*\n|\n)*?)?    mcp_servers:\n",
+    current_config,
+)
 if match is None:
     sys.exit(f"{config_cm} has no `    mcp_servers:` block")
 desired_config = current_config[: match.start()] + "\n" + indent(mcp, 4)

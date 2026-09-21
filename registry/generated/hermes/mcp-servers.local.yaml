@@ -5,6 +5,18 @@
 # ~/.hermes/config.yaml by scripts/hermes-merge-mcp.py.
 #
 mcp_servers:
+  memory-api:
+    url: "https://memory-api.jorisjonkers.dev/mcp"
+    headers:
+      Authorization: "Bearer ${HINDSIGHT_API_TOKEN}"
+    timeout: 60
+
+  memory-mcp:
+    url: "https://memory-mcp.jorisjonkers.dev/mcp"
+    headers:
+      Authorization: "Bearer ${MEMORY_MCP_TOKEN}"
+    timeout: 60
+
   kubernetes:
     url: "http://127.0.0.1:18080/mcp"
     timeout: 60
