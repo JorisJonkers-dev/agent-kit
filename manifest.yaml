@@ -207,10 +207,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/agent-session-bootstrap/SKILL.md
-        sha256: 6d56bbdf76e020f3c8524f3f9e444b1473f6f08195a26e43f6e1092492e80e55
+        sha256: 98660ff808936948a030f708184a1253bef8a923855e37df833a9224eac4aa21
       - agent: claude
         path: .claude/skills/agent-session-bootstrap/SKILL.md
-        sha256: dc8516eea12c7a8c097012ebede2fe14069b1059bafa0f5f29d2ba7578fe1d79
+        sha256: 98660ff808936948a030f708184a1253bef8a923855e37df833a9224eac4aa21
   - name: council-amend
     supported_agents: [codex, claude]
     targets:
@@ -327,10 +327,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/kb-first/SKILL.md
-        sha256: efc4ecbd85e9d516f7b6718842c055efcb8406a8911b10c4f4cdd168370f814b
+        sha256: 4a6c51047f9e2392d92251dd7eedf92adc59c7a69cfe508c220dea72b0db4bae
       - agent: claude
         path: .claude/skills/kb-first/SKILL.md
-        sha256: 99f677b9e491be60b35dc72d6abbf87a064ce1f6db83b492af990a467f63881c
+        sha256: 4a6c51047f9e2392d92251dd7eedf92adc59c7a69cfe508c220dea72b0db4bae
   - name: open-pr
     supported_agents: [codex, claude]
     targets:

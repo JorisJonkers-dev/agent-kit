@@ -1,43 +1,43 @@
 ---
 name: kb-first
-description: Use before designing or changing behavior that may depend on prior knowledge-base captures, repo history, architecture decisions, cluster state, agent conventions, or remembered lessons. Also use near task completion to capture durable lessons or decisions without dumping large KB context.
+description: Use before designing or changing behavior that may depend on prior memory captures, repo history, architecture decisions, cluster state, agent conventions, or remembered lessons. Also use near task completion to capture durable lessons or decisions without dumping large context.
 ---
 
-# KB First
+# Memory First
 
-## Workflow
+The estate's knowledge-api and its `knowledge.*` MCP tools are retired
+(fleet-infra#231). The current memory platform is two separate MCP servers,
+each with its own tools and its own purpose — check each one's `tools/list`
+for the exact call names and parameters, since they are independent products
+with their own interfaces:
 
-Use the KB as a small retrieval layer, not as a large context dump.
+- **`memory-api`** (Hindsight) — long-term memory with explicit
+  read/write/search tools. Use it for durable lessons: verified behavior,
+  pitfalls, decisions, and operational facts you want a future session to
+  find without re-deriving them.
+- **`memory-mcp`** (Basic Memory) — shared Markdown notes with a semantic
+  link graph. Use it for durable, human-readable notes that benefit from
+  being edited in place and linked to related notes — never overwrite an
+  existing note wholesale; edit it.
 
-1. Distill the task into a short recall query: nouns, service names, file names,
+Use either as a small retrieval layer, not as a large context dump:
+
+1. Distill the task into a short query: nouns, service names, file names,
    and the decision being made.
-2. Call `knowledge.recall` with `limit <= 5`. Prefer `scope=project:personal-stack`
-   for repo behavior, `topic:<slug>` for general framework/tool facts, or omit
-   scope for the curated default.
-3. Choose the right mode:
-   - `fast` — short/trivial lookups or when latency matters (< 80 char queries).
-   - `hybrid` — normal work; FTS + vector + RRF.
-   - `deep` — only after fast or hybrid misses something important.
-4. Read only what is needed. Usually snippets are enough. If a hit matters, call
-   `knowledge.relations(id, depth=1)` before fetching the full note.
-5. Filter mentally: hits with scores below 0.01 are rarely useful — treat as
-   no match and continue from repo/source inspection.
-6. If the KB has no useful context, say so and proceed from source.
-
-## Capture
+2. Search with a tight result limit first. Widen only if the narrow search
+   comes back empty or is clearly missing something the task needs.
+3. Read only what is needed — a snippet or note summary is usually enough.
+   Fetch the full note or record only when a hit actually matters.
+4. If neither server has useful context, say so explicitly and continue
+   from repo/source inspection instead of guessing.
 
 Capture at the end only when the information is durable and reusable:
+implementation pitfalls, verified behavior, operational runbooks,
+architecture/process choices, or ambiguity that needed operator judgment.
+Keep captures compact. Do not capture secrets, raw logs, full diffs, or
+entire transcripts. Prefer `memory-api` for a short lesson entry and
+`memory-mcp` for a longer note that should link to related notes.
 
-- Use `knowledge.capture_lesson` for implementation pitfalls, verified behavior,
-  operational runbooks, and repeatable workflows.
-- Use `knowledge.capture_decision` for architecture/process choices and the
-  rationale behind them.
-- Use `knowledge.capture_question` when an ambiguity needs operator judgment.
-
-Keep captures compact: title plus the minimum body that will make a future recall
-useful. Do not capture secrets, raw logs, full diffs, or entire transcripts.
-
-## Token Boundaries
-
-Never run broad `scope=all` recall as a first step. Use `scope=all` only after a
-targeted recall fails and the task genuinely needs cross-scope context.
+Never run a broad, unscoped search across everything as a first step. Use it
+only after a targeted search fails and the task genuinely needs cross-cutting
+context.
