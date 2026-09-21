@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.0.0...v4.1.0) (2026-09-21)
+
+
+### Features
+
+* **ci:** attach installer artifacts to the release on publish ([#66](https://github.com/JorisJonkers-dev/agent-kit/issues/66)) ([05cc561](https://github.com/JorisJonkers-dev/agent-kit/commit/05cc5616cbe712765e1cf7b84cc9568e8a3cfca4))
+* **installer:** make setup-workstation.sh a true superset, retire install.sh ([#65](https://github.com/JorisJonkers-dev/agent-kit/issues/65)) ([b7c1496](https://github.com/JorisJonkers-dev/agent-kit/commit/b7c1496349582d9b5387f7444faf24d0e4a5798a))
+* **installer:** second Claude Code profile and claude-&lt;profile&gt; launcher ([#58](https://github.com/JorisJonkers-dev/agent-kit/issues/58)) ([ce69717](https://github.com/JorisJonkers-dev/agent-kit/commit/ce697172aacaa9787083fb3df526574be8500af4))
+* **registry:** generate a container setup script for the agents image ([#62](https://github.com/JorisJonkers-dev/agent-kit/issues/62)) ([019932f](https://github.com/JorisJonkers-dev/agent-kit/commit/019932f422f23f92d3280f248cf2217760016658))
+* **registry:** wire Claude Code, Codex and Hermes to Hindsight + Basic Memory ([#64](https://github.com/JorisJonkers-dev/agent-kit/issues/64)) ([0038b81](https://github.com/JorisJonkers-dev/agent-kit/commit/0038b81b9166668ea0ac59bc70686770cba096b1))
+
 ## [4.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v3.3.0...v4.0.0) (2026-09-11)
 
 
