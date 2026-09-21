@@ -80,16 +80,7 @@ if marker not in current:
 head = current[: current.index(marker) + len(marker)]
 desired_skills = head + indent(sources, 4)
 
-# --- config-configmap.yaml: replace the mcp_servers: block ------------------
-# The block is the last key of config.yaml, indented four spaces inside the
-# block scalar. Anchor on the generated banner when a previous sync wrote one,
-# otherwise on `    mcp_servers:` itself, and take everything to end of file.
-#
-# The banner anchor must match render_hermes_mcp's ACTUAL first line, or a
-# previous sync's banner is never recognised as "already there": it is left
-# in place and a fresh one is prepended on top, growing by one copy every
-# run. Verified against a real checkout that had accumulated two before this
-# fix -- `git blame` had nothing to say, because every run "succeeded".
+# The banner anchor must match render_hermes_mcp's first line, or each sync prepends another copy.
 current_config = config_cm.read_text()
 match = re.search(
     r"\n(    # GENERATED FROM registry/estate-tooling\.yaml.*\n(?:    #.*\n|\n)*?)?    mcp_servers:\n",
