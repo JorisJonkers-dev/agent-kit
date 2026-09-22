@@ -3,7 +3,7 @@
 upstream_repository: https://github.com/github/spec-kit
 upstream_tag: v0.9.5
 upstream_release_date: 2026-06-05
-resolved_commit_sha: 9313aaeb6573333c636c7ac55439dddc256c29e1
+resolved_commit_sha: 2262359d967601f864749e359d3e0129e45e94f4
 license: MIT
 
 ## Copied or Adapted Paths
