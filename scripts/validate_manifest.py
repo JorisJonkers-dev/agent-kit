@@ -650,8 +650,6 @@ def validate_runtime_package_artifacts() -> None:
         if isinstance(item, dict) and isinstance((name := item.get("name")), str)
     }
     required_placeholders = {
-        "KNOWLEDGE_MCP_URL",
-        "KNOWLEDGE_MCP_BEARER_TOKEN",
         "CLUSTER_MCP_URL",
         "FRONTEND_DOCS_MCP_URL",
         "UI_DOCS_MCP_URL",

@@ -1,11 +1,4 @@
 {
-  "knowledge": {
-    "type": "http",
-    "url": "@KNOWLEDGE_MCP_URL@/mcp",
-    "headers": {
-      "Authorization": "Bearer @KNOWLEDGE_MCP_BEARER_TOKEN@"
-    }
-  },
   "git-host": {
     "type": "stdio",
     "command": "gh-mcp-wrapper"
@@ -21,6 +14,10 @@
   "playwright": {
     "type": "stdio",
     "command": "playwright-mcp",
-    "args": ["--headless", "--browser", "chromium"]
+    "args": [
+      "--headless",
+      "--browser",
+      "chromium"
+    ]
   }
 }
