@@ -664,40 +664,40 @@ agent_runner_runtime:
       sha256: a1257f248ca4a5bf6b2420759914d71f3b2f18e095dda5d3d5c9a8ebcbedbc70
       mode: "0644"
     - path: runner-manifests/runtime/entrypoint.sh
-      sha256: 9b4cd6bae0b96882dba078d733775a8daeb78d2e8e92990a28ccf5e9397eb185
+      sha256: 6c58d9990257676aa32cba40fdd006b29299274fa25e71a422b84fc0648c2046
       mode: "0755"
     - path: runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
-      sha256: 1305c23725509a907e6decf63756c9a8391520d3d5a9d2dae981f4bf938855dd
+      sha256: 08ad6f507bbba017272e1737d136eb12b31ef5df5b36d1ca6c2685302af4f317
       mode: "0644"
     - path: runner-manifests/runtime/mcp/claude-mcp-servers.code-intel.json
-      sha256: bd554f54376481abec9fd6e0ac4b04c5e58b9d12f73e58383f4dc65bd9a95824
+      sha256: 07139123ff993655fc90f582f3b7668914a1174b65a48a156035a1f2b4546430
       mode: "0644"
     - path: runner-manifests/runtime/mcp/claude-mcp-servers.frontend.json
-      sha256: b435670b569912a2508f6279e2bd35238914d33c24b0e830faa2adb3ea932201
+      sha256: 510e59b1011e06284c0ba7e4462a37c5cb23606d8fa962422f2e92cc31668b01
       mode: "0644"
     - path: runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
-      sha256: 66d82b29ece43a76568f540ec1f52c4bf8394f7d178a7602cef33bbc51ba8449
+      sha256: 38aab55ef9e6e30dade3d5f04e81c5335f454dc9a751c8042b1b206dfcd54f76
       mode: "0644"
     - path: runner-manifests/runtime/mcp/claude-mcp-servers.minimal.json
-      sha256: 87b5095a41f2de127e17b93dfdd1e721accaf630f675fae3856377c2ba9a55f6
+      sha256: a44420aae3413a0cce9c161eff5440aaa74b65790ef1d1010d5b199d92150dbe
       mode: "0644"
     - path: runner-manifests/runtime/mcp/codex-mcp-servers.cluster.toml
-      sha256: 3b991879e183a7f210dd32e330c07e723237f9e061da4b53ca15c7e7e76926ad
+      sha256: b6694abc7bb08d28f7a4599d7e228da87a85d4e7868b96338e89a937819c469b
       mode: "0644"
     - path: runner-manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
-      sha256: b26b42f5af957a6ce2be51ef0929c4b839342a95c2fd04b1cd65d2ac7553a144
+      sha256: 2edcb0068d3f88ef44e4efbdecf1a2c4cbb0fd6955ebd6475737beb7e4bcc8c9
       mode: "0644"
     - path: runner-manifests/runtime/mcp/codex-mcp-servers.frontend.toml
-      sha256: 4e41f4f47127305a4f38b722610548205ba1c80a99db0dc9f1150dc25353cad0
+      sha256: 8f11d67e275a645df3a86efb79cc80570104afdd85fb21ebbe926d3d16450784
       mode: "0644"
     - path: runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
-      sha256: 4fdb80323b0e75016adfd770e59e703e8e95d90b5a4a3949a1884eda0f3b1bc0
+      sha256: 03aca425393406e7a81cc4c87f8a52dbc0bb4df911083350aeb66a1ca0b089e1
       mode: "0644"
     - path: runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
-      sha256: 9854de6251f5a32dc9d38a32607c9c38c4a5e24f7ddd9989b5f573d0e194a55a
+      sha256: 4e299f6a333cc016efd99fd904e05aa7672ee7a65159ad3c9627185a50acf0fc
       mode: "0644"
     - path: runner-manifests/runtime/runtime-package.yaml
-      sha256: c6d37843e38d6e6a13031d53e6cfd07b982b987240e79a3b7b06b92bded55275
+      sha256: 0349b46e4bf62ad44a485a352b28af1b6dbdc1d8fdcba841fc5cf32ebd660969
       mode: "0644"
 
 # The top-level `installer:` block (install.sh/install-agents.sh sha256 pins)

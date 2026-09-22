@@ -119,10 +119,6 @@ runtime:
     claudeOverrideEnv: AGENT_MCP_SERVERS_FILE
     codexOverrideEnv: AGENT_CODEX_MCP_FILE
     placeholders:
-      - name: KNOWLEDGE_MCP_URL
-        env: KB_URL
-      - name: KNOWLEDGE_MCP_BEARER_TOKEN
-        env: KB_BEARER_TOKEN
       - name: CLUSTER_MCP_URL
         env: AGENT_CLUSTER_MCP_URL
       - name: FRONTEND_DOCS_MCP_URL

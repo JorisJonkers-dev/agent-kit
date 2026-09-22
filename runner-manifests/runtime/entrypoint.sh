@@ -179,9 +179,7 @@ speckit_seed_workspace() {
 }
 
 render_template_placeholders() {
-  sed -e "s|@KNOWLEDGE_MCP_URL@|${KB_URL:-}|g" \
-      -e "s|@KNOWLEDGE_MCP_BEARER_TOKEN@|${KB_BEARER_TOKEN:-}|g" \
-      -e "s|@CLUSTER_MCP_URL@|${AGENT_CLUSTER_MCP_URL:-}|g" \
+  sed -e "s|@CLUSTER_MCP_URL@|${AGENT_CLUSTER_MCP_URL:-}|g" \
       -e "s|@FRONTEND_DOCS_MCP_URL@|${AGENT_FRONTEND_DOCS_MCP_URL:-}|g" \
       -e "s|@UI_DOCS_MCP_URL@|${AGENT_UI_DOCS_MCP_URL:-}|g" \
       "$1"
