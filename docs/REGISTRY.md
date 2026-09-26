@@ -208,6 +208,44 @@ is rejected, because the two lists render different things and the duplicate
 would install twice. Each entry needs the `binary:` the plugin drives; that is
 what gets verified, since a plugin with no binary registers no tools silently.
 
+## Keeping an entry off the cloud
+
+`setup-workstation.sh --cloud` sets up a Claude Code cloud environment
+([CLOUD.md](CLOUD.md)) from the same registry. `cloud: false` on a CLI,
+plugin, language server or MCP server skips it there and nowhere else:
+
+```yaml
+- plugin: ruby-lsp
+  binary: ruby-lsp
+  install: "gem install ruby-lsp"
+  cloud: false
+```
+
+Use it for what the cloud cannot reach (a port-forwarded server), what the
+host already owns (Claude Code itself), and what the estate does not write.
+The cloud VM's setup is cached only when it finishes in about five minutes, so
+every install that stays on costs budget.
+
+## Linux installs for a language server
+
+`install` is what a Mac runs. A server installed from Homebrew needs
+`install_linux:` too, or a Linux machine (the cloud VM included) runs `brew`
+and reports the binary missing:
+
+```yaml
+- plugin: jdtls-lsp
+  binary: jdtls
+  install: "brew install jdtls"
+  install_linux: >-
+    curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/...
+    && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"
+```
+
+`AK_OPT_DIR` and `AK_BIN_DIR` are `/usr/local/lib/agent-kit` and
+`/usr/local/bin` when `/usr/local/bin` is writable, `~/.local/...` otherwise.
+Pin a download by version and sha256 when the upstream publishes one; the
+Kotlin server does.
+
 ## Deliberate absences
 
 - **Spec Kit.** Not on any surface. A test asserts it stays out.

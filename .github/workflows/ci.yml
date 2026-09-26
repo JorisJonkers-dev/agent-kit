@@ -99,6 +99,10 @@
         'if': '${{ !cancelled() }}'
         'run': 'shellcheck installer/setup-container.sh'
 
+      - 'name': 'Lint the cloud environment scripts'
+        'if': '${{ !cancelled() }}'
+        'run': 'shellcheck cloud/setup-script.sh installer/cloud-session.sh'
+
   'pipeline-complete':
     'name': 'Pipeline Complete'
     'if': 'always()'

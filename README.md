@@ -47,6 +47,8 @@ script is generated from `registry/estate-tooling.yaml` -- see
 - [docs/HERMES.md](docs/HERMES.md): getting a registry entry onto the
   in-cluster gateway, and verifying it landed.
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
+- [docs/CLOUD.md](docs/CLOUD.md): the same setup in a Claude Code cloud
+  environment, from the two files in `cloud/`.
 
 The estate ships **no agent hooks**. `setup-workstation.sh` purges the
 retired knowledge hooks from a machine that still has them, on every run.
@@ -61,7 +63,10 @@ retired knowledge hooks from a machine that still has them, on every run.
   project Spec Kit seed payload.
 - `templates/runner-runtime/`: source templates for runner runtime artifacts.
 - `installer/`: `setup-workstation.sh` and `setup-container.sh`, generated as
-  above, plus the hand-written `port-forward-agent.sh` they source.
+  above, plus the hand-written `port-forward-agent.sh` and `cloud-session.sh`
+  they source.
+- `cloud/`: the setup script and environment variables pasted into a Claude
+  Code cloud environment.
 - `runner-manifests/`: rendered runtime package artifacts and validation
   fixtures.
 - `council/`: council driver, prompts, schemas, and default config.
@@ -75,7 +80,8 @@ From a checkout:
 ./installer/setup-workstation.sh
 ```
 
-Or fetched over HTTP, once agent-kit#35 publishes the skills bundle:
+Or fetched over HTTP; outside a checkout it fetches the kit bundle of the
+same release and runs that:
 
 ```bash
 curl -fsSL https://assets.jorisjonkers.dev/setup-workstation.sh | bash

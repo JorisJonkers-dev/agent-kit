@@ -14,14 +14,17 @@
 #   ./setup-workstation.sh --no-lsp        skip the language servers
 #   ./setup-workstation.sh --no-mcp        skip MCP registration
 #   ./setup-workstation.sh --no-profiles   only the primary Claude profile
+#   ./setup-workstation.sh --cloud         a Claude Code cloud environment's
+#                                          setup script (docs/CLOUD.md)
 #   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /
 #                                          install-agents.sh install wrote,
 #                                          then purge retired knowledge hooks
 #                                          and exit -- does not touch anything
 #                                          this script itself manages
 #
-# AGENT_KIT_SKILLS_BUNDLE_URL overrides the published skills bundle a
-# `curl | bash` run fetches when it cannot find this repo's own skills/.
+# Run outside an agent-kit checkout (`curl | bash`), it fetches the
+# published kit bundle and re-runs the copy inside it.
+# AGENT_KIT_SKILLS_BUNDLE_URL overrides where that bundle comes from.
 #
 # Secrets are read from the environment and never written here:
 #   HINDSIGHT_API_TOKEN  -> the memory-api MCP server
@@ -36,6 +39,7 @@ CHECK_ONLY=0
 DO_LSP=1
 DO_MCP=1
 DO_PROFILES=1
+CLOUD=0
 UNINSTALL=0
 failures=0
 warnings=0
@@ -49,12 +53,14 @@ missing_plugin_env=()      # Plugins whose required env vars are unset
 plugin_drift=()            # Plugins whose commit drifted
 new_binaries=()            # Binaries installed during this run
 
+ORIG_ARGS=("$@")
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --check) CHECK_ONLY=1 ;;
     --no-lsp) DO_LSP=0 ;;
     --no-mcp) DO_MCP=0 ;;
     --no-profiles) DO_PROFILES=0 ;;
+    --cloud) CLOUD=1; DO_PROFILES=0 ;;
     --uninstall) UNINSTALL=1 ;;
     --help|-h) sed -n '2,34p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
@@ -96,6 +102,16 @@ run_sh() {
   bash -c "$1"
 }
 
+# Cloud mode registers a ${VAR} that Claude Code expands per session, keeping tokens out of the snapshot.
+secret_ref() {
+  if [ "${CLOUD}" = 1 ]; then
+    # shellcheck disable=SC2016
+    printf '${%s%s}' "$1" "${2:+:-}"
+  else
+    printf '%s' "${!1:-}"
+  fi
+}
+
 # Runs argv once per Claude profile, each with its own config root.
 # MCP servers live in a profile's own .claude.json, so the fleet has to
 # be registered per profile; plugins and skills do not, because those
@@ -103,9 +119,19 @@ run_sh() {
 claude_each_profile() {
   local dir rc=0
   for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
-    CLAUDE_CONFIG_DIR="${dir}" "$@" || rc=1
+    claude_in_profile "${dir}" "$@" || rc=1
   done
   return "${rc}"
+}
+
+# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.
+claude_in_profile() {
+  local dir="$1"; shift
+  if [ "${dir}" = "${CLAUDE_HOME}" ] && [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then
+    "$@"
+  else
+    CLAUDE_CONFIG_DIR="${dir}" "$@"
+  fi
 }
 
 # Links one shared surface of the primary profile into a secondary one.
@@ -203,9 +229,63 @@ KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
+# Outside a checkout, re-run the copy in the release's kit bundle; --uninstall needs none of it.
+use_kit_bundle() {
+  [ -f "${KIT_ROOT}/registry/estate-tooling.yaml" ] && return 0
+  if [ -n "${AGENT_KIT_BUNDLE_STAGE:-}" ]; then
+    fail "the kit bundle at ${AGENT_KIT_BUNDLE_STAGE} is not a complete kit"
+    exit 1
+  fi
+  local url="${AGENT_KIT_SKILLS_BUNDLE_URL:-https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz}"
+  local stage expected actual
+  stage="$(mktemp -d)"
+  log "not an agent-kit checkout; fetching the kit bundle from ${url}"
+  if ! curl -fsSL -o "${stage}/kit.tar.gz" "${url}" \
+     || ! curl -fsSL -o "${stage}/kit.tar.gz.sha256" "${url}.sha256"; then
+    fail "kit bundle unavailable at ${url}; set AGENT_KIT_SKILLS_BUNDLE_URL or run from a checkout"
+    exit 1
+  fi
+  expected="$(awk '{print $1}' "${stage}/kit.tar.gz.sha256")"
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "${stage}/kit.tar.gz" | awk '{print $1}')"
+  else
+    actual="$(shasum -a 256 "${stage}/kit.tar.gz" | awk '{print $1}')"
+  fi
+  if [ -z "${expected}" ] || [ "${expected}" != "${actual}" ]; then
+    fail "kit bundle at ${url} failed its sha256 check" \
+      "(expected ${expected:-<empty>}, got ${actual}); refusing to run it"
+    exit 1
+  fi
+  if ! tar -xzf "${stage}/kit.tar.gz" -C "${stage}" \
+     || [ ! -f "${stage}/installer/setup-workstation.sh" ]; then
+    fail "kit bundle at ${url} does not carry installer/setup-workstation.sh"
+    exit 1
+  fi
+  ok "kit bundle verified (sha256 ${actual})"
+  AGENT_KIT_BUNDLE_STAGE="${stage}" exec bash "${stage}/installer/setup-workstation.sh" \
+    ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
+}
+[ "${UNINSTALL}" = 1 ] || use_kit_bundle
+if [ -n "${AGENT_KIT_BUNDLE_STAGE:-}" ]; then
+  trap 'rm -rf "${AGENT_KIT_BUNDLE_STAGE}"' EXIT
+fi
+
+# Where install_linux commands install: system-wide when writable, as on a cloud VM.
+if [ -w /usr/local/bin ]; then
+  AK_BIN_DIR=/usr/local/bin AK_OPT_DIR=/usr/local/lib/agent-kit
+else
+  AK_BIN_DIR="$HOME/.local/bin" AK_OPT_DIR="$HOME/.local/lib/agent-kit"
+fi
+export AK_BIN_DIR AK_OPT_DIR
+
 # ensure_port_forward: keeps the loopback of a workstation_connect MCP
 # server alive (a launchd agent on macOS).
 . "${KIT_ROOT}/installer/port-forward-agent.sh"
+
+if [ "${CLOUD}" = 1 ]; then
+  . "${KIT_ROOT}/installer/cloud-session.sh"
+  cloud_prepare
+fi
 
 CLAUDE_HOOKS_DIR="${CLAUDE_HOME}/hooks"
 CODEX_HOOKS_DIR="${CODEX_HOME}/hooks"
@@ -487,18 +567,22 @@ fi
 log "command-line tools"
 
 # Claude Code CLI.
-if command -v claude >/dev/null 2>&1; then
-  run_sh 'claude update'
-  ok "claude $(claude --version 2>/dev/null | head -1)"
+if [ "${CLOUD}" = 1 ]; then
+  log "claude-code: not set up in cloud mode"
 else
-  run_sh 'curl -fsSL https://claude.ai/install.sh | bash'
-  if [ "${CHECK_ONLY}" = 1 ]; then
-    log "claude would be installed"
-  elif command -v claude >/dev/null 2>&1; then
-    ok "claude installed"
-    new_binaries+=("claude")
+  if command -v claude >/dev/null 2>&1; then
+    run_sh 'claude update'
+    ok "claude $(claude --version 2>/dev/null | head -1)"
   else
-    fail "claude still not on PATH after install; open a new shell and re-run"
+    run_sh 'curl -fsSL https://claude.ai/install.sh | bash'
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "claude would be installed"
+    elif command -v claude >/dev/null 2>&1; then
+      ok "claude installed"
+      new_binaries+=("claude")
+    else
+      fail "claude still not on PATH after install; open a new shell and re-run"
+    fi
   fi
 fi
 
@@ -525,7 +609,7 @@ if command -v hermes >/dev/null 2>&1; then
   run_sh 'uv tool upgrade '\''hermes-agent[mcp]'\'''
   ok "hermes $(hermes --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --python 3.13 '\''hermes-agent[mcp]'\'''
+  run_sh 'uv tool install --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp]'\'''
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "hermes would be installed"
   elif command -v hermes >/dev/null 2>&1; then
@@ -642,9 +726,13 @@ else
   run claude plugin marketplace add LukasNiessen/kubernetes-skill 2>/dev/null \
     || run claude plugin marketplace update kubernetes-skill >/dev/null 2>&1 \
     || warn "marketplace kubernetes-skill (LukasNiessen/kubernetes-skill) could not be added or updated"
-  run claude plugin marketplace add codenamev/ai-software-architect 2>/dev/null \
-    || run claude plugin marketplace update ai-software-architect >/dev/null 2>&1 \
-    || warn "marketplace ai-software-architect (codenamev/ai-software-architect) could not be added or updated"
+  if [ "${CLOUD}" = 1 ]; then
+    log "ai-software-architect: not set up in cloud mode"
+  else
+    run claude plugin marketplace add codenamev/ai-software-architect 2>/dev/null \
+      || run claude plugin marketplace update ai-software-architect >/dev/null 2>&1 \
+      || warn "marketplace ai-software-architect (codenamev/ai-software-architect) could not be added or updated"
+  fi
   run claude plugin marketplace add vectorize-io/hindsight 2>/dev/null \
     || run claude plugin marketplace update hindsight >/dev/null 2>&1 \
     || warn "marketplace hindsight (vectorize-io/hindsight) could not be added or updated"
@@ -693,19 +781,27 @@ else
     warn "kubernetes-skill@kubernetes-skill install failed"
   fi
   # github: GitHub MCP server. Needs a token; it fails to connect with "Authorization header is badly formatted" when the credential is absent or malformed, which reads like a missing server rather than a missing
-  if run claude plugin install github@claude-plugins-official --yes --scope user; then
-    run claude plugin enable github@claude-plugins-official >/dev/null 2>&1 || true
-    ok "github@claude-plugins-official installed and enabled"
+  if [ "${CLOUD}" = 1 ]; then
+    log "github: not set up in cloud mode"
   else
-    warn "github@claude-plugins-official install failed"
+    if run claude plugin install github@claude-plugins-official --yes --scope user; then
+      run claude plugin enable github@claude-plugins-official >/dev/null 2>&1 || true
+      ok "github@claude-plugins-official installed and enabled"
+    else
+      warn "github@claude-plugins-official install failed"
+    fi
   fi
   # ai-software-architect: Architecture review personas. Off by default — large surface, rarely the right tool.
-  if run claude plugin install ai-software-architect@ai-software-architect --yes --scope user; then
-    run claude plugin disable ai-software-architect@ai-software-architect >/dev/null 2>&1 || true
-    ok "ai-software-architect@ai-software-architect installed, left disabled on purpose"
-    disabled_plugins+=("ai-software-architect: disabled on purpose in registry")
+  if [ "${CLOUD}" = 1 ]; then
+    log "ai-software-architect: not set up in cloud mode"
   else
-    warn "ai-software-architect@ai-software-architect install failed"
+    if run claude plugin install ai-software-architect@ai-software-architect --yes --scope user; then
+      run claude plugin disable ai-software-architect@ai-software-architect >/dev/null 2>&1 || true
+      ok "ai-software-architect@ai-software-architect installed, left disabled on purpose"
+      disabled_plugins+=("ai-software-architect: disabled on purpose in registry")
+    else
+      warn "ai-software-architect@ai-software-architect install failed"
+    fi
   fi
   # hindsight-memory: Automatic Hindsight recall/retain for Claude Code via UserPromptSubmit/Stop hooks.
   if run claude plugin install hindsight-memory@hindsight --yes --scope user; then
@@ -839,13 +935,14 @@ for install in installs:
         ok "typescript-lsp: typescript-language-server on PATH, plugin enabled"
       else
         run claude plugin disable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'npm install -g typescript-language-server typescript' || true
+        lsp_cmd='npm install -g typescript-language-server typescript'
+        run_sh "${lsp_cmd}" || true
         if command -v typescript-language-server >/dev/null 2>&1; then
           run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
           ok "typescript-lsp: typescript-language-server installed and enabled"
         else
-          warn "typescript-lsp: typescript-language-server is absent; plugin left disabled (install missing: npm install -g typescript-language-server typescript)"
-          missing_lsp_binaries+=("typescript-lsp: install with: npm install -g typescript-language-server typescript")
+          warn "typescript-lsp: typescript-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
+          missing_lsp_binaries+=("typescript-lsp: install with: ${lsp_cmd}")
         fi
       fi
     else
@@ -859,13 +956,14 @@ for install in installs:
         ok "pyright-lsp: pyright-langserver on PATH, plugin enabled"
       else
         run claude plugin disable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'npm install -g pyright' || true
+        lsp_cmd='npm install -g pyright'
+        run_sh "${lsp_cmd}" || true
         if command -v pyright-langserver >/dev/null 2>&1; then
           run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
           ok "pyright-lsp: pyright-langserver installed and enabled"
         else
-          warn "pyright-lsp: pyright-langserver is absent; plugin left disabled (install missing: npm install -g pyright)"
-          missing_lsp_binaries+=("pyright-lsp: install with: npm install -g pyright")
+          warn "pyright-lsp: pyright-langserver is absent; plugin left disabled (install missing: ${lsp_cmd})"
+          missing_lsp_binaries+=("pyright-lsp: install with: ${lsp_cmd}")
         fi
       fi
     else
@@ -879,13 +977,18 @@ for install in installs:
         ok "kotlin-lsp: kotlin-lsp on PATH, plugin enabled"
       else
         run claude plugin disable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'brew install kotlin-lsp' || true
+        if [ "$(uname -s)" = Linux ]; then
+          lsp_cmd='v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405 && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download-cdn.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
+        else
+          lsp_cmd='brew install kotlin-lsp'
+        fi
+        run_sh "${lsp_cmd}" || true
         if command -v kotlin-lsp >/dev/null 2>&1; then
           run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
           ok "kotlin-lsp: kotlin-lsp installed and enabled"
         else
-          warn "kotlin-lsp: kotlin-lsp is absent; plugin left disabled (install missing: brew install kotlin-lsp)"
-          missing_lsp_binaries+=("kotlin-lsp: install with: brew install kotlin-lsp")
+          warn "kotlin-lsp: kotlin-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
+          missing_lsp_binaries+=("kotlin-lsp: install with: ${lsp_cmd}")
         fi
       fi
     else
@@ -899,13 +1002,18 @@ for install in installs:
         ok "jdtls-lsp: jdtls on PATH, plugin enabled"
       else
         run claude plugin disable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'brew install jdtls' || true
+        if [ "$(uname -s)" = Linux ]; then
+          lsp_cmd='curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz && rm -rf "${AK_OPT_DIR}/jdtls" && mkdir -p "${AK_OPT_DIR}/jdtls" "${AK_BIN_DIR}" && tar -xzf /tmp/jdtls.tgz -C "${AK_OPT_DIR}/jdtls" && rm -f /tmp/jdtls.tgz && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"'
+        else
+          lsp_cmd='brew install jdtls'
+        fi
+        run_sh "${lsp_cmd}" || true
         if command -v jdtls >/dev/null 2>&1; then
           run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
           ok "jdtls-lsp: jdtls installed and enabled"
         else
-          warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: brew install jdtls)"
-          missing_lsp_binaries+=("jdtls-lsp: install with: brew install jdtls")
+          warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+          missing_lsp_binaries+=("jdtls-lsp: install with: ${lsp_cmd}")
         fi
       fi
     else
@@ -913,177 +1021,221 @@ for install in installs:
     fi
 
     # ruby-lsp -> ruby-lsp (ruby)
-    if run claude plugin install ruby-lsp@claude-plugins-official --yes --scope user; then
-      if command -v ruby-lsp >/dev/null 2>&1; then
-        run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
-      else
-        run claude plugin disable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'gem install ruby-lsp' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "ruby-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install ruby-lsp@claude-plugins-official --yes --scope user; then
         if command -v ruby-lsp >/dev/null 2>&1; then
           run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "ruby-lsp: ruby-lsp installed and enabled"
+          ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
         else
-          warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: gem install ruby-lsp)"
-          missing_lsp_binaries+=("ruby-lsp: install with: gem install ruby-lsp")
+          run claude plugin disable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='gem install ruby-lsp'
+          run_sh "${lsp_cmd}" || true
+          if command -v ruby-lsp >/dev/null 2>&1; then
+            run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "ruby-lsp: ruby-lsp installed and enabled"
+          else
+            warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("ruby-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "ruby-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "ruby-lsp@claude-plugins-official install failed"
     fi
 
     # gopls-lsp -> gopls (go)
-    if run claude plugin install gopls-lsp@claude-plugins-official --yes --scope user; then
-      if command -v gopls >/dev/null 2>&1; then
-        run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "gopls-lsp: gopls on PATH, plugin enabled"
-      else
-        run claude plugin disable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'go install golang.org/x/tools/gopls@latest' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "gopls-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install gopls-lsp@claude-plugins-official --yes --scope user; then
         if command -v gopls >/dev/null 2>&1; then
           run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "gopls-lsp: gopls installed and enabled"
+          ok "gopls-lsp: gopls on PATH, plugin enabled"
         else
-          warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: go install golang.org/x/tools/gopls@latest)"
-          missing_lsp_binaries+=("gopls-lsp: install with: go install golang.org/x/tools/gopls@latest")
+          run claude plugin disable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='go install golang.org/x/tools/gopls@latest'
+          run_sh "${lsp_cmd}" || true
+          if command -v gopls >/dev/null 2>&1; then
+            run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "gopls-lsp: gopls installed and enabled"
+          else
+            warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("gopls-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "gopls-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "gopls-lsp@claude-plugins-official install failed"
     fi
 
     # rust-analyzer-lsp -> rust-analyzer (rust)
-    if run claude plugin install rust-analyzer-lsp@claude-plugins-official --yes --scope user; then
-      if command -v rust-analyzer >/dev/null 2>&1; then
-        run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
-      else
-        run claude plugin disable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'rustup component add rust-analyzer' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "rust-analyzer-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install rust-analyzer-lsp@claude-plugins-official --yes --scope user; then
         if command -v rust-analyzer >/dev/null 2>&1; then
           run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+          ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
         else
-          warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: rustup component add rust-analyzer)"
-          missing_lsp_binaries+=("rust-analyzer-lsp: install with: rustup component add rust-analyzer")
+          run claude plugin disable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='rustup component add rust-analyzer'
+          run_sh "${lsp_cmd}" || true
+          if command -v rust-analyzer >/dev/null 2>&1; then
+            run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+          else
+            warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("rust-analyzer-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "rust-analyzer-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "rust-analyzer-lsp@claude-plugins-official install failed"
     fi
 
     # lua-lsp -> lua-language-server (lua)
-    if run claude plugin install lua-lsp@claude-plugins-official --yes --scope user; then
-      if command -v lua-language-server >/dev/null 2>&1; then
-        run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "lua-lsp: lua-language-server on PATH, plugin enabled"
-      else
-        run claude plugin disable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'brew install lua-language-server' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "lua-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install lua-lsp@claude-plugins-official --yes --scope user; then
         if command -v lua-language-server >/dev/null 2>&1; then
           run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "lua-lsp: lua-language-server installed and enabled"
+          ok "lua-lsp: lua-language-server on PATH, plugin enabled"
         else
-          warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: brew install lua-language-server)"
-          missing_lsp_binaries+=("lua-lsp: install with: brew install lua-language-server")
+          run claude plugin disable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='brew install lua-language-server'
+          run_sh "${lsp_cmd}" || true
+          if command -v lua-language-server >/dev/null 2>&1; then
+            run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "lua-lsp: lua-language-server installed and enabled"
+          else
+            warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("lua-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "lua-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "lua-lsp@claude-plugins-official install failed"
     fi
 
     # clangd-lsp -> clangd (c, cpp)
-    if run claude plugin install clangd-lsp@claude-plugins-official --yes --scope user; then
-      if command -v clangd >/dev/null 2>&1; then
-        run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "clangd-lsp: clangd on PATH, plugin enabled"
-      else
-        run claude plugin disable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'brew install llvm' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "clangd-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install clangd-lsp@claude-plugins-official --yes --scope user; then
         if command -v clangd >/dev/null 2>&1; then
           run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "clangd-lsp: clangd installed and enabled"
+          ok "clangd-lsp: clangd on PATH, plugin enabled"
         else
-          warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: brew install llvm)"
-          missing_lsp_binaries+=("clangd-lsp: install with: brew install llvm")
+          run claude plugin disable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='brew install llvm'
+          run_sh "${lsp_cmd}" || true
+          if command -v clangd >/dev/null 2>&1; then
+            run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "clangd-lsp: clangd installed and enabled"
+          else
+            warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("clangd-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "clangd-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "clangd-lsp@claude-plugins-official install failed"
     fi
 
     # php-lsp -> intelephense (php)
-    if run claude plugin install php-lsp@claude-plugins-official --yes --scope user; then
-      if command -v intelephense >/dev/null 2>&1; then
-        run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "php-lsp: intelephense on PATH, plugin enabled"
-      else
-        run claude plugin disable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'npm install -g intelephense' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "php-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install php-lsp@claude-plugins-official --yes --scope user; then
         if command -v intelephense >/dev/null 2>&1; then
           run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "php-lsp: intelephense installed and enabled"
+          ok "php-lsp: intelephense on PATH, plugin enabled"
         else
-          warn "php-lsp: intelephense is absent; plugin left disabled (install missing: npm install -g intelephense)"
-          missing_lsp_binaries+=("php-lsp: install with: npm install -g intelephense")
+          run claude plugin disable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='npm install -g intelephense'
+          run_sh "${lsp_cmd}" || true
+          if command -v intelephense >/dev/null 2>&1; then
+            run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "php-lsp: intelephense installed and enabled"
+          else
+            warn "php-lsp: intelephense is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("php-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "php-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "php-lsp@claude-plugins-official install failed"
     fi
 
     # csharp-lsp -> csharp-ls (csharp)
-    if run claude plugin install csharp-lsp@claude-plugins-official --yes --scope user; then
-      if command -v csharp-ls >/dev/null 2>&1; then
-        run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
-      else
-        run claude plugin disable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'dotnet tool install --global csharp-ls' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "csharp-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install csharp-lsp@claude-plugins-official --yes --scope user; then
         if command -v csharp-ls >/dev/null 2>&1; then
           run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "csharp-lsp: csharp-ls installed and enabled"
+          ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
         else
-          warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: dotnet tool install --global csharp-ls)"
-          missing_lsp_binaries+=("csharp-lsp: install with: dotnet tool install --global csharp-ls")
+          run claude plugin disable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='dotnet tool install --global csharp-ls'
+          run_sh "${lsp_cmd}" || true
+          if command -v csharp-ls >/dev/null 2>&1; then
+            run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "csharp-lsp: csharp-ls installed and enabled"
+          else
+            warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("csharp-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "csharp-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "csharp-lsp@claude-plugins-official install failed"
     fi
 
     # swift-lsp -> sourcekit-lsp (swift)
-    if run claude plugin install swift-lsp@claude-plugins-official --yes --scope user; then
-      if command -v sourcekit-lsp >/dev/null 2>&1; then
-        run claude plugin enable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
-      else
-        run claude plugin disable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
-        missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
-      fi
+    if [ "${CLOUD}" = 1 ]; then
+      log "swift-lsp: not set up in cloud mode"
     else
-      warn "swift-lsp@claude-plugins-official install failed"
+      if run claude plugin install swift-lsp@claude-plugins-official --yes --scope user; then
+        if command -v sourcekit-lsp >/dev/null 2>&1; then
+          run claude plugin enable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
+        else
+          run claude plugin disable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
+          missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
+        fi
+      else
+        warn "swift-lsp@claude-plugins-official install failed"
+      fi
     fi
 
     # liquid-lsp -> shopify (liquid)
-    if run claude plugin install liquid-lsp@claude-plugins-official --yes --scope user; then
-      if command -v shopify >/dev/null 2>&1; then
-        run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "liquid-lsp: shopify on PATH, plugin enabled (was disabled in registry)"
-      else
-        run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        run_sh 'npm install -g @shopify/cli' || true
+    if [ "${CLOUD}" = 1 ]; then
+      log "liquid-lsp: not set up in cloud mode"
+    else
+      if run claude plugin install liquid-lsp@claude-plugins-official --yes --scope user; then
         if command -v shopify >/dev/null 2>&1; then
           run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "liquid-lsp: shopify installed and enabled"
+          ok "liquid-lsp: shopify on PATH, plugin enabled (was disabled in registry)"
         else
-          warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: npm install -g @shopify/cli)"
-          missing_lsp_binaries+=("liquid-lsp: install with: npm install -g @shopify/cli")
+          run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='npm install -g @shopify/cli'
+          run_sh "${lsp_cmd}" || true
+          if command -v shopify >/dev/null 2>&1; then
+            run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "liquid-lsp: shopify installed and enabled"
+          else
+            warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("liquid-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "liquid-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "liquid-lsp@claude-plugins-official install failed"
     fi
   else
     log "language servers skipped (--no-lsp)"
@@ -1112,13 +1264,13 @@ for install in installs:
 
     # Hindsight long-term memory -- explicit read/write/search
     # knowledge tools.
-    if [ -z "${HINDSIGHT_API_TOKEN:-}" ]; then
+    if [ -z "${HINDSIGHT_API_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
       warn "memory-api: HINDSIGHT_API_TOKEN is not set; skipping (export it and re-run)"
       skipped_mcp_servers+=("memory-api: export HINDSIGHT_API_TOKEN")
     else
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user memory-api >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://memory-api.jorisjonkers.dev/mcp --header "Authorization: Bearer ${HINDSIGHT_API_TOKEN}"; then
+        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://memory-api.jorisjonkers.dev/mcp --header "Authorization: Bearer $(secret_ref HINDSIGHT_API_TOKEN)"; then
           ok "memory-api registered (claude)"
         else
           fail "memory-api registration failed (claude)"
@@ -1136,13 +1288,13 @@ for install in installs:
 
     # Basic Memory -- shared Markdown notes with a semantic link
     # graph. Edit notes, never overwrite.
-    if [ -z "${MEMORY_MCP_TOKEN:-}" ]; then
+    if [ -z "${MEMORY_MCP_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
       warn "memory-mcp: MEMORY_MCP_TOKEN is not set; skipping (export it and re-run)"
       skipped_mcp_servers+=("memory-mcp: export MEMORY_MCP_TOKEN")
     else
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add memory-mcp" claude_each_profile claude mcp add --scope user memory-mcp --transport http https://memory-mcp.jorisjonkers.dev/mcp --header "Authorization: Bearer ${MEMORY_MCP_TOKEN}"; then
+        if run_redacted "claude mcp add memory-mcp" claude_each_profile claude mcp add --scope user memory-mcp --transport http https://memory-mcp.jorisjonkers.dev/mcp --header "Authorization: Bearer $(secret_ref MEMORY_MCP_TOKEN)"; then
           ok "memory-mcp registered (claude)"
         else
           fail "memory-mcp registration failed (claude)"
@@ -1160,24 +1312,28 @@ for install in installs:
 
     # Read-only cluster diagnostics through the server's own
     # ClusterRole.
+    if [ "${CLOUD}" = 1 ]; then
+      log "kubernetes: not set up in cloud mode"
+    else
 
-    # kubernetes reaches the cluster via a kubectl port-forward of the
-    # ClusterIP service kubernetes-mcp-server.agents-system (no ingress route exists for it).
-    ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
-    if command -v claude >/dev/null 2>&1; then
-      run claude_each_profile claude mcp remove --scope user kubernetes >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add kubernetes" claude_each_profile claude mcp add --scope user kubernetes --transport http http://127.0.0.1:18080/mcp; then
-        ok "kubernetes registered (claude)"
-      else
-        fail "kubernetes registration failed (claude)"
+      # kubernetes reaches the cluster via a kubectl port-forward of the
+      # ClusterIP service kubernetes-mcp-server.agents-system (no ingress route exists for it).
+      ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
+      if command -v claude >/dev/null 2>&1; then
+        run claude_each_profile claude mcp remove --scope user kubernetes >/dev/null 2>&1 || true
+        if run_redacted "claude mcp add kubernetes" claude_each_profile claude mcp add --scope user kubernetes --transport http http://127.0.0.1:18080/mcp; then
+          ok "kubernetes registered (claude)"
+        else
+          fail "kubernetes registration failed (claude)"
+        fi
       fi
-    fi
-    if command -v codex >/dev/null 2>&1; then
-      run codex mcp remove kubernetes >/dev/null 2>&1 || true
-      if run_redacted "codex mcp add kubernetes" codex mcp add kubernetes --url http://127.0.0.1:18080/mcp; then
-        ok "kubernetes registered (codex)"
-      else
-        fail "kubernetes registration failed (codex)"
+      if command -v codex >/dev/null 2>&1; then
+        run codex mcp remove kubernetes >/dev/null 2>&1 || true
+        if run_redacted "codex mcp add kubernetes" codex mcp add kubernetes --url http://127.0.0.1:18080/mcp; then
+          ok "kubernetes registered (codex)"
+        else
+          fail "kubernetes registration failed (codex)"
+        fi
       fi
     fi
 
@@ -1236,7 +1392,7 @@ for install in installs:
     fi
     if command -v claude >/dev/null 2>&1; then
       run claude_each_profile claude mcp remove --scope user overleaf >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add overleaf" claude_each_profile claude mcp add --scope user overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION:-}" -- olcli-mcp; then
+      if run_redacted "claude mcp add overleaf" claude_each_profile claude mcp add --scope user overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="$(secret_ref OVERLEAF_SESSION optional)" -- olcli-mcp; then
         ok "overleaf registered (claude)"
       else
         fail "overleaf registration failed (claude)"
@@ -1258,8 +1414,14 @@ for install in installs:
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge local Hermes MCP servers"
       else
-        uv run --directory "${KIT_ROOT}" python \
-          scripts/hermes-merge-mcp.py "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml"
+        uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+          "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" \
+          || fail "local Hermes MCP merge failed"
+        if [ "${CLOUD}" = 1 ]; then
+          uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+            "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove kubernetes \
+            || fail "local Hermes MCP cleanup failed"
+        fi
       fi
     else
       warn "hermes not on PATH; local Hermes MCP config not merged"
@@ -1270,16 +1432,13 @@ for install in installs:
     if [ "${CHECK_ONLY}" != 1 ]; then
      # Once per profile: each one answers for its own .claude.json.
      for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
-      registered=$(CLAUDE_CONFIG_DIR="${profile_dir}" claude mcp list 2>/dev/null || true)
+      registered=$(claude_in_profile "${profile_dir}" claude mcp list 2>/dev/null || true)
       # Check all expected servers are registered
-      for want in \
-        memory-api \
-        memory-mcp \
-        kubernetes \
-        playwright \
-        drawio \
-        overleaf \
-        ; do
+      expected_servers=(memory-api memory-mcp playwright drawio overleaf)
+      if [ "${CLOUD}" != 1 ]; then
+        expected_servers+=(kubernetes)
+      fi
+      for want in "${expected_servers[@]}"; do
         case "${registered}" in
           *"${want}"*) ;;
           *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;
@@ -1290,7 +1449,7 @@ for install in installs:
       # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a
       # "repetition-operator operand invalid" error and the whole check
       # silently inspected nothing on macOS.
-      echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].*/\1/p' | sort -u | while read -r found; do
+      echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].* - .*/\1/p' | sort -u | while read -r found; do
         case "${found}" in
           memory-api) ;;
           memory-mcp) ;;
@@ -1318,44 +1477,11 @@ fi
 # behind from an older version is worse than a missing one.
 # -----------------------------------------------------------------
 log "first-party skills"
-# KIT_ROOT resolves from $0, so a `curl | bash` run (where $0 is the
-# shell, not this file) cannot find the skills that ship in this repo.
-# Detect that case (no registry/estate-tooling.yaml under KIT_ROOT --
-# the one thing every real checkout has and no other directory does)
-# and fetch the published skills bundle instead. agent-kit#35 publishes
-# that bundle; until it exists, the failure below is the correct one.
-SKILLS_ROOT="${KIT_ROOT}"
-if [ ! -f "${KIT_ROOT}/registry/estate-tooling.yaml" ]; then
-  log "not an agent-kit checkout; fetching the skills bundle instead"
-  bundle_url="${AGENT_KIT_SKILLS_BUNDLE_URL:-https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz}"
-  bundle_stage="$(mktemp -d)"
-  if curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz" "${bundle_url}" \
-     && curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz.sha256" "${bundle_url}.sha256"; then
-    bundle_expected="$(awk '{print $1}' "${bundle_stage}/agent-kit-skills.tar.gz.sha256")"
-    if command -v sha256sum >/dev/null 2>&1; then
-      bundle_actual="$(sha256sum "${bundle_stage}/agent-kit-skills.tar.gz" | awk '{print $1}')"
-    else
-      bundle_actual="$(shasum -a 256 "${bundle_stage}/agent-kit-skills.tar.gz" | awk '{print $1}')"
-    fi
-    if [ -n "${bundle_expected}" ] && [ "${bundle_expected}" = "${bundle_actual}" ]; then
-      if tar -xzf "${bundle_stage}/agent-kit-skills.tar.gz" -C "${bundle_stage}"; then
-        SKILLS_ROOT="${bundle_stage}"
-        ok "skills bundle verified (sha256 ${bundle_actual}) and extracted"
-      else
-        fail "skills bundle at ${bundle_url} downloaded but failed to extract; first-party skills not installed"
-      fi
-    else
-      fail "skills bundle at ${bundle_url} failed its sha256 check (expected ${bundle_expected:-<empty>}, got ${bundle_actual}); refusing to install from a corrupt or tampered bundle"
-    fi
-  else
-    fail "skills bundle unavailable at ${bundle_url} (agent-kit#35 publishes it -- it may simply not exist yet); first-party skills not installed. Set AGENT_KIT_SKILLS_BUNDLE_URL to override, or run setup-workstation.sh from an agent-kit checkout instead"
-  fi
-fi
 
 # Compose a pull request in the repository's own house style:
 # reads the PR template, mines recent merged PRs, and gates on an
 # explicit confirmation before anything is pushed or created.
-src="${SKILLS_ROOT}/skills/pr-composer"
+src="${KIT_ROOT}/skills/pr-composer"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "pr-composer: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -1397,7 +1523,7 @@ fi
 # decomposable work: triage, cross-model planning, grill, a design
 # checkpoint, guarded fan-out, a review council, and resumable
 # status/tail.
-src="${SKILLS_ROOT}/skills/council"
+src="${KIT_ROOT}/skills/council"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "council: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -1438,7 +1564,7 @@ fi
 # Consult the current memory platform before designing or changing
 # behavior that may depend on prior captures, and capture durable
 # lessons near task completion.
-src="${SKILLS_ROOT}/skills/kb-first"
+src="${KIT_ROOT}/skills/kb-first"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "kb-first: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -1479,7 +1605,7 @@ fi
 # Token-budget discipline: progressive disclosure, bounded recall,
 # narrow MCP profiles, and prompt-cache-friendly instruction
 # ordering.
-src="${SKILLS_ROOT}/skills/token-economy"
+src="${KIT_ROOT}/skills/token-economy"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "token-economy: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -1520,7 +1646,7 @@ fi
 # Checklist for configuring a Claude Code or Codex session: config
 # layers, MCP servers and profiles, memory-file hygiene, and
 # Claude/Codex parity.
-src="${SKILLS_ROOT}/skills/agent-session-bootstrap"
+src="${KIT_ROOT}/skills/agent-session-bootstrap"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "agent-session-bootstrap: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -1556,9 +1682,6 @@ else
       fail "agent-session-bootstrap: ${dest} is incomplete after copy"
     fi
   fi
-fi
-if [ -n "${bundle_stage:-}" ] && [ -d "${bundle_stage}" ]; then
-  rm -rf "${bundle_stage}"
 fi
 
 # -----------------------------------------------------------------
@@ -1616,6 +1739,10 @@ fi
 # install-agents.sh is exactly the one that still has these.
 # -----------------------------------------------------------------
 purge_retired_hooks
+
+if [ "${CLOUD}" = 1 ]; then
+  cloud_finish
+fi
 
 # -----------------------------------------------------------------
 # 10. Summary: what changed and what still needs attention.

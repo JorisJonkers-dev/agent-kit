@@ -14,6 +14,13 @@ import pytest
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = KIT_ROOT / "scripts" / "publish-installer-artifacts.sh"
+KIT_FILES = (
+    "registry/estate-tooling.yaml",
+    "registry/generated/hermes/mcp-servers.local.yaml",
+    "installer/port-forward-agent.sh",
+    "installer/cloud-session.sh",
+    "scripts/hermes-merge-mcp.py",
+)
 
 FAKE_GH = """#!/usr/bin/env python3
 # Fake `gh` for tests: `gh release upload <tag> <file> [--clobber]` copies the
@@ -81,6 +88,9 @@ def fake_repo(tmp_path: Path) -> Path:
     )
     (repo / "skills" / "pr-composer").mkdir(parents=True)
     (repo / "skills" / "pr-composer" / "SKILL.md").write_text("---\nname: pr-composer\n---\nbody\n")
+    for rel in KIT_FILES:
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text("# fixture\n")
     return repo
 
 
@@ -155,6 +165,30 @@ def test_skills_tarball_has_no_dot_slash_prefix_and_no_version_dir(fake_repo: Pa
         assert not name.startswith("./"), name
         assert not name.startswith("v9.9.9/"), name
     assert "skills/pr-composer/SKILL.md" in names
+
+
+def test_the_bundle_carries_what_the_setup_script_reads_beside_itself(
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path,
+):
+    """A setup-workstation.sh run outside a checkout re-runs the copy in this bundle."""
+    stage_dir = tmp_path / "stage"
+    release_store = tmp_path / "release-store"
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store).returncode == 0
+    names = subprocess.run(
+        ["tar", "-tzf", str(stage_dir / "agent-kit-skills.tar.gz")],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    for rel in ("installer/setup-workstation.sh", *KIT_FILES):
+        assert rel in names, rel
+
+
+def test_stage_refuses_a_checkout_missing_a_kit_file(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):
+    (fake_repo / "installer" / "cloud-session.sh").unlink()
+    result = run_step("stage", fake_repo, tmp_path / "stage", fake_gh_bin, tmp_path / "release-store")
+    assert result.returncode != 0
+    assert "installer/cloud-session.sh" in result.stderr
 
 
 def test_verify_script_fails_when_asset_version_does_not_match_release(
