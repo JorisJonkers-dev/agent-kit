@@ -9,6 +9,7 @@ uv run python scripts/render_registry.py --check   # artifacts current?
 ./installer/setup-workstation.sh --check           # what would change
 ./installer/setup-workstation.sh                   # do it
 ./installer/setup-workstation.sh --no-profiles     # primary Claude profile only
+./installer/setup-workstation.sh --cloud           # a cloud environment, see CLOUD.md
 ```
 
 `setup-workstation.sh` is **generated** from
@@ -297,3 +298,4 @@ already depend on it; nothing new should adopt it.
 - [REGISTRY.md](REGISTRY.md) — adding a tool so every surface gets it
 - [HERMES.md](HERMES.md) — the same registry, applied to the cluster gateway
 - [MEMORY.md](MEMORY.md) — what replaced the knowledge base
+- [CLOUD.md](CLOUD.md) — the same setup in a Claude Code cloud environment

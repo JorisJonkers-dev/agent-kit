@@ -113,7 +113,7 @@ def test_workstation_http_credential_becomes_a_bearer_header() -> None:
     assert server["transport"] == "http" and "workstation" in server["surfaces"]
     script = render_registry.render_setup_script(data)
     cred = server["credential"]
-    assert f'--header "Authorization: Bearer ${{{cred}}}"' in script
+    assert f'--header "Authorization: Bearer $(secret_ref {cred})"' in script
     assert f"--bearer-token-env-var {cred}" in script
 
 
@@ -445,7 +445,35 @@ def test_every_mcp_registration_reaches_every_profile() -> None:
         assert f"claude_each_profile claude mcp remove --scope user {name}" in script
     # And the verification asks each profile what it actually has.
     assert 'for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do' in script
-    assert 'CLAUDE_CONFIG_DIR="${profile_dir}" claude mcp list' in script
+    assert 'claude_in_profile "${profile_dir}" claude mcp list' in script
+
+
+@pytest.mark.parametrize(
+    ("user_dir", "profile", "expected"),
+    [
+        ("", "primary", "unset"),
+        ("", "secondary", "secondary"),
+        ("primary", "primary", "primary"),
+    ],
+)
+def test_the_primary_profile_keeps_claudes_own_config_file(
+    tmp_path: Path, user_dir: str, profile: str, expected: str,
+) -> None:
+    """CLAUDE_CONFIG_DIR=~/.claude writes ~/.claude/.claude.json, which a bare `claude` never reads."""
+    dirs = {"primary": str(tmp_path / ".claude"), "secondary": str(tmp_path / ".claude-personal")}
+    body = "\n".join(
+        [
+            f'CLAUDE_HOME="{dirs["primary"]}"',
+            'claude() { echo "${CLAUDE_CONFIG_DIR:-unset}"; }',
+            _shell_function("claude_in_profile"),
+            f'claude_in_profile "{dirs[profile]}" claude',
+        ],
+    )
+    env = {"PATH": "/usr/bin:/bin"}
+    if user_dir:
+        env["CLAUDE_CONFIG_DIR"] = dirs[user_dir]
+    result = subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False, env=env)
+    assert result.stdout.strip() == dirs.get(expected, expected)
 
 
 def test_plugins_are_installed_once_into_the_primary() -> None:
@@ -666,6 +694,10 @@ def test_registered_server_names_are_extracted_without_pcre(tmp_path: Path) -> N
         "plugin:github:github: https://api.githubcopilot.com/mcp/ (HTTP) - ✘ Failed\n"
         "idea: http://127.0.0.1:64342/stream (HTTP) - ✔ Connected\n"
         "playwright: npx -y @playwright/mcp@latest --headless - ✔ Connected\n"
+        "\nMCP config diagnostics ⚠\n\n"
+        "[Contains warnings] User config (available in all your projects)\n"
+        "Location: /root/.claude.json\n"
+        " └ [Warning] [memory-api] mcpServers.memory-api: Missing environment variables: HINDSIGHT_API_TOKEN\n"
     )
     extract = next(
         line.strip() for line in script.splitlines() if "sort -u | while read -r found" in line
@@ -933,11 +965,10 @@ def test_setup_script_fetches_a_published_bundle_when_not_a_checkout() -> None:
     script = render_registry.render_setup_script(data)
     assert "AGENT_KIT_SKILLS_BUNDLE_URL" in script
     assert "https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz" in script
-    assert '"${bundle_url}.sha256"' in script
-    assert "agent-kit#35" in script
-    # A checksum mismatch refuses to install from the bundle rather than
-    # silently trusting an unverified download.
-    assert "bundle_expected" in script and "bundle_actual" in script
+    assert '"${url}.sha256"' in script
+    # A checksum mismatch refuses to run the bundle rather than silently
+    # trusting an unverified download (tests/test_cloud_setup.py runs it).
+    assert '[ "${expected}" != "${actual}" ]' in script
 
 
 def test_uninstall_removes_a_legacy_kb_install_and_purges_hooks(tmp_path: Path) -> None:

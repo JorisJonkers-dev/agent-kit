@@ -32,7 +32,19 @@
 set -euo pipefail
 
 SCRIPT_NAME=setup-workstation.sh
+# The "skills" bundle carries everything setup-workstation.sh reads beside
+# itself; a copy run on its own re-runs the one inside it. The asset keeps
+# its name because the asset host syncs it by that name.
 SKILLS_TARBALL=agent-kit-skills.tar.gz
+KIT_PATHS=(
+  skills
+  registry/estate-tooling.yaml
+  registry/generated/hermes/mcp-servers.local.yaml
+  installer/setup-workstation.sh
+  installer/port-forward-agent.sh
+  installer/cloud-session.sh
+  scripts/hermes-merge-mcp.py
+)
 SKILLS_CHECKSUM="${SKILLS_TARBALL}.sha256"
 RETIRED_NAMES=(install.sh install-agents.sh)
 
@@ -73,8 +85,10 @@ gh_download() { # gh_download <remote-name>; prints the local path it saved to
 
 cmd_stage() {
   require_env TAG_NAME
-  [ -f "${REPO_ROOT}/installer/${SCRIPT_NAME}" ] || die "no ${REPO_ROOT}/installer/${SCRIPT_NAME}"
-  [ -d "${REPO_ROOT}/skills" ] || die "no ${REPO_ROOT}/skills directory"
+  local path
+  for path in "${KIT_PATHS[@]}"; do
+    [ -e "${REPO_ROOT}/${path}" ] || die "no ${REPO_ROOT}/${path}"
+  done
   rm -rf "${STAGE_DIR:?}"
   mkdir -p "${STAGE_DIR}"
 
@@ -88,7 +102,7 @@ cmd_stage() {
   # this portable is what let the tarball logic be exercised locally. Content
   # is what a re-run must reproduce, not tar's own metadata bytes -- each run
   # is checksummed and verified against itself, not against a prior run.
-  tar -C "${REPO_ROOT}" -czf "${STAGE_DIR}/${SKILLS_TARBALL}" skills
+  tar -C "${REPO_ROOT}" -czf "${STAGE_DIR}/${SKILLS_TARBALL}" "${KIT_PATHS[@]}"
 
   (cd "${STAGE_DIR}" && sha256sum "${SKILLS_TARBALL}" > "${SKILLS_CHECKSUM}")
   log "staged ${SCRIPT_NAME}, ${SKILLS_TARBALL} and ${SKILLS_CHECKSUM} in ${STAGE_DIR}"

@@ -22,6 +22,9 @@
 #   runner        the per-workspace agent-runner image
 #   container     the agents image, through setup-container.sh
 #
+# `cloud: false` keeps a workstation entry out of `setup-workstation.sh
+# --cloud`, the Claude Code cloud environment run (see docs/CLOUD.md).
+#
 # Container pins are exact; keep datasource, package, version in that order
 # (Renovate reads them as one match). See docs/REGISTRY.md.
 #
@@ -146,6 +149,8 @@ clis:
     install: "curl -fsSL https://claude.ai/install.sh | bash"
     update: "claude update"
     version_command: "claude --version"
+    # The cloud host installs and updates Claude Code itself.
+    cloud: false
     # Container uses npm: the native installer writes into root's home.
     container:
       datasource: npm
@@ -182,7 +187,7 @@ clis:
     # The `[mcp]` extra is what lets LOCAL hermes run any MCP server at
     # all (it is a no-op otherwise); install it up front so the local
     # `mcp` CLI can actually register and connect servers.
-    install: "uv tool install --python 3.13 'hermes-agent[mcp]'"
+    install: "uv tool install --python '>=3.11,<3.14' 'hermes-agent[mcp]'"
     update: "uv tool upgrade 'hermes-agent[mcp]'"
     version_command: "hermes --version"
     requires: [uv]
@@ -422,6 +427,8 @@ plugins:
   - name: github
     marketplace: claude-plugins-official
     enabled: true
+    # Cloud sessions reach GitHub through the host's own proxy and tools.
+    cloud: false
     purpose: >-
       GitHub MCP server. Needs a token; it fails to connect with
       "Authorization header is badly formatted" when the credential is
@@ -432,6 +439,7 @@ plugins:
     marketplace: ai-software-architect
     commit: 6e636c8bb2f63481d70f0b7af12912fd414d5722
     enabled: false
+    cloud: false
     purpose: Architecture review personas. Off by default — large surface, rarely the right tool.
 
   - name: hindsight-memory
@@ -488,11 +496,23 @@ language_servers:
   - plugin: kotlin-lsp
     binary: kotlin-lsp
     install: "brew install kotlin-lsp"
+    install_linux: >-
+      v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405
+      && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download-cdn.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz"
+      && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c -
+      && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}"
+      && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz
+      && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"
     languages: [kotlin]
     enabled: true
   - plugin: jdtls-lsp
     binary: jdtls
     install: "brew install jdtls"
+    install_linux: >-
+      curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz
+      && rm -rf "${AK_OPT_DIR}/jdtls" && mkdir -p "${AK_OPT_DIR}/jdtls" "${AK_BIN_DIR}"
+      && tar -xzf /tmp/jdtls.tgz -C "${AK_OPT_DIR}/jdtls" && rm -f /tmp/jdtls.tgz
+      && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"
     languages: [java]
     enabled: true
   - plugin: ruby-lsp
@@ -500,11 +520,13 @@ language_servers:
     install: "gem install ruby-lsp"
     languages: [ruby]
     enabled: true
+    cloud: false
   - plugin: gopls-lsp
     binary: gopls
     install: "go install golang.org/x/tools/gopls@latest"
     languages: [go]
     enabled: true
+    cloud: false
     container:
       datasource: go
       package: "golang.org/x/tools/gopls"
@@ -520,21 +542,25 @@ language_servers:
     install: "rustup component add rust-analyzer"
     languages: [rust]
     enabled: true
+    cloud: false
   - plugin: lua-lsp
     binary: lua-language-server
     install: "brew install lua-language-server"
     languages: [lua]
     enabled: true
+    cloud: false
   - plugin: clangd-lsp
     binary: clangd
     install: "brew install llvm"
     languages: [c, cpp]
     enabled: true
+    cloud: false
   - plugin: php-lsp
     binary: intelephense
     install: "npm install -g intelephense"
     languages: [php]
     enabled: true
+    cloud: false
     container:
       datasource: npm
       package: "intelephense"
@@ -548,6 +574,7 @@ language_servers:
     install: "dotnet tool install --global csharp-ls"
     languages: [csharp]
     enabled: true
+    cloud: false
   - plugin: swift-lsp
     binary: sourcekit-lsp
     # Ships inside the Xcode / Swift toolchain; there is nothing to install
@@ -555,11 +582,13 @@ language_servers:
     install: null
     languages: [swift]
     enabled: true
+    cloud: false
   - plugin: liquid-lsp
     binary: shopify
     install: "npm install -g @shopify/cli"
     languages: [liquid]
     enabled: false
+    cloud: false
 
 # -------------------------------------------------------------------
 # First-party skills that ship in this repository.
@@ -814,6 +843,8 @@ mcp_servers:
       namespace: agents-system
       remote_port: 8080
       local_port: 18080
+    # A cloud VM has no kube context to port-forward through.
+    cloud: false
     timeout: 60
     surfaces: [workstation, hermes, runner]
     trust: estate

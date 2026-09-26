@@ -32,6 +32,7 @@ SETUP_SCRIPT = Path("installer/setup-workstation.sh")
 CONTAINER_SETUP_SCRIPT = Path("installer/setup-container.sh")
 # Hand-written, sourced by SETUP_SCRIPT: keeps workstation_connect forwards alive.
 PORT_FORWARD_HELPER = Path("installer/port-forward-agent.sh")
+CLOUD_HELPER = Path("installer/cloud-session.sh")
 HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
@@ -170,6 +171,17 @@ def validate(data: dict[str, Any]) -> None:
                 "public git URLs with no credential and this repository is private",
             )
 
+    for key in ("clis", "plugins", "language_servers", "mcp_servers"):
+        for item in _entries(data, key):
+            if "cloud" in item and not isinstance(item["cloud"], bool):
+                raise RegistryError(f"{key} entry {_label(item)} cloud: must be true or false")
+    for server in _entries(data, "language_servers"):
+        if "install_linux" in server and not (server["install_linux"] and server.get("install")):
+            raise RegistryError(
+                f"language server {server.get('plugin')} install_linux must be a command, "
+                "beside an install for the other platforms",
+            )
+
     _validate_claude_profiles(data)
     _validate_container(data)
 
@@ -187,6 +199,27 @@ def validate(data: dict[str, Any]) -> None:
 
 def on_surface(item: dict[str, Any], surface: str) -> bool:
     return surface in (item.get("surfaces") or [])
+
+
+def on_cloud(item: dict[str, Any]) -> bool:
+    return item.get("cloud", True) is not False
+
+
+def _label(item: dict[str, Any]) -> str:
+    return str(item.get("name") or item.get("plugin"))
+
+
+def _cloud_guard(block: list[str], item: dict[str, Any], indent: str) -> list[str]:
+    """Wrap a rendered block so `--cloud` skips an entry marked `cloud: false`."""
+    if on_cloud(item):
+        return block
+    return [
+        f'{indent}if [ "${{CLOUD}}" = 1 ]; then',
+        f'{indent}  log "{_label(item)}: not set up in cloud mode"',
+        f"{indent}else",
+        *[f"  {line}" if line else line for line in block],
+        f"{indent}fi",
+    ]
 
 
 def _validate_claude_profiles(data: dict[str, Any]) -> None:
@@ -529,14 +562,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("#   ./setup-workstation.sh --no-lsp        skip the language servers")
     w("#   ./setup-workstation.sh --no-mcp        skip MCP registration")
     w("#   ./setup-workstation.sh --no-profiles   only the primary Claude profile")
+    w("#   ./setup-workstation.sh --cloud         a Claude Code cloud environment's")
+    w("#                                          setup script (docs/CLOUD.md)")
     w("#   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /")
     w("#                                          install-agents.sh install wrote,")
     w("#                                          then purge retired knowledge hooks")
     w("#                                          and exit -- does not touch anything")
     w("#                                          this script itself manages")
     w("#")
-    w("# AGENT_KIT_SKILLS_BUNDLE_URL overrides the published skills bundle a")
-    w("# `curl | bash` run fetches when it cannot find this repo's own skills/.")
+    w("# Run outside an agent-kit checkout (`curl | bash`), it fetches the")
+    w("# published kit bundle and re-runs the copy inside it.")
+    w("# AGENT_KIT_SKILLS_BUNDLE_URL overrides where that bundle comes from.")
     w("#")
     w("# Secrets are read from the environment and never written here:")
     for server in _entries(data, "mcp_servers"):
@@ -545,6 +581,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     for plugin in _entries(data, "plugins"):
         for var in (plugin.get("requires_env") or {}):
             w(f"#   {var}  -> the {plugin['name']} plugin")
+    help_lines = len(out)
     w("")
     w("set -uo pipefail")
     w("")
@@ -552,6 +589,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("DO_LSP=1")
     w("DO_MCP=1")
     w("DO_PROFILES=1")
+    w("CLOUD=0")
     w("UNINSTALL=0")
     w("failures=0")
     w("warnings=0")
@@ -565,14 +603,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("plugin_drift=()            # Plugins whose commit drifted")
     w("new_binaries=()            # Binaries installed during this run")
     w("")
+    w('ORIG_ARGS=("$@")')
     w('while [ "$#" -gt 0 ]; do')
     w("  case \"$1\" in")
     w("    --check) CHECK_ONLY=1 ;;")
     w("    --no-lsp) DO_LSP=0 ;;")
     w("    --no-mcp) DO_MCP=0 ;;")
     w("    --no-profiles) DO_PROFILES=0 ;;")
+    w("    --cloud) CLOUD=1; DO_PROFILES=0 ;;")
     w("    --uninstall) UNINSTALL=1 ;;")
-    w("    --help|-h) sed -n '2,34p' \"$0\"; exit 0 ;;")
+    w(f"    --help|-h) sed -n '2,{help_lines}p' \"$0\"; exit 0 ;;")
     w('    *) echo "unknown option: $1" >&2; exit 64 ;;')
     w("  esac")
     w("  shift")
@@ -612,6 +652,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  bash -c "$1"')
     w("}")
     w("")
+    w("# Cloud mode registers a ${VAR} that Claude Code expands per session, keeping tokens out of the snapshot.")
+    w("secret_ref() {")
+    w('  if [ "${CLOUD}" = 1 ]; then')
+    w("    # shellcheck disable=SC2016")
+    w("    printf '${%s%s}' \"$1\" \"${2:+:-}\"")
+    w("  else")
+    w("    printf '%s' \"${!1:-}\"")
+    w("  fi")
+    w("}")
+    w("")
     w("# Runs argv once per Claude profile, each with its own config root.")
     w("# MCP servers live in a profile's own .claude.json, so the fleet has to")
     w("# be registered per profile; plugins and skills do not, because those")
@@ -619,9 +669,19 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("claude_each_profile() {")
     w("  local dir rc=0")
     w('  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
-    w('    CLAUDE_CONFIG_DIR="${dir}" "$@" || rc=1')
+    w('    claude_in_profile "${dir}" "$@" || rc=1')
     w("  done")
     w('  return "${rc}"')
+    w("}")
+    w("")
+    w("# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.")
+    w("claude_in_profile() {")
+    w('  local dir="$1"; shift')
+    w('  if [ "${dir}" = "${CLAUDE_HOME}" ] && [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then')
+    w('    "$@"')
+    w("  else")
+    w('    CLAUDE_CONFIG_DIR="${dir}" "$@"')
+    w("  fi")
     w("}")
     w("")
     w("# Links one shared surface of the primary profile into a secondary one.")
@@ -719,9 +779,63 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
     w('CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"')
     w("")
+    w("# Outside a checkout, re-run the copy in the release's kit bundle; --uninstall needs none of it.")
+    w("use_kit_bundle() {")
+    w(f'  [ -f "${{KIT_ROOT}}/{REGISTRY_PATH.relative_to(KIT_ROOT)}" ] && return 0')
+    w('  if [ -n "${AGENT_KIT_BUNDLE_STAGE:-}" ]; then')
+    w('    fail "the kit bundle at ${AGENT_KIT_BUNDLE_STAGE} is not a complete kit"')
+    w("    exit 1")
+    w("  fi")
+    w('  local url="${AGENT_KIT_SKILLS_BUNDLE_URL:-https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz}"')
+    w('  local stage expected actual')
+    w('  stage="$(mktemp -d)"')
+    w('  log "not an agent-kit checkout; fetching the kit bundle from ${url}"')
+    w('  if ! curl -fsSL -o "${stage}/kit.tar.gz" "${url}" \\')
+    w('     || ! curl -fsSL -o "${stage}/kit.tar.gz.sha256" "${url}.sha256"; then')
+    w('    fail "kit bundle unavailable at ${url}; set AGENT_KIT_SKILLS_BUNDLE_URL or run from a checkout"')
+    w("    exit 1")
+    w("  fi")
+    w("  expected=\"$(awk '{print $1}' \"${stage}/kit.tar.gz.sha256\")\"")
+    w("  if command -v sha256sum >/dev/null 2>&1; then")
+    w("    actual=\"$(sha256sum \"${stage}/kit.tar.gz\" | awk '{print $1}')\"")
+    w("  else")
+    w("    actual=\"$(shasum -a 256 \"${stage}/kit.tar.gz\" | awk '{print $1}')\"")
+    w("  fi")
+    w('  if [ -z "${expected}" ] || [ "${expected}" != "${actual}" ]; then')
+    w('    fail "kit bundle at ${url} failed its sha256 check" \\')
+    w('      "(expected ${expected:-<empty>}, got ${actual}); refusing to run it"')
+    w("    exit 1")
+    w("  fi")
+    w('  if ! tar -xzf "${stage}/kit.tar.gz" -C "${stage}" \\')
+    w('     || [ ! -f "${stage}/installer/setup-workstation.sh" ]; then')
+    w('    fail "kit bundle at ${url} does not carry installer/setup-workstation.sh"')
+    w("    exit 1")
+    w("  fi")
+    w('  ok "kit bundle verified (sha256 ${actual})"')
+    w('  AGENT_KIT_BUNDLE_STAGE="${stage}" exec bash "${stage}/installer/setup-workstation.sh" \\')
+    w('    ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}')
+    w("}")
+    w('[ "${UNINSTALL}" = 1 ] || use_kit_bundle')
+    w('if [ -n "${AGENT_KIT_BUNDLE_STAGE:-}" ]; then')
+    w("  trap 'rm -rf \"${AGENT_KIT_BUNDLE_STAGE}\"' EXIT")
+    w("fi")
+    w("")
+    w("# Where install_linux commands install: system-wide when writable, as on a cloud VM.")
+    w("if [ -w /usr/local/bin ]; then")
+    w('  AK_BIN_DIR=/usr/local/bin AK_OPT_DIR=/usr/local/lib/agent-kit')
+    w("else")
+    w('  AK_BIN_DIR="$HOME/.local/bin" AK_OPT_DIR="$HOME/.local/lib/agent-kit"')
+    w("fi")
+    w("export AK_BIN_DIR AK_OPT_DIR")
+    w("")
     w("# ensure_port_forward: keeps the loopback of a workstation_connect MCP")
     w("# server alive (a launchd agent on macOS).")
     w(f'. "${{KIT_ROOT}}/{PORT_FORWARD_HELPER}"')
+    w("")
+    w('if [ "${CLOUD}" = 1 ]; then')
+    w(f'  . "${{KIT_ROOT}}/{CLOUD_HELPER}"')
+    w("  cloud_prepare")
+    w("fi")
     w("")
     w('CLAUDE_HOOKS_DIR="${CLAUDE_HOME}/hooks"')
     w('CODEX_HOOKS_DIR="${CODEX_HOME}/hooks"')
@@ -956,25 +1070,28 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("")
         for chunk in _wrap(str(cli.get("purpose") or "").strip(), 64):
             w(f"# {chunk}")
-        w(f'if command -v {binary} >/dev/null 2>&1; then')
-        w(f'  run_sh {_q(update)}')
+        block: list[str] = []
+        b = block.append
+        b(f'if command -v {binary} >/dev/null 2>&1; then')
+        b(f'  run_sh {_q(update)}')
         if version_command:
-            w(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
+            b(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
         else:
-            w(f'  ok "{binary} present"')
-        w("else")
-        w(f'  run_sh {_q(install)}')
-        w('  if [ "${CHECK_ONLY}" = 1 ]; then')
-        w(f'    log "{binary} would be installed"')
-        w(f'  elif command -v {binary} >/dev/null 2>&1; then')
-        w(f'    ok "{binary} installed"')
+            b(f'  ok "{binary} present"')
+        b("else")
+        b(f'  run_sh {_q(install)}')
+        b('  if [ "${CHECK_ONLY}" = 1 ]; then')
+        b(f'    log "{binary} would be installed"')
+        b(f'  elif command -v {binary} >/dev/null 2>&1; then')
+        b(f'    ok "{binary} installed"')
         # Track newly installed binaries
         for bin_name in provides:
-            w(f'    new_binaries+=("{bin_name}")')
-        w("  else")
-        w(f'    fail "{binary} still not on PATH after install; open a new shell and re-run"')
-        w("  fi")
-        w("fi")
+            b(f'    new_binaries+=("{bin_name}")')
+        b("  else")
+        b(f'    fail "{binary} still not on PATH after install; open a new shell and re-run"')
+        b("  fi")
+        b("fi")
+        out.extend(_cloud_guard(block, cli, ""))
     w("")
 
     # --- Claude profiles ---
@@ -1050,35 +1167,43 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  fail "claude is not on PATH; skipping plugins, language servers and MCP"')
     w("else")
     w('  log "plugin marketplaces"')
+    cloud_markets = {"claude-plugins-official"} if _entries(data, "language_servers") else set()
+    cloud_markets |= {p["marketplace"] for p in _entries(data, "plugins") if on_cloud(p)}
     for market in _entries(data, "marketplaces"):
-        w(f'  run claude plugin marketplace add {market["repo"]} 2>/dev/null \\')
-        w(f'    || run claude plugin marketplace update {market["name"]} >/dev/null 2>&1 \\')
-        w(f'    || warn "marketplace {market["name"]} ({market["repo"]}) could not be added or updated"')
+        block = [
+            f'  run claude plugin marketplace add {market["repo"]} 2>/dev/null \\',
+            f'    || run claude plugin marketplace update {market["name"]} >/dev/null 2>&1 \\',
+            f'    || warn "marketplace {market["name"]} ({market["repo"]}) could not be added or updated"',
+        ]
+        out.extend(_cloud_guard(block, {**market, "cloud": market["name"] in cloud_markets}, "  "))
     w("")
     w('  log "plugins"')
     for plugin in _entries(data, "plugins"):
         ref = f'{plugin["name"]}@{plugin["marketplace"]}'
         w(f'  # {plugin["name"]}: ' + " ".join(str(plugin.get("purpose") or "").split())[:200])
-        w(f'  if run claude plugin install {ref} --yes --scope user; then')
+        block = []
+        b = block.append
+        b(f'  if run claude plugin install {ref} --yes --scope user; then')
         # Do NOT run unconditional update - that causes drift. Only on explicit request.
         if plugin.get("enabled", True):
-            w(f'    run claude plugin enable {ref} >/dev/null 2>&1 || true')
-            w(f'    ok "{ref} installed and enabled"')
+            b(f'    run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            b(f'    ok "{ref} installed and enabled"')
         else:
-            w(f'    run claude plugin disable {ref} >/dev/null 2>&1 || true')
-            w(f'    ok "{ref} installed, left disabled on purpose"')
-            w(f'    disabled_plugins+=("{plugin["name"]}: disabled on purpose in registry")')
-        w("  else")
-        w(f'    warn "{ref} install failed"')
-        w("  fi")
+            b(f'    run claude plugin disable {ref} >/dev/null 2>&1 || true')
+            b(f'    ok "{ref} installed, left disabled on purpose"')
+            b(f'    disabled_plugins+=("{plugin["name"]}: disabled on purpose in registry")')
+        b("  else")
+        b(f'    warn "{ref} install failed"')
+        b("  fi")
         # Unset: the plugin falls back silently, so warn instead of trusting the default.
         requires_env = plugin.get("requires_env") or {}
         for var, purpose in requires_env.items():
             purpose_escaped = str(purpose).replace('"', '\\"')
-            w(f'  if [ -z "${{{var}:-}}" ]; then')
-            w(f'    warn "{plugin["name"]}: {var} is not set ({purpose_escaped}); export it and re-run"')
-            w(f'    missing_plugin_env+=("{plugin["name"]}: export {var}")')
-            w("  fi")
+            b(f'  if [ -z "${{{var}:-}}" ]; then')
+            b(f'    warn "{plugin["name"]}: {var} is not set ({purpose_escaped}); export it and re-run"')
+            b(f'    missing_plugin_env+=("{plugin["name"]}: export {var}")')
+            b("  fi")
+        out.extend(_cloud_guard(block, plugin, "  "))
     w("")
     w("  # ---------------------------------------------------------------")
     w("  # 4. Plugin drift detection.")
@@ -1154,39 +1279,49 @@ def render_setup_script(data: dict[str, Any]) -> str:
         enabled = server.get("enabled", True)
         w("")
         w(f'    # {plugin} -> {binary} ({", ".join(server.get("languages") or [])})')
-        w(f'    if run claude plugin install {ref} --yes --scope user; then')
+        block = []
+        b = block.append
+        b(f'    if run claude plugin install {ref} --yes --scope user; then')
         # Always check binary presence to determine enable/disable state
-        w(f'      if command -v {binary} >/dev/null 2>&1; then')
+        b(f'      if command -v {binary} >/dev/null 2>&1; then')
         if enabled:
-            w(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
-            w(f'        ok "{plugin}: {binary} on PATH, plugin enabled"')
+            b(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            b(f'        ok "{plugin}: {binary} on PATH, plugin enabled"')
         else:
-            w(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
-            w(f'        ok "{plugin}: {binary} on PATH, plugin enabled (was disabled in registry)"')
-        w("      else")
-        w(f'        run claude plugin disable {ref} >/dev/null 2>&1 || true')
+            b(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            b(f'        ok "{plugin}: {binary} on PATH, plugin enabled (was disabled in registry)"')
+        b("      else")
+        b(f'        run claude plugin disable {ref} >/dev/null 2>&1 || true')
         # Attempt install if one is configured
         if lsp_install:
-            w(f'        run_sh {_q(lsp_install)} || true')
-            w(f'        if command -v {binary} >/dev/null 2>&1; then')
-            w(f'          run claude plugin enable {ref} >/dev/null 2>&1 || true')
-            w(f'          ok "{plugin}: {binary} installed and enabled"')
-            w("        else")
-            escaped_install = lsp_install.replace('"', '\\"')
-            w(f'          warn "{plugin}: {binary} is absent; plugin left disabled (install missing: {lsp_install})"')
-            w(f'          missing_lsp_binaries+=("{plugin}: install with: {escaped_install}")')
-            w("        fi")
+            if server.get("install_linux"):
+                b('        if [ "$(uname -s)" = Linux ]; then')
+                b(f"          lsp_cmd={_q(server['install_linux'])}")
+                b("        else")
+                b(f"          lsp_cmd={_q(lsp_install)}")
+                b("        fi")
+            else:
+                b(f"        lsp_cmd={_q(lsp_install)}")
+            b('        run_sh "${lsp_cmd}" || true')
+            b(f'        if command -v {binary} >/dev/null 2>&1; then')
+            b(f'          run claude plugin enable {ref} >/dev/null 2>&1 || true')
+            b(f'          ok "{plugin}: {binary} installed and enabled"')
+            b("        else")
+            b(f'          warn "{plugin}: {binary} is absent; plugin left disabled (install missing: ${{lsp_cmd}})"')
+            b(f'          missing_lsp_binaries+=("{plugin}: install with: ${{lsp_cmd}}")')
+            b("        fi")
         else:
             msg = (
                 f'"{plugin}: {binary} is absent and ships with its platform '
                 f'toolchain; plugin left disabled"'
             )
-            w(f'        warn {msg}')
-            w(f'        missing_lsp_binaries+=("{plugin}: missing from toolchain (no install command)")')
-        w("      fi")
-        w("    else")
-        w(f'      warn "{ref} install failed"')
-        w("    fi")
+            b(f'        warn {msg}')
+            b(f'        missing_lsp_binaries+=("{plugin}: missing from toolchain (no install command)")')
+        b("      fi")
+        b("    else")
+        b(f'      warn "{ref} install failed"')
+        b("    fi")
+        out.extend(_cloud_guard(block, server, "    "))
     w("  else")
     w('    log "language servers skipped (--no-lsp)"')
     w("  fi")
@@ -1250,23 +1385,26 @@ def render_setup_script(data: dict[str, Any]) -> str:
             continue
         # A REQUIRED credential gates registration; an OPTIONAL one never does
         # (the server self-manages auth -- e.g. overleaf via olcli -- so an
-        # unset override must not skip it, that was the #52 regression).
+        # unset override must not skip it, that was the #52 regression). In
+        # cloud mode nothing gates: the value arrives with the session.
+        block = []
+        b = block.append
         guard_open = False
         if credential and not optional_cred:
-            w(f'    if [ -z "${{{credential}:-}}" ]; then')
-            w(f'      warn "{name}: {credential} is not set; skipping (export it and re-run)"')
-            w(f'      skipped_mcp_servers+=("{name}: export {credential}")')
-            w("    else")
+            b(f'    if [ -z "${{{credential}:-}}" ] && [ "${{CLOUD}}" != 1 ]; then')
+            b(f'      warn "{name}: {credential} is not set; skipping (export it and re-run)"')
+            b(f'      skipped_mcp_servers+=("{name}: export {credential}")')
+            b("    else")
             guard_open = True
         indent = "      " if guard_open else "    "
         binary = server.get("requires_binary")
         if binary:
-            w(f'{indent}if ! command -v {binary} >/dev/null 2>&1; then')
+            b(f'{indent}if ! command -v {binary} >/dev/null 2>&1; then')
             if server.get("install"):
-                w(f'{indent}  run_sh {_q(server["install"])} || true')
-            w(f'{indent}  command -v {binary} >/dev/null 2>&1 \\')
-            w(f'{indent}    || warn "{name}: {binary} is not on PATH; skipping"')
-            w(f"{indent}fi")
+                b(f'{indent}  run_sh {_q(server["install"])} || true')
+            b(f'{indent}  command -v {binary} >/dev/null 2>&1 \\')
+            b(f'{indent}    || warn "{name}: {binary} is not on PATH; skipping"')
+            b(f"{indent}fi")
         # A workstation_connect block means the http url_workstation is a
         # loopback exposed by a `kubectl port-forward` of a ClusterIP service.
         # The registration below would otherwise point at a dead port, so
@@ -1278,37 +1416,36 @@ def render_setup_script(data: dict[str, Any]) -> str:
             ns = connect["namespace"]
             rport = connect["remote_port"]
             lport = connect["local_port"]
-            w("")
-            w(f"    # {name} reaches the cluster via a kubectl port-forward of the")
-            w(f"    # ClusterIP service {svc}.{ns} (no ingress route exists for it).")
-            w(f"    ensure_port_forward {name} {ns} {svc} {lport} {rport}")
+            b("")
+            b(f"    # {name} reaches the cluster via a kubectl port-forward of the")
+            b(f"    # ClusterIP service {svc}.{ns} (no ingress route exists for it).")
+            b(f"    ensure_port_forward {name} {ns} {svc} {lport} {rport}")
         # --- Claude Code ---
-        w(f"{indent}if command -v claude >/dev/null 2>&1; then")
-        w(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
+        b(f"{indent}if command -v claude >/dev/null 2>&1; then")
+        b(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
         if server["transport"] == "http":
             url = server.get("url_workstation")
             if not url:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
             add = f"claude mcp add --scope user {name} --transport http {url}"
             if credential:
-                # claude bakes the resolved header value in at registration time.
-                add += f' --header "Authorization: Bearer ${{{credential}}}"'
+                add += f' --header "Authorization: Bearer $(secret_ref {credential})"'
         else:
             args = " ".join(server.get("args") or [])
-            env_flags = _mcp_env_flags(server, credential, optional_cred)
+            env_flags = _mcp_env_flags(server, credential, optional_cred, claude=True)
             # Name BEFORE the --env flags: claude 2.x rejects the redeclared
             # order (`--env K=V` then the name) with "missing required argument
             # 'commandOrUrl'". Verified against claude 2.1.267.
             add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip()
-        w(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
-        w(f'{indent}    ok "{name} registered (claude)"')
-        w(f"{indent}  else")
-        w(f'{indent}    fail "{name} registration failed (claude)"')
-        w(f"{indent}  fi")
-        w(f"{indent}fi")
+        b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
+        b(f'{indent}    ok "{name} registered (claude)"')
+        b(f"{indent}  else")
+        b(f'{indent}    fail "{name} registration failed (claude)"')
+        b(f"{indent}  fi")
+        b(f"{indent}fi")
         # --- Codex ---
-        w(f"{indent}if command -v codex >/dev/null 2>&1; then")
-        w(f"{indent}  run codex mcp remove {name} >/dev/null 2>&1 || true")
+        b(f"{indent}if command -v codex >/dev/null 2>&1; then")
+        b(f"{indent}  run codex mcp remove {name} >/dev/null 2>&1 || true")
         if server["transport"] == "http":
             url = server.get("url_workstation")
             add = f"codex mcp add {name} --url {url}"
@@ -1319,14 +1456,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
             args = " ".join(server.get("args") or [])
             env_flags = _mcp_env_flags(server, credential, optional_cred)
             add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
-        w(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
-        w(f'{indent}    ok "{name} registered (codex)"')
-        w(f"{indent}  else")
-        w(f'{indent}    fail "{name} registration failed (codex)"')
-        w(f"{indent}  fi")
-        w(f"{indent}fi")
+        b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
+        b(f'{indent}    ok "{name} registered (codex)"')
+        b(f"{indent}  else")
+        b(f'{indent}    fail "{name} registration failed (codex)"')
+        b(f"{indent}  fi")
+        b(f"{indent}fi")
         if guard_open:
-            w("    fi")
+            b("    fi")
+        out.extend(_cloud_guard(block, server, "    "))
     w("")
     # --- local Hermes: merge the workstation-flavoured mcp_servers block ---
     w("    # Local Hermes reads its MCP servers from ~/.hermes/config.yaml.")
@@ -1336,8 +1474,19 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("      if [ \"${CHECK_ONLY}\" = 1 ]; then")
     w("        log \"would merge local Hermes MCP servers\"")
     w("      else")
-    w("        uv run --directory \"${KIT_ROOT}\" python \\")
-    w(f"          scripts/hermes-merge-mcp.py \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\"")
+    w("        uv run --no-project --with pyyaml python \"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+    w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" \\")
+    w("          || fail \"local Hermes MCP merge failed\"")
+    hermes_off_cloud = [
+        s["name"] for s in _entries(data, "mcp_servers") if on_surface(s, "workstation") and not on_cloud(s)
+    ]
+    if hermes_off_cloud:
+        removes = " ".join(f"--remove {name}" for name in hermes_off_cloud)
+        w('        if [ "${CLOUD}" = 1 ]; then')
+        w("          uv run --no-project --with pyyaml python \"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+        w(f"            \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" {removes} \\")
+        w("            || fail \"local Hermes MCP cleanup failed\"")
+        w("        fi")
     w("      fi")
     w("    else")
     w("      warn \"hermes not on PATH; local Hermes MCP config not merged\"")
@@ -1348,11 +1497,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    if [ "${CHECK_ONLY}" != 1 ]; then')
     w("     # Once per profile: each one answers for its own .claude.json.")
     w('     for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
-    w('      registered=$(CLAUDE_CONFIG_DIR="${profile_dir}" claude mcp list 2>/dev/null || true)')
+    w('      registered=$(claude_in_profile "${profile_dir}" claude mcp list 2>/dev/null || true)')
     w("      # Check all expected servers are registered")
-    w("      for want in \\")
     expected = [
-        server["name"]
+        server
         for server in _entries(data, "mcp_servers")
         if (
             on_surface(server, "workstation")
@@ -1360,9 +1508,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
             and len(server.get("surfaces") or []) > 0
         )
     ]
-    for name in expected:
-        w(f"        {name} \\")
-    w("        ; do")
+    w("      expected_servers=(" + " ".join(s["name"] for s in expected if on_cloud(s)) + ")")
+    off_cloud = [s["name"] for s in expected if not on_cloud(s)]
+    if off_cloud:
+        w('      if [ "${CLOUD}" != 1 ]; then')
+        w("        expected_servers+=(" + " ".join(off_cloud) + ")")
+        w("      fi")
+    w('      for want in "${expected_servers[@]}"; do')
     w('        case "${registered}" in')
     w('          *"${want}"*) ;;')
     w('          *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;')
@@ -1373,7 +1525,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("      # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a")
     w('      # "repetition-operator operand invalid" error and the whole check')
     w("      # silently inspected nothing on macOS.")
-    w('      echo "${registered}" | sed -n \'s/^\\([a-zA-Z0-9_:-]*\\):[[:space:]].*/\\1/p\' '
+    w('      echo "${registered}" | sed -n \'s/^\\([a-zA-Z0-9_:-]*\\):[[:space:]].* - .*/\\1/p\' '
       '| sort -u | while read -r found; do')
     w('        case "${found}" in')
     # All registry-owned servers
@@ -1405,58 +1557,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     local_skills = [s for s in _entries(data, "local_skills") if on_surface(s, "workstation")]
     if local_skills:
         w('log "first-party skills"')
-        w("# KIT_ROOT resolves from $0, so a `curl | bash` run (where $0 is the")
-        w("# shell, not this file) cannot find the skills that ship in this repo.")
-        w("# Detect that case (no registry/estate-tooling.yaml under KIT_ROOT --")
-        w("# the one thing every real checkout has and no other directory does)")
-        w("# and fetch the published skills bundle instead. agent-kit#35 publishes")
-        w("# that bundle; until it exists, the failure below is the correct one.")
-        w('SKILLS_ROOT="${KIT_ROOT}"')
-        w('if [ ! -f "${KIT_ROOT}/registry/estate-tooling.yaml" ]; then')
-        w('  log "not an agent-kit checkout; fetching the skills bundle instead"')
-        w('  bundle_url="${AGENT_KIT_SKILLS_BUNDLE_URL:-https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz}"')
-        w('  bundle_stage="$(mktemp -d)"')
-        w('  if curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz" "${bundle_url}" \\')
-        w('     && curl -fsSL -o "${bundle_stage}/agent-kit-skills.tar.gz.sha256" "${bundle_url}.sha256"; then')
-        w("    bundle_expected=\"$(awk '{print $1}' \"${bundle_stage}/agent-kit-skills.tar.gz.sha256\")\"")
-        w("    if command -v sha256sum >/dev/null 2>&1; then")
-        w('      bundle_actual="$(sha256sum "${bundle_stage}/agent-kit-skills.tar.gz" | awk \'{print $1}\')"')
-        w("    else")
-        w('      bundle_actual="$(shasum -a 256 "${bundle_stage}/agent-kit-skills.tar.gz" | awk \'{print $1}\')"')
-        w("    fi")
-        w('    if [ -n "${bundle_expected}" ] && [ "${bundle_expected}" = "${bundle_actual}" ]; then')
-        w('      if tar -xzf "${bundle_stage}/agent-kit-skills.tar.gz" -C "${bundle_stage}"; then')
-        w('        SKILLS_ROOT="${bundle_stage}"')
-        w('        ok "skills bundle verified (sha256 ${bundle_actual}) and extracted"')
-        w("      else")
-        w(
-            '        fail "skills bundle at ${bundle_url} downloaded but failed to '
-            'extract; first-party skills not installed"',
-        )
-        w("      fi")
-        w("    else")
-        w(
-            '      fail "skills bundle at ${bundle_url} failed its sha256 check '
-            '(expected ${bundle_expected:-<empty>}, got ${bundle_actual}); refusing '
-            'to install from a corrupt or tampered bundle"',
-        )
-        w("    fi")
-        w("  else")
-        w(
-            '    fail "skills bundle unavailable at ${bundle_url} (agent-kit#35 '
-            "publishes it -- it may simply not exist yet); first-party skills not "
-            "installed. Set AGENT_KIT_SKILLS_BUNDLE_URL to override, or run "
-            'setup-workstation.sh from an agent-kit checkout instead"',
-        )
-        w("  fi")
-        w("fi")
     for skill in local_skills:
         name = skill["name"]
         source = skill["path"]
         w("")
         for chunk in _wrap(str(skill.get("purpose") or "").strip(), 64):
             w(f"# {chunk}")
-        w(f'src="${{SKILLS_ROOT}}/{source}"')
+        w(f'src="${{KIT_ROOT}}/{source}"')
         w('if [ ! -f "${src}/SKILL.md" ]; then')
         w(f'  fail "{name}: ${{src}}/SKILL.md is missing; nothing to install"')
         w("else")
@@ -1478,10 +1585,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w(f'      fail "{name}: ${{dest}} is incomplete after copy"')
             w("    fi")
             w("  fi")
-        w("fi")
-    if local_skills:
-        w('if [ -n "${bundle_stage:-}" ] && [ -d "${bundle_stage}" ]; then')
-        w('  rm -rf "${bundle_stage}"')
         w("fi")
     w("")
 
@@ -1552,6 +1655,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# install-agents.sh is exactly the one that still has these.")
     w("# -----------------------------------------------------------------")
     w("purge_retired_hooks")
+    w("")
+    w('if [ "${CLOUD}" = 1 ]; then')
+    w("  cloud_finish")
+    w("fi")
     w("")
     w("# -----------------------------------------------------------------")
     w("# 10. Summary: what changed and what still needs attention.")
@@ -1763,7 +1870,9 @@ def render_container_setup_script(data: dict[str, Any]) -> str:
     return "\n".join(out) + "\n"
 
 
-def _mcp_env_flags(server: dict[str, Any], credential: str | None, optional_cred: bool) -> str:
+def _mcp_env_flags(
+    server: dict[str, Any], credential: str | None, optional_cred: bool, claude: bool = False,
+) -> str:
     """Build the ``--env KEY=VALUE`` fragment for a stdio MCP server.
 
     Shared by the Claude and Codex registration commands. Emits one flag per
@@ -1774,10 +1883,16 @@ def _mcp_env_flags(server: dict[str, Any], credential: str | None, optional_cred
     an empty string there -- it aborts the run, taking every step after it
     with it. A required credential is already guarded by a ``-z`` test that
     skips the registration, so it is only ever expanded when it is set.
+
+    Claude gets the credential through ``secret_ref``, which is the same value
+    on a workstation and a ``${VAR}`` reference in cloud mode.
     """
     env = server.get("env") or {}
     flags = "".join(f' --env {key}="{value}"' for key, value in env.items())
-    if credential:
+    if credential and claude:
+        optional = " optional" if optional_cred else ""
+        flags += f' --env {credential}="$(secret_ref {credential}{optional})"'
+    elif credential:
         default = ":-" if optional_cred else ""
         flags += f' --env {credential}="${{{credential}{default}}}"'
     return flags
