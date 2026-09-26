@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.1.0...v4.2.0) (2026-09-26)
+
+
+### Features
+
+* **installer:** set up a Claude Code cloud environment with --cloud ([#72](https://github.com/JorisJonkers-dev/agent-kit/issues/72)) ([7ce49b8](https://github.com/JorisJonkers-dev/agent-kit/commit/7ce49b828adf08c873c8ad1fe76fdea9a0d4c7cf))
+
+
+### Bug Fixes
+
+* **runner:** drop the retired knowledge MCP from the runner image ([#68](https://github.com/JorisJonkers-dev/agent-kit/issues/68)) ([d3bbe38](https://github.com/JorisJonkers-dev/agent-kit/commit/d3bbe384b0caacf1fe3b9fe6a2bade52bf14f29d))
+
 ## [4.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.0.0...v4.1.0) (2026-09-21)
 
 
