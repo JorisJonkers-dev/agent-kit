@@ -1,9 +1,9 @@
 # Spec Kit Source Lock
 
 upstream_repository: https://github.com/github/spec-kit
-upstream_tag: v0.9.5
+upstream_tag: v0.16.5
 upstream_release_date: 2026-06-05
-resolved_commit_sha: 9313aaeb6573333c636c7ac55439dddc256c29e1
+resolved_commit_sha: 87a0e9715d59079e46b44208ba009bf1a6976643
 license: MIT
 
 ## Copied or Adapted Paths
