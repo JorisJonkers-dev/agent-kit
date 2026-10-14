@@ -61,9 +61,9 @@ without it every recall and retain is a 404.
 | Claude Code | **Automatic** — the `hindsight-memory` plugin's `UserPromptSubmit`/`Stop` hooks recall and retain on every turn, no tool call needed. |
 | Codex, Hermes (laptop and in-cluster) | **Model-elective** — no hook mechanism exists, so recall/retain only happens when the model calls a `memory-api` or `memory-mcp` tool itself. |
 
-Both paths write into the same shared, per-project bank (Hindsight's default
-`dynamicBankGranularity: ["agent", "project"]` — one bank per project,
-agent-attributed within it) and the same shared Basic Memory vault. Basic
+Both paths write into the same shared bank, `default` (the setup script pins
+the plugin's `bankId`, and `hindsight-api.*` serves no other bank), and the
+same shared Basic Memory vault. Basic
 Memory carries no per-call identity of its own, so attribute a change in the
 note body/frontmatter, and always **edit** a note — `--overwrite` is
 last-writer-wins and silently drops a concurrent edit from another agent or
