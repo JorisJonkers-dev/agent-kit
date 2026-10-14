@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.1.0...v4.2.0) (2026-10-14)
+
+
+### Features
+
+* **installer:** install and configure Mistral Vibe like the other agents ([#76](https://github.com/JorisJonkers-dev/agent-kit/issues/76)) ([1cff656](https://github.com/JorisJonkers-dev/agent-kit/commit/1cff656e734e2480c8286bca4db2245f08da11f1))
+* **installer:** memory-private keeps a directory out of Hindsight auto-retain ([#77](https://github.com/JorisJonkers-dev/agent-kit/issues/77)) ([6731230](https://github.com/JorisJonkers-dev/agent-kit/commit/6731230c338246427a554a61ccaf20eb8d0f75b3))
+* **installer:** set up a Claude Code cloud environment with --cloud ([#72](https://github.com/JorisJonkers-dev/agent-kit/issues/72)) ([7ce49b8](https://github.com/JorisJonkers-dev/agent-kit/commit/7ce49b828adf08c873c8ad1fe76fdea9a0d4c7cf))
+* **registry:** point memory-api and the hindsight plugin at the shared bank ([#75](https://github.com/JorisJonkers-dev/agent-kit/issues/75)) ([3ea19b6](https://github.com/JorisJonkers-dev/agent-kit/commit/3ea19b68054d3c6c3a1b3b82e03c2ecf34624cee))
+* **registry:** point memory-api at hindsight-api.jorisjonkers.dev ([#74](https://github.com/JorisJonkers-dev/agent-kit/issues/74)) ([52c6063](https://github.com/JorisJonkers-dev/agent-kit/commit/52c6063795c4245c3d5b3a0699d38390135499fc))
+
+
+### Bug Fixes
+
+* **runner:** drop the retired knowledge MCP from the runner image ([#68](https://github.com/JorisJonkers-dev/agent-kit/issues/68)) ([d3bbe38](https://github.com/JorisJonkers-dev/agent-kit/commit/d3bbe384b0caacf1fe3b9fe6a2bade52bf14f29d))
+
 ## [4.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.0.0...v4.1.0) (2026-09-21)
 
 
