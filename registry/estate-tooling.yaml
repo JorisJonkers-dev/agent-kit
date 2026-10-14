@@ -829,10 +829,10 @@ mcp_servers:
     # Single-bank endpoint for the shared bank: hindsight-api.* routes nothing
     # else, and the tools there take no bank_id (fleet-infra#392).
     url_workstation: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
-    url_hermes: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp/default/"
+    # Hermes too goes through the gated public host with its own token: a
+    # Service-DNS path cannot be scoped to one bank (fleet-infra#394).
+    url_hermes: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
     credential: HINDSIGHT_API_TOKEN
-    # Hermes reaches this by Service DNS + NetworkPolicy alone, no header.
-    credential_hermes: false
     timeout: 60
     surfaces: [workstation, hermes, runner]
     trust: estate
