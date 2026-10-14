@@ -115,8 +115,9 @@ export MEMORY_PRIVATE_TOKEN=smt_...   # a MEMORY_PRIVATE token for this device
 memory-private claude [ARGS]          # or: memory-private codex [ARGS]
 ```
 
-That session also runs with `HINDSIGHT_AUTO_RETAIN=false`, so nothing from it
-is retained into the shared bank. Every other session, including another one
+That session also runs with `HINDSIGHT_AUTO_RETAIN=false` and with the shared
+stores Hermes reads switched off (`memory-api` and `memory-mcp`), so nothing
+from it can land where Hermes can see it. Every other session, including another one
 open at the same time, still has no private bank.
 
 ### Per-host service tokens (memory-api / memory-mcp)

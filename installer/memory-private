@@ -12,8 +12,9 @@
 # it is kept. For a single session instead: HINDSIGHT_AUTO_RETAIN=false claude
 #
 # `claude` and `codex` open one session with the private Hindsight bank (the
-# memory-private MCP server, switched off everywhere else) and with
-# auto-retain off, so nothing from that session lands in the shared bank.
+# memory-private MCP server, switched off everywhere else), with the shared
+# stores Hermes reads (memory-api, memory-mcp) off and auto-retain off, so
+# nothing from that session lands where Hermes can see it.
 set -euo pipefail
 
 usage() {
@@ -38,9 +39,11 @@ case "${cmd}" in
         echo "memory-private: ${config} is missing; run setup-workstation.sh" >&2
         exit 1
       }
-      exec claude --mcp-config "${config}" "$@"
+      # `=` forms: both flags are variadic and would swallow a trailing prompt.
+      exec claude --mcp-config="${config}" --disallowedTools=mcp__memory-api,mcp__memory-mcp "$@"
     fi
-    exec codex -c mcp_servers.memory-private.enabled=true "$@"
+    exec codex -c mcp_servers.memory-private.enabled=true -c mcp_servers.memory-api.enabled=false \
+      -c mcp_servers.memory-mcp.enabled=false "$@"
     ;;
 esac
 dir="${2:-$PWD}"

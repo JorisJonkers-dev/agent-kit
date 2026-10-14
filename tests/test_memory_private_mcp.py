@@ -178,9 +178,13 @@ def test_claude_session_loads_the_private_config_and_never_auto_retains(tmp_path
     config = tmp_path / "cfg" / "agent-kit" / f"{NAME}.mcp.json"
     config.parent.mkdir(parents=True)
     config.write_text("{}")
+    # `=` forms: both flags are variadic, and a trailing prompt would become a value.
     result = _session(tmp_path, "claude", "--resume")
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines() == [f"claude --mcp-config {config} --resume", "RETAIN=false"]
+    assert result.stdout.splitlines() == [
+        f"claude --mcp-config={config} --disallowedTools=mcp__memory-api,mcp__memory-mcp --resume",
+        "RETAIN=false",
+    ]
 
 
 def test_claude_session_refuses_without_the_installed_config(tmp_path: Path) -> None:
@@ -193,7 +197,8 @@ def test_codex_session_switches_the_server_on_for_that_run_only(tmp_path: Path) 
     result = _session(tmp_path, "codex", "exec", "hi")
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        f"codex -c mcp_servers.{NAME}.enabled=true exec hi",
+        f"codex -c mcp_servers.{NAME}.enabled=true -c mcp_servers.memory-api.enabled=false"
+        " -c mcp_servers.memory-mcp.enabled=false exec hi",
         "RETAIN=false",
     ]
 
