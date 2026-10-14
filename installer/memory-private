@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# managed by agent-kit setup-workstation.sh
+#
+# memory-private on|off|status [DIR]
+#
+# Keeps a directory's Claude Code sessions out of the shared Hindsight bank.
+# The hindsight-memory plugin retains nothing when HINDSIGHT_AUTO_RETAIN is
+# false, and Claude Code passes a project's .claude/settings.local.json `env`
+# block to its hooks, so `on` sets that one key there (recall is unaffected).
+# The file is Claude Code's per-user, git-ignored settings; every other key in
+# it is kept. For a single session instead: HINDSIGHT_AUTO_RETAIN=false claude
+set -euo pipefail
+
+usage() {
+  echo "usage: memory-private on|off|status [DIR]" >&2
+  exit 2
+}
+
+[ $# -ge 1 ] || usage
+cmd="$1"
+dir="${2:-$PWD}"
+case "${cmd}" in on | off | status) ;; *) usage ;; esac
+[ -d "${dir}" ] || { echo "memory-private: ${dir} is not a directory" >&2; exit 1; }
+
+python3 - "${cmd}" "${dir}" <<'PY'
+import json, pathlib, sys
+
+cmd, root = sys.argv[1], pathlib.Path(sys.argv[2]).resolve()
+path = root / ".claude" / "settings.local.json"
+KEY = "HINDSIGHT_AUTO_RETAIN"
+data = json.loads(path.read_text() or "{}") if path.exists() else {}
+env = data.get("env") or {}
+
+if cmd == "status":
+    private = str(env.get(KEY, "")).lower() == "false"
+    print(f"{root}: {'private (no auto-retain)' if private else 'not private (auto-retain on)'}")
+    raise SystemExit(0)
+
+if cmd == "on":
+    env[KEY] = "false"
+    data["env"] = env
+else:
+    env.pop(KEY, None)
+    if env:
+        data["env"] = env
+    else:
+        data.pop("env", None)
+
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(data, indent=2) + "\n")
+back = (json.loads(path.read_text()).get("env") or {}).get(KEY)
+if (cmd == "on") != (back == "false"):
+    print(f"memory-private: {path} did not take the change", file=sys.stderr)
+    raise SystemExit(1)
+state = "private: Claude Code sessions here no longer auto-retain" if cmd == "on" else "auto-retain restored"
+print(f"{root}: {state}")
+PY
+
+# Claude Code git-ignores settings.local.json only when it creates the file
+# itself. One created here could otherwise be committed, publishing it.
+if [ "${cmd}" = on ] && git -C "${dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  file="${dir}/.claude/settings.local.json"
+  if ! git -C "${dir}" check-ignore -q "${file}"; then
+    top="$(git -C "${dir}" rev-parse --show-toplevel)"
+    rel="$(python3 -c 'import os,sys; print(os.path.relpath(os.path.realpath(sys.argv[1]), os.path.realpath(sys.argv[2])))' "${file}" "${top}")"
+    exclude="$(git -C "${dir}" rev-parse --git-path info/exclude)"
+    case "${exclude}" in /*) ;; *) exclude="${dir}/${exclude}" ;; esac
+    mkdir -p "$(dirname "${exclude}")"
+    grep -qxF "/${rel}" "${exclude}" 2>/dev/null || printf '/%s\n' "${rel}" >> "${exclude}"
+    git -C "${dir}" check-ignore -q "${file}" \
+      || { echo "memory-private: could not git-ignore ${file}" >&2; exit 1; }
+    echo "${file}: added to $(basename "$(dirname "${exclude}")")/$(basename "${exclude}") so it is never committed"
+  fi
+fi

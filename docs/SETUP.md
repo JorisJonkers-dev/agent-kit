@@ -80,6 +80,26 @@ override, or skip it. The self-hosted base URL is baked into the registry, so a
 bare `olcli` with no `OVERLEAF_BASE_URL` talks to overleaf.com and every call
 404s against a project that is not there.
 
+### Keeping a directory out of the shared bank
+
+The `hindsight-memory` plugin retains every Claude Code session into the
+shared bank `default`, which Hermes and every agent can recall from. For a
+directory whose sessions are private:
+
+```bash
+memory-private on [DIR]      # default: the current directory
+memory-private status [DIR]
+memory-private off [DIR]
+```
+
+`on` sets `HINDSIGHT_AUTO_RETAIN=false` in that directory's
+`.claude/settings.local.json` (Claude Code's per-user settings), keeping every
+other key. Claude Code git-ignores that file only when it creates it, so in a
+repository where it is not ignored yet, `on` also adds it to `.git/info/exclude`. Claude Code hands that `env` block to the plugin's
+hooks once the folder is trusted, and the plugin then skips both of its retain
+paths. Recall is unaffected. For one session only:
+`HINDSIGHT_AUTO_RETAIN=false claude`.
+
 ### Per-host service tokens (memory-api / memory-mcp)
 
 auth-api (agent-kit#41) now issues per-user, per-host bearer credentials —
