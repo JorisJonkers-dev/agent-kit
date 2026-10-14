@@ -93,6 +93,23 @@ run_redacted() {
   "$@"
 }
 
+# Sets the given top-level keys in a JSON config under $HOME, keeping
+# every other key. Used for plugins that read a user config file.
+_merge_user_config() {
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would set $2 in $1"
+    return 0
+  fi
+  python3 - "$1" "$2" <<'PY'
+import json, pathlib, sys
+path, want = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
+data = json.loads(path.read_text() or '{}') if path.exists() else {}
+data.update(want)
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+}
+
 # A shell -c wrapper for the pipe-into-sh installers the upstreams publish.
 run_sh() {
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -810,6 +827,9 @@ else
   else
     warn "hindsight-memory@hindsight install failed"
   fi
+  _merge_user_config "${HOME}/.hindsight/claude-code.json" '{"bankId": "default"}' \
+    && ok "hindsight-memory: .hindsight/claude-code.json set" \
+    || warn "hindsight-memory: could not update .hindsight/claude-code.json"
   if [ -z "${HINDSIGHT_API_URL:-}" ]; then
     warn "hindsight-memory: HINDSIGHT_API_URL is not set (the estate Hindsight API, or it falls back to a personal local daemon); export it and re-run"
     missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_URL")
@@ -1270,7 +1290,7 @@ for install in installs:
     else
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user memory-api >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://hindsight-api.jorisjonkers.dev/mcp --header "Authorization: Bearer $(secret_ref HINDSIGHT_API_TOKEN)"; then
+        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://hindsight-api.jorisjonkers.dev/mcp/default/ --header "Authorization: Bearer $(secret_ref HINDSIGHT_API_TOKEN)"; then
           ok "memory-api registered (claude)"
         else
           fail "memory-api registration failed (claude)"
@@ -1278,7 +1298,7 @@ for install in installs:
       fi
       if command -v codex >/dev/null 2>&1; then
         run codex mcp remove memory-api >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add memory-api" codex mcp add memory-api --url https://hindsight-api.jorisjonkers.dev/mcp --bearer-token-env-var HINDSIGHT_API_TOKEN; then
+        if run_redacted "codex mcp add memory-api" codex mcp add memory-api --url https://hindsight-api.jorisjonkers.dev/mcp/default/ --bearer-token-env-var HINDSIGHT_API_TOKEN; then
           ok "memory-api registered (codex)"
         else
           fail "memory-api registration failed (codex)"

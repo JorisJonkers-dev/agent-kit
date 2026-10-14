@@ -1044,3 +1044,80 @@ def test_check_mode_uninstall_removes_nothing(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert (claude_home / "skills" / "kb-first" / "SKILL.md").exists()
     assert "would remove" in result.stdout
+
+
+def test_memory_api_uses_the_shared_bank_endpoint() -> None:
+    """hindsight-api.* routes only /mcp/default/; the multi-bank /mcp root 404s there."""
+    server = next(s for s in _registry()["mcp_servers"] if s["name"] == "memory-api")
+    assert server["url_workstation"].endswith("/mcp/default/")
+    assert server["url_hermes"].endswith("/mcp/default/")
+    script = render_registry.render_setup_script(_registry())
+    assert "hindsight-api.jorisjonkers.dev/mcp/default/" in script
+    assert "hindsight-api.jorisjonkers.dev/mcp " not in script
+
+
+def _user_config_block(script: str, path_fragment: str) -> str:
+    start = script.index(f'_merge_user_config "${{HOME}}/{path_fragment}"')
+    return script[start : script.index("\n", start)]
+
+
+def _run_user_config(tmp_path: Path, check_only: int = 0) -> subprocess.CompletedProcess:
+    script = render_registry.render_setup_script(_registry())
+    fn_start = script.index("_merge_user_config() {")
+    fn = script[fn_start : script.index("\n}\n", fn_start) + 3]
+    body = f"""
+CHECK_ONLY={check_only}
+log()  {{ echo "log $*"; }}
+ok()   {{ echo "ok $*"; }}
+warn() {{ echo "warn $*"; }}
+{fn}
+{_user_config_block(script, ".hindsight/claude-code.json")}
+"""
+    env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}
+    return subprocess.run(["bash", "-c", body], env=env, capture_output=True, text=True, check=False)
+
+
+def test_hindsight_plugin_is_pointed_at_the_shared_bank(tmp_path: Path) -> None:
+    """Unset, the plugin uses bank `claude-code`, which the shared host does not route."""
+    config = tmp_path / ".hindsight" / "claude-code.json"
+    config.parent.mkdir()
+    config.write_text(json.dumps({"bankId": "claude-code", "recallBudget": "high"}))
+
+    result = _run_user_config(tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(config.read_text())
+    assert data["bankId"] == "default"
+    assert data["recallBudget"] == "high", "keys the registry does not manage must survive"
+
+
+def test_hindsight_plugin_config_is_created_and_idempotent(tmp_path: Path) -> None:
+    config = tmp_path / ".hindsight" / "claude-code.json"
+    assert _run_user_config(tmp_path).returncode == 0
+    first = config.read_text()
+    assert _run_user_config(tmp_path).returncode == 0
+    assert config.read_text() == first
+    assert json.loads(first) == {"bankId": "default"}
+
+
+def test_hindsight_plugin_config_is_untouched_in_check_mode(tmp_path: Path) -> None:
+    result = _run_user_config(tmp_path, check_only=1)
+    assert result.returncode == 0
+    assert not (tmp_path / ".hindsight").exists()
+
+
+@pytest.mark.parametrize("bad", ["/etc/hindsight.json", "~/.hindsight/x.json", "../outside.json", ""])
+def test_plugin_user_config_path_stays_under_home(bad: str) -> None:
+    data = _registry()
+    plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
+    plugin["user_config"]["path"] = bad
+    with pytest.raises(render_registry.RegistryError, match="relative to \\$HOME"):
+        render_registry.validate(data)
+
+
+def test_plugin_user_config_set_may_not_break_shell_quoting() -> None:
+    data = _registry()
+    plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
+    plugin["user_config"]["set"] = {"bankId": "it's"}
+    with pytest.raises(render_registry.RegistryError, match="single quote"):
+        render_registry.validate(data)

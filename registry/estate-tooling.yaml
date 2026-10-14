@@ -451,6 +451,12 @@ plugins:
     requires_env:
       HINDSIGHT_API_URL: the estate Hindsight API, or it falls back to a personal local daemon
       HINDSIGHT_API_TOKEN: per-host token from auth-api service-tokens (service MEMORY_API)
+    # Merged into the plugin's own user config. Unset, it uses bank
+    # `claude-code`, which hindsight-api.* does not route.
+    user_config:
+      path: .hindsight/claude-code.json
+      set:
+        bankId: default
 
 # Spec Kit is deliberately absent. The `speckit.*` commands and skills are
 # not installed by this registry on any surface. The kit still renders its
@@ -801,8 +807,10 @@ mcp_servers:
   - name: memory-api
     transport: http
     purpose: Hindsight long-term memory -- explicit read/write/search knowledge tools.
-    url_workstation: "https://hindsight-api.jorisjonkers.dev/mcp"
-    url_hermes: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp"
+    # Single-bank endpoint for the shared bank: hindsight-api.* routes nothing
+    # else, and the tools there take no bank_id (fleet-infra#392).
+    url_workstation: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
+    url_hermes: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp/default/"
     credential: HINDSIGHT_API_TOKEN
     # Hermes reaches this by Service DNS + NetworkPolicy alone, no header.
     credential_hermes: false

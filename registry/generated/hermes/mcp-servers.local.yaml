@@ -6,7 +6,7 @@
 #
 mcp_servers:
   memory-api:
-    url: "https://hindsight-api.jorisjonkers.dev/mcp"
+    url: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
     headers:
       Authorization: "Bearer ${HINDSIGHT_API_TOKEN}"
     timeout: 60

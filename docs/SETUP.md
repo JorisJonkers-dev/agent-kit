@@ -47,6 +47,13 @@ from inside a session. The setup script warns by name when it is unset;
 verify by checking which bank a note actually landed in, not by the plugin
 starting without an error.
 
+`hindsight-api.jorisjonkers.dev` serves only the shared bank `default`: its
+single-bank MCP endpoint `/mcp/default/` and the REST paths under
+`/v1/default/banks/default/`. Everything else on that host is a 404, including
+the multi-bank `/mcp` root. The plugin's own default bank is `claude-code`, so
+the setup script sets `bankId: default` in `~/.hindsight/claude-code.json`;
+without it every recall and retain is a 404.
+
 ### Automatic vs. model-elective capture
 
 | Client | Capture |

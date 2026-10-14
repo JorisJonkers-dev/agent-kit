@@ -18,6 +18,7 @@ writes them.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -90,6 +91,17 @@ def validate(data: dict[str, Any]) -> None:
     plugin_names = {p["name"] for p in _entries(data, "plugins")}
 
     for plugin in _entries(data, "plugins"):
+        user_config = plugin.get("user_config")
+        if user_config is not None:
+            rel = str(user_config.get("path") or "")
+            if not rel or rel.startswith(("/", "~")) or ".." in rel.split("/"):
+                raise RegistryError(f"plugin {plugin.get('name')} user_config.path must be relative to $HOME")
+            if not isinstance(user_config.get("set"), dict) or not user_config["set"]:
+                raise RegistryError(f"plugin {plugin.get('name')} user_config.set must be a non-empty mapping")
+            if any("'" in json.dumps(v) for v in user_config["set"].values()):
+                raise RegistryError(
+                    f"plugin {plugin.get('name')} user_config.set values may not contain a single quote",
+                )
         market = plugin.get("marketplace")
         if market not in marketplaces:
             raise RegistryError(
@@ -641,6 +653,23 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    return 0")
     w("  fi")
     w('  "$@"')
+    w("}")
+    w("")
+    w("# Sets the given top-level keys in a JSON config under $HOME, keeping")
+    w("# every other key. Used for plugins that read a user config file.")
+    w("_merge_user_config() {")
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would set $2 in $1"')
+    w("    return 0")
+    w("  fi")
+    w("  python3 - \"$1\" \"$2\" <<'PY'")
+    w("import json, pathlib, sys")
+    w("path, want = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])")
+    w("data = json.loads(path.read_text() or '{}') if path.exists() else {}")
+    w("data.update(want)")
+    w("path.parent.mkdir(parents=True, exist_ok=True)")
+    w('path.write_text(json.dumps(data, indent=2) + "\\n")')
+    w("PY")
     w("}")
     w("")
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
@@ -1195,6 +1224,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
         b("  else")
         b(f'    warn "{ref} install failed"')
         b("  fi")
+        user_config = plugin.get("user_config")
+        if user_config:
+            want = json.dumps(user_config["set"], sort_keys=True)
+            b(f'  _merge_user_config "${{HOME}}/{user_config["path"]}" \'{want}\' \\')
+            b(f'    && ok "{plugin["name"]}: {user_config["path"]} set" \\')
+            b(f'    || warn "{plugin["name"]}: could not update {user_config["path"]}"')
         # Unset: the plugin falls back silently, so warn instead of trusting the default.
         requires_env = plugin.get("requires_env") or {}
         for var, purpose in requires_env.items():
