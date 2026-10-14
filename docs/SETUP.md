@@ -47,6 +47,13 @@ from inside a session. The setup script warns by name when it is unset;
 verify by checking which bank a note actually landed in, not by the plugin
 starting without an error.
 
+`hindsight-api.jorisjonkers.dev` serves only the shared bank `default`: its
+single-bank MCP endpoint `/mcp/default/` and the REST paths under
+`/v1/default/banks/default/`. Everything else on that host is a 404, including
+the multi-bank `/mcp` root. The plugin's own default bank is `claude-code`, so
+the setup script sets `bankId: default` in `~/.hindsight/claude-code.json`;
+without it every recall and retain is a 404.
+
 ### Automatic vs. model-elective capture
 
 | Client | Capture |
@@ -54,9 +61,9 @@ starting without an error.
 | Claude Code | **Automatic** — the `hindsight-memory` plugin's `UserPromptSubmit`/`Stop` hooks recall and retain on every turn, no tool call needed. |
 | Codex, Hermes (laptop and in-cluster) | **Model-elective** — no hook mechanism exists, so recall/retain only happens when the model calls a `memory-api` or `memory-mcp` tool itself. |
 
-Both paths write into the same shared, per-project bank (Hindsight's default
-`dynamicBankGranularity: ["agent", "project"]` — one bank per project,
-agent-attributed within it) and the same shared Basic Memory vault. Basic
+Both paths write into the same shared bank, `default` (the setup script pins
+the plugin's `bankId`, and `hindsight-api.*` serves no other bank), and the
+same shared Basic Memory vault. Basic
 Memory carries no per-call identity of its own, so attribute a change in the
 note body/frontmatter, and always **edit** a note — `--overwrite` is
 last-writer-wins and silently drops a concurrent edit from another agent or

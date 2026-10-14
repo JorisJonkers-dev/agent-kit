@@ -14,7 +14,7 @@ mcp_servers:
   # Hindsight long-term memory -- explicit read/write/search knowledge
   # tools.
   memory-api:
-    url: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp"
+    url: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp/default/"
     timeout: 60
 
   # Basic Memory -- shared Markdown notes with a semantic link graph.
