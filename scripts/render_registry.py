@@ -37,6 +37,7 @@ CLOUD_HELPER = Path("installer/cloud-session.sh")
 HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
+VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -85,7 +86,7 @@ def _entries(data: dict[str, Any], key: str) -> list[dict[str, Any]]:
 
 
 def validate(data: dict[str, Any]) -> None:
-    known_surfaces = {"workstation", "hermes", "runner", "container"}
+    known_surfaces = {"workstation", "hermes", "runner", "container", "vibe"}
 
     marketplaces = {m["name"] for m in _entries(data, "marketplaces")}
     plugin_names = {p["name"] for p in _entries(data, "plugins")}
@@ -554,6 +555,59 @@ def render_hermes_local_mcp(data: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _toml_str(value: str) -> str:
+    return json.dumps(value)
+
+
+def vibe_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Servers Vibe gets: everything on the workstation surface, plus any on `vibe`."""
+    return [
+        s
+        for s in _entries(data, "mcp_servers")
+        if s.get("enabled") is not False and (on_surface(s, "workstation") or on_surface(s, "vibe"))
+    ]
+
+
+def render_vibe_mcp(data: dict[str, Any]) -> str:
+    """Render the ``[[mcp_servers]]`` entries merged into ``~/.vibe/config.toml``.
+
+    Credentials are named, never written: Vibe's static auth reads the token
+    from ``api_key_env`` at connect time. Merged by ``scripts/vibe-merge-mcp.py``.
+    """
+    lines = [
+        f"# {GENERATED_BANNER}",
+        "#",
+        "# Mistral Vibe's MCP servers, merged into ~/.vibe/config.toml by",
+        "# scripts/vibe-merge-mcp.py. Servers named here are replaced on every",
+        "# run; any other server in that file is left alone.",
+    ]
+    for server in vibe_servers(data):
+        name = server["name"]
+        lines += ["", "[[mcp_servers]]", f"name = {_toml_str(name)}"]
+        if server["transport"] == "http":
+            url = server.get("url_workstation")
+            if not url:
+                raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
+            lines += ['transport = "streamable-http"', f"url = {_toml_str(url)}"]
+            timeout = server.get("timeout")
+            if timeout:
+                lines.append(f"tool_timeout_sec = {float(timeout)}")
+            credential = server.get("credential")
+            if credential:
+                lines += [
+                    "",
+                    "[mcp_servers.auth]",
+                    'type = "static"',
+                    f"api_key_env = {_toml_str(credential)}",
+                    'api_key_header = "Authorization"',
+                    'api_key_format = "Bearer {token}"',
+                ]
+        else:
+            args = ", ".join(_toml_str(str(a)) for a in (server.get("args") or []))
+            lines += ['transport = "stdio"', f"command = {_toml_str(server['command'])}", f"args = [{args}]"]
+    return "\n".join(lines) + "\n"
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
@@ -673,6 +727,31 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("if any(back.get(k) != v for k, v in want.items()):")
     w('    raise SystemExit(f"{path}: {want} did not read back")')
     w("PY")
+    w("}")
+    w("")
+    w("# Points Vibe at the estate conventions, unless the user wrote their own.")
+    w("_vibe_agents_pointer() {")
+    w('  local file="${VIBE_HOME}/AGENTS.md"')
+    w('  local marker="<!-- managed by agent-kit setup-workstation.sh -->"')
+    w('  if [ -f "${file}" ] && ! grep -qF "${marker}" "${file}"; then')
+    w('    log "${file} is the user\'s own; left alone"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would write ${file}"')
+    w("    return 0")
+    w("  fi")
+    w('  mkdir -p "${VIBE_HOME}"')
+    w('  cat > "${file}" <<EOF')
+    w("${marker}")
+    w("# Agent contract")
+    w("")
+    w("The estate-wide conventions live in one place:")
+    w("https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md")
+    w("")
+    w("Read it before doing anything non-trivial in an estate repository.")
+    w("EOF")
+    w('  ok "Vibe AGENTS.md pointer -> ${file}"')
     w("}")
     w("")
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
@@ -810,6 +889,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"')
     w('CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
     w('CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"')
+    w('VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"')
     w("")
     w("# Outside a checkout, re-run the copy in the release's kit bundle; --uninstall needs none of it.")
     w("use_kit_bundle() {")
@@ -1123,6 +1203,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
         b(f'    fail "{binary} still not on PATH after install; open a new shell and re-run"')
         b("  fi")
         b("fi")
+        for var, why in (cli.get("requires_env") or {}).items():
+            why_escaped = str(why).replace('"', '\\"')
+            b(f'if [ -z "${{{var}:-}}" ]; then')
+            b(f'  warn "{cli["name"]}: {var} is not set ({why_escaped}); export it and re-run"')
+            b(f'  missing_plugin_env+=("{cli["name"]}: export {var}")')
+            b("fi")
         out.extend(_cloud_guard(block, cli, ""))
     w("")
 
@@ -1529,6 +1615,29 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    else")
     w("      warn \"hermes not on PATH; local Hermes MCP config not merged\"")
     w("    fi")
+    w("    # Mistral Vibe reads [[mcp_servers]] from ${VIBE_HOME}/config.toml and has")
+    w("    # no `mcp add`; the helper replaces the servers it manages, keeps the rest.")
+    w("    if command -v vibe >/dev/null 2>&1; then")
+    w('      if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('        log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"')
+    w("      else")
+    w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" \\')
+    w('          && ok "Vibe MCP servers merged" \\')
+    w('          || fail "Vibe MCP merge failed"')
+    vibe_off_cloud = [s["name"] for s in vibe_servers(data) if not on_cloud(s)]
+    if vibe_off_cloud:
+        removes = " ".join(f"--remove {name}" for name in vibe_off_cloud)
+        w('        if [ "${CLOUD}" = 1 ]; then')
+        w('          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+        w(f'            "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {removes} \\')
+        w('            || fail "Vibe MCP cleanup failed"')
+        w("        fi")
+    w("      fi")
+    w("      _vibe_agents_pointer")
+    w("    else")
+    w('      warn "vibe not on PATH; Vibe MCP config not merged"')
+    w("    fi")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
     w("    # actually has. Check expected servers are present, and report")
     w("    # any unexpected ones (but leave plugin-provided and hand-added).")
@@ -1606,7 +1715,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w(f'  fail "{name}: ${{src}}/SKILL.md is missing; nothing to install"')
         w("else")
         for agent in skill.get("agents") or ["claude"]:
-            home = "CLAUDE_HOME" if agent == "claude" else "CODEX_HOME"
+            home = {"claude": "CLAUDE_HOME", "codex": "CODEX_HOME", "vibe": "VIBE_HOME"}[agent]
             w(f'  dest="${{{home}}}/skills/{name}"')
             w('  if [ "${CHECK_ONLY}" = 1 ]; then')
             w('    log "would replace ${dest}"')
@@ -1976,6 +2085,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         HERMES_SOURCES: (render_hermes_sources(data), 0o644),
         HERMES_MCP: (render_hermes_mcp(data), 0o644),
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
+        VIBE_MCP: (render_vibe_mcp(data), 0o644),
     }
 
 

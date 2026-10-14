@@ -113,6 +113,31 @@ if any(back.get(k) != v for k, v in want.items()):
 PY
 }
 
+# Points Vibe at the estate conventions, unless the user wrote their own.
+_vibe_agents_pointer() {
+  local file="${VIBE_HOME}/AGENTS.md"
+  local marker="<!-- managed by agent-kit setup-workstation.sh -->"
+  if [ -f "${file}" ] && ! grep -qF "${marker}" "${file}"; then
+    log "${file} is the user's own; left alone"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${file}"
+    return 0
+  fi
+  mkdir -p "${VIBE_HOME}"
+  cat > "${file}" <<EOF
+${marker}
+# Agent contract
+
+The estate-wide conventions live in one place:
+https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md
+
+Read it before doing anything non-trivial in an estate repository.
+EOF
+  ok "Vibe AGENTS.md pointer -> ${file}"
+}
+
 # A shell -c wrapper for the pipe-into-sh installers the upstreams publish.
 run_sh() {
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -248,6 +273,7 @@ install_profile_launcher() {
 KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"
 
 # Outside a checkout, re-run the copy in the release's kit bundle; --uninstall needs none of it.
 use_kit_bundle() {
@@ -638,6 +664,29 @@ else
   else
     fail "hermes still not on PATH after install; open a new shell and re-run"
   fi
+fi
+
+# Mistral Vibe, the agent for personal notes. Gets the estate MCP
+# servers, skills and AGENTS.md pointer like Claude Code and
+# Codex; its MCP servers are merged into ~/.vibe/config.toml from
+# registry/generated/vibe/mcp-servers.toml.
+if command -v vibe >/dev/null 2>&1; then
+  run_sh 'uv tool upgrade mistral-vibe'
+  ok "vibe $(vibe --version 2>/dev/null | head -1)"
+else
+  run_sh 'uv tool install --python '\''>=3.12'\'' mistral-vibe'
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "vibe would be installed"
+  elif command -v vibe >/dev/null 2>&1; then
+    ok "vibe installed"
+    new_binaries+=("vibe")
+  else
+    fail "vibe still not on PATH after install; open a new shell and re-run"
+  fi
+fi
+if [ -z "${MISTRAL_API_KEY:-}" ]; then
+  warn "mistral-vibe: MISTRAL_API_KEY is not set (a dedicated per-host Mistral key, never the cluster's Hindsight or Karakeep keys); export it and re-run"
+  missing_plugin_env+=("mistral-vibe: export MISTRAL_API_KEY")
 fi
 
 # Overleaf CLI and MCP server. Points at the estate's self-hosted
@@ -1449,6 +1498,26 @@ for install in installs:
     else
       warn "hermes not on PATH; local Hermes MCP config not merged"
     fi
+    # Mistral Vibe reads [[mcp_servers]] from ${VIBE_HOME}/config.toml and has
+    # no `mcp add`; the helper replaces the servers it manages, keeps the rest.
+    if command -v vibe >/dev/null 2>&1; then
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
+      else
+        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+          "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" \
+          && ok "Vibe MCP servers merged" \
+          || fail "Vibe MCP merge failed"
+        if [ "${CLOUD}" = 1 ]; then
+          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+            "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" --remove kubernetes \
+            || fail "Vibe MCP cleanup failed"
+        fi
+      fi
+      _vibe_agents_pointer
+    else
+      warn "vibe not on PATH; Vibe MCP config not merged"
+    fi
     # Verify the VALUE, not the exit codes: ask Claude what it
     # actually has. Check expected servers are present, and report
     # any unexpected ones (but leave plugin-provided and hand-added).
@@ -1540,6 +1609,22 @@ else
       fail "pr-composer: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${VIBE_HOME}/skills/pr-composer"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "pr-composer -> ${dest}"
+    else
+      fail "pr-composer: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Cross-model orchestrator (Claude + Codex) for large,
@@ -1567,6 +1652,22 @@ else
     fi
   fi
   dest="${CODEX_HOME}/skills/council"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "council -> ${dest}"
+    else
+      fail "council: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/council"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -1623,6 +1724,22 @@ else
       fail "kb-first: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${VIBE_HOME}/skills/kb-first"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "kb-first -> ${dest}"
+    else
+      fail "kb-first: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Token-budget discipline: progressive disclosure, bounded recall,
@@ -1664,6 +1781,22 @@ else
       fail "token-economy: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${VIBE_HOME}/skills/token-economy"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "token-economy -> ${dest}"
+    else
+      fail "token-economy: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Checklist for configuring a Claude Code or Codex session: config
@@ -1690,6 +1823,22 @@ else
     fi
   fi
   dest="${CODEX_HOME}/skills/agent-session-bootstrap"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "agent-session-bootstrap -> ${dest}"
+    else
+      fail "agent-session-bootstrap: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/agent-session-bootstrap"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else

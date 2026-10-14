@@ -28,6 +28,7 @@ auth.
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
 | `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://hindsight-api.jorisjonkers.dev`) | required |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
+| `MISTRAL_API_KEY` | Mistral Vibe itself; a dedicated per-host key, never the cluster's Hindsight or Karakeep keys | required for Vibe |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
 `HINDSIGHT_API_TOKEN` and `MEMORY_MCP_TOKEN` are **per-host, individually
@@ -60,6 +61,7 @@ without it every recall and retain is a 404.
 |---|---|
 | Claude Code | **Automatic** — the `hindsight-memory` plugin's `UserPromptSubmit`/`Stop` hooks recall and retain on every turn, no tool call needed. |
 | Codex, Hermes (laptop and in-cluster) | **Model-elective** — no hook mechanism exists, so recall/retain only happens when the model calls a `memory-api` or `memory-mcp` tool itself. |
+| Mistral Vibe | **Model-elective** for now, through the same MCP servers. Vibe's hooks fire only around tools and after a turn (`pre_tool`, `post_tool`, `post_agent`), so automatic retain is possible but automatic recall at prompt start is not (fleet-infra#399). |
 
 Both paths write into the same shared bank, `default` (the setup script pins
 the plugin's `bankId`, and `hindsight-api.*` serves no other bank), and the
