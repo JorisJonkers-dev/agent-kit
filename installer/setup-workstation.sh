@@ -1270,7 +1270,7 @@ for install in installs:
     else
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user memory-api >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://memory-api.jorisjonkers.dev/mcp --header "Authorization: Bearer $(secret_ref HINDSIGHT_API_TOKEN)"; then
+        if run_redacted "claude mcp add memory-api" claude_each_profile claude mcp add --scope user memory-api --transport http https://hindsight-api.jorisjonkers.dev/mcp --header "Authorization: Bearer $(secret_ref HINDSIGHT_API_TOKEN)"; then
           ok "memory-api registered (claude)"
         else
           fail "memory-api registration failed (claude)"
@@ -1278,7 +1278,7 @@ for install in installs:
       fi
       if command -v codex >/dev/null 2>&1; then
         run codex mcp remove memory-api >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add memory-api" codex mcp add memory-api --url https://memory-api.jorisjonkers.dev/mcp --bearer-token-env-var HINDSIGHT_API_TOKEN; then
+        if run_redacted "codex mcp add memory-api" codex mcp add memory-api --url https://hindsight-api.jorisjonkers.dev/mcp --bearer-token-env-var HINDSIGHT_API_TOKEN; then
           ok "memory-api registered (codex)"
         else
           fail "memory-api registration failed (codex)"
