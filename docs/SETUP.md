@@ -26,7 +26,7 @@ auth.
 | Variable | Used by | Required? |
 |---|---|---|
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
-| `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://memory-api.jorisjonkers.dev`) | required |
+| `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://hindsight-api.jorisjonkers.dev`) | required |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
@@ -74,7 +74,7 @@ bare `olcli` with no `OVERLEAF_BASE_URL` talks to overleaf.com and every call
 ### Per-host service tokens (memory-api / memory-mcp)
 
 auth-api (agent-kit#41) now issues per-user, per-host bearer credentials —
-"service tokens" — for CLI/agent access to `memory-api.jorisjonkers.dev`
+"service tokens" — for CLI/agent access to `hindsight-api.jorisjonkers.dev`
 (Hindsight) and `memory-mcp.jorisjonkers.dev` (Basic Memory MCP), both behind
 forward-auth. This is the contract `setup-workstation.sh` will consume once a
 follow-up lands the corresponding `mcp_servers:` entries — no ticket is filed

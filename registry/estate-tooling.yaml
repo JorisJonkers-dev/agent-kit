@@ -801,7 +801,7 @@ mcp_servers:
   - name: memory-api
     transport: http
     purpose: Hindsight long-term memory -- explicit read/write/search knowledge tools.
-    url_workstation: "https://memory-api.jorisjonkers.dev/mcp"
+    url_workstation: "https://hindsight-api.jorisjonkers.dev/mcp"
     url_hermes: "http://hindsight-api.knowledge-platform-system.svc.cluster.local:8888/mcp"
     credential: HINDSIGHT_API_TOKEN
     # Hermes reaches this by Service DNS + NetworkPolicy alone, no header.
