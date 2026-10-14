@@ -118,13 +118,17 @@ def test_workstation_http_credential_becomes_a_bearer_header() -> None:
 
 
 def test_hermes_gateway_skips_the_bearer_header_when_credential_hermes_is_false() -> None:
-    """credential_hermes: false suppresses the Authorization header Hermes cannot fill."""
+    """credential_hermes: false suppresses the Authorization header Hermes cannot fill.
+
+    memory-api no longer uses it: Hermes reaches Hindsight through the gated
+    public host with its own token (test_hermes_reaches_hindsight_only_...).
+    """
     data = _registry()
-    for name in ("memory-api", "memory-mcp"):
+    for name in ("memory-mcp",):
         server = next(s for s in data["mcp_servers"] if s["name"] == name)
         assert server.get("credential") and server.get("credential_hermes") is False
     fragment = render_registry.render_hermes_mcp(data)
-    for name in ("memory-api", "memory-mcp"):
+    for name in ("memory-mcp",):
         entry = fragment.split(f"  {name}:")[1].split("\n\n")[0]
         assert "headers" not in entry
         assert "Authorization" not in entry
@@ -1137,3 +1141,14 @@ def test_user_config_merge_fails_when_the_value_does_not_read_back(tmp_path: Pat
     body = f'CHECK_ONLY=0\nlog() {{ :; }}\n{fn}\n_merge_user_config "{target}" \'{{"bankId": "default"}}\'\n'
     result = subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
     assert result.returncode != 0
+
+
+def test_hermes_reaches_hindsight_only_through_the_gated_shared_path() -> None:
+    """In-cluster Service access cannot be path-scoped, so it could reach any bank."""
+    rendered = yaml.safe_load(render_registry.render_hermes_mcp(_registry()))
+    servers = rendered["mcp_servers"]
+    api = servers["memory-api"]
+    assert api["url"] == "https://hindsight-api.jorisjonkers.dev/mcp/default/"
+    assert api["headers"]["Authorization"] == "Bearer @HINDSIGHT_API_TOKEN@"
+    for name, server in servers.items():
+        assert "hindsight-api.knowledge-platform-system" not in str(server.get("url", "")), name
