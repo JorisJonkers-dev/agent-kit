@@ -48,8 +48,10 @@ def merge(fragment: Path, config: Path, remove: list[str]) -> int:
     if len(servers):
         doc["mcp_servers"] = servers
 
-    if config.is_file():
-        shutil.copy2(config, config.with_name(config.name + ".bak"))
+    # The first backup is the user's own config from before agent-kit; keep it.
+    backup = config.with_name(config.name + ".bak")
+    if config.is_file() and not backup.exists():
+        shutil.copy2(config, backup)
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(tomlkit.dumps(doc).lstrip("\n"))
 

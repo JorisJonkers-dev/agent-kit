@@ -26,7 +26,7 @@ def _vibe_servers(data: dict) -> list[dict]:
         s
         for s in data["mcp_servers"]
         if s.get("enabled") is not False
-        and ({"workstation", "vibe"} & set(s.get("surfaces") or []))
+        and "workstation" in (s.get("surfaces") or [])
     ]
 
 
@@ -67,6 +67,12 @@ def test_vibe_mcp_fragment_covers_every_workstation_server() -> None:
             assert got["transport"] == "stdio"
             assert got["command"] == server["command"]
             assert got["args"] == (server.get("args") or [])
+            # The MCP SDK hands a stdio server only a safe allowlist of the parent
+            # environment plus this table, so static env must be rendered.
+            assert got.get("env", {}) == (server.get("env") or {})
+        if server.get("timeout"):
+            assert got["tool_timeout_sec"] == float(server["timeout"])
+        assert server.get("credential") not in (got.get("env") or {}), "no secret is written to disk"
 
 
 def test_vibe_fragment_is_a_generated_artifact() -> None:
@@ -116,6 +122,20 @@ def test_merge_is_idempotent_beside_the_users_own_settings(tmp_path: Path) -> No
     assert _merge(tmp_path).returncode == 0
     assert config.read_text() == first
     assert first.startswith("# my vibe\n")
+
+
+def test_merge_keeps_the_first_backup(tmp_path: Path) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text('active_model = "original"\n')
+    assert _merge(tmp_path).returncode == 0
+    assert _merge(tmp_path).returncode == 0
+    assert (tmp_path / "config.toml.bak").read_text() == 'active_model = "original"\n'
+
+
+def test_cloud_mode_merges_once_with_its_removals() -> None:
+    script = render_registry.render_setup_script(_registry())
+    assert script.count("scripts/vibe-merge-mcp.py\"") == 1
+    assert 'vibe_remove=(--remove kubernetes)' in script
 
 
 def test_merge_can_remove_a_managed_server(tmp_path: Path) -> None:

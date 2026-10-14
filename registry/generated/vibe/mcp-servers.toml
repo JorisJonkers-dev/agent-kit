@@ -39,15 +39,22 @@ name = "playwright"
 transport = "stdio"
 command = "npx"
 args = ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+tool_timeout_sec = 120.0
 
 [[mcp_servers]]
 name = "drawio"
 transport = "stdio"
 command = "drawio-mcp"
 args = []
+tool_timeout_sec = 60.0
 
 [[mcp_servers]]
 name = "overleaf"
 transport = "stdio"
 command = "olcli-mcp"
 args = []
+tool_timeout_sec = 120.0
+
+[mcp_servers.env]
+OVERLEAF_BASE_URL = "https://overleaf.jorisjonkers.dev"
+OVERLEAF_COOKIE_NAME = "overleaf.sid"

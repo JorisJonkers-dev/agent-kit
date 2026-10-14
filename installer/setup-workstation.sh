@@ -1504,15 +1504,12 @@ for install in installs:
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
+        vibe_remove=()
+        [ "${CLOUD}" = 1 ] && vibe_remove=(--remove kubernetes)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
-          "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" \
+          "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
-        if [ "${CLOUD}" = 1 ]; then
-          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
-            "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" --remove kubernetes \
-            || fail "Vibe MCP cleanup failed"
-        fi
       fi
       _vibe_agents_pointer
     else

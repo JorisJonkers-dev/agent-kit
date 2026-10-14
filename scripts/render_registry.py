@@ -86,7 +86,7 @@ def _entries(data: dict[str, Any], key: str) -> list[dict[str, Any]]:
 
 
 def validate(data: dict[str, Any]) -> None:
-    known_surfaces = {"workstation", "hermes", "runner", "container", "vibe"}
+    known_surfaces = {"workstation", "hermes", "runner", "container"}
 
     marketplaces = {m["name"] for m in _entries(data, "marketplaces")}
     plugin_names = {p["name"] for p in _entries(data, "plugins")}
@@ -560,12 +560,8 @@ def _toml_str(value: str) -> str:
 
 
 def vibe_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Servers Vibe gets: everything on the workstation surface, plus any on `vibe`."""
-    return [
-        s
-        for s in _entries(data, "mcp_servers")
-        if s.get("enabled") is not False and (on_surface(s, "workstation") or on_surface(s, "vibe"))
-    ]
+    """Servers Vibe gets: everything on the workstation surface."""
+    return [s for s in _entries(data, "mcp_servers") if s.get("enabled") is not False and on_surface(s, "workstation")]
 
 
 def render_vibe_mcp(data: dict[str, Any]) -> str:
@@ -589,9 +585,8 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
             if not url:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
             lines += ['transport = "streamable-http"', f"url = {_toml_str(url)}"]
-            timeout = server.get("timeout")
-            if timeout:
-                lines.append(f"tool_timeout_sec = {float(timeout)}")
+            if server.get("timeout"):
+                lines.append(f"tool_timeout_sec = {float(server['timeout'])}")
             credential = server.get("credential")
             if credential:
                 lines += [
@@ -605,6 +600,14 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
         else:
             args = ", ".join(_toml_str(str(a)) for a in (server.get("args") or []))
             lines += ['transport = "stdio"', f"command = {_toml_str(server['command'])}", f"args = [{args}]"]
+            if server.get("timeout"):
+                lines.append(f"tool_timeout_sec = {float(server['timeout'])}")
+            # The MCP SDK gives a stdio server only a safe allowlist of the parent
+            # environment plus this table. Static values only: a credential would
+            # be written to disk, and every stdio credential here is optional.
+            env = server.get("env") or {}
+            if env:
+                lines += ["", "[mcp_servers.env]", *(f"{k} = {_toml_str(str(v))}" for k, v in env.items())]
     return "\n".join(lines) + "\n"
 
 
@@ -1621,18 +1624,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"')
     w("      else")
-    w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
-    w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" \\')
-    w('          && ok "Vibe MCP servers merged" \\')
-    w('          || fail "Vibe MCP merge failed"')
+    w("        vibe_remove=()")
     vibe_off_cloud = [s["name"] for s in vibe_servers(data) if not on_cloud(s)]
     if vibe_off_cloud:
         removes = " ".join(f"--remove {name}" for name in vibe_off_cloud)
-        w('        if [ "${CLOUD}" = 1 ]; then')
-        w('          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
-        w(f'            "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {removes} \\')
-        w('            || fail "Vibe MCP cleanup failed"')
-        w("        fi")
+        w(f'        [ "${{CLOUD}}" = 1 ] && vibe_remove=({removes})')
+    w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    remove_args = '${vibe_remove[@]+"${vibe_remove[@]}"}'
+    w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {remove_args} \\')
+    w('          && ok "Vibe MCP servers merged" \\')
+    w('          || fail "Vibe MCP merge failed"')
     w("      fi")
     w("      _vibe_agents_pointer")
     w("    else")
