@@ -20,6 +20,7 @@ KIT_FILES = (
     "registry/generated/vibe/mcp-servers.toml",
     "installer/port-forward-agent.sh",
     "installer/cloud-session.sh",
+    "installer/memory-private",
     "scripts/hermes-merge-mcp.py",
     "scripts/vibe-merge-mcp.py",
 )

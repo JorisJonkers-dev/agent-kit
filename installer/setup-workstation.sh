@@ -113,6 +113,25 @@ if any(back.get(k) != v for k, v in want.items()):
 PY
 }
 
+# Copies a kit command onto PATH. A file there that setup did not write is left alone.
+install_kit_command() {
+  local name="$1"
+  local src="${KIT_ROOT}/installer/${name}" dest="${HOME}/.local/bin/${name}"
+  local marker="# managed by agent-kit setup-workstation.sh"
+  if [ -e "${dest}" ] && ! grep -qxF "${marker}" "${dest}"; then
+    warn "${dest} exists and was not written by setup; left alone"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would install ${dest}"
+    return 0
+  fi
+  mkdir -p "$(dirname "${dest}")"
+  install -m 0755 "${src}" "${dest}" && cmp -s "${src}" "${dest}" \
+    && ok "${name} -> ${dest}" \
+    || fail "${name}: could not install ${dest}"
+}
+
 # Points Vibe at the estate conventions, unless the user wrote their own.
 _vibe_agents_pointer() {
   local file="${VIBE_HOME}/AGENTS.md"
@@ -890,6 +909,10 @@ else
     warn "hindsight-memory: HINDSIGHT_API_TOKEN is not set (per-host token from auth-api service-tokens (service MEMORY_API)); export it and re-run"
     missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_TOKEN")
   fi
+
+  # memory-private on|off|status [DIR]: keeps a directory's sessions out of
+  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).
+  install_kit_command memory-private
 
   # ---------------------------------------------------------------
   # 4. Plugin drift detection.
