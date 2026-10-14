@@ -1088,6 +1088,7 @@ def test_hindsight_plugin_is_pointed_at_the_shared_bank(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     data = json.loads(config.read_text())
     assert data["bankId"] == "default"
+    assert data["dynamicBankId"] is False, "dynamic bank ids would ignore bankId"
     assert data["recallBudget"] == "high", "keys the registry does not manage must survive"
 
 
@@ -1097,7 +1098,7 @@ def test_hindsight_plugin_config_is_created_and_idempotent(tmp_path: Path) -> No
     first = config.read_text()
     assert _run_user_config(tmp_path).returncode == 0
     assert config.read_text() == first
-    assert json.loads(first) == {"bankId": "default"}
+    assert json.loads(first) == {"bankId": "default", "dynamicBankId": False}
 
 
 def test_hindsight_plugin_config_is_untouched_in_check_mode(tmp_path: Path) -> None:
@@ -1115,9 +1116,24 @@ def test_plugin_user_config_path_stays_under_home(bad: str) -> None:
         render_registry.validate(data)
 
 
-def test_plugin_user_config_set_may_not_break_shell_quoting() -> None:
+@pytest.mark.parametrize("bad", [{"bankId": "it's"}, {"it's": "x"}])
+def test_plugin_user_config_set_may_not_break_shell_quoting(bad: dict) -> None:
     data = _registry()
     plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
-    plugin["user_config"]["set"] = {"bankId": "it's"}
+    plugin["user_config"]["set"] = bad
     with pytest.raises(render_registry.RegistryError, match="single quote"):
         render_registry.validate(data)
+
+
+def test_user_config_merge_fails_when_the_value_does_not_read_back(tmp_path: Path) -> None:
+    """Verify the value, not the exit code: an unwritable target must fail."""
+    script = render_registry.render_setup_script(_registry())
+    fn_start = script.index("_merge_user_config() {")
+    fn = script[fn_start : script.index("\n}\n", fn_start) + 3]
+    target = tmp_path / "ro" / "claude-code.json"
+    target.parent.mkdir()
+    target.write_text("{}")
+    target.chmod(0o444)
+    body = f'CHECK_ONLY=0\nlog() {{ :; }}\n{fn}\n_merge_user_config "{target}" \'{{"bankId": "default"}}\'\n'
+    result = subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
+    assert result.returncode != 0

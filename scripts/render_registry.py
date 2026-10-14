@@ -98,9 +98,9 @@ def validate(data: dict[str, Any]) -> None:
                 raise RegistryError(f"plugin {plugin.get('name')} user_config.path must be relative to $HOME")
             if not isinstance(user_config.get("set"), dict) or not user_config["set"]:
                 raise RegistryError(f"plugin {plugin.get('name')} user_config.set must be a non-empty mapping")
-            if any("'" in json.dumps(v) for v in user_config["set"].values()):
+            if "'" in json.dumps(user_config["set"]):
                 raise RegistryError(
-                    f"plugin {plugin.get('name')} user_config.set values may not contain a single quote",
+                    f"plugin {plugin.get('name')} user_config.set may not contain a single quote",
                 )
         market = plugin.get("marketplace")
         if market not in marketplaces:
@@ -669,6 +669,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("data.update(want)")
     w("path.parent.mkdir(parents=True, exist_ok=True)")
     w('path.write_text(json.dumps(data, indent=2) + "\\n")')
+    w("back = json.loads(path.read_text())")
+    w("if any(back.get(k) != v for k, v in want.items()):")
+    w('    raise SystemExit(f"{path}: {want} did not read back")')
     w("PY")
     w("}")
     w("")

@@ -107,6 +107,9 @@ data = json.loads(path.read_text() or '{}') if path.exists() else {}
 data.update(want)
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, indent=2) + "\n")
+back = json.loads(path.read_text())
+if any(back.get(k) != v for k, v in want.items()):
+    raise SystemExit(f"{path}: {want} did not read back")
 PY
 }
 
@@ -827,7 +830,7 @@ else
   else
     warn "hindsight-memory@hindsight install failed"
   fi
-  _merge_user_config "${HOME}/.hindsight/claude-code.json" '{"bankId": "default"}' \
+  _merge_user_config "${HOME}/.hindsight/claude-code.json" '{"bankId": "default", "dynamicBankId": false}' \
     && ok "hindsight-memory: .hindsight/claude-code.json set" \
     || warn "hindsight-memory: could not update .hindsight/claude-code.json"
   if [ -z "${HINDSIGHT_API_URL:-}" ]; then

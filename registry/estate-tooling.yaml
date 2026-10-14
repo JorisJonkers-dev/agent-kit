@@ -452,11 +452,13 @@ plugins:
       HINDSIGHT_API_URL: the estate Hindsight API, or it falls back to a personal local daemon
       HINDSIGHT_API_TOKEN: per-host token from auth-api service-tokens (service MEMORY_API)
     # Merged into the plugin's own user config. Unset, it uses bank
-    # `claude-code`, which hindsight-api.* does not route.
+    # `claude-code`, which hindsight-api.* does not route; dynamic bank ids
+    # would ignore bankId altogether, so both are pinned.
     user_config:
       path: .hindsight/claude-code.json
       set:
         bankId: default
+        dynamicBankId: false
 
 # Spec Kit is deliberately absent. The `speckit.*` commands and skills are
 # not installed by this registry on any surface. The kit still renders its
