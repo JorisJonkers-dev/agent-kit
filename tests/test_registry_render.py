@@ -225,7 +225,7 @@ def test_setup_script_wires_every_workstation_server_into_all_three_agents() -> 
     for server in data["mcp_servers"]:
         if "workstation" not in server["surfaces"]:
             continue
-        if server.get("enabled") is False:
+        if server.get("enabled") is False or server.get("session_only"):
             continue
         name = server["name"]
         assert f"claude mcp add --scope user {name}" in script
@@ -443,7 +443,7 @@ def test_every_mcp_registration_reaches_every_profile() -> None:
         if retired:
             assert f"claude_each_profile claude mcp remove --scope user {name}" in script
             continue
-        if "workstation" not in server["surfaces"]:
+        if "workstation" not in server["surfaces"] or server.get("session_only"):
             continue
         assert f"claude_each_profile claude mcp add --scope user {name}" in script
         assert f"claude_each_profile claude mcp remove --scope user {name}" in script

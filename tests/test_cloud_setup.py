@@ -101,6 +101,8 @@ def test_a_cloud_run_does_not_skip_a_server_for_an_unset_token() -> None:
     """The token arrives with the session, after setup; setup may not see it."""
     script = _script()
     for server in _registry()["mcp_servers"]:
+        if server.get("session_only"):
+            continue
         if "workstation" in server["surfaces"] and server.get("credential") and not server.get("credential_optional"):
             assert f'if [ -z "${{{server["credential"]}:-}}" ] && [ "${{CLOUD}}" != 1 ]; then' in script
 

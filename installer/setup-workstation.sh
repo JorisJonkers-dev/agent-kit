@@ -28,6 +28,7 @@
 #
 # Secrets are read from the environment and never written here:
 #   HINDSIGHT_API_TOKEN  -> the memory-api MCP server
+#   MEMORY_PRIVATE_TOKEN  -> the memory-private MCP server
 #   MEMORY_MCP_TOKEN  -> the memory-mcp MCP server
 #   OVERLEAF_SESSION  -> the overleaf MCP server
 #   HINDSIGHT_API_URL  -> the hindsight-memory plugin
@@ -62,7 +63,7 @@ while [ "$#" -gt 0 ]; do
     --no-profiles) DO_PROFILES=0 ;;
     --cloud) CLOUD=1; DO_PROFILES=0 ;;
     --uninstall) UNINSTALL=1 ;;
-    --help|-h) sed -n '2,34p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,35p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
   shift
@@ -129,6 +130,21 @@ install_kit_command() {
   mkdir -p "$(dirname "${dest}")"
   install -m 0755 "${src}" "${dest}" && cmp -s "${src}" "${dest}" \
     && ok "${name} -> ${dest}" \
+    || fail "${name}: could not install ${dest}"
+}
+
+# Installs a session-only server's --mcp-config file where memory-private reads it.
+install_session_mcp() {
+  local name="$1"
+  local src="${KIT_ROOT}/registry/generated/claude/${name}.mcp.json"
+  local dest="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/${name}.mcp.json"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would install ${dest}"
+    return 0
+  fi
+  mkdir -p "$(dirname "${dest}")"
+  install -m 0644 "${src}" "${dest}" && cmp -s "${src}" "${dest}" \
+    && ok "${name}: session config -> ${dest}" \
     || fail "${name}: could not install ${dest}"
 }
 
@@ -912,6 +928,7 @@ else
 
   # memory-private on|off|status [DIR]: keeps a directory's sessions out of
   # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).
+  # memory-private claude|codex [ARGS]: one session with the private bank on.
   install_kit_command memory-private
 
   # ---------------------------------------------------------------
@@ -1381,6 +1398,27 @@ for install in installs:
       fi
     fi
 
+    # Private Hindsight bank -- personal notes. Off unless a session
+    # is opened with `memory-private claude|codex`.
+    if [ "${CLOUD}" = 1 ]; then
+      log "memory-private: not set up in cloud mode"
+    else
+      if command -v claude >/dev/null 2>&1; then
+        run claude_each_profile claude mcp remove --scope user memory-private >/dev/null 2>&1 || true
+        install_session_mcp memory-private
+      fi
+      if command -v codex >/dev/null 2>&1; then
+        run codex mcp remove memory-private >/dev/null 2>&1 || true
+        if run_redacted "codex mcp add memory-private" codex mcp add memory-private --url https://hindsight-private.jorisjonkers.dev/mcp/private/ --bearer-token-env-var MEMORY_PRIVATE_TOKEN; then
+          run uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/codex-disable-mcp.py" "${CODEX_HOME:-${HOME}/.codex}/config.toml" memory-private \
+            && ok "memory-private registered switched off (codex)" \
+            || fail "memory-private: could not switch it off (codex)"
+        else
+          fail "memory-private registration failed (codex)"
+        fi
+      fi
+    fi
+
     # Basic Memory -- shared Markdown notes with a semantic link
     # graph. Edit notes, never overwrite.
     if [ -z "${MEMORY_MCP_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
@@ -1564,6 +1602,7 @@ for install in installs:
       echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].* - .*/\1/p' | sort -u | while read -r found; do
         case "${found}" in
           memory-api) ;;
+          memory-private) ;;
           memory-mcp) ;;
           kubernetes) ;;
           vuetify) ;;

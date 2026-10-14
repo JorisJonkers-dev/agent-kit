@@ -38,6 +38,7 @@ HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
+CLAUDE_SESSION_MCP_DIR = Path("registry/generated/claude")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -171,6 +172,12 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(f"mcp server {name} transport must be http or stdio")
         if transport == "stdio" and not server.get("command"):
             raise RegistryError(f"stdio mcp server {name} must name a command")
+        if session_only(server) and (
+            transport != "http" or server.get("surfaces") != ["workstation"] or server.get("cloud") is not False
+        ):
+            raise RegistryError(
+                f"session-only mcp server {name} must be http, on the workstation surface only, with cloud: false",
+            )
 
     for skill in _entries(data, "local_skills"):
         path = KIT_ROOT / str(skill.get("path") or "")
@@ -216,6 +223,11 @@ def on_surface(item: dict[str, Any], surface: str) -> bool:
 
 def on_cloud(item: dict[str, Any]) -> bool:
     return item.get("cloud", True) is not False
+
+
+def session_only(server: dict[str, Any]) -> bool:
+    """Installed switched off; on only in a session opened for it."""
+    return server.get("session_only") is True
 
 
 def _label(item: dict[str, Any]) -> str:
@@ -518,7 +530,7 @@ def render_hermes_local_mcp(data: dict[str, Any]) -> str:
         "mcp_servers:",
     ]
     for server in _entries(data, "mcp_servers"):
-        if not on_surface(server, "workstation"):
+        if not on_surface(server, "workstation") or session_only(server):
             continue
         if server.get("enabled") is False or len(server.get("surfaces") or []) == 0:
             continue
@@ -561,7 +573,11 @@ def _toml_str(value: str) -> str:
 
 def vibe_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
     """Servers Vibe gets: everything on the workstation surface."""
-    return [s for s in _entries(data, "mcp_servers") if s.get("enabled") is not False and on_surface(s, "workstation")]
+    return [
+        s
+        for s in _entries(data, "mcp_servers")
+        if s.get("enabled") is not False and on_surface(s, "workstation") and not session_only(s)
+    ]
 
 
 def render_vibe_mcp(data: dict[str, Any]) -> str:
@@ -609,6 +625,22 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
             if env:
                 lines += ["", "[mcp_servers.env]", *(f"{k} = {_toml_str(str(v))}" for k, v in env.items())]
     return "\n".join(lines) + "\n"
+
+
+def session_mcp_path(name: str) -> Path:
+    return CLAUDE_SESSION_MCP_DIR / f"{name}.mcp.json"
+
+
+def render_session_mcp(server: dict[str, Any]) -> str:
+    """Render the --mcp-config file Claude loads only for a session opened for it.
+
+    Claude expands ``${VAR}`` in headers when it loads the file, so the token
+    stays in the environment and never reaches disk.
+    """
+    entry: dict[str, Any] = {"type": "http", "url": server["url_workstation"]}
+    if server.get("credential"):
+        entry["headers"] = {"Authorization": f"Bearer ${{{server['credential']}}}"}
+    return json.dumps({"mcpServers": {server["name"]: entry}}, indent=2) + "\n"
 
 
 def render_setup_script(data: dict[str, Any]) -> str:
@@ -748,6 +780,21 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  mkdir -p "$(dirname "${dest}")"')
     w('  install -m 0755 "${src}" "${dest}" && cmp -s "${src}" "${dest}" \\')
     w('    && ok "${name} -> ${dest}" \\')
+    w('    || fail "${name}: could not install ${dest}"')
+    w("}")
+    w("")
+    w("# Installs a session-only server's --mcp-config file where memory-private reads it.")
+    w("install_session_mcp() {")
+    w('  local name="$1"')
+    w(f'  local src="${{KIT_ROOT}}/{CLAUDE_SESSION_MCP_DIR}/${{name}}.mcp.json"')
+    w('  local dest="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/${name}.mcp.json"')
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would install ${dest}"')
+    w("    return 0")
+    w("  fi")
+    w('  mkdir -p "$(dirname "${dest}")"')
+    w('  install -m 0644 "${src}" "${dest}" && cmp -s "${src}" "${dest}" \\')
+    w('    && ok "${name}: session config -> ${dest}" \\')
     w('    || fail "${name}: could not install ${dest}"')
     w("}")
     w("")
@@ -1353,6 +1400,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     w("  # memory-private on|off|status [DIR]: keeps a directory's sessions out of")
     w("  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).")
+    w("  # memory-private claude|codex [ARGS]: one session with the private bank on.")
     w("  install_kit_command memory-private")
     w("")
     w("  # ---------------------------------------------------------------")
@@ -1540,7 +1588,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
         block = []
         b = block.append
         guard_open = False
-        if credential and not optional_cred:
+        # A session-only server needs its token per session, not at setup.
+        if credential and not optional_cred and not session_only(server):
             b(f'    if [ -z "${{{credential}:-}}" ] && [ "${{CLOUD}}" != 1 ]; then')
             b(f'      warn "{name}: {credential} is not set; skipping (export it and re-run)"')
             b(f'      skipped_mcp_servers+=("{name}: export {credential}")')
@@ -1573,7 +1622,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
         # --- Claude Code ---
         b(f"{indent}if command -v claude >/dev/null 2>&1; then")
         b(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
-        if server["transport"] == "http":
+        if session_only(server):
+            b(f"{indent}  install_session_mcp {name}")
+        elif server["transport"] == "http":
             url = server.get("url_workstation")
             if not url:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
@@ -1587,11 +1638,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # order (`--env K=V` then the name) with "missing required argument
             # 'commandOrUrl'". Verified against claude 2.1.267.
             add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip()
-        b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
-        b(f'{indent}    ok "{name} registered (claude)"')
-        b(f"{indent}  else")
-        b(f'{indent}    fail "{name} registration failed (claude)"')
-        b(f"{indent}  fi")
+        if not session_only(server):
+            b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
+            b(f'{indent}    ok "{name} registered (claude)"')
+            b(f"{indent}  else")
+            b(f'{indent}    fail "{name} registration failed (claude)"')
+            b(f"{indent}  fi")
         b(f"{indent}fi")
         # --- Codex ---
         b(f"{indent}if command -v codex >/dev/null 2>&1; then")
@@ -1607,7 +1659,14 @@ def render_setup_script(data: dict[str, Any]) -> str:
             env_flags = _mcp_env_flags(server, credential, optional_cred)
             add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
         b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
-        b(f'{indent}    ok "{name} registered (codex)"')
+        if session_only(server):
+            # codex has no `mcp disable`; the helper sets enabled = false and reads it back.
+            b(f'{indent}    run uv run --no-project --with tomlkit python "${{KIT_ROOT}}/scripts/codex-disable-mcp.py" '
+              f'"${{CODEX_HOME:-${{HOME}}/.codex}}/config.toml" {name} \\')
+            b(f'{indent}      && ok "{name} registered switched off (codex)" \\')
+            b(f'{indent}      || fail "{name}: could not switch it off (codex)"')
+        else:
+            b(f'{indent}    ok "{name} registered (codex)"')
         b(f"{indent}  else")
         b(f'{indent}    fail "{name} registration failed (codex)"')
         b(f"{indent}  fi")
@@ -1628,7 +1687,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" \\")
     w("          || fail \"local Hermes MCP merge failed\"")
     hermes_off_cloud = [
-        s["name"] for s in _entries(data, "mcp_servers") if on_surface(s, "workstation") and not on_cloud(s)
+        s["name"]
+        for s in _entries(data, "mcp_servers")
+        if on_surface(s, "workstation") and not on_cloud(s) and not session_only(s)
     ]
     if hermes_off_cloud:
         removes = " ".join(f"--remove {name}" for name in hermes_off_cloud)
@@ -1677,6 +1738,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             on_surface(server, "workstation")
             and server.get("enabled") is not False
             and len(server.get("surfaces") or []) > 0
+            and not session_only(server)
         )
     ]
     w("      expected_servers=(" + " ".join(s["name"] for s in expected if on_cloud(s)) + ")")
@@ -2110,6 +2172,11 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         HERMES_MCP: (render_hermes_mcp(data), 0o644),
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
         VIBE_MCP: (render_vibe_mcp(data), 0o644),
+        **{
+            session_mcp_path(s["name"]): (render_session_mcp(s), 0o644)
+            for s in _entries(data, "mcp_servers")
+            if session_only(s)
+        },
     }
 
 

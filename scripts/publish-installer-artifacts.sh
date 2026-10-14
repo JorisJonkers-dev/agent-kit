@@ -45,7 +45,9 @@ KIT_PATHS=(
   installer/port-forward-agent.sh
   installer/cloud-session.sh
   installer/memory-private
+  registry/generated/claude/memory-private.mcp.json
   scripts/hermes-merge-mcp.py
+  scripts/codex-disable-mcp.py
   scripts/vibe-merge-mcp.py
 )
 SKILLS_CHECKSUM="${SKILLS_TARBALL}.sha256"
