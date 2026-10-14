@@ -17,9 +17,11 @@ SCRIPT = KIT_ROOT / "scripts" / "publish-installer-artifacts.sh"
 KIT_FILES = (
     "registry/estate-tooling.yaml",
     "registry/generated/hermes/mcp-servers.local.yaml",
+    "registry/generated/vibe/mcp-servers.toml",
     "installer/port-forward-agent.sh",
     "installer/cloud-session.sh",
     "scripts/hermes-merge-mcp.py",
+    "scripts/vibe-merge-mcp.py",
 )
 
 FAKE_GH = """#!/usr/bin/env python3
@@ -242,3 +244,18 @@ def test_verify_retired_excluded_fails_if_tarball_contains_retired_file(
     result = run_step("verify-retired-excluded", fake_repo, stage_dir, fake_gh_bin, release_store)
     assert result.returncode != 0
     assert "install-agents.sh" in result.stderr
+
+
+def test_bundle_carries_every_kit_file_setup_reads() -> None:
+    """A setup run from the bundle has only what KIT_PATHS ships; a path it reads
+    from ${KIT_ROOT} that is missing there fails only on a real install."""
+    import re
+
+    text = SCRIPT.read_text()
+    kit_paths = text.split("KIT_PATHS=(")[1].split(")")[0].split()
+    setup = (KIT_ROOT / "installer" / "setup-workstation.sh").read_text()
+    used = set(re.findall(r'\$\{KIT_ROOT\}/([A-Za-z0-9_./-]+)', setup))
+    used = {u for u in used if (KIT_ROOT / u).is_file()}
+    assert used, "no ${KIT_ROOT} file references found in the setup script"
+    missing = sorted(u for u in used if not any(u == p or u.startswith(p.rstrip("/") + "/") for p in kit_paths))
+    assert not missing, f"setup reads these from the kit but the bundle does not ship them: {missing}"

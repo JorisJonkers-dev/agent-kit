@@ -898,14 +898,14 @@ def test_container_install_refuses_to_run_as_non_root(tmp_path: Path) -> None:
 # --- agent-kit#40: setup-workstation.sh as a superset, install.sh retired ---
 
 
-def test_estate_skills_are_local_skills_for_both_agents() -> None:
+def test_estate_skills_are_local_skills_for_every_agent() -> None:
     data = _registry()
     by_name = {s["name"]: s for s in data["local_skills"]}
     for name in ("council", "kb-first", "token-economy", "agent-session-bootstrap", "pr-composer"):
         assert name in by_name, name
         skill = by_name[name]
         assert skill["surfaces"] == ["workstation"]
-        assert set(skill["agents"]) == {"claude", "codex"}
+        assert set(skill["agents"]) == {"claude", "codex", "vibe"}
         assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
 
 

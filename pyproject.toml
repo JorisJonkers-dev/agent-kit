@@ -6,6 +6,7 @@ license = "LicenseRef-JorisJonkers-Proprietary-1.0"
 dependencies = [
   "PyYAML>=6.0,<7",
   "requests>=2.32,<3",
+  "tomlkit>=0.13,<1",
 ]
 
 [dependency-groups]

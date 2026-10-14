@@ -199,6 +199,23 @@ clis:
       install: 'uv tool install --python 3.13 "hermes-agent[mcp]==${VERSION}"'
       requires: [uv]
 
+  - name: mistral-vibe
+    binary: vibe
+    purpose: >-
+      Mistral Vibe, the agent for personal notes. Gets the estate MCP
+      servers, skills and AGENTS.md pointer like Claude Code and Codex; its
+      MCP servers are merged into ~/.vibe/config.toml from
+      registry/generated/vibe/mcp-servers.toml.
+    latest: true
+    surfaces: [workstation]
+    # uv tool for its own interpreter: mistral-vibe needs Python 3.12+.
+    install: "uv tool install --python '>=3.12' mistral-vibe"
+    update: "uv tool upgrade mistral-vibe"
+    version_command: "vibe --version"
+    requires: [uv]
+    requires_env:
+      MISTRAL_API_KEY: a dedicated per-host Mistral key, never the cluster's Hindsight or Karakeep keys
+
   - name: olcli
     binary: olcli
     purpose: >-
@@ -616,7 +633,7 @@ local_skills:
       Compose a pull request in the repository's own house style: reads the
       PR template, mines recent merged PRs, and gates on an explicit
       confirmation before anything is pushed or created.
-    agents: [claude, codex]
+    agents: [claude, codex, vibe]
     surfaces: [workstation]
     note: >-
       Fits the estate's label trap directly — it reads `gh label list` for
@@ -629,7 +646,7 @@ local_skills:
       Cross-model orchestrator (Claude + Codex) for large, decomposable work:
       triage, cross-model planning, grill, a design checkpoint, guarded
       fan-out, a review council, and resumable status/tail.
-    agents: [claude, codex]
+    agents: [claude, codex, vibe]
     surfaces: [workstation]
     note: >-
       Previously shipped only by the retired install.sh, fetched from
@@ -643,7 +660,7 @@ local_skills:
       Consult the current memory platform before designing or changing
       behavior that may depend on prior captures, and capture durable
       lessons near task completion.
-    agents: [claude, codex]
+    agents: [claude, codex, vibe]
     surfaces: [workstation]
     note: >-
       Rewritten for the current memory platform (memory-api/Hindsight,
@@ -658,7 +675,7 @@ local_skills:
     purpose: >-
       Token-budget discipline: progressive disclosure, bounded recall,
       narrow MCP profiles, and prompt-cache-friendly instruction ordering.
-    agents: [claude, codex]
+    agents: [claude, codex, vibe]
     surfaces: [workstation]
     note: >-
       Rewritten alongside kb-first for the same reason: the original tuned
@@ -671,7 +688,7 @@ local_skills:
       Checklist for configuring a Claude Code or Codex session: config
       layers, MCP servers and profiles, memory-file hygiene, and Claude/Codex
       parity.
-    agents: [claude, codex]
+    agents: [claude, codex, vibe]
     surfaces: [workstation]
     note: >-
       Updated to reference memory-api/memory-mcp instead of the retired

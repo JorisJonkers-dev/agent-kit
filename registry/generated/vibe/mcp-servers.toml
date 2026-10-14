@@ -1,0 +1,60 @@
+# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
+#
+# Mistral Vibe's MCP servers, merged into ~/.vibe/config.toml by
+# scripts/vibe-merge-mcp.py. Servers named here are replaced on every
+# run; any other server in that file is left alone.
+
+[[mcp_servers]]
+name = "memory-api"
+transport = "streamable-http"
+url = "https://hindsight-api.jorisjonkers.dev/mcp/default/"
+tool_timeout_sec = 60.0
+
+[mcp_servers.auth]
+type = "static"
+api_key_env = "HINDSIGHT_API_TOKEN"
+api_key_header = "Authorization"
+api_key_format = "Bearer {token}"
+
+[[mcp_servers]]
+name = "memory-mcp"
+transport = "streamable-http"
+url = "https://memory-mcp.jorisjonkers.dev/mcp"
+tool_timeout_sec = 60.0
+
+[mcp_servers.auth]
+type = "static"
+api_key_env = "MEMORY_MCP_TOKEN"
+api_key_header = "Authorization"
+api_key_format = "Bearer {token}"
+
+[[mcp_servers]]
+name = "kubernetes"
+transport = "streamable-http"
+url = "http://127.0.0.1:18080/mcp"
+tool_timeout_sec = 60.0
+
+[[mcp_servers]]
+name = "playwright"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+tool_timeout_sec = 120.0
+
+[[mcp_servers]]
+name = "drawio"
+transport = "stdio"
+command = "drawio-mcp"
+args = []
+tool_timeout_sec = 60.0
+
+[[mcp_servers]]
+name = "overleaf"
+transport = "stdio"
+command = "olcli-mcp"
+args = []
+tool_timeout_sec = 120.0
+
+[mcp_servers.env]
+OVERLEAF_BASE_URL = "https://overleaf.jorisjonkers.dev"
+OVERLEAF_COOKIE_NAME = "overleaf.sid"

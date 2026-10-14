@@ -40,10 +40,12 @@ KIT_PATHS=(
   skills
   registry/estate-tooling.yaml
   registry/generated/hermes/mcp-servers.local.yaml
+  registry/generated/vibe/mcp-servers.toml
   installer/setup-workstation.sh
   installer/port-forward-agent.sh
   installer/cloud-session.sh
   scripts/hermes-merge-mcp.py
+  scripts/vibe-merge-mcp.py
 )
 SKILLS_CHECKSUM="${SKILLS_TARBALL}.sha256"
 RETIRED_NAMES=(install.sh install-agents.sh)
