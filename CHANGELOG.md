@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.2](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.1...v4.7.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **keys:** trust the system CA bundle, and refuse redirects in the retain hook ([#91](https://github.com/JorisJonkers-dev/agent-kit/issues/91)) ([1067512](https://github.com/JorisJonkers-dev/agent-kit/commit/10675121e2e7a5b1acff3fdddab6a1c7cd0c37da))
+
 ## [4.7.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.0...v4.7.1) (2026-10-15)
 
 
