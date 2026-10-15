@@ -73,6 +73,17 @@ single-bank MCP endpoint `/mcp/default/` and the REST paths under
 `/v1/default/banks/default/`. Everything else on that host is a 404, including
 the multi-bank `/mcp` root.
 
+### Vibe's models
+
+Vibe lists only the models under `[[models]]` in `${VIBE_HOME}/config.toml`;
+its own default is Mistral Medium 3.5. With `MISTRAL_API_KEY` set, setup reads
+Mistral's model list (`scripts/vibe-sync-models.py`) and offers every chat
+model the key can use: one entry per underlying model, under its `-latest` id
+where there is one, so upgrades arrive on their own. Models without tool
+calling, transcription models and deprecated ones are left out. A model you
+define yourself under the same alias wins, and a model gone upstream is
+removed on the next run.
+
 ### Hindsight Coding Agents
 
 Claude Code and Codex get Hindsight's own plugin, **Hindsight Coding Agents**

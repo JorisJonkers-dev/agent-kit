@@ -204,7 +204,9 @@ def _session(tmp_path: Path, *args: str, token: str | None = "smt_x") -> subproc
     bin_dir.mkdir(exist_ok=True)
     _stub(bin_dir, "claude")
     _stub(bin_dir, "codex")
-    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "XDG_CONFIG_HOME": str(tmp_path / "cfg")}
+    # Only the stubs here: a real agent-kit-private on this machine must not stand in.
+    path = ":".join(p for p in os.environ["PATH"].split(":") if not Path(p, "agent-kit-private").exists())
+    env = {**os.environ, "PATH": f"{bin_dir}:{path}", "XDG_CONFIG_HOME": str(tmp_path / "cfg")}
     env.pop("MEMORY_PRIVATE_TOKEN", None)
     if token is not None:
         env["MEMORY_PRIVATE_TOKEN"] = token
