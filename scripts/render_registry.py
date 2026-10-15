@@ -206,6 +206,10 @@ def validate(data: dict[str, Any]) -> None:
         raise RegistryError("claude_private_deny must be a list of Claude permission rules, like Read(~/.vibe/**)")
 
     for secret in _entries(data, "workstation_secrets"):
+        if secret.get("retired"):
+            if set(secret) != {"env", "retired"}:
+                raise RegistryError(f"retired workstation secret {secret.get('env')} takes only env and retired")
+            continue
         kinds = [k for k in ("value", "grant", "paste") if k in secret]
         if not secret.get("env") or len(kinds) != 1:
             raise RegistryError(f"workstation secret {secret.get('env')} needs an env and one of value, grant, paste")
@@ -264,7 +268,7 @@ def on_cloud(item: dict[str, Any]) -> bool:
 
 def managed_secrets(data: dict[str, Any]) -> set[str]:
     """Variables agent-kit-keys gets and stores; what they gate reports through it."""
-    return {str(e["env"]) for e in _entries(data, "workstation_secrets")}
+    return {str(e["env"]) for e in _entries(data, "workstation_secrets") if not e.get("retired")}
 
 
 def _env_report(data: dict[str, Any], message: str, var: str, indent: str) -> str:
@@ -1996,11 +2000,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {remove_args} \\')
     w('          && ok "Vibe MCP servers merged" \\')
     w('          || fail "Vibe MCP merge failed"')
-    w("        # Every Mistral chat model the key can use, kept current (skipped without a key).")
-    w('        if [ -n "${MISTRAL_API_KEY:-}" ]; then')
+    w("        # Vibe signs in with your Mistral account; every chat model that key can use,")
+    w("        # kept current.")
+    w('        if uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
+    w('            --config "${VIBE_HOME}/config.toml" --has-key; then')
     w('          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
     w('            --config "${VIBE_HOME}/config.toml" \\')
     w('            || warn "Vibe model sync failed"')
+    w("        else")
+    w('          warn "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup"')
     w("        fi")
     hook_names = [h["name"] for h in tomllib.loads((KIT_ROOT / VIBE_HOOKS).read_text()).get("hooks", [])]
     retired_hooks = " ".join(f"--remove {n}" for n in RETIRED_VIBE_HOOKS)

@@ -83,11 +83,10 @@ workstation_secrets:
     # Sealed behind a passphrase only you know (installer/agent-kit-private),
     # asked at each vibe launch: Claude and Codex cannot fetch it.
     gate: passphrase
+  # Retired: Vibe signs in with your Mistral account, and an exported key
+  # would override that login. Removed from the keychain and env.sh.
   - env: MISTRAL_API_KEY
-    paste: "a Mistral key for this machine from https://console.mistral.ai/api-keys, never the cluster's"
-    check: "https://api.mistral.ai/v1/models"
-    check_method: GET
-    export: true
+    retired: true
 
 # -------------------------------------------------------------------
 # Claude Code profiles.
@@ -260,8 +259,6 @@ clis:
     update: "uv tool upgrade mistral-vibe"
     version_command: "vibe --version"
     requires: [uv]
-    requires_env:
-      MISTRAL_API_KEY: a dedicated per-host Mistral key, never the cluster's Hindsight or Karakeep keys
 
   - name: olcli
     binary: olcli

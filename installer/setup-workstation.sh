@@ -890,14 +890,6 @@ else
     fail "vibe still not on PATH after install; open a new shell and re-run"
   fi
 fi
-if [ -z "${MISTRAL_API_KEY:-}" ]; then
-  if [ "${CLOUD}" = 1 ]; then
-    warn "mistral-vibe: MISTRAL_API_KEY is not set (a dedicated per-host Mistral key, never the cluster's Hindsight or Karakeep keys); export it and re-run"
-  else
-    log "MISTRAL_API_KEY is not set (see tokens and keys)"
-  fi
-  missing_plugin_env+=("mistral-vibe: export MISTRAL_API_KEY")
-fi
 
 # Overleaf CLI and MCP server. Points at the estate's self-hosted
 # Overleaf, not overleaf.com.
@@ -1742,11 +1734,15 @@ for install in installs:
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
-        # Every Mistral chat model the key can use, kept current (skipped without a key).
-        if [ -n "${MISTRAL_API_KEY:-}" ]; then
+        # Vibe signs in with your Mistral account; every chat model that key can use,
+        # kept current.
+        if uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+            --config "${VIBE_HOME}/config.toml" --has-key; then
           uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
             --config "${VIBE_HOME}/config.toml" \
             || warn "Vibe model sync failed"
+        else
+          warn "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup"
         fi
         vibe_hooks_remove=(--remove agent-kit-retain-private)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \

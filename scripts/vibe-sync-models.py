@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Give Mistral Vibe every Mistral chat model the key can use, and keep the list current.
 
+The key is the one Vibe signed in with: MISTRAL_API_KEY when set, else Vibe's
+keychain item (service ai.mistral.vibe), else its ~/.vibe/.env.
+
 Vibe lists only the models under ``[[models]]`` in its config (its built-in
 default is Mistral Medium 3.5). This reads Mistral's ``/v1/models`` with
 ``MISTRAL_API_KEY`` and writes one entry per underlying model: Mistral lists
@@ -24,7 +27,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import ssl
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -50,6 +55,31 @@ def tls_context() -> ssl.SSLContext:
                 context.load_verify_locations(cafile=path)
                 break
     return context
+
+
+def vibe_home() -> Path:
+    return Path(os.environ.get("VIBE_HOME") or Path.home() / ".vibe")
+
+
+def login_key() -> str:
+    """The key Vibe itself uses, in the order it looks."""
+    if os.environ.get("MISTRAL_API_KEY"):
+        return os.environ["MISTRAL_API_KEY"]
+    if shutil.which("security"):
+        out = subprocess.run(
+            ["security", "find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY", "-w"],
+            capture_output=True, text=True, check=False,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
+    try:
+        for line in (vibe_home() / ".env").read_text().splitlines():
+            name, _, value = line.partition("=")
+            if name.strip() == "MISTRAL_API_KEY" and value.strip():
+                return value.strip().strip("'\"")
+    except OSError:
+        pass
+    return ""
 
 
 def fetch(key: str) -> list[dict[str, Any]]:
@@ -133,10 +163,13 @@ def sync(config: Path, entries: dict[str, dict[str, Any]]) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--has-key", action="store_true", help="exit 0 if Vibe has a key, fetch nothing")
     args = parser.parse_args(argv)
-    key = os.environ.get("MISTRAL_API_KEY", "")
+    key = login_key()
+    if args.has_key:
+        return 0 if key else 1
     if not key:
-        note("MISTRAL_API_KEY is not set; models not synced")
+        note("Vibe is not signed in and MISTRAL_API_KEY is not set; models not synced")
         return 0
     try:
         models = fetch(key)

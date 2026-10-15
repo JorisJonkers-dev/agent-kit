@@ -43,8 +43,8 @@ def test_vibe_is_installed_with_uv_on_the_workstation() -> None:
 
 def test_vibe_warns_by_name_when_mistral_key_is_unset() -> None:
     script = render_registry.render_setup_script(_registry())
-    assert 'if [ -z "${MISTRAL_API_KEY:-}" ]; then' in script
-    assert 'missing_plugin_env+=("mistral-vibe: export MISTRAL_API_KEY")' in script
+    # On the workstation Vibe signs in with your account; see test_vibe_models.
+    assert "sign in with your Mistral account" in script
 
 
 def test_vibe_mcp_fragment_covers_every_workstation_server() -> None:
