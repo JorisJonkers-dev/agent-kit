@@ -705,8 +705,8 @@ def test_registered_server_names_are_extracted_without_pcre(tmp_path: Path) -> N
         " └ [Warning] [memory-api] mcpServers.memory-api: Missing environment variables: HINDSIGHT_API_TOKEN\n"
     )
     extract = next(
-        line.strip() for line in script.splitlines() if "sort -u | while read -r found" in line
-    ).split("| sort -u")[0]
+        line.strip() for line in script.splitlines() if line.strip().startswith('done < <(echo "${registered}"')
+    ).removeprefix("done < <(").split("| sort -u")[0]
     probe = tmp_path / "probe.sh"
     probe.write_text(f'registered=$(cat)\n{extract} | sort -u\n')
     result = subprocess.run(

@@ -43,6 +43,39 @@ version: 1
 verified_at: 2026-09-09
 
 # -------------------------------------------------------------------
+# Workstation tokens and keys.
+#
+# What setup gets for you through scripts/agent-kit-keys.py: a `grant`
+# entry is a service token it mints from auth-api after signing you in
+# (granting the service first when you are an admin), a `paste` entry is a
+# key you paste once, and a `value` entry is a fixed setting. Each is
+# checked against `check` and stored in the keychain;
+# ~/.config/agent-kit/env.sh reads them back in every shell. `export:
+# false` keeps a value out of the shell: only vibe and memory-private get it.
+# -------------------------------------------------------------------
+workstation_secrets:
+  - env: HINDSIGHT_API_URL
+    value: "https://hindsight-api.jorisjonkers.dev"
+    export: true
+  - env: HINDSIGHT_API_TOKEN
+    grant: MEMORY_API
+    check: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
+    export: true
+  - env: MEMORY_MCP_TOKEN
+    grant: MEMORY_MCP
+    check: "https://memory-mcp.jorisjonkers.dev/mcp"
+    export: true
+  - env: MEMORY_PRIVATE_TOKEN
+    grant: MEMORY_PRIVATE
+    check: "https://hindsight-private.jorisjonkers.dev/mcp/private/"
+    export: false
+  - env: MISTRAL_API_KEY
+    paste: "a Mistral key for this machine from https://console.mistral.ai/api-keys, never the cluster's"
+    check: "https://api.mistral.ai/v1/models"
+    check_method: GET
+    export: true
+
+# -------------------------------------------------------------------
 # Claude Code profiles.
 #
 # One login per profile. CLAUDE_CONFIG_DIR moves the WHOLE config root,
@@ -241,7 +274,8 @@ clis:
     latest: true
     surfaces: [workstation, container]
     install: "curl -fsSL https://astral.sh/uv/install.sh | sh"
-    update: "uv self update"
+    # A Homebrew uv refuses `self update`; Homebrew updates it instead.
+    update: "uv self update 2>/dev/null || brew upgrade uv 2>/dev/null || true"
     version_command: "uv --version"
     container:
       datasource: github-releases
@@ -565,6 +599,8 @@ language_servers:
   - plugin: rust-analyzer-lsp
     binary: rust-analyzer
     install: "rustup component add rust-analyzer"
+    # Without rustup there is no Rust work here, so a missing binary is no to-do.
+    toolchain: rustup
     languages: [rust]
     enabled: true
     cloud: false
@@ -597,6 +633,7 @@ language_servers:
   - plugin: csharp-lsp
     binary: csharp-ls
     install: "dotnet tool install --global csharp-ls"
+    toolchain: dotnet
     languages: [csharp]
     enabled: true
     cloud: false
@@ -833,7 +870,6 @@ mcp_servers:
     # Service-DNS path cannot be scoped to one bank (fleet-infra#394).
     url_hermes: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
     credential: HINDSIGHT_API_TOKEN
-    credential_grant: MEMORY_API
     timeout: 60
     surfaces: [workstation, hermes, runner]
     trust: estate
@@ -867,7 +903,6 @@ mcp_servers:
     url_workstation: "https://memory-mcp.jorisjonkers.dev/mcp"
     url_hermes: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
     credential: MEMORY_MCP_TOKEN
-    credential_grant: MEMORY_MCP
     # Same network-boundary posture as memory-api: no header for Hermes.
     credential_hermes: false
     timeout: 60
