@@ -1398,8 +1398,9 @@ for install in installs:
       fi
     fi
 
-    # Private Hindsight bank -- personal notes. Off unless a session
-    # is opened with `memory-private claude|codex`.
+    # Private Hindsight bank -- personal notes. On in Vibe; off in
+    # Claude Code and Codex unless a session is opened with
+    # `memory-private claude|codex`.
     if [ "${CLOUD}" = 1 ]; then
       log "memory-private: not set up in cloud mode"
     else
@@ -1566,7 +1567,7 @@ for install in installs:
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
         vibe_remove=()
-        [ "${CLOUD}" = 1 ] && vibe_remove=(--remove kubernetes)
+        [ "${CLOUD}" = 1 ] && vibe_remove=(--remove memory-private --remove kubernetes)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \

@@ -27,7 +27,7 @@ def _vibe_servers(data: dict) -> list[dict]:
         for s in data["mcp_servers"]
         if s.get("enabled") is not False
         and "workstation" in (s.get("surfaces") or [])
-        and not s.get("session_only")
+        and (not s.get("session_only") or "vibe" in (s.get("enabled_for") or []))
     ]
 
 
@@ -136,7 +136,7 @@ def test_merge_keeps_the_first_backup(tmp_path: Path) -> None:
 def test_cloud_mode_merges_once_with_its_removals() -> None:
     script = render_registry.render_setup_script(_registry())
     assert script.count("scripts/vibe-merge-mcp.py\"") == 1
-    assert 'vibe_remove=(--remove kubernetes)' in script
+    assert 'vibe_remove=(--remove memory-private --remove kubernetes)' in script
 
 
 def test_merge_can_remove_a_managed_server(tmp_path: Path) -> None:

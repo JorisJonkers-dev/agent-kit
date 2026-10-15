@@ -17,6 +17,18 @@ api_key_header = "Authorization"
 api_key_format = "Bearer {token}"
 
 [[mcp_servers]]
+name = "memory-private"
+transport = "streamable-http"
+url = "https://hindsight-private.jorisjonkers.dev/mcp/private/"
+tool_timeout_sec = 60.0
+
+[mcp_servers.auth]
+type = "static"
+api_key_env = "MEMORY_PRIVATE_TOKEN"
+api_key_header = "Authorization"
+api_key_format = "Bearer {token}"
+
+[[mcp_servers]]
 name = "memory-mcp"
 transport = "streamable-http"
 url = "https://memory-mcp.jorisjonkers.dev/mcp"

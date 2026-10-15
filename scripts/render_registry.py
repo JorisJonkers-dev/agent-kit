@@ -178,6 +178,14 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(
                 f"session-only mcp server {name} must be http, on the workstation surface only, with cloud: false",
             )
+        if "enabled_for" in server:
+            if not session_only(server):
+                raise RegistryError(f"mcp server {name}: enabled_for only applies to a session-only server")
+            if not set(server["enabled_for"] or []) <= ALWAYS_ON_AGENTS:
+                raise RegistryError(
+                    f"mcp server {name}: enabled_for may only name {sorted(ALWAYS_ON_AGENTS)}, "
+                    f"not {server['enabled_for']}",
+                )
 
     for skill in _entries(data, "local_skills"):
         path = KIT_ROOT / str(skill.get("path") or "")
@@ -228,6 +236,16 @@ def on_cloud(item: dict[str, Any]) -> bool:
 def session_only(server: dict[str, Any]) -> bool:
     """Installed switched off; on only in a session opened for it."""
     return server.get("session_only") is True
+
+
+# The agents a session-only server may be on for by default. Vibe is the
+# personal-notes agent; Claude Code and Codex stay switched off.
+ALWAYS_ON_AGENTS = {"vibe"}
+
+
+def enabled_for(server: dict[str, Any], agent: str) -> bool:
+    """Whether a session-only server is on for this agent anyway."""
+    return agent in (server.get("enabled_for") or [])
 
 
 def _label(item: dict[str, Any]) -> str:
@@ -572,11 +590,13 @@ def _toml_str(value: str) -> str:
 
 
 def vibe_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Servers Vibe gets: everything on the workstation surface."""
+    """Servers Vibe gets: everything on the workstation surface, session-only ones only if enabled for it."""
     return [
         s
         for s in _entries(data, "mcp_servers")
-        if s.get("enabled") is not False and on_surface(s, "workstation") and not session_only(s)
+        if s.get("enabled") is not False
+        and on_surface(s, "workstation")
+        and (not session_only(s) or enabled_for(s, "vibe"))
     ]
 
 

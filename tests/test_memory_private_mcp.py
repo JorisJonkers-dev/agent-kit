@@ -1,9 +1,10 @@
-"""memory-private MCP: the private Hindsight bank, reachable only in a session you open for it.
+"""memory-private MCP: the private Hindsight bank.
 
-The server is installed on the workstation but switched off: Claude Code gets it
-from a --mcp-config file it loads only when asked, Codex gets it with
-`enabled = false`. `memory-private claude|codex` opens one session with it on.
-Hermes, runners, Vibe and cloud sessions never get it.
+Vibe, the personal-notes agent, has it on. Claude Code and Codex have it
+installed but switched off: Claude Code gets it from a --mcp-config file it
+loads only when asked, Codex gets it with `enabled = false`.
+`memory-private claude|codex` opens one session with it on. Hermes, runners
+and cloud sessions never get it.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -43,18 +45,39 @@ def test_registry_points_at_the_private_bank_on_the_workstation_only() -> None:
     assert server["session_only"] is True
     assert server["surfaces"] == ["workstation"]
     assert server["cloud"] is False
+    assert server["enabled_for"] == ["vibe"]
 
 
-def test_no_hermes_vibe_or_container_output_carries_it() -> None:
+def test_no_hermes_or_container_output_carries_it() -> None:
     data = _data()
     for text in (
         render_registry.render_hermes_mcp(data),
         render_registry.render_hermes_local_mcp(data),
-        render_registry.render_vibe_mcp(data),
         render_registry.render_container_setup_script(data),
     ):
         assert "hindsight-private" not in text
         assert NAME not in text
+
+
+def test_vibe_has_it_on_with_the_private_token() -> None:
+    fragment = tomllib.loads(render_registry.render_vibe_mcp(_data()))
+    server = next(s for s in fragment["mcp_servers"] if s["name"] == NAME)
+    assert server["transport"] == "streamable-http"
+    assert server["url"] == "https://hindsight-private.jorisjonkers.dev/mcp/private/"
+    assert server["auth"]["api_key_env"] == "MEMORY_PRIVATE_TOKEN"
+    assert server.get("disabled", False) is False
+
+
+def test_without_enabled_for_vibe_stays_out_of_vibe() -> None:
+    data = copy.deepcopy(_data())
+    del _server(data)["enabled_for"]
+    assert NAME not in render_registry.render_vibe_mcp(data)
+
+
+def test_a_cloud_run_takes_it_out_of_vibe() -> None:
+    script = render_registry.render_setup_script(_data())
+    removal = next(line for line in script.splitlines() if "vibe_remove=(" in line and "CLOUD" in line)
+    assert f"--remove {NAME}" in removal
 
 
 def test_claude_never_registers_it_at_user_scope() -> None:
@@ -95,12 +118,26 @@ def test_the_expected_claude_servers_leave_it_out() -> None:
 
 @pytest.mark.parametrize(
     "change",
-    [{"surfaces": ["workstation", "hermes"]}, {"cloud": True}, {"transport": "stdio", "command": "x"}],
+    [
+        {"surfaces": ["workstation", "hermes"]},
+        {"cloud": True},
+        {"transport": "stdio", "command": "x"},
+        {"enabled_for": ["claude"]},
+        {"enabled_for": ["codex"]},
+        {"enabled_for": ["vibe", "hermes"]},
+    ],
 )
 def test_validation_keeps_a_session_only_server_on_the_workstation(change: dict) -> None:
     data = copy.deepcopy(_data())
     _server(data).update(change)
     with pytest.raises(render_registry.RegistryError):
+        render_registry.validate(data)
+
+
+def test_validation_refuses_enabled_for_on_a_server_that_is_on_everywhere() -> None:
+    data = copy.deepcopy(_data())
+    next(s for s in data["mcp_servers"] if s["name"] == "memory-api")["enabled_for"] = ["vibe"]
+    with pytest.raises(render_registry.RegistryError, match="enabled_for"):
         render_registry.validate(data)
 
 
