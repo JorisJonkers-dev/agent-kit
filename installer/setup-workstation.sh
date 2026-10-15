@@ -169,6 +169,15 @@ The estate-wide conventions live in one place:
 https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md
 
 Read it before doing anything non-trivial in an estate repository.
+
+## Memory
+
+Two Hindsight banks are connected. At the start of a task, recall from both:
+memory-private for personal context (people, plans, private notes) and
+memory-api for estate and programming knowledge.
+
+Each turn is retained into memory-private automatically. Never retain
+personal notes into memory-api: Hermes and every other agent read it.
 EOF
   ok "Vibe AGENTS.md pointer -> ${file}"
 }
@@ -930,6 +939,8 @@ else
   # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).
   # memory-private claude|codex [ARGS]: one session with the private bank on.
   install_kit_command memory-private
+  # vibe-retain-private: Vibe's post_agent hook, retains into the private bank.
+  install_kit_command vibe-retain-private
 
   # ---------------------------------------------------------------
   # 4. Plugin drift detection.
@@ -1572,6 +1583,13 @@ for install in installs:
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
+        # Vibe's automatic memory goes to the private bank only (fleet-infra#399).
+        vibe_hooks_remove=()
+        [ "${CLOUD}" = 1 ] && vibe_hooks_remove=(--remove agent-kit-retain-private)
+        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+          "${KIT_ROOT}/installer/vibe-hooks.toml" --key hooks --config "${VIBE_HOME}/hooks.toml" ${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"} \
+          && ok "Vibe hooks merged" \
+          || fail "Vibe hooks merge failed"
       fi
       _vibe_agents_pointer
     else

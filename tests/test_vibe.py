@@ -135,7 +135,7 @@ def test_merge_keeps_the_first_backup(tmp_path: Path) -> None:
 
 def test_cloud_mode_merges_once_with_its_removals() -> None:
     script = render_registry.render_setup_script(_registry())
-    assert script.count("scripts/vibe-merge-mcp.py\"") == 1
+    assert script.count('"${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config') == 1
     assert 'vibe_remove=(--remove memory-private --remove kubernetes)' in script
 
 

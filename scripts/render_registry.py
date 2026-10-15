@@ -21,6 +21,7 @@ import argparse
 import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
+VIBE_HOOKS = Path("installer/vibe-hooks.toml")
 CLAUDE_SESSION_MCP_DIR = Path("registry/generated/claude")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
@@ -839,6 +841,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md")
     w("")
     w("Read it before doing anything non-trivial in an estate repository.")
+    w("")
+    w("## Memory")
+    w("")
+    # Plain names: this is an unquoted heredoc, so a backtick would run a command.
+    w("Two Hindsight banks are connected. At the start of a task, recall from both:")
+    w("memory-private for personal context (people, plans, private notes) and")
+    w("memory-api for estate and programming knowledge.")
+    w("")
+    w("Each turn is retained into memory-private automatically. Never retain")
+    w("personal notes into memory-api: Hermes and every other agent read it.")
     w("EOF")
     w('  ok "Vibe AGENTS.md pointer -> ${file}"')
     w("}")
@@ -1422,6 +1434,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).")
     w("  # memory-private claude|codex [ARGS]: one session with the private bank on.")
     w("  install_kit_command memory-private")
+    w("  # vibe-retain-private: Vibe's post_agent hook, retains into the private bank.")
+    w("  install_kit_command vibe-retain-private")
     w("")
     w("  # ---------------------------------------------------------------")
     w("  # 4. Plugin drift detection.")
@@ -1738,6 +1752,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {remove_args} \\')
     w('          && ok "Vibe MCP servers merged" \\')
     w('          || fail "Vibe MCP merge failed"')
+    hook_names = [h["name"] for h in tomllib.loads((KIT_ROOT / VIBE_HOOKS).read_text())["hooks"]]
+    w("        # Vibe's automatic memory goes to the private bank only (fleet-infra#399).")
+    w("        vibe_hooks_remove=()")
+    w(f'        [ "${{CLOUD}}" = 1 ] && vibe_hooks_remove=({" ".join(f"--remove {n}" for n in hook_names)})')
+    w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    hooks_remove = '${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"}'
+    w(f'          "${{KIT_ROOT}}/{VIBE_HOOKS}" --key hooks --config "${{VIBE_HOME}}/hooks.toml" {hooks_remove} \\')
+    w('          && ok "Vibe hooks merged" \\')
+    w('          || fail "Vibe hooks merge failed"')
     w("      fi")
     w("      _vibe_agents_pointer")
     w("    else")
