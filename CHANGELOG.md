@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.3](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.2...v4.7.3) (2026-10-15)
+
+
+### Bug Fixes
+
+* **keys:** finish the walk-through when sign-out answers with a page ([#93](https://github.com/JorisJonkers-dev/agent-kit/issues/93)) ([fd86ceb](https://github.com/JorisJonkers-dev/agent-kit/commit/fd86cebbeb769427922cbf0a8bed7d5bd08d653d))
+
 ## [4.7.2](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.1...v4.7.2) (2026-10-15)
 
 
