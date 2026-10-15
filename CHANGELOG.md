@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.3.0...v4.4.0) (2026-10-15)
+
+
+### Features
+
+* **registry:** turn the private Hindsight bank on in Vibe ([#81](https://github.com/JorisJonkers-dev/agent-kit/issues/81)) ([9822998](https://github.com/JorisJonkers-dev/agent-kit/commit/982299833507811325083af8f47ca798bcad53a9))
+
 ## [4.3.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.2.0...v4.3.0) (2026-10-15)
 
 
