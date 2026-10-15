@@ -51,8 +51,8 @@ asks only for what is missing or refused by its host. Optional credentials
 
 | Variable | Used by | Required? |
 |---|---|---|
-| `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
-| `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://hindsight-api.jorisjonkers.dev`) | required |
+| `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and Hindsight Coding Agents' hooks and `hindsight` tools | required |
+| `HINDSIGHT_API_URL` | anything that reads it; Coding Agents takes its URL from its own config | set by env.sh |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
 | `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | never exported; sealed behind your passphrase, given to `vibe` and `memory-private` per launch |
 | `MISTRAL_API_KEY` | Mistral Vibe itself; a dedicated per-host key, never the cluster's Hindsight or Karakeep keys | required for Vibe |
@@ -68,29 +68,47 @@ hosts, and never fall back to the account password or a long-lived shared
 key — see the [#41 design](https://github.com/JorisJonkers-dev/agent-kit/issues/41)
 for why both are explicitly rejected.
 
-`HINDSIGHT_API_URL` is not a secret, but an unset value is not loud: the
-`hindsight-memory` plugin quietly falls back to a personal **local** daemon
-instead of the shared estate bank, which looks identical to a working setup
-from inside a session. The setup script warns by name when it is unset;
-verify by checking which bank a note actually landed in, not by the plugin
-starting without an error.
-
 `hindsight-api.jorisjonkers.dev` serves only the shared bank `default`: its
 single-bank MCP endpoint `/mcp/default/` and the REST paths under
 `/v1/default/banks/default/`. Everything else on that host is a 404, including
-the multi-bank `/mcp` root. The plugin's own default bank is `claude-code`, so
-the setup script sets `bankId: default` in `~/.hindsight/claude-code.json`;
-without it every recall and retain is a 404.
+the multi-bank `/mcp` root.
+
+### Hindsight Coding Agents
+
+Claude Code and Codex get Hindsight's own plugin, **Hindsight Coding Agents**
+(`coding_agents` in the registry), which replaced the deprecated
+`hindsight-memory` plugin. Setup installs it at a pinned version with
+`npx @vectorize-io/hindsight-coding-agents@<version> install claude-code codex
+--server self-hosted`, which wires three hooks into each agent and a
+`hindsight` MCP server (setup registers it in every Claude profile). It then
+locks the plugin down in `~/.hindsight/coding-agent.json`:
+
+- the shared bank `default`, never one per repository (`bankId`,
+  `dynamicBankId: false`); the plugin's default per-repo banks are not routed;
+- recall **once**, at a session's first prompt (`autoInject: recall`, about
+  12 facts, 10s timeout);
+- nothing saved on its own: session write-back, git seeding, the codebase
+  survey, knowledge-page refreshes, bank reconfiguration and npm self-update
+  are all off;
+- a memory policy (`toolGuideExtra`) that tells the agent what is worth
+  saving with the tools: long-term decisions and their reasons, conventions,
+  facts about people and the user, durable context the repository does not
+  record, and what the user asks to remember. Never small talk, task progress
+  or secrets.
+
+The token is read from `HINDSIGHT_API_TOKEN`; setup removes one copied into
+the config. A key you add to that file yourself is kept, but the kit's keys
+are reset on every run.
 
 ### Automatic vs. model-elective capture
 
 | Client | Capture |
 |---|---|
-| Claude Code | **Automatic** — the `hindsight-memory` plugin's `UserPromptSubmit`/`Stop` hooks recall and retain on every turn, no tool call needed. |
-| Codex, Hermes (laptop and in-cluster) | **Model-elective** — no hook mechanism exists, so recall/retain only happens when the model calls a `memory-api` or `memory-mcp` tool itself. |
+| Claude Code, Codex | **Recall automatic, saving deliberate** — Hindsight Coding Agents recalls at a session's first prompt; the agent saves with its `hindsight` or `memory-api` tools, by the memory policy. |
+| Hermes (laptop and in-cluster) | **Model-elective** — recall and retain only happen when the model calls a `memory-api` or `memory-mcp` tool itself. |
 | Mistral Vibe | **Model-elective** for now, through the same MCP servers. Vibe's hooks fire only around tools and after a turn (`pre_tool`, `post_tool`, `post_agent`), so automatic retain is possible but automatic recall at prompt start is not (fleet-infra#399). |
 
-Both paths write into the same shared bank, `default` (the setup script pins
+All of them write into the same shared bank, `default` (the setup script pins
 the plugin's `bankId`, and `hindsight-api.*` serves no other bank), and the
 same shared Basic Memory vault. Basic
 Memory carries no per-call identity of its own, so attribute a change in the
@@ -109,9 +127,10 @@ bare `olcli` with no `OVERLEAF_BASE_URL` talks to overleaf.com and every call
 
 ### Keeping a directory out of the shared bank
 
-The `hindsight-memory` plugin retains every Claude Code session into the
-shared bank `default`, which Hermes and every agent can recall from. For a
-directory whose sessions are private:
+The shared bank `default` is the one Hermes and every agent recall from.
+Nothing is saved to it automatically any more, but Hindsight Coding Agents
+still recalls from it and offers its tools. For a directory whose sessions
+are private:
 
 ```bash
 memory-private on [DIR]      # default: the current directory
@@ -119,13 +138,12 @@ memory-private status [DIR]
 memory-private off [DIR]
 ```
 
-`on` sets `HINDSIGHT_AUTO_RETAIN=false` in that directory's
+`on` sets `HINDSIGHT_DISABLED=true` in that directory's
 `.claude/settings.local.json` (Claude Code's per-user settings), keeping every
 other key. Claude Code git-ignores that file only when it creates it, so in a
 repository where it is not ignored yet, `on` also adds it to `.git/info/exclude`. Claude Code hands that `env` block to the plugin's
-hooks once the folder is trusted, and the plugin then skips both of its retain
-paths. Recall is unaffected. For one session only:
-`HINDSIGHT_AUTO_RETAIN=false claude`.
+hooks once the folder is trusted, and the plugin then goes inert there: no
+shared-bank recall at all. For one session only: `HINDSIGHT_DISABLED=true claude`.
 
 ### The private bank
 
@@ -179,8 +197,8 @@ with it on:
 memory-private claude [ARGS]          # or: memory-private codex [ARGS]
 ```
 
-That session also runs with `HINDSIGHT_AUTO_RETAIN=false` and with the shared
-stores Hermes reads switched off (`memory-api` and `memory-mcp`), so nothing
+That session also runs with Hindsight Coding Agents inert (`HINDSIGHT_DISABLED=true`) and with the shared
+stores Hermes reads switched off (`memory-api`, `memory-mcp` and `hindsight`), so nothing
 from it can land where Hermes can see it. Every other session, including another one
 open at the same time, still has no private bank.
 

@@ -71,7 +71,7 @@ The setup output is kept at `/var/log/agent-kit-setup.log`. Ask Claude to run:
 ```bash
 tail -30 /var/log/agent-kit-setup.log   # the summary and every FAIL
 claude mcp list                         # memory-api, memory-mcp, playwright, drawio, overleaf
-claude plugin list                      # hindsight-memory among them, enabled
+claude mcp list | grep hindsight        # Hindsight Coding Agents' memory tools
 ```
 
 If `claude` is not on the session's `PATH`, use the copy setup installed:
@@ -84,8 +84,8 @@ variable is not set in the environment. A server that is **absent** means the
 session's Claude Code reads a different home than setup wrote to; the log's
 `cloud: running as ... HOME=...` line says which one setup used.
 
-Memory is the same bank as the laptop's: the `hindsight-memory` plugin's
-default is one static bank, not one per directory, so the cloud checkout's
+Memory is the same bank as the laptop's: Hindsight Coding Agents is pinned to
+the static bank `default`, not one per repository, so the cloud checkout's
 different path does not split it.
 
 ## Getting a change onto the cloud

@@ -32,8 +32,6 @@
 #   MEMORY_PRIVATE_TOKEN  -> the memory-private MCP server
 #   MEMORY_MCP_TOKEN  -> the memory-mcp MCP server
 #   OVERLEAF_SESSION  -> the overleaf MCP server
-#   HINDSIGHT_API_URL  -> the hindsight-memory plugin
-#   HINDSIGHT_API_TOKEN  -> the hindsight-memory plugin
 
 set -uo pipefail
 
@@ -70,7 +68,7 @@ while [ "$#" -gt 0 ]; do
     --no-prompt) PROMPT=0 ;;
     --cloud) CLOUD=1; DO_PROFILES=0 ;;
     --uninstall) UNINSTALL=1 ;;
-    --help|-h) sed -n '2,36p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,34p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
   shift
@@ -212,6 +210,41 @@ if any(r not in back for r in rules):
     raise SystemExit(f'{path}: deny rules did not read back')
 PY
   done
+}
+
+# Hindsight Coding Agents, pinned and locked to recall only (registry: coding_agents).
+hindsight_coding_agents() {
+  if ! command -v npx >/dev/null 2>&1; then
+    warn "npx is not on PATH; Hindsight Coding Agents not installed"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would install @vectorize-io/hindsight-coding-agents@0.8.1 for claude-code and codex"
+    return 0
+  fi
+  if npx -y @vectorize-io/hindsight-coding-agents@0.8.1 install claude-code codex --server self-hosted --api-url https://hindsight-api.jorisjonkers.dev </dev/null >/dev/null 2>&1; then
+    ok "Hindsight Coding Agents 0.8.1 wired into claude-code and codex"
+  else
+    warn "Hindsight Coding Agents install failed"
+    return 0
+  fi
+  local config="${HOME}/.hindsight/coding-agent.json"
+  _merge_user_config "${config}" '{"apiUrl": "https://hindsight-api.jorisjonkers.dev", "autoInject": "recall", "autoSeed": false, "autoUpdate": false, "bankId": "default", "codebaseSurvey": false, "dynamicBankId": false, "gitIngest": "none", "injectTimeoutMs": 10000, "manageBankConfig": false, "pageTriggerType": "manual", "recallOptions": {"max_tokens": 1200}, "retainSessions": false, "toolGuideExtra": "Save to memory only what is worth keeping long-term: decisions and their reasons, conventions, facts about people and the user, durable project context that the code and git history do not already record, and anything the user asks you to remember. Not small talk, not passing task details or progress, never secrets. Update an existing memory rather than adding a near-duplicate."}' \
+    && ok "Hindsight Coding Agents locked to recall only (${config})" \
+    || warn "could not write ${config}"
+  # The token comes from HINDSIGHT_API_TOKEN; a copied one never stays on disk.
+  python3 - "${config}" <<'PY' || warn "could not check ${config} for a token"
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text() or '{}') if path.exists() else {}
+if data.pop('apiToken', None) is not None:
+    path.write_text(json.dumps(data, indent=2) + '\n')
+PY
+  # Its installer registers the memory tools in the default profile only.
+  run claude_each_profile claude mcp remove --scope user hindsight >/dev/null 2>&1 || true
+  run claude_each_profile claude mcp add --scope user hindsight --env HINDSIGHT_MCP_HARNESS=claude-code \
+    -- node "${HOME}/.hindsight/coding-agents/dist/mcp-server.js" >/dev/null 2>&1 \
+    || warn "could not register the Hindsight memory tools in every Claude profile"
 }
 
 # Removes a retired kit command, but only one setup wrote.
@@ -981,9 +1014,6 @@ else
       || run claude plugin marketplace update ai-software-architect >/dev/null 2>&1 \
       || warn "marketplace ai-software-architect (codenamev/ai-software-architect) could not be added or updated"
   fi
-  run claude plugin marketplace add vectorize-io/hindsight 2>/dev/null \
-    || run claude plugin marketplace update hindsight >/dev/null 2>&1 \
-    || warn "marketplace hindsight (vectorize-io/hindsight) could not be added or updated"
 
   log "plugins"
   # caveman: Compressed output mode plus the cavecrew subagents.
@@ -1051,35 +1081,15 @@ else
       warn "ai-software-architect@ai-software-architect install failed"
     fi
   fi
-  # hindsight-memory: Automatic Hindsight recall/retain for Claude Code via UserPromptSubmit/Stop hooks.
-  if run claude plugin install hindsight-memory@hindsight --yes --scope user; then
-    run claude plugin enable hindsight-memory@hindsight >/dev/null 2>&1 || true
-    ok "hindsight-memory@hindsight installed and enabled"
-  else
-    warn "hindsight-memory@hindsight install failed"
-  fi
-  _merge_user_config "${HOME}/.hindsight/claude-code.json" '{"bankId": "default", "dynamicBankId": false}' \
-    && ok "hindsight-memory: .hindsight/claude-code.json set" \
-    || warn "hindsight-memory: could not update .hindsight/claude-code.json"
-  if [ -z "${HINDSIGHT_API_URL:-}" ]; then
-    if [ "${CLOUD}" = 1 ]; then
-      warn "hindsight-memory: HINDSIGHT_API_URL is not set (the estate Hindsight API, or it falls back to a personal local daemon); export it and re-run"
-    else
-      log "HINDSIGHT_API_URL is not set (see tokens and keys)"
-    fi
-    missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_URL")
-  fi
-  if [ -z "${HINDSIGHT_API_TOKEN:-}" ]; then
-    if [ "${CLOUD}" = 1 ]; then
-      warn "hindsight-memory: HINDSIGHT_API_TOKEN is not set (per-host token from auth-api service-tokens (service MEMORY_API)); export it and re-run"
-    else
-      log "HINDSIGHT_API_TOKEN is not set (see tokens and keys)"
-    fi
-    missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_TOKEN")
-  fi
 
+  # Retired: hindsight-memory@hindsight.
+  if run claude plugin uninstall hindsight-memory@hindsight >/dev/null 2>&1; then
+    ok "hindsight-memory@hindsight: retired, uninstalled"
+  fi
+  run claude plugin marketplace remove hindsight >/dev/null 2>&1 || true
+  hindsight_coding_agents
   # memory-private on|off|status [DIR]: keeps a directory's sessions out of
-  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).
+  # the shared Hindsight bank (HINDSIGHT_DISABLED=true in its local settings).
   # memory-private claude|codex [ARGS]: one session with the private bank on.
   install_kit_command memory-private
   # agent-kit-private: the private-bank token behind your passphrase.
@@ -1173,15 +1183,6 @@ for install in installs:
       plugin_drift+=("ai-software-architect: ${installed_commit} vs 6e636c8bb2f6")
     else
       ok "ai-software-architect: at the expected commit"
-    fi
-    installed_commit="$(installed_plugin_commit "${manifest}" "hindsight-memory@hindsight")"
-    if [ -z "${installed_commit}" ]; then
-      log "hindsight-memory: no user-scope commit recorded; drift not checked"
-    elif [ "${installed_commit}" != "16d4025f882ba232a2d4c72abd1eb47420e68e17" ]; then
-      warn "hindsight-memory: installed ${installed_commit} differs from the registry's 16d4025f882b"
-      plugin_drift+=("hindsight-memory: ${installed_commit} vs 16d4025f882b")
-    else
-      ok "hindsight-memory: at the expected commit"
     fi
   fi
 

@@ -1,7 +1,7 @@
-"""memory-private: keep a directory's Claude Code sessions out of Hindsight auto-retain.
+"""memory-private: keep a directory's Claude Code sessions away from the shared Hindsight bank.
 
 The hindsight-memory plugin skips both retain paths (Stop and SessionEnd) when
-HINDSIGHT_AUTO_RETAIN is false, and Claude Code hands a project's
+HINDSIGHT_DISABLED is true (Hindsight Coding Agents), and Claude Code hands a project's
 .claude/settings.local.json `env` block to hook processes. So marking a
 directory private is one key in that file.
 """
@@ -49,7 +49,7 @@ def _settings(project: Path) -> dict:
 def test_on_marks_the_directory_private(tmp_path: Path) -> None:
     result = _run("on", str(tmp_path))
     assert result.returncode == 0, result.stderr
-    assert _settings(tmp_path)["env"]["HINDSIGHT_AUTO_RETAIN"] == "false"
+    assert _settings(tmp_path)["env"]["HINDSIGHT_DISABLED"] == "true"
 
 
 def test_on_keeps_the_existing_local_settings(tmp_path: Path) -> None:
@@ -60,7 +60,7 @@ def test_on_keeps_the_existing_local_settings(tmp_path: Path) -> None:
     assert _run("on", str(tmp_path)).returncode == 0
     data = _settings(tmp_path)
     assert data["permissions"] == {"allow": ["Bash(ls)"]}
-    assert data["env"] == {"FOO": "1", "HINDSIGHT_AUTO_RETAIN": "false"}
+    assert data["env"] == {"FOO": "1", "HINDSIGHT_DISABLED": "true"}
 
 
 def test_off_restores_auto_retain_and_keeps_the_rest(tmp_path: Path) -> None:
@@ -86,7 +86,7 @@ def test_status_reports_both_states(tmp_path: Path) -> None:
 
 def test_directory_defaults_to_the_current_one(tmp_path: Path) -> None:
     assert _run("on", cwd=tmp_path).returncode == 0
-    assert _settings(tmp_path)["env"]["HINDSIGHT_AUTO_RETAIN"] == "false"
+    assert _settings(tmp_path)["env"]["HINDSIGHT_DISABLED"] == "true"
 
 
 def test_unknown_command_fails_with_usage(tmp_path: Path) -> None:
