@@ -135,7 +135,10 @@ def _ensure(
     body = (
         "CHECK_ONLY=0\nlog() { :; }\nok() { echo \"ok $*\"; }\nwarn() { echo \"warn $*\" >&2; }\n"
         "fail() { echo \"fail $*\" >&2; }\nrun() { \"$@\"; }\n"
+        + "unpinned_markets=()\n"
+        + _fn(_script(), "_marketplace_from_folder")
         + _fn(_script(), "ensure_marketplace") + f"ensure_marketplace tools owner/tools {commit}\n"
+        + 'echo "UNPINNED=${unpinned_markets[*]-}"\n'
     )
     env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "STUB_STATE": str(state),
            "STUB_LOG": str(log), "AGENT_KIT_GIT_BASE": f"file://{base}",
@@ -180,7 +183,8 @@ def test_an_unreachable_pin_changes_nothing(tmp_path: Path) -> None:
     result, calls = _ensure(tmp_path, "f" * 40)
     assert "could not fetch" in result.stderr
     assert _head(tmp_path) == commits[0]
-    assert calls == []
+    assert calls == ["plugin marketplace list --json"], "it looks, and changes nothing"
+    assert "still at its previous pin" in result.stderr
 
 
 # --- the commit a plugin is expected at ---
@@ -212,3 +216,35 @@ def test_a_plugin_off_its_pin_is_updated_to_it() -> None:
     drift = script[script.index('log "checking plugin commit drift"') :]
     assert "run claude plugin update caveman@caveman" in drift
     assert 'expected_plugin_commit "${AGENT_KIT_MARKETPLACES' in drift
+
+
+# --- fail closed: an unpinned marketplace installs nothing ---
+
+
+def test_an_unreachable_pin_on_a_github_marketplace_marks_it_unpinned(tmp_path: Path) -> None:
+    _upstream(tmp_path)
+    result, calls = _ensure(tmp_path, "f" * 40, github_first=True)
+    assert "could not fetch" in result.stderr
+    assert "UNPINNED=tools" in result.stdout
+    assert not any(c.startswith("plugin marketplace") and "list" not in c for c in calls)
+
+
+def test_plugins_of_an_unpinned_marketplace_are_not_installed() -> None:
+    script = _script()
+    block = script[script.index("# caveman: ") : script.index("# drawio: ")]
+    assert 'case " ${unpinned_markets[*]-} " in *" caveman "*)' in block
+    assert "not installed: its marketplace is not at its pinned commit" in block
+
+
+def test_a_plugin_that_cannot_be_pinned_is_a_warning_not_a_log() -> None:
+    drift = _script()[_script().index('log "checking plugin commit drift"') :]
+    assert 'warn "caveman: its marketplace entry pins no commit' in drift
+
+
+def test_language_servers_of_an_unpinned_marketplace_are_not_installed() -> None:
+    script = _script()
+    lsp = script[script.index('log "language servers"') : script.index('log "language servers skipped')]
+    server = next(s for s in _registry()["language_servers"])["plugin"]
+    block = lsp[lsp.index(f"# {server} -> ") :]
+    assert 'case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)' in block
+    assert f"{server}: not installed: its marketplace is not at its pinned commit" in block

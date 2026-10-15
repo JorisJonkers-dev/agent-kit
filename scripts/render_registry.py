@@ -312,6 +312,18 @@ def _label(item: dict[str, Any]) -> str:
     return str(item.get("name") or item.get("plugin"))
 
 
+def _pinned_guard(block: list[str], market: str, name: str, indent: str) -> list[str]:
+    """Skip an install whose marketplace could not be put at its pinned commit."""
+    return [
+        f'{indent}case " ${{unpinned_markets[*]-}} " in *" {market} "*)',
+        f'{indent}  warn "{name}: not installed: its marketplace is not at its pinned commit" ;;',
+        f"{indent}*)",
+        *["  " + line for line in block],
+        f"{indent}  ;;",
+        f"{indent}esac",
+    ]
+
+
 def _cloud_guard(block: list[str], item: dict[str, Any], indent: str) -> list[str]:
     """Wrap a rendered block so `--cloud` skips an entry marked `cloud: false`."""
     if on_cloud(item):
@@ -783,6 +795,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# Track what needs attention after the run")
     w("skipped_mcp_servers=()     # MCP servers skipped due to missing credentials")
     w("skipped_mcp_names=()       # Their names, so the registration check skips them")
+    w("unpinned_markets=()        # Marketplaces not at their pin: their plugins are not installed")
     w("unshared_profile_paths=()  # Shared surfaces a secondary profile did not get")
     w("missing_lsp_binaries=()    # Language servers with missing binaries")
     w("disabled_plugins=()        # Plugins disabled (missing binary or on purpose)")
@@ -985,6 +998,18 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w('    || warn "could not register the Hindsight memory tools in every Claude profile"')
         w("}")
         w("")
+    w("# Whether a marketplace is declared from the given folder (not tracking GitHub).")
+    w("_marketplace_from_folder() {")
+    w('  claude plugin marketplace list --json 2>/dev/null | python3 -c \'')
+    w("import json, os, sys")
+    w("name, path = sys.argv[1], os.path.realpath(sys.argv[2])")
+    w('ok = any(m.get("name") == name and m.get("source") == "directory"')
+    w('         and os.path.realpath(m.get("path", "")) == path for m in json.load(sys.stdin))')
+    w("sys.exit(0 if ok else 1)")
+    w('\' "$1" "$2"')
+    w("  # end _marketplace_from_folder")
+    w("}")
+    w("")
     w("# Checks a marketplace out at its pinned commit and declares it from that folder.")
     w("# Claude Code tracks a GitHub marketplace's default branch; a folder holds still.")
     w("ensure_marketplace() {")
@@ -1002,22 +1027,23 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    git -C "${dir}" remote add origin "${base}/${repo}"')
     w('    if ! git -C "${dir}" fetch -q --depth 1 origin "${commit}" 2>/dev/null \\')
     w('       || ! git -C "${dir}" -c advice.detachedHead=false checkout -q --force FETCH_HEAD; then')
-    w('      warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; left as it was"')
+    w("      # Fail closed: only a folder at an earlier pin may keep serving plugins.")
+    w('      if _marketplace_from_folder "${name}" "${dir}"; then')
+    w('        warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; still at its previous pin"')
+    w("      else")
+    w('        unpinned_markets+=("${name}")')
+    w('        warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; its plugins are not installed"')
+    w("      fi")
     w("      return 0")
     w("    fi")
     w("    moved=1")
     w("  fi")
     w('  if [ "$(git -C "${dir}" rev-parse HEAD)" != "${commit}" ]; then')
     w('    fail "marketplace ${name}: the checkout is not at ${commit:0:12}"')
+    w('    unpinned_markets+=("${name}")')
     w("    return 0")
     w("  fi")
-    w('  if claude plugin marketplace list --json 2>/dev/null | python3 -c \'')
-    w("import json, os, sys")
-    w("name, path = sys.argv[1], os.path.realpath(sys.argv[2])")
-    w('ok = any(m.get("name") == name and m.get("source") == "directory"')
-    w('         and os.path.realpath(m.get("path", "")) == path for m in json.load(sys.stdin))')
-    w("sys.exit(0 if ok else 1)")
-    w('\' "${name}" "${dir}"; then')
+    w('  if _marketplace_from_folder "${name}" "${dir}"; then')
     w('    if [ "${moved}" = 1 ]; then')
     w('      run claude plugin marketplace update "${name}" >/dev/null 2>&1 \\')
     w('        || warn "marketplace ${name}: could not refresh after moving to ${commit:0:12}"')
@@ -1030,7 +1056,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    if run claude plugin marketplace add "${dir}" >/dev/null 2>&1; then')
     w('      ok "marketplace ${name} pinned at ${commit:0:12} (was tracking upstream)"')
     w("    else")
-    w('      warn "marketplace ${name}: could not declare it from ${dir}"')
+    w('      unpinned_markets+=("${name}")')
+    w('      warn "marketplace ${name}: could not declare it from ${dir}; its plugins are not installed"')
     w("    fi")
     w("  fi")
     w("  # end ensure_marketplace")
@@ -1728,7 +1755,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
                           var, "    "))
             b(f'    missing_plugin_env+=("{plugin["name"]}: export {var}")')
             b("  fi")
-        out.extend(_cloud_guard(block, plugin, "  "))
+        guarded = _pinned_guard(block, plugin["marketplace"], plugin["name"], "  ")
+        out.extend(_cloud_guard(guarded, plugin, "  "))
     w("")
     for retired in data.get("retired_plugins") or []:
         w(f'  # Retired: {retired["ref"]}.')
@@ -1789,8 +1817,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
             folder = f'"${{AGENT_KIT_MARKETPLACES:-${{HOME}}/.local/share/agent-kit/marketplaces}}/{market["name"]}"'
             w(f'    expected_commit="$(expected_plugin_commit {folder} {plugin["name"]} {market["commit"]})"')
             w(f'    installed_commit="$(installed_plugin_commit "${{manifest}}" "{ref}")"')
-            w('    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then')
-            w(f'      log "{plugin["name"]}: no commit recorded or pinned; drift not checked"')
+            w('    if [ -z "${expected_commit}" ]; then')
+            w(f'      warn "{plugin["name"]}: its marketplace entry pins no commit, so it cannot be pinned"')
+            w('    elif [ -z "${installed_commit}" ]; then')
+            w(f'      log "{plugin["name"]}: no commit recorded; drift not checked"')
             w('    elif [ "${installed_commit}" = "${expected_commit}" ]; then')
             w(f'      ok "{plugin["name"]}: at its pinned commit"')
             w("    else")
@@ -1880,7 +1910,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
         b("    else")
         b(f'      warn "{ref} install failed"')
         b("    fi")
-        out.extend(_cloud_guard(block, server, "    "))
+        guarded = _pinned_guard(block, "claude-plugins-official", plugin, "    ")
+        out.extend(_cloud_guard(guarded, server, "    "))
     w("  else")
     w('    log "language servers skipped (--no-lsp)"')
     w("  fi")

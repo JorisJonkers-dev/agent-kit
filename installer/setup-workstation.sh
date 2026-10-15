@@ -51,6 +51,7 @@ todo_warnings=()           # Every warning, listed again at the end
 # Track what needs attention after the run
 skipped_mcp_servers=()     # MCP servers skipped due to missing credentials
 skipped_mcp_names=()       # Their names, so the registration check skips them
+unpinned_markets=()        # Marketplaces not at their pin: their plugins are not installed
 unshared_profile_paths=()  # Shared surfaces a secondary profile did not get
 missing_lsp_binaries=()    # Language servers with missing binaries
 disabled_plugins=()        # Plugins disabled (missing binary or on purpose)
@@ -247,6 +248,18 @@ PY
     || warn "could not register the Hindsight memory tools in every Claude profile"
 }
 
+# Whether a marketplace is declared from the given folder (not tracking GitHub).
+_marketplace_from_folder() {
+  claude plugin marketplace list --json 2>/dev/null | python3 -c '
+import json, os, sys
+name, path = sys.argv[1], os.path.realpath(sys.argv[2])
+ok = any(m.get("name") == name and m.get("source") == "directory"
+         and os.path.realpath(m.get("path", "")) == path for m in json.load(sys.stdin))
+sys.exit(0 if ok else 1)
+' "$1" "$2"
+  # end _marketplace_from_folder
+}
+
 # Checks a marketplace out at its pinned commit and declares it from that folder.
 # Claude Code tracks a GitHub marketplace's default branch; a folder holds still.
 ensure_marketplace() {
@@ -264,22 +277,23 @@ ensure_marketplace() {
     git -C "${dir}" remote add origin "${base}/${repo}"
     if ! git -C "${dir}" fetch -q --depth 1 origin "${commit}" 2>/dev/null \
        || ! git -C "${dir}" -c advice.detachedHead=false checkout -q --force FETCH_HEAD; then
-      warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; left as it was"
+      # Fail closed: only a folder at an earlier pin may keep serving plugins.
+      if _marketplace_from_folder "${name}" "${dir}"; then
+        warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; still at its previous pin"
+      else
+        unpinned_markets+=("${name}")
+        warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; its plugins are not installed"
+      fi
       return 0
     fi
     moved=1
   fi
   if [ "$(git -C "${dir}" rev-parse HEAD)" != "${commit}" ]; then
     fail "marketplace ${name}: the checkout is not at ${commit:0:12}"
+    unpinned_markets+=("${name}")
     return 0
   fi
-  if claude plugin marketplace list --json 2>/dev/null | python3 -c '
-import json, os, sys
-name, path = sys.argv[1], os.path.realpath(sys.argv[2])
-ok = any(m.get("name") == name and m.get("source") == "directory"
-         and os.path.realpath(m.get("path", "")) == path for m in json.load(sys.stdin))
-sys.exit(0 if ok else 1)
-' "${name}" "${dir}"; then
+  if _marketplace_from_folder "${name}" "${dir}"; then
     if [ "${moved}" = 1 ]; then
       run claude plugin marketplace update "${name}" >/dev/null 2>&1 \
         || warn "marketplace ${name}: could not refresh after moving to ${commit:0:12}"
@@ -292,7 +306,8 @@ sys.exit(0 if ok else 1)
     if run claude plugin marketplace add "${dir}" >/dev/null 2>&1; then
       ok "marketplace ${name} pinned at ${commit:0:12} (was tracking upstream)"
     else
-      warn "marketplace ${name}: could not declare it from ${dir}"
+      unpinned_markets+=("${name}")
+      warn "marketplace ${name}: could not declare it from ${dir}; its plugins are not installed"
     fi
   fi
   # end ensure_marketplace
@@ -1072,69 +1087,109 @@ else
 
   log "plugins"
   # caveman: Compressed output mode plus the cavecrew subagents.
-  if run claude plugin install caveman@caveman --yes --scope user; then
-    run claude plugin enable caveman@caveman >/dev/null 2>&1 || true
-    ok "caveman@caveman installed and enabled"
-  else
-    warn "caveman@caveman install failed"
-  fi
+  case " ${unpinned_markets[*]-} " in *" caveman "*)
+    warn "caveman: not installed: its marketplace is not at its pinned commit" ;;
+  *)
+    if run claude plugin install caveman@caveman --yes --scope user; then
+      run claude plugin enable caveman@caveman >/dev/null 2>&1 || true
+      ok "caveman@caveman installed and enabled"
+    else
+      warn "caveman@caveman install failed"
+    fi
+    ;;
+  esac
   # drawio: Native .drawio diagram authoring and export.
-  if run claude plugin install drawio@drawio --yes --scope user; then
-    run claude plugin enable drawio@drawio >/dev/null 2>&1 || true
-    ok "drawio@drawio installed and enabled"
-  else
-    warn "drawio@drawio install failed"
-  fi
+  case " ${unpinned_markets[*]-} " in *" drawio "*)
+    warn "drawio: not installed: its marketplace is not at its pinned commit" ;;
+  *)
+    if run claude plugin install drawio@drawio --yes --scope user; then
+      run claude plugin enable drawio@drawio >/dev/null 2>&1 || true
+      ok "drawio@drawio installed and enabled"
+    else
+      warn "drawio@drawio install failed"
+    fi
+    ;;
+  esac
   # frontend-design: Visual design guidance for new UI work.
-  if run claude plugin install frontend-design@claude-plugins-official --yes --scope user; then
-    run claude plugin enable frontend-design@claude-plugins-official >/dev/null 2>&1 || true
-    ok "frontend-design@claude-plugins-official installed and enabled"
-  else
-    warn "frontend-design@claude-plugins-official install failed"
-  fi
+  case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+    warn "frontend-design: not installed: its marketplace is not at its pinned commit" ;;
+  *)
+    if run claude plugin install frontend-design@claude-plugins-official --yes --scope user; then
+      run claude plugin enable frontend-design@claude-plugins-official >/dev/null 2>&1 || true
+      ok "frontend-design@claude-plugins-official installed and enabled"
+    else
+      warn "frontend-design@claude-plugins-official install failed"
+    fi
+    ;;
+  esac
   # mattpocock-skills: TDD, code review, domain modelling, grilling.
-  if run claude plugin install mattpocock-skills@claude-plugins-official --yes --scope user; then
-    run claude plugin enable mattpocock-skills@claude-plugins-official >/dev/null 2>&1 || true
-    ok "mattpocock-skills@claude-plugins-official installed and enabled"
-  else
-    warn "mattpocock-skills@claude-plugins-official install failed"
-  fi
+  case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+    warn "mattpocock-skills: not installed: its marketplace is not at its pinned commit" ;;
+  *)
+    if run claude plugin install mattpocock-skills@claude-plugins-official --yes --scope user; then
+      run claude plugin enable mattpocock-skills@claude-plugins-official >/dev/null 2>&1 || true
+      ok "mattpocock-skills@claude-plugins-official installed and enabled"
+    else
+      warn "mattpocock-skills@claude-plugins-official install failed"
+    fi
+    ;;
+  esac
   # security-guidance: Security review of generated code. Ships its own PreToolUse and Stop hooks. Those are the PLUGIN's hooks, not estate hooks — the retired knowledge hooks are unrelated and the purge step matches on the
-  if run claude plugin install security-guidance@claude-plugins-official --yes --scope user; then
-    run claude plugin enable security-guidance@claude-plugins-official >/dev/null 2>&1 || true
-    ok "security-guidance@claude-plugins-official installed and enabled"
-  else
-    warn "security-guidance@claude-plugins-official install failed"
-  fi
+  case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+    warn "security-guidance: not installed: its marketplace is not at its pinned commit" ;;
+  *)
+    if run claude plugin install security-guidance@claude-plugins-official --yes --scope user; then
+      run claude plugin enable security-guidance@claude-plugins-official >/dev/null 2>&1 || true
+      ok "security-guidance@claude-plugins-official installed and enabled"
+    else
+      warn "security-guidance@claude-plugins-official install failed"
+    fi
+    ;;
+  esac
   # kubernetes-skill: Manifest and cluster failure-mode guidance.
-  if run claude plugin install kubernetes-skill@kubernetes-skill --yes --scope user; then
-    run claude plugin enable kubernetes-skill@kubernetes-skill >/dev/null 2>&1 || true
-    ok "kubernetes-skill@kubernetes-skill installed and enabled"
-  else
-    warn "kubernetes-skill@kubernetes-skill install failed"
-  fi
+  case " ${unpinned_markets[*]-} " in *" kubernetes-skill "*)
+    warn "kubernetes-skill: not installed: its marketplace is not at its pinned commit" ;;
+  *)
+    if run claude plugin install kubernetes-skill@kubernetes-skill --yes --scope user; then
+      run claude plugin enable kubernetes-skill@kubernetes-skill >/dev/null 2>&1 || true
+      ok "kubernetes-skill@kubernetes-skill installed and enabled"
+    else
+      warn "kubernetes-skill@kubernetes-skill install failed"
+    fi
+    ;;
+  esac
   # github: GitHub MCP server. Needs a token; it fails to connect with "Authorization header is badly formatted" when the credential is absent or malformed, which reads like a missing server rather than a missing
   if [ "${CLOUD}" = 1 ]; then
     log "github: not set up in cloud mode"
   else
-    if run claude plugin install github@claude-plugins-official --yes --scope user; then
-      run claude plugin enable github@claude-plugins-official >/dev/null 2>&1 || true
-      ok "github@claude-plugins-official installed and enabled"
-    else
-      warn "github@claude-plugins-official install failed"
-    fi
+    case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+      warn "github: not installed: its marketplace is not at its pinned commit" ;;
+    *)
+      if run claude plugin install github@claude-plugins-official --yes --scope user; then
+        run claude plugin enable github@claude-plugins-official >/dev/null 2>&1 || true
+        ok "github@claude-plugins-official installed and enabled"
+      else
+        warn "github@claude-plugins-official install failed"
+      fi
+      ;;
+    esac
   fi
   # ai-software-architect: Architecture review personas. Off by default — large surface, rarely the right tool.
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
   else
-    if run claude plugin install ai-software-architect@ai-software-architect --yes --scope user; then
-      run claude plugin disable ai-software-architect@ai-software-architect >/dev/null 2>&1 || true
-      ok "ai-software-architect@ai-software-architect installed, left disabled on purpose"
-      disabled_plugins+=("ai-software-architect: disabled on purpose in registry")
-    else
-      warn "ai-software-architect@ai-software-architect install failed"
-    fi
+    case " ${unpinned_markets[*]-} " in *" ai-software-architect "*)
+      warn "ai-software-architect: not installed: its marketplace is not at its pinned commit" ;;
+    *)
+      if run claude plugin install ai-software-architect@ai-software-architect --yes --scope user; then
+        run claude plugin disable ai-software-architect@ai-software-architect >/dev/null 2>&1 || true
+        ok "ai-software-architect@ai-software-architect installed, left disabled on purpose"
+        disabled_plugins+=("ai-software-architect: disabled on purpose in registry")
+      else
+        warn "ai-software-architect@ai-software-architect install failed"
+      fi
+      ;;
+    esac
   fi
 
   # Retired: hindsight-memory@hindsight.
@@ -1188,8 +1243,10 @@ for install in installs:
 
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/caveman" caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3)"
     installed_commit="$(installed_plugin_commit "${manifest}" "caveman@caveman")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "caveman: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "caveman: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "caveman: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "caveman: at its pinned commit"
     else
@@ -1204,8 +1261,10 @@ for install in installs:
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio 14b318b19cc37b159f841227b9d11fbd18ce18ea)"
     installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "drawio: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "drawio: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "drawio: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "drawio: at its pinned commit"
     else
@@ -1220,8 +1279,10 @@ for install in installs:
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design fc93980766c2200a0b4798eddf854b7b833395e4)"
     installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@claude-plugins-official")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "frontend-design: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "frontend-design: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "frontend-design: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "frontend-design: at its pinned commit"
     else
@@ -1236,8 +1297,10 @@ for install in installs:
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills fc93980766c2200a0b4798eddf854b7b833395e4)"
     installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@claude-plugins-official")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "mattpocock-skills: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "mattpocock-skills: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "mattpocock-skills: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "mattpocock-skills: at its pinned commit"
     else
@@ -1252,8 +1315,10 @@ for install in installs:
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance fc93980766c2200a0b4798eddf854b7b833395e4)"
     installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@claude-plugins-official")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "security-guidance: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "security-guidance: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "security-guidance: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "security-guidance: at its pinned commit"
     else
@@ -1268,8 +1333,10 @@ for install in installs:
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/kubernetes-skill" kubernetes-skill f85547fb3a1ec909b2cbe4dc68f831590ac385ea)"
     installed_commit="$(installed_plugin_commit "${manifest}" "kubernetes-skill@kubernetes-skill")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "kubernetes-skill: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "kubernetes-skill: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "kubernetes-skill: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "kubernetes-skill: at its pinned commit"
     else
@@ -1284,8 +1351,10 @@ for install in installs:
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github fc93980766c2200a0b4798eddf854b7b833395e4)"
     installed_commit="$(installed_plugin_commit "${manifest}" "github@claude-plugins-official")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "github: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "github: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "github: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "github: at its pinned commit"
     else
@@ -1300,8 +1369,10 @@ for install in installs:
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/ai-software-architect" ai-software-architect 6e636c8bb2f63481d70f0b7af12912fd414d5722)"
     installed_commit="$(installed_plugin_commit "${manifest}" "ai-software-architect@ai-software-architect")"
-    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
-      log "ai-software-architect: no commit recorded or pinned; drift not checked"
+    if [ -z "${expected_commit}" ]; then
+      warn "ai-software-architect: its marketplace entry pins no commit, so it cannot be pinned"
+    elif [ -z "${installed_commit}" ]; then
+      log "ai-software-architect: no commit recorded; drift not checked"
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "ai-software-architect: at its pinned commit"
     else
@@ -1328,321 +1399,386 @@ for install in installs:
     log "language servers"
 
     # typescript-lsp -> typescript-language-server (typescript, javascript)
-    if run claude plugin install typescript-lsp@claude-plugins-official --yes --scope user; then
-      if command -v typescript-language-server >/dev/null 2>&1; then
-        run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "typescript-lsp: typescript-language-server on PATH, plugin enabled"
-      else
-        run claude plugin disable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        lsp_cmd='npm install -g typescript-language-server typescript'
-        run_sh "${lsp_cmd}" || true
+    case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+      warn "typescript-lsp: not installed: its marketplace is not at its pinned commit" ;;
+    *)
+      if run claude plugin install typescript-lsp@claude-plugins-official --yes --scope user; then
         if command -v typescript-language-server >/dev/null 2>&1; then
           run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "typescript-lsp: typescript-language-server installed and enabled"
+          ok "typescript-lsp: typescript-language-server on PATH, plugin enabled"
         else
-          warn "typescript-lsp: typescript-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
-          missing_lsp_binaries+=("typescript-lsp: install with: ${lsp_cmd}")
+          run claude plugin disable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='npm install -g typescript-language-server typescript'
+          run_sh "${lsp_cmd}" || true
+          if command -v typescript-language-server >/dev/null 2>&1; then
+            run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "typescript-lsp: typescript-language-server installed and enabled"
+          else
+            warn "typescript-lsp: typescript-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("typescript-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "typescript-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "typescript-lsp@claude-plugins-official install failed"
-    fi
+      ;;
+    esac
 
     # pyright-lsp -> pyright-langserver (python)
-    if run claude plugin install pyright-lsp@claude-plugins-official --yes --scope user; then
-      if command -v pyright-langserver >/dev/null 2>&1; then
-        run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "pyright-lsp: pyright-langserver on PATH, plugin enabled"
-      else
-        run claude plugin disable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        lsp_cmd='npm install -g pyright'
-        run_sh "${lsp_cmd}" || true
+    case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+      warn "pyright-lsp: not installed: its marketplace is not at its pinned commit" ;;
+    *)
+      if run claude plugin install pyright-lsp@claude-plugins-official --yes --scope user; then
         if command -v pyright-langserver >/dev/null 2>&1; then
           run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "pyright-lsp: pyright-langserver installed and enabled"
+          ok "pyright-lsp: pyright-langserver on PATH, plugin enabled"
         else
-          warn "pyright-lsp: pyright-langserver is absent; plugin left disabled (install missing: ${lsp_cmd})"
-          missing_lsp_binaries+=("pyright-lsp: install with: ${lsp_cmd}")
+          run claude plugin disable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          lsp_cmd='npm install -g pyright'
+          run_sh "${lsp_cmd}" || true
+          if command -v pyright-langserver >/dev/null 2>&1; then
+            run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "pyright-lsp: pyright-langserver installed and enabled"
+          else
+            warn "pyright-lsp: pyright-langserver is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("pyright-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "pyright-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "pyright-lsp@claude-plugins-official install failed"
-    fi
+      ;;
+    esac
 
     # kotlin-lsp -> kotlin-lsp (kotlin)
-    if run claude plugin install kotlin-lsp@claude-plugins-official --yes --scope user; then
-      if command -v kotlin-lsp >/dev/null 2>&1; then
-        run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "kotlin-lsp: kotlin-lsp on PATH, plugin enabled"
-      else
-        run claude plugin disable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        if [ "$(uname -s)" = Linux ]; then
-          lsp_cmd='v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405 && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download-cdn.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
-        else
-          lsp_cmd='brew install kotlin-lsp'
-        fi
-        run_sh "${lsp_cmd}" || true
+    case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+      warn "kotlin-lsp: not installed: its marketplace is not at its pinned commit" ;;
+    *)
+      if run claude plugin install kotlin-lsp@claude-plugins-official --yes --scope user; then
         if command -v kotlin-lsp >/dev/null 2>&1; then
           run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "kotlin-lsp: kotlin-lsp installed and enabled"
+          ok "kotlin-lsp: kotlin-lsp on PATH, plugin enabled"
         else
-          warn "kotlin-lsp: kotlin-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
-          missing_lsp_binaries+=("kotlin-lsp: install with: ${lsp_cmd}")
+          run claude plugin disable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          if [ "$(uname -s)" = Linux ]; then
+            lsp_cmd='v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405 && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download-cdn.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
+          else
+            lsp_cmd='brew install kotlin-lsp'
+          fi
+          run_sh "${lsp_cmd}" || true
+          if command -v kotlin-lsp >/dev/null 2>&1; then
+            run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "kotlin-lsp: kotlin-lsp installed and enabled"
+          else
+            warn "kotlin-lsp: kotlin-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("kotlin-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "kotlin-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "kotlin-lsp@claude-plugins-official install failed"
-    fi
+      ;;
+    esac
 
     # jdtls-lsp -> jdtls (java)
-    if run claude plugin install jdtls-lsp@claude-plugins-official --yes --scope user; then
-      if command -v jdtls >/dev/null 2>&1; then
-        run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        ok "jdtls-lsp: jdtls on PATH, plugin enabled"
-      else
-        run claude plugin disable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-        if [ "$(uname -s)" = Linux ]; then
-          lsp_cmd='curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz && rm -rf "${AK_OPT_DIR}/jdtls" && mkdir -p "${AK_OPT_DIR}/jdtls" "${AK_BIN_DIR}" && tar -xzf /tmp/jdtls.tgz -C "${AK_OPT_DIR}/jdtls" && rm -f /tmp/jdtls.tgz && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"'
-        else
-          lsp_cmd='brew install jdtls'
-        fi
-        run_sh "${lsp_cmd}" || true
+    case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+      warn "jdtls-lsp: not installed: its marketplace is not at its pinned commit" ;;
+    *)
+      if run claude plugin install jdtls-lsp@claude-plugins-official --yes --scope user; then
         if command -v jdtls >/dev/null 2>&1; then
           run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "jdtls-lsp: jdtls installed and enabled"
+          ok "jdtls-lsp: jdtls on PATH, plugin enabled"
         else
-          warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: ${lsp_cmd})"
-          missing_lsp_binaries+=("jdtls-lsp: install with: ${lsp_cmd}")
+          run claude plugin disable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          if [ "$(uname -s)" = Linux ]; then
+            lsp_cmd='curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz && rm -rf "${AK_OPT_DIR}/jdtls" && mkdir -p "${AK_OPT_DIR}/jdtls" "${AK_BIN_DIR}" && tar -xzf /tmp/jdtls.tgz -C "${AK_OPT_DIR}/jdtls" && rm -f /tmp/jdtls.tgz && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"'
+          else
+            lsp_cmd='brew install jdtls'
+          fi
+          run_sh "${lsp_cmd}" || true
+          if command -v jdtls >/dev/null 2>&1; then
+            run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "jdtls-lsp: jdtls installed and enabled"
+          else
+            warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+            missing_lsp_binaries+=("jdtls-lsp: install with: ${lsp_cmd}")
+          fi
         fi
+      else
+        warn "jdtls-lsp@claude-plugins-official install failed"
       fi
-    else
-      warn "jdtls-lsp@claude-plugins-official install failed"
-    fi
+      ;;
+    esac
 
     # ruby-lsp -> ruby-lsp (ruby)
     if [ "${CLOUD}" = 1 ]; then
       log "ruby-lsp: not set up in cloud mode"
     else
-      if run claude plugin install ruby-lsp@claude-plugins-official --yes --scope user; then
-        if command -v ruby-lsp >/dev/null 2>&1; then
-          run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
-        else
-          run claude plugin disable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='gem install ruby-lsp'
-          run_sh "${lsp_cmd}" || true
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "ruby-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install ruby-lsp@claude-plugins-official --yes --scope user; then
           if command -v ruby-lsp >/dev/null 2>&1; then
             run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "ruby-lsp: ruby-lsp installed and enabled"
+            ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
           else
-            warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("ruby-lsp: install with: ${lsp_cmd}")
+            run claude plugin disable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            lsp_cmd='gem install ruby-lsp'
+            run_sh "${lsp_cmd}" || true
+            if command -v ruby-lsp >/dev/null 2>&1; then
+              run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "ruby-lsp: ruby-lsp installed and enabled"
+            else
+              warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("ruby-lsp: install with: ${lsp_cmd}")
+            fi
           fi
+        else
+          warn "ruby-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "ruby-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # gopls-lsp -> gopls (go)
     if [ "${CLOUD}" = 1 ]; then
       log "gopls-lsp: not set up in cloud mode"
     else
-      if run claude plugin install gopls-lsp@claude-plugins-official --yes --scope user; then
-        if command -v gopls >/dev/null 2>&1; then
-          run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "gopls-lsp: gopls on PATH, plugin enabled"
-        else
-          run claude plugin disable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='go install golang.org/x/tools/gopls@latest'
-          run_sh "${lsp_cmd}" || true
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "gopls-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install gopls-lsp@claude-plugins-official --yes --scope user; then
           if command -v gopls >/dev/null 2>&1; then
             run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "gopls-lsp: gopls installed and enabled"
+            ok "gopls-lsp: gopls on PATH, plugin enabled"
           else
-            warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("gopls-lsp: install with: ${lsp_cmd}")
+            run claude plugin disable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            lsp_cmd='go install golang.org/x/tools/gopls@latest'
+            run_sh "${lsp_cmd}" || true
+            if command -v gopls >/dev/null 2>&1; then
+              run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "gopls-lsp: gopls installed and enabled"
+            else
+              warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("gopls-lsp: install with: ${lsp_cmd}")
+            fi
           fi
+        else
+          warn "gopls-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "gopls-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # rust-analyzer-lsp -> rust-analyzer (rust)
     if [ "${CLOUD}" = 1 ]; then
       log "rust-analyzer-lsp: not set up in cloud mode"
     else
-      if run claude plugin install rust-analyzer-lsp@claude-plugins-official --yes --scope user; then
-        if command -v rust-analyzer >/dev/null 2>&1; then
-          run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
-        else
-          run claude plugin disable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          if ! command -v rustup >/dev/null 2>&1; then
-            log "rust-analyzer-lsp: no rustup on this machine; plugin left off"
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "rust-analyzer-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install rust-analyzer-lsp@claude-plugins-official --yes --scope user; then
+          if command -v rust-analyzer >/dev/null 2>&1; then
+            run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
           else
-            lsp_cmd='rustup component add rust-analyzer'
-            run_sh "${lsp_cmd}" || true
-            if command -v rust-analyzer >/dev/null 2>&1; then
-              run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-              ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+            run claude plugin disable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            if ! command -v rustup >/dev/null 2>&1; then
+              log "rust-analyzer-lsp: no rustup on this machine; plugin left off"
             else
-              warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
-              missing_lsp_binaries+=("rust-analyzer-lsp: install with: ${lsp_cmd}")
+              lsp_cmd='rustup component add rust-analyzer'
+              run_sh "${lsp_cmd}" || true
+              if command -v rust-analyzer >/dev/null 2>&1; then
+                run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+                ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+              else
+                warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                missing_lsp_binaries+=("rust-analyzer-lsp: install with: ${lsp_cmd}")
+              fi
             fi
           fi
+        else
+          warn "rust-analyzer-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "rust-analyzer-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # lua-lsp -> lua-language-server (lua)
     if [ "${CLOUD}" = 1 ]; then
       log "lua-lsp: not set up in cloud mode"
     else
-      if run claude plugin install lua-lsp@claude-plugins-official --yes --scope user; then
-        if command -v lua-language-server >/dev/null 2>&1; then
-          run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "lua-lsp: lua-language-server on PATH, plugin enabled"
-        else
-          run claude plugin disable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='brew install lua-language-server'
-          run_sh "${lsp_cmd}" || true
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "lua-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install lua-lsp@claude-plugins-official --yes --scope user; then
           if command -v lua-language-server >/dev/null 2>&1; then
             run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "lua-lsp: lua-language-server installed and enabled"
+            ok "lua-lsp: lua-language-server on PATH, plugin enabled"
           else
-            warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("lua-lsp: install with: ${lsp_cmd}")
+            run claude plugin disable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            lsp_cmd='brew install lua-language-server'
+            run_sh "${lsp_cmd}" || true
+            if command -v lua-language-server >/dev/null 2>&1; then
+              run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "lua-lsp: lua-language-server installed and enabled"
+            else
+              warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("lua-lsp: install with: ${lsp_cmd}")
+            fi
           fi
+        else
+          warn "lua-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "lua-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # clangd-lsp -> clangd (c, cpp)
     if [ "${CLOUD}" = 1 ]; then
       log "clangd-lsp: not set up in cloud mode"
     else
-      if run claude plugin install clangd-lsp@claude-plugins-official --yes --scope user; then
-        if command -v clangd >/dev/null 2>&1; then
-          run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "clangd-lsp: clangd on PATH, plugin enabled"
-        else
-          run claude plugin disable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='brew install llvm'
-          run_sh "${lsp_cmd}" || true
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "clangd-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install clangd-lsp@claude-plugins-official --yes --scope user; then
           if command -v clangd >/dev/null 2>&1; then
             run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "clangd-lsp: clangd installed and enabled"
+            ok "clangd-lsp: clangd on PATH, plugin enabled"
           else
-            warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("clangd-lsp: install with: ${lsp_cmd}")
+            run claude plugin disable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            lsp_cmd='brew install llvm'
+            run_sh "${lsp_cmd}" || true
+            if command -v clangd >/dev/null 2>&1; then
+              run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "clangd-lsp: clangd installed and enabled"
+            else
+              warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("clangd-lsp: install with: ${lsp_cmd}")
+            fi
           fi
+        else
+          warn "clangd-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "clangd-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # php-lsp -> intelephense (php)
     if [ "${CLOUD}" = 1 ]; then
       log "php-lsp: not set up in cloud mode"
     else
-      if run claude plugin install php-lsp@claude-plugins-official --yes --scope user; then
-        if command -v intelephense >/dev/null 2>&1; then
-          run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "php-lsp: intelephense on PATH, plugin enabled"
-        else
-          run claude plugin disable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='npm install -g intelephense'
-          run_sh "${lsp_cmd}" || true
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "php-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install php-lsp@claude-plugins-official --yes --scope user; then
           if command -v intelephense >/dev/null 2>&1; then
             run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "php-lsp: intelephense installed and enabled"
+            ok "php-lsp: intelephense on PATH, plugin enabled"
           else
-            warn "php-lsp: intelephense is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("php-lsp: install with: ${lsp_cmd}")
+            run claude plugin disable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            lsp_cmd='npm install -g intelephense'
+            run_sh "${lsp_cmd}" || true
+            if command -v intelephense >/dev/null 2>&1; then
+              run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "php-lsp: intelephense installed and enabled"
+            else
+              warn "php-lsp: intelephense is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("php-lsp: install with: ${lsp_cmd}")
+            fi
           fi
+        else
+          warn "php-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "php-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # csharp-lsp -> csharp-ls (csharp)
     if [ "${CLOUD}" = 1 ]; then
       log "csharp-lsp: not set up in cloud mode"
     else
-      if run claude plugin install csharp-lsp@claude-plugins-official --yes --scope user; then
-        if command -v csharp-ls >/dev/null 2>&1; then
-          run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
-        else
-          run claude plugin disable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          if ! command -v dotnet >/dev/null 2>&1; then
-            log "csharp-lsp: no dotnet on this machine; plugin left off"
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "csharp-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install csharp-lsp@claude-plugins-official --yes --scope user; then
+          if command -v csharp-ls >/dev/null 2>&1; then
+            run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
           else
-            lsp_cmd='dotnet tool install --global csharp-ls'
-            run_sh "${lsp_cmd}" || true
-            if command -v csharp-ls >/dev/null 2>&1; then
-              run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-              ok "csharp-lsp: csharp-ls installed and enabled"
+            run claude plugin disable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            if ! command -v dotnet >/dev/null 2>&1; then
+              log "csharp-lsp: no dotnet on this machine; plugin left off"
             else
-              warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
-              missing_lsp_binaries+=("csharp-lsp: install with: ${lsp_cmd}")
+              lsp_cmd='dotnet tool install --global csharp-ls'
+              run_sh "${lsp_cmd}" || true
+              if command -v csharp-ls >/dev/null 2>&1; then
+                run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+                ok "csharp-lsp: csharp-ls installed and enabled"
+              else
+                warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                missing_lsp_binaries+=("csharp-lsp: install with: ${lsp_cmd}")
+              fi
             fi
           fi
+        else
+          warn "csharp-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "csharp-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # swift-lsp -> sourcekit-lsp (swift)
     if [ "${CLOUD}" = 1 ]; then
       log "swift-lsp: not set up in cloud mode"
     else
-      if run claude plugin install swift-lsp@claude-plugins-official --yes --scope user; then
-        if command -v sourcekit-lsp >/dev/null 2>&1; then
-          run claude plugin enable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "swift-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install swift-lsp@claude-plugins-official --yes --scope user; then
+          if command -v sourcekit-lsp >/dev/null 2>&1; then
+            run claude plugin enable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
+          else
+            run claude plugin disable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
+            missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
+          fi
         else
-          run claude plugin disable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
-          missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
+          warn "swift-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "swift-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
 
     # liquid-lsp -> shopify (liquid)
     if [ "${CLOUD}" = 1 ]; then
       log "liquid-lsp: not set up in cloud mode"
     else
-      if run claude plugin install liquid-lsp@claude-plugins-official --yes --scope user; then
-        if command -v shopify >/dev/null 2>&1; then
-          run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "liquid-lsp: shopify on PATH, so plugin enabled (off by default)"
-        else
-          run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='npm install -g @shopify/cli'
-          run_sh "${lsp_cmd}" || true
+      case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
+        warn "liquid-lsp: not installed: its marketplace is not at its pinned commit" ;;
+      *)
+        if run claude plugin install liquid-lsp@claude-plugins-official --yes --scope user; then
           if command -v shopify >/dev/null 2>&1; then
             run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "liquid-lsp: shopify installed and enabled"
+            ok "liquid-lsp: shopify on PATH, so plugin enabled (off by default)"
           else
-            warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("liquid-lsp: install with: ${lsp_cmd}")
+            run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            lsp_cmd='npm install -g @shopify/cli'
+            run_sh "${lsp_cmd}" || true
+            if command -v shopify >/dev/null 2>&1; then
+              run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "liquid-lsp: shopify installed and enabled"
+            else
+              warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("liquid-lsp: install with: ${lsp_cmd}")
+            fi
           fi
+        else
+          warn "liquid-lsp@claude-plugins-official install failed"
         fi
-      else
-        warn "liquid-lsp@claude-plugins-official install failed"
-      fi
+        ;;
+      esac
     fi
   else
     log "language servers skipped (--no-lsp)"
