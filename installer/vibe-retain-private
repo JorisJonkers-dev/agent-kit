@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+# managed by agent-kit setup-workstation.sh
+"""Vibe post_agent hook: retain the turn that just ended into the private Hindsight bank.
+
+Vibe runs this after every turn with the session on stdin. The turn (the last
+user message and the assistant replies after it; no tool output) is appended
+to one document per session in the `private` bank. There is no path to the
+shared bank: one host, one bank, one token. Any failure is reported as a
+note in Vibe and the session carries on; nothing is retried elsewhere.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+
+HOST = "https://hindsight-private.jorisjonkers.dev"
+PATH = "/v1/default/banks/private/memories"
+TOKEN = "MEMORY_PRIVATE_TOKEN"
+
+
+def _note(message: str) -> int:
+    print(json.dumps({"system_message": message}))
+    return 0
+
+
+def _last_turn(transcript: str) -> tuple[int, str]:
+    messages = []
+    with open(transcript, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                messages.append(json.loads(line))
+    starts = [
+        i for i, m in enumerate(messages)
+        if m.get("role") == "user" and not m.get("injected") and not m.get("manual_shell")
+    ]
+    if not starts:
+        return 0, ""
+    parts = []
+    for m in messages[starts[-1]:]:
+        text = (m.get("content") or "").strip()
+        if m.get("role") == "user" and not m.get("injected") and text:
+            parts.append(f"user: {text}")
+        elif m.get("role") == "assistant" and text:
+            parts.append(f"assistant: {text}")
+    return len(starts), "\n\n".join(parts)
+
+
+def _base_url() -> str:
+    # The override is for tests: only its scheme and host are used.
+    parsed = urllib.parse.urlsplit(os.environ.get("AGENT_KIT_PRIVATE_BANK_URL") or HOST)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def main() -> int:
+    hook = json.load(sys.stdin)
+    if hook.get("parent_session_id") or not hook.get("transcript_path"):
+        return 0
+    turn, content = _last_turn(hook["transcript_path"])
+    if not content:
+        return 0
+    token = os.environ.get(TOKEN)
+    if not token:
+        return _note(f"private bank: {TOKEN} is not set; this turn was not retained")
+    session = hook["session_id"]
+    body = {
+        "items": [{
+            "content": content,
+            "document_id": f"vibe-{session}",
+            "update_mode": "append",
+            "context": "vibe",
+            "metadata": {"session_id": session, "turn": str(turn)},
+        }],
+        "async": True,
+        "operation_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"vibe:{session}:{turn}")),
+    }
+    request = urllib.request.Request(
+        _base_url() + PATH,
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            # Cloudflare refuses the default Python-urllib agent.
+            "User-Agent": "agent-kit-vibe-retain/1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10):
+            return 0
+    except urllib.error.HTTPError as e:
+        return _note(f"private bank: HTTP {e.code}; this turn was not retained")
+    except (urllib.error.URLError, OSError) as e:
+        return _note(f"private bank unreachable ({e}); this turn was not retained")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as e:
+        raise SystemExit(_note(f"private bank: {type(e).__name__}; this turn was not retained")) from None

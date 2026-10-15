@@ -121,6 +121,15 @@ alias vibe='MEMORY_PRIVATE_TOKEN="$(security find-generic-password -s memory-pri
 Without the token, Vibe connects to the private bank with no credential and
 is refused.
 
+Vibe's automatic memory goes to the private bank only. A `post_agent` hook
+(`vibe-retain-private`, merged into `${VIBE_HOME}/hooks.toml`) appends each
+finished turn to one document per session in `private`: the user's message
+and the replies, without tool output. It has no route to the shared bank, so
+when the private bank is unreachable or the token is unset, the turn is
+simply not retained and Vibe shows a note. Vibe has no prompt hook, so recall
+is the model's call; `${VIBE_HOME}/AGENTS.md` asks it to recall from both banks
+at the start of a task.
+
 Claude Code and Codex have it installed switched off: Claude Code has it only
 as a `--mcp-config` file, and Codex lists it as disabled. Open one session
 with it on:
