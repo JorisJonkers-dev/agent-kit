@@ -28,7 +28,7 @@ auth.
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
 | `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://hindsight-api.jorisjonkers.dev`) | required |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
-| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server, only in a `memory-private claude\|codex` session | per session |
+| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | per launch; never in a shell profile |
 | `MISTRAL_API_KEY` | Mistral Vibe itself; a dedicated per-host key, never the cluster's Hindsight or Karakeep keys | required for Vibe |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
@@ -105,10 +105,25 @@ paths. Recall is unaffected. For one session only:
 
 Personal notes go to a separate Hindsight bank, `private`, served only on
 `hindsight-private.jorisjonkers.dev` and only to a `MEMORY_PRIVATE` service
-token. Hermes, runners, Vibe and cloud sessions never get it. On the
-workstation the `memory-private` MCP server is installed switched off: Claude
-Code has it only as a `--mcp-config` file, and Codex lists it as disabled. Open
-one session with it on:
+token. Hermes, runners and cloud sessions never get it.
+
+Vibe, the agent for personal notes, has the `memory-private` MCP server on,
+next to the shared bank. Give Vibe the token, and only Vibe: exported from a
+shell profile, it would sit in the environment of every Claude Code and Codex
+session too, where a shell command can read it. Keep it in the keychain and
+hand it over per launch:
+
+```bash
+security add-generic-password -a "$USER" -s memory-private -w   # prompts for the token
+alias vibe='MEMORY_PRIVATE_TOKEN="$(security find-generic-password -s memory-private -w)" command vibe'
+```
+
+Without the token, Vibe connects to the private bank with no credential and
+is refused.
+
+Claude Code and Codex have it installed switched off: Claude Code has it only
+as a `--mcp-config` file, and Codex lists it as disabled. Open one session
+with it on:
 
 ```bash
 export MEMORY_PRIVATE_TOKEN=smt_...   # a MEMORY_PRIVATE token for this device

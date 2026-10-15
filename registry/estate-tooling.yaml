@@ -842,15 +842,17 @@ mcp_servers:
 
   - name: memory-private
     transport: http
-    purpose: Private Hindsight bank -- personal notes. Off unless a session is opened with `memory-private claude|codex`.
+    purpose: Private Hindsight bank -- personal notes. On in Vibe; off in Claude Code and Codex unless a session is opened with `memory-private claude|codex`.
     # Single-bank endpoint for the private bank: hindsight-private.* routes
     # nothing else, and only MEMORY_PRIVATE tokens pass it (fleet-infra#395).
     url_workstation: "https://hindsight-private.jorisjonkers.dev/mcp/private/"
     credential: MEMORY_PRIVATE_TOKEN
     timeout: 60
     # Installed switched off: never registered for Claude at user scope, and
-    # `enabled = false` for Codex. Never on Hermes, runners, Vibe or cloud.
+    # `enabled = false` for Codex. On in Vibe, the personal-notes agent.
+    # Never on Hermes, runners or cloud.
     session_only: true
+    enabled_for: [vibe]
     surfaces: [workstation]
     cloud: false
     trust: estate
