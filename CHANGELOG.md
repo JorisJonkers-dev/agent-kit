@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.5.0...v4.6.0) (2026-10-15)
+
+
+### Features
+
+* **setup:** end every run with one list of everything still to do ([#85](https://github.com/JorisJonkers-dev/agent-kit/issues/85)) ([b33225d](https://github.com/JorisJonkers-dev/agent-kit/commit/b33225d358e30bf2f162a2c67029377e98e8df40))
+
 ## [4.5.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.4.0...v4.5.0) (2026-10-15)
 
 
