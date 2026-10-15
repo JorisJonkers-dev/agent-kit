@@ -18,11 +18,13 @@ KIT_FILES = (
     "registry/estate-tooling.yaml",
     "registry/generated/hermes/mcp-servers.local.yaml",
     "registry/generated/vibe/mcp-servers.toml",
+    "registry/generated/claude/memory-private.mcp.json",
     "installer/port-forward-agent.sh",
     "installer/cloud-session.sh",
     "installer/memory-private",
     "scripts/hermes-merge-mcp.py",
     "scripts/vibe-merge-mcp.py",
+    "scripts/codex-disable-mcp.py",
 )
 
 FAKE_GH = """#!/usr/bin/env python3

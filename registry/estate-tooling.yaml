@@ -840,6 +840,24 @@ mcp_servers:
       HINDSIGHT_API_TOKEN is a per-host token from auth-api's
       service-tokens endpoint (service MEMORY_API).
 
+  - name: memory-private
+    transport: http
+    purpose: Private Hindsight bank -- personal notes. Off unless a session is opened with `memory-private claude|codex`.
+    # Single-bank endpoint for the private bank: hindsight-private.* routes
+    # nothing else, and only MEMORY_PRIVATE tokens pass it (fleet-infra#395).
+    url_workstation: "https://hindsight-private.jorisjonkers.dev/mcp/private/"
+    credential: MEMORY_PRIVATE_TOKEN
+    timeout: 60
+    # Installed switched off: never registered for Claude at user scope, and
+    # `enabled = false` for Codex. Never on Hermes, runners, Vibe or cloud.
+    session_only: true
+    surfaces: [workstation]
+    cloud: false
+    trust: estate
+    note: >-
+      MEMORY_PRIVATE_TOKEN is a per-host token from auth-api's
+      service-tokens endpoint (service MEMORY_PRIVATE).
+
   - name: memory-mcp
     transport: http
     purpose: Basic Memory -- shared Markdown notes with a semantic link graph. Edit notes, never overwrite.

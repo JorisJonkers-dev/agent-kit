@@ -28,6 +28,7 @@ auth.
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
 | `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://hindsight-api.jorisjonkers.dev`) | required |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
+| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server, only in a `memory-private claude\|codex` session | per session |
 | `MISTRAL_API_KEY` | Mistral Vibe itself; a dedicated per-host key, never the cluster's Hindsight or Karakeep keys | required for Vibe |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
@@ -99,6 +100,25 @@ repository where it is not ignored yet, `on` also adds it to `.git/info/exclude`
 hooks once the folder is trusted, and the plugin then skips both of its retain
 paths. Recall is unaffected. For one session only:
 `HINDSIGHT_AUTO_RETAIN=false claude`.
+
+### The private bank
+
+Personal notes go to a separate Hindsight bank, `private`, served only on
+`hindsight-private.jorisjonkers.dev` and only to a `MEMORY_PRIVATE` service
+token. Hermes, runners, Vibe and cloud sessions never get it. On the
+workstation the `memory-private` MCP server is installed switched off: Claude
+Code has it only as a `--mcp-config` file, and Codex lists it as disabled. Open
+one session with it on:
+
+```bash
+export MEMORY_PRIVATE_TOKEN=smt_...   # a MEMORY_PRIVATE token for this device
+memory-private claude [ARGS]          # or: memory-private codex [ARGS]
+```
+
+That session also runs with `HINDSIGHT_AUTO_RETAIN=false` and with the shared
+stores Hermes reads switched off (`memory-api` and `memory-mcp`), so nothing
+from it can land where Hermes can see it. Every other session, including another one
+open at the same time, still has no private bank.
 
 ### Per-host service tokens (memory-api / memory-mcp)
 

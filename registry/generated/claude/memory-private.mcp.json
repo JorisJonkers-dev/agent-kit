@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "memory-private": {
+      "type": "http",
+      "url": "https://hindsight-private.jorisjonkers.dev/mcp/private/",
+      "headers": {
+        "Authorization": "Bearer ${MEMORY_PRIVATE_TOKEN}"
+      }
+    }
+  }
+}

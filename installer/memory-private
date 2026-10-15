@@ -2,6 +2,7 @@
 # managed by agent-kit setup-workstation.sh
 #
 # memory-private on|off|status [DIR]
+# memory-private claude|codex [ARGS...]
 #
 # Keeps a directory's Claude Code sessions out of the shared Hindsight bank.
 # The hindsight-memory plugin retains nothing when HINDSIGHT_AUTO_RETAIN is
@@ -9,15 +10,42 @@
 # block to its hooks, so `on` sets that one key there (recall is unaffected).
 # The file is Claude Code's per-user, git-ignored settings; every other key in
 # it is kept. For a single session instead: HINDSIGHT_AUTO_RETAIN=false claude
+#
+# `claude` and `codex` open one session with the private Hindsight bank (the
+# memory-private MCP server, switched off everywhere else), with the shared
+# stores Hermes reads (memory-api, memory-mcp) off and auto-retain off, so
+# nothing from that session lands where Hermes can see it.
 set -euo pipefail
 
 usage() {
-  echo "usage: memory-private on|off|status [DIR]" >&2
+  echo "usage: memory-private on|off|status [DIR] | claude|codex [ARGS...]" >&2
   exit 2
 }
 
 [ $# -ge 1 ] || usage
 cmd="$1"
+
+case "${cmd}" in
+  claude | codex)
+    shift
+    [ -n "${MEMORY_PRIVATE_TOKEN:-}" ] || {
+      echo "memory-private: MEMORY_PRIVATE_TOKEN is not set (a MEMORY_PRIVATE service token)" >&2
+      exit 1
+    }
+    export HINDSIGHT_AUTO_RETAIN=false
+    if [ "${cmd}" = claude ]; then
+      config="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/memory-private.mcp.json"
+      [ -f "${config}" ] || {
+        echo "memory-private: ${config} is missing; run setup-workstation.sh" >&2
+        exit 1
+      }
+      # `=` forms: both flags are variadic and would swallow a trailing prompt.
+      exec claude --mcp-config="${config}" --disallowedTools=mcp__memory-api,mcp__memory-mcp "$@"
+    fi
+    exec codex -c mcp_servers.memory-private.enabled=true -c mcp_servers.memory-api.enabled=false \
+      -c mcp_servers.memory-mcp.enabled=false "$@"
+    ;;
+esac
 dir="${2:-$PWD}"
 case "${cmd}" in on | off | status) ;; *) usage ;; esac
 [ -d "${dir}" ] || { echo "memory-private: ${dir} is not a directory" >&2; exit 1; }
