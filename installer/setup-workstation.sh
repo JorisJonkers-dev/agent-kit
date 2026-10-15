@@ -229,7 +229,7 @@ hindsight_coding_agents() {
     return 0
   fi
   local config="${HOME}/.hindsight/coding-agent.json"
-  _merge_user_config "${config}" '{"apiUrl": "https://hindsight-api.jorisjonkers.dev", "autoInject": "recall", "autoSeed": false, "autoUpdate": false, "bankId": "default", "codebaseSurvey": false, "dynamicBankId": false, "gitIngest": "none", "injectTimeoutMs": 10000, "manageBankConfig": false, "pageTriggerType": "manual", "recallOptions": {"max_tokens": 1200}, "retainSessions": false, "toolGuideExtra": "Save to memory only what is worth keeping long-term: decisions and their reasons, conventions, facts about people and the user, durable project context that the code and git history do not already record, and anything the user asks you to remember. Not small talk, not passing task details or progress, never secrets. Update an existing memory rather than adding a near-duplicate."}' \
+  _merge_user_config "${config}" '{"apiUrl": "https://hindsight-api.jorisjonkers.dev", "autoInject": "recall", "autoSeed": false, "autoUpdate": false, "bankId": "default", "codebaseSurvey": false, "dynamicBankId": false, "gitIngest": "none", "injectTimeoutMs": 10000, "manageBankConfig": false, "pageRefreshEveryTurns": 1000, "pageTriggerType": "manual", "recallOptions": {"max_tokens": 1200}, "retainSessions": false, "toolGuideExtra": "Conversations are not captured automatically on this machine, whatever the guide above says: nothing is saved unless you save it. Save to memory only what is worth keeping long-term: decisions and their reasons, conventions, facts about people and the user, durable project context that the code and git history do not already record, and anything the user asks you to remember. Not small talk, not passing task details or progress, never secrets. Update an existing memory rather than adding a near-duplicate."}' \
     && ok "Hindsight Coding Agents locked to recall only (${config})" \
     || warn "could not write ${config}"
   # The token comes from HINDSIGHT_API_TOKEN; a copied one never stays on disk.
@@ -547,7 +547,10 @@ CODEX_HOOKS_DIR="${CODEX_HOME}/hooks"
 # is exactly the one that still has these.
 # -----------------------------------------------------------------
 purge_retired_hooks() {
-  local settings="${CLAUDE_HOME}/settings.json"
+  # Claude's settings and Codex's hooks.json share the hook layout. Codex's file
+  # now also holds Hindsight Coding Agents' hooks, so only the retired ones go.
+  local settings
+  for settings in "${CLAUDE_HOME}/settings.json" "${CODEX_HOME}/hooks.json"; do
   if [ ! -e "${settings}" ]; then
     ok "no retired knowledge hooks (${settings} does not exist)"
   elif ! command -v python3 >/dev/null 2>&1; then
@@ -630,6 +633,7 @@ PURGE
       fail "purge of retired knowledge hooks in ${settings} failed"
     fi
   fi
+  done
 
   local stale
   for stale in \
@@ -640,8 +644,7 @@ PURGE
     "${CODEX_HOOKS_DIR}/pre-tool-use-edit-recall.sh" \
     "${CODEX_HOOKS_DIR}/pre-tool-use-git-commit-capture.sh" \
     "${CODEX_HOOKS_DIR}/kb-stop-digest.sh" \
-    "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh" \
-    "${CODEX_HOME}/hooks.json"
+    "${CODEX_HOOKS_DIR}/kb-user-prompt-recall.sh"
   do
     if [ -e "${stale}" ]; then
       if [ "${CHECK_ONLY}" = 1 ]; then
@@ -1739,6 +1742,12 @@ for install in installs:
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
+        # Every Mistral chat model the key can use, kept current (skipped without a key).
+        if [ -n "${MISTRAL_API_KEY:-}" ]; then
+          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+            --config "${VIBE_HOME}/config.toml" \
+            || warn "Vibe model sync failed"
+        fi
         vibe_hooks_remove=(--remove agent-kit-retain-private)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/installer/vibe-hooks.toml" --key hooks --config "${VIBE_HOME}/hooks.toml" ${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"} \
@@ -1784,6 +1793,7 @@ for install in installs:
           playwright) ;;
           drawio) ;;
           overleaf) ;;
+          hindsight) ;;
           plugin:*|idea|rubymine) ;;
           *) log "hand-added MCP server ${found} in ${profile_dir}: kept" ;;
         esac

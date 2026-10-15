@@ -542,8 +542,12 @@ coding_agents:
     recallOptions:
       max_tokens: 1200
     pageTriggerType: manual
+    # The tool guide and page roster once a session, not on every prompt.
+    pageRefreshEveryTurns: 1000
     toolGuideExtra: >-
-      Save to memory only what is worth keeping long-term: decisions and
+      Conversations are not captured automatically on this machine, whatever
+      the guide above says: nothing is saved unless you save it. Save to
+      memory only what is worth keeping long-term: decisions and
       their reasons, conventions, facts about people and the user, durable
       project context that the code and git history do not already record,
       and anything the user asks you to remember. Not small talk, not
