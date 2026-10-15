@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.2.0...v4.3.0) (2026-10-15)
+
+
+### Features
+
+* **registry:** add memory-private, the private Hindsight bank, switched off by default ([#80](https://github.com/JorisJonkers-dev/agent-kit/issues/80)) ([9391974](https://github.com/JorisJonkers-dev/agent-kit/commit/93919749266aeafeb12052973d89ed0ddf1ce8e5))
+* **registry:** Hermes reaches Hindsight through the gated shared host ([#78](https://github.com/JorisJonkers-dev/agent-kit/issues/78)) ([1fe7d17](https://github.com/JorisJonkers-dev/agent-kit/commit/1fe7d17622a0838a4ef0e88ab9c8690038c60f28))
+
 ## [4.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.1.0...v4.2.0) (2026-10-14)
 
 
