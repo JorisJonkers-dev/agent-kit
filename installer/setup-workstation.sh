@@ -402,12 +402,18 @@ use_kit_bundle() {
   local stage expected actual
   stage="$(mktemp -d)"
   log "not an agent-kit checkout; fetching the kit bundle from ${url}"
-  if ! curl -fsSL -o "${stage}/kit.tar.gz" "${url}" \
-     || ! curl -fsSL -o "${stage}/kit.tar.gz.sha256" "${url}.sha256"; then
+  # The checksum first, then the tarball under a URL keyed by it: the CDN caches
+  # the tarball for hours but not its .sha256, so a plain URL can serve the
+  # previous release for a while after each one.
+  if ! curl -fsSL -o "${stage}/kit.tar.gz.sha256" "${url}.sha256"; then
     fail "kit bundle unavailable at ${url}; set AGENT_KIT_SKILLS_BUNDLE_URL or run from a checkout"
     exit 1
   fi
   expected="$(awk '{print $1}' "${stage}/kit.tar.gz.sha256")"
+  if ! curl -fsSL -o "${stage}/kit.tar.gz" "${url}?sha256=${expected}"; then
+    fail "kit bundle unavailable at ${url}; set AGENT_KIT_SKILLS_BUNDLE_URL or run from a checkout"
+    exit 1
+  fi
   if command -v sha256sum >/dev/null 2>&1; then
     actual="$(sha256sum "${stage}/kit.tar.gz" | awk '{print $1}')"
   else
