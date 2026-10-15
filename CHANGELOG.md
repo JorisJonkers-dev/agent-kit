@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.10.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.9.0...v4.10.0) (2026-10-15)
+
+
+### Features
+
+* **vibe:** offer every Mistral chat model, and keep Codex's memory hooks ([#99](https://github.com/JorisJonkers-dev/agent-kit/issues/99)) ([76595c6](https://github.com/JorisJonkers-dev/agent-kit/commit/76595c6629f86f3a01d47ec18c5d3fd4fdeb6b7f))
+
 ## [4.9.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.8.0...v4.9.0) (2026-10-15)
 
 
