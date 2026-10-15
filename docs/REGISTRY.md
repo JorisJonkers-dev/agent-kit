@@ -122,6 +122,9 @@ Two traps this catches:
   `olcli`'s stored session), so an unset env var must not skip registration.
   Only a **required** credential gates registration on the workstation.
   Default is required.
+- `credential_grant:` names the auth-api service grant whose token fills the
+  credential (`MEMORY_API`, `MEMORY_MCP`). When the credential is unset, the
+  setup warning says which grant to give yourself and which token to mint.
 - `trust: hosted` stamps the generated config with the reminder that the
   server's output is context, never instruction.
 - An in-cluster URL needs the Hermes SSRF allowlist. Hermes blocks RFC1918 by

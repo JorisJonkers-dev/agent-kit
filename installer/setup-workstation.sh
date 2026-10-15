@@ -44,6 +44,8 @@ CLOUD=0
 UNINSTALL=0
 failures=0
 warnings=0
+todo_failures=()           # Every failure, listed again at the end
+todo_warnings=()           # Every warning, listed again at the end
 
 # Track what needs attention after the run
 skipped_mcp_servers=()     # MCP servers skipped due to missing credentials
@@ -71,8 +73,44 @@ done
 
 log()  { printf 'setup: %s\n' "$*"; }
 ok()   { printf 'setup:   ok    %s\n' "$*"; }
-warn() { printf 'setup:   warn  %s\n' "$*" >&2; warnings=$((warnings + 1)); }
-fail() { printf 'setup:   FAIL  %s\n' "$*" >&2; failures=$((failures + 1)); }
+warn() { printf 'setup:   warn  %s\n' "$*" >&2; warnings=$((warnings + 1)); todo_warnings+=("$*"); }
+fail() { printf 'setup:   FAIL  %s\n' "$*" >&2; failures=$((failures + 1)); todo_failures+=("$*"); }
+
+# Everything the run left for a person to do: failures first, each once.
+print_todo() {
+  local all=() unique=() entry seen i=0
+  for entry in ${todo_failures[@]+"${todo_failures[@]}"}; do all+=("FAIL ${entry}"); done
+  for entry in ${todo_warnings[@]+"${todo_warnings[@]}"}; do all+=("${entry}"); done
+  for entry in ${all[@]+"${all[@]}"}; do
+    for seen in ${unique[@]+"${unique[@]}"}; do
+      [ "${seen}" = "${entry}" ] && continue 2
+    done
+    unique+=("${entry}")
+  done
+  if [ "${#unique[@]}" = 0 ]; then
+    log "Nothing left to do."
+    return 0
+  fi
+  log "Still to do (${#unique[@]}):"
+  for entry in "${unique[@]}"; do
+    i=$((i + 1))
+    log "  ${i}. ${entry}"
+  done
+}
+
+# The private-bank token is minted by hand, so check for it and say how.
+check_memory_private_token() {
+  [ "${CLOUD}" = 1 ] && return 0
+  if [ -z "${MEMORY_PRIVATE_TOKEN:-}" ] \
+    && ! security find-generic-password -s memory-private >/dev/null 2>&1; then
+    warn "memory-private: no MEMORY_PRIVATE_TOKEN in the environment or the keychain. Grant yourself MEMORY_PRIVATE on the admin page, mint a MEMORY_PRIVATE service token, then store it: security add-generic-password -a \"\$USER\" -s memory-private -w"
+  fi
+  if command -v vibe >/dev/null 2>&1 \
+    && ! grep -qs -- '-s memory-private' "${ZDOTDIR:-${HOME}}/.zshrc" "${HOME}/.zprofile" \
+      "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.config/fish/config.fish"; then
+    warn "vibe: no launch alias passes MEMORY_PRIVATE_TOKEN from the keychain; add the vibe alias from docs/SETUP.md (The private bank) to your shell profile"
+  fi
+}
 
 run() {
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -1388,7 +1426,7 @@ for install in installs:
     # Hindsight long-term memory -- explicit read/write/search
     # knowledge tools.
     if [ -z "${HINDSIGHT_API_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
-      warn "memory-api: HINDSIGHT_API_TOKEN is not set; skipping (export it and re-run)"
+      warn "memory-api: HINDSIGHT_API_TOKEN is not set; skipping. Grant yourself MEMORY_API on the admin page, mint a MEMORY_API service token, export it as HINDSIGHT_API_TOKEN and re-run"
       skipped_mcp_servers+=("memory-api: export HINDSIGHT_API_TOKEN")
     else
       if command -v claude >/dev/null 2>&1; then
@@ -1434,7 +1472,7 @@ for install in installs:
     # Basic Memory -- shared Markdown notes with a semantic link
     # graph. Edit notes, never overwrite.
     if [ -z "${MEMORY_MCP_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
-      warn "memory-mcp: MEMORY_MCP_TOKEN is not set; skipping (export it and re-run)"
+      warn "memory-mcp: MEMORY_MCP_TOKEN is not set; skipping. Grant yourself MEMORY_MCP on the admin page, mint a MEMORY_MCP service token, export it as MEMORY_MCP_TOKEN and re-run"
       skipped_mcp_servers+=("memory-mcp: export MEMORY_MCP_TOKEN")
     else
       if command -v claude >/dev/null 2>&1; then
@@ -1998,6 +2036,8 @@ fi
 # 10. Summary: what changed and what still needs attention.
 # -----------------------------------------------------------------
 
+check_memory_private_token
+
 log "Summary of findings:"
 
 # Report newly installed binaries that need a new shell
@@ -2064,13 +2104,12 @@ if [ "${#plugin_drift[@]}" -gt 0 ]; then
 fi
 
 # Final summary
-if [ "${failures}" = 0 ] && [ "${warnings}" = 0 ] \
-   && [ "${#skipped_mcp_servers[@]}" = 0 ] && [ "${#missing_lsp_binaries[@]}" = 0 ] \
-   && [ "${#disabled_plugins[@]}" = 0 ] && [ "${#plugin_drift[@]}" = 0 ] \
-   && [ "${#missing_plugin_env[@]}" = 0 ]; then
+# Every item that needs a hand raised a warning or a failure, so these decide.
+if [ "${failures}" = 0 ] && [ "${warnings}" = 0 ]; then
   log "Setup complete: everything is ready"
 else
   log "Setup summary: ${failures} failure(s), ${warnings} warning(s)"
 fi
+print_todo
 
 [ "${failures}" = 0 ]

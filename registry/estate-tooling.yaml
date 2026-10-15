@@ -833,6 +833,7 @@ mcp_servers:
     # Service-DNS path cannot be scoped to one bank (fleet-infra#394).
     url_hermes: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
     credential: HINDSIGHT_API_TOKEN
+    credential_grant: MEMORY_API
     timeout: 60
     surfaces: [workstation, hermes, runner]
     trust: estate
@@ -866,6 +867,7 @@ mcp_servers:
     url_workstation: "https://memory-mcp.jorisjonkers.dev/mcp"
     url_hermes: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
     credential: MEMORY_MCP_TOKEN
+    credential_grant: MEMORY_MCP
     # Same network-boundary posture as memory-api: no header for Hermes.
     credential_hermes: false
     timeout: 60
