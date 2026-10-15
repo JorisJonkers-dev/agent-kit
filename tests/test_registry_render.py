@@ -153,8 +153,9 @@ def test_plugin_required_env_is_checked_and_reported() -> None:
     for var in plugin["requires_env"]:
         assert f'if [ -z "${{{var}:-}}" ]; then' in script
         assert f'missing_plugin_env+=("hindsight-memory: export {var}")' in script
+        # The warning is what puts it on the closing to-do list.
+        assert f'warn "hindsight-memory: {var} is not set' in script
     assert 'missing_plugin_env=()' in script
-    assert '${#missing_plugin_env[@]}" = 0' in script
 
 
 def test_spec_kit_is_not_in_the_registry() -> None:

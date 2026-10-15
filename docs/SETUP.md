@@ -12,6 +12,12 @@ uv run python scripts/render_registry.py --check   # artifacts current?
 ./installer/setup-workstation.sh --cloud           # a cloud environment, see CLOUD.md
 ```
 
+Every run ends with **Still to do**: one numbered list of every failure and
+warning it raised, failures first, each with what to do about it. That
+includes the steps setup cannot do itself, such as minting and storing the
+`MEMORY_PRIVATE` token and adding the Vibe launch alias. An empty list prints
+"Nothing left to do."
+
 `setup-workstation.sh` is **generated** from
 [`registry/estate-tooling.yaml`](../registry/estate-tooling.yaml). Do not edit
 it. Edit the registry and re-render — see [REGISTRY.md](REGISTRY.md).
