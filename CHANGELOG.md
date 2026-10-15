@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.10.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.10.0...v4.10.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **vibe:** let Vibe use your Mistral account, not a key setup exported ([#101](https://github.com/JorisJonkers-dev/agent-kit/issues/101)) ([e0fe6ce](https://github.com/JorisJonkers-dev/agent-kit/commit/e0fe6cebe8f5f07cead3429ed7073ba7b9bb517e))
+
 ## [4.10.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.9.0...v4.10.0) (2026-10-15)
 
 
