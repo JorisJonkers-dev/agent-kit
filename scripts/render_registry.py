@@ -1538,7 +1538,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
 
     # --- Marketplaces ---
     w("# Claude Code may not read or run anything that touches the private bank's")
-    w("# files: Vibe's home (its session logs) and the gated token.")
+    w("# files: Vibe's home (its session logs) and the gated token. Against accidents,")
+    w("# not a determined agent; the passphrase is the boundary.")
     w("claude_private_denies")
     w("")
     w("# -----------------------------------------------------------------")

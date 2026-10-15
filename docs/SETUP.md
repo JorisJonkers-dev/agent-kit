@@ -151,12 +151,17 @@ then mints a new token). After that:
 - Claude Code also gets deny rules (`claude_private_deny` in the registry):
   its file tools and Bash may not touch `~/.vibe/**`, where Vibe keeps its
   session logs (the private conversations themselves), the sealed token, or
-  `agent-kit-private`.
+  `agent-kit-private`. These stop accidental reads, not a determined agent:
+  a Bash pattern misses a rewritten path (`~/.v""ibe`) or a script. The
+  passphrase is the boundary; the logs have none beyond these rules.
 
 Known limits: Codex has no read deny-list, so it could read `~/.vibe` logs,
 though not the token. Vibe started by an editor or the Vibe app, not through
 the `vibe` function, has no private bank. A token left in the login keychain
-by an earlier setup is removed on the next run and replaced.
+by an earlier setup is removed on the next run and replaced; it cannot be
+revoked from here, since no id was kept for it. From now on setup records
+each token's id (`~/.config/agent-kit/token-ids.json`, ids only) and revokes
+a token as soon as it replaces it.
 
 Without the token, Vibe connects to the private bank with no credential and
 is refused.

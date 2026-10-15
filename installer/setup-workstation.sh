@@ -947,7 +947,8 @@ else
 fi
 
 # Claude Code may not read or run anything that touches the private bank's
-# files: Vibe's home (its session logs) and the gated token.
+# files: Vibe's home (its session logs) and the gated token. Against accidents,
+# not a determined agent; the passphrase is the boundary.
 claude_private_denies
 
 # -----------------------------------------------------------------

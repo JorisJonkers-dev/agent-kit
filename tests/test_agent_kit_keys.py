@@ -65,6 +65,7 @@ class Auth:
         self.minted: list[str] = []
         self.valid: set[str] = set()
         self.refused_services: set[str] = set()
+        self.revoked: list[str] = []
         self.log: list[str] = []
 
 
@@ -150,6 +151,16 @@ def auth() -> Iterator[tuple[Auth, str]]:
                 key = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
                 return self._send(200 if key == "mk_good" else 401)
             return self._send(404)
+
+        def do_DELETE(self) -> None:
+            state.log.append(f"DELETE {self.path}")
+            prefix = "/api/v1/auth/service-tokens/"
+            if self.path.startswith(prefix) and self._signed_in() and self._xsrf():
+                state.revoked.append(self.path[len(prefix):])
+                self.send_response(204)
+                self.end_headers()
+                return None
+            return self._send(403)
 
         def do_PUT(self) -> None:
             state.log.append(f"PUT {self.path}")
@@ -296,12 +307,25 @@ def test_an_invalid_stored_token_is_replaced(home: dict, auth: tuple[Auth, str])
     assert _stored(home)["MEMORY_MCP_TOKEN"] in state.valid
 
 
+def test_a_replaced_token_is_revoked_not_just_forgotten(home: dict, auth: tuple[Auth, str]) -> None:
+    state, _ = auth
+    _keys(home, "ensure", answers=ANSWERS)
+    first_mcp_id = str(state.minted.index("MEMORY_MCP") + 1)
+    state.valid.discard(_stored(home)["MEMORY_MCP_TOKEN"])
+    assert _keys(home, "ensure", answers="me@example.com\npw\n123456\n").returncode == 0
+    assert state.revoked == [first_mcp_id]
+    ids = json.loads((Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "token-ids.json").read_text())
+    assert ids["MEMORY_MCP_TOKEN"] == str(len(state.minted))
+    assert all(token not in json.dumps(ids) for token in state.valid), "ids only, never tokens"
+
+
 def test_a_new_token_its_host_refuses_is_not_stored(home: dict, auth: tuple[Auth, str]) -> None:
     state, _ = auth
     state.refused_services = {"MEMORY_MCP"}
     result = _keys(home, "ensure", answers=ANSWERS)
     assert "MEMORY_MCP_TOKEN" not in _stored(home)
     assert "MEMORY_MCP_TOKEN: the new token is refused by its host" in result.stderr
+    assert state.revoked == [str(state.minted.index("MEMORY_MCP") + 1)], "a discarded token is revoked"
     assert "HINDSIGHT_API_TOKEN" in _stored(home)
 
 

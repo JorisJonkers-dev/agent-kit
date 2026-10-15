@@ -280,15 +280,53 @@ class Auth:
                 say(f"granted yourself {', '.join(sorted(granted))}")
         return held
 
-    def mint(self, grant: str) -> tuple[str, str]:
+    def mint(self, grant: str) -> tuple[str, str, str]:
+        """(token, id, why it failed)."""
         label = f"{socket.gethostname().split('.')[0]} agent-kit"
         code, reply = self.call("POST", "/auth/service-tokens", {"service": grant, "label": label})
         if code not in (200, 201) or not reply.get("token"):
-            return "", str(reply.get("detail") or f"HTTP {code}")
-        return reply["token"], ""
+            return "", "", str(reply.get("detail") or f"HTTP {code}")
+        return reply["token"], str(reply.get("id") or ""), ""
+
+    def revoke(self, ident: str) -> bool:
+        code, _ = self.call("DELETE", f"/auth/service-tokens/{ident}")
+        return code in (200, 204)
 
     def sign_out(self) -> None:
         self.call("GET", "/auth/logout")
+
+
+# --- token ids -------------------------------------------------------------
+# Not secrets: an id only lets a signed-in owner revoke the token it names.
+
+
+def ids_path() -> Path:
+    return config_dir() / "token-ids.json"
+
+
+def load_ids() -> dict[str, str]:
+    try:
+        return dict(json.loads(ids_path().read_text()))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_ids(ids: dict[str, str]) -> None:
+    ids_path().parent.mkdir(parents=True, exist_ok=True)
+    ids_path().write_text(json.dumps(ids, indent=2, sort_keys=True) + "\n")
+
+
+def replaced(auth: Auth, ids: dict[str, str], var: str, new_id: str) -> None:
+    """Record the new token's id and revoke the one it replaces."""
+    old = ids.get(var)
+    if new_id:
+        ids[var] = new_id
+        save_ids(ids)
+    if old and old != new_id:
+        if auth.revoke(old):
+            say(f"{var}: revoked the token it replaces")
+        else:
+            say(f"{var}: could not revoke the token it replaces (id {old}); revoke it on the admin page")
 
 
 # --- env.sh ----------------------------------------------------------------
@@ -371,31 +409,36 @@ def ensure(table: list[dict[str, Any]]) -> int:
             say(f"could not reach auth.jorisjonkers.dev ({e}); no tokens minted this run")
             me = None
         if me:
+            ids = load_ids()
             try:
                 held = auth.ensure_grants(me, {e["grant"] for e in tokens})
                 for entry in tokens:
                     if entry["grant"] not in held:
                         say(f"{entry['env']}: you do not hold {entry['grant']}; ask an admin to grant it")
                         continue
-                    token, why = auth.mint(entry["grant"])
+                    token, ident, why = auth.mint(entry["grant"])
                     if not token:
                         say(f"{entry['env']}: mint refused: {why}"
                             + ("; ask an admin to grant it" if "grant" in why else ""))
                         continue
                     if not SAFE.match(token):
                         say(f"{entry['env']}: the minted token has unexpected characters; not stored")
+                        auth.revoke(ident)
                         continue
                     if check(entry, token) == "invalid":
                         say(f"{entry['env']}: the new token is refused by its host; not stored")
+                        auth.revoke(ident)
                         continue
                     if gated(entry):
-                        if gate_store(token):
-                            say(f"{entry['env']}: minted, checked and sealed behind your passphrase")
-                        else:
-                            say(f"{entry['env']}: minted but not sealed; run setup again to retry")
-                        continue
-                    keys.put(entry["env"], token)
-                    say(f"{entry['env']}: minted, checked and stored in the {keys.name}")
+                        if not gate_store(token):
+                            say(f"{entry['env']}: minted but not sealed; revoking it, run setup again to retry")
+                            auth.revoke(ident)
+                            continue
+                        say(f"{entry['env']}: minted, checked and sealed behind your passphrase")
+                    else:
+                        keys.put(entry["env"], token)
+                        say(f"{entry['env']}: minted, checked and stored in the {keys.name}")
+                    replaced(auth, ids, entry["env"], ident)
             except Unreachable as e:
                 say(f"could not reach auth.jorisjonkers.dev ({e}); the remaining tokens were not minted")
             finally:
