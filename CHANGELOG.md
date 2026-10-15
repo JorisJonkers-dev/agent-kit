@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.6.0...v4.7.0) (2026-10-15)
+
+
+### Features
+
+* **setup:** walk through the tokens and keys instead of listing them ([#87](https://github.com/JorisJonkers-dev/agent-kit/issues/87)) ([f2f39ab](https://github.com/JorisJonkers-dev/agent-kit/commit/f2f39abf20e87fee7eab269b986506413f2cb057))
+
 ## [4.6.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.5.0...v4.6.0) (2026-10-15)
 
 
