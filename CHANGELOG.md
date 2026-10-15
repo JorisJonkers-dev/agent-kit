@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.9.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.8.0...v4.9.0) (2026-10-15)
+
+
+### Features
+
+* **memory:** replace the deprecated Hindsight plugin with Coding Agents, recall only ([#97](https://github.com/JorisJonkers-dev/agent-kit/issues/97)) ([e35f869](https://github.com/JorisJonkers-dev/agent-kit/commit/e35f869c770f04f9a4c98792d6b2b9f573a1b1ad))
+
 ## [4.8.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.3...v4.8.0) (2026-10-15)
 
 
