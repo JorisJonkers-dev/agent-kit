@@ -186,3 +186,58 @@ def test_setup_syncs_after_merging_the_mcp_servers() -> None:
     assert 'scripts/vibe-sync-models.py" \\\n            --config "${VIBE_HOME}/config.toml"' in vibe
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
     assert "scripts/vibe-sync-models.py" in publish.split("KIT_PATHS=(")[1].split(")")[0].split()
+
+
+# --- the key is Vibe's own login, not one setup asked for ---
+
+
+def _vibe_login(tmp_path: Path, *, keychain: str | None = None, env_file: str | None = None) -> dict:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    found = f'printf "%s\\n" "{keychain}"; exit 0' if keychain else "exit 44"
+    (bin_dir / "security").write_text(
+        "#!/bin/sh\n"
+        'case "$*" in *"-s ai.mistral.vibe -a MISTRAL_API_KEY -w"*) ' + found + " ;; esac\nexit 44\n",
+    )
+    (bin_dir / "security").chmod(0o755)
+    home = tmp_path / "home"
+    (home / ".vibe").mkdir(parents=True, exist_ok=True)
+    if env_file:
+        (home / ".vibe" / ".env").write_text(f"MISTRAL_API_KEY='{env_file}'\n")
+    return {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+
+def _sync_env(tmp_path: Path, url: str, extra: dict, *args: str) -> subprocess.CompletedProcess:
+    env = {k: v for k, v in os.environ.items() if k != "MISTRAL_API_KEY"}
+    env.update({"HOME": str(tmp_path / "home"), "AGENT_KIT_MISTRAL_MODELS_URL": url, **extra})
+    return subprocess.run([sys.executable, str(SYNC), "--config", str(tmp_path / "config.toml"), *args],
+                          capture_output=True, text=True, check=False, env=env, timeout=60)
+
+
+def test_the_key_vibe_signed_in_with_is_used(tmp_path: Path, api: tuple[_Api, str]) -> None:
+    state, url = api
+    result = _sync_env(tmp_path, url, _vibe_login(tmp_path, keychain="mk_login"))
+    assert result.returncode == 0, result.stderr
+    assert state.auth == ["Bearer mk_login"]
+
+
+def test_vibes_env_file_is_the_fallback(tmp_path: Path, api: tuple[_Api, str]) -> None:
+    state, url = api
+    _sync_env(tmp_path, url, _vibe_login(tmp_path, env_file="mk_envfile"))
+    assert state.auth == ["Bearer mk_envfile"]
+
+
+def test_has_key_answers_without_fetching(tmp_path: Path, api: tuple[_Api, str]) -> None:
+    state, url = api
+    assert _sync_env(tmp_path, url, _vibe_login(tmp_path), "--has-key").returncode == 1
+    assert _sync_env(tmp_path, url, _vibe_login(tmp_path, keychain="mk_login"), "--has-key").returncode == 0
+    assert state.auth == []
+
+
+def test_setup_checks_vibe_is_signed_in_instead_of_asking_for_a_key() -> None:
+    script = render_registry.render_setup_script(
+        yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()),
+    )
+    assert 'missing_plugin_env+=("mistral-vibe: export MISTRAL_API_KEY")' not in script
+    assert '--config "${VIBE_HOME}/config.toml" --has-key; then' in script
+    assert "sign in with your Mistral account" in script

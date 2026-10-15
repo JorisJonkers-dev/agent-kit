@@ -48,8 +48,10 @@ def test_the_table_is_generated_from_the_registry_and_shipped() -> None:
     rendered = json.loads(render_registry.artifacts(data)[TABLE][0])
     assert rendered == data["workstation_secrets"]
     names = {e["env"] for e in rendered}
-    assert {"HINDSIGHT_API_URL", "HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "MEMORY_PRIVATE_TOKEN",
-            "MISTRAL_API_KEY"} <= names
+    assert {"HINDSIGHT_API_URL", "HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "MEMORY_PRIVATE_TOKEN"} <= names
+    # Vibe signs in with your Mistral account; setup no longer keeps a key of its own.
+    mistral = next(e for e in rendered if e["env"] == "MISTRAL_API_KEY")
+    assert mistral == {"env": "MISTRAL_API_KEY", "retired": True}
     private = next(e for e in rendered if e["env"] == "MEMORY_PRIVATE_TOKEN")
     assert private["export"] is False and private["grant"] == "MEMORY_PRIVATE"
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
@@ -154,7 +156,7 @@ def test_interactive_means_a_terminal_and_no_opt_out() -> None:
 
 def test_a_managed_token_is_not_reported_again_by_what_it_gates() -> None:
     script = _script()
-    for var in ("HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "MISTRAL_API_KEY", "HINDSIGHT_API_URL"):
+    for var in ("HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "HINDSIGHT_API_URL"):
         lines = [line.strip() for line in script.splitlines() if "warn " in line and f"{var} is not set" in line]
         for line in lines:
             idx = script.index(line)

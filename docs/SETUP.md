@@ -36,7 +36,10 @@ registry):
    service.
 2. It mints one service token per service for this machine, labelled
    `<host> agent-kit`, and checks each against its own host.
-3. It asks you to paste `MISTRAL_API_KEY` (Enter skips) and checks it.
+3. Mistral Vibe signs in with your own Mistral account (`vibe`, then sign
+   in), which keeps its key in the keychain itself. Setup asks for no Mistral
+   key: an exported `MISTRAL_API_KEY` would override that login, so a key an
+   earlier setup stored is removed from the keychain and `env.sh`.
 4. It stores each in the macOS keychain as `agent-kit.<VARIABLE>` (a 0600
    `~/.config/agent-kit/secrets.env` where there is no keychain). The
    private-bank token is the exception: it is sealed behind a passphrase you
@@ -55,7 +58,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `HINDSIGHT_API_URL` | anything that reads it; Coding Agents takes its URL from its own config | set by env.sh |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
 | `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | never exported; sealed behind your passphrase, given to `vibe` and `memory-private` per launch |
-| `MISTRAL_API_KEY` | Mistral Vibe itself; a dedicated per-host key, never the cluster's Hindsight or Karakeep keys | required for Vibe |
+| `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
 `HINDSIGHT_API_TOKEN` and `MEMORY_MCP_TOKEN` are **per-host, individually
@@ -76,7 +79,8 @@ the multi-bank `/mcp` root.
 ### Vibe's models
 
 Vibe lists only the models under `[[models]]` in `${VIBE_HOME}/config.toml`;
-its own default is Mistral Medium 3.5. With `MISTRAL_API_KEY` set, setup reads
+its own default is Mistral Medium 3.5. With the key Vibe signed in with (its
+keychain item, or `MISTRAL_API_KEY` in a cloud session), setup reads
 Mistral's model list (`scripts/vibe-sync-models.py`) and offers every chat
 model the key can use: one entry per underlying model, under its `-latest` id
 where there is one, so upgrades arrive on their own. Models without tool

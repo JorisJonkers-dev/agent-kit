@@ -187,7 +187,15 @@ def check(entry: dict[str, Any], value: str) -> str:
 
 
 def secrets(table: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [e for e in table if "value" not in e]
+    return [e for e in table if "value" not in e and not e.get("retired")]
+
+
+def retire(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> None:
+    """Drop values the registry no longer manages from the store."""
+    for entry in table:
+        if entry.get("retired") and keys.get(entry["env"]):
+            keys.delete(entry["env"])
+            say(f"{entry['env']}: retired, removed from the {keys.name}")
 
 
 # A gated value lives behind a passphrase only you know (installer/agent-kit-private).
@@ -344,6 +352,8 @@ def write_env(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> Path
     ]
     scoped = []
     for entry in table:
+        if entry.get("retired"):
+            continue
         var = entry["env"]
         if "value" in entry:
             lines.append(f'[ -n "${{{var}:-}}" ] || export {var}="{entry["value"]}"')
@@ -393,6 +403,7 @@ def wire_shell() -> None:
 
 def ensure(table: list[dict[str, Any]]) -> int:
     keys = store()
+    retire(table, keys)
     for entry in secrets(table):
         # A copy outside the gate was readable without the passphrase: drop it and mint anew.
         if gated(entry) and keys.get(entry["env"]):
@@ -483,7 +494,9 @@ def main(argv: list[str] | None = None) -> int:
         return ensure(table)
     if args.command == "status":
         return status(table)
-    write_env(table, store())
+    keys = store()
+    retire(table, keys)
+    write_env(table, keys)
     return 0
 
 

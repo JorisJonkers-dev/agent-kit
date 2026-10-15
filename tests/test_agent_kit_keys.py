@@ -329,6 +329,17 @@ def test_a_new_token_its_host_refuses_is_not_stored(home: dict, auth: tuple[Auth
     assert "HINDSIGHT_API_TOKEN" in _stored(home)
 
 
+def test_a_retired_value_leaves_the_keychain_and_env_sh(home: dict, auth: tuple[Auth, str]) -> None:
+    table = json.loads(home["table"].read_text())
+    table.append({"env": "OLD_KEY", "retired": True})
+    home["table"].write_text(json.dumps(table))
+    (home["keychain"] / "agent-kit.OLD_KEY").write_text("old_value")
+    assert _keys(home, "write-env").returncode == 0
+    assert not (home["keychain"] / "agent-kit.OLD_KEY").exists()
+    assert "OLD_KEY" not in _env_sh(home).read_text()
+    assert "OLD_KEY" not in _keys(home, "status").stdout
+
+
 def test_status_reports_without_asking(home: dict, auth: tuple[Auth, str]) -> None:
     _keys(home, "ensure", answers=ANSWERS)
     (home["keychain"] / "agent-kit.MEMORY_MCP_TOKEN").unlink()
