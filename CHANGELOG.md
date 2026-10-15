@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.8.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.3...v4.8.0) (2026-10-15)
+
+
+### Features
+
+* **private:** seal the private-bank token behind a passphrase ([#95](https://github.com/JorisJonkers-dev/agent-kit/issues/95)) ([761010a](https://github.com/JorisJonkers-dev/agent-kit/commit/761010a61a4063e4fb11ec3d0c4ee892ce503956))
+
 ## [4.7.3](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.2...v4.7.3) (2026-10-15)
 
 
