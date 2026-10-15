@@ -128,9 +128,18 @@ def auth() -> Iterator[tuple[Auth, str]]:
             if self.path == "/api/v1/admin/users/u1":
                 return self._send(200, {"id": "u1", "servicePermissions": sorted(state.grants)})
             if self.path == "/login":
-                return self._send(200, {"page": "login"})
+                # An HTML page, not JSON.
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<html>login</html>")
+                return None
             if self.path == "/api/v1/auth/logout":
-                return self._send(200)
+                # Like auth-api: sign-out ends on the login page.
+                self.send_response(302)
+                self.send_header("Location", "/login")
+                self.end_headers()
+                return None
             if self.path == "/mistral":
                 key = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
                 return self._send(200 if key == "mk_good" else 401)
@@ -216,6 +225,14 @@ def test_ensure_mints_grants_and_stores_everything(home: dict, auth: tuple[Auth,
     assert sorted(state.minted) == ["MEMORY_API", "MEMORY_MCP", "MEMORY_PRIVATE"]
     assert all(stored[k] in state.valid for k in ("HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "MEMORY_PRIVATE_TOKEN"))
     assert "GET /api/v1/auth/logout" in state.log
+
+
+def test_an_unexpected_failure_is_a_note_not_a_traceback(home: dict, auth: tuple[Auth, str]) -> None:
+    home["table"].write_text("[{]")
+    result = _keys(home, "status")
+    assert "Traceback" not in result.stderr
+    assert result.returncode == 1
+    assert "keys: stopped:" in result.stderr
 
 
 def test_secrets_never_reach_argv_or_output(home: dict, auth: tuple[Auth, str]) -> None:
