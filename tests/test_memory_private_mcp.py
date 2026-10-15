@@ -219,7 +219,7 @@ def test_claude_session_loads_the_private_config_and_never_auto_retains(tmp_path
     result = _session(tmp_path, "claude", "--resume")
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        f"claude --mcp-config={config} --disallowedTools=mcp__memory-api,mcp__memory-mcp --resume",
+        f"claude --mcp-config={config} --disallowedTools=mcp__memory-api,mcp__memory-mcp,mcp__hindsight --resume",
         "RETAIN=false",
     ]
 
@@ -235,7 +235,7 @@ def test_codex_session_switches_the_server_on_for_that_run_only(tmp_path: Path) 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         f"codex -c mcp_servers.{NAME}.enabled=true -c mcp_servers.memory-api.enabled=false"
-        " -c mcp_servers.memory-mcp.enabled=false exec hi",
+        " -c mcp_servers.memory-mcp.enabled=false -c mcp_servers.hindsight.enabled=false exec hi",
         "RETAIN=false",
     ]
 

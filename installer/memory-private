@@ -36,6 +36,8 @@ case "${cmd}" in
       exit 1
     fi
     export HINDSIGHT_AUTO_RETAIN=false
+    # Hindsight Coding Agents' hooks stay inert, so nothing reaches the shared bank.
+    export HINDSIGHT_DISABLED=true
     if [ "${cmd}" = claude ]; then
       config="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/memory-private.mcp.json"
       [ -f "${config}" ] || {
@@ -43,10 +45,10 @@ case "${cmd}" in
         exit 1
       }
       # `=` forms: both flags are variadic and would swallow a trailing prompt.
-      exec claude --mcp-config="${config}" --disallowedTools=mcp__memory-api,mcp__memory-mcp "$@"
+      exec claude --mcp-config="${config}" --disallowedTools=mcp__memory-api,mcp__memory-mcp,mcp__hindsight "$@"
     fi
     exec codex -c mcp_servers.memory-private.enabled=true -c mcp_servers.memory-api.enabled=false \
-      -c mcp_servers.memory-mcp.enabled=false "$@"
+      -c mcp_servers.memory-mcp.enabled=false -c mcp_servers.hindsight.enabled=false "$@"
     ;;
 esac
 dir="${2:-$PWD}"

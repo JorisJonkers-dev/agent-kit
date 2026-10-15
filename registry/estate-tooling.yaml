@@ -427,8 +427,6 @@ marketplaces:
     repo: LukasNiessen/kubernetes-skill
   - name: ai-software-architect
     repo: codenamev/ai-software-architect
-  - name: hindsight
-    repo: vectorize-io/hindsight
 
 # -------------------------------------------------------------------
 # Claude Code plugins.
@@ -507,23 +505,50 @@ plugins:
     cloud: false
     purpose: Architecture review personas. Off by default — large surface, rarely the right tool.
 
-  - name: hindsight-memory
+# Retired plugins: uninstalled, with their marketplace, on every run.
+retired_plugins:
+  # Deprecated upstream for Hindsight Coding Agents (coding_agents, below).
+  - ref: hindsight-memory@hindsight
     marketplace: hindsight
-    # main HEAD: vendor ships no tag past v0.7.5 for this plugin.
-    commit: 16d4025f882ba232a2d4c72abd1eb47420e68e17
-    enabled: true
-    purpose: Automatic Hindsight recall/retain for Claude Code via UserPromptSubmit/Stop hooks.
-    requires_env:
-      HINDSIGHT_API_URL: the estate Hindsight API, or it falls back to a personal local daemon
-      HINDSIGHT_API_TOKEN: per-host token from auth-api service-tokens (service MEMORY_API)
-    # Merged into the plugin's own user config. Unset, it uses bank
-    # `claude-code`, which hindsight-api.* does not route; dynamic bank ids
-    # would ignore bankId altogether, so both are pinned.
-    user_config:
-      path: .hindsight/claude-code.json
-      set:
-        bankId: default
-        dynamicBankId: false
+
+# -------------------------------------------------------------------
+# Hindsight Coding Agents: Hindsight's own plugin for Claude Code and
+# Codex, pinned and locked down. One npx install wires both agents' hooks
+# and a `hindsight` MCP server; the config below then turns it into recall
+# only. It recalls once, at a session's first prompt, from the shared bank
+# `default` (the only bank hindsight-api.* routes), and saves nothing on its
+# own: no session write-back, no git seeding, no codebase survey, no
+# knowledge-page refresh, no self-update from npm. Agents save deliberately,
+# under the memory policy in toolGuideExtra. The token is read from
+# HINDSIGHT_API_TOKEN, never written to the config.
+# -------------------------------------------------------------------
+coding_agents:
+  package: "@vectorize-io/hindsight-coding-agents"
+  version: "0.8.1"
+  harnesses: [claude-code, codex]
+  config:
+    apiUrl: "https://hindsight-api.jorisjonkers.dev"
+    bankId: default
+    dynamicBankId: false
+    retainSessions: false
+    autoSeed: false
+    codebaseSurvey: false
+    gitIngest: none
+    autoUpdate: false
+    manageBankConfig: false
+    autoInject: recall
+    injectTimeoutMs: 10000
+    # 20 facts by default; this keeps the first-prompt block to about 12.
+    recallOptions:
+      max_tokens: 1200
+    pageTriggerType: manual
+    toolGuideExtra: >-
+      Save to memory only what is worth keeping long-term: decisions and
+      their reasons, conventions, facts about people and the user, durable
+      project context that the code and git history do not already record,
+      and anything the user asks you to remember. Not small talk, not
+      passing task details or progress, never secrets. Update an existing
+      memory rather than adding a near-duplicate.
 
 # Spec Kit is deliberately absent. The `speckit.*` commands and skills are
 # not installed by this registry on any surface. The kit still renders its

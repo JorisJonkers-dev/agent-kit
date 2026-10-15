@@ -192,6 +192,15 @@ def validate(data: dict[str, Any]) -> None:
                     f"not {server['enabled_for']}",
                 )
 
+    ca = data.get("coding_agents")
+    if ca:
+        if not re.fullmatch(r"\d+\.\d+\.\d+", str(ca.get("version", ""))):
+            raise RegistryError(
+                "coding_agents.version must be an exact x.y.z: autoUpdate is off, so the pin is the version",
+            )
+        if "apiToken" in (ca.get("config") or {}):
+            raise RegistryError("coding_agents.config may not hold apiToken; it is read from HINDSIGHT_API_TOKEN")
+
     deny = data.get("claude_private_deny") or []
     if not isinstance(deny, list) or not all(isinstance(r, str) and r.endswith(")") for r in deny):
         raise RegistryError("claude_private_deny must be a list of Claude permission rules, like Read(~/.vibe/**)")
@@ -922,6 +931,47 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  done")
     w("}")
     w("")
+    ca = data.get("coding_agents")
+    if ca:
+        url = ca["config"]["apiUrl"]
+        want = json.dumps(ca["config"], sort_keys=True).replace("'", "'\\''")
+        w("# Hindsight Coding Agents, pinned and locked to recall only (registry: coding_agents).")
+        w("hindsight_coding_agents() {")
+        w('  [ "${CLOUD}" = 1 ] && return 0')
+        w("  if ! command -v npx >/dev/null 2>&1; then")
+        w('    warn "npx is not on PATH; Hindsight Coding Agents not installed"')
+        w("    return 0")
+        w("  fi")
+        w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+        w(f'    log "would install {ca["package"]}@{ca["version"]} for {" and ".join(ca["harnesses"])}"')
+        w("    return 0")
+        w("  fi")
+        w(f'  if npx -y {ca["package"]}@{ca["version"]} install {" ".join(ca["harnesses"])} '
+          f'--server self-hosted --api-url {url} </dev/null >/dev/null 2>&1; then')
+        w(f'    ok "Hindsight Coding Agents {ca["version"]} wired into {" and ".join(ca["harnesses"])}"')
+        w("  else")
+        w('    warn "Hindsight Coding Agents install failed"')
+        w("    return 0")
+        w("  fi")
+        w('  local config="${HOME}/.hindsight/coding-agent.json"')
+        w(f"  _merge_user_config \"${{config}}\" '{want}' \\")
+        w('    && ok "Hindsight Coding Agents locked to recall only (${config})" \\')
+        w('    || warn "could not write ${config}"')
+        w("  # The token comes from HINDSIGHT_API_TOKEN; a copied one never stays on disk.")
+        w('  python3 - "${config}" <<\'PY\' || warn "could not check ${config} for a token"')
+        w("import json, pathlib, sys")
+        w("path = pathlib.Path(sys.argv[1])")
+        w("data = json.loads(path.read_text() or '{}') if path.exists() else {}")
+        w("if data.pop('apiToken', None) is not None:")
+        w("    path.write_text(json.dumps(data, indent=2) + '\\n')")
+        w("PY")
+        w("  # Its installer registers the memory tools in the default profile only.")
+        w("  run claude_each_profile claude mcp remove --scope user hindsight >/dev/null 2>&1 || true")
+        w("  run claude_each_profile claude mcp add --scope user hindsight --env HINDSIGHT_MCP_HARNESS=claude-code \\")
+        w('    -- node "${HOME}/.hindsight/coding-agents/dist/mcp-server.js" >/dev/null 2>&1 \\')
+        w('    || warn "could not register the Hindsight memory tools in every Claude profile"')
+        w("}")
+        w("")
     w("# Removes a retired kit command, but only one setup wrote.")
     w("retire_kit_command() {")
     w('  local dest="${HOME}/.local/bin/$1"')
@@ -1598,6 +1648,14 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b("  fi")
         out.extend(_cloud_guard(block, plugin, "  "))
     w("")
+    for retired in data.get("retired_plugins") or []:
+        w(f'  # Retired: {retired["ref"]}.')
+        w(f'  if run claude plugin uninstall {retired["ref"]} >/dev/null 2>&1; then')
+        w(f'    ok "{retired["ref"]}: retired, uninstalled"')
+        w("  fi")
+        w(f'  run claude plugin marketplace remove {retired["marketplace"]} >/dev/null 2>&1 || true')
+    if data.get("coding_agents"):
+        w("  hindsight_coding_agents")
     w("  # memory-private on|off|status [DIR]: keeps a directory's sessions out of")
     w("  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).")
     w("  # memory-private claude|codex [ARGS]: one session with the private bank on.")

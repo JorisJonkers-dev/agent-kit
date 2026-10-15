@@ -147,14 +147,15 @@ def test_local_hermes_http_credential_becomes_a_bearer_header() -> None:
 def test_plugin_required_env_is_checked_and_reported() -> None:
     """An unset requires_env var is warned about by name, not silently ignored."""
     data = _registry()
-    plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
-    assert plugin.get("requires_env"), "hindsight-memory must declare requires_env"
+    plugin = data["plugins"][0]
+    plugin["requires_env"] = {"EXAMPLE_PLUGIN_TOKEN": "what it is for"}
     script = render_registry.render_setup_script(data)
+    name = plugin["name"]
     for var in plugin["requires_env"]:
         assert f'if [ -z "${{{var}:-}}" ]; then' in script
-        assert f'missing_plugin_env+=("hindsight-memory: export {var}")' in script
+        assert f'missing_plugin_env+=("{name}: export {var}")' in script
         # The warning is what puts it on the closing to-do list.
-        assert f'warn "hindsight-memory: {var} is not set' in script
+        assert f'warn "{name}: {var} is not set' in script
     assert 'missing_plugin_env=()' in script
 
 
@@ -1061,62 +1062,11 @@ def test_memory_api_uses_the_shared_bank_endpoint() -> None:
     assert "hindsight-api.jorisjonkers.dev/mcp " not in script
 
 
-def _user_config_block(script: str, path_fragment: str) -> str:
-    start = script.index(f'_merge_user_config "${{HOME}}/{path_fragment}"')
-    return script[start : script.index("\n", start)]
-
-
-def _run_user_config(tmp_path: Path, check_only: int = 0) -> subprocess.CompletedProcess:
-    script = render_registry.render_setup_script(_registry())
-    fn_start = script.index("_merge_user_config() {")
-    fn = script[fn_start : script.index("\n}\n", fn_start) + 3]
-    body = f"""
-CHECK_ONLY={check_only}
-log()  {{ echo "log $*"; }}
-ok()   {{ echo "ok $*"; }}
-warn() {{ echo "warn $*"; }}
-{fn}
-{_user_config_block(script, ".hindsight/claude-code.json")}
-"""
-    env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}
-    return subprocess.run(["bash", "-c", body], env=env, capture_output=True, text=True, check=False)
-
-
-def test_hindsight_plugin_is_pointed_at_the_shared_bank(tmp_path: Path) -> None:
-    """Unset, the plugin uses bank `claude-code`, which the shared host does not route."""
-    config = tmp_path / ".hindsight" / "claude-code.json"
-    config.parent.mkdir()
-    config.write_text(json.dumps({"bankId": "claude-code", "recallBudget": "high"}))
-
-    result = _run_user_config(tmp_path)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    data = json.loads(config.read_text())
-    assert data["bankId"] == "default"
-    assert data["dynamicBankId"] is False, "dynamic bank ids would ignore bankId"
-    assert data["recallBudget"] == "high", "keys the registry does not manage must survive"
-
-
-def test_hindsight_plugin_config_is_created_and_idempotent(tmp_path: Path) -> None:
-    config = tmp_path / ".hindsight" / "claude-code.json"
-    assert _run_user_config(tmp_path).returncode == 0
-    first = config.read_text()
-    assert _run_user_config(tmp_path).returncode == 0
-    assert config.read_text() == first
-    assert json.loads(first) == {"bankId": "default", "dynamicBankId": False}
-
-
-def test_hindsight_plugin_config_is_untouched_in_check_mode(tmp_path: Path) -> None:
-    result = _run_user_config(tmp_path, check_only=1)
-    assert result.returncode == 0
-    assert not (tmp_path / ".hindsight").exists()
-
-
 @pytest.mark.parametrize("bad", ["/etc/hindsight.json", "~/.hindsight/x.json", "../outside.json", ""])
 def test_plugin_user_config_path_stays_under_home(bad: str) -> None:
     data = _registry()
-    plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
-    plugin["user_config"]["path"] = bad
+    plugin = data["plugins"][0]
+    plugin["user_config"] = {"path": bad, "set": {"key": "value"}}
     with pytest.raises(render_registry.RegistryError, match="relative to \\$HOME"):
         render_registry.validate(data)
 
@@ -1124,8 +1074,8 @@ def test_plugin_user_config_path_stays_under_home(bad: str) -> None:
 @pytest.mark.parametrize("bad", [{"bankId": "it's"}, {"it's": "x"}])
 def test_plugin_user_config_set_may_not_break_shell_quoting(bad: dict) -> None:
     data = _registry()
-    plugin = next(p for p in data["plugins"] if p["name"] == "hindsight-memory")
-    plugin["user_config"]["set"] = bad
+    plugin = data["plugins"][0]
+    plugin["user_config"] = {"path": ".example/config.json", "set": bad}
     with pytest.raises(render_registry.RegistryError, match="single quote"):
         render_registry.validate(data)
 
