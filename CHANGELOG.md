@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.7.0...v4.7.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **setup:** fetch the kit bundle by its checksum, past the CDN cache ([#89](https://github.com/JorisJonkers-dev/agent-kit/issues/89)) ([811b7ff](https://github.com/JorisJonkers-dev/agent-kit/commit/811b7ff549a1af2cf53a7a8b2d0d5ef7b31e17c2))
+
 ## [4.7.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.6.0...v4.7.0) (2026-10-15)
 
 
