@@ -45,7 +45,7 @@ KIT_PATHS=(
   installer/port-forward-agent.sh
   installer/cloud-session.sh
   installer/memory-private
-  installer/vibe-retain-private
+  installer/agent-kit-private
   installer/vibe-hooks.toml
   registry/generated/claude/memory-private.mcp.json
   scripts/hermes-merge-mcp.py

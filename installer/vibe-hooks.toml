@@ -1,10 +1,4 @@
 # Mistral Vibe hooks, merged into ${VIBE_HOME}/hooks.toml by
 # scripts/vibe-merge-mcp.py --key hooks. Hooks named here are replaced on
-# every run; any other hook in that file is left alone.
-
-[[hooks]]
-name = "agent-kit-retain-private"
-type = "post_agent"
-command = '"$HOME/.local/bin/vibe-retain-private"'
-timeout = 20.0
-description = "Retain this turn into the private Hindsight bank"
+# every run; any other hook in that file is left alone. None today: Vibe
+# saves to memory by tool, only what matters (see its AGENTS.md).

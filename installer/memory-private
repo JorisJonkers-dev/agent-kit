@@ -28,10 +28,13 @@ cmd="$1"
 case "${cmd}" in
   claude | codex)
     shift
-    [ -n "${MEMORY_PRIVATE_TOKEN:-}" ] || {
-      echo "memory-private: MEMORY_PRIVATE_TOKEN is not set (a MEMORY_PRIVATE service token)" >&2
+    if [ -z "${MEMORY_PRIVATE_TOKEN:-}" ]; then
+      # The token sits behind a passphrase; the gate asks for it and runs this again.
+      command -v agent-kit-private >/dev/null 2>&1 \
+        && exec agent-kit-private exec "$0" "${cmd}" "$@"
+      echo "memory-private: MEMORY_PRIVATE_TOKEN is not set and agent-kit-private is not installed; run setup-workstation" >&2
       exit 1
-    }
+    fi
     export HINDSIGHT_AUTO_RETAIN=false
     if [ "${cmd}" = claude ]; then
       config="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/memory-private.mcp.json"

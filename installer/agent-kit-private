@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+# managed by agent-kit setup-workstation.sh
+"""The private-bank token, behind a passphrase only you know.
+
+    agent-kit-private store            token on stdin; asks the passphrase
+    agent-kit-private exec CMD [ARGS]  asks the passphrase, runs CMD with
+                                       MEMORY_PRIVATE_TOKEN set for it alone
+    agent-kit-private status           present or missing; asks nothing
+
+The token is kept encrypted (openssl AES-256-CBC, PBKDF2 600k rounds) in a
+0600 file in a 0700 folder, and decrypted only for a launch you type the
+passphrase for at a terminal. Claude and Codex can read the file but get
+ciphertext, and without a terminal they get no prompt at all. The passphrase
+and the token never reach argv: openssl reads the passphrase from a pipe.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+import termios
+from pathlib import Path
+
+VAR = "MEMORY_PRIVATE_TOKEN"
+SAFE = re.compile(r"^[A-Za-z0-9._~+/=-]+$")
+CIPHER = ["enc", "-aes-256-cbc", "-pbkdf2", "-iter", "600000"]
+MIN_LENGTH = 8
+_tty: int | None = None
+
+
+def sealed() -> Path:
+    return Path.home() / ".config" / "agent-kit" / "private" / f"{VAR}.enc"
+
+
+def fail(message: str) -> int:
+    print(f"agent-kit-private: {message}", file=sys.stderr)
+    return 1
+
+
+def _readline(fd: int) -> str:
+    data = b""
+    while not data.endswith(b"\n"):
+        chunk = os.read(fd, 1)
+        if not chunk:
+            break
+        data += chunk
+    return data.decode(errors="replace").rstrip("\r\n")
+
+
+def ask(prompt: str) -> str:
+    """One hidden answer from the terminal, never from stdin."""
+    global _tty
+    if _tty is None:
+        try:
+            # A raw descriptor: Python's text mode refuses a terminal opened read-write.
+            _tty = os.open(os.environ.get("AGENT_KIT_TTY", "/dev/tty"), os.O_RDWR | os.O_NOCTTY)
+        except OSError:
+            raise SystemExit(fail("needs a terminal to ask for the passphrase")) from None
+    if not os.isatty(_tty):
+        print(prompt, end="", file=sys.stderr, flush=True)
+        return _readline(_tty)
+    old = termios.tcgetattr(_tty)
+    new = termios.tcgetattr(_tty)
+    new[3] &= ~termios.ECHO
+    os.write(_tty, prompt.encode())
+    try:
+        termios.tcsetattr(_tty, termios.TCSAFLUSH, new)
+        answer = _readline(_tty)
+    finally:
+        termios.tcsetattr(_tty, termios.TCSAFLUSH, old)
+        os.write(_tty, b"\n")
+    return answer
+
+
+def openssl(extra: list[str], data: bytes, passphrase: str) -> subprocess.CompletedProcess[bytes]:
+    read, write = os.pipe()
+    os.write(write, passphrase.encode() + b"\n")
+    os.close(write)
+    try:
+        return subprocess.run(
+            ["openssl", *CIPHER, *extra, "-pass", f"fd:{read}"],
+            input=data, capture_output=True, pass_fds=(read,), check=False,
+        )
+    finally:
+        os.close(read)
+
+
+def unseal(passphrase: str) -> str:
+    out = openssl(["-d"], sealed().read_bytes(), passphrase)
+    token = out.stdout.decode(errors="replace").strip() if out.returncode == 0 else ""
+    return token if SAFE.match(token) else ""
+
+
+def store() -> int:
+    token = sys.stdin.read().strip()
+    if not SAFE.match(token):
+        return fail("expected one token on stdin")
+    if sealed().is_file():
+        passphrase = ask("Passphrase for the private bank: ")
+        if not unseal(passphrase):
+            return fail("wrong passphrase; the stored token is unchanged")
+    else:
+        print("Choose a passphrase for the private bank. Not your login password: "
+              "it is asked at every vibe launch, and nothing can recover it.", file=sys.stderr)
+        passphrase = ask("New passphrase: ")
+        if len(passphrase) < MIN_LENGTH:
+            return fail(f"the passphrase needs at least {MIN_LENGTH} characters")
+        if ask("Same passphrase again: ") != passphrase:
+            return fail("the passphrases differ; nothing stored")
+    out = openssl(["-salt"], token.encode(), passphrase)
+    if out.returncode != 0:
+        return fail("openssl could not encrypt the token")
+    path = sealed()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
+    temp = path.with_suffix(".tmp")
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(out.stdout)
+    os.replace(temp, path)
+    if unseal(passphrase) != token:
+        return fail("the stored token did not read back")
+    return 0
+
+
+def run(command: list[str]) -> int:
+    if not command:
+        return fail("usage: agent-kit-private exec CMD [ARGS]")
+    env = dict(os.environ)
+    if not env.get(VAR):
+        if not sealed().is_file():
+            return fail("no private-bank token stored; run setup-workstation in a terminal")
+        token = unseal(ask("Passphrase for the private bank: "))
+        if not token:
+            return fail("wrong passphrase")
+        env[VAR] = token
+    os.execvpe(command[0], command, env)
+    return 1
+
+
+def main(argv: list[str]) -> int:
+    if argv[:1] == ["store"]:
+        return store()
+    if argv[:1] == ["exec"]:
+        return run(argv[1:])
+    if argv[:1] == ["status"]:
+        print("present" if sealed().is_file() else "missing")
+        return 0
+    return fail("usage: agent-kit-private store|exec CMD [ARGS]|status")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None

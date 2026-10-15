@@ -39,6 +39,12 @@ if sys.argv[1:2] == ["-i"]:
         if args and args[0] == "add-generic-password":
             add(args[1:])
     sys.exit(0)
+if sys.argv[1] == "delete-generic-password":
+    path = os.path.join(store, sys.argv[sys.argv.index("-s") + 1])
+    if not os.path.exists(path):
+        sys.exit(44)
+    os.remove(path)
+    sys.exit(0)
 if sys.argv[1] == "find-generic-password":
     s = sys.argv[sys.argv.index("-s") + 1]
     path = os.path.join(store, s)
@@ -59,6 +65,7 @@ class Auth:
         self.minted: list[str] = []
         self.valid: set[str] = set()
         self.refused_services: set[str] = set()
+        self.revoked: list[str] = []
         self.log: list[str] = []
 
 
@@ -145,6 +152,16 @@ def auth() -> Iterator[tuple[Auth, str]]:
                 return self._send(200 if key == "mk_good" else 401)
             return self._send(404)
 
+        def do_DELETE(self) -> None:
+            state.log.append(f"DELETE {self.path}")
+            prefix = "/api/v1/auth/service-tokens/"
+            if self.path.startswith(prefix) and self._signed_in() and self._xsrf():
+                state.revoked.append(self.path[len(prefix):])
+                self.send_response(204)
+                self.end_headers()
+                return None
+            return self._send(403)
+
         def do_PUT(self) -> None:
             state.log.append(f"PUT {self.path}")
             if self.path == "/api/v1/admin/users/u1/services" and self._signed_in() and self._xsrf():
@@ -166,10 +183,33 @@ def _table(base: str) -> list[dict]:
         {"env": "HINDSIGHT_API_URL", "value": "https://hindsight-api.jorisjonkers.dev", "export": True},
         {"env": "HINDSIGHT_API_TOKEN", "grant": "MEMORY_API", "check": f"{base}/check/api", "export": True},
         {"env": "MEMORY_MCP_TOKEN", "grant": "MEMORY_MCP", "check": f"{base}/check/mcp", "export": True},
-        {"env": "MEMORY_PRIVATE_TOKEN", "grant": "MEMORY_PRIVATE", "check": f"{base}/check/private", "export": False},
+        {"env": "MEMORY_PRIVATE_TOKEN", "grant": "MEMORY_PRIVATE", "check": f"{base}/check/private", "export": False,
+         "gate": "passphrase"},
         {"env": "MISTRAL_API_KEY", "paste": "a Mistral key for this machine", "check": f"{base}/mistral",
          "check_method": "GET", "export": True},
     ]
+
+
+GATE_PASSPHRASE = "correct horse"
+
+
+def _tty(tmp_path: Path) -> Path:
+    tty = tmp_path / "tty"
+    tty.write_text(f"{GATE_PASSPHRASE}\n{GATE_PASSPHRASE}\n")
+    return tty
+
+
+def _gated(home: dict) -> Path:
+    return Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "private" / "MEMORY_PRIVATE_TOKEN.enc"
+
+
+def _unseal(home: dict) -> str:
+    out = subprocess.run(
+        ["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", "600000", "-pass", "stdin",
+         "-in", str(_gated(home))],
+        input=GATE_PASSPHRASE + "\n", capture_output=True, text=True, check=False,
+    )
+    return out.stdout.strip()
 
 
 @pytest.fixture
@@ -192,6 +232,7 @@ def home(tmp_path: Path, auth: tuple[Auth, str]) -> dict:
             "HOME": str(tmp_path / "home"),
             "SHELL": "/bin/zsh",
             "FAKE_KEYCHAIN": str(keychain),
+            "AGENT_KIT_TTY": str(_tty(tmp_path)),
             "AGENT_KIT_AUTH_URL": base,
         },
     }
@@ -218,7 +259,9 @@ def test_ensure_mints_grants_and_stores_everything(home: dict, auth: tuple[Auth,
     result = _keys(home, "ensure", answers=ANSWERS)
     assert result.returncode == 0, result.stderr
     stored = _stored(home)
-    assert set(stored) == {"HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "MEMORY_PRIVATE_TOKEN", "MISTRAL_API_KEY"}
+    assert set(stored) == {"HINDSIGHT_API_TOKEN", "MEMORY_MCP_TOKEN", "MISTRAL_API_KEY"}
+    # The private token is behind the passphrase, not in the keychain.
+    stored["MEMORY_PRIVATE_TOKEN"] = _unseal(home)
     assert stored["MISTRAL_API_KEY"] == "mk_good"
     assert {"MEMORY_MCP", "MEMORY_PRIVATE"} <= state.grants, "missing grants were added"
     assert "MEMORY_API" in state.grants, "existing grants were kept"
@@ -264,12 +307,25 @@ def test_an_invalid_stored_token_is_replaced(home: dict, auth: tuple[Auth, str])
     assert _stored(home)["MEMORY_MCP_TOKEN"] in state.valid
 
 
+def test_a_replaced_token_is_revoked_not_just_forgotten(home: dict, auth: tuple[Auth, str]) -> None:
+    state, _ = auth
+    _keys(home, "ensure", answers=ANSWERS)
+    first_mcp_id = str(state.minted.index("MEMORY_MCP") + 1)
+    state.valid.discard(_stored(home)["MEMORY_MCP_TOKEN"])
+    assert _keys(home, "ensure", answers="me@example.com\npw\n123456\n").returncode == 0
+    assert state.revoked == [first_mcp_id]
+    ids = json.loads((Path(home["env"]["HOME"]) / ".config" / "agent-kit" / "token-ids.json").read_text())
+    assert ids["MEMORY_MCP_TOKEN"] == str(len(state.minted))
+    assert all(token not in json.dumps(ids) for token in state.valid), "ids only, never tokens"
+
+
 def test_a_new_token_its_host_refuses_is_not_stored(home: dict, auth: tuple[Auth, str]) -> None:
     state, _ = auth
     state.refused_services = {"MEMORY_MCP"}
     result = _keys(home, "ensure", answers=ANSWERS)
     assert "MEMORY_MCP_TOKEN" not in _stored(home)
     assert "MEMORY_MCP_TOKEN: the new token is refused by its host" in result.stderr
+    assert state.revoked == [str(state.minted.index("MEMORY_MCP") + 1)], "a discarded token is revoked"
     assert "HINDSIGHT_API_TOKEN" in _stored(home)
 
 
@@ -294,7 +350,30 @@ def test_a_skipped_answer_leaves_the_rest_done(home: dict, auth: tuple[Auth, str
     result = _keys(home, "ensure", answers="me@example.com\npw\n123456\n\ny\n")
     assert result.returncode == 0, result.stderr
     assert "MISTRAL_API_KEY" not in _stored(home)
-    assert "MEMORY_PRIVATE_TOKEN" in _stored(home)
+    assert _unseal(home) in state_tokens(auth)
+
+
+def state_tokens(auth: tuple[Auth, str]) -> set[str]:
+    return auth[0].valid
+
+
+def test_a_private_token_left_in_the_keychain_is_removed_and_replaced_behind_the_gate(
+    home: dict, auth: tuple[Auth, str],
+) -> None:
+    state, _ = auth
+    (home["keychain"] / "agent-kit.MEMORY_PRIVATE_TOKEN").write_text("smt_old_exposed")
+    result = _keys(home, "ensure", answers=ANSWERS)
+    assert result.returncode == 0, result.stderr
+    assert not (home["keychain"] / "agent-kit.MEMORY_PRIVATE_TOKEN").exists()
+    assert "MEMORY_PRIVATE" in state.minted
+    assert _unseal(home) in state.valid and _unseal(home) != "smt_old_exposed"
+
+
+def test_status_of_the_gated_token_asks_nothing(home: dict, auth: tuple[Auth, str]) -> None:
+    _keys(home, "ensure", answers=ANSWERS)
+    home["env"]["AGENT_KIT_TTY"] = str(home["tmp"] / "no-terminal")
+    lines = dict(line.split(" ", 1) for line in _keys(home, "status").stdout.splitlines())
+    assert lines["MEMORY_PRIVATE_TOKEN"] == "ok"
 
 
 def test_a_non_admin_without_a_grant_is_told_who_can_fix_it(home: dict, auth: tuple[Auth, str]) -> None:
@@ -337,16 +416,21 @@ def test_env_sh_exports_the_shared_values_and_scopes_the_private_token(home: dic
         ), out.stderr
 
 
-def test_env_sh_hands_the_private_token_to_vibe_and_memory_private_only(home: dict, auth: tuple[Auth, str]) -> None:
+def test_env_sh_launches_vibe_through_the_gate_and_exports_nothing_private(home: dict, auth: tuple[Auth, str]) -> None:
     _keys(home, "ensure", answers=ANSWERS)
     bin_dir = home["tmp"] / "bin"
-    for name in ("vibe", "memory-private"):
-        (bin_dir / name).write_text('#!/bin/sh\nprintf "%s\\n" "${MEMORY_PRIVATE_TOKEN:-unset}"\n')
-        (bin_dir / name).chmod(0o755)
-    probe = f'. "{_env_sh(home)}"; vibe; memory-private claude; printf "%s\\n" "${{MEMORY_PRIVATE_TOKEN:-unset}}"'
+    (bin_dir / "vibe").write_text('#!/bin/sh\nprintf "%s\\n" "${MEMORY_PRIVATE_TOKEN:-unset}"\n')
+    (bin_dir / "vibe").chmod(0o755)
+    gate = bin_dir / "agent-kit-private"
+    gate.write_text((KIT_ROOT / "installer" / "agent-kit-private").read_text().replace(
+        "/usr/bin/env python3", sys.executable, 1))
+    gate.chmod(0o755)
+    (home["tmp"] / "tty").write_text(f"{GATE_PASSPHRASE}\n")
+    probe = f'. "{_env_sh(home)}"; vibe; printf "%s\\n" "${{MEMORY_PRIVATE_TOKEN:-unset}}"'
     out = subprocess.run(["/bin/bash", "-c", probe], capture_output=True, text=True, env=home["env"], check=False)
-    token = _stored(home)["MEMORY_PRIVATE_TOKEN"]
-    assert out.stdout.splitlines() == [token, token, "unset"]
+    assert out.stdout.splitlines() == [_unseal(home), "unset"], out.stderr
+    assert "MEMORY_PRIVATE_TOKEN" not in _env_sh(home).read_text().split("vibe()")[0].split("unset _agent_kit_v")[-1]
+    assert "_agent_kit_secret MEMORY_PRIVATE_TOKEN" not in _env_sh(home).read_text()
 
 
 def test_a_value_already_in_the_environment_wins(home: dict, auth: tuple[Auth, str]) -> None:

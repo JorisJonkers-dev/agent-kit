@@ -186,6 +186,45 @@ if any(back.get(k) != v for k, v in want.items()):
 PY
 }
 
+# Joins the private-bank deny rules to each Claude profile's own; nothing else changes.
+claude_private_denies() {
+  [ "${CLOUD}" = 1 ] && return 0
+  local profile_dir
+  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would add the private-bank deny rules to ${profile_dir}/settings.json"
+      continue
+    fi
+    python3 - "${profile_dir}/settings.json" '["Read(~/.vibe/**)", "Edit(~/.vibe/**)", "Bash(*.vibe*)", "Read(~/.config/agent-kit/private/**)", "Edit(~/.config/agent-kit/private/**)", "Bash(*agent-kit/private*)", "Bash(*agent-kit-private*)"]' <<'PY' \
+      && ok "private-bank deny rules in ${profile_dir}/settings.json" \
+      || fail "could not add the private-bank deny rules to ${profile_dir}/settings.json"
+import json, pathlib, sys
+path, rules = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
+data = json.loads(path.read_text() or '{}') if path.exists() else {}
+deny = data.setdefault('permissions', {}).setdefault('deny', [])
+missing = [r for r in rules if r not in deny]
+if missing:
+    deny.extend(missing)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + '\n')
+back = json.loads(path.read_text())['permissions']['deny']
+if any(r not in back for r in rules):
+    raise SystemExit(f'{path}: deny rules did not read back')
+PY
+  done
+}
+
+# Removes a retired kit command, but only one setup wrote.
+retire_kit_command() {
+  local dest="${HOME}/.local/bin/$1"
+  grep -qxF "# managed by agent-kit setup-workstation.sh" "${dest}" 2>/dev/null || return 0
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired ${dest}"
+    return 0
+  fi
+  rm -f "${dest}" && ok "$1: retired, removed ${dest}"
+}
+
 # Copies a kit command onto PATH. A file there that setup did not write is left alone.
 install_kit_command() {
   local name="$1"
@@ -248,8 +287,12 @@ Two Hindsight banks are connected. At the start of a task, recall from both:
 memory-private for personal context (people, plans, private notes) and
 memory-api for estate and programming knowledge.
 
-Each turn is retained into memory-private automatically. Never retain
-personal notes into memory-api: Hermes and every other agent read it.
+Save to memory-private only what is worth keeping long-term: facts about
+people and the user, plans, decisions and their reasons, and anything the
+user asks you to remember. Not small talk, not passing task details, never
+secrets. Update an existing memory rather than adding a near-duplicate.
+Never retain personal notes into memory-api: Hermes and every other agent
+read it.
 EOF
   ok "Vibe AGENTS.md pointer -> ${file}"
 }
@@ -903,6 +946,11 @@ else
   log "secondary claude profiles skipped (--no-profiles)"
 fi
 
+# Claude Code may not read or run anything that touches the private bank's
+# files: Vibe's home (its session logs) and the gated token. Against accidents,
+# not a determined agent; the passphrase is the boundary.
+claude_private_denies
+
 # -----------------------------------------------------------------
 # 3. Claude Code marketplaces and plugins.
 #
@@ -1034,8 +1082,10 @@ else
   # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).
   # memory-private claude|codex [ARGS]: one session with the private bank on.
   install_kit_command memory-private
-  # vibe-retain-private: Vibe's post_agent hook, retains into the private bank.
-  install_kit_command vibe-retain-private
+  # agent-kit-private: the private-bank token behind your passphrase.
+  install_kit_command agent-kit-private
+  # Retired: Vibe saves to memory by tool now, not every turn.
+  retire_kit_command vibe-retain-private
 
   # ---------------------------------------------------------------
   # 4. Plugin drift detection.
@@ -1688,9 +1738,7 @@ for install in installs:
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
-        # Vibe's automatic memory goes to the private bank only (fleet-infra#399).
-        vibe_hooks_remove=()
-        [ "${CLOUD}" = 1 ] && vibe_hooks_remove=(--remove agent-kit-retain-private)
+        vibe_hooks_remove=(--remove agent-kit-retain-private)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/installer/vibe-hooks.toml" --key hooks --config "${VIBE_HOME}/hooks.toml" ${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"} \
           && ok "Vibe hooks merged" \
