@@ -214,7 +214,6 @@ PY
 
 # Hindsight Coding Agents, pinned and locked to recall only (registry: coding_agents).
 hindsight_coding_agents() {
-  [ "${CLOUD}" = 1 ] && return 0
   if ! command -v npx >/dev/null 2>&1; then
     warn "npx is not on PATH; Hindsight Coding Agents not installed"
     return 0
@@ -1090,7 +1089,7 @@ else
   run claude plugin marketplace remove hindsight >/dev/null 2>&1 || true
   hindsight_coding_agents
   # memory-private on|off|status [DIR]: keeps a directory's sessions out of
-  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).
+  # the shared Hindsight bank (HINDSIGHT_DISABLED=true in its local settings).
   # memory-private claude|codex [ARGS]: one session with the private bank on.
   install_kit_command memory-private
   # agent-kit-private: the private-bank token behind your passphrase.

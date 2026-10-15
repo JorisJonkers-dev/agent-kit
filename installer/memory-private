@@ -4,17 +4,18 @@
 # memory-private on|off|status [DIR]
 # memory-private claude|codex [ARGS...]
 #
-# Keeps a directory's Claude Code sessions out of the shared Hindsight bank.
-# The hindsight-memory plugin retains nothing when HINDSIGHT_AUTO_RETAIN is
-# false, and Claude Code passes a project's .claude/settings.local.json `env`
-# block to its hooks, so `on` sets that one key there (recall is unaffected).
-# The file is Claude Code's per-user, git-ignored settings; every other key in
-# it is kept. For a single session instead: HINDSIGHT_AUTO_RETAIN=false claude
+# Keeps a directory's Claude Code sessions away from the shared Hindsight bank.
+# Hindsight Coding Agents goes inert when HINDSIGHT_DISABLED is true, and
+# Claude Code passes a project's .claude/settings.local.json `env` block to its
+# hooks, so `on` sets that one key there: no shared-bank recall in that
+# directory. The file is Claude Code's per-user, git-ignored settings; every
+# other key in it is kept. For a single session instead:
+# HINDSIGHT_DISABLED=true claude
 #
 # `claude` and `codex` open one session with the private Hindsight bank (the
 # memory-private MCP server, switched off everywhere else), with the shared
-# stores Hermes reads (memory-api, memory-mcp) off and auto-retain off, so
-# nothing from that session lands where Hermes can see it.
+# stores Hermes reads (memory-api, memory-mcp, hindsight) off, so nothing from
+# that session lands where Hermes can see it.
 set -euo pipefail
 
 usage() {
@@ -35,7 +36,6 @@ case "${cmd}" in
       echo "memory-private: MEMORY_PRIVATE_TOKEN is not set and agent-kit-private is not installed; run setup-workstation" >&2
       exit 1
     fi
-    export HINDSIGHT_AUTO_RETAIN=false
     # Hindsight Coding Agents' hooks stay inert, so nothing reaches the shared bank.
     export HINDSIGHT_DISABLED=true
     if [ "${cmd}" = claude ]; then
@@ -60,17 +60,17 @@ import json, pathlib, sys
 
 cmd, root = sys.argv[1], pathlib.Path(sys.argv[2]).resolve()
 path = root / ".claude" / "settings.local.json"
-KEY = "HINDSIGHT_AUTO_RETAIN"
+KEY = "HINDSIGHT_DISABLED"
 data = json.loads(path.read_text() or "{}") if path.exists() else {}
 env = data.get("env") or {}
 
 if cmd == "status":
-    private = str(env.get(KEY, "")).lower() == "false"
-    print(f"{root}: {'private (no auto-retain)' if private else 'not private (auto-retain on)'}")
+    private = str(env.get(KEY, "")).lower() == "true"
+    print(f"{root}: {'private (no shared-bank memory)' if private else 'not private (shared-bank memory on)'}")
     raise SystemExit(0)
 
 if cmd == "on":
-    env[KEY] = "false"
+    env[KEY] = "true"
     data["env"] = env
 else:
     env.pop(KEY, None)
@@ -82,10 +82,10 @@ else:
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, indent=2) + "\n")
 back = (json.loads(path.read_text()).get("env") or {}).get(KEY)
-if (cmd == "on") != (back == "false"):
+if (cmd == "on") != (back == "true"):
     print(f"memory-private: {path} did not take the change", file=sys.stderr)
     raise SystemExit(1)
-state = "private: Claude Code sessions here no longer auto-retain" if cmd == "on" else "auto-retain restored"
+state = "private: Claude Code sessions here no longer use the shared bank" if cmd == "on" else "shared-bank memory restored"
 print(f"{root}: {state}")
 PY
 

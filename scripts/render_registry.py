@@ -937,7 +937,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
         want = json.dumps(ca["config"], sort_keys=True).replace("'", "'\\''")
         w("# Hindsight Coding Agents, pinned and locked to recall only (registry: coding_agents).")
         w("hindsight_coding_agents() {")
-        w('  [ "${CLOUD}" = 1 ] && return 0')
         w("  if ! command -v npx >/dev/null 2>&1; then")
         w('    warn "npx is not on PATH; Hindsight Coding Agents not installed"')
         w("    return 0")
@@ -1657,7 +1656,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     if data.get("coding_agents"):
         w("  hindsight_coding_agents")
     w("  # memory-private on|off|status [DIR]: keeps a directory's sessions out of")
-    w("  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).")
+    w("  # the shared Hindsight bank (HINDSIGHT_DISABLED=true in its local settings).")
     w("  # memory-private claude|codex [ARGS]: one session with the private bank on.")
     w("  install_kit_command memory-private")
     w("  # agent-kit-private: the private-bank token behind your passphrase.")

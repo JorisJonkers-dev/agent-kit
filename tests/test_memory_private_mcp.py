@@ -194,7 +194,7 @@ def _stub(bin_dir: Path, name: str) -> None:
     path.write_text(
         "#!/usr/bin/env bash\n"
         f'printf "{name}"; printf " %s" "$@"; printf "\\n"\n'
-        'printf "RETAIN=%s\\n" "${HINDSIGHT_AUTO_RETAIN:-unset}"\n',
+        'printf "DISABLED=%s\\n" "${HINDSIGHT_DISABLED:-unset}"\n',
     )
     path.chmod(0o755)
 
@@ -211,7 +211,7 @@ def _session(tmp_path: Path, *args: str, token: str | None = "smt_x") -> subproc
     return subprocess.run(["bash", str(CMD), *args], capture_output=True, text=True, check=False, env=env)
 
 
-def test_claude_session_loads_the_private_config_and_never_auto_retains(tmp_path: Path) -> None:
+def test_claude_session_loads_the_private_config_and_leaves_the_shared_bank_alone(tmp_path: Path) -> None:
     config = tmp_path / "cfg" / "agent-kit" / f"{NAME}.mcp.json"
     config.parent.mkdir(parents=True)
     config.write_text("{}")
@@ -220,7 +220,7 @@ def test_claude_session_loads_the_private_config_and_never_auto_retains(tmp_path
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         f"claude --mcp-config={config} --disallowedTools=mcp__memory-api,mcp__memory-mcp,mcp__hindsight --resume",
-        "RETAIN=false",
+        "DISABLED=true",
     ]
 
 
@@ -236,7 +236,7 @@ def test_codex_session_switches_the_server_on_for_that_run_only(tmp_path: Path) 
     assert result.stdout.splitlines() == [
         f"codex -c mcp_servers.{NAME}.enabled=true -c mcp_servers.memory-api.enabled=false"
         " -c mcp_servers.memory-mcp.enabled=false -c mcp_servers.hindsight.enabled=false exec hi",
-        "RETAIN=false",
+        "DISABLED=true",
     ]
 
 

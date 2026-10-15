@@ -162,10 +162,11 @@ def test_every_claude_profile_gets_the_memory_tools(tmp_path: Path) -> None:
     assert all(c.endswith("/.hindsight/coding-agents/dist/mcp-server.js") for c in adds)
 
 
-def test_a_cloud_run_installs_nothing(tmp_path: Path) -> None:
+def test_a_cloud_session_gets_it_too(tmp_path: Path) -> None:
+    # The old plugin ran in cloud sessions; recall must not quietly vanish there.
     result, log = _run(tmp_path, cloud=True)
-    assert result.returncode == 0
-    assert not log.exists()
+    assert result.returncode == 0, result.stderr
+    assert any(c.startswith(f"npx -y {PACKAGE}@") for c in log.read_text().splitlines())
 
 
 def test_setup_runs_it_after_the_plugins() -> None:
