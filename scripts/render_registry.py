@@ -40,6 +40,7 @@ HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_HOOKS = Path("installer/vibe-hooks.toml")
+SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 CLAUDE_SESSION_MCP_DIR = Path("registry/generated/claude")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
@@ -189,6 +190,15 @@ def validate(data: dict[str, Any]) -> None:
                     f"not {server['enabled_for']}",
                 )
 
+    for secret in _entries(data, "workstation_secrets"):
+        kinds = [k for k in ("value", "grant", "paste") if k in secret]
+        if not secret.get("env") or len(kinds) != 1:
+            raise RegistryError(f"workstation secret {secret.get('env')} needs an env and one of value, grant, paste")
+        if kinds != ["value"] and not str(secret.get("check") or "").startswith("https://"):
+            raise RegistryError(f"workstation secret {secret['env']} needs an https check url")
+        if not isinstance(secret.get("export"), bool):
+            raise RegistryError(f"workstation secret {secret['env']} must say export: true or false")
+
     for skill in _entries(data, "local_skills"):
         path = KIT_ROOT / str(skill.get("path") or "")
         if not (path / "SKILL.md").is_file():
@@ -233,6 +243,23 @@ def on_surface(item: dict[str, Any], surface: str) -> bool:
 
 def on_cloud(item: dict[str, Any]) -> bool:
     return item.get("cloud", True) is not False
+
+
+def managed_secrets(data: dict[str, Any]) -> set[str]:
+    """Variables agent-kit-keys gets and stores; what they gate reports through it."""
+    return {str(e["env"]) for e in _entries(data, "workstation_secrets")}
+
+
+def _env_report(data: dict[str, Any], message: str, var: str, indent: str) -> str:
+    if var not in managed_secrets(data):
+        return f'{indent}warn "{message}"'
+    return "\n".join([
+        f'{indent}if [ "${{CLOUD}}" = 1 ]; then',
+        f'{indent}  warn "{message}"',
+        f"{indent}else",
+        f'{indent}  log "{var} is not set (see tokens and keys)"',
+        f"{indent}fi",
+    ])
 
 
 def session_only(server: dict[str, Any]) -> bool:
@@ -685,6 +712,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("#   ./setup-workstation.sh --no-lsp        skip the language servers")
     w("#   ./setup-workstation.sh --no-mcp        skip MCP registration")
     w("#   ./setup-workstation.sh --no-profiles   only the primary Claude profile")
+    w("#   ./setup-workstation.sh --no-prompt     never ask; report what needs a hand")
     w("#   ./setup-workstation.sh --cloud         a Claude Code cloud environment's")
     w("#                                          setup script (docs/CLOUD.md)")
     w("#   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /")
@@ -714,6 +742,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("DO_PROFILES=1")
     w("CLOUD=0")
     w("UNINSTALL=0")
+    w("PROMPT=1")
+    w("PROMPT_TTY=/dev/tty")
     w("failures=0")
     w("warnings=0")
     w("todo_failures=()           # Every failure, listed again at the end")
@@ -721,6 +751,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     w("# Track what needs attention after the run")
     w("skipped_mcp_servers=()     # MCP servers skipped due to missing credentials")
+    w("skipped_mcp_names=()       # Their names, so the registration check skips them")
     w("unshared_profile_paths=()  # Shared surfaces a secondary profile did not get")
     w("missing_lsp_binaries=()    # Language servers with missing binaries")
     w("disabled_plugins=()        # Plugins disabled (missing binary or on purpose)")
@@ -735,6 +766,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    --no-lsp) DO_LSP=0 ;;")
     w("    --no-mcp) DO_MCP=0 ;;")
     w("    --no-profiles) DO_PROFILES=0 ;;")
+    w("    --no-prompt) PROMPT=0 ;;")
     w("    --cloud) CLOUD=1; DO_PROFILES=0 ;;")
     w("    --uninstall) UNINSTALL=1 ;;")
     w(f"    --help|-h) sed -n '2,{help_lines}p' \"$0\"; exit 0 ;;")
@@ -770,20 +802,46 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  done")
     w("}")
     w("")
-    w("# The private-bank token is minted by hand, so check for it and say how.")
-    w("check_memory_private_token() {")
-    w('  [ "${CLOUD}" = 1 ] && return 0')
-    w('  if [ -z "${MEMORY_PRIVATE_TOKEN:-}" ] \\')
-    w("    && ! security find-generic-password -s memory-private >/dev/null 2>&1; then")
-    w('    warn "memory-private: no MEMORY_PRIVATE_TOKEN in the environment or the keychain.'
-      ' Grant yourself MEMORY_PRIVATE on the admin page, mint a MEMORY_PRIVATE service token,'
-      ' then store it: security add-generic-password -a \\"\\$USER\\" -s memory-private -w"')
+    w("# Asks only with someone at a terminal: never under --check, --cloud, CI or --no-prompt.")
+    w("interactive() {")
+    w('  [ "${PROMPT}" = 1 ] && [ "${CHECK_ONLY}" != 1 ] && [ "${CLOUD}" != 1 ] && [ -t 1 ] \\')
+    w("    && { : </dev/tty; } 2>/dev/null")
+    w("}")
+    w("")
+    w("# Tokens and keys first: everything after this reads them. In a terminal")
+    w("# agent-kit-keys signs you in, mints what is missing and stores it; either way")
+    w("# env.sh is rewritten and loaded, so this run registers what needs them.")
+    w("tokens_and_keys() {")
+    w('  local table="${KIT_ROOT}/registry/generated/workstation-secrets.json"')
+    w('  local helper="${KIT_ROOT}/scripts/agent-kit-keys.py"')
+    w("  local var state")
+    w('  if [ "${CLOUD}" = 1 ]; then')
+    w('    log "tokens and keys: the cloud session brings its own"')
+    w("    return 0")
     w("  fi")
-    w("  if command -v vibe >/dev/null 2>&1 \\")
-    w("    && ! grep -qs -- '-s memory-private' \"${ZDOTDIR:-${HOME}}/.zshrc\" \"${HOME}/.zprofile\" \\")
-    w('      "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.config/fish/config.fish"; then')
-    w('    warn "vibe: no launch alias passes MEMORY_PRIVATE_TOKEN from the keychain;'
-      ' add the vibe alias from docs/SETUP.md (The private bank) to your shell profile"')
+    w('  log "tokens and keys"')
+    w("  if interactive; then")
+    w('    python3 "${helper}" --table "${table}" ensure <"${PROMPT_TTY}" \\')
+    w('      || warn "tokens and keys: the walk-through stopped early; run setup again to continue"')
+    w('  elif [ "${CHECK_ONLY}" != 1 ]; then')
+    w('    python3 "${helper}" --table "${table}" write-env \\')
+    w('      || warn "tokens and keys: could not write ~/.config/agent-kit/env.sh"')
+    w("  fi")
+    w("  while read -r var state; do")
+    w('    case "${var} ${state}" in')
+    w('      "shell missing")')
+    w('        warn "your shell does not load ~/.config/agent-kit/env.sh; run setup in a terminal to add it" ;;')
+    w('      *" missing") warn "${var} is missing; run setup in a terminal and it gets it for you" ;;')
+    w('      *" invalid") warn "${var} is refused by its host; run setup in a terminal to replace it" ;;')
+    w('      *" unchecked") log "${var}: its host did not answer, so it was not checked" ;;')
+    w('      *" ok") ok "${var}" ;;')
+    w("    esac")
+    w('  done < <(python3 "${helper}" --table "${table}" status)')
+    w('  if [ -f "${HOME}/.config/agent-kit/env.sh" ]; then')
+    w("    # shellcheck disable=SC1091")
+    w('    . "${HOME}/.config/agent-kit/env.sh"')
+    w("    # Its vibe and memory-private wrappers are for your shell, not for this run.")
+    w("    unset -f vibe memory-private 2>/dev/null || true")
     w("  fi")
     w("}")
     w("")
@@ -1066,8 +1124,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    exit 1")
     w("  fi")
     w('  ok "kit bundle verified (sha256 ${actual})"')
+    w("  # Under curl | bash the rest of this script is still on stdin: drain it so no")
+    w("  # command below reads it as input and curl is not cut off mid-write.")
+    w("  [ -t 0 ] || cat >/dev/null")
     w('  AGENT_KIT_BUNDLE_STAGE="${stage}" exec bash "${stage}/installer/setup-workstation.sh" \\')
-    w('    ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}')
+    w('    ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"} </dev/null')
     w("}")
     w('[ "${UNINSTALL}" = 1 ] || use_kit_bundle')
     w('if [ -n "${AGENT_KIT_BUNDLE_STAGE:-}" ]; then')
@@ -1310,6 +1371,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# -----------------------------------------------------------------")
     w("# 1. Command-line tools.")
     w("# -----------------------------------------------------------------")
+    w("tokens_and_keys")
+    w("")
     w('log "command-line tools"')
     for cli in _entries(data, "clis"):
         if not on_surface(cli, "workstation"):
@@ -1348,7 +1411,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         for var, why in (cli.get("requires_env") or {}).items():
             why_escaped = str(why).replace('"', '\\"')
             b(f'if [ -z "${{{var}:-}}" ]; then')
-            b(f'  warn "{cli["name"]}: {var} is not set ({why_escaped}); export it and re-run"')
+            b(_env_report(data, f'{cli["name"]}: {var} is not set ({why_escaped}); export it and re-run', var, "  "))
             b(f'  missing_plugin_env+=("{cli["name"]}: export {var}")')
             b("fi")
         out.extend(_cloud_guard(block, cli, ""))
@@ -1466,7 +1529,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
         for var, purpose in requires_env.items():
             purpose_escaped = str(purpose).replace('"', '\\"')
             b(f'  if [ -z "${{{var}:-}}" ]; then')
-            b(f'    warn "{plugin["name"]}: {var} is not set ({purpose_escaped}); export it and re-run"')
+            b(_env_report(data, f'{plugin["name"]}: {var} is not set ({purpose_escaped}); export it and re-run',
+                          var, "    "))
             b(f'    missing_plugin_env+=("{plugin["name"]}: export {var}")')
             b("  fi")
         out.extend(_cloud_guard(block, plugin, "  "))
@@ -1562,9 +1626,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f'        ok "{plugin}: {binary} on PATH, plugin enabled"')
         else:
             b(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
-            b(f'        ok "{plugin}: {binary} on PATH, plugin enabled (was disabled in registry)"')
+            b(f'        ok "{plugin}: {binary} on PATH, so plugin enabled (off by default)"')
         b("      else")
         b(f'        run claude plugin disable {ref} >/dev/null 2>&1 || true')
+        toolchain = server.get("toolchain")
+        if toolchain:
+            # No toolchain means no work in that language here: a fact, not a to-do.
+            b(f"        if ! command -v {toolchain} >/dev/null 2>&1; then")
+            b(f'          log "{plugin}: no {toolchain} on this machine; plugin left off"')
+            b("        else")
+        install_at = len(block)
         # Attempt install if one is configured
         if lsp_install:
             if server.get("install_linux"):
@@ -1590,6 +1661,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
             )
             b(f'        warn {msg}')
             b(f'        missing_lsp_binaries+=("{plugin}: missing from toolchain (no install command)")')
+        if toolchain:
+            block[install_at:] = ["  " + line for line in block[install_at:]]
+            b("        fi")
         b("      fi")
         b("    else")
         b(f'      warn "{ref} install failed"')
@@ -1666,13 +1740,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
         # A session-only server needs its token per session, not at setup.
         if credential and not optional_cred and not session_only(server):
             b(f'    if [ -z "${{{credential}:-}}" ] && [ "${{CLOUD}}" != 1 ]; then')
-            grant = server.get("credential_grant")
-            if grant:
-                b(f'      warn "{name}: {credential} is not set; skipping. Grant yourself {grant} on the admin page, '
-                  f'mint a {grant} service token, export it as {credential} and re-run"')
+            if credential in managed_secrets(data):
+                b(f'      log "{name}: {credential} is not set; not registered (see tokens and keys)"')
             else:
                 b(f'      warn "{name}: {credential} is not set; skipping (export it and re-run)"')
             b(f'      skipped_mcp_servers+=("{name}: export {credential}")')
+            b(f"      skipped_mcp_names+=({name})")
             b("    else")
             guard_open = True
         indent = "      " if guard_open else "    "
@@ -1837,6 +1910,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("        expected_servers+=(" + " ".join(off_cloud) + ")")
         w("      fi")
     w('      for want in "${expected_servers[@]}"; do')
+    w('        case " ${skipped_mcp_names[*]-} " in *" ${want} "*) continue ;; esac')
     w('        case "${registered}" in')
     w('          *"${want}"*) ;;')
     w('          *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;')
@@ -1847,8 +1921,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("      # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a")
     w('      # "repetition-operator operand invalid" error and the whole check')
     w("      # silently inspected nothing on macOS.")
-    w('      echo "${registered}" | sed -n \'s/^\\([a-zA-Z0-9_:-]*\\):[[:space:]].* - .*/\\1/p\' '
-      '| sort -u | while read -r found; do')
+    w("      # Read in this shell, not a pipe's subshell, or what it reports is lost.")
+    w("      while read -r found; do")
     w('        case "${found}" in')
     # All registry-owned servers
     registry_servers = [s["name"] for s in _entries(data, "mcp_servers") if on_surface(s, "workstation")]
@@ -1856,10 +1930,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w(f'          {name}) ;;')
     # Plugin-provided and hand-added servers
     w('          plugin:*|idea|rubymine) ;;')
-    w('          *) warn "unknown MCP server ${found} in ${profile_dir} '
-      '-- hand-added or from a removed registry entry?" ;;')
+    w('          *) log "hand-added MCP server ${found} in ${profile_dir}: kept" ;;')
     w("        esac")
-    w("      done")
+    w('      done < <(echo "${registered}" | sed -n \'s/^\\([a-zA-Z0-9_:-]*\\):[[:space:]].* - .*/\\1/p\' '
+      '| sort -u)')
     w("     done")
     w("    fi")
     w("  else")
@@ -1986,8 +2060,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# 10. Summary: what changed and what still needs attention.")
     w("# -----------------------------------------------------------------")
     w("")
-    w("check_memory_private_token")
-    w("")
     w("log \"Summary of findings:\"")
     w("")
     w("# Report newly installed binaries that need a new shell")
@@ -1999,37 +2071,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  log ""')
     w("fi")
     w("")
-    w("# Report MCP servers skipped due to missing credentials")
-    w('if [ "${#skipped_mcp_servers[@]}" -gt 0 ]; then')
-    w('  log "MCP servers not registered (missing credentials):"')
-    w('  for entry in "${skipped_mcp_servers[@]}"; do')
-    w('    log "  - ${entry}"')
-    w("  done")
-    w('  log ""')
-    w("fi")
-    w("")
     w("# Report shared surfaces a secondary profile did not get")
     w('if [ "${#unshared_profile_paths[@]}" -gt 0 ]; then')
     w('  log "Profile surfaces not shared:"')
     w('  for entry in "${unshared_profile_paths[@]}"; do')
-    w('    log "  - ${entry}"')
-    w("  done")
-    w('  log ""')
-    w("fi")
-    w("")
-    w("# Report language servers with missing binaries")
-    w('if [ "${#missing_lsp_binaries[@]}" -gt 0 ]; then')
-    w('  log "Language servers with missing binaries:"')
-    w('  for entry in "${missing_lsp_binaries[@]}"; do')
-    w('    log "  - ${entry}"')
-    w("  done")
-    w('  log ""')
-    w("fi")
-    w("")
-    w("# Report plugins with unset required env vars")
-    w('if [ "${#missing_plugin_env[@]}" -gt 0 ]; then')
-    w('  log "Plugins with unset required env vars:"')
-    w('  for entry in "${missing_plugin_env[@]}"; do')
     w('    log "  - ${entry}"')
     w("  done")
     w('  log ""')
@@ -2044,16 +2089,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  log ""')
     w("fi")
     w("")
-    w("# Report plugins with drifted commits")
-    w('if [ "${#plugin_drift[@]}" -gt 0 ]; then')
-    w('  log "Plugins with drifted commits:"')
-    w('  for entry in "${plugin_drift[@]}"; do')
-    w('    log "  - ${entry}"')
-    w("  done")
-    w('  log ""')
-    w("fi")
-    w("")
-    w("# Final summary")
+    w("# Final summary. What needs a hand is in the Still to do list below, once.")
     w("# Every item that needs a hand raised a warning or a failure, so these decide.")
     w('if [ "${failures}" = 0 ] && [ "${warnings}" = 0 ]; then')
     w('  log "Setup complete: everything is ready"')
@@ -2262,6 +2298,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         HERMES_MCP: (render_hermes_mcp(data), 0o644),
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
         VIBE_MCP: (render_vibe_mcp(data), 0o644),
+        SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
         **{
             session_mcp_path(s["name"]): (render_session_mcp(s), 0o644)
             for s in _entries(data, "mcp_servers")

@@ -26,6 +26,8 @@ KIT_FILES = (
     "installer/vibe-hooks.toml",
     "scripts/hermes-merge-mcp.py",
     "scripts/vibe-merge-mcp.py",
+    "scripts/agent-kit-keys.py",
+    "registry/generated/workstation-secrets.json",
     "scripts/codex-disable-mcp.py",
 )
 

@@ -12,11 +12,14 @@ uv run python scripts/render_registry.py --check   # artifacts current?
 ./installer/setup-workstation.sh --cloud           # a cloud environment, see CLOUD.md
 ```
 
+Run from a terminal, setup **walks you through** what it can fix: it gets
+the tokens and keys (below) and offers to load them in every new shell.
+`--no-prompt`, `--check`, `--cloud` and runs without a terminal never ask.
+
 Every run ends with **Still to do**: one numbered list of every failure and
-warning it raised, failures first, each with what to do about it. That
-includes the steps setup cannot do itself, such as minting and storing the
-`MEMORY_PRIVATE` token and adding the Vibe launch alias. An empty list prints
-"Nothing left to do."
+warning it raised, failures first, each with what to do about it. An empty
+list prints "Nothing left to do." A missing toolchain (no `rustup`, no
+`dotnet`) or a hand-added MCP server is noted, not listed.
 
 `setup-workstation.sh` is **generated** from
 [`registry/estate-tooling.yaml`](../registry/estate-tooling.yaml). Do not edit
@@ -24,17 +27,32 @@ it. Edit the registry and re-render — see [REGISTRY.md](REGISTRY.md).
 
 ## Credentials
 
-The script never writes a secret. Export what you need first; anything that is
-a **required** credential is skipped (a warning, not a failed run) when absent.
-Optional credentials (below) never gate registration — the server self-manages
-auth.
+Setup gets them for you first, before anything that needs them
+(`scripts/agent-kit-keys.py`, driven by `workstation_secrets:` in the
+registry):
+
+1. It signs you in to auth.jorisjonkers.dev once (username or email,
+   password, then TOTP) and, as an admin, grants you any missing `MEMORY_*`
+   service.
+2. It mints one service token per service for this machine, labelled
+   `<host> agent-kit`, and checks each against its own host.
+3. It asks you to paste `MISTRAL_API_KEY` (Enter skips) and checks it.
+4. It stores each in the macOS keychain as `agent-kit.<VARIABLE>` (a 0600
+   `~/.config/agent-kit/secrets.env` where there is no keychain). Secrets
+   travel over stdin, never argv, and are never printed.
+5. It writes `~/.config/agent-kit/env.sh`, which reads them back, and offers
+   to add one line to your `~/.zshrc` or `~/.bashrc` that loads it.
+
+A value already in the environment wins over the stored one. A later run
+asks only for what is missing or refused by its host. Optional credentials
+(below) never gate registration — the server self-manages auth.
 
 | Variable | Used by | Required? |
 |---|---|---|
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
 | `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://hindsight-api.jorisjonkers.dev`) | required |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
-| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | per launch; never in a shell profile |
+| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | never exported; env.sh hands it to `vibe` and `memory-private` only |
 | `MISTRAL_API_KEY` | Mistral Vibe itself; a dedicated per-host key, never the cluster's Hindsight or Karakeep keys | required for Vibe |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
@@ -114,15 +132,11 @@ Personal notes go to a separate Hindsight bank, `private`, served only on
 token. Hermes, runners and cloud sessions never get it.
 
 Vibe, the agent for personal notes, has the `memory-private` MCP server on,
-next to the shared bank. Give Vibe the token, and only Vibe: exported from a
-shell profile, it would sit in the environment of every Claude Code and Codex
-session too, where a shell command can read it. Keep it in the keychain and
-hand it over per launch:
-
-```bash
-security add-generic-password -a "$USER" -s memory-private -w   # prompts for the token
-alias vibe='MEMORY_PRIVATE_TOKEN="$(security find-generic-password -s memory-private -w)" command vibe'
-```
+next to the shared bank. Setup mints the token and keeps it in the keychain,
+and env.sh never exports it: exported, it would sit in the environment of
+every Claude Code and Codex session, where a shell command can read it.
+Instead env.sh defines `vibe` and `memory-private` as shell functions that
+read it from the keychain for that one launch.
 
 Without the token, Vibe connects to the private bank with no credential and
 is refused.
@@ -141,7 +155,6 @@ as a `--mcp-config` file, and Codex lists it as disabled. Open one session
 with it on:
 
 ```bash
-export MEMORY_PRIVATE_TOKEN=smt_...   # a MEMORY_PRIVATE token for this device
 memory-private claude [ARGS]          # or: memory-private codex [ARGS]
 ```
 

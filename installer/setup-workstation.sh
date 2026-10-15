@@ -14,6 +14,7 @@
 #   ./setup-workstation.sh --no-lsp        skip the language servers
 #   ./setup-workstation.sh --no-mcp        skip MCP registration
 #   ./setup-workstation.sh --no-profiles   only the primary Claude profile
+#   ./setup-workstation.sh --no-prompt     never ask; report what needs a hand
 #   ./setup-workstation.sh --cloud         a Claude Code cloud environment's
 #                                          setup script (docs/CLOUD.md)
 #   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /
@@ -42,6 +43,8 @@ DO_MCP=1
 DO_PROFILES=1
 CLOUD=0
 UNINSTALL=0
+PROMPT=1
+PROMPT_TTY=/dev/tty
 failures=0
 warnings=0
 todo_failures=()           # Every failure, listed again at the end
@@ -49,6 +52,7 @@ todo_warnings=()           # Every warning, listed again at the end
 
 # Track what needs attention after the run
 skipped_mcp_servers=()     # MCP servers skipped due to missing credentials
+skipped_mcp_names=()       # Their names, so the registration check skips them
 unshared_profile_paths=()  # Shared surfaces a secondary profile did not get
 missing_lsp_binaries=()    # Language servers with missing binaries
 disabled_plugins=()        # Plugins disabled (missing binary or on purpose)
@@ -63,9 +67,10 @@ while [ "$#" -gt 0 ]; do
     --no-lsp) DO_LSP=0 ;;
     --no-mcp) DO_MCP=0 ;;
     --no-profiles) DO_PROFILES=0 ;;
+    --no-prompt) PROMPT=0 ;;
     --cloud) CLOUD=1; DO_PROFILES=0 ;;
     --uninstall) UNINSTALL=1 ;;
-    --help|-h) sed -n '2,35p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,36p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
   shift
@@ -98,17 +103,46 @@ print_todo() {
   done
 }
 
-# The private-bank token is minted by hand, so check for it and say how.
-check_memory_private_token() {
-  [ "${CLOUD}" = 1 ] && return 0
-  if [ -z "${MEMORY_PRIVATE_TOKEN:-}" ] \
-    && ! security find-generic-password -s memory-private >/dev/null 2>&1; then
-    warn "memory-private: no MEMORY_PRIVATE_TOKEN in the environment or the keychain. Grant yourself MEMORY_PRIVATE on the admin page, mint a MEMORY_PRIVATE service token, then store it: security add-generic-password -a \"\$USER\" -s memory-private -w"
+# Asks only with someone at a terminal: never under --check, --cloud, CI or --no-prompt.
+interactive() {
+  [ "${PROMPT}" = 1 ] && [ "${CHECK_ONLY}" != 1 ] && [ "${CLOUD}" != 1 ] && [ -t 1 ] \
+    && { : </dev/tty; } 2>/dev/null
+}
+
+# Tokens and keys first: everything after this reads them. In a terminal
+# agent-kit-keys signs you in, mints what is missing and stores it; either way
+# env.sh is rewritten and loaded, so this run registers what needs them.
+tokens_and_keys() {
+  local table="${KIT_ROOT}/registry/generated/workstation-secrets.json"
+  local helper="${KIT_ROOT}/scripts/agent-kit-keys.py"
+  local var state
+  if [ "${CLOUD}" = 1 ]; then
+    log "tokens and keys: the cloud session brings its own"
+    return 0
   fi
-  if command -v vibe >/dev/null 2>&1 \
-    && ! grep -qs -- '-s memory-private' "${ZDOTDIR:-${HOME}}/.zshrc" "${HOME}/.zprofile" \
-      "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.config/fish/config.fish"; then
-    warn "vibe: no launch alias passes MEMORY_PRIVATE_TOKEN from the keychain; add the vibe alias from docs/SETUP.md (The private bank) to your shell profile"
+  log "tokens and keys"
+  if interactive; then
+    python3 "${helper}" --table "${table}" ensure <"${PROMPT_TTY}" \
+      || warn "tokens and keys: the walk-through stopped early; run setup again to continue"
+  elif [ "${CHECK_ONLY}" != 1 ]; then
+    python3 "${helper}" --table "${table}" write-env \
+      || warn "tokens and keys: could not write ~/.config/agent-kit/env.sh"
+  fi
+  while read -r var state; do
+    case "${var} ${state}" in
+      "shell missing")
+        warn "your shell does not load ~/.config/agent-kit/env.sh; run setup in a terminal to add it" ;;
+      *" missing") warn "${var} is missing; run setup in a terminal and it gets it for you" ;;
+      *" invalid") warn "${var} is refused by its host; run setup in a terminal to replace it" ;;
+      *" unchecked") log "${var}: its host did not answer, so it was not checked" ;;
+      *" ok") ok "${var}" ;;
+    esac
+  done < <(python3 "${helper}" --table "${table}" status)
+  if [ -f "${HOME}/.config/agent-kit/env.sh" ]; then
+    # shellcheck disable=SC1091
+    . "${HOME}/.config/agent-kit/env.sh"
+    # Its vibe and memory-private wrappers are for your shell, not for this run.
+    unset -f vibe memory-private 2>/dev/null || true
   fi
 }
 
@@ -390,8 +424,11 @@ use_kit_bundle() {
     exit 1
   fi
   ok "kit bundle verified (sha256 ${actual})"
+  # Under curl | bash the rest of this script is still on stdin: drain it so no
+  # command below reads it as input and curl is not cut off mid-write.
+  [ -t 0 ] || cat >/dev/null
   AGENT_KIT_BUNDLE_STAGE="${stage}" exec bash "${stage}/installer/setup-workstation.sh" \
-    ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
+    ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"} </dev/null
 }
 [ "${UNINSTALL}" = 1 ] || use_kit_bundle
 if [ -n "${AGENT_KIT_BUNDLE_STAGE:-}" ]; then
@@ -692,6 +729,8 @@ fi
 # -----------------------------------------------------------------
 # 1. Command-line tools.
 # -----------------------------------------------------------------
+tokens_and_keys
+
 log "command-line tools"
 
 # Claude Code CLI.
@@ -767,7 +806,11 @@ else
   fi
 fi
 if [ -z "${MISTRAL_API_KEY:-}" ]; then
-  warn "mistral-vibe: MISTRAL_API_KEY is not set (a dedicated per-host Mistral key, never the cluster's Hindsight or Karakeep keys); export it and re-run"
+  if [ "${CLOUD}" = 1 ]; then
+    warn "mistral-vibe: MISTRAL_API_KEY is not set (a dedicated per-host Mistral key, never the cluster's Hindsight or Karakeep keys); export it and re-run"
+  else
+    log "MISTRAL_API_KEY is not set (see tokens and keys)"
+  fi
   missing_plugin_env+=("mistral-vibe: export MISTRAL_API_KEY")
 fi
 
@@ -793,7 +836,7 @@ fi
 # Python tool/venv manager; prerequisite for hermes-agent and the
 # kit's own tooling.
 if command -v uv >/dev/null 2>&1; then
-  run_sh 'uv self update'
+  run_sh 'uv self update 2>/dev/null || brew upgrade uv 2>/dev/null || true'
   ok "uv $(uv --version 2>/dev/null | head -1)"
 else
   run_sh 'curl -fsSL https://astral.sh/uv/install.sh | sh'
@@ -965,11 +1008,19 @@ else
     && ok "hindsight-memory: .hindsight/claude-code.json set" \
     || warn "hindsight-memory: could not update .hindsight/claude-code.json"
   if [ -z "${HINDSIGHT_API_URL:-}" ]; then
-    warn "hindsight-memory: HINDSIGHT_API_URL is not set (the estate Hindsight API, or it falls back to a personal local daemon); export it and re-run"
+    if [ "${CLOUD}" = 1 ]; then
+      warn "hindsight-memory: HINDSIGHT_API_URL is not set (the estate Hindsight API, or it falls back to a personal local daemon); export it and re-run"
+    else
+      log "HINDSIGHT_API_URL is not set (see tokens and keys)"
+    fi
     missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_URL")
   fi
   if [ -z "${HINDSIGHT_API_TOKEN:-}" ]; then
-    warn "hindsight-memory: HINDSIGHT_API_TOKEN is not set (per-host token from auth-api service-tokens (service MEMORY_API)); export it and re-run"
+    if [ "${CLOUD}" = 1 ]; then
+      warn "hindsight-memory: HINDSIGHT_API_TOKEN is not set (per-host token from auth-api service-tokens (service MEMORY_API)); export it and re-run"
+    else
+      log "HINDSIGHT_API_TOKEN is not set (see tokens and keys)"
+    fi
     missing_plugin_env+=("hindsight-memory: export HINDSIGHT_API_TOKEN")
   fi
 
@@ -1241,14 +1292,18 @@ for install in installs:
           ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
         else
           run claude plugin disable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='rustup component add rust-analyzer'
-          run_sh "${lsp_cmd}" || true
-          if command -v rust-analyzer >/dev/null 2>&1; then
-            run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+          if ! command -v rustup >/dev/null 2>&1; then
+            log "rust-analyzer-lsp: no rustup on this machine; plugin left off"
           else
-            warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("rust-analyzer-lsp: install with: ${lsp_cmd}")
+            lsp_cmd='rustup component add rust-analyzer'
+            run_sh "${lsp_cmd}" || true
+            if command -v rust-analyzer >/dev/null 2>&1; then
+              run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+            else
+              warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("rust-analyzer-lsp: install with: ${lsp_cmd}")
+            fi
           fi
         fi
       else
@@ -1341,14 +1396,18 @@ for install in installs:
           ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
         else
           run claude plugin disable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          lsp_cmd='dotnet tool install --global csharp-ls'
-          run_sh "${lsp_cmd}" || true
-          if command -v csharp-ls >/dev/null 2>&1; then
-            run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
-            ok "csharp-lsp: csharp-ls installed and enabled"
+          if ! command -v dotnet >/dev/null 2>&1; then
+            log "csharp-lsp: no dotnet on this machine; plugin left off"
           else
-            warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("csharp-lsp: install with: ${lsp_cmd}")
+            lsp_cmd='dotnet tool install --global csharp-ls'
+            run_sh "${lsp_cmd}" || true
+            if command -v csharp-ls >/dev/null 2>&1; then
+              run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              ok "csharp-lsp: csharp-ls installed and enabled"
+            else
+              warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("csharp-lsp: install with: ${lsp_cmd}")
+            fi
           fi
         fi
       else
@@ -1381,7 +1440,7 @@ for install in installs:
       if run claude plugin install liquid-lsp@claude-plugins-official --yes --scope user; then
         if command -v shopify >/dev/null 2>&1; then
           run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
-          ok "liquid-lsp: shopify on PATH, plugin enabled (was disabled in registry)"
+          ok "liquid-lsp: shopify on PATH, so plugin enabled (off by default)"
         else
           run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
           lsp_cmd='npm install -g @shopify/cli'
@@ -1426,8 +1485,9 @@ for install in installs:
     # Hindsight long-term memory -- explicit read/write/search
     # knowledge tools.
     if [ -z "${HINDSIGHT_API_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
-      warn "memory-api: HINDSIGHT_API_TOKEN is not set; skipping. Grant yourself MEMORY_API on the admin page, mint a MEMORY_API service token, export it as HINDSIGHT_API_TOKEN and re-run"
+      log "memory-api: HINDSIGHT_API_TOKEN is not set; not registered (see tokens and keys)"
       skipped_mcp_servers+=("memory-api: export HINDSIGHT_API_TOKEN")
+      skipped_mcp_names+=(memory-api)
     else
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user memory-api >/dev/null 2>&1 || true
@@ -1472,8 +1532,9 @@ for install in installs:
     # Basic Memory -- shared Markdown notes with a semantic link
     # graph. Edit notes, never overwrite.
     if [ -z "${MEMORY_MCP_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
-      warn "memory-mcp: MEMORY_MCP_TOKEN is not set; skipping. Grant yourself MEMORY_MCP on the admin page, mint a MEMORY_MCP service token, export it as MEMORY_MCP_TOKEN and re-run"
+      log "memory-mcp: MEMORY_MCP_TOKEN is not set; not registered (see tokens and keys)"
       skipped_mcp_servers+=("memory-mcp: export MEMORY_MCP_TOKEN")
+      skipped_mcp_names+=(memory-mcp)
     else
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
@@ -1646,6 +1707,7 @@ for install in installs:
         expected_servers+=(kubernetes)
       fi
       for want in "${expected_servers[@]}"; do
+        case " ${skipped_mcp_names[*]-} " in *" ${want} "*) continue ;; esac
         case "${registered}" in
           *"${want}"*) ;;
           *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;
@@ -1656,7 +1718,8 @@ for install in installs:
       # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a
       # "repetition-operator operand invalid" error and the whole check
       # silently inspected nothing on macOS.
-      echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].* - .*/\1/p' | sort -u | while read -r found; do
+      # Read in this shell, not a pipe's subshell, or what it reports is lost.
+      while read -r found; do
         case "${found}" in
           memory-api) ;;
           memory-private) ;;
@@ -1667,9 +1730,9 @@ for install in installs:
           drawio) ;;
           overleaf) ;;
           plugin:*|idea|rubymine) ;;
-          *) warn "unknown MCP server ${found} in ${profile_dir} -- hand-added or from a removed registry entry?" ;;
+          *) log "hand-added MCP server ${found} in ${profile_dir}: kept" ;;
         esac
-      done
+      done < <(echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].* - .*/\1/p' | sort -u)
      done
     fi
   else
@@ -2036,8 +2099,6 @@ fi
 # 10. Summary: what changed and what still needs attention.
 # -----------------------------------------------------------------
 
-check_memory_private_token
-
 log "Summary of findings:"
 
 # Report newly installed binaries that need a new shell
@@ -2049,37 +2110,10 @@ if [ "${#new_binaries[@]}" -gt 0 ]; then
   log ""
 fi
 
-# Report MCP servers skipped due to missing credentials
-if [ "${#skipped_mcp_servers[@]}" -gt 0 ]; then
-  log "MCP servers not registered (missing credentials):"
-  for entry in "${skipped_mcp_servers[@]}"; do
-    log "  - ${entry}"
-  done
-  log ""
-fi
-
 # Report shared surfaces a secondary profile did not get
 if [ "${#unshared_profile_paths[@]}" -gt 0 ]; then
   log "Profile surfaces not shared:"
   for entry in "${unshared_profile_paths[@]}"; do
-    log "  - ${entry}"
-  done
-  log ""
-fi
-
-# Report language servers with missing binaries
-if [ "${#missing_lsp_binaries[@]}" -gt 0 ]; then
-  log "Language servers with missing binaries:"
-  for entry in "${missing_lsp_binaries[@]}"; do
-    log "  - ${entry}"
-  done
-  log ""
-fi
-
-# Report plugins with unset required env vars
-if [ "${#missing_plugin_env[@]}" -gt 0 ]; then
-  log "Plugins with unset required env vars:"
-  for entry in "${missing_plugin_env[@]}"; do
     log "  - ${entry}"
   done
   log ""
@@ -2094,16 +2128,7 @@ if [ "${#disabled_plugins[@]}" -gt 0 ]; then
   log ""
 fi
 
-# Report plugins with drifted commits
-if [ "${#plugin_drift[@]}" -gt 0 ]; then
-  log "Plugins with drifted commits:"
-  for entry in "${plugin_drift[@]}"; do
-    log "  - ${entry}"
-  done
-  log ""
-fi
-
-# Final summary
+# Final summary. What needs a hand is in the Still to do list below, once.
 # Every item that needs a hand raised a warning or a failure, so these decide.
 if [ "${failures}" = 0 ] && [ "${warnings}" = 0 ]; then
   log "Setup complete: everything is ready"
