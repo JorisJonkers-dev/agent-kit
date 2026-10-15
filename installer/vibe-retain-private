@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import sys
 import urllib.error
 import urllib.parse
@@ -22,6 +23,27 @@ import uuid
 HOST = "https://hindsight-private.jorisjonkers.dev"
 PATH = "/v1/default/banks/private/memories"
 TOKEN = "MEMORY_PRIVATE_TOKEN"
+
+
+# The python.org macOS python3 trusts no CA until its "Install Certificates"
+# step runs; fall back to the system bundle then.
+SYSTEM_CA = ("/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt")
+
+
+def tls_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    if not context.cert_store_stats()["x509_ca"]:
+        for path in SYSTEM_CA:
+            if os.path.isfile(path):
+                context.load_verify_locations(cafile=path)
+                break
+    return context
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    # A refused token is sent to the login page, which answers 200.
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
 
 
 def _note(message: str) -> int:
@@ -91,7 +113,8 @@ def main() -> int:
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=10):
+        opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=tls_context()))
+        with opener.open(request, timeout=10):
             return 0
     except urllib.error.HTTPError as e:
         return _note(f"private bank: HTTP {e.code}; this turn was not retained")

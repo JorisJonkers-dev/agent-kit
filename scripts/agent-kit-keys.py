@@ -20,6 +20,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import contextlib
 import getpass
 import http.cookiejar
 import json
@@ -27,6 +28,7 @@ import os
 import re
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import urllib.error
@@ -46,6 +48,25 @@ MCP_INIT = json.dumps({
         "clientInfo": {"name": "agent-kit", "version": "1"},
     },
 }).encode()
+
+
+# The python.org macOS python3 trusts no CA until its "Install Certificates"
+# step runs; fall back to the system bundle then.
+SYSTEM_CA = ("/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt")
+
+
+def tls_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    if not context.cert_store_stats()["x509_ca"]:
+        for path in SYSTEM_CA:
+            if os.path.isfile(path):
+                context.load_verify_locations(cafile=path)
+                break
+    return context
+
+
+class Unreachable(Exception):
+    """auth-api did not answer at all."""
 
 
 def say(message: str) -> None:
@@ -134,7 +155,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-_CHECK = urllib.request.build_opener(_NoRedirect)
+_CHECK = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=tls_context()))
 
 
 def check(entry: dict[str, Any], value: str) -> str:
@@ -171,7 +192,9 @@ def state(entry: dict[str, Any], keys: Keychain | SecretsFile) -> str:
 class Auth:
     def __init__(self) -> None:
         self.jar = http.cookiejar.CookieJar()
-        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar), urllib.request.HTTPSHandler(context=tls_context()),
+        )
 
     def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
         headers = {"User-Agent": AGENT, "Content-Type": "application/json"}
@@ -190,6 +213,8 @@ class Auth:
                 return e.code, json.loads(raw) if raw else {}
             except ValueError:
                 return e.code, {}
+        except (urllib.error.URLError, OSError) as e:
+            raise Unreachable(str(getattr(e, "reason", e))) from None
 
     def sign_in(self) -> dict[str, Any] | None:
         default = subprocess.run(["git", "config", "user.email"], capture_output=True, text=True,
@@ -307,7 +332,11 @@ def ensure(table: list[dict[str, Any]]) -> int:
     if tokens:
         say("signing in to auth.jorisjonkers.dev to mint " + ", ".join(e["env"] for e in tokens))
         auth = Auth()
-        me = auth.sign_in()
+        try:
+            me = auth.sign_in()
+        except Unreachable as e:
+            say(f"could not reach auth.jorisjonkers.dev ({e}); no tokens minted this run")
+            me = None
         if me:
             try:
                 held = auth.ensure_grants(me, {e["grant"] for e in tokens})
@@ -328,8 +357,11 @@ def ensure(table: list[dict[str, Any]]) -> int:
                         continue
                     keys.put(entry["env"], token)
                     say(f"{entry['env']}: minted, checked and stored in the {keys.name}")
+            except Unreachable as e:
+                say(f"could not reach auth.jorisjonkers.dev ({e}); the remaining tokens were not minted")
             finally:
-                auth.sign_out()
+                with contextlib.suppress(Unreachable):
+                    auth.sign_out()
     for entry in secrets(table):
         if entry["env"] not in todo or entry.get("grant"):
             continue
@@ -374,4 +406,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        say("stopped")
+        raise SystemExit(130) from None

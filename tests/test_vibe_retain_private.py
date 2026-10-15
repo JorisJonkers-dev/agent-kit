@@ -45,9 +45,17 @@ def bank() -> Iterator[tuple[_Bank, str]]:
             body = self.rfile.read(int(self.headers["Content-Length"]))
             state.requests.append({"path": self.path, "headers": dict(self.headers), "body": json.loads(body)})
             self.send_response(state.status)
+            if state.status == 302:
+                # Like forward-auth: a refused token is sent to the login page, which answers 200.
+                self.send_header("Location", "/login")
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(b'{"success": true}')
+
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"<html>login</html>")
 
         def log_message(self, format: str, *args: object) -> None:
             pass
@@ -147,7 +155,7 @@ def test_without_the_private_token_nothing_is_sent_anywhere(tmp_path: Path, bank
     assert "MEMORY_PRIVATE_TOKEN" in json.loads(result.stdout)["system_message"]
 
 
-@pytest.mark.parametrize("status", [403, 500])
+@pytest.mark.parametrize("status", [302, 403, 500])
 def test_a_refused_retain_is_reported_and_the_turn_goes_on(
     tmp_path: Path, bank: tuple[_Bank, str], status: int,
 ) -> None:
