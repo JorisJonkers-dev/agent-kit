@@ -247,6 +247,76 @@ PY
     || warn "could not register the Hindsight memory tools in every Claude profile"
 }
 
+# Checks a marketplace out at its pinned commit and declares it from that folder.
+# Claude Code tracks a GitHub marketplace's default branch; a folder holds still.
+ensure_marketplace() {
+  local name="$1" repo="$2" commit="$3"
+  local dir="${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/${name}"
+  local base="${AGENT_KIT_GIT_BASE:-https://github.com}" moved=0
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would pin marketplace ${name} at ${commit:0:12}"
+    return 0
+  fi
+  if [ "$(git -C "${dir}" rev-parse HEAD 2>/dev/null)" != "${commit}" ]; then
+    mkdir -p "${dir}"
+    [ -d "${dir}/.git" ] || git -C "${dir}" init -q
+    git -C "${dir}" remote remove origin 2>/dev/null || true
+    git -C "${dir}" remote add origin "${base}/${repo}"
+    if ! git -C "${dir}" fetch -q --depth 1 origin "${commit}" 2>/dev/null \
+       || ! git -C "${dir}" -c advice.detachedHead=false checkout -q --force FETCH_HEAD; then
+      warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; left as it was"
+      return 0
+    fi
+    moved=1
+  fi
+  if [ "$(git -C "${dir}" rev-parse HEAD)" != "${commit}" ]; then
+    fail "marketplace ${name}: the checkout is not at ${commit:0:12}"
+    return 0
+  fi
+  if claude plugin marketplace list --json 2>/dev/null | python3 -c '
+import json, os, sys
+name, path = sys.argv[1], os.path.realpath(sys.argv[2])
+ok = any(m.get("name") == name and m.get("source") == "directory"
+         and os.path.realpath(m.get("path", "")) == path for m in json.load(sys.stdin))
+sys.exit(0 if ok else 1)
+' "${name}" "${dir}"; then
+    if [ "${moved}" = 1 ]; then
+      run claude plugin marketplace update "${name}" >/dev/null 2>&1 \
+        || warn "marketplace ${name}: could not refresh after moving to ${commit:0:12}"
+    fi
+    ok "marketplace ${name} pinned at ${commit:0:12}"
+  else
+    # Removing the upstream-tracking declaration uninstalls its plugins; the
+    # plugins step reinstalls them from the pinned folder.
+    run claude plugin marketplace remove "${name}" >/dev/null 2>&1 || true
+    if run claude plugin marketplace add "${dir}" >/dev/null 2>&1; then
+      ok "marketplace ${name} pinned at ${commit:0:12} (was tracking upstream)"
+    else
+      warn "marketplace ${name}: could not declare it from ${dir}"
+    fi
+  fi
+  # end ensure_marketplace
+}
+
+# The commit a plugin installs at under a pinned marketplace: the marketplace
+# commit for a plugin in its repo, or the sha its entry pins for an external one.
+expected_plugin_commit() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import json, pathlib, sys
+folder, name, commit = sys.argv[1:]
+try:
+    manifest = json.loads((pathlib.Path(folder) / '.claude-plugin' / 'marketplace.json').read_text())
+except (OSError, ValueError):
+    raise SystemExit(0)
+for plugin in manifest.get('plugins', []):
+    if plugin.get('name') == name:
+        source = plugin.get('source')
+        print(source.get('sha', '') if isinstance(source, dict) else commit)
+        break
+PY
+  # end expected_plugin_commit
+}
+
 # Removes a retired kit command, but only one setup wrote.
 retire_kit_command() {
   local dest="${HOME}/.local/bin/$1"
@@ -990,24 +1060,14 @@ if ! command -v claude >/dev/null 2>&1; then
   fail "claude is not on PATH; skipping plugins, language servers and MCP"
 else
   log "plugin marketplaces"
-  run claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null \
-    || run claude plugin marketplace update claude-plugins-official >/dev/null 2>&1 \
-    || warn "marketplace claude-plugins-official (anthropics/claude-plugins-official) could not be added or updated"
-  run claude plugin marketplace add JuliusBrussee/caveman 2>/dev/null \
-    || run claude plugin marketplace update caveman >/dev/null 2>&1 \
-    || warn "marketplace caveman (JuliusBrussee/caveman) could not be added or updated"
-  run claude plugin marketplace add jgraph/drawio-mcp 2>/dev/null \
-    || run claude plugin marketplace update drawio >/dev/null 2>&1 \
-    || warn "marketplace drawio (jgraph/drawio-mcp) could not be added or updated"
-  run claude plugin marketplace add LukasNiessen/kubernetes-skill 2>/dev/null \
-    || run claude plugin marketplace update kubernetes-skill >/dev/null 2>&1 \
-    || warn "marketplace kubernetes-skill (LukasNiessen/kubernetes-skill) could not be added or updated"
+  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official fc93980766c2200a0b4798eddf854b7b833395e4
+  ensure_marketplace caveman JuliusBrussee/caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+  ensure_marketplace drawio jgraph/drawio-mcp 14b318b19cc37b159f841227b9d11fbd18ce18ea
+  ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill f85547fb3a1ec909b2cbe4dc68f831590ac385ea
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
   else
-    run claude plugin marketplace add codenamev/ai-software-architect 2>/dev/null \
-      || run claude plugin marketplace update ai-software-architect >/dev/null 2>&1 \
-      || warn "marketplace ai-software-architect (codenamev/ai-software-architect) could not be added or updated"
+    ensure_marketplace ai-software-architect codenamev/ai-software-architect 6e636c8bb2f63481d70f0b7af12912fd414d5722
   fi
 
   log "plugins"
@@ -1095,9 +1155,10 @@ else
   # ---------------------------------------------------------------
   # 4. Plugin drift detection.
   #
-  # The CLI does not support pinning plugins to a commit, so pins in
-  # the registry are advisory. Compare installed commits against
-  # registry expectations and report drift.
+  # Each marketplace is checked out at its pinned commit, which decides
+  # the commit every plugin in it should be at. A plugin installed before
+  # (or off) its pin is updated to it; only one that will not move is
+  # reported.
   # ---------------------------------------------------------------
   manifest="${CLAUDE_HOME}/plugins/installed_plugins.json"
   if [ -f "${manifest}" ]; then
@@ -1125,59 +1186,133 @@ for install in installs:
         "$1" "$2" 2>/dev/null
     }
 
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/caveman" caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3)"
     installed_commit="$(installed_plugin_commit "${manifest}" "caveman@caveman")"
-    if [ -z "${installed_commit}" ]; then
-      log "caveman: no user-scope commit recorded; drift not checked"
-    elif [ "${installed_commit}" != "b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3" ]; then
-      warn "caveman: installed ${installed_commit} differs from the registry's b82c0ad42c2b"
-      plugin_drift+=("caveman: ${installed_commit} vs b82c0ad42c2b")
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "caveman: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "caveman: at its pinned commit"
     else
-      ok "caveman: at the expected commit"
+      run claude plugin update caveman@caveman >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "caveman@caveman")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "caveman: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "caveman: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("caveman: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
     fi
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/drawio" drawio 14b318b19cc37b159f841227b9d11fbd18ce18ea)"
     installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
-    if [ -z "${installed_commit}" ]; then
-      log "drawio: no user-scope commit recorded; drift not checked"
-    elif [ "${installed_commit}" != "14b318b19cc37b159f841227b9d11fbd18ce18ea" ]; then
-      warn "drawio: installed ${installed_commit} differs from the registry's 14b318b19cc3"
-      plugin_drift+=("drawio: ${installed_commit} vs 14b318b19cc3")
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "drawio: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "drawio: at its pinned commit"
     else
-      ok "drawio: at the expected commit"
+      run claude plugin update drawio@drawio >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "drawio@drawio")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "drawio: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "drawio: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("drawio: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
     fi
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design fc93980766c2200a0b4798eddf854b7b833395e4)"
     installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@claude-plugins-official")"
-    if [ -z "${installed_commit}" ]; then
-      log "frontend-design: no user-scope commit recorded; drift not checked"
-    elif [ "${installed_commit}" != "0d82eac145a50e6867d908419dccc5087b8595b0" ]; then
-      warn "frontend-design: installed ${installed_commit} differs from the registry's 0d82eac145a5"
-      plugin_drift+=("frontend-design: ${installed_commit} vs 0d82eac145a5")
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "frontend-design: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "frontend-design: at its pinned commit"
     else
-      ok "frontend-design: at the expected commit"
+      run claude plugin update frontend-design@claude-plugins-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@claude-plugins-official")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "frontend-design: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "frontend-design: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("frontend-design: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
     fi
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills fc93980766c2200a0b4798eddf854b7b833395e4)"
     installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@claude-plugins-official")"
-    if [ -z "${installed_commit}" ]; then
-      log "mattpocock-skills: no user-scope commit recorded; drift not checked"
-    elif [ "${installed_commit}" != "5b15a47f2d7150f545fbcacbfe381787fc0230dc" ]; then
-      warn "mattpocock-skills: installed ${installed_commit} differs from the registry's 5b15a47f2d71"
-      plugin_drift+=("mattpocock-skills: ${installed_commit} vs 5b15a47f2d71")
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "mattpocock-skills: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "mattpocock-skills: at its pinned commit"
     else
-      ok "mattpocock-skills: at the expected commit"
+      run claude plugin update mattpocock-skills@claude-plugins-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@claude-plugins-official")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "mattpocock-skills: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "mattpocock-skills: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("mattpocock-skills: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
     fi
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance fc93980766c2200a0b4798eddf854b7b833395e4)"
+    installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@claude-plugins-official")"
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "security-guidance: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "security-guidance: at its pinned commit"
+    else
+      run claude plugin update security-guidance@claude-plugins-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@claude-plugins-official")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "security-guidance: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "security-guidance: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("security-guidance: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
+    fi
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/kubernetes-skill" kubernetes-skill f85547fb3a1ec909b2cbe4dc68f831590ac385ea)"
     installed_commit="$(installed_plugin_commit "${manifest}" "kubernetes-skill@kubernetes-skill")"
-    if [ -z "${installed_commit}" ]; then
-      log "kubernetes-skill: no user-scope commit recorded; drift not checked"
-    elif [ "${installed_commit}" != "f85547fb3a1ec909b2cbe4dc68f831590ac385ea" ]; then
-      warn "kubernetes-skill: installed ${installed_commit} differs from the registry's f85547fb3a1e"
-      plugin_drift+=("kubernetes-skill: ${installed_commit} vs f85547fb3a1e")
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "kubernetes-skill: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "kubernetes-skill: at its pinned commit"
     else
-      ok "kubernetes-skill: at the expected commit"
+      run claude plugin update kubernetes-skill@kubernetes-skill >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "kubernetes-skill@kubernetes-skill")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "kubernetes-skill: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "kubernetes-skill: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("kubernetes-skill: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
     fi
-    installed_commit="$(installed_plugin_commit "${manifest}" "ai-software-architect@ai-software-architect")"
-    if [ -z "${installed_commit}" ]; then
-      log "ai-software-architect: no user-scope commit recorded; drift not checked"
-    elif [ "${installed_commit}" != "6e636c8bb2f63481d70f0b7af12912fd414d5722" ]; then
-      warn "ai-software-architect: installed ${installed_commit} differs from the registry's 6e636c8bb2f6"
-      plugin_drift+=("ai-software-architect: ${installed_commit} vs 6e636c8bb2f6")
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github fc93980766c2200a0b4798eddf854b7b833395e4)"
+    installed_commit="$(installed_plugin_commit "${manifest}" "github@claude-plugins-official")"
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "github: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "github: at its pinned commit"
     else
-      ok "ai-software-architect: at the expected commit"
+      run claude plugin update github@claude-plugins-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "github@claude-plugins-official")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "github: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "github: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("github: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
+    fi
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/ai-software-architect" ai-software-architect 6e636c8bb2f63481d70f0b7af12912fd414d5722)"
+    installed_commit="$(installed_plugin_commit "${manifest}" "ai-software-architect@ai-software-architect")"
+    if [ -z "${installed_commit}" ] || [ -z "${expected_commit}" ]; then
+      log "ai-software-architect: no commit recorded or pinned; drift not checked"
+    elif [ "${installed_commit}" = "${expected_commit}" ]; then
+      ok "ai-software-architect: at its pinned commit"
+    else
+      run claude plugin update ai-software-architect@ai-software-architect >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "ai-software-architect@ai-software-architect")"
+      if [ "${installed_commit}" = "${expected_commit}" ]; then
+        ok "ai-software-architect: moved to its pinned commit ${expected_commit:0:12}"
+      else
+        warn "ai-software-architect: installed ${installed_commit:0:12} will not move to its pinned ${expected_commit:0:12}"
+        plugin_drift+=("ai-software-architect: ${installed_commit:0:12} vs ${expected_commit:0:12}")
+      fi
     fi
   fi
 

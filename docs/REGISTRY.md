@@ -38,6 +38,32 @@ was never rendered. Both are one test.
 nowhere. That is what the `knowledge` MCP entry is now, and a test asserts it
 does not creep back into a generated artifact.
 
+## Plugins and their marketplaces
+
+A Claude Code plugin is pinned through its **marketplace**, never on its
+own:
+
+```yaml
+marketplaces:
+  - name: my-market
+    repo: owner/repo
+    commit: <40-char reviewed COMMIT sha>
+plugins:
+  - name: my-plugin
+    marketplace: my-market
+    enabled: true
+```
+
+Claude Code tracks a GitHub marketplace's default branch, so a plugin would
+install at whatever upstream had that day. Setup instead checks the
+marketplace out at its pinned commit in
+`~/.local/share/agent-kit/marketplaces/<name>` and declares the marketplace
+from that folder. A plugin in the marketplace's own repo then installs at
+that commit, and an external plugin at the sha its entry in that commit
+pins. A plugin off its pin is updated to it; only one that will not move is
+reported. The pin is the **reviewed** commit, never just what is installed,
+and it must agree with a skill source that wraps the same upstream.
+
 ## Adding a skill source
 
 ```yaml
