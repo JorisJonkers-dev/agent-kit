@@ -109,6 +109,10 @@ class Keychain:
         if self.get(var) != value:
             raise RuntimeError(f"{var} did not read back from the keychain")
 
+    def delete(self, var: str) -> None:
+        subprocess.run(["security", "delete-generic-password", "-s", PREFIX + var],
+                       capture_output=True, check=False)
+
     def shell_reader(self) -> str:
         return f'_agent_kit_secret() {{ security find-generic-password -s "{PREFIX}$1" -w 2>/dev/null; }}'
 
@@ -136,6 +140,11 @@ class SecretsFile:
         with os.fdopen(fd, "w") as f:
             f.write("".join(f"{k}={v}\n" for k, v in values.items()))
         os.chmod(self.path, 0o600)
+
+    def delete(self, var: str) -> None:
+        values = self._read()
+        if values.pop(var, None) is not None:
+            self.path.write_text("".join(f"{k}={v}\n" for k, v in values.items()))
 
     def shell_reader(self) -> str:
         return '_agent_kit_secret() { sed -n "s/^$1=//p" "$HOME/.config/agent-kit/secrets.env" 2>/dev/null; }'
@@ -181,7 +190,23 @@ def secrets(table: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [e for e in table if "value" not in e]
 
 
+# A gated value lives behind a passphrase only you know (installer/agent-kit-private).
+GATE = Path(__file__).resolve().parent.parent / "installer" / "agent-kit-private"
+
+
+def gated(entry: dict[str, Any]) -> bool:
+    return entry.get("gate") == "passphrase"
+
+
+def gate_store(value: str) -> bool:
+    """Seal a value; the gate asks for the passphrase at the terminal itself."""
+    return subprocess.run([sys.executable, str(GATE), "store"], input=value, text=True, check=False).returncode == 0
+
+
 def state(entry: dict[str, Any], keys: Keychain | SecretsFile) -> str:
+    if gated(entry):
+        out = subprocess.run([sys.executable, str(GATE), "status"], capture_output=True, text=True, check=False)
+        return "ok" if out.stdout.strip() == "present" else "missing"
     value = keys.get(entry["env"])
     return check(entry, value) if value else "missing"
 
@@ -275,8 +300,8 @@ def write_env(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> Path
     lines = [
         "# managed by agent-kit setup-workstation.sh; rewritten on every run.",
         f"# Reads the workstation's tokens and keys from the {keys.name}. A value already",
-        "# in the environment wins. The private-bank token is never exported: only",
-        "# vibe and memory-private get it, per launch.",
+        "# in the environment wins. The private-bank token is never read here: vibe",
+        "# asks agent-kit-private for it, which asks you for its passphrase.",
         keys.shell_reader(),
     ]
     scoped = []
@@ -292,9 +317,8 @@ def write_env(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> Path
         else:
             scoped.append(var)
     lines.append("unset _agent_kit_v")
-    for var in scoped:
-        for command in ("vibe", "memory-private"):
-            lines.append(f'{command}() {{ {var}="${{{var}:-$(_agent_kit_secret {var})}}" command {command} "$@"; }}')
+    if scoped:
+        lines.append('vibe() { command agent-kit-private exec vibe "$@"; }')
     path = config_dir() / "env.sh"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n")
@@ -331,6 +355,11 @@ def wire_shell() -> None:
 
 def ensure(table: list[dict[str, Any]]) -> int:
     keys = store()
+    for entry in secrets(table):
+        # A copy outside the gate was readable without the passphrase: drop it and mint anew.
+        if gated(entry) and keys.get(entry["env"]):
+            keys.delete(entry["env"])
+            say(f"{entry['env']}: removed from the {keys.name}; a new one goes behind your passphrase")
     todo = {e["env"]: s for e in secrets(table) if (s := state(e, keys)) in ("missing", "invalid")}
     tokens = [e for e in secrets(table) if e["env"] in todo and e.get("grant")]
     if tokens:
@@ -358,6 +387,12 @@ def ensure(table: list[dict[str, Any]]) -> int:
                         continue
                     if check(entry, token) == "invalid":
                         say(f"{entry['env']}: the new token is refused by its host; not stored")
+                        continue
+                    if gated(entry):
+                        if gate_store(token):
+                            say(f"{entry['env']}: minted, checked and sealed behind your passphrase")
+                        else:
+                            say(f"{entry['env']}: minted but not sealed; run setup again to retry")
                         continue
                     keys.put(entry["env"], token)
                     say(f"{entry['env']}: minted, checked and stored in the {keys.name}")

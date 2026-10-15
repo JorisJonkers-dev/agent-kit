@@ -53,6 +53,17 @@ verified_at: 2026-09-09
 # ~/.config/agent-kit/env.sh reads them back in every shell. `export:
 # false` keeps a value out of the shell: only vibe and memory-private get it.
 # -------------------------------------------------------------------
+claude_private_deny:
+  # Vibe's home holds its session logs: the private conversations themselves.
+  - "Read(~/.vibe/**)"
+  - "Edit(~/.vibe/**)"
+  - "Bash(*.vibe*)"
+  # The sealed private-bank token, and the command that opens it.
+  - "Read(~/.config/agent-kit/private/**)"
+  - "Edit(~/.config/agent-kit/private/**)"
+  - "Bash(*agent-kit/private*)"
+  - "Bash(*agent-kit-private*)"
+
 workstation_secrets:
   - env: HINDSIGHT_API_URL
     value: "https://hindsight-api.jorisjonkers.dev"
@@ -69,6 +80,9 @@ workstation_secrets:
     grant: MEMORY_PRIVATE
     check: "https://hindsight-private.jorisjonkers.dev/mcp/private/"
     export: false
+    # Sealed behind a passphrase only you know (installer/agent-kit-private),
+    # asked at each vibe launch: Claude and Codex cannot fetch it.
+    gate: passphrase
   - env: MISTRAL_API_KEY
     paste: "a Mistral key for this machine from https://console.mistral.ai/api-keys, never the cluster's"
     check: "https://api.mistral.ai/v1/models"

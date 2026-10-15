@@ -38,8 +38,10 @@ registry):
    `<host> agent-kit`, and checks each against its own host.
 3. It asks you to paste `MISTRAL_API_KEY` (Enter skips) and checks it.
 4. It stores each in the macOS keychain as `agent-kit.<VARIABLE>` (a 0600
-   `~/.config/agent-kit/secrets.env` where there is no keychain). Secrets
-   travel over stdin, never argv, and are never printed.
+   `~/.config/agent-kit/secrets.env` where there is no keychain). The
+   private-bank token is the exception: it is sealed behind a passphrase you
+   choose (see The private bank). Secrets travel over stdin, never argv, and
+   are never printed.
 5. It writes `~/.config/agent-kit/env.sh`, which reads them back, and offers
    to add one line to your `~/.zshrc` or `~/.bashrc` that loads it.
 
@@ -52,7 +54,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and the `hindsight-memory` plugin's own hooks | required |
 | `HINDSIGHT_API_URL` | the `hindsight-memory` plugin (`https://hindsight-api.jorisjonkers.dev`) | required |
 | `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
-| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | never exported; env.sh hands it to `vibe` and `memory-private` only |
+| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | never exported; sealed behind your passphrase, given to `vibe` and `memory-private` per launch |
 | `MISTRAL_API_KEY` | Mistral Vibe itself; a dedicated per-host key, never the cluster's Hindsight or Karakeep keys | required for Vibe |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
@@ -132,23 +134,37 @@ Personal notes go to a separate Hindsight bank, `private`, served only on
 token. Hermes, runners and cloud sessions never get it.
 
 Vibe, the agent for personal notes, has the `memory-private` MCP server on,
-next to the shared bank. Setup mints the token and keeps it in the keychain,
-and env.sh never exports it: exported, it would sit in the environment of
-every Claude Code and Codex session, where a shell command can read it.
-Instead env.sh defines `vibe` and `memory-private` as shell functions that
-read it from the keychain for that one launch.
+next to the shared bank.
+
+**The token is behind a passphrase only you know.** Setup mints it and seals
+it with `agent-kit-private` (openssl AES-256-CBC, PBKDF2 600,000 rounds) in
+`~/.config/agent-kit/private/`, a 0700 folder. The first time, you choose the
+passphrase; it is not your login password, and nothing can recover it (setup
+then mints a new token). After that:
+
+- `vibe` (a function in env.sh) runs `agent-kit-private exec vibe`, which asks
+  for the passphrase at the terminal and gives the token to that one launch.
+- `memory-private claude|codex` goes through the same gate.
+- Nothing else can open it. The file is ciphertext, the passphrase and token
+  never reach argv, and without a terminal the gate asks nothing and gives
+  nothing, so an agent's shell gets no prompt to answer.
+- Claude Code also gets deny rules (`claude_private_deny` in the registry):
+  its file tools and Bash may not touch `~/.vibe/**`, where Vibe keeps its
+  session logs (the private conversations themselves), the sealed token, or
+  `agent-kit-private`.
+
+Known limits: Codex has no read deny-list, so it could read `~/.vibe` logs,
+though not the token. Vibe started by an editor or the Vibe app, not through
+the `vibe` function, has no private bank. A token left in the login keychain
+by an earlier setup is removed on the next run and replaced.
 
 Without the token, Vibe connects to the private bank with no credential and
 is refused.
 
-Vibe's automatic memory goes to the private bank only. A `post_agent` hook
-(`vibe-retain-private`, merged into `${VIBE_HOME}/hooks.toml`) appends each
-finished turn to one document per session in `private`: the user's message
-and the replies, without tool output. It has no route to the shared bank, so
-when the private bank is unreachable or the token is unset, the turn is
-simply not retained and Vibe shows a note. Vibe has no prompt hook, so recall
-is the model's call; `${VIBE_HOME}/AGENTS.md` asks it to recall from both banks
-at the start of a task.
+Vibe saves to the private bank only what is worth keeping, by tool:
+`${VIBE_HOME}/AGENTS.md` asks it to keep facts about people and you, plans,
+decisions and their reasons, and anything you ask it to remember, and to
+recall from both banks at the start of a task. Nothing is saved every turn.
 
 Claude Code and Codex have it installed switched off: Claude Code has it only
 as a `--mcp-config` file, and Codex lists it as disabled. Open one session

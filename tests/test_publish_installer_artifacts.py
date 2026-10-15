@@ -22,7 +22,7 @@ KIT_FILES = (
     "installer/port-forward-agent.sh",
     "installer/cloud-session.sh",
     "installer/memory-private",
-    "installer/vibe-retain-private",
+    "installer/agent-kit-private",
     "installer/vibe-hooks.toml",
     "scripts/hermes-merge-mcp.py",
     "scripts/vibe-merge-mcp.py",

@@ -245,3 +245,14 @@ def test_a_session_needs_the_private_token(tmp_path: Path, agent: str) -> None:
     result = _session(tmp_path, agent, token=None)
     assert result.returncode != 0
     assert "MEMORY_PRIVATE_TOKEN" in result.stderr
+
+
+@pytest.mark.parametrize("agent", ["claude", "codex"])
+def test_without_a_token_the_session_goes_through_the_passphrase_gate(tmp_path: Path, agent: str) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "agent-kit-private").write_text('#!/bin/sh\nprintf "gate %s\\n" "$*"\n')
+    (bin_dir / "agent-kit-private").chmod(0o755)
+    result = _session(tmp_path, agent, "--resume", token=None)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"gate exec {CMD} {agent} --resume"

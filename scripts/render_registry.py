@@ -40,6 +40,8 @@ HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_HOOKS = Path("installer/vibe-hooks.toml")
+# Removed from ${VIBE_HOME}/hooks.toml on every run.
+RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 CLAUDE_SESSION_MCP_DIR = Path("registry/generated/claude")
 
@@ -190,12 +192,18 @@ def validate(data: dict[str, Any]) -> None:
                     f"not {server['enabled_for']}",
                 )
 
+    deny = data.get("claude_private_deny") or []
+    if not isinstance(deny, list) or not all(isinstance(r, str) and r.endswith(")") for r in deny):
+        raise RegistryError("claude_private_deny must be a list of Claude permission rules, like Read(~/.vibe/**)")
+
     for secret in _entries(data, "workstation_secrets"):
         kinds = [k for k in ("value", "grant", "paste") if k in secret]
         if not secret.get("env") or len(kinds) != 1:
             raise RegistryError(f"workstation secret {secret.get('env')} needs an env and one of value, grant, paste")
         if kinds != ["value"] and not str(secret.get("check") or "").startswith("https://"):
             raise RegistryError(f"workstation secret {secret['env']} needs an https check url")
+        if "gate" in secret and (secret["gate"] != "passphrase" or secret.get("export") is not False):
+            raise RegistryError(f"workstation secret {secret['env']}: gate must be passphrase, with export: false")
         if not isinstance(secret.get("export"), bool):
             raise RegistryError(f"workstation secret {secret['env']} must say export: true or false")
 
@@ -885,6 +893,46 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("PY")
     w("}")
     w("")
+    rules = json.dumps(data.get("claude_private_deny") or [])
+    w("# Joins the private-bank deny rules to each Claude profile's own; nothing else changes.")
+    w("claude_private_denies() {")
+    w('  [ "${CLOUD}" = 1 ] && return 0')
+    w('  local profile_dir')
+    w('  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('      log "would add the private-bank deny rules to ${profile_dir}/settings.json"')
+    w("      continue")
+    w("    fi")
+    w(f"    python3 - \"${{profile_dir}}/settings.json\" '{rules}' <<'PY' \\")
+    w('      && ok "private-bank deny rules in ${profile_dir}/settings.json" \\')
+    w('      || fail "could not add the private-bank deny rules to ${profile_dir}/settings.json"')
+    w("import json, pathlib, sys")
+    w("path, rules = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])")
+    w("data = json.loads(path.read_text() or '{}') if path.exists() else {}")
+    w("deny = data.setdefault('permissions', {}).setdefault('deny', [])")
+    w("missing = [r for r in rules if r not in deny]")
+    w("if missing:")
+    w("    deny.extend(missing)")
+    w("    path.parent.mkdir(parents=True, exist_ok=True)")
+    w("    path.write_text(json.dumps(data, indent=2) + '\\n')")
+    w("back = json.loads(path.read_text())['permissions']['deny']")
+    w("if any(r not in back for r in rules):")
+    w("    raise SystemExit(f'{path}: deny rules did not read back')")
+    w("PY")
+    w("  done")
+    w("}")
+    w("")
+    w("# Removes a retired kit command, but only one setup wrote.")
+    w("retire_kit_command() {")
+    w('  local dest="${HOME}/.local/bin/$1"')
+    w('  grep -qxF "# managed by agent-kit setup-workstation.sh" "${dest}" 2>/dev/null || return 0')
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would remove retired ${dest}"')
+    w("    return 0")
+    w("  fi")
+    w('  rm -f "${dest}" && ok "$1: retired, removed ${dest}"')
+    w("}")
+    w("")
     w("# Copies a kit command onto PATH. A file there that setup did not write is left alone.")
     w("install_kit_command() {")
     w('  local name="$1"')
@@ -948,8 +996,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("memory-private for personal context (people, plans, private notes) and")
     w("memory-api for estate and programming knowledge.")
     w("")
-    w("Each turn is retained into memory-private automatically. Never retain")
-    w("personal notes into memory-api: Hermes and every other agent read it.")
+    w("Save to memory-private only what is worth keeping long-term: facts about")
+    w("people and the user, plans, decisions and their reasons, and anything the")
+    w("user asks you to remember. Not small talk, not passing task details, never")
+    w("secrets. Update an existing memory rather than adding a near-duplicate.")
+    w("Never retain personal notes into memory-api: Hermes and every other agent")
+    w("read it.")
     w("EOF")
     w('  ok "Vibe AGENTS.md pointer -> ${file}"')
     w("}")
@@ -1485,6 +1537,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("")
 
     # --- Marketplaces ---
+    w("# Claude Code may not read or run anything that touches the private bank's")
+    w("# files: Vibe's home (its session logs) and the gated token.")
+    w("claude_private_denies")
+    w("")
     w("# -----------------------------------------------------------------")
     w("# 3. Claude Code marketplaces and plugins.")
     w("#")
@@ -1545,8 +1601,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  # Hindsight auto-retain (HINDSIGHT_AUTO_RETAIN=false in its local settings).")
     w("  # memory-private claude|codex [ARGS]: one session with the private bank on.")
     w("  install_kit_command memory-private")
-    w("  # vibe-retain-private: Vibe's post_agent hook, retains into the private bank.")
-    w("  install_kit_command vibe-retain-private")
+    w("  # agent-kit-private: the private-bank token behind your passphrase.")
+    w("  install_kit_command agent-kit-private")
+    w("  # Retired: Vibe saves to memory by tool now, not every turn.")
+    w("  retire_kit_command vibe-retain-private")
     w("")
     w("  # ---------------------------------------------------------------")
     w("  # 4. Plugin drift detection.")
@@ -1877,10 +1935,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {remove_args} \\')
     w('          && ok "Vibe MCP servers merged" \\')
     w('          || fail "Vibe MCP merge failed"')
-    hook_names = [h["name"] for h in tomllib.loads((KIT_ROOT / VIBE_HOOKS).read_text())["hooks"]]
-    w("        # Vibe's automatic memory goes to the private bank only (fleet-infra#399).")
-    w("        vibe_hooks_remove=()")
-    w(f'        [ "${{CLOUD}}" = 1 ] && vibe_hooks_remove=({" ".join(f"--remove {n}" for n in hook_names)})')
+    hook_names = [h["name"] for h in tomllib.loads((KIT_ROOT / VIBE_HOOKS).read_text()).get("hooks", [])]
+    retired_hooks = " ".join(f"--remove {n}" for n in RETIRED_VIBE_HOOKS)
+    w(f"        vibe_hooks_remove=({retired_hooks})")
+    if hook_names:
+        cloud_removes = " ".join(f"--remove {n}" for n in hook_names)
+        w(f'        [ "${{CLOUD}}" = 1 ] && vibe_hooks_remove+=({cloud_removes})')
     w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
     hooks_remove = '${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"}'
     w(f'          "${{KIT_ROOT}}/{VIBE_HOOKS}" --key hooks --config "${{VIBE_HOME}}/hooks.toml" {hooks_remove} \\')

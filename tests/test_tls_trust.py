@@ -22,7 +22,6 @@ import pytest
 KIT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = {
     "keys": KIT_ROOT / "scripts" / "agent-kit-keys.py",
-    "retain": KIT_ROOT / "installer" / "vibe-retain-private",
 }
 # An empty trust store, as on a python.org install before "Install Certificates".
 NO_CA = {"SSL_CERT_FILE": "/dev/null", "SSL_CERT_DIR": "/nonexistent"}
