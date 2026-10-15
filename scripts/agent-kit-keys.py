@@ -189,6 +189,15 @@ def state(entry: dict[str, Any], keys: Keychain | SecretsFile) -> str:
 # --- auth-api --------------------------------------------------------------
 
 
+def _json(raw: bytes) -> dict[str, Any]:
+    """A JSON object, or nothing: sign-out, for one, ends on an HTML page."""
+    try:
+        value = json.loads(raw) if raw else {}
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 class Auth:
     def __init__(self) -> None:
         self.jar = http.cookiejar.CookieJar()
@@ -205,14 +214,9 @@ class Auth:
         request = urllib.request.Request(AUTH + path, data=data, method=method, headers=headers)
         try:
             with self.opener.open(request, timeout=20) as response:
-                raw = response.read()
-                return response.status, json.loads(raw) if raw else {}
+                return response.status, _json(response.read())
         except urllib.error.HTTPError as e:
-            raw = e.read()
-            try:
-                return e.code, json.loads(raw) if raw else {}
-            except ValueError:
-                return e.code, {}
+            return e.code, _json(e.read())
         except (urllib.error.URLError, OSError) as e:
             raise Unreachable(str(getattr(e, "reason", e))) from None
 
@@ -411,3 +415,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         say("stopped")
         raise SystemExit(130) from None
+    except Exception as e:  # what is stored stays stored; say what stopped the rest
+        say(f"stopped: {type(e).__name__}: {e}")
+        raise SystemExit(1) from None
