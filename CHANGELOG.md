@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.11.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.10.1...v4.11.0) (2026-10-16)
+
+
+### Features
+
+* **plugins:** install every plugin at its marketplace's pinned commit ([#103](https://github.com/JorisJonkers-dev/agent-kit/issues/103)) ([71ad9a3](https://github.com/JorisJonkers-dev/agent-kit/commit/71ad9a33f44c5ccc6bf933dd24d1f57cced682d9))
+
 ## [4.10.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.10.0...v4.10.1) (2026-10-15)
 
 
