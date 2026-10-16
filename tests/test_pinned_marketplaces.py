@@ -248,3 +248,17 @@ def test_language_servers_of_an_unpinned_marketplace_are_not_installed() -> None
     block = lsp[lsp.index(f"# {server} -> ") :]
     assert 'case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)' in block
     assert f"{server}: not installed: its marketplace is not at its pinned commit" in block
+
+
+def test_a_marketplace_names_the_ref_its_pin_follows() -> None:
+    data = copy.deepcopy(_registry())
+    del data["marketplaces"][0]["ref"]
+    with pytest.raises(render_registry.RegistryError, match="ref"):
+        render_registry.validate(data)
+
+
+def test_a_marketplace_and_a_skill_source_of_one_upstream_follow_one_ref() -> None:
+    data = copy.deepcopy(_registry())
+    next(m for m in data["marketplaces"] if m["name"] == "caveman")["ref"] = "main"
+    with pytest.raises(render_registry.RegistryError, match="ref"):
+        render_registry.validate(data)

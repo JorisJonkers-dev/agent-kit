@@ -133,7 +133,7 @@ def validate(data: dict[str, Any]) -> None:
     # both. When they do, one commit is reviewed and the other must not
     # disagree, or the workstation quietly tracks something Hermes rejects.
     reviewed_by_repo = {
-        str(src.get("repo", "")).rstrip("/").rsplit("/", 1)[-1].lower(): src.get("commit")
+        str(src.get("repo", "")).rstrip("/").rsplit("/", 1)[-1].lower(): src
         for src in _entries(data, "skill_sources")
     }
     for market in _entries(data, "marketplaces"):
@@ -142,11 +142,20 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(
                 f"marketplace {market.get('name')} must pin a full 40-char commit, the reviewed one",
             )
+        if not str(market.get("ref") or ""):
+            raise RegistryError(
+                f"marketplace {market.get('name')} must name the ref its pin follows, a branch or a tag",
+            )
         shared = reviewed_by_repo.get(str(market.get("repo", "")).rsplit("/", 1)[-1].lower())
-        if shared and pin != shared:
+        if shared and pin != shared.get("commit"):
             raise RegistryError(
                 f"marketplace {market.get('name')} pins {pin} but the skill source for the same "
-                f"upstream pins {shared}; the reviewed commit is the one to use",
+                f"upstream pins {shared.get('commit')}; the reviewed commit is the one to use",
+            )
+        if shared and market.get("ref") != shared.get("ref"):
+            raise RegistryError(
+                f"marketplace {market.get('name')} follows ref {market.get('ref')} but the skill source "
+                f"for the same upstream follows {shared.get('ref')}; Renovate moves both only on one ref",
             )
     for plugin in _entries(data, "plugins"):
         if "commit" in plugin:
