@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,15 @@ MANIFEST = Path(".claude-plugin") / "marketplace.json"
 PLUGIN_MANIFEST = Path(".claude-plugin") / "plugin.json"
 SCRIPT_SUFFIXES = {".sh", ".bash", ".zsh", ".fish", ".py", ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts",
                    ".rb", ".pl", ".php", ".ps1", ".bat", ".cmd", ".exe", ".jar", ".wasm"}
+# Manifest fields known to carry nothing that runs, or to be read below. Any other is a finding.
+KNOWN_FIELDS = {"$schema", "name", "version", "description", "author", "homepage", "repository", "license",
+                "keywords", "category", "tags", "strict", "source", "hooks", "mcpServers", "lspServers",
+                "commands", "agents", "skills", "outputStyles", "displayName", "documentationUrl", "supportUrl",
+                "privacyPolicyUrl", "termsOfServiceUrl"}
+SHELL_LINE = re.compile(r"!`([^`\n]+)`")
+SHA = re.compile(r"[0-9a-f]{40}")
+SLUG = re.compile(r"[A-Za-z0-9][\w.-]*/[\w.-]+")
+HTTPS = re.compile(r"https://[^\s'\"\\]+")
 OFFICIAL = "claude-plugins-official"
 COSMETIC_HOOK_FIELDS = {"timeout", "statusMessage"}
 SCRIPTS_SHOWN = 10
@@ -54,21 +64,25 @@ class Fetcher:
         self.cache: dict[tuple[str, str], Path] = {}
 
     def url(self, repo_or_url: str) -> str:
-        if repo_or_url.startswith(GITHUB):
-            repo_or_url = repo_or_url[len(GITHUB):]
-        if "://" in repo_or_url:
+        """Only an https URL or an owner/repo slug is fetched: upstream writes these."""
+        slug = repo_or_url.removeprefix(GITHUB)
+        if SLUG.fullmatch(slug):
+            return f"{self.git_base}/{slug.removesuffix('.git')}"
+        if HTTPS.fullmatch(repo_or_url):
             return repo_or_url
-        return f"{self.git_base}/{repo_or_url.removesuffix('.git')}"
+        raise CheckError(f"refuses to fetch {repo_or_url!r}: only https URLs and owner/repo are read")
 
     def checkout(self, repo_or_url: str, commit: str) -> Path:
         url = self.url(repo_or_url)
+        if not SHA.fullmatch(commit):
+            raise CheckError(f"refuses to fetch {url} at {commit!r}: not a full commit sha")
         if (url, commit) in self.cache:
             return self.cache[(url, commit)]
         dest = self.root / str(len(self.cache))
         git = ["git", "-c", "core.symlinks=false", "-c", "advice.detachedHead=false", "-C", str(dest)]
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
         dest.mkdir(parents=True)
-        steps = [["git", "init", "-q", str(dest)], [*git, "fetch", "-q", "--depth", "1", url, commit],
+        steps = [["git", "init", "-q", str(dest)], [*git, "fetch", "-q", "--depth", "1", "--", url, commit],
                  [*git, "checkout", "-q", "FETCH_HEAD"]]
         for step in steps:
             if subprocess.run(step, capture_output=True, env=env, check=False).returncode != 0:
@@ -77,57 +91,76 @@ class Fetcher:
         return dest
 
 
-def _json(path: Path) -> Any:
+def _no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    keys = [key for key, _ in pairs]
+    duplicate = next((key for key in keys if keys.count(key) > 1), None)
+    if duplicate is not None:
+        raise ValueError(f"duplicate key {duplicate!r}")
+    return dict(pairs)
+
+
+def _json(path: Path, label: str) -> Any:
+    """Parse strictly: a file Claude Code might read differently is a finding, not an empty config."""
     try:
-        return json.loads(path.read_text())
-    except (OSError, ValueError):
-        return None
+        return json.loads(path.read_text(), object_pairs_hook=_no_duplicates)
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        raise CheckError(f"{label} cannot be read: {error}") from error
 
 
-def _configs(root: Path, value: Any, default: str | None = None) -> list[Any]:
-    """A plugin.json field that is inline, a path, or a list of paths; plus its default file."""
-    found = []
-    values = value if isinstance(value, list) else [value]
-    for item in values:
-        if isinstance(item, dict):
+def _inside(root: Path, rel: str, label: str) -> Path:
+    path = (root / rel).resolve()
+    if not path.is_relative_to(root.resolve()):
+        raise CheckError(f"{label}: {rel} leaves the plugin")
+    return path
+
+
+def _configs(root: Path, value: Any, default: str | None, label: str) -> list[dict[str, Any]]:
+    """A manifest field that is inline, a path, or a list of paths; plus its default file."""
+    found: list[Any] = []
+    for item in (value if isinstance(value, list) else [] if value is None else [value]):
+        if isinstance(item, str):
+            found.append(_json(_inside(root, item, label), f"{label} {item}"))
+        else:
             found.append(item)
-        elif isinstance(item, str):
-            found.append(_json(root / item))
     if default and (root / default).is_file():
-        found.append(_json(root / default))
-    return [item for item in found if isinstance(item, dict)]
+        found.append(_json(_inside(root, default, label), f"{label} {default}"))
+    if not all(isinstance(item, dict) for item in found):
+        raise CheckError(f"{label} cannot be read: not an object")
+    return found
 
 
-def _hooks(surface: Surface, config: dict[str, Any]) -> None:
+def _hooks(surface: Surface, config: dict[str, Any], label: str) -> None:
     events = config.get("hooks", config)
+    bad = CheckError(f"{label} hooks cannot be read: unexpected shape")
     if not isinstance(events, dict):
-        return
+        raise bad
     for event, groups in events.items():
-        for group in groups if isinstance(groups, list) else []:
-            if not isinstance(group, dict):
-                continue
+        if not isinstance(groups, list) or not all(isinstance(g, dict) for g in groups):
+            raise bad
+        for group in groups:
             matcher = str(group.get("matcher") or "")
-            for hook in group.get("hooks") or []:
-                if not isinstance(hook, dict):
-                    continue
+            hooks = group.get("hooks") or []
+            if not isinstance(hooks, list) or not all(isinstance(h, dict) for h in hooks):
+                raise bad
+            for hook in hooks:
                 action = {k: v for k, v in hook.items() if k not in COSMETIC_HOOK_FIELDS}
                 key = json.dumps({"event": event, "matcher": matcher, **action}, sort_keys=True)
                 what = hook.get("command") or hook.get("url") or hook.get("prompt") or ""
                 surface.add(f"hook:{key}", f"hook {event}{' ' + matcher if matcher else ''}: {str(what)[:160]}")
 
 
-def _servers(surface: Surface, kind: str, config: dict[str, Any], wrapper: str) -> None:
+def _servers(surface: Surface, kind: str, config: dict[str, Any], wrapper: str, label: str) -> None:
     servers = config.get(wrapper, config)
-    if not isinstance(servers, dict):
-        return
+    if not isinstance(servers, dict) or not all(isinstance(spec, dict) for spec in servers.values()):
+        raise CheckError(f"{label} {kind} servers cannot be read: unexpected shape")
     for name, spec in servers.items():
-        spec = spec if isinstance(spec, dict) else {}
         command = [spec.get("command") or "", *(spec.get("args") or [])]
         target = spec.get("url") or " ".join(str(part) for part in command)
         surface.add(f"{kind}:{name}:{json.dumps(spec, sort_keys=True)}", f"{kind} server {name}: {str(target)[:160]}")
 
 
 def _scripts_in(folder: Path, root: Path) -> list[tuple[str, str]]:
+    """Script files, and `!` shell lines in markdown, which run when a command or skill is used."""
     found = []
     for path in sorted(folder.rglob("*")):
         rel = path.relative_to(root)
@@ -135,25 +168,38 @@ def _scripts_in(folder: Path, root: Path) -> list[tuple[str, str]]:
             continue
         if path.suffix.lower() in SCRIPT_SUFFIXES or os.access(path, os.X_OK) or "bin" in rel.parts[:-1]:
             found.append((f"script:{rel.as_posix()}", f"script {rel.as_posix()}"))
+        elif path.suffix.lower() == ".md":
+            for line in dict.fromkeys(SHELL_LINE.findall(path.read_text(errors="replace"))):
+                found.append((f"shell:{rel.as_posix()}:{line}", f"shell line {rel.as_posix()}: {line[:160]}"))
     return found
 
 
-def _scripts(surface: Surface, root: Path) -> None:
-    for key, label in _scripts_in(root, root):
-        surface.add(key, label)
+def _fields(surface: Surface, manifest: dict[str, Any], label: str) -> None:
+    for key, value in manifest.items():
+        if key not in KNOWN_FIELDS:
+            surface.add(f"field:{label}:{key}:{json.dumps(value, sort_keys=True)}", f"manifest field {key}")
 
 
 def surface_of(root: Path, entry: dict[str, Any]) -> Surface:
     surface = Surface()
-    manifest = _json(root / PLUGIN_MANIFEST)
-    manifest = manifest if isinstance(manifest, dict) else {}
-    for config in _configs(root, manifest.get("hooks"), "hooks/hooks.json") + _configs(root, entry.get("hooks")):
-        _hooks(surface, config)
-    for config in _configs(root, manifest.get("mcpServers"), ".mcp.json") + _configs(root, entry.get("mcpServers")):
-        _servers(surface, "MCP", config, "mcpServers")
-    for config in _configs(root, manifest.get("lspServers"), ".lsp.json") + _configs(root, entry.get("lspServers")):
-        _servers(surface, "LSP", config, "lspServers")
-    _scripts(surface, root)
+    name = str(entry.get("name"))
+    manifest: Any = {}
+    if (root / PLUGIN_MANIFEST).is_file():
+        manifest = _json(root / PLUGIN_MANIFEST, f"{name}: {PLUGIN_MANIFEST}")
+    if not isinstance(manifest, dict):
+        raise CheckError(f"{name}: {PLUGIN_MANIFEST} cannot be read: not an object")
+    _fields(surface, manifest, "plugin")
+    _fields(surface, entry, "entry")
+    for where, fields in ((f"{name}: plugin.json", manifest), (f"{name}: marketplace entry", entry)):
+        defaults = fields is manifest
+        for config in _configs(root, fields.get("hooks"), "hooks/hooks.json" if defaults else None, where):
+            _hooks(surface, config, where)
+        for config in _configs(root, fields.get("mcpServers"), ".mcp.json" if defaults else None, where):
+            _servers(surface, "MCP", config, "mcpServers", where)
+        for config in _configs(root, fields.get("lspServers"), ".lsp.json" if defaults else None, where):
+            _servers(surface, "LSP", config, "lspServers", where)
+    for key, label in _scripts_in(root, root):
+        surface.add(key, label)
     return surface
 
 
@@ -168,6 +214,8 @@ def plugin_root(fetcher: Fetcher, checkout: Path, manifest: dict[str, Any], name
         root = (checkout / rel).resolve()
         if not root.is_relative_to(checkout.resolve()):
             raise CheckError(f"{name}: its source {source} leaves the marketplace")
+        if not root.is_dir():
+            raise CheckError(f"{name}: its source {source} does not exist")
         return root, entry
     if not isinstance(source, dict):
         raise CheckError(f"{name}: its source cannot be read")
@@ -194,9 +242,9 @@ def _installed(registry: dict[str, Any], market: str) -> list[str]:
 
 def _surface_at(fetcher: Fetcher, repo: str, commit: str, plugin: str) -> Surface:
     checkout = fetcher.checkout(repo, commit)
-    manifest = _json(checkout / MANIFEST)
-    if not isinstance(manifest, dict):
-        raise CheckError(f"{repo} at {commit[:12]} has no readable {MANIFEST}")
+    manifest = _json(checkout / MANIFEST, f"{repo} at {commit[:12]}: {MANIFEST}")
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("plugins"), list):
+        raise CheckError(f"{repo} at {commit[:12]}: {MANIFEST} cannot be read: no plugin list")
     root, entry = plugin_root(fetcher, checkout, manifest, plugin)
     return surface_of(root, entry)
 
@@ -316,7 +364,9 @@ def main(argv: list[str] | None = None) -> int:
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as handle:
-            handle.write(f"## Marketplace pin review\n\n```\n{report}\n```\n")
+            # A fence longer than any backtick run in upstream text, which cannot then close it.
+            fence = "`" * max(3, 1 + max((len(run) for run in re.findall(r"`+", report)), default=0))
+            handle.write(f"## Marketplace pin review\n\n{fence}\n{report}\n{fence}\n")
     return 1 if findings else 0
 
 
