@@ -899,18 +899,6 @@ skill_sources:
 # seed-config init container substitutes from the Vault-backed Secret.
 # -------------------------------------------------------------------
 mcp_servers:
-  - name: memory
-    transport: http
-    purpose: RETIRED. The mem0 self-host plan in docs/MEMORY.md was abandoned.
-    url_workstation: "https://memory.jorisjonkers.dev/mcp"
-    url_hermes: "http://mem0.memory-system.svc.cluster.local:8080/mcp"
-    credential: MEMORY_API_KEY
-    timeout: 60
-    enabled: false
-    surfaces: []
-    trust: estate
-    note: Kept as a record only, registered nowhere; replaced by memory-api.
-
   - name: memory-api
     transport: http
     purpose: Hindsight long-term memory -- explicit read/write/search knowledge tools.

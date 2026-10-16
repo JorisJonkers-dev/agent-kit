@@ -97,13 +97,9 @@ def test_retired_knowledge_server_reaches_no_surface() -> None:
     assert "kb.jorisjonkers.dev" not in render_registry.render_setup_script(data)
 
 
-def test_retired_memory_server_reaches_no_surface() -> None:
-    """`memory` (mem0) stays retired the same way `knowledge` does."""
-    data = _registry()
-    memory = next(s for s in data["mcp_servers"] if s["name"] == "memory")
-    assert memory["surfaces"] == []
-    assert "\n  memory:\n" not in render_registry.render_hermes_mcp(data)
-    assert "mem0.memory-system" not in render_registry.render_setup_script(data)
+def test_the_registry_no_longer_records_the_mem0_memory_server() -> None:
+    """Convergence removes an undeclared `memory`, so the mem0 tombstone is gone."""
+    assert "memory" not in {s["name"] for s in _registry()["mcp_servers"]}
 
 
 def test_workstation_http_credential_becomes_a_bearer_header() -> None:
