@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.12.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.11.0...v4.12.0) (2026-10-16)
+
+
+### Features
+
+* **plugins:** move marketplace pins nightly, held for review when a bump adds code to run ([#105](https://github.com/JorisJonkers-dev/agent-kit/issues/105)) ([df385b7](https://github.com/JorisJonkers-dev/agent-kit/commit/df385b77885c02bd83d6d22b10354ea70bf34c22))
+
 ## [4.11.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.10.1...v4.11.0) (2026-10-16)
 
 
