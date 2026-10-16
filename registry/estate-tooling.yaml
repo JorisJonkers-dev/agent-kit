@@ -29,15 +29,17 @@
 # (Renovate reads them as one match). See docs/REGISTRY.md.
 #
 # PINS ARE COMMIT SHAs, NOT TAG SHAs. Hermes' sync-skills init container
-# clones `--branch <ref>` and compares `git rev-parse HEAD`, which is the
-# commit. Every tag here is annotated, so `git ls-remote <repo> refs/tags/<tag>`
-# returns the TAG OBJECT and will be rejected as a mismatch. Always peel:
+# fetches each source by its commit (`git fetch --depth 1 <url> <sha>`) and
+# checks out FETCH_HEAD, so the sha alone decides what is installed. For a
+# tag ref it also requires the PEELED tag to equal the sha:
 #
 #   git ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>^{}'
 #
-# A moved tag is a supply-chain event, so the mismatch failing loudly is the
-# point. For a source with no usable tags, pin `main` plus the commit; the
-# ref floats, the sha does not.
+# Every tag here is annotated, so the unpeeled `refs/tags/<tag>` is the TAG
+# OBJECT, not the commit: always pin the peeled value. A moved tag is a
+# supply-chain event, so the mismatch failing loudly is the point. For a
+# source with no usable tags, pin `main` plus the commit: upstream pushing to
+# `main` does not matter, because Hermes fetches the sha, not the branch tip.
 
 version: 1
 verified_at: 2026-09-09
