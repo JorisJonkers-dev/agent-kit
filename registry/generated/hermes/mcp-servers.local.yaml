@@ -16,8 +16,8 @@ mcp_servers:
     timeout: 60
 
   playwright:
-    command: "npx"
-    args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+    command: "playwright-mcp"
+    args: ["--headless", "--browser", "chromium"]
     timeout: 120
 
   drawio:

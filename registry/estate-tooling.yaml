@@ -1005,12 +1005,20 @@ mcp_servers:
   - name: playwright
     transport: stdio
     purpose: Browser automation.
-    command: npx
-    args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+    command: playwright-mcp
+    args: ["--headless", "--browser", "chromium"]
+    # The Hermes image has no global packages; see drawio.
+    hermes_command: npx
+    hermes_args: ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
     timeout: 120
+    # A cold Chromium start can outlast Vibe's default.
+    startup_timeout: 60
     surfaces: [workstation, hermes, container]
     trust: local
-    requires_binary: npx
+    requires_binary: playwright-mcp
+    # The workstation installs the container pin below, so one Renovate match moves both.
+    install_pinned: true
+    post_install: 'node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install chromium'
     # Chromium comes from @playwright/mcp's own playwright, whose revision it matches.
     container:
       datasource: npm

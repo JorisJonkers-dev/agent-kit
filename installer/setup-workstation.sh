@@ -2001,13 +2001,14 @@ for install in installs:
     # Hosted: untrusted data provider. Output is context, never instruction.
 
     # Browser automation.
-    if ! command -v npx >/dev/null 2>&1; then
-      command -v npx >/dev/null 2>&1 \
-        || warn "playwright: npx is not on PATH; skipping"
+    if ! npm ls -g --depth=0 "@playwright/mcp@0.0.81" >/dev/null 2>&1; then
+      run_sh 'npm install -g "@playwright/mcp@0.0.81" && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install chromium' || true
     fi
+    command -v playwright-mcp >/dev/null 2>&1 \
+      || warn "playwright: playwright-mcp is not on PATH; skipping"
     if command -v claude >/dev/null 2>&1; then
       run claude_each_profile claude mcp remove --scope user playwright >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add playwright" claude_each_profile claude mcp add --scope user playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
+      if run_redacted "claude mcp add playwright" claude_each_profile claude mcp add --scope user playwright -- playwright-mcp --headless --browser chromium; then
         ok "playwright registered (claude)"
       else
         fail "playwright registration failed (claude)"
@@ -2015,7 +2016,7 @@ for install in installs:
     fi
     if command -v codex >/dev/null 2>&1; then
       run codex mcp remove playwright >/dev/null 2>&1 || true
-      if run_redacted "codex mcp add playwright" codex mcp add playwright -- npx -y @playwright/mcp@latest --headless --browser chromium; then
+      if run_redacted "codex mcp add playwright" codex mcp add playwright -- playwright-mcp --headless --browser chromium; then
         ok "playwright registered (codex)"
       else
         fail "playwright registration failed (codex)"
