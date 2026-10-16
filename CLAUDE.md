@@ -23,3 +23,7 @@ this file stays a pointer. Add repo-specific guidance below.
 ---
 
 ## This repository
+
+`CONTEXT.md` defines the words this repository uses: declared, retired and
+undeclared entries, the keep file, and what it means for setup to converge.
+Read it before changing what setup installs or removes.
