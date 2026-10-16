@@ -93,6 +93,8 @@ if args[:3] == ["plugin", "marketplace", "remove"]:
 if args[:3] == ["plugin", "marketplace", "add"]:
     path = args[3]
     name = json.load(open(os.path.join(path, ".claude-plugin", "marketplace.json")))["name"]
+    if name in os.environ.get("STUB_RESERVED", "").split():
+        print("reserved for official Anthropic marketplaces", file=sys.stderr); sys.exit(1)
     markets.append({"name": name, "source": "directory", "path": path}); save(); sys.exit(0)
 sys.exit(0)
 '''
@@ -121,7 +123,7 @@ def _upstream(tmp_path: Path) -> tuple[Path, list[str]]:
 
 
 def _ensure(
-    tmp_path: Path, commit: str, *, github_first: bool = False,
+    tmp_path: Path, commit: str, *, github_first: bool = False, declare_as: str = "", reserved: str = "",
 ) -> tuple[subprocess.CompletedProcess, list[str]]:
     base, _ = _upstream(tmp_path) if not (tmp_path / "upstream").exists() else (tmp_path / "upstream", [])
     bin_dir = tmp_path / "bin"
@@ -137,12 +139,14 @@ def _ensure(
         "fail() { echo \"fail $*\" >&2; }\nrun() { \"$@\"; }\n"
         + "unpinned_markets=()\n"
         + _fn(_script(), "_marketplace_from_folder")
-        + _fn(_script(), "ensure_marketplace") + f"ensure_marketplace tools owner/tools {commit}\n"
+        + _fn(_script(), "_marketplace_alias")
+        + _fn(_script(), "ensure_marketplace") + f"ensure_marketplace tools owner/tools {commit} {declare_as}\n"
         + 'echo "UNPINNED=${unpinned_markets[*]-}"\n'
     )
     env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "STUB_STATE": str(state),
            "STUB_LOG": str(log), "AGENT_KIT_GIT_BASE": f"file://{base}",
-           "AGENT_KIT_MARKETPLACES": str(tmp_path / "markets"), "GIT_CONFIG_GLOBAL": "/dev/null"}
+           "AGENT_KIT_MARKETPLACES": str(tmp_path / "markets"), "GIT_CONFIG_GLOBAL": "/dev/null",
+           "STUB_RESERVED": reserved}
     result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env=env)
     return result, [line for line in log.read_text().splitlines() if line]
 
@@ -262,3 +266,72 @@ def test_a_marketplace_and_a_skill_source_of_one_upstream_follow_one_ref() -> No
     next(m for m in data["marketplaces"] if m["name"] == "caveman")["ref"] = "main"
     with pytest.raises(render_registry.RegistryError, match="ref"):
         render_registry.validate(data)
+
+
+# --- a reserved marketplace name is declared under another one ---
+#
+# Claude Code refuses a folder declared as claude-plugins-official ("reserved for
+# official Anthropic marketplaces"). Removing the GitHub entry first, as setup did,
+# uninstalled every plugin in it, and Claude then restored the entry empty.
+
+
+def test_validation_refuses_a_reserved_name_without_another_to_declare() -> None:
+    data = copy.deepcopy(_registry())
+    official = next(m for m in data["marketplaces"] if m["name"] == "claude-plugins-official")
+    assert official["declare_as"] == "agent-kit-official"
+    del official["declare_as"]
+    with pytest.raises(render_registry.RegistryError, match="reserved"):
+        render_registry.validate(data)
+    official["declare_as"] = "claude-code-plugins"
+    with pytest.raises(render_registry.RegistryError, match="reserved"):
+        render_registry.validate(data)
+
+
+def test_a_reserved_marketplace_is_declared_from_a_renamed_alias(tmp_path: Path) -> None:
+    _, commits = _upstream(tmp_path)
+    (tmp_path / "markets.json").write_text(json.dumps([{"name": "tools", "source": "github",
+                                                         "repo": "owner/tools"}]))
+    result, calls = _ensure(tmp_path, commits[0], declare_as="tools-pinned", reserved="tools")
+    assert result.returncode == 0 and "warn" not in result.stderr, result.stderr
+    assert not any(c.startswith("plugin marketplace remove") for c in calls), "removing uninstalls its plugins"
+    alias = tmp_path / "markets" / "tools-pinned"
+    assert f"plugin marketplace add {alias}" in calls
+    manifest = json.loads((alias / ".claude-plugin" / "marketplace.json").read_text())
+    assert manifest["name"] == "tools-pinned"
+    assert [p["name"] for p in manifest["plugins"]] == ["inrepo", "external"]
+    assert (alias / ".claude-plugin").is_dir() and not (alias / ".claude-plugin").is_symlink()
+    assert not (alias / ".git").exists()
+    _, again = _ensure(tmp_path, commits[0], declare_as="tools-pinned", reserved="tools")
+    assert again == ["plugin marketplace list --json"]
+
+
+def test_an_alias_follows_a_new_pin(tmp_path: Path) -> None:
+    _, commits = _upstream(tmp_path)
+    _ensure(tmp_path, commits[0], declare_as="tools-pinned", reserved="tools")
+    _, calls = _ensure(tmp_path, commits[1], declare_as="tools-pinned", reserved="tools")
+    manifest = json.loads((tmp_path / "markets" / "tools-pinned" / ".claude-plugin" / "marketplace.json").read_text())
+    assert manifest["plugins"][1]["source"]["sha"] == "e" * 39 + "2"
+    assert "plugin marketplace update tools-pinned" in calls
+
+
+def test_plugins_of_an_aliased_marketplace_install_under_the_alias() -> None:
+    script = _script()
+    assert "run claude plugin install mattpocock-skills@agent-kit-official" in script
+    assert "run claude plugin install pyright-lsp@agent-kit-official" in script
+    assert "plugin install mattpocock-skills@claude-plugins-official" not in script
+    assert "ensure_marketplace claude-plugins-official anthropics/claude-plugins-official " in script
+    assert script.count("agent-kit-official\n") >= 1
+
+
+def test_a_copy_installed_under_the_reserved_name_is_removed_once() -> None:
+    script = _script()
+    block = script[script.index("# mattpocock-skills: ") : script.index("# security-guidance: ")]
+    assert '*\'"mattpocock-skills@claude-plugins-official"\'*)' in block
+    assert "run claude plugin uninstall mattpocock-skills@claude-plugins-official" in block
+    assert 'installed_plugins="$(claude plugin list --json' in script
+
+
+def test_drift_is_checked_under_the_alias() -> None:
+    drift = _script()[_script().index('log "checking plugin commit drift"') :]
+    assert '"mattpocock-skills@agent-kit-official"' in drift
+    assert "/claude-plugins-official\"" in drift, "the expected commit comes from the checkout"

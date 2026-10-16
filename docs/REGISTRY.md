@@ -66,6 +66,13 @@ reported. The pin is the **reviewed** commit, never just what is installed,
 and it must agree with a skill source that wraps the same upstream, ref and
 commit both.
 
+A marketplace whose name Claude Code reserves for GitHub sources
+(`claude-plugins-official` among them) cannot be declared from a folder. Give
+it `declare_as:`: setup builds `<declare_as>` next to the checkout, its
+manifest renamed and everything else symlinked, declares that, and installs
+its plugins as `<plugin>@<declare_as>`. A copy still installed under the
+reserved name is uninstalled once, so its skills do not load twice.
+
 ### Nightly pin bumps
 
 Renovate moves each pin: to the newest commit on a branch `ref`, or to the

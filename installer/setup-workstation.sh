@@ -260,11 +260,37 @@ sys.exit(0 if ok else 1)
   # end _marketplace_from_folder
 }
 
+# Rebuilds ROOT/ALIAS as the checkout ROOT/NAME under another name: its own
+# marketplace.json with the name replaced, and symlinks to everything else.
+_marketplace_alias() {
+  local root="$1" name="$2" alias="$3" entry base
+  [ -n "${alias}" ] && [ "${alias}" != "${name}" ] || return 1
+  rm -rf "${root:?}/${alias}"
+  mkdir -p "${root}/${alias}/.claude-plugin" || return 1
+  for entry in "${root}/${name}"/* "${root}/${name}"/.[!.]* "${root}/${name}"/.claude-plugin/*; do
+    [ -e "${entry}" ] || continue
+    base="${entry#"${root}/${name}"/}"
+    case "${base}" in .git|.claude-plugin|.claude-plugin/marketplace.json) continue ;; esac
+    ln -s "${root}/${name}/${base}" "${root}/${alias}/${base}" || return 1
+  done
+  python3 - "${root}/${name}/.claude-plugin/marketplace.json" \
+    "${root}/${alias}/.claude-plugin/marketplace.json" "${alias}" <<'PY'
+import json, sys
+source, dest, alias = sys.argv[1:]
+manifest = json.load(open(source))
+manifest['name'] = alias
+json.dump(manifest, open(dest, 'w'), indent=2)
+PY
+  # end _marketplace_alias
+}
+
 # Checks a marketplace out at its pinned commit and declares it from that folder.
 # Claude Code tracks a GitHub marketplace's default branch; a folder holds still.
+# A reserved name is declared as ALIAS, from a renamed copy of the checkout.
 ensure_marketplace() {
-  local name="$1" repo="$2" commit="$3"
-  local dir="${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/${name}"
+  local name="$1" repo="$2" commit="$3" alias="${4:-}"
+  local root="${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}"
+  local dir="${root}/${name}" declared="${4:-$1}" declared_dir="${root}/${4:-$1}"
   local base="${AGENT_KIT_GIT_BASE:-https://github.com}" moved=0
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would pin marketplace ${name} at ${commit:0:12}"
@@ -278,7 +304,7 @@ ensure_marketplace() {
     if ! git -C "${dir}" fetch -q --depth 1 origin "${commit}" 2>/dev/null \
        || ! git -C "${dir}" -c advice.detachedHead=false checkout -q --force FETCH_HEAD; then
       # Fail closed: only a folder at an earlier pin may keep serving plugins.
-      if _marketplace_from_folder "${name}" "${dir}"; then
+      if _marketplace_from_folder "${declared}" "${declared_dir}"; then
         warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; still at its previous pin"
       else
         unpinned_markets+=("${name}")
@@ -293,21 +319,27 @@ ensure_marketplace() {
     unpinned_markets+=("${name}")
     return 0
   fi
-  if _marketplace_from_folder "${name}" "${dir}"; then
+  if [ -n "${alias}" ] && ! _marketplace_alias "${root}" "${name}" "${alias}"; then
+    unpinned_markets+=("${name}")
+    warn "marketplace ${name}: could not build ${declared_dir}; its plugins are not installed"
+    return 0
+  fi
+  if _marketplace_from_folder "${declared}" "${declared_dir}"; then
     if [ "${moved}" = 1 ]; then
-      run claude plugin marketplace update "${name}" >/dev/null 2>&1 \
+      run claude plugin marketplace update "${declared}" >/dev/null 2>&1 \
         || warn "marketplace ${name}: could not refresh after moving to ${commit:0:12}"
     fi
     ok "marketplace ${name} pinned at ${commit:0:12}"
   else
     # Removing the upstream-tracking declaration uninstalls its plugins; the
-    # plugins step reinstalls them from the pinned folder.
-    run claude plugin marketplace remove "${name}" >/dev/null 2>&1 || true
-    if run claude plugin marketplace add "${dir}" >/dev/null 2>&1; then
-      ok "marketplace ${name} pinned at ${commit:0:12} (was tracking upstream)"
+    # plugins step reinstalls them from the pinned folder. A reserved name is
+    # left alone: it cannot be declared from a folder, so its plugins would be lost.
+    [ -n "${alias}" ] || run claude plugin marketplace remove "${name}" >/dev/null 2>&1 || true
+    if run claude plugin marketplace add "${declared_dir}" >/dev/null 2>&1; then
+      ok "marketplace ${name} pinned at ${commit:0:12} (${alias:+declared as ${alias}, }was tracking upstream)"
     else
       unpinned_markets+=("${name}")
-      warn "marketplace ${name}: could not declare it from ${dir}; its plugins are not installed"
+      warn "marketplace ${name}: could not declare it from ${declared_dir}; its plugins are not installed"
     fi
   fi
   # end ensure_marketplace
@@ -1075,7 +1107,7 @@ if ! command -v claude >/dev/null 2>&1; then
   fail "claude is not on PATH; skipping plugins, language servers and MCP"
 else
   log "plugin marketplaces"
-  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official fc93980766c2200a0b4798eddf854b7b833395e4
+  ensure_marketplace claude-plugins-official anthropics/claude-plugins-official fc93980766c2200a0b4798eddf854b7b833395e4 agent-kit-official
   ensure_marketplace caveman JuliusBrussee/caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
   ensure_marketplace drawio jgraph/drawio-mcp 14b318b19cc37b159f841227b9d11fbd18ce18ea
   ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill f85547fb3a1ec909b2cbe4dc68f831590ac385ea
@@ -1086,6 +1118,7 @@ else
   fi
 
   log "plugins"
+  installed_plugins="$(claude plugin list --json 2>/dev/null || true)"
   # caveman: Compressed output mode plus the cavecrew subagents.
   case " ${unpinned_markets[*]-} " in *" caveman "*)
     warn "caveman: not installed: its marketplace is not at its pinned commit" ;;
@@ -1114,11 +1147,15 @@ else
   case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
     warn "frontend-design: not installed: its marketplace is not at its pinned commit" ;;
   *)
-    if run claude plugin install frontend-design@claude-plugins-official --yes --scope user; then
-      run claude plugin enable frontend-design@claude-plugins-official >/dev/null 2>&1 || true
-      ok "frontend-design@claude-plugins-official installed and enabled"
+    case "${installed_plugins-}" in *'"frontend-design@claude-plugins-official"'*)
+      run claude plugin uninstall frontend-design@claude-plugins-official >/dev/null 2>&1 \
+        && ok "frontend-design: removed the copy installed as frontend-design@claude-plugins-official" ;;
+    esac
+    if run claude plugin install frontend-design@agent-kit-official --yes --scope user; then
+      run claude plugin enable frontend-design@agent-kit-official >/dev/null 2>&1 || true
+      ok "frontend-design@agent-kit-official installed and enabled"
     else
-      warn "frontend-design@claude-plugins-official install failed"
+      warn "frontend-design@agent-kit-official install failed"
     fi
     ;;
   esac
@@ -1126,11 +1163,15 @@ else
   case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
     warn "mattpocock-skills: not installed: its marketplace is not at its pinned commit" ;;
   *)
-    if run claude plugin install mattpocock-skills@claude-plugins-official --yes --scope user; then
-      run claude plugin enable mattpocock-skills@claude-plugins-official >/dev/null 2>&1 || true
-      ok "mattpocock-skills@claude-plugins-official installed and enabled"
+    case "${installed_plugins-}" in *'"mattpocock-skills@claude-plugins-official"'*)
+      run claude plugin uninstall mattpocock-skills@claude-plugins-official >/dev/null 2>&1 \
+        && ok "mattpocock-skills: removed the copy installed as mattpocock-skills@claude-plugins-official" ;;
+    esac
+    if run claude plugin install mattpocock-skills@agent-kit-official --yes --scope user; then
+      run claude plugin enable mattpocock-skills@agent-kit-official >/dev/null 2>&1 || true
+      ok "mattpocock-skills@agent-kit-official installed and enabled"
     else
-      warn "mattpocock-skills@claude-plugins-official install failed"
+      warn "mattpocock-skills@agent-kit-official install failed"
     fi
     ;;
   esac
@@ -1138,11 +1179,15 @@ else
   case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
     warn "security-guidance: not installed: its marketplace is not at its pinned commit" ;;
   *)
-    if run claude plugin install security-guidance@claude-plugins-official --yes --scope user; then
-      run claude plugin enable security-guidance@claude-plugins-official >/dev/null 2>&1 || true
-      ok "security-guidance@claude-plugins-official installed and enabled"
+    case "${installed_plugins-}" in *'"security-guidance@claude-plugins-official"'*)
+      run claude plugin uninstall security-guidance@claude-plugins-official >/dev/null 2>&1 \
+        && ok "security-guidance: removed the copy installed as security-guidance@claude-plugins-official" ;;
+    esac
+    if run claude plugin install security-guidance@agent-kit-official --yes --scope user; then
+      run claude plugin enable security-guidance@agent-kit-official >/dev/null 2>&1 || true
+      ok "security-guidance@agent-kit-official installed and enabled"
     else
-      warn "security-guidance@claude-plugins-official install failed"
+      warn "security-guidance@agent-kit-official install failed"
     fi
     ;;
   esac
@@ -1165,11 +1210,15 @@ else
     case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
       warn "github: not installed: its marketplace is not at its pinned commit" ;;
     *)
-      if run claude plugin install github@claude-plugins-official --yes --scope user; then
-        run claude plugin enable github@claude-plugins-official >/dev/null 2>&1 || true
-        ok "github@claude-plugins-official installed and enabled"
+      case "${installed_plugins-}" in *'"github@claude-plugins-official"'*)
+        run claude plugin uninstall github@claude-plugins-official >/dev/null 2>&1 \
+          && ok "github: removed the copy installed as github@claude-plugins-official" ;;
+      esac
+      if run claude plugin install github@agent-kit-official --yes --scope user; then
+        run claude plugin enable github@agent-kit-official >/dev/null 2>&1 || true
+        ok "github@agent-kit-official installed and enabled"
       else
-        warn "github@claude-plugins-official install failed"
+        warn "github@agent-kit-official install failed"
       fi
       ;;
     esac
@@ -1278,7 +1327,7 @@ for install in installs:
       fi
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" frontend-design fc93980766c2200a0b4798eddf854b7b833395e4)"
-    installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@claude-plugins-official")"
+    installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "frontend-design: its marketplace entry pins no commit, so it cannot be pinned"
     elif [ -z "${installed_commit}" ]; then
@@ -1286,8 +1335,8 @@ for install in installs:
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "frontend-design: at its pinned commit"
     else
-      run claude plugin update frontend-design@claude-plugins-official >/dev/null 2>&1 || true
-      installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@claude-plugins-official")"
+      run claude plugin update frontend-design@agent-kit-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "frontend-design@agent-kit-official")"
       if [ "${installed_commit}" = "${expected_commit}" ]; then
         ok "frontend-design: moved to its pinned commit ${expected_commit:0:12}"
       else
@@ -1296,7 +1345,7 @@ for install in installs:
       fi
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" mattpocock-skills fc93980766c2200a0b4798eddf854b7b833395e4)"
-    installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@claude-plugins-official")"
+    installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "mattpocock-skills: its marketplace entry pins no commit, so it cannot be pinned"
     elif [ -z "${installed_commit}" ]; then
@@ -1304,8 +1353,8 @@ for install in installs:
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "mattpocock-skills: at its pinned commit"
     else
-      run claude plugin update mattpocock-skills@claude-plugins-official >/dev/null 2>&1 || true
-      installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@claude-plugins-official")"
+      run claude plugin update mattpocock-skills@agent-kit-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "mattpocock-skills@agent-kit-official")"
       if [ "${installed_commit}" = "${expected_commit}" ]; then
         ok "mattpocock-skills: moved to its pinned commit ${expected_commit:0:12}"
       else
@@ -1314,7 +1363,7 @@ for install in installs:
       fi
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" security-guidance fc93980766c2200a0b4798eddf854b7b833395e4)"
-    installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@claude-plugins-official")"
+    installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "security-guidance: its marketplace entry pins no commit, so it cannot be pinned"
     elif [ -z "${installed_commit}" ]; then
@@ -1322,8 +1371,8 @@ for install in installs:
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "security-guidance: at its pinned commit"
     else
-      run claude plugin update security-guidance@claude-plugins-official >/dev/null 2>&1 || true
-      installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@claude-plugins-official")"
+      run claude plugin update security-guidance@agent-kit-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "security-guidance@agent-kit-official")"
       if [ "${installed_commit}" = "${expected_commit}" ]; then
         ok "security-guidance: moved to its pinned commit ${expected_commit:0:12}"
       else
@@ -1350,7 +1399,7 @@ for install in installs:
       fi
     fi
     expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/claude-plugins-official" github fc93980766c2200a0b4798eddf854b7b833395e4)"
-    installed_commit="$(installed_plugin_commit "${manifest}" "github@claude-plugins-official")"
+    installed_commit="$(installed_plugin_commit "${manifest}" "github@agent-kit-official")"
     if [ -z "${expected_commit}" ]; then
       warn "github: its marketplace entry pins no commit, so it cannot be pinned"
     elif [ -z "${installed_commit}" ]; then
@@ -1358,8 +1407,8 @@ for install in installs:
     elif [ "${installed_commit}" = "${expected_commit}" ]; then
       ok "github: at its pinned commit"
     else
-      run claude plugin update github@claude-plugins-official >/dev/null 2>&1 || true
-      installed_commit="$(installed_plugin_commit "${manifest}" "github@claude-plugins-official")"
+      run claude plugin update github@agent-kit-official >/dev/null 2>&1 || true
+      installed_commit="$(installed_plugin_commit "${manifest}" "github@agent-kit-official")"
       if [ "${installed_commit}" = "${expected_commit}" ]; then
         ok "github: moved to its pinned commit ${expected_commit:0:12}"
       else
@@ -1402,16 +1451,20 @@ for install in installs:
     case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
       warn "typescript-lsp: not installed: its marketplace is not at its pinned commit" ;;
     *)
-      if run claude plugin install typescript-lsp@claude-plugins-official --yes --scope user; then
+      case "${installed_plugins-}" in *'"typescript-lsp@claude-plugins-official"'*)
+        run claude plugin uninstall typescript-lsp@claude-plugins-official >/dev/null 2>&1 \
+          && ok "typescript-lsp: removed the copy installed as typescript-lsp@claude-plugins-official" ;;
+      esac
+      if run claude plugin install typescript-lsp@agent-kit-official --yes --scope user; then
         if command -v typescript-language-server >/dev/null 2>&1; then
-          run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin enable typescript-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "typescript-lsp: typescript-language-server on PATH, plugin enabled"
         else
-          run claude plugin disable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin disable typescript-lsp@agent-kit-official >/dev/null 2>&1 || true
           lsp_cmd='npm install -g typescript-language-server typescript'
           run_sh "${lsp_cmd}" || true
           if command -v typescript-language-server >/dev/null 2>&1; then
-            run claude plugin enable typescript-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable typescript-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "typescript-lsp: typescript-language-server installed and enabled"
           else
             warn "typescript-lsp: typescript-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1419,7 +1472,7 @@ for install in installs:
           fi
         fi
       else
-        warn "typescript-lsp@claude-plugins-official install failed"
+        warn "typescript-lsp@agent-kit-official install failed"
       fi
       ;;
     esac
@@ -1428,16 +1481,20 @@ for install in installs:
     case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
       warn "pyright-lsp: not installed: its marketplace is not at its pinned commit" ;;
     *)
-      if run claude plugin install pyright-lsp@claude-plugins-official --yes --scope user; then
+      case "${installed_plugins-}" in *'"pyright-lsp@claude-plugins-official"'*)
+        run claude plugin uninstall pyright-lsp@claude-plugins-official >/dev/null 2>&1 \
+          && ok "pyright-lsp: removed the copy installed as pyright-lsp@claude-plugins-official" ;;
+      esac
+      if run claude plugin install pyright-lsp@agent-kit-official --yes --scope user; then
         if command -v pyright-langserver >/dev/null 2>&1; then
-          run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin enable pyright-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "pyright-lsp: pyright-langserver on PATH, plugin enabled"
         else
-          run claude plugin disable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin disable pyright-lsp@agent-kit-official >/dev/null 2>&1 || true
           lsp_cmd='npm install -g pyright'
           run_sh "${lsp_cmd}" || true
           if command -v pyright-langserver >/dev/null 2>&1; then
-            run claude plugin enable pyright-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable pyright-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "pyright-lsp: pyright-langserver installed and enabled"
           else
             warn "pyright-lsp: pyright-langserver is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1445,7 +1502,7 @@ for install in installs:
           fi
         fi
       else
-        warn "pyright-lsp@claude-plugins-official install failed"
+        warn "pyright-lsp@agent-kit-official install failed"
       fi
       ;;
     esac
@@ -1454,12 +1511,16 @@ for install in installs:
     case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
       warn "kotlin-lsp: not installed: its marketplace is not at its pinned commit" ;;
     *)
-      if run claude plugin install kotlin-lsp@claude-plugins-official --yes --scope user; then
+      case "${installed_plugins-}" in *'"kotlin-lsp@claude-plugins-official"'*)
+        run claude plugin uninstall kotlin-lsp@claude-plugins-official >/dev/null 2>&1 \
+          && ok "kotlin-lsp: removed the copy installed as kotlin-lsp@claude-plugins-official" ;;
+      esac
+      if run claude plugin install kotlin-lsp@agent-kit-official --yes --scope user; then
         if command -v kotlin-lsp >/dev/null 2>&1; then
-          run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin enable kotlin-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "kotlin-lsp: kotlin-lsp on PATH, plugin enabled"
         else
-          run claude plugin disable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin disable kotlin-lsp@agent-kit-official >/dev/null 2>&1 || true
           if [ "$(uname -s)" = Linux ]; then
             lsp_cmd='v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405 && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download-cdn.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
           else
@@ -1467,7 +1528,7 @@ for install in installs:
           fi
           run_sh "${lsp_cmd}" || true
           if command -v kotlin-lsp >/dev/null 2>&1; then
-            run claude plugin enable kotlin-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable kotlin-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "kotlin-lsp: kotlin-lsp installed and enabled"
           else
             warn "kotlin-lsp: kotlin-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1475,7 +1536,7 @@ for install in installs:
           fi
         fi
       else
-        warn "kotlin-lsp@claude-plugins-official install failed"
+        warn "kotlin-lsp@agent-kit-official install failed"
       fi
       ;;
     esac
@@ -1484,12 +1545,16 @@ for install in installs:
     case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
       warn "jdtls-lsp: not installed: its marketplace is not at its pinned commit" ;;
     *)
-      if run claude plugin install jdtls-lsp@claude-plugins-official --yes --scope user; then
+      case "${installed_plugins-}" in *'"jdtls-lsp@claude-plugins-official"'*)
+        run claude plugin uninstall jdtls-lsp@claude-plugins-official >/dev/null 2>&1 \
+          && ok "jdtls-lsp: removed the copy installed as jdtls-lsp@claude-plugins-official" ;;
+      esac
+      if run claude plugin install jdtls-lsp@agent-kit-official --yes --scope user; then
         if command -v jdtls >/dev/null 2>&1; then
-          run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin enable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "jdtls-lsp: jdtls on PATH, plugin enabled"
         else
-          run claude plugin disable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+          run claude plugin disable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
           if [ "$(uname -s)" = Linux ]; then
             lsp_cmd='curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz && rm -rf "${AK_OPT_DIR}/jdtls" && mkdir -p "${AK_OPT_DIR}/jdtls" "${AK_BIN_DIR}" && tar -xzf /tmp/jdtls.tgz -C "${AK_OPT_DIR}/jdtls" && rm -f /tmp/jdtls.tgz && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"'
           else
@@ -1497,7 +1562,7 @@ for install in installs:
           fi
           run_sh "${lsp_cmd}" || true
           if command -v jdtls >/dev/null 2>&1; then
-            run claude plugin enable jdtls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "jdtls-lsp: jdtls installed and enabled"
           else
             warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1505,7 +1570,7 @@ for install in installs:
           fi
         fi
       else
-        warn "jdtls-lsp@claude-plugins-official install failed"
+        warn "jdtls-lsp@agent-kit-official install failed"
       fi
       ;;
     esac
@@ -1517,16 +1582,20 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "ruby-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install ruby-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"ruby-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall ruby-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "ruby-lsp: removed the copy installed as ruby-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install ruby-lsp@agent-kit-official --yes --scope user; then
           if command -v ruby-lsp >/dev/null 2>&1; then
-            run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
           else
-            run claude plugin disable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
             lsp_cmd='gem install ruby-lsp'
             run_sh "${lsp_cmd}" || true
             if command -v ruby-lsp >/dev/null 2>&1; then
-              run claude plugin enable ruby-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              run claude plugin enable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
               ok "ruby-lsp: ruby-lsp installed and enabled"
             else
               warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1534,7 +1603,7 @@ for install in installs:
             fi
           fi
         else
-          warn "ruby-lsp@claude-plugins-official install failed"
+          warn "ruby-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1547,16 +1616,20 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "gopls-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install gopls-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"gopls-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall gopls-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "gopls-lsp: removed the copy installed as gopls-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install gopls-lsp@agent-kit-official --yes --scope user; then
           if command -v gopls >/dev/null 2>&1; then
-            run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "gopls-lsp: gopls on PATH, plugin enabled"
           else
-            run claude plugin disable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
             lsp_cmd='go install golang.org/x/tools/gopls@latest'
             run_sh "${lsp_cmd}" || true
             if command -v gopls >/dev/null 2>&1; then
-              run claude plugin enable gopls-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              run claude plugin enable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
               ok "gopls-lsp: gopls installed and enabled"
             else
               warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1564,7 +1637,7 @@ for install in installs:
             fi
           fi
         else
-          warn "gopls-lsp@claude-plugins-official install failed"
+          warn "gopls-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1577,19 +1650,23 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "rust-analyzer-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install rust-analyzer-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"rust-analyzer-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "rust-analyzer-lsp: removed the copy installed as rust-analyzer-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install rust-analyzer-lsp@agent-kit-official --yes --scope user; then
           if command -v rust-analyzer >/dev/null 2>&1; then
-            run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable rust-analyzer-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "rust-analyzer-lsp: rust-analyzer on PATH, plugin enabled"
           else
-            run claude plugin disable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable rust-analyzer-lsp@agent-kit-official >/dev/null 2>&1 || true
             if ! command -v rustup >/dev/null 2>&1; then
               log "rust-analyzer-lsp: no rustup on this machine; plugin left off"
             else
               lsp_cmd='rustup component add rust-analyzer'
               run_sh "${lsp_cmd}" || true
               if command -v rust-analyzer >/dev/null 2>&1; then
-                run claude plugin enable rust-analyzer-lsp@claude-plugins-official >/dev/null 2>&1 || true
+                run claude plugin enable rust-analyzer-lsp@agent-kit-official >/dev/null 2>&1 || true
                 ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
               else
                 warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1598,7 +1675,7 @@ for install in installs:
             fi
           fi
         else
-          warn "rust-analyzer-lsp@claude-plugins-official install failed"
+          warn "rust-analyzer-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1611,16 +1688,20 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "lua-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install lua-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"lua-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall lua-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "lua-lsp: removed the copy installed as lua-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install lua-lsp@agent-kit-official --yes --scope user; then
           if command -v lua-language-server >/dev/null 2>&1; then
-            run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "lua-lsp: lua-language-server on PATH, plugin enabled"
           else
-            run claude plugin disable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
             lsp_cmd='brew install lua-language-server'
             run_sh "${lsp_cmd}" || true
             if command -v lua-language-server >/dev/null 2>&1; then
-              run claude plugin enable lua-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              run claude plugin enable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
               ok "lua-lsp: lua-language-server installed and enabled"
             else
               warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1628,7 +1709,7 @@ for install in installs:
             fi
           fi
         else
-          warn "lua-lsp@claude-plugins-official install failed"
+          warn "lua-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1641,16 +1722,20 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "clangd-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install clangd-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"clangd-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall clangd-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "clangd-lsp: removed the copy installed as clangd-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install clangd-lsp@agent-kit-official --yes --scope user; then
           if command -v clangd >/dev/null 2>&1; then
-            run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "clangd-lsp: clangd on PATH, plugin enabled"
           else
-            run claude plugin disable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
             lsp_cmd='brew install llvm'
             run_sh "${lsp_cmd}" || true
             if command -v clangd >/dev/null 2>&1; then
-              run claude plugin enable clangd-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              run claude plugin enable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
               ok "clangd-lsp: clangd installed and enabled"
             else
               warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1658,7 +1743,7 @@ for install in installs:
             fi
           fi
         else
-          warn "clangd-lsp@claude-plugins-official install failed"
+          warn "clangd-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1671,16 +1756,20 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "php-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install php-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"php-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall php-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "php-lsp: removed the copy installed as php-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install php-lsp@agent-kit-official --yes --scope user; then
           if command -v intelephense >/dev/null 2>&1; then
-            run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable php-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "php-lsp: intelephense on PATH, plugin enabled"
           else
-            run claude plugin disable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable php-lsp@agent-kit-official >/dev/null 2>&1 || true
             lsp_cmd='npm install -g intelephense'
             run_sh "${lsp_cmd}" || true
             if command -v intelephense >/dev/null 2>&1; then
-              run claude plugin enable php-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              run claude plugin enable php-lsp@agent-kit-official >/dev/null 2>&1 || true
               ok "php-lsp: intelephense installed and enabled"
             else
               warn "php-lsp: intelephense is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1688,7 +1777,7 @@ for install in installs:
             fi
           fi
         else
-          warn "php-lsp@claude-plugins-official install failed"
+          warn "php-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1701,19 +1790,23 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "csharp-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install csharp-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"csharp-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall csharp-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "csharp-lsp: removed the copy installed as csharp-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install csharp-lsp@agent-kit-official --yes --scope user; then
           if command -v csharp-ls >/dev/null 2>&1; then
-            run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable csharp-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "csharp-lsp: csharp-ls on PATH, plugin enabled"
           else
-            run claude plugin disable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable csharp-lsp@agent-kit-official >/dev/null 2>&1 || true
             if ! command -v dotnet >/dev/null 2>&1; then
               log "csharp-lsp: no dotnet on this machine; plugin left off"
             else
               lsp_cmd='dotnet tool install --global csharp-ls'
               run_sh "${lsp_cmd}" || true
               if command -v csharp-ls >/dev/null 2>&1; then
-                run claude plugin enable csharp-lsp@claude-plugins-official >/dev/null 2>&1 || true
+                run claude plugin enable csharp-lsp@agent-kit-official >/dev/null 2>&1 || true
                 ok "csharp-lsp: csharp-ls installed and enabled"
               else
                 warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1722,7 +1815,7 @@ for install in installs:
             fi
           fi
         else
-          warn "csharp-lsp@claude-plugins-official install failed"
+          warn "csharp-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1735,17 +1828,21 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "swift-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install swift-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"swift-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall swift-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "swift-lsp: removed the copy installed as swift-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install swift-lsp@agent-kit-official --yes --scope user; then
           if command -v sourcekit-lsp >/dev/null 2>&1; then
-            run claude plugin enable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable swift-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
           else
-            run claude plugin disable swift-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable swift-lsp@agent-kit-official >/dev/null 2>&1 || true
             warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
             missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
           fi
         else
-          warn "swift-lsp@claude-plugins-official install failed"
+          warn "swift-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
@@ -1758,16 +1855,20 @@ for install in installs:
       case " ${unpinned_markets[*]-} " in *" claude-plugins-official "*)
         warn "liquid-lsp: not installed: its marketplace is not at its pinned commit" ;;
       *)
-        if run claude plugin install liquid-lsp@claude-plugins-official --yes --scope user; then
+        case "${installed_plugins-}" in *'"liquid-lsp@claude-plugins-official"'*)
+          run claude plugin uninstall liquid-lsp@claude-plugins-official >/dev/null 2>&1 \
+            && ok "liquid-lsp: removed the copy installed as liquid-lsp@claude-plugins-official" ;;
+        esac
+        if run claude plugin install liquid-lsp@agent-kit-official --yes --scope user; then
           if command -v shopify >/dev/null 2>&1; then
-            run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin enable liquid-lsp@agent-kit-official >/dev/null 2>&1 || true
             ok "liquid-lsp: shopify on PATH, so plugin enabled (off by default)"
           else
-            run claude plugin disable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+            run claude plugin disable liquid-lsp@agent-kit-official >/dev/null 2>&1 || true
             lsp_cmd='npm install -g @shopify/cli'
             run_sh "${lsp_cmd}" || true
             if command -v shopify >/dev/null 2>&1; then
-              run claude plugin enable liquid-lsp@claude-plugins-official >/dev/null 2>&1 || true
+              run claude plugin enable liquid-lsp@agent-kit-official >/dev/null 2>&1 || true
               ok "liquid-lsp: shopify installed and enabled"
             else
               warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: ${lsp_cmd})"
@@ -1775,7 +1876,7 @@ for install in installs:
             fi
           fi
         else
-          warn "liquid-lsp@claude-plugins-official install failed"
+          warn "liquid-lsp@agent-kit-official install failed"
         fi
         ;;
       esac
