@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.14.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.13.0...v4.14.0) (2026-10-16)
+
+
+### Features
+
+* **mcp:** start Playwright from one pinned global binary on every workstation agent ([#134](https://github.com/JorisJonkers-dev/agent-kit/issues/134)) ([6a05de2](https://github.com/JorisJonkers-dev/agent-kit/commit/6a05de2ffcb8c062fb216444145605bfa590dd93))
+
 ## [4.13.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.12.1...v4.13.0) (2026-10-16)
 
 
