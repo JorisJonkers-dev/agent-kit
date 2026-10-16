@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.12.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.12.0...v4.12.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **plugins:** declare claude-plugins-official under another name ([#107](https://github.com/JorisJonkers-dev/agent-kit/issues/107)) ([62df5eb](https://github.com/JorisJonkers-dev/agent-kit/commit/62df5eba65da969bfc17931af46de3e0ec90e966))
+
 ## [4.12.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.11.0...v4.12.0) (2026-10-16)
 
 
