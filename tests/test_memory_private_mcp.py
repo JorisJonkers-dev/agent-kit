@@ -76,7 +76,7 @@ def test_without_enabled_for_vibe_stays_out_of_vibe() -> None:
 
 def test_a_cloud_run_takes_it_out_of_vibe() -> None:
     script = render_registry.render_setup_script(_data())
-    removal = next(line for line in script.splitlines() if "vibe_remove=(" in line and "CLOUD" in line)
+    removal = next(line for line in script.splitlines() if "vibe_remove+=(" in line and "CLOUD" in line)
     assert f"--remove {NAME}" in removal
 
 
@@ -221,7 +221,7 @@ def test_claude_session_loads_the_private_config_and_leaves_the_shared_bank_alon
     result = _session(tmp_path, "claude", "--resume")
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        f"claude --mcp-config={config} --disallowedTools=mcp__memory-api,mcp__memory-mcp,mcp__hindsight --resume",
+        f"claude --mcp-config={config} --disallowedTools=mcp__memory-api,mcp__hindsight --resume",
         "DISABLED=true",
     ]
 
@@ -237,7 +237,7 @@ def test_codex_session_switches_the_server_on_for_that_run_only(tmp_path: Path) 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         f"codex -c mcp_servers.{NAME}.enabled=true -c mcp_servers.memory-api.enabled=false"
-        " -c mcp_servers.memory-mcp.enabled=false -c mcp_servers.hindsight.enabled=false exec hi",
+        " -c mcp_servers.hindsight.enabled=false exec hi",
         "DISABLED=true",
     ]
 

@@ -443,7 +443,7 @@ skills:
 # topics and audit were installer-only skills (no repo template, served only
 # by the retired install.sh's KB-curator partials) and are removed along with
 # it (agent-kit#40): both are built around knowledge-api admin tools with no
-# memory-api/memory-mcp equivalent, so nothing replaces them. See the
+# memory-api equivalent, so nothing replaces them. See the
 # agent-kit#40 PR body.
 
 # hooks: intentionally absent.

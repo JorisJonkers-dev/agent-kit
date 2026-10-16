@@ -72,10 +72,10 @@ workstation_secrets:
     grant: MEMORY_API
     check: "https://hindsight-api.jorisjonkers.dev/mcp/default/"
     export: true
+  # Retired with the memory-mcp server: Basic Memory is parked at zero
+  # replicas (fleet-infra). Removed from the keychain and env.sh.
   - env: MEMORY_MCP_TOKEN
-    grant: MEMORY_MCP
-    check: "https://memory-mcp.jorisjonkers.dev/mcp"
-    export: true
+    retired: true
   - env: MEMORY_PRIVATE_TOKEN
     grant: MEMORY_PRIVATE
     check: "https://hindsight-private.jorisjonkers.dev/mcp/private/"
@@ -751,8 +751,8 @@ local_skills:
     agents: [claude, codex, vibe]
     surfaces: [workstation]
     note: >-
-      Rewritten for the current memory platform (memory-api/Hindsight,
-      memory-mcp/Basic Memory). The original was written around the retired
+      Rewritten for the current memory platform (memory-api/Hindsight; the
+      memory-mcp/Basic Memory server it also covered is now retired). The original was written around the retired
       knowledge-api's specific `knowledge.recall` tool, modes, and score
       thresholds (fleet-infra#231); this version deliberately does not
       invent equivalents it cannot verify, and points at each server's own
@@ -768,7 +768,7 @@ local_skills:
     note: >-
       Rewritten alongside kb-first for the same reason: the original tuned
       knowledge-api-specific env vars (`KB_RECALL_MIN_SCORE` and friends)
-      that do nothing against memory-api/memory-mcp.
+      that do nothing against memory-api.
 
   - name: agent-session-bootstrap
     path: skills/agent-session-bootstrap
@@ -779,14 +779,14 @@ local_skills:
     agents: [claude, codex, vibe]
     surfaces: [workstation]
     note: >-
-      Updated to reference memory-api/memory-mcp instead of the retired
+      Updated to reference memory-api instead of the retired
       `knowledge` MCP server, and setup-workstation.sh's retired-hook purge
       instead of the retired install-agents.sh.
 
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # retired knowledge-api's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,
-  # `merge_topics` -- none of which has a memory-api or memory-mcp
+  # `merge_topics` -- none of which has a memory-api
   # equivalent. Porting them would mean inventing new capability, not
   # translating existing behavior, so they are left out rather than shipped
   # against tools that do not exist. See the agent-kit#40 PR body.
@@ -909,7 +909,7 @@ mcp_servers:
     enabled: false
     surfaces: []
     trust: estate
-    note: Kept as a record only, registered nowhere; replaced by memory-api and memory-mcp.
+    note: Kept as a record only, registered nowhere; replaced by memory-api.
 
   - name: memory-api
     transport: http
@@ -950,18 +950,20 @@ mcp_servers:
 
   - name: memory-mcp
     transport: http
-    purpose: Basic Memory -- shared Markdown notes with a semantic link graph. Edit notes, never overwrite.
+    purpose: RETIRED. Basic Memory -- shared Markdown notes over the knowledge-vault.
     url_workstation: "https://memory-mcp.jorisjonkers.dev/mcp"
     url_hermes: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
     credential: MEMORY_MCP_TOKEN
-    # Same network-boundary posture as memory-api: no header for Hermes.
-    credential_hermes: false
     timeout: 60
-    surfaces: [workstation, hermes, runner]
+    enabled: false
+    surfaces: []
     trust: estate
     note: >-
-      MEMORY_MCP_TOKEN is minted the same way as HINDSIGHT_API_TOKEN,
-      with service MEMORY_MCP.
+      Kept as a record, registered nowhere. Basic Memory sat idle (no note
+      activity in 30 days) and is parked at zero replicas in fleet-infra;
+      memory-api (Hindsight) is the agent memory, and the knowledge-vault
+      repository keeps the notes. `surfaces: []` is what removes it from
+      Claude, Codex, Vibe and local Hermes on the next setup run.
 
   - name: kubernetes
     transport: http

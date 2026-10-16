@@ -120,25 +120,26 @@ def test_workstation_http_credential_becomes_a_bearer_header() -> None:
 def test_hermes_gateway_skips_the_bearer_header_when_credential_hermes_is_false() -> None:
     """credential_hermes: false suppresses the Authorization header Hermes cannot fill.
 
-    memory-api no longer uses it: Hermes reaches Hindsight through the gated
-    public host with its own token (test_hermes_reaches_hindsight_only_...).
+    No live server uses it since memory-mcp retired, so the check runs on a
+    synthetic copy of an http server with a credential.
     """
-    data = _registry()
-    for name in ("memory-mcp",):
-        server = next(s for s in data["mcp_servers"] if s["name"] == name)
-        assert server.get("credential") and server.get("credential_hermes") is False
+    data = copy.deepcopy(_registry())
+    server = copy.deepcopy(next(s for s in data["mcp_servers"] if s["name"] == "memory-api"))
+    server.update(name="netpol-only", credential="NETPOL_ONLY_TOKEN", credential_hermes=False,
+                  url_hermes="http://netpol-only.example.svc.cluster.local:8000/mcp")
+    server["surfaces"] = ["hermes"]
+    data["mcp_servers"].append(server)
     fragment = render_registry.render_hermes_mcp(data)
-    for name in ("memory-mcp",):
-        entry = fragment.split(f"  {name}:")[1].split("\n\n")[0]
-        assert "headers" not in entry
-        assert "Authorization" not in entry
+    entry = fragment.split("  netpol-only:")[1].split("\n\n")[0]
+    assert "headers" not in entry
+    assert "Authorization" not in entry
 
 
 def test_local_hermes_http_credential_becomes_a_bearer_header() -> None:
     """Local Hermes gets a ${VAR}-interpolated bearer header, like Claude and Codex."""
     data = _registry()
     fragment = render_registry.render_hermes_local_mcp(data)
-    for name in ("memory-api", "memory-mcp"):
+    for name in ("memory-api",):
         cred = next(s for s in data["mcp_servers"] if s["name"] == name)["credential"]
         entry = fragment.split(f"  {name}:")[1].split("\n\n")[0]
         assert f'Authorization: "Bearer ${{{cred}}}"' in entry
@@ -933,7 +934,8 @@ def test_kb_first_and_token_economy_do_not_reference_the_retired_kb() -> None:
         for token in dead_tool_calls:
             assert token not in text, f"{name} still references retired {token}"
         assert "memory-api" in text
-        assert "memory-mcp" in text
+        # memory-mcp is retired as well: at most the one sentence saying so.
+        assert text.count("memory-mcp") <= 1, f"{name} still points agents at memory-mcp"
 
 
 def test_superpowers_reaches_the_workstation() -> None:
@@ -1103,3 +1105,24 @@ def test_hermes_reaches_hindsight_only_through_the_gated_shared_path() -> None:
     assert api["headers"]["Authorization"] == "Bearer @HINDSIGHT_API_TOKEN@"
     for name, server in servers.items():
         assert "hindsight-api.knowledge-platform-system" not in str(server.get("url", "")), name
+
+
+def test_a_retired_server_is_removed_from_every_local_agent() -> None:
+    """Retiring a server must unregister it from Claude, Codex, Vibe and local Hermes.
+
+    Removing it only from Claude left `knowledge` connected in Codex long after
+    it was retired; memory-mcp is the case that exposed it.
+    """
+    data = _registry()
+    retired = render_registry.retired_servers(data)
+    assert "memory-mcp" in retired
+    script = render_registry.render_setup_script(data)
+    vibe_line = next(line for line in script.splitlines() if line.strip().startswith("vibe_remove=("))
+    hermes_line = next(line for line in script.splitlines() if "mcp-servers.local.yaml\" --remove memory" in line)
+    for name in retired:
+        assert f"claude mcp remove --scope user {name}" in script
+        assert f"run codex mcp remove {name} " in script
+        assert f"--remove {name}" in vibe_line
+        assert f"--remove {name}" in hermes_line
+    assert "memory-mcp" not in render_registry.render_hermes_local_mcp(data)
+    assert "memory-mcp" not in render_registry.render_hermes_mcp(data)

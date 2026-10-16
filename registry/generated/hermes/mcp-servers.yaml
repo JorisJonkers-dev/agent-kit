@@ -19,12 +19,6 @@ mcp_servers:
       Authorization: "Bearer @HINDSIGHT_API_TOKEN@"
     timeout: 60
 
-  # Basic Memory -- shared Markdown notes with a semantic link graph.
-  # Edit notes, never overwrite.
-  memory-mcp:
-    url: "http://basic-memory.knowledge-platform-system.svc.cluster.local:8000/mcp"
-    timeout: 60
-
   # Read-only cluster diagnostics through the server's own
   # ClusterRole.
   kubernetes:

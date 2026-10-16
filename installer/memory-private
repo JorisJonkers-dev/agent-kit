@@ -14,7 +14,7 @@
 #
 # `claude` and `codex` open one session with the private Hindsight bank (the
 # memory-private MCP server, switched off everywhere else), with the shared
-# stores Hermes reads (memory-api, memory-mcp, hindsight) off, so nothing from
+# stores Hermes reads (memory-api, hindsight) off, so nothing from
 # that session lands where Hermes can see it.
 set -euo pipefail
 
@@ -45,10 +45,10 @@ case "${cmd}" in
         exit 1
       }
       # `=` forms: both flags are variadic and would swallow a trailing prompt.
-      exec claude --mcp-config="${config}" --disallowedTools=mcp__memory-api,mcp__memory-mcp,mcp__hindsight "$@"
+      exec claude --mcp-config="${config}" --disallowedTools=mcp__memory-api,mcp__hindsight "$@"
     fi
     exec codex -c mcp_servers.memory-private.enabled=true -c mcp_servers.memory-api.enabled=false \
-      -c mcp_servers.memory-mcp.enabled=false -c mcp_servers.hindsight.enabled=false "$@"
+      -c mcp_servers.hindsight.enabled=false "$@"
     ;;
 esac
 dir="${2:-$PWD}"

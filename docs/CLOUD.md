@@ -19,10 +19,10 @@ sha256, and re-runs the copy inside it.
 
 ## Set it up
 
-1. **Mint two tokens for the environment**, as for any other host
-   ([SETUP.md](SETUP.md#per-host-service-tokens-memory-api--memory-mcp)):
-   service `MEMORY_API` and service `MEMORY_MCP`, both labelled
-   `claude-cloud`. Revoking them later touches no other device.
+1. **Mint a token for the environment**, as for any other host
+   ([SETUP.md](SETUP.md#per-host-service-tokens-memory-api--memory-private)):
+   service `MEMORY_API`, labelled `claude-cloud`. Revoking it later touches
+   no other device.
 2. **Create the environment.** Network access **Custom**, with the Trusted
    defaults included, plus:
 
@@ -70,7 +70,7 @@ The setup output is kept at `/var/log/agent-kit-setup.log`. Ask Claude to run:
 
 ```bash
 tail -30 /var/log/agent-kit-setup.log   # the summary and every FAIL
-claude mcp list                         # memory-api, memory-mcp, playwright, drawio, overleaf
+claude mcp list                         # memory-api, playwright, drawio, overleaf
 claude mcp list | grep hindsight        # Hindsight Coding Agents' memory tools
 ```
 

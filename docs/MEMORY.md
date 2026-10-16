@@ -7,7 +7,9 @@ The mem0 plan below was never built. The estate stood up **Hindsight**
 vault) in-cluster instead — see agent-kit#41/#42 and
 `registry/estate-tooling.yaml`'s `memory-api` and `memory-mcp` entries,
 which replaced the `memory` entry this document originally shipped
-(now `surfaces: []`, kept as a record only). The rest of this file is
+(now `surfaces: []`, kept as a record only). Basic Memory has since been
+retired too: `memory-mcp` is `surfaces: []` and the service is parked, so
+Hindsight (`memory-api`, and `memory-private` in Vibe) is the agent memory. The rest of this file is
 history: it explains why the KB was retired and records the reasoning
 that led to mem0 being picked over honcho, which is still accurate, but
 the "Bring-up" and "Decision" sections describe a service that does not
