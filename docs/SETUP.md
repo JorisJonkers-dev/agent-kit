@@ -285,8 +285,8 @@ ticket; none exists yet.
 
 Both hosts are registered from `registry/estate-tooling.yaml`'s `memory-api`
 and `memory-private` entries. The `memory-mcp` (Basic Memory) entry that was
-registered beside them is retired (`surfaces: []`), like the mem0 `memory`
-entry before it.
+registered beside them is retired (`surfaces: []`). The mem0 `memory` entry
+is gone from the registry, and setup removes a leftover one as undeclared.
 
 Every `workstation` MCP server is registered into **Claude Code, Codex and
 local Hermes**. Codex gets each server via `codex mcp add`; local Hermes reads

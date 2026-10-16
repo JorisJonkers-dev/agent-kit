@@ -187,13 +187,22 @@ def test_a_missing_keep_file_keeps_nothing(tmp_path: Path) -> None:
 
 def test_a_retired_record_is_removed_even_when_the_keep_file_names_it(tmp_path: Path) -> None:
     # In the registry, knowledge has `surfaces: []` and vuetify has `enabled: false`.
-    machine = Machine(tmp_path, ["knowledge", "vuetify", "memory-mcp", "memory"], keep=["vuetify"])
+    machine = Machine(tmp_path, ["knowledge", "vuetify", "memory-mcp"], keep=["vuetify"])
     result = machine.setup()
     _clean(result)
     for surface, names in machine.surfaces().items():
-        assert not names & {"knowledge", "vuetify", "memory-mcp", "memory"}, surface
+        assert not names & {"knowledge", "vuetify", "memory-mcp"}, surface
     assert "removed knowledge (codex, retired)" in result.stdout
     assert "removed vuetify (codex, retired)" in result.stdout
+
+
+def test_a_surface_still_holding_the_mem0_memory_server_loses_it_as_undeclared(tmp_path: Path) -> None:
+    machine = Machine(tmp_path, ["memory", "memory-api"], keep=[])
+    result = machine.setup()
+    _clean(result)
+    for surface, names in machine.surfaces().items():
+        assert "memory" not in names and "memory-api" in names, surface
+    assert "removed memory (codex, undeclared)" in result.stdout
 
 
 def test_a_server_retired_by_enabled_false_is_removed(tmp_path: Path) -> None:
