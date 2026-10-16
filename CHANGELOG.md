@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.13.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.12.1...v4.13.0) (2026-10-16)
+
+
+### Features
+
+* **mcp:** converge every surface's MCP servers to the registry and the keep file ([#130](https://github.com/JorisJonkers-dev/agent-kit/issues/130)) ([a7b2d56](https://github.com/JorisJonkers-dev/agent-kit/commit/a7b2d56670757319b34022f5213807c4e4f38d96)), closes [#118](https://github.com/JorisJonkers-dev/agent-kit/issues/118)
+* **memory:** retire memory-mcp and unregister retired servers from every agent ([#109](https://github.com/JorisJonkers-dev/agent-kit/issues/109)) ([35087ca](https://github.com/JorisJonkers-dev/agent-kit/commit/35087ca61eaf99b6412bc16f295994b3bfa8fd1e))
+* **plugins:** converge Claude marketplaces and plugins to the registry and the keep file ([#131](https://github.com/JorisJonkers-dev/agent-kit/issues/131)) ([1a651f2](https://github.com/JorisJonkers-dev/agent-kit/commit/1a651f290209c29ae4ca35a55043826ed7149dc4)), closes [#119](https://github.com/JorisJonkers-dev/agent-kit/issues/119)
+
 ## [4.12.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.12.0...v4.12.1) (2026-10-16)
 
 
