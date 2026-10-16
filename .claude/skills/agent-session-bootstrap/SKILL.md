@@ -11,9 +11,8 @@ Checklist:
    `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, project
    `CLAUDE.md`, project `.claude/settings.json`, `~/.claude/skills`,
    Codex `~/.codex/config.toml`, repo `AGENTS.md`, and `.agents/skills`.
-2. Ensure the `memory-api` (Hindsight) and `memory-mcp` (Basic Memory) MCP
-   servers are configured, each with its own per-host token
-   (`HINDSIGHT_API_TOKEN`, `MEMORY_MCP_TOKEN`) rather than an inline secret.
+2. Ensure the `memory-api` (Hindsight) MCP server is configured with its
+   per-host token (`HINDSIGHT_API_TOKEN`) rather than an inline secret.
 3. Keep runner MCP profiles narrow:
    `minimal` for routine work, and `frontend`, `cluster`, `code-intel`,
    or `full-diagnostic` only when the task needs those tools. Prefer
@@ -21,8 +20,7 @@ Checklist:
    `AGENT_RUNTIME_DEFAULT_MCP_PROFILE` only for fleet-wide default changes.
 4. Add or update memory files so future sessions know to consult and
    record to the memory platform without user reminders.
-5. Validate with at least one `tools/list` call against `memory-api` and
-   `memory-mcp`.
+5. Validate with at least one `tools/list` call against `memory-api`.
 
 The estate ships **no hand-authored agent hooks**; `setup-workstation.sh`
 purges any it finds from a machine set up by the retired `install.sh` /

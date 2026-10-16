@@ -30,7 +30,6 @@
 # Secrets are read from the environment and never written here:
 #   HINDSIGHT_API_TOKEN  -> the memory-api MCP server
 #   MEMORY_PRIVATE_TOKEN  -> the memory-private MCP server
-#   MEMORY_MCP_TOKEN  -> the memory-mcp MCP server
 #   OVERLEAF_SESSION  -> the overleaf MCP server
 
 set -uo pipefail
@@ -69,7 +68,7 @@ while [ "$#" -gt 0 ]; do
     --no-prompt) PROMPT=0 ;;
     --cloud) CLOUD=1; DO_PROFILES=0 ;;
     --uninstall) UNINSTALL=1 ;;
-    --help|-h) sed -n '2,34p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,33p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
   shift
@@ -1899,10 +1898,16 @@ for install in installs:
   if [ "${DO_MCP}" = 1 ]; then
     log "MCP servers"
     run claude_each_profile claude mcp remove --scope user memory >/dev/null 2>&1 || true
+    command -v codex >/dev/null 2>&1 && { run codex mcp remove memory >/dev/null 2>&1 || true; }
     log "memory: removed (retired in the registry)"
+    run claude_each_profile claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
+    command -v codex >/dev/null 2>&1 && { run codex mcp remove memory-mcp >/dev/null 2>&1 || true; }
+    log "memory-mcp: removed (retired in the registry)"
     run claude_each_profile claude mcp remove --scope user vuetify >/dev/null 2>&1 || true
+    command -v codex >/dev/null 2>&1 && { run codex mcp remove vuetify >/dev/null 2>&1 || true; }
     log "vuetify: removed (retired in the registry)"
     run claude_each_profile claude mcp remove --scope user knowledge >/dev/null 2>&1 || true
+    command -v codex >/dev/null 2>&1 && { run codex mcp remove knowledge >/dev/null 2>&1 || true; }
     log "knowledge: removed (retired in the registry)"
 
 
@@ -1949,31 +1954,6 @@ for install in installs:
             || fail "memory-private: could not switch it off (codex)"
         else
           fail "memory-private registration failed (codex)"
-        fi
-      fi
-    fi
-
-    # Basic Memory -- shared Markdown notes with a semantic link
-    # graph. Edit notes, never overwrite.
-    if [ -z "${MEMORY_MCP_TOKEN:-}" ] && [ "${CLOUD}" != 1 ]; then
-      log "memory-mcp: MEMORY_MCP_TOKEN is not set; not registered (see tokens and keys)"
-      skipped_mcp_servers+=("memory-mcp: export MEMORY_MCP_TOKEN")
-      skipped_mcp_names+=(memory-mcp)
-    else
-      if command -v claude >/dev/null 2>&1; then
-        run claude_each_profile claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
-        if run_redacted "claude mcp add memory-mcp" claude_each_profile claude mcp add --scope user memory-mcp --transport http https://memory-mcp.jorisjonkers.dev/mcp --header "Authorization: Bearer $(secret_ref MEMORY_MCP_TOKEN)"; then
-          ok "memory-mcp registered (claude)"
-        else
-          fail "memory-mcp registration failed (claude)"
-        fi
-      fi
-      if command -v codex >/dev/null 2>&1; then
-        run codex mcp remove memory-mcp >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add memory-mcp" codex mcp add memory-mcp --url https://memory-mcp.jorisjonkers.dev/mcp --bearer-token-env-var MEMORY_MCP_TOKEN; then
-          ok "memory-mcp registered (codex)"
-        else
-          fail "memory-mcp registration failed (codex)"
         fi
       fi
     fi
@@ -2085,6 +2065,9 @@ for install in installs:
         uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" \
           || fail "local Hermes MCP merge failed"
+        uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+          "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove memory --remove memory-mcp --remove vuetify --remove knowledge \
+          || fail "local Hermes retired MCP cleanup failed"
         if [ "${CLOUD}" = 1 ]; then
           uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
             "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove kubernetes \
@@ -2100,8 +2083,8 @@ for install in installs:
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
-        vibe_remove=()
-        [ "${CLOUD}" = 1 ] && vibe_remove=(--remove memory-private --remove kubernetes)
+        vibe_remove=(--remove memory --remove memory-mcp --remove vuetify --remove knowledge)
+        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove memory-private --remove kubernetes)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
@@ -2134,7 +2117,7 @@ for install in installs:
      for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
       registered=$(claude_in_profile "${profile_dir}" claude mcp list 2>/dev/null || true)
       # Check all expected servers are registered
-      expected_servers=(memory-api memory-mcp playwright drawio overleaf)
+      expected_servers=(memory-api playwright drawio overleaf)
       if [ "${CLOUD}" != 1 ]; then
         expected_servers+=(kubernetes)
       fi
@@ -2155,7 +2138,6 @@ for install in installs:
         case "${found}" in
           memory-api) ;;
           memory-private) ;;
-          memory-mcp) ;;
           kubernetes) ;;
           vuetify) ;;
           playwright) ;;

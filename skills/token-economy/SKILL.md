@@ -6,7 +6,7 @@ description: Use when the user asks to reduce token usage, agent cost, context b
 # Token Economy
 
 - Keep stable instructions in `CLAUDE.md` or skills; keep volatile facts in
-  `memory-api` (Hindsight) or `memory-mcp` (Basic Memory) and retrieve them
+  `memory-api` (Hindsight) and retrieve them
   on demand rather than inlining them.
 - Prefer progressive disclosure: list/search first, open small file ranges
   next, fetch full files or notes only when needed.
@@ -23,7 +23,7 @@ description: Use when the user asks to reduce token usage, agent cost, context b
 When reporting command results, summarize only the lines needed to support
 the decision. A session digest (if the user asks for one) should capture
 only reusable lessons above a genuine confidence bar and should be checked
-against existing memory-api/memory-mcp hits before writing, so it does not
+against existing memory-api hits before writing, so it does not
 duplicate what is already captured.
 
 ## Tunable env vars
@@ -36,4 +36,4 @@ duplicate what is already captured.
 
 The `knowledge-api`-era env vars (`KB_RECALL_MIN_SCORE`, `KB_RECALL_MODE`,
 `KB_AUTO_MCP_DISABLED`) are retired along with the service they tuned; they
-do nothing against `memory-api` or `memory-mcp`.
+do nothing against `memory-api`.

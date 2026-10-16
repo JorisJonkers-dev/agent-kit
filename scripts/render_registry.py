@@ -322,6 +322,15 @@ def _env_report(data: dict[str, Any], message: str, var: str, indent: str) -> st
     ])
 
 
+def retired_servers(data: dict[str, Any]) -> list[str]:
+    """MCP servers the registry retired: `enabled: false` or on no surface at all."""
+    return [
+        str(s["name"])
+        for s in _entries(data, "mcp_servers")
+        if s.get("enabled") is False or not (s.get("surfaces") or [])
+    ]
+
+
 def session_only(server: dict[str, Any]) -> bool:
     """Installed switched off; on only in a session opened for it."""
     return server.get("session_only") is True
@@ -2026,6 +2035,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if not retired:
             continue
         w(f'    run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
+        # Codex keeps its own server list; a retired server left there stays
+        # connected (or fails to) on every Codex launch.
+        w(f'    command -v codex >/dev/null 2>&1 && {{ run codex mcp remove {name} >/dev/null 2>&1 || true; }}')
         w(f'    log "{name}: removed (retired in the registry)"')
     w("")
     # Now add/ensure active servers.
@@ -2159,6 +2171,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("        uv run --no-project --with pyyaml python \"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
     w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" \\")
     w("          || fail \"local Hermes MCP merge failed\"")
+    retired = retired_servers(data)
+    if retired:
+        # The merge only adds and replaces, so retired servers go in a separate pass.
+        removes = " ".join(f"--remove {name}" for name in retired)
+        w("        uv run --no-project --with pyyaml python \"${KIT_ROOT}/scripts/hermes-merge-mcp.py\" \\")
+        w(f"          \"${{KIT_ROOT}}/{HERMES_LOCAL_MCP}\" {removes} \\")
+        w("          || fail \"local Hermes retired MCP cleanup failed\"")
     hermes_off_cloud = [
         s["name"]
         for s in _entries(data, "mcp_servers")
@@ -2181,11 +2200,14 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"')
     w("      else")
-    w("        vibe_remove=()")
+    # Retired servers are dropped from Vibe's config on every run; the merge
+    # itself leaves any server it does not name alone.
+    vibe_retired = " ".join(f"--remove {name}" for name in retired_servers(data))
+    w(f"        vibe_remove=({vibe_retired})")
     vibe_off_cloud = [s["name"] for s in vibe_servers(data) if not on_cloud(s)]
     if vibe_off_cloud:
         removes = " ".join(f"--remove {name}" for name in vibe_off_cloud)
-        w(f'        [ "${{CLOUD}}" = 1 ] && vibe_remove=({removes})')
+        w(f'        [ "${{CLOUD}}" = 1 ] && vibe_remove+=({removes})')
     w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
     remove_args = '${vibe_remove[@]+"${vibe_remove[@]}"}'
     w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {remove_args} \\')

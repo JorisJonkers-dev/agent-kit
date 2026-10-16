@@ -56,14 +56,13 @@ asks only for what is missing or refused by its host. Optional credentials
 |---|---|---|
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and Hindsight Coding Agents' hooks and `hindsight` tools | required |
 | `HINDSIGHT_API_URL` | anything that reads it; Coding Agents takes its URL from its own config | set by env.sh |
-| `MEMORY_MCP_TOKEN` | the `memory-mcp` MCP server (Basic Memory) | required |
 | `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | never exported; sealed behind your passphrase, given to `vibe` and `memory-private` per launch |
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
-`HINDSIGHT_API_TOKEN` and `MEMORY_MCP_TOKEN` are **per-host, individually
+`HINDSIGHT_API_TOKEN` and `MEMORY_PRIVATE_TOKEN` are **per-host, individually
 revocable** service tokens, not shared secrets — mint one per device with
-`POST /api/v1/auth/service-tokens {"service":"MEMORY_API"|"MEMORY_MCP",
+`POST /api/v1/auth/service-tokens {"service":"MEMORY_API"|"MEMORY_PRIVATE",
 "label":"<device>"}` while signed in to auth-api (agent-kit#41/#42 design),
 and revoke a lost device with `DELETE /api/v1/auth/service-tokens/{id}`
 without touching any other device or host. Never share one token between
@@ -120,16 +119,14 @@ are reset on every run.
 | Client | Capture |
 |---|---|
 | Claude Code, Codex | **Recall automatic, saving deliberate** — Hindsight Coding Agents recalls at a session's first prompt; the agent saves with its `hindsight` or `memory-api` tools, by the memory policy. |
-| Hermes (laptop and in-cluster) | **Model-elective** — recall and retain only happen when the model calls a `memory-api` or `memory-mcp` tool itself. |
+| Hermes (laptop and in-cluster) | **Model-elective** — recall and retain only happen when the model calls a `memory-api` tool itself. |
 | Mistral Vibe | **Model-elective** for now, through the same MCP servers. Vibe's hooks fire only around tools and after a turn (`pre_tool`, `post_tool`, `post_agent`), so automatic retain is possible but automatic recall at prompt start is not (fleet-infra#399). |
 
 All of them write into the same shared bank, `default` (the setup script pins
-the plugin's `bankId`, and `hindsight-api.*` serves no other bank), and the
-same shared Basic Memory vault. Basic
-Memory carries no per-call identity of its own, so attribute a change in the
-note body/frontmatter, and always **edit** a note — `--overwrite` is
-last-writer-wins and silently drops a concurrent edit from another agent or
-session (verified live).
+the plugin's `bankId`, and `hindsight-api.*` serves no other bank). The
+`memory-mcp` (Basic Memory) server is retired: Basic Memory is parked at zero
+replicas, and setup unregisters it from Claude, Codex, Vibe and local Hermes.
+Its notes stay in the `knowledge-vault` repository.
 
 `OVERLEAF_SESSION` is the `overleaf.sid` cookie from a logged-in browser
 session on the **self-hosted** instance — not `overleaf_session2`, which is the
@@ -213,16 +210,17 @@ memory-private claude [ARGS]          # or: memory-private codex [ARGS]
 ```
 
 That session also runs with Hindsight Coding Agents inert (`HINDSIGHT_DISABLED=true`) and with the shared
-stores Hermes reads switched off (`memory-api`, `memory-mcp` and `hindsight`), so nothing
+stores Hermes reads switched off (`memory-api` and `hindsight`), so nothing
 from it can land where Hermes can see it. Every other session, including another one
 open at the same time, still has no private bank.
 
-### Per-host service tokens (memory-api / memory-mcp)
+### Per-host service tokens (memory-api / memory-private)
 
 auth-api (agent-kit#41) now issues per-user, per-host bearer credentials —
 "service tokens" — for CLI/agent access to `hindsight-api.jorisjonkers.dev`
-(Hindsight) and `memory-mcp.jorisjonkers.dev` (Basic Memory MCP), both behind
-forward-auth. This is the contract `setup-workstation.sh` will consume once a
+(the shared Hindsight bank) and `hindsight-private.jorisjonkers.dev` (the
+private bank), both behind forward-auth. The `MEMORY_MCP` service for the
+retired Basic Memory host is no longer used. This is the contract `setup-workstation.sh` will consume once a
 follow-up lands the corresponding `mcp_servers:` entries — no ticket is filed
 for that follow-up yet, see the note below.
 
@@ -235,17 +233,17 @@ for that follow-up yet, see the note below.
      -H "X-XSRF-TOKEN: $(<csrf-token-from-browser>)" \
      -b "<session-cookie-from-browser>" \
      -d '{"service":"MEMORY_API","label":"<hostname>"}'
-   # repeat with "service":"MEMORY_MCP" for the second host
+   # repeat with "service":"MEMORY_PRIVATE" for the private host
    ```
 
-   Minting requires the caller already hold the `MEMORY_API` / `MEMORY_MCP`
+   Minting requires the caller already hold the `MEMORY_API` / `MEMORY_PRIVATE`
    grant (`user_service_permissions`) — an admin assigns that first, the same
    way any other service grant is assigned. The raw token is returned exactly
    once, as `smt_...`; there is no way to retrieve it again.
 2. Send it as `Authorization: Bearer <token>` directly to the host. A token
    minted for one host is rejected by the other, and by every other
    forward-auth host in the estate: `/verify` checks the token's single
-   `SERVICE_MEMORY_API` or `SERVICE_MEMORY_MCP` claim against that host's own
+   `SERVICE_MEMORY_API` or `SERVICE_MEMORY_PRIVATE` claim against that host's own
    permission mapping, and denies outright on a host with no mapping at all
    (unlike a full session, which is unenforced there) — a service token never
    gets broader reach than the two hosts it was minted for.
@@ -260,14 +258,10 @@ human copying a session cookie. `setup-workstation.sh` storing/detecting the
 result (so re-running setup is not a second manual step) needs a follow-up
 ticket; none exists yet.
 
-**Not done in this change:** registering `memory-api` / `memory-mcp` as
-`mcp_servers:` entries in `registry/estate-tooling.yaml`. The registry
-already carries a `memory` entry (`enabled: false`) pointed at mem0 per
-[MEMORY.md](MEMORY.md)'s bring-up plan, which predates the Hindsight / Basic
-Memory platform this ticket's tokens are for. Reconciling those two — is
-mem0 still the plan, or has it been superseded — is a decision for whoever
-owns that bring-up, not something to guess into the generated registry
-here.
+Both hosts are registered from `registry/estate-tooling.yaml`'s `memory-api`
+and `memory-private` entries. The `memory-mcp` (Basic Memory) entry that was
+registered beside them is retired (`surfaces: []`), like the mem0 `memory`
+entry before it.
 
 Every `workstation` MCP server is registered into **Claude Code, Codex and
 local Hermes**. Codex gets each server via `codex mcp add`; local Hermes reads
