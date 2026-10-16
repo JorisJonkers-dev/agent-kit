@@ -9,6 +9,7 @@ name = "memory-api"
 transport = "streamable-http"
 url = "https://hindsight-api.jorisjonkers.dev/mcp/default/"
 tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
 
 [mcp_servers.auth]
 type = "static"
@@ -21,6 +22,7 @@ name = "memory-private"
 transport = "streamable-http"
 url = "https://hindsight-private.jorisjonkers.dev/mcp/private/"
 tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
 
 [mcp_servers.auth]
 type = "static"
@@ -33,13 +35,15 @@ name = "kubernetes"
 transport = "streamable-http"
 url = "http://127.0.0.1:18080/mcp"
 tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
 
 [[mcp_servers]]
 name = "playwright"
 transport = "stdio"
-command = "npx"
-args = ["-y", "@playwright/mcp@latest", "--headless", "--browser", "chromium"]
+command = "playwright-mcp"
+args = ["--headless", "--browser", "chromium"]
 tool_timeout_sec = 120.0
+startup_timeout_sec = 60.0
 
 [[mcp_servers]]
 name = "drawio"
@@ -47,6 +51,7 @@ transport = "stdio"
 command = "drawio-mcp"
 args = []
 tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
 
 [[mcp_servers]]
 name = "overleaf"
@@ -54,6 +59,7 @@ transport = "stdio"
 command = "olcli-mcp"
 args = []
 tool_timeout_sec = 120.0
+startup_timeout_sec = 30.0
 
 [mcp_servers.env]
 OVERLEAF_BASE_URL = "https://overleaf.jorisjonkers.dev"

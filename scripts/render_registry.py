@@ -39,6 +39,8 @@ HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
+# Seconds Vibe waits for an MCP server to start, unless its entry sets startup_timeout.
+VIBE_STARTUP_TIMEOUT = 30
 VIBE_HOOKS = Path("installer/vibe-hooks.toml")
 # Removed from ${VIBE_HOME}/hooks.toml on every run.
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
@@ -280,6 +282,15 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(
                 f"language server {server.get('plugin')} install_linux must be a command, "
                 "beside an install for the other platforms",
+            )
+
+    for server in _entries(data, "mcp_servers"):
+        if server.get("install_pinned") and not (
+            (server.get("container") or {}).get("datasource") == "npm" and server.get("requires_binary")
+        ):
+            raise RegistryError(
+                f"mcp server {server.get('name')} install_pinned needs an npm container pin "
+                "and a requires_binary",
             )
 
     _validate_claude_profiles(data)
@@ -746,6 +757,7 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
             lines += ['transport = "streamable-http"', f"url = {_toml_str(url)}"]
             if server.get("timeout"):
                 lines.append(f"tool_timeout_sec = {float(server['timeout'])}")
+                lines.append(f"startup_timeout_sec = {float(server.get('startup_timeout', VIBE_STARTUP_TIMEOUT))}")
             credential = server.get("credential")
             if credential:
                 lines += [
@@ -761,6 +773,7 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
             lines += ['transport = "stdio"', f"command = {_toml_str(server['command'])}", f"args = [{args}]"]
             if server.get("timeout"):
                 lines.append(f"tool_timeout_sec = {float(server['timeout'])}")
+                lines.append(f"startup_timeout_sec = {float(server.get('startup_timeout', VIBE_STARTUP_TIMEOUT))}")
             # The MCP SDK gives a stdio server only a safe allowlist of the parent
             # environment plus this table. Static values only: a credential would
             # be written to disk, and every stdio credential here is optional.
@@ -2112,7 +2125,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
             guard_open = True
         indent = "      " if guard_open else "    "
         binary = server.get("requires_binary")
-        if binary:
+        if binary and server.get("install_pinned"):
+            pin = f'{server["container"]["package"]}@{server["container"]["version"]}'
+            install = " && ".join(c for c in (f'npm install -g "{pin}"', server.get("post_install")) if c)
+            b(f'{indent}if ! npm ls -g --depth=0 "{pin}" >/dev/null 2>&1; then')
+            b(f"{indent}  run_sh {_q(install)} || true")
+            b(f"{indent}fi")
+            b(f'{indent}command -v {binary} >/dev/null 2>&1 \\')
+            b(f'{indent}  || warn "{name}: {binary} is not on PATH; skipping"')
+        elif binary:
             b(f'{indent}if ! command -v {binary} >/dev/null 2>&1; then')
             if server.get("install"):
                 b(f'{indent}  run_sh {_q(server["install"])} || true')
@@ -2670,6 +2691,16 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
     }
 
 
+def stale_artifacts(data: dict[str, Any], root: Path = KIT_ROOT) -> list[str]:
+    """The generated artifacts under ``root`` that differ from a fresh render."""
+    stale = []
+    for relative, (content, _mode) in artifacts(data).items():
+        target = root / relative
+        if (target.read_text() if target.is_file() else None) != content:
+            stale.append(str(relative))
+    return stale
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
@@ -2683,20 +2714,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"registry invalid: {exc}", file=sys.stderr)
         return 1
 
-    stale: list[str] = []
-    for relative, (content, mode) in artifacts(data).items():
-        target = KIT_ROOT / relative
-        current = target.read_text() if target.is_file() else None
-        if args.check:
-            if current != content:
-                stale.append(str(relative))
-            continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if current != content:
-            target.write_text(content)
-        target.chmod(mode)
-
     if args.check:
+        stale = stale_artifacts(data)
         if stale:
             print(
                 "registry render check failed; stale artifacts: " + ", ".join(stale),
@@ -2706,6 +2725,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print("registry render check passed")
         return 0
+
+    for relative, (content, mode) in artifacts(data).items():
+        target = KIT_ROOT / relative
+        current = target.read_text() if target.is_file() else None
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if current != content:
+            target.write_text(content)
+        target.chmod(mode)
 
     print(f"rendered {len(artifacts(data))} registry artifacts")
     return 0
