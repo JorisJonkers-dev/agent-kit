@@ -420,25 +420,32 @@ clis:
 # that commit pins. A pin is deliberately NOT what happens to be installed:
 # recording that would turn the drift check into a mirror. Where a skill
 # source wraps the same upstream (caveman, drawio, kubernetes-skill), the two
-# pins must agree.
+# pins must agree, ref and commit both.
+#
+# Renovate moves `commit` to the newest commit on `ref` (a branch) or to the
+# newest tag (a tag ref). The Marketplace Pin Review check fails a bump that
+# adds a hook, an MCP or LSP server, or a script to a plugin installed from
+# it, and a failing check stops the automerge until a person reviews it.
 marketplaces:
   - name: claude-plugins-official
     repo: anthropics/claude-plugins-official
-    # The newest commit that still lists mattpocock-skills at its reviewed
-    # 5b15a47 (2026-09-04); the in-repo plugins come along at this commit.
+    ref: main
     commit: fc93980766c2200a0b4798eddf854b7b833395e4
   - name: caveman
     repo: JuliusBrussee/caveman
-    # v2.6.0, the same commit skill_sources pins and Hermes enforces.
+    ref: v2.6.0
     commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
   - name: drawio
     repo: jgraph/drawio-mcp
+    ref: main
     commit: 14b318b19cc37b159f841227b9d11fbd18ce18ea
   - name: kubernetes-skill
     repo: LukasNiessen/kubernetes-skill
+    ref: main
     commit: f85547fb3a1ec909b2cbe4dc68f831590ac385ea
   - name: ai-software-architect
     repo: codenamev/ai-software-architect
+    ref: main
     commit: 6e636c8bb2f63481d70f0b7af12912fd414d5722
 
 # -------------------------------------------------------------------

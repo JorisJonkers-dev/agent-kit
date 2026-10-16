@@ -47,6 +47,7 @@ own:
 marketplaces:
   - name: my-market
     repo: owner/repo
+    ref: main            # the branch or tag the pin follows
     commit: <40-char reviewed COMMIT sha>
 plugins:
   - name: my-plugin
@@ -62,7 +63,25 @@ from that folder. A plugin in the marketplace's own repo then installs at
 that commit, and an external plugin at the sha its entry in that commit
 pins. A plugin off its pin is updated to it; only one that will not move is
 reported. The pin is the **reviewed** commit, never just what is installed,
-and it must agree with a skill source that wraps the same upstream.
+and it must agree with a skill source that wraps the same upstream, ref and
+commit both.
+
+### Nightly pin bumps
+
+Renovate moves each pin: to the newest commit on a branch `ref`, or to the
+newest tag for a tag `ref`, and a skill source of the same upstream in the
+same pull request. A new marketplace's repo must be added to the coupled
+list in `renovate.json` when a skill source wraps it too; a test fails until
+it is.
+
+The **Marketplace Pin Review** check reads every plugin installed from the
+bumped marketplace at the old and new commit, and fails when the new one adds
+a hook, an MCP or LSP server, or a script file (by extension, executable bit
+or a `bin/` directory). A changed hook command or server definition counts
+as added; an edit to an existing script does not. A bump that adds nothing
+automerges once every check is green. One that adds something stays open for
+a person to read the upstream change and merge by hand. The check is not part
+of Pipeline Complete, so it stops the automerge but not a reviewed merge.
 
 ## Adding a skill source
 

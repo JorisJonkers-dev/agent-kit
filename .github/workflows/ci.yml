@@ -103,6 +103,21 @@
         'if': '${{ !cancelled() }}'
         'run': 'shellcheck cloud/setup-script.sh installer/cloud-session.sh'
 
+  # Holds a marketplace pin bump that adds code to run. Not in Pipeline
+  # Complete, so it stops Renovate's automerge but not a reviewed manual merge.
+  'marketplace-pins':
+    'name': 'Marketplace Pin Review'
+    'if': "github.event_name == 'pull_request'"
+    'runs-on': 'ubuntu-latest'
+    'env':
+      'BASE_SHA': '${{ github.event.pull_request.base.sha }}'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'run': 'git fetch --quiet --depth 1 origin "${BASE_SHA}"'
+      - 'uses': 'astral-sh/setup-uv@v8.2.0'
+      - 'run': 'uv sync --frozen'
+      - 'run': 'uv run python scripts/check_marketplace_bump.py --base-ref "${BASE_SHA}"'
+
   'pipeline-complete':
     'name': 'Pipeline Complete'
     'if': 'always()'

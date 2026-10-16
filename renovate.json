@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>JorisJonkers-dev/renovate-config"],
+  "gitIgnoredAuthors": ["jorisjonkers-dev-agents[bot]@users.noreply.github.com"],
   "customManagers": [
     {
       "customType": "regex",
@@ -9,6 +10,29 @@
       "matchStrings": [
         "datasource: (?<datasource>\\S+)\\s+package: \"?(?<depName>[^\"\\s]+)\"?\\s+version: \"?(?<currentValue>[^\"\\s]+)\"?"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "Move each plugin marketplace pin that follows a branch to that branch's newest commit, and a skill source of the same upstream with it.",
+      "managerFilePatterns": ["/^registry/estate-tooling\\.yaml$/"],
+      "matchStrings": [
+        "- name: \\S+\\n    repo: (?<depName>[\\w.-]+/[\\w.-]+)\\n    ref: (?<currentValue>main|master)\\n    commit: (?<currentDigest>[a-f0-9]{40})",
+        "repo: https://github\\.com/(?<depName>JuliusBrussee/caveman|jgraph/drawio-mcp|LukasNiessen/kubernetes-skill)\\n    ref: (?<currentValue>main|master)\\n    commit: (?<currentDigest>[a-f0-9]{40})"
+      ],
+      "packageNameTemplate": "https://github.com/{{depName}}",
+      "datasourceTemplate": "git-refs",
+      "depTypeTemplate": "marketplace-pin"
+    },
+    {
+      "customType": "regex",
+      "description": "Move each plugin marketplace pin that follows a tag to the newest tag, and a skill source of the same upstream with it.",
+      "managerFilePatterns": ["/^registry/estate-tooling\\.yaml$/"],
+      "matchStrings": [
+        "- name: \\S+\\n    repo: (?<depName>[\\w.-]+/[\\w.-]+)\\n    ref: (?<currentValue>v?\\d[^\\s]*)\\n    commit: (?<currentDigest>[a-f0-9]{40})",
+        "repo: https://github\\.com/(?<depName>JuliusBrussee/caveman|jgraph/drawio-mcp|LukasNiessen/kubernetes-skill)\\n    ref: (?<currentValue>v?\\d[^\\s]*)\\n    commit: (?<currentDigest>[a-f0-9]{40})"
+      ],
+      "datasourceTemplate": "github-tags",
+      "depTypeTemplate": "marketplace-pin"
     },
     {
       "customType": "regex",
@@ -86,6 +110,26 @@
       "matchFileNames": ["registry/estate-tooling.yaml"],
       "matchDepNames": ["typescript"],
       "allowedVersions": "<7"
+    },
+    {
+      "description": "A marketplace pin bump automerges once every check passes. Marketplace Pin Review fails one that adds a hook, an MCP or LSP server, or a script, which holds it for a person.",
+      "matchDepTypes": ["marketplace-pin"],
+      "groupName": null,
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "plugins",
+      "addLabels": ["area: tooling"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "prBodyNotes": [
+        "Marketplace Pin Review lists what this bump adds that can run code. If it fails, read the upstream change before merging this by hand."
+      ]
+    },
+    {
+      "description": "A branch head has no release date, so there is no release age to wait for. Marketplace Pin Review stands in for it.",
+      "matchDepTypes": ["marketplace-pin"],
+      "matchDatasources": ["git-refs"],
+      "minimumReleaseAge": null
     },
     {
       "matchFileNames": ["bmad-source.lock"],
