@@ -786,6 +786,42 @@ def render_session_mcp(server: dict[str, Any]) -> str:
     return json.dumps({"mcpServers": {server["name"]: entry}}, indent=2) + "\n"
 
 
+def declared_servers(data: dict[str, Any], surface: str) -> list[str]:
+    """MCP servers a local surface (claude, codex or vibe) is declared to hold."""
+    if surface == "vibe":
+        names = [str(s["name"]) for s in vibe_servers(data)]
+    else:
+        retired = set(retired_servers(data))
+        names = [str(s["name"]) for s in _entries(data, "mcp_servers")
+                 if on_surface(s, "workstation") and s["name"] not in retired]
+    if data.get("coding_agents"):
+        names.append("hindsight")
+    return names
+
+
+def _converge_mcp(data: dict[str, Any], w: Any) -> None:
+    w("# Removes retired and undeclared MCP servers from every surface; the keep file spares undeclared ones.")
+    w("converge_mcp() {")
+    w("  local out rc=0 line dir")
+    w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --claude-home "${CLAUDE_HOME}")')
+    w('  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do args+=(--claude "${dir}"); done')
+    w('  command -v codex >/dev/null 2>&1 && args+=(--codex "${CODEX_HOME}/config.toml")')
+    w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
+    w("  if ! command -v uv >/dev/null 2>&1; then")
+    w('    warn "uv is not on PATH; MCP servers not converged"')
+    w("    return 0")
+    w("  fi")
+    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge-mcp.py" \\')
+    w('    "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \\')
+    for surface in ("claude", "codex", "vibe"):
+        w(f"    --declared {surface}={','.join(declared_servers(data, surface))} \\")
+    w(f'    --retired {",".join(retired_servers(data))} 2>&1) || rc=$?')
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"')
+    w("}")
+    w("")
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
@@ -1280,6 +1316,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  return "${rc}"')
     w("}")
     w("")
+    _converge_mcp(data, w)
     w("# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.")
     w("claude_in_profile() {")
     w('  local dir="$1"; shift')
@@ -1629,13 +1666,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
         + [f"skills/council/{p}" for p in council_relative]
         + [".knowledge-system-version"]
     )
-    legacy_mcp_names = ["knowledge", "context7", "vuetify"]
     w("# -----------------------------------------------------------------")
     w("# --uninstall: remove every file the retired install.sh /")
     w("# install-agents.sh wrote (base skills, Spec Kit commands/skills, the")
-    w("# knowledge-system version manifest) and the MCP entries they")
-    w("# registered (knowledge, context7, vuetify), then purge retired hooks")
-    w("# and exit. Does not touch anything this script itself manages -- a")
+    w("# knowledge-system version manifest), then purge retired hooks and")
+    w("# exit. A normal run removes their MCP entries (converge_mcp). It does")
+    w("# not touch anything this script itself manages -- a")
     w("# re-run with no flags reinstalls the current local_skills afterward.")
     w("# -----------------------------------------------------------------")
     w('if [ "${UNINSTALL}" = 1 ]; then')
@@ -1653,17 +1689,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w(f'  legacy_remove "${{CLAUDE_HOME}}/{rel}"')
     for rel in legacy_codex_paths:
         w(f'  legacy_remove "${{CODEX_HOME}}/{rel}"')
-    w("  if command -v claude >/dev/null 2>&1; then")
-    for mcp_name in legacy_mcp_names:
-        w(
-            f'    run claude_each_profile claude mcp remove --scope user {mcp_name} '
-            ">/dev/null 2>&1 || true",
-        )
-    w("  fi")
-    w("  if command -v codex >/dev/null 2>&1; then")
-    for mcp_name in legacy_mcp_names:
-        w(f'    run codex mcp remove {mcp_name} >/dev/null 2>&1 || true')
-    w("  fi")
     w("  purge_retired_hooks")
     w('  log "uninstall complete: ${failures} failure(s), ${warnings} warning(s)"')
     w('  [ "${failures}" = 0 ]')
@@ -2007,9 +2032,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  # ---------------------------------------------------------------")
     w("  # 6. MCP servers, registered for Claude Code at user scope.")
     w("  #")
-    w("  # The registry is authoritative: servers with `surfaces: []` or")
-    w("  # `enabled: false` are removed. Others are ensured. Plugin-provided")
-    w("  # servers (plugin:*:*) and hand-added ones are left untouched.")
+    w("  # The registry is authoritative: declared servers are ensured, then")
+    w("  # converge_mcp removes retired and undeclared ones (see CONTEXT.md).")
     w("  #")
     w("  # Every claude call here runs once per profile: a server lives in the")
     w("  # profile's own .claude.json, which is the one file two profiles must")
@@ -2017,29 +2041,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  # ---------------------------------------------------------------")
     w('  if [ "${DO_MCP}" = 1 ]; then')
     w('    log "MCP servers"')
-    # Remove first, and consider EVERY registry server regardless of surface.
-    #
-    # Filtering on `on_surface(..., "workstation")` before this pass was the
-    # bug it was meant to fix: `knowledge` is retired with `surfaces: []`, so
-    # it is on no surface, so it was skipped -- and it stayed registered and
-    # CONNECTED to the knowledge base being retired, bearer token and all.
-    # A retired server is precisely the one that reaches no surface.
-    for server in _entries(data, "mcp_servers"):
-        name = server["name"]
-        # RETIRED only: `enabled: false` or no surfaces at all. A server that
-        # is active for hermes or runner but not for the workstation is NOT
-        # removed by name -- `github` and `kubernetes` are exactly that shape,
-        # and a hand-added local server could share either name. The registry
-        # never claimed those here, so it does not get to delete them.
-        retired = server.get("enabled") is False or not (server.get("surfaces") or [])
-        if not retired:
-            continue
-        w(f'    run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
-        # Codex keeps its own server list; a retired server left there stays
-        # connected (or fails to) on every Codex launch.
-        w(f'    command -v codex >/dev/null 2>&1 && {{ run codex mcp remove {name} >/dev/null 2>&1 || true; }}')
-        w(f'    log "{name}: removed (retired in the registry)"')
-    w("")
     # Now add/ensure active servers.
     #
     # Each workstation server is registered into every local agent that is
@@ -2200,10 +2201,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"')
     w("      else")
-    # Retired servers are dropped from Vibe's config on every run; the merge
-    # itself leaves any server it does not name alone.
-    vibe_retired = " ".join(f"--remove {name}" for name in retired_servers(data))
-    w(f"        vibe_remove=({vibe_retired})")
+    w("        vibe_remove=()")
     vibe_off_cloud = [s["name"] for s in vibe_servers(data) if not on_cloud(s)]
     if vibe_off_cloud:
         removes = " ".join(f"--remove {name}" for name in vibe_off_cloud)
@@ -2239,9 +2237,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    else")
     w('      warn "vibe not on PATH; Vibe MCP config not merged"')
     w("    fi")
+    w("    converge_mcp")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
-    w("    # actually has. Check expected servers are present, and report")
-    w("    # any unexpected ones (but leave plugin-provided and hand-added).")
+    w("    # actually has, and check every expected server is present.")
     w('    if [ "${CHECK_ONLY}" != 1 ]; then')
     w("     # Once per profile: each one answers for its own .claude.json.")
     w('     for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
@@ -2270,26 +2268,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('          *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;')
     w("        esac")
     w("      done")
-    w("      # Report unknown servers (but ignore plugin-provided and hand-added ones)")
-    w("      # One name per line, taken from the start of the line up to the first")
-    w("      # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a")
-    w('      # "repetition-operator operand invalid" error and the whole check')
-    w("      # silently inspected nothing on macOS.")
-    w("      # Read in this shell, not a pipe's subshell, or what it reports is lost.")
-    w("      while read -r found; do")
-    w('        case "${found}" in')
-    # All registry-owned servers
-    registry_servers = [s["name"] for s in _entries(data, "mcp_servers") if on_surface(s, "workstation")]
-    for name in registry_servers:
-        w(f'          {name}) ;;')
-    # Plugin-provided and hand-added servers
-    if data.get("coding_agents"):
-        w("          hindsight) ;;")
-    w('          plugin:*|idea|rubymine) ;;')
-    w('          *) log "hand-added MCP server ${found} in ${profile_dir}: kept" ;;')
-    w("        esac")
-    w('      done < <(echo "${registered}" | sed -n \'s/^\\([a-zA-Z0-9_:-]*\\):[[:space:]].* - .*/\\1/p\' '
-      '| sort -u)')
     w("     done")
     w("    fi")
     w("  else")

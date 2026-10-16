@@ -50,6 +50,7 @@ KIT_PATHS=(
   registry/generated/claude/memory-private.mcp.json
   scripts/hermes-merge-mcp.py
   scripts/codex-disable-mcp.py
+  scripts/converge-mcp.py
   scripts/vibe-merge-mcp.py
   scripts/vibe-sync-models.py
   scripts/agent-kit-keys.py

@@ -443,10 +443,7 @@ def test_every_mcp_registration_reaches_every_profile() -> None:
     for server in data["mcp_servers"]:
         name = server["name"]
         retired = server.get("enabled") is False or not server.get("surfaces")
-        if retired:
-            assert f"claude_each_profile claude mcp remove --scope user {name}" in script
-            continue
-        if "workstation" not in server["surfaces"] or server.get("session_only"):
+        if retired or "workstation" not in server["surfaces"] or server.get("session_only"):
             continue
         assert f"claude_each_profile claude mcp add --scope user {name}" in script
         assert f"claude_each_profile claude mcp remove --scope user {name}" in script
@@ -689,34 +686,6 @@ def test_an_optional_credential_survives_being_unset(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "reached-the-end" in result.stdout
-
-
-def test_registered_server_names_are_extracted_without_pcre(tmp_path: Path) -> None:
-    """BSD grep has no lookahead: `(?=:)` errors out and inspects nothing."""
-    script = render_registry.render_setup_script(_registry())
-    assert 'grep -oE "\\b[a-z0-9_-]+\\b(?=:)"' not in script
-
-    listing = (
-        "Checking MCP server health…\n\n"
-        "plugin:github:github: https://api.githubcopilot.com/mcp/ (HTTP) - ✘ Failed\n"
-        "idea: http://127.0.0.1:64342/stream (HTTP) - ✔ Connected\n"
-        "playwright: npx -y @playwright/mcp@latest --headless - ✔ Connected\n"
-        "\nMCP config diagnostics ⚠\n\n"
-        "[Contains warnings] User config (available in all your projects)\n"
-        "Location: /root/.claude.json\n"
-        " └ [Warning] [memory-api] mcpServers.memory-api: Missing environment variables: HINDSIGHT_API_TOKEN\n"
-    )
-    extract = next(
-        line.strip() for line in script.splitlines() if line.strip().startswith('done < <(echo "${registered}"')
-    ).removeprefix("done < <(").split("| sort -u")[0]
-    probe = tmp_path / "probe.sh"
-    probe.write_text(f'registered=$(cat)\n{extract} | sort -u\n')
-    result = subprocess.run(
-        ["bash", str(probe)], input=listing, capture_output=True, text=True, check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    assert result.stderr == ""
-    assert result.stdout.split() == ["idea", "playwright", "plugin:github:github"]
 
 
 # ---------------------------------------------------------------------------
@@ -1111,18 +1080,16 @@ def test_a_retired_server_is_removed_from_every_local_agent() -> None:
     """Retiring a server must unregister it from Claude, Codex, Vibe and local Hermes.
 
     Removing it only from Claude left `knowledge` connected in Codex long after
-    it was retired; memory-mcp is the case that exposed it.
+    it was retired; memory-mcp is the case that exposed it. converge_mcp covers
+    Claude, Codex and Vibe (tests/test_converge_mcp.py); Hermes keeps its own pass.
     """
     data = _registry()
     retired = render_registry.retired_servers(data)
     assert "memory-mcp" in retired
     script = render_registry.render_setup_script(data)
-    vibe_line = next(line for line in script.splitlines() if line.strip().startswith("vibe_remove=("))
     hermes_line = next(line for line in script.splitlines() if "mcp-servers.local.yaml\" --remove memory" in line)
+    assert f"--retired {','.join(retired)} " in script
     for name in retired:
-        assert f"claude mcp remove --scope user {name}" in script
-        assert f"run codex mcp remove {name} " in script
-        assert f"--remove {name}" in vibe_line
         assert f"--remove {name}" in hermes_line
     assert "memory-mcp" not in render_registry.render_hermes_local_mcp(data)
     assert "memory-mcp" not in render_registry.render_hermes_mcp(data)

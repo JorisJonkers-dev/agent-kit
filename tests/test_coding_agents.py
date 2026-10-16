@@ -185,10 +185,6 @@ def test_a_private_session_switches_the_plugin_off_and_blocks_its_tools() -> Non
     assert "mcp_servers.hindsight.enabled=false" in text
 
 
-def test_its_memory_server_is_known_not_hand_added() -> None:
-    assert "          hindsight) ;;" in _script()
-
-
 def test_the_tool_guide_is_shown_once_a_session_not_every_turn() -> None:
     assert _registry()["coding_agents"]["config"]["pageRefreshEveryTurns"] >= 1000
 

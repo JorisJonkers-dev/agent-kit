@@ -170,12 +170,6 @@ def test_a_server_skipped_for_its_token_is_not_reported_as_missing_too() -> None
     assert 'case " ${skipped_mcp_names[*]-} " in *" ${want} "*) continue ;; esac' in script
 
 
-def test_hand_added_servers_are_noted_and_counted_in_the_current_shell() -> None:
-    script = _script()
-    assert "| while read -r found" not in script
-    assert 'log "hand-added MCP server ${found} in ${profile_dir}: kept"' in script
-
-
 def test_a_language_without_its_toolchain_is_not_a_to_do() -> None:
     script = _script()
     block = script[script.index("# rust-analyzer-lsp -> rust-analyzer") : script.index("# lua-lsp ->")]
