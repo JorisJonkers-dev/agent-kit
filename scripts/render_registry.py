@@ -799,6 +799,37 @@ def declared_servers(data: dict[str, Any], surface: str) -> list[str]:
     return names
 
 
+def declared_plugins(data: dict[str, Any]) -> list[str]:
+    """Plugin ids the registry declares, as Claude Code shows them (name@marketplace)."""
+    official = declared_name(data, "claude-plugins-official")
+    return [f"{p['name']}@{declared_name(data, p['marketplace'])}" for p in _entries(data, "plugins")] + [
+        f"{s['plugin']}@{official}" for s in _entries(data, "language_servers")
+    ]
+
+
+def _converge_plugins(data: dict[str, Any], w: Any) -> None:
+    retired = data.get("retired_plugins") or []
+    markets = ",".join(declared_name(data, m["name"]) for m in _entries(data, "marketplaces"))
+    w("# Removes retired and undeclared marketplaces and plugins; the keep file spares undeclared ones.")
+    w("converge_plugins() {")
+    w("  local out rc=0 line")
+    w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml")')
+    w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
+    w("  if ! command -v uv >/dev/null 2>&1; then")
+    w('    warn "uv is not on PATH; plugins not converged"')
+    w("    return 0")
+    w("  fi")
+    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" plugins \\')
+    w(f'    "${{args[@]}}" --declared-markets {markets} \\')
+    w(f"    --declared-plugins {','.join(declared_plugins(data))} \\")
+    w(f"    --retired-markets {','.join(str(r['marketplace']) for r in retired)} \\")
+    w(f"    --retired-plugins {','.join(str(r['ref']) for r in retired)} 2>&1) || rc=$?")
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  [ "${rc}" = 0 ] || fail "plugins did not converge (see above)"')
+    w("}")
+    w("")
+
+
 def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w("# Removes retired and undeclared MCP servers from every surface; the keep file spares undeclared ones.")
     w("converge_mcp() {")
@@ -811,7 +842,7 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w('    warn "uv is not on PATH; MCP servers not converged"')
     w("    return 0")
     w("  fi")
-    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge-mcp.py" \\')
+    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \\')
     w('    "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \\')
     for surface in ("claude", "codex", "vibe"):
         w(f"    --declared {surface}={','.join(declared_servers(data, surface))} \\")
@@ -1317,6 +1348,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("}")
     w("")
     _converge_mcp(data, w)
+    _converge_plugins(data, w)
     w("# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.")
     w("claude_in_profile() {")
     w('  local dir="$1"; shift')
@@ -1869,12 +1901,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
         guarded = _pinned_guard(block, plugin["marketplace"], plugin["name"], "  ")
         out.extend(_cloud_guard(guarded, plugin, "  "))
     w("")
-    for retired in data.get("retired_plugins") or []:
-        w(f'  # Retired: {retired["ref"]}.')
-        w(f'  if run claude plugin uninstall {retired["ref"]} >/dev/null 2>&1; then')
-        w(f'    ok "{retired["ref"]}: retired, uninstalled"')
-        w("  fi")
-        w(f'  run claude plugin marketplace remove {retired["marketplace"]} >/dev/null 2>&1 || true')
     if data.get("coding_agents"):
         w("  hindsight_coding_agents")
     w("  # memory-private on|off|status [DIR]: keeps a directory's sessions out of")
@@ -2028,6 +2054,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  fi")
     w("")
 
+    # Once, in the primary profile: plugins/ and settings.json are shared.
+    w("  converge_plugins")
+    w("")
     # --- MCP ---
     w("  # ---------------------------------------------------------------")
     w("  # 6. MCP servers, registered for Claude Code at user scope.")

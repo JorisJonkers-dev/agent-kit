@@ -95,8 +95,8 @@ def test_the_deprecated_plugin_and_its_marketplace_are_retired() -> None:
     assert not any(m["name"] == "hindsight" for m in data["marketplaces"])
     script = _script()
     assert "claude plugin install hindsight-memory@hindsight" not in script
-    assert "claude plugin uninstall hindsight-memory@hindsight" in script
-    assert "claude plugin marketplace remove hindsight" in script
+    assert "--retired-plugins hindsight-memory@hindsight " in script
+    assert "--retired-markets hindsight " in script
 
 
 # --- the install step, run against stubs ---

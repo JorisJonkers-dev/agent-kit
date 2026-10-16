@@ -488,7 +488,7 @@ converge_mcp() {
     warn "uv is not on PATH; MCP servers not converged"
     return 0
   fi
-  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge-mcp.py" \
+  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
     "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \
     --declared claude=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
     --declared codex=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
@@ -496,6 +496,24 @@ converge_mcp() {
     --retired memory,memory-mcp,vuetify,knowledge 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
+}
+
+# Removes retired and undeclared marketplaces and plugins; the keep file spares undeclared ones.
+converge_plugins() {
+  local out rc=0 line
+  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; plugins not converged"
+    return 0
+  fi
+  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" plugins \
+    "${args[@]}" --declared-markets agent-kit-official,caveman,drawio,kubernetes-skill,ai-software-architect \
+    --declared-plugins caveman@caveman,drawio@drawio,frontend-design@agent-kit-official,mattpocock-skills@agent-kit-official,security-guidance@agent-kit-official,kubernetes-skill@kubernetes-skill,github@agent-kit-official,ai-software-architect@ai-software-architect,typescript-lsp@agent-kit-official,pyright-lsp@agent-kit-official,kotlin-lsp@agent-kit-official,jdtls-lsp@agent-kit-official,ruby-lsp@agent-kit-official,gopls-lsp@agent-kit-official,rust-analyzer-lsp@agent-kit-official,lua-lsp@agent-kit-official,clangd-lsp@agent-kit-official,php-lsp@agent-kit-official,csharp-lsp@agent-kit-official,swift-lsp@agent-kit-official,liquid-lsp@agent-kit-official \
+    --retired-markets hindsight \
+    --retired-plugins hindsight-memory@hindsight 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] || fail "plugins did not converge (see above)"
 }
 
 # An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.
@@ -1251,11 +1269,6 @@ else
     esac
   fi
 
-  # Retired: hindsight-memory@hindsight.
-  if run claude plugin uninstall hindsight-memory@hindsight >/dev/null 2>&1; then
-    ok "hindsight-memory@hindsight: retired, uninstalled"
-  fi
-  run claude plugin marketplace remove hindsight >/dev/null 2>&1 || true
   hindsight_coding_agents
   # memory-private on|off|status [DIR]: keeps a directory's sessions out of
   # the shared Hindsight bank (HINDSIGHT_DISABLED=true in its local settings).
@@ -1894,6 +1907,8 @@ for install in installs:
   else
     log "language servers skipped (--no-lsp)"
   fi
+
+  converge_plugins
 
   # ---------------------------------------------------------------
   # 6. MCP servers, registered for Claude Code at user scope.
