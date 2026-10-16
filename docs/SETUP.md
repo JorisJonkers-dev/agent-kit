@@ -21,13 +21,18 @@ warning it raised, failures first, each with what to do about it. An empty
 list prints "Nothing left to do." A missing toolchain (no `rustup`, no
 `dotnet`) is noted, not listed.
 
-## MCP servers converge
+## Setup converges
 
 Each Claude profile, Codex and Vibe ends a run with exactly the MCP servers
 the registry declares for it, plus the ones the keep file names
-([CONTEXT.md](../CONTEXT.md) defines the terms). Setup removes a retired
-server everywhere, and removes any undeclared server unless
-`~/.config/agent-kit/keep.yaml` names it:
+([CONTEXT.md](../CONTEXT.md) defines the terms). Claude's marketplaces and
+user-scope plugins converge the same way, once for every profile, because
+they share `plugins/` and `settings.json`. A marketplace counts as declared by
+the name Claude shows, so the GitHub `claude-plugins-official` is undeclared:
+its plugins come from `agent-kit-official`. Setup removes a retired entry
+everywhere, and removes any undeclared one unless
+`~/.config/agent-kit/keep.yaml` names it (a kept marketplace keeps its
+plugins):
 
 ```yaml
 keep:
@@ -39,7 +44,7 @@ The keep file lives outside the repository, so work-only servers never enter
 the public registry. A missing file keeps nothing; a malformed one stops the
 run before anything is removed. `--check` prints
 `would remove <name> (<surface>, <reason>)` for each removal. A normal run
-reads every surface back and fails if a removed server is still there.
+reads every surface back and fails if a removed entry is still there.
 
 `setup-workstation.sh` is **generated** from
 [`registry/estate-tooling.yaml`](../registry/estate-tooling.yaml). Do not edit
