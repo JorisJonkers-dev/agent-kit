@@ -477,6 +477,27 @@ claude_each_profile() {
   return "${rc}"
 }
 
+# Removes retired and undeclared MCP servers from every surface; the keep file spares undeclared ones.
+converge_mcp() {
+  local out rc=0 line dir
+  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --claude-home "${CLAUDE_HOME}")
+  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do args+=(--claude "${dir}"); done
+  command -v codex >/dev/null 2>&1 && args+=(--codex "${CODEX_HOME}/config.toml")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; MCP servers not converged"
+    return 0
+  fi
+  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge-mcp.py" \
+    "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \
+    --declared claude=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared codex=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared vibe=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
+    --retired memory,memory-mcp,vuetify,knowledge 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
+}
+
 # An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.
 claude_in_profile() {
   local dir="$1"; shift
@@ -779,9 +800,9 @@ PURGE
 # -----------------------------------------------------------------
 # --uninstall: remove every file the retired install.sh /
 # install-agents.sh wrote (base skills, Spec Kit commands/skills, the
-# knowledge-system version manifest) and the MCP entries they
-# registered (knowledge, context7, vuetify), then purge retired hooks
-# and exit. Does not touch anything this script itself manages -- a
+# knowledge-system version manifest), then purge retired hooks and
+# exit. A normal run removes their MCP entries (converge_mcp). It does
+# not touch anything this script itself manages -- a
 # re-run with no flags reinstalls the current local_skills afterward.
 # -----------------------------------------------------------------
 if [ "${UNINSTALL}" = 1 ]; then
@@ -911,16 +932,6 @@ if [ "${UNINSTALL}" = 1 ]; then
   legacy_remove "${CODEX_HOME}/skills/council/schemas/verdict.schema.json"
   legacy_remove "${CODEX_HOME}/skills/council/schemas/worker-result.schema.json"
   legacy_remove "${CODEX_HOME}/.knowledge-system-version"
-  if command -v claude >/dev/null 2>&1; then
-    run claude_each_profile claude mcp remove --scope user knowledge >/dev/null 2>&1 || true
-    run claude_each_profile claude mcp remove --scope user context7 >/dev/null 2>&1 || true
-    run claude_each_profile claude mcp remove --scope user vuetify >/dev/null 2>&1 || true
-  fi
-  if command -v codex >/dev/null 2>&1; then
-    run codex mcp remove knowledge >/dev/null 2>&1 || true
-    run codex mcp remove context7 >/dev/null 2>&1 || true
-    run codex mcp remove vuetify >/dev/null 2>&1 || true
-  fi
   purge_retired_hooks
   log "uninstall complete: ${failures} failure(s), ${warnings} warning(s)"
   [ "${failures}" = 0 ]
@@ -1887,9 +1898,8 @@ for install in installs:
   # ---------------------------------------------------------------
   # 6. MCP servers, registered for Claude Code at user scope.
   #
-  # The registry is authoritative: servers with `surfaces: []` or
-  # `enabled: false` are removed. Others are ensured. Plugin-provided
-  # servers (plugin:*:*) and hand-added ones are left untouched.
+  # The registry is authoritative: declared servers are ensured, then
+  # converge_mcp removes retired and undeclared ones (see CONTEXT.md).
   #
   # Every claude call here runs once per profile: a server lives in the
   # profile's own .claude.json, which is the one file two profiles must
@@ -1897,19 +1907,6 @@ for install in installs:
   # ---------------------------------------------------------------
   if [ "${DO_MCP}" = 1 ]; then
     log "MCP servers"
-    run claude_each_profile claude mcp remove --scope user memory >/dev/null 2>&1 || true
-    command -v codex >/dev/null 2>&1 && { run codex mcp remove memory >/dev/null 2>&1 || true; }
-    log "memory: removed (retired in the registry)"
-    run claude_each_profile claude mcp remove --scope user memory-mcp >/dev/null 2>&1 || true
-    command -v codex >/dev/null 2>&1 && { run codex mcp remove memory-mcp >/dev/null 2>&1 || true; }
-    log "memory-mcp: removed (retired in the registry)"
-    run claude_each_profile claude mcp remove --scope user vuetify >/dev/null 2>&1 || true
-    command -v codex >/dev/null 2>&1 && { run codex mcp remove vuetify >/dev/null 2>&1 || true; }
-    log "vuetify: removed (retired in the registry)"
-    run claude_each_profile claude mcp remove --scope user knowledge >/dev/null 2>&1 || true
-    command -v codex >/dev/null 2>&1 && { run codex mcp remove knowledge >/dev/null 2>&1 || true; }
-    log "knowledge: removed (retired in the registry)"
-
 
     # Hindsight long-term memory -- explicit read/write/search
     # knowledge tools.
@@ -2083,7 +2080,7 @@ for install in installs:
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
-        vibe_remove=(--remove memory --remove memory-mcp --remove vuetify --remove knowledge)
+        vibe_remove=()
         [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove memory-private --remove kubernetes)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
@@ -2109,9 +2106,9 @@ for install in installs:
     else
       warn "vibe not on PATH; Vibe MCP config not merged"
     fi
+    converge_mcp
     # Verify the VALUE, not the exit codes: ask Claude what it
-    # actually has. Check expected servers are present, and report
-    # any unexpected ones (but leave plugin-provided and hand-added).
+    # actually has, and check every expected server is present.
     if [ "${CHECK_ONLY}" != 1 ]; then
      # Once per profile: each one answers for its own .claude.json.
      for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
@@ -2128,26 +2125,6 @@ for install in installs:
           *) warn "MCP server ${want} is not registered in ${profile_dir}" ;;
         esac
       done
-      # Report unknown servers (but ignore plugin-provided and hand-added ones)
-      # One name per line, taken from the start of the line up to the first
-      # colon. NOT a lookahead: BSD grep has no PCRE, so `(?=:)` is a
-      # "repetition-operator operand invalid" error and the whole check
-      # silently inspected nothing on macOS.
-      # Read in this shell, not a pipe's subshell, or what it reports is lost.
-      while read -r found; do
-        case "${found}" in
-          memory-api) ;;
-          memory-private) ;;
-          kubernetes) ;;
-          vuetify) ;;
-          playwright) ;;
-          drawio) ;;
-          overleaf) ;;
-          hindsight) ;;
-          plugin:*|idea|rubymine) ;;
-          *) log "hand-added MCP server ${found} in ${profile_dir}: kept" ;;
-        esac
-      done < <(echo "${registered}" | sed -n 's/^\([a-zA-Z0-9_:-]*\):[[:space:]].* - .*/\1/p' | sort -u)
      done
     fi
   else

@@ -19,7 +19,27 @@ the tokens and keys (below) and offers to load them in every new shell.
 Every run ends with **Still to do**: one numbered list of every failure and
 warning it raised, failures first, each with what to do about it. An empty
 list prints "Nothing left to do." A missing toolchain (no `rustup`, no
-`dotnet`) or a hand-added MCP server is noted, not listed.
+`dotnet`) is noted, not listed.
+
+## MCP servers converge
+
+Each Claude profile, Codex and Vibe ends a run with exactly the MCP servers
+the registry declares for it, plus the ones the keep file names
+([CONTEXT.md](../CONTEXT.md) defines the terms). Setup removes a retired
+server everywhere, and removes any undeclared server unless
+`~/.config/agent-kit/keep.yaml` names it:
+
+```yaml
+keep:
+  - context7
+  - idea
+```
+
+The keep file lives outside the repository, so work-only servers never enter
+the public registry. A missing file keeps nothing; a malformed one stops the
+run before anything is removed. `--check` prints
+`would remove <name> (<surface>, <reason>)` for each removal. A normal run
+reads every surface back and fails if a removed server is still there.
 
 `setup-workstation.sh` is **generated** from
 [`registry/estate-tooling.yaml`](../registry/estate-tooling.yaml). Do not edit
