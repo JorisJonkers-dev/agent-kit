@@ -431,6 +431,9 @@ marketplaces:
     repo: anthropics/claude-plugins-official
     ref: main
     commit: fc93980766c2200a0b4798eddf854b7b833395e4
+    # Claude Code reserves this name for GitHub sources, so the pinned folder is
+    # declared under another name and its plugins install as <plugin>@agent-kit-official.
+    declare_as: agent-kit-official
   - name: caveman
     repo: JuliusBrussee/caveman
     ref: v2.6.0

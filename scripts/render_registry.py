@@ -64,6 +64,17 @@ PROFILE_PRIVATE_PATHS = frozenset(
 )
 
 
+# Names Claude Code accepts only for GitHub sources from Anthropic, never for a folder.
+RESERVED_MARKETPLACES = {"claude-plugins-official", "claude-code-plugins", "claude-code-marketplace",
+                         "anthropic-marketplace", "anthropic-plugins", "agent-skills", "life-sciences"}
+
+
+def declared_name(data: dict[str, Any], market: str) -> str:
+    """The name a marketplace is declared under, and its plugins are installed as."""
+    entry = next((m for m in _entries(data, "marketplaces") if m["name"] == market), {})
+    return str(entry.get("declare_as") or market)
+
+
 class RegistryError(RuntimeError):
     """The registry is malformed in a way that would render a broken artifact."""
 
@@ -136,7 +147,16 @@ def validate(data: dict[str, Any]) -> None:
         str(src.get("repo", "")).rstrip("/").rsplit("/", 1)[-1].lower(): src
         for src in _entries(data, "skill_sources")
     }
+    names = {m.get("name") for m in _entries(data, "marketplaces")}
     for market in _entries(data, "marketplaces"):
+        alias = market.get("declare_as")
+        if market.get("name") in RESERVED_MARKETPLACES and (not alias or alias in RESERVED_MARKETPLACES):
+            raise RegistryError(
+                f"marketplace {market.get('name')} has a name Claude Code reserves for GitHub sources; "
+                "give it a declare_as that is not reserved, which setup declares the pinned folder as",
+            )
+        if alias and alias in names:
+            raise RegistryError(f"marketplace {market.get('name')} declares as {alias}, another marketplace's name")
         pin = str(market.get("commit") or "")
         if not re.fullmatch(r"[0-9a-f]{40}", pin):
             raise RegistryError(
@@ -319,6 +339,19 @@ def enabled_for(server: dict[str, Any], agent: str) -> bool:
 
 def _label(item: dict[str, Any]) -> str:
     return str(item.get("name") or item.get("plugin"))
+
+
+def _unalias(data: dict[str, Any], plugin: str, market: str, indent: str) -> list[str]:
+    """Uninstall a copy installed under the marketplace's own name before it moved to its alias."""
+    if declared_name(data, market) == market:
+        return []
+    old = f"{plugin}@{market}"
+    return [
+        f'{indent}case "${{installed_plugins-}}" in *\'"{old}"\'*)',
+        f'{indent}  run claude plugin uninstall {old} >/dev/null 2>&1 \\',
+        f'{indent}    && ok "{plugin}: removed the copy installed as {old}" ;;',
+        f"{indent}esac",
+    ]
 
 
 def _pinned_guard(block: list[str], market: str, name: str, indent: str) -> list[str]:
@@ -1019,11 +1052,37 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  # end _marketplace_from_folder")
     w("}")
     w("")
+    w("# Rebuilds ROOT/ALIAS as the checkout ROOT/NAME under another name: its own")
+    w("# marketplace.json with the name replaced, and symlinks to everything else.")
+    w("_marketplace_alias() {")
+    w('  local root="$1" name="$2" alias="$3" entry base')
+    w('  [ -n "${alias}" ] && [ "${alias}" != "${name}" ] || return 1')
+    w('  rm -rf "${root:?}/${alias}"')
+    w('  mkdir -p "${root}/${alias}/.claude-plugin" || return 1')
+    w('  for entry in "${root}/${name}"/* "${root}/${name}"/.[!.]* "${root}/${name}"/.claude-plugin/*; do')
+    w('    [ -e "${entry}" ] || continue')
+    w('    base="${entry#"${root}/${name}"/}"')
+    w('    case "${base}" in .git|.claude-plugin|.claude-plugin/marketplace.json) continue ;; esac')
+    w('    ln -s "${root}/${name}/${base}" "${root}/${alias}/${base}" || return 1')
+    w("  done")
+    w('  python3 - "${root}/${name}/.claude-plugin/marketplace.json" \\')
+    w('    "${root}/${alias}/.claude-plugin/marketplace.json" "${alias}" <<\'PY\'')
+    w("import json, sys")
+    w("source, dest, alias = sys.argv[1:]")
+    w("manifest = json.load(open(source))")
+    w("manifest['name'] = alias")
+    w("json.dump(manifest, open(dest, 'w'), indent=2)")
+    w("PY")
+    w("  # end _marketplace_alias")
+    w("}")
+    w("")
     w("# Checks a marketplace out at its pinned commit and declares it from that folder.")
     w("# Claude Code tracks a GitHub marketplace's default branch; a folder holds still.")
+    w("# A reserved name is declared as ALIAS, from a renamed copy of the checkout.")
     w("ensure_marketplace() {")
-    w('  local name="$1" repo="$2" commit="$3"')
-    w('  local dir="${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/${name}"')
+    w('  local name="$1" repo="$2" commit="$3" alias="${4:-}"')
+    w('  local root="${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}"')
+    w('  local dir="${root}/${name}" declared="${4:-$1}" declared_dir="${root}/${4:-$1}"')
     w('  local base="${AGENT_KIT_GIT_BASE:-https://github.com}" moved=0')
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
     w('    log "would pin marketplace ${name} at ${commit:0:12}"')
@@ -1037,7 +1096,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    if ! git -C "${dir}" fetch -q --depth 1 origin "${commit}" 2>/dev/null \\')
     w('       || ! git -C "${dir}" -c advice.detachedHead=false checkout -q --force FETCH_HEAD; then')
     w("      # Fail closed: only a folder at an earlier pin may keep serving plugins.")
-    w('      if _marketplace_from_folder "${name}" "${dir}"; then')
+    w('      if _marketplace_from_folder "${declared}" "${declared_dir}"; then')
     w('        warn "marketplace ${name}: could not fetch ${repo} at ${commit:0:12}; still at its previous pin"')
     w("      else")
     w('        unpinned_markets+=("${name}")')
@@ -1052,21 +1111,27 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    unpinned_markets+=("${name}")')
     w("    return 0")
     w("  fi")
-    w('  if _marketplace_from_folder "${name}" "${dir}"; then')
+    w('  if [ -n "${alias}" ] && ! _marketplace_alias "${root}" "${name}" "${alias}"; then')
+    w('    unpinned_markets+=("${name}")')
+    w('    warn "marketplace ${name}: could not build ${declared_dir}; its plugins are not installed"')
+    w("    return 0")
+    w("  fi")
+    w('  if _marketplace_from_folder "${declared}" "${declared_dir}"; then')
     w('    if [ "${moved}" = 1 ]; then')
-    w('      run claude plugin marketplace update "${name}" >/dev/null 2>&1 \\')
+    w('      run claude plugin marketplace update "${declared}" >/dev/null 2>&1 \\')
     w('        || warn "marketplace ${name}: could not refresh after moving to ${commit:0:12}"')
     w("    fi")
     w('    ok "marketplace ${name} pinned at ${commit:0:12}"')
     w("  else")
     w("    # Removing the upstream-tracking declaration uninstalls its plugins; the")
-    w("    # plugins step reinstalls them from the pinned folder.")
-    w('    run claude plugin marketplace remove "${name}" >/dev/null 2>&1 || true')
-    w('    if run claude plugin marketplace add "${dir}" >/dev/null 2>&1; then')
-    w('      ok "marketplace ${name} pinned at ${commit:0:12} (was tracking upstream)"')
+    w("    # plugins step reinstalls them from the pinned folder. A reserved name is")
+    w("    # left alone: it cannot be declared from a folder, so its plugins would be lost.")
+    w('    [ -n "${alias}" ] || run claude plugin marketplace remove "${name}" >/dev/null 2>&1 || true')
+    w('    if run claude plugin marketplace add "${declared_dir}" >/dev/null 2>&1; then')
+    w('      ok "marketplace ${name} pinned at ${commit:0:12} (${alias:+declared as ${alias}, }was tracking upstream)"')
     w("    else")
     w('      unpinned_markets+=("${name}")')
-    w('      warn "marketplace ${name}: could not declare it from ${dir}; its plugins are not installed"')
+    w('      warn "marketplace ${name}: could not declare it from ${declared_dir}; its plugins are not installed"')
     w("    fi")
     w("  fi")
     w("  # end ensure_marketplace")
@@ -1728,14 +1793,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
     cloud_markets = {"claude-plugins-official"} if _entries(data, "language_servers") else set()
     cloud_markets |= {p["marketplace"] for p in _entries(data, "plugins") if on_cloud(p)}
     for market in _entries(data, "marketplaces"):
-        block = [f'  ensure_marketplace {market["name"]} {market["repo"]} {market["commit"]}']
+        alias = f' {market["declare_as"]}' if market.get("declare_as") else ""
+        block = [f'  ensure_marketplace {market["name"]} {market["repo"]} {market["commit"]}{alias}']
         out.extend(_cloud_guard(block, {**market, "cloud": market["name"] in cloud_markets}, "  "))
     w("")
     w('  log "plugins"')
+    if any(m.get("declare_as") for m in _entries(data, "marketplaces")):
+        w('  installed_plugins="$(claude plugin list --json 2>/dev/null || true)"')
     for plugin in _entries(data, "plugins"):
-        ref = f'{plugin["name"]}@{plugin["marketplace"]}'
+        ref = f'{plugin["name"]}@{declared_name(data, plugin["marketplace"])}'
         w(f'  # {plugin["name"]}: ' + " ".join(str(plugin.get("purpose") or "").split())[:200])
-        block = []
+        block = _unalias(data, plugin["name"], plugin["marketplace"], "  ")
         b = block.append
         b(f'  if run claude plugin install {ref} --yes --scope user; then')
         # Do NOT run unconditional update - that causes drift. Only on explicit request.
@@ -1822,7 +1890,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         markets = {m["name"]: m for m in _entries(data, "marketplaces")}
         for plugin in _entries(data, "plugins"):
             market = markets[plugin["marketplace"]]
-            ref = f'{plugin["name"]}@{plugin["marketplace"]}'
+            ref = f'{plugin["name"]}@{declared_name(data, plugin["marketplace"])}'
             folder = f'"${{AGENT_KIT_MARKETPLACES:-${{HOME}}/.local/share/agent-kit/marketplaces}}/{market["name"]}"'
             w(f'    expected_commit="$(expected_plugin_commit {folder} {plugin["name"]} {market["commit"]})"')
             w(f'    installed_commit="$(installed_plugin_commit "${{manifest}}" "{ref}")"')
@@ -1863,11 +1931,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
         # `install: null` is meaningful: the binary ships with its platform
         # toolchain and there is nothing to install separately.
         lsp_install: str | None = server.get("install") or None
-        ref = f"{plugin}@claude-plugins-official"
+        ref = f"{plugin}@{declared_name(data, 'claude-plugins-official')}"
         enabled = server.get("enabled", True)
         w("")
         w(f'    # {plugin} -> {binary} ({", ".join(server.get("languages") or [])})')
-        block = []
+        block = _unalias(data, plugin, "claude-plugins-official", "    ")
         b = block.append
         b(f'    if run claude plugin install {ref} --yes --scope user; then')
         # Always check binary presence to determine enable/disable state
