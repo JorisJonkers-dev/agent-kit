@@ -513,9 +513,9 @@ converge_mcp() {
   fi
   out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
     "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \
-    --declared claude=memory-api,memory-private,n8n,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared codex=memory-api,memory-private,n8n,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared vibe=memory-api,memory-private,n8n,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared claude=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared codex=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared vibe=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
     --retired memory-mcp,vuetify,knowledge 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
@@ -2016,6 +2016,29 @@ for install in installs:
       oauth_status n8n
     fi
 
+    # n8n node docs and schemas, docs-only, no API key.
+    if ! npm ls -g --depth=0 "n8n-mcp@2.92.1" >/dev/null 2>&1; then
+      run_sh 'npm install -g "n8n-mcp@2.92.1"' || true
+    fi
+    command -v n8n-mcp >/dev/null 2>&1 \
+      || warn "n8n-mcp: n8n-mcp is not on PATH; skipping"
+    if command -v claude >/dev/null 2>&1; then
+      run claude_each_profile claude mcp remove --scope user n8n-mcp >/dev/null 2>&1 || true
+      if run_redacted "claude mcp add n8n-mcp" claude_each_profile claude mcp add --scope user n8n-mcp -- n8n-mcp; then
+        ok "n8n-mcp registered (claude)"
+      else
+        fail "n8n-mcp registration failed (claude)"
+      fi
+    fi
+    if command -v codex >/dev/null 2>&1; then
+      run codex mcp remove n8n-mcp >/dev/null 2>&1 || true
+      if run_redacted "codex mcp add n8n-mcp" codex mcp add n8n-mcp -- n8n-mcp; then
+        ok "n8n-mcp registered (codex)"
+      else
+        fail "n8n-mcp registration failed (codex)"
+      fi
+    fi
+
     # Read-only cluster diagnostics through the server's own
     # ClusterRole.
     if [ "${CLOUD}" = 1 ]; then
@@ -2176,7 +2199,7 @@ for install in installs:
      for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
       registered=$(claude_in_profile "${profile_dir}" claude mcp list 2>/dev/null || true)
       # Check all expected servers are registered
-      expected_servers=(memory-api playwright drawio overleaf)
+      expected_servers=(memory-api n8n-mcp playwright drawio overleaf)
       if [ "${CLOUD}" != 1 ]; then
         expected_servers+=(n8n kubernetes)
       fi

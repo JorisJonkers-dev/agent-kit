@@ -293,11 +293,11 @@ def validate(data: dict[str, Any]) -> None:
                 "with no credential",
             )
         if server.get("install_pinned") and not (
-            (server.get("container") or {}).get("datasource") == "npm" and server.get("requires_binary")
+            pinned_source(server).get("datasource") == "npm" and server.get("requires_binary")
         ):
             raise RegistryError(
                 f"mcp server {server.get('name')} install_pinned needs an npm container pin "
-                "and a requires_binary",
+                "or pin: block, and a requires_binary",
             )
 
     _validate_claude_profiles(data)
@@ -313,6 +313,16 @@ def validate(data: dict[str, Any]) -> None:
                 raise RegistryError(
                     f"{key} entry {item.get('name')} names unknown surfaces {sorted(unknown)}",
                 )
+
+
+def pinned_source(server: dict[str, Any]) -> dict[str, Any]:
+    """Where an `install_pinned` server's npm pin lives: its own `pin:`, else its container pin."""
+    return dict(server.get("pin") or server.get("container") or {})
+
+
+def workstation_pins(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The `pin:` blocks of workstation-only pinned installs, which Renovate moves like container pins."""
+    return [dict(s["pin"]) for s in _entries(data, "mcp_servers") if s.get("install_pinned") and s.get("pin")]
 
 
 def on_surface(item: dict[str, Any], surface: str) -> bool:
@@ -2166,7 +2176,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
         indent = "      " if guard_open else "    "
         binary = server.get("requires_binary")
         if binary and server.get("install_pinned"):
-            pin = f'{server["container"]["package"]}@{server["container"]["version"]}'
+            source = pinned_source(server)
+            pin = f'{source["package"]}@{source["version"]}'
             install = " && ".join(c for c in (f'npm install -g "{pin}"', server.get("post_install")) if c)
             b(f'{indent}if ! npm ls -g --depth=0 "{pin}" >/dev/null 2>&1; then')
             b(f"{indent}  run_sh {_q(install)} || true")

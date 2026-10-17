@@ -967,6 +967,22 @@ mcp_servers:
     cloud: false
     trust: estate
 
+  - name: n8n-mcp
+    transport: stdio
+    purpose: n8n node docs and schemas, docs-only, no API key.
+    command: n8n-mcp
+    args: []
+    timeout: 60
+    surfaces: [workstation]
+    trust: local
+    requires_binary: n8n-mcp
+    # A pinned global binary, the way Playwright is; Renovate moves the pin.
+    install_pinned: true
+    pin:
+      datasource: npm
+      package: "n8n-mcp"
+      version: "2.92.1"
+
   - name: kubernetes
     transport: http
     purpose: Read-only cluster diagnostics through the server's own ClusterRole.

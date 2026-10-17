@@ -757,7 +757,7 @@ def test_renovate_tracks_every_container_pin() -> None:
             found.add((match["datasource"], match["depName"], match["currentValue"]))
     expected = {
         (t["datasource"], t["package"], t["version"])
-        for t in render_registry.container_tools(_registry())
+        for t in [*render_registry.container_tools(_registry()), *render_registry.workstation_pins(_registry())]
     }
     assert found == expected
 
