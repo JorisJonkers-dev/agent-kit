@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.15.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.14.0...v4.15.0) (2026-10-17)
+
+
+### Features
+
+* **mcp:** an oauth auth kind, and n8n registered by URL on Claude, Codex and Vibe ([#137](https://github.com/JorisJonkers-dev/agent-kit/issues/137)) ([bb59fd0](https://github.com/JorisJonkers-dev/agent-kit/commit/bb59fd0e6ef0676838fc66f56b277aef0f5314a3))
+* **mcp:** n8n-mcp runs docs-only from one pinned global binary ([#139](https://github.com/JorisJonkers-dev/agent-kit/issues/139)) ([ee07ebf](https://github.com/JorisJonkers-dev/agent-kit/commit/ee07ebf762d9e3c12b1d27169cf33c70b0a6ee21))
+
 ## [4.14.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.13.0...v4.14.0) (2026-10-16)
 
 
