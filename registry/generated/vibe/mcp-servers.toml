@@ -42,6 +42,14 @@ type = "oauth"
 scopes = []
 
 [[mcp_servers]]
+name = "n8n-mcp"
+transport = "stdio"
+command = "n8n-mcp"
+args = []
+tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
+
+[[mcp_servers]]
 name = "kubernetes"
 transport = "streamable-http"
 url = "http://127.0.0.1:18080/mcp"

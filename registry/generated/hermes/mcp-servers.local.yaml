@@ -11,6 +11,11 @@ mcp_servers:
       Authorization: "Bearer ${HINDSIGHT_API_TOKEN}"
     timeout: 60
 
+  n8n-mcp:
+    command: "n8n-mcp"
+    args: []
+    timeout: 60
+
   kubernetes:
     url: "http://127.0.0.1:18080/mcp"
     timeout: 60
