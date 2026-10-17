@@ -285,6 +285,13 @@ def validate(data: dict[str, Any]) -> None:
             )
 
     for server in _entries(data, "mcp_servers"):
+        if "auth" in server and not (
+            server["auth"] == "oauth" and server.get("transport") == "http" and not server.get("credential")
+        ):
+            raise RegistryError(
+                f"mcp server {server.get('name')} auth: oauth is the only auth kind, for an http server "
+                "with no credential",
+            )
         if server.get("install_pinned") and not (
             (server.get("container") or {}).get("datasource") == "npm" and server.get("requires_binary")
         ):
@@ -686,6 +693,9 @@ def render_hermes_local_mcp(data: dict[str, Any]) -> str:
             continue
         if server.get("enabled") is False or len(server.get("surfaces") or []) == 0:
             continue
+        # Local Hermes has no sign-in flow for an OAuth server.
+        if server.get("auth") == "oauth":
+            continue
         name = server["name"]
         lines.append(f"  {name}:")
         if server["transport"] == "http":
@@ -758,6 +768,9 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
             if server.get("timeout"):
                 lines.append(f"tool_timeout_sec = {float(server['timeout'])}")
                 lines.append(f"startup_timeout_sec = {float(server.get('startup_timeout', VIBE_STARTUP_TIMEOUT))}")
+            if server.get("auth") == "oauth":
+                # Vibe signs in itself (dynamic client registration) and keeps the token.
+                lines += ["", "[mcp_servers.auth]", 'type = "oauth"', "scopes = []"]
             credential = server.get("credential")
             if credential:
                 lines += [
@@ -1358,6 +1371,33 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    claude_in_profile "${dir}" "$@" || rc=1')
     w("  done")
     w('  return "${rc}"')
+    w("}")
+    w("")
+    w("# An `auth: oauth` server is registered by URL only: each client signs in")
+    w("# itself and keeps its own token, so setup stores none. This reports every")
+    w("# client that has not signed in yet, under --check too.")
+    w("oauth_status() {")
+    w('  local name="$1" dir')
+    w("  if command -v claude >/dev/null 2>&1; then")
+    w('    for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('      claude_in_profile "${dir}" claude mcp get "${name}" 2>/dev/null | grep -q Connected \\')
+    w('        || warn "${name}: needs sign-in (claude ${dir}): run /mcp in Claude and pick ${name}"')
+    w("    done")
+    w("  fi")
+    w("  if command -v codex >/dev/null 2>&1; then")
+    w("    codex mcp list --json 2>/dev/null | uv run --no-project python -c \\")
+    signed_in = (
+        'import json,sys; sys.exit(0 if any(s.get("name") == sys.argv[1] and s.get("auth_status")'
+        ' not in (None, "not_logged_in") for s in json.load(sys.stdin)) else 1)'
+    )
+    w(f"      '{signed_in}' \\")
+    w('      "${name}" || warn "${name}: needs sign-in (codex): run codex mcp login ${name}"')
+    w("  fi")
+    w("  # Vibe keeps an MCP OAuth token in the keychain as mcp-oauth:<name>:tokens.")
+    w("  if command -v vibe >/dev/null 2>&1 && command -v security >/dev/null 2>&1; then")
+    w('    security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \\')
+    w('      || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"')
+    w("  fi")
     w("}")
     w("")
     _converge_mcp(data, w)
@@ -2207,6 +2247,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
         b(f'{indent}    fail "{name} registration failed (codex)"')
         b(f"{indent}  fi")
         b(f"{indent}fi")
+        if server.get("auth") == "oauth":
+            b(f"{indent}oauth_status {name}")
         if guard_open:
             b("    fi")
         out.extend(_cloud_guard(block, server, "    "))

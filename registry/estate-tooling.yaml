@@ -955,6 +955,18 @@ mcp_servers:
       repository keeps the notes. `surfaces: []` is what removes it from
       Claude, Codex, Vibe and local Hermes on the next setup run.
 
+  - name: n8n
+    transport: http
+    purpose: n8n workflows through its instance-level MCP server.
+    url_workstation: "https://n8n.jorisjonkers.dev/mcp-server/http"
+    # Each client signs in itself; setup stores no n8n secret.
+    auth: oauth
+    timeout: 60
+    surfaces: [workstation]
+    # A cloud session has no browser to sign in with.
+    cloud: false
+    trust: estate
+
   - name: kubernetes
     transport: http
     purpose: Read-only cluster diagnostics through the server's own ClusterRole.

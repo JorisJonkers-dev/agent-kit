@@ -477,6 +477,29 @@ claude_each_profile() {
   return "${rc}"
 }
 
+# An `auth: oauth` server is registered by URL only: each client signs in
+# itself and keeps its own token, so setup stores none. This reports every
+# client that has not signed in yet, under --check too.
+oauth_status() {
+  local name="$1" dir
+  if command -v claude >/dev/null 2>&1; then
+    for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+      claude_in_profile "${dir}" claude mcp get "${name}" 2>/dev/null | grep -q Connected \
+        || warn "${name}: needs sign-in (claude ${dir}): run /mcp in Claude and pick ${name}"
+    done
+  fi
+  if command -v codex >/dev/null 2>&1; then
+    codex mcp list --json 2>/dev/null | uv run --no-project python -c \
+      'import json,sys; sys.exit(0 if any(s.get("name") == sys.argv[1] and s.get("auth_status") not in (None, "not_logged_in") for s in json.load(sys.stdin)) else 1)' \
+      "${name}" || warn "${name}: needs sign-in (codex): run codex mcp login ${name}"
+  fi
+  # Vibe keeps an MCP OAuth token in the keychain as mcp-oauth:<name>:tokens.
+  if command -v vibe >/dev/null 2>&1 && command -v security >/dev/null 2>&1; then
+    security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \
+      || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"
+  fi
+}
+
 # Removes retired and undeclared MCP servers from every surface; the keep file spares undeclared ones.
 converge_mcp() {
   local out rc=0 line dir
@@ -490,9 +513,9 @@ converge_mcp() {
   fi
   out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
     "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \
-    --declared claude=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared codex=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared vibe=memory-api,memory-private,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared claude=memory-api,memory-private,n8n,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared codex=memory-api,memory-private,n8n,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared vibe=memory-api,memory-private,n8n,kubernetes,playwright,drawio,overleaf,hindsight \
     --retired memory-mcp,vuetify,knowledge 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
@@ -1970,6 +1993,29 @@ for install in installs:
       fi
     fi
 
+    # n8n workflows through its instance-level MCP server.
+    if [ "${CLOUD}" = 1 ]; then
+      log "n8n: not set up in cloud mode"
+    else
+      if command -v claude >/dev/null 2>&1; then
+        run claude_each_profile claude mcp remove --scope user n8n >/dev/null 2>&1 || true
+        if run_redacted "claude mcp add n8n" claude_each_profile claude mcp add --scope user n8n --transport http https://n8n.jorisjonkers.dev/mcp-server/http; then
+          ok "n8n registered (claude)"
+        else
+          fail "n8n registration failed (claude)"
+        fi
+      fi
+      if command -v codex >/dev/null 2>&1; then
+        run codex mcp remove n8n >/dev/null 2>&1 || true
+        if run_redacted "codex mcp add n8n" codex mcp add n8n --url https://n8n.jorisjonkers.dev/mcp-server/http; then
+          ok "n8n registered (codex)"
+        else
+          fail "n8n registration failed (codex)"
+        fi
+      fi
+      oauth_status n8n
+    fi
+
     # Read-only cluster diagnostics through the server's own
     # ClusterRole.
     if [ "${CLOUD}" = 1 ]; then
@@ -2083,7 +2129,7 @@ for install in installs:
           || fail "local Hermes retired MCP cleanup failed"
         if [ "${CLOUD}" = 1 ]; then
           uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
-            "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove kubernetes \
+            "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove n8n --remove kubernetes \
             || fail "local Hermes MCP cleanup failed"
         fi
       fi
@@ -2097,7 +2143,7 @@ for install in installs:
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
         vibe_remove=()
-        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove memory-private --remove kubernetes)
+        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove memory-private --remove n8n --remove kubernetes)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
@@ -2132,7 +2178,7 @@ for install in installs:
       # Check all expected servers are registered
       expected_servers=(memory-api playwright drawio overleaf)
       if [ "${CLOUD}" != 1 ]; then
-        expected_servers+=(kubernetes)
+        expected_servers+=(n8n kubernetes)
       fi
       for want in "${expected_servers[@]}"; do
         case " ${skipped_mcp_names[*]-} " in *" ${want} "*) continue ;; esac

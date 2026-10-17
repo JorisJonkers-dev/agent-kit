@@ -31,6 +31,17 @@ api_key_header = "Authorization"
 api_key_format = "Bearer {token}"
 
 [[mcp_servers]]
+name = "n8n"
+transport = "streamable-http"
+url = "https://n8n.jorisjonkers.dev/mcp-server/http"
+tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
+
+[mcp_servers.auth]
+type = "oauth"
+scopes = []
+
+[[mcp_servers]]
 name = "kubernetes"
 transport = "streamable-http"
 url = "http://127.0.0.1:18080/mcp"
