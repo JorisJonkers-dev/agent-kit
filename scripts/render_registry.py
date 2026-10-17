@@ -2234,18 +2234,26 @@ def render_setup_script(data: dict[str, Any]) -> str:
         b(f"{indent}fi")
         # --- Codex ---
         b(f"{indent}if command -v codex >/dev/null 2>&1; then")
-        b(f"{indent}  run codex mcp remove {name} >/dev/null 2>&1 || true")
-        if server["transport"] == "http":
-            url = server.get("url_workstation")
-            add = f"codex mcp add {name} --url {url}"
-            if credential:
-                # Unlike claude, codex reads this env var at its own runtime.
-                add += f" --bearer-token-env-var {credential}"
+        if server.get("auth") == "oauth":
+            # `codex mcp add --url` starts the OAuth flow at once and waits for a
+            # browser, so the helper writes the entry and codex reads it back.
+            b(f'{indent}  if run uv run --no-project --with tomlkit python '
+              f'"${{KIT_ROOT}}/scripts/codex-add-url-mcp.py" '
+              f'"${{CODEX_HOME:-${{HOME}}/.codex}}/config.toml" {name} {server["url_workstation"]} \\')
+            b(f"{indent}    && run codex mcp get {name} >/dev/null; then")
         else:
-            args = " ".join(server.get("args") or [])
-            env_flags = _mcp_env_flags(server, credential, optional_cred)
-            add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
-        b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
+            b(f"{indent}  run codex mcp remove {name} >/dev/null 2>&1 || true")
+            if server["transport"] == "http":
+                url = server.get("url_workstation")
+                add = f"codex mcp add {name} --url {url}"
+                if credential:
+                    # Unlike claude, codex reads this env var at its own runtime.
+                    add += f" --bearer-token-env-var {credential}"
+            else:
+                args = " ".join(server.get("args") or [])
+                env_flags = _mcp_env_flags(server, credential, optional_cred)
+                add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
+            b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
         if session_only(server):
             # codex has no `mcp disable`; the helper sets enabled = false and reads it back.
             b(f'{indent}    run uv run --no-project --with tomlkit python "${{KIT_ROOT}}/scripts/codex-disable-mcp.py" '

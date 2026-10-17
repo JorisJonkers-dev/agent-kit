@@ -2006,8 +2006,8 @@ for install in installs:
         fi
       fi
       if command -v codex >/dev/null 2>&1; then
-        run codex mcp remove n8n >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add n8n" codex mcp add n8n --url https://n8n.jorisjonkers.dev/mcp-server/http; then
+        if run uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/codex-add-url-mcp.py" "${CODEX_HOME:-${HOME}/.codex}/config.toml" n8n https://n8n.jorisjonkers.dev/mcp-server/http \
+          && run codex mcp get n8n >/dev/null; then
           ok "n8n registered (codex)"
         else
           fail "n8n registration failed (codex)"

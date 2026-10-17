@@ -53,18 +53,20 @@ json.dump(data, open(path, "w"))
 """
 
 FAKE_CODEX = f"""#!{PY}
-import json, os, sys
+import json, os, sys, tomllib
 args = sys.argv[1:]
-path = os.path.join(os.environ["HOME"], "codex.json")
-servers = json.load(open(path)) if os.path.exists(path) else {{}}
-if args[:2] == ["mcp", "remove"]:
-    servers.pop(args[2], None)
-elif args[:2] == ["mcp", "add"]:
-    servers[args[2]] = args[3:]
+open(os.environ["FAKE_CODEX_LOG"], "a").write("codex " + " ".join(args) + "\\n")
+path = os.path.join(os.environ["HOME"], ".codex", "config.toml")
+servers = tomllib.load(open(path, "rb")).get("mcp_servers", {{}}) if os.path.exists(path) else {{}}
+if args[:2] == ["mcp", "add"] and "--url" in args:
+    # The real codex starts its OAuth flow here and waits for a browser.
+    print("Detected OAuth support. Starting OAuth flow...")
+    sys.exit(1)
+elif args[:2] == ["mcp", "get"]:
+    sys.exit(0 if args[2] in servers and not os.environ.get("FAKE_CODEX_UNREADABLE") else 1)
 elif args[:3] == ["mcp", "list", "--json"]:
     signed = "codex" in os.environ.get("FAKE_SIGNED_IN", "").split()
     print(json.dumps([{{"name": n, "auth_status": "o_auth" if signed else "not_logged_in"}} for n in servers]))
-json.dump(servers, open(path, "w"))
 """
 
 FAKE_SECURITY = """#!/bin/sh
@@ -121,15 +123,19 @@ class Machine:
             (self.bin / name).chmod(0o755)
         self.log = tmp_path / "calls.log"
         self.log.write_text("")
+        self.codex_log = tmp_path / "codex.log"
+        self.codex_log.write_text("")
+        self.codex_config = self.home / ".codex" / "config.toml"
 
     def claude(self, profile: Path) -> dict:
         path = self.home / ".claude.json" if profile == self.work else profile / ".claude.json"
         return json.loads(path.read_text())["mcpServers"]
 
     def codex(self) -> dict:
-        return json.loads((self.home / "codex.json").read_text())
+        return tomllib.loads(self.codex_config.read_text())["mcp_servers"]
 
-    def setup(self, *, check: bool = False, signed_in: str = "") -> subprocess.CompletedProcess:
+    def setup(self, *, check: bool = False, signed_in: str = "",
+              codex_unreadable: bool = False) -> subprocess.CompletedProcess:
         script = render_registry.render_setup_script(_registry())
         body = (
             f"CHECK_ONLY={int(check)}\nCLOUD=0\nKIT_ROOT={KIT_ROOT}\nCLAUDE_HOME={self.work}\nfailures=0\n"
@@ -147,7 +153,10 @@ class Machine:
             "HOME": str(self.home),
             "FAKE_LOG": str(self.log),
             "FAKE_SIGNED_IN": signed_in,
+            "FAKE_CODEX_LOG": str(self.codex_log),
         }
+        if codex_unreadable:
+            env["FAKE_CODEX_UNREADABLE"] = "1"
         return subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env=env)
 
 
@@ -161,7 +170,48 @@ def test_both_claude_profiles_register_n8n_by_url_only(tmp_path: Path) -> None:
 def test_codex_registers_n8n_by_url_only(tmp_path: Path) -> None:
     machine = Machine(tmp_path)
     machine.setup()
-    assert machine.codex()["n8n"] == ["--url", URL]
+    assert machine.codex()["n8n"] == {"url": URL}
+
+
+def test_setup_never_runs_codex_mcp_add_for_n8n_which_would_start_the_sign_in(tmp_path: Path) -> None:
+    machine = Machine(tmp_path)
+    machine.setup()
+    assert not [c for c in machine.codex_log.read_text().splitlines() if c.startswith("codex mcp add n8n")]
+
+
+def test_setup_reports_n8n_registered_on_codex(tmp_path: Path) -> None:
+    machine = Machine(tmp_path)
+    result = machine.setup()
+    assert "ok n8n registered (codex)" in result.stdout, result.stdout
+    assert "failures=0" in result.stdout, result.stdout
+
+
+def test_setup_fails_n8n_on_codex_when_codex_cannot_read_the_entry(tmp_path: Path) -> None:
+    machine = Machine(tmp_path)
+    result = machine.setup(codex_unreadable=True)
+    assert "FAIL n8n registration failed (codex)" in result.stdout, result.stdout
+
+
+def test_registering_n8n_on_codex_keeps_the_rest_of_the_codex_config(tmp_path: Path) -> None:
+    machine = Machine(tmp_path)
+    machine.codex_config.parent.mkdir()
+    machine.codex_config.write_text('model = "gpt-5"\n\n[mcp_servers.other]\ncommand = "other"\n')
+    machine.setup()
+    config = tomllib.loads(machine.codex_config.read_text())
+    assert config["model"] == "gpt-5"
+    assert config["mcp_servers"]["other"] == {"command": "other"}
+
+
+def test_a_second_setup_run_leaves_n8n_on_codex_unchanged(tmp_path: Path) -> None:
+    machine = Machine(tmp_path)
+    machine.setup()
+    machine.setup()
+    assert machine.codex()["n8n"] == {"url": URL}
+
+
+def test_the_bundle_ships_the_codex_url_helper() -> None:
+    publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
+    assert "scripts/codex-add-url-mcp.py" in publish
 
 
 def test_vibe_registers_n8n_with_oauth_and_no_token(tmp_path: Path) -> None:
