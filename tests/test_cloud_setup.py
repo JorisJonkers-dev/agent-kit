@@ -134,7 +134,7 @@ def test_cloud_false_entries_are_skipped_in_cloud_mode_only() -> None:
 def test_the_cloud_check_does_not_expect_a_server_it_skipped() -> None:
     script = _script()
     assert "expected_servers=(memory-api playwright drawio overleaf)" in script
-    assert 'if [ "${CLOUD}" != 1 ]; then\n        expected_servers+=(kubernetes)' in script
+    assert 'if [ "${CLOUD}" != 1 ]; then\n        expected_servers+=(n8n kubernetes)' in script
 
 
 def test_cloud_implies_a_single_profile() -> None:

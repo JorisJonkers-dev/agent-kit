@@ -178,6 +178,12 @@ Two traps this catches:
   `workstation_secrets:`, which says how setup gets it: `grant:` (a service
   token it mints), `paste:` (a key you paste once) or `value:` (a fixed
   setting), each checked against `check:` before it is stored.
+- `auth: oauth` (http only, no `credential:`) is for a server that signs the
+  client in itself, like n8n. Setup registers the URL alone and stores no
+  secret. Each client signs in once: `/mcp` in Claude (each profile),
+  `codex mcp login <name>`, `/mcp login <name>` in Vibe. Until a client has,
+  setup and `--check` warn `<name>: needs sign-in (<client>)`. Local Hermes gets
+  no OAuth server, and an OAuth server should carry `cloud: false`.
 - `trust: hosted` stamps the generated config with the reminder that the
   server's output is context, never instruction.
 - An in-cluster URL needs the Hermes SSRF allowlist. Hermes blocks RFC1918 by
