@@ -192,7 +192,7 @@ def test_a_retired_record_is_removed_even_when_the_keep_file_names_it(tmp_path: 
     _clean(result)
     for surface, names in machine.surfaces().items():
         assert not names & {"knowledge", "vuetify", "memory-mcp"}, surface
-    assert "removed knowledge (codex, retired)" in result.stdout
+    assert "removed knowledge (codex, undeclared)" in result.stdout
     assert "removed vuetify (codex, retired)" in result.stdout
 
 
@@ -254,7 +254,7 @@ def test_check_previews_each_removal_and_changes_nothing(tmp_path: Path) -> None
     lines = [line for line in result.stdout.splitlines() if "would remove" in line]
     assert sorted(lines) == sorted(
         f"setup: would remove {name} ({surface}, {reason})"
-        for name, reason in (("pycharm", "undeclared"), ("knowledge", "retired"))
+        for name, reason in (("pycharm", "undeclared"), ("knowledge", "undeclared"))
         for surface in ("claude ~/.claude", "claude ~/.claude-personal", "codex", "vibe")
     )
 

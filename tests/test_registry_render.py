@@ -82,19 +82,18 @@ def test_hermes_http_server_needs_a_hermes_url() -> None:
         render_registry.render_hermes_mcp(data)
 
 
-def test_retired_knowledge_server_reaches_no_surface() -> None:
-    """`surfaces: []` is the whole mechanism for retiring a server.
-
-    If it grows a surface again the generated artifacts start registering the
-    dead knowledge base, so assert the absence rather than trusting the edit.
-    """
+def test_no_generated_artifact_registers_the_retired_knowledge_base() -> None:
+    """The knowledge base is retired, so nothing setup writes may point at it."""
     data = _registry()
-    knowledge = next(s for s in data["mcp_servers"] if s["name"] == "knowledge")
-    assert knowledge["surfaces"] == []
     # Match the server KEY, not the word: the memory server's comment
     # legitimately mentions the retired knowledge base.
     assert "\n  knowledge:\n" not in render_registry.render_hermes_mcp(data)
     assert "kb.jorisjonkers.dev" not in render_registry.render_setup_script(data)
+
+
+def test_the_registry_no_longer_records_the_knowledge_server() -> None:
+    """Convergence removes an undeclared `knowledge`, and its token is revoked, so the tombstone is gone."""
+    assert "knowledge" not in {s["name"] for s in _registry()["mcp_servers"]}
 
 
 def test_the_registry_no_longer_records_the_mem0_memory_server() -> None:
