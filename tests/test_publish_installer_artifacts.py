@@ -30,6 +30,7 @@ KIT_FILES = (
     "scripts/agent-kit-keys.py",
     "registry/generated/workstation-secrets.json",
     "scripts/codex-disable-mcp.py",
+    "scripts/codex-add-url-mcp.py",
     "scripts/converge.py",
 )
 

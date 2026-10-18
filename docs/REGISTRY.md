@@ -180,7 +180,9 @@ Two traps this catches:
   setting), each checked against `check:` before it is stored.
 - `auth: oauth` (http only, no `credential:`) is for a server that signs the
   client in itself, like n8n. Setup registers the URL alone and stores no
-  secret. Each client signs in once: `/mcp` in Claude (each profile),
+  secret. On Codex it writes the entry with `scripts/codex-add-url-mcp.py`,
+  because `codex mcp add --url` starts the sign-in at once and waits for a
+  browser. Each client signs in once: `/mcp` in Claude (each profile),
   `codex mcp login <name>`, `/mcp login <name>` in Vibe. Until a client has,
   setup and `--check` warn `<name>: needs sign-in (<client>)`. Local Hermes gets
   no OAuth server, and an OAuth server should carry `cloud: false`.
