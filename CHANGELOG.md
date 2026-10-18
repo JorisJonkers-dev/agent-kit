@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.15.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.15.0...v4.15.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **mcp:** register an oauth server on Codex without starting its sign-in ([#140](https://github.com/JorisJonkers-dev/agent-kit/issues/140)) ([626cdcb](https://github.com/JorisJonkers-dev/agent-kit/commit/626cdcb562d38bcdba9fb4a4913e025675a883ce))
+
 ## [4.15.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.14.0...v4.15.0) (2026-10-17)
 
 
