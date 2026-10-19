@@ -438,8 +438,8 @@ marketplaces:
     declare_as: agent-kit-official
   - name: caveman
     repo: JuliusBrussee/caveman
-    ref: v2.6.0
-    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+    ref: v3.2.0
+    commit: e20f07e8152a0c0360f58c09e79d30ac94329991
   - name: drawio
     repo: jgraph/drawio-mcp
     ref: main
@@ -849,8 +849,8 @@ skill_sources:
 
   - name: caveman
     repo: https://github.com/JuliusBrussee/caveman
-    ref: v2.6.0
-    commit: b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
+    ref: v3.2.0
+    commit: e20f07e8152a0c0360f58c09e79d30ac94329991
     license: MIT
     selector: "*"
     surfaces: [hermes]
