@@ -1165,7 +1165,7 @@ else
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
   else
-    ensure_marketplace ai-software-architect codenamev/ai-software-architect 6e636c8bb2f63481d70f0b7af12912fd414d5722
+    ensure_marketplace ai-software-architect codenamev/ai-software-architect 2e6309a799184b9b19c3916e4c5d2596b65efc57
   fi
 
   log "plugins"
@@ -1462,7 +1462,7 @@ for install in installs:
         plugin_drift+=("github: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/ai-software-architect" ai-software-architect 6e636c8bb2f63481d70f0b7af12912fd414d5722)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/ai-software-architect" ai-software-architect 2e6309a799184b9b19c3916e4c5d2596b65efc57)"
     installed_commit="$(installed_plugin_commit "${manifest}" "ai-software-architect@ai-software-architect")"
     if [ -z "${expected_commit}" ]; then
       warn "ai-software-architect: its marketplace entry pins no commit, so it cannot be pinned"
