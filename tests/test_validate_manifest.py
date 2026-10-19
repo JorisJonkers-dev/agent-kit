@@ -316,11 +316,6 @@ class RenderAgentKitDoctor(unittest.TestCase):
                     ),
                 ),
             ),
-            unittest.mock.patch.object(
-                self.renderer,
-                "kb_reachability_check",
-                return_value=self.renderer.DoctorCheck(name="kb-live", status="ok", detail="skipped"),
-            ),
         ):
             output = io.StringIO()
             with redirect_stdout(output):

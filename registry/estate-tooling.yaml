@@ -1116,19 +1116,3 @@ mcp_servers:
     # the setup script skip overleaf whenever the var is unset, which is wrong.
     credential: OVERLEAF_SESSION
     credential_optional: true
-
-  - name: knowledge
-    transport: http
-    purpose: RETIRED. The estate knowledge base.
-    url_workstation: "https://kb.jorisjonkers.dev/mcp"
-    url_hermes: "@KB_URL@/mcp"
-    credential: KB_BEARER_TOKEN
-    timeout: 60
-    enabled: false
-    surfaces: []
-    trust: estate
-    note: >-
-      Kept as a record, registered nowhere. `surfaces: []` is what removes
-      it. Its hooks are already gone; the bearer token in ~/.claude.json on
-      any machine that ran the old installer should be revoked, not just
-      unregistered.

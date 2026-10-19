@@ -41,13 +41,12 @@ Run the local doctor before updating a pinned kit version or debugging drift:
 
 ```bash
 python3 render-agent-kit.py --doctor
-python3 render-agent-kit.py --doctor --require-live-kb
+python3 render-agent-kit.py --doctor --strict   # warnings fail too
 ```
 
-The doctor is read-only. It checks generated file drift, manifest version,
-surface parity, and optional KB reachability. Missing `KB_URL` or
-`KB_BEARER_TOKEN` is a warning unless `--require-live-kb` is set -- expect
-that warning going forward, since nothing publishes those any more.
+The doctor is read-only. It checks generated file drift, manifest version and
+surface parity. It needs no knowledge base: the knowledge service is retired,
+and nothing on the install path reads `KB_URL` or a bearer token.
 
 ## Restore Order
 
@@ -56,8 +55,7 @@ that warning going forward, since nothing publishes those any more.
    `uv run python scripts/validate_manifest.py`, and
    `uv run python scripts/render_registry.py --check`.
 3. Reinstall client homes with `./installer/setup-workstation.sh`.
-4. Run `render-agent-kit.py --doctor` (add `--require-live-kb` only while the
-   KB still exists; expect it to warn once knowledge-api is decommissioned).
+4. Run `render-agent-kit.py --doctor --strict`.
 
 ## Compatibility Matrix
 

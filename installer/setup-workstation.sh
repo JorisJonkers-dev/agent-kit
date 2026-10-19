@@ -516,7 +516,7 @@ converge_mcp() {
     --declared claude=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
     --declared codex=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
     --declared vibe=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
-    --retired memory-mcp,vuetify,knowledge 2>&1) || rc=$?
+    --retired memory-mcp,vuetify 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
 }
@@ -2148,7 +2148,7 @@ for install in installs:
           "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" \
           || fail "local Hermes MCP merge failed"
         uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
-          "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove memory-mcp --remove vuetify --remove knowledge \
+          "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove memory-mcp --remove vuetify \
           || fail "local Hermes retired MCP cleanup failed"
         if [ "${CLOUD}" = 1 ]; then
           uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
