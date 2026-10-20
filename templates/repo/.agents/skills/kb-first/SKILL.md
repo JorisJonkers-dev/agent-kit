@@ -5,9 +5,7 @@ description: Use before designing or changing behavior that may depend on prior 
 
 # Memory First
 
-The estate's knowledge-api and its `knowledge.*` MCP tools are retired
-(fleet-infra#231), and so is the `memory-mcp` (Basic Memory) server. The
-current memory platform is one MCP server — check its `tools/list` for the
+The memory platform is one MCP server — check its `tools/list` for the
 exact call names and parameters:
 
 - **`memory-api`** (Hindsight) — long-term memory with explicit

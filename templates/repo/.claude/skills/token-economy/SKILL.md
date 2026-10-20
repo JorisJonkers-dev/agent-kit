@@ -1,25 +1,35 @@
 ---
 name: token-economy
-description: Use when reducing token usage, agent cost, context bloat, prompt-caching misses, RAG/LightRAG behavior, memory policies, or durable instructions. Also use when designing on-demand KB recall so retrieval stays bounded.
+description: Use when the user asks to reduce token usage, agent cost, context bloat, prompt-caching misses, or memory/durable-instruction policy. Also use when installing many skills or designing automatic memory recall so retrieval stays bounded.
 ---
 
 # Token Economy
 
-- Stable instructions belong in `AGENTS.md`, `CLAUDE.md`, or skills; volatile
-  facts belong in the KB.
-- Keep recall bounded: `limit <= 5` for task setup, `limit=3` for a quick check.
-- Use adaptive recall mode: `fast` for prompts under 80 chars, `hybrid` for
-  longer prompts, `deep` only after a miss or ambiguity.
-- Keep runner MCP profiles narrow: `minimal` by default, wider profiles only
-  when the task needs those extra tools.
-- Preserve prompt-cache-friendly ordering: stable policy first, dynamic task
-  context later.
-- Summarize command output and avoid broad KB/context dumps.
+- Keep stable instructions in `CLAUDE.md` or skills; keep volatile facts in
+  `memory-api` (Hindsight) and retrieve them
+  on demand rather than inlining them.
+- Prefer progressive disclosure: list/search first, open small file ranges
+  next, fetch full files or notes only when needed.
+- Keep recall bounded: search with a small result limit for a quick check,
+  and widen only for deliberate task setup.
+- Keep runner MCP profiles narrow: `minimal` by default, wider profiles
+  only when the task needs those extra tools.
+- Do not install or enable low-fit skills just to grow the list. Skill
+  metadata itself consumes prompt budget and very large skill sets can
+  hide useful skills.
+- Preserve prompt-cache-friendly ordering when writing durable
+  instructions: stable policy first, dynamic task-specific context later.
+
+When reporting command results, summarize only the lines needed to support
+the decision. A session digest (if the user asks for one) should capture
+only reusable lessons above a genuine confidence bar and should be checked
+against existing memory-api hits before writing, so it does not
+duplicate what is already captured.
 
 ## Tunable env vars
 
-| Variable | Default | Effect |
-| --- | --- | --- |
-| `KB_RECALL_MIN_SCORE` | `0.004` | Minimum hit score injected into context; raise to tighten relevance. |
-| `KB_RECALL_MODE` | auto | Override adaptive mode (`fast`/`hybrid`/`deep`). |
-| `KB_AUTO_MCP_DISABLED` | `0` | Set to `1` to disable all automatic KB calls (panic switch). |
+| Variable | Effect |
+| --- | --- |
+| `AGENT_MCP_PROFILE` | Narrows the MCP tool set for one runner (`minimal`, `frontend`, `cluster`, `code-intel`, `full-diagnostic`). |
+| `AGENT_RUNTIME_DEFAULT_MCP_PROFILE` | Same, as a fleet-wide default; prefer the per-runner variable unless the change is deliberately fleet-wide. |
+| `HINDSIGHT_API_URL` | Overrides the `memory-api` endpoint; falls back to a personal local daemon when unset. |

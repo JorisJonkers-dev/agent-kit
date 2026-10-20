@@ -19,7 +19,7 @@ REPO_TEMPLATE_ROOT = KIT_ROOT / "templates" / "repo"
 RUNNER_RUNTIME_TEMPLATE_ROOT = KIT_ROOT / "templates" / "runner-runtime"
 RUNNER_RUNTIME_DESTINATION = Path("runner-manifests/runtime")
 # installer/install.sh and installer/install-agents.sh (and the heredoc-bundle
-# rendering they alone needed) were retired with knowledge-api (agent-kit#40).
+# rendering they alone needed) were retired in agent-kit#40.
 # setup-workstation.sh is rendered by scripts/render_registry.py instead.
 COUNCIL_SRC = KIT_ROOT / "council"
 SPECKIT_COMMANDS_SRC = REPO_TEMPLATE_ROOT / ".claude" / "commands"

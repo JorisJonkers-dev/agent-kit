@@ -41,8 +41,8 @@ before.
 Self-host **mem0** in-cluster rather than keep building a bespoke knowledge
 service. The reasoning:
 
-- The bespoke KB was three moving parts (`knowledge-api`,
-  `knowledge-ingest-worker`, `lightrag`, plus `ollama` for embeddings) that the
+- The bespoke KB was three moving parts (its API, an ingest worker,
+  `lightrag`, plus `ollama` for embeddings) that the
   estate maintained itself, for a capability that is now off-the-shelf.
 - Hermes already speaks to a memory provider natively (`memory.provider`), so
   the gateway needs configuration rather than code.
@@ -96,7 +96,7 @@ Not part of the bring-up, and deliberately last. **Update (agent-kit#40):**
 (rendered from `registry/estate-tooling.yaml`) is the one installer now, and
 it is published from the public static host described below
 (`https://assets.jorisjonkers.dev/setup-workstation.sh`; agent-kit#35), not
-served by `knowledge-api`. The blocker this section originally described is
+served by the knowledge service. The blocker this section originally described is
 resolved. The paragraph below is kept for the reasoning, not as a live plan:
 
 The knowledge service used to serve the installer (`install.sh` /
@@ -111,5 +111,4 @@ Remaining follow-up now that the transport dependency is gone:
 - **Revoke the KB bearer token** on any machine that ran the old installer. It
   sits in plaintext in `~/.claude.json` under the `knowledge` MCP entry.
   Unregistering the server does not revoke the token.
-- `knowledge-api` can now be decommissioned outright (fleet-infra#231); it is
-  no longer the install transport.
+- The knowledge service is decommissioned (fleet-infra#231).

@@ -108,7 +108,6 @@ describe('WorkerSupervisorAdapter', () => {
         AGENT_MCP_PROFILE: 'env-profile',
         COUNCIL_MODEL_TIER: 'explicit-env-tier',
         EXTRA: '1',
-        KB_AUTO_MCP_DISABLED: '0',
       },
       id: 'T1',
       mcpProfile: 'code-intel',
@@ -142,7 +141,6 @@ describe('WorkerSupervisorAdapter', () => {
       AGENT_MCP_PROFILE: 'code-intel',
       COUNCIL_MODEL_TIER: 'cheap',
       EXTRA: '1',
-      KB_AUTO_MCP_DISABLED: '1',
     })
     expect(child.writes).toEqual(['initial prompt\n'])
     expect(events).toContainEqual(expect.objectContaining({
@@ -547,7 +545,6 @@ describe('WorkerSupervisorAdapter', () => {
     expect(records[0]?.options.env).toMatchObject({
       AGENT_MCP_PROFILE: 'env-profile',
       COUNCIL_MODEL_TIER: 'env-tier',
-      KB_AUTO_MCP_DISABLED: '1',
     })
   })
 
@@ -597,7 +594,6 @@ describe('WorkerSupervisorAdapter', () => {
     expect(records[1]?.options.cwd).toBe('/tmp/worktree')
     expect(records[1]?.options.env).toMatchObject({
       COUNCIL_MODEL_TIER: 'cheap',
-      KB_AUTO_MCP_DISABLED: '1',
     })
     expect(events.some((event) =>
       event.type === 'detected' &&
@@ -645,7 +641,6 @@ describe('WorkerSupervisorAdapter', () => {
     expect(records).toHaveLength(3)
     expect(records[2]?.options.env).toMatchObject({
       COUNCIL_MODEL_TIER: 'max',
-      KB_AUTO_MCP_DISABLED: '1',
     })
     expect(events.some((event) =>
       event.type === 'tier-escalated' &&
