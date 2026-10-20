@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.16.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.15.1...v4.16.0) (2026-10-20)
+
+
+### Features
+
+* nothing on the install path needs the knowledge base ([#142](https://github.com/JorisJonkers-dev/agent-kit/issues/142)) ([becd2e4](https://github.com/JorisJonkers-dev/agent-kit/commit/becd2e4bb5bb73e700666b1f70a1540d91aa8ff9))
+
+
+### Bug Fixes
+
+* drop the retired knowledge-api from council, skills and docs ([#147](https://github.com/JorisJonkers-dev/agent-kit/issues/147)) ([987e574](https://github.com/JorisJonkers-dev/agent-kit/commit/987e574fa67b0e7b1e7ba7a10fbb8bc8f59128f3))
+* **plugins:** update anthropics/claude-plugins-official digest to ea10b21 ([#144](https://github.com/JorisJonkers-dev/agent-kit/issues/144)) ([dfbd728](https://github.com/JorisJonkers-dev/agent-kit/commit/dfbd728b3dbb8ef1fac5e828705fbb9b0e6f432f))
+* **plugins:** update codenamev/ai-software-architect digest to 2e6309a ([#145](https://github.com/JorisJonkers-dev/agent-kit/issues/145)) ([4614177](https://github.com/JorisJonkers-dev/agent-kit/commit/4614177287894da54db8a8b8199dace7d1e12317))
+
 ## [4.15.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.15.0...v4.15.1) (2026-10-18)
 
 
