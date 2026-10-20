@@ -133,8 +133,6 @@ state.json                             # resume marker
 ```
 
 ## Notes
-- Sub-invocations run with `KB_AUTO_MCP_DISABLED=1` so council's internal prompts
-  never pollute the knowledge base.
 - Codex planning/critique uses `model_reasoning_effort=high`, read-only sandbox.
 - Both `claude` and `codex` CLIs must be installed and authenticated.
 - We don't bundle a full JSON-Schema validator; `validate_tasks` checks the

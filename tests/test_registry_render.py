@@ -890,7 +890,7 @@ def test_retired_kb_skills_are_not_local_skills() -> None:
 
 
 def test_kb_first_and_token_economy_do_not_reference_the_retired_kb() -> None:
-    """Mentioning that knowledge-api is retired is fine; instructing the agent
+    """Mentioning that the knowledge service is retired is fine; instructing the agent
     to actually call one of its dead tools or env vars is not."""
     dead_tool_calls = ("knowledge.recall", "knowledge.relations", "KB_BEARER_TOKEN")
     for name in ("kb-first", "token-economy"):

@@ -114,10 +114,6 @@ renderer:
     - runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
     - runner-manifests/runtime/runtime-package.yaml
 
-canonical_mcp_tools:
-  source: knowledge-api MCP tool contract
-  prefix: knowledge.
-
 commands:
   - name: speckit.analyze
     supported_agents: [claude]
@@ -327,10 +323,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/kb-first/SKILL.md
-        sha256: 4a6c51047f9e2392d92251dd7eedf92adc59c7a69cfe508c220dea72b0db4bae
+        sha256: 8b72294d7da9e4f8a0fc8a421d669abf3ec769f4fe613e98a1547af2de695e9c
       - agent: claude
         path: .claude/skills/kb-first/SKILL.md
-        sha256: 4a6c51047f9e2392d92251dd7eedf92adc59c7a69cfe508c220dea72b0db4bae
+        sha256: 8b72294d7da9e4f8a0fc8a421d669abf3ec769f4fe613e98a1547af2de695e9c
   - name: open-pr
     supported_agents: [codex, claude]
     targets:
@@ -363,10 +359,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/token-economy/SKILL.md
-        sha256: 814c78c77a1482fc28751947eb701b848b9ce52ae460a4f1f5e4a2c366313165
+        sha256: 740b5279021f983c9c1a4c3da3ee179baf8b0f3f568c3e474787c5ac7ba83cfb
       - agent: claude
         path: .claude/skills/token-economy/SKILL.md
-        sha256: 713e9388efdb22f638e02cfbffc57dd6fc0bbacdc0756825958dab030b5bd538
+        sha256: 740b5279021f983c9c1a4c3da3ee179baf8b0f3f568c3e474787c5ac7ba83cfb
   - name: speckit-analyze
     supported_agents: [codex]
     unsupported:
@@ -442,7 +438,7 @@ skills:
 
 # topics and audit were installer-only skills (no repo template, served only
 # by the retired install.sh's KB-curator partials) and are removed along with
-# it (agent-kit#40): both are built around knowledge-api admin tools with no
+# it (agent-kit#40): both are built around the old knowledge service's admin tools with no
 # memory-api equivalent, so nothing replaces them. See the
 # agent-kit#40 PR body.
 

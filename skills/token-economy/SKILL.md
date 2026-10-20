@@ -33,7 +33,3 @@ duplicate what is already captured.
 | `AGENT_MCP_PROFILE` | Narrows the MCP tool set for one runner (`minimal`, `frontend`, `cluster`, `code-intel`, `full-diagnostic`). |
 | `AGENT_RUNTIME_DEFAULT_MCP_PROFILE` | Same, as a fleet-wide default; prefer the per-runner variable unless the change is deliberately fleet-wide. |
 | `HINDSIGHT_API_URL` | Overrides the `memory-api` endpoint; falls back to a personal local daemon when unset. |
-
-The `knowledge-api`-era env vars (`KB_RECALL_MIN_SCORE`, `KB_RECALL_MODE`,
-`KB_AUTO_MCP_DISABLED`) are retired along with the service they tuned; they
-do nothing against `memory-api`.

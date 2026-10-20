@@ -74,7 +74,6 @@ export class WorkerSupervisorAdapter {
     const env = {
       ...process.env,
       ...request.env,
-      KB_AUTO_MCP_DISABLED: '1',
       ...optional('AGENT_MCP_PROFILE', request.mcpProfile),
       ...(input.modelTier === undefined ? {} : { COUNCIL_MODEL_TIER: input.modelTier }),
     }
