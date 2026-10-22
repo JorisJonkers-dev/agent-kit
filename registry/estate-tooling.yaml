@@ -203,7 +203,7 @@ clis:
     container:
       datasource: npm
       package: "@anthropic-ai/claude-code"
-      version: "2.1.272"
+      version: "2.1.287"
       install: 'npm install -g "@anthropic-ai/claude-code@${VERSION}"'
       requires: [node]
 
@@ -218,7 +218,7 @@ clis:
     container:
       datasource: npm
       package: "@openai/codex"
-      version: "0.154.0"
+      version: "0.160.0"
       install: 'npm install -g "@openai/codex@${VERSION}"'
       requires: [node]
 
@@ -293,7 +293,7 @@ clis:
     container:
       datasource: github-releases
       package: "astral-sh/uv"
-      version: "0.12.15"
+      version: "0.12.22"
       install: >-
         curl -fsSL "https://github.com/astral-sh/uv/releases/download/${VERSION}/uv-${GNU_ARCH}-unknown-linux-gnu.tar.gz"
         | tar -xz -C /usr/local/bin --strip-components=1 --wildcards '*/uv' '*/uvx'
@@ -309,7 +309,7 @@ clis:
     container:
       datasource: node-version
       package: "node"
-      version: "22.23.2"
+      version: "22.23.3"
       install: >-
         curl -fsSL "https://nodejs.org/dist/v${VERSION}/node-v${VERSION}-linux-${DEB_ARCH/amd64/x64}.tar.xz"
         | tar -xJ -C /usr/local --strip-components=1 --exclude='*.md' --exclude=LICENSE --exclude=share/doc
@@ -323,7 +323,7 @@ clis:
     container:
       datasource: github-releases
       package: "cli/cli"
-      version: "v2.100.0"
+      version: "v2.102.0"
       install: >-
         curl -fsSL "https://github.com/cli/cli/releases/download/${VERSION}/gh_${VERSION#v}_linux_${DEB_ARCH}.tar.gz"
         | tar -xz -C /usr/local --strip-components=1 "gh_${VERSION#v}_linux_${DEB_ARCH}/bin/gh"
@@ -351,7 +351,7 @@ clis:
     container:
       datasource: github-releases
       package: "jdx/mise"
-      version: "v2026.9.9"
+      version: "v2026.10.0"
       install: >-
         curl -fsSL -o /usr/local/bin/mise
         "https://github.com/jdx/mise/releases/download/${VERSION}/mise-${VERSION}-linux-${DEB_ARCH/amd64/x64}"
@@ -393,7 +393,7 @@ clis:
     container:
       datasource: github-releases
       package: "github/github-mcp-server"
-      version: "v1.12.1"
+      version: "v1.13.0"
       install: >-
         case "${DEB_ARCH}" in amd64) a=x86_64 ;; arm64) a=arm64 ;; esac
         && curl -fsSL "https://github.com/github/github-mcp-server/releases/download/${VERSION}/github-mcp-server_Linux_${a}.tar.gz"
@@ -589,7 +589,7 @@ language_servers:
     container:
       datasource: npm
       package: "typescript-language-server"
-      version: "6.0.0"
+      version: "6.0.1"
       install: 'npm install -g "typescript-language-server@${VERSION}"'
       version_command: "typescript-language-server --version"
       requires: [node, typescript]
@@ -1052,7 +1052,7 @@ mcp_servers:
     container:
       datasource: npm
       package: "@playwright/mcp"
-      version: "0.0.81"
+      version: "0.0.83"
       install: >-
         npm install -g "@playwright/mcp@${VERSION}"
         && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install --with-deps chromium
@@ -1080,7 +1080,7 @@ mcp_servers:
     container:
       datasource: npm
       package: "@drawio/mcp"
-      version: "1.5.0"
+      version: "1.6.3"
       install: 'npm install -g "@drawio/mcp@${VERSION}"'
       # The binary starts a server rather than printing a version.
       version_command: "npm ls -g @drawio/mcp"

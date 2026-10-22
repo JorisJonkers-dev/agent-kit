@@ -1,8 +1,8 @@
 # BMAD Source Lock
 
 upstream_repository: https://github.com/bmad-code-org/BMAD-METHOD.git
-upstream_tag: v6.9.0
-upstream_tag_commit: 6ac4c26
+upstream_tag: v6.12.0
+upstream_tag_commit: 05bfbd46d00766ec88eb9b42e76be2c575d64d7b
 resolved_commit_sha: 67f4499e
 commits_past_tag: 24
 adaptation_source: resolved_commit_sha
