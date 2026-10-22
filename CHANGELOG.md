@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.16.1](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.16.0...v4.16.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **plugins:** update codenamev/ai-software-architect digest to 3f030c1 ([#149](https://github.com/JorisJonkers-dev/agent-kit/issues/149)) ([c3fa2f6](https://github.com/JorisJonkers-dev/agent-kit/commit/c3fa2f6624f051186738f9cab7b36359948e6dea))
+
 ## [4.16.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.15.1...v4.16.0) (2026-10-20)
 
 
