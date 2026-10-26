@@ -6,6 +6,10 @@
     'paths':
       - 'registry/estate-tooling.yaml'
 
+'concurrency':
+  'group': '${{ github.workflow }}-${{ github.ref }}'
+  'cancel-in-progress': '${{ github.ref != ''refs/heads/main'' }}'
+
 'permissions':
   'contents': 'read'
 
