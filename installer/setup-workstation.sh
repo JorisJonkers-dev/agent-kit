@@ -1161,7 +1161,7 @@ else
   ensure_marketplace claude-plugins-official anthropics/claude-plugins-official ea10b213686c90bb1984b2016937310e05336cf3 agent-kit-official
   ensure_marketplace caveman JuliusBrussee/caveman b82c0ad42c2bedc1f2cd78e414dadfaffbaaeec3
   ensure_marketplace drawio jgraph/drawio-mcp 14b318b19cc37b159f841227b9d11fbd18ce18ea
-  ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill f85547fb3a1ec909b2cbe4dc68f831590ac385ea
+  ensure_marketplace kubernetes-skill LukasNiessen/kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f
   if [ "${CLOUD}" = 1 ]; then
     log "ai-software-architect: not set up in cloud mode"
   else
@@ -1426,7 +1426,7 @@ for install in installs:
         plugin_drift+=("security-guidance: ${installed_commit:0:12} vs ${expected_commit:0:12}")
       fi
     fi
-    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/kubernetes-skill" kubernetes-skill f85547fb3a1ec909b2cbe4dc68f831590ac385ea)"
+    expected_commit="$(expected_plugin_commit "${AGENT_KIT_MARKETPLACES:-${HOME}/.local/share/agent-kit/marketplaces}/kubernetes-skill" kubernetes-skill 34f93c1e409156958cc7c410ab1aa88ab512f10f)"
     installed_commit="$(installed_plugin_commit "${manifest}" "kubernetes-skill@kubernetes-skill")"
     if [ -z "${expected_commit}" ]; then
       warn "kubernetes-skill: its marketplace entry pins no commit, so it cannot be pinned"
