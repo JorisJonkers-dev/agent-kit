@@ -447,7 +447,7 @@ marketplaces:
   - name: kubernetes-skill
     repo: LukasNiessen/kubernetes-skill
     ref: main
-    commit: f85547fb3a1ec909b2cbe4dc68f831590ac385ea
+    commit: 34f93c1e409156958cc7c410ab1aa88ab512f10f
   - name: ai-software-architect
     repo: codenamev/ai-software-architect
     ref: main
@@ -861,7 +861,7 @@ skill_sources:
   - name: kubernetes-skill
     repo: https://github.com/LukasNiessen/kubernetes-skill
     ref: main
-    commit: f85547fb3a1ec909b2cbe4dc68f831590ac385ea
+    commit: 34f93c1e409156958cc7c410ab1aa88ab512f10f
     license: MIT
     # A root-level SKILL.md with no skills/ directory and no containing
     # folder. sync-skills names it from the repository instead.
