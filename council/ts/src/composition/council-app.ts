@@ -226,8 +226,6 @@ export interface SelfTestGolden {
   readonly waves: readonly (readonly string[])[]
 }
 
-export { NodeProcessAdapter }
-
 const NOOP_STATUS_WRITER: CouncilStatusOutputWriter = {
   write: () => undefined,
 }
