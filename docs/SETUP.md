@@ -502,7 +502,9 @@ entry `agent-kit.HINDSIGHT_API_TOKEN`, or `~/.config/agent-kit/secrets.env`)
 and proxies JSON-RPC to `hindsight-api.jorisjonkers.dev`. The token stays in
 memory: never on disk, never in argv, never printed. The fragment runs it
 through `/bin/sh -c` because a GUI-launched app has no `~/.local/bin` on
-`PATH`, and Antigravity does not expand variables in `command`.
+`PATH`, and Antigravity does not expand variables in `command`. When the
+server drops its session (a redeploy, say), the proxy opens a new one and
+retries, so Antigravity needs no restart.
 
 A server that needs no token is registered by URL: `n8n`, whose OAuth tokens
 Antigravity keeps in `~/.gemini/antigravity/mcp_oauth_tokens.json`, and
@@ -521,10 +523,12 @@ The two skills folders are not a duplicate: the app reads
 `~/.gemini/config/skills/` and `agy` reads
 `~/.gemini/antigravity-cli/skills/`, so setup copies each skill into both.
 
-One file serves the app, the CLI and the IDE, and there is no `mcp add`, so
-setup merges the fragment with `scripts/antigravity-merge-mcp.py`: a server the
-fragment names replaces any entry of that name, and every other server and
-every other top-level key in the file is kept. The first merge copies the file
+One file serves the app, the CLI and the IDE. `agy mcp add` writes one server
+at a time, so setup merges the whole fragment with
+`scripts/antigravity-merge-mcp.py` instead: a server the fragment names
+replaces any entry of that name, and every other server and every other
+top-level key in the file is kept. A server you turned off with
+`agy mcp disable` stays off. The first merge copies the file
 to `mcp_config.json.bak` and never overwrites that copy, so the config you had
 before agent-kit survives. Antigravity is the one surface setup does not
 converge — a server you add to that file yourself stays. The merge runs only

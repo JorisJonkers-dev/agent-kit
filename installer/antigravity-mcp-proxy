@@ -97,11 +97,16 @@ def emit(message: Any) -> None:
 
 
 def messages(body: str, content_type: str) -> list[Any]:
-    """The JSON-RPC messages in a response body: plain JSON, or SSE `data:` lines."""
+    """The JSON-RPC messages in a response body: plain JSON, or SSE `data:` lines.
+
+    Any other body -- forward-auth's HTML login page -- holds none.
+    """
     if "text/event-stream" in content_type:
         payloads = [line[5:].strip() for line in body.splitlines() if line.startswith("data:")]
-    else:
+    elif "json" in content_type:
         payloads = [body.strip()] if body.strip() else []
+    else:
+        return []
     found = []
     for payload in payloads:
         try:
@@ -111,10 +116,65 @@ def messages(body: str, content_type: str) -> list[Any]:
     return found
 
 
+class Upstream:
+    """The streamable-HTTP side: one MCP session, re-opened when the server drops it."""
+
+    def __init__(self, url: str, token: str) -> None:
+        self.url = url
+        self.token = token
+        self.opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=tls_context()), _NoRedirect())
+        self.session = ""
+        self.protocol = ""
+        # The client's initialize request and initialized notification, replayed
+        # to open a new session: Antigravity cannot see the HTTP 404 that ends one.
+        self.handshake: list[str] = []
+
+    def post(self, line: str) -> tuple[int, str, str]:
+        """Status, content type and body of one POST; OSError when unreachable."""
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": AGENT,
+        }
+        if self.session:
+            headers["Mcp-Session-Id"] = self.session
+        if self.protocol:
+            headers["MCP-Protocol-Version"] = self.protocol
+        post = urllib.request.Request(self.url, data=line.encode(), headers=headers, method="POST")
+        try:
+            with self.opener.open(post, timeout=TIMEOUT) as response:
+                self.session = response.headers.get("Mcp-Session-Id") or self.session
+                body = response.read().decode(errors="replace")
+                return response.status, response.headers.get("Content-Type", ""), body
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers.get("Content-Type", ""), e.read().decode(errors="replace")
+
+    def send(self, line: str, method: str) -> tuple[int, str, str]:
+        if method == "initialize":
+            self.session = ""
+            self.handshake = [line]
+        elif method == "notifications/initialized" and len(self.handshake) == 1:
+            self.handshake.append(line)
+        stale = bool(self.session)
+        status, content_type, body = self.post(line)
+        # A 404 to a request carrying a session id means the server dropped the
+        # session (a redeploy, say); the spec has the client start a new one.
+        if status == 404 and stale and self.handshake and method != "initialize":
+            say("the upstream dropped the session; opening a new one")
+            self.session = ""
+            for step in self.handshake:
+                self.post(step)
+            status, content_type, body = self.post(line)
+        return status, content_type, body
+
+
+def error(request_id: Any, message: str) -> dict[str, Any]:
+    return {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": message}}
+
+
 def proxy(url: str, token: str) -> int:
-    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=tls_context()), _NoRedirect())
-    session = ""
-    protocol = ""
+    upstream = Upstream(url, token)
     while True:
         line = sys.stdin.readline()
         if not line:
@@ -127,40 +187,29 @@ def proxy(url: str, token: str) -> int:
         except json.JSONDecodeError:
             emit({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "parse error"}})
             continue
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/event-stream",
-            "User-Agent": AGENT,
-        }
-        if session:
-            headers["Mcp-Session-Id"] = session
-        if protocol:
-            headers["MCP-Protocol-Version"] = protocol
-        post = urllib.request.Request(url, data=line.encode(), headers=headers, method="POST")
+        request = inbound if isinstance(inbound, dict) else {}
+        method = str(request.get("method") or "")
         try:
-            with opener.open(post, timeout=TIMEOUT) as response:
-                session = response.headers.get("Mcp-Session-Id") or session
-                body = response.read().decode(errors="replace")
-                content_type = response.headers.get("Content-Type", "")
-        except urllib.error.HTTPError as e:
-            # The body is not forwarded: forward-auth answers a refused token with
-            # an HTML login page, which is not a JSON-RPC message.
-            say(f"{url} answered {e.code} {e.reason}")
-            if "id" in inbound:
-                emit({"jsonrpc": "2.0", "id": inbound["id"],
-                      "error": {"code": -32603, "message": f"upstream answered {e.code}"}})
-            continue
+            status, content_type, body = upstream.send(line, method)
         except OSError as e:  # URLError, a refused connection, a timeout
             say(f"could not reach {url}: {e}")
-            if "id" in inbound:
-                emit({"jsonrpc": "2.0", "id": inbound["id"],
-                      "error": {"code": -32603, "message": f"could not reach {url}"}})
+            if "id" in request:
+                emit(error(request["id"], f"could not reach {url}"))
             continue
+        if status >= 400:
+            say(f"{url} answered {status}")
+        answered = False
         for message in messages(body, content_type):
-            if isinstance(message, dict) and isinstance(message.get("result"), dict):
-                protocol = message["result"].get("protocolVersion") or protocol
+            if isinstance(message, dict):
+                if isinstance(message.get("result"), dict):
+                    upstream.protocol = message["result"].get("protocolVersion") or upstream.protocol
+                if "method" not in message and message.get("id") == request.get("id"):
+                    answered = True
             emit(message)
+        # A request the upstream left unanswered -- an error page, an empty body --
+        # still gets an answer, or the client waits on it until its own timeout.
+        if "id" in request and "method" in request and not answered:
+            emit(error(request["id"], f"upstream answered {status} without a JSON-RPC response"))
 
 
 def main(argv: list[str] | None = None) -> int:

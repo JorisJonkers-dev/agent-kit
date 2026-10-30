@@ -288,3 +288,50 @@ def test_an_upstream_refusal_is_reported_without_the_token(tmp_path: Path, upstr
     assert "sign in" not in result.stdout, "an HTML login page is not a JSON-RPC message"
     assert _lines(result)[0]["error"]["code"] == -32603
     assert TOKEN not in result.stdout + result.stderr
+
+
+def test_a_json_rpc_error_body_on_an_error_status_is_forwarded(tmp_path: Path, upstream: Upstream) -> None:
+    ws = Workstation(tmp_path)
+    ws.store()
+    upstream.reply = lambda message: (400, "application/json", json.dumps(
+        {"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32602, "message": "bad params"}}))
+    result = ws.run(upstream.url, CALL)
+    assert result.returncode == 0, result.stderr
+    assert _lines(result) == [{"jsonrpc": "2.0", "id": 2, "error": {"code": -32602, "message": "bad params"}}]
+
+
+def test_a_request_the_upstream_leaves_unanswered_still_gets_an_answer(
+    tmp_path: Path, upstream: Upstream,
+) -> None:
+    ws = Workstation(tmp_path)
+    ws.store()
+    # Forward-auth that serves its login page with 200 instead of redirecting.
+    upstream.reply = lambda message: (200, "text/html", "<html>sign in</html>")
+    result = ws.run(upstream.url, CALL)
+    assert result.returncode == 0, result.stderr
+    assert [(line["id"], line["error"]["code"]) for line in _lines(result)] == [(2, -32603)]
+    assert "sign in" not in result.stdout
+
+
+def test_a_dropped_session_is_reopened_and_the_request_retried(tmp_path: Path, upstream: Upstream) -> None:
+    ws = Workstation(tmp_path)
+    ws.store()
+    upstream.session = "s1"
+    answer = upstream.reply
+
+    def redeployed(message: dict) -> tuple[int, str, str]:
+        # The first tools/list on s1 finds the server restarted: s1 is gone.
+        if message.get("method") == "tools/list" and upstream.requests[-1]["session"] == "s1":
+            upstream.session = "s2"
+            return 404, "application/json", ""
+        return answer(message)
+
+    upstream.reply = redeployed
+    result = ws.run(upstream.url, INIT, NOTIFICATION, CALL)
+    assert result.returncode == 0, result.stderr
+    sent = [(r["message"].get("method"), r["session"]) for r in upstream.requests]
+    assert sent == [
+        ("initialize", ""), ("notifications/initialized", "s1"), ("tools/list", "s1"),
+        ("initialize", ""), ("notifications/initialized", "s2"), ("tools/list", "s2"),
+    ]
+    assert [line["id"] for line in _lines(result)] == [1, 2], "the replayed handshake is not answered twice"
