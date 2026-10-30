@@ -11,10 +11,9 @@ The source brief ("Cross-Provider Critique Pipeline — Implementation Brief",
 30 Oct 2026) is not kept in this repository. Its deliverables below are
 reconstructed from the spec, agent-kit#167, which is the source of truth for
 every design decision. The live checks below forced four departures from #167
-itself. They are listed under [Amendments #167 needs](#amendments-167-needs),
-and they stay proposals until the owner approves them; #167 has not been
-changed. On every other point where this document and #167 disagree, #167
-wins.
+itself. They are listed under [Amendments made to #167](#amendments-made-to-167),
+and the owner approved them; #167 was amended on 2026-10-30. Where this
+document and #167 disagree, #167 wins.
 
 The checks were run on 2026-10-30 for agent-kit#168, on macOS, against
 Vibe 3.0.3 (`~/.local/bin/vibe`, the `mistral-vibe` uv tool) and Antigravity
@@ -826,11 +825,10 @@ and in the grilling session behind it.
   them; the owner runs `/to-spec`, then `/critique-spec`. Pocock's skills are
   not edited or forked.
 
-### Amendments #167 needs
+### Amendments made to #167
 
-The live checks forced these departures from #167 itself. #167 has not been
-edited. Each needs the owner's approval, and until then #167 stands as
-written.
+The live checks forced these departures from #167 itself. The owner approved
+all four, and #167 was amended on 2026-10-30 to match.
 
 1. **agy runs without plan mode.** #167 has the Antigravity client run in
    "plan mode plus sandbox", and counts plan mode as one of the CLI flags
@@ -872,8 +870,7 @@ written.
   `.agents/` or `AGENTS.md` at the packet root. Do not treat exit 2 as
   retryable without checking that the agent exists.
 - **#171 (Antigravity critic).** Use `--disable-slash-commands --sandbox`
-  without `--mode plan`, once the owner approves amendment 1; the ticket's
-  criterion asks for plan mode until then. Read findings from
+  without `--mode plan` (amendment 1). Read findings from
   `structured_output` only. Treat an empty `response`, any `denied_actions`,
   a missing `structured_output` or `finished_reason: print_timeout` as
   failed, whatever the exit code. Expect the critic to see the repository's
