@@ -46,6 +46,14 @@ module.exports = {
       },
     },
     {
+      // The critique domain is pure: no ports, no application layer and no
+      // adapters. How a critic client is launched lives in its adapter.
+      name: 'critique-domain-is-pure',
+      severity: 'error',
+      from: { path: '^src/contexts/critique/domain/' },
+      to: { path: '^src/(ports|adapters)/|^src/contexts/critique/(application|adapters)/' },
+    },
+    {
       // The critique runner's CLI reaches contexts only through their barrels.
       name: 'critique-cli-uses-context-barrels',
       severity: 'error',

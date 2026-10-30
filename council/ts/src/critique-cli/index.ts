@@ -4,6 +4,7 @@ import {
   createCritiqueCommands,
   CritiqueError,
   NodeCritiqueFiles,
+  VibeCriticClient,
   type CritiqueCommands,
 } from '../contexts/critique/index.js'
 import { GitCliAdapter } from '../contexts/graph/index.js'
@@ -78,11 +79,11 @@ export function defaultCritiqueRuntime(
   return {
     commands: createCritiqueCommands({
       assetsRoot,
+      clients: { vibe: new VibeCriticClient(processPort, files) },
       clock: new SystemClockAdapter(),
       env: new ProcessEnvAdapter(environment),
       files,
       git: new GitCliAdapter(processPort),
-      process: processPort,
     }),
     readFile: (path) => files.readText(path),
     readStdin,

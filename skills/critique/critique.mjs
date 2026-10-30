@@ -613,98 +613,6 @@ ${sources.schema.trim()}
   };
 }
 
-// src/contexts/critique/domain/vibe.ts
-var OUTER_TIMEOUT_GRACE_S = 60;
-var ISOLATION_ENV = {
-  VIBE_ENABLE_MCP: "false",
-  VIBE_ENABLE_SUBAGENTS: "false",
-  VIBE_INCLUDE_PROJECT_CONTEXT: "false",
-  VIBE_OUTSIDE_WORKDIR: "deny"
-};
-function vibeLaunch(critic, paths) {
-  return {
-    args: [
-      "-u",
-      "MISTRAL_API_KEY",
-      "-u",
-      "VIBE_HOME",
-      critic.client_config.binary,
-      "--prompt-file",
-      paths.promptPath,
-      "--output",
-      "json",
-      "--trust",
-      "--agent",
-      critic.client_config.agent,
-      "--enabled-tools",
-      "read_file",
-      "--max-price",
-      String(critic.max_price_usd),
-      "--time-limit",
-      String(critic.time_limit_s),
-      "--output-dir",
-      paths.exportDir
-    ],
-    command: "env",
-    cwd: paths.packetDir,
-    env: ISOLATION_ENV,
-    timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
-  };
-}
-var EXIT_FAILURES = {
-  1: "config-error",
-  2: "infrastructure-failure",
-  3: "stopped-early"
-};
-function classifyVibeRun(run) {
-  const exported = jsonObjectOrUndefined(run.exported);
-  const cost = typeof exported?.cost_usd === "number" ? exported.cost_usd : null;
-  const failed = (failure, detail) => ({ cost_usd: cost, detail, failure, status: "failed" });
-  if (run.exitCode !== 0) {
-    const outcome = typeof exported?.outcome === "string" ? `outcome ${exported.outcome}` : run.stderr.trim();
-    return failed(EXIT_FAILURES[run.exitCode] ?? `exit-${String(run.exitCode)}`, `vibe exited ${String(run.exitCode)}: ${outcome}`);
-  }
-  if (run.stdout.trim().length === 0) return failed("empty-output", "vibe exited 0 with empty stdout");
-  if (exported === void 0) return failed("missing-export", "vibe wrote no readable export.json");
-  const violations = isolationViolations(jsonObjectOrUndefined(exported.config));
-  if (violations.length > 0) return failed("unsafe-config", `effective config: ${violations.join("; ")}`);
-  const message = finalAssistantText(run.stdout);
-  if (message === void 0) return failed("unparseable-output", "stdout is not a Vibe journal with an assistant message");
-  const parsed = parseFindings(message);
-  if (!parsed.ok) return failed(parsed.failure, parsed.detail);
-  return {
-    cost_usd: cost,
-    findings: parsed.findings,
-    status: "ok",
-    ...parsed.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed.no_findings_reason }
-  };
-}
-function isolationViolations(config) {
-  const violations = [];
-  if (config?.enable_mcp !== false) violations.push("enable_mcp is not false");
-  const tools = config?.enabled_tools;
-  if (!Array.isArray(tools) || tools.length !== 1 || tools[0] !== "read_file") {
-    violations.push("enabled_tools is not exactly read_file");
-  }
-  if (config?.include_project_context !== false) {
-    violations.push("include_project_context is not false, so the AGENTS.md instructions pointer reaches the critic");
-  }
-  if (config?.outside_workdir !== "deny") violations.push("outside_workdir is not deny");
-  return violations;
-}
-function finalAssistantText(stdout) {
-  let journal;
-  try {
-    journal = JSON.parse(stdout);
-  } catch {
-    return void 0;
-  }
-  const entries = Array.isArray(journal) ? journal.map(jsonObjectOrUndefined) : [];
-  const last = entries.findLast((entry) => entry?.type === "message" && entry.role === "assistant");
-  const content = Array.isArray(last?.content) ? last.content.map(jsonObjectOrUndefined) : void 0;
-  return content?.map((part) => typeof part?.text === "string" ? part.text : "").join("");
-}
-
 // src/contexts/critique/application/fan-out.ts
 function parseFanOutResult(text) {
   const file = JsonFields.parse(text);
@@ -755,50 +663,37 @@ async function runCritic(deps, manifest, critic) {
     },
     manifest.packet_files
   );
-  const paths = {
-    exportDir: join2(criticDir, "export"),
-    packetDir: manifest.packet_dir,
-    promptPath: join2(criticDir, "prompt.md")
-  };
-  const exportPath = join2(paths.exportDir, "export.json");
+  const promptPath = join2(criticDir, "prompt.md");
   const stdoutPath = join2(criticDir, "stdout.json");
-  await deps.files.writeText(paths.promptPath, prompt.text);
+  await deps.files.writeText(promptPath, prompt.text);
   const started = deps.clock.monotonicMs();
-  const result2 = await deps.process.exec(vibeLaunch(critic, paths));
-  const durationMs = deps.clock.monotonicMs() - started;
-  await deps.files.writeText(stdoutPath, result2.stdout);
-  await deps.files.writeText(join2(criticDir, "stderr.txt"), result2.stderr);
-  const outcome = classifyVibeRun({
-    exitCode: result2.exitCode,
-    exported: await readExport(deps, exportPath),
-    stderr: result2.stderr,
-    stdout: result2.stdout
+  const report = await deps.clients[critic.client_config.kind].review({
+    criticDir,
+    critic,
+    packetDir: manifest.packet_dir,
+    promptPath
   });
+  const durationMs = deps.clock.monotonicMs() - started;
+  await deps.files.writeText(stdoutPath, report.stdout);
+  await deps.files.writeText(join2(criticDir, "stderr.txt"), report.stderr);
+  const { outcome } = report;
   const findings = outcome.status === "ok" ? outcome.findings : [];
   const run = {
     ...criticIdentity(critic),
     cost_usd: outcome.cost_usd,
     duration_ms: durationMs,
-    exit_code: result2.exitCode,
-    export_path: exportPath,
+    exit_code: report.exitCode,
+    export_path: report.exportPath,
     finding_count: findings.length,
     lens_hashes: prompt.lens_hashes,
     prompt_hashes: prompt.prompt_hashes,
-    prompt_path: paths.promptPath,
+    prompt_path: promptPath,
     status: outcome.status,
     stdout_path: stdoutPath,
     ...outcome.status === "failed" ? { detail: outcome.detail, failure: outcome.failure } : {},
     ...outcome.status === "ok" && outcome.no_findings_reason !== void 0 ? { no_findings_reason: outcome.no_findings_reason } : {}
   };
   return { findings, run };
-}
-async function readExport(deps, path) {
-  if (!await deps.files.exists(path)) return void 0;
-  try {
-    return JSON.parse(await deps.files.readText(path));
-  } catch {
-    return void 0;
-  }
 }
 
 // src/contexts/critique/application/prepare.ts
@@ -1200,6 +1095,130 @@ var NodeCritiqueFiles = class {
   }
 };
 
+// src/contexts/critique/adapters/vibe/index.ts
+import { join as join5 } from "node:path";
+var VibeCriticClient = class {
+  constructor(process2, files) {
+    this.process = process2;
+    this.files = files;
+  }
+  process;
+  files;
+  async review(launch) {
+    const exportDir = join5(launch.criticDir, "export");
+    const exportPath = join5(exportDir, "export.json");
+    const result2 = await this.process.exec(
+      vibeLaunch(launch.critic, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
+    );
+    const outcome = classifyVibeRun({
+      exitCode: result2.exitCode,
+      exported: await this.readExport(exportPath),
+      stderr: result2.stderr,
+      stdout: result2.stdout
+    });
+    return { ...result2, exportPath, outcome };
+  }
+  /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
+  async readExport(path) {
+    if (!await this.files.exists(path)) return void 0;
+    try {
+      return JSON.parse(await this.files.readText(path));
+    } catch {
+      return void 0;
+    }
+  }
+};
+var OUTER_TIMEOUT_GRACE_S = 60;
+var ISOLATION_ENV = {
+  VIBE_ENABLE_MCP: "false",
+  VIBE_ENABLE_SUBAGENTS: "false",
+  VIBE_INCLUDE_PROJECT_CONTEXT: "false",
+  VIBE_OUTSIDE_WORKDIR: "deny"
+};
+function vibeLaunch(critic, paths) {
+  return {
+    args: [
+      "-u",
+      "MISTRAL_API_KEY",
+      "-u",
+      "VIBE_HOME",
+      critic.client_config.binary,
+      "--prompt-file",
+      paths.promptPath,
+      "--output",
+      "json",
+      "--trust",
+      "--agent",
+      critic.client_config.agent,
+      "--enabled-tools",
+      "read_file",
+      "--max-price",
+      String(critic.max_price_usd),
+      "--time-limit",
+      String(critic.time_limit_s),
+      "--output-dir",
+      paths.exportDir
+    ],
+    command: "env",
+    cwd: paths.packetDir,
+    env: ISOLATION_ENV,
+    timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
+  };
+}
+var EXIT_FAILURES = {
+  1: "config-error",
+  2: "infrastructure-failure",
+  3: "stopped-early"
+};
+function classifyVibeRun(run) {
+  const exported = jsonObjectOrUndefined(run.exported);
+  const cost = typeof exported?.cost_usd === "number" ? exported.cost_usd : null;
+  const failed = (failure, detail) => ({ cost_usd: cost, detail, failure, status: "failed" });
+  if (run.exitCode !== 0) {
+    const outcome = typeof exported?.outcome === "string" ? `outcome ${exported.outcome}` : run.stderr.trim();
+    return failed(EXIT_FAILURES[run.exitCode] ?? `exit-${String(run.exitCode)}`, `vibe exited ${String(run.exitCode)}: ${outcome}`);
+  }
+  if (run.stdout.trim().length === 0) return failed("empty-output", "vibe exited 0 with empty stdout");
+  if (exported === void 0) return failed("missing-export", "vibe wrote no readable export.json");
+  const violations = isolationViolations(jsonObjectOrUndefined(exported.config));
+  if (violations.length > 0) return failed("unsafe-config", `effective config: ${violations.join("; ")}`);
+  const message = finalAssistantText(run.stdout);
+  if (message === void 0) return failed("unparseable-output", "stdout is not a Vibe journal with an assistant message");
+  const parsed = parseFindings(message);
+  if (!parsed.ok) return failed(parsed.failure, parsed.detail);
+  return {
+    cost_usd: cost,
+    findings: parsed.findings,
+    status: "ok",
+    ...parsed.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed.no_findings_reason }
+  };
+}
+function isolationViolations(config) {
+  const violations = [];
+  if (config?.enable_mcp !== false) violations.push("enable_mcp is not false");
+  const tools = config?.enabled_tools;
+  if (!Array.isArray(tools) || tools.length !== 1 || tools[0] !== "read_file") {
+    violations.push("enabled_tools is not exactly read_file");
+  }
+  if (config?.include_project_context !== false) {
+    violations.push("include_project_context is not false, so the AGENTS.md instructions pointer reaches the critic");
+  }
+  if (config?.outside_workdir !== "deny") violations.push("outside_workdir is not deny");
+  return violations;
+}
+function finalAssistantText(stdout) {
+  let journal;
+  try {
+    journal = JSON.parse(stdout);
+  } catch {
+    return void 0;
+  }
+  const entries = Array.isArray(journal) ? journal.map(jsonObjectOrUndefined) : [];
+  const last = entries.findLast((entry) => entry?.type === "message" && entry.role === "assistant");
+  const content = Array.isArray(last?.content) ? last.content.map(jsonObjectOrUndefined) : void 0;
+  return content?.map((part) => typeof part?.text === "string" ? part.text : "").join("");
+}
+
 // src/contexts/graph/adapters/process/disk-usage.ts
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -1560,11 +1579,11 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
   return {
     commands: createCritiqueCommands({
       assetsRoot,
+      clients: { vibe: new VibeCriticClient(processPort, files) },
       clock: new SystemClockAdapter(),
       env: new ProcessEnvAdapter(environment),
       files,
-      git: new GitCliAdapter(processPort),
-      process: processPort
+      git: new GitCliAdapter(processPort)
     }),
     readFile: (path) => files.readText(path),
     readStdin: readStdin2

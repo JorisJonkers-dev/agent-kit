@@ -4,7 +4,13 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type { ClockPort, EnvPort, GitRemote, ProcessCommand, ProcessPort, ProcessResult } from '../../src/ports/index.js'
-import { createCritiqueCommands, NodeCritiqueFiles, type CritiqueCommands, type CritiqueGitPort } from '../../src/contexts/critique/index.js'
+import {
+  createCritiqueCommands,
+  NodeCritiqueFiles,
+  VibeCriticClient,
+  type CritiqueCommands,
+  type CritiqueGitPort,
+} from '../../src/contexts/critique/index.js'
 
 export const ASSETS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../skills/critique')
 
@@ -192,13 +198,14 @@ export async function harness(
   await writeFile(join(repo, 'CONTEXT.md'), `# Glossary\n\n${DECISION_CANARY}\n`)
   const git = new FakeGit(repo, options.remotes ?? [AGENT_KIT_REMOTE])
   const process = new FakeVibeProcess(options.scripts ?? [])
+  const files = new NodeCritiqueFiles()
   const commands = createCritiqueCommands({
     assetsRoot,
+    clients: { vibe: new VibeCriticClient(process, files) },
     clock: new FixedClock('2026-10-30T12:00:00.000Z'),
     env: new FakeEnv({ HOME: home }),
-    files: new NodeCritiqueFiles(),
+    files,
     git,
-    process,
   })
   return {
     assetsRoot,

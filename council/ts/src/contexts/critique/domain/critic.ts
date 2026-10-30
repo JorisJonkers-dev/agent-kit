@@ -1,5 +1,5 @@
 import { MODEL_FAMILIES, type ModelFamily } from './family.js'
-import { FINDINGS_FAILURES, type FindingsFailure } from './findings.js'
+import { FINDINGS_FAILURES, type CriticFinding, type FindingsFailure } from './findings.js'
 import { isOneOf, type JsonFields } from './json.js'
 import type { PromptHashes } from './prompt.js'
 import type { RosterCritic } from './routing.js'
@@ -27,6 +27,16 @@ const RUN_FAILURES = [
 
 /** Why a critic's run counts as no review. `exit-<code>` is an exit code the client does not document. */
 export type CriticFailure = FindingsFailure | (typeof RUN_FAILURES)[number] | `exit-${string}`
+
+/** What a critic client makes of one critic's run: a review, or the reason it counts as none. */
+export type CriticOutcome =
+  | {
+      readonly status: 'ok'
+      readonly findings: readonly CriticFinding[]
+      readonly no_findings_reason?: string
+      readonly cost_usd: number | null
+    }
+  | { readonly status: 'failed'; readonly failure: CriticFailure; readonly detail: string; readonly cost_usd: number | null }
 
 /** One critic's run as fan-out recorded it: who ran, how it went, and where its raw output is. */
 export interface CriticRun extends CriticIdentity {

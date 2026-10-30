@@ -1,8 +1,49 @@
-import type { ProcessCommand } from '../../../ports/index.js'
-import type { CriticFailure } from './critic.js'
-import { parseFindings, type CriticFinding } from './findings.js'
-import { jsonObjectOrUndefined } from './json.js'
-import type { RosterCritic } from './routing.js'
+import { join } from 'node:path'
+
+import type { ProcessCommand, ProcessPort } from '../../../../ports/index.js'
+import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } from '../../application/ports.js'
+import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
+import { parseFindings } from '../../domain/findings.js'
+import { jsonObjectOrUndefined } from '../../domain/json.js'
+import type { RosterCritic } from '../../domain/routing.js'
+
+/**
+ * The Vibe critic client: runs one Vibe critic in its packet and reads its
+ * review from stdout and the export file. Everything Vibe-specific (the
+ * launch, the isolation it needs, its exit codes, its journal and export
+ * formats) stays here.
+ */
+export class VibeCriticClient implements CriticClientPort {
+  constructor(
+    private readonly process: ProcessPort,
+    private readonly files: CritiqueFilesPort,
+  ) {}
+
+  async review(launch: CriticLaunch): Promise<CriticReport> {
+    const exportDir = join(launch.criticDir, 'export')
+    const exportPath = join(exportDir, 'export.json')
+    const result = await this.process.exec(
+      vibeLaunch(launch.critic, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath }),
+    )
+    const outcome = classifyVibeRun({
+      exitCode: result.exitCode,
+      exported: await this.readExport(exportPath),
+      stderr: result.stderr,
+      stdout: result.stdout,
+    })
+    return { ...result, exportPath, outcome }
+  }
+
+  /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
+  private async readExport(path: string): Promise<unknown> {
+    if (!(await this.files.exists(path))) return undefined
+    try {
+      return JSON.parse(await this.files.readText(path)) as unknown
+    } catch {
+      return undefined
+    }
+  }
+}
 
 /** Seconds the outer timer allows beyond Vibe's own `--time-limit`. */
 const OUTER_TIMEOUT_GRACE_S = 60
@@ -20,12 +61,6 @@ const ISOLATION_ENV: Readonly<Record<string, string>> = {
   VIBE_OUTSIDE_WORKDIR: 'deny',
 }
 
-export interface VibeLaunchPaths {
-  readonly packetDir: string
-  readonly promptPath: string
-  readonly exportDir: string
-}
-
 /**
  * The plain `vibe` binary on the personal home: `MISTRAL_API_KEY` and
  * `VIBE_HOME` are removed, so a critique started from a `vibe-study` or
@@ -33,7 +68,13 @@ export interface VibeLaunchPaths {
  * private home. The packet is the working directory and `read_file` the only
  * tool; with no `skill` tool the critic cannot load skills.
  */
-export function vibeLaunch(critic: RosterCritic, paths: VibeLaunchPaths): ProcessCommand {
+interface VibeLaunchPaths {
+  readonly packetDir: string
+  readonly promptPath: string
+  readonly exportDir: string
+}
+
+function vibeLaunch(critic: RosterCritic, paths: VibeLaunchPaths): ProcessCommand {
   return {
     args: [
       '-u',
@@ -64,16 +105,7 @@ export function vibeLaunch(critic: RosterCritic, paths: VibeLaunchPaths): Proces
   }
 }
 
-export type VibeOutcome =
-  | {
-      readonly status: 'ok'
-      readonly findings: readonly CriticFinding[]
-      readonly no_findings_reason?: string
-      readonly cost_usd: number | null
-    }
-  | { readonly status: 'failed'; readonly failure: CriticFailure; readonly detail: string; readonly cost_usd: number | null }
-
-export interface VibeRun {
+interface VibeRun {
   readonly exitCode: number
   readonly stdout: string
   readonly stderr: string
@@ -92,10 +124,10 @@ const EXIT_FAILURES: Readonly<Record<number, CriticFailure>> = {
  * On 0, the export must show an isolated config, and stdout must end in an
  * assistant message whose last ```json block matches the output contract.
  */
-export function classifyVibeRun(run: VibeRun): VibeOutcome {
+function classifyVibeRun(run: VibeRun): CriticOutcome {
   const exported = jsonObjectOrUndefined(run.exported)
   const cost = typeof exported?.cost_usd === 'number' ? exported.cost_usd : null
-  const failed = (failure: CriticFailure, detail: string): VibeOutcome => ({ cost_usd: cost, detail, failure, status: 'failed' })
+  const failed = (failure: CriticFailure, detail: string): CriticOutcome => ({ cost_usd: cost, detail, failure, status: 'failed' })
 
   if (run.exitCode !== 0) {
     const outcome = typeof exported?.outcome === 'string' ? `outcome ${exported.outcome}` : run.stderr.trim()

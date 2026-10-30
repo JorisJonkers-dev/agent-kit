@@ -7,7 +7,6 @@ import { parseManifest, type RunManifest } from '../domain/manifest.js'
 import { assemblePrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
-import { classifyVibeRun, vibeLaunch } from '../domain/vibe.js'
 import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
@@ -75,38 +74,33 @@ async function runCritic(deps: CritiqueDeps, manifest: RunManifest, critic: Rost
     },
     manifest.packet_files,
   )
-  const paths = {
-    exportDir: join(criticDir, 'export'),
-    packetDir: manifest.packet_dir,
-    promptPath: join(criticDir, 'prompt.md'),
-  }
-  const exportPath = join(paths.exportDir, 'export.json')
+  const promptPath = join(criticDir, 'prompt.md')
   const stdoutPath = join(criticDir, 'stdout.json')
-  await deps.files.writeText(paths.promptPath, prompt.text)
+  await deps.files.writeText(promptPath, prompt.text)
 
   const started = deps.clock.monotonicMs()
-  const result = await deps.process.exec(vibeLaunch(critic, paths))
-  const durationMs = deps.clock.monotonicMs() - started
-  await deps.files.writeText(stdoutPath, result.stdout)
-  await deps.files.writeText(join(criticDir, 'stderr.txt'), result.stderr)
-  const outcome = classifyVibeRun({
-    exitCode: result.exitCode,
-    exported: await readExport(deps, exportPath),
-    stderr: result.stderr,
-    stdout: result.stdout,
+  const report = await deps.clients[critic.client_config.kind].review({
+    criticDir,
+    critic,
+    packetDir: manifest.packet_dir,
+    promptPath,
   })
+  const durationMs = deps.clock.monotonicMs() - started
+  await deps.files.writeText(stdoutPath, report.stdout)
+  await deps.files.writeText(join(criticDir, 'stderr.txt'), report.stderr)
+  const { outcome } = report
 
   const findings = outcome.status === 'ok' ? outcome.findings : []
   const run: CriticRun = {
     ...criticIdentity(critic),
     cost_usd: outcome.cost_usd,
     duration_ms: durationMs,
-    exit_code: result.exitCode,
-    export_path: exportPath,
+    exit_code: report.exitCode,
+    export_path: report.exportPath,
     finding_count: findings.length,
     lens_hashes: prompt.lens_hashes,
     prompt_hashes: prompt.prompt_hashes,
-    prompt_path: paths.promptPath,
+    prompt_path: promptPath,
     status: outcome.status,
     stdout_path: stdoutPath,
     ...(outcome.status === 'failed' ? { detail: outcome.detail, failure: outcome.failure } : {}),
@@ -115,13 +109,4 @@ async function runCritic(deps: CritiqueDeps, manifest: RunManifest, critic: Rost
       : {}),
   }
   return { findings, run }
-}
-
-async function readExport(deps: CritiqueDeps, path: string): Promise<unknown> {
-  if (!(await deps.files.exists(path))) return undefined
-  try {
-    return JSON.parse(await deps.files.readText(path)) as unknown
-  } catch {
-    return undefined
-  }
 }
