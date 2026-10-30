@@ -91,3 +91,66 @@ _Avoid_: profile, config dir
 **Study account**:
 The owner's university account at a vendor, used by `-study` launchers.
 _Avoid_: student account, school account
+
+## Critique pipeline
+
+**Critic**:
+A model from another model family that reviews one artifact and reports
+findings. A critic is read-only, sees only its packet, and never sees another
+critic's findings or the conversation that produced the artifact.
+_Avoid_: reviewer, judge, council member
+
+**Orchestrator**:
+The agent the owner is working in, which runs a critique and gives each of
+the critics' findings its verdict.
+
+**Critic client**:
+One CLI pinned to one model, through which a critic runs (for example Vibe
+with Mistral Large, or Antigravity with Gemini Flash).
+_Avoid_: preset, provider, engine
+
+**Model family**:
+The vendor whose training produced a model (Mistral, Zhipu, DeepSeek, Google).
+Two critics count as independent only when their families differ, and no
+critic shares a family with the orchestrator that adjudicates its findings.
+_Avoid_: provider (Vibe serves several families)
+
+**Packet**:
+The frozen copy of the artifact and its reference material that every critic
+of one critique run (one pass of a critique stage over one artifact) reads.
+Later edits to the artifact never reach it.
+_Avoid_: bundle, context, snapshot
+
+**Finding**:
+One defect a critic claims, with evidence a third party can check. A finding
+without checkable evidence gets the verdict hint and is never acted on
+automatically.
+
+**Verdict**:
+The orchestrator's ruling on a finding after checking its evidence: accepted,
+rejected, needs-human, or hint (no checkable evidence, so it is reported but
+never acted on automatically).
+_Avoid_: vote, score
+
+**Critique stage**:
+A point in the spec-to-ticket flow where critics run (decisions, spec,
+tickets, ticket review, feature review).
+_Avoid_: step, phase (a phase is a span of the flow, not one stage)
+
+**Depth**:
+How many critics a critique stage runs: base (two families) or deep (base
+plus every further family the family allowlist permits). Chosen automatically
+from signals in the artifact unless the user names it.
+_Avoid_: tier, mode, --fast
+
+**Lens**:
+The angle one critic is told to review from (fidelity, failure modes, ...).
+_Avoid_: perspective, persona
+
+**Family allowlist**:
+The per-repository list of model families a critique may send content to,
+kept per machine outside the repository, so nothing about it is committed.
+It is keyed by the repository's remote. A repository with no entry, or with
+no remote, sends nothing; a repository owned by the `nedap` GitHub
+organisation sends nothing, whatever its entry says.
+_Avoid_: data policy, provider list

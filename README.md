@@ -49,6 +49,9 @@ script is generated from `registry/estate-tooling.yaml` -- see
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
 - [docs/CLOUD.md](docs/CLOUD.md): the same setup in a Claude Code cloud
   environment, from the two files in `cloud/`.
+- [docs/critique-pipeline/integration.md](docs/critique-pipeline/integration.md):
+  what the critic CLIs were shown to do, where the critique pipeline lands in
+  agent-kit, and where it departs from its brief.
 
 The estate ships **no agent hooks**. `setup-workstation.sh` purges the
 retired knowledge hooks from a machine that still has them, on every run.
