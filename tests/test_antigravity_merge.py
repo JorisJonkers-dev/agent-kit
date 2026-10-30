@@ -91,3 +91,24 @@ def test_a_missing_config_file_is_created(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert _servers(config) == json.loads(FRAGMENT.read_text())["mcpServers"]
     assert not (config.parent / "mcp_config.json.bak").exists()
+
+
+def test_the_empty_file_a_fresh_agy_leaves_is_treated_as_no_config(tmp_path: Path) -> None:
+    config = tmp_path / "mcp_config.json"
+    config.write_text("")
+    result = _merge(config)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _servers(config) == json.loads(FRAGMENT.read_text())["mcpServers"]
+
+
+def test_a_server_the_user_disabled_stays_disabled(tmp_path: Path) -> None:
+    config = tmp_path / "mcp_config.json"
+    # What `agy mcp disable drawio` leaves behind.
+    config.write_text(json.dumps({"mcpServers": {"drawio": {"command": "old-drawio", "disabled": True}}}))
+    result = _merge(config)
+    assert result.returncode == 0, result.stdout + result.stderr
+    fragment = json.loads(FRAGMENT.read_text())["mcpServers"]["drawio"]
+    assert _servers(config)["drawio"] == {**fragment, "disabled": True}
+    first = config.read_bytes()
+    assert _merge(config).returncode == 0
+    assert config.read_bytes() == first
