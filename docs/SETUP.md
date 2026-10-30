@@ -45,6 +45,9 @@ the public registry. A missing file keeps nothing; a malformed one stops the
 run before anything is removed. `--check` prints
 `would remove <name> (<surface>, <reason>)` for each removal. A normal run
 reads every surface back and fails if a removed entry is still there.
+Antigravity is the one surface this does not cover: setup merges its single MCP
+file and keeps every server it does not name, so nothing is removed there (see
+[Antigravity](#antigravity)).
 
 `setup-workstation.sh` is **generated** from
 [`registry/estate-tooling.yaml`](../registry/estate-tooling.yaml). Do not edit
@@ -454,6 +457,85 @@ security dump-keychain | grep -c '"svce"<blob>="Claude Code-credentials"'
 Two entries: the profiles are independent. One: the logins overwrite each
 other and a switch means logging in again — use a separate macOS user account
 for the personal profile instead.
+
+## Antigravity
+
+Google Antigravity is another agent surface beside Claude Code, Codex and
+Vibe: a desktop agent manager and a CLI, `agy`, that share one configuration.
+Setup installs both from Homebrew casks (`antigravity-cli`, `antigravity`) and
+writes that configuration the way it does for the others.
+
+Both casks are macOS only. On Linux setup warns
+`antigravity-cli: macOS only; skipped on Linux` and skips the whole surface —
+no MCP merge, no instructions file, no skills, no proxy — rather than leaving
+half of it behind in `~/.gemini`. In `--cloud` mode it logs
+`not set up in cloud mode` instead, because a cloud host is Linux.
+
+### Signing in is yours to do
+
+Antigravity signs in with a Google account through the browser on first launch
+of `agy` or the app, and keeps the credential in the macOS Keychain, under the
+item `Antigravity CLI`. agent-kit never sees, stores or passes a Google
+credential, and signing in on one surface signs in the others.
+
+That leaves one failure setup can only report: a headless run uses the cached
+credential, so an unsigned machine fails later with an authentication-required
+error instead of at setup. When `agy` is on `PATH` and the Keychain has no
+`Antigravity CLI` item, setup warns
+`antigravity: needs sign-in: run agy and sign in with your Google account` —
+under `--check` too, so it is in **Still to do** before you hit it.
+
+### Shared Memory, through a proxy
+
+Antigravity gets the workstation MCP fleet minus `memory-private`: Shared
+Memory only, never Private Memory. `memory-private` is a session-only server
+and the renderer refuses `enabled_for: [antigravity]` on one, so there is no
+path to it.
+
+The token cannot live in Antigravity's configuration. Its MCP file expands no
+environment variables — a header value is literal — so a token in `headers`
+would be a token on disk. `memory-api` is registered as a local stdio command
+instead, `~/.local/bin/antigravity-mcp-proxy`, which reads
+`HINDSIGHT_API_TOKEN` from the agent-kit secret store at start-up (the keychain
+entry `agent-kit.HINDSIGHT_API_TOKEN`, or `~/.config/agent-kit/secrets.env`)
+and proxies JSON-RPC to `hindsight-api.jorisjonkers.dev`. The token stays in
+memory: never on disk, never in argv, never printed. The fragment runs it
+through `/bin/sh -c` because a GUI-launched app has no `~/.local/bin` on
+`PATH`, and Antigravity does not expand variables in `command`.
+
+A server that needs no token is registered by URL: `n8n`, which Antigravity
+signs in to itself and keeps in `~/.gemini/antigravity/mcp_oauth_tokens.json`,
+and `kubernetes`, at the loopback URL of the port-forward above.
+
+### Where its configuration lives
+
+| Path | What setup puts there |
+|---|---|
+| `~/.gemini/config/mcp_config.json` | the MCP fleet, merged from `registry/generated/antigravity/mcp_config.json` |
+| `~/.gemini/config/AGENTS.md` | the instructions pointer, Shared Memory only |
+| `~/.gemini/config/skills/<name>/` | the kit's skills, for the app |
+| `~/.gemini/antigravity-cli/skills/<name>/` | the same skills, for `agy` |
+
+The two skills folders are not a duplicate: the app reads
+`~/.gemini/config/skills/` and `agy` reads
+`~/.gemini/antigravity-cli/skills/`, so setup copies each skill into both.
+
+One file serves the app, the CLI and the IDE, and there is no `mcp add`, so
+setup merges the fragment with `scripts/antigravity-merge-mcp.py`: a server the
+fragment names replaces any entry of that name, and every other server and
+every other top-level key in the file is kept. The first merge copies the file
+to `mcp_config.json.bak` and never overwrites that copy, so the config you had
+before agent-kit survives. Antigravity is the one surface setup does not
+converge — a server you add to that file yourself stays. The merge runs only
+when `agy` is on `PATH`; without the CLI there is nothing to configure.
+
+Setup writes **only** under `~/.gemini/config/` and
+`~/.gemini/antigravity-cli/`. It never touches `~/.gemini/AGENTS.md` or
+`~/.gemini/GEMINI.md`, which Gemini CLI reads too, and it leaves a
+`~/.gemini/config/AGENTS.md` of your own alone: the file it writes carries the
+`managed by agent-kit` marker, and one without it is reported and kept. Note
+that `brew uninstall --cask antigravity` removes part of `~/.gemini` as well,
+so uninstalling the app can take your own files with it.
 
 ## Language servers have two halves
 

@@ -29,7 +29,7 @@ was never rendered. Both are one test.
 
 | Surface | Means |
 |---|---|
-| `workstation` | Claude Code, Codex and local Hermes on a developer machine |
+| `workstation` | Claude Code, Codex, Vibe, Antigravity and local Hermes on a developer machine |
 | `hermes` | the in-cluster Hermes gateway |
 | `runner` | the per-workspace agent-runner image |
 | `container` | the agents image, through `setup-container.sh` |
@@ -191,6 +191,34 @@ Two traps this catches:
 - An in-cluster URL needs the Hermes SSRF allowlist. Hermes blocks RFC1918 by
   default, so a new `10.43.0.0/16` server reports **zero tools while the hosted
   ones work**. That is the block, not the NetworkPolicy. `hermes doctor` first.
+
+## A CLI that Homebrew installs as a cask
+
+A `clis:` entry normally names the `binary:` to probe and the `install:` to
+run. A macOS app that ships as a Homebrew cask names `cask:` instead:
+
+```yaml
+- name: antigravity-cli
+  binary: agy
+  cask: antigravity-cli
+  surfaces: [workstation]
+  macos_only: true
+  cloud: false
+  version_command: "agy --version"
+```
+
+- `cask:` makes Homebrew the owner: setup installs with
+  `brew install --cask <cask>`, updates with `brew upgrade --cask <cask>`, and
+  probes presence with `brew list --cask <cask>` rather than `command -v`.
+  `binary:` becomes optional, because a desktop app has none to probe — keep it
+  when the cask ships one, since that is what `version_command` and the
+  new-binary report use.
+- `macos_only: true` wraps the whole block in a `uname -s` test: anywhere but
+  Darwin setup warns `<name>: macOS only; skipped on <platform>` and installs
+  nothing. Pair it with `cloud: false`, since a cloud host is Linux and would
+  otherwise warn on every run.
+- Both keys are `clis:` keys only. The renderer rejects them on a plugin,
+  language server, MCP server, skill source or local skill.
 
 ## Adding a tool to the agents image
 
