@@ -134,18 +134,13 @@ describe('prepare', () => {
     await expect(ready(h, { spec: '../elsewhere/spec.md' })).rejects.toThrow(/outside the repository/)
   })
 
-  it('drops a critic from the orchestrator family and refuses when none is left', async () => {
+  it('prepares a run with no critics when the only critic shares the orchestrator family', async () => {
     const h = await optedIn()
 
-    const result = await h.commands.prepare({
-      orchestrator_family: 'mistral',
-      repo: h.repo,
-      spec: '.scratch/widgets/spec.md',
-      stage: 'spec',
-    })
+    const result = await ready(h, { orchestrator_family: 'mistral' })
 
-    expect(result).toMatchObject({ reason: 'no-critic-allowed', status: 'refused' })
-    expect(result.status === 'refused' ? result.message : '').toContain('vibe-mistral-large: orchestrator-family')
+    expect(result.critics).toEqual([])
+    expect(result.dropped).toEqual([{ client: 'vibe-mistral-large', family: 'mistral', reason: 'orchestrator-family' }])
   })
 
   it('reports a dropped critic next to the ones that run', async () => {

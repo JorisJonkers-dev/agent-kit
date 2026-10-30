@@ -28,6 +28,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
     [
       `# Critique: ${run.stage}, run ${run.run_id}`,
       '',
+      ...degradedLines(run),
       `Depth: ${run.depth}`,
       verdictLine(run),
       '',
@@ -70,6 +71,7 @@ export function renderReport(run: AdjudicatedRun): string {
   return [
     `# Critique report: ${run.stage}, run ${run.run_id}`,
     '',
+    ...degradedLines(run),
     `Repository: ${run.repository}`,
     `Depth: ${run.depth}`,
     verdictLine(run),
@@ -96,6 +98,11 @@ export function renderReport(run: AdjudicatedRun): string {
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/** #167 US29: a stage where no critic reviewed anything says so first. */
+function degradedLines(run: AdjudicatedRun): readonly string[] {
+  return run.degraded ? ['degraded: no critique ran', ''] : []
 }
 
 function hashList(hashes: Readonly<Record<string, string>>): string {

@@ -9,7 +9,7 @@ import type { CritiqueDeps } from './ports.js'
 
 export interface Refusal {
   readonly status: 'refused'
-  readonly reason: 'no-remote' | 'nedap' | 'not-opted-in' | 'no-critic-allowed'
+  readonly reason: 'no-remote' | 'nedap' | 'not-opted-in'
   readonly message: string
 }
 

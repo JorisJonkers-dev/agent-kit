@@ -12,6 +12,8 @@ import type { CritiqueDeps } from './ports.js'
 export interface RecordResult {
   readonly status: 'recorded'
   readonly run_id: string
+  /** True when no critic produced a usable review. */
+  readonly degraded: boolean
   readonly counts: VerdictCounts
   readonly report_path: string
   readonly summary_path: string
@@ -37,6 +39,7 @@ export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordRe
 
   const run: AdjudicatedRun = {
     critics: fan.critics,
+    degraded: fan.degraded,
     depth: manifest.depth,
     dropped: manifest.dropped,
     findings: fan.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
@@ -52,6 +55,7 @@ export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordRe
   await deps.files.appendText(ledger, ledgerLines(run, deps.clock.now()).map((line) => `${line}\n`).join(''))
   return {
     counts: countVerdicts(run),
+    degraded: run.degraded,
     ledger_path: ledger,
     report_path: reportPath,
     run_id: manifest.run_id,

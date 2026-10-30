@@ -120,14 +120,17 @@ describe('family allowlist', () => {
     await expect(h.commands.allow({ repo: h.repo, families: ['openai'] })).rejects.toThrow(/unknown model family: openai/)
   })
 
-  it('refuses before any packet when the allowlist permits none of the routed families', async () => {
+  it('prepares a run with no critics when the allowlist permits none of the routed families', async () => {
     const h = await setup()
     await h.commands.allow({ repo: h.repo, families: ['google'] })
 
     const result = await h.commands.prepare(prepareInput(h))
 
-    expect(result).toMatchObject({ status: 'refused', reason: 'no-critic-allowed' })
-    expect(existsSync(critiqueDir(h))).toBe(false)
+    expect(result).toMatchObject({
+      critics: [],
+      dropped: [{ client: 'vibe-mistral-large', family: 'mistral', reason: 'family-not-allowed' }],
+      status: 'ready',
+    })
   })
 
   it('keys the allowlist by origin when a repository has several remotes', async () => {

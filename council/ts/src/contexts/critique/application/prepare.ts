@@ -35,7 +35,9 @@ export interface PrepareResult {
 /**
  * Resolves the repository and its family allowlist, then the roster, and only
  * then freezes the artifact and its references into a packet. A refused
- * repository returns before anything is written.
+ * repository returns before anything is written. A roster that drops every
+ * critic still prepares a run: fan-out and record then report it degraded,
+ * so the flow goes on.
  */
 export async function prepare(deps: CritiqueDeps, raw: unknown): Promise<PrepareResult | Refusal> {
   const input = asObject(raw, 'prepare input')
@@ -57,14 +59,6 @@ export async function prepare(deps: CritiqueDeps, raw: unknown): Promise<Prepare
     orchestratorFamily,
     stage,
   })
-  if (roster.critics.length === 0) {
-    return {
-      message: `no critic routed for ${stage} is allowed for ${repository.key} (${roster.dropped.map((d) => `${d.client}: ${d.reason}`).join(', ')})`,
-      reason: 'no-critic-allowed',
-      status: 'refused',
-    }
-  }
-
   const runId = await freshRunId(deps, repository, stage)
   const runDir = join(repository.commonDir, 'critique', runId)
   const packetDir = join(runDir, 'packet')

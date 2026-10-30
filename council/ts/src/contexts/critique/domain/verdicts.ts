@@ -51,6 +51,8 @@ export interface AdjudicatedRun {
   readonly stage: string
   readonly depth: string
   readonly repository: string
+  /** True when no critic produced a usable review. */
+  readonly degraded: boolean
   readonly critics: readonly RecordedCritic[]
   readonly dropped: readonly DroppedCritic[]
   readonly findings: readonly (RecordedFinding & { readonly verdict: Verdict })[]

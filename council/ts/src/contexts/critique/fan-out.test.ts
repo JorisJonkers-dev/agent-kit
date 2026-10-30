@@ -245,6 +245,19 @@ describe('fan-out reads the critic output', () => {
     expect(new Set(all).size).toBe(6)
   })
 
+  it('launches nothing and reports the run degraded when it has no critics', async () => {
+    const h = await harness()
+    open.push(h)
+    await h.commands.allow({ repo: h.repo, families: ['google'] })
+    const run = await h.commands.prepare({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    if (run.status !== 'ready') throw new Error('not ready')
+
+    const result = await h.commands.fanOut({ run_dir: run.run_dir })
+
+    expect(result).toMatchObject({ critics: [], degraded: true, findings: [] })
+    expect(h.process.commands).toEqual([])
+  })
+
   it('rejects a run directory without a manifest', async () => {
     const { h, run } = await preparedRun([])
 

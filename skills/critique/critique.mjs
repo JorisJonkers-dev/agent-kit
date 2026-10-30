@@ -553,13 +553,6 @@ async function prepare(deps, raw) {
     orchestratorFamily,
     stage
   });
-  if (roster.critics.length === 0) {
-    return {
-      message: `no critic routed for ${stage} is allowed for ${repository.key} (${roster.dropped.map((d) => `${d.client}: ${d.reason}`).join(", ")})`,
-      reason: "no-critic-allowed",
-      status: "refused"
-    };
-  }
   const runId = await freshRunId(deps, repository, stage);
   const runDir = join3(repository.commonDir, "critique", runId);
   const packetDir = join3(runDir, "packet");
@@ -717,6 +710,7 @@ function renderSummary(run, reportPath) {
   const render = () => [
     `# Critique: ${run.stage}, run ${run.run_id}`,
     "",
+    ...degradedLines(run),
     `Depth: ${run.depth}`,
     verdictLine(run),
     "",
@@ -757,6 +751,7 @@ function renderReport(run) {
   return [
     `# Critique report: ${run.stage}, run ${run.run_id}`,
     "",
+    ...degradedLines(run),
     `Repository: ${run.repository}`,
     `Depth: ${run.depth}`,
     verdictLine(run),
@@ -783,6 +778,9 @@ function renderReport(run) {
     ...dissent.length === 0 ? ["none"] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ""}`),
     ""
   ].join("\n");
+}
+function degradedLines(run) {
+  return run.degraded ? ["degraded: no critique ran", ""] : [];
 }
 function hashList(hashes) {
   return Object.entries(hashes).map(([name, hash]) => `${name} ${hash}`).join(", ");
@@ -842,6 +840,7 @@ async function record2(deps, raw) {
   if (await deps.files.exists(reportPath)) throw new Error(`run ${manifest.run_id} is already recorded`);
   const run = {
     critics: fan.critics,
+    degraded: fan.degraded,
     depth: manifest.depth,
     dropped: manifest.dropped,
     findings: fan.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
@@ -858,6 +857,7 @@ async function record2(deps, raw) {
 `).join(""));
   return {
     counts: countVerdicts(run),
+    degraded: run.degraded,
     ledger_path: ledger,
     report_path: reportPath,
     run_id: manifest.run_id,

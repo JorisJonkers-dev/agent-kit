@@ -172,6 +172,38 @@ describe('record', () => {
     ])
   })
 
+  it('says no critique ran when every critic failed', async () => {
+    const { h, run } = await reviewed([], { exitCode: 0, exportJson: isolatedExport(), stdout: '' })
+
+    const result = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(result.degraded).toBe(true)
+    expect(result.summary.split('\n').slice(0, 3)).toEqual(['# Critique: spec, run 20261030T120000Z-spec', '', 'degraded: no critique ran'])
+  })
+
+  it('says no critique ran when no critic was allowed to run', async () => {
+    const h = await harness()
+    open.push(h)
+    await h.commands.allow({ repo: h.repo, families: ['google'] })
+    const run = await h.commands.prepare({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    if (run.status !== 'ready') throw new Error('not ready')
+    await h.commands.fanOut({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(summary).toContain('degraded: no critique ran')
+    expect(section(summary, 'Critics')).toBe('- Not run: vibe-mistral-large (mistral): family-not-allowed')
+  })
+
+  it('does not call a run degraded when a critic reviewed the artifact', async () => {
+    const { h, run } = await reviewed([finding()])
+
+    const result = await h.commands.record({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+
+    expect(result.degraded).toBe(false)
+    expect(result.summary).not.toContain('degraded')
+  })
+
   it('says what a critic checked when it found nothing', async () => {
     const { h, run } = await reviewed([], {
       exitCode: 0,
