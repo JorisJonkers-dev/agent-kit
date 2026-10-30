@@ -2,6 +2,7 @@ import { MODEL_FAMILIES, type ModelFamily } from './family.js'
 import { FINDINGS_FAILURES, type FindingsFailure } from './findings.js'
 import { isOneOf, type JsonFields } from './json.js'
 import type { PromptHashes } from './prompt.js'
+import type { RosterCritic } from './routing.js'
 
 /** Who a critic is in one run: its critic client, family and model, its role and its lenses. */
 export interface CriticIdentity {
@@ -42,6 +43,18 @@ export interface CriticRun extends CriticIdentity {
   readonly prompt_path: string
   readonly stdout_path: string
   readonly export_path: string
+}
+
+/** The identity a roster critic carries into fan-out, record and the ledger. */
+export function criticIdentity(critic: RosterCritic): CriticIdentity {
+  return {
+    client: critic.client,
+    critic_id: critic.critic_id,
+    family: critic.client_config.family,
+    lenses: critic.lenses,
+    model: critic.client_config.model,
+    role: critic.role,
+  }
 }
 
 export function readCriticRun(fields: JsonFields): CriticRun {

@@ -1,11 +1,11 @@
 import { join } from 'node:path'
 
-import { readCriticRun, type CriticRun } from '../domain/critic.js'
+import { criticIdentity, readCriticRun, type CriticRun } from '../domain/critic.js'
 import { readRunFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { parseManifest, type RunManifest } from '../domain/manifest.js'
 import { assemblePrompt } from '../domain/prompt.js'
-import { criticIdentity, type RosterCritic } from '../domain/routing.js'
+import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { classifyVibeRun, vibeLaunch } from '../domain/vibe.js'
 import { readInput, readJsonFile } from './decode.js'

@@ -1,3 +1,7 @@
+import type { GitRemote } from '../shared-kernel/index.js'
+
+export type { GitRemote }
+
 export interface GitWorktree {
   readonly path: string
   readonly branch: string
@@ -29,7 +33,12 @@ export interface GitReconcileResult {
 }
 
 export interface GitPort {
+  /** Absolute path of the working tree's top level. */
   root(cwd: string): Promise<string>
+  /** Absolute path of the git common directory, shared by every worktree. */
+  commonDir(cwd: string): Promise<string>
+  /** Every remote with its URL; empty when the repository has none. */
+  remotes(cwd: string): Promise<readonly GitRemote[]>
   currentBranch(cwd: string): Promise<string>
   createWorktree(cwd: string, branch: string, path: string): Promise<GitWorktree>
   removeWorktree(cwd: string, path: string): Promise<void>

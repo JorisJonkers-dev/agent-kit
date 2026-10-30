@@ -1,10 +1,10 @@
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 
-import type { CriticIdentity } from '../domain/critic.js'
+import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
 import { compactTimestamp, sha256, type PacketFile, type RunManifest } from '../domain/manifest.js'
 import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
-import { criticIdentity, parseRouting, resolveRoster, type DroppedCritic } from '../domain/routing.js'
+import { parseRouting, resolveRoster, type DroppedCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage, type Depth } from '../domain/stage.js'
 import { readInput, readJsonFile } from './decode.js'
 import { manifestPath } from './locations.js'

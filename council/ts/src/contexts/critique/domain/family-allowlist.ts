@@ -1,14 +1,10 @@
+import type { GitRemote } from '../../../shared-kernel/index.js'
 import { MODEL_FAMILIES, type ModelFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { refusal, type Refusal } from './outcomes.js'
 
 /** The GitHub organisation whose repositories never send content to any critic. */
 const DENIED_OWNER = 'nedap'
-
-export interface GitRemote {
-  readonly name: string
-  readonly url: string
-}
 
 export interface RemoteLocation {
   readonly host: string

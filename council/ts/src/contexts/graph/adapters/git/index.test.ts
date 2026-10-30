@@ -459,3 +459,37 @@ describe('GitCliAdapter', () => {
     })
   })
 })
+
+describe('GitCliAdapter repository facts', () => {
+  it('reads the absolute git common directory, which every worktree shares', async () => {
+    const process = new RecordingProcess(() => success('/work/repo/.git\n'))
+
+    expect(await new GitCliAdapter(process).commonDir('/work/repo/sub')).toBe('/work/repo/.git')
+    expect(process.commands).toEqual([
+      { args: ['rev-parse', '--path-format=absolute', '--git-common-dir'], command: 'git', cwd: '/work/repo/sub' },
+    ])
+  })
+
+  it('lists every remote with its URL, including a remote whose name has a dot', async () => {
+    const process = new RecordingProcess(() =>
+      success('remote.origin.url git@github.com:a/b.git\nremote.my.fork.url https://github.com/c/b\n'),
+    )
+
+    expect(await new GitCliAdapter(process).remotes('/r')).toEqual([
+      { name: 'origin', url: 'git@github.com:a/b.git' },
+      { name: 'my.fork', url: 'https://github.com/c/b' },
+    ])
+  })
+
+  it('reports no remotes when git config finds none', async () => {
+    const process = new RecordingProcess(() => failure(1))
+
+    expect(await new GitCliAdapter(process).remotes('/r')).toEqual([])
+  })
+
+  it('throws with the git error when listing remotes fails otherwise', async () => {
+    const process = new RecordingProcess(() => failure(128, 'fatal: not a git repository'))
+
+    await expect(new GitCliAdapter(process).remotes('/tmp')).rejects.toThrow(/not a git repository/)
+  })
+})

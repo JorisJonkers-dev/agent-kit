@@ -1,14 +1,7 @@
-import type { ClockPort, EnvPort, ProcessPort } from '../../../ports/index.js'
-import type { GitRemote } from '../domain/family-allowlist.js'
+import type { ClockPort, EnvPort, GitPort, ProcessPort } from '../../../ports/index.js'
 
-/** The repository facts the critique needs from git. */
-export interface CritiqueGitPort {
-  /** Absolute path of the working tree's top level. */
-  root(cwd: string): Promise<string>
-  /** Absolute path of the git common directory, shared by every worktree. */
-  commonDir(cwd: string): Promise<string>
-  remotes(cwd: string): Promise<readonly GitRemote[]>
-}
+/** The repository facts the critique needs: council's git port, narrowed to what it reads. */
+export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes'>
 
 /** Plain file access; every path is absolute. */
 export interface CritiqueFilesPort {

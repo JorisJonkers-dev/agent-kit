@@ -429,6 +429,16 @@ var RUN_FAILURES = [
   "infrastructure-failure",
   "stopped-early"
 ];
+function criticIdentity(critic) {
+  return {
+    client: critic.client,
+    critic_id: critic.critic_id,
+    family: critic.client_config.family,
+    lenses: critic.lenses,
+    model: critic.client_config.model,
+    role: critic.role
+  };
+}
 function readCriticRun(fields) {
   const failure = fields.optionalMatching("failure", isCriticFailure, "a critic failure");
   const detail = fields.optionalString("detail");
@@ -531,16 +541,6 @@ function resolveRoster(routing, request) {
     }
   }
   return { critics, depth: "base", dropped };
-}
-function criticIdentity(critic) {
-  return {
-    client: critic.client,
-    critic_id: critic.critic_id,
-    family: critic.client_config.family,
-    lenses: critic.lenses,
-    model: critic.client_config.model,
-    role: critic.role
-  };
 }
 function dropReason(family, request) {
   if (!request.allowedFamilies.includes(family)) return "family-not-allowed";
@@ -1200,29 +1200,312 @@ var NodeCritiqueFiles = class {
   }
 };
 
-// src/contexts/critique/adapters/git/index.ts
-var NO_MATCH = 1;
-var ProcessCritiqueGit = class {
+// src/contexts/graph/adapters/process/disk-usage.ts
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+var execFileAsync = promisify(execFile);
+
+// src/contexts/watchdog/domain/index.ts
+var RunningWatchdogState = class {
+  phase = "ready";
+  status = "running";
+  advance() {
+    return transition(terminatedRestartingWatchdogState, "terminate");
+  }
+  toEscalationState() {
+    return { phase: this.phase };
+  }
+};
+var TerminatedRestartingWatchdogState = class {
+  phase = "terminated";
+  status = "restarting";
+  advance() {
+    return transition(preambleRestartingWatchdogState, "retry-with-preamble");
+  }
+  toEscalationState() {
+    return { phase: this.phase };
+  }
+};
+var PreambleRestartingWatchdogState = class {
+  phase = "retry-with-preamble";
+  status = "restarting";
+  advance(policy) {
+    return policy.afterRetryWithPreamble();
+  }
+  toEscalationState() {
+    return { phase: this.phase };
+  }
+};
+var EscalatedWatchdogState = class {
+  phase = "tier-escalated";
+  status = "escalated";
+  advance() {
+    return transition(stalledWatchdogState, "stalled");
+  }
+  toEscalationState() {
+    return { phase: this.phase };
+  }
+};
+var StalledWatchdogState = class {
+  phase = "stalled";
+  status = "stalled";
+  advance() {
+    return transition(stalledWatchdogState, "stalled");
+  }
+  toEscalationState() {
+    return { phase: this.phase };
+  }
+};
+var EnabledTierEscalationPolicy = class {
+  afterRetryWithPreamble() {
+    return transition(escalatedWatchdogState, "escalate-tier");
+  }
+};
+var DisabledTierEscalationPolicy = class {
+  afterRetryWithPreamble() {
+    return transition(stalledWatchdogState, "stalled");
+  }
+};
+var RunningLoopEvaluationState = class {
+  status = "running";
+  detection = null;
+};
+var RepeatLoopDetectionPolicy = class {
+  detect(actions, config) {
+    const counts = /* @__PURE__ */ new Map();
+    for (const action of actions) {
+      const count = (counts.get(action.normalized) ?? 0) + 1;
+      if (count >= config.repeatLimit) {
+        return { kind: "loop-repeat", normalized: action.normalized, count };
+      }
+      counts.set(action.normalized, count);
+    }
+    return null;
+  }
+};
+var CycleLoopDetectionPolicy = class {
+  detect(actions, config) {
+    const maxGram = Math.min(config.maxCycleGram ?? 5, 5, Math.floor(actions.length / 3));
+    for (let gramSize = 1; gramSize <= maxGram; gramSize += 1) {
+      const offset = actions.length - gramSize;
+      const sequence = actions.slice(offset).map((action) => action.verbatim);
+      if (matchesCycle(actions, sequence, gramSize)) {
+        return { kind: "loop-cycle", gramSize, sequence };
+      }
+    }
+    return null;
+  }
+};
+var runningWatchdogState = new RunningWatchdogState();
+var terminatedRestartingWatchdogState = new TerminatedRestartingWatchdogState();
+var preambleRestartingWatchdogState = new PreambleRestartingWatchdogState();
+var escalatedWatchdogState = new EscalatedWatchdogState();
+var stalledWatchdogState = new StalledWatchdogState();
+var enabledTierEscalationPolicy = new EnabledTierEscalationPolicy();
+var disabledTierEscalationPolicy = new DisabledTierEscalationPolicy();
+var runningLoopEvaluationState = new RunningLoopEvaluationState();
+var loopDetectionPolicies = [
+  new RepeatLoopDetectionPolicy(),
+  new CycleLoopDetectionPolicy()
+];
+function transition(state, action) {
+  return { state, action };
+}
+function matchesCycle(actions, sequence, gramSize) {
+  for (let repeat = 2; repeat <= 3; repeat += 1) {
+    const offset = actions.length - repeat * gramSize;
+    for (let index = 0; index < gramSize; index += 1) {
+      if (actions[offset + index]?.verbatim !== sequence[index]) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// src/contexts/graph/adapters/git/index.ts
+var GitCommandError = class extends Error {
+  args;
+  cwd;
+  result;
+  constructor(args, cwd, result2) {
+    const detail = result2.stderr.trim() || result2.stdout.trim() || `exit code ${String(result2.exitCode)}`;
+    super(`git ${args.join(" ")} failed in ${cwd}: ${detail}`);
+    this.name = "GitCommandError";
+    this.args = args;
+    this.cwd = cwd;
+    this.result = result2;
+  }
+};
+var GitCliAdapter = class {
+  integrationQueue = Promise.resolve();
+  process;
   constructor(process2) {
     this.process = process2;
   }
-  process;
   async root(cwd) {
-    return (await this.git(cwd, ["rev-parse", "--show-toplevel"])).stdout.trim();
+    const result2 = await this.git(cwd, ["rev-parse", "--show-toplevel"]);
+    return result2.stdout.trim();
   }
   async commonDir(cwd) {
-    return (await this.git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).stdout.trim();
+    const result2 = await this.git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+    return result2.stdout.trim();
   }
   async remotes(cwd) {
-    const result2 = await this.git(cwd, ["config", "--get-regexp", "^remote\\..*\\.url$"], [NO_MATCH]);
+    const result2 = await this.git(cwd, ["config", "--get-regexp", "^remote\\..*\\.url$"], {
+      acceptedExitCodes: [0, 1]
+    });
     return result2.stdout.split("\n").map((line) => /^remote\.(.+)\.url (.+)$/.exec(line.trim())).flatMap((match) => match === null ? [] : [{ name: match[1] ?? "", url: match[2] ?? "" }]);
   }
-  async git(cwd, args, allowed = []) {
-    const result2 = await this.process.exec({ args: ["-C", cwd, ...args], command: "git" });
-    if (result2.exitCode !== 0 && !allowed.includes(result2.exitCode)) {
-      throw new Error(`git ${args.join(" ")} failed: ${result2.stderr.trim()}`);
+  async currentBranch(cwd) {
+    const result2 = await this.git(cwd, ["branch", "--show-current"]);
+    return result2.stdout.trim();
+  }
+  async createWorktree(cwd, branch, path) {
+    const branchRef = `refs/heads/${branch}`;
+    const existing = await this.git(cwd, ["show-ref", "--verify", "--quiet", branchRef], {
+      acceptedExitCodes: [0, 1]
+    });
+    if (existing.exitCode === 0) {
+      await this.git(cwd, ["worktree", "add", path, branch]);
+      return { branch, path };
+    }
+    await this.git(cwd, ["worktree", "add", "-b", branch, path, "HEAD"]);
+    return { branch, path };
+  }
+  async removeWorktree(cwd, path) {
+    await this.git(cwd, ["worktree", "remove", "--force", path]);
+  }
+  async changedFiles(cwd) {
+    const entries = await this.status(cwd);
+    return entries.map((entry) => entry.path);
+  }
+  async status(cwd) {
+    const result2 = await this.git(cwd, ["status", "--porcelain=v1"]);
+    const output = result2.stdout.trimEnd();
+    if (output.length === 0) {
+      return [];
+    }
+    return output.split("\n").map((line) => this.parseStatusLine(line));
+  }
+  async diff(cwd, options = {}) {
+    const args = ["diff"];
+    if (options.staged === true) {
+      args.push("--staged");
+    }
+    const range = this.diffRange(options);
+    if (range !== void 0) {
+      args.push(range);
+    }
+    if (options.paths !== void 0 && options.paths.length > 0) {
+      args.push("--", ...options.paths);
+    }
+    const result2 = await this.git(cwd, args);
+    return result2.stdout;
+  }
+  async commitAll(cwd, request) {
+    const filesChanged = await this.changedFiles(cwd);
+    await this.git(cwd, ["add", "-A"]);
+    const commitArgs = ["commit", "-m", request.message];
+    if (request.author !== void 0) {
+      commitArgs.push("--author", request.author);
+    }
+    if (request.allow_empty === true) {
+      commitArgs.push("--allow-empty");
+    }
+    await this.git(cwd, commitArgs);
+    const commit = await this.git(cwd, ["rev-parse", "HEAD"]);
+    const branch = await this.currentBranch(cwd);
+    return {
+      branch,
+      commit: commit.stdout.trim(),
+      files_changed: filesChanged,
+      message: request.message
+    };
+  }
+  async reconcileIntegrationBranch(cwd, request) {
+    const job = this.integrationQueue.then(() => this.reconcileIntegrationBranchNow(cwd, request));
+    this.integrationQueue = job.then(
+      () => void 0,
+      () => void 0
+    );
+    return job;
+  }
+  async pushBranch(cwd, request) {
+    const remote = request.remote ?? "origin";
+    const setUpstream = request.setUpstream ?? true;
+    const args = ["push"];
+    if (setUpstream) {
+      args.push("--set-upstream");
+    }
+    if (request.forceWithLease === true) {
+      args.push("--force-with-lease");
+    }
+    args.push(remote, request.branch);
+    await this.git(cwd, args);
+  }
+  async reconcileIntegrationBranchNow(cwd, request) {
+    await this.checkoutIntegrationBranch(cwd, request);
+    const merge = await this.git(cwd, ["merge", "--no-ff", "--no-edit", request.sourceBranch], {
+      acceptedExitCodes: [0, 1]
+    });
+    if (merge.exitCode !== 0) {
+      await this.git(cwd, ["merge", "--abort"], { acceptedExitCodes: [0, 128] });
+      throw new GitCommandError(["merge", "--no-ff", "--no-edit", request.sourceBranch], cwd, merge);
+    }
+    const head = await this.git(cwd, ["rev-parse", "HEAD"]);
+    return {
+      head: head.stdout.trim(),
+      integrationBranch: request.integrationBranch,
+      sourceBranch: request.sourceBranch
+    };
+  }
+  async checkoutIntegrationBranch(cwd, request) {
+    const branchRef = `refs/heads/${request.integrationBranch}`;
+    const existing = await this.git(cwd, ["show-ref", "--verify", "--quiet", branchRef], {
+      acceptedExitCodes: [0, 1]
+    });
+    if (existing.exitCode === 0) {
+      await this.git(cwd, ["checkout", request.integrationBranch]);
+      return;
+    }
+    const baseBranch = request.baseBranch ?? "HEAD";
+    await this.git(cwd, ["checkout", "-B", request.integrationBranch, baseBranch]);
+  }
+  async git(cwd, args, options = {}) {
+    const command = {
+      args,
+      command: "git",
+      cwd
+    };
+    const result2 = await this.process.exec(command);
+    const acceptedExitCodes = options.acceptedExitCodes ?? [0];
+    if (!acceptedExitCodes.includes(result2.exitCode)) {
+      throw new GitCommandError(args, cwd, result2);
     }
     return result2;
+  }
+  parseStatusLine(line) {
+    const index = line.slice(0, 1);
+    const worktree = line.slice(1, 2);
+    const path = line.slice(3);
+    const renameSeparator = " -> ";
+    const renameAt = path.indexOf(renameSeparator);
+    if (renameAt === -1) {
+      return { index, path, worktree };
+    }
+    return {
+      index,
+      originalPath: path.slice(0, renameAt),
+      path: path.slice(renameAt + renameSeparator.length),
+      worktree
+    };
+  }
+  diffRange(options) {
+    if (options.base !== void 0 && options.head !== void 0) {
+      return `${options.base}..${options.head}`;
+    }
+    return options.base ?? options.head;
   }
 };
 
@@ -1280,7 +1563,7 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       clock: new SystemClockAdapter(),
       env: new ProcessEnvAdapter(environment),
       files,
-      git: new ProcessCritiqueGit(processPort),
+      git: new GitCliAdapter(processPort),
       process: processPort
     }),
     readFile: (path) => files.readText(path),

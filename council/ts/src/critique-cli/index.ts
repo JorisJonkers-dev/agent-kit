@@ -4,9 +4,9 @@ import {
   createCritiqueCommands,
   CritiqueError,
   NodeCritiqueFiles,
-  ProcessCritiqueGit,
   type CritiqueCommands,
 } from '../contexts/critique/index.js'
+import { GitCliAdapter } from '../contexts/graph/index.js'
 
 export interface CritiqueCliResult {
   readonly exitCode: number
@@ -81,7 +81,7 @@ export function defaultCritiqueRuntime(
       clock: new SystemClockAdapter(),
       env: new ProcessEnvAdapter(environment),
       files,
-      git: new ProcessCritiqueGit(processPort),
+      git: new GitCliAdapter(processPort),
       process: processPort,
     }),
     readFile: (path) => files.readText(path),

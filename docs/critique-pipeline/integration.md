@@ -928,3 +928,14 @@ them:
 - **Ledger reasons.** The ledger keeps a verdict's reason only as a short
   slug (`reason_code`); the free-text reason goes to the report, because it
   may quote the artifact.
+- **Ports.** The critique context uses council's own ports for the clock,
+  the environment, processes and git. Its git port is council's `GitPort`
+  narrowed to `root`, `commonDir` and `remotes`; the last two were added to
+  `GitPort` and to graph's `GitCliAdapter`, which the runner wires. Two
+  departures are deliberate. Council has no file-system port (its run store
+  reads and writes files through its own adapters), so critique keeps a
+  small `CritiqueFilesPort`. And council has no shared port fakes: each of
+  its tests declares its own. The critique harness
+  (`council/ts/test/critique/harness.ts`) therefore holds the fakes, written
+  against council's port interfaces, and later tickets should add to it
+  rather than write new ones.

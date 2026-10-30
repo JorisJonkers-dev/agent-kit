@@ -1,4 +1,3 @@
-import type { CriticIdentity } from './critic.js'
 import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { CritiqueError } from './outcomes.js'
@@ -137,18 +136,6 @@ export function resolveRoster(routing: Routing, request: RosterRequest): Roster 
     }
   }
   return { critics, depth: 'base', dropped }
-}
-
-/** The identity a roster critic carries into fan-out, record and the ledger. */
-export function criticIdentity(critic: RosterCritic): CriticIdentity {
-  return {
-    client: critic.client,
-    critic_id: critic.critic_id,
-    family: critic.client_config.family,
-    lenses: critic.lenses,
-    model: critic.client_config.model,
-    role: critic.role,
-  }
 }
 
 function dropReason(family: ModelFamily, request: RosterRequest): DroppedCritic['reason'] | undefined {
