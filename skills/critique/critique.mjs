@@ -103,6 +103,113 @@ function jsonObjectOrUndefined(value) {
 function isOneOf(allowed, value) {
   return typeof value === "string" && allowed.includes(value);
 }
+var JsonShapeError = class extends Error {
+  name = "JsonShapeError";
+};
+function isText(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+var JsonFields = class _JsonFields {
+  constructor(value, path) {
+    this.value = value;
+    this.path = path;
+  }
+  value;
+  path;
+  /** Parses JSON text and reads it as an object. */
+  static parse(text) {
+    return _JsonFields.of(JSON.parse(text), "");
+  }
+  static of(value, path) {
+    _JsonFields.ensure(isJsonObject(value), path === "" ? "the value" : path, "a JSON object");
+    return new _JsonFields(value, path);
+  }
+  static ensure(ok, path, expected) {
+    if (!ok) throw new JsonShapeError(`${path} must be ${expected}`);
+  }
+  has(key) {
+    return this.value[key] !== void 0;
+  }
+  /** A string with at least one character that is not white space. */
+  string(key) {
+    const value = this.value[key];
+    _JsonFields.ensure(isText(value), this.at(key), "a non-empty string");
+    return value;
+  }
+  optionalString(key) {
+    return this.has(key) ? this.string(key) : void 0;
+  }
+  /** Any string, the empty one included. */
+  optionalText(key) {
+    const value = this.value[key];
+    _JsonFields.ensure(value === void 0 || typeof value === "string", this.at(key), "a string");
+    return value;
+  }
+  number(key) {
+    const value = this.value[key];
+    _JsonFields.ensure(typeof value === "number" && Number.isFinite(value), this.at(key), "a number");
+    return value;
+  }
+  nullableNumber(key) {
+    return this.value[key] === null ? null : this.number(key);
+  }
+  boolean(key) {
+    const value = this.value[key];
+    _JsonFields.ensure(typeof value === "boolean", this.at(key), "true or false");
+    return value;
+  }
+  literal(key, expected) {
+    _JsonFields.ensure(this.value[key] === expected, this.at(key), JSON.stringify(expected));
+    return expected;
+  }
+  oneOf(key, allowed) {
+    const value = this.value[key];
+    _JsonFields.ensure(isOneOf(allowed, value), this.at(key), `one of ${allowed.join(", ")}`);
+    return value;
+  }
+  /** A string `accept` recognises, or nothing. */
+  optionalMatching(key, accept, expected) {
+    const value = this.optionalString(key);
+    _JsonFields.ensure(value === void 0 || accept(value), this.at(key), expected);
+    return value;
+  }
+  strings(key) {
+    return this.listOf(key, (item) => typeof item === "string", "a string");
+  }
+  oneOfList(key, allowed) {
+    return this.listOf(key, (item) => isOneOf(allowed, item), `one of ${allowed.join(", ")}`);
+  }
+  list(key, read) {
+    return this.items(key).map((item, index) => read(_JsonFields.of(item, `${this.at(key)}[${String(index)}]`)));
+  }
+  object(key) {
+    return _JsonFields.of(this.value[key], this.at(key));
+  }
+  /** An object used as a map: every value is read with `read`, under its key. */
+  entries(key, read) {
+    const map = this.object(key);
+    return Object.fromEntries(Object.keys(map.value).map((name) => [name, read(map.object(name), name)]));
+  }
+  /** An object whose every value is a non-empty string. */
+  stringMap(key) {
+    const map = this.object(key);
+    return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.string(name)]));
+  }
+  listOf(key, accept, expected) {
+    return this.items(key).map((item, index) => {
+      _JsonFields.ensure(accept(item), `${this.at(key)}[${String(index)}]`, expected);
+      return item;
+    });
+  }
+  items(key) {
+    const value = this.value[key];
+    _JsonFields.ensure(Array.isArray(value), this.at(key), "a list");
+    return value;
+  }
+  at(key) {
+    return this.path === "" ? key : `${this.path}.${key}`;
+  }
+};
 
 // src/contexts/critique/domain/outcomes.ts
 function refusal(reason, message) {
@@ -119,12 +226,6 @@ var CritiqueError = class extends Error {
 
 // src/contexts/critique/domain/family-allowlist.ts
 var DENIED_OWNER = "nedap";
-function parseModelFamilies(value) {
-  return value.map((family) => {
-    if (!isOneOf(MODEL_FAMILIES, family)) throw new CritiqueError("invalid-input", `unknown model family: ${family}`);
-    return family;
-  });
-}
 function parseRemote(url) {
   const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
   const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
@@ -155,7 +256,14 @@ function identifyRepository(remotes) {
 }
 var EMPTY_ALLOWLIST = { version: 1, repositories: {} };
 function parseAllowlist(text) {
-  return JSON.parse(text);
+  const file = JsonFields.parse(text);
+  return {
+    repositories: file.entries("repositories", (entry) => ({
+      families: entry.oneOfList("families", MODEL_FAMILIES),
+      updated_at: entry.string("updated_at")
+    })),
+    version: file.literal("version", 1)
+  };
 }
 function withEntry(allowlist, key, families, at) {
   return {
@@ -164,27 +272,21 @@ function withEntry(allowlist, key, families, at) {
   };
 }
 
-// src/contexts/critique/application/input.ts
-function asObject(value, what) {
-  if (!isJsonObject(value)) throw new CritiqueError("invalid-input", `${what} must be a JSON object`);
-  return value;
-}
-function requireString(input, key) {
-  const value = input[key];
-  if (typeof value !== "string" || value.length === 0) throw new CritiqueError("invalid-input", `${key} must be a non-empty string`);
-  return value;
-}
-function requireOneOf(input, key, allowed) {
-  const value = requireString(input, key);
-  if (!isOneOf(allowed, value)) throw new CritiqueError("invalid-input", `${key} must be one of ${allowed.join(", ")}`);
-  return value;
-}
-function requireStringList(input, key) {
-  const value = input[key];
-  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
-    throw new CritiqueError("invalid-input", `${key} must be a list of strings`);
+// src/contexts/critique/application/decode.ts
+function decoded(code, where, read) {
+  try {
+    return read();
+  } catch (error) {
+    throw error instanceof JsonShapeError || error instanceof SyntaxError ? new CritiqueError(code, `${where}: ${error.message}`) : error;
   }
-  return value;
+}
+function readInput(raw, command, read) {
+  return decoded("invalid-input", `${command} input`, () => read(JsonFields.of(raw, "")));
+}
+async function readJsonFile(files, path, code, parse) {
+  if (!await files.exists(path)) throw new CritiqueError(code, `${path} does not exist`);
+  const text = await files.readText(path);
+  return decoded(code, path, () => parse(text));
 }
 
 // src/contexts/critique/application/locations.ts
@@ -216,66 +318,200 @@ async function resolveRepository(deps, cwd) {
 async function readAllowlist(deps) {
   const path = allowlistPath(deps.env);
   if (!await deps.files.exists(path)) return EMPTY_ALLOWLIST;
-  return parseAllowlist(await deps.files.readText(path));
+  return readJsonFile(deps.files, path, "invalid-allowlist", parseAllowlist);
 }
 
 // src/contexts/critique/application/allow.ts
 async function allow(deps, raw) {
-  const input = asObject(raw, "allow input");
-  const families = parseModelFamilies(requireStringList(input, "families"));
-  const repository = await resolveRepository(deps, requireString(input, "repo"));
+  const input = readInput(raw, "allow", (fields) => ({
+    families: fields.oneOfList("families", MODEL_FAMILIES),
+    repo: fields.string("repo")
+  }));
+  const repository = await resolveRepository(deps, input.repo);
   if (repository.status === "refused") return repository;
   const path = allowlistPath(deps.env);
-  const next = withEntry(await readAllowlist(deps), repository.key, families, deps.clock.now());
+  const next = withEntry(await readAllowlist(deps), repository.key, input.families, deps.clock.now());
   await deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
 `);
-  return { allowlist_path: path, families, repository: repository.key, status: "allowed" };
+  return { allowlist_path: path, families: input.families, repository: repository.key, status: "allowed" };
 }
 
 // src/contexts/critique/application/fan-out.ts
 import { join as join2 } from "node:path";
 
-// src/contexts/critique/domain/manifest.ts
-import { createHash } from "node:crypto";
-function sha256(text) {
-  return createHash("sha256").update(text).digest("hex");
-}
-function compactTimestamp(at) {
-  return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-}
-
-// src/contexts/critique/domain/prompt.ts
-var BLOCK_SEPARATOR = "\n\n---\n\n";
-function assemblePrompt(sources, files) {
-  const lenses = sources.lenses.map((lens) => lens.text.trim()).join("\n\n");
-  const contract = `${sources.contract.trim()}
-
-\`\`\`json
-${sources.schema.trim()}
-\`\`\``;
-  const fileList = [
-    "# Files",
-    "",
-    "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
-    "",
-    ...files.map((file) => `- \`${file.path}\`: ${file.kind === "artifact" ? "the artifact under review" : "reference material"}`)
-  ].join("\n");
+// src/contexts/critique/domain/findings.ts
+var SEVERITIES = ["critical", "major", "minor"];
+var CATEGORIES = [
+  "unasked-question",
+  "contradiction",
+  "omission",
+  "invention",
+  "untestable",
+  "failure-mode",
+  "security",
+  "structure",
+  "bug",
+  "integration"
+];
+var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
+var FINDINGS_FAILURES = [
+  "no-findings-block",
+  "unparseable-findings",
+  "invalid-findings",
+  "missing-no-findings-reason"
+];
+var FENCED_JSON = /```json[ \t]*\r?\n([\s\S]*?)\r?\n?```/g;
+function parseFindings(text) {
+  const blocks = [...text.matchAll(FENCED_JSON)];
+  const last = blocks.at(-1);
+  if (last === void 0) return { detail: "the reply has no ```json block", failure: "no-findings-block", ok: false };
+  let value;
+  try {
+    value = JSON.parse(last[1] ?? "");
+  } catch (error) {
+    return { detail: String(error), failure: "unparseable-findings", ok: false };
+  }
+  let findings;
+  try {
+    findings = JsonFields.of(value, "the block").list("findings", readCriticFinding);
+  } catch (error) {
+    return { detail: String(error), failure: "invalid-findings", ok: false };
+  }
+  const reason = isJsonObject(value) && typeof value.no_findings_reason === "string" ? value.no_findings_reason.trim() : "";
+  if (findings.length === 0 && reason.length === 0) {
+    return { detail: "an empty findings list needs no_findings_reason", failure: "missing-no-findings-reason", ok: false };
+  }
   return {
-    lens_hashes: Object.fromEntries(sources.lenses.map((lens) => [lens.name, sha256(lens.text)])),
-    prompt_hashes: {
-      contract: sha256(sources.contract),
-      preamble: sha256(sources.preamble),
-      role: sha256(sources.role),
-      schema: sha256(sources.schema)
-    },
-    text: `${[sources.preamble.trim(), sources.role.trim(), lenses, contract, fileList].join(BLOCK_SEPARATOR)}
-`
+    findings,
+    ok: true,
+    ...reason.length > 0 ? { no_findings_reason: reason } : {}
+  };
+}
+function readFindingBody(fields) {
+  const suggestion = fields.optionalText("suggestion");
+  return {
+    category: fields.oneOf("category", CATEGORIES),
+    claim: fields.string("claim"),
+    evidence: fields.list("evidence", readEvidence),
+    location: fields.string("location"),
+    severity: fields.oneOf("severity", SEVERITIES),
+    ...suggestion === void 0 ? {} : { suggestion }
+  };
+}
+function readRunFinding(fields) {
+  return {
+    ...readFindingBody(fields),
+    critic_finding_id: fields.string("critic_finding_id"),
+    id: fields.string("id"),
+    raised_by: fields.strings("raised_by")
+  };
+}
+function readCriticFinding(fields) {
+  return { ...readFindingBody(fields), id: fields.string("id") };
+}
+function readEvidence(fields) {
+  const file = fields.optionalString("file");
+  return {
+    kind: fields.oneOf("kind", EVIDENCE_KINDS),
+    value: fields.string("value"),
+    ...file === void 0 ? {} : { file }
   };
 }
 
+// src/contexts/critique/domain/critic.ts
+var RUN_FAILURES = [
+  ...FINDINGS_FAILURES,
+  "empty-output",
+  "unparseable-output",
+  "missing-export",
+  "unsafe-config",
+  "config-error",
+  "infrastructure-failure",
+  "stopped-early"
+];
+function readCriticRun(fields) {
+  const failure = fields.optionalMatching("failure", isCriticFailure, "a critic failure");
+  const detail = fields.optionalString("detail");
+  const noFindingsReason = fields.optionalString("no_findings_reason");
+  const hashes = fields.object("prompt_hashes");
+  return {
+    client: fields.string("client"),
+    cost_usd: fields.nullableNumber("cost_usd"),
+    critic_id: fields.string("critic_id"),
+    duration_ms: fields.number("duration_ms"),
+    exit_code: fields.number("exit_code"),
+    export_path: fields.string("export_path"),
+    family: fields.oneOf("family", MODEL_FAMILIES),
+    finding_count: fields.number("finding_count"),
+    lens_hashes: fields.stringMap("lens_hashes"),
+    lenses: fields.strings("lenses"),
+    model: fields.string("model"),
+    prompt_hashes: {
+      contract: hashes.string("contract"),
+      preamble: hashes.string("preamble"),
+      role: hashes.string("role"),
+      schema: hashes.string("schema")
+    },
+    prompt_path: fields.string("prompt_path"),
+    role: fields.string("role"),
+    status: fields.oneOf("status", ["ok", "failed"]),
+    stdout_path: fields.string("stdout_path"),
+    ...failure === void 0 ? {} : { failure },
+    ...detail === void 0 ? {} : { detail },
+    ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason }
+  };
+}
+function isCriticFailure(value) {
+  return isOneOf(RUN_FAILURES, value) || /^exit-\d+$/.test(value);
+}
+
+// src/contexts/critique/domain/manifest.ts
+import { createHash } from "node:crypto";
+
 // src/contexts/critique/domain/routing.ts
+var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family"];
 function parseRouting(text) {
-  return JSON.parse(text);
+  const file = JsonFields.parse(text);
+  return {
+    clients: file.entries("clients", readCriticClient),
+    stages: file.entries("stages", (stage) => ({
+      base: stage.list("base", readRosterSlot),
+      distinct_families: stage.boolean("distinct_families")
+    })),
+    version: file.literal("version", 1)
+  };
+}
+function readCriticClient(fields) {
+  return {
+    agent: fields.string("agent"),
+    binary: fields.string("binary"),
+    family: fields.oneOf("family", MODEL_FAMILIES),
+    kind: fields.literal("kind", "vibe"),
+    model: fields.string("model")
+  };
+}
+function readRosterSlot(fields) {
+  return {
+    client: fields.string("client"),
+    lenses: fields.strings("lenses"),
+    max_price_usd: fields.number("max_price_usd"),
+    role: fields.string("role"),
+    time_limit_s: fields.number("time_limit_s")
+  };
+}
+function readRosterCritic(fields) {
+  return {
+    ...readRosterSlot(fields),
+    client_config: readCriticClient(fields.object("client_config")),
+    critic_id: fields.string("critic_id")
+  };
+}
+function readDroppedCritic(fields) {
+  return {
+    client: fields.string("client"),
+    family: fields.oneOf("family", MODEL_FAMILIES),
+    reason: fields.oneOf("reason", DROP_REASONS)
+  };
 }
 function resolveRoster(routing, request) {
   const stage = routing.stages[request.stage];
@@ -312,58 +548,69 @@ function dropReason(family, request) {
   return void 0;
 }
 
-// src/contexts/critique/domain/findings.ts
-var SEVERITIES = ["critical", "major", "minor"];
-var CATEGORIES = [
-  "unasked-question",
-  "contradiction",
-  "omission",
-  "invention",
-  "untestable",
-  "failure-mode",
-  "security",
-  "structure",
-  "bug",
-  "integration"
-];
-var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
-var FENCED_JSON = /```json[ \t]*\r?\n([\s\S]*?)\r?\n?```/g;
-function parseFindings(text) {
-  const blocks = [...text.matchAll(FENCED_JSON)];
-  const last = blocks.at(-1);
-  if (last === void 0) return { detail: "the reply has no ```json block", failure: "no-findings-block", ok: false };
-  let value;
-  try {
-    value = JSON.parse(last[1] ?? "");
-  } catch (error) {
-    return { detail: String(error), failure: "unparseable-findings", ok: false };
-  }
-  const findings = isJsonObject(value) ? value.findings : void 0;
-  if (!Array.isArray(findings)) {
-    return { detail: "the block has no findings list", failure: "invalid-findings", ok: false };
-  }
-  const invalid = findings.findIndex((item) => !isFinding(item));
-  if (invalid !== -1) {
-    return { detail: `finding ${String(invalid + 1)} does not match the contract`, failure: "invalid-findings", ok: false };
-  }
-  const reason = isJsonObject(value) && typeof value.no_findings_reason === "string" ? value.no_findings_reason.trim() : "";
-  if (findings.length === 0 && reason.length === 0) {
-    return { detail: "an empty findings list needs no_findings_reason", failure: "missing-no-findings-reason", ok: false };
-  }
+// src/contexts/critique/domain/stage.ts
+var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
+var DEPTHS = ["base", "deep"];
+
+// src/contexts/critique/domain/manifest.ts
+function sha256(text) {
+  return createHash("sha256").update(text).digest("hex");
+}
+function parseManifest(text) {
+  const file = JsonFields.parse(text);
   return {
-    findings,
-    ok: true,
-    ...reason.length > 0 ? { no_findings_reason: reason } : {}
+    allowed_families: file.oneOfList("allowed_families", MODEL_FAMILIES),
+    created_at: file.string("created_at"),
+    critics: file.list("critics", readRosterCritic),
+    depth: file.oneOf("depth", DEPTHS),
+    dropped: file.list("dropped", readDroppedCritic),
+    orchestrator_family: file.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
+    packet_dir: file.string("packet_dir"),
+    packet_files: file.list("packet_files", (packetFile) => ({
+      kind: packetFile.oneOf("kind", ["artifact", "reference"]),
+      path: packetFile.string("path"),
+      sha256: packetFile.string("sha256"),
+      source: packetFile.string("source")
+    })),
+    repo_root: file.string("repo_root"),
+    repository: file.string("repository"),
+    run_dir: file.string("run_dir"),
+    run_id: file.string("run_id"),
+    stage: file.oneOf("stage", CRITIQUE_STAGES),
+    version: file.literal("version", 1)
   };
 }
-function isFinding(value) {
-  return isJsonObject(value) && isText(value.id) && isOneOf(SEVERITIES, value.severity) && isOneOf(CATEGORIES, value.category) && isText(value.location) && isText(value.claim) && Array.isArray(value.evidence) && value.evidence.every(isEvidence) && (value.suggestion === void 0 || typeof value.suggestion === "string");
+function compactTimestamp(at) {
+  return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
-function isEvidence(value) {
-  return isJsonObject(value) && isOneOf(EVIDENCE_KINDS, value.kind) && isText(value.value) && (value.file === void 0 || isText(value.file));
-}
-function isText(value) {
-  return typeof value === "string" && value.trim().length > 0;
+
+// src/contexts/critique/domain/prompt.ts
+var BLOCK_SEPARATOR = "\n\n---\n\n";
+function assemblePrompt(sources, files) {
+  const lenses = sources.lenses.map((lens) => lens.text.trim()).join("\n\n");
+  const contract = `${sources.contract.trim()}
+
+\`\`\`json
+${sources.schema.trim()}
+\`\`\``;
+  const fileList = [
+    "# Files",
+    "",
+    "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
+    "",
+    ...files.map((file) => `- \`${file.path}\`: ${file.kind === "artifact" ? "the artifact under review" : "reference material"}`)
+  ].join("\n");
+  return {
+    lens_hashes: Object.fromEntries(sources.lenses.map((lens) => [lens.name, sha256(lens.text)])),
+    prompt_hashes: {
+      contract: sha256(sources.contract),
+      preamble: sha256(sources.preamble),
+      role: sha256(sources.role),
+      schema: sha256(sources.schema)
+    },
+    text: `${[sources.preamble.trim(), sources.role.trim(), lenses, contract, fileList].join(BLOCK_SEPARATOR)}
+`
+  };
 }
 
 // src/contexts/critique/domain/vibe.ts
@@ -459,9 +706,21 @@ function finalAssistantText(stdout) {
 }
 
 // src/contexts/critique/application/fan-out.ts
+function parseFanOutResult(text) {
+  const file = JsonFields.parse(text);
+  return {
+    critics: file.list("critics", readCriticRun),
+    degraded: file.boolean("degraded"),
+    findings: file.list("findings", readRunFinding),
+    findings_path: file.string("findings_path"),
+    run_id: file.string("run_id"),
+    stage: file.oneOf("stage", CRITIQUE_STAGES),
+    status: file.literal("status", "reviewed")
+  };
+}
 async function fanOut(deps, raw) {
-  const runDir = requireString(asObject(raw, "fan-out input"), "run_dir");
-  const manifest = JSON.parse(await deps.files.readText(manifestPath(runDir)));
+  const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
+  const manifest = await readJsonFile(deps.files, manifestPath(runDir), "invalid-run", parseManifest);
   const outcomes = await Promise.all(manifest.critics.map((critic) => runCritic(deps, manifest, critic)));
   const findings = [];
   for (const outcome of outcomes) {
@@ -544,23 +803,23 @@ async function readExport(deps, path) {
 
 // src/contexts/critique/application/prepare.ts
 import { basename, isAbsolute, join as join3, relative, resolve } from "node:path";
-
-// src/contexts/critique/domain/stage.ts
-var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
-
-// src/contexts/critique/application/prepare.ts
 var DEFAULT_REFERENCES = ["GLOSSARY.md", "CONTEXT.md"];
 async function prepare(deps, raw) {
-  const input = asObject(raw, "prepare input");
-  const stage = requireOneOf(input, "stage", CRITIQUE_STAGES);
-  const orchestratorFamily = requireOneOf(input, "orchestrator_family", ORCHESTRATOR_FAMILIES);
-  const repository = await resolveRepository(deps, requireString(input, "repo"));
+  const input = readInput(raw, "prepare", (fields) => ({
+    orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
+    references: fields.has("references") ? fields.strings("references") : void 0,
+    repo: fields.string("repo"),
+    spec: fields.string("spec"),
+    stage: fields.oneOf("stage", CRITIQUE_STAGES)
+  }));
+  const { orchestratorFamily, stage } = input;
+  const repository = await resolveRepository(deps, input.repo);
   if (repository.status === "refused") return repository;
   const entry = (await readAllowlist(deps)).repositories[repository.key];
   if (entry === void 0) {
     return refusal("not-opted-in", `${repository.key} has no family allowlist entry on this machine; record one with allow`);
   }
-  const routing = parseRouting(await deps.files.readText(join3(deps.assetsRoot, "routing.json")));
+  const routing = await readJsonFile(deps.files, join3(deps.assetsRoot, "routing.json"), "invalid-routing", parseRouting);
   const roster = resolveRoster(routing, {
     allowedFamilies: entry.families,
     orchestratorFamily,
@@ -609,8 +868,8 @@ async function freshRunId(deps, repository, stage) {
   return candidate;
 }
 async function freezePacket(deps, repository, packetDir, input) {
-  const spec = insideRepository(repository.root, requireString(input, "spec"));
-  const references = input.references === void 0 ? await defaultReferences(deps, repository.root) : requireStringList(input, "references").map((path) => insideRepository(repository.root, path));
+  const spec = insideRepository(repository.root, input.spec);
+  const references = input.references === void 0 ? await defaultReferences(deps, repository.root) : input.references.map((path) => insideRepository(repository.root, path));
   const sources = [
     { kind: "artifact", path: join3("artifact", basename(spec)), source: spec },
     ...references.map((source) => ({ kind: "reference", path: join3("references", source), source }))
@@ -840,12 +1099,14 @@ function bullets(items, hidden) {
 // src/contexts/critique/application/record.ts
 var REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/;
 async function record(deps, raw) {
-  const input = asObject(raw, "record input");
-  const runDir = requireString(input, "run_dir");
-  const manifest = JSON.parse(await deps.files.readText(manifestPath(runDir)));
-  const merged = JSON.parse(await deps.files.readText(findingsPath(runDir)));
-  const verdicts = readVerdicts(input, merged);
-  const reportPath = join4(runDir, "report.md");
+  const input = readInput(raw, "record", (fields) => ({
+    runDir: fields.string("run_dir"),
+    verdicts: fields.list("verdicts", readVerdict)
+  }));
+  const manifest = await readJsonFile(deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
+  const merged = await readJsonFile(deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
+  const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
+  const reportPath = join4(input.runDir, "report.md");
   if (await deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
   const run = {
     critics: merged.critics,
@@ -858,7 +1119,7 @@ async function record(deps, raw) {
     stage: manifest.stage
   };
   const summary = renderSummary(run, reportPath);
-  const summaryPath = join4(runDir, "summary.md");
+  const summaryPath = join4(input.runDir, "summary.md");
   const ledger = ledgerPath(deps.env);
   await deps.files.writeText(reportPath, renderReport(run));
   await deps.files.writeText(summaryPath, summary);
@@ -880,13 +1141,9 @@ function verdictFor(verdicts, id) {
   if (verdict === void 0) throw new CritiqueError("invalid-input", `no verdict for ${id}`);
   return verdict;
 }
-function readVerdicts(input, merged) {
-  const list = input.verdicts;
-  if (!Array.isArray(list)) throw new CritiqueError("invalid-input", "verdicts must be a list");
-  const known = new Set(merged.findings.map((finding) => finding.id));
+function verdictsByFinding(list, known) {
   const verdicts = /* @__PURE__ */ new Map();
-  for (const item of list) {
-    const verdict = readVerdict(asObject(item, "a verdict"));
+  for (const verdict of list) {
     if (!known.has(verdict.finding_id)) throw new CritiqueError("invalid-input", `unknown finding ${verdict.finding_id}`);
     if (verdicts.has(verdict.finding_id)) {
       throw new CritiqueError("invalid-input", `more than one verdict for ${verdict.finding_id}`);
@@ -895,22 +1152,19 @@ function readVerdicts(input, merged) {
   }
   return verdicts;
 }
-function readVerdict(item) {
-  const kind = requireString(item, "verdict");
-  if (!VERDICTS.includes(kind)) {
-    throw new CritiqueError("invalid-input", `verdict must be one of ${VERDICTS.join(", ")}`);
-  }
-  const reason = kind === "rejected" || item.reason !== void 0 ? requireString(item, "reason") : void 0;
-  const code = item.reason_code === void 0 ? void 0 : requireString(item, "reason_code");
-  if (code !== void 0 && !REASON_CODE.test(code)) {
-    throw new CritiqueError("invalid-input", "reason_code must be a short lowercase slug");
-  }
+function readVerdict(fields) {
+  const verdict = fields.oneOf("verdict", VERDICTS);
+  const reason = verdict === "rejected" || fields.has("reason") ? fields.string("reason") : void 0;
+  const code = fields.optionalMatching("reason_code", isReasonCode, "a short lowercase slug");
   return {
-    finding_id: requireString(item, "finding_id"),
-    verdict: kind,
+    finding_id: fields.string("finding_id"),
+    verdict,
     ...reason === void 0 ? {} : { reason },
     ...code === void 0 ? {} : { reason_code: code }
   };
+}
+function isReasonCode(value) {
+  return REASON_CODE.test(value);
 }
 
 // src/contexts/critique/application/commands.ts

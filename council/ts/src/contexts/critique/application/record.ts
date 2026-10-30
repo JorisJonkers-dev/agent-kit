@@ -1,13 +1,13 @@
 import { join } from 'node:path'
 
+import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
-import type { RunManifest } from '../domain/manifest.js'
-import { renderReport, renderSummary } from '../domain/report.js'
-import { countVerdicts, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts, type VerdictKind } from '../domain/verdicts.js'
-import type { FanOutResult } from './fan-out.js'
-import type { JsonObject } from '../domain/json.js'
+import { parseManifest } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
-import { asObject, requireString } from './input.js'
+import { renderReport, renderSummary } from '../domain/report.js'
+import { countVerdicts, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts } from '../domain/verdicts.js'
+import { readInput, readJsonFile } from './decode.js'
+import { parseFanOutResult } from './fan-out.js'
 import { findingsPath, ledgerPath, manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 
@@ -31,12 +31,14 @@ const REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/
  * the user's ledger. A run is recorded once.
  */
 export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordResult> {
-  const input = asObject(raw, 'record input')
-  const runDir = requireString(input, 'run_dir')
-  const manifest = JSON.parse(await deps.files.readText(manifestPath(runDir))) as RunManifest
-  const merged = JSON.parse(await deps.files.readText(findingsPath(runDir))) as FanOutResult
-  const verdicts = readVerdicts(input, merged)
-  const reportPath = join(runDir, 'report.md')
+  const input = readInput(raw, 'record', (fields) => ({
+    runDir: fields.string('run_dir'),
+    verdicts: fields.list('verdicts', readVerdict),
+  }))
+  const manifest = await readJsonFile(deps.files, manifestPath(input.runDir), 'invalid-run', parseManifest)
+  const merged = await readJsonFile(deps.files, findingsPath(input.runDir), 'invalid-run', parseFanOutResult)
+  const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))
+  const reportPath = join(input.runDir, 'report.md')
   if (await deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
 
   const run: AdjudicatedRun = {
@@ -50,7 +52,7 @@ export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordRe
     stage: manifest.stage,
   }
   const summary = renderSummary(run, reportPath)
-  const summaryPath = join(runDir, 'summary.md')
+  const summaryPath = join(input.runDir, 'summary.md')
   const ledger = ledgerPath(deps.env)
   await deps.files.writeText(reportPath, renderReport(run))
   await deps.files.writeText(summaryPath, summary)
@@ -73,13 +75,9 @@ function verdictFor(verdicts: ReadonlyMap<string, Verdict>, id: string): Verdict
   return verdict
 }
 
-function readVerdicts(input: JsonObject, merged: FanOutResult): ReadonlyMap<string, Verdict> {
-  const list = input.verdicts
-  if (!Array.isArray(list)) throw new CritiqueError('invalid-input', 'verdicts must be a list')
-  const known = new Set(merged.findings.map((finding) => finding.id))
+function verdictsByFinding(list: readonly Verdict[], known: ReadonlySet<string>): ReadonlyMap<string, Verdict> {
   const verdicts = new Map<string, Verdict>()
-  for (const item of list) {
-    const verdict = readVerdict(asObject(item, 'a verdict'))
+  for (const verdict of list) {
     if (!known.has(verdict.finding_id)) throw new CritiqueError('invalid-input', `unknown finding ${verdict.finding_id}`)
     if (verdicts.has(verdict.finding_id)) {
       throw new CritiqueError('invalid-input', `more than one verdict for ${verdict.finding_id}`)
@@ -89,20 +87,18 @@ function readVerdicts(input: JsonObject, merged: FanOutResult): ReadonlyMap<stri
   return verdicts
 }
 
-function readVerdict(item: JsonObject): Verdict {
-  const kind = requireString(item, 'verdict')
-  if (!(VERDICTS as readonly string[]).includes(kind)) {
-    throw new CritiqueError('invalid-input', `verdict must be one of ${VERDICTS.join(', ')}`)
-  }
-  const reason = kind === 'rejected' || item.reason !== undefined ? requireString(item, 'reason') : undefined
-  const code = item.reason_code === undefined ? undefined : requireString(item, 'reason_code')
-  if (code !== undefined && !REASON_CODE.test(code)) {
-    throw new CritiqueError('invalid-input', 'reason_code must be a short lowercase slug')
-  }
+function readVerdict(fields: JsonFields): Verdict {
+  const verdict = fields.oneOf('verdict', VERDICTS)
+  const reason = verdict === 'rejected' || fields.has('reason') ? fields.string('reason') : undefined
+  const code = fields.optionalMatching('reason_code', isReasonCode, 'a short lowercase slug')
   return {
-    finding_id: requireString(item, 'finding_id'),
-    verdict: kind as VerdictKind,
+    finding_id: fields.string('finding_id'),
+    verdict,
     ...(reason === undefined ? {} : { reason }),
     ...(code === undefined ? {} : { reason_code: code }),
   }
+}
+
+function isReasonCode(value: string): value is string {
+  return REASON_CODE.test(value)
 }

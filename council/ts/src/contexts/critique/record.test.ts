@@ -295,6 +295,15 @@ describe('record', () => {
     await expect(h.commands.record({ run_dir: run.run_dir, verdicts: given })).rejects.toThrow(message)
   })
 
+  it('rejects merged findings that are not a fan-out result', async () => {
+    const { fan, h, run } = await reviewed([finding()])
+    await h.writeText(fan.findings_path, JSON.stringify({ ...fan, findings: [{ id: 'F1' }] }))
+
+    await expect(
+      h.commands.record({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] }),
+    ).rejects.toThrow(/findings\.json: .*must be/)
+  })
+
   it('records a run once', async () => {
     const { h, run } = await reviewed([finding()])
     await h.commands.record({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })

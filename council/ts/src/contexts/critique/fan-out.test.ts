@@ -258,6 +258,14 @@ describe('fan-out reads the critic output', () => {
     expect(h.process.commands).toEqual([])
   })
 
+  it('rejects a manifest that is not a run manifest', async () => {
+    const { h, run } = await preparedRun([])
+    await h.writeText(run.manifest_path, JSON.stringify({ critics: 'all of them', version: 1 }))
+
+    await expect(h.commands.fanOut({ run_dir: run.run_dir })).rejects.toThrow(/manifest\.json: .*must be/)
+    expect(h.process.commands).toEqual([])
+  })
+
   it('rejects a run directory without a manifest', async () => {
     const { h, run } = await preparedRun([])
 

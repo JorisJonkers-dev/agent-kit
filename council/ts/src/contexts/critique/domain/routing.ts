@@ -1,6 +1,7 @@
 import type { CriticIdentity } from './critic.js'
+import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
+import { JsonFields } from './json.js'
 import { CritiqueError } from './outcomes.js'
-import type { ModelFamily, OrchestratorFamily } from './family.js'
 import type { CritiqueStage, Depth } from './stage.js'
 
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
@@ -55,7 +56,51 @@ export interface Roster {
 }
 
 export function parseRouting(text: string): Routing {
-  return JSON.parse(text) as Routing
+  const file = JsonFields.parse(text)
+  return {
+    clients: file.entries('clients', readCriticClient),
+    stages: file.entries('stages', (stage) => ({
+      base: stage.list('base', readRosterSlot),
+      distinct_families: stage.boolean('distinct_families'),
+    })),
+    version: file.literal('version', 1),
+  }
+}
+
+export function readCriticClient(fields: JsonFields): CriticClient {
+  return {
+    agent: fields.string('agent'),
+    binary: fields.string('binary'),
+    family: fields.oneOf('family', MODEL_FAMILIES),
+    kind: fields.literal('kind', 'vibe'),
+    model: fields.string('model'),
+  }
+}
+
+export function readRosterSlot(fields: JsonFields): RosterSlot {
+  return {
+    client: fields.string('client'),
+    lenses: fields.strings('lenses'),
+    max_price_usd: fields.number('max_price_usd'),
+    role: fields.string('role'),
+    time_limit_s: fields.number('time_limit_s'),
+  }
+}
+
+export function readRosterCritic(fields: JsonFields): RosterCritic {
+  return {
+    ...readRosterSlot(fields),
+    client_config: readCriticClient(fields.object('client_config')),
+    critic_id: fields.string('critic_id'),
+  }
+}
+
+export function readDroppedCritic(fields: JsonFields): DroppedCritic {
+  return {
+    client: fields.string('client'),
+    family: fields.oneOf('family', MODEL_FAMILIES),
+    reason: fields.oneOf('reason', DROP_REASONS),
+  }
 }
 
 export interface RosterRequest {

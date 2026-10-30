@@ -1,19 +1,27 @@
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 
 import type { CriticIdentity } from '../domain/critic.js'
-import { ORCHESTRATOR_FAMILIES } from '../domain/family.js'
-import type { JsonObject } from '../domain/json.js'
+import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
 import { compactTimestamp, sha256, type PacketFile, type RunManifest } from '../domain/manifest.js'
+import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
 import { criticIdentity, parseRouting, resolveRoster, type DroppedCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage, type Depth } from '../domain/stage.js'
-import { asObject, requireOneOf, requireString, requireStringList } from './input.js'
+import { readInput, readJsonFile } from './decode.js'
 import { manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
-import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
 import { readAllowlist, resolveRepository, type ResolvedRepository } from './repository.js'
 
 /** Decision docs tried, in order, when the caller names none. */
 const DEFAULT_REFERENCES = ['GLOSSARY.md', 'CONTEXT.md']
+
+interface PrepareInput {
+  readonly stage: CritiqueStage
+  readonly orchestratorFamily: OrchestratorFamily
+  readonly repo: string
+  readonly spec: string
+  /** The reference paths the caller names; undefined means the default decision doc. */
+  readonly references: readonly string[] | undefined
+}
 
 export interface PrepareResult {
   readonly status: 'ready'
@@ -35,16 +43,21 @@ export interface PrepareResult {
  * so the flow goes on.
  */
 export async function prepare(deps: CritiqueDeps, raw: unknown): Promise<PrepareResult | Refusal> {
-  const input = asObject(raw, 'prepare input')
-  const stage = requireOneOf(input, 'stage', CRITIQUE_STAGES)
-  const orchestratorFamily = requireOneOf(input, 'orchestrator_family', ORCHESTRATOR_FAMILIES)
-  const repository = await resolveRepository(deps, requireString(input, 'repo'))
+  const input = readInput(raw, 'prepare', (fields): PrepareInput => ({
+    orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
+    references: fields.has('references') ? fields.strings('references') : undefined,
+    repo: fields.string('repo'),
+    spec: fields.string('spec'),
+    stage: fields.oneOf('stage', CRITIQUE_STAGES),
+  }))
+  const { orchestratorFamily, stage } = input
+  const repository = await resolveRepository(deps, input.repo)
   if (repository.status === 'refused') return repository
   const entry = (await readAllowlist(deps)).repositories[repository.key]
   if (entry === undefined) {
     return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
   }
-  const routing = parseRouting(await deps.files.readText(join(deps.assetsRoot, 'routing.json')))
+  const routing = await readJsonFile(deps.files, join(deps.assetsRoot, 'routing.json'), 'invalid-routing', parseRouting)
   const roster = resolveRoster(routing, {
     allowedFamilies: entry.families,
     orchestratorFamily,
@@ -102,13 +115,13 @@ async function freezePacket(
   deps: CritiqueDeps,
   repository: ResolvedRepository,
   packetDir: string,
-  input: JsonObject,
+  input: PrepareInput,
 ): Promise<readonly PacketFile[]> {
-  const spec = insideRepository(repository.root, requireString(input, 'spec'))
+  const spec = insideRepository(repository.root, input.spec)
   const references =
     input.references === undefined
       ? await defaultReferences(deps, repository.root)
-      : requireStringList(input, 'references').map((path) => insideRepository(repository.root, path))
+      : input.references.map((path) => insideRepository(repository.root, path))
   const sources = [
     { kind: 'artifact' as const, path: join('artifact', basename(spec)), source: spec },
     ...references.map((source) => ({ kind: 'reference' as const, path: join('references', source), source })),

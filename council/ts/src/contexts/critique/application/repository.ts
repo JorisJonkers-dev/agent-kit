@@ -1,5 +1,6 @@
 import { EMPTY_ALLOWLIST, identifyRepository, parseAllowlist, type FamilyAllowlist } from '../domain/family-allowlist.js'
 import type { Refusal } from '../domain/outcomes.js'
+import { readJsonFile } from './decode.js'
 import { allowlistPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 
@@ -24,5 +25,5 @@ export async function resolveRepository(deps: CritiqueDeps, cwd: string): Promis
 export async function readAllowlist(deps: CritiqueDeps): Promise<FamilyAllowlist> {
   const path = allowlistPath(deps.env)
   if (!(await deps.files.exists(path))) return EMPTY_ALLOWLIST
-  return parseAllowlist(await deps.files.readText(path))
+  return readJsonFile(deps.files, path, 'invalid-allowlist', parseAllowlist)
 }

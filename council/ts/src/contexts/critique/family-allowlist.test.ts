@@ -117,7 +117,7 @@ describe('family allowlist', () => {
   it('rejects a family it does not know', async () => {
     const h = await setup()
 
-    await expect(h.commands.allow({ repo: h.repo, families: ['openai'] })).rejects.toThrow(/unknown model family: openai/)
+    await expect(h.commands.allow({ repo: h.repo, families: ['openai'] })).rejects.toThrow(/families\[0\] must be one of mistral, zhipu, deepseek, google/)
   })
 
   it('prepares a run with no critics when the allowlist permits none of the routed families', async () => {
@@ -131,6 +131,20 @@ describe('family allowlist', () => {
       dropped: [{ client: 'vibe-mistral-large', family: 'mistral', reason: 'family-not-allowed' }],
       status: 'ready',
     })
+  })
+
+  it.each<[string, unknown]>([
+    ['families written as one string', 'mistral'],
+    ['a family it does not know', ['mistral', 'openai']],
+  ])('refuses to trust an allowlist entry with %s', async (_name, families) => {
+    const h = await setup()
+    await h.writeText(
+      join(h.home, '.config', 'agent-kit', 'critique-allowlist.json'),
+      JSON.stringify({ repositories: { 'github.com/jorisjonkers-dev/agent-kit': { families, updated_at: 'x' } }, version: 1 }),
+    )
+
+    await expect(h.commands.prepare(prepareInput(h))).rejects.toThrow(/critique-allowlist\.json: .*families/)
+    expect(existsSync(critiqueDir(h))).toBe(false)
   })
 
   it('keys the allowlist by origin when a repository has several remotes', async () => {

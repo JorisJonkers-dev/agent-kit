@@ -186,6 +186,14 @@ describe('prepare', () => {
     expect(result.dropped).toEqual([])
   })
 
+  it('rejects routing whose client has a family it does not know', async () => {
+    const routing = twoMistralCritics(true) as { clients: Record<string, Record<string, unknown>> }
+    routing.clients['vibe-mistral-small'] = { ...routing.clients['vibe-mistral-small'], family: 'openai' }
+    const h = await optedIn({ routing })
+
+    await expect(ready(h)).rejects.toThrow(/routing\.json: .*family must be one of/)
+  })
+
   it('rejects a stage routing does not know, and a client routing does not define', async () => {
     const h = await optedIn({
       routing: {
@@ -214,8 +222,8 @@ describe('prepare', () => {
   it('rejects input that is not an object or misses a field', async () => {
     const h = await optedIn()
 
-    await expect(h.commands.prepare([])).rejects.toThrow(/prepare input must be a JSON object/)
-    await expect(h.commands.prepare({ repo: h.repo, stage: 'spec' })).rejects.toThrow(/orchestrator_family must be a non-empty string/)
-    await expect(ready(h, { references: 'CONTEXT.md' })).rejects.toThrow(/references must be a list of strings/)
+    await expect(h.commands.prepare([])).rejects.toThrow(/prepare input: the value must be a JSON object/)
+    await expect(h.commands.prepare({ repo: h.repo, stage: 'spec' })).rejects.toThrow(/orchestrator_family must be one of/)
+    await expect(ready(h, { references: 'CONTEXT.md' })).rejects.toThrow(/references must be a list/)
   })
 })

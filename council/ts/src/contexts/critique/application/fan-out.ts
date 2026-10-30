@@ -1,13 +1,14 @@
 import { join } from 'node:path'
 
-import type { CriticRun } from '../domain/critic.js'
-import type { RunFinding } from '../domain/findings.js'
-import type { RunManifest } from '../domain/manifest.js'
+import { readCriticRun, type CriticRun } from '../domain/critic.js'
+import { readRunFinding, type RunFinding } from '../domain/findings.js'
+import { JsonFields } from '../domain/json.js'
+import { parseManifest, type RunManifest } from '../domain/manifest.js'
 import { assemblePrompt } from '../domain/prompt.js'
 import { criticIdentity, type RosterCritic } from '../domain/routing.js'
-import type { CritiqueStage } from '../domain/stage.js'
+import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { classifyVibeRun, vibeLaunch } from '../domain/vibe.js'
-import { asObject, requireString } from './input.js'
+import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 
@@ -22,10 +23,24 @@ export interface FanOutResult {
   readonly findings: readonly RunFinding[]
 }
 
+/** Reads `findings.json`, the merged findings fan-out wrote, back for record. */
+export function parseFanOutResult(text: string): FanOutResult {
+  const file = JsonFields.parse(text)
+  return {
+    critics: file.list('critics', readCriticRun),
+    degraded: file.boolean('degraded'),
+    findings: file.list('findings', readRunFinding),
+    findings_path: file.string('findings_path'),
+    run_id: file.string('run_id'),
+    stage: file.oneOf('stage', CRITIQUE_STAGES),
+    status: file.literal('status', 'reviewed'),
+  }
+}
+
 /** Runs every critic of a prepared run and collects its findings. */
 export async function fanOut(deps: CritiqueDeps, raw: unknown): Promise<FanOutResult> {
-  const runDir = requireString(asObject(raw, 'fan-out input'), 'run_dir')
-  const manifest = JSON.parse(await deps.files.readText(manifestPath(runDir))) as RunManifest
+  const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
+  const manifest = await readJsonFile(deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
   const outcomes = await Promise.all(manifest.critics.map((critic) => runCritic(deps, manifest, critic)))
   const findings: RunFinding[] = []
   for (const outcome of outcomes) {

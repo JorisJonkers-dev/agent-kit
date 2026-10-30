@@ -1,4 +1,4 @@
-import { isJsonObject, isOneOf } from './json.js'
+import { isJsonObject, JsonFields } from './json.js'
 
 export const SEVERITIES = ['critical', 'major', 'minor'] as const
 export type Severity = (typeof SEVERITIES)[number]
@@ -48,7 +48,13 @@ export interface RunFinding extends FindingBody {
   readonly raised_by: readonly string[]
 }
 
-export type FindingsFailure = 'no-findings-block' | 'unparseable-findings' | 'invalid-findings' | 'missing-no-findings-reason'
+export const FINDINGS_FAILURES = [
+  'no-findings-block',
+  'unparseable-findings',
+  'invalid-findings',
+  'missing-no-findings-reason',
+] as const
+export type FindingsFailure = (typeof FINDINGS_FAILURES)[number]
 
 export type FindingsParse =
   | { readonly ok: true; readonly findings: readonly CriticFinding[]; readonly no_findings_reason?: string }
@@ -67,48 +73,54 @@ export function parseFindings(text: string): FindingsParse {
   } catch (error) {
     return { detail: String(error), failure: 'unparseable-findings', ok: false }
   }
-  const findings = isJsonObject(value) ? value.findings : undefined
-  if (!Array.isArray(findings)) {
-    return { detail: 'the block has no findings list', failure: 'invalid-findings', ok: false }
-  }
-  const invalid = findings.findIndex((item) => !isFinding(item))
-  if (invalid !== -1) {
-    return { detail: `finding ${String(invalid + 1)} does not match the contract`, failure: 'invalid-findings', ok: false }
+  let findings: readonly CriticFinding[]
+  try {
+    findings = JsonFields.of(value, 'the block').list('findings', readCriticFinding)
+  } catch (error) {
+    return { detail: String(error), failure: 'invalid-findings', ok: false }
   }
   const reason = isJsonObject(value) && typeof value.no_findings_reason === 'string' ? value.no_findings_reason.trim() : ''
   if (findings.length === 0 && reason.length === 0) {
     return { detail: 'an empty findings list needs no_findings_reason', failure: 'missing-no-findings-reason', ok: false }
   }
   return {
-    findings: findings as readonly CriticFinding[],
+    findings,
     ok: true,
     ...(reason.length > 0 ? { no_findings_reason: reason } : {}),
   }
 }
 
-function isFinding(value: unknown): value is CriticFinding {
-  return (
-    isJsonObject(value) &&
-    isText(value.id) &&
-    isOneOf(SEVERITIES, value.severity) &&
-    isOneOf(CATEGORIES, value.category) &&
-    isText(value.location) &&
-    isText(value.claim) &&
-    Array.isArray(value.evidence) &&
-    value.evidence.every(isEvidence) &&
-    (value.suggestion === undefined || typeof value.suggestion === 'string')
-  )
+/** The fields of a finding, read against the output contract. */
+export function readFindingBody(fields: JsonFields): FindingBody {
+  const suggestion = fields.optionalText('suggestion')
+  return {
+    category: fields.oneOf('category', CATEGORIES),
+    claim: fields.string('claim'),
+    evidence: fields.list('evidence', readEvidence),
+    location: fields.string('location'),
+    severity: fields.oneOf('severity', SEVERITIES),
+    ...(suggestion === undefined ? {} : { suggestion }),
+  }
 }
 
-function isEvidence(value: unknown): value is Evidence {
-  return (
-    isJsonObject(value) &&
-    isOneOf(EVIDENCE_KINDS, value.kind) &&
-    isText(value.value) &&
-    (value.file === undefined || isText(value.file))
-  )
+export function readRunFinding(fields: JsonFields): RunFinding {
+  return {
+    ...readFindingBody(fields),
+    critic_finding_id: fields.string('critic_finding_id'),
+    id: fields.string('id'),
+    raised_by: fields.strings('raised_by'),
+  }
 }
 
-function isText(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0
+function readCriticFinding(fields: JsonFields): CriticFinding {
+  return { ...readFindingBody(fields), id: fields.string('id') }
+}
+
+function readEvidence(fields: JsonFields): Evidence {
+  const file = fields.optionalString('file')
+  return {
+    kind: fields.oneOf('kind', EVIDENCE_KINDS),
+    value: fields.string('value'),
+    ...(file === undefined ? {} : { file }),
+  }
 }

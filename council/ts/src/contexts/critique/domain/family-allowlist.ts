@@ -1,6 +1,6 @@
 import { MODEL_FAMILIES, type ModelFamily } from './family.js'
-import { isOneOf } from './json.js'
-import { CritiqueError, refusal, type Refusal } from './outcomes.js'
+import { JsonFields } from './json.js'
+import { refusal, type Refusal } from './outcomes.js'
 
 /** The GitHub organisation whose repositories never send content to any critic. */
 const DENIED_OWNER = 'nedap'
@@ -14,13 +14,6 @@ export interface RemoteLocation {
   readonly host: string
   readonly owner: string
   readonly repo: string
-}
-
-export function parseModelFamilies(value: readonly string[]): readonly ModelFamily[] {
-  return value.map((family) => {
-    if (!isOneOf(MODEL_FAMILIES, family)) throw new CritiqueError('invalid-input', `unknown model family: ${family}`)
-    return family
-  })
 }
 
 /**
@@ -81,8 +74,16 @@ export interface FamilyAllowlist {
 
 export const EMPTY_ALLOWLIST: FamilyAllowlist = { version: 1, repositories: {} }
 
+/** Reads the allowlist file; an entry naming a family no critic comes from does not parse. */
 export function parseAllowlist(text: string): FamilyAllowlist {
-  return JSON.parse(text) as FamilyAllowlist
+  const file = JsonFields.parse(text)
+  return {
+    repositories: file.entries('repositories', (entry) => ({
+      families: entry.oneOfList('families', MODEL_FAMILIES),
+      updated_at: entry.string('updated_at'),
+    })),
+    version: file.literal('version', 1),
+  }
 }
 
 export function withEntry(

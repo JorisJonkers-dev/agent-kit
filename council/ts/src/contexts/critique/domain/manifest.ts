@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 
-import type { ModelFamily, OrchestratorFamily } from './family.js'
-import type { DroppedCritic, RosterCritic } from './routing.js'
-import type { CritiqueStage, Depth } from './stage.js'
+import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
+import { JsonFields } from './json.js'
+import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
+import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from './stage.js'
 
 export function sha256(text: string): string {
   return createHash('sha256').update(text).digest('hex')
@@ -33,6 +34,31 @@ export interface RunManifest {
   readonly packet_files: readonly PacketFile[]
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
+}
+
+export function parseManifest(text: string): RunManifest {
+  const file = JsonFields.parse(text)
+  return {
+    allowed_families: file.oneOfList('allowed_families', MODEL_FAMILIES),
+    created_at: file.string('created_at'),
+    critics: file.list('critics', readRosterCritic),
+    depth: file.oneOf('depth', DEPTHS),
+    dropped: file.list('dropped', readDroppedCritic),
+    orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
+    packet_dir: file.string('packet_dir'),
+    packet_files: file.list('packet_files', (packetFile) => ({
+      kind: packetFile.oneOf('kind', ['artifact', 'reference']),
+      path: packetFile.string('path'),
+      sha256: packetFile.string('sha256'),
+      source: packetFile.string('source'),
+    })),
+    repo_root: file.string('repo_root'),
+    repository: file.string('repository'),
+    run_dir: file.string('run_dir'),
+    run_id: file.string('run_id'),
+    stage: file.oneOf('stage', CRITIQUE_STAGES),
+    version: file.literal('version', 1),
+  }
 }
 
 /** `2026-10-30T12:00:00.000Z` becomes `20261030T120000Z`. */
