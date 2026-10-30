@@ -35,13 +35,18 @@ describe('family allowlist', () => {
     expect(existsSync(critiqueDir(h))).toBe(false)
   })
 
-  it('refuses a repository with no remote, even when asked to allow it', async () => {
+  it('refuses to record an allowlist entry for a repository with no remote', async () => {
     const h = await setup({ remotes: [] })
 
     expect(await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })).toMatchObject({
       status: 'refused',
       reason: 'no-remote',
     })
+  })
+
+  it('refuses to prepare a repository with no remote before any packet exists', async () => {
+    const h = await setup({ remotes: [] })
+
     expect(await h.commands.prepare.run(prepareInput(h))).toMatchObject({ status: 'refused', reason: 'no-remote' })
     expect(existsSync(critiqueDir(h))).toBe(false)
   })

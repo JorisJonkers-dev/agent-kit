@@ -33,7 +33,9 @@ async function run(runtime: CritiqueCliRuntime, ...argv: string[]): Promise<Reco
 }
 
 describe('critique runner command line', () => {
-  it('drives allow, prepare, fan-out and record with JSON in and JSON out', async () => {
+  // The one end-to-end test: a whole critique through the command line. Every
+  // other test covers one command.
+  it('runs a whole critique, from allow to record, with JSON in and JSON out', async () => {
     const h = await harness({
       scripts: [{ exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced({ findings: [finding()] })) }],
     })
@@ -120,31 +122,59 @@ describe('critique runner command line', () => {
   })
 })
 
+interface RealRepository {
+  readonly base: string
+  readonly repo: string
+  readonly allowlistPath: string
+  readonly runtime: CritiqueCliRuntime
+}
+
+/** A real git repository with an origin remote, and the runner wired to the real adapters. */
+async function realRepository(): Promise<RealRepository> {
+  const base = await mkdtemp(join(tmpdir(), 'critique-cli-'))
+  cleanups.push(() => rm(base, { force: true, recursive: true }))
+  const repo = join(base, 'repo')
+  const home = join(base, 'home')
+  await mkdir(join(repo, '.scratch', 'widgets'), { recursive: true })
+  await writeFile(join(repo, '.scratch', 'widgets', 'spec.md'), '# Widgets\n')
+  await writeFile(join(repo, 'CONTEXT.md'), '# Words\n')
+  execFileSync('git', ['init', '-q', repo])
+  execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/example/widgets.git'])
+  return {
+    allowlistPath: join(home, '.config', 'agent-kit', 'critique-allowlist.json'),
+    base,
+    repo,
+    runtime: defaultCritiqueRuntime(ASSETS_ROOT, () => Promise.resolve(''), { HOME: home, PATH: process.env.PATH }),
+  }
+}
+
 describe('the real adapters', () => {
-  it('resolve a real repository, keep the allowlist in HOME and freeze the packet in the git common directory', async () => {
-    const base = await mkdtemp(join(tmpdir(), 'critique-cli-'))
-    cleanups.push(() => rm(base, { force: true, recursive: true }))
-    const repo = join(base, 'repo')
-    const home = join(base, 'home')
-    await mkdir(join(repo, '.scratch', 'widgets'), { recursive: true })
-    await writeFile(join(repo, '.scratch', 'widgets', 'spec.md'), '# Widgets\n')
-    await writeFile(join(repo, 'CONTEXT.md'), '# Words\n')
-    execFileSync('git', ['init', '-q', repo])
-    execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/example/widgets.git'])
-    const runtime = defaultCritiqueRuntime(ASSETS_ROOT, () => Promise.resolve(''), { HOME: home, PATH: process.env.PATH })
+  it('keep the allowlist in HOME, keyed by the real repository origin', async () => {
+    const real = await realRepository()
+    await writeFile(join(real.base, 'allow.json'), JSON.stringify({ families: ['mistral'], repo: real.repo }))
 
-    await writeFile(join(base, 'allow.json'), JSON.stringify({ families: ['mistral'], repo }))
-    await run(runtime, 'allow', '--input', join(base, 'allow.json'))
-    const prepared = await run(
-      runtime,
-      'prepare',
-      '--json',
-      JSON.stringify({ orchestrator_family: 'anthropic', repo, spec: '.scratch/widgets/spec.md', stage: 'spec' }),
-    )
+    await run(real.runtime, 'allow', '--input', join(real.base, 'allow.json'))
 
-    expect(JSON.parse(await readFile(join(home, '.config', 'agent-kit', 'critique-allowlist.json'), 'utf8'))).toMatchObject({
+    expect(JSON.parse(await readFile(real.allowlistPath, 'utf8'))).toMatchObject({
       repositories: { 'github.com/example/widgets': { families: ['mistral'] } },
     })
+  })
+
+  it('freeze the packet in the git common directory of a real repository', async () => {
+    const real = await realRepository()
+    await mkdir(join(real.allowlistPath, '..'), { recursive: true })
+    await writeFile(
+      real.allowlistPath,
+      JSON.stringify({ repositories: { 'github.com/example/widgets': { families: ['mistral'], updated_at: 'x' } }, version: 1 }),
+    )
+
+    const prepared = await run(
+      real.runtime,
+      'prepare',
+      '--json',
+      JSON.stringify({ orchestrator_family: 'anthropic', repo: real.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' }),
+    )
+
     expect(String(prepared.packet_dir)).toContain(join('.git', 'critique'))
     expect(await readFile(join(String(prepared.packet_dir), 'artifact', 'spec.md'), 'utf8')).toBe('# Widgets\n')
   })

@@ -194,7 +194,13 @@ describe('prepare', () => {
     await expect(ready(h)).rejects.toThrow(/routing\.json: .*family must be one of/)
   })
 
-  it('rejects a stage routing does not know, and a client routing does not define', async () => {
+  it('rejects a stage the routing has no critics for', async () => {
+    const h = await optedIn()
+
+    await expect(ready(h, { stage: 'tickets' })).rejects.toThrow(/routing has no stage tickets/)
+  })
+
+  it('rejects a routing stage that names a client the routing does not define', async () => {
     const h = await optedIn({
       routing: {
         clients: {},
@@ -203,7 +209,6 @@ describe('prepare', () => {
       },
     })
 
-    await expect(ready(h, { stage: 'tickets' })).rejects.toThrow(/routing has no stage tickets/)
     await expect(ready(h)).rejects.toThrow(/unknown client ghost/)
   })
 
@@ -219,11 +224,23 @@ describe('prepare', () => {
     await expect(ready(h, { orchestrator_family: 'claude' })).rejects.toThrow(/orchestrator_family must be one of anthropic, openai/)
   })
 
-  it('rejects input that is not an object or misses a field', async () => {
+  it('rejects input that is not a JSON object', async () => {
     const h = await optedIn()
 
     await expect(h.commands.prepare.run([])).rejects.toThrow(/prepare input: the value must be a JSON object/)
-    await expect(h.commands.prepare.run({ repo: h.repo, stage: 'spec' })).rejects.toThrow(/orchestrator_family must be one of/)
+  })
+
+  it('rejects input without an orchestrator family', async () => {
+    const h = await optedIn()
+
+    await expect(h.commands.prepare.run({ repo: h.repo, spec: 'x.md', stage: 'spec' })).rejects.toThrow(
+      /orchestrator_family must be one of/,
+    )
+  })
+
+  it('rejects references that are not a list', async () => {
+    const h = await optedIn()
+
     await expect(ready(h, { references: 'CONTEXT.md' })).rejects.toThrow(/references must be a list/)
   })
 })
