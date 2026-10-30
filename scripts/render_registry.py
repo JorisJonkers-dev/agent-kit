@@ -40,6 +40,10 @@ HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
+ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
+# Antigravity expands no environment variables, so a token-bearing server is
+# reached through this stdio proxy, which reads the token from the secret store.
+ANTIGRAVITY_PROXY = "$HOME/.local/bin/antigravity-mcp-proxy"
 # Seconds Vibe waits for an MCP server to start, unless its entry sets startup_timeout.
 VIBE_STARTUP_TIMEOUT = 30
 VIBE_HOOKS = Path("installer/vibe-hooks.toml")
@@ -227,6 +231,11 @@ def validate(data: dict[str, Any]) -> None:
         if "enabled_for" in server:
             if not session_only(server):
                 raise RegistryError(f"mcp server {name}: enabled_for only applies to a session-only server")
+            if "antigravity" in (server["enabled_for"] or []):
+                raise RegistryError(
+                    f"mcp server {name}: enabled_for may not name antigravity; "
+                    "Antigravity never gets Private Memory",
+                )
             if not set(server["enabled_for"] or []) <= ALWAYS_ON_AGENTS:
                 raise RegistryError(
                     f"mcp server {name}: enabled_for may only name {sorted(ALWAYS_ON_AGENTS)}, "
@@ -308,6 +317,21 @@ def validate(data: dict[str, Any]) -> None:
                 f"mcp server {server.get('name')} install_pinned needs an npm container pin "
                 "or pin: block, and a requires_binary",
             )
+
+    # A cask is installed by Homebrew, so it needs neither a binary to probe
+    # nor a shell install command; everything else needs both.
+    for cli in _entries(data, "clis"):
+        if cli.get("cask"):
+            continue
+        if not cli.get("binary"):
+            raise RegistryError(f"cli {cli.get('name')} must name a binary, or a cask that installs it")
+        if on_surface(cli, "workstation") and not cli.get("install"):
+            raise RegistryError(f"cli {cli.get('name')} must name an install command, or a cask")
+    for key in ("plugins", "language_servers", "mcp_servers", "skill_sources", "local_skills"):
+        for item in _entries(data, key):
+            for field in ("cask", "macos_only"):
+                if field in item:
+                    raise RegistryError(f"{key} entry {_label(item)} may not set {field}: it is a clis: key")
 
     _validate_claude_profiles(data)
     _validate_container(data)
@@ -827,6 +851,47 @@ def _render_vibe_mcp(data: dict[str, Any], launcher: str, config: str) -> str:
             if env:
                 lines += ["", "[mcp_servers.env]", *(f"{k} = {_toml_str(str(v))}" for k, v in env.items())]
     return "\n".join(lines) + "\n"
+
+
+def antigravity_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Antigravity's servers: the shared workstation fleet, never Private Memory."""
+    return vibe_servers(data, "vibe")
+
+
+def render_antigravity_mcp(data: dict[str, Any]) -> str:
+    """Render Antigravity's global ``mcp_config.json``.
+
+    Antigravity expands no environment variables, so a server that needs a
+    token is registered as the stdio proxy rather than with a ``headers``
+    block: the proxy reads the token from the agent-kit secret store at
+    start-up, and no secret value reaches this file. Merged into
+    ``~/.gemini/config/mcp_config.json`` by ``scripts/antigravity-merge-mcp.py``.
+    """
+    servers: dict[str, Any] = {}
+    for server in antigravity_servers(data):
+        name = server["name"]
+        if server["transport"] == "http":
+            url = server.get("url_workstation")
+            if not url:
+                raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
+            credential = server.get("credential")
+            if credential:
+                # /bin/sh -c: a GUI-launched app has no ~/.local/bin on PATH.
+                servers[name] = {
+                    "command": "/bin/sh",
+                    "args": ["-c", f"exec \"{ANTIGRAVITY_PROXY}\" --url {_q(str(url))} --secret {credential}"],
+                }
+                continue
+            entry: dict[str, Any] = {"serverUrl": url}
+        else:
+            entry = {"command": server["command"], "args": [str(a) for a in (server.get("args") or [])]}
+            env = server.get("env") or {}
+            if env:
+                entry["env"] = {str(k): str(v) for k, v in env.items()}
+        if server.get("timeout"):
+            entry["timeoutSeconds"] = server["timeout"]
+        servers[name] = entry
+    return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
 def _retired_vibe_hooks() -> str:
@@ -1893,6 +1958,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     for cli in _entries(data, "clis"):
         if not on_surface(cli, "workstation"):
             continue
+        # A cask installs through Homebrew rather than a shell command, so
+        # this loop has nothing to render for it.
+        if cli.get("cask"):
+            continue
         binary = cli["binary"]
         install = str(cli.get("install") or "")
         update = str(cli.get("update") or install)
@@ -2861,6 +2930,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
         VIBE_MCP: (render_vibe_mcp(data), 0o644),
         VIBE_PRIVATE_MCP: (render_vibe_private_mcp(data), 0o644),
+        ANTIGRAVITY_MCP: (render_antigravity_mcp(data), 0o644),
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
     }
 

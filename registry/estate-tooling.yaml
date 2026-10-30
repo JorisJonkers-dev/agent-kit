@@ -278,6 +278,24 @@ clis:
     version_command: "vibe --version"
     requires: [uv]
 
+  - name: antigravity-cli
+    binary: agy
+    cask: antigravity-cli
+    purpose: >-
+      Google Antigravity CLI (`agy`). Gets the workstation MCP fleet minus
+      Private Memory, the agent-kit instructions pointer and the kit's skills.
+    surfaces: [workstation]
+    macos_only: true
+    version_command: "agy --version"
+
+  - name: antigravity
+    cask: antigravity
+    purpose: >-
+      Google Antigravity, the desktop agent manager. Same configuration as the
+      CLI: one global MCP file, one global rules file, one global skills folder.
+    surfaces: [workstation]
+    macos_only: true
+
   - name: olcli
     binary: olcli
     purpose: >-
