@@ -2009,7 +2009,7 @@ function nativeTask(): Task {
 }
 
 describe('CouncilApp.monitor', () => {
-  let tempDirs: string[] = []
+  const tempDirs: string[] = []
 
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { force: true, recursive: true })))
@@ -2045,9 +2045,9 @@ describe('CouncilApp.monitor', () => {
     let callCount = 0
     const app = new CouncilApp({
       process: {
-        exec: vi.fn().mockImplementation(async () => {
+        exec: vi.fn().mockImplementation(() => {
           callCount += 1
-          return { stdout: callCount >= 2 ? 'matched' : 'not yet', stderr: '', exitCode: 0 }
+          return Promise.resolve({ stdout: callCount >= 2 ? 'matched' : 'not yet', stderr: '', exitCode: 0 })
         }),
       },
     })

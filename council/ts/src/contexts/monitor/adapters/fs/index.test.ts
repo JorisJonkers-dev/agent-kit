@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -104,8 +104,6 @@ describe('MonitorFsAdapter error cases', () => {
   it('skips monitor files that contain valid JSON but are not objects', async () => {
     const execDir = await makeTempDir()
     const adapter = createMonitorFsAdapter()
-    const { mkdir, writeFile } = await import('node:fs/promises')
-    const { join } = await import('node:path')
 
     await mkdir(join(execDir, 'monitors'), { recursive: true })
     // Valid JSON but not an object
@@ -121,8 +119,6 @@ describe('MonitorFsAdapter error cases', () => {
   it('skips non-JSON files in the monitors directory', async () => {
     const execDir = await makeTempDir()
     const adapter = createMonitorFsAdapter()
-    const { mkdir, writeFile } = await import('node:fs/promises')
-    const { join } = await import('node:path')
 
     await mkdir(join(execDir, 'monitors'), { recursive: true })
     // Write a file that is not valid JSON
@@ -138,8 +134,6 @@ describe('MonitorFsAdapter error cases', () => {
   it('skips non-.json files in the monitors directory', async () => {
     const execDir = await makeTempDir()
     const adapter = createMonitorFsAdapter()
-    const { mkdir, writeFile } = await import('node:fs/promises')
-    const { join } = await import('node:path')
 
     await mkdir(join(execDir, 'monitors'), { recursive: true })
     await writeFile(join(execDir, 'monitors', 'not-a-json-file.txt'), 'ignored', 'utf8')
@@ -155,8 +149,6 @@ describe('MonitorFsAdapter parseMonitorState validation', () => {
   it('skips state files with non-string name field', async () => {
     const execDir = await makeTempDir()
     const adapter = createMonitorFsAdapter()
-    const { mkdir, writeFile } = await import('node:fs/promises')
-    const { join } = await import('node:path')
 
     await mkdir(join(execDir, 'monitors'), { recursive: true })
     const badState = {
@@ -180,8 +172,6 @@ describe('MonitorFsAdapter parseMonitorState validation', () => {
   it('skips state files with non-number intervalMs field', async () => {
     const execDir = await makeTempDir()
     const adapter = createMonitorFsAdapter()
-    const { mkdir, writeFile } = await import('node:fs/promises')
-    const { join } = await import('node:path')
 
     await mkdir(join(execDir, 'monitors'), { recursive: true })
     const badState = {

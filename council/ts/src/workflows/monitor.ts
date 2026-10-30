@@ -196,7 +196,7 @@ async function runActionsRunsForShaProbe(
   const repo = parseBuiltinFlag(parts, 'repo')
   if (sha === undefined) throw new Error('probe:actions-runs-for-sha requires --sha')
   if (repo === undefined) throw new Error('probe:actions-runs-for-sha requires --repo')
-  const token = deps.env?.['GITHUB_TOKEN'] ?? process.env['GITHUB_TOKEN']
+  const token = deps.env?.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN
   if (token === undefined) throw new Error('GITHUB_TOKEN env var is required for probe:actions-runs-for-sha')
   const result = await deps.process.exec({
     command: 'sh',
@@ -217,7 +217,7 @@ async function runPrMergeableProbe(
   const pr = parseBuiltinFlag(parts, 'pr')
   if (repo === undefined) throw new Error('probe:pr-mergeable requires --repo')
   if (pr === undefined) throw new Error('probe:pr-mergeable requires --pr')
-  const token = deps.env?.['GITHUB_TOKEN'] ?? process.env['GITHUB_TOKEN']
+  const token = deps.env?.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN
   if (token === undefined) throw new Error('GITHUB_TOKEN env var is required for probe:pr-mergeable')
   const result = await deps.process.exec({
     command: 'sh',
@@ -238,7 +238,7 @@ async function runGhcrPackageVisibleProbe(
   const version = parseBuiltinFlag(parts, 'version')
   if (pkg === undefined) throw new Error('probe:ghcr-package-visible requires --package')
   if (version === undefined) throw new Error('probe:ghcr-package-visible requires --version')
-  const token = deps.env?.['GITHUB_TOKEN'] ?? process.env['GITHUB_TOKEN']
+  const token = deps.env?.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN
   if (token === undefined) throw new Error('GITHUB_TOKEN env var is required for probe:ghcr-package-visible')
   const result = await deps.process.exec({
     command: 'sh',
