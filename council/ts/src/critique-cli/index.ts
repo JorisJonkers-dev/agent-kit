@@ -2,6 +2,7 @@ import { ProcessEnvAdapter, SystemClockAdapter } from '../adapters/clock/index.j
 import { NodeProcessAdapter } from '../adapters/process/index.js'
 import {
   createCritiqueCommands,
+  CritiqueError,
   NodeCritiqueFiles,
   ProcessCritiqueGit,
   type CritiqueCommands,
@@ -30,6 +31,7 @@ export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow> [-
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".
+An error prints "status": "error" with its "code" and exits 1.
 `
 
 /** The runner's command line: one command, one JSON object in, one JSON object out. */
@@ -44,11 +46,24 @@ export async function runCritiqueCli(argv: readonly string[], runtime: CritiqueC
   try {
     const text =
       flag === '--json' ? (value ?? '') : flag === '--input' ? await runtime.readFile(value ?? '') : await runtime.readStdin()
-    const result = await runtime.commands[method](JSON.parse(text) as unknown)
+    const result = await runtime.commands[method](parseInput(text))
     return { exitCode: 0, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return { exitCode: 1, stderr: `critique ${name ?? ''}: ${message}\n`, stdout: `${JSON.stringify({ message, status: 'error' })}\n` }
+    const code = error instanceof CritiqueError ? error.code : 'unexpected'
+    return {
+      exitCode: 1,
+      stderr: `critique ${name ?? ''}: ${message}\n`,
+      stdout: `${JSON.stringify({ code, message, status: 'error' })}\n`,
+    }
+  }
+}
+
+function parseInput(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch (error) {
+    throw new CritiqueError('invalid-input', `the input is not JSON: ${String(error)}`)
   }
 }
 

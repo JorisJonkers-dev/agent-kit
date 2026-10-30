@@ -6,6 +6,7 @@ import { renderReport, renderSummary } from '../domain/report.js'
 import { countVerdicts, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts, type VerdictKind } from '../domain/verdicts.js'
 import type { FanOutResult } from './fan-out.js'
 import type { JsonObject } from '../domain/json.js'
+import { CritiqueError } from '../domain/outcomes.js'
 import { asObject, requireString } from './input.js'
 import { findingsPath, ledgerPath, manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
@@ -36,7 +37,7 @@ export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordRe
   const merged = JSON.parse(await deps.files.readText(findingsPath(runDir))) as FanOutResult
   const verdicts = readVerdicts(input, merged)
   const reportPath = join(runDir, 'report.md')
-  if (await deps.files.exists(reportPath)) throw new Error(`run ${manifest.run_id} is already recorded`)
+  if (await deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
 
   const run: AdjudicatedRun = {
     critics: merged.critics,
@@ -68,19 +69,21 @@ export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordRe
 
 function verdictFor(verdicts: ReadonlyMap<string, Verdict>, id: string): Verdict {
   const verdict = verdicts.get(id)
-  if (verdict === undefined) throw new Error(`no verdict for ${id}`)
+  if (verdict === undefined) throw new CritiqueError('invalid-input', `no verdict for ${id}`)
   return verdict
 }
 
 function readVerdicts(input: JsonObject, merged: FanOutResult): ReadonlyMap<string, Verdict> {
   const list = input.verdicts
-  if (!Array.isArray(list)) throw new Error('verdicts must be a list')
+  if (!Array.isArray(list)) throw new CritiqueError('invalid-input', 'verdicts must be a list')
   const known = new Set(merged.findings.map((finding) => finding.id))
   const verdicts = new Map<string, Verdict>()
   for (const item of list) {
     const verdict = readVerdict(asObject(item, 'a verdict'))
-    if (!known.has(verdict.finding_id)) throw new Error(`unknown finding ${verdict.finding_id}`)
-    if (verdicts.has(verdict.finding_id)) throw new Error(`more than one verdict for ${verdict.finding_id}`)
+    if (!known.has(verdict.finding_id)) throw new CritiqueError('invalid-input', `unknown finding ${verdict.finding_id}`)
+    if (verdicts.has(verdict.finding_id)) {
+      throw new CritiqueError('invalid-input', `more than one verdict for ${verdict.finding_id}`)
+    }
     verdicts.set(verdict.finding_id, verdict)
   }
   return verdicts
@@ -88,10 +91,14 @@ function readVerdicts(input: JsonObject, merged: FanOutResult): ReadonlyMap<stri
 
 function readVerdict(item: JsonObject): Verdict {
   const kind = requireString(item, 'verdict')
-  if (!(VERDICTS as readonly string[]).includes(kind)) throw new Error(`verdict must be one of ${VERDICTS.join(', ')}`)
+  if (!(VERDICTS as readonly string[]).includes(kind)) {
+    throw new CritiqueError('invalid-input', `verdict must be one of ${VERDICTS.join(', ')}`)
+  }
   const reason = kind === 'rejected' || item.reason !== undefined ? requireString(item, 'reason') : undefined
   const code = item.reason_code === undefined ? undefined : requireString(item, 'reason_code')
-  if (code !== undefined && !REASON_CODE.test(code)) throw new Error('reason_code must be a short lowercase slug')
+  if (code !== undefined && !REASON_CODE.test(code)) {
+    throw new CritiqueError('invalid-input', 'reason_code must be a short lowercase slug')
+  }
   return {
     finding_id: requireString(item, 'finding_id'),
     verdict: kind as VerdictKind,

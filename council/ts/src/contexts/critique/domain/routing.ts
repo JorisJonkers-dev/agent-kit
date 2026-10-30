@@ -1,4 +1,5 @@
 import type { CriticIdentity } from './critic.js'
+import { CritiqueError } from './outcomes.js'
 import type { ModelFamily, OrchestratorFamily } from './family.js'
 import type { CritiqueStage, Depth } from './stage.js'
 
@@ -71,12 +72,14 @@ export interface RosterRequest {
  */
 export function resolveRoster(routing: Routing, request: RosterRequest): Roster {
   const stage = routing.stages[request.stage]
-  if (stage === undefined) throw new Error(`routing has no stage ${request.stage}`)
+  if (stage === undefined) throw new CritiqueError('invalid-routing', `routing has no stage ${request.stage}`)
   const critics: RosterCritic[] = []
   const dropped: DroppedCritic[] = []
   for (const slot of stage.base) {
     const client = routing.clients[slot.client]
-    if (client === undefined) throw new Error(`routing stage ${request.stage} names unknown client ${slot.client}`)
+    if (client === undefined) {
+      throw new CritiqueError('invalid-routing', `routing stage ${request.stage} names unknown client ${slot.client}`)
+    }
     const reason =
       dropReason(client.family, request) ??
       (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family)

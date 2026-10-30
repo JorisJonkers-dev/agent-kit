@@ -1,5 +1,6 @@
 import { MODEL_FAMILIES, type ModelFamily } from './family.js'
 import { isOneOf } from './json.js'
+import { CritiqueError, refusal, type Refusal } from './outcomes.js'
 
 /** The GitHub organisation whose repositories never send content to any critic. */
 const DENIED_OWNER = 'nedap'
@@ -17,7 +18,7 @@ export interface RemoteLocation {
 
 export function parseModelFamilies(value: readonly string[]): readonly ModelFamily[] {
   return value.map((family) => {
-    if (!isOneOf(MODEL_FAMILIES, family)) throw new Error(`unknown model family: ${family}`)
+    if (!isOneOf(MODEL_FAMILIES, family)) throw new CritiqueError('invalid-input', `unknown model family: ${family}`)
     return family
   })
 }
@@ -44,9 +45,7 @@ export function parseRemote(url: string): RemoteLocation | undefined {
   return { host, owner: owner.toLowerCase(), repo: repo.toLowerCase() }
 }
 
-export type RepositoryDecision =
-  | { readonly kind: 'refused'; readonly reason: 'no-remote' | 'nedap'; readonly message: string }
-  | { readonly kind: 'identified'; readonly key: string }
+export type RepositoryDecision = Refusal | { readonly status: 'identified'; readonly key: string }
 
 /**
  * Decides which allowlist key a repository has. Any remote owned by `nedap`,
@@ -60,22 +59,14 @@ export function identifyRepository(remotes: readonly GitRemote[]): RepositoryDec
   })
   const denied = located.find((remote) => remote.location.owner.split('/')[0] === DENIED_OWNER)
   if (denied !== undefined) {
-    return {
-      kind: 'refused',
-      reason: 'nedap',
-      message: `remote ${denied.name} belongs to the ${DENIED_OWNER} organisation; nothing is sent to any critic`,
-    }
+    return refusal('nedap', `remote ${denied.name} belongs to the ${DENIED_OWNER} organisation; nothing is sent to any critic`)
   }
   const primary = located.find((remote) => remote.name === 'origin') ?? located[0]
   if (primary === undefined) {
-    return {
-      kind: 'refused',
-      reason: 'no-remote',
-      message: 'the repository has no remote, so it counts as not opted in',
-    }
+    return refusal('no-remote', 'the repository has no remote, so it counts as not opted in')
   }
   const { host, owner, repo } = primary.location
-  return { kind: 'identified', key: `${host}/${owner}/${repo}` }
+  return { key: `${host}/${owner}/${repo}`, status: 'identified' }
 }
 
 export interface AllowlistEntry {

@@ -9,7 +9,8 @@ import { CRITIQUE_STAGES, type CritiqueStage, type Depth } from '../domain/stage
 import { asObject, requireOneOf, requireString, requireStringList } from './input.js'
 import { manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
-import { isRefusal, readAllowlist, resolveRepository, type Refusal, type ResolvedRepository } from './repository.js'
+import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
+import { readAllowlist, resolveRepository, type ResolvedRepository } from './repository.js'
 
 /** Decision docs tried, in order, when the caller names none. */
 const DEFAULT_REFERENCES = ['GLOSSARY.md', 'CONTEXT.md']
@@ -38,14 +39,10 @@ export async function prepare(deps: CritiqueDeps, raw: unknown): Promise<Prepare
   const stage = requireOneOf(input, 'stage', CRITIQUE_STAGES)
   const orchestratorFamily = requireOneOf(input, 'orchestrator_family', ORCHESTRATOR_FAMILIES)
   const repository = await resolveRepository(deps, requireString(input, 'repo'))
-  if (isRefusal(repository)) return repository
+  if (repository.status === 'refused') return repository
   const entry = (await readAllowlist(deps)).repositories[repository.key]
   if (entry === undefined) {
-    return {
-      message: `${repository.key} has no family allowlist entry on this machine; record one with allow`,
-      reason: 'not-opted-in',
-      status: 'refused',
-    }
+    return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
   }
   const routing = parseRouting(await deps.files.readText(join(deps.assetsRoot, 'routing.json')))
   const roster = resolveRoster(routing, {
@@ -134,6 +131,6 @@ async function defaultReferences(deps: CritiqueDeps, root: string): Promise<read
 
 function insideRepository(root: string, path: string): string {
   const rel = relative(root, isAbsolute(path) ? path : resolve(root, path))
-  if (rel.startsWith('..') || isAbsolute(rel)) throw new Error(`${path} is outside the repository`)
+  if (rel.startsWith('..') || isAbsolute(rel)) throw new CritiqueError('outside-repository', `${path} is outside the repository`)
   return rel
 }

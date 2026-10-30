@@ -12,6 +12,7 @@ import { findingsPath, manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 
 export interface FanOutResult {
+  readonly status: 'reviewed'
   readonly run_id: string
   readonly stage: CritiqueStage
   /** True when no critic of the stage produced a usable review. */
@@ -40,6 +41,7 @@ export async function fanOut(deps: CritiqueDeps, raw: unknown): Promise<FanOutRe
     findings_path: findingsPath(runDir),
     run_id: manifest.run_id,
     stage: manifest.stage,
+    status: 'reviewed',
   }
   await deps.files.writeText(result.findings_path, `${JSON.stringify(result, null, 2)}\n`)
   return result

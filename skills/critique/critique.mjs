@@ -104,11 +104,24 @@ function isOneOf(allowed, value) {
   return typeof value === "string" && allowed.includes(value);
 }
 
+// src/contexts/critique/domain/outcomes.ts
+function refusal(reason, message) {
+  return { message, reason, status: "refused" };
+}
+var CritiqueError = class extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+  code;
+  name = "CritiqueError";
+};
+
 // src/contexts/critique/domain/family-allowlist.ts
 var DENIED_OWNER = "nedap";
 function parseModelFamilies(value) {
   return value.map((family) => {
-    if (!isOneOf(MODEL_FAMILIES, family)) throw new Error(`unknown model family: ${family}`);
+    if (!isOneOf(MODEL_FAMILIES, family)) throw new CritiqueError("invalid-input", `unknown model family: ${family}`);
     return family;
   });
 }
@@ -131,22 +144,14 @@ function identifyRepository(remotes) {
   });
   const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
   if (denied !== void 0) {
-    return {
-      kind: "refused",
-      reason: "nedap",
-      message: `remote ${denied.name} belongs to the ${DENIED_OWNER} organisation; nothing is sent to any critic`
-    };
+    return refusal("nedap", `remote ${denied.name} belongs to the ${DENIED_OWNER} organisation; nothing is sent to any critic`);
   }
   const primary = located.find((remote) => remote.name === "origin") ?? located[0];
   if (primary === void 0) {
-    return {
-      kind: "refused",
-      reason: "no-remote",
-      message: "the repository has no remote, so it counts as not opted in"
-    };
+    return refusal("no-remote", "the repository has no remote, so it counts as not opted in");
   }
   const { host, owner, repo } = primary.location;
-  return { kind: "identified", key: `${host}/${owner}/${repo}` };
+  return { key: `${host}/${owner}/${repo}`, status: "identified" };
 }
 var EMPTY_ALLOWLIST = { version: 1, repositories: {} };
 function parseAllowlist(text) {
@@ -161,23 +166,23 @@ function withEntry(allowlist, key, families, at) {
 
 // src/contexts/critique/application/input.ts
 function asObject(value, what) {
-  if (!isJsonObject(value)) throw new Error(`${what} must be a JSON object`);
+  if (!isJsonObject(value)) throw new CritiqueError("invalid-input", `${what} must be a JSON object`);
   return value;
 }
 function requireString(input, key) {
   const value = input[key];
-  if (typeof value !== "string" || value.length === 0) throw new Error(`${key} must be a non-empty string`);
+  if (typeof value !== "string" || value.length === 0) throw new CritiqueError("invalid-input", `${key} must be a non-empty string`);
   return value;
 }
 function requireOneOf(input, key, allowed) {
   const value = requireString(input, key);
-  if (!isOneOf(allowed, value)) throw new Error(`${key} must be one of ${allowed.join(", ")}`);
+  if (!isOneOf(allowed, value)) throw new CritiqueError("invalid-input", `${key} must be one of ${allowed.join(", ")}`);
   return value;
 }
 function requireStringList(input, key) {
   const value = input[key];
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
-    throw new Error(`${key} must be a list of strings`);
+    throw new CritiqueError("invalid-input", `${key} must be a list of strings`);
   }
   return value;
 }
@@ -200,13 +205,12 @@ function findingsPath(runDir) {
 // src/contexts/critique/application/repository.ts
 async function resolveRepository(deps, cwd) {
   const decision = identifyRepository(await deps.git.remotes(cwd));
-  if (decision.kind === "refused") {
-    return { message: decision.message, reason: decision.reason, status: "refused" };
-  }
+  if (decision.status === "refused") return decision;
   return {
     commonDir: await deps.git.commonDir(cwd),
     key: decision.key,
-    root: await deps.git.root(cwd)
+    root: await deps.git.root(cwd),
+    status: "resolved"
   };
 }
 async function readAllowlist(deps) {
@@ -214,16 +218,13 @@ async function readAllowlist(deps) {
   if (!await deps.files.exists(path)) return EMPTY_ALLOWLIST;
   return parseAllowlist(await deps.files.readText(path));
 }
-function isRefusal(value) {
-  return "status" in value && value.status === "refused";
-}
 
 // src/contexts/critique/application/allow.ts
 async function allow(deps, raw) {
   const input = asObject(raw, "allow input");
   const families = parseModelFamilies(requireStringList(input, "families"));
   const repository = await resolveRepository(deps, requireString(input, "repo"));
-  if (isRefusal(repository)) return repository;
+  if (repository.status === "refused") return repository;
   const path = allowlistPath(deps.env);
   const next = withEntry(await readAllowlist(deps), repository.key, families, deps.clock.now());
   await deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
@@ -278,12 +279,14 @@ function parseRouting(text) {
 }
 function resolveRoster(routing, request) {
   const stage = routing.stages[request.stage];
-  if (stage === void 0) throw new Error(`routing has no stage ${request.stage}`);
+  if (stage === void 0) throw new CritiqueError("invalid-routing", `routing has no stage ${request.stage}`);
   const critics = [];
   const dropped = [];
   for (const slot of stage.base) {
     const client = routing.clients[slot.client];
-    if (client === void 0) throw new Error(`routing stage ${request.stage} names unknown client ${slot.client}`);
+    if (client === void 0) {
+      throw new CritiqueError("invalid-routing", `routing stage ${request.stage} names unknown client ${slot.client}`);
+    }
     const reason = dropReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
     if (reason === void 0) {
       critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}` });
@@ -473,7 +476,8 @@ async function fanOut(deps, raw) {
     findings,
     findings_path: findingsPath(runDir),
     run_id: manifest.run_id,
-    stage: manifest.stage
+    stage: manifest.stage,
+    status: "reviewed"
   };
   await deps.files.writeText(result2.findings_path, `${JSON.stringify(result2, null, 2)}
 `);
@@ -551,14 +555,10 @@ async function prepare(deps, raw) {
   const stage = requireOneOf(input, "stage", CRITIQUE_STAGES);
   const orchestratorFamily = requireOneOf(input, "orchestrator_family", ORCHESTRATOR_FAMILIES);
   const repository = await resolveRepository(deps, requireString(input, "repo"));
-  if (isRefusal(repository)) return repository;
+  if (repository.status === "refused") return repository;
   const entry = (await readAllowlist(deps)).repositories[repository.key];
   if (entry === void 0) {
-    return {
-      message: `${repository.key} has no family allowlist entry on this machine; record one with allow`,
-      reason: "not-opted-in",
-      status: "refused"
-    };
+    return refusal("not-opted-in", `${repository.key} has no family allowlist entry on this machine; record one with allow`);
   }
   const routing = parseRouting(await deps.files.readText(join3(deps.assetsRoot, "routing.json")));
   const roster = resolveRoster(routing, {
@@ -631,7 +631,7 @@ async function defaultReferences(deps, root) {
 }
 function insideRepository(root, path) {
   const rel = relative(root, isAbsolute(path) ? path : resolve(root, path));
-  if (rel.startsWith("..") || isAbsolute(rel)) throw new Error(`${path} is outside the repository`);
+  if (rel.startsWith("..") || isAbsolute(rel)) throw new CritiqueError("outside-repository", `${path} is outside the repository`);
   return rel;
 }
 
@@ -846,7 +846,7 @@ async function record(deps, raw) {
   const merged = JSON.parse(await deps.files.readText(findingsPath(runDir)));
   const verdicts = readVerdicts(input, merged);
   const reportPath = join4(runDir, "report.md");
-  if (await deps.files.exists(reportPath)) throw new Error(`run ${manifest.run_id} is already recorded`);
+  if (await deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
   const run = {
     critics: merged.critics,
     degraded: merged.degraded,
@@ -877,28 +877,34 @@ async function record(deps, raw) {
 }
 function verdictFor(verdicts, id) {
   const verdict = verdicts.get(id);
-  if (verdict === void 0) throw new Error(`no verdict for ${id}`);
+  if (verdict === void 0) throw new CritiqueError("invalid-input", `no verdict for ${id}`);
   return verdict;
 }
 function readVerdicts(input, merged) {
   const list = input.verdicts;
-  if (!Array.isArray(list)) throw new Error("verdicts must be a list");
+  if (!Array.isArray(list)) throw new CritiqueError("invalid-input", "verdicts must be a list");
   const known = new Set(merged.findings.map((finding) => finding.id));
   const verdicts = /* @__PURE__ */ new Map();
   for (const item of list) {
     const verdict = readVerdict(asObject(item, "a verdict"));
-    if (!known.has(verdict.finding_id)) throw new Error(`unknown finding ${verdict.finding_id}`);
-    if (verdicts.has(verdict.finding_id)) throw new Error(`more than one verdict for ${verdict.finding_id}`);
+    if (!known.has(verdict.finding_id)) throw new CritiqueError("invalid-input", `unknown finding ${verdict.finding_id}`);
+    if (verdicts.has(verdict.finding_id)) {
+      throw new CritiqueError("invalid-input", `more than one verdict for ${verdict.finding_id}`);
+    }
     verdicts.set(verdict.finding_id, verdict);
   }
   return verdicts;
 }
 function readVerdict(item) {
   const kind = requireString(item, "verdict");
-  if (!VERDICTS.includes(kind)) throw new Error(`verdict must be one of ${VERDICTS.join(", ")}`);
+  if (!VERDICTS.includes(kind)) {
+    throw new CritiqueError("invalid-input", `verdict must be one of ${VERDICTS.join(", ")}`);
+  }
   const reason = kind === "rejected" || item.reason !== void 0 ? requireString(item, "reason") : void 0;
   const code = item.reason_code === void 0 ? void 0 : requireString(item, "reason_code");
-  if (code !== void 0 && !REASON_CODE.test(code)) throw new Error("reason_code must be a short lowercase slug");
+  if (code !== void 0 && !REASON_CODE.test(code)) {
+    throw new CritiqueError("invalid-input", "reason_code must be a short lowercase slug");
+  }
   return {
     finding_id: requireString(item, "finding_id"),
     verdict: kind,
@@ -977,6 +983,7 @@ var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow> [--input FI
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".
+An error prints "status": "error" with its "code" and exits 1.
 `;
 async function runCritiqueCli(argv, runtime2) {
   const [name, flag, value, ...rest] = argv;
@@ -988,14 +995,26 @@ async function runCritiqueCli(argv, runtime2) {
   }
   try {
     const text = flag === "--json" ? value ?? "" : flag === "--input" ? await runtime2.readFile(value ?? "") : await runtime2.readStdin();
-    const result2 = await runtime2.commands[method](JSON.parse(text));
+    const result2 = await runtime2.commands[method](parseInput(text));
     return { exitCode: 0, stderr: "", stdout: `${JSON.stringify(result2, null, 2)}
 ` };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { exitCode: 1, stderr: `critique ${name ?? ""}: ${message}
-`, stdout: `${JSON.stringify({ message, status: "error" })}
-` };
+    const code = error instanceof CritiqueError ? error.code : "unexpected";
+    return {
+      exitCode: 1,
+      stderr: `critique ${name ?? ""}: ${message}
+`,
+      stdout: `${JSON.stringify({ code, message, status: "error" })}
+`
+    };
+  }
+}
+function parseInput(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new CritiqueError("invalid-input", `the input is not JSON: ${String(error)}`);
   }
 }
 function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.env) {

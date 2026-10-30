@@ -67,15 +67,39 @@ describe('critique runner command line', () => {
     ).toMatchObject({ reason: 'not-opted-in', status: 'refused' })
   })
 
-  it('reports a failing command as JSON with exit code 1', async () => {
+  it('reports input that is not JSON as an invalid-input error with exit code 1', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
 
     const result = await runCritiqueCli(['allow', '--json', '{not json'], cli(h))
 
     expect(result.exitCode).toBe(1)
-    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'error' })
+    expect(JSON.parse(result.stdout)).toMatchObject({ code: 'invalid-input', status: 'error' })
     expect(result.stderr).toMatch(/^critique allow: /)
+  })
+
+  it('reports the code of the error a command raises', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.commands.allow({ families: ['mistral'], repo: h.repo })
+
+    const result = await runCritiqueCli(
+      ['prepare', '--json', JSON.stringify({ orchestrator_family: 'anthropic', repo: h.repo, spec: '../x.md', stage: 'spec' })],
+      cli(h),
+    )
+
+    expect(result.exitCode).toBe(1)
+    expect(JSON.parse(result.stdout)).toEqual({ code: 'outside-repository', message: '../x.md is outside the repository', status: 'error' })
+  })
+
+  it('reports an error the runner did not expect with the code unexpected', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    const result = await runCritiqueCli(['allow', '--input', join(h.home, 'missing.json')], cli(h))
+
+    expect(result.exitCode).toBe(1)
+    expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unexpected', status: 'error' })
   })
 
   it.each([[[]], [['explode']], [['prepare', '--input']], [['prepare', '--yaml', 'x']], [['prepare', '--json', '{}', 'extra']]])(
