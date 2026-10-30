@@ -738,6 +738,10 @@ VIBE_PRIVATE_HOME="${HOME}/.vibe-private"
 ANTIGRAVITY_HOME="${HOME}/.gemini/config"
 # The CLI reads skills from its own folder as well as the global one.
 ANTIGRAVITY_CLI_HOME="${HOME}/.gemini/antigravity-cli"
+# 0 where Antigravity is not a supported surface: setup then skips it whole,
+# rather than leaving half of it behind in ~/.gemini.
+ANTIGRAVITY_READY=0
+[ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1
 # 0 after a failed split of the Vibe home: nothing then touches either home.
 VIBE_HOMES_READY=1
 
@@ -1460,7 +1464,9 @@ else
     install_kit_command vibe-private
     # Antigravity's MCP config cannot hold a token, so Shared Memory reaches
     # it through this stdio proxy, which reads the token from the keychain.
-    install_kit_command antigravity-mcp-proxy
+    if [ "${ANTIGRAVITY_READY}" = 1 ]; then
+      install_kit_command antigravity-mcp-proxy
+    fi
   fi
   # Retired: Vibe saves to memory by tool now, not every turn.
   retire_kit_command vibe-retain-private
@@ -2341,7 +2347,7 @@ for install in installs:
     # Antigravity reads one global mcp_config.json, shared by the app, the CLI
     # and the IDE, and has no `mcp add`. The fragment names the stdio proxy
     # for any server that needs a token, so no secret reaches that file.
-    if [ "${CLOUD}" != 1 ] && command -v agy >/dev/null 2>&1; then
+    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ] && command -v agy >/dev/null 2>&1; then
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"
       elif python3 "${KIT_ROOT}/scripts/antigravity-merge-mcp.py" \
@@ -2353,7 +2359,7 @@ for install in installs:
     fi
     # Antigravity's global rules file. Never ~/.gemini/AGENTS.md or
     # GEMINI.md: Gemini CLI reads those.
-    if [ "${CLOUD}" != 1 ]; then
+    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then
       _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared
     fi
     converge_mcp
@@ -2467,7 +2473,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_HOME}/skills/pr-composer"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2485,7 +2491,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/pr-composer"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2581,7 +2587,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_HOME}/skills/council"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2599,7 +2605,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/council"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2694,7 +2700,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_HOME}/skills/kb-first"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2712,7 +2718,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/kb-first"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2807,7 +2813,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_HOME}/skills/token-economy"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2825,7 +2831,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/token-economy"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2920,7 +2926,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_HOME}/skills/agent-session-bootstrap"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2938,7 +2944,7 @@ else
     fi
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/agent-session-bootstrap"
-  if [ "${CLOUD}" = 1 ]; then
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"

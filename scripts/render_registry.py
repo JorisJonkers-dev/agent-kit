@@ -1693,6 +1693,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('ANTIGRAVITY_HOME="${HOME}/.gemini/config"')
     w("# The CLI reads skills from its own folder as well as the global one.")
     w('ANTIGRAVITY_CLI_HOME="${HOME}/.gemini/antigravity-cli"')
+    w("# 0 where Antigravity is not a supported surface: setup then skips it whole,")
+    w("# rather than leaving half of it behind in ~/.gemini.")
+    w("ANTIGRAVITY_READY=0")
+    w('[ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1')
     w("# 0 after a failed split of the Vibe home: nothing then touches either home.")
     w("VIBE_HOMES_READY=1")
     w("")
@@ -2199,7 +2203,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    install_kit_command vibe-private")
     w("    # Antigravity's MCP config cannot hold a token, so Shared Memory reaches")
     w("    # it through this stdio proxy, which reads the token from the keychain.")
-    w("    install_kit_command antigravity-mcp-proxy")
+    w('    if [ "${ANTIGRAVITY_READY}" = 1 ]; then')
+    w("      install_kit_command antigravity-mcp-proxy")
+    w("    fi")
     w("  fi")
     w("  # Retired: Vibe saves to memory by tool now, not every turn.")
     w("  retire_kit_command vibe-retain-private")
@@ -2579,7 +2585,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    # Antigravity reads one global mcp_config.json, shared by the app, the CLI")
     w("    # and the IDE, and has no `mcp add`. The fragment names the stdio proxy")
     w("    # for any server that needs a token, so no secret reaches that file.")
-    w('    if [ "${CLOUD}" != 1 ] && command -v agy >/dev/null 2>&1; then')
+    w('    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ] && command -v agy >/dev/null 2>&1; then')
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"')
     w("      elif python3 \"${KIT_ROOT}/scripts/antigravity-merge-mcp.py\" \\")
@@ -2591,7 +2597,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    fi")
     w("    # Antigravity's global rules file. Never ~/.gemini/AGENTS.md or")
     w("    # GEMINI.md: Gemini CLI reads those.")
-    w('    if [ "${CLOUD}" != 1 ]; then')
+    w('    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then')
     w('      _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared')
     w("    fi")
     w("    converge_mcp")
@@ -2663,8 +2669,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
         for home in homes:
             w(f'  dest="${{{home}}}/skills/{name}"')
             if home in ("ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"):
-                # Antigravity is workstation-only: a cloud run never builds it.
-                w('  if [ "${CLOUD}" = 1 ]; then')
+                # Antigravity is a macOS-only surface: a cloud run never builds
+                # it, and neither does a Linux one, which skips it entirely.
+                w('  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then')
                 w("    :")
                 w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
             elif home == "VIBE_PRIVATE_HOME":
