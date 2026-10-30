@@ -22,6 +22,7 @@ uv run pytest tests/test_registry_render.py
 | `registry/generated/vibe/mcp-servers.toml` | a workstation's `~/.vibe/config.toml`, via `scripts/vibe-merge-mcp.py` |
 | `registry/generated/vibe-private/mcp-servers.toml` | a workstation's `~/.vibe-private/config.toml`, via `scripts/vibe-merge-mcp.py` |
 | `registry/generated/antigravity/mcp_config.json` | a workstation's `~/.gemini/config/mcp_config.json`, via `scripts/antigravity-merge-mcp.py` |
+| `registry/generated/workstation-secrets.json` | `scripts/agent-kit-keys.py`, as the table of tokens and keys to get |
 
 A hand edit to any of them fails `--check`, and so does a registry change that
 was never rendered. Both are one test.
