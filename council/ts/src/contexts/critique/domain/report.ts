@@ -136,7 +136,7 @@ function criticLine(critic: RecordedCritic): string {
   const cost = critic.cost_usd === null ? 'cost unknown' : `$${critic.cost_usd.toFixed(4)}`
   const status = critic.status === 'ok' ? 'ok' : `failed (${critic.failure ?? 'unknown'})`
   const checked = critic.no_findings_reason === undefined ? '' : ` (checked: ${critic.no_findings_reason})`
-  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} findings, ${cost}${checked}`
+  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? '' : 's'}, ${cost}${checked}`
 }
 
 function line(finding: RecordedFinding, tail?: string): string {

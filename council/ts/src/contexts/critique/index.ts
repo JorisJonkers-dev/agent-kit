@@ -7,3 +7,4 @@ export type { CritiqueDeps, CritiqueFilesPort, CritiqueGitPort } from './applica
 export type { Refusal } from './application/repository.js'
 export type { GitRemote, ModelFamily } from './domain/data-policy.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
+export { ProcessCritiqueGit } from './adapters/git/index.js'
