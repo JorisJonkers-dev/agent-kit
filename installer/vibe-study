@@ -2,14 +2,161 @@
 # managed by agent-kit setup-workstation.sh
 #
 # vibe-study [ARGS...]
+# vibe-study --login
 #
 # Mistral Vibe signed in with the Study account, in the shared Vibe home that
 # plain `vibe` uses too: Shared Memory only, no passphrase, safe for agents.
 #
 # Vibe keeps one machine-wide login (the personal account). A key in the
-# environment overrides it, so this hands Vibe the Study account key, which
-# agent-kit-keys stores unexported as MISTRAL_STUDY_API_KEY.
+# environment overrides it, so this hands Vibe the Study account's key, which
+# agent-kit keeps unexported as MISTRAL_STUDY_API_KEY.
+#
+# --login gets that key: Vibe's own browser sign-in (`vibe --setup`), run in a
+# throwaway Vibe home with Vibe's keychain switched off, so the key it mints
+# lands in that home's .env instead of replacing the personal login.
 set -euo pipefail
+
+VAR=MISTRAL_STUDY_API_KEY
+SAFE='^[A-Za-z0-9._~+/=-]+$'
+config="${HOME}/.config/agent-kit"
+
+fail() { echo "vibe-study: $*" >&2; exit 1; }
+
+# The agent-kit secret store agent-kit-keys uses: the keychain, or a 0600 file.
+backend() {
+  if [ -n "${AGENT_KIT_SECRETS_BACKEND:-}" ]; then
+    printf '%s' "${AGENT_KIT_SECRETS_BACKEND}"
+  elif command -v security >/dev/null 2>&1; then
+    printf keychain
+  else
+    printf file
+  fi
+}
+
+# The one-line reader setup's env.sh defines for the store (keychain or file).
+# The launcher reads the key with it, so --login checks with it too.
+secret_reader() {
+  local env_sh="${config}/env.sh"
+  [ -f "${env_sh}" ] && grep -m1 '^_agent_kit_secret() ' "${env_sh}" || true
+}
+
+read_secret() {
+  local reader="$1"
+  (eval "${reader}"; _agent_kit_secret "${VAR}" 2>/dev/null || true)
+}
+
+store_key() {
+  local value="$1" file tmp
+  if [ "$(backend)" = keychain ]; then
+    # Over stdin, never argv; the value passed SAFE, so it needs no escaping.
+    # The account is the one agent-kit-keys uses (Python's getpass.getuser()).
+    printf 'add-generic-password -U -a "%s" -s "agent-kit.%s" -w "%s"\n' \
+      "${LOGNAME:-${USER:-$(id -un)}}" "${VAR}" "${value}" | security -i >/dev/null
+    return
+  fi
+  file="${config}/secrets.env"
+  mkdir -p "${config}"
+  tmp="$(mktemp "${config}/.secrets.XXXXXX")"
+  chmod 600 "${tmp}"
+  { if [ -f "${file}" ]; then grep -v "^${VAR}=" "${file}" || true; fi; printf '%s=%s\n' "${VAR}" "${value}"; } > "${tmp}"
+  mv "${tmp}" "${file}"
+}
+
+# Vibe's own login, the keychain item it reads and writes (macOS only).
+# Sets personal_state to present, absent, unchecked (no keychain) or error.
+read_personal_login() {
+  local rc=0
+  personal_value=""
+  if ! command -v security >/dev/null 2>&1; then
+    personal_state=unchecked
+    return
+  fi
+  personal_value="$(security find-generic-password -s ai.mistral.vibe -a MISTRAL_API_KEY -w 2>/dev/null)" || rc=$?
+  case "${rc}" in
+    0) personal_state=present ;;
+    44) personal_state=absent ;; # security: "could not be found"
+    *) personal_state=error ;;
+  esac
+}
+
+# Puts back what read_personal_login saw before, with the access Vibe itself
+# gives the item (-A); then checks that it is back.
+restore_personal_login() {
+  local state="$1" value="$2"
+  if [ "${state}" = present ]; then
+    printf 'add-generic-password -U -s "ai.mistral.vibe" -a "MISTRAL_API_KEY" -w "%s" -A\n' "${value}" \
+      | security -i >/dev/null
+  else
+    security delete-generic-password -s ai.mistral.vibe -a MISTRAL_API_KEY >/dev/null 2>&1 || true
+  fi
+  read_personal_login
+  [ "${personal_state}" = "${state}" ] && [ "${personal_value}" = "${value}" ]
+}
+
+# ok, refused, or unchecked (Mistral did not answer). The key goes to curl
+# on stdin, never argv.
+check_key() {
+  local rc=0
+  command -v curl >/dev/null 2>&1 || { echo unchecked; return; }
+  printf 'Authorization: Bearer %s\n' "$1" \
+    | curl -fsS -o /dev/null --max-time 20 -H @- https://api.mistral.ai/v1/models 2>/dev/null || rc=$?
+  case "${rc}" in 0) echo ok ;; 22) echo refused ;; *) echo unchecked ;; esac
+}
+
+login() {
+  local reader before_state before_value home key verdict
+  reader="$(secret_reader)"
+  [ -n "${reader}" ] || fail "no ~/.config/agent-kit/env.sh to read the key back with; run setup-workstation in a terminal first"
+  read_personal_login
+  before_state="${personal_state}"
+  before_value="${personal_value}"
+  [ "${before_state}" != error ] \
+    || fail "could not read your personal login from the keychain, so it could not be kept safe; nothing changed"
+  if [ "${before_state}" = present ] && ! [[ "${before_value}" =~ ${SAFE} ]]; then
+    fail "your personal login has characters this cannot put back safely; nothing changed"
+  fi
+
+  home="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '${home}'" EXIT
+  echo "vibe-study: sign in with the Study account in the browser that opens." >&2
+  # VIBE_TEST_DISABLE_KEYRING is Vibe's own switch (vibe/utils/keyring.py): with
+  # it, the sign-in saves the key to ${VIBE_HOME}/.env, not the shared keychain.
+  env -u MISTRAL_API_KEY -u MEMORY_PRIVATE_TOKEN VIBE_HOME="${home}" VIBE_TEST_DISABLE_KEYRING=1 \
+    vibe --setup || fail "the sign-in did not finish; nothing changed"
+
+  if [ "${before_state}" != unchecked ]; then
+    read_personal_login
+    if [ "${personal_state}" = error ]; then
+      fail "could not read your personal login after signing in; check that plain vibe still signs you in"
+    fi
+    if [ "${personal_state}" != "${before_state}" ] || [ "${personal_value}" != "${before_value}" ]; then
+      # This Vibe ignored the switch and replaced the personal login: put it back.
+      restore_personal_login "${before_state}" "${before_value}" \
+        || fail "this Vibe saved the Study login over your personal login, and putting it back failed; sign in again with plain vibe"
+      fail "this Vibe saved the Study login over your personal login; the personal login is restored." \
+        "Its keychain switch may have changed: see docs/SETUP.md (Vibe launchers and Private Memory)."
+    fi
+  fi
+
+  key="$(sed -n 's/^MISTRAL_API_KEY=//p' "${home}/.env" 2>/dev/null | tail -n 1)"
+  key="${key#[\'\"]}"
+  key="${key%[\'\"]}"
+  [ -n "${key}" ] || fail "Vibe saved no key to its home after signing in; nothing changed"
+  [[ "${key}" =~ ${SAFE} ]] || fail "the key Vibe saved has unexpected characters; not stored"
+  verdict="$(check_key "${key}")"
+  [ "${verdict}" != refused ] || fail "Mistral refused the key this sign-in minted; not stored"
+  store_key "${key}"
+  [ "$(read_secret "${reader}")" = "${key}" ] \
+    || fail "the Study account key did not read back from the agent-kit store; vibe-study cannot use it"
+  [ "${verdict}" = ok ] || echo "vibe-study: Mistral did not answer, so the key was not checked" >&2
+  echo "vibe-study: signed in; the Study account key is stored as ${VAR}" >&2
+}
+
+if [ "${1:-}" = --login ]; then
+  login
+  exit 0
+fi
 
 # Never pass on an unlock: run from inside a vibe-private session, the token
 # and that session's Vibe home would otherwise reach this run.
@@ -20,20 +167,13 @@ if [ -z "${VIBE_HOME:-}" ] || [ "${VIBE_HOME%/}" = "${private_home}" ]; then
 fi
 
 key="${MISTRAL_STUDY_API_KEY:-}"
-env_sh="${HOME}/.config/agent-kit/env.sh"
-if [ -z "${key}" ] && [ -f "${env_sh}" ]; then
-  # Only the store's one-line reader (keychain or secrets file), not the rest
-  # of env.sh: that would look up every other secret on each launch.
-  reader="$(grep -m1 '^_agent_kit_secret() ' "${env_sh}" || true)"
-  if [ -n "${reader}" ]; then
-    key="$(eval "${reader}"; _agent_kit_secret MISTRAL_STUDY_API_KEY 2>/dev/null || true)"
-  fi
-fi
 if [ -z "${key}" ]; then
-  echo "vibe-study: no Study account key. Create an API key in the Study account's Mistral console," >&2
-  echo "then run setup-workstation in a terminal and paste it as MISTRAL_STUDY_API_KEY." >&2
-  exit 1
+  # Only the store's one-line reader, not the rest of env.sh: that would look
+  # up every other secret on each launch.
+  reader="$(secret_reader)"
+  [ -z "${reader}" ] || key="$(read_secret "${reader}")"
 fi
+[ -n "${key}" ] || fail "not signed in with the Study account yet; run: vibe-study --login"
 unset MISTRAL_STUDY_API_KEY
 export MISTRAL_API_KEY="${key}"
 exec vibe "$@"

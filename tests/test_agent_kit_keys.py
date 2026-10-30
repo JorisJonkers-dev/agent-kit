@@ -458,18 +458,36 @@ def test_env_sh_drops_the_old_kit_vibe_function_but_never_one_of_your_own(
         assert out.stdout.strip() == ("kept" if survives else "dropped"), out.stderr
 
 
-def test_the_study_account_key_is_stored_but_never_exported_only_read_by_vibe_study(
-    home: dict, auth: tuple[Auth, str],
-) -> None:
-    _, base = auth
-    table = [*_table(base), {"env": "MISTRAL_STUDY_API_KEY", "paste": "a Study account Mistral key",
+def _with_study_login(home: dict, base: str) -> None:
+    table = [*_table(base), {"env": "MISTRAL_STUDY_API_KEY", "login": "vibe-study --login",
                              "check": f"{base}/mistral", "check_method": "GET", "export": False}]
     home["table"].write_text(json.dumps(table))
-    result = _keys(home, "ensure", answers="me@example.com\npw\n123456\nmk_good\nmk_good\ny\n")
+
+
+def test_a_sign_in_value_is_never_asked_for_only_pointed_at_its_sign_in(home: dict, auth: tuple[Auth, str]) -> None:
+    _with_study_login(home, auth[1])
+    # The same answers as without it: nothing more is asked.
+    result = _keys(home, "ensure", answers=ANSWERS)
     assert result.returncode == 0, result.stderr
-    assert _stored(home)["MISTRAL_STUDY_API_KEY"] == "mk_good"
-    text = _env_sh(home).read_text()
-    assert "export MISTRAL_STUDY_API_KEY" not in text
+    assert "MISTRAL_STUDY_API_KEY" not in _stored(home)
+    assert "MISTRAL_STUDY_API_KEY: sign in with  vibe-study --login" in result.stderr
+    assert _stored(home)["MISTRAL_API_KEY"] == "mk_good", "the answers still reached the paste after it"
+
+
+def test_status_reports_a_sign_in_value_by_whether_it_is_stored_and_valid(home: dict, auth: tuple[Auth, str]) -> None:
+    _with_study_login(home, auth[1])
+    lines = dict(line.split(" ", 1) for line in _keys(home, "status").stdout.splitlines())
+    assert lines["MISTRAL_STUDY_API_KEY"] == "missing"
+    (home["keychain"] / "agent-kit.MISTRAL_STUDY_API_KEY").write_text("mk_good")
+    lines = dict(line.split(" ", 1) for line in _keys(home, "status").stdout.splitlines())
+    assert lines["MISTRAL_STUDY_API_KEY"] == "ok"
+
+
+def test_the_study_account_key_is_never_exported_only_read_by_vibe_study(home: dict, auth: tuple[Auth, str]) -> None:
+    _with_study_login(home, auth[1])
+    (home["keychain"] / "agent-kit.MISTRAL_STUDY_API_KEY").write_text("mk_good")
+    assert _keys(home, "write-env").returncode == 0
+    assert "export MISTRAL_STUDY_API_KEY" not in _env_sh(home).read_text()
     probe = (f'. "{_env_sh(home)}"; printf "%s|%s\\n" "${{MISTRAL_STUDY_API_KEY:-unset}}" '
              '"$(_agent_kit_secret MISTRAL_STUDY_API_KEY)"')
     out = subprocess.run(["/bin/bash", "-c", probe], capture_output=True, text=True, env=home["env"], check=False)

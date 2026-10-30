@@ -82,7 +82,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and Hindsight Coding Agents' hooks and `hindsight` tools | required |
 | `HINDSIGHT_API_URL` | anything that reads it; Coding Agents takes its URL from its own config | set by env.sh |
 | `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server (Private Memory), in `vibe-private` only | never exported; sealed behind your passphrase, given to `vibe-private` per launch |
-| `MISTRAL_STUDY_API_KEY` | `vibe-study`: Vibe signed in with the Study account | optional; never exported, read only by `vibe-study` |
+| `MISTRAL_STUDY_API_KEY` | `vibe-study`: Vibe signed in with the Study account | optional; you get it with `vibe-study --login` (setup never asks); never exported, read only by `vibe-study` |
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
@@ -205,11 +205,20 @@ launcher behind the passphrase gate. See [ADR-0023](https://github.com/JorisJonk
   only `memory-api`.
 - **`vibe-study`** runs Vibe in the same home, with the Study account key
   (`MISTRAL_STUDY_API_KEY`) handed over as `MISTRAL_API_KEY`, which overrides
-  Vibe's machine-wide personal login. Create an API key in the Study
-  account's Mistral console and paste it when setup asks. The key is stored
-  like the other keys but never exported, so plain `vibe` keeps the personal
-  login. Without it, `vibe-study` refuses rather than falling back to the
-  personal account. It drops an inherited `MEMORY_PRIVATE_TOKEN` and never
+  Vibe's machine-wide personal login. Sign in once with `vibe-study --login`:
+  it runs Vibe's own browser sign-in (`vibe --setup`) in a throwaway Vibe
+  home with Vibe's keychain switched off (`VIBE_TEST_DISABLE_KEYRING=1`), so
+  the key that sign-in mints lands in that home's `.env` instead of replacing
+  the personal login. It checks the key against Mistral's model list (on
+  stdin, never argv), keeps it in the agent-kit store, never exported, reads
+  it back the way `vibe-study` will, and deletes the throwaway home. It needs
+  setup's `env.sh`, so run setup first. Run it again to sign in afresh.
+  The keychain switch is Vibe's own but undocumented: on macOS, if a Vibe
+  upgrade ever ignores it, `--login` sees the personal login change, puts it
+  back and fails; if it cannot read the personal login first, it does not
+  sign in at all. Elsewhere there is no keychain item to watch, so check that
+  plain `vibe` still signs you in after a Vibe upgrade. Without the key,
+  `vibe-study` refuses rather than falling back to the personal account. It drops an inherited `MEMORY_PRIVATE_TOKEN` and never
   uses vibe-private's home, even when started from inside a vibe-private
   session.
 - **`vibe-private`** runs Vibe in its own home, `~/.vibe-private`, the only

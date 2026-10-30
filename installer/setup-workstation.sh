@@ -130,6 +130,10 @@ tokens_and_keys() {
     case "${var} ${state}" in
       "shell missing")
         warn "your shell does not load ~/.config/agent-kit/env.sh; run setup in a terminal to add it" ;;
+      "MISTRAL_STUDY_API_KEY missing")
+        warn "MISTRAL_STUDY_API_KEY is missing; run  vibe-study --login  in a terminal" ;;
+      "MISTRAL_STUDY_API_KEY invalid")
+        warn "MISTRAL_STUDY_API_KEY is refused by its host; run  vibe-study --login  in a terminal again" ;;
       *" missing") warn "${var} is missing; run setup in a terminal and it gets it for you" ;;
       *" invalid") warn "${var} is refused by its host; run setup in a terminal to replace it" ;;
       *" unchecked") log "${var}: its host did not answer, so it was not checked" ;;
