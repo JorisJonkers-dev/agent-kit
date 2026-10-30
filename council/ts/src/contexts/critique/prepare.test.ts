@@ -15,12 +15,12 @@ afterEach(async () => {
 async function optedIn(...args: Parameters<typeof harness>): Promise<Harness> {
   const h = await harness(...args)
   open.push(h)
-  await h.commands.allow({ repo: h.repo, families: ['mistral'] })
+  await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
   return h
 }
 
 async function ready(h: Harness, extra: Record<string, unknown> = {}): Promise<PrepareResult> {
-  const result = await h.commands.prepare({
+  const result = await h.commands.prepare.run({
     orchestrator_family: 'anthropic',
     repo: h.repo,
     spec: '.scratch/widgets/spec.md',
@@ -222,8 +222,8 @@ describe('prepare', () => {
   it('rejects input that is not an object or misses a field', async () => {
     const h = await optedIn()
 
-    await expect(h.commands.prepare([])).rejects.toThrow(/prepare input: the value must be a JSON object/)
-    await expect(h.commands.prepare({ repo: h.repo, stage: 'spec' })).rejects.toThrow(/orchestrator_family must be one of/)
+    await expect(h.commands.prepare.run([])).rejects.toThrow(/prepare input: the value must be a JSON object/)
+    await expect(h.commands.prepare.run({ repo: h.repo, stage: 'spec' })).rejects.toThrow(/orchestrator_family must be one of/)
     await expect(ready(h, { references: 'CONTEXT.md' })).rejects.toThrow(/references must be a list/)
   })
 })

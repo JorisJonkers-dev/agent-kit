@@ -9,7 +9,7 @@ import { countVerdicts, VERDICTS, type AdjudicatedRun, type Verdict, type Verdic
 import { readInput, readJsonFile } from './decode.js'
 import { parseFanOutResult } from './fan-out.js'
 import { findingsPath, ledgerPath, manifestPath } from './locations.js'
-import type { CritiqueDeps } from './ports.js'
+import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 
 export interface RecordResult {
   readonly status: 'recorded'
@@ -30,42 +30,46 @@ const REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/
  * and the summary into the run directory and appends the run's metadata to
  * the user's ledger. A run is recorded once.
  */
-export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordResult> {
-  const input = readInput(raw, 'record', (fields) => ({
-    runDir: fields.string('run_dir'),
-    verdicts: fields.list('verdicts', readVerdict),
-  }))
-  const manifest = await readJsonFile(deps.files, manifestPath(input.runDir), 'invalid-run', parseManifest)
-  const merged = await readJsonFile(deps.files, findingsPath(input.runDir), 'invalid-run', parseFanOutResult)
-  const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))
-  const reportPath = join(input.runDir, 'report.md')
-  if (await deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
+export class RecordCommand implements CritiqueCommand<RecordResult> {
+  constructor(private readonly deps: CritiqueDeps) {}
 
-  const run: AdjudicatedRun = {
-    critics: merged.critics,
-    degraded: merged.degraded,
-    depth: manifest.depth,
-    dropped: manifest.dropped,
-    findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
-    repository: manifest.repository,
-    run_id: manifest.run_id,
-    stage: manifest.stage,
-  }
-  const summary = renderSummary(run, reportPath)
-  const summaryPath = join(input.runDir, 'summary.md')
-  const ledger = ledgerPath(deps.env)
-  await deps.files.writeText(reportPath, renderReport(run))
-  await deps.files.writeText(summaryPath, summary)
-  await deps.files.appendText(ledger, ledgerLines(run, deps.clock.now()).map((line) => `${line}\n`).join(''))
-  return {
-    counts: countVerdicts(run),
-    degraded: run.degraded,
-    ledger_path: ledger,
-    report_path: reportPath,
-    run_id: manifest.run_id,
-    status: 'recorded',
-    summary,
-    summary_path: summaryPath,
+  async run(raw: unknown): Promise<RecordResult> {
+    const input = readInput(raw, 'record', (fields) => ({
+      runDir: fields.string('run_dir'),
+      verdicts: fields.list('verdicts', readVerdict),
+    }))
+    const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), 'invalid-run', parseManifest)
+    const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), 'invalid-run', parseFanOutResult)
+    const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))
+    const reportPath = join(input.runDir, 'report.md')
+    if (await this.deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
+
+    const run: AdjudicatedRun = {
+      critics: merged.critics,
+      degraded: merged.degraded,
+      depth: manifest.depth,
+      dropped: manifest.dropped,
+      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
+      repository: manifest.repository,
+      run_id: manifest.run_id,
+      stage: manifest.stage,
+    }
+    const summary = renderSummary(run, reportPath)
+    const summaryPath = join(input.runDir, 'summary.md')
+    const ledger = ledgerPath(this.deps.env)
+    await this.deps.files.writeText(reportPath, renderReport(run))
+    await this.deps.files.writeText(summaryPath, summary)
+    await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line) => `${line}\n`).join(''))
+    return {
+      counts: countVerdicts(run),
+      degraded: run.degraded,
+      ledger_path: ledger,
+      report_path: reportPath,
+      run_id: manifest.run_id,
+      status: 'recorded',
+      summary,
+      summary_path: summaryPath,
+    }
   }
 }
 

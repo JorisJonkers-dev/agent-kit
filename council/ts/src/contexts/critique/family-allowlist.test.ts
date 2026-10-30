@@ -29,7 +29,7 @@ describe('family allowlist', () => {
   it('refuses a repository with no allowlist entry before any packet exists', async () => {
     const h = await setup()
 
-    const result = await h.commands.prepare(prepareInput(h))
+    const result = await h.commands.prepare.run(prepareInput(h))
 
     expect(result).toMatchObject({ status: 'refused', reason: 'not-opted-in' })
     expect(existsSync(critiqueDir(h))).toBe(false)
@@ -38,11 +38,11 @@ describe('family allowlist', () => {
   it('refuses a repository with no remote, even when asked to allow it', async () => {
     const h = await setup({ remotes: [] })
 
-    expect(await h.commands.allow({ repo: h.repo, families: ['mistral'] })).toMatchObject({
+    expect(await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })).toMatchObject({
       status: 'refused',
       reason: 'no-remote',
     })
-    expect(await h.commands.prepare(prepareInput(h))).toMatchObject({ status: 'refused', reason: 'no-remote' })
+    expect(await h.commands.prepare.run(prepareInput(h))).toMatchObject({ status: 'refused', reason: 'no-remote' })
     expect(existsSync(critiqueDir(h))).toBe(false)
   })
 
@@ -51,7 +51,7 @@ describe('family allowlist', () => {
     async (url) => {
       const h = await setup({ remotes: [{ name: 'origin', url }] })
 
-      expect(await h.commands.allow({ repo: h.repo, families: ['mistral'] })).toMatchObject({ reason: 'no-remote' })
+      expect(await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })).toMatchObject({ reason: 'no-remote' })
     },
   )
 
@@ -62,10 +62,10 @@ describe('family allowlist', () => {
     'git@github-work:nedap/widgets.git',
   ])('refuses a nedap remote (%s) whatever its allowlist says', async (url) => {
     const h = await setup({ remotes: [AGENT_KIT_REMOTE] })
-    await h.commands.allow({ repo: h.repo, families: ['mistral'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
     h.git.remoteList = [AGENT_KIT_REMOTE, { name: 'upstream', url }]
 
-    const result = await h.commands.prepare(prepareInput(h))
+    const result = await h.commands.prepare.run(prepareInput(h))
 
     expect(result).toMatchObject({ status: 'refused', reason: 'nedap' })
     expect(existsSync(critiqueDir(h))).toBe(false)
@@ -74,7 +74,7 @@ describe('family allowlist', () => {
   it('refuses to record an allowlist entry for a nedap repository', async () => {
     const h = await setup({ remotes: [{ name: 'origin', url: 'https://github.com/nedap/widgets' }] })
 
-    expect(await h.commands.allow({ repo: h.repo, families: ['mistral'] })).toMatchObject({
+    expect(await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })).toMatchObject({
       status: 'refused',
       reason: 'nedap',
     })
@@ -84,7 +84,7 @@ describe('family allowlist', () => {
   it('keeps the allowlist on this machine, keyed by the remote, outside the repository', async () => {
     const h = await setup()
 
-    const result = await h.commands.allow({ repo: h.repo, families: ['mistral'] })
+    const result = await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
 
     const path = join(h.home, '.config', 'agent-kit', 'critique-allowlist.json')
     expect(result).toEqual({
@@ -100,12 +100,12 @@ describe('family allowlist', () => {
 
   it('replaces a repository entry and leaves other repositories alone', async () => {
     const h = await setup()
-    await h.commands.allow({ repo: h.repo, families: ['mistral', 'google'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['mistral', 'google'] })
     h.git.remoteList = [{ name: 'origin', url: 'https://github.com/someone/else.git' }]
-    await h.commands.allow({ repo: h.repo, families: ['zhipu'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['zhipu'] })
     h.git.remoteList = [AGENT_KIT_REMOTE]
 
-    await h.commands.allow({ repo: h.repo, families: ['google'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
 
     const allowlist = JSON.parse(
       await h.readText(join(h.home, '.config', 'agent-kit', 'critique-allowlist.json')),
@@ -117,14 +117,14 @@ describe('family allowlist', () => {
   it('rejects a family it does not know', async () => {
     const h = await setup()
 
-    await expect(h.commands.allow({ repo: h.repo, families: ['openai'] })).rejects.toThrow(/families\[0\] must be one of mistral, zhipu, deepseek, google/)
+    await expect(h.commands.allow.run({ repo: h.repo, families: ['openai'] })).rejects.toThrow(/families\[0\] must be one of mistral, zhipu, deepseek, google/)
   })
 
   it('prepares a run with no critics when the allowlist permits none of the routed families', async () => {
     const h = await setup()
-    await h.commands.allow({ repo: h.repo, families: ['google'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
 
-    const result = await h.commands.prepare(prepareInput(h))
+    const result = await h.commands.prepare.run(prepareInput(h))
 
     expect(result).toMatchObject({
       critics: [],
@@ -143,7 +143,7 @@ describe('family allowlist', () => {
       JSON.stringify({ repositories: { 'github.com/jorisjonkers-dev/agent-kit': { families, updated_at: 'x' } }, version: 1 }),
     )
 
-    await expect(h.commands.prepare(prepareInput(h))).rejects.toThrow(/critique-allowlist\.json: .*families/)
+    await expect(h.commands.prepare.run(prepareInput(h))).rejects.toThrow(/critique-allowlist\.json: .*families/)
     expect(existsSync(critiqueDir(h))).toBe(false)
   })
 
@@ -155,7 +155,7 @@ describe('family allowlist', () => {
       ],
     })
 
-    expect(await h.commands.allow({ repo: h.repo, families: ['mistral'] })).toMatchObject({
+    expect(await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })).toMatchObject({
       repository: 'github.com/jorisjonkers-dev/agent-kit',
     })
   })

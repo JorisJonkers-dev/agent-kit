@@ -47,7 +47,7 @@ export async function runCritiqueCli(argv: readonly string[], runtime: CritiqueC
   try {
     const text =
       flag === '--json' ? (value ?? '') : flag === '--input' ? await runtime.readFile(value ?? '') : await runtime.readStdin()
-    const result = await runtime.commands[method](parseInput(text))
+    const result = await runtime.commands[method].run(parseInput(text))
     return { exitCode: 0, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

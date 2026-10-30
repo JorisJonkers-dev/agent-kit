@@ -24,8 +24,8 @@ afterEach(async () => {
 async function preparedRun(scripts: VibeScript[]): Promise<{ h: Harness; run: PrepareResult }> {
   const h = await harness({ scripts })
   open.push(h)
-  await h.commands.allow({ repo: h.repo, families: ['mistral'] })
-  const run = await h.commands.prepare({
+  await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
+  const run = await h.commands.prepare.run({
     orchestrator_family: 'anthropic',
     repo: h.repo,
     spec: '.scratch/widgets/spec.md',
@@ -37,7 +37,7 @@ async function preparedRun(scripts: VibeScript[]): Promise<{ h: Harness; run: Pr
 
 async function fanOut(script: VibeScript): Promise<{ h: Harness; run: PrepareResult; result: FanOutResult }> {
   const { h, run } = await preparedRun([script])
-  const result = await h.commands.fanOut({ run_dir: run.run_dir })
+  const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
   return { h, result, run }
 }
 
@@ -218,7 +218,7 @@ describe('fan-out reads the critic output', () => {
     const { h, run } = await preparedRun([{ exitCode: 0, stdout: vibeStdout(fenced({ findings: [finding()] })) }])
     await h.writeText(join(run.run_dir, 'critics', 'c1-vibe-mistral-large', 'export', 'export.json'), '{oops')
 
-    const result = await h.commands.fanOut({ run_dir: run.run_dir })
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
 
     expect(result.critics[0]).toMatchObject({ failure: 'missing-export', status: 'failed' })
   })
@@ -248,11 +248,11 @@ describe('fan-out reads the critic output', () => {
   it('launches nothing and reports the run degraded when it has no critics', async () => {
     const h = await harness()
     open.push(h)
-    await h.commands.allow({ repo: h.repo, families: ['google'] })
-    const run = await h.commands.prepare({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
     if (run.status !== 'ready') throw new Error('not ready')
 
-    const result = await h.commands.fanOut({ run_dir: run.run_dir })
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
 
     expect(result).toMatchObject({ critics: [], degraded: true, findings: [] })
     expect(h.process.commands).toEqual([])
@@ -262,13 +262,13 @@ describe('fan-out reads the critic output', () => {
     const { h, run } = await preparedRun([])
     await h.writeText(run.manifest_path, JSON.stringify({ critics: 'all of them', version: 1 }))
 
-    await expect(h.commands.fanOut({ run_dir: run.run_dir })).rejects.toThrow(/manifest\.json: .*must be/)
+    await expect(h.commands.fanOut.run({ run_dir: run.run_dir })).rejects.toThrow(/manifest\.json: .*must be/)
     expect(h.process.commands).toEqual([])
   })
 
   it('rejects a run directory without a manifest', async () => {
     const { h, run } = await preparedRun([])
 
-    await expect(h.commands.fanOut({ run_dir: join(run.run_dir, 'nope') })).rejects.toThrow()
+    await expect(h.commands.fanOut.run({ run_dir: join(run.run_dir, 'nope') })).rejects.toThrow()
   })
 })

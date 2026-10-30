@@ -34,15 +34,15 @@ async function reviewed(
     ],
   })
   open.push(h)
-  await h.commands.allow({ repo: h.repo, families: ['mistral'] })
-  const run = await h.commands.prepare({
+  await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
+  const run = await h.commands.prepare.run({
     orchestrator_family: 'anthropic',
     repo: h.repo,
     spec: '.scratch/widgets/spec.md',
     stage: 'spec',
   })
   if (run.status !== 'ready') throw new Error('not ready')
-  const fan = await h.commands.fanOut({ run_dir: run.run_dir })
+  const fan = await h.commands.fanOut.run({ run_dir: run.run_dir })
   return { fan, h, run }
 }
 
@@ -73,7 +73,7 @@ describe('record', () => {
   it('writes the report and a summary in the fixed shape', async () => {
     const { h, run } = await reviewed(four)
 
-    const result = await h.commands.record({ run_dir: run.run_dir, verdicts })
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts })
 
     expect(result.report_path).toBe(join(run.run_dir, 'report.md'))
     expect(result.counts).toEqual({ accepted: 1, hint: 1, 'needs-human': 1, rejected: 1 })
@@ -92,7 +92,7 @@ describe('record', () => {
   it('lists a rejected critical finding under Dissent with the reason', async () => {
     const { h, run } = await reviewed(four)
 
-    const { summary, report_path } = await h.commands.record({ run_dir: run.run_dir, verdicts })
+    const { summary, report_path } = await h.commands.record.run({ run_dir: run.run_dir, verdicts })
 
     expect(section(summary, 'Dissent')).toContain('F2 [critical omission] Family allowlist')
     expect(section(summary, 'Dissent')).toContain('CONTEXT.md does not decide this')
@@ -102,7 +102,7 @@ describe('record', () => {
   it('puts every finding, its evidence and its verdict in the report', async () => {
     const { h, run } = await reviewed(four)
 
-    const { report_path } = await h.commands.record({ run_dir: run.run_dir, verdicts })
+    const { report_path } = await h.commands.record.run({ run_dir: run.run_dir, verdicts })
 
     const report = await readFile(report_path, 'utf8')
     for (const id of ['F1', 'F2', 'F3', 'F4']) expect(report).toContain(`### ${id} `)
@@ -115,7 +115,7 @@ describe('record', () => {
   it('appends one run line and one line per finding to the ledger, with the prompt and lens hashes', async () => {
     const { fan, h, run } = await reviewed(four)
 
-    await h.commands.record({ run_dir: run.run_dir, verdicts })
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts })
 
     const lines = await ledgerLines(h)
     expect(lines.map((line) => line.type)).toEqual(['run', 'finding', 'finding', 'finding', 'finding'])
@@ -149,7 +149,7 @@ describe('record', () => {
   it('keeps artifact text out of the ledger', async () => {
     const { h, run } = await reviewed([finding({ claim: `Claim quoting ${SPEC_CANARY}`, suggestion: DECISION_CANARY })])
 
-    await h.commands.record({
+    await h.commands.record.run({
       run_dir: run.run_dir,
       verdicts: [{ finding_id: 'F1', reason: `Rejected because ${SPEC_CANARY}`, verdict: 'rejected' }],
     })
@@ -163,7 +163,7 @@ describe('record', () => {
   it('records a failed critic in the ledger and the summary', async () => {
     const { h, run } = await reviewed([], { exitCode: 0, exportJson: isolatedExport(), stdout: '' })
 
-    const result = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(result.summary).toContain('vibe-mistral-large (mistral-large-4-0-3, mistral): failed (empty-output)')
     expect(section(result.summary, 'Accepted')).toBe('none')
@@ -175,7 +175,7 @@ describe('record', () => {
   it('says no critique ran when every critic failed', async () => {
     const { h, run } = await reviewed([], { exitCode: 0, exportJson: isolatedExport(), stdout: '' })
 
-    const result = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(result.degraded).toBe(true)
     expect(result.summary.split('\n').slice(0, 3)).toEqual(['# Critique: spec, run 20261030T120000Z-spec', '', 'degraded: no critique ran'])
@@ -184,12 +184,12 @@ describe('record', () => {
   it('says no critique ran when no critic was allowed to run', async () => {
     const h = await harness()
     open.push(h)
-    await h.commands.allow({ repo: h.repo, families: ['google'] })
-    const run = await h.commands.prepare({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
     if (run.status !== 'ready') throw new Error('not ready')
-    await h.commands.fanOut({ run_dir: run.run_dir })
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
 
-    const { summary } = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(summary).toContain('degraded: no critique ran')
     expect(section(summary, 'Critics')).toBe('- Not run: vibe-mistral-large (mistral): family-not-allowed')
@@ -198,7 +198,7 @@ describe('record', () => {
   it('does not call a run degraded when a critic reviewed the artifact', async () => {
     const { h, run } = await reviewed([finding()])
 
-    const result = await h.commands.record({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
 
     expect(result.degraded).toBe(false)
     expect(result.summary).not.toContain('degraded')
@@ -211,7 +211,7 @@ describe('record', () => {
       stdout: vibeStdout(fenced({ findings: [], no_findings_reason: 'Checked every story.' })),
     })
 
-    const { summary } = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(summary).toContain('ok, 0 findings, $0.0123 (checked: Checked every story.)')
   })
@@ -220,7 +220,7 @@ describe('record', () => {
     const many = Array.from({ length: 60 }, (_, i) => finding({ claim: LONG_CLAIM, id: `F${String(i + 1)}` }))
     const { h, run } = await reviewed(many)
 
-    const { summary } = await h.commands.record({
+    const { summary } = await h.commands.record.run({
       run_dir: run.run_dir,
       verdicts: many.map((_, i) => ({
         finding_id: `F${String(i + 1)}`,
@@ -242,7 +242,7 @@ describe('record', () => {
       stdout: vibeStdout(fenced({ findings: [], no_findings_reason: reason })),
     })
 
-    const { report_path, summary } = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+    const { report_path, summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(summary.length).toBeLessThanOrEqual(6000)
     expect(section(summary, 'Critics')).toContain('(checked: Checked every story against CONTEXT.md.')
@@ -271,12 +271,12 @@ describe('record', () => {
       scripts: [{ exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced({ findings: [], no_findings_reason: 'x' })) }],
     })
     open.push(h)
-    await h.commands.allow({ repo: h.repo, families: ['mistral'] })
-    const run = await h.commands.prepare({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
     if (run.status !== 'ready') throw new Error('not ready')
-    await h.commands.fanOut({ run_dir: run.run_dir })
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
 
-    const { summary } = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(section(summary, 'Critics')).toContain('Not run: vibe-glm (zhipu): family-not-allowed')
   })
@@ -292,7 +292,7 @@ describe('record', () => {
   ])('rejects %s', async (_name, given, message) => {
     const { h, run } = await reviewed([finding()])
 
-    await expect(h.commands.record({ run_dir: run.run_dir, verdicts: given })).rejects.toThrow(message)
+    await expect(h.commands.record.run({ run_dir: run.run_dir, verdicts: given })).rejects.toThrow(message)
   })
 
   it('rejects merged findings that are not a fan-out result', async () => {
@@ -300,16 +300,16 @@ describe('record', () => {
     await h.writeText(fan.findings_path, JSON.stringify({ ...fan, findings: [{ id: 'F1' }] }))
 
     await expect(
-      h.commands.record({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] }),
+      h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] }),
     ).rejects.toThrow(/findings\.json: .*must be/)
   })
 
   it('records a run once', async () => {
     const { h, run } = await reviewed([finding()])
-    await h.commands.record({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
 
     await expect(
-      h.commands.record({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] }),
+      h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] }),
     ).rejects.toThrow(/already recorded/)
     expect(await ledgerLines(h)).toHaveLength(2)
   })

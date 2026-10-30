@@ -41,6 +41,11 @@ export interface CriticClientPort {
   review(launch: CriticLaunch): Promise<CriticReport>
 }
 
+/** One runner command: it takes the JSON the skill sends and returns a JSON result. */
+export interface CritiqueCommand<Result> {
+  run(input: unknown): Promise<Result>
+}
+
 export interface CritiqueDeps {
   /** Directory holding the shipped prompts, lenses, schema and routing. */
   readonly assetsRoot: string

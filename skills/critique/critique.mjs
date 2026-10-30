@@ -305,36 +305,52 @@ function findingsPath(runDir) {
 }
 
 // src/contexts/critique/application/repository.ts
-async function resolveRepository(deps, cwd) {
-  const decision = identifyRepository(await deps.git.remotes(cwd));
-  if (decision.status === "refused") return decision;
-  return {
-    commonDir: await deps.git.commonDir(cwd),
-    key: decision.key,
-    root: await deps.git.root(cwd),
-    status: "resolved"
-  };
-}
-async function readAllowlist(deps) {
-  const path = allowlistPath(deps.env);
-  if (!await deps.files.exists(path)) return EMPTY_ALLOWLIST;
-  return readJsonFile(deps.files, path, "invalid-allowlist", parseAllowlist);
-}
+var RepositoryGate = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  /** The repository's allowlist key and git directories, or the refusal its remotes earn. */
+  async resolve(cwd) {
+    const decision = identifyRepository(await this.deps.git.remotes(cwd));
+    if (decision.status === "refused") return decision;
+    return {
+      commonDir: await this.deps.git.commonDir(cwd),
+      key: decision.key,
+      root: await this.deps.git.root(cwd),
+      status: "resolved"
+    };
+  }
+  /** This machine's family allowlist; a missing file is an empty one. */
+  async allowlist() {
+    const path = allowlistPath(this.deps.env);
+    if (!await this.deps.files.exists(path)) return EMPTY_ALLOWLIST;
+    return readJsonFile(this.deps.files, path, "invalid-allowlist", parseAllowlist);
+  }
+};
 
 // src/contexts/critique/application/allow.ts
-async function allow(deps, raw) {
-  const input = readInput(raw, "allow", (fields) => ({
-    families: fields.oneOfList("families", MODEL_FAMILIES),
-    repo: fields.string("repo")
-  }));
-  const repository = await resolveRepository(deps, input.repo);
-  if (repository.status === "refused") return repository;
-  const path = allowlistPath(deps.env);
-  const next = withEntry(await readAllowlist(deps), repository.key, input.families, deps.clock.now());
-  await deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
+var AllowCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.repositories = new RepositoryGate(deps);
+  }
+  deps;
+  repositories;
+  async run(raw) {
+    const input = readInput(raw, "allow", (fields) => ({
+      families: fields.oneOfList("families", MODEL_FAMILIES),
+      repo: fields.string("repo")
+    }));
+    const repository = await this.repositories.resolve(input.repo);
+    if (repository.status === "refused") return repository;
+    const path = allowlistPath(this.deps.env);
+    const next = withEntry(await this.repositories.allowlist(), repository.key, input.families, this.deps.clock.now());
+    await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
 `);
-  return { allowlist_path: path, families: input.families, repository: repository.key, status: "allowed" };
-}
+    return { allowlist_path: path, families: input.families, repository: repository.key, status: "allowed" };
+  }
+};
 
 // src/contexts/critique/application/fan-out.ts
 import { join as join2 } from "node:path";
@@ -626,163 +642,182 @@ function parseFanOutResult(text) {
     status: file.literal("status", "reviewed")
   };
 }
-async function fanOut(deps, raw) {
-  const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
-  const manifest = await readJsonFile(deps.files, manifestPath(runDir), "invalid-run", parseManifest);
-  const outcomes = await Promise.all(manifest.critics.map((critic) => runCritic(deps, manifest, critic)));
-  const findings = [];
-  for (const outcome of outcomes) {
-    for (const finding of outcome.findings) {
-      const { id, ...fields } = finding;
-      findings.push({ ...fields, critic_finding_id: id, id: `F${String(findings.length + 1)}`, raised_by: [outcome.run.critic_id] });
-    }
+var FanOutCommand = class {
+  constructor(deps) {
+    this.deps = deps;
   }
-  const result2 = {
-    critics: outcomes.map((outcome) => outcome.run),
-    degraded: outcomes.every((outcome) => outcome.run.status === "failed"),
-    findings,
-    findings_path: findingsPath(runDir),
-    run_id: manifest.run_id,
-    stage: manifest.stage,
-    status: "reviewed"
-  };
-  await deps.files.writeText(result2.findings_path, `${JSON.stringify(result2, null, 2)}
+  deps;
+  async run(raw) {
+    const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
+    const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
+    const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, critic)));
+    const findings = [];
+    for (const outcome of outcomes) {
+      for (const finding of outcome.findings) {
+        const { id, ...fields } = finding;
+        findings.push({ ...fields, critic_finding_id: id, id: `F${String(findings.length + 1)}`, raised_by: [outcome.run.critic_id] });
+      }
+    }
+    const result2 = {
+      critics: outcomes.map((outcome) => outcome.run),
+      degraded: outcomes.every((outcome) => outcome.run.status === "failed"),
+      findings,
+      findings_path: findingsPath(runDir),
+      run_id: manifest.run_id,
+      stage: manifest.stage,
+      status: "reviewed"
+    };
+    await this.deps.files.writeText(result2.findings_path, `${JSON.stringify(result2, null, 2)}
 `);
-  return result2;
-}
-async function runCritic(deps, manifest, critic) {
-  const criticDir = join2(manifest.run_dir, "critics", critic.critic_id);
-  const asset = (path) => deps.files.readText(join2(deps.assetsRoot, path));
-  const prompt = assemblePrompt(
-    {
-      contract: await asset("prompts/output-contract.md"),
-      lenses: await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) }))),
-      preamble: await asset("prompts/preamble.md"),
-      role: await asset(`roles/${critic.role}.md`),
-      schema: await asset("schemas/finding.schema.json")
-    },
-    manifest.packet_files
-  );
-  const promptPath = join2(criticDir, "prompt.md");
-  const stdoutPath = join2(criticDir, "stdout.json");
-  await deps.files.writeText(promptPath, prompt.text);
-  const started = deps.clock.monotonicMs();
-  const report = await deps.clients[critic.client_config.kind].review({
-    criticDir,
-    critic,
-    packetDir: manifest.packet_dir,
-    promptPath
-  });
-  const durationMs = deps.clock.monotonicMs() - started;
-  await deps.files.writeText(stdoutPath, report.stdout);
-  await deps.files.writeText(join2(criticDir, "stderr.txt"), report.stderr);
-  const { outcome } = report;
-  const findings = outcome.status === "ok" ? outcome.findings : [];
-  const run = {
-    ...criticIdentity(critic),
-    cost_usd: outcome.cost_usd,
-    duration_ms: durationMs,
-    exit_code: report.exitCode,
-    export_path: report.exportPath,
-    finding_count: findings.length,
-    lens_hashes: prompt.lens_hashes,
-    prompt_hashes: prompt.prompt_hashes,
-    prompt_path: promptPath,
-    status: outcome.status,
-    stdout_path: stdoutPath,
-    ...outcome.status === "failed" ? { detail: outcome.detail, failure: outcome.failure } : {},
-    ...outcome.status === "ok" && outcome.no_findings_reason !== void 0 ? { no_findings_reason: outcome.no_findings_reason } : {}
-  };
-  return { findings, run };
-}
+    return result2;
+  }
+  async runCritic(manifest, critic) {
+    const criticDir = join2(manifest.run_dir, "critics", critic.critic_id);
+    const asset = (path) => this.deps.files.readText(join2(this.deps.assetsRoot, path));
+    const prompt = assemblePrompt(
+      {
+        contract: await asset("prompts/output-contract.md"),
+        lenses: await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) }))),
+        preamble: await asset("prompts/preamble.md"),
+        role: await asset(`roles/${critic.role}.md`),
+        schema: await asset("schemas/finding.schema.json")
+      },
+      manifest.packet_files
+    );
+    const promptPath = join2(criticDir, "prompt.md");
+    const stdoutPath = join2(criticDir, "stdout.json");
+    await this.deps.files.writeText(promptPath, prompt.text);
+    const started = this.deps.clock.monotonicMs();
+    const report = await this.deps.clients[critic.client_config.kind].review({
+      criticDir,
+      critic,
+      packetDir: manifest.packet_dir,
+      promptPath
+    });
+    const durationMs = this.deps.clock.monotonicMs() - started;
+    await this.deps.files.writeText(stdoutPath, report.stdout);
+    await this.deps.files.writeText(join2(criticDir, "stderr.txt"), report.stderr);
+    const { outcome } = report;
+    const findings = outcome.status === "ok" ? outcome.findings : [];
+    const run = {
+      ...criticIdentity(critic),
+      cost_usd: outcome.cost_usd,
+      duration_ms: durationMs,
+      exit_code: report.exitCode,
+      export_path: report.exportPath,
+      finding_count: findings.length,
+      lens_hashes: prompt.lens_hashes,
+      prompt_hashes: prompt.prompt_hashes,
+      prompt_path: promptPath,
+      status: outcome.status,
+      stdout_path: stdoutPath,
+      ...outcome.status === "failed" ? { detail: outcome.detail, failure: outcome.failure } : {},
+      ...outcome.status === "ok" && outcome.no_findings_reason !== void 0 ? { no_findings_reason: outcome.no_findings_reason } : {}
+    };
+    return { findings, run };
+  }
+};
 
 // src/contexts/critique/application/prepare.ts
 import { basename, isAbsolute, join as join3, relative, resolve } from "node:path";
 var DEFAULT_REFERENCES = ["GLOSSARY.md", "CONTEXT.md"];
-async function prepare(deps, raw) {
-  const input = readInput(raw, "prepare", (fields) => ({
-    orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
-    references: fields.has("references") ? fields.strings("references") : void 0,
-    repo: fields.string("repo"),
-    spec: fields.string("spec"),
-    stage: fields.oneOf("stage", CRITIQUE_STAGES)
-  }));
-  const { orchestratorFamily, stage } = input;
-  const repository = await resolveRepository(deps, input.repo);
-  if (repository.status === "refused") return repository;
-  const entry = (await readAllowlist(deps)).repositories[repository.key];
-  if (entry === void 0) {
-    return refusal("not-opted-in", `${repository.key} has no family allowlist entry on this machine; record one with allow`);
+var PrepareCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.repositories = new RepositoryGate(deps);
   }
-  const routing = await readJsonFile(deps.files, join3(deps.assetsRoot, "routing.json"), "invalid-routing", parseRouting);
-  const roster = resolveRoster(routing, {
-    allowedFamilies: entry.families,
-    orchestratorFamily,
-    stage
-  });
-  const runId = await freshRunId(deps, repository, stage);
-  const runDir = join3(repository.commonDir, "critique", runId);
-  const packetDir = join3(runDir, "packet");
-  const packetFiles = await freezePacket(deps, repository, packetDir, input);
-  const manifest = {
-    allowed_families: entry.families,
-    created_at: deps.clock.now().toISOString(),
-    critics: roster.critics,
-    depth: roster.depth,
-    dropped: roster.dropped,
-    orchestrator_family: orchestratorFamily,
-    packet_dir: packetDir,
-    packet_files: packetFiles,
-    repo_root: repository.root,
-    repository: repository.key,
-    run_dir: runDir,
-    run_id: runId,
-    stage,
-    version: 1
-  };
-  await deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}
+  deps;
+  repositories;
+  async run(raw) {
+    const input = readInput(raw, "prepare", (fields) => ({
+      orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
+      references: fields.has("references") ? fields.strings("references") : void 0,
+      repo: fields.string("repo"),
+      spec: fields.string("spec"),
+      stage: fields.oneOf("stage", CRITIQUE_STAGES)
+    }));
+    const { orchestratorFamily, stage } = input;
+    const repository = await this.repositories.resolve(input.repo);
+    if (repository.status === "refused") return repository;
+    const entry = (await this.repositories.allowlist()).repositories[repository.key];
+    if (entry === void 0) {
+      return refusal("not-opted-in", `${repository.key} has no family allowlist entry on this machine; record one with allow`);
+    }
+    const routing = await readJsonFile(this.deps.files, join3(this.deps.assetsRoot, "routing.json"), "invalid-routing", parseRouting);
+    const roster = resolveRoster(routing, {
+      allowedFamilies: entry.families,
+      orchestratorFamily,
+      stage
+    });
+    const runId = await this.freshRunId(repository, stage);
+    const runDir = join3(repository.commonDir, "critique", runId);
+    const packetDir = join3(runDir, "packet");
+    const packetFiles = await this.freezePacket(repository, packetDir, input);
+    const manifest = {
+      allowed_families: entry.families,
+      created_at: this.deps.clock.now().toISOString(),
+      critics: roster.critics,
+      depth: roster.depth,
+      dropped: roster.dropped,
+      orchestrator_family: orchestratorFamily,
+      packet_dir: packetDir,
+      packet_files: packetFiles,
+      repo_root: repository.root,
+      repository: repository.key,
+      run_dir: runDir,
+      run_id: runId,
+      stage,
+      version: 1
+    };
+    await this.deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}
 `);
-  return {
-    critics: roster.critics.map(criticIdentity),
-    depth: roster.depth,
-    dropped: roster.dropped,
-    manifest_path: manifestPath(runDir),
-    packet_dir: packetDir,
-    packet_files: packetFiles.map((file) => file.path),
-    run_dir: runDir,
-    run_id: runId,
-    status: "ready"
-  };
-}
-async function freshRunId(deps, repository, stage) {
-  const base = `${compactTimestamp(deps.clock.now())}-${stage}`;
-  let candidate = base;
-  for (let n = 2; await deps.files.exists(manifestPath(join3(repository.commonDir, "critique", candidate))); n += 1) {
-    candidate = `${base}-${String(n)}`;
+    return {
+      critics: roster.critics.map(criticIdentity),
+      depth: roster.depth,
+      dropped: roster.dropped,
+      manifest_path: manifestPath(runDir),
+      packet_dir: packetDir,
+      packet_files: packetFiles.map((file) => file.path),
+      run_dir: runDir,
+      run_id: runId,
+      status: "ready"
+    };
   }
-  return candidate;
-}
-async function freezePacket(deps, repository, packetDir, input) {
-  const spec = insideRepository(repository.root, input.spec);
-  const references = input.references === void 0 ? await defaultReferences(deps, repository.root) : input.references.map((path) => insideRepository(repository.root, path));
-  const sources = [
-    { kind: "artifact", path: join3("artifact", basename(spec)), source: spec },
-    ...references.map((source) => ({ kind: "reference", path: join3("references", source), source }))
-  ];
-  const frozen = [];
-  for (const file of sources) {
-    const text = await deps.files.readText(join3(repository.root, file.source));
-    await deps.files.writeText(join3(packetDir, file.path), text);
-    frozen.push({ ...file, sha256: sha256(text) });
+  async freshRunId(repository, stage) {
+    const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
+    let candidate = base;
+    for (let n = 2; await this.deps.files.exists(manifestPath(join3(repository.commonDir, "critique", candidate))); n += 1) {
+      candidate = `${base}-${String(n)}`;
+    }
+    return candidate;
   }
-  return frozen;
-}
-async function defaultReferences(deps, root) {
-  for (const candidate of DEFAULT_REFERENCES) {
-    if (await deps.files.exists(join3(root, candidate))) return [candidate];
+  /**
+   * Copies the artifact to `artifact/` and each reference to `references/`
+   * under its repository path. Nothing else is ever put at the packet root, so
+   * a `.vibe/`, `.agents/` or `AGENTS.md` there can never become critic config.
+   */
+  async freezePacket(repository, packetDir, input) {
+    const spec = insideRepository(repository.root, input.spec);
+    const references = input.references === void 0 ? await this.defaultReferences(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
+    const sources = [
+      { kind: "artifact", path: join3("artifact", basename(spec)), source: spec },
+      ...references.map((source) => ({ kind: "reference", path: join3("references", source), source }))
+    ];
+    const frozen = [];
+    for (const file of sources) {
+      const text = await this.deps.files.readText(join3(repository.root, file.source));
+      await this.deps.files.writeText(join3(packetDir, file.path), text);
+      frozen.push({ ...file, sha256: sha256(text) });
+    }
+    return frozen;
   }
-  return [];
-}
+  async defaultReferences(root) {
+    for (const candidate of DEFAULT_REFERENCES) {
+      if (await this.deps.files.exists(join3(root, candidate))) return [candidate];
+    }
+    return [];
+  }
+};
 function insideRepository(root, path) {
   const rel = relative(root, isAbsolute(path) ? path : resolve(root, path));
   if (rel.startsWith("..") || isAbsolute(rel)) throw new CritiqueError("outside-repository", `${path} is outside the repository`);
@@ -993,44 +1028,50 @@ function bullets(items, hidden) {
 
 // src/contexts/critique/application/record.ts
 var REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/;
-async function record(deps, raw) {
-  const input = readInput(raw, "record", (fields) => ({
-    runDir: fields.string("run_dir"),
-    verdicts: fields.list("verdicts", readVerdict)
-  }));
-  const manifest = await readJsonFile(deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
-  const merged = await readJsonFile(deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
-  const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
-  const reportPath = join4(input.runDir, "report.md");
-  if (await deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
-  const run = {
-    critics: merged.critics,
-    degraded: merged.degraded,
-    depth: manifest.depth,
-    dropped: manifest.dropped,
-    findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
-    repository: manifest.repository,
-    run_id: manifest.run_id,
-    stage: manifest.stage
-  };
-  const summary = renderSummary(run, reportPath);
-  const summaryPath = join4(input.runDir, "summary.md");
-  const ledger = ledgerPath(deps.env);
-  await deps.files.writeText(reportPath, renderReport(run));
-  await deps.files.writeText(summaryPath, summary);
-  await deps.files.appendText(ledger, ledgerLines(run, deps.clock.now()).map((line) => `${line}
+var RecordCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async run(raw) {
+    const input = readInput(raw, "record", (fields) => ({
+      runDir: fields.string("run_dir"),
+      verdicts: fields.list("verdicts", readVerdict)
+    }));
+    const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
+    const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
+    const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
+    const reportPath = join4(input.runDir, "report.md");
+    if (await this.deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
+    const run = {
+      critics: merged.critics,
+      degraded: merged.degraded,
+      depth: manifest.depth,
+      dropped: manifest.dropped,
+      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
+      repository: manifest.repository,
+      run_id: manifest.run_id,
+      stage: manifest.stage
+    };
+    const summary = renderSummary(run, reportPath);
+    const summaryPath = join4(input.runDir, "summary.md");
+    const ledger = ledgerPath(this.deps.env);
+    await this.deps.files.writeText(reportPath, renderReport(run));
+    await this.deps.files.writeText(summaryPath, summary);
+    await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line) => `${line}
 `).join(""));
-  return {
-    counts: countVerdicts(run),
-    degraded: run.degraded,
-    ledger_path: ledger,
-    report_path: reportPath,
-    run_id: manifest.run_id,
-    status: "recorded",
-    summary,
-    summary_path: summaryPath
-  };
-}
+    return {
+      counts: countVerdicts(run),
+      degraded: run.degraded,
+      ledger_path: ledger,
+      report_path: reportPath,
+      run_id: manifest.run_id,
+      status: "recorded",
+      summary,
+      summary_path: summaryPath
+    };
+  }
+};
 function verdictFor(verdicts, id) {
   const verdict = verdicts.get(id);
   if (verdict === void 0) throw new CritiqueError("invalid-input", `no verdict for ${id}`);
@@ -1065,10 +1106,10 @@ function isReasonCode(value) {
 // src/contexts/critique/application/commands.ts
 function createCritiqueCommands(deps) {
   return {
-    allow: (input) => allow(deps, input),
-    fanOut: (input) => fanOut(deps, input),
-    prepare: (input) => prepare(deps, input),
-    record: (input) => record(deps, input)
+    allow: new AllowCommand(deps),
+    fanOut: new FanOutCommand(deps),
+    prepare: new PrepareCommand(deps),
+    record: new RecordCommand(deps)
   };
 }
 
@@ -1551,7 +1592,7 @@ async function runCritiqueCli(argv, runtime2) {
   }
   try {
     const text = flag === "--json" ? value ?? "" : flag === "--input" ? await runtime2.readFile(value ?? "") : await runtime2.readStdin();
-    const result2 = await runtime2.commands[method](parseInput(text));
+    const result2 = await runtime2.commands[method].run(parseInput(text));
     return { exitCode: 0, stderr: "", stdout: `${JSON.stringify(result2, null, 2)}
 ` };
   } catch (error) {

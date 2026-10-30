@@ -81,7 +81,7 @@ describe('critique runner command line', () => {
   it('reports the code of the error a command raises', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
-    await h.commands.allow({ families: ['mistral'], repo: h.repo })
+    await h.commands.allow.run({ families: ['mistral'], repo: h.repo })
 
     const result = await runCritiqueCli(
       ['prepare', '--json', JSON.stringify({ orchestrator_family: 'anthropic', repo: h.repo, spec: '../x.md', stage: 'spec' })],
