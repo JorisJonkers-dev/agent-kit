@@ -42,11 +42,13 @@ KIT_PATHS=(
   registry/generated/hermes/mcp-servers.local.yaml
   registry/generated/vibe/mcp-servers.toml
   registry/generated/vibe-private/mcp-servers.toml
+  registry/generated/antigravity/mcp_config.json
   installer/setup-workstation.sh
   installer/port-forward-agent.sh
   installer/cloud-session.sh
   installer/memory-private
   installer/agent-kit-private
+  installer/antigravity-mcp-proxy
   installer/vibe-study
   installer/vibe-private
   installer/vibe-hooks.toml
@@ -54,6 +56,7 @@ KIT_PATHS=(
   scripts/codex-add-url-mcp.py
   scripts/converge.py
   scripts/vibe-merge-mcp.py
+  scripts/antigravity-merge-mcp.py
   scripts/vibe-split-homes.py
   scripts/vibe-sync-models.py
   scripts/agent-kit-keys.py
