@@ -148,7 +148,7 @@ def test_a_command_setup_did_not_write_is_not_retired(tmp_path: Path) -> None:
 
 
 def test_vibe_private_is_told_to_save_only_what_matters() -> None:
-    pointer = _fn(_script(), "_vibe_agents_pointer")
+    pointer = _fn(_script(), "_agents_pointer")
     assert "automatically" not in pointer
     assert "long-term" in pointer and "remember" in pointer
     assert "Never retain" in pointer and "memory-api" in pointer
