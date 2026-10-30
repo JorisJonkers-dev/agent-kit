@@ -10,8 +10,11 @@ why critics are direct CLI calls.
 The source brief ("Cross-Provider Critique Pipeline — Implementation Brief",
 30 Oct 2026) is not kept in this repository. Its deliverables below are
 reconstructed from the spec, agent-kit#167, which is the source of truth for
-every design decision. Where this document and #167 disagree, #167 wins until
-it is amended.
+every design decision. The live checks below forced four departures from #167
+itself. They are listed under [Amendments #167 needs](#amendments-167-needs),
+and they stay proposals until the owner approves them; #167 has not been
+changed. On every other point where this document and #167 disagree, #167
+wins.
 
 The checks were run on 2026-10-30 for agent-kit#168, on macOS, against
 Vibe 3.0.3 (`~/.local/bin/vibe`, the `mistral-vibe` uv tool) and Antigravity
@@ -19,7 +22,7 @@ CLI 1.4.11 (`/opt/homebrew/bin/agy`).
 
 ## Summary
 
-Most of what #167 assumes holds. Five things do not, and the tickets that
+Most of what #167 assumes holds. Six things do not, and the tickets that
 build on this one need to know:
 
 - **Vibe's `--max-price` does not cap a single turn.** It is checked between
@@ -27,17 +30,21 @@ build on this one need to know:
   Only `--time-limit` interrupts a turn in progress.
 - **Vibe's cost is only as good as the prices in its config.** Vibe computes
   `cost_usd` from the `input_price` and `output_price` of the model entry.
-  The models setup syncs into the personal Vibe home have none, so Mistral
-  Large and DeepSeek Flash report $0.00 and the price cap never fires. A
-  critic agent file has to carry its own priced model entry.
-- **Vibe 3.0.3 offers no `grep` tool in headless mode.** Listing `grep` in the
-  tool allowlist is harmless but does nothing; a critic can read files and
+  The model entries setup converges into the personal Vibe home carry no
+  prices, so Mistral Large and DeepSeek Flash report $0.00 and the price cap
+  never fires. A critic agent file has to carry its own priced model entry.
+- **Vibe 3.0.3 offers no `grep` tool in headless mode.** Listing `grep` in
+  `enabled_tools` is harmless but does nothing; a critic can read files and
   nothing else. The prompt has to name the packet files.
 - **agy ignores `--mode plan` when `--disable-slash-commands` is set**, and
-  says so on stderr. Plan mode cannot be combined with disabling skills.
-  What keeps an agy critic read-only is that headless mode auto-denies every
-  action that needs permission, and a denial ends the run with an empty
-  response.
+  says so on stderr. What keeps an agy critic read-only is that headless mode
+  auto-denies every action that needs permission, and a denial ends the run
+  with an empty response. That also holds with the working directory where a
+  real packet lives, inside a trusted workspace.
+- **`--disable-slash-commands` does not hide skills from an agy critic.** Run
+  inside the agent-kit checkout, where packets live, a critic still had the
+  checkout's workspace skills and agy's own slash commands listed in its
+  context. Whether a critic can actually load one is not settled.
 - **agy enforces the finding schema by omission, not by retry.** A response
   that fits the schema arrives as `structured_output`; one that does not is
   returned as prose with no `structured_output` field and exit code 0.
@@ -47,10 +54,10 @@ confirmed below with the command and the output that shows it.
 
 ## How the checks were run
 
-Every run used a throwaway working directory under the session scratchpad,
-never a repository checkout, and a trivial prompt with no repository content
-(a one-line `note.txt` containing "The answer is 7.", and an `outside.txt`
-next to the working directory containing a canary string). Each Vibe run had
+Every run in the first pass used a throwaway working directory under the
+session scratchpad, never a repository checkout, and a trivial prompt with no
+repository content (a one-line `note.txt` containing "The answer is 7.", and
+an `outside.txt` next to the working directory containing a canary string). Each Vibe run had
 `--max-price` of $0.05 or less, a `--time-limit`, and an outer `timeout`. Each
 agy run had `--print-timeout` and an outer `timeout`.
 
@@ -65,11 +72,20 @@ A SHA-1 listing of every file in the working directory was taken before and
 after each run. "Working directory unchanged" below means the two listings
 were identical.
 
+Three later agy runs, made while reviewing this document, used the place a
+real packet lives instead: `critique/_check168/` inside the git common
+directory of the agent-kit checkout, which agy's settings list as a trusted
+workspace. That directory held only `note.txt` and was deleted afterwards.
+Before and after each of those runs, both the directory's SHA-1 listing and
+`git status --porcelain` of the worktree the checks ran from were recorded.
+
 Total live spend: Vibe recorded $0.115 in its `export.json` files. Two runs
 used models with no configured price, one used placeholder prices, and one
 was interrupted before its usage was counted (see the findings on cost), so
-the true figure is somewhat higher, roughly $0.15. agy ran 11 times in print
-mode against the Antigravity quota, which has no dollar cost.
+the true figure is somewhat higher, roughly $0.15. agy ran 14 times in print
+mode against the Antigravity quota, which has no dollar cost. The two Vibe
+argument errors quoted under exit codes were re-run for this record; Vibe
+rejects them before it reads a key, so they cost nothing.
 
 ## Vibe
 
@@ -109,6 +125,8 @@ enable_mcp = false
 enable_subagents = false
 ```
 
+(`grep` in `enabled_tools` turned out to do nothing; see below.)
+
 ```sh
 timeout 90 vibe -p "Reply with exactly the single word: pong" --output json \
   --max-price 0.02 --time-limit 60 --trust --agent critic-glm --output-dir out
@@ -145,7 +163,7 @@ take: the agent owns its model entry and prices, and does not depend on what
 
 So none of the alternatives is needed. For the record: Vibe 3.0.3 has no
 per-run model flag (`vibe --help` lists none), Vibe reads any config key from
-a `VIBE_` environment variable (its bundled documentation gives
+a `VIBE_` environment variable (its shipped documentation gives
 `VIBE_ACTIVE_MODEL` as the example; not exercised here), and `VIBE_HOME`
 selects a separate home.
 
@@ -167,6 +185,25 @@ setting Vibe does not use. `export.json` shows the overlay took effect:
 enabled_tools: ['read_file', 'grep']   outside_workdir: 'deny'
 enable_mcp: False   enable_subagents: False   tools: {}
 ```
+
+Two runs had `VIBE_STRICT_CONFIG=1` set: a pong run with this agent file plus
+`[session_logging] enabled = false` (saved as `critic-nolog`), and the
+`--time-limit` run further down, which used `critic-glm` itself:
+
+```sh
+VIBE_STRICT_CONFIG=1 timeout 90 vibe -p "Reply with exactly the single word: pong" --output json \
+  --max-price 0.02 --time-limit 60 --trust --agent critic-nolog --output-dir out
+VIBE_STRICT_CONFIG=1 timeout 60 vibe -p "Write a detailed 4000-word essay on the history of bread, ..." \
+  --output json --max-price 0.05 --time-limit 10 --trust --agent critic-glm --output-dir out
+```
+
+```text
+critic-nolog  exit_code: 0  outcome: "finished"  config.strict_config: true  config.session_logging.enabled: false
+critic-glm    exit_code: 3  outcome: "deadline"  config.strict_config: true
+```
+
+Neither was refused. The same setting does refuse an agent file with an
+unknown key (see the exit codes below), so both files loaded clean.
 
 The prompt told the critic to create a file, run `touch created2.txt`, and
 read `../outside.txt`:
@@ -207,7 +244,7 @@ Four things the runner and the agent files need to take from this:
   `write_file`, `bash` and `skill` and is refused when it calls them, so it
   spends turns on attempts. The role prompt should say plainly that the
   critic can only read the listed files.
-- **Skills are stopped by the tool allowlist, not by `enabled_skills`.**
+- **Skills are stopped by the allowed-tool list, not by `enabled_skills`.**
   The system prompt listed the same four built-in plugin skills
   (`vibe:create-plugin`, `vibe:skill-creator`, `vibe:vibe`, `vibe:worktree`)
   with and without `enabled_skills = ["re:^$"]`. What prevents loading one is
@@ -283,6 +320,26 @@ with real prices (see above).
 | 2 | a model id the API rejects (`Status 400 ... Invalid model`); **also `--agent` naming an agent that does not exist** | `infrastructure_failure` |
 | 3 | `--time-limit` reached; `--max-price` reached | `deadline`, `price_limit` |
 
+The exit-1 cases:
+
+```text
+$ vibe -p pong --output bogus --trust
+error: invalid value 'bogus' for '--output <OUTPUT>'
+  [possible values: text, json, streaming]
+exit=1
+$ vibe -p pong --output json --max-price abc --trust
+error: invalid value 'abc' for '--max-price <MAX_PRICE>': invalid float literal
+exit=1
+$ VIBE_STRICT_CONFIG=1 vibe -p pong --output json --max-price 0.01 --time-limit 20 \
+    --trust --agent critic-strict --output-dir out      # agent file has no_such_setting = true
+Error: Config refused because strict_config is on and it has settings Vibe does not use:
+- `no_such_setting` is not a Vibe setting, in the active agent profile
+exit=1
+out/export.json: "outcome": "config_error", "exit_code": 1
+```
+
+The argument errors write no `export.json`; the config error does.
+
 The unknown-agent case is worth noting: Vibe's own documentation describes
 exit 1 as the usage or config error, but a missing agent exits 2 as an
 infrastructure failure (`Error: Agent 'no-such-agent-xyz' not found.`). A
@@ -330,8 +387,37 @@ Mistral Large:
 | Model | Alias in the personal home | Model id called (`meta.json`) | Result |
 |---|---|---|---|
 | GLM 5.3 | `glm-5-3` | `zai-glm-5-3` | exit 0, "pong", $0.0069 |
-| DeepSeek Flash | `deepseek-v4-1-flash-1017` | `deepseek-v4-1-flash-1017` | exit 0, read and reported `note.txt` |
+| DeepSeek Flash | `deepseek-v4-1-flash-1017` | `deepseek-v4-1-flash-1017` | exit 0, "pong", cost unpriced; exit 0 with a test-priced agent entry, read and reported `note.txt` |
 | Mistral Large 4 | `mistral-large-4-0-3` | `mistral-large-4-0` | exit 0, "pong", cost unpriced |
+
+The GLM run is the agent-file check above. DeepSeek Flash answered twice:
+once as the personal home's default model with no agent file, and once
+through the `critic-deepseek-flash` agent file shown earlier. Mistral Large
+answered through an agent file like `critic-glm` with
+`active_model = "mistral-large-4-0-3"`.
+
+```sh
+timeout 90 vibe -p "Reply with exactly the single word: pong" --output json --max-price 0.02 \
+  --time-limit 60 --trust --enabled-tools read_file --enabled-tools grep --output-dir out
+timeout 150 vibe -p "This is a tool test. ... 1) Read note.txt and quote its content. 2) Use grep ... 3) Call the skill tool ..." \
+  --output json --max-price 0.03 --time-limit 120 --trust --agent critic-deepseek-flash --output-dir out
+timeout 90 vibe -p "Reply with exactly the single word: pong" --output json --max-price 0.02 \
+  --time-limit 60 --trust --agent critic-mistral-large --output-dir out
+```
+
+```text
+default (DeepSeek Flash)  exit 0  model_name: "deepseek-v4-1-flash-1017"  final message: "pong"
+                          cost_usd: 0.0  usage: {input_tokens: 7517, output_tokens: 4}
+critic-deepseek-flash     exit 0  model_name: "deepseek-v4-1-flash-1017"  steps: 6
+                          final message: "**Step 1 — read note.txt: `read_file` — succeeded** Content, quoted exactly: `The answer is 7.` ..."
+                          cost_usd: 0.0163447  usage: {input_tokens: 49119, output_tokens: 1609, cached_input_tokens: 43456}
+critic-mistral-large      exit 0  model_name: "mistral-large-4-0"  final message: "pong"
+                          cost_usd: 0.0  usage: {input_tokens: 7081, output_tokens: 14}
+```
+
+DeepSeek Flash's real cost is not known from these runs. Through the home's
+own entry it reports $0.00, and the $0.0163 comes from the placeholder
+prices in the test agent file (0.3 and 1.0 per million tokens).
 
 The personal home also lists `zai-glm-5-3-flash`, `zai-glm-latest`,
 `glm-5-2`, `mistral-large-latest` and `mistral-small-latest`; the routing
@@ -386,7 +472,8 @@ that produced nothing. The runner has to read the fields: an empty
 `--output-format stream-json` adds an `init` event (model, cwd,
 `permission_mode`, and the full tool list), `step_update` events with text
 deltas and per-step usage, and a final `result` event with the same object as
-above.
+above. The `init` event has no field for skills; see
+[Skills and slash commands](#skills-and-slash-commands).
 
 ### Plan mode, sandbox and read-only
 
@@ -438,10 +525,94 @@ directory in headless mode, with or without plan mode. Two cautions follow:
 - **The guarantee rests on agy's defaults.** An allow rule under
   `permissions.allow` in agy's `settings.json` would let that action through.
   The owner's settings hold only `trustedWorkspaces`, which lists the
-  agent-kit checkout; a packet under `.git/critique/` of that checkout lies
-  inside a trusted workspace, and these checks ran outside one. The live
-  smoke check (#178) must run the create-a-file test with the packet in its
-  real location, and the tripwire stays the backstop.
+  agent-kit checkout, so a packet under `.git/critique/` of that checkout
+  lies inside a trusted workspace. The checks above ran outside one; the
+  create-a-file check was repeated inside one (next section) with the same
+  result. The tripwire stays the backstop.
+
+### Inside a trusted workspace
+
+The create-a-file check, with the working directory where a real packet
+lives:
+
+```sh
+cd "$(git rev-parse --git-common-dir)/critique/_check168"     # holds only note.txt
+timeout 180 agy -p "This is a permissions test. Use a tool to create a file named created.txt in the current directory containing the word hi. Then report the exact tool name you used and the exact result or error it returned." \
+  --output-format json --model gemini-3.8-flash-high --print-timeout 150s \
+  --disable-slash-commands --sandbox < /dev/null
+```
+
+```text
+exit=0 elapsed=8s
+before: 71fd2c785f329a52357d72ee3329b5fd8728d6a3  ./note.txt
+after:  71fd2c785f329a52357d72ee3329b5fd8728d6a3  ./note.txt
+git status --porcelain: empty before, empty after
+stderr: jetski: no output produced — a tool required the "write_file" permission that headless mode cannot prompt for, so it was auto-denied. ...
+{"status":"SUCCESS","response":"","duration_seconds":4.430965,"num_turns":1, ... "denied_actions":[{"action":"write_file","display_name":"WriteFile"}]}
+```
+
+Being inside a trusted workspace does not lift the headless denial: agy
+refused the write exactly as it did outside one. Whether a critic there may
+read files outside its working directory but inside the workspace (the
+repository's own working tree) was not checked; it belongs in #178.
+
+### Skills and slash commands
+
+`agy --help` describes the flag as "Disable slash command and skill expansion
+in print mode". To see what that leaves a critic, agy ran twice more in the
+same directory. First a trivial prompt with `stream-json`, to capture the
+`init` event:
+
+```sh
+timeout 120 agy -p "Reply with exactly the single word: pong" --output-format stream-json \
+  --model gemini-3.8-flash-high --print-timeout 90s --disable-slash-commands --sandbox < /dev/null
+```
+
+```text
+{"event":"init", ... "init":{"model":"gemini-3.8-flash-high",
+ "cwd":".../agent-kit/.git/critique/_check168",
+ "tools":["ask_custom_permission","ask_permission","ask_question","browser_click_element", ...
+   "call_mcp_tool", ... "define_subagent", ... "find_by_name","finish","generate_image","grep_search",
+   "invoke_subagent", ... "list_dir", ... "read_url_content","replace_file_content","run_command",
+   "run_workflow","schedule","search_marketplace","search_web","sed_file", ... "view_file","wait",
+   "wait_5_seconds","write_to_file"],
+ "permission_mode":"request-review"}}
+...
+{"event":"result","result":{ ... "status":"SUCCESS","response":"pong\n", ... "usage":{"input_tokens":9370, ...}}}
+```
+
+The `init` event has only `model`, `cwd`, `tools` and `permission_mode`. The
+60 tools are the same list as the earlier `stream-json` run outside the
+checkout, and none of them is named for skills (`run_workflow` and
+`invoke_subagent` were not examined). So the event cannot show whether
+skills are available. The same pong prompt took 9,370 input tokens
+here against 7,656 outside the checkout, which suggests the workspace adds
+to the system prompt. Then the critic was asked what it had been told about:
+
+```sh
+timeout 120 agy -p "Do not use any tools. List the exact names of every skill, workflow or slash command that your instructions or context tell you about, one per line. If there are none, answer: none." \
+  --output-format json --model gemini-3.8-flash-high --print-timeout 90s --disable-slash-commands --sandbox < /dev/null
+```
+
+```text
+exit=0  directory and git status unchanged
+"response":"add-public-service\nagent-session-bootstrap\nagy-customizations\nantigravity-guide\nclaude-worker\n
+  council\ncouncil-amend\n ... speckit-taskstoissues\ntoken-economy\n/goal\n/compact\n/schedule\n/browser\n/plan\n
+  /grill-me\n/learn\n"
+```
+
+Apart from `agy-customizations` and `antigravity-guide`, which agy ships,
+those are exactly the skills in the checkout's `.agents/skills/`. So
+`--disable-slash-commands` stops a slash command in the prompt from being
+expanded, but it does not take skills out of a critic's context, and a
+critic run under `.git/critique/` sees the enclosing repository's skills
+whatever the packet holds. Once setup installs `critique` and
+`critique-spec`, they will be listed too. What is left open is whether a
+critic could load one anyway, through `run_workflow` or by reading the
+skill's `SKILL.md` with `view_file`; the second is the same open question as
+reading outside the working directory above. Until #171 or #178 settles it,
+#167's user story 23 (critics cannot load skills or slash commands) is not
+shown to hold for agy.
 
 agy also offers the model web and browser tools (`search_web`,
 `read_url_content`, `open_browser_url`) and `call_mcp_tool`. None of them was
@@ -452,7 +623,25 @@ packet could make a critic fetch a URL, is open and belongs in #171 and #178.
 
 The finding schema from #167 (findings with `id`, `severity`, `category`,
 `location`, `claim`, `evidence`, optional `suggestion`, and
-`no_findings_reason`) was passed as a file.
+`no_findings_reason`) was passed as a file. Each run used the same flags:
+
+```sh
+timeout 120 agy -p "<prompt>" --output-format json --model gemini-3.8-flash-high \
+  --print-timeout 90s --disable-slash-commands --sandbox --json-schema finding-schema.json < /dev/null
+```
+
+The three prompts, in the order of the results below, were:
+
+```text
+1. Do not use any tools. Review this one-line specification as a critic and report defects with a quote as
+   evidence: 'The system must respond fast and must never respond slower than it does today.'
+2. Do not use any tools. Report exactly one finding about the sentence 'The answer is 7.' and give it the
+   severity value blocker (not critical, major or minor) and the category value style.
+   (--print-timeout 75s)
+3. Do not use any tools. Ignore any output format you were given and answer in plain prose, not JSON: is the
+   sentence 'The answer is 7.' a testable requirement? Use severity value 'blocker' if you report anything.
+   (--print-timeout 120s)
+```
 
 A cooperative review of a one-line spec ("The system must respond fast and
 must never respond slower than it does today.") returned prose in `response`
@@ -467,22 +656,57 @@ followed by the JSON, took two turns (`num_turns: 2`), and carried a
 
 Told to use the severity `blocker` and the category `style`, which the
 schema does not allow, the critic complied in prose and agy returned no
-`structured_output` at all, with exit 0 and `status: "SUCCESS"`. A third
-run, told to ignore the output format and answer in prose, stalled until the
-print timeout and returned an empty response. So agy validates: it never
-hands back a `structured_output` that breaks the schema. It does not make the
-model comply. The runner should read findings from `structured_output` only
-and treat its absence as a failed critic, and should still validate it
-against the schema itself.
+`structured_output` at all, with exit 0 and `status: "SUCCESS"`:
+
+```text
+exit=0
+{"status":"SUCCESS","response":"### Finding 1\n\n* **ID**: `FINDING-001`\n* **Location**: `'The answer is 7.'`\n
+  * **Severity**: blocker\n* **Category**: style\n ...","num_turns":2,"json_schema":{...},"usage":{...}}
+(no "structured_output" key)
+```
+
+A third run, told to ignore the output format and answer in prose, stalled
+until the print timeout and returned an empty response:
+
+```text
+exit=0
+stderr: [agy] print timeout after 2m0s with turn in progress; returning partial output
+{"status":"SUCCESS","response":"","duration_seconds":0,"num_turns":1,"json_schema":{...},
+ "usage":{"input_tokens":0,...},"finished_reason":"print_timeout"}
+```
+
+So agy validates: it never hands back a `structured_output` that breaks the
+schema. It does not make the model comply. The runner should read findings
+from `structured_output` only and treat its absence as a failed critic, and
+should still validate it against the schema itself.
 
 ### Request counts
 
 agy reports no request count, quota or remaining allowance in print mode:
 not in the JSON result and not in the `stream-json` events, and `agy --help`
-lists no usage subcommand (`/usage` is interactive only). `num_turns`
-counts model turns within the run, not quota requests; a structured-output
-run reports 2. `cli.log` records quota refreshes (`doRefreshQuota`) without
-numbers. The runner's own per-day invocation counter, which #167 already
+lists no usage subcommand (`/usage` is interactive only):
+
+```text
+$ agy --help
+...
+Available subcommands:
+  agent           List available agents
+  agents          List available agents
+  changelog       Show changelog and release notes
+  help            Show help for subcommands
+  install         Configure environment paths and shell settings
+  mcp             Manage MCP servers (add, remove, list, enable, disable)
+  mic-serve       Serve this machine's microphone to a CLI on another host
+  models          List available models
+  plugin          Manage plugins (install, uninstall, list, enable, disable)
+  plugins         Alias for plugin
+  remote-control  Manage the remote-control background daemon (start, status, stop)
+  update          Update CLI
+```
+
+`num_turns` counts model turns within the run, not quota requests; a
+structured-output run reports 2. `cli.log` records quota refreshes
+(`doRefreshQuota`) without numbers. The runner's own per-day invocation counter, which #167 already
 specifies, is the only count available.
 
 ### Print timeout
@@ -501,14 +725,24 @@ The print timeout stops the run, but exits 0 and reports `SUCCESS`; only
 ## Phase 0 facts
 
 These were established before this ticket and are recorded in #167. The
-CLI facts were re-confirmed here.
+CLI facts were re-confirmed here, from the runs above and from each CLI's
+`--help`.
 
-- PAL is v9.8.2. There has been no push since 2025-12-15, and clink rejects
-  CLI names outside gemini, codex and claude (ADR-0001).
-- Vibe 3.0.3 has the headless flags (`-p`, `--prompt-file`, `--output`), a
-  tool allowlist (`--enabled-tools`, which in headless mode disables every
+- PAL is v9.8.2; [ADR-0001](../adr/0001-critics-run-as-direct-cli-calls.md)
+  records what was found about it.
+- Vibe 3.0.3 has the headless flags (`-p`, `--prompt-file`, `--output`),
+  allowed tools (`--enabled-tools`, which in headless mode disables every
   unlisted tool), `--trust`, `--time-limit`, `--max-price` and
-  `--output-dir`. It has no per-run model flag.
+  `--output-dir`. It has no per-run model flag. Every run here passed the
+  prompt with `-p`. `--prompt-file`, which #167 names for the Vibe critics,
+  was not exercised; `vibe --help` lists it:
+
+  ```text
+  -p, --prompt [<PROMPT>]
+          Run in headless (programmatic) mode: send prompt, output response, exit
+      --prompt-file <PATH>
+          Run in programmatic mode with the prompt read from PATH, instead of -p TEXT or stdin
+  ```
 - agy 1.4.11 has print mode (`-p`), `--output-format json`, `--json-schema`,
   `--mode plan`, `--sandbox`, `--model`, `--print-timeout` and
   `--disable-slash-commands`. Its Gemini models are 3.8 Flash only.
@@ -521,14 +755,20 @@ agent-kit. Tickets are the sub-issues of #167.
 
 | Deliverable | Where it lives in agent-kit | Ticket |
 |---|---|---|
-| Critique bounded context (packet, fan-out, parsing, dedupe, evidence checks, tripwire, allowlist, depth, budget, ledger, report) | `council/ts/src/contexts/critique/`, beside the existing contexts; reuses the ports in `council/ts/src/ports/` and the shared kernel | #169 to #175 |
+| Critique bounded context (packet, fan-out, parsing, dedupe, evidence checks, tripwire, family allowlist, depth, budget, ledger, report) | `council/ts/src/contexts/critique/`, beside the existing contexts; reuses the ports in `council/ts/src/ports/` and the shared kernel | #169 (packet, parsing, family allowlist, ledger, report), #170 (evidence checks), #171 (parallel fan-out, dedupe), #172 (tripwire), #173 (budget), #174 (depth), #175 (tracker) |
 | Boundary: no import of council's cross-critique, design-vote or consolidation flow | rules in `council/ts/.dependency-cruiser.cjs` | #169 |
 | Runner commands `prepare`, `fan-out`, `record`, `allow` | a CLI entry beside `council/ts/src/cli/`, bundled by `council/ts/scripts/build.mjs` into its own runner, pinned in `manifest.yaml` the way `council/council.mjs` is | #169 |
+| `record`'s output: the compact summary, the full report, and Dissent | written by `record` in the critique context; the report goes into the run directory, the summary is returned to the skill | #169 (summary, report), #170 (minor findings batched per critic), #171 (Dissent) |
 | Critic clients (binary, fixed arguments, model, family, cost reading) | the shipped routing configuration and the Vibe agent files; model names appear nowhere else | #169, #171 |
+| The agy client's model | agy has no agent file, so `--model gemini-3.8-flash-high` is one of the client's fixed arguments in the shipped routing configuration in `skills/critique/` | #171 |
 | Read-only Vibe critic agents `critic-<model>` | rendered from `registry/estate-tooling.yaml` into `registry/generated/vibe/`, installed by a new setup step into the personal Vibe home's `agents/` (`~/.vibe/agents/`), not `vibe-private`'s | #176 |
 | Routing (stages, depths, lenses, caps, fallbacks, Antigravity quota, per-flow Vibe cap) | default file in the `critique` skill directory; optional per-machine override under `~/.config/agent-kit/` | #173, #174 |
 | Prompts: shared preamble, `spec-redteam` role, eight lens files, finding schema | the `critique` skill directory (`skills/critique/`), hashed into the ledger | #169, #177 |
 | Shared `critique` skill and user-invocable `critique-spec` skill | `skills/critique/` and `skills/critique-spec/`, as `local_skills` entries in `registry/estate-tooling.yaml` for claude, codex, vibe and antigravity | #176, #177 |
+| `critique-spec`'s frontmatter description (applies after `/to-spec` produced or changed a spec) | the frontmatter of `skills/critique-spec/SKILL.md` | #177 |
+| Acting on spec findings (user stories 35 to 40): edits to the spec issue body, the one change comment, the second round, the warning not to start `/to-tickets` | the `critique-spec` skill text, writing through `gh`; a second round is a second prepare and fan-out | #177 |
+| Offering the opt-in when a repository has no family allowlist entry (user story 50) | the `critique-spec` skill, recording the owner's choice through `allow` | #177 |
+| Saying clearly when a critic CLI is missing or not signed in, and offering to continue without it (user story 68) | detection in fan-out, as a critic status of its own; the offer in the `critique-spec` skill | none yet: no ticket's acceptance criteria cover it; proposed for #173 (detection, next to its fallbacks) and #177 (the offer) |
 | Family allowlist | per machine, outside any repository, keyed by remote, under `~/.config/agent-kit/` beside the keep file | #169 |
 | Run directories (packet, raw output, merged findings, report) | `critique/<run-id>/` inside the repository's git common directory | #169 |
 | Ledger | one JSON-lines file per user in agent-kit's data directory (`~/.local/share/agent-kit/`) | #169 |
@@ -539,9 +779,9 @@ agent-kit. Tickets are the sub-issues of #167.
 | Integration document | this file | #168 |
 | Glossary and ADR | `CONTEXT.md` "Critique pipeline", `docs/adr/0001-critics-run-as-direct-cli-calls.md` | #168 (done) |
 
-The locations of the routing override, the allowlist and the ledger are
-proposals that follow where agent-kit already keeps per-machine files (the
-keep file and `env.sh` in `~/.config/agent-kit/`, marketplaces in
+The locations of the routing override, the family allowlist and the ledger
+are proposals that follow where agent-kit already keeps per-machine files
+(the keep file and `env.sh` in `~/.config/agent-kit/`, marketplaces in
 `~/.local/share/agent-kit/`). The ticket that builds each one settles the
 exact path.
 
@@ -550,10 +790,9 @@ exact path.
 Each of these is a decision in #167. The reasons are the ones recorded there
 and in the grilling session behind it.
 
-- **No PAL.** Critics are started as direct subprocesses (`vibe -p`,
-  `agy -p`), not through PAL MCP's clink. clink rejects CLIs outside its
-  three defaults, upstream is inactive, and it folds conversation history
-  into the prompt, which works against blind critics. See ADR-0001.
+- **No PAL.** Critics are started as direct subprocesses, not through PAL
+  MCP's clink, for the reasons in
+  [ADR-0001](../adr/0001-critics-run-as-direct-cli-calls.md).
 - **TypeScript instead of Python.** The runner is a bounded context in
   council's TypeScript package rather than a separate Python program. It
   reuses council's process, git, gh, clock and env ports, their test fakes,
@@ -570,15 +809,14 @@ and in the grilling session behind it.
 - **Storage in the git directory.** Run directories live under the
   repository's git common directory, so they are never committed, need no
   `.gitignore` change, and are shared by every worktree of the repository.
-- **Per-machine allowlist.** Which model families a repository may send to is
-  kept on the owner's machine, outside the repository, so nothing about the
-  pipeline is committed to client or shared repositories. A repository owned
-  by the `nedap` GitHub organisation is always denied, and one with no remote
-  counts as not opted in.
+- **Per-machine family allowlist.** Which families a repository may send to
+  is decided by the **Family allowlist** as defined in
+  [CONTEXT.md](../../CONTEXT.md), kept on the owner's machine so nothing
+  about the pipeline is committed to client or shared repositories.
 - **Depth replaces `--fast` and `--deep`.** A stage runs at base or deep
   depth, chosen from deterministic signals in the artifact (size, risk terms,
   a `risk:high` label), with an explicit argument always winning. The owner
-  no longer has to judge it each time, and the choice and its signals are
+  no longer has to decide it each time, and the choice and its signals are
   logged so the automatic rule can be checked.
 - **Pocock 1.3.1 rather than v1.1.** The installed skills are 1.3.1. There
   `/to-spec` publishes the spec to the issue tracker rather than writing a
@@ -587,6 +825,43 @@ and in the grilling session behind it.
   `/implement` are not model-invocable in 1.3.1, so the critique cannot call
   them; the owner runs `/to-spec`, then `/critique-spec`. Pocock's skills are
   not edited or forked.
+
+### Amendments #167 needs
+
+The live checks forced these departures from #167 itself. #167 has not been
+edited. Each needs the owner's approval, and until then #167 stands as
+written.
+
+1. **agy runs without plan mode.** #167 has the Antigravity client run in
+   "plan mode plus sandbox", and counts plan mode as one of the CLI flags
+   that keep a critic read-only. agy ignores `--mode plan` when
+   `--disable-slash-commands` is set, and says so on stderr, so a critic
+   cannot have both. The agy client should drop `--mode plan`. Read-only
+   then rests on headless mode's automatic denial of every action that needs
+   permission, shown above both outside and inside a trusted workspace.
+2. **Vibe critics can read but not search.** #167 gives the Vibe clients an
+   allowed-tool list of `read_file` and `grep`, and user story 19 asks for a
+   tool set that can "only read and search". Vibe 3.0.3 has no `grep` tool in
+   headless mode, and every way it offers to search runs through `bash`,
+   which a critic must not have. A Vibe critic can only `read_file` the paths
+   it is given, so user story 19 narrows to "only read" for Vibe critics, and
+   the prompt lists the packet's files. (agy's critic does keep search tools:
+   `grep_search`, `find_by_name` and `list_dir`.)
+3. **The allowed-tool list keeps skills from a Vibe critic, not
+   `enabled_skills`.** #167 has each `critic-<model>` agent "disable skills".
+   The skills stay listed whatever `enabled_skills` says; what stops a
+   critic loading one is that `skill` is left out of `enabled_tools`. The
+   agent files should rely on that and may keep `enabled_skills` as a second
+   setting. For agy, user story 23 is open (see
+   [Skills and slash commands](#skills-and-slash-commands)).
+4. **Each critic agent file carries its own priced model entry.** #167 pins
+   the model through the agent file, assuming the model entries are already
+   in the personal Vibe home. Those entries have no prices, so cost reads
+   $0.00 and neither the per-critic price cap nor the per-flow cap can work.
+   Each `critic-<model>` file needs its own `[[models]]` entry with the real
+   input and output prices, which makes the agent files, next to routing, a
+   place where model names and prices are kept (user story 65 already counts
+   the critic client definitions as one).
 
 ## What this changes for the later tickets
 
@@ -597,17 +872,25 @@ and in the grilling session behind it.
   `.agents/` or `AGENTS.md` at the packet root. Do not treat exit 2 as
   retryable without checking that the agent exists.
 - **#171 (Antigravity critic).** Use `--disable-slash-commands --sandbox`
-  without `--mode plan`. Read findings from `structured_output` only. Treat
-  an empty `response`, any `denied_actions`, a missing `structured_output`
-  or `finished_reason: print_timeout` as failed, whatever the exit code.
+  without `--mode plan`, once the owner approves amendment 1; the ticket's
+  criterion asks for plan mode until then. Read findings from
+  `structured_output` only. Treat an empty `response`, any `denied_actions`,
+  a missing `structured_output` or `finished_reason: print_timeout` as
+  failed, whatever the exit code. Expect the critic to see the repository's
+  skill names.
 - **#173 (budget).** `--max-price` overshoots by up to one turn, a deadline
   stop reports no cost, and an unpriced model reports none. Budget from
   `export.json` with those gaps in mind, and count agy invocations yourself.
 - **#176 (setup).** Each `critic-<model>` agent file carries its own priced
-  `[[models]]` entry, `enabled_tools = ["read_file", "grep"]`,
-  `outside_workdir = "deny"`, `enable_mcp = false`,
-  `enable_subagents = false` and `[session_logging] enabled = false`, and
-  must pass `VIBE_STRICT_CONFIG=1`.
-- **#178 (live smoke check).** Repeat the create-a-file test for agy with the
-  packet inside a trusted workspace's git directory, and check whether agy's
-  web and MCP tools are refused headless.
+  `[[models]]` entry (amendment 4), `enabled_tools = ["read_file"]`,
+  `outside_workdir = "deny"`, `enable_mcp = false` and
+  `enable_subagents = false`. Two further settings are worth considering:
+  `[session_logging] enabled = false`, which shows up in the effective config
+  but has not been shown to stop Vibe writing session history, and loading
+  each rendered file under `VIBE_STRICT_CONFIG=1` in a test, which catches a
+  misspelt key.
+- **#178 (live smoke check).** The agy create-a-file test inside a trusted
+  workspace is done (above). Still to check: whether agy's web and MCP tools
+  are refused headless, and whether an agy critic under `.git/critique/` can
+  read files outside its working directory but inside the repository,
+  including a skill's `SKILL.md`, or start a skill through `run_workflow`.
