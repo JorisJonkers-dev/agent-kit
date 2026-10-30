@@ -5,7 +5,8 @@ import type { RunManifest } from '../domain/manifest.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import { countVerdicts, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts, type VerdictKind } from '../domain/verdicts.js'
 import type { FanOutResult } from './fan-out.js'
-import { asObject, requireString, type JsonObject } from './input.js'
+import type { JsonObject } from '../domain/json.js'
+import { asObject, requireString } from './input.js'
 import { findingsPath, ledgerPath, manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 
@@ -32,17 +33,17 @@ export async function record(deps: CritiqueDeps, raw: unknown): Promise<RecordRe
   const input = asObject(raw, 'record input')
   const runDir = requireString(input, 'run_dir')
   const manifest = JSON.parse(await deps.files.readText(manifestPath(runDir))) as RunManifest
-  const fan = JSON.parse(await deps.files.readText(findingsPath(runDir))) as FanOutResult
-  const verdicts = readVerdicts(input, fan)
+  const merged = JSON.parse(await deps.files.readText(findingsPath(runDir))) as FanOutResult
+  const verdicts = readVerdicts(input, merged)
   const reportPath = join(runDir, 'report.md')
   if (await deps.files.exists(reportPath)) throw new Error(`run ${manifest.run_id} is already recorded`)
 
   const run: AdjudicatedRun = {
-    critics: fan.critics,
-    degraded: fan.degraded,
+    critics: merged.critics,
+    degraded: merged.degraded,
     depth: manifest.depth,
     dropped: manifest.dropped,
-    findings: fan.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
+    findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
     repository: manifest.repository,
     run_id: manifest.run_id,
     stage: manifest.stage,
@@ -71,10 +72,10 @@ function verdictFor(verdicts: ReadonlyMap<string, Verdict>, id: string): Verdict
   return verdict
 }
 
-function readVerdicts(input: JsonObject, fan: FanOutResult): ReadonlyMap<string, Verdict> {
+function readVerdicts(input: JsonObject, merged: FanOutResult): ReadonlyMap<string, Verdict> {
   const list = input.verdicts
   if (!Array.isArray(list)) throw new Error('verdicts must be a list')
-  const known = new Set(fan.findings.map((finding) => finding.id))
+  const known = new Set(merged.findings.map((finding) => finding.id))
   const verdicts = new Map<string, Verdict>()
   for (const item of list) {
     const verdict = readVerdict(asObject(item, 'a verdict'))

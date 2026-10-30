@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 
-import type { ModelFamily } from './family-allowlist.js'
+import type { ModelFamily, OrchestratorFamily } from './family.js'
 import type { DroppedCritic, RosterCritic } from './routing.js'
+import type { CritiqueStage, Depth } from './stage.js'
 
 export function sha256(text: string): string {
   return createHash('sha256').update(text).digest('hex')
@@ -21,9 +22,9 @@ export interface RunManifest {
   readonly version: 1
   readonly run_id: string
   readonly created_at: string
-  readonly stage: string
-  readonly depth: 'base'
-  readonly orchestrator_family: string
+  readonly stage: CritiqueStage
+  readonly depth: Depth
+  readonly orchestrator_family: OrchestratorFamily
   readonly repository: string
   readonly repo_root: string
   readonly run_dir: string

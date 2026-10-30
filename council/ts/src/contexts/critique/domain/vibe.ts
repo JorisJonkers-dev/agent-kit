@@ -1,5 +1,7 @@
 import type { ProcessCommand } from '../../../ports/index.js'
-import { parseFindings, type CriticFinding, type FindingsFailure } from './findings.js'
+import type { CriticFailure } from './critic.js'
+import { parseFindings, type CriticFinding } from './findings.js'
+import { jsonObjectOrUndefined } from './json.js'
 import type { RosterCritic } from './routing.js'
 
 /** Seconds the outer timer allows beyond Vibe's own `--time-limit`. */
@@ -62,17 +64,6 @@ export function vibeLaunch(critic: RosterCritic, paths: VibeLaunchPaths): Proces
   }
 }
 
-export type CriticFailure =
-  | FindingsFailure
-  | 'empty-output'
-  | 'unparseable-output'
-  | 'missing-export'
-  | 'unsafe-config'
-  | 'config-error'
-  | 'infrastructure-failure'
-  | 'stopped-early'
-  | `exit-${string}`
-
 export type VibeOutcome =
   | {
       readonly status: 'ok'
@@ -102,7 +93,7 @@ const EXIT_FAILURES: Readonly<Record<number, CriticFailure>> = {
  * assistant message whose last ```json block matches the output contract.
  */
 export function classifyVibeRun(run: VibeRun): VibeOutcome {
-  const exported = record(run.exported)
+  const exported = jsonObjectOrUndefined(run.exported)
   const cost = typeof exported?.cost_usd === 'number' ? exported.cost_usd : null
   const failed = (failure: CriticFailure, detail: string): VibeOutcome => ({ cost_usd: cost, detail, failure, status: 'failed' })
 
@@ -112,7 +103,7 @@ export function classifyVibeRun(run: VibeRun): VibeOutcome {
   }
   if (run.stdout.trim().length === 0) return failed('empty-output', 'vibe exited 0 with empty stdout')
   if (exported === undefined) return failed('missing-export', 'vibe wrote no readable export.json')
-  const violations = isolationViolations(record(exported.config))
+  const violations = isolationViolations(jsonObjectOrUndefined(exported.config))
   if (violations.length > 0) return failed('unsafe-config', `effective config: ${violations.join('; ')}`)
   const message = finalAssistantText(run.stdout)
   if (message === undefined) return failed('unparseable-output', 'stdout is not a Vibe journal with an assistant message')
@@ -147,14 +138,8 @@ function finalAssistantText(stdout: string): string | undefined {
   } catch {
     return undefined
   }
-  const entries = Array.isArray(journal) ? journal.map(record) : []
+  const entries = Array.isArray(journal) ? journal.map(jsonObjectOrUndefined) : []
   const last = entries.findLast((entry) => entry?.type === 'message' && entry.role === 'assistant')
-  const content = Array.isArray(last?.content) ? last.content.map(record) : undefined
+  const content = Array.isArray(last?.content) ? last.content.map(jsonObjectOrUndefined) : undefined
   return content?.map((part) => (typeof part?.text === 'string' ? part.text : '')).join('')
-}
-
-function record(value: unknown): Readonly<Record<string, unknown>> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Readonly<Record<string, unknown>>)
-    : undefined
 }

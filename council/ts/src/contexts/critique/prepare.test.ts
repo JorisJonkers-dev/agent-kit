@@ -195,8 +195,20 @@ describe('prepare', () => {
       },
     })
 
-    await expect(ready(h, { stage: 'feature' })).rejects.toThrow(/routing has no stage feature/)
+    await expect(ready(h, { stage: 'tickets' })).rejects.toThrow(/routing has no stage tickets/)
     await expect(ready(h)).rejects.toThrow(/unknown client ghost/)
+  })
+
+  it('rejects a stage CONTEXT.md does not name', async () => {
+    const h = await optedIn()
+
+    await expect(ready(h, { stage: 'feature' })).rejects.toThrow(/stage must be one of decisions, spec, tickets/)
+  })
+
+  it('rejects an orchestrator family it does not know', async () => {
+    const h = await optedIn()
+
+    await expect(ready(h, { orchestrator_family: 'claude' })).rejects.toThrow(/orchestrator_family must be one of anthropic, openai/)
   })
 
   it('rejects input that is not an object or misses a field', async () => {

@@ -1,24 +1,18 @@
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 
-import type { ModelFamily } from '../domain/family-allowlist.js'
+import type { CriticIdentity } from '../domain/critic.js'
+import { ORCHESTRATOR_FAMILIES } from '../domain/family.js'
+import type { JsonObject } from '../domain/json.js'
 import { compactTimestamp, sha256, type PacketFile, type RunManifest } from '../domain/manifest.js'
-import { parseRouting, resolveRoster, type DroppedCritic } from '../domain/routing.js'
-import { asObject, requireString, requireStringList, type JsonObject } from './input.js'
+import { criticIdentity, parseRouting, resolveRoster, type DroppedCritic } from '../domain/routing.js'
+import { CRITIQUE_STAGES, type CritiqueStage, type Depth } from '../domain/stage.js'
+import { asObject, requireOneOf, requireString, requireStringList } from './input.js'
 import { manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 import { isRefusal, readAllowlist, resolveRepository, type Refusal, type ResolvedRepository } from './repository.js'
 
 /** Decision docs tried, in order, when the caller names none. */
 const DEFAULT_REFERENCES = ['GLOSSARY.md', 'CONTEXT.md']
-
-export interface PreparedCritic {
-  readonly critic_id: string
-  readonly client: string
-  readonly family: ModelFamily
-  readonly model: string
-  readonly role: string
-  readonly lenses: readonly string[]
-}
 
 export interface PrepareResult {
   readonly status: 'ready'
@@ -27,8 +21,8 @@ export interface PrepareResult {
   readonly manifest_path: string
   readonly packet_dir: string
   readonly packet_files: readonly string[]
-  readonly depth: 'base'
-  readonly critics: readonly PreparedCritic[]
+  readonly depth: Depth
+  readonly critics: readonly CriticIdentity[]
   readonly dropped: readonly DroppedCritic[]
 }
 
@@ -41,8 +35,8 @@ export interface PrepareResult {
  */
 export async function prepare(deps: CritiqueDeps, raw: unknown): Promise<PrepareResult | Refusal> {
   const input = asObject(raw, 'prepare input')
-  const stage = requireString(input, 'stage')
-  const orchestratorFamily = requireString(input, 'orchestrator_family')
+  const stage = requireOneOf(input, 'stage', CRITIQUE_STAGES)
+  const orchestratorFamily = requireOneOf(input, 'orchestrator_family', ORCHESTRATOR_FAMILIES)
   const repository = await resolveRepository(deps, requireString(input, 'repo'))
   if (isRefusal(repository)) return repository
   const entry = (await readAllowlist(deps)).repositories[repository.key]
@@ -81,14 +75,7 @@ export async function prepare(deps: CritiqueDeps, raw: unknown): Promise<Prepare
   }
   await deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}\n`)
   return {
-    critics: roster.critics.map((critic) => ({
-      client: critic.client,
-      critic_id: critic.critic_id,
-      family: critic.client_config.family,
-      lenses: critic.lenses,
-      model: critic.client_config.model,
-      role: critic.role,
-    })),
+    critics: roster.critics.map(criticIdentity),
     depth: roster.depth,
     dropped: roster.dropped,
     manifest_path: manifestPath(runDir),
@@ -100,7 +87,7 @@ export async function prepare(deps: CritiqueDeps, raw: unknown): Promise<Prepare
   }
 }
 
-async function freshRunId(deps: CritiqueDeps, repository: ResolvedRepository, stage: string): Promise<string> {
+async function freshRunId(deps: CritiqueDeps, repository: ResolvedRepository, stage: CritiqueStage): Promise<string> {
   const base = `${compactTimestamp(deps.clock.now())}-${stage}`
   let candidate = base
   for (let n = 2; await deps.files.exists(manifestPath(join(repository.commonDir, 'critique', candidate))); n += 1) {

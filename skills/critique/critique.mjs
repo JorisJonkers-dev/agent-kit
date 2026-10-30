@@ -89,17 +89,28 @@ function processExitCode(code) {
   return 124;
 }
 
-// src/contexts/critique/domain/family-allowlist.ts
+// src/contexts/critique/domain/family.ts
 var MODEL_FAMILIES = ["mistral", "zhipu", "deepseek", "google"];
+var ORCHESTRATOR_FAMILIES = ["anthropic", "openai", ...MODEL_FAMILIES];
+
+// src/contexts/critique/domain/json.ts
+function isJsonObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function jsonObjectOrUndefined(value) {
+  return isJsonObject(value) ? value : void 0;
+}
+function isOneOf(allowed, value) {
+  return typeof value === "string" && allowed.includes(value);
+}
+
+// src/contexts/critique/domain/family-allowlist.ts
 var DENIED_OWNER = "nedap";
 function parseModelFamilies(value) {
   return value.map((family) => {
-    if (!isModelFamily(family)) throw new Error(`unknown model family: ${family}`);
+    if (!isOneOf(MODEL_FAMILIES, family)) throw new Error(`unknown model family: ${family}`);
     return family;
   });
-}
-function isModelFamily(value) {
-  return MODEL_FAMILIES.includes(value);
 }
 function parseRemote(url) {
   const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
@@ -150,14 +161,17 @@ function withEntry(allowlist, key, families, at) {
 
 // src/contexts/critique/application/input.ts
 function asObject(value, what) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${what} must be a JSON object`);
-  }
+  if (!isJsonObject(value)) throw new Error(`${what} must be a JSON object`);
   return value;
 }
 function requireString(input, key) {
   const value = input[key];
   if (typeof value !== "string" || value.length === 0) throw new Error(`${key} must be a non-empty string`);
+  return value;
+}
+function requireOneOf(input, key, allowed) {
+  const value = requireString(input, key);
+  if (!isOneOf(allowed, value)) throw new Error(`${key} must be one of ${allowed.join(", ")}`);
   return value;
 }
 function requireStringList(input, key) {
@@ -258,6 +272,43 @@ ${sources.schema.trim()}
   };
 }
 
+// src/contexts/critique/domain/routing.ts
+function parseRouting(text) {
+  return JSON.parse(text);
+}
+function resolveRoster(routing, request) {
+  const stage = routing.stages[request.stage];
+  if (stage === void 0) throw new Error(`routing has no stage ${request.stage}`);
+  const critics = [];
+  const dropped = [];
+  for (const slot of stage.base) {
+    const client = routing.clients[slot.client];
+    if (client === void 0) throw new Error(`routing stage ${request.stage} names unknown client ${slot.client}`);
+    const reason = dropReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
+    if (reason === void 0) {
+      critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}` });
+    } else {
+      dropped.push({ client: slot.client, family: client.family, reason });
+    }
+  }
+  return { critics, depth: "base", dropped };
+}
+function criticIdentity(critic) {
+  return {
+    client: critic.client,
+    critic_id: critic.critic_id,
+    family: critic.client_config.family,
+    lenses: critic.lenses,
+    model: critic.client_config.model,
+    role: critic.role
+  };
+}
+function dropReason(family, request) {
+  if (!request.allowedFamilies.includes(family)) return "family-not-allowed";
+  if (family === request.orchestratorFamily) return "orchestrator-family";
+  return void 0;
+}
+
 // src/contexts/critique/domain/findings.ts
 var SEVERITIES = ["critical", "major", "minor"];
 var CATEGORIES = [
@@ -284,7 +335,7 @@ function parseFindings(text) {
   } catch (error) {
     return { detail: String(error), failure: "unparseable-findings", ok: false };
   }
-  const findings = isRecord(value) ? value.findings : void 0;
+  const findings = isJsonObject(value) ? value.findings : void 0;
   if (!Array.isArray(findings)) {
     return { detail: "the block has no findings list", failure: "invalid-findings", ok: false };
   }
@@ -292,7 +343,7 @@ function parseFindings(text) {
   if (invalid !== -1) {
     return { detail: `finding ${String(invalid + 1)} does not match the contract`, failure: "invalid-findings", ok: false };
   }
-  const reason = isRecord(value) && typeof value.no_findings_reason === "string" ? value.no_findings_reason.trim() : "";
+  const reason = isJsonObject(value) && typeof value.no_findings_reason === "string" ? value.no_findings_reason.trim() : "";
   if (findings.length === 0 && reason.length === 0) {
     return { detail: "an empty findings list needs no_findings_reason", failure: "missing-no-findings-reason", ok: false };
   }
@@ -303,19 +354,13 @@ function parseFindings(text) {
   };
 }
 function isFinding(value) {
-  return isRecord(value) && isText(value.id) && oneOf(SEVERITIES, value.severity) && oneOf(CATEGORIES, value.category) && isText(value.location) && isText(value.claim) && Array.isArray(value.evidence) && value.evidence.every(isEvidence) && (value.suggestion === void 0 || typeof value.suggestion === "string");
+  return isJsonObject(value) && isText(value.id) && isOneOf(SEVERITIES, value.severity) && isOneOf(CATEGORIES, value.category) && isText(value.location) && isText(value.claim) && Array.isArray(value.evidence) && value.evidence.every(isEvidence) && (value.suggestion === void 0 || typeof value.suggestion === "string");
 }
 function isEvidence(value) {
-  return isRecord(value) && oneOf(EVIDENCE_KINDS, value.kind) && isText(value.value) && (value.file === void 0 || isText(value.file));
-}
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return isJsonObject(value) && isOneOf(EVIDENCE_KINDS, value.kind) && isText(value.value) && (value.file === void 0 || isText(value.file));
 }
 function isText(value) {
   return typeof value === "string" && value.trim().length > 0;
-}
-function oneOf(allowed, value) {
-  return typeof value === "string" && allowed.includes(value);
 }
 
 // src/contexts/critique/domain/vibe.ts
@@ -362,7 +407,7 @@ var EXIT_FAILURES = {
   3: "stopped-early"
 };
 function classifyVibeRun(run) {
-  const exported = record(run.exported);
+  const exported = jsonObjectOrUndefined(run.exported);
   const cost = typeof exported?.cost_usd === "number" ? exported.cost_usd : null;
   const failed = (failure, detail) => ({ cost_usd: cost, detail, failure, status: "failed" });
   if (run.exitCode !== 0) {
@@ -371,7 +416,7 @@ function classifyVibeRun(run) {
   }
   if (run.stdout.trim().length === 0) return failed("empty-output", "vibe exited 0 with empty stdout");
   if (exported === void 0) return failed("missing-export", "vibe wrote no readable export.json");
-  const violations = isolationViolations(record(exported.config));
+  const violations = isolationViolations(jsonObjectOrUndefined(exported.config));
   if (violations.length > 0) return failed("unsafe-config", `effective config: ${violations.join("; ")}`);
   const message = finalAssistantText(run.stdout);
   if (message === void 0) return failed("unparseable-output", "stdout is not a Vibe journal with an assistant message");
@@ -404,13 +449,10 @@ function finalAssistantText(stdout) {
   } catch {
     return void 0;
   }
-  const entries = Array.isArray(journal) ? journal.map(record) : [];
+  const entries = Array.isArray(journal) ? journal.map(jsonObjectOrUndefined) : [];
   const last = entries.findLast((entry) => entry?.type === "message" && entry.role === "assistant");
-  const content = Array.isArray(last?.content) ? last.content.map(record) : void 0;
+  const content = Array.isArray(last?.content) ? last.content.map(jsonObjectOrUndefined) : void 0;
   return content?.map((part) => typeof part?.text === "string" ? part.text : "").join("");
-}
-function record(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
 
 // src/contexts/critique/application/fan-out.ts
@@ -471,20 +513,15 @@ async function runCritic(deps, manifest, critic) {
   });
   const findings = outcome.status === "ok" ? outcome.findings : [];
   const run = {
-    client: critic.client,
+    ...criticIdentity(critic),
     cost_usd: outcome.cost_usd,
-    critic_id: critic.critic_id,
     duration_ms: durationMs,
     exit_code: result2.exitCode,
     export_path: exportPath,
-    family: critic.client_config.family,
     finding_count: findings.length,
     lens_hashes: prompt.lens_hashes,
-    lenses: critic.lenses,
-    model: critic.client_config.model,
     prompt_hashes: prompt.prompt_hashes,
     prompt_path: paths.promptPath,
-    role: critic.role,
     status: outcome.status,
     stdout_path: stdoutPath,
     ...outcome.status === "failed" ? { detail: outcome.detail, failure: outcome.failure } : {},
@@ -504,39 +541,15 @@ async function readExport(deps, path) {
 // src/contexts/critique/application/prepare.ts
 import { basename, isAbsolute, join as join3, relative, resolve } from "node:path";
 
-// src/contexts/critique/domain/routing.ts
-function parseRouting(text) {
-  return JSON.parse(text);
-}
-function resolveRoster(routing, request) {
-  const stage = routing.stages[request.stage];
-  if (stage === void 0) throw new Error(`routing has no stage ${request.stage}`);
-  const critics = [];
-  const dropped = [];
-  for (const slot of stage.base) {
-    const client = routing.clients[slot.client];
-    if (client === void 0) throw new Error(`routing stage ${request.stage} names unknown client ${slot.client}`);
-    const reason = dropReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
-    if (reason === void 0) {
-      critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}` });
-    } else {
-      dropped.push({ client: slot.client, family: client.family, reason });
-    }
-  }
-  return { critics, depth: "base", dropped };
-}
-function dropReason(family, request) {
-  if (!request.allowedFamilies.includes(family)) return "family-not-allowed";
-  if (family === request.orchestratorFamily) return "orchestrator-family";
-  return void 0;
-}
+// src/contexts/critique/domain/stage.ts
+var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
 
 // src/contexts/critique/application/prepare.ts
 var DEFAULT_REFERENCES = ["GLOSSARY.md", "CONTEXT.md"];
 async function prepare(deps, raw) {
   const input = asObject(raw, "prepare input");
-  const stage = requireString(input, "stage");
-  const orchestratorFamily = requireString(input, "orchestrator_family");
+  const stage = requireOneOf(input, "stage", CRITIQUE_STAGES);
+  const orchestratorFamily = requireOneOf(input, "orchestrator_family", ORCHESTRATOR_FAMILIES);
   const repository = await resolveRepository(deps, requireString(input, "repo"));
   if (isRefusal(repository)) return repository;
   const entry = (await readAllowlist(deps)).repositories[repository.key];
@@ -576,14 +589,7 @@ async function prepare(deps, raw) {
   await deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}
 `);
   return {
-    critics: roster.critics.map((critic) => ({
-      client: critic.client,
-      critic_id: critic.critic_id,
-      family: critic.client_config.family,
-      lenses: critic.lenses,
-      model: critic.client_config.model,
-      role: critic.role
-    })),
+    critics: roster.critics.map(criticIdentity),
     depth: roster.depth,
     dropped: roster.dropped,
     manifest_path: manifestPath(runDir),
@@ -693,7 +699,7 @@ function ledgerLines(run, recordedAt) {
     severity: finding.severity,
     verdict: finding.verdict.verdict
   }));
-  return [...runLines, ...findingLines].map((line2) => JSON.stringify(line2));
+  return [...runLines, ...findingLines].map((line) => JSON.stringify(line));
 }
 
 // src/contexts/critique/domain/report.ts
@@ -702,9 +708,9 @@ var CLAIM_MAX_CHARS = 160;
 var CHECKED_MAX_CHARS = 300;
 function renderSummary(run, reportPath) {
   const lists = {
-    accepted: run.findings.filter((f) => f.verdict.verdict === "accepted").map((f) => line(f)),
-    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => line(f, `Rejected: ${f.verdict.reason ?? ""}`)),
-    questions: run.findings.filter((f) => f.verdict.verdict === "needs-human").map((f) => line(f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
+    accepted: run.findings.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(f)),
+    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(f, `Rejected: ${f.verdict.reason ?? ""}`)),
+    questions: run.findings.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
   };
   const hidden = { accepted: 0, dissent: 0, questions: 0 };
   const render = () => [
@@ -717,7 +723,7 @@ function renderSummary(run, reportPath) {
     "## Critics",
     "",
     ...run.critics.map((critic) => `- ${criticLine(critic, CHECKED_MAX_CHARS)}`),
-    ...run.dropped.map((d) => `- Not run: ${d.client} (${d.family}): ${d.reason}`),
+    ...run.dropped.map(droppedLine),
     "",
     "## Accepted",
     "",
@@ -769,7 +775,7 @@ function renderReport(run) {
       `- Lens hashes: ${hashList(critic.lens_hashes)}`,
       ""
     ]),
-    ...run.dropped.map((d) => `- Not run: ${d.client} (${d.family}): ${d.reason}`),
+    ...run.dropped.map(droppedLine),
     "## Findings",
     "",
     ...run.findings.length === 0 ? ["none", ""] : run.findings.flatMap(findingSection),
@@ -781,6 +787,9 @@ function renderReport(run) {
 }
 function degradedLines(run) {
   return run.degraded ? ["degraded: no critique ran", ""] : [];
+}
+function droppedLine(dropped) {
+  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}`;
 }
 function hashList(hashes) {
   return Object.entries(hashes).map(([name, hash]) => `${name} ${hash}`).join(", ");
@@ -819,7 +828,7 @@ function criticLine(critic, checkedMaxChars = Infinity) {
 function clip(text, maxChars) {
   return text.length > maxChars ? `${text.slice(0, maxChars - 1)}\u2026` : text;
 }
-function line(finding, tail) {
+function findingLine(finding, tail) {
   const claim = clip(finding.claim, CLAIM_MAX_CHARS);
   return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === void 0 ? "" : ` ${tail}`}`;
 }
@@ -830,20 +839,20 @@ function bullets(items, hidden) {
 
 // src/contexts/critique/application/record.ts
 var REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/;
-async function record2(deps, raw) {
+async function record(deps, raw) {
   const input = asObject(raw, "record input");
   const runDir = requireString(input, "run_dir");
   const manifest = JSON.parse(await deps.files.readText(manifestPath(runDir)));
-  const fan = JSON.parse(await deps.files.readText(findingsPath(runDir)));
-  const verdicts = readVerdicts(input, fan);
+  const merged = JSON.parse(await deps.files.readText(findingsPath(runDir)));
+  const verdicts = readVerdicts(input, merged);
   const reportPath = join4(runDir, "report.md");
   if (await deps.files.exists(reportPath)) throw new Error(`run ${manifest.run_id} is already recorded`);
   const run = {
-    critics: fan.critics,
-    degraded: fan.degraded,
+    critics: merged.critics,
+    degraded: merged.degraded,
     depth: manifest.depth,
     dropped: manifest.dropped,
-    findings: fan.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
+    findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
     repository: manifest.repository,
     run_id: manifest.run_id,
     stage: manifest.stage
@@ -853,7 +862,7 @@ async function record2(deps, raw) {
   const ledger = ledgerPath(deps.env);
   await deps.files.writeText(reportPath, renderReport(run));
   await deps.files.writeText(summaryPath, summary);
-  await deps.files.appendText(ledger, ledgerLines(run, deps.clock.now()).map((line2) => `${line2}
+  await deps.files.appendText(ledger, ledgerLines(run, deps.clock.now()).map((line) => `${line}
 `).join(""));
   return {
     counts: countVerdicts(run),
@@ -871,10 +880,10 @@ function verdictFor(verdicts, id) {
   if (verdict === void 0) throw new Error(`no verdict for ${id}`);
   return verdict;
 }
-function readVerdicts(input, fan) {
+function readVerdicts(input, merged) {
   const list = input.verdicts;
   if (!Array.isArray(list)) throw new Error("verdicts must be a list");
-  const known = new Set(fan.findings.map((finding) => finding.id));
+  const known = new Set(merged.findings.map((finding) => finding.id));
   const verdicts = /* @__PURE__ */ new Map();
   for (const item of list) {
     const verdict = readVerdict(asObject(item, "a verdict"));
@@ -904,7 +913,7 @@ function createCritiqueCommands(deps) {
     allow: (input) => allow(deps, input),
     fanOut: (input) => fanOut(deps, input),
     prepare: (input) => prepare(deps, input),
-    record: (input) => record2(deps, input)
+    record: (input) => record(deps, input)
   };
 }
 
@@ -946,7 +955,7 @@ var ProcessCritiqueGit = class {
   }
   async remotes(cwd) {
     const result2 = await this.git(cwd, ["config", "--get-regexp", "^remote\\..*\\.url$"], [NO_MATCH]);
-    return result2.stdout.split("\n").map((line2) => /^remote\.(.+)\.url (.+)$/.exec(line2.trim())).flatMap((match) => match === null ? [] : [{ name: match[1] ?? "", url: match[2] ?? "" }]);
+    return result2.stdout.split("\n").map((line) => /^remote\.(.+)\.url (.+)$/.exec(line.trim())).flatMap((match) => match === null ? [] : [{ name: match[1] ?? "", url: match[2] ?? "" }]);
   }
   async git(cwd, args, allowed = []) {
     const result2 = await this.process.exec({ args: ["-C", cwd, ...args], command: "git" });

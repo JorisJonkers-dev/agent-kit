@@ -1,4 +1,6 @@
-import type { ModelFamily } from './family-allowlist.js'
+import type { CriticIdentity } from './critic.js'
+import type { ModelFamily, OrchestratorFamily } from './family.js'
+import type { CritiqueStage, Depth } from './stage.js'
 
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
 export interface VibeCriticClient {
@@ -28,7 +30,7 @@ export interface StageRouting {
 export interface Routing {
   readonly version: 1
   readonly clients: Readonly<Record<string, CriticClient>>
-  readonly stages: Readonly<Record<string, StageRouting>>
+  readonly stages: Readonly<Partial<Record<CritiqueStage, StageRouting>>>
 }
 
 /** A critic resolved for one run: the slot plus the client it runs through. */
@@ -37,14 +39,16 @@ export interface RosterCritic extends RosterSlot {
   readonly client_config: CriticClient
 }
 
+export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family'] as const
+
 export interface DroppedCritic {
   readonly client: string
   readonly family: ModelFamily
-  readonly reason: 'family-not-allowed' | 'orchestrator-family' | 'same-family'
+  readonly reason: (typeof DROP_REASONS)[number]
 }
 
 export interface Roster {
-  readonly depth: 'base'
+  readonly depth: Depth
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
 }
@@ -54,9 +58,9 @@ export function parseRouting(text: string): Routing {
 }
 
 export interface RosterRequest {
-  readonly stage: string
+  readonly stage: CritiqueStage
   readonly allowedFamilies: readonly ModelFamily[]
-  readonly orchestratorFamily: string
+  readonly orchestratorFamily: OrchestratorFamily
 }
 
 /**
@@ -85,6 +89,18 @@ export function resolveRoster(routing: Routing, request: RosterRequest): Roster 
     }
   }
   return { critics, depth: 'base', dropped }
+}
+
+/** The identity a roster critic carries into fan-out, record and the ledger. */
+export function criticIdentity(critic: RosterCritic): CriticIdentity {
+  return {
+    client: critic.client,
+    critic_id: critic.critic_id,
+    family: critic.client_config.family,
+    lenses: critic.lenses,
+    model: critic.client_config.model,
+    role: critic.role,
+  }
 }
 
 function dropReason(family: ModelFamily, request: RosterRequest): DroppedCritic['reason'] | undefined {

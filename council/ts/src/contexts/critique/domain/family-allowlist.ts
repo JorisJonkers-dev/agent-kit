@@ -1,6 +1,5 @@
-/** Model families a critique may send content to. */
-export const MODEL_FAMILIES = ['mistral', 'zhipu', 'deepseek', 'google'] as const
-export type ModelFamily = (typeof MODEL_FAMILIES)[number]
+import { MODEL_FAMILIES, type ModelFamily } from './family.js'
+import { isOneOf } from './json.js'
 
 /** The GitHub organisation whose repositories never send content to any critic. */
 const DENIED_OWNER = 'nedap'
@@ -18,13 +17,9 @@ export interface RemoteLocation {
 
 export function parseModelFamilies(value: readonly string[]): readonly ModelFamily[] {
   return value.map((family) => {
-    if (!isModelFamily(family)) throw new Error(`unknown model family: ${family}`)
+    if (!isOneOf(MODEL_FAMILIES, family)) throw new Error(`unknown model family: ${family}`)
     return family
   })
-}
-
-export function isModelFamily(value: string): value is ModelFamily {
-  return (MODEL_FAMILIES as readonly string[]).includes(value)
 }
 
 /**

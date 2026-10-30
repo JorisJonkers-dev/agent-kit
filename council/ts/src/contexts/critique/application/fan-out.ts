@@ -1,53 +1,19 @@
 import { join } from 'node:path'
 
-import type { ModelFamily } from '../domain/family-allowlist.js'
-import type { Category, Evidence, Severity } from '../domain/findings.js'
+import type { CriticRun } from '../domain/critic.js'
+import type { RunFinding } from '../domain/findings.js'
 import type { RunManifest } from '../domain/manifest.js'
-import { assemblePrompt, type PromptHashes } from '../domain/prompt.js'
-import type { RosterCritic } from '../domain/routing.js'
-import { classifyVibeRun, vibeLaunch, type CriticFailure } from '../domain/vibe.js'
+import { assemblePrompt } from '../domain/prompt.js'
+import { criticIdentity, type RosterCritic } from '../domain/routing.js'
+import type { CritiqueStage } from '../domain/stage.js'
+import { classifyVibeRun, vibeLaunch } from '../domain/vibe.js'
 import { asObject, requireString } from './input.js'
 import { findingsPath, manifestPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 
-export interface CriticRun {
-  readonly critic_id: string
-  readonly client: string
-  readonly family: ModelFamily
-  readonly model: string
-  readonly role: string
-  readonly lenses: readonly string[]
-  readonly status: 'ok' | 'failed'
-  readonly failure?: CriticFailure
-  readonly detail?: string
-  readonly no_findings_reason?: string
-  readonly exit_code: number
-  readonly cost_usd: number | null
-  readonly duration_ms: number
-  readonly finding_count: number
-  readonly prompt_hashes: PromptHashes
-  readonly lens_hashes: Readonly<Record<string, string>>
-  readonly prompt_path: string
-  readonly stdout_path: string
-  readonly export_path: string
-}
-
-/** A finding as the orchestrator receives it: the critic's fields plus who raised it. */
-export interface RunFinding {
-  readonly id: string
-  readonly critic_finding_id: string
-  readonly raised_by: readonly string[]
-  readonly severity: Severity
-  readonly category: Category
-  readonly location: string
-  readonly claim: string
-  readonly evidence: readonly Evidence[]
-  readonly suggestion?: string
-}
-
 export interface FanOutResult {
   readonly run_id: string
-  readonly stage: string
+  readonly stage: CritiqueStage
   /** True when no critic of the stage produced a usable review. */
   readonly degraded: boolean
   readonly findings_path: string
@@ -115,20 +81,15 @@ async function runCritic(deps: CritiqueDeps, manifest: RunManifest, critic: Rost
 
   const findings = outcome.status === 'ok' ? outcome.findings : []
   const run: CriticRun = {
-    client: critic.client,
+    ...criticIdentity(critic),
     cost_usd: outcome.cost_usd,
-    critic_id: critic.critic_id,
     duration_ms: durationMs,
     exit_code: result.exitCode,
     export_path: exportPath,
-    family: critic.client_config.family,
     finding_count: findings.length,
     lens_hashes: prompt.lens_hashes,
-    lenses: critic.lenses,
-    model: critic.client_config.model,
     prompt_hashes: prompt.prompt_hashes,
     prompt_path: paths.promptPath,
-    role: critic.role,
     status: outcome.status,
     stdout_path: stdoutPath,
     ...(outcome.status === 'failed' ? { detail: outcome.detail, failure: outcome.failure } : {}),

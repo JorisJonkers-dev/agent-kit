@@ -1,3 +1,5 @@
+import { isJsonObject, isOneOf } from './json.js'
+
 export const SEVERITIES = ['critical', 'major', 'minor'] as const
 export type Severity = (typeof SEVERITIES)[number]
 
@@ -24,15 +26,26 @@ export interface Evidence {
   readonly file?: string
 }
 
-/** One finding as a critic reported it, after validation against the output contract. */
-export interface CriticFinding {
-  readonly id: string
+/** What a finding claims, and the evidence for it. */
+export interface FindingBody {
   readonly severity: Severity
   readonly category: Category
   readonly location: string
   readonly claim: string
   readonly evidence: readonly Evidence[]
   readonly suggestion?: string
+}
+
+/** One finding as a critic reported it, after validation against the output contract. */
+export interface CriticFinding extends FindingBody {
+  readonly id: string
+}
+
+/** A finding as the orchestrator receives it: the critic's fields plus who raised it. */
+export interface RunFinding extends FindingBody {
+  readonly id: string
+  readonly critic_finding_id: string
+  readonly raised_by: readonly string[]
 }
 
 export type FindingsFailure = 'no-findings-block' | 'unparseable-findings' | 'invalid-findings' | 'missing-no-findings-reason'
@@ -54,7 +67,7 @@ export function parseFindings(text: string): FindingsParse {
   } catch (error) {
     return { detail: String(error), failure: 'unparseable-findings', ok: false }
   }
-  const findings = isRecord(value) ? value.findings : undefined
+  const findings = isJsonObject(value) ? value.findings : undefined
   if (!Array.isArray(findings)) {
     return { detail: 'the block has no findings list', failure: 'invalid-findings', ok: false }
   }
@@ -62,7 +75,7 @@ export function parseFindings(text: string): FindingsParse {
   if (invalid !== -1) {
     return { detail: `finding ${String(invalid + 1)} does not match the contract`, failure: 'invalid-findings', ok: false }
   }
-  const reason = isRecord(value) && typeof value.no_findings_reason === 'string' ? value.no_findings_reason.trim() : ''
+  const reason = isJsonObject(value) && typeof value.no_findings_reason === 'string' ? value.no_findings_reason.trim() : ''
   if (findings.length === 0 && reason.length === 0) {
     return { detail: 'an empty findings list needs no_findings_reason', failure: 'missing-no-findings-reason', ok: false }
   }
@@ -75,10 +88,10 @@ export function parseFindings(text: string): FindingsParse {
 
 function isFinding(value: unknown): value is CriticFinding {
   return (
-    isRecord(value) &&
+    isJsonObject(value) &&
     isText(value.id) &&
-    oneOf(SEVERITIES, value.severity) &&
-    oneOf(CATEGORIES, value.category) &&
+    isOneOf(SEVERITIES, value.severity) &&
+    isOneOf(CATEGORIES, value.category) &&
     isText(value.location) &&
     isText(value.claim) &&
     Array.isArray(value.evidence) &&
@@ -89,21 +102,13 @@ function isFinding(value: unknown): value is CriticFinding {
 
 function isEvidence(value: unknown): value is Evidence {
   return (
-    isRecord(value) &&
-    oneOf(EVIDENCE_KINDS, value.kind) &&
+    isJsonObject(value) &&
+    isOneOf(EVIDENCE_KINDS, value.kind) &&
     isText(value.value) &&
     (value.file === undefined || isText(value.file))
   )
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function isText(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
-}
-
-function oneOf<T extends string>(allowed: readonly T[], value: unknown): value is T {
-  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
 }

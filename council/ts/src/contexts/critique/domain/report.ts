@@ -1,12 +1,13 @@
-import { countVerdicts, isDissent, type AdjudicatedRun, type RecordedCritic, type RecordedFinding, type Verdict } from './verdicts.js'
+import type { CriticRun } from './critic.js'
+import type { RunFinding } from './findings.js'
+import type { DroppedCritic } from './routing.js'
+import { countVerdicts, isDissent, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
 
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
 const CLAIM_MAX_CHARS = 160
 /** What a critic that found nothing says it checked; the report keeps all of it. */
 const CHECKED_MAX_CHARS = 300
-
-type Adjudicated = AdjudicatedRun['findings'][number]
 
 /**
  * The compact summary, always in the same shape: header, critics, accepted
@@ -17,11 +18,11 @@ type Adjudicated = AdjudicatedRun['findings'][number]
  */
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const lists = {
-    accepted: run.findings.filter((f) => f.verdict.verdict === 'accepted').map((f) => line(f)),
-    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => line(f, `Rejected: ${f.verdict.reason ?? ''}`)),
+    accepted: run.findings.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(f)),
+    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(f, `Rejected: ${f.verdict.reason ?? ''}`)),
     questions: run.findings
       .filter((f) => f.verdict.verdict === 'needs-human')
-      .map((f) => line(f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
+      .map((f) => findingLine(f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
   }
   const hidden = { accepted: 0, dissent: 0, questions: 0 }
   const render = (): string =>
@@ -35,7 +36,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '## Critics',
       '',
       ...run.critics.map((critic) => `- ${criticLine(critic, CHECKED_MAX_CHARS)}`),
-      ...run.dropped.map((d) => `- Not run: ${d.client} (${d.family}): ${d.reason}`),
+      ...run.dropped.map(droppedLine),
       '',
       '## Accepted',
       '',
@@ -89,7 +90,7 @@ export function renderReport(run: AdjudicatedRun): string {
       `- Lens hashes: ${hashList(critic.lens_hashes)}`,
       '',
     ]),
-    ...run.dropped.map((d) => `- Not run: ${d.client} (${d.family}): ${d.reason}`),
+    ...run.dropped.map(droppedLine),
     '## Findings',
     '',
     ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap(findingSection)),
@@ -105,13 +106,17 @@ function degradedLines(run: AdjudicatedRun): readonly string[] {
   return run.degraded ? ['degraded: no critique ran', ''] : []
 }
 
+function droppedLine(dropped: DroppedCritic): string {
+  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}`
+}
+
 function hashList(hashes: Readonly<Record<string, string>>): string {
   return Object.entries(hashes)
     .map(([name, hash]) => `${name} ${hash}`)
     .join(', ')
 }
 
-function findingSection(finding: Adjudicated): readonly string[] {
+function findingSection(finding: AdjudicatedFinding): readonly string[] {
   return [
     `### ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}`,
     '',
@@ -141,7 +146,7 @@ function verdictLine(run: AdjudicatedRun): string {
   return `Verdicts: accepted ${String(counts.accepted)}, rejected ${String(counts.rejected)}, needs-human ${String(counts['needs-human'])}, hint ${String(counts.hint)}`
 }
 
-function criticLine(critic: RecordedCritic, checkedMaxChars = Infinity): string {
+function criticLine(critic: CriticRun, checkedMaxChars = Infinity): string {
   const cost = critic.cost_usd === null ? 'cost unknown' : `$${critic.cost_usd.toFixed(4)}`
   const status = critic.status === 'ok' ? 'ok' : `failed (${critic.failure ?? 'unknown'})`
   const checked =
@@ -153,7 +158,7 @@ function clip(text: string, maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text
 }
 
-function line(finding: RecordedFinding, tail?: string): string {
+function findingLine(finding: RunFinding, tail?: string): string {
   const claim = clip(finding.claim, CLAIM_MAX_CHARS)
   return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === undefined ? '' : ` ${tail}`}`
 }

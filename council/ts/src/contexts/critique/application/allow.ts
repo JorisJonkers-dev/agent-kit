@@ -1,4 +1,5 @@
-import { parseModelFamilies, withEntry, type ModelFamily } from '../domain/family-allowlist.js'
+import { parseModelFamilies, withEntry } from '../domain/family-allowlist.js'
+import type { ModelFamily } from '../domain/family.js'
 import { asObject, requireString, requireStringList } from './input.js'
 import { allowlistPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
