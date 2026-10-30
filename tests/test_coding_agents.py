@@ -178,13 +178,6 @@ def test_setup_runs_it_after_the_plugins() -> None:
 # --- a private session leaves the shared bank alone ---
 
 
-def test_a_private_session_switches_the_plugin_off_and_blocks_its_tools() -> None:
-    text = (KIT_ROOT / "installer" / "memory-private").read_text()
-    assert "export HINDSIGHT_DISABLED=true" in text
-    assert "mcp__hindsight" in text
-    assert "mcp_servers.hindsight.enabled=false" in text
-
-
 def test_the_tool_guide_is_shown_once_a_session_not_every_turn() -> None:
     assert _registry()["coding_agents"]["config"]["pageRefreshEveryTurns"] >= 1000
 

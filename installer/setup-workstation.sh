@@ -193,7 +193,7 @@ claude_private_denies() {
       log "would add the private-bank deny rules to ${profile_dir}/settings.json"
       continue
     fi
-    python3 - "${profile_dir}/settings.json" '["Read(~/.vibe/**)", "Edit(~/.vibe/**)", "Bash(*.vibe*)", "Read(~/.config/agent-kit/private/**)", "Edit(~/.config/agent-kit/private/**)", "Bash(*agent-kit/private*)", "Bash(*agent-kit-private*)"]' <<'PY' \
+    python3 - "${profile_dir}/settings.json" '["Read(~/.vibe/**)", "Edit(~/.vibe/**)", "Read(~/.vibe-private/**)", "Edit(~/.vibe-private/**)", "Bash(*.vibe*)", "Read(~/.config/agent-kit/private/**)", "Edit(~/.config/agent-kit/private/**)", "Bash(*agent-kit/private*)", "Bash(*agent-kit-private*)"]' <<'PY' \
       && ok "private-bank deny rules in ${profile_dir}/settings.json" \
       || fail "could not add the private-bank deny rules to ${profile_dir}/settings.json"
 import json, pathlib, sys
@@ -393,24 +393,11 @@ install_kit_command() {
     || fail "${name}: could not install ${dest}"
 }
 
-# Installs a session-only server's --mcp-config file where memory-private reads it.
-install_session_mcp() {
-  local name="$1"
-  local src="${KIT_ROOT}/registry/generated/claude/${name}.mcp.json"
-  local dest="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/${name}.mcp.json"
-  if [ "${CHECK_ONLY}" = 1 ]; then
-    log "would install ${dest}"
-    return 0
-  fi
-  mkdir -p "$(dirname "${dest}")"
-  install -m 0644 "${src}" "${dest}" && cmp -s "${src}" "${dest}" \
-    && ok "${name}: session config -> ${dest}" \
-    || fail "${name}: could not install ${dest}"
-}
-
-# Points Vibe at the estate conventions, unless the user wrote their own.
+# Points a Vibe home at the estate conventions, unless the user wrote their own.
+# $2 is shared (vibe, vibe-study: Shared Memory only) or private (vibe-private).
 _vibe_agents_pointer() {
-  local file="${VIBE_HOME}/AGENTS.md"
+  local home="$1" kind="$2"
+  local file="${home}/AGENTS.md"
   local marker="<!-- managed by agent-kit setup-workstation.sh -->"
   if [ -f "${file}" ] && ! grep -qF "${marker}" "${file}"; then
     log "${file} is the user's own; left alone"
@@ -420,8 +407,9 @@ _vibe_agents_pointer() {
     log "would write ${file}"
     return 0
   fi
-  mkdir -p "${VIBE_HOME}"
-  cat > "${file}" <<EOF
+  mkdir -p "${home}"
+  if [ "${kind}" = private ]; then
+    cat > "${file}" <<EOF
 ${marker}
 # Agent contract
 
@@ -443,7 +431,78 @@ secrets. Update an existing memory rather than adding a near-duplicate.
 Never retain personal notes into memory-api: Hermes and every other agent
 read it.
 EOF
+  else
+    cat > "${file}" <<EOF
+${marker}
+# Agent contract
+
+The estate-wide conventions live in one place:
+https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md
+
+Read it before doing anything non-trivial in an estate repository.
+
+## Memory
+
+One Hindsight bank is connected: memory-api, for estate and programming
+knowledge. At the start of a task, recall from it. Every agent reads it,
+so never retain personal notes into it.
+EOF
+  fi
   ok "Vibe AGENTS.md pointer -> ${file}"
+}
+
+# Every chat model the Mistral login can use, kept current in one Vibe home.
+_vibe_models() {
+  local home="$1"
+  if VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+      --config "${home}/config.toml" --has-key; then
+    VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+      --config "${home}/config.toml" \
+      || warn "Vibe model sync failed (${home})"
+  else
+    warn "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup"
+  fi
+}
+
+# The kit's hooks into one Vibe home; extra arguments are --remove NAME pairs.
+_vibe_hooks() {
+  local home="$1"; shift
+  uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+    "${KIT_ROOT}/installer/vibe-hooks.toml" --key hooks --config "${home}/hooks.toml" "$@" \
+    && ok "Vibe hooks merged (${home})" \
+    || fail "Vibe hooks merge failed (${home})"
+}
+
+# Once: the single Vibe home of before held sessions that recalled Private
+# Memory, so it becomes vibe-private's and the shared home starts fresh.
+# Until it has run, the shared home's Private Memory entry is what marks it as
+# one to split: a failed split keeps setup out of both Vibe homes this run.
+_vibe_split_homes() {
+  local args=() out rc=0 line
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(python3 "${KIT_ROOT}/scripts/vibe-split-homes.py" --shared "${VIBE_HOME}" --private "${VIBE_PRIVATE_HOME}" \
+    ${args[@]+"${args[@]}"} 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  if [ "${rc}" != 0 ]; then
+    VIBE_HOMES_READY=0
+    fail "could not split the Vibe home; both Vibe homes are left alone until it can"
+  fi
+}
+
+# vibe-private's own Vibe home: the shared fleet plus Private Memory. Its
+# sessions never share a directory with the password-free launchers.
+_vibe_private_home() {
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would merge vibe-private MCP servers into ${VIBE_PRIVATE_HOME}/config.toml"
+  else
+    uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+      "${KIT_ROOT}/registry/generated/vibe-private/mcp-servers.toml" --config "${VIBE_PRIVATE_HOME}/config.toml" \
+      && ok "vibe-private MCP servers merged" \
+      || fail "vibe-private MCP merge failed"
+    _vibe_models "${VIBE_PRIVATE_HOME}"
+    _vibe_hooks "${VIBE_PRIVATE_HOME}" --remove agent-kit-retain-private
+  fi
+  _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private
 }
 
 # A shell -c wrapper for the pipe-into-sh installers the upstreams publish.
@@ -506,17 +565,22 @@ converge_mcp() {
   local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --claude-home "${CLAUDE_HOME}")
   for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do args+=(--claude "${dir}"); done
   command -v codex >/dev/null 2>&1 && args+=(--codex "${CODEX_HOME}/config.toml")
+  # After a failed split the shared home's Private Memory entry must stay: it
+  # is what marks the home for the next run's split.
+  [ "${VIBE_HOMES_READY}" = 1 ] \
+    && args+=(--vibe "${VIBE_HOME}/config.toml" --vibe-private "${VIBE_PRIVATE_HOME}/config.toml")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
   if ! command -v uv >/dev/null 2>&1; then
     warn "uv is not on PATH; MCP servers not converged"
     return 0
   fi
   out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
-    "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \
-    --declared claude=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared codex=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared vibe=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
-    --retired memory-mcp,vuetify 2>&1) || rc=$?
+    "${args[@]}" \
+    --declared claude=memory-api,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared codex=memory-api,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared vibe=memory-api,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared vibe-private=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
+    --retired memory-mcp,vuetify --private memory-private 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
 }
@@ -644,6 +708,13 @@ KIT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"
+# vibe-private exports its own home as VIBE_HOME; setup run from inside a
+# vibe-private session must still treat ~/.vibe as the shared home.
+[ "${VIBE_HOME%/}" = "${HOME}/.vibe-private" ] && VIBE_HOME="${HOME}/.vibe"
+# vibe-private's own Vibe home; the vibe-private launcher uses the same path.
+VIBE_PRIVATE_HOME="${HOME}/.vibe-private"
+# 0 after a failed split of the Vibe home: nothing then touches either home.
+VIBE_HOMES_READY=1
 
 # Outside a checkout, re-run the copy in the release's kit bundle; --uninstall needs none of it.
 use_kit_bundle() {
@@ -1142,10 +1213,14 @@ else
   log "secondary claude profiles skipped (--no-profiles)"
 fi
 
-# Claude Code may not read or run anything that touches the private bank's
-# files: Vibe's home (its session logs) and the gated token. Against accidents,
+# Claude Code may not read or run anything that touches Private Memory's
+# files: the Vibe homes (their session logs) and the gated token. Against accidents,
 # not a determined agent; the passphrase is the boundary.
 claude_private_denies
+
+# Before anything touches a Vibe home (MCP merge, converge, skills), and
+# whether or not vibe is on PATH yet.
+[ "${CLOUD}" = 1 ] || _vibe_split_homes
 
 # -----------------------------------------------------------------
 # 3. Claude Code marketplaces and plugins.
@@ -1294,11 +1369,18 @@ else
 
   hindsight_coding_agents
   # memory-private on|off|status [DIR]: keeps a directory's sessions out of
-  # the shared Hindsight bank (HINDSIGHT_DISABLED=true in its local settings).
-  # memory-private claude|codex [ARGS]: one session with the private bank on.
+  # Shared Memory (HINDSIGHT_DISABLED=true in its local settings).
   install_kit_command memory-private
-  # agent-kit-private: the private-bank token behind your passphrase.
+  # agent-kit-private: the passphrase gate in front of the Private Memory token.
   install_kit_command agent-kit-private
+  # The Vibe launchers. Plain vibe is Vibe itself: the shared Vibe home, the
+  # personal login, Shared Memory. vibe-study is the same home with the Study
+  # account; vibe-private has its own home and Private Memory, behind the gate.
+  # Workstation only: a cloud session gets plain vibe.
+  if [ "${CLOUD}" != 1 ]; then
+    install_kit_command vibe-study
+    install_kit_command vibe-private
+  fi
   # Retired: Vibe saves to memory by tool now, not every turn.
   retire_kit_command vibe-retain-private
 
@@ -1971,25 +2053,18 @@ for install in installs:
       fi
     fi
 
-    # Private Hindsight bank -- personal notes. On in Vibe; off in
-    # Claude Code and Codex unless a session is opened with
-    # `memory-private claude|codex`.
+    # Private Memory, the private Hindsight bank -- personal notes.
+    # On only in vibe-private, behind the passphrase gate; no other
+    # agent or launcher gets it.
     if [ "${CLOUD}" = 1 ]; then
       log "memory-private: not set up in cloud mode"
     else
       if command -v claude >/dev/null 2>&1; then
         run claude_each_profile claude mcp remove --scope user memory-private >/dev/null 2>&1 || true
-        install_session_mcp memory-private
       fi
+      run rm -f "${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/memory-private.mcp.json"
       if command -v codex >/dev/null 2>&1; then
         run codex mcp remove memory-private >/dev/null 2>&1 || true
-        if run_redacted "codex mcp add memory-private" codex mcp add memory-private --url https://hindsight-private.jorisjonkers.dev/mcp/private/ --bearer-token-env-var MEMORY_PRIVATE_TOKEN; then
-          run uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/codex-disable-mcp.py" "${CODEX_HOME:-${HOME}/.codex}/config.toml" memory-private \
-            && ok "memory-private registered switched off (codex)" \
-            || fail "memory-private: could not switch it off (codex)"
-        else
-          fail "memory-private registration failed (codex)"
-        fi
       fi
     fi
 
@@ -2161,35 +2236,26 @@ for install in installs:
     fi
     # Mistral Vibe reads [[mcp_servers]] from ${VIBE_HOME}/config.toml and has
     # no `mcp add`; the helper replaces the servers it manages, keeps the rest.
-    if command -v vibe >/dev/null 2>&1; then
+    # Two Vibe homes: the shared one (vibe, vibe-study) never holds Private
+    # Memory; vibe-private's own home is the only one that does.
+    if command -v vibe >/dev/null 2>&1 && [ "${VIBE_HOMES_READY}" = 1 ]; then
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
         vibe_remove=()
-        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove memory-private --remove n8n --remove kubernetes)
+        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove n8n --remove kubernetes)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
-          "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" ${vibe_remove[@]+"${vibe_remove[@]}"} \
+          "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" --remove memory-private ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
-        # Vibe signs in with your Mistral account; every chat model that key can use,
-        # kept current.
-        if uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
-            --config "${VIBE_HOME}/config.toml" --has-key; then
-          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
-            --config "${VIBE_HOME}/config.toml" \
-            || warn "Vibe model sync failed"
-        else
-          warn "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup"
-        fi
+        _vibe_models "${VIBE_HOME}"
         vibe_hooks_remove=(--remove agent-kit-retain-private)
-        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
-          "${KIT_ROOT}/installer/vibe-hooks.toml" --key hooks --config "${VIBE_HOME}/hooks.toml" ${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"} \
-          && ok "Vibe hooks merged" \
-          || fail "Vibe hooks merge failed"
+        _vibe_hooks "${VIBE_HOME}" ${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"}
       fi
-      _vibe_agents_pointer
+      _vibe_agents_pointer "${VIBE_HOME}" shared
+      [ "${CLOUD}" = 1 ] || _vibe_private_home
     else
-      warn "vibe not on PATH; Vibe MCP config not merged"
+      warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"
     fi
     converge_mcp
     # Verify the VALUE, not the exit codes: ask Claude what it
@@ -2266,7 +2332,27 @@ else
     fi
   fi
   dest="${VIBE_HOME}/skills/pr-composer"
-  if [ "${CHECK_ONLY}" = 1 ]; then
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "pr-composer -> ${dest}"
+    else
+      fail "pr-composer: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/pr-composer"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
     rm -rf "${dest}"
@@ -2324,7 +2410,27 @@ else
     fi
   fi
   dest="${VIBE_HOME}/skills/council"
-  if [ "${CHECK_ONLY}" = 1 ]; then
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "council -> ${dest}"
+    else
+      fail "council: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/council"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
     rm -rf "${dest}"
@@ -2381,7 +2487,27 @@ else
     fi
   fi
   dest="${VIBE_HOME}/skills/kb-first"
-  if [ "${CHECK_ONLY}" = 1 ]; then
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "kb-first -> ${dest}"
+    else
+      fail "kb-first: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/kb-first"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
     rm -rf "${dest}"
@@ -2438,7 +2564,27 @@ else
     fi
   fi
   dest="${VIBE_HOME}/skills/token-economy"
-  if [ "${CHECK_ONLY}" = 1 ]; then
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "token-economy -> ${dest}"
+    else
+      fail "token-economy: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/token-economy"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
     rm -rf "${dest}"
@@ -2495,7 +2641,27 @@ else
     fi
   fi
   dest="${VIBE_HOME}/skills/agent-session-bootstrap"
-  if [ "${CHECK_ONLY}" = 1 ]; then
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "agent-session-bootstrap -> ${dest}"
+    else
+      fail "agent-session-bootstrap: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/agent-session-bootstrap"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
     rm -rf "${dest}"

@@ -427,21 +427,53 @@ def test_env_sh_exports_the_shared_values_and_scopes_the_private_token(home: dic
         ), out.stderr
 
 
-def test_env_sh_launches_vibe_through_the_gate_and_exports_nothing_private(home: dict, auth: tuple[Auth, str]) -> None:
+def test_env_sh_leaves_plain_vibe_alone_and_exports_nothing_private(home: dict, auth: tuple[Auth, str]) -> None:
     _keys(home, "ensure", answers=ANSWERS)
     bin_dir = home["tmp"] / "bin"
-    (bin_dir / "vibe").write_text('#!/bin/sh\nprintf "%s\\n" "${MEMORY_PRIVATE_TOKEN:-unset}"\n')
+    (bin_dir / "vibe").write_text('#!/bin/sh\nprintf "vibe %s\\n" "${MEMORY_PRIVATE_TOKEN:-unset}"\n')
     (bin_dir / "vibe").chmod(0o755)
-    gate = bin_dir / "agent-kit-private"
-    gate.write_text((KIT_ROOT / "installer" / "agent-kit-private").read_text().replace(
-        "/usr/bin/env python3", sys.executable, 1))
-    gate.chmod(0o755)
-    (home["tmp"] / "tty").write_text(f"{GATE_PASSPHRASE}\n")
+    # No terminal: a vibe that still went through the passphrase gate would fail here.
+    home["env"]["AGENT_KIT_TTY"] = str(home["tmp"] / "no-terminal")
     probe = f'. "{_env_sh(home)}"; vibe; printf "%s\\n" "${{MEMORY_PRIVATE_TOKEN:-unset}}"'
     out = subprocess.run(["/bin/bash", "-c", probe], capture_output=True, text=True, env=home["env"], check=False)
-    assert out.stdout.splitlines() == [_unseal(home), "unset"], out.stderr
-    assert "MEMORY_PRIVATE_TOKEN" not in _env_sh(home).read_text().split("vibe()")[0].split("unset _agent_kit_v")[-1]
-    assert "_agent_kit_secret MEMORY_PRIVATE_TOKEN" not in _env_sh(home).read_text()
+    assert out.stdout.splitlines() == ["vibe unset", "unset"], out.stderr
+    text = _env_sh(home).read_text()
+    assert "vibe()" not in text
+    assert "MEMORY_PRIVATE_TOKEN" not in text.split("unset _agent_kit_v")[-1]
+    assert "_agent_kit_secret MEMORY_PRIVATE_TOKEN" not in text
+
+
+@pytest.mark.parametrize("shell", ["/bin/bash", "/bin/zsh"])
+def test_env_sh_drops_the_old_kit_vibe_function_but_never_one_of_your_own(
+    home: dict, auth: tuple[Auth, str], shell: str,
+) -> None:
+    if not Path(shell).exists():
+        pytest.skip(f"{shell} is not installed")
+    _keys(home, "write-env")
+    old = 'vibe() { command agent-kit-private exec vibe "$@"; }'
+    mine = "vibe() { echo mine; }"
+    for defined, survives in ((old, False), (mine, True)):
+        probe = f'{defined}\n. "{_env_sh(home)}"\ntypeset -f vibe >/dev/null 2>&1 && echo kept || echo dropped'
+        out = subprocess.run([shell, "-c", probe], capture_output=True, text=True, env=home["env"], check=False)
+        assert out.stdout.strip() == ("kept" if survives else "dropped"), out.stderr
+
+
+def test_the_study_account_key_is_stored_but_never_exported_only_read_by_vibe_study(
+    home: dict, auth: tuple[Auth, str],
+) -> None:
+    _, base = auth
+    table = [*_table(base), {"env": "MISTRAL_STUDY_API_KEY", "paste": "a Study account Mistral key",
+                             "check": f"{base}/mistral", "check_method": "GET", "export": False}]
+    home["table"].write_text(json.dumps(table))
+    result = _keys(home, "ensure", answers="me@example.com\npw\n123456\nmk_good\nmk_good\ny\n")
+    assert result.returncode == 0, result.stderr
+    assert _stored(home)["MISTRAL_STUDY_API_KEY"] == "mk_good"
+    text = _env_sh(home).read_text()
+    assert "export MISTRAL_STUDY_API_KEY" not in text
+    probe = (f'. "{_env_sh(home)}"; printf "%s|%s\\n" "${{MISTRAL_STUDY_API_KEY:-unset}}" '
+             '"$(_agent_kit_secret MISTRAL_STUDY_API_KEY)"')
+    out = subprocess.run(["/bin/bash", "-c", probe], capture_output=True, text=True, env=home["env"], check=False)
+    assert out.stdout.strip() == "unset|mk_good", out.stderr
 
 
 def test_a_value_already_in_the_environment_wins(home: dict, auth: tuple[Auth, str]) -> None:

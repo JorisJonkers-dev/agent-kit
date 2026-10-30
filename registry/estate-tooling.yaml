@@ -53,12 +53,19 @@ verified_at: 2026-09-09
 # key you paste once, and a `value` entry is a fixed setting. Each is
 # checked against `check` and stored in the keychain;
 # ~/.config/agent-kit/env.sh reads them back in every shell. `export:
-# false` keeps a value out of the shell: only vibe and memory-private get it.
+# false` keeps a value out of the shell: only vibe-private (the Private
+# Memory token, through the passphrase gate) and vibe-study (the Study
+# account key) get one.
 # -------------------------------------------------------------------
 claude_private_deny:
-  # Vibe's home holds its session logs: the private conversations themselves.
+  # vibe-private's Vibe home holds its session logs: the private conversations
+  # themselves. The shared home held them before the split, so it stays denied.
   - "Read(~/.vibe/**)"
   - "Edit(~/.vibe/**)"
+  - "Read(~/.vibe-private/**)"
+  - "Edit(~/.vibe-private/**)"
+  # Covers both homes' paths (~/.vibe, ~/.vibe-private) but not the kit's own
+  # files, so agent-kit stays maintainable from Claude Code.
   - "Bash(*.vibe*)"
   # The sealed private-bank token, and the command that opens it.
   - "Read(~/.config/agent-kit/private/**)"
@@ -83,12 +90,19 @@ workstation_secrets:
     check: "https://hindsight-private.jorisjonkers.dev/mcp/private/"
     export: false
     # Sealed behind a passphrase only you know (installer/agent-kit-private),
-    # asked at each vibe launch: Claude and Codex cannot fetch it.
+    # asked at each vibe-private launch: no other agent can fetch it.
     gate: passphrase
   # Retired: Vibe signs in with your Mistral account, and an exported key
   # would override that login. Removed from the keychain and env.sh.
   - env: MISTRAL_API_KEY
     retired: true
+  # The Study account's key. Unexported, so plain vibe keeps the personal
+  # login; vibe-study reads it and hands it to Vibe as MISTRAL_API_KEY.
+  - env: MISTRAL_STUDY_API_KEY
+    paste: "an API key you create in the Study account's Mistral console, for vibe-study"
+    check: "https://api.mistral.ai/v1/models"
+    check_method: GET
+    export: false
 
 # -------------------------------------------------------------------
 # Claude Code profiles.
@@ -919,17 +933,16 @@ mcp_servers:
 
   - name: memory-private
     transport: http
-    purpose: Private Hindsight bank -- personal notes. On in Vibe; off in Claude Code and Codex unless a session is opened with `memory-private claude|codex`.
+    purpose: Private Memory, the private Hindsight bank -- personal notes. On only in vibe-private, behind the passphrase gate; no other agent or launcher gets it.
     # Single-bank endpoint for the private bank: hindsight-private.* routes
     # nothing else, and only MEMORY_PRIVATE tokens pass it (fleet-infra#395).
     url_workstation: "https://hindsight-private.jorisjonkers.dev/mcp/private/"
     credential: MEMORY_PRIVATE_TOKEN
     timeout: 60
-    # Installed switched off: never registered for Claude at user scope, and
-    # `enabled = false` for Codex. On in Vibe, the personal-notes agent.
-    # Never on Hermes, runners or cloud.
+    # Only vibe-private's own Vibe home holds it: never Claude, Codex, Hermes,
+    # plain vibe or vibe-study, and never runners or cloud.
     session_only: true
-    enabled_for: [vibe]
+    enabled_for: [vibe-private]
     surfaces: [workstation]
     cloud: false
     trust: estate

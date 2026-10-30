@@ -6,8 +6,9 @@ longer works: it signs in to auth-api once (password, then TOTP), grants the
 missing services when you are an admin, mints each service token, checks every
 value against its own host, and stores it in the macOS keychain (a 0600 file
 where there is none). ``write-env`` renders ~/.config/agent-kit/env.sh, which
-reads them back in every shell; the private-bank token is handed only to
-``vibe`` and ``memory-private``. ``status`` reports without asking anything.
+reads them back in every shell; the Private Memory token is opened only by
+``vibe-private``, and the Study account key is read only by ``vibe-study``.
+``status`` reports without asking anything.
 
 Secrets never reach argv or output: the keychain gets them over ``security -i``
 on stdin. Stdlib only, so the system python3 runs it.
@@ -346,11 +347,12 @@ def write_env(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> Path
     lines = [
         "# managed by agent-kit setup-workstation.sh; rewritten on every run.",
         f"# Reads the workstation's tokens and keys from the {keys.name}. A value already",
-        "# in the environment wins. The private-bank token is never read here: vibe",
-        "# asks agent-kit-private for it, which asks you for its passphrase.",
+        "# in the environment wins. An `export: false` value is never exported: the",
+        "# Private Memory token is opened only by vibe-private (through agent-kit-private,",
+        "# which asks for its passphrase), and vibe-study reads the Study account key",
+        "# with _agent_kit_secret itself.",
         keys.shell_reader(),
     ]
-    scoped = []
     for entry in table:
         if entry.get("retired"):
             continue
@@ -362,11 +364,10 @@ def write_env(table: list[dict[str, Any]], keys: Keychain | SecretsFile) -> Path
                 f'if [ -z "${{{var}:-}}" ]; then _agent_kit_v="$(_agent_kit_secret {var})"; '
                 f'if [ -n "$_agent_kit_v" ]; then export {var}="$_agent_kit_v"; fi; fi'
             )
-        else:
-            scoped.append(var)
     lines.append("unset _agent_kit_v")
-    if scoped:
-        lines.append('vibe() { command agent-kit-private exec vibe "$@"; }')
+    # A shell that sourced an older env.sh still has its vibe wrapper; drop that
+    # one only, never a vibe function of your own.
+    lines.append('case "$(typeset -f vibe 2>/dev/null)" in *"agent-kit-private exec vibe"*) unset -f vibe ;; esac')
     path = config_dir() / "env.sh"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n")

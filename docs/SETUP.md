@@ -68,7 +68,7 @@ registry):
 4. It stores each in the macOS keychain as `agent-kit.<VARIABLE>` (a 0600
    `~/.config/agent-kit/secrets.env` where there is no keychain). The
    private-bank token is the exception: it is sealed behind a passphrase you
-   choose (see The private bank). Secrets travel over stdin, never argv, and
+   choose (see Vibe launchers and Private Memory). Secrets travel over stdin, never argv, and
    are never printed.
 5. It writes `~/.config/agent-kit/env.sh`, which reads them back, and offers
    to add one line to your `~/.zshrc` or `~/.bashrc` that loads it.
@@ -81,7 +81,8 @@ asks only for what is missing or refused by its host. Optional credentials
 |---|---|---|
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and Hindsight Coding Agents' hooks and `hindsight` tools | required |
 | `HINDSIGHT_API_URL` | anything that reads it; Coding Agents takes its URL from its own config | set by env.sh |
-| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server: always in Vibe, and in a `memory-private claude\|codex` session | never exported; sealed behind your passphrase, given to `vibe` and `memory-private` per launch |
+| `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server (Private Memory), in `vibe-private` only | never exported; sealed behind your passphrase, given to `vibe-private` per launch |
+| `MISTRAL_STUDY_API_KEY` | `vibe-study`: Vibe signed in with the Study account | optional; never exported, read only by `vibe-study` |
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
@@ -182,14 +183,41 @@ repository where it is not ignored yet, `on` also adds it to `.git/info/exclude`
 hooks once the folder is trusted, and the plugin then goes inert there: no
 shared-bank recall at all. For one session only: `HINDSIGHT_DISABLED=true claude`.
 
-### The private bank
+### Vibe launchers and Private Memory
 
-Personal notes go to a separate Hindsight bank, `private`, served only on
-`hindsight-private.jorisjonkers.dev` and only to a `MEMORY_PRIVATE` service
-token. Hermes, runners and cloud sessions never get it.
+Personal notes go to Private Memory, a separate Hindsight bank (`private`),
+served only on `hindsight-private.jorisjonkers.dev` and only to a
+`MEMORY_PRIVATE` service token. Every other agent and launcher gets Shared
+Memory (`memory-api`) only. Vibe has three launchers:
 
-Vibe, the agent for personal notes, has the `memory-private` MCP server on,
-next to the shared bank.
+| Launcher | Mistral account | Memory | Passphrase | Vibe home | Who may run it |
+|---|---|---|---|---|---|
+| `vibe` | personal (Vibe's own sign-in) | Shared Memory | no | `~/.vibe` | you and agents |
+| `vibe-study` | Study account | Shared Memory | no | `~/.vibe` (shared with `vibe`) | you and agents |
+| `vibe-private` | personal | Shared Memory + Private Memory | yes, at a terminal | `~/.vibe-private` | you only |
+
+The names follow one rule: an account suffix (`-study`, like `claude-personal`)
+says which account a launcher signs in with, and `-private` marks the one
+launcher behind the passphrase gate. See [ADR-0023](https://github.com/JorisJonkers-dev/workspace/blob/main/docs/decisions/ADR-0023-only-vibe-private-reaches-private-memory.md).
+
+- **`vibe`** is Vibe itself, with no wrapper. Its home lists every
+  workstation MCP server except `memory-private`, and its `AGENTS.md` names
+  only `memory-api`.
+- **`vibe-study`** runs Vibe in the same home, with the Study account key
+  (`MISTRAL_STUDY_API_KEY`) handed over as `MISTRAL_API_KEY`, which overrides
+  Vibe's machine-wide personal login. Create an API key in the Study
+  account's Mistral console and paste it when setup asks. The key is stored
+  like the other keys but never exported, so plain `vibe` keeps the personal
+  login. Without it, `vibe-study` refuses rather than falling back to the
+  personal account. It drops an inherited `MEMORY_PRIVATE_TOKEN` and never
+  uses vibe-private's home, even when started from inside a vibe-private
+  session.
+- **`vibe-private`** runs Vibe in its own home, `~/.vibe-private`, the only
+  one whose config holds `memory-private` and whose `AGENTS.md` asks it to
+  recall from both banks. Its sessions never share a directory with `vibe`
+  or `vibe-study`, so a password-free run can neither resume nor read them.
+  It always signs in with the personal login: an inherited Mistral key is
+  dropped.
 
 **The token is behind a passphrase only you know.** Setup mints it and seals
 it with `agent-kit-private` (openssl AES-256-CBC, PBKDF2 600,000 rounds) in
@@ -197,47 +225,64 @@ it with `agent-kit-private` (openssl AES-256-CBC, PBKDF2 600,000 rounds) in
 passphrase; it is not your login password, and nothing can recover it (setup
 then mints a new token). After that:
 
-- `vibe` (a function in env.sh) runs `agent-kit-private exec vibe`, which asks
-  for the passphrase at the terminal and gives the token to that one launch.
-- `memory-private claude|codex` goes through the same gate.
+- `vibe-private` runs `agent-kit-private exec vibe`, which asks for the
+  passphrase at the terminal and gives the token to that one launch.
 - Nothing else can open it. The file is ciphertext, the passphrase and token
   never reach argv, and without a terminal the gate asks nothing and gives
-  nothing, so an agent's shell gets no prompt to answer.
+  nothing, so an agent's shell gets no prompt to answer. The gate never reads
+  stdin.
+- Claude Code and Codex cannot reach Private Memory at all: no server entry,
+  no session launcher. Setup removes what earlier versions installed for them
+  (the `--mcp-config` file and Codex's switched-off entry), and converge
+  removes `memory-private` from any surface but vibe-private's home, even one
+  the keep file names.
 - Claude Code also gets deny rules (`claude_private_deny` in the registry):
-  its file tools and Bash may not touch `~/.vibe/**`, where Vibe keeps its
-  session logs (the private conversations themselves), the sealed token, or
-  `agent-kit-private`. These stop accidental reads, not a determined agent:
-  a Bash pattern misses a rewritten path (`~/.v""ibe`) or a script. The
-  passphrase is the boundary; the logs have none beyond these rules.
+  its file tools and Bash may not touch `~/.vibe/**` or `~/.vibe-private/**`,
+  the sealed token, or `agent-kit-private`. These stop accidental reads, not
+  a determined agent: a Bash pattern misses a rewritten path (`~/.v""ibe`) or
+  a script. The passphrase is the boundary; the logs have none beyond these
+  rules.
 
-Known limits: Codex has no read deny-list, so it could read `~/.vibe` logs,
-though not the token. Vibe started by an editor or the Vibe app, not through
-the `vibe` function, has no private bank. A token left in the login keychain
-by an earlier setup is removed on the next run and replaced; it cannot be
-revoked from here, since no id was kept for it. From now on setup records
-each token's id (`~/.config/agent-kit/token-ids.json`, ids only) and revokes
-a token as soon as it replaces it.
+**The split.** Before these launchers, every Vibe run shared `~/.vibe`, and
+its history holds sessions that recalled Private Memory. On the first run
+after the upgrade, setup moves that whole home to `~/.vibe-private`, history
+and all, and seeds a fresh `~/.vibe` with only its settings and login
+(`config.toml`, `hooks.toml`, `AGENTS.md`, `.env`, `skills/`, `prompts/`,
+`agents/`). It runs once, only for a home that listed `memory-private`, never
+overwrites an existing `~/.vibe-private`, and deletes nothing
+(`scripts/vibe-split-homes.py`). The fresh home is built beside the old one
+first: if that fails, nothing has moved, setup leaves both Vibe homes alone
+for that run, and the next run tries again. `--check` says what it would do.
+The `vibe` function an earlier `env.sh` defined is dropped (a `vibe` function
+of your own is kept); open a new shell.
 
-Without the token, Vibe connects to the private bank with no credential and
-is refused.
+Known limits:
 
-Vibe saves to the private bank only what is worth keeping, by tool:
-`${VIBE_HOME}/AGENTS.md` asks it to keep facts about people and you, plans,
-decisions and their reasons, and anything you ask it to remember, and to
-recall from both banks at the start of a task. Nothing is saved every turn.
+- Codex has no read deny-list, so it could read the Vibe homes' logs, though
+  not the token.
+- Vibe started by an editor or the Vibe app uses the shared home and has no
+  Private Memory.
+- Anything run inside an unlocked vibe-private session (Vibe's own tools, a
+  plain `vibe` it starts) inherits the token and that session's home: it is
+  already past the passphrase. `vibe-study` drops both.
+- Vibe keeps MCP OAuth tokens machine-wide, not per home; Private Memory
+  uses a static token, so it is not affected.
+- Mistral models are synced into both homes with the personal login.
+  `vibe-study` lists the same models; one the Study account cannot use fails
+  when picked.
+- A token left in the login keychain by an earlier setup is removed on the
+  next run and replaced; it cannot be revoked from here, since no id was kept
+  for it. Setup records each token's id (`~/.config/agent-kit/token-ids.json`,
+  ids only) and revokes a token as soon as it replaces it.
 
-Claude Code and Codex have it installed switched off: Claude Code has it only
-as a `--mcp-config` file, and Codex lists it as disabled. Open one session
-with it on:
+Without the token, `vibe-private`'s Vibe connects to Private Memory with no
+credential and is refused.
 
-```bash
-memory-private claude [ARGS]          # or: memory-private codex [ARGS]
-```
-
-That session also runs with Hindsight Coding Agents inert (`HINDSIGHT_DISABLED=true`) and with the shared
-stores Hermes reads switched off (`memory-api` and `hindsight`), so nothing
-from it can land where Hermes can see it. Every other session, including another one
-open at the same time, still has no private bank.
+Vibe saves to Private Memory only what is worth keeping, by tool:
+`~/.vibe-private/AGENTS.md` asks it to keep facts about people and you,
+plans, decisions and their reasons, and anything you ask it to remember, and
+never to copy personal notes into `memory-api`, which Hermes and every other
+agent read. Nothing is saved every turn.
 
 ### Per-host service tokens (memory-api / memory-private)
 
