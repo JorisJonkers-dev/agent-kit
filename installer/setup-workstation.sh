@@ -2353,13 +2353,15 @@ for install in installs:
       warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"
     fi
     # Antigravity reads one global mcp_config.json, shared by the app, the CLI
-    # and the IDE, and has no `mcp add`. The fragment names the stdio proxy
-    # for any server that needs a token, so no secret reaches that file.
+    # and the IDE. `agy mcp add` writes one server at a time, so the fragment
+    # is merged in one pass. It names the stdio proxy for any server that
+    # needs a token, so no secret reaches that file. Private Memory is removed
+    # even when someone added it by hand: no keep file keeps it here.
     if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ] && command -v agy >/dev/null 2>&1; then
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"
       elif python3 "${KIT_ROOT}/scripts/antigravity-merge-mcp.py" \
-        "${KIT_ROOT}/registry/generated/antigravity/mcp_config.json" --config "${ANTIGRAVITY_HOME}/mcp_config.json" --remove memory-mcp --remove vuetify; then
+        "${KIT_ROOT}/registry/generated/antigravity/mcp_config.json" --config "${ANTIGRAVITY_HOME}/mcp_config.json" --remove memory-mcp --remove vuetify --remove memory-private; then
         ok "Antigravity MCP servers merged"
       else
         fail "Antigravity MCP merge failed"

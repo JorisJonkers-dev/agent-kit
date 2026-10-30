@@ -121,13 +121,14 @@ def linux_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 
 @pytest.fixture(scope="module")
 def macos_run_over_an_existing_config(tmp_path_factory: pytest.TempPathFactory) -> Run:
-    """A machine whose mcp_config.json already holds a retired server and one of its own."""
+    """A machine whose mcp_config.json holds a retired server, Private Memory added by hand, and one of its own."""
     return _setup_run(
         tmp_path_factory.mktemp("macos-existing"),
         "Darwin",
         seed={
             "mcpServers": {
                 "memory-mcp": {"command": "npx", "args": ["-y", "memory-mcp"]},
+                "memory-private": {"command": "memory-private-mcp", "args": []},
                 "my-own-server": {"command": "node", "args": ["/opt/mine.js"]},
             },
             "somethingElse": {"kept": True},
@@ -206,6 +207,12 @@ def test_a_retired_server_is_removed_and_the_rest_of_the_file_kept(
         assert name not in doc["mcpServers"], name
     assert doc["mcpServers"]["my-own-server"] == {"command": "node", "args": ["/opt/mine.js"]}
     assert doc["somethingElse"] == {"kept": True}
+
+
+def test_private_memory_added_by_hand_is_removed(macos_run_over_an_existing_config: Run) -> None:
+    """The merge keeps what it does not name, but no keep file keeps Private Memory here."""
+    config = macos_run_over_an_existing_config.home / ".gemini" / "config" / "mcp_config.json"
+    assert "memory-private" not in json.loads(config.read_text())["mcpServers"]
 
 
 # ---------------------------------------------------------------------------
