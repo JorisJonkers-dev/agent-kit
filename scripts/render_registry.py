@@ -2603,11 +2603,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"')
     w("      elif python3 \"${KIT_ROOT}/scripts/antigravity-merge-mcp.py\" \\")
-    private_only = [
+    antigravity_private = [
         str(s["name"]) for s in _entries(data, "mcp_servers")
         if session_only(s) and s not in antigravity_servers(data)
     ]
-    removes = "".join(f" --remove {name}" for name in [*retired_servers(data), *private_only])
+    removes = "".join(f" --remove {name}" for name in [*retired_servers(data), *antigravity_private])
     w(f'        "${{KIT_ROOT}}/{ANTIGRAVITY_MCP}" --config "${{ANTIGRAVITY_HOME}}/mcp_config.json"{removes}; then')
     w('        ok "Antigravity MCP servers merged"')
     w("      else")
