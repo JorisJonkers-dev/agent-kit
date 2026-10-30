@@ -34,6 +34,25 @@ module.exports = {
       },
     },
     {
+      // Critics never debate. The critique context and its runner must not
+      // reach council's cross-critique, design-vote or consolidation code
+      // (design, review, context's role matrix, prompts, triage's lens
+      // catalog), nor the workflow, composition and CLI shells that wire it.
+      name: 'critique-never-imports-council-debate',
+      severity: 'error',
+      from: { path: '^src/(contexts/critique|critique-cli)/' },
+      to: {
+        path: '^src/(contexts/(design|review|context|prompts|triage)|workflows|composition|app|cli)/',
+      },
+    },
+    {
+      // The critique runner's CLI reaches contexts only through their barrels.
+      name: 'critique-cli-uses-context-barrels',
+      severity: 'error',
+      from: { path: '^src/critique-cli/' },
+      to: { path: '^src/contexts/[^/]+/(domain|adapters|application)/.+' },
+    },
+    {
       // The CLI is a thin inbound adapter and reaches contexts only through
       // their public barrels, never their internals.
       name: 'cli-uses-context-barrels',
