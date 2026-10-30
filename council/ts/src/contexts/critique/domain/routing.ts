@@ -1,4 +1,4 @@
-import type { ModelFamily } from './data-policy.js'
+import type { ModelFamily } from './family-allowlist.js'
 
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
 export interface VibeCriticClient {

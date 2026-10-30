@@ -33,13 +33,13 @@ Example of the final block:
       "id": "F1",
       "severity": "major",
       "category": "omission",
-      "location": "Implementation Decisions, Data policy",
+      "location": "Implementation Decisions, Family allowlist",
       "claim": "The spec drops the decision that a repository with no remote sends nothing.",
       "evidence": [
         { "kind": "quote", "file": "references/CONTEXT.md", "value": "A repository with no entry, or with no remote, sends nothing" },
         { "kind": "quote", "file": "artifact/spec.md", "value": "A repository with no allowlist entry is refused." }
       ],
-      "suggestion": "Add the no-remote case to the data policy decisions."
+      "suggestion": "Add the no-remote case to the family allowlist decisions."
     }
   ]
 }

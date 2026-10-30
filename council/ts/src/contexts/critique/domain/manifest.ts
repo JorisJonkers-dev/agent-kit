@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import type { ModelFamily } from './data-policy.js'
+import type { ModelFamily } from './family-allowlist.js'
 import type { DroppedCritic, RosterCritic } from './routing.js'
 
 export function sha256(text: string): string {

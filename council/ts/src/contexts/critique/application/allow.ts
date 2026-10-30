@@ -1,4 +1,4 @@
-import { parseModelFamilies, withEntry, type ModelFamily } from '../domain/data-policy.js'
+import { parseModelFamilies, withEntry, type ModelFamily } from '../domain/family-allowlist.js'
 import { asObject, requireString, requireStringList } from './input.js'
 import { allowlistPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'

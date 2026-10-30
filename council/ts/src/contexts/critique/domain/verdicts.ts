@@ -1,4 +1,4 @@
-import type { ModelFamily } from './data-policy.js'
+import type { ModelFamily } from './family-allowlist.js'
 import type { Category, Evidence, Severity } from './findings.js'
 import type { PromptHashes } from './prompt.js'
 import type { DroppedCritic } from './routing.js'

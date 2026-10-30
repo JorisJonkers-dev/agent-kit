@@ -1,5 +1,5 @@
 import type { ClockPort, EnvPort, ProcessPort } from '../../../ports/index.js'
-import type { GitRemote } from '../domain/data-policy.js'
+import type { GitRemote } from '../domain/family-allowlist.js'
 
 /** The repository facts the critique needs from git. */
 export interface CritiqueGitPort {

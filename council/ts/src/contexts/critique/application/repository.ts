@@ -3,7 +3,7 @@ import {
   identifyRepository,
   parseAllowlist,
   type FamilyAllowlist,
-} from '../domain/data-policy.js'
+} from '../domain/family-allowlist.js'
 import { allowlistPath } from './locations.js'
 import type { CritiqueDeps } from './ports.js'
 

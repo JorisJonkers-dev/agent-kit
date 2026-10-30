@@ -57,7 +57,7 @@ function ledgerLines(h: Harness): Promise<Record<string, unknown>[]> {
 
 const four = [
   finding({ id: 'F1', severity: 'critical' }),
-  finding({ id: 'F2', category: 'omission', location: 'Data policy', severity: 'critical' }),
+  finding({ id: 'F2', category: 'omission', location: 'Family allowlist', severity: 'critical' }),
   finding({ id: 'F3', category: 'untestable', location: 'User story 9', severity: 'major' }),
   finding({ evidence: [], id: 'F4', location: 'Out of Scope', severity: 'minor' }),
 ]
@@ -94,7 +94,7 @@ describe('record', () => {
 
     const { summary, report_path } = await h.commands.record({ run_dir: run.run_dir, verdicts })
 
-    expect(section(summary, 'Dissent')).toContain('F2 [critical omission] Data policy')
+    expect(section(summary, 'Dissent')).toContain('F2 [critical omission] Family allowlist')
     expect(section(summary, 'Dissent')).toContain('CONTEXT.md does not decide this')
     expect(await readFile(report_path, 'utf8')).toContain('## Dissent')
   })

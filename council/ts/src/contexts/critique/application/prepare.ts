@@ -1,6 +1,6 @@
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 
-import type { ModelFamily } from '../domain/data-policy.js'
+import type { ModelFamily } from '../domain/family-allowlist.js'
 import { compactTimestamp, sha256, type PacketFile, type RunManifest } from '../domain/manifest.js'
 import { parseRouting, resolveRoster, type DroppedCritic } from '../domain/routing.js'
 import { asObject, requireString, requireStringList, type JsonObject } from './input.js'

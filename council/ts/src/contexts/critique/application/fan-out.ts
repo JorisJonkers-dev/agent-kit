@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import type { ModelFamily } from '../domain/data-policy.js'
+import type { ModelFamily } from '../domain/family-allowlist.js'
 import type { Category, Evidence, Severity } from '../domain/findings.js'
 import type { RunManifest } from '../domain/manifest.js'
 import { assemblePrompt, type PromptHashes } from '../domain/prompt.js'

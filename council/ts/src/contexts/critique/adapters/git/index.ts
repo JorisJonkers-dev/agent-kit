@@ -1,6 +1,6 @@
 import type { ProcessPort, ProcessResult } from '../../../../ports/index.js'
 import type { CritiqueGitPort } from '../../application/ports.js'
-import type { GitRemote } from '../../domain/data-policy.js'
+import type { GitRemote } from '../../domain/family-allowlist.js'
 
 /** `git config --get-regexp` exits 1 when nothing matches. */
 const NO_MATCH = 1

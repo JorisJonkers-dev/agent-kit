@@ -89,7 +89,7 @@ function processExitCode(code) {
   return 124;
 }
 
-// src/contexts/critique/domain/data-policy.ts
+// src/contexts/critique/domain/family-allowlist.ts
 var MODEL_FAMILIES = ["mistral", "zhipu", "deepseek", "google"];
 var DENIED_OWNER = "nedap";
 function parseModelFamilies(value) {
