@@ -103,7 +103,7 @@ def store() -> int:
             return fail("wrong passphrase; the stored token is unchanged")
     else:
         print("Choose a passphrase for the private bank. Not your login password: "
-              "it is asked at every vibe launch, and nothing can recover it.", file=sys.stderr)
+              "it is asked at every vibe-private launch, and nothing can recover it.", file=sys.stderr)
         passphrase = ask("New passphrase: ")
         if len(passphrase) < MIN_LENGTH:
             return fail(f"the passphrase needs at least {MIN_LENGTH} characters")

@@ -39,13 +39,13 @@ HERMES_SOURCES = Path("registry/generated/hermes/skills-sources.conf")
 HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
+VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
 # Seconds Vibe waits for an MCP server to start, unless its entry sets startup_timeout.
 VIBE_STARTUP_TIMEOUT = 30
 VIBE_HOOKS = Path("installer/vibe-hooks.toml")
 # Removed from ${VIBE_HOME}/hooks.toml on every run.
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
-CLAUDE_SESSION_MCP_DIR = Path("registry/generated/claude")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -364,9 +364,9 @@ def session_only(server: dict[str, Any]) -> bool:
     return server.get("session_only") is True
 
 
-# The agents a session-only server may be on for by default. Vibe is the
-# personal-notes agent; Claude Code and Codex stay switched off.
-ALWAYS_ON_AGENTS = {"vibe"}
+# The launchers a session-only server may be on for. vibe-private is the only
+# launcher behind the passphrase gate, so it alone may hold Private Memory.
+ALWAYS_ON_AGENTS = {"vibe-private"}
 
 
 def enabled_for(server: dict[str, Any], agent: str) -> bool:
@@ -743,19 +743,33 @@ def _toml_str(value: str) -> str:
     return json.dumps(value)
 
 
-def vibe_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Servers Vibe gets: everything on the workstation surface, session-only ones only if enabled for it."""
+def vibe_servers(data: dict[str, Any], launcher: str = "vibe") -> list[dict[str, Any]]:
+    """Servers a Vibe home gets: the workstation fleet, session-only ones only if enabled for its launcher.
+
+    ``vibe`` is the shared Vibe home (vibe and vibe-study); ``vibe-private``
+    is vibe-private's own home.
+    """
     return [
         s
         for s in _entries(data, "mcp_servers")
         if s.get("enabled") is not False
         and on_surface(s, "workstation")
-        and (not session_only(s) or enabled_for(s, "vibe"))
+        and (not session_only(s) or enabled_for(s, launcher))
     ]
 
 
 def render_vibe_mcp(data: dict[str, Any]) -> str:
-    """Render the ``[[mcp_servers]]`` entries merged into ``~/.vibe/config.toml``.
+    """The shared Vibe home's servers: merged into ``~/.vibe/config.toml``. Never Private Memory."""
+    return _render_vibe_mcp(data, "vibe", "~/.vibe/config.toml")
+
+
+def render_vibe_private_mcp(data: dict[str, Any]) -> str:
+    """vibe-private's servers: the shared fleet plus Private Memory, merged into ``~/.vibe-private/config.toml``."""
+    return _render_vibe_mcp(data, "vibe-private", "~/.vibe-private/config.toml")
+
+
+def _render_vibe_mcp(data: dict[str, Any], launcher: str, config: str) -> str:
+    """Render the ``[[mcp_servers]]`` entries merged into a Vibe home's config.toml.
 
     Credentials are named, never written: Vibe's static auth reads the token
     from ``api_key_env`` at connect time. Merged by ``scripts/vibe-merge-mcp.py``.
@@ -763,11 +777,11 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
     lines = [
         f"# {GENERATED_BANNER}",
         "#",
-        "# Mistral Vibe's MCP servers, merged into ~/.vibe/config.toml by",
+        f"# Mistral Vibe's MCP servers, merged into {config} by",
         "# scripts/vibe-merge-mcp.py. Servers named here are replaced on every",
         "# run; any other server in that file is left alone.",
     ]
-    for server in vibe_servers(data):
+    for server in vibe_servers(data, launcher):
         name = server["name"]
         lines += ["", "[[mcp_servers]]", f"name = {_toml_str(name)}"]
         if server["transport"] == "http":
@@ -806,30 +820,52 @@ def render_vibe_mcp(data: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def session_mcp_path(name: str) -> Path:
-    return CLAUDE_SESSION_MCP_DIR / f"{name}.mcp.json"
+def _retired_vibe_hooks() -> str:
+    return " ".join(f"--remove {n}" for n in RETIRED_VIBE_HOOKS)
 
 
-def render_session_mcp(server: dict[str, Any]) -> str:
-    """Render the --mcp-config file Claude loads only for a session opened for it.
-
-    Claude expands ``${VAR}`` in headers when it loads the file, so the token
-    stays in the environment and never reaches disk.
-    """
-    entry: dict[str, Any] = {"type": "http", "url": server["url_workstation"]}
-    if server.get("credential"):
-        entry["headers"] = {"Authorization": f"Bearer ${{{server['credential']}}}"}
-    return json.dumps({"mcpServers": {server["name"]: entry}}, indent=2) + "\n"
+def _agents_pointer_text(w: Any, private: bool) -> None:
+    """The AGENTS.md a Vibe home gets. Only vibe-private's mentions Private Memory."""
+    w("${marker}")
+    w("# Agent contract")
+    w("")
+    w("The estate-wide conventions live in one place:")
+    w("https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md")
+    w("")
+    w("Read it before doing anything non-trivial in an estate repository.")
+    w("")
+    w("## Memory")
+    w("")
+    # Plain names: this is an unquoted heredoc, so a backtick would run a command.
+    if not private:
+        w("One Hindsight bank is connected: memory-api, for estate and programming")
+        w("knowledge. At the start of a task, recall from it. Every agent reads it,")
+        w("so never retain personal notes into it.")
+        return
+    w("Two Hindsight banks are connected. At the start of a task, recall from both:")
+    w("memory-private for personal context (people, plans, private notes) and")
+    w("memory-api for estate and programming knowledge.")
+    w("")
+    w("Save to memory-private only what is worth keeping long-term: facts about")
+    w("people and the user, plans, decisions and their reasons, and anything the")
+    w("user asks you to remember. Not small talk, not passing task details, never")
+    w("secrets. Update an existing memory rather than adding a near-duplicate.")
+    w("Never retain personal notes into memory-api: Hermes and every other agent")
+    w("read it.")
 
 
 def declared_servers(data: dict[str, Any], surface: str) -> list[str]:
-    """MCP servers a local surface (claude, codex or vibe) is declared to hold."""
-    if surface == "vibe":
-        names = [str(s["name"]) for s in vibe_servers(data)]
+    """MCP servers a local surface (claude, codex, vibe or vibe-private) is declared to hold.
+
+    ``vibe`` is the shared Vibe home. A session-only server (Private Memory)
+    is declared only for the launcher it is enabled for.
+    """
+    if surface in ("vibe", "vibe-private"):
+        names = [str(s["name"]) for s in vibe_servers(data, surface)]
     else:
         retired = set(retired_servers(data))
         names = [str(s["name"]) for s in _entries(data, "mcp_servers")
-                 if on_surface(s, "workstation") and s["name"] not in retired]
+                 if on_surface(s, "workstation") and s["name"] not in retired and not session_only(s)]
     if data.get("coding_agents"):
         names.append("hindsight")
     return names
@@ -873,16 +909,21 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --claude-home "${CLAUDE_HOME}")')
     w('  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do args+=(--claude "${dir}"); done')
     w('  command -v codex >/dev/null 2>&1 && args+=(--codex "${CODEX_HOME}/config.toml")')
+    w("  # After a failed split the shared home's Private Memory entry must stay: it")
+    w("  # is what marks the home for the next run's split.")
+    w('  [ "${VIBE_HOMES_READY}" = 1 ] \\')
+    w('    && args+=(--vibe "${VIBE_HOME}/config.toml" --vibe-private "${VIBE_PRIVATE_HOME}/config.toml")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
     w("  if ! command -v uv >/dev/null 2>&1; then")
     w('    warn "uv is not on PATH; MCP servers not converged"')
     w("    return 0")
     w("  fi")
     w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \\')
-    w('    "${args[@]}" --vibe "${VIBE_HOME}/config.toml" \\')
-    for surface in ("claude", "codex", "vibe"):
+    w('    "${args[@]}" \\')
+    for surface in ("claude", "codex", "vibe", "vibe-private"):
         w(f"    --declared {surface}={','.join(declared_servers(data, surface))} \\")
-    w(f'    --retired {",".join(retired_servers(data))} 2>&1) || rc=$?')
+    private = ",".join(str(s["name"]) for s in _entries(data, "mcp_servers") if session_only(s))
+    w(f'    --retired {",".join(retired_servers(data))} --private {private} 2>&1) || rc=$?')
     w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
     w('  [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"')
     w("}")
@@ -1298,24 +1339,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    || fail "${name}: could not install ${dest}"')
     w("}")
     w("")
-    w("# Installs a session-only server's --mcp-config file where memory-private reads it.")
-    w("install_session_mcp() {")
-    w('  local name="$1"')
-    w(f'  local src="${{KIT_ROOT}}/{CLAUDE_SESSION_MCP_DIR}/${{name}}.mcp.json"')
-    w('  local dest="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/${name}.mcp.json"')
-    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
-    w('    log "would install ${dest}"')
-    w("    return 0")
-    w("  fi")
-    w('  mkdir -p "$(dirname "${dest}")"')
-    w('  install -m 0644 "${src}" "${dest}" && cmp -s "${src}" "${dest}" \\')
-    w('    && ok "${name}: session config -> ${dest}" \\')
-    w('    || fail "${name}: could not install ${dest}"')
-    w("}")
-    w("")
-    w("# Points Vibe at the estate conventions, unless the user wrote their own.")
+    w("# Points a Vibe home at the estate conventions, unless the user wrote their own.")
+    w("# $2 is shared (vibe, vibe-study: Shared Memory only) or private (vibe-private).")
     w("_vibe_agents_pointer() {")
-    w('  local file="${VIBE_HOME}/AGENTS.md"')
+    w('  local home="$1" kind="$2"')
+    w('  local file="${home}/AGENTS.md"')
     w('  local marker="<!-- managed by agent-kit setup-workstation.sh -->"')
     w('  if [ -f "${file}" ] && ! grep -qF "${marker}" "${file}"; then')
     w('    log "${file} is the user\'s own; left alone"')
@@ -1325,31 +1353,72 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    log "would write ${file}"')
     w("    return 0")
     w("  fi")
-    w('  mkdir -p "${VIBE_HOME}"')
-    w('  cat > "${file}" <<EOF')
-    w("${marker}")
-    w("# Agent contract")
-    w("")
-    w("The estate-wide conventions live in one place:")
-    w("https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md")
-    w("")
-    w("Read it before doing anything non-trivial in an estate repository.")
-    w("")
-    w("## Memory")
-    w("")
-    # Plain names: this is an unquoted heredoc, so a backtick would run a command.
-    w("Two Hindsight banks are connected. At the start of a task, recall from both:")
-    w("memory-private for personal context (people, plans, private notes) and")
-    w("memory-api for estate and programming knowledge.")
-    w("")
-    w("Save to memory-private only what is worth keeping long-term: facts about")
-    w("people and the user, plans, decisions and their reasons, and anything the")
-    w("user asks you to remember. Not small talk, not passing task details, never")
-    w("secrets. Update an existing memory rather than adding a near-duplicate.")
-    w("Never retain personal notes into memory-api: Hermes and every other agent")
-    w("read it.")
+    w('  mkdir -p "${home}"')
+    w('  if [ "${kind}" = private ]; then')
+    w('    cat > "${file}" <<EOF')
+    _agents_pointer_text(w, private=True)
     w("EOF")
+    w("  else")
+    w('    cat > "${file}" <<EOF')
+    _agents_pointer_text(w, private=False)
+    w("EOF")
+    w("  fi")
     w('  ok "Vibe AGENTS.md pointer -> ${file}"')
+    w("}")
+    w("")
+    w("# Every chat model the Mistral login can use, kept current in one Vibe home.")
+    w("_vibe_models() {")
+    w('  local home="$1"')
+    w('  if VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
+    w('      --config "${home}/config.toml" --has-key; then')
+    w('    VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
+    w('      --config "${home}/config.toml" \\')
+    w('      || warn "Vibe model sync failed (${home})"')
+    w("  else")
+    w('    warn "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup"')
+    w("  fi")
+    w("}")
+    w("")
+    w("# The kit's hooks into one Vibe home; extra arguments are --remove NAME pairs.")
+    w("_vibe_hooks() {")
+    w('  local home="$1"; shift')
+    w('  uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w(f'    "${{KIT_ROOT}}/{VIBE_HOOKS}" --key hooks --config "${{home}}/hooks.toml" "$@" \\')
+    w('    && ok "Vibe hooks merged (${home})" \\')
+    w('    || fail "Vibe hooks merge failed (${home})"')
+    w("}")
+    w("")
+    w("# Once: the single Vibe home of before held sessions that recalled Private")
+    w("# Memory, so it becomes vibe-private's and the shared home starts fresh.")
+    w("# Until it has run, the shared home's Private Memory entry is what marks it as")
+    w("# one to split: a failed split keeps setup out of both Vibe homes this run.")
+    w("_vibe_split_homes() {")
+    w("  local args=() out rc=0 line")
+    w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
+    split = '"${KIT_ROOT}/scripts/vibe-split-homes.py" --shared "${VIBE_HOME}" --private "${VIBE_PRIVATE_HOME}"'
+    w(f"  out=$(python3 {split} \\")
+    w('    ${args[@]+"${args[@]}"} 2>&1) || rc=$?')
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  if [ "${rc}" != 0 ]; then')
+    w("    VIBE_HOMES_READY=0")
+    w('    fail "could not split the Vibe home; both Vibe homes are left alone until it can"')
+    w("  fi")
+    w("}")
+    w("")
+    w("# vibe-private's own Vibe home: the shared fleet plus Private Memory. Its")
+    w("# sessions never share a directory with the password-free launchers.")
+    w("_vibe_private_home() {")
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would merge vibe-private MCP servers into ${VIBE_PRIVATE_HOME}/config.toml"')
+    w("  else")
+    w('    uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    w(f'      "${{KIT_ROOT}}/{VIBE_PRIVATE_MCP}" --config "${{VIBE_PRIVATE_HOME}}/config.toml" \\')
+    w('      && ok "vibe-private MCP servers merged" \\')
+    w('      || fail "vibe-private MCP merge failed"')
+    w('    _vibe_models "${VIBE_PRIVATE_HOME}"')
+    w(f'    _vibe_hooks "${{VIBE_PRIVATE_HOME}}" {_retired_vibe_hooks()}')
+    w("  fi")
+    w('  _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private')
     w("}")
     w("")
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
@@ -1517,6 +1586,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"')
     w('CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"')
     w('VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"')
+    w("# vibe-private exports its own home as VIBE_HOME; setup run from inside a")
+    w("# vibe-private session must still treat ~/.vibe as the shared home.")
+    w('[ "${VIBE_HOME%/}" = "${HOME}/.vibe-private" ] && VIBE_HOME="${HOME}/.vibe"')
+    w("# vibe-private's own Vibe home; the vibe-private launcher uses the same path.")
+    w('VIBE_PRIVATE_HOME="${HOME}/.vibe-private"')
+    w("# 0 after a failed split of the Vibe home: nothing then touches either home.")
+    w("VIBE_HOMES_READY=1")
     w("")
     w("# Outside a checkout, re-run the copy in the release's kit bundle; --uninstall needs none of it.")
     w("use_kit_bundle() {")
@@ -1903,10 +1979,14 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("")
 
     # --- Marketplaces ---
-    w("# Claude Code may not read or run anything that touches the private bank's")
-    w("# files: Vibe's home (its session logs) and the gated token. Against accidents,")
+    w("# Claude Code may not read or run anything that touches Private Memory's")
+    w("# files: the Vibe homes (their session logs) and the gated token. Against accidents,")
     w("# not a determined agent; the passphrase is the boundary.")
     w("claude_private_denies")
+    w("")
+    w("# Before anything touches a Vibe home (MCP merge, converge, skills), and")
+    w("# whether or not vibe is on PATH yet.")
+    w('[ "${CLOUD}" = 1 ] || _vibe_split_homes')
     w("")
     w("# -----------------------------------------------------------------")
     w("# 3. Claude Code marketplaces and plugins.")
@@ -1967,11 +2047,18 @@ def render_setup_script(data: dict[str, Any]) -> str:
     if data.get("coding_agents"):
         w("  hindsight_coding_agents")
     w("  # memory-private on|off|status [DIR]: keeps a directory's sessions out of")
-    w("  # the shared Hindsight bank (HINDSIGHT_DISABLED=true in its local settings).")
-    w("  # memory-private claude|codex [ARGS]: one session with the private bank on.")
+    w("  # Shared Memory (HINDSIGHT_DISABLED=true in its local settings).")
     w("  install_kit_command memory-private")
-    w("  # agent-kit-private: the private-bank token behind your passphrase.")
+    w("  # agent-kit-private: the passphrase gate in front of the Private Memory token.")
     w("  install_kit_command agent-kit-private")
+    w("  # The Vibe launchers. Plain vibe is Vibe itself: the shared Vibe home, the")
+    w("  # personal login, Shared Memory. vibe-study is the same home with the Study")
+    w("  # account; vibe-private has its own home and Private Memory, behind the gate.")
+    w("  # Workstation only: a cloud session gets plain vibe.")
+    w('  if [ "${CLOUD}" != 1 ]; then')
+    w("    install_kit_command vibe-study")
+    w("    install_kit_command vibe-private")
+    w("  fi")
     w("  # Retired: Vibe saves to memory by tool now, not every turn.")
     w("  retire_kit_command vibe-retain-private")
     w("")
@@ -2155,6 +2242,21 @@ def render_setup_script(data: dict[str, Any]) -> str:
         if server.get("enabled") is False or len(server.get("surfaces") or []) == 0:
             # Already logged in removal section
             continue
+        if session_only(server):
+            # Private Memory lives in vibe-private's Vibe home alone. Earlier
+            # versions installed it for Claude Code (a --mcp-config file) and
+            # Codex (switched off); an upgrade removes both.
+            cleanup = [
+                "    if command -v claude >/dev/null 2>&1; then",
+                f"      run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true",
+                "    fi",
+                f'    run rm -f "${{XDG_CONFIG_HOME:-${{HOME}}/.config}}/agent-kit/{name}.mcp.json"',
+                "    if command -v codex >/dev/null 2>&1; then",
+                f"      run codex mcp remove {name} >/dev/null 2>&1 || true",
+                "    fi",
+            ]
+            out.extend(_cloud_guard(cleanup, server, "    "))
+            continue
         # A REQUIRED credential gates registration; an OPTIONAL one never does
         # (the server self-manages auth -- e.g. overleaf via olcli -- so an
         # unset override must not skip it, that was the #52 regression). In
@@ -2162,8 +2264,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         block = []
         b = block.append
         guard_open = False
-        # A session-only server needs its token per session, not at setup.
-        if credential and not optional_cred and not session_only(server):
+        if credential and not optional_cred:
             b(f'    if [ -z "${{{credential}:-}}" ] && [ "${{CLOUD}}" != 1 ]; then')
             if credential in managed_secrets(data):
                 b(f'      log "{name}: {credential} is not set; not registered (see tokens and keys)"')
@@ -2209,9 +2310,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         # --- Claude Code ---
         b(f"{indent}if command -v claude >/dev/null 2>&1; then")
         b(f'{indent}  run claude_each_profile claude mcp remove --scope user {name} >/dev/null 2>&1 || true')
-        if session_only(server):
-            b(f"{indent}  install_session_mcp {name}")
-        elif server["transport"] == "http":
+        if server["transport"] == "http":
             url = server.get("url_workstation")
             if not url:
                 raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
@@ -2225,12 +2324,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # order (`--env K=V` then the name) with "missing required argument
             # 'commandOrUrl'". Verified against claude 2.1.267.
             add = f"claude mcp add --scope user {name}{env_flags} -- {server['command']} {args}".rstrip()
-        if not session_only(server):
-            b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
-            b(f'{indent}    ok "{name} registered (claude)"')
-            b(f"{indent}  else")
-            b(f'{indent}    fail "{name} registration failed (claude)"')
-            b(f"{indent}  fi")
+        b(f'{indent}  if run_redacted "claude mcp add {name}" claude_each_profile {add}; then')
+        b(f'{indent}    ok "{name} registered (claude)"')
+        b(f"{indent}  else")
+        b(f'{indent}    fail "{name} registration failed (claude)"')
+        b(f"{indent}  fi")
         b(f"{indent}fi")
         # --- Codex ---
         b(f"{indent}if command -v codex >/dev/null 2>&1; then")
@@ -2254,14 +2352,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
                 env_flags = _mcp_env_flags(server, credential, optional_cred)
                 add = f"codex mcp add {name}{env_flags} -- {server['command']} {args}".rstrip()
             b(f'{indent}  if run_redacted "codex mcp add {name}" {add}; then')
-        if session_only(server):
-            # codex has no `mcp disable`; the helper sets enabled = false and reads it back.
-            b(f'{indent}    run uv run --no-project --with tomlkit python "${{KIT_ROOT}}/scripts/codex-disable-mcp.py" '
-              f'"${{CODEX_HOME:-${{HOME}}/.codex}}/config.toml" {name} \\')
-            b(f'{indent}      && ok "{name} registered switched off (codex)" \\')
-            b(f'{indent}      || fail "{name}: could not switch it off (codex)"')
-        else:
-            b(f'{indent}    ok "{name} registered (codex)"')
+        b(f'{indent}    ok "{name} registered (codex)"')
         b(f"{indent}  else")
         b(f'{indent}    fail "{name} registration failed (codex)"')
         b(f"{indent}  fi")
@@ -2308,7 +2399,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    fi")
     w("    # Mistral Vibe reads [[mcp_servers]] from ${VIBE_HOME}/config.toml and has")
     w("    # no `mcp add`; the helper replaces the servers it manages, keeps the rest.")
-    w("    if command -v vibe >/dev/null 2>&1; then")
+    w("    # Two Vibe homes: the shared one (vibe, vibe-study) never holds Private")
+    w("    # Memory; vibe-private's own home is the only one that does.")
+    w('    if command -v vibe >/dev/null 2>&1 && [ "${VIBE_HOMES_READY}" = 1 ]; then')
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"')
     w("      else")
@@ -2318,35 +2411,28 @@ def render_setup_script(data: dict[str, Any]) -> str:
         removes = " ".join(f"--remove {name}" for name in vibe_off_cloud)
         w(f'        [ "${{CLOUD}}" = 1 ] && vibe_remove+=({removes})')
     w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
+    # A shared home from before the split still lists Private Memory: drop it.
+    private_only = "".join(
+        f" --remove {s['name']}" for s in _entries(data, "mcp_servers")
+        if session_only(s) and s not in vibe_servers(data)
+    )
     remove_args = '${vibe_remove[@]+"${vibe_remove[@]}"}'
-    w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml" {remove_args} \\')
+    w(f'          "${{KIT_ROOT}}/{VIBE_MCP}" --config "${{VIBE_HOME}}/config.toml"{private_only} {remove_args} \\')
     w('          && ok "Vibe MCP servers merged" \\')
     w('          || fail "Vibe MCP merge failed"')
-    w("        # Vibe signs in with your Mistral account; every chat model that key can use,")
-    w("        # kept current.")
-    w('        if uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
-    w('            --config "${VIBE_HOME}/config.toml" --has-key; then')
-    w('          uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
-    w('            --config "${VIBE_HOME}/config.toml" \\')
-    w('            || warn "Vibe model sync failed"')
-    w("        else")
-    w('          warn "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup"')
-    w("        fi")
-    hook_names = [h["name"] for h in tomllib.loads((KIT_ROOT / VIBE_HOOKS).read_text()).get("hooks", [])]
-    retired_hooks = " ".join(f"--remove {n}" for n in RETIRED_VIBE_HOOKS)
-    w(f"        vibe_hooks_remove=({retired_hooks})")
+    w('        _vibe_models "${VIBE_HOME}"')
+    w(f"        vibe_hooks_remove=({_retired_vibe_hooks()})")
+    hook_names =[h["name"] for h in tomllib.loads((KIT_ROOT / VIBE_HOOKS).read_text()).get("hooks", [])]
     if hook_names:
         cloud_removes = " ".join(f"--remove {n}" for n in hook_names)
         w(f'        [ "${{CLOUD}}" = 1 ] && vibe_hooks_remove+=({cloud_removes})')
-    w('        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \\')
     hooks_remove = '${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"}'
-    w(f'          "${{KIT_ROOT}}/{VIBE_HOOKS}" --key hooks --config "${{VIBE_HOME}}/hooks.toml" {hooks_remove} \\')
-    w('          && ok "Vibe hooks merged" \\')
-    w('          || fail "Vibe hooks merge failed"')
+    w(f'        _vibe_hooks "${{VIBE_HOME}}" {hooks_remove}')
     w("      fi")
-    w("      _vibe_agents_pointer")
+    w('      _vibe_agents_pointer "${VIBE_HOME}" shared')
+    w('      [ "${CLOUD}" = 1 ] || _vibe_private_home')
     w("    else")
-    w('      warn "vibe not on PATH; Vibe MCP config not merged"')
+    w('      warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"')
     w("    fi")
     w("    converge_mcp")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
@@ -2408,10 +2494,25 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w('if [ ! -f "${src}/SKILL.md" ]; then')
         w(f'  fail "{name}: ${{src}}/SKILL.md is missing; nothing to install"')
         w("else")
-        for agent in skill.get("agents") or ["claude"]:
-            home = {"claude": "CLAUDE_HOME", "codex": "CODEX_HOME", "vibe": "VIBE_HOME"}[agent]
+        homes = [
+            h for agent in skill.get("agents") or ["claude"]
+            for h in {"claude": ["CLAUDE_HOME"], "codex": ["CODEX_HOME"],
+                      "vibe": ["VIBE_HOME", "VIBE_PRIVATE_HOME"]}[agent]
+        ]
+        for home in homes:
             w(f'  dest="${{{home}}}/skills/{name}"')
-            w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+            if home == "VIBE_PRIVATE_HOME":
+                # vibe-private's home is workstation-only: a cloud run never builds it.
+                w('  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then')
+                w("    :")
+                w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+            elif home == "VIBE_HOME":
+                # A failed split leaves both Vibe homes alone this run.
+                w('  if [ "${VIBE_HOMES_READY}" != 1 ]; then')
+                w("    :")
+                w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+            else:
+                w('  if [ "${CHECK_ONLY}" = 1 ]; then')
             w('    log "would replace ${dest}"')
             w("  else")
             w('    rm -rf "${dest}"')
@@ -2743,12 +2844,8 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         HERMES_MCP: (render_hermes_mcp(data), 0o644),
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
         VIBE_MCP: (render_vibe_mcp(data), 0o644),
+        VIBE_PRIVATE_MCP: (render_vibe_private_mcp(data), 0o644),
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
-        **{
-            session_mcp_path(s["name"]): (render_session_mcp(s), 0o644)
-            for s in _entries(data, "mcp_servers")
-            if session_only(s)
-        },
     }
 
 

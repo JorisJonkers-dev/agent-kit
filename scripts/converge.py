@@ -2,11 +2,13 @@
 """Converge agent surfaces to the registry and the keep file.
 
 ``mcp``: the MCP servers of each Claude profile's ``.claude.json``, Codex's
-``config.toml`` and Vibe's ``config.toml``. ``plugins``: Claude's marketplaces
-and user-scope plugins, which every profile shares. The setup script renders
+``config.toml`` and the ``config.toml`` of each Vibe home (the shared one and
+vibe-private's). ``plugins``: Claude's marketplaces and user-scope plugins,
+which every profile shares. The setup script renders
 the declared and retired names from the registry. A retired entry is removed;
 any other entry the surface's declared set does not name is removed unless the
-keep file names it.
+keep file names it. A ``--private`` entry (Private Memory) is removed from every
+surface that does not declare it, whatever the keep file says.
 
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
@@ -14,8 +16,8 @@ entries, reads every surface again and fails if a removed name is still there.
 Usage::
 
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py mcp \\
-        --keep PATH --claude-home DIR [--claude DIR ...] [--codex PATH] [--vibe PATH] \\
-        --declared SURFACE=NAME,... --retired NAME,... [--check]
+        --keep PATH --claude-home DIR [--claude DIR ...] [--codex PATH] [--vibe PATH] [--vibe-private PATH] \\
+        --declared SURFACE=NAME,... --retired NAME,... [--private NAME,...] [--check]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py plugins \\
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
@@ -124,12 +126,15 @@ def _names(value: str) -> set[str]:
 
 
 def converge(surfaces: list[Surface], retired: Callable[[Surface, str], bool],
-             spared: Callable[[Surface, str], bool], check: bool) -> int:
-    """Remove each retired entry, and each other one not spared; then read every surface back."""
+             spared: Callable[[Surface, str], bool], check: bool,
+             private: Callable[[Surface, str], bool] = lambda _s, _n: False) -> int:
+    """Remove each retired or misplaced private entry, and each other one not spared; then read every surface back."""
     removals: list[tuple[Surface, str, str]] = []
     for surface in surfaces:
         for name in sorted(surface.names()):
-            if retired(surface, name):
+            if private(surface, name):
+                removals.append((surface, name, "private"))
+            elif retired(surface, name):
                 removals.append((surface, name, "retired"))
             elif not spared(surface, name):
                 removals.append((surface, name, "undeclared"))
@@ -151,16 +156,20 @@ def mcp(args: argparse.Namespace) -> int:
     keep = _keep(args.keep)
     retired = _names(args.retired)
     declared = {kind: _names(names) for kind, _, names in (d.partition("=") for d in args.declared)}
+    private = _names(args.private)
     surfaces = [_claude(p, args.claude_home) for p in args.claude]
     if args.codex:
         surfaces.append(Surface("codex", "codex", args.codex))
     if args.vibe:
         surfaces.append(Surface("vibe", "vibe", args.vibe))
+    if args.vibe_private:
+        surfaces.append(Surface("vibe-private", "vibe-private", args.vibe_private))
     return converge(
         surfaces,
         lambda _, name: name in retired,
         lambda s, name: name in declared.get(s.kind, set()) or name.startswith(DECLARED_SOURCES) or name in keep,
         args.check,
+        lambda s, name: name in private and name not in declared.get(s.kind, set()),
     )
 
 
@@ -186,8 +195,10 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--claude", type=Path, action="append", default=[])
     m.add_argument("--codex", type=Path)
     m.add_argument("--vibe", type=Path)
+    m.add_argument("--vibe-private", type=Path)
     m.add_argument("--declared", action="append", default=[], metavar="SURFACE=NAME,...")
     m.add_argument("--retired", default="")
+    m.add_argument("--private", default="", metavar="NAME,...")
     p = sub.add_parser("plugins")
     for flag in ("--declared-markets", "--declared-plugins", "--retired-markets", "--retired-plugins"):
         p.add_argument(flag, default="")

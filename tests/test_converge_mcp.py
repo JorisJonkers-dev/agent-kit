@@ -81,7 +81,7 @@ def _bin(tmp_path: Path) -> Path:
 
 
 class Machine:
-    """A fake workstation: two Claude profiles, Codex, Vibe and a keep file."""
+    """A fake workstation: two Claude profiles, Codex, both Vibe homes and a keep file."""
 
     def __init__(self, tmp_path: Path, servers: list[str], keep: list[str] | None = None) -> None:
         self.tmp = tmp_path
@@ -90,7 +90,8 @@ class Machine:
         self.personal = self.home / ".claude-personal"
         self.codex = self.home / ".codex"
         self.vibe = self.home / ".vibe"
-        for d in (self.work, self.personal, self.codex, self.vibe):
+        self.vibe_private = self.home / ".vibe-private"
+        for d in (self.work, self.personal, self.codex, self.vibe, self.vibe_private):
             d.mkdir(parents=True)
         entry = {"type": "http", "url": "https://x/mcp"}
         for path in (self.home / ".claude.json", self.personal / ".claude.json"):
@@ -100,10 +101,11 @@ class Machine:
             + "".join(f'[mcp_servers."{s}"]\nurl = "https://x/mcp"\n\n[mcp_servers."{s}".env]\nA = "b"\n\n'
                       for s in servers)
         )
-        self.vibe_config.write_text(
-            'active_model = "mistral"\n\n'
-            + "".join(f'[[mcp_servers]]\nname = "{s}"\ntransport = "stdio"\ncommand = "x"\n\n' for s in servers)
-        )
+        for config in (self.vibe_config, self.vibe_private_config):
+            config.write_text(
+                'active_model = "mistral"\n\n'
+                + "".join(f'[[mcp_servers]]\nname = "{s}"\ntransport = "stdio"\ncommand = "x"\n\n' for s in servers)
+            )
         if keep is not None:
             self.keep_file.parent.mkdir(parents=True)
             self.keep_file.write_text(yaml.safe_dump({"keep": keep}))
@@ -119,6 +121,10 @@ class Machine:
         return self.vibe / "config.toml"
 
     @property
+    def vibe_private_config(self) -> Path:
+        return self.vibe_private / "config.toml"
+
+    @property
     def keep_file(self) -> Path:
         return self.home / ".config" / "agent-kit" / "keep.yaml"
 
@@ -128,18 +134,23 @@ class Machine:
             "claude personal": set(json.loads((self.personal / ".claude.json").read_text())["mcpServers"]),
             "codex": set(tomllib.loads(self.codex_config.read_text()).get("mcp_servers", {})),
             "vibe": {s["name"] for s in tomllib.loads(self.vibe_config.read_text()).get("mcp_servers", [])},
+            "vibe-private": {
+                s["name"] for s in tomllib.loads(self.vibe_private_config.read_text()).get("mcp_servers", [])
+            },
         }
 
     def files(self) -> dict[Path, str]:
-        paths = [self.home / ".claude.json", self.personal / ".claude.json", self.codex_config, self.vibe_config]
+        paths = [self.home / ".claude.json", self.personal / ".claude.json", self.codex_config, self.vibe_config,
+                 self.vibe_private_config]
         return {p: p.read_text() for p in paths}
 
     def setup(self, *, check: bool = False, stuck: str = "", data: dict | None = None,
-              ) -> subprocess.CompletedProcess:
+              homes_ready: bool = True) -> subprocess.CompletedProcess:
         script = render_registry.render_setup_script(data or _registry())
         body = (
             f"CHECK_ONLY={int(check)}\nKIT_ROOT={KIT_ROOT}\nCLAUDE_HOME={self.work}\n"
-            f"CODEX_HOME={self.codex}\nVIBE_HOME={self.vibe}\nfailures=0\n"
+            f"CODEX_HOME={self.codex}\nVIBE_HOME={self.vibe}\nVIBE_PRIVATE_HOME={self.vibe_private}\nfailures=0\n"
+            f"VIBE_HOMES_READY={int(homes_ready)}\n"
             f"CLAUDE_PROFILE_DIRS=({self.work} {self.personal})\n"
             "log() { echo \"setup: $*\"; }\nok() { echo \"setup: ok $*\"; }\n"
             "warn() { echo \"setup: warn $*\" >&2; }\n"
@@ -216,6 +227,37 @@ def test_a_server_retired_by_enabled_false_is_removed(tmp_path: Path) -> None:
     assert "removed drawio (vibe, retired)" in result.stdout
 
 
+def test_private_memory_survives_only_in_vibe_privates_home(tmp_path: Path) -> None:
+    machine = Machine(tmp_path, ["memory-api", "memory-private"], keep=[])
+    result = machine.setup()
+    _clean(result)
+    surfaces = machine.surfaces()
+    assert {"memory-api", "memory-private"} <= surfaces.pop("vibe-private")
+    for surface, names in surfaces.items():
+        assert "memory-private" not in names and "memory-api" in names, surface
+    assert "removed memory-private (codex, private)" in result.stdout
+
+
+def test_the_keep_file_cannot_keep_private_memory_outside_vibe_private(tmp_path: Path) -> None:
+    machine = Machine(tmp_path, ["memory-private"], keep=["memory-private"])
+    _clean(machine.setup())
+    surfaces = machine.surfaces()
+    assert "memory-private" in surfaces.pop("vibe-private")
+    for surface, names in surfaces.items():
+        assert "memory-private" not in names, surface
+
+
+def test_after_a_failed_split_converge_leaves_both_vibe_homes_alone(tmp_path: Path) -> None:
+    # The shared home's Private Memory entry is what tells the next run to split it.
+    machine = Machine(tmp_path, ["memory-api", "memory-private", "pycharm"], keep=[])
+    result = machine.setup(homes_ready=False)
+    _clean(result)
+    surfaces = machine.surfaces()
+    assert surfaces["vibe"] == {"memory-api", "memory-private", "pycharm"}
+    assert surfaces["vibe-private"] == {"memory-api", "memory-private", "pycharm"}
+    assert "memory-private" not in surfaces["codex"]
+
+
 def test_plugin_and_coding_agents_servers_stay(tmp_path: Path) -> None:
     machine = Machine(tmp_path, ["memory-api", "hindsight", "plugin:github:github"], keep=[])
     _clean(machine.setup())
@@ -255,7 +297,7 @@ def test_check_previews_each_removal_and_changes_nothing(tmp_path: Path) -> None
     assert sorted(lines) == sorted(
         f"setup: would remove {name} ({surface}, {reason})"
         for name, reason in (("pycharm", "undeclared"), ("knowledge", "undeclared"))
-        for surface in ("claude ~/.claude", "claude ~/.claude-personal", "codex", "vibe")
+        for surface in ("claude ~/.claude", "claude ~/.claude-personal", "codex", "vibe", "vibe-private")
     )
 
 

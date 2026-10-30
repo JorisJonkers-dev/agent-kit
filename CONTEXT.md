@@ -1,8 +1,8 @@
 # agent-kit
 
 agent-kit sets up the estate's coding agents. `registry/estate-tooling.yaml`
-says what each agent surface (Claude Code in every profile, Codex, Vibe)
-should hold, and a setup run makes the surface match it.
+says what each agent surface (Claude Code in every profile, Codex, each Vibe
+home) should hold, and a setup run makes the surface match it.
 
 ## Registry entries
 
@@ -48,3 +48,43 @@ _Avoid_: legacy stack
 An external-dns ownership TXT record, and the record it owns, whose route is
 gone from both `main` and the cluster.
 _Avoid_: orphan record
+
+## Memory and launchers
+
+**Shared Memory**:
+The memory bank every installed agent and launcher may read and write without
+a passphrase.
+_Avoid_: default bank, estate memory, memory-api (that is the server, not the concept)
+
+**Private Memory**:
+The owner's personal-notes memory bank, reachable only from vibe-private,
+after the owner types the passphrase. No keep file can keep it on another
+surface.
+_Avoid_: personal bank, personal datastore, private bank
+
+**Passphrase gate**:
+The interactive prompt the owner must answer at a terminal before Private
+Memory is reachable; no agent can answer it.
+_Avoid_: password, unlock
+
+**Launcher**:
+A named command that starts an agent with a fixed account, memory access and
+local state.
+_Avoid_: alias, wrapper, profile
+
+**Account suffix**:
+A launcher-name suffix (`-personal`, `-study`) naming which vendor account the
+launcher signs in with; no suffix means the default, personal account.
+
+**Private suffix**:
+The launcher-name suffix `-private`, marking the only launcher behind the
+Passphrase gate, the one that reaches Private Memory.
+
+**Vibe home**:
+The local state one or more Vibe launchers share: settings, session history,
+logs, skills. vibe and vibe-study share one; vibe-private has its own.
+_Avoid_: profile, config dir
+
+**Study account**:
+The owner's university account at a vendor, used by `-study` launchers.
+_Avoid_: student account, school account

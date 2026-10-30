@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# managed by agent-kit setup-workstation.sh
+#
+# vibe-study [ARGS...]
+#
+# Mistral Vibe signed in with the Study account, in the shared Vibe home that
+# plain `vibe` uses too: Shared Memory only, no passphrase, safe for agents.
+#
+# Vibe keeps one machine-wide login (the personal account). A key in the
+# environment overrides it, so this hands Vibe the Study account key, which
+# agent-kit-keys stores unexported as MISTRAL_STUDY_API_KEY.
+set -euo pipefail
+
+# Never pass on an unlock: run from inside a vibe-private session, the token
+# and that session's Vibe home would otherwise reach this run.
+unset MEMORY_PRIVATE_TOKEN
+private_home="${HOME}/.vibe-private"
+if [ -z "${VIBE_HOME:-}" ] || [ "${VIBE_HOME%/}" = "${private_home}" ]; then
+  export VIBE_HOME="${HOME}/.vibe"
+fi
+
+key="${MISTRAL_STUDY_API_KEY:-}"
+env_sh="${HOME}/.config/agent-kit/env.sh"
+if [ -z "${key}" ] && [ -f "${env_sh}" ]; then
+  # Only the store's one-line reader (keychain or secrets file), not the rest
+  # of env.sh: that would look up every other secret on each launch.
+  reader="$(grep -m1 '^_agent_kit_secret() ' "${env_sh}" || true)"
+  if [ -n "${reader}" ]; then
+    key="$(eval "${reader}"; _agent_kit_secret MISTRAL_STUDY_API_KEY 2>/dev/null || true)"
+  fi
+fi
+if [ -z "${key}" ]; then
+  echo "vibe-study: no Study account key. Create an API key in the Study account's Mistral console," >&2
+  echo "then run setup-workstation in a terminal and paste it as MISTRAL_STUDY_API_KEY." >&2
+  exit 1
+fi
+unset MISTRAL_STUDY_API_KEY
+export MISTRAL_API_KEY="${key}"
+exec vibe "$@"

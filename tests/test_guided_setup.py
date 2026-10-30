@@ -54,6 +54,9 @@ def test_the_table_is_generated_from_the_registry_and_shipped() -> None:
     assert mistral == {"env": "MISTRAL_API_KEY", "retired": True}
     private = next(e for e in rendered if e["env"] == "MEMORY_PRIVATE_TOKEN")
     assert private["export"] is False and private["grant"] == "MEMORY_PRIVATE"
+    study = next(e for e in rendered if e["env"] == "MISTRAL_STUDY_API_KEY")
+    assert study["export"] is False and "paste" in study
+    assert study["check"] == "https://api.mistral.ai/v1/models" and study["check_method"] == "GET"
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
     paths = publish.split("KIT_PATHS=(")[1].split(")")[0].split()
     assert str(TABLE) in paths and "scripts/agent-kit-keys.py" in paths

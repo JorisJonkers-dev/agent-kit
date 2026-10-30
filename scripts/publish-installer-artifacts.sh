@@ -41,18 +41,20 @@ KIT_PATHS=(
   registry/estate-tooling.yaml
   registry/generated/hermes/mcp-servers.local.yaml
   registry/generated/vibe/mcp-servers.toml
+  registry/generated/vibe-private/mcp-servers.toml
   installer/setup-workstation.sh
   installer/port-forward-agent.sh
   installer/cloud-session.sh
   installer/memory-private
   installer/agent-kit-private
+  installer/vibe-study
+  installer/vibe-private
   installer/vibe-hooks.toml
-  registry/generated/claude/memory-private.mcp.json
   scripts/hermes-merge-mcp.py
-  scripts/codex-disable-mcp.py
   scripts/codex-add-url-mcp.py
   scripts/converge.py
   scripts/vibe-merge-mcp.py
+  scripts/vibe-split-homes.py
   scripts/vibe-sync-models.py
   scripts/agent-kit-keys.py
   registry/generated/workstation-secrets.json

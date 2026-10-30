@@ -1,12 +1,14 @@
-"""What keeps Claude Code out of the private bank's files, and the retired retain hook.
+"""What keeps Claude Code out of Private Memory's files, and the retired retain hook.
 
-Claude Code gets deny rules for Vibe's home (its session logs hold the private
-conversations) and the gated token, for its file tools and for Bash. Vibe's
-every-turn retain hook is retired: Vibe saves only what matters, by tool.
+Claude Code gets deny rules for both Vibe homes (vibe-private's session logs
+hold the private conversations; the shared one held them before the split) and
+the gated token, for its file tools and for Bash. Vibe's every-turn retain hook
+is retired: Vibe saves only what matters, by tool.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import subprocess
@@ -34,12 +36,29 @@ def _fn(script: str, name: str) -> str:
     return f"{name}() {{" + script.split(f"\n{name}() {{")[1].split("\n}\n")[0] + "\n}\n"
 
 
-def test_the_rules_cover_vibe_and_the_gate_for_file_tools_and_bash() -> None:
+def test_the_rules_cover_both_vibe_homes_and_the_gate_for_file_tools_and_bash() -> None:
     rules = _registry()["claude_private_deny"]
-    for rule in ("Read(~/.vibe/**)", "Edit(~/.vibe/**)", "Bash(*.vibe*)",
+    for rule in ("Read(~/.vibe/**)", "Edit(~/.vibe/**)", "Read(~/.vibe-private/**)", "Edit(~/.vibe-private/**)",
+                 "Bash(*.vibe*)",
                  "Read(~/.config/agent-kit/private/**)", "Edit(~/.config/agent-kit/private/**)",
                  "Bash(*agent-kit/private*)", "Bash(*agent-kit-private*)"):
         assert rule in rules
+
+
+@pytest.mark.parametrize("command", [
+    "git add registry/generated/vibe-private/mcp-servers.toml",
+    "uv run pytest tests/test_vibe_launchers.py -k vibe_private",
+    "grep -n vibe-private installer/setup-workstation.sh",
+])
+def test_the_bash_rules_leave_work_on_the_kit_itself_alone(command: str) -> None:
+    patterns = [r[len("Bash("):-1] for r in _registry()["claude_private_deny"] if r.startswith("Bash(")]
+    assert not [p for p in patterns if fnmatch.fnmatchcase(command, p)]
+
+
+@pytest.mark.parametrize("command", ["cat ~/.vibe-private/logs/session/s1.json", "ls ~/.vibe/logs"])
+def test_the_bash_rules_still_cover_both_vibe_homes(command: str) -> None:
+    patterns = [r[len("Bash("):-1] for r in _registry()["claude_private_deny"] if r.startswith("Bash(")]
+    assert [p for p in patterns if fnmatch.fnmatchcase(command, p)]
 
 
 def _merge(tmp_path: Path, settings: dict | None, cloud: bool = False) -> Path:
@@ -128,15 +147,22 @@ def test_a_command_setup_did_not_write_is_not_retired(tmp_path: Path) -> None:
     assert mine.exists()
 
 
-def test_vibe_is_told_to_save_only_what_matters() -> None:
+def test_vibe_private_is_told_to_save_only_what_matters() -> None:
     pointer = _fn(_script(), "_vibe_agents_pointer")
     assert "automatically" not in pointer
     assert "long-term" in pointer and "remember" in pointer
     assert "Never retain" in pointer and "memory-api" in pointer
 
 
-def test_the_gate_is_installed_and_vibe_launches_through_it() -> None:
+def test_the_gate_and_both_launchers_are_installed() -> None:
     script = _script()
-    assert "install_kit_command agent-kit-private" in script
+    for command in ("agent-kit-private", "vibe-private", "vibe-study"):
+        assert f"install_kit_command {command}\n" in script
     private = next(e for e in _registry()["workstation_secrets"] if e["env"] == "MEMORY_PRIVATE_TOKEN")
     assert private["gate"] == "passphrase" and private["export"] is False
+
+
+def test_the_launchers_and_the_split_reach_the_kit_bundle() -> None:
+    publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
+    paths = publish.split("KIT_PATHS=(")[1].split(")")[0].split()
+    assert {"installer/vibe-private", "installer/vibe-study"} <= set(paths)

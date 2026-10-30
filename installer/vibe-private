@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# managed by agent-kit setup-workstation.sh
+#
+# vibe-private [ARGS...]
+#
+# Mistral Vibe with Private Memory, signed in with the personal account, in
+# its own Vibe home: its sessions never share a directory with vibe or
+# vibe-study. The passphrase gate (agent-kit-private) asks for the passphrase
+# at the terminal, never on stdin, so no agent can start it.
+set -euo pipefail
+
+export VIBE_HOME="${HOME}/.vibe-private"
+# Vibe's own login is the personal account; a key inherited from a vibe-study
+# session would sign this one in as the Study account instead.
+unset MISTRAL_API_KEY MISTRAL_STUDY_API_KEY
+exec agent-kit-private exec vibe "$@"

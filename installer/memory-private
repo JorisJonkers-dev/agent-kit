@@ -2,9 +2,8 @@
 # managed by agent-kit setup-workstation.sh
 #
 # memory-private on|off|status [DIR]
-# memory-private claude|codex [ARGS...]
 #
-# Keeps a directory's Claude Code sessions away from the shared Hindsight bank.
+# Keeps a directory's Claude Code sessions away from Shared Memory, the shared Hindsight bank.
 # Hindsight Coding Agents goes inert when HINDSIGHT_DISABLED is true, and
 # Claude Code passes a project's .claude/settings.local.json `env` block to its
 # hooks, so `on` sets that one key there: no shared-bank recall in that
@@ -12,45 +11,17 @@
 # other key in it is kept. For a single session instead:
 # HINDSIGHT_DISABLED=true claude
 #
-# `claude` and `codex` open one session with the private Hindsight bank (the
-# memory-private MCP server, switched off everywhere else), with the shared
-# stores Hermes reads (memory-api, hindsight) off, so nothing from
-# that session lands where Hermes can see it.
+# Private Memory is not reachable from Claude Code or Codex at all: only
+# vibe-private, behind the passphrase gate, has it.
 set -euo pipefail
 
 usage() {
-  echo "usage: memory-private on|off|status [DIR] | claude|codex [ARGS...]" >&2
+  echo "usage: memory-private on|off|status [DIR]" >&2
   exit 2
 }
 
 [ $# -ge 1 ] || usage
 cmd="$1"
-
-case "${cmd}" in
-  claude | codex)
-    shift
-    if [ -z "${MEMORY_PRIVATE_TOKEN:-}" ]; then
-      # The token sits behind a passphrase; the gate asks for it and runs this again.
-      command -v agent-kit-private >/dev/null 2>&1 \
-        && exec agent-kit-private exec "$0" "${cmd}" "$@"
-      echo "memory-private: MEMORY_PRIVATE_TOKEN is not set and agent-kit-private is not installed; run setup-workstation" >&2
-      exit 1
-    fi
-    # Hindsight Coding Agents' hooks stay inert, so nothing reaches the shared bank.
-    export HINDSIGHT_DISABLED=true
-    if [ "${cmd}" = claude ]; then
-      config="${XDG_CONFIG_HOME:-${HOME}/.config}/agent-kit/memory-private.mcp.json"
-      [ -f "${config}" ] || {
-        echo "memory-private: ${config} is missing; run setup-workstation.sh" >&2
-        exit 1
-      }
-      # `=` forms: both flags are variadic and would swallow a trailing prompt.
-      exec claude --mcp-config="${config}" --disallowedTools=mcp__memory-api,mcp__hindsight "$@"
-    fi
-    exec codex -c mcp_servers.memory-private.enabled=true -c mcp_servers.memory-api.enabled=false \
-      -c mcp_servers.hindsight.enabled=false "$@"
-    ;;
-esac
 dir="${2:-$PWD}"
 case "${cmd}" in on | off | status) ;; *) usage ;; esac
 [ -d "${dir}" ] || { echo "memory-private: ${dir} is not a directory" >&2; exit 1; }

@@ -136,7 +136,7 @@ def test_merge_keeps_the_first_backup(tmp_path: Path) -> None:
 def test_cloud_mode_merges_once_with_its_removals() -> None:
     script = render_registry.render_setup_script(_registry())
     assert script.count('"${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config') == 1
-    assert 'vibe_remove+=(--remove memory-private --remove n8n --remove kubernetes)' in script
+    assert 'vibe_remove+=(--remove n8n --remove kubernetes)' in script
 
 
 def test_merge_can_remove_a_managed_server(tmp_path: Path) -> None:
@@ -163,12 +163,43 @@ def test_first_party_skills_reach_vibe() -> None:
             assert f'dest="${{VIBE_HOME}}/skills/{skill["name"]}"' in script
 
 
-def _agents_pointer(tmp_path: Path) -> subprocess.CompletedProcess:
+def test_first_party_skills_reach_vibe_privates_home_too() -> None:
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    for skill in data["local_skills"]:
+        if "workstation" in (skill.get("surfaces") or []):
+            assert f'dest="${{VIBE_PRIVATE_HOME}}/skills/{skill["name"]}"' in script
+
+
+def test_setup_run_from_a_vibe_private_session_still_treats_the_shared_home_as_shared(tmp_path: Path) -> None:
+    script = render_registry.render_setup_script(_registry())
+    start = script.index('VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"')
+    homes = script[start : script.index('VIBE_PRIVATE_HOME="${HOME}/.vibe-private"', start)]
+    homes += 'VIBE_PRIVATE_HOME="${HOME}/.vibe-private"\nprintf "%s|%s" "${VIBE_HOME}" "${VIBE_PRIVATE_HOME}"\n'
+    env = {"HOME": str(tmp_path), "VIBE_HOME": f"{tmp_path}/.vibe-private/", "PATH": "/usr/bin:/bin"}
+    out = subprocess.run(["bash", "-c", homes], capture_output=True, text=True, check=False, env=env)
+    assert out.stdout == f"{tmp_path}/.vibe|{tmp_path}/.vibe-private"
+
+
+def test_a_failed_split_keeps_setup_out_of_both_vibe_homes() -> None:
+    script = render_registry.render_setup_script(_registry())
+    assert 'if command -v vibe >/dev/null 2>&1 && [ "${VIBE_HOMES_READY}" = 1 ]; then' in script
+    fn = script[script.index("_vibe_split_homes() {") :]
+    fn = fn[: fn.index("\n}\n")]
+    assert "VIBE_HOMES_READY=0" in fn
+    lines = script.splitlines()
+    copies = [i for i, line in enumerate(lines) if line.startswith('  dest="${VIBE_')]
+    assert copies
+    for i in copies:
+        assert '[ "${VIBE_HOMES_READY}" != 1 ]; then' in lines[i + 1], lines[i + 1]
+
+
+def _agents_pointer(tmp_path: Path, kind: str = "shared") -> subprocess.CompletedProcess:
     script = render_registry.render_setup_script(_registry())
     start = script.index("_vibe_agents_pointer() {")
     fn = script[start : script.index("\n}\n", start) + 3]
     stubs = 'ok() { echo "ok $*"; }\nlog() { echo "log $*"; }\n'
-    body = f'CHECK_ONLY=0\nVIBE_HOME="{tmp_path}"\n{stubs}{fn}\n_vibe_agents_pointer\n'
+    body = f'CHECK_ONLY=0\n{stubs}{fn}\n_vibe_agents_pointer "{tmp_path}" {kind}\n'
     return subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
 
 
@@ -176,6 +207,21 @@ def test_vibe_gets_the_estate_agents_pointer(tmp_path: Path) -> None:
     assert _agents_pointer(tmp_path).returncode == 0
     text = (tmp_path / "AGENTS.md").read_text()
     assert "github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md" in text
+
+
+def test_the_shared_vibe_homes_pointer_names_only_shared_memory(tmp_path: Path) -> None:
+    assert _agents_pointer(tmp_path, "shared").returncode == 0
+    text = (tmp_path / "AGENTS.md").read_text()
+    assert "memory-api" in text
+    assert "memory-private" not in text
+
+
+def test_vibe_privates_pointer_names_private_memory_and_forbids_copying_it_into_shared(tmp_path: Path) -> None:
+    assert _agents_pointer(tmp_path, "private").returncode == 0
+    text = (tmp_path / "AGENTS.md").read_text()
+    assert "recall from both" in text
+    assert "memory-private" in text
+    assert "Never retain personal notes into memory-api" in text
 
 
 def test_vibe_agents_pointer_never_overwrites_the_users_own(tmp_path: Path) -> None:

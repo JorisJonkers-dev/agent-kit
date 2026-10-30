@@ -182,8 +182,15 @@ def test_setup_syncs_after_merging_the_mcp_servers() -> None:
     script = render_registry.render_setup_script(
         yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()),
     )
-    vibe = script[script.index('ok "Vibe MCP servers merged"') :]
-    assert 'scripts/vibe-sync-models.py" \\\n            --config "${VIBE_HOME}/config.toml"' in vibe
+    shared = script[script.index('ok "Vibe MCP servers merged"') :]
+    assert shared.index('_vibe_models "${VIBE_HOME}"') < shared.index("\n    fi\n")
+    private = script[script.index('ok "vibe-private MCP servers merged"') :]
+    assert private.index('_vibe_models "${VIBE_PRIVATE_HOME}"') < private.index("\n}\n")
+    fn = script[script.index("_vibe_models() {") :]
+    fn = fn[: fn.index("\n}\n")]
+    sync = 'uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py"'
+    assert f'VIBE_HOME="${{home}}" {sync}' in fn
+    assert '--config "${home}/config.toml"' in fn
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
     assert "scripts/vibe-sync-models.py" in publish.split("KIT_PATHS=(")[1].split(")")[0].split()
 
@@ -239,5 +246,5 @@ def test_setup_checks_vibe_is_signed_in_instead_of_asking_for_a_key() -> None:
         yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()),
     )
     assert 'missing_plugin_env+=("mistral-vibe: export MISTRAL_API_KEY")' not in script
-    assert '--config "${VIBE_HOME}/config.toml" --has-key; then' in script
+    assert '--config "${home}/config.toml" --has-key; then' in script
     assert "sign in with your Mistral account" in script
