@@ -2,6 +2,7 @@ export { createCritiqueCommands, type CritiqueCommands } from './application/com
 export type { AllowResult } from './application/allow.js'
 export type { CriticRun, FanOutResult, RunFinding } from './application/fan-out.js'
 export type { PrepareResult, PreparedCritic } from './application/prepare.js'
+export type { RecordResult } from './application/record.js'
 export type { CritiqueDeps, CritiqueFilesPort, CritiqueGitPort } from './application/ports.js'
 export type { Refusal } from './application/repository.js'
 export type { GitRemote, ModelFamily } from './domain/data-policy.js'

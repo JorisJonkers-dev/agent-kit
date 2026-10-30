@@ -96,8 +96,7 @@ export interface FamilyAllowlist {
 export const EMPTY_ALLOWLIST: FamilyAllowlist = { version: 1, repositories: {} }
 
 export function parseAllowlist(text: string): FamilyAllowlist {
-  const value = JSON.parse(text) as Partial<FamilyAllowlist>
-  return { version: 1, repositories: value.repositories ?? {} }
+  return JSON.parse(text) as FamilyAllowlist
 }
 
 export function withEntry(

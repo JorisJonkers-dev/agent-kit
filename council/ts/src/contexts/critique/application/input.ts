@@ -15,10 +15,6 @@ export function requireString(input: JsonObject, key: string): string {
   return value
 }
 
-export function optionalString(input: JsonObject, key: string): string | undefined {
-  return input[key] === undefined ? undefined : requireString(input, key)
-}
-
 export function requireStringList(input: JsonObject, key: string): readonly string[] {
   const value = input[key]
   if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {

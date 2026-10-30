@@ -46,6 +46,15 @@ describe('family allowlist', () => {
     expect(existsSync(critiqueDir(h))).toBe(false)
   })
 
+  it.each(['/srv/git/widgets.git', 'https://github.com/lonely'])(
+    'treats a remote with no owner and repository (%s) as no remote',
+    async (url) => {
+      const h = await setup({ remotes: [{ name: 'origin', url }] })
+
+      expect(await h.commands.allow({ repo: h.repo, families: ['mistral'] })).toMatchObject({ reason: 'no-remote' })
+    },
+  )
+
   it.each([
     'git@github.com:nedap/widgets.git',
     'https://github.com/nedap/widgets.git',
