@@ -939,3 +939,28 @@ them:
   (`council/ts/test/critique/harness.ts`) therefore holds the fakes, written
   against council's port interfaces, and later tickets should add to it
   rather than write new ones.
+- **Critic clients.** Each critic client is an adapter behind
+  `CriticClientPort` (`review(launch)` returns the raw output and a
+  `CriticOutcome`), chosen by the client's `kind` in routing. Everything
+  Vibe-specific is in `VibeCriticClient`; the Antigravity client (#171) is a
+  second adapter and a second `kind`. A dependency-cruiser rule keeps the
+  critique domain free of ports, the application layer and adapters.
+- **Degraded runs.** Only the family allowlist refuses: no remote, no entry,
+  or a `nedap` remote. A stage whose roster drops every critic still
+  prepares a run with no critics; fan-out then launches nothing and marks
+  the run degraded, as it does when every critic fails, and record's
+  summary and report open with `degraded: no critique ran`. #173 adds
+  fallbacks before that point, not a refusal.
+- **Distinct families.** When a stage sets `distinct_families`, a critic
+  whose family an earlier critic of the stage already has is dropped with
+  the reason `same-family`. #171's fallbacks should be tried before that
+  drop.
+- **Errors and refusals.** A refusal prints `"status": "refused"` and exits
+  0. Anything else that stops a command is an error with a `code`
+  (`invalid-input`, `invalid-allowlist`, `invalid-routing`, `invalid-run`,
+  `outside-repository`, `already-recorded`, or `unexpected`) and exits 1.
+  Every JSON the runner reads, from a command's input to its own run files,
+  is checked field by field, so a malformed allowlist entry fails closed.
+- **Stages.** The stage names are `decisions`, `spec`, `tickets`,
+  `ticket-review` and `feature-review`, and prepare rejects any other.
+  Shipped routing defines `spec` only.

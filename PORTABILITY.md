@@ -66,6 +66,7 @@ and nothing on the install path reads `KB_URL` or a bearer token.
 | Installer | `installer/setup-workstation.sh`, generated from `registry/estate-tooling.yaml` by `scripts/render_registry.py` | Supports `--check`, `--no-lsp`, `--no-mcp`, `--no-profiles`, `--uninstall`. User scope only; no `--agent`/`--scope project` (those were `install.sh`-only and are retired with it). |
 | Agent surfaces | `.claude`, `.codex`, `.agents` | Renderer `--check` must pass; manifest parity gaps require explicit unsupported reasons. |
 | Council bundle | `council/` (repo tooling), `skills/council/` (workstation copy) | Manifest `council.files` pins the repo copy; `registry/estate-tooling.yaml`'s `local_skills` pins the workstation copy. |
+| Critique runner | `skills/critique/critique.mjs`, one esbuild bundle of `council/ts/src/critique-cli`, shipped beside the prompts, lenses, schema and `routing.json` it reads | The bundle is committed; `npm run build` in `council/ts` must leave the tree clean. Setup does not install the critique skill yet (#176). |
 | KB hooks | None. Retired estate-wide; `setup-workstation.sh` purges any still wired into a client's settings, on every run and on `--uninstall`. | `scripts/validate_manifest.py` fails if a `hooks:` or `settings:` section reappears in `manifest.yaml`. |
 
 Update this matrix in the same branch as any change to renderer modes,
