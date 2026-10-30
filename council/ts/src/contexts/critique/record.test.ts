@@ -202,6 +202,21 @@ describe('record', () => {
     expect(section(summary, 'Report')).toContain(join(run.run_dir, 'report.md'))
   })
 
+  it('stays within its size budget when a critic explains at length why it found nothing', async () => {
+    const reason = `Checked every story against CONTEXT.md. ${'Nothing contradicts it. '.repeat(300)}`
+    const { h, run } = await reviewed([], {
+      exitCode: 0,
+      exportJson: isolatedExport(),
+      stdout: vibeStdout(fenced({ findings: [], no_findings_reason: reason })),
+    })
+
+    const { report_path, summary } = await h.commands.record({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(summary.length).toBeLessThanOrEqual(6000)
+    expect(section(summary, 'Critics')).toContain('(checked: Checked every story against CONTEXT.md.')
+    expect(await readFile(report_path, 'utf8')).toContain(reason.trim())
+  })
+
   it('names critics that were dropped before the run', async () => {
     const routing = {
       clients: {

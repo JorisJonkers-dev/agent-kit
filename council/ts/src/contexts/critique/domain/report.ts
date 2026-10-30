@@ -3,6 +3,8 @@ import { countVerdicts, isDissent, type AdjudicatedRun, type RecordedCritic, typ
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
 const CLAIM_MAX_CHARS = 160
+/** What a critic that found nothing says it checked; the report keeps all of it. */
+const CHECKED_MAX_CHARS = 300
 
 type Adjudicated = AdjudicatedRun['findings'][number]
 
@@ -10,7 +12,8 @@ type Adjudicated = AdjudicatedRun['findings'][number]
  * The compact summary, always in the same shape: header, critics, accepted
  * findings, questions for the owner, dissent, and the report path. When it
  * would exceed its budget, the longest list loses items from its end and says
- * how many more the report holds.
+ * how many more the report holds. Text outside the lists is clipped, so
+ * emptying the lists always brings it within budget.
  */
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const lists = {
@@ -30,7 +33,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '',
       '## Critics',
       '',
-      ...run.critics.map((critic) => `- ${criticLine(critic)}`),
+      ...run.critics.map((critic) => `- ${criticLine(critic, CHECKED_MAX_CHARS)}`),
       ...run.dropped.map((d) => `- Not run: ${d.client} (${d.family}): ${d.reason}`),
       '',
       '## Accepted',
@@ -50,11 +53,10 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       reportPath,
       '',
     ].join('\n')
+  const trimmable = () => (Object.keys(lists) as (keyof typeof lists)[]).filter((key) => lists[key].length > 0)
   let summary = render()
-  while (summary.length > SUMMARY_MAX_CHARS) {
-    const longest = (Object.keys(lists) as (keyof typeof lists)[]).reduce((a, b) =>
-      lists[b].length > lists[a].length ? b : a,
-    )
+  while (summary.length > SUMMARY_MAX_CHARS && trimmable().length > 0) {
+    const longest = trimmable().reduce((a, b) => (lists[b].length > lists[a].length ? b : a))
     lists[longest] = lists[longest].slice(0, -1)
     hidden[longest] += 1
     summary = render()
@@ -132,15 +134,20 @@ function verdictLine(run: AdjudicatedRun): string {
   return `Verdicts: accepted ${String(counts.accepted)}, rejected ${String(counts.rejected)}, needs-human ${String(counts['needs-human'])}, hint ${String(counts.hint)}`
 }
 
-function criticLine(critic: RecordedCritic): string {
+function criticLine(critic: RecordedCritic, checkedMaxChars = Infinity): string {
   const cost = critic.cost_usd === null ? 'cost unknown' : `$${critic.cost_usd.toFixed(4)}`
   const status = critic.status === 'ok' ? 'ok' : `failed (${critic.failure ?? 'unknown'})`
-  const checked = critic.no_findings_reason === undefined ? '' : ` (checked: ${critic.no_findings_reason})`
+  const checked =
+    critic.no_findings_reason === undefined ? '' : ` (checked: ${clip(critic.no_findings_reason, checkedMaxChars)})`
   return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? '' : 's'}, ${cost}${checked}`
 }
 
+function clip(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text
+}
+
 function line(finding: RecordedFinding, tail?: string): string {
-  const claim = finding.claim.length > CLAIM_MAX_CHARS ? `${finding.claim.slice(0, CLAIM_MAX_CHARS - 1)}…` : finding.claim
+  const claim = clip(finding.claim, CLAIM_MAX_CHARS)
   return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === undefined ? '' : ` ${tail}`}`
 }
 

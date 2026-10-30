@@ -706,6 +706,7 @@ function ledgerLines(run, recordedAt) {
 // src/contexts/critique/domain/report.ts
 var SUMMARY_MAX_CHARS = 6e3;
 var CLAIM_MAX_CHARS = 160;
+var CHECKED_MAX_CHARS = 300;
 function renderSummary(run, reportPath) {
   const lists = {
     accepted: run.findings.filter((f) => f.verdict.verdict === "accepted").map((f) => line(f)),
@@ -721,7 +722,7 @@ function renderSummary(run, reportPath) {
     "",
     "## Critics",
     "",
-    ...run.critics.map((critic) => `- ${criticLine(critic)}`),
+    ...run.critics.map((critic) => `- ${criticLine(critic, CHECKED_MAX_CHARS)}`),
     ...run.dropped.map((d) => `- Not run: ${d.client} (${d.family}): ${d.reason}`),
     "",
     "## Accepted",
@@ -741,11 +742,10 @@ function renderSummary(run, reportPath) {
     reportPath,
     ""
   ].join("\n");
+  const trimmable = () => Object.keys(lists).filter((key) => lists[key].length > 0);
   let summary = render();
-  while (summary.length > SUMMARY_MAX_CHARS) {
-    const longest = Object.keys(lists).reduce(
-      (a, b) => lists[b].length > lists[a].length ? b : a
-    );
+  while (summary.length > SUMMARY_MAX_CHARS && trimmable().length > 0) {
+    const longest = trimmable().reduce((a, b) => lists[b].length > lists[a].length ? b : a);
     lists[longest] = lists[longest].slice(0, -1);
     hidden[longest] += 1;
     summary = render();
@@ -812,14 +812,17 @@ function verdictLine(run) {
   const counts = countVerdicts(run);
   return `Verdicts: accepted ${String(counts.accepted)}, rejected ${String(counts.rejected)}, needs-human ${String(counts["needs-human"])}, hint ${String(counts.hint)}`;
 }
-function criticLine(critic) {
+function criticLine(critic, checkedMaxChars = Infinity) {
   const cost = critic.cost_usd === null ? "cost unknown" : `$${critic.cost_usd.toFixed(4)}`;
   const status = critic.status === "ok" ? "ok" : `failed (${critic.failure ?? "unknown"})`;
-  const checked = critic.no_findings_reason === void 0 ? "" : ` (checked: ${critic.no_findings_reason})`;
+  const checked = critic.no_findings_reason === void 0 ? "" : ` (checked: ${clip(critic.no_findings_reason, checkedMaxChars)})`;
   return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? "" : "s"}, ${cost}${checked}`;
 }
+function clip(text, maxChars) {
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}\u2026` : text;
+}
 function line(finding, tail) {
-  const claim = finding.claim.length > CLAIM_MAX_CHARS ? `${finding.claim.slice(0, CLAIM_MAX_CHARS - 1)}\u2026` : finding.claim;
+  const claim = clip(finding.claim, CLAIM_MAX_CHARS);
   return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === void 0 ? "" : ` ${tail}`}`;
 }
 function bullets(items, hidden) {
