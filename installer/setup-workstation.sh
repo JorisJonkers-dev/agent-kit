@@ -570,9 +570,16 @@ oauth_status() {
 
 # Antigravity signs in through a browser once and keeps the credential in
 # the macOS Keychain, so an unsigned machine only fails later, in a
-# non-interactive run. Reported under --check too.
-antigravity_signin() {
-  if ! command -v agy >/dev/null 2>&1 || ! command -v security >/dev/null 2>&1; then
+# non-interactive run. Reported under --check too, and for the desktop app
+# as well as the CLI: either one signs the others in.
+report_antigravity_signin() {
+  local present=0
+  command -v agy >/dev/null 2>&1 && present=1
+  if [ "${present}" = 0 ] && command -v brew >/dev/null 2>&1 \
+     && brew list --cask antigravity >/dev/null 2>&1; then
+    present=1
+  fi
+  if [ "${present}" = 0 ] || ! command -v security >/dev/null 2>&1; then
     return 0
   fi
   security find-generic-password -s "Antigravity CLI" >/dev/null 2>&1 \
@@ -1187,7 +1194,8 @@ fi
 
 # Google Antigravity, the desktop agent manager. Same
 # configuration as the CLI: one global MCP file, one global rules
-# file, one global skills folder.
+# file, and the kit's skills in each of the two global skills
+# folders.
 if [ "${CLOUD}" = 1 ]; then
   log "antigravity: not set up in cloud mode"
 else
@@ -1246,7 +1254,7 @@ else
   fi
 fi
 
-antigravity_signin
+report_antigravity_signin
 
 # -----------------------------------------------------------------
 # 2. Claude Code profiles.
@@ -2351,7 +2359,7 @@ for install in installs:
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"
       elif python3 "${KIT_ROOT}/scripts/antigravity-merge-mcp.py" \
-        "${KIT_ROOT}/registry/generated/antigravity/mcp_config.json" --config "${ANTIGRAVITY_HOME}/mcp_config.json"; then
+        "${KIT_ROOT}/registry/generated/antigravity/mcp_config.json" --config "${ANTIGRAVITY_HOME}/mcp_config.json" --remove memory-mcp --remove vuetify; then
         ok "Antigravity MCP servers merged"
       else
         fail "Antigravity MCP merge failed"

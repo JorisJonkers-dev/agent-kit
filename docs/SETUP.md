@@ -480,8 +480,9 @@ credential, and signing in on one surface signs in the others.
 
 That leaves one failure setup can only report: a headless run uses the cached
 credential, so an unsigned machine fails later with an authentication-required
-error instead of at setup. When `agy` is on `PATH` and the Keychain has no
-`Antigravity CLI` item, setup warns
+error instead of at setup. When Antigravity is installed at all — `agy` on
+`PATH`, or the app's cask — and the Keychain has no `Antigravity CLI` item,
+setup warns
 `antigravity: needs sign-in: run agy and sign in with your Google account` —
 under `--check` too, so it is in **Still to do** before you hit it.
 
@@ -503,9 +504,9 @@ memory: never on disk, never in argv, never printed. The fragment runs it
 through `/bin/sh -c` because a GUI-launched app has no `~/.local/bin` on
 `PATH`, and Antigravity does not expand variables in `command`.
 
-A server that needs no token is registered by URL: `n8n`, which Antigravity
-signs in to itself and keeps in `~/.gemini/antigravity/mcp_oauth_tokens.json`,
-and `kubernetes`, at the loopback URL of the port-forward above.
+A server that needs no token is registered by URL: `n8n`, whose OAuth tokens
+Antigravity keeps in `~/.gemini/antigravity/mcp_oauth_tokens.json`, and
+`kubernetes`, at the loopback URL of the port-forward above.
 
 ### Where its configuration lives
 

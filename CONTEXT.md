@@ -33,7 +33,8 @@ _Avoid_: allowlist, ignore file
 
 **Converge**:
 What a setup run does to each surface: it ends with exactly the declared
-entries plus the kept ones.
+entries plus the kept ones — except Antigravity, whose one MCP file setup
+merges, keeping every server it does not name.
 _Avoid_: sync, reconcile
 
 ## Estate cleanup

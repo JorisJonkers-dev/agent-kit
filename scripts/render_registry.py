@@ -51,6 +51,15 @@ VIBE_HOOKS = Path("installer/vibe-hooks.toml")
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
 
+# The agents a local_skills entry's `agents:` may name, and the homes each one
+# reads skills from. A name outside this table is a registry typo, not a home.
+SKILL_AGENT_HOMES = {
+    "claude": ["CLAUDE_HOME"],
+    "codex": ["CODEX_HOME"],
+    "vibe": ["VIBE_HOME", "VIBE_PRIVATE_HOME"],
+    "antigravity": ["ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"],
+}
+
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
 # Paths under a Claude Code config root that hold ONE profile's own state.
@@ -284,6 +293,12 @@ def validate(data: dict[str, Any]) -> None:
         if not (path / "SKILL.md").is_file():
             raise RegistryError(
                 f"local skill {skill.get('name')} has no SKILL.md at {skill.get('path')}",
+            )
+        unknown_agents = set(skill.get("agents") or []) - set(SKILL_AGENT_HOMES)
+        if unknown_agents:
+            raise RegistryError(
+                f"local skill {skill.get('name')} names unknown agents {sorted(unknown_agents)}; "
+                f"agents: may only name {sorted(SKILL_AGENT_HOMES)}",
             )
         if "hermes" in (skill.get("surfaces") or []):
             raise RegistryError(
@@ -877,12 +892,12 @@ def render_antigravity_mcp(data: dict[str, Any]) -> str:
             credential = server.get("credential")
             if credential:
                 # /bin/sh -c: a GUI-launched app has no ~/.local/bin on PATH.
-                servers[name] = {
+                entry: dict[str, Any] = {
                     "command": "/bin/sh",
                     "args": ["-c", f"exec \"{ANTIGRAVITY_PROXY}\" --url {_q(str(url))} --secret {credential}"],
                 }
-                continue
-            entry: dict[str, Any] = {"serverUrl": url}
+            else:
+                entry = {"serverUrl": url}
         else:
             entry = {"command": server["command"], "args": [str(a) for a in (server.get("args") or [])]}
             env = server.get("env") or {}
@@ -1567,9 +1582,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     w("# Antigravity signs in through a browser once and keeps the credential in")
     w("# the macOS Keychain, so an unsigned machine only fails later, in a")
-    w("# non-interactive run. Reported under --check too.")
-    w("antigravity_signin() {")
-    w("  if ! command -v agy >/dev/null 2>&1 || ! command -v security >/dev/null 2>&1; then")
+    w("# non-interactive run. Reported under --check too, and for the desktop app")
+    w("# as well as the CLI: either one signs the others in.")
+    w("report_antigravity_signin() {")
+    w("  local present=0")
+    w("  command -v agy >/dev/null 2>&1 && present=1")
+    w('  if [ "${present}" = 0 ] && command -v brew >/dev/null 2>&1 \\')
+    w("     && brew list --cask antigravity >/dev/null 2>&1; then")
+    w("    present=1")
+    w("  fi")
+    w('  if [ "${present}" = 0 ] || ! command -v security >/dev/null 2>&1; then')
     w("    return 0")
     w("  fi")
     w('  security find-generic-password -s "Antigravity CLI" >/dev/null 2>&1 \\')
@@ -1998,48 +2020,38 @@ def render_setup_script(data: dict[str, Any]) -> str:
             # binary on PATH (the desktop app has none), and `brew upgrade` is a
             # no-op when the cask is already current.
             present = f"brew list --cask {cask} >/dev/null 2>&1"
-            b(f"if {present}; then")
-            b(f"  run brew upgrade --cask {cask}")
-            if version_command:
-                b(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
-            else:
-                b(f'  ok "{name} present"')
-            b("else")
-            b(f"  run brew install --cask {cask}")
-            b('  if [ "${CHECK_ONLY}" = 1 ]; then')
-            b(f'    log "{name} would be installed"')
-            b(f"  elif {present}; then")
-            b(f'    ok "{name} installed"')
-            for bin_name in provides:
-                b(f'    new_binaries+=("{bin_name}")')
-            b("  else")
-            b(f'    fail "{name}: brew install --cask {cask} did not install it; is Homebrew on PATH?"')
-            b("  fi")
-            b("fi")
+            install = f"run brew install --cask {cask}"
+            update = f"run brew upgrade --cask {cask}"
+            label = name
+            failed = f"{name}: brew install --cask {cask} did not install it; is Homebrew on PATH?"
         else:
-            install = str(cli.get("install") or "")
-            update = str(cli.get("update") or install)
-            if not install:
+            install_cmd = str(cli.get("install") or "")
+            if not install_cmd:
                 raise RegistryError(f"cli {name} must name an install command")
-            b(f'if command -v {binary} >/dev/null 2>&1; then')
-            b(f'  run_sh {_q(update)}')
-            if version_command:
-                b(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
-            else:
-                b(f'  ok "{binary} present"')
-            b("else")
-            b(f'  run_sh {_q(install)}')
-            b('  if [ "${CHECK_ONLY}" = 1 ]; then')
-            b(f'    log "{binary} would be installed"')
-            b(f'  elif command -v {binary} >/dev/null 2>&1; then')
-            b(f'    ok "{binary} installed"')
-            # Track newly installed binaries
-            for bin_name in provides:
-                b(f'    new_binaries+=("{bin_name}")')
-            b("  else")
-            b(f'    fail "{binary} still not on PATH after install; open a new shell and re-run"')
-            b("  fi")
-            b("fi")
+            present = f"command -v {binary} >/dev/null 2>&1"
+            install = f"run_sh {_q(install_cmd)}"
+            update = f"run_sh {_q(str(cli.get('update') or install_cmd))}"
+            label = str(binary)
+            failed = f"{binary} still not on PATH after install; open a new shell and re-run"
+        b(f"if {present}; then")
+        b(f"  {update}")
+        if version_command:
+            b(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
+        else:
+            b(f'  ok "{label} present"')
+        b("else")
+        b(f"  {install}")
+        b('  if [ "${CHECK_ONLY}" = 1 ]; then')
+        b(f'    log "{label} would be installed"')
+        b(f"  elif {present}; then")
+        b(f'    ok "{label} installed"')
+        # Track newly installed binaries
+        for bin_name in provides:
+            b(f'    new_binaries+=("{bin_name}")')
+        b("  else")
+        b(f'    fail "{failed}"')
+        b("  fi")
+        b("fi")
         for var, why in (cli.get("requires_env") or {}).items():
             why_escaped = str(why).replace('"', '\\"')
             b(f'if [ -z "${{{var}:-}}" ]; then')
@@ -2057,7 +2069,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             ]
         out.extend(_cloud_guard(block, cli, ""))
     w("")
-    w("antigravity_signin")
+    w("report_antigravity_signin")
     w("")
 
     # --- Claude profiles ---
@@ -2589,7 +2601,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      if [ "${CHECK_ONLY}" = 1 ]; then')
     w('        log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"')
     w("      elif python3 \"${KIT_ROOT}/scripts/antigravity-merge-mcp.py\" \\")
-    w(f'        "${{KIT_ROOT}}/{ANTIGRAVITY_MCP}" --config "${{ANTIGRAVITY_HOME}}/mcp_config.json"; then')
+    removes = "".join(f" --remove {name}" for name in retired_servers(data))
+    w(f'        "${{KIT_ROOT}}/{ANTIGRAVITY_MCP}" --config "${{ANTIGRAVITY_HOME}}/mcp_config.json"{removes}; then')
     w('        ok "Antigravity MCP servers merged"')
     w("      else")
     w('        fail "Antigravity MCP merge failed"')
@@ -2662,9 +2675,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("else")
         homes = [
             h for agent in skill.get("agents") or ["claude"]
-            for h in {"claude": ["CLAUDE_HOME"], "codex": ["CODEX_HOME"],
-                      "vibe": ["VIBE_HOME", "VIBE_PRIVATE_HOME"],
-                      "antigravity": ["ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"]}[agent]
+            for h in SKILL_AGENT_HOMES[agent]
         ]
         for home in homes:
             w(f'  dest="${{{home}}}/skills/{name}"')
