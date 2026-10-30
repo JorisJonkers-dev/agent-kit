@@ -338,25 +338,27 @@ describe('WorkerSupervisorAdapter', () => {
         tail: 'new stdout\n',
         type: 'stdout',
       }))
+      // The session reads stdout, reports it, and only then reads stderr, so
+      // the stderr event and the snapshot can arrive a poll later.
+      expect(events).toContainEqual(expect.objectContaining({
+        attemptId: 2,
+        byteCount: Buffer.byteLength('new stderr\n'),
+        offset: Buffer.byteLength(priorStderr),
+        pid: 4242,
+        restartCount: 1,
+        tail: 'new stderr\n',
+        type: 'stderr',
+      }))
+      expect(snapshots).toContainEqual(expect.objectContaining({
+        offsets: {
+          stderr: Buffer.byteLength(`${priorStderr}new stderr\n`),
+          stdout: Buffer.byteLength(`${priorStdout}new stdout\n`),
+        },
+        pid: 4242,
+        status: 'running',
+      }))
       return Promise.resolve()
     })
-    expect(events).toContainEqual(expect.objectContaining({
-      attemptId: 2,
-      byteCount: Buffer.byteLength('new stderr\n'),
-      offset: Buffer.byteLength(priorStderr),
-      pid: 4242,
-      restartCount: 1,
-      tail: 'new stderr\n',
-      type: 'stderr',
-    }))
-    expect(snapshots).toContainEqual(expect.objectContaining({
-      offsets: {
-        stderr: Buffer.byteLength(`${priorStderr}new stderr\n`),
-        stdout: Buffer.byteLength(`${priorStdout}new stdout\n`),
-      },
-      pid: 4242,
-      status: 'running',
-    }))
 
     live = false
     await sleeper.tick()
