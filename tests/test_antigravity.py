@@ -61,16 +61,22 @@ def _stub(bin_dir: Path, name: str, body: str) -> None:
     path.chmod(0o755)
 
 
-def _setup_run(root: Path, platform: str) -> Run:
+def _setup_run(root: Path, platform: str, seed: dict | None = None) -> Run:
     """Run the checked-in setup script with HOME in a temp dir and nothing real on PATH.
 
     ``agy`` is on PATH on both platforms: the skip has to come from the platform
-    gate, not from a binary that happens to be missing.
+    gate, not from a binary that happens to be missing. ``seed`` is written to
+    Antigravity's MCP config before the run, standing in for a config that was
+    already there.
     """
     bin_dir = root / "bin"
     bin_dir.mkdir(parents=True)
     home = root / "home"
     home.mkdir()
+    if seed is not None:
+        config = home / ".gemini" / "config" / "mcp_config.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps(seed, indent=2) + "\n")
     calls = root / "calls.log"
     for name in ("uv", "npm", "node", "npx", "curl", "git", "claude", "codex", "vibe", "gh", "jq", "docker"):
         _stub(bin_dir, name, f'echo "{name} $*" >> "{calls}"')
@@ -111,6 +117,22 @@ def macos_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 @pytest.fixture(scope="module")
 def linux_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
     return _setup_run(tmp_path_factory.mktemp("linux"), "Linux")
+
+
+@pytest.fixture(scope="module")
+def macos_run_over_an_existing_config(tmp_path_factory: pytest.TempPathFactory) -> Run:
+    """A machine whose mcp_config.json already holds a retired server and one of its own."""
+    return _setup_run(
+        tmp_path_factory.mktemp("macos-existing"),
+        "Darwin",
+        seed={
+            "mcpServers": {
+                "memory-mcp": {"command": "npx", "args": ["-y", "memory-mcp"]},
+                "my-own-server": {"command": "node", "args": ["/opt/mine.js"]},
+            },
+            "somethingElse": {"kept": True},
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +194,20 @@ def test_the_pointer_names_only_shared_memory(macos_run: Run) -> None:
     assert "memory-private" not in text
 
 
+def test_a_retired_server_is_removed_and_the_rest_of_the_file_kept(
+    macos_run_over_an_existing_config: Run,
+) -> None:
+    """The merge only adds and replaces, so a retired server needs --remove to leave."""
+    config = macos_run_over_an_existing_config.home / ".gemini" / "config" / "mcp_config.json"
+    doc = json.loads(config.read_text())
+    retired = render_registry.retired_servers(_registry())
+    assert retired, "the registry retires nothing, so this test proves nothing"
+    for name in retired:
+        assert name not in doc["mcpServers"], name
+    assert doc["mcpServers"]["my-own-server"] == {"command": "node", "args": ["/opt/mine.js"]}
+    assert doc["somethingElse"] == {"kept": True}
+
+
 # ---------------------------------------------------------------------------
 # The MCP fragment
 # ---------------------------------------------------------------------------
@@ -215,11 +251,30 @@ def test_no_fragment_entry_carries_a_secret(monkeypatch: pytest.MonkeyPatch) -> 
             assert credential not in (entry.get("env") or {})
 
 
+def test_every_fragment_entry_carries_the_registry_timeout() -> None:
+    """The credential branch renders memory-api, and must not skip its timeout on the way."""
+    data = _registry()
+    servers = json.loads(render_registry.render_antigravity_mcp(data))["mcpServers"]
+    timed = [s for s in render_registry.antigravity_servers(data) if s.get("timeout")]
+    assert timed, "no server sets a timeout, so this test proves nothing"
+    for server in timed:
+        assert servers[server["name"]]["timeoutSeconds"] == server["timeout"], server["name"]
+
+
 def test_validation_rejects_private_memory_for_antigravity() -> None:
     data = _registry()
     private = next(s for s in data["mcp_servers"] if s["name"] == "memory-private")
     private["enabled_for"] = ["vibe-private", "antigravity"]
     with pytest.raises(render_registry.RegistryError, match="never gets Private Memory"):
+        render_registry.validate(data)
+
+
+def test_validation_rejects_an_unknown_skill_agent() -> None:
+    """A typo in `agents:` is a registry error, not a KeyError from the homes table."""
+    data = _registry()
+    skill = next(s for s in data["local_skills"] if "antigravity" in (s.get("agents") or []))
+    skill["agents"] = ["claude", "antigravty"]
+    with pytest.raises(render_registry.RegistryError, match="unknown agents"):
         render_registry.validate(data)
 
 
@@ -246,16 +301,22 @@ def test_the_runner_hermes_and_container_outputs_have_no_antigravity() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _signin(tmp_path: Path, *, agy: bool, keychain: bool) -> subprocess.CompletedProcess[str]:
+def _signin(tmp_path: Path, *, agy: bool, keychain: bool, cask: bool = False) -> subprocess.CompletedProcess[str]:
     script = _script()
-    start = script.index("antigravity_signin() {")
+    start = script.index("report_antigravity_signin() {")
     fn = script[start : script.index("\n}\n", start) + 3]
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     if agy:
         _stub(bin_dir, "agy", "exit 0")
     _stub(bin_dir, "security", "exit 0" if keychain else "exit 1")
-    body = 'warn() { echo "warn $*"; }\n' + fn + "\nantigravity_signin\n"
+    if cask:
+        _stub(
+            bin_dir,
+            "brew",
+            'case "$1 $2 $3" in\n  "list --cask antigravity") exit 0 ;;\nesac\nexit 1',
+        )
+    body = 'warn() { echo "warn $*"; }\n' + fn + "\nreport_antigravity_signin\n"
     return subprocess.run(
         ["bash", "-c", body],
         capture_output=True,
@@ -271,13 +332,27 @@ def test_the_doctor_names_a_missing_sign_in(tmp_path: Path) -> None:
     assert f"warn {SIGN_IN}" in result.stdout
 
 
+def test_the_doctor_reports_for_the_desktop_app_alone(tmp_path: Path) -> None:
+    """No `agy`, but the app's cask is installed: still a machine that needs a sign-in."""
+    result = _signin(tmp_path, agy=False, keychain=False, cask=True)
+    assert result.returncode == 0, result.stderr
+    assert f"warn {SIGN_IN}" in result.stdout
+
+
+def test_the_doctor_is_quiet_for_the_desktop_app_once_signed_in(tmp_path: Path) -> None:
+    result = _signin(tmp_path, agy=False, keychain=True, cask=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+
+
 def test_the_doctor_is_quiet_once_the_keychain_holds_the_credential(tmp_path: Path) -> None:
     result = _signin(tmp_path, agy=True, keychain=True)
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
 
 
-def test_the_doctor_says_nothing_without_the_cli(tmp_path: Path) -> None:
+def test_the_doctor_says_nothing_without_antigravity(tmp_path: Path) -> None:
+    """Neither `agy` nor the app's cask: nothing to sign in to."""
     result = _signin(tmp_path, agy=False, keychain=False)
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
@@ -285,4 +360,4 @@ def test_the_doctor_says_nothing_without_the_cli(tmp_path: Path) -> None:
 
 def test_the_doctor_runs_under_check_too() -> None:
     """A --check run reports the missing sign-in; the call is not inside a CHECK_ONLY guard."""
-    assert "\nantigravity_signin\n" in _script()
+    assert "\nreport_antigravity_signin\n" in _script()

@@ -5,7 +5,8 @@
       "args": [
         "-c",
         "exec \"$HOME/.local/bin/antigravity-mcp-proxy\" --url 'https://hindsight-api.jorisjonkers.dev/mcp/default/' --secret HINDSIGHT_API_TOKEN"
-      ]
+      ],
+      "timeoutSeconds": 60
     },
     "n8n": {
       "serverUrl": "https://n8n.jorisjonkers.dev/mcp-server/http",

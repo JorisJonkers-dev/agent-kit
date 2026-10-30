@@ -294,7 +294,8 @@ clis:
     cask: antigravity
     purpose: >-
       Google Antigravity, the desktop agent manager. Same configuration as the
-      CLI: one global MCP file, one global rules file, one global skills folder.
+      CLI: one global MCP file, one global rules file, and the kit's skills in
+      each of the two global skills folders.
     surfaces: [workstation]
     macos_only: true
     cloud: false

@@ -19,6 +19,10 @@ uv run pytest tests/test_registry_render.py
 | `registry/generated/hermes/skills-sources.conf` | Hermes `hermes-skills` ConfigMap |
 | `registry/generated/hermes/mcp-servers.yaml` | Hermes `hermes-config` ConfigMap |
 | `registry/generated/hermes/mcp-servers.local.yaml` | a workstation's local `~/.hermes/config.yaml` |
+| `registry/generated/vibe/mcp-servers.toml` | a workstation's `~/.vibe/config.toml`, via `scripts/vibe-merge-mcp.py` |
+| `registry/generated/vibe-private/mcp-servers.toml` | a workstation's `~/.vibe-private/config.toml`, via `scripts/vibe-merge-mcp.py` |
+| `registry/generated/antigravity/mcp_config.json` | a workstation's `~/.gemini/config/mcp_config.json`, via `scripts/antigravity-merge-mcp.py` |
+| `registry/generated/workstation-secrets.json` | `scripts/agent-kit-keys.py`, as the table of tokens and keys to get |
 
 A hand edit to any of them fails `--check`, and so does a registry change that
 was never rendered. Both are one test.
@@ -168,7 +172,9 @@ Two traps this catches:
   for the `seed-config` init container to substitute from the Vault-backed
   Secret. Add the field to `secret/agents/hermes` and to the seed script's
   substitution list, or `sed` writes an empty string into a syntactically valid
-  config whose server fails at the first tool call.
+  config whose server fails at the first tool call. Antigravity expands no
+  environment variables, so there a credential-bearing http server renders as
+  the stdio proxy with `--secret <field>` instead.
 - `credential_optional: true` declares a credential that is a convenience
   override, not a requirement — the server self-manages auth (e.g. overleaf via
   `olcli`'s stored session), so an unset env var must not skip registration.
