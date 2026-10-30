@@ -196,10 +196,10 @@ def test_a_failed_split_keeps_setup_out_of_both_vibe_homes() -> None:
 
 def _agents_pointer(tmp_path: Path, kind: str = "shared") -> subprocess.CompletedProcess:
     script = render_registry.render_setup_script(_registry())
-    start = script.index("_vibe_agents_pointer() {")
+    start = script.index("_agents_pointer() {")
     fn = script[start : script.index("\n}\n", start) + 3]
     stubs = 'ok() { echo "ok $*"; }\nlog() { echo "log $*"; }\n'
-    body = f'CHECK_ONLY=0\n{stubs}{fn}\n_vibe_agents_pointer "{tmp_path}" {kind}\n'
+    body = f'CHECK_ONLY=0\n{stubs}{fn}\n_agents_pointer "{tmp_path}/AGENTS.md" {kind}\n'
     return subprocess.run(["bash", "-c", body], capture_output=True, text=True, check=False)
 
 

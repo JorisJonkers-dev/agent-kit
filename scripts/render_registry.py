@@ -40,12 +40,25 @@ HERMES_MCP = Path("registry/generated/hermes/mcp-servers.yaml")
 HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
+ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
+# Antigravity expands no environment variables, so a token-bearing server is
+# reached through this stdio proxy, which reads the token from the secret store.
+ANTIGRAVITY_PROXY = "$HOME/.local/bin/antigravity-mcp-proxy"
 # Seconds Vibe waits for an MCP server to start, unless its entry sets startup_timeout.
 VIBE_STARTUP_TIMEOUT = 30
 VIBE_HOOKS = Path("installer/vibe-hooks.toml")
 # Removed from ${VIBE_HOME}/hooks.toml on every run.
 RETIRED_VIBE_HOOKS = ("agent-kit-retain-private",)
 SECRETS_TABLE = Path("registry/generated/workstation-secrets.json")
+
+# The agents a local_skills entry's `agents:` may name, and the homes each one
+# reads skills from. A name outside this table is a registry typo, not a home.
+SKILL_AGENT_HOMES = {
+    "claude": ["CLAUDE_HOME"],
+    "codex": ["CODEX_HOME"],
+    "vibe": ["VIBE_HOME", "VIBE_PRIVATE_HOME"],
+    "antigravity": ["ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"],
+}
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -227,6 +240,11 @@ def validate(data: dict[str, Any]) -> None:
         if "enabled_for" in server:
             if not session_only(server):
                 raise RegistryError(f"mcp server {name}: enabled_for only applies to a session-only server")
+            if "antigravity" in (server["enabled_for"] or []):
+                raise RegistryError(
+                    f"mcp server {name}: enabled_for may not name antigravity; "
+                    "Antigravity never gets Private Memory",
+                )
             if not set(server["enabled_for"] or []) <= ALWAYS_ON_AGENTS:
                 raise RegistryError(
                     f"mcp server {name}: enabled_for may only name {sorted(ALWAYS_ON_AGENTS)}, "
@@ -276,6 +294,12 @@ def validate(data: dict[str, Any]) -> None:
             raise RegistryError(
                 f"local skill {skill.get('name')} has no SKILL.md at {skill.get('path')}",
             )
+        unknown_agents = set(skill.get("agents") or []) - set(SKILL_AGENT_HOMES)
+        if unknown_agents:
+            raise RegistryError(
+                f"local skill {skill.get('name')} names unknown agents {sorted(unknown_agents)}; "
+                f"agents: may only name {sorted(SKILL_AGENT_HOMES)}",
+            )
         if "hermes" in (skill.get("surfaces") or []):
             raise RegistryError(
                 f"local skill {skill.get('name')} cannot target hermes: sync-skills clones "
@@ -308,6 +332,21 @@ def validate(data: dict[str, Any]) -> None:
                 f"mcp server {server.get('name')} install_pinned needs an npm container pin "
                 "or pin: block, and a requires_binary",
             )
+
+    # A cask is installed by Homebrew, so it needs neither a binary to probe
+    # nor a shell install command; everything else needs both.
+    for cli in _entries(data, "clis"):
+        if cli.get("cask"):
+            continue
+        if not cli.get("binary"):
+            raise RegistryError(f"cli {cli.get('name')} must name a binary, or a cask that installs it")
+        if on_surface(cli, "workstation") and not cli.get("install"):
+            raise RegistryError(f"cli {cli.get('name')} must name an install command, or a cask")
+    for key in ("plugins", "language_servers", "mcp_servers", "skill_sources", "local_skills"):
+        for item in _entries(data, key):
+            for field in ("cask", "macos_only"):
+                if field in item:
+                    raise RegistryError(f"{key} entry {_label(item)} may not set {field}: it is a clis: key")
 
     _validate_claude_profiles(data)
     _validate_container(data)
@@ -827,6 +866,47 @@ def _render_vibe_mcp(data: dict[str, Any], launcher: str, config: str) -> str:
             if env:
                 lines += ["", "[mcp_servers.env]", *(f"{k} = {_toml_str(str(v))}" for k, v in env.items())]
     return "\n".join(lines) + "\n"
+
+
+def antigravity_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Antigravity's servers: the shared workstation fleet, never Private Memory."""
+    return vibe_servers(data, "vibe")
+
+
+def render_antigravity_mcp(data: dict[str, Any]) -> str:
+    """Render Antigravity's global ``mcp_config.json``.
+
+    Antigravity expands no environment variables, so a server that needs a
+    token is registered as the stdio proxy rather than with a ``headers``
+    block: the proxy reads the token from the agent-kit secret store at
+    start-up, and no secret value reaches this file. Merged into
+    ``~/.gemini/config/mcp_config.json`` by ``scripts/antigravity-merge-mcp.py``.
+    """
+    servers: dict[str, Any] = {}
+    for server in antigravity_servers(data):
+        name = server["name"]
+        if server["transport"] == "http":
+            url = server.get("url_workstation")
+            if not url:
+                raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
+            credential = server.get("credential")
+            if credential:
+                # /bin/sh -c: a GUI-launched app has no ~/.local/bin on PATH.
+                entry: dict[str, Any] = {
+                    "command": "/bin/sh",
+                    "args": ["-c", f"exec \"{ANTIGRAVITY_PROXY}\" --url {_q(str(url))} --secret {credential}"],
+                }
+            else:
+                entry = {"serverUrl": url}
+        else:
+            entry = {"command": server["command"], "args": [str(a) for a in (server.get("args") or [])]}
+            env = server.get("env") or {}
+            if env:
+                entry["env"] = {str(k): str(v) for k, v in env.items()}
+        if server.get("timeout"):
+            entry["timeoutSeconds"] = server["timeout"]
+        servers[name] = entry
+    return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
 def _retired_vibe_hooks() -> str:
@@ -1355,11 +1435,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    || fail "${name}: could not install ${dest}"')
     w("}")
     w("")
-    w("# Points a Vibe home at the estate conventions, unless the user wrote their own.")
-    w("# $2 is shared (vibe, vibe-study: Shared Memory only) or private (vibe-private).")
-    w("_vibe_agents_pointer() {")
-    w('  local home="$1" kind="$2"')
-    w('  local file="${home}/AGENTS.md"')
+    w("# Points an agent home at the estate conventions, unless the user wrote their own.")
+    w("# $1 is the AGENTS.md to write; $2 is shared (Shared Memory only) or private.")
+    w("_agents_pointer() {")
+    w('  local file="$1" kind="$2"')
     w('  local marker="<!-- managed by agent-kit setup-workstation.sh -->"')
     w('  if [ -f "${file}" ] && ! grep -qF "${marker}" "${file}"; then')
     w('    log "${file} is the user\'s own; left alone"')
@@ -1369,7 +1448,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    log "would write ${file}"')
     w("    return 0")
     w("  fi")
-    w('  mkdir -p "${home}"')
+    w('  mkdir -p "$(dirname "${file}")"')
     w('  if [ "${kind}" = private ]; then')
     w('    cat > "${file}" <<EOF')
     _agents_pointer_text(w, private=True)
@@ -1379,7 +1458,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     _agents_pointer_text(w, private=False)
     w("EOF")
     w("  fi")
-    w('  ok "Vibe AGENTS.md pointer -> ${file}"')
+    w('  ok "AGENTS.md pointer -> ${file}"')
+    w("}")
+    w("")
+    w("# Points a Vibe home at the estate conventions.")
+    w("# $2 is shared (vibe, vibe-study: Shared Memory only) or private (vibe-private).")
+    w("_vibe_agents_pointer() {")
+    w('  _agents_pointer "${1}/AGENTS.md" "$2"')
     w("}")
     w("")
     w("# Every chat model the Mistral login can use, kept current in one Vibe home.")
@@ -1495,6 +1580,24 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  fi")
     w("}")
     w("")
+    w("# Antigravity signs in through a browser once and keeps the credential in")
+    w("# the macOS Keychain, so an unsigned machine only fails later, in a")
+    w("# non-interactive run. Reported under --check too, and for the desktop app")
+    w("# as well as the CLI: either one signs the others in.")
+    w("report_antigravity_signin() {")
+    w("  local present=0")
+    w("  command -v agy >/dev/null 2>&1 && present=1")
+    w('  if [ "${present}" = 0 ] && command -v brew >/dev/null 2>&1 \\')
+    w("     && brew list --cask antigravity >/dev/null 2>&1; then")
+    w("    present=1")
+    w("  fi")
+    w('  if [ "${present}" = 0 ] || ! command -v security >/dev/null 2>&1; then')
+    w("    return 0")
+    w("  fi")
+    w('  security find-generic-password -s "Antigravity CLI" >/dev/null 2>&1 \\')
+    w('    || warn "antigravity: needs sign-in: run agy and sign in with your Google account"')
+    w("}")
+    w("")
     _converge_mcp(data, w)
     _converge_plugins(data, w)
     w("# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.")
@@ -1607,6 +1710,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('[ "${VIBE_HOME%/}" = "${HOME}/.vibe-private" ] && VIBE_HOME="${HOME}/.vibe"')
     w("# vibe-private's own Vibe home; the vibe-private launcher uses the same path.")
     w('VIBE_PRIVATE_HOME="${HOME}/.vibe-private"')
+    w("# Antigravity's own global config, shared by the app, the CLI and the IDE.")
+    w("# Never ~/.gemini itself: Gemini CLI reads the AGENTS.md and GEMINI.md there.")
+    w('ANTIGRAVITY_HOME="${HOME}/.gemini/config"')
+    w("# The CLI reads skills from its own folder as well as the global one.")
+    w('ANTIGRAVITY_CLI_HOME="${HOME}/.gemini/antigravity-cli"')
+    w("# 0 where Antigravity is not a supported surface: setup then skips it whole,")
+    w("# rather than leaving half of it behind in ~/.gemini.")
+    w("ANTIGRAVITY_READY=0")
+    w('[ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1')
     w("# 0 after a failed split of the Vibe home: nothing then touches either home.")
     w("VIBE_HOMES_READY=1")
     w("")
@@ -1893,44 +2005,71 @@ def render_setup_script(data: dict[str, Any]) -> str:
     for cli in _entries(data, "clis"):
         if not on_surface(cli, "workstation"):
             continue
-        binary = cli["binary"]
-        install = str(cli.get("install") or "")
-        update = str(cli.get("update") or install)
-        if not install:
-            raise RegistryError(f"cli {cli.get('name')} must name an install command")
+        name = cli["name"]
+        cask = cli.get("cask")
+        binary = cli.get("binary")
         version_command = cli.get("version_command")
-        provides = cli.get("provides_binaries") or [binary]
+        provides = cli.get("provides_binaries") or ([binary] if binary else [])
         w("")
         for chunk in _wrap(str(cli.get("purpose") or "").strip(), 64):
             w(f"# {chunk}")
         block: list[str] = []
         b = block.append
-        b(f'if command -v {binary} >/dev/null 2>&1; then')
-        b(f'  run_sh {_q(update)}')
+        if cask:
+            # Homebrew owns the cask, so presence is the cask list rather than a
+            # binary on PATH (the desktop app has none), and `brew upgrade` is a
+            # no-op when the cask is already current.
+            present = f"brew list --cask {cask} >/dev/null 2>&1"
+            install = f"run brew install --cask {cask}"
+            update = f"run brew upgrade --cask {cask}"
+            label = name
+            failed = f"{name}: brew install --cask {cask} did not install it; is Homebrew on PATH?"
+        else:
+            install_cmd = str(cli.get("install") or "")
+            if not install_cmd:
+                raise RegistryError(f"cli {name} must name an install command")
+            present = f"command -v {binary} >/dev/null 2>&1"
+            install = f"run_sh {_q(install_cmd)}"
+            update = f"run_sh {_q(str(cli.get('update') or install_cmd))}"
+            label = str(binary)
+            failed = f"{binary} still not on PATH after install; open a new shell and re-run"
+        b(f"if {present}; then")
+        b(f"  {update}")
         if version_command:
             b(f'  ok "{binary} $({version_command} 2>/dev/null | head -1)"')
         else:
-            b(f'  ok "{binary} present"')
+            b(f'  ok "{label} present"')
         b("else")
-        b(f'  run_sh {_q(install)}')
+        b(f"  {install}")
         b('  if [ "${CHECK_ONLY}" = 1 ]; then')
-        b(f'    log "{binary} would be installed"')
-        b(f'  elif command -v {binary} >/dev/null 2>&1; then')
-        b(f'    ok "{binary} installed"')
+        b(f'    log "{label} would be installed"')
+        b(f"  elif {present}; then")
+        b(f'    ok "{label} installed"')
         # Track newly installed binaries
         for bin_name in provides:
             b(f'    new_binaries+=("{bin_name}")')
         b("  else")
-        b(f'    fail "{binary} still not on PATH after install; open a new shell and re-run"')
+        b(f'    fail "{failed}"')
         b("  fi")
         b("fi")
         for var, why in (cli.get("requires_env") or {}).items():
             why_escaped = str(why).replace('"', '\\"')
             b(f'if [ -z "${{{var}:-}}" ]; then')
-            b(_env_report(data, f'{cli["name"]}: {var} is not set ({why_escaped}); export it and re-run', var, "  "))
-            b(f'  missing_plugin_env+=("{cli["name"]}: export {var}")')
+            b(_env_report(data, f'{name}: {var} is not set ({why_escaped}); export it and re-run', var, "  "))
+            b(f'  missing_plugin_env+=("{name}: export {var}")')
             b("fi")
+        if cli.get("macos_only"):
+            # The cask is macOS-only; elsewhere the block is skipped with a notice.
+            block = [
+                'if [ "$(uname -s)" = Darwin ]; then',
+                *[f"  {line}" if line else line for line in block],
+                "else",
+                f'  warn "{name}: macOS only; skipped on $(uname -s)"',
+                "fi",
+            ]
         out.extend(_cloud_guard(block, cli, ""))
+    w("")
+    w("report_antigravity_signin")
     w("")
 
     # --- Claude profiles ---
@@ -2074,6 +2213,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  if [ "${CLOUD}" != 1 ]; then')
     w("    install_kit_command vibe-study")
     w("    install_kit_command vibe-private")
+    w("    # Antigravity's MCP config cannot hold a token, so Shared Memory reaches")
+    w("    # it through this stdio proxy, which reads the token from the keychain.")
+    w('    if [ "${ANTIGRAVITY_READY}" = 1 ]; then')
+    w("      install_kit_command antigravity-mcp-proxy")
+    w("    fi")
     w("  fi")
     w("  # Retired: Vibe saves to memory by tool now, not every turn.")
     w("  retire_kit_command vibe-retain-private")
@@ -2450,6 +2594,31 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    else")
     w('      warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"')
     w("    fi")
+    w("    # Antigravity reads one global mcp_config.json, shared by the app, the CLI")
+    w("    # and the IDE. `agy mcp add` writes one server at a time, so the fragment")
+    w("    # is merged in one pass. It names the stdio proxy for any server that")
+    w("    # needs a token, so no secret reaches that file. Private Memory is removed")
+    w("    # even when someone added it by hand: no keep file keeps it here.")
+    w('    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ] && command -v agy >/dev/null 2>&1; then')
+    w('      if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('        log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"')
+    w("      elif python3 \"${KIT_ROOT}/scripts/antigravity-merge-mcp.py\" \\")
+    antigravity_private = [
+        str(s["name"]) for s in _entries(data, "mcp_servers")
+        if session_only(s) and s not in antigravity_servers(data)
+    ]
+    removes = "".join(f" --remove {name}" for name in [*retired_servers(data), *antigravity_private])
+    w(f'        "${{KIT_ROOT}}/{ANTIGRAVITY_MCP}" --config "${{ANTIGRAVITY_HOME}}/mcp_config.json"{removes}; then')
+    w('        ok "Antigravity MCP servers merged"')
+    w("      else")
+    w('        fail "Antigravity MCP merge failed"')
+    w("      fi")
+    w("    fi")
+    w("    # Antigravity's global rules file. Never ~/.gemini/AGENTS.md or")
+    w("    # GEMINI.md: Gemini CLI reads those.")
+    w('    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then')
+    w('      _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared')
+    w("    fi")
     w("    converge_mcp")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
     w("    # actually has, and check every expected server is present.")
@@ -2512,12 +2681,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("else")
         homes = [
             h for agent in skill.get("agents") or ["claude"]
-            for h in {"claude": ["CLAUDE_HOME"], "codex": ["CODEX_HOME"],
-                      "vibe": ["VIBE_HOME", "VIBE_PRIVATE_HOME"]}[agent]
+            for h in SKILL_AGENT_HOMES[agent]
         ]
         for home in homes:
             w(f'  dest="${{{home}}}/skills/{name}"')
-            if home == "VIBE_PRIVATE_HOME":
+            if home in ("ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"):
+                # Antigravity is a macOS-only surface: a cloud run never builds
+                # it, and neither does a Linux one, which skips it entirely.
+                w('  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then')
+                w("    :")
+                w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+            elif home == "VIBE_PRIVATE_HOME":
                 # vibe-private's home is workstation-only: a cloud run never builds it.
                 w('  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then')
                 w("    :")
@@ -2861,6 +3035,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         HERMES_LOCAL_MCP: (render_hermes_local_mcp(data), 0o644),
         VIBE_MCP: (render_vibe_mcp(data), 0o644),
         VIBE_PRIVATE_MCP: (render_vibe_private_mcp(data), 0o644),
+        ANTIGRAVITY_MCP: (render_antigravity_mcp(data), 0o644),
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
     }
 

@@ -278,6 +278,28 @@ clis:
     version_command: "vibe --version"
     requires: [uv]
 
+  - name: antigravity-cli
+    binary: agy
+    cask: antigravity-cli
+    purpose: >-
+      Google Antigravity CLI (`agy`). Gets the workstation MCP fleet minus
+      Private Memory, the agent-kit instructions pointer and the kit's skills.
+    surfaces: [workstation]
+    macos_only: true
+    # A cloud host is Linux and has no Homebrew; the cask is a workstation thing.
+    cloud: false
+    version_command: "agy --version"
+
+  - name: antigravity
+    cask: antigravity
+    purpose: >-
+      Google Antigravity, the desktop agent manager. Same configuration as the
+      CLI: one global MCP file, one global rules file, and the kit's skills in
+      each of the two global skills folders.
+    surfaces: [workstation]
+    macos_only: true
+    cloud: false
+
   - name: olcli
     binary: olcli
     purpose: >-
@@ -739,7 +761,7 @@ local_skills:
       Compose a pull request in the repository's own house style: reads the
       PR template, mines recent merged PRs, and gates on an explicit
       confirmation before anything is pushed or created.
-    agents: [claude, codex, vibe]
+    agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
       Fits the estate's label trap directly — it reads `gh label list` for
@@ -752,7 +774,7 @@ local_skills:
       Cross-model orchestrator (Claude + Codex) for large, decomposable work:
       triage, cross-model planning, grill, a design checkpoint, guarded
       fan-out, a review council, and resumable status/tail.
-    agents: [claude, codex, vibe]
+    agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
       Previously shipped only by the retired install.sh. Content is unchanged from that install other than the
@@ -765,7 +787,7 @@ local_skills:
       Consult the current memory platform before designing or changing
       behavior that may depend on prior captures, and capture durable
       lessons near task completion.
-    agents: [claude, codex, vibe]
+    agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
       Rewritten for the current memory platform (memory-api/Hindsight; the
@@ -780,7 +802,7 @@ local_skills:
     purpose: >-
       Token-budget discipline: progressive disclosure, bounded recall,
       narrow MCP profiles, and prompt-cache-friendly instruction ordering.
-    agents: [claude, codex, vibe]
+    agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
       Rewritten alongside kb-first for the same reason: the original tuned
@@ -793,7 +815,7 @@ local_skills:
       Checklist for configuring a Claude Code or Codex session: config
       layers, MCP servers and profiles, memory-file hygiene, and Claude/Codex
       parity.
-    agents: [claude, codex, vibe]
+    agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
       Updated to reference memory-api instead of the retired

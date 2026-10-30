@@ -34,6 +34,9 @@ KIT_FILES = (
     "scripts/vibe-split-homes.py",
     "scripts/codex-add-url-mcp.py",
     "scripts/converge.py",
+    "installer/antigravity-mcp-proxy",
+    "scripts/antigravity-merge-mcp.py",
+    "registry/generated/antigravity/mcp_config.json",
 )
 
 FAKE_GH = """#!/usr/bin/env python3

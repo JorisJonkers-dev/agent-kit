@@ -2,7 +2,7 @@
 
 agent-kit sets up the estate's coding agents. `registry/estate-tooling.yaml`
 says what each agent surface (Claude Code in every profile, Codex, each Vibe
-home) should hold, and a setup run makes the surface match it.
+home, Antigravity) should hold, and a setup run makes the surface match it.
 
 ## Registry entries
 
@@ -21,7 +21,8 @@ _Avoid_: disabled entry, legacy entry
 
 **Undeclared entry**:
 Anything present on a surface that the registry does not name. Setup removes
-it unless the keep file names it.
+it unless the keep file names it — except on Antigravity, where setup leaves
+it alone (see **Converge**).
 _Avoid_: hand-added entry, unknown entry
 
 **Keep file**:
@@ -33,7 +34,9 @@ _Avoid_: allowlist, ignore file
 
 **Converge**:
 What a setup run does to each surface: it ends with exactly the declared
-entries plus the kept ones.
+entries plus the kept ones — except Antigravity, whose one MCP file setup
+merges, keeping every server it does not name except a retired one and
+Private Memory.
 _Avoid_: sync, reconcile
 
 ## Estate cleanup

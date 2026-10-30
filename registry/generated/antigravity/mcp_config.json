@@ -1,0 +1,48 @@
+{
+  "mcpServers": {
+    "memory-api": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/.local/bin/antigravity-mcp-proxy\" --url 'https://hindsight-api.jorisjonkers.dev/mcp/default/' --secret HINDSIGHT_API_TOKEN"
+      ],
+      "timeoutSeconds": 60
+    },
+    "n8n": {
+      "serverUrl": "https://n8n.jorisjonkers.dev/mcp-server/http",
+      "timeoutSeconds": 60
+    },
+    "n8n-mcp": {
+      "command": "n8n-mcp",
+      "args": [],
+      "timeoutSeconds": 60
+    },
+    "kubernetes": {
+      "serverUrl": "http://127.0.0.1:18080/mcp",
+      "timeoutSeconds": 60
+    },
+    "playwright": {
+      "command": "playwright-mcp",
+      "args": [
+        "--headless",
+        "--browser",
+        "chromium"
+      ],
+      "timeoutSeconds": 120
+    },
+    "drawio": {
+      "command": "drawio-mcp",
+      "args": [],
+      "timeoutSeconds": 60
+    },
+    "overleaf": {
+      "command": "olcli-mcp",
+      "args": [],
+      "env": {
+        "OVERLEAF_BASE_URL": "https://overleaf.jorisjonkers.dev",
+        "OVERLEAF_COOKIE_NAME": "overleaf.sid"
+      },
+      "timeoutSeconds": 120
+    }
+  }
+}

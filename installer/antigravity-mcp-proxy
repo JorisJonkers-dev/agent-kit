@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+# managed by agent-kit setup-workstation.sh
+"""Bridge Antigravity's stdio MCP transport to a streamable-HTTP MCP server.
+
+Antigravity's MCP configuration cannot reference environment variables: a
+header value is literal, so a token in ``headers`` would be a token on disk.
+Shared Memory therefore reaches Antigravity through this local stdio command.
+It reads the token from the agent-kit secret store at start-up -- the same
+keychain entry, or ``~/.config/agent-kit/secrets.env`` line, that
+``scripts/agent-kit-keys.py`` writes -- and proxies newline-delimited JSON-RPC
+from stdin to ``--url``.
+
+The token stays in memory: it is never written to disk, printed, or put in
+argv. Stdlib only, so the system python3 runs it.
+
+Usage::
+
+    antigravity-mcp-proxy --url https://hindsight-api.jorisjonkers.dev/mcp/default/ --secret HINDSIGHT_API_TOKEN
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import ssl
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+PREFIX = "agent-kit."
+# Cloudflare refuses the default Python-urllib agent.
+AGENT = "agent-kit-antigravity-proxy/1"
+TIMEOUT = 120
+
+# The python.org macOS python3 trusts no CA until its "Install Certificates"
+# step runs; fall back to the system bundle then.
+SYSTEM_CA = ("/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt")
+
+
+def say(message: str) -> None:
+    print(f"antigravity-mcp-proxy: {message}", file=sys.stderr, flush=True)
+
+
+# --- the agent-kit secret store --------------------------------------------
+
+
+def backend() -> str:
+    return os.environ.get("AGENT_KIT_SECRETS_BACKEND") or ("keychain" if shutil.which("security") else "file")
+
+
+def store_name() -> str:
+    return "keychain" if backend() == "keychain" else "secrets file"
+
+
+def secret(var: str) -> str:
+    """The value agent-kit-keys stored for var, or "" when it is not there."""
+    if backend() == "keychain":
+        out = subprocess.run(
+            ["security", "find-generic-password", "-s", PREFIX + var, "-w"],
+            capture_output=True, text=True, check=False,
+        )
+        return out.stdout.strip() if out.returncode == 0 else ""
+    path = Path.home() / ".config" / "agent-kit" / "secrets.env"
+    if not path.is_file():
+        return ""
+    values = dict(line.split("=", 1) for line in path.read_text().splitlines() if "=" in line)
+    return values.get(var, "")
+
+
+# --- the upstream ----------------------------------------------------------
+
+
+def tls_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    if not context.cert_store_stats()["x509_ca"]:
+        for path in SYSTEM_CA:
+            if os.path.isfile(path):
+                context.load_verify_locations(cafile=path)
+                break
+    return context
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    # Forward-auth sends a bad token to the login page, which answers 200 with HTML.
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
+
+
+def emit(message: Any) -> None:
+    sys.stdout.write(json.dumps(message) + "\n")
+    sys.stdout.flush()
+
+
+def messages(body: str, content_type: str) -> list[Any]:
+    """The JSON-RPC messages in a response body: plain JSON, or SSE `data:` lines.
+
+    Any other body -- forward-auth's HTML login page -- holds none.
+    """
+    if "text/event-stream" in content_type:
+        payloads = [line[5:].strip() for line in body.splitlines() if line.startswith("data:")]
+    elif "json" in content_type:
+        payloads = [body.strip()] if body.strip() else []
+    else:
+        return []
+    found = []
+    for payload in payloads:
+        try:
+            found.append(json.loads(payload))
+        except json.JSONDecodeError:
+            say(f"ignoring a response line that is not JSON: {payload[:80]}")
+    return found
+
+
+class Upstream:
+    """The streamable-HTTP side: one MCP session, re-opened when the server drops it."""
+
+    def __init__(self, url: str, token: str) -> None:
+        self.url = url
+        self.token = token
+        self.opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=tls_context()), _NoRedirect())
+        self.session = ""
+        self.protocol = ""
+        # The client's initialize request and initialized notification, replayed
+        # to open a new session: Antigravity cannot see the HTTP 404 that ends one.
+        self.handshake: list[str] = []
+
+    def post(self, line: str) -> tuple[int, str, str]:
+        """Status, content type and body of one POST; OSError when unreachable."""
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": AGENT,
+        }
+        if self.session:
+            headers["Mcp-Session-Id"] = self.session
+        if self.protocol:
+            headers["MCP-Protocol-Version"] = self.protocol
+        post = urllib.request.Request(self.url, data=line.encode(), headers=headers, method="POST")
+        try:
+            with self.opener.open(post, timeout=TIMEOUT) as response:
+                self.session = response.headers.get("Mcp-Session-Id") or self.session
+                body = response.read().decode(errors="replace")
+                return response.status, response.headers.get("Content-Type", ""), body
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers.get("Content-Type", ""), e.read().decode(errors="replace")
+
+    def send(self, line: str, method: str) -> tuple[int, str, str]:
+        if method == "initialize":
+            self.session = ""
+            self.handshake = [line]
+        elif method == "notifications/initialized" and len(self.handshake) == 1:
+            self.handshake.append(line)
+        stale = bool(self.session)
+        status, content_type, body = self.post(line)
+        # A 404 to a request carrying a session id means the server dropped the
+        # session (a redeploy, say); the spec has the client start a new one.
+        if status == 404 and stale and self.handshake and method != "initialize":
+            say("the upstream dropped the session; opening a new one")
+            self.session = ""
+            for step in self.handshake:
+                self.post(step)
+            status, content_type, body = self.post(line)
+        return status, content_type, body
+
+
+def error(request_id: Any, message: str) -> dict[str, Any]:
+    return {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": message}}
+
+
+def proxy(url: str, token: str) -> int:
+    upstream = Upstream(url, token)
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            return 0
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            inbound = json.loads(line)
+        except json.JSONDecodeError:
+            emit({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "parse error"}})
+            continue
+        request = inbound if isinstance(inbound, dict) else {}
+        method = str(request.get("method") or "")
+        try:
+            status, content_type, body = upstream.send(line, method)
+        except OSError as e:  # URLError, a refused connection, a timeout
+            say(f"could not reach {url}: {e}")
+            if "id" in request:
+                emit(error(request["id"], f"could not reach {url}"))
+            continue
+        if status >= 400:
+            say(f"{url} answered {status}")
+        answered = False
+        for message in messages(body, content_type):
+            if isinstance(message, dict):
+                if isinstance(message.get("result"), dict):
+                    upstream.protocol = message["result"].get("protocolVersion") or upstream.protocol
+                if "method" not in message and message.get("id") == request.get("id"):
+                    answered = True
+            emit(message)
+        # A request the upstream left unanswered -- an error page, an empty body --
+        # still gets an answer, or the client waits on it until its own timeout.
+        if "id" in request and "method" in request and not answered:
+            emit(error(request["id"], f"upstream answered {status} without a JSON-RPC response"))
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Proxy MCP over stdio to a streamable-HTTP MCP server.")
+    parser.add_argument("--url", required=True, help="the server's streamable-HTTP endpoint")
+    parser.add_argument("--secret", required=True, metavar="VAR", help="the agent-kit secret holding the bearer token")
+    args = parser.parse_args(argv)
+    token = secret(args.secret)
+    if not token:
+        say(f"{args.secret} is not in the {store_name()}; run setup-workstation.sh to store it")
+        return 1
+    return proxy(args.url, token)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
+    except BrokenPipeError:  # the client went away; nothing left to answer
+        raise SystemExit(0) from None

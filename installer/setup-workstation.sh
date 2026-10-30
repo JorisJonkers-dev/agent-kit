@@ -397,11 +397,10 @@ install_kit_command() {
     || fail "${name}: could not install ${dest}"
 }
 
-# Points a Vibe home at the estate conventions, unless the user wrote their own.
-# $2 is shared (vibe, vibe-study: Shared Memory only) or private (vibe-private).
-_vibe_agents_pointer() {
-  local home="$1" kind="$2"
-  local file="${home}/AGENTS.md"
+# Points an agent home at the estate conventions, unless the user wrote their own.
+# $1 is the AGENTS.md to write; $2 is shared (Shared Memory only) or private.
+_agents_pointer() {
+  local file="$1" kind="$2"
   local marker="<!-- managed by agent-kit setup-workstation.sh -->"
   if [ -f "${file}" ] && ! grep -qF "${marker}" "${file}"; then
     log "${file} is the user's own; left alone"
@@ -411,7 +410,7 @@ _vibe_agents_pointer() {
     log "would write ${file}"
     return 0
   fi
-  mkdir -p "${home}"
+  mkdir -p "$(dirname "${file}")"
   if [ "${kind}" = private ]; then
     cat > "${file}" <<EOF
 ${marker}
@@ -452,7 +451,13 @@ knowledge. At the start of a task, recall from it. Every agent reads it,
 so never retain personal notes into it.
 EOF
   fi
-  ok "Vibe AGENTS.md pointer -> ${file}"
+  ok "AGENTS.md pointer -> ${file}"
+}
+
+# Points a Vibe home at the estate conventions.
+# $2 is shared (vibe, vibe-study: Shared Memory only) or private (vibe-private).
+_vibe_agents_pointer() {
+  _agents_pointer "${1}/AGENTS.md" "$2"
 }
 
 # Every chat model the Mistral login can use, kept current in one Vibe home.
@@ -561,6 +566,24 @@ oauth_status() {
     security find-generic-password -s ai.mistral.vibe -a "mcp-oauth:${name}:tokens" >/dev/null 2>&1 \
       || warn "${name}: needs sign-in (vibe): run /mcp login ${name} in Vibe"
   fi
+}
+
+# Antigravity signs in through a browser once and keeps the credential in
+# the macOS Keychain, so an unsigned machine only fails later, in a
+# non-interactive run. Reported under --check too, and for the desktop app
+# as well as the CLI: either one signs the others in.
+report_antigravity_signin() {
+  local present=0
+  command -v agy >/dev/null 2>&1 && present=1
+  if [ "${present}" = 0 ] && command -v brew >/dev/null 2>&1 \
+     && brew list --cask antigravity >/dev/null 2>&1; then
+    present=1
+  fi
+  if [ "${present}" = 0 ] || ! command -v security >/dev/null 2>&1; then
+    return 0
+  fi
+  security find-generic-password -s "Antigravity CLI" >/dev/null 2>&1 \
+    || warn "antigravity: needs sign-in: run agy and sign in with your Google account"
 }
 
 # Removes retired and undeclared MCP servers from every surface; the keep file spares undeclared ones.
@@ -717,6 +740,15 @@ VIBE_HOME="${VIBE_HOME:-$HOME/.vibe}"
 [ "${VIBE_HOME%/}" = "${HOME}/.vibe-private" ] && VIBE_HOME="${HOME}/.vibe"
 # vibe-private's own Vibe home; the vibe-private launcher uses the same path.
 VIBE_PRIVATE_HOME="${HOME}/.vibe-private"
+# Antigravity's own global config, shared by the app, the CLI and the IDE.
+# Never ~/.gemini itself: Gemini CLI reads the AGENTS.md and GEMINI.md there.
+ANTIGRAVITY_HOME="${HOME}/.gemini/config"
+# The CLI reads skills from its own folder as well as the global one.
+ANTIGRAVITY_CLI_HOME="${HOME}/.gemini/antigravity-cli"
+# 0 where Antigravity is not a supported surface: setup then skips it whole,
+# rather than leaving half of it behind in ~/.gemini.
+ANTIGRAVITY_READY=0
+[ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1
 # 0 after a failed split of the Vibe home: nothing then touches either home.
 VIBE_HOMES_READY=1
 
@@ -1134,6 +1166,58 @@ else
   fi
 fi
 
+# Google Antigravity CLI (`agy`). Gets the workstation MCP fleet
+# minus Private Memory, the agent-kit instructions pointer and the
+# kit's skills.
+if [ "${CLOUD}" = 1 ]; then
+  log "antigravity-cli: not set up in cloud mode"
+else
+  if [ "$(uname -s)" = Darwin ]; then
+    if brew list --cask antigravity-cli >/dev/null 2>&1; then
+      run brew upgrade --cask antigravity-cli
+      ok "agy $(agy --version 2>/dev/null | head -1)"
+    else
+      run brew install --cask antigravity-cli
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "antigravity-cli would be installed"
+      elif brew list --cask antigravity-cli >/dev/null 2>&1; then
+        ok "antigravity-cli installed"
+        new_binaries+=("agy")
+      else
+        fail "antigravity-cli: brew install --cask antigravity-cli did not install it; is Homebrew on PATH?"
+      fi
+    fi
+  else
+    warn "antigravity-cli: macOS only; skipped on $(uname -s)"
+  fi
+fi
+
+# Google Antigravity, the desktop agent manager. Same
+# configuration as the CLI: one global MCP file, one global rules
+# file, and the kit's skills in each of the two global skills
+# folders.
+if [ "${CLOUD}" = 1 ]; then
+  log "antigravity: not set up in cloud mode"
+else
+  if [ "$(uname -s)" = Darwin ]; then
+    if brew list --cask antigravity >/dev/null 2>&1; then
+      run brew upgrade --cask antigravity
+      ok "antigravity present"
+    else
+      run brew install --cask antigravity
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "antigravity would be installed"
+      elif brew list --cask antigravity >/dev/null 2>&1; then
+        ok "antigravity installed"
+      else
+        fail "antigravity: brew install --cask antigravity did not install it; is Homebrew on PATH?"
+      fi
+    fi
+  else
+    warn "antigravity: macOS only; skipped on $(uname -s)"
+  fi
+fi
+
 # Overleaf CLI and MCP server. Points at the estate's self-hosted
 # Overleaf, not overleaf.com.
 if command -v olcli >/dev/null 2>&1; then
@@ -1169,6 +1253,8 @@ else
     fail "uv still not on PATH after install; open a new shell and re-run"
   fi
 fi
+
+report_antigravity_signin
 
 # -----------------------------------------------------------------
 # 2. Claude Code profiles.
@@ -1384,6 +1470,11 @@ else
   if [ "${CLOUD}" != 1 ]; then
     install_kit_command vibe-study
     install_kit_command vibe-private
+    # Antigravity's MCP config cannot hold a token, so Shared Memory reaches
+    # it through this stdio proxy, which reads the token from the keychain.
+    if [ "${ANTIGRAVITY_READY}" = 1 ]; then
+      install_kit_command antigravity-mcp-proxy
+    fi
   fi
   # Retired: Vibe saves to memory by tool now, not every turn.
   retire_kit_command vibe-retain-private
@@ -2261,6 +2352,26 @@ for install in installs:
     else
       warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"
     fi
+    # Antigravity reads one global mcp_config.json, shared by the app, the CLI
+    # and the IDE. `agy mcp add` writes one server at a time, so the fragment
+    # is merged in one pass. It names the stdio proxy for any server that
+    # needs a token, so no secret reaches that file. Private Memory is removed
+    # even when someone added it by hand: no keep file keeps it here.
+    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ] && command -v agy >/dev/null 2>&1; then
+      if [ "${CHECK_ONLY}" = 1 ]; then
+        log "would merge Antigravity MCP servers into ${ANTIGRAVITY_HOME}/mcp_config.json"
+      elif python3 "${KIT_ROOT}/scripts/antigravity-merge-mcp.py" \
+        "${KIT_ROOT}/registry/generated/antigravity/mcp_config.json" --config "${ANTIGRAVITY_HOME}/mcp_config.json" --remove memory-mcp --remove vuetify --remove memory-private; then
+        ok "Antigravity MCP servers merged"
+      else
+        fail "Antigravity MCP merge failed"
+      fi
+    fi
+    # Antigravity's global rules file. Never ~/.gemini/AGENTS.md or
+    # GEMINI.md: Gemini CLI reads those.
+    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then
+      _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared
+    fi
     converge_mcp
     # Verify the VALUE, not the exit codes: ask Claude what it
     # actually has, and check every expected server is present.
@@ -2371,6 +2482,42 @@ else
       fail "pr-composer: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${ANTIGRAVITY_HOME}/skills/pr-composer"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "pr-composer -> ${dest}"
+    else
+      fail "pr-composer: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/pr-composer"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "pr-composer -> ${dest}"
+    else
+      fail "pr-composer: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Cross-model orchestrator (Claude + Codex) for large,
@@ -2433,6 +2580,42 @@ else
   fi
   dest="${VIBE_PRIVATE_HOME}/skills/council"
   if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "council -> ${dest}"
+    else
+      fail "council: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/council"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "council -> ${dest}"
+    else
+      fail "council: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/council"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -2526,6 +2709,42 @@ else
       fail "kb-first: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${ANTIGRAVITY_HOME}/skills/kb-first"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "kb-first -> ${dest}"
+    else
+      fail "kb-first: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/kb-first"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "kb-first -> ${dest}"
+    else
+      fail "kb-first: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Token-budget discipline: progressive disclosure, bounded recall,
@@ -2603,6 +2822,42 @@ else
       fail "token-economy: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${ANTIGRAVITY_HOME}/skills/token-economy"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "token-economy -> ${dest}"
+    else
+      fail "token-economy: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/token-economy"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "token-economy -> ${dest}"
+    else
+      fail "token-economy: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Checklist for configuring a Claude Code or Codex session: config
@@ -2664,6 +2919,42 @@ else
   fi
   dest="${VIBE_PRIVATE_HOME}/skills/agent-session-bootstrap"
   if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "agent-session-bootstrap -> ${dest}"
+    else
+      fail "agent-session-bootstrap: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/agent-session-bootstrap"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "agent-session-bootstrap -> ${dest}"
+    else
+      fail "agent-session-bootstrap: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/agent-session-bootstrap"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
