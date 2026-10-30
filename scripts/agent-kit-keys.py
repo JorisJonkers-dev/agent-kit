@@ -459,6 +459,10 @@ def ensure(table: list[dict[str, Any]]) -> int:
     for entry in secrets(table):
         if entry["env"] not in todo or entry.get("grant"):
             continue
+        if entry.get("login"):
+            # A sign-in this tool cannot do for you (a browser login): say which command does.
+            say(f"{entry['env']}: sign in with  {entry['login']}  (in a terminal)")
+            continue
         while True:
             value = ask(f"Paste {entry['env']} ({entry['paste']}), or Enter to skip: ", secret=True)
             if not value:

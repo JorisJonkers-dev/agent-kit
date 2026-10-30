@@ -251,9 +251,18 @@ def validate(data: dict[str, Any]) -> None:
             if set(secret) != {"env", "retired"}:
                 raise RegistryError(f"retired workstation secret {secret.get('env')} takes only env and retired")
             continue
-        kinds = [k for k in ("value", "grant", "paste") if k in secret]
+        kinds = [k for k in ("value", "grant", "paste", "login") if k in secret]
         if not secret.get("env") or len(kinds) != 1:
-            raise RegistryError(f"workstation secret {secret.get('env')} needs an env and one of value, grant, paste")
+            raise RegistryError(
+                f"workstation secret {secret.get('env')} needs an env and one of value, grant, paste, login",
+            )
+        # Rendered into a double-quoted shell string: plain words only.
+        if "login" in secret and not (
+            isinstance(secret["login"], str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._/=-]*", secret["login"])
+        ):
+            raise RegistryError(
+                f"workstation secret {secret['env']}: login must be a plain command (letters, digits, - _ . / =)",
+            )
         if kinds != ["value"] and not str(secret.get("check") or "").startswith("https://"):
             raise RegistryError(f"workstation secret {secret['env']} needs an https check url")
         if "gate" in secret and (secret["gate"] != "passphrase" or secret.get("export") is not False):
@@ -1070,6 +1079,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('    case "${var} ${state}" in')
     w('      "shell missing")')
     w('        warn "your shell does not load ~/.config/agent-kit/env.sh; run setup in a terminal to add it" ;;')
+    for secret in _entries(data, "workstation_secrets"):
+        if secret.get("login") and not secret.get("retired"):
+            # Setup cannot sign in for you: say which command does.
+            w(f'      "{secret["env"]} missing")')
+            w(f'        warn "{secret["env"]} is missing; run  {secret["login"]}  in a terminal" ;;')
+            w(f'      "{secret["env"]} invalid")')
+            w(f'        warn "{secret["env"]} is refused by its host; run  {secret["login"]}  in a terminal again" ;;')
     w('      *" missing") warn "${var} is missing; run setup in a terminal and it gets it for you" ;;')
     w('      *" invalid") warn "${var} is refused by its host; run setup in a terminal to replace it" ;;')
     w('      *" unchecked") log "${var}: its host did not answer, so it was not checked" ;;')

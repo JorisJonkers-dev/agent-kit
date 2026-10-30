@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
@@ -55,7 +57,8 @@ def test_the_table_is_generated_from_the_registry_and_shipped() -> None:
     private = next(e for e in rendered if e["env"] == "MEMORY_PRIVATE_TOKEN")
     assert private["export"] is False and private["grant"] == "MEMORY_PRIVATE"
     study = next(e for e in rendered if e["env"] == "MISTRAL_STUDY_API_KEY")
-    assert study["export"] is False and "paste" in study
+    # No key to paste: the Study account signs in with Vibe's own browser sign-in.
+    assert study["export"] is False and study["login"] == "vibe-study --login" and "paste" not in study
     assert study["check"] == "https://api.mistral.ai/v1/models" and study["check_method"] == "GET"
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
     paths = publish.split("KIT_PATHS=(")[1].split(")")[0].split()
@@ -155,6 +158,26 @@ def test_interactive_means_a_terminal_and_no_opt_out() -> None:
 
 
 # --- one report per cause ---
+
+
+def test_setup_says_how_to_sign_in_for_a_missing_sign_in_value() -> None:
+    script = render_registry.render_setup_script(_registry())
+    lines = script.splitlines()
+    missing = lines.index('      "MISTRAL_STUDY_API_KEY missing")')
+    want = 'warn "MISTRAL_STUDY_API_KEY is missing; run  vibe-study --login  in a terminal" ;;'
+    assert lines[missing + 1].strip() == want
+    invalid = lines.index('      "MISTRAL_STUDY_API_KEY invalid")')
+    assert "refused by its host; run  vibe-study --login" in lines[invalid + 1]
+    assert max(missing, invalid) < next(i for i, line in enumerate(lines) if '*" missing") warn' in line)
+
+
+@pytest.mark.parametrize("login", ["", "vibe-study --login $(rm -rf ~)", 'vibe-study "x"', "a `b`"])
+def test_a_sign_in_value_needs_a_plain_command(login: str) -> None:
+    data = _registry()
+    study = next(e for e in data["workstation_secrets"] if e["env"] == "MISTRAL_STUDY_API_KEY")
+    study["login"] = login
+    with pytest.raises(render_registry.RegistryError):
+        render_registry.validate(data)
 
 
 def test_a_managed_token_is_not_reported_again_by_what_it_gates() -> None:
