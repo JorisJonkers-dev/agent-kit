@@ -516,7 +516,7 @@ function resolveRoster(routing, request) {
   for (const slot of stage.base) {
     const client = routing.clients[slot.client];
     if (client === void 0) throw new Error(`routing stage ${request.stage} names unknown client ${slot.client}`);
-    const reason = dropReason(client.family, request);
+    const reason = dropReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
     if (reason === void 0) {
       critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}` });
     } else {

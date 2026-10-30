@@ -40,7 +40,7 @@ export interface RosterCritic extends RosterSlot {
 export interface DroppedCritic {
   readonly client: string
   readonly family: ModelFamily
-  readonly reason: 'family-not-allowed' | 'orchestrator-family'
+  readonly reason: 'family-not-allowed' | 'orchestrator-family' | 'same-family'
 }
 
 export interface Roster {
@@ -61,8 +61,9 @@ export interface RosterRequest {
 
 /**
  * Resolves the base roster of a stage. A critic is dropped when the
- * repository's allowlist does not permit its family, or when it shares the
- * orchestrator's family, which adjudicates its findings.
+ * repository's allowlist does not permit its family, when it shares the
+ * orchestrator's family, which adjudicates its findings, or when the stage
+ * requires distinct families and an earlier critic already has its family.
  */
 export function resolveRoster(routing: Routing, request: RosterRequest): Roster {
   const stage = routing.stages[request.stage]
@@ -72,7 +73,11 @@ export function resolveRoster(routing: Routing, request: RosterRequest): Roster 
   for (const slot of stage.base) {
     const client = routing.clients[slot.client]
     if (client === undefined) throw new Error(`routing stage ${request.stage} names unknown client ${slot.client}`)
-    const reason = dropReason(client.family, request)
+    const reason =
+      dropReason(client.family, request) ??
+      (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family)
+        ? 'same-family'
+        : undefined)
     if (reason === undefined) {
       critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}` })
     } else {

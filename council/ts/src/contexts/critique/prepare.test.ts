@@ -31,6 +31,25 @@ async function ready(h: Harness, extra: Record<string, unknown> = {}): Promise<P
   return result
 }
 
+function twoMistralCritics(distinctFamilies: boolean): unknown {
+  return {
+    clients: {
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+      'vibe-mistral-small': { agent: 'critic-mistral-small', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-small-4' },
+    },
+    stages: {
+      spec: {
+        base: [
+          { client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+          { client: 'vibe-mistral-small', lenses: ['testability'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+        ],
+        distinct_families: distinctFamilies,
+      },
+    },
+    version: 1,
+  }
+}
+
 describe('prepare', () => {
   it('freezes the spec and its decision doc into a packet in the git common directory', async () => {
     const h = await optedIn()
@@ -152,6 +171,24 @@ describe('prepare', () => {
 
     expect(result.critics.map((critic) => critic.client)).toEqual(['vibe-mistral-large'])
     expect(result.dropped).toEqual([{ client: 'vibe-glm', family: 'zhipu', reason: 'family-not-allowed' }])
+  })
+
+  it('never runs two critics of one family when the stage requires distinct families', async () => {
+    const h = await optedIn({ routing: twoMistralCritics(true) })
+
+    const result = await ready(h)
+
+    expect(result.critics.map((critic) => critic.client)).toEqual(['vibe-mistral-large'])
+    expect(result.dropped).toEqual([{ client: 'vibe-mistral-small', family: 'mistral', reason: 'same-family' }])
+  })
+
+  it('runs two critics of one family when the stage does not require distinct families', async () => {
+    const h = await optedIn({ routing: twoMistralCritics(false) })
+
+    const result = await ready(h)
+
+    expect(result.critics.map((critic) => critic.client)).toEqual(['vibe-mistral-large', 'vibe-mistral-small'])
+    expect(result.dropped).toEqual([])
   })
 
   it('rejects a stage routing does not know, and a client routing does not define', async () => {
