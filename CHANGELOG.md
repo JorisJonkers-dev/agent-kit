@@ -1,5 +1,25 @@
 # Changelog
 
+## [5.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.16.0...v5.0.0) (2026-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **vibe:** `memory-private claude|codex` is removed. Claude Code and Codex can no longer reach Private Memory; setup deletes the Claude --mcp-config file and Codex's switched-off entry. Plain `vibe` no longer asks for the passphrase and has no Private Memory: use `vibe-private`.
+
+### Features
+
+* **antigravity:** install and configure Google Antigravity ([#166](https://github.com/JorisJonkers-dev/agent-kit/issues/166)) ([3f402e8](https://github.com/JorisJonkers-dev/agent-kit/commit/3f402e82147ff5abeba0e68df95e7fa49e6adacf))
+* **critique:** runner tracer, one Vibe critic reviews a local-markdown spec ([#180](https://github.com/JorisJonkers-dev/agent-kit/issues/180)) ([7b3641a](https://github.com/JorisJonkers-dev/agent-kit/commit/7b3641a9152b26fcda67f5d81f9a2b6861c8aa89)), closes [#169](https://github.com/JorisJonkers-dev/agent-kit/issues/169)
+* **vibe:** sign vibe-study in with Vibe's own browser sign-in ([#160](https://github.com/JorisJonkers-dev/agent-kit/issues/160)) ([78bdf95](https://github.com/JorisJonkers-dev/agent-kit/commit/78bdf95b601f928c045b2e4ce5e4eeafd3132b29)), closes [#157](https://github.com/JorisJonkers-dev/agent-kit/issues/157)
+* **vibe:** split vibe into vibe, vibe-study and vibe-private ([#159](https://github.com/JorisJonkers-dev/agent-kit/issues/159)) ([95ae50e](https://github.com/JorisJonkers-dev/agent-kit/commit/95ae50e7e52c012f4910ee875b02e83bde6b1cfb)), closes [#157](https://github.com/JorisJonkers-dev/agent-kit/issues/157)
+
+
+### Bug Fixes
+
+* **plugins:** update codenamev/ai-software-architect digest to 3f030c1 ([#149](https://github.com/JorisJonkers-dev/agent-kit/issues/149)) ([c3fa2f6](https://github.com/JorisJonkers-dev/agent-kit/commit/c3fa2f6624f051186738f9cab7b36359948e6dea))
+* **plugins:** update lukasniessen/kubernetes-skill digest to 34f93c1 ([#155](https://github.com/JorisJonkers-dev/agent-kit/issues/155)) ([c23c501](https://github.com/JorisJonkers-dev/agent-kit/commit/c23c5010b23cdf2275c4cbff782a9886537c7c6c))
+
 ## [4.16.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.15.1...v4.16.0) (2026-10-20)
 
 
