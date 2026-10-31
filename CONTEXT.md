@@ -143,6 +143,12 @@ plus every further family the family allowlist permits). Chosen automatically
 from signals in the artifact unless the user names it.
 _Avoid_: tier, mode, --fast
 
+**Role**:
+The job one critic is given in a critique stage (for example `spec-redteam`):
+the part of its prompt, after the shared preamble, that says what it reviews
+and how. A role never mentions other models or critics.
+_Avoid_: persona, agent, prompt
+
 **Lens**:
 The angle one critic is told to review from (fidelity, failure modes, ...).
 _Avoid_: perspective, persona

@@ -35,6 +35,7 @@ export type {
   GitPort,
   GitReconcileRequest,
   GitReconcileResult,
+  GitRemote,
   GitWorktree,
 } from './git.js'
 export type { ProcessCommand, ProcessPort, ProcessResult } from './process.js'

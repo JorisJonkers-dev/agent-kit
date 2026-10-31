@@ -891,3 +891,76 @@ all four, and #167 was amended on 2026-10-30 to match.
   are refused headless, and whether an agy critic under `.git/critique/` can
   read files outside its working directory but inside the repository,
   including a skill's `SKILL.md`, or start a skill through `run_workflow`.
+
+## What #169 settled
+
+The runner tracer (agent-kit#169) fixed these, and the later tickets build on
+them:
+
+- **Paths.** The family allowlist is `~/.config/agent-kit/critique-allowlist.json`,
+  keyed by `host/owner/repo` of the `origin` remote (or the first remote when
+  there is no `origin`). The ledger is
+  `~/.local/share/agent-kit/critique/ledger.jsonl`. Each run lives in
+  `critique/<run-id>/` in the git common directory, with `packet/`,
+  `manifest.json`, `critics/<critic-id>/` (prompt, stdout, stderr and the
+  export directory), `findings.json`, `report.md` and `summary.md`.
+- **Packet layout.** The artifact goes to `packet/artifact/` and each
+  reference to `packet/references/<repository path>`. Nothing else is put at
+  the packet root, so it can never hold a `.vibe/`, `.agents/` or `AGENTS.md`.
+  The prompt is written outside the packet and passed with `--prompt-file`.
+- **The `nedap` deny** matches the owner segment of any remote on any host,
+  so a host alias such as `git@github-work:nedap/x.git` is denied too.
+- **Vibe isolation.** The runner launches
+  `env -u MISTRAL_API_KEY -u VIBE_HOME vibe ...` with `--enabled-tools
+  read_file`, and sets `VIBE_ENABLE_MCP`, `VIBE_ENABLE_SUBAGENTS` and
+  `VIBE_INCLUDE_PROJECT_CONTEXT` to `false` and `VIBE_OUTSIDE_WORKDIR` to
+  `deny`. Vibe's environment layer sits above the home's `config.toml` and
+  below the agent file. `include_project_context = false` is what keeps
+  `~/.vibe/AGENTS.md` out: in Vibe 3.0.3's source the user and project
+  `AGENTS.md` section is only built when it is true. After the run, fan-out
+  reads the effective config from `export.json` and records the critic as
+  failed with `unsafe-config` unless MCP is off, the tools are exactly
+  `read_file`, `include_project_context` is false and `outside_workdir` is
+  `deny`. So a critic that does see the MCP fleet or the instructions
+  pointer never counts as a review. The `critic-<model>` agent files (#176)
+  should set the same keys. None of this has been run against the real
+  CLI yet; #178's smoke check covers it.
+- **Ledger reasons.** The ledger keeps a verdict's reason only as a short
+  slug (`reason_code`); the free-text reason goes to the report, because it
+  may quote the artifact.
+- **Ports.** The critique context uses council's own ports for the clock,
+  the environment, processes and git. Its git port is council's `GitPort`
+  narrowed to `root`, `commonDir` and `remotes`; the last two were added to
+  `GitPort` and to graph's `GitCliAdapter`, which the runner wires. Two
+  departures are deliberate. Council has no file-system port (its run store
+  reads and writes files through its own adapters), so critique keeps a
+  small `CritiqueFilesPort`. And council has no shared port fakes: each of
+  its tests declares its own. The critique harness
+  (`council/ts/test/critique/harness.ts`) therefore holds the fakes, written
+  against council's port interfaces, and later tickets should add to it
+  rather than write new ones.
+- **Critic clients.** Each critic client is an adapter behind
+  `CriticClientPort` (`review(launch)` returns the raw output and a
+  `CriticOutcome`), chosen by the client's `kind` in routing. Everything
+  Vibe-specific is in `VibeCriticClient`; the Antigravity client (#171) is a
+  second adapter and a second `kind`. A dependency-cruiser rule keeps the
+  critique domain free of ports, the application layer and adapters.
+- **Degraded runs.** Only the family allowlist refuses: no remote, no entry,
+  or a `nedap` remote. A stage whose roster drops every critic still
+  prepares a run with no critics; fan-out then launches nothing and marks
+  the run degraded, as it does when every critic fails, and record's
+  summary and report open with `degraded: no critique ran`. #173 adds
+  fallbacks before that point, not a refusal.
+- **Distinct families.** When a stage sets `distinct_families`, a critic
+  whose family an earlier critic of the stage already has is dropped with
+  the reason `same-family`. #171's fallbacks should be tried before that
+  drop.
+- **Errors and refusals.** A refusal prints `"status": "refused"` and exits
+  0. Anything else that stops a command is an error with a `code`
+  (`invalid-input`, `invalid-allowlist`, `invalid-routing`, `invalid-run`,
+  `outside-repository`, `already-recorded`, or `unexpected`) and exits 1.
+  Every JSON the runner reads, from a command's input to its own run files,
+  is checked field by field, so a malformed allowlist entry fails closed.
+- **Stages.** The stage names are `decisions`, `spec`, `tickets`,
+  `ticket-review` and `feature-review`, and prepare rejects any other.
+  Shipped routing defines `spec` only.

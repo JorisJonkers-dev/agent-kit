@@ -4,6 +4,7 @@ import type {
   GitDagExecutorPort,
   GitReconcileRequest,
   GitReconcileResult,
+  GitRemote,
   GitWorktree,
   ProcessCommand,
   ProcessPort,
@@ -71,6 +72,22 @@ export class GitCliAdapter implements GitDagExecutorPort {
   async root(cwd: string): Promise<string> {
     const result = await this.git(cwd, ['rev-parse', '--show-toplevel'])
     return result.stdout.trim()
+  }
+
+  async commonDir(cwd: string): Promise<string> {
+    const result = await this.git(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir'])
+    return result.stdout.trim()
+  }
+
+  async remotes(cwd: string): Promise<readonly GitRemote[]> {
+    // `git config --get-regexp` exits 1 when nothing matches.
+    const result = await this.git(cwd, ['config', '--get-regexp', '^remote\\..*\\.url$'], {
+      acceptedExitCodes: [0, 1],
+    })
+    return result.stdout
+      .split('\n')
+      .map((line) => /^remote\.(.+)\.url (.+)$/.exec(line.trim()))
+      .flatMap((match) => (match === null ? [] : [{ name: match[1] ?? '', url: match[2] ?? '' }]))
   }
 
   async currentBranch(cwd: string): Promise<string> {

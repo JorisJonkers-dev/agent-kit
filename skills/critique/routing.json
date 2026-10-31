@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "clients": {
+    "vibe-mistral-large": {
+      "kind": "vibe",
+      "binary": "vibe",
+      "agent": "critic-mistral-large",
+      "model": "mistral-large-4-0-3",
+      "family": "mistral"
+    }
+  },
+  "stages": {
+    "spec": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "spec-redteam",
+          "lenses": ["fidelity", "testability"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ]
+    }
+  }
+}

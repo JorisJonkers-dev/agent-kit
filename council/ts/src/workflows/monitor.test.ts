@@ -9,10 +9,10 @@ import type { MonitorWorkflowDeps } from './monitor.js'
 function makeProcess(outputs: string[] = []): ProcessPort {
   let callIndex = 0
   return {
-    exec: vi.fn().mockImplementation(async () => {
+    exec: vi.fn().mockImplementation(() => {
       const output = outputs[callIndex] ?? ''
       callIndex += 1
-      return { stdout: output, stderr: '', exitCode: 0 }
+      return Promise.resolve({ stdout: output, stderr: '', exitCode: 0 })
     }),
   }
 }
@@ -23,17 +23,18 @@ function makeFs(): MonitorFsAdapter & { written: MonitorState[] } {
 
   return {
     written,
-    readState: vi.fn().mockImplementation(async (_execDir: string, name: string) => {
+    readState: vi.fn().mockImplementation((_execDir: string, name: string) => {
       const state = stateByName.get(name)
-      if (state === undefined) throw new Error(`monitor not found: ${name}`)
-      return state
+      if (state === undefined) return Promise.reject(new Error(`monitor not found: ${name}`))
+      return Promise.resolve(state)
     }),
-    writeState: vi.fn().mockImplementation(async (_execDir: string, state: MonitorState) => {
+    writeState: vi.fn().mockImplementation((_execDir: string, state: MonitorState) => {
       written.push(state)
       stateByName.set(state.name, state)
+      return Promise.resolve()
     }),
-    listStates: vi.fn().mockImplementation(async () => {
-      return [...stateByName.values()]
+    listStates: vi.fn().mockImplementation(() => {
+      return Promise.resolve([...stateByName.values()])
     }),
   }
 }
@@ -50,8 +51,9 @@ function makeDeps(
     process: makeProcess(),
     nowIso: () => new Date(nowMs).toISOString(),
     nowMs: () => nowMs,
-    sleep: vi.fn().mockImplementation(async (ms: number) => {
+    sleep: vi.fn().mockImplementation((ms: number) => {
       nowMs += ms
+      return Promise.resolve()
     }),
     ...overrides,
     fs: resolvedFs,
@@ -519,8 +521,9 @@ describe('startMonitor with probe: built-in probes', () => {
       fs,
       nowIso: () => new Date(nowMs).toISOString(),
       nowMs: () => nowMs,
-      sleep: vi.fn().mockImplementation(async () => {
+      sleep: vi.fn().mockImplementation(() => {
         nowMs += 5_000
+        return Promise.resolve()
       }),
       env: { GITHUB_TOKEN: 'test-token' },
     }

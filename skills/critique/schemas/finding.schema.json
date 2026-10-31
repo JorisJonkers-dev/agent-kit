@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JorisJonkers-dev/agent-kit/skills/critique/schemas/finding.schema.json",
+  "title": "Critique findings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["findings"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "no_findings_reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Required when findings is empty: what was checked, so that nothing found is distinguishable from not looking."
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severity", "category", "location", "claim", "evidence"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["critical", "major", "minor"] },
+        "category": {
+          "enum": [
+            "unasked-question",
+            "contradiction",
+            "omission",
+            "invention",
+            "untestable",
+            "failure-mode",
+            "security",
+            "structure",
+            "bug",
+            "integration"
+          ]
+        },
+        "location": { "type": "string", "minLength": 1 },
+        "claim": { "type": "string", "minLength": 1 },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        },
+        "suggestion": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "enum": ["quote", "input", "failing-test", "trace"] },
+        "value": { "type": "string", "minLength": 1 },
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "For a quote: the listed file the quote is copied from."
+        }
+      }
+    }
+  }
+}

@@ -195,6 +195,12 @@ describe('DAG executor ports', () => {
           path,
         })
       },
+      commonDir() {
+        return Promise.resolve('/repo/.git')
+      },
+      remotes() {
+        return Promise.resolve([])
+      },
       currentBranch() {
         return Promise.resolve('worker/T1')
       },

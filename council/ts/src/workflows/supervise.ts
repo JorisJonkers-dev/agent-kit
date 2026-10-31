@@ -126,9 +126,9 @@ function msToDurationString(ms: number): string {
   const minutes = Math.floor((totalSeconds % 3_600) / 60)
   const seconds = totalSeconds % 60
 
-  if (hours > 0) return `${hours}h`
-  if (minutes > 0) return `${minutes}m`
-  return `${seconds}s`
+  if (hours > 0) return `${String(hours)}h`
+  if (minutes > 0) return `${String(minutes)}m`
+  return `${String(seconds)}s`
 }
 
 export function buildPollUntilGreenMonitorArgs(input: PollUntilGreenInput): string[] {
