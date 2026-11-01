@@ -1,9 +1,7 @@
-import { join } from 'node:path'
-
 import type { JsonFields } from '../domain/json.js'
 import { parseLedger, type Ledger } from '../domain/ledger.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
-import { parseRouting, type StatsThresholds } from '../domain/routing.js'
+import type { StatsThresholds } from '../domain/routing.js'
 import {
   critiqueStats,
   renderStats,
@@ -14,6 +12,7 @@ import { readInput, readJsonFile } from './decode.js'
 import { ledgerPath } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { RepositoryGate } from './repository.js'
+import { RoutingSource } from './routing.js'
 
 export interface StatsResult extends CritiqueStats {
   readonly status: 'reported'
@@ -34,16 +33,18 @@ interface StatsInput {
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
 /**
- * Reads the user's ledger, and the thresholds and routed clients from the
- * shipped routing, and reports how each critic client does per stage. It
+ * Reads the user's ledger, and the thresholds and routed clients from
+ * routing (the shipped file with this machine's override), and reports how each critic client does per stage. It
  * writes nothing: the suggestions are sentences for the owner, and routing
  * changes only when the owner edits it. A missing ledger is an empty one.
  */
 export class StatsCommand implements CritiqueCommand<StatsResult | Refusal> {
   private readonly repositories: RepositoryGate
+  private readonly routing: RoutingSource
 
   constructor(private readonly deps: CritiqueDeps) {
     this.repositories = new RepositoryGate(deps)
+    this.routing = new RoutingSource(deps)
   }
 
   async run(raw: unknown): Promise<StatsResult | Refusal> {
@@ -54,12 +55,7 @@ export class StatsCommand implements CritiqueCommand<StatsResult | Refusal> {
       if (repository.status === 'refused') return repository
       filter = { ...filter, repository: repository.key }
     }
-    const routing = await readJsonFile(
-      this.deps.files,
-      join(this.deps.assetsRoot, 'routing.json'),
-      'invalid-routing',
-      parseRouting,
-    )
+    const routing = await this.routing.load()
     const thresholds = routing.stats
     if (thresholds === undefined)
       throw new CritiqueError('invalid-routing', 'routing has no stats thresholds')

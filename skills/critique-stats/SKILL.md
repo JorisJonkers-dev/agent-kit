@@ -59,10 +59,11 @@ Done when the owner has the report.
 
 For each line under **Suggestions** and each **removal candidate**, give the
 owner one short paragraph: what the line means for the stage, and the change
-it points at. Routing lives in agent-kit's `skills/critique/routing.json`
-(each stage's `base` roster and the `fallbacks` map). A change there is the
-owner's edit, followed by refreshing its sha256 in `manifest.yaml` and
-running setup; offer to explain the change, and leave the file as it is.
+it points at. Routing is agent-kit's `skills/critique/routing.json` (each
+stage's `base` roster and the `fallbacks` map), with this machine's override
+`~/.config/agent-kit/critique-routing.json` merged over it. A change to
+either is the owner's edit; offer to explain the change, and leave both
+files as they are.
 
 With no suggestion and no removal candidate, say so in one line, and name the
 rows marked `(too few)`: those cells need more critiques before they can
@@ -94,4 +95,5 @@ result's `cells`:
 - **Thresholds**: `min_adjudicated_findings` (a cell needs this many before
   it gets a suggestion) and `removal_features` (a stage with no unique
   accepted catch across this many of its latest features is a removal
-  candidate) live in routing's `stats` section. A feature is one spec.
+  candidate) live in routing's `stats` section, which the override can
+  change. A feature is one spec.

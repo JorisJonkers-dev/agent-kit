@@ -397,6 +397,18 @@ describe('critique stats suggestions', () => {
     ])
   })
 
+  it("reads the threshold from this machine's routing override", async () => {
+    const ledger = runs(new SyntheticLedger(), 20, [
+      ...raised(MISTRAL, { accepted: 11, rejected: 9 }),
+      ...raised(GLM, { accepted: 16, hint: 5, rejected: 3 }),
+    ])
+
+    const result = await stats(ledger, {}, { routingOverride: { stats: { min_adjudicated_findings: 19 } } })
+
+    expect(result.thresholds).toEqual({ min_adjudicated_findings: 19, removal_features: 3 })
+    expect(result.suggestions).toHaveLength(1)
+  })
+
   it('makes no suggestion when the routed client has the higher precision', async () => {
     const ledger = runs(new SyntheticLedger(), 20, [
       ...raised(MISTRAL, { accepted: 16, rejected: 4 }),
