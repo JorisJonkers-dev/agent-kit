@@ -1479,3 +1479,98 @@ The `/critique-spec` skill (agent-kit#177) fixed these:
 - **For #173.** A second round is a second prepared run. `previous_run_dir`
   is how prepare knows the two belong to one flow, so the per-flow Vibe cap
   can add the first round's spend to the second's from there.
+
+## What #186 settled
+
+Code packets and the code permission (agent-kit#186) fixed these:
+
+- **The code permission.** An allowlist entry has `code`, true or false.
+  An entry without it (every entry recorded before #186) reads as false,
+  and any other value makes the file `invalid-allowlist`. `allow` takes an
+  optional `"code": true | false`; left out, it keeps the entry's current
+  value (false for a new entry), so re-running `allow` to change families
+  never drops or grants code. Its result now carries `code`. Prepare of
+  `ticket-review` or `feature-review` with code off is the refusal
+  `code-not-allowed`, after `no-remote`, `nedap` and `not-opted-in` and
+  before the tracker is read or anything is written. #187's triage call
+  should check `entry.code` the same way; #188 and #189 offer to call
+  `allow` with the entry's families and `"code": true`.
+- **Prepare's input for a code stage.** `base` (required: a commit or a
+  branch the change is diffed against), `head` (default `HEAD`), and, for
+  `ticket-review`, `ticket` (required, named the way the tracker names a
+  spec). `feature-review` reads the spec's tickets through
+  `Tracker.tickets` (#184) and ignores `ticket`; `references` is ignored by
+  both. A revision that names no commit is `invalid-input` before anything
+  is written. `head` can be any commit, so #188 can review a staged change
+  before it is committed by passing the id `git stash create` prints (that
+  writes a commit object but touches neither the stash list nor the index).
+- **The code packet.** `tree/<repository path>` for every regular file of
+  `head`'s tree, read from git's object store (`git ls-tree`, `git cat-file
+  blob`), so there is never a `.git`, worktree metadata or an untracked or
+  uncommitted file. Symbolic links and submodules are left out, and so is any
+  file holding a NUL byte (binary). `diff/change.diff` is the diff from the
+  merge base of `base` and `head` to `head` (`--no-ext-diff --no-textconv
+  --no-color`, `core.quotePath=false`). `tickets/<name>` holds the ticket, or
+  every ticket of the spec, and `spec/<name>` the spec, both rendered as a
+  document stage renders them. Nothing else is at the packet root, so the
+  repository's `AGENTS.md`, `.vibe/` and `.agents/` land under `tree/`.
+  Packet file kinds are now `tree`, `diff`, `ticket` and `spec` beside
+  `artifact` and `reference`.
+- **The manifest and prepare's result.** The manifest gains `code: { base,
+  base_commit, head, head_commit, changed_files }`, where `changed_files`
+  are packet paths under `tree/` of the files the diff touches that are
+  still in the tree (#189's "the head it reviewed" is `head_commit`).
+  `manifest.artifact` is the ticket for a ticket review and the spec for a
+  feature review, so #174's `risk:high` signal reads the ticket's or the
+  spec's labels. After the merge with #174, a code stage's depth is chosen
+  from that artifact's labels and text (risk terms); `STAGE_MEASURES` has
+  no measure for either code stage yet, so changed lines and risk path hits
+  are still to be added as measures (the diff and `code.changed_files` are
+  there to measure). Prepare's result `packet_files` now lists what the
+  critics' prompts name: every file for a document packet, and for a code
+  packet the diff, the changed files, the tickets and the spec, but not the
+  rest of the tree (which can be thousands of files). The result adds
+  `code: { base_commit, head_commit, changed_files, tree_files }`.
+- **The prompt.** A code packet's file list names the diff, the changed
+  files, the tickets and the spec, then tells the critic that the rest of
+  the tree is under `tree/` and readable by path, and to cite code as
+  `tree/<path>:<line>` or `tree/<path>:<first>-<last>` in `location` and in
+  each trace step. This is in the runner's prompt assembly, not in a
+  hashed asset. #188's `diff-reviewer` role does not need to repeat it.
+- **The tripwire** needed no change: every tree file is a packet file, so
+  each critic's copy holds the whole tree and a change anywhere in it (or a
+  file added at the copy's root) voids the critic as `violated-readonly`.
+- **File-and-line evidence.** At a code stage only, fan-out reads every
+  `path:line` and `path:first-last` in a finding's `location` and in each
+  `trace` evidence value. A path counts when it has a `/` or a file
+  extension, so `10:30` is not a file, and URLs are skipped. It is looked up
+  as written, then under `tree/`, then, for a diff's `a/` or `b/` prefix,
+  under `tree/` without it. A path the packet does not hold, or a line below
+  1 or past the file's last line, pre-rejects the finding as
+  `fabricated-evidence` (after the quote check, before the hint rule). A
+  code finding with no `failing-test` and no `trace` that cites a file and
+  line is the hint `no-test-or-trace`. The document stages are unchanged. The
+  evidence check now takes the packet indexed once per fan-out
+  (`indexPacket`), so a large tree is normalised once, not once per
+  finding. Whether a feature-review trace touches two tickets is the
+  orchestrator's check (#189), not a mechanical one.
+- **Git.** `GitRevisionPort` (in `src/ports/git.ts`, implemented by
+  `GitCliAdapter`, added to `CritiqueGitPort`) has `resolveCommit`,
+  `mergeBase`, `treeFiles`, `fileAt`, `diffCommits` and `changedPaths`. The
+  harness's `FakeGit.commit()` now records a commit (`c1`, `c2`, ...; the
+  harness makes `c1`) and serves `HEAD`, `HEAD~<n>` and those ids on one
+  line of history. `codeStageRouting()` in the harness routes one Vibe
+  critic on both code stages until #188 and #189 ship their routing; with
+  shipped routing, a code stage's prepare reads the packet and then fails
+  `invalid-routing` before writing anything.
+- **Process output.** `NodeProcessAdapter` decoded each output chunk on its
+  own, so a multi-byte character split across chunks became two
+  replacement characters; the streams now decode. A code packet reads every
+  file through it.
+- **Live check.** On a scratch clone of this repository (origin pointed at
+  GitHub, a scratch `HOME`), prepare refused without an entry
+  (`not-opted-in`) and with documents only (`code-not-allowed`), then, after
+  `allow` with `"code": true`, froze #186 and #181 through gh, 689 tree
+  files, and a 1,932-line diff over `HEAD~5`. The packet root held only
+  `diff`, `spec`, `tickets` and `tree`, no path had a `.git` component, and
+  the tree matched `HEAD`, not the uncommitted working tree.

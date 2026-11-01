@@ -3,7 +3,16 @@ import { join } from 'node:path'
 import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { chooseDepth, type DepthChoice } from '../domain/depth.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
-import { compactTimestamp, parseManifest, sha256, type ArtifactSource, type PacketFile, type RunManifest } from '../domain/manifest.js'
+import {
+  compactTimestamp,
+  listedFiles,
+  parseManifest,
+  sha256,
+  type ArtifactSource,
+  type CodeSource,
+  type PacketFile,
+  type RunManifest,
+} from '../domain/manifest.js'
 import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
 import {
   candidateClients,
@@ -14,7 +23,8 @@ import {
   type Routing,
   type RosterRequest,
 } from '../domain/routing.js'
-import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
+import { CRITIQUE_STAGES, DEPTHS, isCodeStage, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
+import { CodePacketReader, type UnfrozenFile } from './code-packet.js'
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { manifestPath, reportPath } from './locations.js'
@@ -22,7 +32,7 @@ import { insideRepository } from './paths.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { RoutingSource } from './routing.js'
-import { TrackerResolver, type TrackedArtifact } from './tracker.js'
+import { TrackerResolver, type TrackedArtifact, type Tracker } from './tracker.js'
 
 interface PrepareInput {
   readonly stage: CritiqueStage
@@ -38,6 +48,21 @@ interface PrepareInput {
   readonly previousRunDir: string | undefined
   /** The depth the caller names, which always wins over the signals; undefined lets the signals choose. */
   readonly depth: Depth | undefined
+  /** A code stage's base: the commit or branch the change is diffed against. */
+  readonly base: string | undefined
+  /** A code stage's commit under review. */
+  readonly head: string
+  /** The ticket a ticket review delivers. */
+  readonly ticket: string | undefined
+}
+
+/** What a code stage's prepare reports about the commits it froze. */
+export interface PreparedCode {
+  readonly base_commit: string
+  readonly head_commit: string
+  readonly changed_files: readonly string[]
+  /** How many files of the tree at the head were frozen. */
+  readonly tree_files: number
 }
 
 type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'>
@@ -48,7 +73,10 @@ export interface PrepareResult {
   readonly run_dir: string
   readonly manifest_path: string
   readonly packet_dir: string
+  /** The packet files the critics' prompts name; a code packet's tree beyond the changed files is not listed. */
   readonly packet_files: readonly string[]
+  /** Only for a code stage. */
+  readonly code?: PreparedCode
   readonly artifact: ArtifactSource
   readonly depth: Depth
   readonly round: Round
@@ -71,25 +99,30 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly repositories: RepositoryGate
   private readonly trackers: TrackerResolver
   private readonly decisionDocs: DecisionDocs
+  private readonly codePackets: CodePacketReader
   private readonly routing: RoutingSource
 
   constructor(private readonly deps: CritiqueDeps) {
     this.repositories = new RepositoryGate(deps)
     this.trackers = new TrackerResolver(deps)
     this.decisionDocs = new DecisionDocs(deps.files)
+    this.codePackets = new CodePacketReader(deps)
     this.routing = new RoutingSource(deps)
   }
 
   async run(raw: unknown): Promise<PrepareResult | Refusal> {
     const input = readInput(raw, 'prepare', (fields): PrepareInput => ({
+      base: fields.optionalString('base'),
       comments: fields.has('comments') ? fields.boolean('comments') : false,
       depth: fields.has('depth') ? fields.oneOf('depth', DEPTHS) : undefined,
+      head: fields.optionalString('head') ?? 'HEAD',
       orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
       previousRunDir: fields.has('previous_run_dir') ? fields.string('previous_run_dir') : undefined,
       references: fields.has('references') ? fields.strings('references') : undefined,
       repo: fields.string('repo'),
       spec: fields.string('spec'),
       stage: fields.oneOf('stage', CRITIQUE_STAGES),
+      ticket: fields.optionalString('ticket'),
     }))
     const { orchestratorFamily, stage } = input
     const repository = await this.repositories.resolve(input.repo)
@@ -98,16 +131,21 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     if (entry === undefined) {
       return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
     }
+    if (isCodeStage(stage) && !entry.code) {
+      return refusal(
+        'code-not-allowed',
+        `${repository.key} allows documents but not code; record the code permission with allow and "code": true`,
+      )
+    }
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker
-    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec })
-    if (artifact.status === 'refused') return artifact
+    const contents = isCodeStage(stage)
+      ? await this.codePackets.read(repository, tracker, { ...input, stage })
+      : await this.documentPacket(repository, tracker, input)
+    if (contents.status === 'refused') return contents
+    const { artifact, code } = contents
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage })
     if ('status' in round) return round
-    const references =
-      input.references === undefined
-        ? await this.decisionDocs.resolve(repository.root)
-        : input.references.map((path) => insideRepository(repository.root, path))
     const routing = await this.routing.load()
     const { choice, depth } = chooseDepth(
       stage,
@@ -120,11 +158,12 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     const runId = await this.freshRunId(repository, stage)
     const runDir = join(repository.commonDir, 'critique', runId)
     const packetDir = join(runDir, 'packet')
-    const packetFiles = await this.freezePacket(repository, packetDir, artifact, references)
+    const packetFiles = await this.freezePacket(packetDir, contents.files)
     const source: ArtifactSource = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker }
     const manifest: RunManifest = {
       allowed_families: entry.families,
       artifact: source,
+      ...(code === undefined ? {} : { code }),
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
@@ -144,13 +183,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     await this.deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}\n`)
     return {
       artifact: source,
+      ...(code === undefined ? {} : { code: preparedCode(code, packetFiles) }),
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
       depth_choice: choice,
       dropped: roster.dropped,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
-      packet_files: packetFiles.map((file) => file.path),
+      packet_files: listedFiles(manifest).map((file) => file.path),
       round: round.round,
       run_dir: runDir,
       run_id: runId,
@@ -203,19 +243,26 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   }
 
   /**
-   * Writes the artifact to `artifact/` and copies each reference to
-   * `references/` under its repository path. Nothing else is ever put at the
-   * packet root, so a `.vibe/`, `.agents/` or `AGENTS.md` there can never
-   * become critic config.
+   * A document stage's packet: the artifact goes to `artifact/` and each
+   * reference to `references/` under its repository path. Nothing else is
+   * ever put at the packet root, so a `.vibe/`, `.agents/` or `AGENTS.md`
+   * there can never become critic config.
    */
-  private async freezePacket(
+  private async documentPacket(
     repository: ResolvedRepository,
-    packetDir: string,
-    artifact: TrackedArtifact,
-    references: readonly string[],
-  ): Promise<readonly PacketFile[]> {
-    const files = [
-      { kind: 'artifact' as const, path: join('artifact', artifact.name), source: artifact.reference, text: artifact.text },
+    tracker: Tracker,
+    input: PrepareInput,
+  ): Promise<
+    Refusal | { readonly status: 'read'; readonly artifact: TrackedArtifact; readonly files: readonly UnfrozenFile[]; readonly code: undefined }
+  > {
+    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec })
+    if (artifact.status === 'refused') return artifact
+    const references =
+      input.references === undefined
+        ? await this.decisionDocs.resolve(repository.root)
+        : input.references.map((path) => insideRepository(repository.root, path))
+    const files: UnfrozenFile[] = [
+      { kind: 'artifact', path: join('artifact', artifact.name), source: artifact.reference, text: artifact.text },
       ...(await Promise.all(
         references.map(async (source) => ({
           kind: 'reference' as const,
@@ -225,11 +272,24 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         })),
       )),
     ]
+    return { artifact, code: undefined, files, status: 'read' }
+  }
+
+  private async freezePacket(packetDir: string, files: readonly UnfrozenFile[]): Promise<readonly PacketFile[]> {
     const frozen: PacketFile[] = []
     for (const { text, ...file } of files) {
       await this.deps.files.writeText(join(packetDir, file.path), text)
       frozen.push({ ...file, sha256: sha256(text) })
     }
     return frozen
+  }
+}
+
+function preparedCode(code: CodeSource, files: readonly PacketFile[]): PreparedCode {
+  return {
+    base_commit: code.base_commit,
+    changed_files: code.changed_files,
+    head_commit: code.head_commit,
+    tree_files: files.filter((file) => file.kind === 'tree').length,
   }
 }

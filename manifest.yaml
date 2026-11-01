@@ -644,7 +644,7 @@ council:
 critique:
   files:
     - path: skills/critique/critique.mjs
-      sha256: e6c5f8bdf8ce55e09ceecc599ee94c66c7046c9cd86ae5790b1324210d1b94bf
+      sha256: 40ca41a31ed39b8a9bdf246a70964176d73e6221d82bd553700720b332268e7d
       mode: "0755"
     - path: skills/critique/lenses/failure-modes.md
       sha256: 71a3ec754f10e74d2ec77e81d0523317c02a5fc6871796036ea85c4396e88169
