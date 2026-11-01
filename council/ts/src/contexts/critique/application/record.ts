@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 
+import type { GateRecord } from '../domain/feature-review.js'
 import type { RunFinding } from '../domain/findings.js'
 import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
@@ -8,9 +9,19 @@ import { CritiqueError } from '../domain/outcomes.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import type { Round } from '../domain/stage.js'
 import type { TicketCheckStatus } from '../domain/tickets.js'
-import { countVerdicts, secondRoundDue, stageVerdictError, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts } from '../domain/verdicts.js'
+import {
+  countVerdicts,
+  secondRoundDue,
+  stageVerdictError,
+  verdictProblem,
+  VERDICTS,
+  type AdjudicatedRun,
+  type Verdict,
+  type VerdictCounts,
+} from '../domain/verdicts.js'
 import { readInput, readJsonFile } from './decode.js'
 import { parseFanOutResult } from './fan-out.js'
+import { FeatureGate } from './feature-gate.js'
 import { findingsPath, ledgerPath, manifestPath, reportPath as reportPathOf } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 
@@ -29,6 +40,8 @@ export interface RecordResult {
   readonly summary: string
   /** Only for the tickets stage: `failed` while the checker found a dependency cycle, so `/implement` must not start. */
   readonly ticket_check?: TicketCheckStatus
+  /** A feature review's gate: its line, the head it holds for and the follow-ups that hold it. */
+  readonly gate?: GateRecord
 }
 
 const REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/
@@ -49,21 +62,25 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), 'invalid-run', parseManifest)
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), 'invalid-run', parseFanOutResult)
     for (const verdict of input.verdicts) {
-      const error = stageVerdictError(manifest.stage, verdict)
+      const error = stageVerdictError(manifest.stage, verdict) ?? verdictProblem(manifest.stage, verdict, manifest.packet_files)
       if (error !== undefined) throw new CritiqueError('invalid-input', error)
     }
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))
     const reportPath = reportPathOf(input.runDir)
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
 
+    const adjudicated = merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) }))
+    const gates = new FeatureGate(this.deps)
+    const gate = manifest.stage === 'feature-review' ? await gates.compute(manifest, adjudicated) : undefined
     const run: AdjudicatedRun = {
       critics: merged.critics,
       degraded: merged.degraded,
       depth: manifest.depth,
       depth_choice: manifest.depth_choice,
       dropped: manifest.dropped,
-      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
+      findings: adjudicated,
       flow: manifest.flow,
+      ...(gate === undefined ? {} : { gate }),
       repository: manifest.repository,
       round: manifest.round,
       ...(manifest.previous_run_id === undefined ? {} : { previous_run_id: manifest.previous_run_id }),
@@ -77,9 +94,11 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     await this.deps.files.writeText(reportPath, renderReport(run))
     await this.deps.files.writeText(summaryPath, summary)
     await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line) => `${line}\n`).join(''))
+    if (gate !== undefined) await gates.save(manifest, gate)
     return {
       counts: countVerdicts(run),
       degraded: run.degraded,
+      ...(gate === undefined ? {} : { gate }),
       ledger_path: ledger,
       report_path: reportPath,
       round: run.round,
@@ -138,12 +157,16 @@ function readVerdict(fields: JsonFields): Verdict {
   const code = fields.optionalMatching('reason_code', isReasonCode, 'a short lowercase slug')
   const findingId = fields.string('finding_id')
   const answered = fields.has('answered') ? fields.boolean('answered') : undefined
+  const followUp = fields.optionalString('follow_up')
+  const traceTickets = fields.has('trace_tickets') ? fields.strings('trace_tickets') : undefined
   return {
     finding_id: findingId,
     verdict,
     ...(reason === undefined ? {} : { reason }),
     ...(code === undefined ? {} : { reason_code: code }),
     ...(answered === undefined ? {} : { answered }),
+    ...(followUp === undefined ? {} : { follow_up: followUp }),
+    ...(traceTickets === undefined ? {} : { trace_tickets: traceTickets }),
   }
 }
 

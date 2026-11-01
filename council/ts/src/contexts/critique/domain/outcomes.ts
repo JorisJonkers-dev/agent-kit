@@ -47,6 +47,8 @@ export type CritiqueErrorCode =
   | 'outside-repository'
   /** A run whose verdicts are already recorded. */
   | 'already-recorded'
+  /** The tracker could not be read when a feature review's gate needed the spec's tickets. */
+  | 'tracker-unreachable'
 
 export class CritiqueError extends Error {
   override readonly name = 'CritiqueError'

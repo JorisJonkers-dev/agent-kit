@@ -1858,3 +1858,73 @@ The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
   files, optional code and ticket check) is the one shape every stage's
   packet returns. Every document stage now has its own evidence rule, so
   fan-out's "another stage" test runs at the tickets stage.
+
+## What #189 settled
+
+The `/review-feature` skill and its gate (agent-kit#189) fixed these:
+
+- **Routing.** Shipped `routing.json` now defines `feature-review`: base
+  `vibe-mistral-large` (integration) and `agy-gemini-flash-high`
+  (failure-modes), deep `vibe-glm` (operability) and `vibe-deepseek-flash`
+  (simplicity), all in the `feature-reviewer` role, `max_price_usd` 1 and
+  `time_limit_s` 720, `distinct_families`. Its `depth_signals` hold only the
+  `risk:high` label (read from the spec's labels): changed-line and risk-path
+  measures for the code stages are #187's to add to `STAGE_MEASURES`, after
+  which this stage can take thresholds too. The Antigravity reserve already
+  named `feature-review`, so Gemini keeps running past the threshold.
+- **The role.** `roles/feature-reviewer.md` (pinned in `manifest.yaml`)
+  asks for broken contracts at seams, inconsistent error handling across
+  slices, an undelivered requirement and duplicated logic, and requires a
+  failing test in the repository's framework and style, or a trace citing
+  `tree/<path>:<line>` across code from two or more tickets. #188's
+  `diff-reviewer` states the same failing-test rule; neither role refers to
+  the other.
+- **Accepting a feature finding.** At `feature-review`, record refuses
+  (`invalid-input`) an `accepted` verdict unless `reason_code` is
+  `test-fails` or `cross-ticket-trace`; a `cross-ticket-trace` needs
+  `trace_tickets`, at least two distinct packet paths of `ticket` files
+  (`tickets/01-store.md`, `tickets/issue-183.md`); and every accepted verdict
+  needs `follow_up`, the follow-up ticket it became (`#301`, an issue URL,
+  `host/owner/repo#301`, `07` or the ticket's path). `follow_up` and
+  `trace_tickets` are refused on any other verdict and at any other stage.
+  `test-passes` (rejected) is a convention of the skill, not checked.
+- **The gate.** Record of a `feature-review` run reads the spec's tickets
+  through the tracker (`Tracker.tickets`), refuses a `follow_up` that is not
+  one of them, and computes the gate before writing anything. It fails while
+  any critical follow-up is open: this run's, and every earlier recorded
+  feature review's for the same repository and spec (deduplicated by ticket
+  reference), so a re-run on a new head keeps failing until those tickets are
+  closed even when no critic raises the finding again. A follow-up that is no
+  longer a ticket of the spec counts as open. A degraded run still gets a
+  gate (from earlier follow-ups only). `TrackedTicket` gained `open`: a
+  GitHub sub-issue is open unless its REST `state` is `closed`
+  (`GhIssue.state`, optional, filled by `subIssues` only); a local ticket is
+  open unless its first `Status:` line reads `closed`, `done`, `resolved` or
+  `wontfix`. A tracker that cannot be read is the new error code
+  `tracker-unreachable` (exit 1, nothing written). `parseIssueReference` now
+  also reads `host/owner/repo#<n>`, the form a manifest records.
+- **Where the gate is, for #197.** The summary's and the report's first line
+  is `GATE: PASS` or `GATE: FAIL (<n> critical)`. Record's result carries
+  `gate`, the same object it writes to `<run_dir>/gate.json` and appends as
+  one JSON line to `<git common dir>/critique/gates.jsonl`:
+  `{ version: 1, stage: "feature-review", run_id, recorded_at, repository,
+  spec, base_commit, head_commit, gate: "pass" | "fail", critical_open, line,
+  follow_ups: [{ finding_id, severity, ticket, reference, open }],
+  open_critical: [{ finding_id, run_id, ticket, reference }] }`. The PR gate
+  needs no model call and no directory scan: read `gates.jsonl` (oldest
+  first), keep lines whose `head_commit` is the current `HEAD` commit (and
+  whose `repository` matches), and take the last; `parseGateRecord`,
+  `gatePath` and `gateIndexPath` are exported from the critique context. A
+  line that does not parse makes the next record fail with `invalid-run`,
+  so a hook should treat it as unreadable state.
+- **Closing a follow-up is what opens the gate.** Pocock's flow closes
+  tickets when the PR merges, which is after this gate. The skill therefore
+  tells the owner to close each follow-up once its fix is on the feature
+  branch, then re-run on the new head.
+- **For #199.** A feature review's `manifest.artifact` is already the spec,
+  so `AdjudicatedRun.spec` (once #199's change merges here) is the spec's
+  reference with no extra work; the default `flow` is the same reference.
+- **Not covered yet.** The live check from #181's testing decisions (a
+  planted cross-ticket contract mismatch giving `GATE: FAIL (1 critical)`,
+  then `GATE: PASS` after the follow-up is fixed) costs money and has not
+  been run.

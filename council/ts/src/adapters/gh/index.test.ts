@@ -116,6 +116,12 @@ describe('the gh sub-issue reader', () => {
     ])
   })
 
+  it('reads whether each sub-issue is open or closed', async () => {
+    const { gh } = adapter({ stdout: JSON.stringify([[apiIssue(183, { state: 'open' }), apiIssue(184, { state: 'closed' })]]) })
+
+    expect((await gh.subIssues(LOCATOR)).map((issue) => issue.state)).toEqual(['open', 'closed'])
+  })
+
   it('rejects with the first line gh printed when it fails', async () => {
     const { gh } = adapter({ exitCode: 1, stderr: 'gh: Not Found (HTTP 404)\n' })
 

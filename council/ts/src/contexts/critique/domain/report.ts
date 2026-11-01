@@ -33,6 +33,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const hidden = { accepted: 0, dissent: 0, questions: 0 }
   const render = (): string =>
     [
+      ...gateLines(run),
       ...violationLines(run),
       `# Critique: ${run.stage}, run ${run.run_id}`,
       '',
@@ -84,6 +85,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
 export function renderReport(run: AdjudicatedRun): string {
   const dissent = run.findings.filter((f) => isDissent(run, f))
   return [
+    ...gateLines(run),
     ...violationLines(run),
     `# Critique report: ${run.stage}, run ${run.run_id}`,
     '',
@@ -93,6 +95,7 @@ export function renderReport(run: AdjudicatedRun): string {
     verdictLine(run),
     ...ticketCheckLines(run),
     '',
+    ...gateSection(run),
     '## Critics',
     '',
     ...run.critics.flatMap((critic) => [
@@ -115,6 +118,31 @@ export function renderReport(run: AdjudicatedRun): string {
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/** #181 US60: a feature review's summary and report open with the gate line, so a script can read it. */
+function gateLines(run: AdjudicatedRun): readonly string[] {
+  return run.gate === undefined ? [] : [run.gate.line, '']
+}
+
+/** The head the gate holds for, and each open critical follow-up that holds it. */
+function gateSection(run: AdjudicatedRun): readonly string[] {
+  const gate = run.gate
+  if (gate === undefined) return []
+  const open = gate.open_critical.map((followUp) => {
+    const from = followUp.run_id === run.run_id ? '' : ` of run ${followUp.run_id}`
+    return `- ${followUp.ticket} (${followUp.reference}), for ${followUp.finding_id}${from}`
+  })
+  return [
+    '## Gate',
+    '',
+    `${gate.line} for head ${gate.head_commit} (base ${gate.base_commit})`,
+    '',
+    'Open critical follow-ups:',
+    '',
+    ...(open.length === 0 ? ['none'] : open),
+    '',
+  ]
 }
 
 /**
@@ -271,9 +299,11 @@ function findingSection(run: AdjudicatedRun, finding: AdjudicatedFinding): reado
 
 function verdictText(verdict: Verdict): string {
   const code = verdict.reason_code === undefined ? '' : ` (${verdict.reason_code})`
+  const followUp = verdict.follow_up === undefined ? '' : `, follow-up ${verdict.follow_up}`
+  const crossed = verdict.trace_tickets === undefined ? '' : `, trace across ${verdict.trace_tickets.join(', ')}`
   const answered = verdict.answered === true ? ', answered' : ''
   const reason = verdict.reason === undefined ? '' : `: ${verdict.reason}`
-  return `${verdict.verdict}${answered}${code}${reason}`
+  return `${verdict.verdict}${answered}${code}${followUp}${crossed}${reason}`
 }
 
 function verdictLine(run: AdjudicatedRun): string {

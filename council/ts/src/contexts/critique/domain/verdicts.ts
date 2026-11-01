@@ -1,7 +1,9 @@
 import type { CriticRun } from './critic.js'
 import type { DepthChoice } from './depth.js'
+import type { GateRecord } from './feature-review.js'
 import type { ModelFamily } from './family.js'
 import type { RunFinding } from './findings.js'
+import type { PacketFile } from './manifest.js'
 import type { DroppedCritic } from './routing.js'
 import { SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage, type Depth, type Round } from './stage.js'
 import type { TicketCheckSummary } from './tickets.js'
@@ -18,6 +20,10 @@ export interface Verdict {
   readonly reason_code?: string
   /** On a needs-human verdict: the owner has answered the question. */
   readonly answered?: boolean
+  /** On an accepted feature-review verdict: the follow-up ticket the finding became, as its tracker names it. */
+  readonly follow_up?: string
+  /** On a feature-review verdict accepted by a cross-ticket trace: the packet's ticket files the trace crossed. */
+  readonly trace_tickets?: readonly string[]
 }
 
 export interface AdjudicatedFinding extends RunFinding {
@@ -41,6 +47,8 @@ export interface AdjudicatedRun {
   readonly findings: readonly AdjudicatedFinding[]
   /** Only for the tickets stage: what the ticket checker found when the packet was frozen. */
   readonly ticket_check?: TicketCheckSummary
+  /** A feature review's gate, for the head it reviewed. */
+  readonly gate?: GateRecord
 }
 
 export type VerdictCounts = Readonly<Record<VerdictKind, number>>
@@ -100,4 +108,38 @@ export function isDissent(run: AdjudicatedRun, finding: AdjudicatedFinding): boo
     finding.verdict.reason_code !== 'fabricated-evidence' &&
     (finding.severity === 'critical' || familiesOf(run, finding).length >= 2)
   )
+}
+
+/**
+ * The two ways a feature finding can be accepted: a failing test the
+ * orchestrator ran, or a trace it walked across code from two or more
+ * tickets. Anything less stays a claim.
+ */
+export const FEATURE_ACCEPT_REASONS = ['test-fails', 'cross-ticket-trace'] as const
+
+/**
+ * What is wrong with a verdict given at this stage, if anything. Only a
+ * feature review takes `follow_up` and `trace_tickets`; there an accepted
+ * finding must name the follow-up ticket it became and the evidence that
+ * accepted it, and a cross-ticket trace the packet tickets it crossed.
+ */
+export function verdictProblem(stage: CritiqueStage, verdict: Verdict, packetFiles: readonly PacketFile[]): string | undefined {
+  const id = verdict.finding_id
+  const extras = verdict.follow_up !== undefined || verdict.trace_tickets !== undefined
+  if (stage !== 'feature-review') return extras ? `${id}: follow_up and trace_tickets belong to a feature-review verdict` : undefined
+  if (verdict.verdict !== 'accepted') return extras ? `${id}: only an accepted feature finding has a follow_up or trace_tickets` : undefined
+  const reason = verdict.reason_code
+  if (reason !== 'test-fails' && reason !== 'cross-ticket-trace') {
+    return `${id}: a feature finding is accepted only with reason_code ${FEATURE_ACCEPT_REASONS.join(' or ')}`
+  }
+  if (reason === 'cross-ticket-trace') {
+    const tickets = new Set(packetFiles.filter((file) => file.kind === 'ticket').map((file) => file.path))
+    const crossed = new Set(verdict.trace_tickets ?? [])
+    if (crossed.size < 2 || [...crossed].some((path) => !tickets.has(path))) {
+      return `${id}: a cross-ticket-trace names at least two tickets of the packet in trace_tickets`
+    }
+  } else if (verdict.trace_tickets !== undefined) {
+    return `${id}: trace_tickets belong to a cross-ticket-trace`
+  }
+  return verdict.follow_up === undefined ? `${id}: an accepted feature finding names its follow-up ticket in follow_up` : undefined
 }

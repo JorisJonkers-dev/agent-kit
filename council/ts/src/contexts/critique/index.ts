@@ -21,6 +21,8 @@ export type {
 } from './application/ports.js'
 export type { CriticIdentity, CriticOutcome, CriticRun } from './domain/critic.js'
 export type { ModelFamily, OrchestratorFamily } from './domain/family.js'
+export { gateIndexPath, gatePath } from './application/feature-gate.js'
+export { parseGateRecord, type FollowUp, type GateRecord, type OpenCriticalFollowUp } from './domain/feature-review.js'
 export type { RunFinding } from './domain/findings.js'
 export { CritiqueError, type CritiqueErrorCode, type Refusal, type RefusalReason } from './domain/outcomes.js'
 export type { CritiqueStage, Depth } from './domain/stage.js'
