@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 
+import { quotaReached } from '../domain/budget.js'
 import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { chooseDepth, type DepthChoice } from '../domain/depth.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
@@ -9,12 +10,13 @@ import {
   candidateClients,
   resolveRoster,
   stageRouting,
-  type ClientReadiness,
+  type ClientAvailability,
   type DroppedCritic,
   type Routing,
   type RosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
+import { FlowBudget } from './budget.js'
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { manifestPath, reportPath } from './locations.js'
@@ -34,13 +36,21 @@ interface PrepareInput {
   readonly comments: boolean
   /** The reference paths the caller names; undefined means the repository's decision docs. */
   readonly references: readonly string[] | undefined
+  /**
+   * The flow whose Vibe spend this run adds to; undefined means the first
+   * round's flow on a second round, and the artifact's own reference otherwise.
+   */
+  readonly flow: string | undefined
   /** The recorded first round, when this run is the second round of the same stage over the same artifact. */
   readonly previousRunDir: string | undefined
   /** The depth the caller names, which always wins over the signals; undefined lets the signals choose. */
   readonly depth: Depth | undefined
 }
 
-type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'>
+type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'> & {
+  /** A second round's first-round flow, so both rounds count against one Vibe cap. */
+  readonly previousFlow?: string
+}
 
 export interface PrepareResult {
   readonly status: 'ready'
@@ -83,6 +93,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   async run(raw: unknown): Promise<PrepareResult | Refusal> {
     const input = readInput(raw, 'prepare', (fields): PrepareInput => ({
       comments: fields.has('comments') ? fields.boolean('comments') : false,
+      flow: fields.optionalString('flow'),
       depth: fields.has('depth') ? fields.oneOf('depth', DEPTHS) : undefined,
       orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
       previousRunDir: fields.has('previous_run_dir') ? fields.string('previous_run_dir') : undefined,
@@ -104,6 +115,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     if (artifact.status === 'refused') return artifact
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage })
     if ('status' in round) return round
+    const { previousFlow, ...roundFields } = round
     const references =
       input.references === undefined
         ? await this.decisionDocs.resolve(repository.root)
@@ -128,14 +140,17 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
+      distinct_families: roster.distinct_families,
       depth_choice: choice,
       dropped: roster.dropped,
+      flow: input.flow ?? previousFlow ?? artifact.reference,
+      limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
       repo_root: repository.root,
       repository: repository.key,
-      ...round,
+      ...roundFields,
       run_dir: runDir,
       run_id: runId,
       stage,
@@ -151,7 +166,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
       packet_files: packetFiles.map((file) => file.path),
-      round: round.round,
+      round: roundFields.round,
       run_dir: runDir,
       run_id: runId,
       status: 'ready',
@@ -182,14 +197,22 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         `run ${previous.run_id} critiqued ${previous.artifact.reference} at the ${previous.stage} stage, not ${reference}`,
       )
     }
-    return { previous_run_id: previous.run_id, round: 2 }
+    return { previousFlow: previous.flow, previous_run_id: previous.run_id, round: 2 }
   }
 
-  /** Asks each client the stage could run, and that the family rules permit, whether it can run here. */
-  private async readiness(routing: Routing, request: RosterRequest): Promise<ReadonlyMap<string, ClientReadiness>> {
-    const checks = candidateClients(routing, request).map(
-      async ([name, client]) => [name, await clientReadiness(this.deps.clients, client)] as const,
-    )
+  /**
+   * Asks each client the stage could run, and that the family rules permit,
+   * whether it can run here, and holds an agy client that can to the day's
+   * Antigravity quota. Counting reads the ledger and launches nothing, so an
+   * agy that is not set up falls back without touching the counter.
+   */
+  private async readiness(routing: Routing, request: RosterRequest): Promise<ReadonlyMap<string, ClientAvailability>> {
+    const agyToday = await new FlowBudget(this.deps).agyInvocationsToday()
+    const checks = candidateClients(routing, request).map(async ([name, client]): Promise<readonly [string, ClientAvailability]> => {
+      const ready = await clientReadiness(this.deps.clients, client)
+      const quota = ready.ready && client.kind === 'agy' ? quotaReached(agyToday, routing.limits.antigravity_quota, request.stage) : undefined
+      return [name, quota === undefined ? ready : { detail: quota, ready: false, reason: 'quota' }]
+    })
     return new Map(await Promise.all(checks))
   }
 

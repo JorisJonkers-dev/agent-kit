@@ -179,7 +179,8 @@ describe('a second round', () => {
       .trim()
       .split('\n')
       .map((line) => (JSON.parse(line) as { round: number }).round)
-    expect(rounds).toEqual([1, 1, 1, 1, 1, 2, 2, 2, 2, 2])
+    // Per round: fan-out's invocation line, then record's run line and four finding lines.
+    expect(rounds).toEqual([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2])
   })
 
   it('is never followed by a third round', async () => {

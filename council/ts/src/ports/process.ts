@@ -10,6 +10,8 @@ export interface ProcessResult {
   readonly stdout: string
   readonly stderr: string
   readonly exitCode: number
+  /** True when the command outlived `timeoutMs` and was killed. */
+  readonly timedOut?: boolean
 }
 
 export interface ProcessPort {

@@ -1,14 +1,16 @@
 import { join } from 'node:path'
 
+import { budgetReached, quotaReached } from '../domain/budget.js'
 import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } from '../domain/critic.js'
 import { checkEvidence, type PacketText } from '../domain/evidence.js'
-import { readRunFinding, type RunFinding } from '../domain/findings.js'
+import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { parseManifest, type RunManifest } from '../domain/manifest.js'
 import { mergeFindings } from '../domain/merge.js'
-import { assemblePrompt } from '../domain/prompt.js'
+import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
+import { FlowBudget } from './budget.js'
 import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
 import { reviewWith, type CritiqueCommand, type CritiqueDeps } from './ports.js'
@@ -61,7 +63,10 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
     const packet = await this.readPacket(manifest)
-    const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)))
+    const budget = new FlowBudget(this.deps)
+    const spent = await budget.vibeSpend(manifest)
+    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)))
+    const outcomes = [...first, ...(await this.retries({ budget, manifest, tripwire }, first))]
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet))
     const result: FanOutResult = {
@@ -88,8 +93,53 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     )
   }
 
-  private async runCritic(manifest: RunManifest, tripwire: ReadOnlyTripwire, critic: RosterCritic) {
-    const criticDir = join(manifest.run_dir, 'critics', critic.critic_id)
+  /**
+   * Once the first wave has ended, retries every failed critic that has a
+   * fallback left, with the flow's spend and today's agy count read again,
+   * since the first wave (and any other session on this machine) has added
+   * to them.
+   */
+  private async retries(wave: Omit<Wave, 'spent'>, first: readonly CriticAttempt[]): Promise<readonly CriticAttempt[]> {
+    const { manifest } = wave
+    const spent = await wave.budget.vibeSpend(manifest)
+    const blocked: Blocked = {
+      agy: quotaReached(await wave.budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage) !== undefined,
+      vibe: budgetReached(spent, manifest.limits) !== undefined,
+    }
+    const retries = fallbackRetries(manifest, first, blocked)
+    return Promise.all(retries.map((retry) => this.attempt({ ...wave, spent }, retry.critic, retry.retryOf)))
+  }
+
+  /**
+   * Launches one critic, unless it is a Vibe critic and the flow has spent
+   * its cap: then it is recorded as a budget skip and never launched.
+   */
+  private async attempt(wave: Wave, critic: RosterCritic, retryOf?: string): Promise<CriticAttempt> {
+    const skip = critic.client_config.kind === 'vibe' ? budgetReached(wave.spent, wave.manifest.limits) : undefined
+    const criticDir = join(wave.manifest.run_dir, 'critics', critic.critic_id)
+    const prompt = await this.writePrompt(wave.manifest, critic, criticDir)
+    const retry = retryOf === undefined ? {} : { retry_of: retryOf }
+    if (skip !== undefined) {
+      const run: CriticRun = {
+        ...criticIdentity(critic),
+        ...promptFields(prompt, criticDir),
+        ...retry,
+        charged_usd: 0,
+        cost_usd: null,
+        detail: skip,
+        duration_ms: 0,
+        exit_code: null,
+        finding_count: 0,
+        status: 'budget-skip',
+      }
+      return { findings: [], run }
+    }
+    const attempt = await this.runCritic(wave.tripwire, critic, criticDir, prompt, retry)
+    await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind)
+    return attempt
+  }
+
+  private async writePrompt(manifest: RunManifest, critic: RosterCritic, criticDir: string): Promise<CriticPrompt> {
     const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
     const prompt = assemblePrompt(
       {
@@ -101,9 +151,19 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
       },
       manifest.packet_files,
     )
-    const promptPath = join(criticDir, 'prompt.md')
+    await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
+    return prompt
+  }
+
+  private async runCritic(
+    tripwire: ReadOnlyTripwire,
+    critic: RosterCritic,
+    criticDir: string,
+    prompt: CriticPrompt,
+    retry: Pick<CriticRun, 'retry_of'>,
+  ): Promise<CriticAttempt> {
+    const { prompt_path: promptPath } = promptFields(prompt, criticDir)
     const stdoutPath = join(criticDir, 'stdout.json')
-    await this.deps.files.writeText(promptPath, prompt.text)
 
     const packetDir = join(criticDir, 'packet')
     const armed = await tripwire.arm(packetDir)
@@ -124,19 +184,82 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const findings = outcome.status === 'ok' && violations.length === 0 ? outcome.findings : []
     const run: CriticRun = {
       ...criticIdentity(critic),
+      ...promptFields(prompt, criticDir),
+      ...retry,
+      charged_usd: report.chargedUsd,
       cost_usd: outcome.cost_usd,
       duration_ms: durationMs,
       exit_code: report.exitCode,
       export_path: report.exportPath,
       finding_count: findings.length,
-      lens_hashes: prompt.lens_hashes,
-      prompt_hashes: prompt.prompt_hashes,
-      prompt_path: promptPath,
       stdout_path: stdoutPath,
       ...criticStatus(outcome, violations),
     }
     return { findings, run }
   }
+}
+
+/** What one wave of critics shares: the run, its tripwire and budget, and the flow's spend before the wave. */
+interface Wave {
+  readonly manifest: RunManifest
+  readonly tripwire: ReadOnlyTripwire
+  readonly budget: FlowBudget
+  readonly spent: number
+}
+
+function promptFields(prompt: CriticPrompt, criticDir: string): Pick<CriticRun, 'prompt_path' | 'prompt_hashes' | 'lens_hashes'> {
+  return { lens_hashes: prompt.lens_hashes, prompt_hashes: prompt.prompt_hashes, prompt_path: join(criticDir, 'prompt.md') }
+}
+
+interface CriticAttempt {
+  readonly findings: readonly CriticFinding[]
+  readonly run: CriticRun
+}
+
+interface FallbackRetry {
+  readonly critic: RosterCritic
+  readonly retryOf: string
+}
+
+/**
+ * One retry per failed critic, through the first of its fallbacks whose
+ * family no critic that reviewed, and no earlier retry, already has (when the
+ * stage requires distinct families). A critic that violated read-only gets
+ * none: a client that wrote once may write again. A retry runs with the
+ * failed critic's role, lenses, cap and time limit, under its own critic id,
+ * so it has its own packet copy and tripwire, and it has no fallbacks of its
+ * own.
+ */
+/** Which kinds of client may not be launched now: agy past its quota, Vibe past the flow's cap. */
+type Blocked = Readonly<Record<RosterCritic['client_config']['kind'], boolean>>
+
+function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[], blocked: Blocked): readonly FallbackRetry[] {
+  const taken = new Set(first.filter((attempt) => attempt.run.status === 'ok').map((attempt) => attempt.run.family))
+  const retries: FallbackRetry[] = []
+  manifest.critics.forEach((critic, index) => {
+    if (first[index]?.run.status !== 'failed') return
+    const eligible = critic.fallbacks.filter(
+      (candidate) =>
+        !(candidate.client_config.kind === 'agy' && blocked.agy) &&
+        (!manifest.distinct_families || !taken.has(candidate.client_config.family)),
+    )
+    // Past the flow's Vibe cap a fallback that costs no money is preferred;
+    // with none, the first fallback is still named, as a budget skip.
+    const fallback = eligible.find((candidate) => !(candidate.client_config.kind === 'vibe' && blocked.vibe)) ?? eligible[0]
+    if (fallback === undefined) return
+    taken.add(fallback.client_config.family)
+    retries.push({
+      critic: {
+        ...critic,
+        client: fallback.client,
+        client_config: fallback.client_config,
+        critic_id: `${critic.critic_id}-retry-${fallback.client}`,
+        fallbacks: [],
+      },
+      retryOf: critic.critic_id,
+    })
+  })
+  return retries
 }
 
 /**

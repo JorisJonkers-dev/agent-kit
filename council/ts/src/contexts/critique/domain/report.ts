@@ -44,7 +44,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '',
       '## Critics',
       '',
-      ...run.critics.map((critic) => `- ${criticLine(critic, CHECKED_MAX_CHARS)}`),
+      ...run.critics.map((critic) => `- ${criticLine(run, critic, CHECKED_MAX_CHARS)}`),
       ...run.dropped.map(droppedLine),
       '',
       '## Accepted',
@@ -96,7 +96,7 @@ export function renderReport(run: AdjudicatedRun): string {
     ...run.critics.flatMap((critic) => [
       `### ${critic.critic_id}`,
       '',
-      `- ${criticLine(critic)}`,
+      `- ${criticLine(run, critic)}`,
       `- Role ${critic.role}, lenses ${critic.lenses.join(', ')}`,
       `- Exit code ${String(critic.exit_code)}, ${String(critic.duration_ms)} ms`,
       ...(critic.detail === undefined ? [] : [`- Detail: ${critic.detail}`]),
@@ -229,13 +229,22 @@ function verdictLine(run: AdjudicatedRun): string {
   return `Verdicts: accepted ${String(counts.accepted)}, rejected ${String(counts.rejected)}, needs-human ${String(counts['needs-human'])}, hint ${String(counts.hint)}`
 }
 
-function criticLine(critic: CriticRun, checkedMaxChars = Infinity): string {
+function criticLine(run: AdjudicatedRun, critic: CriticRun, checkedMaxChars = Infinity): string {
+  const who = `${critic.client} (${critic.model}, ${critic.family})`
+  if (critic.status === 'budget-skip') return `${who}: budget-skip: ${critic.detail ?? ''}${retryText(run, critic)}`
   const cost = critic.cost_usd === null ? 'cost unknown' : `$${critic.cost_usd.toFixed(4)}`
   const status =
     critic.status === 'ok' ? 'ok' : critic.status === 'violated-readonly' ? 'violated read-only' : `failed (${critic.failure ?? 'unknown'})`
   const checked =
     critic.no_findings_reason === undefined ? '' : ` (checked: ${clip(critic.no_findings_reason, checkedMaxChars)})`
-  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? '' : 's'}, ${cost}${checked}`
+  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? '' : 's'}, ${cost}${retryText(run, critic)}${checked}`
+}
+
+/** A fallback retry names the critic it stands in for, and why that one failed. */
+function retryText(run: AdjudicatedRun, critic: CriticRun): string {
+  if (critic.retry_of === undefined) return ''
+  const failed = run.critics.find((other) => other.critic_id === critic.retry_of)
+  return `, fallback for ${critic.retry_of} (${failed?.failure ?? 'failed'})`
 }
 
 function clip(text: string, maxChars: number): string {

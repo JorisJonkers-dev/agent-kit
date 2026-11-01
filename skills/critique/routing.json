@@ -29,6 +29,12 @@
       "family": "deepseek"
     }
   },
+  "budget": { "vibe_flow_cap_usd": 5 },
+  "antigravity_quota": {
+    "daily_cap": 20,
+    "reserve_threshold": 10,
+    "reserved_stages": ["spec", "feature-review"]
+  },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
     "agy-gemini-flash-high": ["vibe-glm"]

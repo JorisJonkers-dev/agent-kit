@@ -45,6 +45,11 @@ export interface CriticReport {
   /** The file the client read cost and effective config from. */
   readonly exportPath: string
   readonly outcome: CriticOutcome
+  /**
+   * What the run counts against the flow's Vibe cap: the client's own best
+   * estimate of its spend, never less than it reported.
+   */
+  readonly chargedUsd: number
 }
 
 /** One critic client: launches a critic in its packet and reads its review. */

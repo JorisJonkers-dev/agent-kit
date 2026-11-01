@@ -1,3 +1,4 @@
+import { readLimits, type CritiqueLimits } from './budget.js'
 import { NO_DEPTH_SIGNALS, readDepthSignalsConfig, type DepthSignalsConfig } from './depth.js'
 import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
@@ -32,6 +33,12 @@ export const CLIENT_KINDS = ['vibe', 'agy'] as const satisfies readonly CriticCl
 /** Whether a critic client can run on this machine now; `detail` says why not, in setup's words where setup has them. */
 export type ClientReadiness = { readonly ready: true } | { readonly ready: false; readonly detail: string }
 
+/**
+ * Whether a client may run in this run: ready, and within its quota. A
+ * client past the Antigravity quota is set up but may not be launched today.
+ */
+export type ClientAvailability = ClientReadiness | { readonly ready: false; readonly detail: string; readonly reason: 'quota' }
+
 export interface RosterSlot {
   readonly client: string
   readonly role: string
@@ -56,15 +63,29 @@ export interface Routing {
   /** Per client, the clients tried in order when it may not run. */
   readonly fallbacks: Readonly<Record<string, readonly string[]>>
   readonly stages: Readonly<Partial<Record<CritiqueStage, StageRouting>>>
+  /** The per-flow Vibe cap and the Antigravity quota. */
+  readonly limits: CritiqueLimits
+}
+
+/** A client a critic may be retried through. */
+export interface RosterFallback {
+  readonly client: string
+  readonly client_config: CriticClient
 }
 
 /** A critic resolved for one run: the slot plus the client it runs through. */
 export interface RosterCritic extends RosterSlot {
   readonly critic_id: string
   readonly client_config: CriticClient
+  /**
+   * The slot's other clients, in routing order, that the allowlist permits,
+   * the orchestrator does not share and that are ready here: what fan-out
+   * may retry a failed critic through. A retry has none.
+   */
+  readonly fallbacks: readonly RosterFallback[]
 }
 
-export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable'] as const
+export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable', 'quota'] as const
 
 /** A routed critic that does not run, and the fallback critic that runs in its slot, if one could. */
 export interface DroppedCritic {
@@ -81,6 +102,7 @@ export interface DroppedCritic {
 
 export interface Roster {
   readonly depth: Depth
+  readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
 }
@@ -90,6 +112,7 @@ export function parseRouting(text: string): Routing {
   return {
     clients: file.entries('clients', readCriticClient),
     fallbacks: file.has('fallbacks') ? file.stringLists('fallbacks') : {},
+    limits: readLimits(file),
     stages: file.entries('stages', (stage, name) => ({
       base: stage.list('base', readRosterSlot),
       deep: stage.has('deep') ? stage.list('deep', readRosterSlot) : [],
@@ -137,6 +160,10 @@ export function readRosterCritic(fields: JsonFields): RosterCritic {
     ...readRosterSlot(fields),
     client_config: readCriticClient(fields.object('client_config')),
     critic_id: fields.string('critic_id'),
+    fallbacks: fields.list('fallbacks', (fallback) => ({
+      client: fallback.string('client'),
+      client_config: readCriticClient(fallback.object('client_config')),
+    })),
   }
 }
 
@@ -186,7 +213,7 @@ export function candidateClients(routing: Routing, request: RosterRequest): read
 export function resolveRoster(
   routing: Routing,
   request: RosterRequest,
-  readiness: ReadonlyMap<string, ClientReadiness> = new Map(),
+  readiness: ReadonlyMap<string, ClientAvailability> = new Map(),
 ): Roster {
   const stage = stageRouting(routing, request)
   const critics: RosterCritic[] = []
@@ -199,7 +226,8 @@ export function resolveRoster(
         : undefined)
     if (reason !== undefined) return { reason }
     const ready = readiness.get(name)
-    return ready?.ready === false ? { detail: ready.detail, reason: 'unavailable' } : undefined
+    if (ready?.ready !== false) return undefined
+    return { detail: ready.detail, reason: 'reason' in ready ? ready.reason : 'unavailable' }
   }
   for (const { slot, deep } of slotsAt(stage, request.depth)) {
     const primary = clientNamed(routing, request, slot.client)
@@ -207,10 +235,23 @@ export function resolveRoster(
     const name = slotCandidates(routing, slot.client).find((candidate) =>
       refusal(candidate, clientNamed(routing, request, candidate)) === undefined,
     )
+    const fallbacks = slotCandidates(routing, slot.client)
+      .filter((candidate) => candidate !== name)
+      .map((candidate) => ({ client: candidate, client_config: clientNamed(routing, request, candidate) }))
+      .filter(
+        (fallback) =>
+          familyReason(fallback.client_config.family, request) === undefined && readiness.get(fallback.client)?.ready !== false,
+      )
     const chosen =
       name === undefined
         ? undefined
-        : { ...slot, client: name, client_config: clientNamed(routing, request, name), critic_id: `c${String(critics.length + 1)}-${name}` }
+        : {
+            ...slot,
+            client: name,
+            client_config: clientNamed(routing, request, name),
+            critic_id: `c${String(critics.length + 1)}-${name}`,
+            fallbacks,
+          }
     if (primaryRefusal !== undefined) {
       dropped.push({
         client: slot.client,
@@ -222,7 +263,7 @@ export function resolveRoster(
     }
     if (chosen !== undefined) critics.push(chosen)
   }
-  return { critics, depth: request.depth, dropped }
+  return { critics, depth: request.depth, distinct_families: stage.distinct_families, dropped }
 }
 
 function slotsAt(stage: StageRouting, depth: Depth): readonly { readonly slot: RosterSlot; readonly deep?: true }[] {
