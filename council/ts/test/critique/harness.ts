@@ -79,17 +79,27 @@ export interface VibeScript {
   readonly stderr?: string
   readonly exitCode: number
   readonly exportJson?: unknown
-  /** How long the critic takes, so a test can see critics overlap. */
-  readonly delayMs?: number
+  /** Do not return until this many critics have started, so a test can see critics overlap. */
+  readonly waitForStarts?: number
 }
 
 /** Every critic launch and return, in the order they happened, across all critic clients. */
-export type LaunchLog = string[]
+export class LaunchLog {
+  readonly events: string[] = []
 
-async function played(log: LaunchLog, name: string, delayMs = 0): Promise<void> {
-  log.push(`start ${name}`)
-  await new Promise((resolve) => setTimeout(resolve, delayMs))
-  log.push(`end ${name}`)
+  /**
+   * Records a critic's start, waits until `waitForStarts` critics have
+   * started (for at most two seconds, so critics run one after another make
+   * the test fail rather than hang), then records its end.
+   */
+  async play(name: string, waitForStarts = 0): Promise<void> {
+    this.events.push(`start ${name}`)
+    const deadline = Date.now() + 2000
+    while (this.events.filter((event) => event.startsWith('start')).length < waitForStarts && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+    this.events.push(`end ${name}`)
+  }
 }
 
 /** Plays canned Vibe runs: writes export.json into --output-dir and returns stdout and exit code. */
@@ -98,14 +108,14 @@ export class FakeVibeProcess implements ProcessPort {
 
   constructor(
     private readonly scripts: VibeScript[],
-    private readonly log: LaunchLog = [],
+    private readonly log: LaunchLog = new LaunchLog(),
   ) {}
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     this.commands.push(command)
     const script = this.scripts.shift()
     if (script === undefined) throw new Error('unexpected process launch')
-    await played(this.log, 'vibe', script.delayMs)
+    await this.log.play('vibe', script.waitForStarts)
     const outputDirIndex = command.args.indexOf('--output-dir')
     const outputDir = command.args[outputDirIndex + 1]
     if (script.exportJson !== undefined && outputDir !== undefined) {
@@ -120,7 +130,8 @@ export interface AgyScript {
   readonly stdout: string
   readonly stderr?: string
   readonly exitCode?: number
-  readonly delayMs?: number
+  /** Do not return until this many critics have started. */
+  readonly waitForStarts?: number
 }
 
 /**
@@ -133,7 +144,7 @@ export class FakeAgyProcess implements ProcessPort {
   constructor(
     private readonly scripts: AgyScript[],
     private readonly signedIn: boolean | 'no-security-tool',
-    private readonly log: LaunchLog = [],
+    private readonly log: LaunchLog = new LaunchLog(),
   ) {}
 
   /** The critic launches only, without the readiness checks. */
@@ -151,7 +162,7 @@ export class FakeAgyProcess implements ProcessPort {
     }
     const script = this.scripts.shift()
     if (script === undefined) throw new Error('unexpected agy launch')
-    await played(this.log, 'agy', script.delayMs)
+    await this.log.play('agy', script.waitForStarts)
     return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }
@@ -300,7 +311,7 @@ export async function harness(
   await mkdir(bin, { recursive: true })
   if (options.agyOnPath ?? true) await writeFile(join(bin, 'agy'), '#!/bin/sh\n')
   const git = new FakeGit(repo, options.remotes ?? [AGENT_KIT_REMOTE])
-  const launches: LaunchLog = []
+  const launches = new LaunchLog()
   const process = new FakeVibeProcess(options.scripts ?? [], launches)
   const agy = new FakeAgyProcess(options.agyScripts ?? [], options.agySignedIn ?? true, launches)
   const files = new NodeCritiqueFiles()

@@ -49,14 +49,14 @@ async function prepared(stage: Stage): Promise<{ h: Harness; run: PrepareResult 
 async function bothFamilies(
   vibeFindings: readonly unknown[],
   agyFound: readonly unknown[],
-  delays: { readonly vibe?: number; readonly agy?: number } = {},
+  waitForStarts = 0,
 ): Promise<{ h: Harness; run: PrepareResult; result: FanOutResult }> {
   const { h, run } = await prepared({
-    agy: [{ ...agyFindings({ findings: agyFound, no_findings_reason: 'Walked every failure path.' }), delayMs: delays.agy ?? 0 }],
+    agy: [{ ...agyFindings({ findings: agyFound, no_findings_reason: 'Walked every failure path.' }), waitForStarts }],
     families: ['mistral', 'google'],
     vibe: [
       {
-        delayMs: delays.vibe ?? 0,
+        waitForStarts,
         exitCode: 0,
         exportJson: isolatedExport(),
         stdout: vibeStdout(fenced({ findings: vibeFindings, no_findings_reason: 'Compared every story.' })),
@@ -124,9 +124,9 @@ describe('the spec roster across families', () => {
 
 describe('fan-out across families', () => {
   it('starts both critics before either finishes', async () => {
-    const { h } = await bothFamilies([finding()], [], { agy: 40, vibe: 40 })
+    const { h } = await bothFamilies([finding()], [], 2)
 
-    expect(h.launches.slice(0, 2).sort()).toEqual(['start agy', 'start vibe'])
+    expect(h.launches.events.slice(0, 2).sort()).toEqual(['start agy', 'start vibe'])
   })
 
   it("never shows a critic another critic's output, the critics' identities or an earlier session", async () => {
@@ -224,6 +224,20 @@ describe('dissent across families', () => {
     const report = await readFile(report_path, 'utf8')
     expect(report).toContain('- F1: CONTEXT.md allows a manual run too.')
     expect(report).toContain(`Raised by: ${VIBE}, ${AGY} (mistral, google)`)
+  })
+
+  it('rejects a merged finding for one fabricated quote and keeps it out of Dissent', async () => {
+    const invented = { file: 'artifact/spec.md', kind: 'quote', value: 'Widgets are frobnicated hourly.' }
+    const { h, result, run } = await bothFamilies(
+      [finding({ severity: 'critical' })],
+      [finding({ evidence: [...(finding().evidence as unknown[]), invented], id: 'G1', severity: 'critical' })],
+    )
+
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(result.findings).toHaveLength(1)
+    expect(result.findings[0]).toMatchObject({ pre_verdict: { reason_code: 'fabricated-evidence', verdict: 'rejected' }, raised_by: [VIBE, AGY] })
+    expect(summary.slice(summary.indexOf('## Dissent'), summary.indexOf('## Report'))).toBe('## Dissent\n\nnone\n\n')
   })
 
   it('names the families that agree on an accepted finding', async () => {

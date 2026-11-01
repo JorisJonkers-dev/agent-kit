@@ -1118,6 +1118,10 @@ agy 1.4.11 on macOS, in a scratch directory outside any trusted workspace.
   more raised the finding (`(raised by mistral and google)`), and the report
   lists them after the critic ids. Dissent was already computed by record
   (rejected and raised by two or more families, or rejected and critical);
-  merging is what lets two families raise one finding. Whether a
-  `fabricated-evidence` pre-rejection should be kept out of Dissent is left
-  to #170's verdict rules.
+  merging is what lets two families raise one finding. A rejection with the
+  reason code `fabricated-evidence` is never dissent: the evidence does not
+  exist, and no orchestrator ruled against it. Because merging runs before
+  the evidence checks, one fabricated quote from either critic rejects the
+  merged finding.
+- **Minor lines after merging.** A merged minor finding appears on the minor
+  line of every critic that raised it.

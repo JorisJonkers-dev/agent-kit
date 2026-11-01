@@ -1016,7 +1016,7 @@ function familiesOf(run, finding) {
   return [...new Set(families)];
 }
 function isDissent(run, finding) {
-  return finding.verdict.verdict === "rejected" && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
+  return finding.verdict.verdict === "rejected" && finding.verdict.reason_code !== "fabricated-evidence" && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
 }
 
 // src/contexts/critique/domain/ledger.ts
