@@ -19,9 +19,8 @@
 #                                          setup script (docs/CLOUD.md)
 #   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /
 #                                          install-agents.sh install wrote,
-#                                          then purge retired knowledge hooks
-#                                          and exit -- does not touch anything
-#                                          this script itself manages
+#                                          then purge retired knowledge hooks,
+#                                          remove the critique hooks and exit
 #
 # Run outside an agent-kit checkout (`curl | bash`), it fetches the
 # published kit bundle and re-runs the copy inside it.
@@ -68,7 +67,7 @@ while [ "$#" -gt 0 ]; do
     --no-prompt) PROMPT=0 ;;
     --cloud) CLOUD=1; DO_PROFILES=0 ;;
     --uninstall) UNINSTALL=1 ;;
-    --help|-h) sed -n '2,33p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
   shift
@@ -896,7 +895,8 @@ CLAUDE_HOOKS_DIR="${CLAUDE_HOME}/hooks"
 CODEX_HOOKS_DIR="${CODEX_HOME}/hooks"
 
 # -----------------------------------------------------------------
-# The estate ships no hand-authored agent hooks. This purges the three
+# The only agent hooks the estate ships are the critique hooks below
+# (ADR-0002). This purges the three
 # retired knowledge-recall hook groups (edit recall, git-commit
 # capture, session digest) from Claude settings.json by COMMAND
 # BASENAME, so an operator's own hooks survive, and removes the now-dead
@@ -1019,12 +1019,157 @@ PURGE
 }
 
 # -----------------------------------------------------------------
+# The critique hooks (docs/adr/0002-exactly-three-critique-hooks.md):
+# merged by NAME into Claude Code's settings.json and Codex's
+# hooks.json, so the operator's own hooks survive, and removed by
+# --uninstall. Each command is a fixed path into the agent home's
+# critique skill, never a version, so an upgrade leaves the definition
+# Codex trusted unchanged. Codex still runs them only once the owner
+# trusts them in /hooks; /flow setup checks that.
+# -----------------------------------------------------------------
+_critique_hooks() {
+  local mode="$1" home="$2" file="$3" label="$4" spec="$5" names="$6"
+  local path="${home}/${file}" out rc name
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn "python3 is not on PATH; cannot merge the critique hooks into ${path}"
+    return 0
+  fi
+  if [ "${mode}" = install ] && [ "${CHECK_ONLY}" != 1 ]; then
+    for name in ${names}; do
+      if [ ! -f "${home}/skills/critique/hooks/${name}.sh" ]; then
+        fail "critique hooks: ${home}/skills/critique/hooks/${name}.sh is missing; not wired into ${path}"
+        return 0
+      fi
+    done
+  fi
+  out="$(mktemp)"
+  AK_HOOKS_FILE="${path}" AK_HOOKS_HOME="${home}" AK_HOOKS_MODE="${mode}" \
+    AK_CHECK_ONLY="${CHECK_ONLY}" AK_HOOKS_SPEC="${spec}" AK_HOOKS_TIMEOUT=5 \
+    python3 - >"${out}" <<'CRITIQUE_HOOKS'
+import json
+import os
+import pathlib
+import sys
+
+path = pathlib.Path(os.environ["AK_HOOKS_FILE"])
+home = os.environ["AK_HOOKS_HOME"]
+mode = os.environ["AK_HOOKS_MODE"]
+check_only = os.environ["AK_CHECK_ONLY"] == "1"
+spec = json.loads(os.environ["AK_HOOKS_SPEC"])
+timeout = int(os.environ["AK_HOOKS_TIMEOUT"])
+
+
+def names(handler, name):
+    command = handler.get("command", "") if isinstance(handler, dict) else ""
+    if not isinstance(command, str):
+        return False
+    return any(token.rsplit("/", 1)[-1] == name + ".sh" for token in command.replace('"', " ").split())
+
+
+def wanted(name, matcher):
+    script = "%s/skills/critique/hooks/%s.sh" % (home, name)
+    group = {"matcher": matcher} if matcher else {}
+    group["hooks"] = [{"type": "command", "command": '/bin/sh "%s"' % script, "timeout": timeout}]
+    return group
+
+
+text = path.read_text() if path.exists() else None
+if text is None and mode == "remove":
+    print("unchanged")
+    raise SystemExit(0)
+try:
+    data = json.loads(text or "{}")
+except json.JSONDecodeError:
+    print("%s is not valid JSON" % path, file=sys.stderr)
+    raise SystemExit(2)
+if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+    print("%s has no hooks mapping setup can merge into" % path, file=sys.stderr)
+    raise SystemExit(2)
+before = json.loads(json.dumps(data))
+hooks = data.setdefault("hooks", {})
+
+for name, event, matcher in spec:
+    want = wanted(name, matcher) if mode == "install" else None
+    placed = False
+    for current in list(hooks):
+        groups = hooks[current]
+        if not isinstance(groups, list):
+            continue
+        kept = []
+        for group in groups:
+            handlers = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(handlers, list) or not any(names(h, name) for h in handlers):
+                kept.append(group)
+                continue
+            others = [h for h in handlers if not names(h, name)]
+            if want is not None and not placed and current == event and not others:
+                kept.append(want)
+                placed = True
+            elif others:
+                kept.append(dict(group, hooks=others))
+        if kept or not groups:
+            hooks[current] = kept
+        else:
+            hooks.pop(current)
+    if want is not None and not placed:
+        hooks.setdefault(event, []).append(want)
+if not hooks and before.get("hooks") != {}:
+    data.pop("hooks", None)
+
+if data == before:
+    print("unchanged")
+    raise SystemExit(0)
+if check_only:
+    print("would-change")
+    raise SystemExit(0)
+path.parent.mkdir(parents=True, exist_ok=True)
+# Written in place, so a profile's settings.json symlink stays a symlink.
+path.write_text(json.dumps(data, indent=2) + "\n")
+
+back = json.loads(path.read_text()).get("hooks", {})
+for name, event, matcher in spec:
+    found = [
+        (current, group)
+        for current, groups in back.items()
+        if isinstance(groups, list)
+        for group in groups
+        if isinstance(group, dict) and any(names(h, name) for h in group.get("hooks", []))
+    ]
+    expected = [(event, wanted(name, matcher))] if mode == "install" else []
+    if found != expected:
+        print("%s: %s is wired as %r, not %r" % (path, name, found, expected), file=sys.stderr)
+        raise SystemExit(1)
+print("changed")
+CRITIQUE_HOOKS
+  rc=$?
+  name="$(cat "${out}")"
+  rm -f "${out}"
+  out="${name}"
+  case "${rc}:${mode}:${out}" in
+    0:install:changed) ok "critique hooks installed in ${label} (${path})" ;;
+    0:remove:changed) ok "critique hooks removed from ${label} (${path})" ;;
+    0:install:unchanged) ok "critique hooks already installed in ${label} (${path})" ;;
+    0:remove:unchanged) ok "no critique hooks in ${label} (${path})" ;;
+    0:install:would-change) log "would install the critique hooks in ${label} (${path})" ;;
+    0:remove:would-change) log "would remove the critique hooks from ${label} (${path})" ;;
+    2:*) warn "critique hooks: ${path} left untouched; fix it, then re-run setup" ;;
+    *) fail "critique hooks: merging into ${path} failed" ;;
+  esac
+}
+
+critique_hooks() {
+  _critique_hooks "$1" "${CLAUDE_HOME}" settings.json 'Claude Code' '[["critique-commit-gate","PreToolUse","Bash"],["critique-pr-gate","PreToolUse","Bash"],["critique-session-start","SessionStart",null]]' 'critique-commit-gate critique-pr-gate critique-session-start'
+  _critique_hooks "$1" "${CODEX_HOME}" hooks.json 'Codex' '[["critique-commit-gate","PreToolUse","Bash"],["critique-pr-gate","PreToolUse","Bash"],["critique-session-start","SessionStart",null]]' 'critique-commit-gate critique-pr-gate critique-session-start'
+}
+
+# -----------------------------------------------------------------
 # --uninstall: remove every file the retired install.sh /
 # install-agents.sh wrote (base skills, Spec Kit commands/skills, the
-# knowledge-system version manifest), then purge retired hooks and
-# exit. A normal run removes their MCP entries (converge_mcp). It does
-# not touch anything this script itself manages -- a
-# re-run with no flags reinstalls the current local_skills afterward.
+# knowledge-system version manifest), then purge retired hooks, remove
+# the critique hooks from Claude Code and Codex, and exit. A normal run
+# removes their MCP entries (converge_mcp). Beyond the critique hooks it
+# does not touch anything this script itself manages -- a re-run with no
+# flags reinstalls the current local_skills and the hooks afterward.
 # -----------------------------------------------------------------
 if [ "${UNINSTALL}" = 1 ]; then
   log "uninstalling files from a previous install.sh / install-agents.sh"
@@ -1154,6 +1299,7 @@ if [ "${UNINSTALL}" = 1 ]; then
   legacy_remove "${CODEX_HOME}/skills/council/schemas/worker-result.schema.json"
   legacy_remove "${CODEX_HOME}/.knowledge-system-version"
   purge_retired_hooks
+  critique_hooks remove
   log "uninstall complete: ${failures} failure(s), ${warnings} warning(s)"
   [ "${failures}" = 0 ]
   exit $?
@@ -4017,11 +4163,14 @@ else
 fi
 
 # -----------------------------------------------------------------
-# 9. Retired hooks: actually purge them (see purge_retired_hooks above),
-# not just report them. A machine set up by the retired install.sh /
-# install-agents.sh is exactly the one that still has these.
+# 9. Agent hooks. Purge the retired ones (see purge_retired_hooks above),
+# not just report them: a machine set up by the retired install.sh /
+# install-agents.sh is exactly the one that still has these. Then merge
+# in the critique hooks, after step 7 copied the scripts they run.
 # -----------------------------------------------------------------
 purge_retired_hooks
+log "critique hooks"
+critique_hooks install
 
 if [ "${CLOUD}" = 1 ]; then
   cloud_finish
