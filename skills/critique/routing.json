@@ -94,6 +94,44 @@
         ],
         "labels": ["risk:high"]
       }
+    },
+    "feature-review": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "feature-reviewer",
+          "lenses": ["integration"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        },
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "feature-reviewer",
+          "lenses": ["failure-modes"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-glm",
+          "role": "feature-reviewer",
+          "lenses": ["operability"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        },
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "feature-reviewer",
+          "lenses": ["simplicity"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        }
+      ],
+      "depth_signals": {
+        "labels": ["risk:high"]
+      }
     }
   }
 }
