@@ -203,10 +203,10 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/agent-session-bootstrap/SKILL.md
-        sha256: 98660ff808936948a030f708184a1253bef8a923855e37df833a9224eac4aa21
+        sha256: 0895211baab32e91ca10b8d6fa9f3154887c4260da800a51ae25daf0ace2867d
       - agent: claude
         path: .claude/skills/agent-session-bootstrap/SKILL.md
-        sha256: 98660ff808936948a030f708184a1253bef8a923855e37df833a9224eac4aa21
+        sha256: 0895211baab32e91ca10b8d6fa9f3154887c4260da800a51ae25daf0ace2867d
   - name: council-amend
     supported_agents: [codex, claude]
     targets:
