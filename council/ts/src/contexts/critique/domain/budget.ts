@@ -101,9 +101,29 @@ export function flowSpend(lines: readonly LoggedInvocation[], repository: string
     .reduce((total, line) => total + line.charged_usd, 0)
 }
 
+/** A feature's Vibe spend under one of its flow keys. */
+export interface FlowSpend {
+  readonly flow: string
+  readonly spent_usd: number
+}
+
+/** What each of a feature's flow keys was charged, in the order of `flows`: the spec's flow, then its draft's. */
+export function spendByFlow(lines: readonly LoggedInvocation[], repository: string, flows: readonly string[]): readonly FlowSpend[] {
+  return flows.map((flow) => ({ flow, spent_usd: flowSpend(lines, repository, flow) }))
+}
+
+export function totalSpend(spends: readonly FlowSpend[]): number {
+  return spends.reduce((total, spend) => total + spend.spent_usd, 0)
+}
+
+/** The UTC day of `now`, as `YYYY-MM-DD`: the day the Antigravity quota counts. */
+export function utcDay(now: Date): string {
+  return now.toISOString().slice(0, 10)
+}
+
 /** agy launches on this machine on the UTC day of `now`. */
 export function agyInvocationsOn(lines: readonly LoggedInvocation[], now: Date): number {
-  const day = now.toISOString().slice(0, 10)
+  const day = utcDay(now)
   return lines.filter((line) => line.kind === 'agy' && line.recorded_at.slice(0, 10) === day).length
 }
 

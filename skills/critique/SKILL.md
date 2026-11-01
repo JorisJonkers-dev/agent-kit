@@ -6,7 +6,8 @@ description: Shared files of the critique pipeline (the bundled runner, prompts,
 # critique
 
 This directory is what the critique stage skills run on. It does nothing on
-its own: start a critique with the stage skill (`/critique-spec` after
+its own: `/flow` says which stage is due and runs it, or start a critique
+with the stage skill (`/critique-spec` after
 `/to-spec` produced or changed a spec, `/check-tickets` after `/to-tickets`
 and before the first `/implement`, `/review-ticket` after a ticket's
 `/code-review` and before its commit), which tells you how to drive it.
@@ -15,6 +16,7 @@ and before the first `/implement`, `/review-ticket` after a ticket's
 
 | path | what it is |
 |---|---|
+| `README.md` | the owner's guide to the pipeline: what runs when, depth, budget, the gates, the kill switch and routing; `/flow explain` reads it |
 | `critique.mjs` | the runner, one self-contained Node file built from `council/ts` |
 | `routing.json` | the default routing: which critic clients, roles and lenses each stage runs at base and deep depth, with their caps and depth signals, and risk triage's risk paths, size threshold and triage model |
 | `prompts/` | the shared preamble and the output contract every critic prompt carries, and the triage model's yes/no prompt |
@@ -43,7 +45,8 @@ deterministic ticket checker; while it finds a dependency cycle it prints
 is `risky` or `low-risk` for ticket review, and names the signal that
 decided it. `state` computes one feature's flow state (keyed by its spec, or
 by a draft name before `/to-spec`) and returns the single next step: a
-critique stage to run, or the Pocock command for the owner to type.
+critique stage to run, or the Pocock command for the owner to type; `/flow`
+drives it.
 
 The Vibe critic clients run through read-only `critic-<model>` agents that
 agent-kit setup installs into the shared Vibe home (`~/.vibe/agents/`).

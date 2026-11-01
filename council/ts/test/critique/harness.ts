@@ -868,6 +868,17 @@ export interface SyntheticRun {
   readonly recorded_at?: string
 }
 
+/** One critic launch as fan-out appends it to the ledger. */
+export interface SyntheticInvocation {
+  readonly kind: 'vibe' | 'agy'
+  readonly flow: string
+  /** What the launch was charged; 0 unless named, as for every agy launch. */
+  readonly charged_usd?: number
+  readonly recorded_at?: string
+  readonly repository?: string
+  readonly stage?: string
+}
+
 /**
  * Builds a user ledger the way record writes one: per run, one `run` line
  * per critic, then one `finding` line per finding, metadata only.
@@ -934,6 +945,32 @@ export class SyntheticLedger {
         severity: 'major',
         verdict: finding.verdict,
       })
+    })
+    return this
+  }
+
+  /**
+   * Adds one critic launch the way fan-out logs it. Recorded an hour before
+   * the harness clock unless named, so it counts as today's.
+   */
+  invocation(launch: SyntheticInvocation): this {
+    this.count += 1
+    const client = launch.kind === 'vibe' ? 'vibe-mistral-large' : 'agy-gemini-flash-high'
+    this.lines.push({
+      charged_usd: launch.charged_usd ?? 0,
+      client,
+      critic_id: `c1-${client}`,
+      family: LEDGER_CLIENTS[client]?.family,
+      flow: launch.flow,
+      kind: launch.kind,
+      model: LEDGER_CLIENTS[client]?.model,
+      recorded_at: launch.recorded_at ?? '2026-10-30T11:00:00.000Z',
+      repository: launch.repository ?? 'github.com/jorisjonkers-dev/agent-kit',
+      round: 1,
+      run_id: `run-${String(this.count)}`,
+      stage: launch.stage ?? 'spec',
+      status: 'ok',
+      type: 'invocation',
     })
     return this
   }
