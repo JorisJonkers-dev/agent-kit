@@ -537,6 +537,700 @@ var AllowCommand = class {
   }
 };
 
+// src/contexts/critique/domain/stage.ts
+var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
+var CODE_STAGES = ["ticket-review", "feature-review"];
+function isCodeStage(stage) {
+  return CODE_STAGES.includes(stage);
+}
+var DEPTHS = ["base", "deep"];
+var SECOND_ROUND_AFTER_CRITICAL = 3;
+
+// src/contexts/critique/domain/budget.ts
+var DEFAULT_LIMITS = {
+  antigravity_quota: { daily_cap: 20, reserve_threshold: 10, reserved_stages: ["spec", "feature-review"] },
+  budget: { vibe_flow_cap_usd: 5 }
+};
+function readLimits(file) {
+  const quota = file.has("antigravity_quota") ? file.object("antigravity_quota") : void 0;
+  return {
+    antigravity_quota: quota === void 0 ? DEFAULT_LIMITS.antigravity_quota : {
+      daily_cap: quota.number("daily_cap"),
+      reserve_threshold: quota.number("reserve_threshold"),
+      reserved_stages: quota.oneOfList("reserved_stages", CRITIQUE_STAGES)
+    },
+    budget: file.has("budget") ? { vibe_flow_cap_usd: file.object("budget").number("vibe_flow_cap_usd") } : DEFAULT_LIMITS.budget
+  };
+}
+function invocationLines(ledger) {
+  return ledger.split("\n").flatMap((text) => {
+    try {
+      const line = JsonFields.parse(text);
+      if (!line.has("type") || line.string("type") !== "invocation") return [];
+      return [
+        {
+          charged_usd: line.number("charged_usd"),
+          flow: line.string("flow"),
+          kind: line.oneOf("kind", ["vibe", "agy"]),
+          recorded_at: line.string("recorded_at"),
+          repository: line.string("repository")
+        }
+      ];
+    } catch {
+      return [];
+    }
+  });
+}
+function flowSpend(lines, repository, flow) {
+  return lines.filter((line) => line.kind === "vibe" && line.repository === repository && line.flow === flow).reduce((total, line) => total + line.charged_usd, 0);
+}
+function spendByFlow(lines, repository, flows) {
+  return flows.map((flow) => ({ flow, spent_usd: flowSpend(lines, repository, flow) }));
+}
+function totalSpend(spends) {
+  return spends.reduce((total, spend) => total + spend.spent_usd, 0);
+}
+function utcDay(now) {
+  return now.toISOString().slice(0, 10);
+}
+function agyInvocationsOn(lines, now) {
+  const day = utcDay(now);
+  return lines.filter((line) => line.kind === "agy" && line.recorded_at.slice(0, 10) === day).length;
+}
+function budgetReached(spend, limits) {
+  const cap = limits.budget.vibe_flow_cap_usd;
+  return spend >= cap ? `the flow's Vibe spend $${spend.toFixed(4)} has reached its $${cap.toFixed(2)} cap` : void 0;
+}
+function quotaReached(count, quota, stage) {
+  if (count >= quota.daily_cap) {
+    return `antigravity: ${String(count)} invocations today have reached the daily cap of ${String(quota.daily_cap)}`;
+  }
+  if (count >= quota.reserve_threshold && !quota.reserved_stages.includes(stage)) {
+    return `antigravity: ${String(count)} invocations today have reached the reserve threshold of ${String(quota.reserve_threshold)}; the rest is kept for ${quota.reserved_stages.join(" and ")}`;
+  }
+  return void 0;
+}
+
+// src/contexts/critique/domain/budget-view.ts
+function stageOutlooks(routing, draw) {
+  return CRITIQUE_STAGES.flatMap((stage) => {
+    const charged = stage === "decisions" ? draw.draft : draw.spec;
+    const stageRoutes = routing.stages[stage];
+    if (stageRoutes === void 0) return [];
+    const held = [
+      ...stageRoutes.base.map((slot) => ({ slot })),
+      ...stageRoutes.deep.map((slot) => ({ deep: true, slot }))
+    ].filter(({ slot }) => routing.clients[slot.client]?.kind === "agy");
+    const quota = held.length === 0 ? void 0 : quotaReached(draw.agyToday, routing.limits.antigravity_quota, stage);
+    return [
+      {
+        antigravity: quota ?? null,
+        falls_back: quota === void 0 ? [] : held.map(({ slot, deep }) => slotFallback(routing, slot, deep)),
+        flow: charged?.flow ?? null,
+        stage,
+        vibe: budgetReached(charged?.spent_usd ?? 0, routing.limits) ?? null
+      }
+    ];
+  });
+}
+function slotFallback(routing, slot, deep) {
+  const to = (routing.fallbacks[slot.client] ?? []).find((name) => routing.clients[name]?.kind !== "agy");
+  return { client: slot.client, to: to ?? null, ...deep === void 0 ? {} : { deep } };
+}
+
+// src/contexts/critique/domain/findings.ts
+var SEVERITIES = ["critical", "major", "minor"];
+var CATEGORIES = [
+  "unasked-question",
+  "contradiction",
+  "omission",
+  "invention",
+  "untestable",
+  "failure-mode",
+  "security",
+  "structure",
+  "bug",
+  "integration"
+];
+var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
+var HINT_CODES = [
+  "no-evidence",
+  "no-spec-quote",
+  "no-decision-quote",
+  "no-decision-or-scenario",
+  "no-test-or-trace",
+  "no-ticket-rule",
+  "no-ticket-id",
+  "no-scenario",
+  "not-a-decision-gap"
+];
+var FINDINGS_FAILURES = [
+  "no-findings-block",
+  "unparseable-findings",
+  "invalid-findings",
+  "missing-no-findings-reason"
+];
+var FENCED_JSON = /```json[ \t]*\r?\n([\s\S]*?)\r?\n?```/g;
+function parseFindings(text) {
+  const blocks = [...text.matchAll(FENCED_JSON)];
+  const last = blocks.at(-1);
+  if (last === void 0) return { detail: "the reply has no ```json block", failure: "no-findings-block", ok: false };
+  let value;
+  try {
+    value = JSON.parse(last[1] ?? "");
+  } catch (error) {
+    return { detail: String(error), failure: "unparseable-findings", ok: false };
+  }
+  return readFindings(value);
+}
+function readFindings(value) {
+  let findings;
+  try {
+    findings = JsonFields.of(value, "the block").list("findings", readCriticFinding);
+  } catch (error) {
+    return { detail: String(error), failure: "invalid-findings", ok: false };
+  }
+  const reason = isJsonObject(value) && typeof value.no_findings_reason === "string" ? value.no_findings_reason.trim() : "";
+  if (findings.length === 0 && reason.length === 0) {
+    return { detail: "an empty findings list needs no_findings_reason", failure: "missing-no-findings-reason", ok: false };
+  }
+  return {
+    findings,
+    ok: true,
+    ...reason.length > 0 ? { no_findings_reason: reason } : {}
+  };
+}
+function readFindingBody(fields) {
+  const suggestion = fields.optionalText("suggestion");
+  return {
+    category: fields.oneOf("category", CATEGORIES),
+    claim: fields.string("claim"),
+    evidence: fields.list("evidence", readEvidence),
+    location: fields.string("location"),
+    severity: fields.oneOf("severity", SEVERITIES),
+    ...suggestion === void 0 ? {} : { suggestion }
+  };
+}
+function readRunFinding(fields) {
+  return {
+    ...readFindingBody(fields),
+    critic_finding_id: fields.string("critic_finding_id"),
+    id: fields.string("id"),
+    raised_by: fields.strings("raised_by"),
+    ...fields.has("pre_verdict") ? { pre_verdict: readPreVerdict(fields.object("pre_verdict")) } : {}
+  };
+}
+function readPreVerdict(fields) {
+  const reason = fields.string("reason");
+  if (fields.oneOf("verdict", ["rejected", "hint"]) === "rejected") {
+    return { reason, reason_code: fields.literal("reason_code", "fabricated-evidence"), verdict: "rejected" };
+  }
+  return { reason, reason_code: fields.oneOf("reason_code", HINT_CODES), verdict: "hint" };
+}
+function readCriticFinding(fields) {
+  return { ...readFindingBody(fields), id: fields.string("id") };
+}
+function readEvidence(fields) {
+  const file = fields.optionalString("file");
+  return {
+    kind: fields.oneOf("kind", EVIDENCE_KINDS),
+    value: fields.string("value"),
+    ...file === void 0 ? {} : { file }
+  };
+}
+
+// src/contexts/critique/domain/critic.ts
+var RUN_FAILURES = [
+  ...FINDINGS_FAILURES,
+  "empty-output",
+  "unparseable-output",
+  "missing-export",
+  "unsafe-config",
+  "config-error",
+  "infrastructure-failure",
+  "stopped-early",
+  "print-timeout",
+  "denied-action",
+  "missing-structured-output",
+  "unsafe-tool",
+  /** The CLI outlived its outer timeout and was killed. */
+  "timeout"
+];
+var CRITIC_STATUSES = ["ok", "failed", "violated-readonly", "budget-skip"];
+function criticIdentity(critic) {
+  return {
+    client: critic.client,
+    critic_id: critic.critic_id,
+    family: critic.client_config.family,
+    lenses: critic.lenses,
+    model: critic.client_config.model,
+    role: critic.role
+  };
+}
+function readCriticRun(fields) {
+  const failure = fields.optionalMatching("failure", isCriticFailure, "a critic failure");
+  const detail = fields.optionalString("detail");
+  const noFindingsReason = fields.optionalString("no_findings_reason");
+  const retryOf = fields.optionalString("retry_of");
+  const stdoutPath = fields.optionalString("stdout_path");
+  const exportPath = fields.optionalString("export_path");
+  const hashes = fields.object("prompt_hashes");
+  return {
+    charged_usd: fields.number("charged_usd"),
+    client: fields.string("client"),
+    cost_usd: fields.nullableNumber("cost_usd"),
+    critic_id: fields.string("critic_id"),
+    duration_ms: fields.number("duration_ms"),
+    exit_code: fields.nullableNumber("exit_code"),
+    family: fields.oneOf("family", MODEL_FAMILIES),
+    finding_count: fields.number("finding_count"),
+    lens_hashes: fields.stringMap("lens_hashes"),
+    lenses: fields.strings("lenses"),
+    model: fields.string("model"),
+    prompt_hashes: {
+      contract: hashes.string("contract"),
+      preamble: hashes.string("preamble"),
+      role: hashes.string("role"),
+      schema: hashes.string("schema")
+    },
+    prompt_path: fields.string("prompt_path"),
+    role: fields.string("role"),
+    status: fields.oneOf("status", CRITIC_STATUSES),
+    ...failure === void 0 ? {} : { failure },
+    ...detail === void 0 ? {} : { detail },
+    ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason },
+    ...retryOf === void 0 ? {} : { retry_of: retryOf },
+    ...stdoutPath === void 0 ? {} : { stdout_path: stdoutPath },
+    ...exportPath === void 0 ? {} : { export_path: exportPath }
+  };
+}
+function isCriticFailure(value) {
+  return isOneOf(RUN_FAILURES, value) || /^exit-\d+$/.test(value);
+}
+
+// src/contexts/critique/domain/verdicts.ts
+var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
+function countVerdicts(run) {
+  const counts = { accepted: 0, hint: 0, "needs-human": 0, rejected: 0 };
+  for (const finding of run.findings) counts[finding.verdict.verdict] += 1;
+  return counts;
+}
+function secondRoundDue(run) {
+  const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
+  return run.round === 1 && run.stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+}
+function stageVerdictError(stage, verdict) {
+  const id = verdict.finding_id;
+  if (stage === "decisions") {
+    if (verdict.verdict === "needs-human") return `${id}: the decisions stage asks every accepted gap as a question; give it accepted, not needs-human`;
+    if (verdict.answered !== void 0 && verdict.verdict !== "accepted") return `${id}: only an accepted verdict can be answered at the decisions stage`;
+    return void 0;
+  }
+  return verdict.answered !== void 0 && verdict.verdict !== "needs-human" ? `${id}: only a needs-human verdict can be answered` : void 0;
+}
+function openCriticalQuestions(run) {
+  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
+}
+function familiesOf(run, finding) {
+  const families = run.critics.filter((critic) => finding.raised_by.includes(critic.critic_id)).map((c) => c.family);
+  return [...new Set(families)];
+}
+function isDissent(run, finding) {
+  return finding.verdict.verdict === "rejected" && finding.verdict.reason_code !== "fabricated-evidence" && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
+}
+var FEATURE_ACCEPT_REASONS = ["test-fails", "cross-ticket-trace"];
+function verdictProblem(stage, verdict, packetFiles) {
+  return featureVerdictProblem(stage, verdict, packetFiles) ?? ticketVerdictProblem(stage, verdict);
+}
+function featureVerdictProblem(stage, verdict, packetFiles) {
+  const id = verdict.finding_id;
+  const extras = verdict.follow_up !== void 0 || verdict.trace_tickets !== void 0;
+  if (stage !== "feature-review") return extras ? `${id}: follow_up and trace_tickets belong to a feature-review verdict` : void 0;
+  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted feature finding has a follow_up or trace_tickets` : void 0;
+  const reason = verdict.reason_code;
+  if (reason !== "test-fails" && reason !== "cross-ticket-trace") {
+    return `${id}: a feature finding is accepted only with reason_code ${FEATURE_ACCEPT_REASONS.join(" or ")}`;
+  }
+  if (reason === "cross-ticket-trace") {
+    const tickets = new Set(packetFiles.filter((file) => file.kind === "ticket").map((file) => file.path));
+    const crossed = new Set(verdict.trace_tickets ?? []);
+    if (crossed.size < 2 || [...crossed].some((path) => !tickets.has(path))) {
+      return `${id}: a cross-ticket-trace names at least two tickets of the packet in trace_tickets`;
+    }
+  } else if (verdict.trace_tickets !== void 0) {
+    return `${id}: trace_tickets belong to a cross-ticket-trace`;
+  }
+  return verdict.follow_up === void 0 ? `${id}: an accepted feature finding names its follow-up ticket in follow_up` : void 0;
+}
+var TICKET_ACCEPT_REASONS = ["test-fails", "trace-walked"];
+function ticketVerdictProblem(stage, verdict) {
+  const id = verdict.finding_id;
+  const extras = verdict.regression_test !== void 0 || verdict.fixed !== void 0;
+  if (stage !== "ticket-review") return extras ? `${id}: regression_test and fixed belong to a ticket-review verdict` : void 0;
+  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted ticket finding has a regression_test or is fixed` : void 0;
+  const reason = verdict.reason_code;
+  if (reason !== "test-fails" && reason !== "trace-walked") {
+    return `${id}: a ticket finding is accepted only with reason_code ${TICKET_ACCEPT_REASONS.join(" or ")}`;
+  }
+  if (reason === "test-fails" && verdict.regression_test === void 0) {
+    return `${id}: a finding accepted by test-fails names the test kept in the ticket's change in regression_test`;
+  }
+  if (reason !== "test-fails" && verdict.regression_test !== void 0) return `${id}: regression_test belongs to a finding accepted by test-fails`;
+  return void 0;
+}
+function unfixedCritical(run) {
+  if (run.stage !== "ticket-review") return [];
+  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted" && f.verdict.fixed !== true);
+}
+
+// src/contexts/critique/domain/ledger.ts
+function ledgerLines(run, recordedAt) {
+  const common = {
+    depth: run.depth,
+    flow: run.flow,
+    depth_chosen_by: run.depth_choice.chosen_by,
+    depth_measures: run.depth_choice.measures,
+    depth_signals: run.depth_choice.signals,
+    recorded_at: recordedAt.toISOString(),
+    repository: run.repository,
+    round: run.round,
+    run_id: run.run_id,
+    spec: run.spec,
+    stage: run.stage
+  };
+  const criticFields = (criticId) => {
+    const critic = run.critics.find((c) => c.critic_id === criticId);
+    return {
+      client: critic?.client,
+      critic_id: criticId,
+      family: critic?.family,
+      lens_hashes: critic?.lens_hashes,
+      lenses: critic?.lenses,
+      model: critic?.model,
+      prompt_hashes: critic?.prompt_hashes,
+      role: critic?.role
+    };
+  };
+  const runLines = run.critics.map((critic) => ({
+    type: "run",
+    ...common,
+    ...criticFields(critic.critic_id),
+    charged_usd: critic.charged_usd,
+    cost_usd: critic.cost_usd,
+    duration_ms: critic.duration_ms,
+    exit_code: critic.exit_code,
+    failure: critic.failure ?? null,
+    finding_count: critic.finding_count,
+    retry_of: critic.retry_of ?? null,
+    status: critic.status
+  }));
+  const findingLines = run.findings.map((finding) => ({
+    type: "finding",
+    ...common,
+    ...criticFields(finding.raised_by[0] ?? ""),
+    category: finding.category,
+    evidence_kinds: finding.evidence.map((e) => e.kind),
+    finding_id: finding.id,
+    /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
+    pre_verdict: finding.pre_verdict?.reason_code ?? null,
+    /** Whether the owner answered a needs-human question before the run was recorded. */
+    answered: finding.verdict.answered === true,
+    raised_by: finding.raised_by,
+    raised_by_families: familiesOf(run, finding),
+    reason_code: finding.verdict.reason_code ?? null,
+    severity: finding.severity,
+    verdict: finding.verdict.verdict
+  }));
+  return [...runLines, ...findingLines].map((line) => JSON.stringify(line));
+}
+var SKIPPED_LOW_RISK = "skipped-low-risk";
+var FLOW_EVENTS = ["grilled", "no-critique", "landed", "answered", "draft"];
+function flowEventLine(event, context) {
+  return JSON.stringify({ type: "flow", ...context, ...event });
+}
+var EMPTY_LEDGER = { findings: [], flow_events: [], runs: [], skipped_reviews: [] };
+function parseLedger(text) {
+  const runs = [];
+  const findings = [];
+  const skipped = [];
+  const events = [];
+  text.split("\n").forEach((line, index) => {
+    if (line.trim() === "") return;
+    const fields = JsonFields.of(parseLine(line, index + 1), `line ${String(index + 1)}`);
+    const type = fields.string("type");
+    if (type === "run" && fields.optionalString("status") === SKIPPED_LOW_RISK) skipped.push(readSkippedReview(fields));
+    else if (type === "run") runs.push(readCriticRunLine(fields));
+    if (type === "finding") findings.push(readFindingLine(fields));
+    if (type === "flow") events.push(readFlowEvent(fields));
+  });
+  return { findings, flow_events: events, runs, skipped_reviews: skipped };
+}
+function readSkippedReview(fields) {
+  return {
+    flow: fields.string("flow"),
+    recorded_at: fields.string("recorded_at"),
+    repository: fields.string("repository"),
+    run_id: fields.string("run_id"),
+    ticket: fields.string("ticket")
+  };
+}
+function readFlowEvent(fields) {
+  const context = { flow: fields.string("flow"), recorded_at: fields.string("recorded_at"), repository: fields.string("repository") };
+  const event = fields.oneOf("event", FLOW_EVENTS);
+  if (event === "no-critique") return { ...context, event, value: fields.boolean("value") };
+  if (event === "landed") return { ...context, event, ticket: fields.string("ticket") };
+  if (event === "answered") return { ...context, event, finding_id: fields.string("finding_id"), run_id: fields.string("run_id") };
+  if (event === "draft") return { ...context, draft: fields.string("draft"), event };
+  return { ...context, event };
+}
+function parseLine(line, number) {
+  try {
+    return JSON.parse(line);
+  } catch {
+    throw new JsonShapeError(`line ${String(number)} is not JSON`);
+  }
+}
+function readContext(fields) {
+  return {
+    recorded_at: fields.string("recorded_at"),
+    repository: fields.string("repository"),
+    run_id: fields.string("run_id"),
+    spec: fields.optionalString("spec"),
+    flow: fields.optionalString("flow"),
+    round: fields.has("round") ? fields.number("round") : 1,
+    stage: fields.oneOf("stage", CRITIQUE_STAGES)
+  };
+}
+function readCriticRunLine(fields) {
+  const hashes = fields.object("prompt_hashes");
+  return {
+    ...readContext(fields),
+    client: fields.string("client"),
+    cost_usd: fields.nullableNumber("cost_usd"),
+    critic_id: fields.string("critic_id"),
+    failure: fields.nullableString("failure"),
+    lens_hashes: fields.stringMap("lens_hashes"),
+    lenses: fields.strings("lenses"),
+    model: fields.string("model"),
+    prompt_hashes: {
+      contract: hashes.string("contract"),
+      preamble: hashes.string("preamble"),
+      role: hashes.string("role"),
+      schema: hashes.string("schema")
+    },
+    role: fields.string("role"),
+    status: fields.oneOf("status", CRITIC_STATUSES)
+  };
+}
+function readFindingLine(fields) {
+  return {
+    ...readContext(fields),
+    answered: fields.has("answered") && fields.boolean("answered"),
+    finding_id: fields.string("finding_id"),
+    pre_verdict: fields.nullableString("pre_verdict"),
+    severity: fields.oneOf("severity", SEVERITIES),
+    raised_by: fields.strings("raised_by"),
+    verdict: fields.oneOf("verdict", VERDICTS)
+  };
+}
+
+// src/contexts/critique/application/budget.ts
+var FlowBudget = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  /** What the Vibe critics of this run's flow have been charged so far, this run's included. */
+  async vibeSpend(manifest) {
+    return flowSpend(await this.lines(), manifest.repository, manifest.flow);
+  }
+  /** What the Vibe critics were charged under each of a feature's flow keys. */
+  async vibeSpendByFlow(repository, flows) {
+    return spendByFlow(await this.lines(), repository, flows);
+  }
+  /** agy launches on this machine today. */
+  async agyInvocationsToday() {
+    return agyInvocationsOn(await this.lines(), this.deps.clock.now());
+  }
+  async logInvocation(manifest, run, kind) {
+    const line = {
+      charged_usd: run.charged_usd,
+      client: run.client,
+      critic_id: run.critic_id,
+      family: run.family,
+      flow: manifest.flow,
+      kind,
+      model: run.model,
+      recorded_at: this.deps.clock.now().toISOString(),
+      repository: manifest.repository,
+      round: manifest.round,
+      run_id: manifest.run_id,
+      stage: manifest.stage,
+      status: run.status,
+      type: "invocation"
+    };
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+`);
+  }
+  async lines() {
+    const path = ledgerPath(this.deps.env);
+    return await this.deps.files.exists(path) ? invocationLines(await this.deps.files.readText(path)) : [];
+  }
+};
+
+// src/contexts/critique/application/flow-state.ts
+import { join as join5 } from "node:path";
+
+// src/contexts/critique/domain/feature-review.ts
+function gateLine(criticalOpen) {
+  return criticalOpen === 0 ? "GATE: PASS" : `GATE: FAIL (${String(criticalOpen)} critical)`;
+}
+function openCriticalFollowUps(runId, current, earlier, isOpen) {
+  const critical = [
+    ...current.map((followUp) => ({ followUp, from: runId })),
+    ...earlier.flatMap((record) => record.follow_ups.map((followUp) => ({ followUp, from: record.run_id })))
+  ].filter(({ followUp }) => followUp.severity === "critical");
+  const seen = /* @__PURE__ */ new Set();
+  const open = [];
+  for (const { followUp, from } of critical) {
+    if (seen.has(followUp.reference)) continue;
+    seen.add(followUp.reference);
+    if (isOpen(followUp.reference)) {
+      open.push({ finding_id: followUp.finding_id, reference: followUp.reference, run_id: from, ticket: followUp.ticket });
+    }
+  }
+  return open;
+}
+function parseGateRecord(text) {
+  const file = JsonFields.parse(text);
+  return {
+    base_commit: file.string("base_commit"),
+    critical_open: file.number("critical_open"),
+    follow_ups: file.list("follow_ups", (followUp) => ({
+      finding_id: followUp.string("finding_id"),
+      open: followUp.boolean("open"),
+      reference: followUp.string("reference"),
+      severity: followUp.oneOf("severity", SEVERITIES),
+      ticket: followUp.string("ticket")
+    })),
+    gate: file.oneOf("gate", ["pass", "fail"]),
+    head_commit: file.string("head_commit"),
+    line: file.string("line"),
+    open_critical: file.list("open_critical", (followUp) => ({
+      finding_id: followUp.string("finding_id"),
+      reference: followUp.string("reference"),
+      run_id: followUp.string("run_id"),
+      ticket: followUp.string("ticket")
+    })),
+    recorded_at: file.string("recorded_at"),
+    repository: file.string("repository"),
+    run_id: file.string("run_id"),
+    spec: file.string("spec"),
+    stage: file.literal("stage", "feature-review"),
+    version: file.literal("version", 1)
+  };
+}
+var CLOSED_STATUSES = ["closed", "done", "resolved", "wontfix"];
+function localTicketOpen(text) {
+  const status = /^[ \t>]*\**Status\**[ \t]*:\**[ \t]*(.*)$/im.exec(text)?.[1];
+  const value = status?.replace(/[*_`]/g, "").trim().toLowerCase();
+  return value === void 0 || !CLOSED_STATUSES.includes(value);
+}
+
+// src/contexts/critique/domain/manifest.ts
+import { createHash } from "node:crypto";
+
+// src/contexts/critique/domain/depth.ts
+var STAGE_MEASURES = {
+  decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
+  "feature-review": {},
+  spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
+  "ticket-review": {
+    changed_lines: ({ change }) => change?.changed_lines ?? 0,
+    risk_path_hits: ({ change }) => change?.risk_path_hits ?? 0
+  },
+  tickets: { tickets: ({ tickets = 0 }) => tickets }
+};
+var NO_DEPTH_SIGNALS = { labels: [], risk_terms: [], thresholds: {} };
+function readDepthSignalsConfig(fields, stage) {
+  const known = measuresOf(stage);
+  const thresholds = fields.has("thresholds") ? fields.numberMap("thresholds") : {};
+  for (const measure of Object.keys(thresholds)) {
+    if (known[measure] === void 0) {
+      const names = Object.keys(known);
+      throw new JsonShapeError(
+        `stages.${stage}.depth_signals.thresholds.${measure} is not a measure of stage ${stage}; it knows ${names.length === 0 ? "none" : names.join(", ")}`
+      );
+    }
+  }
+  return {
+    labels: fields.has("labels") ? fields.strings("labels") : [],
+    risk_terms: fields.has("risk_terms") ? fields.strings("risk_terms") : [],
+    thresholds
+  };
+}
+function chooseDepth(stage, config, evidence, explicit) {
+  const measures = Object.fromEntries(
+    Object.entries(measuresOf(stage)).flatMap(([name, measure]) => {
+      const threshold = config.thresholds[name];
+      return threshold === void 0 ? [] : [[name, { threshold, value: measure(evidence) }]];
+    })
+  );
+  const labels = new Set(evidence.labels.map((label) => label.toLowerCase()));
+  const signals = [
+    ...Object.entries(measures).filter(([, { threshold, value }]) => value > threshold).map(([measure, { threshold, value }]) => ({ kind: "threshold", measure, threshold, value })),
+    ...config.risk_terms.filter((term) => containsTerm(evidence.text, term)).map((term) => ({ kind: "risk-term", term })),
+    ...config.labels.filter((label) => labels.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
+  ];
+  const choice = { chosen_by: explicit === void 0 ? "signals" : "argument", measures, signals };
+  return { choice, depth: explicit ?? (signals.length > 0 ? "deep" : "base") };
+}
+function signalledDepth(choice) {
+  return choice.signals.length > 0 ? "deep" : "base";
+}
+function readDepthChoice(fields) {
+  return {
+    chosen_by: fields.oneOf("chosen_by", ["argument", "signals"]),
+    measures: fields.entries("measures", (measure) => ({ threshold: measure.number("threshold"), value: measure.number("value") })),
+    signals: fields.list("signals", readDepthSignal)
+  };
+}
+function readDepthSignal(fields) {
+  const kind = fields.oneOf("kind", ["threshold", "risk-term", "label"]);
+  if (kind === "threshold") {
+    return { kind, measure: fields.string("measure"), threshold: fields.number("threshold"), value: fields.number("value") };
+  }
+  return kind === "risk-term" ? { kind, term: fields.string("term") } : { kind, label: fields.string("label") };
+}
+function measuresOf(stage) {
+  return STAGE_MEASURES[stage] ?? {};
+}
+function countUserStories(text) {
+  let level;
+  let count = 0;
+  for (const line of text.split(/\r?\n/)) {
+    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (heading !== null) {
+      const depth = (heading[1] ?? "").length;
+      if (level !== void 0 && depth <= level) level = void 0;
+      if (level === void 0 && /^user stories$/i.test(heading[2] ?? "")) level = depth;
+    } else if (level !== void 0 && /^\s*\d+[.)]\s+\S/.test(line)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+function countDecisions(text) {
+  return text.split(/\r?\n/).filter((line) => /^\*\*[^*\n]+(?::\*\*|\*\*\s*:)/.test(line) || /^(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
+}
+function countWords(text) {
+  return text.split(/\s+/).filter((word) => word.length > 0).length;
+}
+function containsTerm(text, term) {
+  const pattern = term.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+  return new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, "iu").test(text);
+}
+
 // src/contexts/critique/domain/tickets.ts
 function dependencyCycles(tickets) {
   const index = new Map(tickets.map((ticket, i) => [ticket.id, i]));
@@ -724,733 +1418,6 @@ function ticketTarget(location, ticketIds) {
 }
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// src/contexts/critique/application/tracker.ts
-import { basename, dirname, join as join2 } from "node:path";
-
-// src/contexts/critique/domain/findings.ts
-var SEVERITIES = ["critical", "major", "minor"];
-var CATEGORIES = [
-  "unasked-question",
-  "contradiction",
-  "omission",
-  "invention",
-  "untestable",
-  "failure-mode",
-  "security",
-  "structure",
-  "bug",
-  "integration"
-];
-var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
-var HINT_CODES = [
-  "no-evidence",
-  "no-spec-quote",
-  "no-decision-quote",
-  "no-decision-or-scenario",
-  "no-test-or-trace",
-  "no-ticket-rule",
-  "no-ticket-id",
-  "no-scenario",
-  "not-a-decision-gap"
-];
-var FINDINGS_FAILURES = [
-  "no-findings-block",
-  "unparseable-findings",
-  "invalid-findings",
-  "missing-no-findings-reason"
-];
-var FENCED_JSON = /```json[ \t]*\r?\n([\s\S]*?)\r?\n?```/g;
-function parseFindings(text) {
-  const blocks = [...text.matchAll(FENCED_JSON)];
-  const last = blocks.at(-1);
-  if (last === void 0) return { detail: "the reply has no ```json block", failure: "no-findings-block", ok: false };
-  let value;
-  try {
-    value = JSON.parse(last[1] ?? "");
-  } catch (error) {
-    return { detail: String(error), failure: "unparseable-findings", ok: false };
-  }
-  return readFindings(value);
-}
-function readFindings(value) {
-  let findings;
-  try {
-    findings = JsonFields.of(value, "the block").list("findings", readCriticFinding);
-  } catch (error) {
-    return { detail: String(error), failure: "invalid-findings", ok: false };
-  }
-  const reason = isJsonObject(value) && typeof value.no_findings_reason === "string" ? value.no_findings_reason.trim() : "";
-  if (findings.length === 0 && reason.length === 0) {
-    return { detail: "an empty findings list needs no_findings_reason", failure: "missing-no-findings-reason", ok: false };
-  }
-  return {
-    findings,
-    ok: true,
-    ...reason.length > 0 ? { no_findings_reason: reason } : {}
-  };
-}
-function readFindingBody(fields) {
-  const suggestion = fields.optionalText("suggestion");
-  return {
-    category: fields.oneOf("category", CATEGORIES),
-    claim: fields.string("claim"),
-    evidence: fields.list("evidence", readEvidence),
-    location: fields.string("location"),
-    severity: fields.oneOf("severity", SEVERITIES),
-    ...suggestion === void 0 ? {} : { suggestion }
-  };
-}
-function readRunFinding(fields) {
-  return {
-    ...readFindingBody(fields),
-    critic_finding_id: fields.string("critic_finding_id"),
-    id: fields.string("id"),
-    raised_by: fields.strings("raised_by"),
-    ...fields.has("pre_verdict") ? { pre_verdict: readPreVerdict(fields.object("pre_verdict")) } : {}
-  };
-}
-function readPreVerdict(fields) {
-  const reason = fields.string("reason");
-  if (fields.oneOf("verdict", ["rejected", "hint"]) === "rejected") {
-    return { reason, reason_code: fields.literal("reason_code", "fabricated-evidence"), verdict: "rejected" };
-  }
-  return { reason, reason_code: fields.oneOf("reason_code", HINT_CODES), verdict: "hint" };
-}
-function readCriticFinding(fields) {
-  return { ...readFindingBody(fields), id: fields.string("id") };
-}
-function readEvidence(fields) {
-  const file = fields.optionalString("file");
-  return {
-    kind: fields.oneOf("kind", EVIDENCE_KINDS),
-    value: fields.string("value"),
-    ...file === void 0 ? {} : { file }
-  };
-}
-
-// src/contexts/critique/domain/feature-review.ts
-function gateLine(criticalOpen) {
-  return criticalOpen === 0 ? "GATE: PASS" : `GATE: FAIL (${String(criticalOpen)} critical)`;
-}
-function openCriticalFollowUps(runId, current, earlier, isOpen) {
-  const critical = [
-    ...current.map((followUp) => ({ followUp, from: runId })),
-    ...earlier.flatMap((record) => record.follow_ups.map((followUp) => ({ followUp, from: record.run_id })))
-  ].filter(({ followUp }) => followUp.severity === "critical");
-  const seen = /* @__PURE__ */ new Set();
-  const open = [];
-  for (const { followUp, from } of critical) {
-    if (seen.has(followUp.reference)) continue;
-    seen.add(followUp.reference);
-    if (isOpen(followUp.reference)) {
-      open.push({ finding_id: followUp.finding_id, reference: followUp.reference, run_id: from, ticket: followUp.ticket });
-    }
-  }
-  return open;
-}
-function parseGateRecord(text) {
-  const file = JsonFields.parse(text);
-  return {
-    base_commit: file.string("base_commit"),
-    critical_open: file.number("critical_open"),
-    follow_ups: file.list("follow_ups", (followUp) => ({
-      finding_id: followUp.string("finding_id"),
-      open: followUp.boolean("open"),
-      reference: followUp.string("reference"),
-      severity: followUp.oneOf("severity", SEVERITIES),
-      ticket: followUp.string("ticket")
-    })),
-    gate: file.oneOf("gate", ["pass", "fail"]),
-    head_commit: file.string("head_commit"),
-    line: file.string("line"),
-    open_critical: file.list("open_critical", (followUp) => ({
-      finding_id: followUp.string("finding_id"),
-      reference: followUp.string("reference"),
-      run_id: followUp.string("run_id"),
-      ticket: followUp.string("ticket")
-    })),
-    recorded_at: file.string("recorded_at"),
-    repository: file.string("repository"),
-    run_id: file.string("run_id"),
-    spec: file.string("spec"),
-    stage: file.literal("stage", "feature-review"),
-    version: file.literal("version", 1)
-  };
-}
-var CLOSED_STATUSES = ["closed", "done", "resolved", "wontfix"];
-function localTicketOpen(text) {
-  const status = /^[ \t>]*\**Status\**[ \t]*:\**[ \t]*(.*)$/im.exec(text)?.[1];
-  const value = status?.replace(/[*_`]/g, "").trim().toLowerCase();
-  return value === void 0 || !CLOSED_STATUSES.includes(value);
-}
-
-// src/contexts/critique/domain/tracker.ts
-var TRACKER_KINDS = ["github", "local-markdown"];
-var TRACKER_DOC = "docs/agents/issue-tracker.md";
-function trackerFromDoc(text) {
-  const name = /^#\s+Issue tracker:\s*(.+?)\s*$/im.exec(text)?.[1];
-  const normalised = name?.toLowerCase();
-  if (normalised === "github") return { kind: "github", status: "known" };
-  if (normalised === "local markdown") return { kind: "local-markdown", status: "known" };
-  return { name: name ?? "no tracker", status: "unsupported" };
-}
-function defaultTracker(repositoryKey) {
-  return repositoryKey.startsWith("github.com/") ? "github" : "local-markdown";
-}
-function parseIssueReference(reference, repositoryKey) {
-  const text = reference.trim();
-  const local = /^#?(\d+)$/.exec(text);
-  if (local !== null) return { number: Number(local[1]), repository: repositoryKey };
-  const short = /^([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(text);
-  if (short !== null) return { number: Number(short[3]), repository: key("github.com", short[1], short[2]) };
-  const full = /^([\w.-]+)\/([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(text);
-  if (full !== null) return { number: Number(full[4]), repository: key(full[1], full[2], full[3]) };
-  const url = /^https?:\/\/([^/\s]+)\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)(?:[/?#]\S*)?$/i.exec(text);
-  if (url !== null) return { number: Number(url[4]), repository: key(url[1], url[2], url[3]) };
-  return void 0;
-}
-function key(host = "", owner = "", repo = "") {
-  return `${host}/${owner}/${repo}`.toLowerCase();
-}
-function renderIssue(issue) {
-  const body = issue.body.trim();
-  const parts = body.length > 0 ? [`# ${issue.title}`, body] : [`# ${issue.title}`];
-  if (issue.comments.length > 0) {
-    parts.push("## Comments", ...issue.comments.map((comment) => `### ${comment.author}, ${comment.createdAt}
-
-${comment.body.trim()}`));
-  }
-  return `${parts.join("\n\n").replace(/\r\n?/g, "\n")}
-`;
-}
-
-// src/contexts/critique/application/paths.ts
-import { isAbsolute, relative, resolve } from "node:path";
-function insideRepository(root, path) {
-  const rel = relative(root, isAbsolute(path) ? path : resolve(root, path));
-  if (rel.startsWith("..") || isAbsolute(rel)) throw new CritiqueError("outside-repository", `${path} is outside the repository`);
-  return rel;
-}
-
-// src/contexts/critique/application/tracker.ts
-var TrackerResolver = class {
-  constructor(deps) {
-    this.deps = deps;
-  }
-  deps;
-  async resolve(repository) {
-    const doc = join2(repository.root, TRACKER_DOC);
-    const choice = await this.deps.files.exists(doc) ? trackerFromDoc(await this.deps.files.readText(doc)) : { kind: defaultTracker(repository.key), status: "known" };
-    if (choice.status === "unsupported") {
-      return refusal(
-        "unsupported-tracker",
-        `${TRACKER_DOC} names ${choice.name}; the critique reads specs from GitHub issues or local markdown only`
-      );
-    }
-    return choice.kind === "github" ? new GithubTracker(this.deps, repository) : new LocalMarkdownTracker(this.deps, repository);
-  }
-};
-var GithubTracker = class {
-  constructor(deps, repository) {
-    this.deps = deps;
-    this.repository = repository;
-  }
-  deps;
-  repository;
-  status = "resolved";
-  kind = "github";
-  async artifact(request) {
-    const issue = this.specIssue(request.reference);
-    const reference = this.reference(issue);
-    try {
-      const read = await this.deps.gh.viewIssue({ ...this.locator(issue), comments: request.comments });
-      return {
-        labels: read.labels,
-        name: `issue-${String(issue.number)}.md`,
-        reference,
-        status: "read",
-        text: renderIssue(read),
-        tracker: this.kind
-      };
-    } catch (error) {
-      return refusal("tracker-unreachable", `cannot read issue ${reference} through gh: ${firstLine2(error)}`);
-    }
-  }
-  /** The spec issue's sub-issues, each with its native blocked-by links. */
-  async tickets(spec) {
-    const issue = this.specIssue(spec);
-    try {
-      const issues = await this.deps.gh.subIssues(this.locator(issue));
-      const tickets = await Promise.all(
-        issues.map(async (read) => {
-          const ticket = this.issueAt(read.url, read.number, issue.repository);
-          const blockers = await this.deps.gh.blockedBy(this.locator(ticket));
-          return {
-            blockedBy: blockers.map((blocker) => this.id(this.issueAt(blocker.url, blocker.number, ticket.repository))),
-            id: this.id(ticket),
-            name: `issue-${String(ticket.number)}.md`,
-            open: read.state !== "closed",
-            reference: this.reference(ticket),
-            text: renderIssue({ ...read, comments: [] }),
-            title: read.title
-          };
-        })
-      );
-      return { status: "read", tickets };
-    } catch (error) {
-      return refusal("tracker-unreachable", `cannot read the tickets of ${this.reference(issue)} through gh: ${firstLine2(error)}`);
-    }
-  }
-  /** The issue a spec reference names, which must be one of this repository's. */
-  specIssue(reference) {
-    const issue = parseIssueReference(reference, this.repository.key);
-    if (issue === void 0) {
-      throw new CritiqueError(
-        "invalid-input",
-        `${reference} is not an issue reference; this repository tracks specs as GitHub issues, so name one as #<number> or by its URL`
-      );
-    }
-    if (issue.repository !== this.repository.key) {
-      throw new CritiqueError("outside-repository", `${reference} is an issue of ${issue.repository}, not of ${this.repository.key}`);
-    }
-    return issue;
-  }
-  /** The issue a URL from gh names; one with no readable URL is taken to be in `repository`. */
-  issueAt(url, number, repository) {
-    return parseIssueReference(url, this.repository.key) ?? { number, repository };
-  }
-  locator(issue) {
-    return { cwd: this.repository.root, number: issue.number, repo: issue.repository };
-  }
-  reference(issue) {
-    return `${issue.repository}#${String(issue.number)}`;
-  }
-  /** `#<number>` for an issue of this repository, its full reference for any other. */
-  id(issue) {
-    return issue.repository === this.repository.key ? `#${String(issue.number)}` : this.reference(issue);
-  }
-};
-var LocalMarkdownTracker = class {
-  constructor(deps, repository) {
-    this.deps = deps;
-    this.repository = repository;
-  }
-  deps;
-  repository;
-  status = "resolved";
-  kind = "local-markdown";
-  async artifact(request) {
-    const path = insideRepository(this.repository.root, request.reference);
-    const absolute = join2(this.repository.root, path);
-    if (!await this.deps.files.exists(absolute)) {
-      throw new CritiqueError(
-        "invalid-input",
-        `${request.reference} is not a file in the repository; this repository tracks specs as local markdown, so name one by its path`
-      );
-    }
-    return {
-      labels: [],
-      name: basename(path),
-      reference: path,
-      status: "read",
-      text: await this.deps.files.readText(absolute),
-      tracker: this.kind
-    };
-  }
-  /** The `.md` files in the `issues/` folder beside the spec, as Pocock's `/to-tickets` writes them. */
-  async tickets(spec) {
-    const folder = join2(dirname(insideRepository(this.repository.root, spec)), "issues");
-    const names = (await this.deps.files.listFiles(join2(this.repository.root, folder))).filter((name) => name.endsWith(".md"));
-    const files = await Promise.all(
-      names.map(async (name) => ({
-        reference: join2(folder, name),
-        text: await this.deps.files.readText(join2(this.repository.root, folder, name))
-      }))
-    );
-    return { status: "read", tickets: localTickets(files).map((ticket) => ({
-      ...ticket,
-      name: basename(ticket.reference),
-      open: localTicketOpen(ticket.text)
-    })) };
-  }
-};
-function firstLine2(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "gh failed";
-}
-
-// src/contexts/critique/application/check-tickets.ts
-async function readCheckedTickets(tracker, request) {
-  const spec = await tracker.artifact({ comments: request.comments, reference: request.spec });
-  if (spec.status === "refused") return spec;
-  const read = await tracker.tickets(request.spec);
-  if (read.status === "refused") return read;
-  const check = checkTickets(spec.text, read.tickets);
-  return {
-    result: { status: ticketCheckStatus(check), spec: { reference: spec.reference, tracker: spec.tracker }, ...check },
-    spec,
-    status: "read",
-    tickets: read.tickets
-  };
-}
-var CheckTicketsCommand = class {
-  repositories;
-  trackers;
-  constructor(deps) {
-    this.repositories = new RepositoryGate(deps);
-    this.trackers = new TrackerResolver(deps);
-  }
-  async run(raw) {
-    const input = readInput(raw, "check-tickets", (fields) => ({ repo: fields.string("repo"), spec: fields.string("spec") }));
-    const repository = await this.repositories.resolve(input.repo);
-    if (repository.status === "refused") return repository;
-    const tracker = await this.trackers.resolve(repository);
-    if (tracker.status === "refused") return tracker;
-    const checked = await readCheckedTickets(tracker, { comments: false, spec: input.spec });
-    return checked.status === "refused" ? checked : checked.result;
-  }
-};
-
-// src/contexts/critique/application/fan-out.ts
-import { join as join4 } from "node:path";
-
-// src/contexts/critique/domain/stage.ts
-var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
-var CODE_STAGES = ["ticket-review", "feature-review"];
-function isCodeStage(stage) {
-  return CODE_STAGES.includes(stage);
-}
-var DEPTHS = ["base", "deep"];
-var SECOND_ROUND_AFTER_CRITICAL = 3;
-
-// src/contexts/critique/domain/budget.ts
-var DEFAULT_LIMITS = {
-  antigravity_quota: { daily_cap: 20, reserve_threshold: 10, reserved_stages: ["spec", "feature-review"] },
-  budget: { vibe_flow_cap_usd: 5 }
-};
-function readLimits(file) {
-  const quota = file.has("antigravity_quota") ? file.object("antigravity_quota") : void 0;
-  return {
-    antigravity_quota: quota === void 0 ? DEFAULT_LIMITS.antigravity_quota : {
-      daily_cap: quota.number("daily_cap"),
-      reserve_threshold: quota.number("reserve_threshold"),
-      reserved_stages: quota.oneOfList("reserved_stages", CRITIQUE_STAGES)
-    },
-    budget: file.has("budget") ? { vibe_flow_cap_usd: file.object("budget").number("vibe_flow_cap_usd") } : DEFAULT_LIMITS.budget
-  };
-}
-function invocationLines(ledger) {
-  return ledger.split("\n").flatMap((text) => {
-    try {
-      const line = JsonFields.parse(text);
-      if (!line.has("type") || line.string("type") !== "invocation") return [];
-      return [
-        {
-          charged_usd: line.number("charged_usd"),
-          flow: line.string("flow"),
-          kind: line.oneOf("kind", ["vibe", "agy"]),
-          recorded_at: line.string("recorded_at"),
-          repository: line.string("repository")
-        }
-      ];
-    } catch {
-      return [];
-    }
-  });
-}
-function flowSpend(lines, repository, flow) {
-  return lines.filter((line) => line.kind === "vibe" && line.repository === repository && line.flow === flow).reduce((total, line) => total + line.charged_usd, 0);
-}
-function agyInvocationsOn(lines, now) {
-  const day = now.toISOString().slice(0, 10);
-  return lines.filter((line) => line.kind === "agy" && line.recorded_at.slice(0, 10) === day).length;
-}
-function budgetReached(spend, limits) {
-  const cap = limits.budget.vibe_flow_cap_usd;
-  return spend >= cap ? `the flow's Vibe spend $${spend.toFixed(4)} has reached its $${cap.toFixed(2)} cap` : void 0;
-}
-function quotaReached(count, quota, stage) {
-  if (count >= quota.daily_cap) {
-    return `antigravity: ${String(count)} invocations today have reached the daily cap of ${String(quota.daily_cap)}`;
-  }
-  if (count >= quota.reserve_threshold && !quota.reserved_stages.includes(stage)) {
-    return `antigravity: ${String(count)} invocations today have reached the reserve threshold of ${String(quota.reserve_threshold)}; the rest is kept for ${quota.reserved_stages.join(" and ")}`;
-  }
-  return void 0;
-}
-
-// src/contexts/critique/domain/critic.ts
-var RUN_FAILURES = [
-  ...FINDINGS_FAILURES,
-  "empty-output",
-  "unparseable-output",
-  "missing-export",
-  "unsafe-config",
-  "config-error",
-  "infrastructure-failure",
-  "stopped-early",
-  "print-timeout",
-  "denied-action",
-  "missing-structured-output",
-  "unsafe-tool",
-  /** The CLI outlived its outer timeout and was killed. */
-  "timeout"
-];
-var CRITIC_STATUSES = ["ok", "failed", "violated-readonly", "budget-skip"];
-function criticIdentity(critic) {
-  return {
-    client: critic.client,
-    critic_id: critic.critic_id,
-    family: critic.client_config.family,
-    lenses: critic.lenses,
-    model: critic.client_config.model,
-    role: critic.role
-  };
-}
-function readCriticRun(fields) {
-  const failure = fields.optionalMatching("failure", isCriticFailure, "a critic failure");
-  const detail = fields.optionalString("detail");
-  const noFindingsReason = fields.optionalString("no_findings_reason");
-  const retryOf = fields.optionalString("retry_of");
-  const stdoutPath = fields.optionalString("stdout_path");
-  const exportPath = fields.optionalString("export_path");
-  const hashes = fields.object("prompt_hashes");
-  return {
-    charged_usd: fields.number("charged_usd"),
-    client: fields.string("client"),
-    cost_usd: fields.nullableNumber("cost_usd"),
-    critic_id: fields.string("critic_id"),
-    duration_ms: fields.number("duration_ms"),
-    exit_code: fields.nullableNumber("exit_code"),
-    family: fields.oneOf("family", MODEL_FAMILIES),
-    finding_count: fields.number("finding_count"),
-    lens_hashes: fields.stringMap("lens_hashes"),
-    lenses: fields.strings("lenses"),
-    model: fields.string("model"),
-    prompt_hashes: {
-      contract: hashes.string("contract"),
-      preamble: hashes.string("preamble"),
-      role: hashes.string("role"),
-      schema: hashes.string("schema")
-    },
-    prompt_path: fields.string("prompt_path"),
-    role: fields.string("role"),
-    status: fields.oneOf("status", CRITIC_STATUSES),
-    ...failure === void 0 ? {} : { failure },
-    ...detail === void 0 ? {} : { detail },
-    ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason },
-    ...retryOf === void 0 ? {} : { retry_of: retryOf },
-    ...stdoutPath === void 0 ? {} : { stdout_path: stdoutPath },
-    ...exportPath === void 0 ? {} : { export_path: exportPath }
-  };
-}
-function isCriticFailure(value) {
-  return isOneOf(RUN_FAILURES, value) || /^exit-\d+$/.test(value);
-}
-
-// src/contexts/critique/domain/line-references.ts
-var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
-var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
-var LOOKS_LIKE_A_FILE = /\/|\.[A-Za-z]\w*$/;
-function lineReferences(text) {
-  return [...text.replace(URL, " ").matchAll(REFERENCE)].flatMap((match) => {
-    const path = (match[1] ?? "").replace(/^\.\//, "");
-    if (!LOOKS_LIKE_A_FILE.test(path)) return [];
-    const first = Number(match[2]);
-    return [{ first, last: match[3] === void 0 ? first : Number(match[3]), path }];
-  });
-}
-function packetCandidates(path, treeDir) {
-  const diffSide = /^[ab]\/(.+)$/.exec(path);
-  return [path, `${treeDir}/${path}`, ...diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ""}`]];
-}
-function lineCount(text) {
-  if (text.length === 0) return 0;
-  return text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
-}
-
-// src/contexts/critique/domain/evidence.ts
-function indexPacket(packet2, tickets = []) {
-  return {
-    files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
-    lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)])),
-    tickets
-  };
-}
-var TREE_DIR = "tree";
-var DECISION_CATEGORIES = ["omission", "invention"];
-function checkEvidence(finding, stage, packet2) {
-  const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false };
-  for (const [index, evidence] of finding.evidence.entries()) {
-    if (evidence.kind !== "quote") {
-      found.scenario = true;
-      continue;
-    }
-    const quote = normalise(evidence.value);
-    const holders = packet2.files.filter((file) => file.normalised.includes(quote));
-    if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`);
-    found.spec ||= holders.some((file) => file.kind === "artifact");
-    found.decision ||= holders.some((file) => file.kind === "reference");
-  }
-  if (isCodeStage(stage)) {
-    const missing = missingLine(finding, packet2);
-    if (missing !== void 0) return fabricated(missing);
-  }
-  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : stage === "decisions" ? decisionsRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : ticketRule(finding.location, packet2.tickets);
-  return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
-}
-function fabricated(reason) {
-  return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
-}
-function missingLine(finding, packet2) {
-  const sources = [
-    { text: finding.location, where: "the location" },
-    ...finding.evidence.flatMap(
-      (evidence, index) => evidence.kind === "trace" ? [{ text: evidence.value, where: `evidence ${String(index + 1)}` }] : []
-    )
-  ];
-  for (const { text, where } of sources) {
-    for (const reference of lineReferences(text)) {
-      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate));
-      if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
-      const lines = packet2.lines.get(path) ?? 0;
-      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines);
-      if (outside !== void 0) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`;
-    }
-  }
-  return void 0;
-}
-function codeRule(evidence) {
-  const checkable = evidence.some(
-    (item) => item.kind === "failing-test" || item.kind === "trace" && lineReferences(item.value).length > 0
-  );
-  return checkable ? void 0 : "no-test-or-trace";
-}
-function ticketRule(location, tickets) {
-  const target = ticketTarget(location, tickets);
-  if (target.rule === void 0) return "no-ticket-rule";
-  return target.rule === "uncovered-requirement" || target.ticket !== void 0 ? void 0 : "no-ticket-id";
-}
-function specRule(category, found) {
-  if (!found.spec) return "no-spec-quote";
-  if (DECISION_CATEGORIES.includes(category)) return found.decision ? void 0 : "no-decision-quote";
-  return found.decision || found.scenario ? void 0 : "no-decision-or-scenario";
-}
-var GAP_CATEGORIES = ["unasked-question", "contradiction"];
-function decisionsRule(category, found) {
-  if (!GAP_CATEGORIES.includes(category)) return "not-a-decision-gap";
-  if (!found.spec && !found.decision) return "no-decision-quote";
-  return found.scenario ? void 0 : "no-scenario";
-}
-var HINT_REASONS = {
-  "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
-  "no-decision-quote": "no quote from a decision source",
-  "no-evidence": "no evidence to check",
-  "no-scenario": "no concrete scenario",
-  "no-spec-quote": "no quote from the spec",
-  "no-test-or-trace": "no failing test and no trace with a file and line",
-  "no-ticket-id": "the location names no ticket of the spec",
-  "no-ticket-rule": "the location names no ticket rule",
-  "not-a-decision-gap": "neither an unasked question nor a contradiction"
-};
-function normalise(text) {
-  return text.replace(/\s+/g, " ").trim();
-}
-
-// src/contexts/critique/domain/manifest.ts
-import { createHash } from "node:crypto";
-
-// src/contexts/critique/domain/depth.ts
-var STAGE_MEASURES = {
-  decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
-  "feature-review": {},
-  spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
-  "ticket-review": {
-    changed_lines: ({ change }) => change?.changed_lines ?? 0,
-    risk_path_hits: ({ change }) => change?.risk_path_hits ?? 0
-  },
-  tickets: { tickets: ({ tickets = 0 }) => tickets }
-};
-var NO_DEPTH_SIGNALS = { labels: [], risk_terms: [], thresholds: {} };
-function readDepthSignalsConfig(fields, stage) {
-  const known = measuresOf(stage);
-  const thresholds = fields.has("thresholds") ? fields.numberMap("thresholds") : {};
-  for (const measure of Object.keys(thresholds)) {
-    if (known[measure] === void 0) {
-      const names = Object.keys(known);
-      throw new JsonShapeError(
-        `stages.${stage}.depth_signals.thresholds.${measure} is not a measure of stage ${stage}; it knows ${names.length === 0 ? "none" : names.join(", ")}`
-      );
-    }
-  }
-  return {
-    labels: fields.has("labels") ? fields.strings("labels") : [],
-    risk_terms: fields.has("risk_terms") ? fields.strings("risk_terms") : [],
-    thresholds
-  };
-}
-function chooseDepth(stage, config, evidence, explicit) {
-  const measures = Object.fromEntries(
-    Object.entries(measuresOf(stage)).flatMap(([name, measure]) => {
-      const threshold = config.thresholds[name];
-      return threshold === void 0 ? [] : [[name, { threshold, value: measure(evidence) }]];
-    })
-  );
-  const labels = new Set(evidence.labels.map((label) => label.toLowerCase()));
-  const signals = [
-    ...Object.entries(measures).filter(([, { threshold, value }]) => value > threshold).map(([measure, { threshold, value }]) => ({ kind: "threshold", measure, threshold, value })),
-    ...config.risk_terms.filter((term) => containsTerm(evidence.text, term)).map((term) => ({ kind: "risk-term", term })),
-    ...config.labels.filter((label) => labels.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
-  ];
-  const choice = { chosen_by: explicit === void 0 ? "signals" : "argument", measures, signals };
-  return { choice, depth: explicit ?? (signals.length > 0 ? "deep" : "base") };
-}
-function signalledDepth(choice) {
-  return choice.signals.length > 0 ? "deep" : "base";
-}
-function readDepthChoice(fields) {
-  return {
-    chosen_by: fields.oneOf("chosen_by", ["argument", "signals"]),
-    measures: fields.entries("measures", (measure) => ({ threshold: measure.number("threshold"), value: measure.number("value") })),
-    signals: fields.list("signals", readDepthSignal)
-  };
-}
-function readDepthSignal(fields) {
-  const kind = fields.oneOf("kind", ["threshold", "risk-term", "label"]);
-  if (kind === "threshold") {
-    return { kind, measure: fields.string("measure"), threshold: fields.number("threshold"), value: fields.number("value") };
-  }
-  return kind === "risk-term" ? { kind, term: fields.string("term") } : { kind, label: fields.string("label") };
-}
-function measuresOf(stage) {
-  return STAGE_MEASURES[stage] ?? {};
-}
-function countUserStories(text) {
-  let level;
-  let count = 0;
-  for (const line of text.split(/\r?\n/)) {
-    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
-    if (heading !== null) {
-      const depth = (heading[1] ?? "").length;
-      if (level !== void 0 && depth <= level) level = void 0;
-      if (level === void 0 && /^user stories$/i.test(heading[2] ?? "")) level = depth;
-    } else if (level !== void 0 && /^\s*\d+[.)]\s+\S/.test(line)) {
-      count += 1;
-    }
-  }
-  return count;
-}
-function countDecisions(text) {
-  return text.split(/\r?\n/).filter((line) => /^\*\*[^*\n]+(?::\*\*|\*\*\s*:)/.test(line) || /^(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
-}
-function countWords(text) {
-  return text.split(/\s+/).filter((word) => word.length > 0).length;
-}
-function containsTerm(text, term) {
-  const pattern = term.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
-  return new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, "iu").test(text);
 }
 
 // src/contexts/critique/domain/triage.ts
@@ -1734,6 +1701,46 @@ function familyReason(family, request) {
   return void 0;
 }
 
+// src/contexts/critique/domain/tracker.ts
+var TRACKER_KINDS = ["github", "local-markdown"];
+var TRACKER_DOC = "docs/agents/issue-tracker.md";
+function trackerFromDoc(text) {
+  const name = /^#\s+Issue tracker:\s*(.+?)\s*$/im.exec(text)?.[1];
+  const normalised = name?.toLowerCase();
+  if (normalised === "github") return { kind: "github", status: "known" };
+  if (normalised === "local markdown") return { kind: "local-markdown", status: "known" };
+  return { name: name ?? "no tracker", status: "unsupported" };
+}
+function defaultTracker(repositoryKey) {
+  return repositoryKey.startsWith("github.com/") ? "github" : "local-markdown";
+}
+function parseIssueReference(reference, repositoryKey) {
+  const text = reference.trim();
+  const local = /^#?(\d+)$/.exec(text);
+  if (local !== null) return { number: Number(local[1]), repository: repositoryKey };
+  const short = /^([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(text);
+  if (short !== null) return { number: Number(short[3]), repository: key("github.com", short[1], short[2]) };
+  const full = /^([\w.-]+)\/([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(text);
+  if (full !== null) return { number: Number(full[4]), repository: key(full[1], full[2], full[3]) };
+  const url = /^https?:\/\/([^/\s]+)\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)(?:[/?#]\S*)?$/i.exec(text);
+  if (url !== null) return { number: Number(url[4]), repository: key(url[1], url[2], url[3]) };
+  return void 0;
+}
+function key(host = "", owner = "", repo = "") {
+  return `${host}/${owner}/${repo}`.toLowerCase();
+}
+function renderIssue(issue) {
+  const body = issue.body.trim();
+  const parts = body.length > 0 ? [`# ${issue.title}`, body] : [`# ${issue.title}`];
+  if (issue.comments.length > 0) {
+    parts.push("## Comments", ...issue.comments.map((comment) => `### ${comment.author}, ${comment.createdAt}
+
+${comment.body.trim()}`));
+  }
+  return `${parts.join("\n\n").replace(/\r\n?/g, "\n")}
+`;
+}
+
 // src/contexts/critique/domain/manifest.ts
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
@@ -1817,6 +1824,1010 @@ function readArtifactSource(artifact) {
 }
 function compactTimestamp(at) {
   return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+// src/contexts/critique/domain/flow.ts
+var FLOW_PHASES = ["planning", "implementation", "finishing"];
+var STAGE_STATUSES = ["not-run", "in-progress", "second-round-due", "check-failed", "recorded"];
+var REVIEW_STATUSES = ["not-reviewed", "skipped-low-risk", "reviewed", "findings-open"];
+var GATE_STATUSES = ["none", "pass", "fail"];
+function draftFlow(name) {
+  return `draft:${name}`;
+}
+function flowStateFileName(flow) {
+  const slug = flow.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return `${slug}-${sha256(flow).slice(0, 12)}.json`;
+}
+function flowState(sources) {
+  const stage = (name) => stageProgress(sources, name);
+  const stages = {
+    decisions: stage("decisions"),
+    "feature-review": stage("feature-review"),
+    spec: stage("spec"),
+    tickets: stage("tickets")
+  };
+  const noCritique = sources.events.reduce((value, event) => event.event === "no-critique" ? event.value : value, false);
+  const grilled = sources.spec !== null || stages.decisions.run_ids.length > 0 || sources.events.some((event) => event.event === "grilled");
+  const tickets = dependencyOrder(sources.tickets).map((ticket) => flowTicket(sources, ticket));
+  const latestGate = sources.gates.at(-1);
+  const partial = { no_critique: noCritique, spec: sources.spec, stages, tickets };
+  return {
+    draft: sources.draft,
+    flow: sources.flow,
+    gate: latestGate === void 0 ? { head_commit: null, line: null, run_id: null, status: "none" } : { head_commit: latestGate.head_commit, line: latestGate.line, run_id: latestGate.run_id, status: latestGate.gate },
+    grilled,
+    head_commit: sources.head_commit,
+    no_critique: noCritique,
+    open_questions: openQuestions(sources),
+    phase: flowPhase(partial),
+    repository: sources.repository,
+    spec: sources.spec,
+    stages,
+    tickets,
+    updated_at: sources.now,
+    version: 1,
+    vibe_spend_usd: sources.vibe_spend_usd
+  };
+}
+function stageProgress(sources, stage) {
+  const runs = sources.runs.filter((run) => run.stage === stage).sort((a, b) => compareRunIds(a.run_id, b.run_id));
+  const latest = runs.at(-1);
+  const progress = (status) => ({ latest_run_id: latest?.run_id ?? null, run_ids: runs.map((run) => run.run_id), status });
+  if (latest === void 0) return progress("not-run");
+  if (!latest.recorded) return progress("in-progress");
+  if (latest.ticket_check === "failed") return progress("check-failed");
+  const critical = sources.findings.filter(
+    (finding) => finding.run_id === latest.run_id && finding.severity === "critical" && finding.verdict === "accepted"
+  );
+  if (latest.round === 1 && stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL) return progress("second-round-due");
+  return progress("recorded");
+}
+function compareRunIds(a, b) {
+  return a.localeCompare(b, "en", { numeric: true });
+}
+function flowTicket(sources, ticket) {
+  const decisions = [
+    ...sources.reviews.filter((review2) => review2.ticket === ticket.reference).map((review2) => ({ at: review2.recorded_at, review: review2.review === "pass" ? "reviewed" : "findings-open", run_id: review2.run_id })),
+    ...sources.skipped_reviews.filter((skip) => skip.ticket === ticket.reference).map((skip) => ({ at: skip.recorded_at, review: "skipped-low-risk", run_id: skip.run_id }))
+  ].sort((a, b) => a.at.localeCompare(b.at) || compareRunIds(a.run_id, b.run_id));
+  const review = decisions.at(-1)?.review ?? "not-reviewed";
+  const marked = sources.events.some((event) => event.event === "landed" && event.ticket === ticket.reference);
+  return {
+    blocked_by: ticket.blockedBy,
+    id: ticket.id,
+    landed: !ticket.open || marked || review === "reviewed" || review === "skipped-low-risk",
+    reference: ticket.reference,
+    review,
+    review_run_ids: decisions.map((decision) => decision.run_id),
+    title: ticket.title
+  };
+}
+function openQuestions(sources) {
+  const answered2 = new Set(
+    sources.events.flatMap((event) => event.event === "answered" ? [`${event.run_id} ${event.finding_id}`] : [])
+  );
+  return sources.findings.filter((finding) => finding.verdict === "needs-human" && !finding.answered && !answered2.has(`${finding.run_id} ${finding.finding_id}`)).map((finding) => ({ finding_id: finding.finding_id, run_id: finding.run_id, severity: finding.severity, stage: finding.stage }));
+}
+function dependencyOrder(tickets) {
+  const ids = new Set(tickets.map((ticket) => ticket.id));
+  const place = (left, placed) => {
+    const [first] = left;
+    if (first === void 0) return [];
+    const next = left.find((ticket) => ticket.blockedBy.every((blocker) => !ids.has(blocker) || placed.has(blocker))) ?? first;
+    return [next, ...place(left.filter((ticket) => ticket !== next), /* @__PURE__ */ new Set([...placed, next.id]))];
+  };
+  return place(tickets, /* @__PURE__ */ new Set());
+}
+function flowPhase(state) {
+  const critique = !state.no_critique;
+  if (state.spec === null) return "planning";
+  if (critique && state.stages.spec.status !== "recorded") return "planning";
+  if (state.tickets.length === 0) return "planning";
+  if (critique && state.stages.tickets.status !== "recorded") return "planning";
+  return state.tickets.some((ticket) => !ticket.landed) ? "implementation" : "finishing";
+}
+function nextStep(state) {
+  if (state.spec === null) return draftStep(state);
+  return planningStep(state) ?? workStep(state);
+}
+function command(skill, reason, argument) {
+  return { command: argument === void 0 ? skill : `${skill} ${argument}`, kind: "command", reason, skill };
+}
+function stageStep(state, stage, notRun) {
+  const progress = state.stages[stage];
+  const run = progress.latest_run_id ?? "";
+  switch (progress.status) {
+    case "not-run":
+      return { kind: "stage", reason: notRun, stage };
+    case "in-progress":
+      return { kind: "stage", reason: `Run ${run} of the ${stage} stage is not recorded yet: finish it before moving on.`, resume_run_id: run, stage };
+    case "second-round-due":
+      return {
+        kind: "stage",
+        previous_run_id: run,
+        reason: `Run ${run} of the ${stage} stage accepted more than three critical findings: run its second round on the revised artifact.`,
+        stage
+      };
+    case "check-failed":
+      return { kind: "stage", reason: "The ticket check found a dependency cycle: fix the blocker links and check the tickets again.", stage };
+    case "recorded":
+      return void 0;
+  }
+}
+function draftStep(state) {
+  if (!state.grilled) return command("/grill-with-docs", "Every flow starts by grilling the idea against the domain docs; type /flow again when the grilling is done.");
+  const decisions = state.no_critique ? void 0 : stageStep(state, "decisions", "The grilling is done: have critics from other model families look for decisions it left open before the spec is written.");
+  return decisions ?? command("/to-spec", "The decisions are settled, so the spec can be written from them.");
+}
+function openCritical(state) {
+  return state.no_critique ? void 0 : state.open_questions.find((question) => question.severity === "critical");
+}
+function questionStep(question, next) {
+  return command(
+    "/grill-me",
+    `Critical question ${question.finding_id} from the ${question.stage} critique (run ${question.run_id}) is unanswered: settle it before ${next}.`
+  );
+}
+function planningStep(state) {
+  const critique = !state.no_critique;
+  const spec = critique ? stageStep(state, "spec", "The spec is written: have critics from other model families red-team it before it is cut into tickets.") : void 0;
+  if (spec !== void 0) return spec;
+  if (state.tickets.length === 0) {
+    const question = openCritical(state);
+    return question === void 0 ? command("/to-tickets", "The spec is settled, so it can be cut into tickets.") : questionStep(question, "cutting tickets from the spec");
+  }
+  return critique ? stageStep(state, "tickets", "The tickets are cut: check them for cycles, untestable criteria and missing seams before implementing.") : void 0;
+}
+function workStep(state) {
+  const waiting = state.tickets.filter((ticket2) => !ticket2.landed);
+  const [ticket] = waiting;
+  if (ticket === void 0) return finishingStep(state);
+  const question = openCritical(state);
+  if (question !== void 0) return questionStep(question, "implementing");
+  if (ticket.review === "findings-open" && !state.no_critique) {
+    return {
+      kind: "stage",
+      reason: `The review of ticket ${ticket.id} accepted a critical finding that is not fixed: fix it, then review the staged change again.`,
+      stage: "ticket-review",
+      ticket: ticket.id
+    };
+  }
+  const left = waiting.length === 1 ? "it is the last ticket left" : `it is the next of ${String(waiting.length)} tickets left in dependency order`;
+  return command("/implement", `Ticket ${ticket.id} has not landed and ${left}; start it in a fresh session.`, implementArgument(ticket));
+}
+function implementArgument(ticket) {
+  return ticket.reference.includes("#") ? ticket.id : ticket.reference;
+}
+function finishingStep(state) {
+  if (state.no_critique) return { kind: "done", reason: "Every ticket has landed, and critique was skipped on purpose, so there is no feature review to run." };
+  const finish = stageStep(state, "feature-review", "Every ticket has landed: review the feature as a whole before the pull request.");
+  if (finish !== void 0) return finish;
+  const gate = state.gate;
+  if (gate.status === "pass" && gate.head_commit === state.head_commit) {
+    return { kind: "done", reason: "GATE: PASS for the current head: the feature is ready for its pull request." };
+  }
+  const reasons = {
+    fail: `The last feature review held the gate shut (${gate.line ?? "GATE: FAIL"}) and its follow-ups have landed: review the feature again on the new head.`,
+    none: "The feature review left no gate: review the feature again.",
+    pass: "The gate passed for an earlier head: review the feature again on the current one."
+  };
+  return { kind: "stage", reason: reasons[gate.status], stage: "feature-review" };
+}
+function parseFlowState(text) {
+  const file = JsonFields.parse(text);
+  const stages = file.object("stages");
+  const progress = (name) => {
+    const stage = stages.object(name);
+    return { latest_run_id: stage.nullableString("latest_run_id"), run_ids: stage.strings("run_ids"), status: stage.oneOf("status", STAGE_STATUSES) };
+  };
+  const gate = file.object("gate");
+  return {
+    draft: file.nullableString("draft"),
+    flow: file.string("flow"),
+    gate: {
+      head_commit: gate.nullableString("head_commit"),
+      line: gate.nullableString("line"),
+      run_id: gate.nullableString("run_id"),
+      status: gate.oneOf("status", GATE_STATUSES)
+    },
+    grilled: file.boolean("grilled"),
+    head_commit: file.string("head_commit"),
+    no_critique: file.boolean("no_critique"),
+    open_questions: file.list("open_questions", (question) => ({
+      finding_id: question.string("finding_id"),
+      run_id: question.string("run_id"),
+      severity: question.oneOf("severity", SEVERITIES),
+      stage: question.oneOf("stage", CRITIQUE_STAGES)
+    })),
+    phase: file.oneOf("phase", FLOW_PHASES),
+    repository: file.string("repository"),
+    spec: file.nullableString("spec"),
+    stages: { decisions: progress("decisions"), "feature-review": progress("feature-review"), spec: progress("spec"), tickets: progress("tickets") },
+    tickets: file.list("tickets", (ticket) => ({
+      blocked_by: ticket.strings("blocked_by"),
+      id: ticket.string("id"),
+      landed: ticket.boolean("landed"),
+      reference: ticket.string("reference"),
+      review: ticket.oneOf("review", REVIEW_STATUSES),
+      review_run_ids: ticket.strings("review_run_ids"),
+      title: ticket.string("title")
+    })),
+    updated_at: file.string("updated_at"),
+    version: file.literal("version", 1),
+    vibe_spend_usd: file.number("vibe_spend_usd")
+  };
+}
+
+// src/contexts/critique/domain/ticket-review.ts
+function stagedDiffHash(headTree, stagedEntries) {
+  return sha256(`staged-diff v1\0${headTree}\0${stagedEntries}`);
+}
+function parseTicketReviewRecord(text) {
+  const file = JsonFields.parse(text);
+  return {
+    base_commit: file.string("base_commit"),
+    degraded: file.boolean("degraded"),
+    head_commit: file.string("head_commit"),
+    recorded_at: file.string("recorded_at"),
+    repository: file.string("repository"),
+    review: file.oneOf("review", ["pass", "fail"]),
+    reviewed_staged_diff: file.nullableString("reviewed_staged_diff"),
+    run_id: file.string("run_id"),
+    spec: file.string("spec"),
+    stage: file.literal("stage", "ticket-review"),
+    staged_diff: file.nullableString("staged_diff"),
+    ticket: file.string("ticket"),
+    unfixed_critical: file.strings("unfixed_critical"),
+    version: file.literal("version", 1)
+  };
+}
+
+// src/contexts/critique/application/feature-gate.ts
+import { dirname as dirname2, join as join3 } from "node:path";
+
+// src/contexts/critique/application/tracker.ts
+import { basename, dirname, join as join2 } from "node:path";
+
+// src/contexts/critique/application/paths.ts
+import { isAbsolute, relative, resolve } from "node:path";
+function insideRepository(root, path) {
+  const rel = relative(root, isAbsolute(path) ? path : resolve(root, path));
+  if (rel.startsWith("..") || isAbsolute(rel)) throw new CritiqueError("outside-repository", `${path} is outside the repository`);
+  return rel;
+}
+
+// src/contexts/critique/application/tracker.ts
+var TrackerResolver = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async resolve(repository) {
+    const doc = join2(repository.root, TRACKER_DOC);
+    const choice = await this.deps.files.exists(doc) ? trackerFromDoc(await this.deps.files.readText(doc)) : { kind: defaultTracker(repository.key), status: "known" };
+    if (choice.status === "unsupported") {
+      return refusal(
+        "unsupported-tracker",
+        `${TRACKER_DOC} names ${choice.name}; the critique reads specs from GitHub issues or local markdown only`
+      );
+    }
+    return choice.kind === "github" ? new GithubTracker(this.deps, repository) : new LocalMarkdownTracker(this.deps, repository);
+  }
+};
+var GithubTracker = class {
+  constructor(deps, repository) {
+    this.deps = deps;
+    this.repository = repository;
+  }
+  deps;
+  repository;
+  status = "resolved";
+  kind = "github";
+  async artifact(request) {
+    const issue = this.specIssue(request.reference);
+    const reference = this.reference(issue);
+    try {
+      const read = await this.deps.gh.viewIssue({ ...this.locator(issue), comments: request.comments });
+      return {
+        labels: read.labels,
+        name: `issue-${String(issue.number)}.md`,
+        reference,
+        status: "read",
+        text: renderIssue(read),
+        tracker: this.kind
+      };
+    } catch (error) {
+      return refusal("tracker-unreachable", `cannot read issue ${reference} through gh: ${firstLine2(error)}`);
+    }
+  }
+  /** The spec issue's sub-issues, each with its native blocked-by links. */
+  async tickets(spec) {
+    const issue = this.specIssue(spec);
+    try {
+      const issues = await this.deps.gh.subIssues(this.locator(issue));
+      const tickets = await Promise.all(
+        issues.map(async (read) => {
+          const ticket = this.issueAt(read.url, read.number, issue.repository);
+          const blockers = await this.deps.gh.blockedBy(this.locator(ticket));
+          return {
+            blockedBy: blockers.map((blocker) => this.id(this.issueAt(blocker.url, blocker.number, ticket.repository))),
+            id: this.id(ticket),
+            name: `issue-${String(ticket.number)}.md`,
+            open: read.state !== "closed",
+            reference: this.reference(ticket),
+            text: renderIssue({ ...read, comments: [] }),
+            title: read.title
+          };
+        })
+      );
+      return { status: "read", tickets };
+    } catch (error) {
+      return refusal("tracker-unreachable", `cannot read the tickets of ${this.reference(issue)} through gh: ${firstLine2(error)}`);
+    }
+  }
+  /** The issue a spec reference names, which must be one of this repository's. */
+  specIssue(reference) {
+    const issue = parseIssueReference(reference, this.repository.key);
+    if (issue === void 0) {
+      throw new CritiqueError(
+        "invalid-input",
+        `${reference} is not an issue reference; this repository tracks specs as GitHub issues, so name one as #<number> or by its URL`
+      );
+    }
+    if (issue.repository !== this.repository.key) {
+      throw new CritiqueError("outside-repository", `${reference} is an issue of ${issue.repository}, not of ${this.repository.key}`);
+    }
+    return issue;
+  }
+  /** The issue a URL from gh names; one with no readable URL is taken to be in `repository`. */
+  issueAt(url, number, repository) {
+    return parseIssueReference(url, this.repository.key) ?? { number, repository };
+  }
+  locator(issue) {
+    return { cwd: this.repository.root, number: issue.number, repo: issue.repository };
+  }
+  reference(issue) {
+    return `${issue.repository}#${String(issue.number)}`;
+  }
+  /** `#<number>` for an issue of this repository, its full reference for any other. */
+  id(issue) {
+    return issue.repository === this.repository.key ? `#${String(issue.number)}` : this.reference(issue);
+  }
+};
+var LocalMarkdownTracker = class {
+  constructor(deps, repository) {
+    this.deps = deps;
+    this.repository = repository;
+  }
+  deps;
+  repository;
+  status = "resolved";
+  kind = "local-markdown";
+  async artifact(request) {
+    const path = insideRepository(this.repository.root, request.reference);
+    const absolute = join2(this.repository.root, path);
+    if (!await this.deps.files.exists(absolute)) {
+      throw new CritiqueError(
+        "invalid-input",
+        `${request.reference} is not a file in the repository; this repository tracks specs as local markdown, so name one by its path`
+      );
+    }
+    return {
+      labels: [],
+      name: basename(path),
+      reference: path,
+      status: "read",
+      text: await this.deps.files.readText(absolute),
+      tracker: this.kind
+    };
+  }
+  /** The `.md` files in the `issues/` folder beside the spec, as Pocock's `/to-tickets` writes them. */
+  async tickets(spec) {
+    const folder = join2(dirname(insideRepository(this.repository.root, spec)), "issues");
+    const names = (await this.deps.files.listFiles(join2(this.repository.root, folder))).filter((name) => name.endsWith(".md"));
+    const files = await Promise.all(
+      names.map(async (name) => ({
+        reference: join2(folder, name),
+        text: await this.deps.files.readText(join2(this.repository.root, folder, name))
+      }))
+    );
+    return { status: "read", tickets: localTickets(files).map((ticket) => ({
+      ...ticket,
+      name: basename(ticket.reference),
+      open: localTicketOpen(ticket.text)
+    })) };
+  }
+};
+function firstLine2(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "gh failed";
+}
+
+// src/contexts/critique/application/feature-gate.ts
+function gatePath(runDir) {
+  return join3(runDir, "gate.json");
+}
+function gateIndexPath(critiqueDir) {
+  return join3(critiqueDir, "gates.jsonl");
+}
+var FeatureGate = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.trackers = new TrackerResolver(deps);
+  }
+  deps;
+  trackers;
+  async compute(manifest, findings) {
+    const code = manifest.code;
+    if (code === void 0) throw new CritiqueError("invalid-run", `run ${manifest.run_id} is a feature review without the commits it reviewed`);
+    const spec = specReference(manifest);
+    const tickets = await this.tickets(manifest);
+    const followUps = findings.filter((finding) => finding.verdict.verdict === "accepted").map((finding) => {
+      const given = finding.verdict.follow_up ?? "";
+      const ticket = ticketNamed(tickets, given, manifest.repository);
+      if (ticket === void 0) {
+        throw new CritiqueError(
+          "invalid-input",
+          `${finding.id}'s follow-up ${given} is not a ticket of ${spec}; create it as one of the spec's tickets first`
+        );
+      }
+      return { finding_id: finding.id, open: ticket.open, reference: ticket.reference, severity: finding.severity, ticket: ticket.id };
+    });
+    const earlier = (await this.index(manifest)).filter((record) => record.repository === manifest.repository && record.spec === spec);
+    const isOpen = (reference) => tickets.find((ticket) => ticket.reference === reference)?.open ?? true;
+    const open = openCriticalFollowUps(manifest.run_id, followUps, earlier, isOpen);
+    return {
+      base_commit: code.base_commit,
+      critical_open: open.length,
+      follow_ups: followUps,
+      gate: open.length === 0 ? "pass" : "fail",
+      head_commit: code.head_commit,
+      line: gateLine(open.length),
+      open_critical: open,
+      recorded_at: this.deps.clock.now().toISOString(),
+      repository: manifest.repository,
+      run_id: manifest.run_id,
+      spec,
+      stage: "feature-review",
+      version: 1
+    };
+  }
+  /** Writes the gate into the run and appends it to the repository's gate index. */
+  async save(manifest, gate) {
+    const line = JSON.stringify(gate);
+    await this.deps.files.writeText(gatePath(manifest.run_dir), `${JSON.stringify(gate, null, 2)}
+`);
+    await this.deps.files.appendText(gateIndexPath(dirname2(manifest.run_dir)), `${line}
+`);
+  }
+  /** The spec's tickets as the tracker holds them now; a tracker that cannot be read leaves the gate unknown. */
+  async tickets(manifest) {
+    const repository = { commonDir: dirname2(dirname2(manifest.run_dir)), key: manifest.repository, root: manifest.repo_root, status: "resolved" };
+    const tracker = await this.trackers.resolve(repository);
+    const read = tracker.status === "refused" ? tracker : await tracker.tickets(manifest.artifact.reference);
+    if (read.status === "refused") throw new CritiqueError("tracker-unreachable", `the gate needs the spec's tickets: ${read.message}`);
+    return read.tickets;
+  }
+  async index(manifest) {
+    const path = gateIndexPath(dirname2(manifest.run_dir));
+    if (!await this.deps.files.exists(path)) return [];
+    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
+    return lines.map((line, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parseGateRecord(line)));
+  }
+};
+function ticketNamed(tickets, given, repositoryKey) {
+  const issue = parseIssueReference(given, repositoryKey);
+  const asReference = issue === void 0 ? void 0 : `${issue.repository}#${String(issue.number)}`;
+  return tickets.find((ticket) => ticket.id === given || ticket.reference === given || ticket.reference === asReference);
+}
+
+// src/contexts/critique/application/ticket-review.ts
+import { dirname as dirname3, join as join4 } from "node:path";
+
+// src/contexts/critique/application/staged-change.ts
+var SNAPSHOT_MESSAGE = "critique: the staged change under review";
+var StagedDiffReader = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async read(root) {
+    const git = this.deps.git;
+    let head;
+    try {
+      head = await git.resolveCommit(root, "HEAD");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new CritiqueError("invalid-input", `staged needs a commit at HEAD to diff the index against: ${detail}`);
+    }
+    const [tree, entries] = await Promise.all([git.treeOf(root, head), git.stagedEntries(root)]);
+    return { head_commit: head, sha256: stagedDiffHash(tree, entries) };
+  }
+  async snapshot(root) {
+    const staged = await this.read(root);
+    const tree = await this.deps.git.writeIndexTree(root);
+    return { ...staged, commit: await this.deps.git.commitTree(root, tree, staged.head_commit, SNAPSHOT_MESSAGE) };
+  }
+};
+function stagedInput(fields, stage) {
+  if (!fields.has("staged") || !fields.boolean("staged")) return false;
+  if (stage !== "ticket-review") throw new CritiqueError("invalid-input", `only ticket-review takes staged; ${stage} reviews commits`);
+  if (fields.has("head")) throw new CritiqueError("invalid-input", "staged reviews the index: leave out head");
+  return true;
+}
+
+// src/contexts/critique/application/ticket-review.ts
+function ticketReviewPath(runDir) {
+  return join4(runDir, "review.json");
+}
+function ticketReviewIndexPath(critiqueDir) {
+  return join4(critiqueDir, "ticket-reviews.jsonl");
+}
+var TicketReviewLog = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.staged = new StagedDiffReader(deps);
+  }
+  deps;
+  staged;
+  async compute(manifest, run) {
+    const code = manifest.code;
+    if (code === void 0) throw new CritiqueError("invalid-run", `run ${manifest.run_id} is a ticket review without the commits it reviewed`);
+    const reviewed = code.staged_diff ?? null;
+    const unfixed = unfixedCritical(run).map((finding) => finding.id);
+    return {
+      base_commit: code.base_commit,
+      degraded: run.degraded,
+      head_commit: code.head_commit,
+      recorded_at: this.deps.clock.now().toISOString(),
+      repository: manifest.repository,
+      review: unfixed.length === 0 ? "pass" : "fail",
+      reviewed_staged_diff: reviewed,
+      run_id: manifest.run_id,
+      spec: specReference(manifest),
+      stage: "ticket-review",
+      staged_diff: reviewed === null ? null : (await this.staged.read(manifest.repo_root)).sha256,
+      ticket: manifest.artifact.reference,
+      unfixed_critical: unfixed,
+      version: 1
+    };
+  }
+  /** Writes the record into the run and appends it to the repository's review index. */
+  async save(manifest, record) {
+    await this.deps.files.writeText(ticketReviewPath(manifest.run_dir), `${JSON.stringify(record, null, 2)}
+`);
+    await this.deps.files.appendText(ticketReviewIndexPath(dirname3(manifest.run_dir)), `${JSON.stringify(record)}
+`);
+  }
+};
+
+// src/contexts/critique/application/flow-state.ts
+function flowStatePath(critiqueDir, flow) {
+  return join5(critiqueDir, "flows", flowStateFileName(flow));
+}
+var DRAFT_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
+var StateCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.flows = new FlowLocator(deps);
+  }
+  deps;
+  flows;
+  async run(raw) {
+    const input = readInput(raw, "state", readStateInput);
+    const located = await this.flows.locate(input);
+    if (located.status === "refused") return located;
+    const { flow, repository, spec, tracker } = located;
+    const critiqueDir = join5(repository.commonDir, "critique");
+    const path = flowStatePath(critiqueDir, flow);
+    const saved = await this.deps.files.exists(path);
+    if (input.cached && input.record === void 0 && saved) {
+      const state2 = await this.cachedState(path);
+      if (state2 !== void 0) return { next: nextStep(state2), source: "cache", state: state2, state_path: path, status: "read" };
+    }
+    const tickets = spec === void 0 ? [] : await this.tickets(tracker, input.spec ?? "");
+    if (!Array.isArray(tickets)) return tickets;
+    const ledgerText = await this.ledgerText();
+    const ledger = decoded("invalid-ledger", ledgerPath(this.deps.env), () => ledgerText === "" ? EMPTY_LEDGER : parseLedger(ledgerText));
+    const { draft, keys } = flowKeys(ledger, located, input.draft);
+    const gather = {
+      critiqueDir,
+      draft: spec === void 0 ? null : draft ?? null,
+      flow,
+      keys,
+      ledger,
+      ledgerText,
+      repository,
+      spec: spec?.reference ?? null,
+      tickets
+    };
+    const before = await this.sources(gather);
+    const events = newEvents(input, flowState(before), spec !== void 0 && input.draft !== void 0 && linkedDraft(ledger, repository.key, flow) !== input.draft);
+    await this.recordEvents(events, repository.key, flow);
+    const state = flowState({ ...before, events: [...before.events, ...events] });
+    await this.deps.files.writeText(path, `${JSON.stringify(state, null, 2)}
+`);
+    return { next: nextStep(state), source: saved ? "refreshed" : "rebuilt", state, state_path: path, status: "read" };
+  }
+  /** The saved state, or undefined when it no longer reads as one, so it is rebuilt. */
+  async cachedState(path) {
+    try {
+      return parseFlowState(await this.deps.files.readText(path));
+    } catch {
+      return void 0;
+    }
+  }
+  async tickets(tracker, spec) {
+    const read = await tracker.tickets(spec);
+    return read.status === "refused" ? read : read.tickets;
+  }
+  async ledgerText() {
+    const path = ledgerPath(this.deps.env);
+    return await this.deps.files.exists(path) ? this.deps.files.readText(path) : "";
+  }
+  async recordEvents(events, repository, flow) {
+    if (events.length === 0) return;
+    const context = { flow, recorded_at: this.deps.clock.now().toISOString(), repository };
+    await this.deps.files.appendText(ledgerPath(this.deps.env), events.map((event) => `${flowEventLine(event, context)}
+`).join(""));
+  }
+  async sources(gather) {
+    const { keys, ledger, repository, spec } = gather;
+    const belongs = (line) => line.repository === repository.key && (line.flow !== void 0 && keys.includes(line.flow) || spec !== null && line.spec === spec);
+    const runs = await this.runs(gather, belongs);
+    const runIds = new Set(runs.map((run) => run.run_id));
+    const reviews = (await this.index(ticketReviewIndexPath(gather.critiqueDir), parseTicketReviewRecord)).filter(
+      (review) => review.repository === repository.key
+    );
+    const gates = (await this.index(gateIndexPath(gather.critiqueDir), parseGateRecord)).filter(
+      (gate) => gate.repository === repository.key && gate.spec === spec
+    );
+    const invocations = invocationLines(gather.ledgerText);
+    return {
+      draft: gather.draft,
+      events: ledger.flow_events.filter((event) => event.repository === repository.key && keys.includes(event.flow)),
+      findings: ledger.findings.filter((finding) => runIds.has(finding.run_id)),
+      flow: gather.flow,
+      gates,
+      head_commit: await this.deps.git.resolveCommit(repository.root, "HEAD"),
+      now: this.deps.clock.now().toISOString(),
+      repository: repository.key,
+      reviews,
+      runs,
+      // Matched to tickets by reference: a triage run without the spec keeps the ticket's own flow.
+      skipped_reviews: ledger.skipped_reviews.filter((skip) => skip.repository === repository.key),
+      spec,
+      tickets: gather.tickets,
+      vibe_spend_usd: totalSpend(spendByFlow(invocations, repository.key, keys))
+    };
+  }
+  /**
+   * The flow's runs, from the run directories (which hold runs not yet
+   * recorded, and recorded runs no critic took part in) and from the ledger
+   * (which still holds runs whose directory is gone).
+   */
+  async runs(gather, belongs) {
+    const runs = /* @__PURE__ */ new Map();
+    for (const name of await this.deps.files.listDirectories(gather.critiqueDir)) {
+      const runDir = join5(gather.critiqueDir, name);
+      if (!await this.deps.files.exists(manifestPath(runDir))) continue;
+      const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
+      if (!belongs({ flow: manifest.flow, repository: manifest.repository, spec: specReference(manifest) })) continue;
+      runs.set(manifest.run_id, {
+        recorded: await this.deps.files.exists(reportPath(runDir)),
+        round: manifest.round,
+        run_id: manifest.run_id,
+        stage: manifest.stage,
+        ticket_check: manifest.ticket_check?.status ?? null
+      });
+    }
+    for (const line of gather.ledger.runs.filter(belongs)) {
+      const known = runs.get(line.run_id);
+      runs.set(line.run_id, known === void 0 ? { recorded: true, round: line.round, run_id: line.run_id, stage: line.stage, ticket_check: null } : { ...known, recorded: true });
+    }
+    return [...runs.values()];
+  }
+  /** One JSON line per record, oldest first; a line that does not parse is an unreadable run record. */
+  async index(path, parse) {
+    if (!await this.deps.files.exists(path)) return [];
+    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
+    return lines.map((line, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parse(line)));
+  }
+};
+var FlowLocator = class {
+  repositories;
+  trackers;
+  constructor(deps) {
+    this.repositories = new RepositoryGate(deps);
+    this.trackers = new TrackerResolver(deps);
+  }
+  async locate(name) {
+    const repository = await this.repositories.resolve(name.repo);
+    if (repository.status === "refused") return repository;
+    const tracker = await this.trackers.resolve(repository);
+    if (tracker.status === "refused") return tracker;
+    const spec = name.spec === void 0 ? void 0 : await tracker.artifact({ comments: false, reference: name.spec });
+    if (spec?.status === "refused") return spec;
+    return { flow: spec?.reference ?? draftFlow(name.draft ?? ""), repository, spec, status: "located", tracker };
+  }
+};
+function flowKeys(ledger, located, draft) {
+  const linked = draft ?? linkedDraft(ledger, located.repository.key, located.flow);
+  return { draft: linked, keys: located.spec === void 0 || linked === void 0 ? [located.flow] : [located.flow, draftFlow(linked)] };
+}
+function linkedDraft(ledger, repository, flow) {
+  return ledger.flow_events.reduce(
+    (draft, event) => event.event === "draft" && event.repository === repository && event.flow === flow ? event.draft : draft,
+    void 0
+  );
+}
+function newEvents(input, state, link) {
+  const record = input.record;
+  const events = link ? [{ draft: input.draft ?? "", event: "draft" }] : [];
+  if (record === void 0) return events;
+  if (record.grilled) events.push({ event: "grilled" });
+  if (record.no_critique !== void 0) events.push({ event: "no-critique", value: record.no_critique });
+  for (const named of record.landed) {
+    const ticket = state.tickets.find((candidate) => candidate.id === named || candidate.reference === named);
+    if (ticket === void 0) throw new CritiqueError("invalid-input", `state input: ${named} is not a ticket of ${state.flow}`);
+    events.push({ event: "landed", ticket: ticket.reference });
+  }
+  for (const answer of record.answered) {
+    const open = state.open_questions.some((question) => question.run_id === answer.run_id && question.finding_id === answer.finding_id);
+    if (!open) throw new CritiqueError("invalid-input", `state input: ${answer.finding_id} of run ${answer.run_id} is not an open question of ${state.flow}`);
+    events.push({ event: "answered", finding_id: answer.finding_id, run_id: answer.run_id });
+  }
+  return events;
+}
+function readStateInput(fields) {
+  return {
+    ...readFlowName(fields, "state"),
+    cached: fields.has("cached") && fields.boolean("cached"),
+    record: fields.has("record") ? readRecord(fields.object("record")) : void 0
+  };
+}
+function readFlowName(fields, command2) {
+  const spec = fields.optionalString("spec");
+  const draft = fields.optionalMatching("draft", isDraftName, "a draft name: letters, digits, dots, dashes, underscores and slashes");
+  if (spec === void 0 && draft === void 0) {
+    throw new CritiqueError("invalid-input", `${command2} input: name the feature by its spec, or by a draft name before /to-spec has written one`);
+  }
+  return { draft, repo: fields.string("repo"), spec };
+}
+function readRecord(fields) {
+  return {
+    answered: fields.has("answered") ? fields.list("answered", (answer) => ({ finding_id: answer.string("finding_id"), run_id: answer.string("run_id") })) : [],
+    grilled: fields.has("grilled") && fields.boolean("grilled"),
+    landed: fields.has("landed") ? fields.strings("landed") : [],
+    no_critique: fields.has("no_critique") ? fields.boolean("no_critique") : void 0
+  };
+}
+function isDraftName(value) {
+  return DRAFT_NAME.test(value);
+}
+
+// src/contexts/critique/application/routing.ts
+import { join as join6 } from "node:path";
+
+// src/contexts/critique/domain/merge-patch.ts
+function mergePatch(target, patch) {
+  if (!isJsonObject(patch)) return patch;
+  const base = isJsonObject(target) ? target : {};
+  const keys = /* @__PURE__ */ new Set([...Object.keys(base), ...Object.keys(patch)]);
+  return Object.fromEntries(
+    [...keys].flatMap((key2) => {
+      if (!(key2 in patch)) return [[key2, base[key2]]];
+      const value = patch[key2];
+      return value === null ? [] : [[key2, mergePatch(base[key2], value)]];
+    })
+  );
+}
+
+// src/contexts/critique/application/routing.ts
+var RoutingSource = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async load() {
+    const shippedPath = join6(this.deps.assetsRoot, "routing.json");
+    const shipped = await readJsonFile(this.deps.files, shippedPath, "invalid-routing", (text) => JSON.parse(text));
+    const overridePath = routingOverridePath(this.deps.env);
+    if (!await this.deps.files.exists(overridePath)) {
+      return decoded("invalid-routing", shippedPath, () => parseRouting(JSON.stringify(shipped)));
+    }
+    const override = await readJsonFile(this.deps.files, overridePath, "invalid-routing", (text) => JSON.parse(text));
+    if (!isJsonObject(override)) throw new CritiqueError("invalid-routing", `${overridePath}: the override must be a JSON object`);
+    return decoded(
+      "invalid-routing",
+      `${shippedPath} with the override ${overridePath}`,
+      () => parseRouting(JSON.stringify(mergePatch(shipped, override)))
+    );
+  }
+};
+
+// src/contexts/critique/application/budget-view.ts
+var BudgetCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.flows = new FlowLocator(deps);
+    this.budget = new FlowBudget(deps);
+    this.routing = new RoutingSource(deps);
+  }
+  deps;
+  flows;
+  budget;
+  routing;
+  async run(raw) {
+    const input = readInput(raw, "budget", (fields) => readFlowName(fields, "budget"));
+    const located = await this.flows.locate(input);
+    if (located.status === "refused") return located;
+    const { keys } = flowKeys(await this.ledger(), located, input.draft);
+    const routing = await this.routing.load();
+    const spends = await this.budget.vibeSpendByFlow(located.repository.key, keys);
+    const invocations = await this.budget.agyInvocationsToday();
+    return {
+      antigravity: { ...routing.limits.antigravity_quota, day: utcDay(this.deps.clock.now()), invocations },
+      flow: located.flow,
+      // Before /to-spec the flow is the draft's own; after it the spec's comes first, then its draft's.
+      stages: stageOutlooks(routing, {
+        agyToday: invocations,
+        draft: (located.spec === void 0 ? spends[0] : spends[1]) ?? null,
+        spec: located.spec === void 0 ? null : spends[0] ?? null
+      }),
+      status: "read",
+      vibe: { cap_usd: routing.limits.budget.vibe_flow_cap_usd, flows: spends, spent_usd: totalSpend(spends) }
+    };
+  }
+  async ledger() {
+    const path = ledgerPath(this.deps.env);
+    const text = await this.deps.files.exists(path) ? await this.deps.files.readText(path) : "";
+    return decoded("invalid-ledger", path, () => text === "" ? EMPTY_LEDGER : parseLedger(text));
+  }
+};
+
+// src/contexts/critique/application/check-tickets.ts
+async function readCheckedTickets(tracker, request) {
+  const spec = await tracker.artifact({ comments: request.comments, reference: request.spec });
+  if (spec.status === "refused") return spec;
+  const read = await tracker.tickets(request.spec);
+  if (read.status === "refused") return read;
+  const check = checkTickets(spec.text, read.tickets);
+  return {
+    result: { status: ticketCheckStatus(check), spec: { reference: spec.reference, tracker: spec.tracker }, ...check },
+    spec,
+    status: "read",
+    tickets: read.tickets
+  };
+}
+var CheckTicketsCommand = class {
+  repositories;
+  trackers;
+  constructor(deps) {
+    this.repositories = new RepositoryGate(deps);
+    this.trackers = new TrackerResolver(deps);
+  }
+  async run(raw) {
+    const input = readInput(raw, "check-tickets", (fields) => ({ repo: fields.string("repo"), spec: fields.string("spec") }));
+    const repository = await this.repositories.resolve(input.repo);
+    if (repository.status === "refused") return repository;
+    const tracker = await this.trackers.resolve(repository);
+    if (tracker.status === "refused") return tracker;
+    const checked = await readCheckedTickets(tracker, { comments: false, spec: input.spec });
+    return checked.status === "refused" ? checked : checked.result;
+  }
+};
+
+// src/contexts/critique/application/fan-out.ts
+import { join as join8 } from "node:path";
+
+// src/contexts/critique/domain/line-references.ts
+var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
+var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
+var LOOKS_LIKE_A_FILE = /\/|\.[A-Za-z]\w*$/;
+function lineReferences(text) {
+  return [...text.replace(URL, " ").matchAll(REFERENCE)].flatMap((match) => {
+    const path = (match[1] ?? "").replace(/^\.\//, "");
+    if (!LOOKS_LIKE_A_FILE.test(path)) return [];
+    const first = Number(match[2]);
+    return [{ first, last: match[3] === void 0 ? first : Number(match[3]), path }];
+  });
+}
+function packetCandidates(path, treeDir) {
+  const diffSide = /^[ab]\/(.+)$/.exec(path);
+  return [path, `${treeDir}/${path}`, ...diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ""}`]];
+}
+function lineCount(text) {
+  if (text.length === 0) return 0;
+  return text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+}
+
+// src/contexts/critique/domain/evidence.ts
+function indexPacket(packet2, tickets = []) {
+  return {
+    files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
+    lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)])),
+    tickets
+  };
+}
+var TREE_DIR = "tree";
+var DECISION_CATEGORIES = ["omission", "invention"];
+function checkEvidence(finding, stage, packet2) {
+  const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false };
+  for (const [index, evidence] of finding.evidence.entries()) {
+    if (evidence.kind !== "quote") {
+      found.scenario = true;
+      continue;
+    }
+    const quote = normalise(evidence.value);
+    const holders = packet2.files.filter((file) => file.normalised.includes(quote));
+    if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`);
+    found.spec ||= holders.some((file) => file.kind === "artifact");
+    found.decision ||= holders.some((file) => file.kind === "reference");
+  }
+  if (isCodeStage(stage)) {
+    const missing = missingLine(finding, packet2);
+    if (missing !== void 0) return fabricated(missing);
+  }
+  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : stage === "decisions" ? decisionsRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : ticketRule(finding.location, packet2.tickets);
+  return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
+}
+function fabricated(reason) {
+  return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
+}
+function missingLine(finding, packet2) {
+  const sources = [
+    { text: finding.location, where: "the location" },
+    ...finding.evidence.flatMap(
+      (evidence, index) => evidence.kind === "trace" ? [{ text: evidence.value, where: `evidence ${String(index + 1)}` }] : []
+    )
+  ];
+  for (const { text, where } of sources) {
+    for (const reference of lineReferences(text)) {
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate));
+      if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
+      const lines = packet2.lines.get(path) ?? 0;
+      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines);
+      if (outside !== void 0) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`;
+    }
+  }
+  return void 0;
+}
+function codeRule(evidence) {
+  const checkable = evidence.some(
+    (item) => item.kind === "failing-test" || item.kind === "trace" && lineReferences(item.value).length > 0
+  );
+  return checkable ? void 0 : "no-test-or-trace";
+}
+function ticketRule(location, tickets) {
+  const target = ticketTarget(location, tickets);
+  if (target.rule === void 0) return "no-ticket-rule";
+  return target.rule === "uncovered-requirement" || target.ticket !== void 0 ? void 0 : "no-ticket-id";
+}
+function specRule(category, found) {
+  if (!found.spec) return "no-spec-quote";
+  if (DECISION_CATEGORIES.includes(category)) return found.decision ? void 0 : "no-decision-quote";
+  return found.decision || found.scenario ? void 0 : "no-decision-or-scenario";
+}
+var GAP_CATEGORIES = ["unasked-question", "contradiction"];
+function decisionsRule(category, found) {
+  if (!GAP_CATEGORIES.includes(category)) return "not-a-decision-gap";
+  if (!found.spec && !found.decision) return "no-decision-quote";
+  return found.scenario ? void 0 : "no-scenario";
+}
+var HINT_REASONS = {
+  "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
+  "no-decision-quote": "no quote from a decision source",
+  "no-evidence": "no evidence to check",
+  "no-scenario": "no concrete scenario",
+  "no-spec-quote": "no quote from the spec",
+  "no-test-or-trace": "no failing test and no trace with a file and line",
+  "no-ticket-id": "the location names no ticket of the spec",
+  "no-ticket-rule": "the location names no ticket rule",
+  "not-a-decision-gap": "neither an unasked question nor a contradiction"
+};
+function normalise(text) {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 // src/contexts/critique/domain/merge.ts
@@ -1906,46 +2917,6 @@ ${sources.schema.trim()}
   };
 }
 
-// src/contexts/critique/application/budget.ts
-var FlowBudget = class {
-  constructor(deps) {
-    this.deps = deps;
-  }
-  deps;
-  /** What the Vibe critics of this run's flow have been charged so far, this run's included. */
-  async vibeSpend(manifest) {
-    return flowSpend(await this.lines(), manifest.repository, manifest.flow);
-  }
-  /** agy launches on this machine today. */
-  async agyInvocationsToday() {
-    return agyInvocationsOn(await this.lines(), this.deps.clock.now());
-  }
-  async logInvocation(manifest, run, kind) {
-    const line = {
-      charged_usd: run.charged_usd,
-      client: run.client,
-      critic_id: run.critic_id,
-      family: run.family,
-      flow: manifest.flow,
-      kind,
-      model: run.model,
-      recorded_at: this.deps.clock.now().toISOString(),
-      repository: manifest.repository,
-      round: manifest.round,
-      run_id: manifest.run_id,
-      stage: manifest.stage,
-      status: run.status,
-      type: "invocation"
-    };
-    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
-`);
-  }
-  async lines() {
-    const path = ledgerPath(this.deps.env);
-    return await this.deps.files.exists(path) ? invocationLines(await this.deps.files.readText(path)) : [];
-  }
-};
-
 // src/contexts/critique/application/ports.ts
 function clientReadiness(clients, config) {
   return config.kind === "agy" ? clients.agy.readiness(config) : clients.vibe.readiness(config);
@@ -1956,7 +2927,7 @@ function reviewWith(clients, launch) {
 }
 
 // src/contexts/critique/application/tripwire.ts
-import { join as join3 } from "node:path";
+import { join as join7 } from "node:path";
 
 // src/contexts/critique/domain/readonly.ts
 function packetChanges(packet2, before, after) {
@@ -1987,7 +2958,7 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
   static async load(deps, manifest) {
     const frozen = /* @__PURE__ */ new Map();
     for (const file of manifest.packet_files) {
-      const text = await deps.files.readText(join3(manifest.packet_dir, file.path));
+      const text = await deps.files.readText(join7(manifest.packet_dir, file.path));
       if (sha256(text) !== file.sha256) {
         throw new CritiqueError("invalid-run", `${file.path} in the packet no longer matches the manifest`);
       }
@@ -2025,7 +2996,7 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
   async packetState(dir) {
     const state = /* @__PURE__ */ new Map();
     for (const path of await this.deps.files.listTree(dir)) {
-      state.set(path, await this.fingerprint(join3(dir, path)));
+      state.set(path, await this.fingerprint(join7(dir, path)));
     }
     return state;
   }
@@ -2037,7 +3008,7 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
     const root = this.manifest.repo_root;
     const state = /* @__PURE__ */ new Map();
     for (const entry of await this.deps.git.porcelainStatus(root)) {
-      state.set(entry.path, { code: entry.code, hash: await this.fingerprint(join3(root, entry.path)) });
+      state.set(entry.path, { code: entry.code, hash: await this.fingerprint(join7(root, entry.path)) });
     }
     return state;
   }
@@ -2047,9 +3018,9 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
   /** Puts back every frozen file and removes every other file. */
   async restore(dir) {
     for (const path of await this.deps.files.listTree(dir)) {
-      if (!this.frozen.has(path)) await this.deps.files.remove(join3(dir, path));
+      if (!this.frozen.has(path)) await this.deps.files.remove(join7(dir, path));
     }
-    for (const [path, text] of this.frozen) await this.deps.files.writeText(join3(dir, path), text);
+    for (const [path, text] of this.frozen) await this.deps.files.writeText(join7(dir, path), text);
   }
 };
 
@@ -2106,7 +3077,7 @@ var FanOutCommand = class {
       manifest.packet_files.map(async (file) => ({
         kind: file.kind,
         path: file.path,
-        text: await this.deps.files.readText(join4(manifest.packet_dir, file.path))
+        text: await this.deps.files.readText(join8(manifest.packet_dir, file.path))
       }))
     );
   }
@@ -2132,7 +3103,7 @@ var FanOutCommand = class {
    */
   async attempt(wave, critic, retryOf) {
     const skip = critic.client_config.kind === "vibe" ? budgetReached(wave.spent, wave.manifest.limits) : void 0;
-    const criticDir = join4(wave.manifest.run_dir, "critics", critic.critic_id);
+    const criticDir = join8(wave.manifest.run_dir, "critics", critic.critic_id);
     const prompt = await this.writePrompt(wave.manifest, critic, criticDir);
     const retry = retryOf === void 0 ? {} : { retry_of: retryOf };
     if (skip !== void 0) {
@@ -2155,7 +3126,7 @@ var FanOutCommand = class {
     return attempt;
   }
   async writePrompt(manifest, critic, criticDir) {
-    const asset = (path) => this.deps.files.readText(join4(this.deps.assetsRoot, path));
+    const asset = (path) => this.deps.files.readText(join8(this.deps.assetsRoot, path));
     const prompt = assemblePrompt(
       {
         contract: await asset("prompts/output-contract.md"),
@@ -2172,8 +3143,8 @@ var FanOutCommand = class {
   }
   async runCritic(tripwire, critic, criticDir, prompt, retry) {
     const { prompt_path: promptPath } = promptFields(prompt, criticDir);
-    const stdoutPath = join4(criticDir, "stdout.json");
-    const packetDir = join4(criticDir, "packet");
+    const stdoutPath = join8(criticDir, "stdout.json");
+    const packetDir = join8(criticDir, "packet");
     const armed = await tripwire.arm(packetDir);
     const started = this.deps.clock.monotonicMs();
     const report = await reviewWith(this.deps.clients, {
@@ -2181,12 +3152,12 @@ var FanOutCommand = class {
       critic,
       packetDir,
       promptPath,
-      schemaPath: join4(this.deps.assetsRoot, SCHEMA)
+      schemaPath: join8(this.deps.assetsRoot, SCHEMA)
     });
     const durationMs = this.deps.clock.monotonicMs() - started;
     const violations = await armed.check();
     await this.deps.files.writeText(stdoutPath, report.stdout);
-    await this.deps.files.writeText(join4(criticDir, "stderr.txt"), report.stderr);
+    await this.deps.files.writeText(join8(criticDir, "stderr.txt"), report.stderr);
     const { outcome } = report;
     const findings = outcome.status === "ok" && violations.length === 0 ? outcome.findings : [];
     const run = {
@@ -2206,7 +3177,7 @@ var FanOutCommand = class {
   }
 };
 function promptFields(prompt, criticDir) {
-  return { lens_hashes: prompt.lens_hashes, prompt_hashes: prompt.prompt_hashes, prompt_path: join4(criticDir, "prompt.md") };
+  return { lens_hashes: prompt.lens_hashes, prompt_hashes: prompt.prompt_hashes, prompt_path: join8(criticDir, "prompt.md") };
 }
 function fallbackRetries(manifest, first, blocked) {
   const taken = new Set(first.filter((attempt) => attempt.run.status === "ok").map((attempt) => attempt.run.family));
@@ -2239,10 +3210,10 @@ function criticStatus(outcome, violations) {
 }
 
 // src/contexts/critique/application/prepare.ts
-import { join as join9 } from "node:path";
+import { join as join12 } from "node:path";
 
 // src/contexts/critique/application/code-packet.ts
-import { join as join5 } from "node:path";
+import { join as join9 } from "node:path";
 
 // src/contexts/critique/application/code-change.ts
 var CodeChangeReader = class {
@@ -2269,7 +3240,7 @@ var CodeChangeReader = class {
 
 // src/contexts/critique/application/code-packet.ts
 var TREE_DIR2 = "tree";
-var DIFF_PATH = join5("diff", "change.diff");
+var DIFF_PATH = join9("diff", "change.diff");
 var READ_CONCURRENCY = 16;
 var CodePacketReader = class {
   constructor(deps) {
@@ -2299,7 +3270,7 @@ var CodePacketReader = class {
     const files = [
       { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
       ...tickets.files,
-      { kind: "spec", path: join5("spec", spec.name), source: spec.reference, text: spec.text },
+      { kind: "spec", path: join9("spec", spec.name), source: spec.reference, text: spec.text },
       ...tree
     ];
     return {
@@ -2308,7 +3279,7 @@ var CodePacketReader = class {
       code: {
         base: request.base,
         base_commit: base,
-        changed_files: changed.map((path) => join5(TREE_DIR2, path)),
+        changed_files: changed.map((path) => join9(TREE_DIR2, path)),
         head: request.head,
         head_commit: head
       },
@@ -2337,18 +3308,18 @@ var CodePacketReader = class {
       const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
       batch.forEach((path, i) => {
         const text = texts[i] ?? "";
-        if (!text.includes("\0")) files.push({ kind: "tree", path: join5(TREE_DIR2, path), source: path, text });
+        if (!text.includes("\0")) files.push({ kind: "tree", path: join9(TREE_DIR2, path), source: path, text });
       });
     }
     return files;
   }
 };
 function ticketFile(name, reference, text) {
-  return { kind: "ticket", path: join5("tickets", name), source: reference, text };
+  return { kind: "ticket", path: join9("tickets", name), source: reference, text };
 }
 
 // src/contexts/critique/application/decision-docs.ts
-import { basename as basename2, dirname as dirname2, join as join6 } from "node:path";
+import { basename as basename2, dirname as dirname4, join as join10 } from "node:path";
 
 // src/contexts/critique/domain/decision-docs.ts
 var DOMAIN_DOC = "docs/agents/domain.md";
@@ -2369,7 +3340,7 @@ var DecisionDocs = class {
   }
   files;
   async resolve(root) {
-    const domainDoc = join6(root, DOMAIN_DOC);
+    const domainDoc = join10(root, DOMAIN_DOC);
     const found = await this.files.exists(domainDoc) ? await this.fromDomainDoc(root, await this.files.readText(domainDoc)) : await this.fallback(root);
     return [...new Set(found)];
   }
@@ -2378,7 +3349,7 @@ var DecisionDocs = class {
     for (const path of namedPaths(text)) {
       found.push(...await this.expand(root, path));
       if (basename2(path) === CONTEXT_MAP && await this.isFile(root, path)) {
-        found.push(...await this.contexts(root, await this.files.readText(join6(root, path))));
+        found.push(...await this.contexts(root, await this.files.readText(join10(root, path))));
       }
     }
     return found;
@@ -2387,7 +3358,7 @@ var DecisionDocs = class {
   async contexts(root, map) {
     const found = [];
     for (const path of namedPaths(map).filter((named) => basename2(named) === "CONTEXT.md")) {
-      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join6(dirname2(path), ADR_DIRECTORY)));
+      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join10(dirname4(path), ADR_DIRECTORY)));
     }
     return found;
   }
@@ -2408,17 +3379,17 @@ var DecisionDocs = class {
     return await this.isFile(root, path) ? [path] : [];
   }
   async markdownIn(root, directory) {
-    const names = await this.files.listFiles(join6(root, directory));
-    return names.filter((name) => name.endsWith(".md")).map((name) => join6(directory, name));
+    const names = await this.files.listFiles(join10(root, directory));
+    return names.filter((name) => name.endsWith(".md")).map((name) => join10(directory, name));
   }
   /** True only for a plain file, so an empty directory is never read as a doc. */
   async isFile(root, path) {
-    return (await this.files.listFiles(join6(root, dirname2(path)))).includes(basename2(path));
+    return (await this.files.listFiles(join10(root, dirname4(path)))).includes(basename2(path));
   }
 };
 
 // src/contexts/critique/application/decisions-packet.ts
-import { join as join7 } from "node:path";
+import { join as join11 } from "node:path";
 
 // src/contexts/critique/domain/decisions.ts
 var FEATURE_MAX_LINES = 5;
@@ -2459,14 +3430,14 @@ var DecisionsPacketReader = class {
     const docs = request.references === void 0 ? await this.decisionDocs.resolve(root) : request.references.map((path) => insideRepository(root, path));
     const read = async (folder, source) => ({
       kind: folder,
-      path: join7(folder === "artifact" ? "artifact" : "references", source),
+      path: join11(folder === "artifact" ? "artifact" : "references", source),
       source,
-      text: await this.files.readText(join7(root, source))
+      text: await this.files.readText(join11(root, source))
     });
     if (request.summary !== void 0) {
       const summary = {
         kind: "artifact",
-        path: join7("artifact", SUMMARY_NAME),
+        path: join11("artifact", SUMMARY_NAME),
         source: DECISION_ARTIFACTS.summary,
         text: decisionSummary(request.summary)
       };
@@ -2485,102 +3456,6 @@ var DecisionsPacketReader = class {
 function packet(reference, files) {
   const text = files.filter((file) => file.kind === "artifact").map((file) => file.text).join("\n\n");
   return { artifact: { labels: [], reference, text, tracker: "none" }, code: void 0, files, status: "read" };
-}
-
-// src/contexts/critique/application/routing.ts
-import { join as join8 } from "node:path";
-
-// src/contexts/critique/domain/merge-patch.ts
-function mergePatch(target, patch) {
-  if (!isJsonObject(patch)) return patch;
-  const base = isJsonObject(target) ? target : {};
-  const keys = /* @__PURE__ */ new Set([...Object.keys(base), ...Object.keys(patch)]);
-  return Object.fromEntries(
-    [...keys].flatMap((key2) => {
-      if (!(key2 in patch)) return [[key2, base[key2]]];
-      const value = patch[key2];
-      return value === null ? [] : [[key2, mergePatch(base[key2], value)]];
-    })
-  );
-}
-
-// src/contexts/critique/application/routing.ts
-var RoutingSource = class {
-  constructor(deps) {
-    this.deps = deps;
-  }
-  deps;
-  async load() {
-    const shippedPath = join8(this.deps.assetsRoot, "routing.json");
-    const shipped = await readJsonFile(this.deps.files, shippedPath, "invalid-routing", (text) => JSON.parse(text));
-    const overridePath = routingOverridePath(this.deps.env);
-    if (!await this.deps.files.exists(overridePath)) {
-      return decoded("invalid-routing", shippedPath, () => parseRouting(JSON.stringify(shipped)));
-    }
-    const override = await readJsonFile(this.deps.files, overridePath, "invalid-routing", (text) => JSON.parse(text));
-    if (!isJsonObject(override)) throw new CritiqueError("invalid-routing", `${overridePath}: the override must be a JSON object`);
-    return decoded(
-      "invalid-routing",
-      `${shippedPath} with the override ${overridePath}`,
-      () => parseRouting(JSON.stringify(mergePatch(shipped, override)))
-    );
-  }
-};
-
-// src/contexts/critique/domain/ticket-review.ts
-function stagedDiffHash(headTree, stagedEntries) {
-  return sha256(`staged-diff v1\0${headTree}\0${stagedEntries}`);
-}
-function parseTicketReviewRecord(text) {
-  const file = JsonFields.parse(text);
-  return {
-    base_commit: file.string("base_commit"),
-    degraded: file.boolean("degraded"),
-    head_commit: file.string("head_commit"),
-    recorded_at: file.string("recorded_at"),
-    repository: file.string("repository"),
-    review: file.oneOf("review", ["pass", "fail"]),
-    reviewed_staged_diff: file.nullableString("reviewed_staged_diff"),
-    run_id: file.string("run_id"),
-    spec: file.string("spec"),
-    stage: file.literal("stage", "ticket-review"),
-    staged_diff: file.nullableString("staged_diff"),
-    ticket: file.string("ticket"),
-    unfixed_critical: file.strings("unfixed_critical"),
-    version: file.literal("version", 1)
-  };
-}
-
-// src/contexts/critique/application/staged-change.ts
-var SNAPSHOT_MESSAGE = "critique: the staged change under review";
-var StagedDiffReader = class {
-  constructor(deps) {
-    this.deps = deps;
-  }
-  deps;
-  async read(root) {
-    const git = this.deps.git;
-    let head;
-    try {
-      head = await git.resolveCommit(root, "HEAD");
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new CritiqueError("invalid-input", `staged needs a commit at HEAD to diff the index against: ${detail}`);
-    }
-    const [tree, entries] = await Promise.all([git.treeOf(root, head), git.stagedEntries(root)]);
-    return { head_commit: head, sha256: stagedDiffHash(tree, entries) };
-  }
-  async snapshot(root) {
-    const staged = await this.read(root);
-    const tree = await this.deps.git.writeIndexTree(root);
-    return { ...staged, commit: await this.deps.git.commitTree(root, tree, staged.head_commit, SNAPSHOT_MESSAGE) };
-  }
-};
-function stagedInput(fields, stage) {
-  if (!fields.has("staged") || !fields.boolean("staged")) return false;
-  if (stage !== "ticket-review") throw new CritiqueError("invalid-input", `only ticket-review takes staged; ${stage} reviews commits`);
-  if (fields.has("head")) throw new CritiqueError("invalid-input", "staged reviews the index: leave out head");
-  return true;
 }
 
 // src/contexts/critique/application/prepare.ts
@@ -2654,8 +3529,8 @@ var PrepareCommand = class {
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage };
     const roster = resolveRoster(routing, request, await this.readiness(routing, request));
     const runId = await this.freshRunId(repository, stage);
-    const runDir = join9(repository.commonDir, "critique", runId);
-    const packetDir = join9(runDir, "packet");
+    const runDir = join12(repository.commonDir, "critique", runId);
+    const packetDir = join12(runDir, "packet");
     const packetFiles = await this.freezePacket(
       packetDir,
       ticketCheck === void 0 ? contents.files : [...contents.files, checkReportFile(ticketCheck, stageRoutes.ticket_size)]
@@ -2761,7 +3636,7 @@ var PrepareCommand = class {
   async freshRunId(repository, stage) {
     const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(manifestPath(join9(repository.commonDir, "critique", candidate))); n += 1) {
+    for (let n = 2; await this.deps.files.exists(manifestPath(join12(repository.commonDir, "critique", candidate))); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
@@ -2777,13 +3652,13 @@ var PrepareCommand = class {
     if (artifact.status === "refused") return artifact;
     const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const files = [
-      { kind: "artifact", path: join9("artifact", artifact.name), source: artifact.reference, text: artifact.text },
+      { kind: "artifact", path: join12("artifact", artifact.name), source: artifact.reference, text: artifact.text },
       ...await Promise.all(
         references.map(async (source) => ({
           kind: "reference",
-          path: join9("references", source),
+          path: join12("references", source),
           source,
-          text: await this.deps.files.readText(join9(repository.root, source))
+          text: await this.deps.files.readText(join12(repository.root, source))
         }))
       )
     ];
@@ -2803,7 +3678,7 @@ var PrepareCommand = class {
     return {
       artifact: spec,
       files: [
-        { kind: "spec", path: join9("spec", spec.name), source: spec.reference, text: spec.text },
+        { kind: "spec", path: join12("spec", spec.name), source: spec.reference, text: spec.text },
         ...tickets.map((ticket) => ticketFile(ticket.name, ticket.reference, ticket.text))
       ],
       status: "read",
@@ -2813,7 +3688,7 @@ var PrepareCommand = class {
   async freezePacket(packetDir, files) {
     const frozen = [];
     for (const { text, ...file } of files) {
-      await this.deps.files.writeText(join9(packetDir, file.path), text);
+      await this.deps.files.writeText(join12(packetDir, file.path), text);
       frozen.push({ ...file, sha256: sha256(text) });
     }
     return frozen;
@@ -2822,7 +3697,7 @@ var PrepareCommand = class {
 function checkReportFile(check, size) {
   return {
     kind: "check",
-    path: join9("check", "tickets.json"),
+    path: join12("check", "tickets.json"),
     source: `check-tickets ${check.spec.reference}`,
     text: `${JSON.stringify({ ...check, size: sizeReport(check, size) }, null, 2)}
 `
@@ -2838,233 +3713,7 @@ function preparedCode(code, files) {
 }
 
 // src/contexts/critique/application/record.ts
-import { join as join12 } from "node:path";
-
-// src/contexts/critique/domain/verdicts.ts
-var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
-function countVerdicts(run) {
-  const counts = { accepted: 0, hint: 0, "needs-human": 0, rejected: 0 };
-  for (const finding of run.findings) counts[finding.verdict.verdict] += 1;
-  return counts;
-}
-function secondRoundDue(run) {
-  const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
-  return run.round === 1 && run.stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL;
-}
-function stageVerdictError(stage, verdict) {
-  const id = verdict.finding_id;
-  if (stage === "decisions") {
-    if (verdict.verdict === "needs-human") return `${id}: the decisions stage asks every accepted gap as a question; give it accepted, not needs-human`;
-    if (verdict.answered !== void 0 && verdict.verdict !== "accepted") return `${id}: only an accepted verdict can be answered at the decisions stage`;
-    return void 0;
-  }
-  return verdict.answered !== void 0 && verdict.verdict !== "needs-human" ? `${id}: only a needs-human verdict can be answered` : void 0;
-}
-function openCriticalQuestions(run) {
-  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
-}
-function familiesOf(run, finding) {
-  const families = run.critics.filter((critic) => finding.raised_by.includes(critic.critic_id)).map((c) => c.family);
-  return [...new Set(families)];
-}
-function isDissent(run, finding) {
-  return finding.verdict.verdict === "rejected" && finding.verdict.reason_code !== "fabricated-evidence" && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
-}
-var FEATURE_ACCEPT_REASONS = ["test-fails", "cross-ticket-trace"];
-function verdictProblem(stage, verdict, packetFiles) {
-  return featureVerdictProblem(stage, verdict, packetFiles) ?? ticketVerdictProblem(stage, verdict);
-}
-function featureVerdictProblem(stage, verdict, packetFiles) {
-  const id = verdict.finding_id;
-  const extras = verdict.follow_up !== void 0 || verdict.trace_tickets !== void 0;
-  if (stage !== "feature-review") return extras ? `${id}: follow_up and trace_tickets belong to a feature-review verdict` : void 0;
-  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted feature finding has a follow_up or trace_tickets` : void 0;
-  const reason = verdict.reason_code;
-  if (reason !== "test-fails" && reason !== "cross-ticket-trace") {
-    return `${id}: a feature finding is accepted only with reason_code ${FEATURE_ACCEPT_REASONS.join(" or ")}`;
-  }
-  if (reason === "cross-ticket-trace") {
-    const tickets = new Set(packetFiles.filter((file) => file.kind === "ticket").map((file) => file.path));
-    const crossed = new Set(verdict.trace_tickets ?? []);
-    if (crossed.size < 2 || [...crossed].some((path) => !tickets.has(path))) {
-      return `${id}: a cross-ticket-trace names at least two tickets of the packet in trace_tickets`;
-    }
-  } else if (verdict.trace_tickets !== void 0) {
-    return `${id}: trace_tickets belong to a cross-ticket-trace`;
-  }
-  return verdict.follow_up === void 0 ? `${id}: an accepted feature finding names its follow-up ticket in follow_up` : void 0;
-}
-var TICKET_ACCEPT_REASONS = ["test-fails", "trace-walked"];
-function ticketVerdictProblem(stage, verdict) {
-  const id = verdict.finding_id;
-  const extras = verdict.regression_test !== void 0 || verdict.fixed !== void 0;
-  if (stage !== "ticket-review") return extras ? `${id}: regression_test and fixed belong to a ticket-review verdict` : void 0;
-  if (verdict.verdict !== "accepted") return extras ? `${id}: only an accepted ticket finding has a regression_test or is fixed` : void 0;
-  const reason = verdict.reason_code;
-  if (reason !== "test-fails" && reason !== "trace-walked") {
-    return `${id}: a ticket finding is accepted only with reason_code ${TICKET_ACCEPT_REASONS.join(" or ")}`;
-  }
-  if (reason === "test-fails" && verdict.regression_test === void 0) {
-    return `${id}: a finding accepted by test-fails names the test kept in the ticket's change in regression_test`;
-  }
-  if (reason !== "test-fails" && verdict.regression_test !== void 0) return `${id}: regression_test belongs to a finding accepted by test-fails`;
-  return void 0;
-}
-function unfixedCritical(run) {
-  if (run.stage !== "ticket-review") return [];
-  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted" && f.verdict.fixed !== true);
-}
-
-// src/contexts/critique/domain/ledger.ts
-function ledgerLines(run, recordedAt) {
-  const common = {
-    depth: run.depth,
-    flow: run.flow,
-    depth_chosen_by: run.depth_choice.chosen_by,
-    depth_measures: run.depth_choice.measures,
-    depth_signals: run.depth_choice.signals,
-    recorded_at: recordedAt.toISOString(),
-    repository: run.repository,
-    round: run.round,
-    run_id: run.run_id,
-    spec: run.spec,
-    stage: run.stage
-  };
-  const criticFields = (criticId) => {
-    const critic = run.critics.find((c) => c.critic_id === criticId);
-    return {
-      client: critic?.client,
-      critic_id: criticId,
-      family: critic?.family,
-      lens_hashes: critic?.lens_hashes,
-      lenses: critic?.lenses,
-      model: critic?.model,
-      prompt_hashes: critic?.prompt_hashes,
-      role: critic?.role
-    };
-  };
-  const runLines = run.critics.map((critic) => ({
-    type: "run",
-    ...common,
-    ...criticFields(critic.critic_id),
-    charged_usd: critic.charged_usd,
-    cost_usd: critic.cost_usd,
-    duration_ms: critic.duration_ms,
-    exit_code: critic.exit_code,
-    failure: critic.failure ?? null,
-    finding_count: critic.finding_count,
-    retry_of: critic.retry_of ?? null,
-    status: critic.status
-  }));
-  const findingLines = run.findings.map((finding) => ({
-    type: "finding",
-    ...common,
-    ...criticFields(finding.raised_by[0] ?? ""),
-    category: finding.category,
-    evidence_kinds: finding.evidence.map((e) => e.kind),
-    finding_id: finding.id,
-    /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
-    pre_verdict: finding.pre_verdict?.reason_code ?? null,
-    /** Whether the owner answered a needs-human question before the run was recorded. */
-    answered: finding.verdict.answered === true,
-    raised_by: finding.raised_by,
-    raised_by_families: familiesOf(run, finding),
-    reason_code: finding.verdict.reason_code ?? null,
-    severity: finding.severity,
-    verdict: finding.verdict.verdict
-  }));
-  return [...runLines, ...findingLines].map((line) => JSON.stringify(line));
-}
-var SKIPPED_LOW_RISK = "skipped-low-risk";
-var FLOW_EVENTS = ["grilled", "no-critique", "landed", "answered", "draft"];
-function flowEventLine(event, context) {
-  return JSON.stringify({ type: "flow", ...context, ...event });
-}
-var EMPTY_LEDGER = { findings: [], flow_events: [], runs: [], skipped_reviews: [] };
-function parseLedger(text) {
-  const runs = [];
-  const findings = [];
-  const skipped = [];
-  const events = [];
-  text.split("\n").forEach((line, index) => {
-    if (line.trim() === "") return;
-    const fields = JsonFields.of(parseLine(line, index + 1), `line ${String(index + 1)}`);
-    const type = fields.string("type");
-    if (type === "run" && fields.optionalString("status") === SKIPPED_LOW_RISK) skipped.push(readSkippedReview(fields));
-    else if (type === "run") runs.push(readCriticRunLine(fields));
-    if (type === "finding") findings.push(readFindingLine(fields));
-    if (type === "flow") events.push(readFlowEvent(fields));
-  });
-  return { findings, flow_events: events, runs, skipped_reviews: skipped };
-}
-function readSkippedReview(fields) {
-  return {
-    flow: fields.string("flow"),
-    recorded_at: fields.string("recorded_at"),
-    repository: fields.string("repository"),
-    run_id: fields.string("run_id"),
-    ticket: fields.string("ticket")
-  };
-}
-function readFlowEvent(fields) {
-  const context = { flow: fields.string("flow"), recorded_at: fields.string("recorded_at"), repository: fields.string("repository") };
-  const event = fields.oneOf("event", FLOW_EVENTS);
-  if (event === "no-critique") return { ...context, event, value: fields.boolean("value") };
-  if (event === "landed") return { ...context, event, ticket: fields.string("ticket") };
-  if (event === "answered") return { ...context, event, finding_id: fields.string("finding_id"), run_id: fields.string("run_id") };
-  if (event === "draft") return { ...context, draft: fields.string("draft"), event };
-  return { ...context, event };
-}
-function parseLine(line, number) {
-  try {
-    return JSON.parse(line);
-  } catch {
-    throw new JsonShapeError(`line ${String(number)} is not JSON`);
-  }
-}
-function readContext(fields) {
-  return {
-    recorded_at: fields.string("recorded_at"),
-    repository: fields.string("repository"),
-    run_id: fields.string("run_id"),
-    spec: fields.optionalString("spec"),
-    flow: fields.optionalString("flow"),
-    round: fields.has("round") ? fields.number("round") : 1,
-    stage: fields.oneOf("stage", CRITIQUE_STAGES)
-  };
-}
-function readCriticRunLine(fields) {
-  const hashes = fields.object("prompt_hashes");
-  return {
-    ...readContext(fields),
-    client: fields.string("client"),
-    cost_usd: fields.nullableNumber("cost_usd"),
-    critic_id: fields.string("critic_id"),
-    failure: fields.nullableString("failure"),
-    lens_hashes: fields.stringMap("lens_hashes"),
-    lenses: fields.strings("lenses"),
-    model: fields.string("model"),
-    prompt_hashes: {
-      contract: hashes.string("contract"),
-      preamble: hashes.string("preamble"),
-      role: hashes.string("role"),
-      schema: hashes.string("schema")
-    },
-    role: fields.string("role"),
-    status: fields.oneOf("status", CRITIC_STATUSES)
-  };
-}
-function readFindingLine(fields) {
-  return {
-    ...readContext(fields),
-    answered: fields.has("answered") && fields.boolean("answered"),
-    finding_id: fields.string("finding_id"),
-    pre_verdict: fields.nullableString("pre_verdict"),
-    severity: fields.oneOf("severity", SEVERITIES),
-    raised_by: fields.strings("raised_by"),
-    verdict: fields.oneOf("verdict", VERDICTS)
-  };
-}
+import { join as join13 } from "node:path";
 
 // src/contexts/critique/domain/report.ts
 var SUMMARY_MAX_CHARS = 6e3;
@@ -3330,131 +3979,6 @@ function bullets(items, hidden) {
   return [...items, ...hidden === 0 ? [] : [`- \u2026 ${String(hidden)} more in the report`]];
 }
 
-// src/contexts/critique/application/feature-gate.ts
-import { dirname as dirname3, join as join10 } from "node:path";
-function gatePath(runDir) {
-  return join10(runDir, "gate.json");
-}
-function gateIndexPath(critiqueDir) {
-  return join10(critiqueDir, "gates.jsonl");
-}
-var FeatureGate = class {
-  constructor(deps) {
-    this.deps = deps;
-    this.trackers = new TrackerResolver(deps);
-  }
-  deps;
-  trackers;
-  async compute(manifest, findings) {
-    const code = manifest.code;
-    if (code === void 0) throw new CritiqueError("invalid-run", `run ${manifest.run_id} is a feature review without the commits it reviewed`);
-    const spec = specReference(manifest);
-    const tickets = await this.tickets(manifest);
-    const followUps = findings.filter((finding) => finding.verdict.verdict === "accepted").map((finding) => {
-      const given = finding.verdict.follow_up ?? "";
-      const ticket = ticketNamed(tickets, given, manifest.repository);
-      if (ticket === void 0) {
-        throw new CritiqueError(
-          "invalid-input",
-          `${finding.id}'s follow-up ${given} is not a ticket of ${spec}; create it as one of the spec's tickets first`
-        );
-      }
-      return { finding_id: finding.id, open: ticket.open, reference: ticket.reference, severity: finding.severity, ticket: ticket.id };
-    });
-    const earlier = (await this.index(manifest)).filter((record) => record.repository === manifest.repository && record.spec === spec);
-    const isOpen = (reference) => tickets.find((ticket) => ticket.reference === reference)?.open ?? true;
-    const open = openCriticalFollowUps(manifest.run_id, followUps, earlier, isOpen);
-    return {
-      base_commit: code.base_commit,
-      critical_open: open.length,
-      follow_ups: followUps,
-      gate: open.length === 0 ? "pass" : "fail",
-      head_commit: code.head_commit,
-      line: gateLine(open.length),
-      open_critical: open,
-      recorded_at: this.deps.clock.now().toISOString(),
-      repository: manifest.repository,
-      run_id: manifest.run_id,
-      spec,
-      stage: "feature-review",
-      version: 1
-    };
-  }
-  /** Writes the gate into the run and appends it to the repository's gate index. */
-  async save(manifest, gate) {
-    const line = JSON.stringify(gate);
-    await this.deps.files.writeText(gatePath(manifest.run_dir), `${JSON.stringify(gate, null, 2)}
-`);
-    await this.deps.files.appendText(gateIndexPath(dirname3(manifest.run_dir)), `${line}
-`);
-  }
-  /** The spec's tickets as the tracker holds them now; a tracker that cannot be read leaves the gate unknown. */
-  async tickets(manifest) {
-    const repository = { commonDir: dirname3(dirname3(manifest.run_dir)), key: manifest.repository, root: manifest.repo_root, status: "resolved" };
-    const tracker = await this.trackers.resolve(repository);
-    const read = tracker.status === "refused" ? tracker : await tracker.tickets(manifest.artifact.reference);
-    if (read.status === "refused") throw new CritiqueError("tracker-unreachable", `the gate needs the spec's tickets: ${read.message}`);
-    return read.tickets;
-  }
-  async index(manifest) {
-    const path = gateIndexPath(dirname3(manifest.run_dir));
-    if (!await this.deps.files.exists(path)) return [];
-    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
-    return lines.map((line, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parseGateRecord(line)));
-  }
-};
-function ticketNamed(tickets, given, repositoryKey) {
-  const issue = parseIssueReference(given, repositoryKey);
-  const asReference = issue === void 0 ? void 0 : `${issue.repository}#${String(issue.number)}`;
-  return tickets.find((ticket) => ticket.id === given || ticket.reference === given || ticket.reference === asReference);
-}
-
-// src/contexts/critique/application/ticket-review.ts
-import { dirname as dirname4, join as join11 } from "node:path";
-function ticketReviewPath(runDir) {
-  return join11(runDir, "review.json");
-}
-function ticketReviewIndexPath(critiqueDir) {
-  return join11(critiqueDir, "ticket-reviews.jsonl");
-}
-var TicketReviewLog = class {
-  constructor(deps) {
-    this.deps = deps;
-    this.staged = new StagedDiffReader(deps);
-  }
-  deps;
-  staged;
-  async compute(manifest, run) {
-    const code = manifest.code;
-    if (code === void 0) throw new CritiqueError("invalid-run", `run ${manifest.run_id} is a ticket review without the commits it reviewed`);
-    const reviewed = code.staged_diff ?? null;
-    const unfixed = unfixedCritical(run).map((finding) => finding.id);
-    return {
-      base_commit: code.base_commit,
-      degraded: run.degraded,
-      head_commit: code.head_commit,
-      recorded_at: this.deps.clock.now().toISOString(),
-      repository: manifest.repository,
-      review: unfixed.length === 0 ? "pass" : "fail",
-      reviewed_staged_diff: reviewed,
-      run_id: manifest.run_id,
-      spec: specReference(manifest),
-      stage: "ticket-review",
-      staged_diff: reviewed === null ? null : (await this.staged.read(manifest.repo_root)).sha256,
-      ticket: manifest.artifact.reference,
-      unfixed_critical: unfixed,
-      version: 1
-    };
-  }
-  /** Writes the record into the run and appends it to the repository's review index. */
-  async save(manifest, record) {
-    await this.deps.files.writeText(ticketReviewPath(manifest.run_dir), `${JSON.stringify(record, null, 2)}
-`);
-    await this.deps.files.appendText(ticketReviewIndexPath(dirname4(manifest.run_dir)), `${JSON.stringify(record)}
-`);
-  }
-};
-
 // src/contexts/critique/application/record.ts
 var REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/;
 var RecordCommand = class {
@@ -3499,7 +4023,7 @@ var RecordCommand = class {
     const reviews = new TicketReviewLog(this.deps);
     const ticketReview = manifest.stage === "ticket-review" ? await reviews.compute(manifest, run) : void 0;
     const summary = renderSummary(run, reportPath2);
-    const summaryPath = join12(input.runDir, "summary.md");
+    const summaryPath = join13(input.runDir, "summary.md");
     const ledger = ledgerPath(this.deps.env);
     await this.deps.files.writeText(reportPath2, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
@@ -3578,431 +4102,6 @@ function readVerdict(fields) {
 }
 function isReasonCode(value) {
   return REASON_CODE.test(value);
-}
-
-// src/contexts/critique/application/flow-state.ts
-import { join as join13 } from "node:path";
-
-// src/contexts/critique/domain/flow.ts
-var FLOW_PHASES = ["planning", "implementation", "finishing"];
-var STAGE_STATUSES = ["not-run", "in-progress", "second-round-due", "check-failed", "recorded"];
-var REVIEW_STATUSES = ["not-reviewed", "skipped-low-risk", "reviewed", "findings-open"];
-var GATE_STATUSES = ["none", "pass", "fail"];
-function draftFlow(name) {
-  return `draft:${name}`;
-}
-function flowStateFileName(flow) {
-  const slug = flow.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
-  return `${slug}-${sha256(flow).slice(0, 12)}.json`;
-}
-function flowState(sources) {
-  const stage = (name) => stageProgress(sources, name);
-  const stages = {
-    decisions: stage("decisions"),
-    "feature-review": stage("feature-review"),
-    spec: stage("spec"),
-    tickets: stage("tickets")
-  };
-  const noCritique = sources.events.reduce((value, event) => event.event === "no-critique" ? event.value : value, false);
-  const grilled = sources.spec !== null || stages.decisions.run_ids.length > 0 || sources.events.some((event) => event.event === "grilled");
-  const tickets = dependencyOrder(sources.tickets).map((ticket) => flowTicket(sources, ticket));
-  const latestGate = sources.gates.at(-1);
-  const partial = { no_critique: noCritique, spec: sources.spec, stages, tickets };
-  return {
-    draft: sources.draft,
-    flow: sources.flow,
-    gate: latestGate === void 0 ? { head_commit: null, line: null, run_id: null, status: "none" } : { head_commit: latestGate.head_commit, line: latestGate.line, run_id: latestGate.run_id, status: latestGate.gate },
-    grilled,
-    head_commit: sources.head_commit,
-    no_critique: noCritique,
-    open_questions: openQuestions(sources),
-    phase: flowPhase(partial),
-    repository: sources.repository,
-    spec: sources.spec,
-    stages,
-    tickets,
-    updated_at: sources.now,
-    version: 1,
-    vibe_spend_usd: sources.vibe_spend_usd
-  };
-}
-function stageProgress(sources, stage) {
-  const runs = sources.runs.filter((run) => run.stage === stage).sort((a, b) => compareRunIds(a.run_id, b.run_id));
-  const latest = runs.at(-1);
-  const progress = (status) => ({ latest_run_id: latest?.run_id ?? null, run_ids: runs.map((run) => run.run_id), status });
-  if (latest === void 0) return progress("not-run");
-  if (!latest.recorded) return progress("in-progress");
-  if (latest.ticket_check === "failed") return progress("check-failed");
-  const critical = sources.findings.filter(
-    (finding) => finding.run_id === latest.run_id && finding.severity === "critical" && finding.verdict === "accepted"
-  );
-  if (latest.round === 1 && stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL) return progress("second-round-due");
-  return progress("recorded");
-}
-function compareRunIds(a, b) {
-  return a.localeCompare(b, "en", { numeric: true });
-}
-function flowTicket(sources, ticket) {
-  const decisions = [
-    ...sources.reviews.filter((review2) => review2.ticket === ticket.reference).map((review2) => ({ at: review2.recorded_at, review: review2.review === "pass" ? "reviewed" : "findings-open", run_id: review2.run_id })),
-    ...sources.skipped_reviews.filter((skip) => skip.ticket === ticket.reference).map((skip) => ({ at: skip.recorded_at, review: "skipped-low-risk", run_id: skip.run_id }))
-  ].sort((a, b) => a.at.localeCompare(b.at) || compareRunIds(a.run_id, b.run_id));
-  const review = decisions.at(-1)?.review ?? "not-reviewed";
-  const marked = sources.events.some((event) => event.event === "landed" && event.ticket === ticket.reference);
-  return {
-    blocked_by: ticket.blockedBy,
-    id: ticket.id,
-    landed: !ticket.open || marked || review === "reviewed" || review === "skipped-low-risk",
-    reference: ticket.reference,
-    review,
-    review_run_ids: decisions.map((decision) => decision.run_id),
-    title: ticket.title
-  };
-}
-function openQuestions(sources) {
-  const answered2 = new Set(
-    sources.events.flatMap((event) => event.event === "answered" ? [`${event.run_id} ${event.finding_id}`] : [])
-  );
-  return sources.findings.filter((finding) => finding.verdict === "needs-human" && !finding.answered && !answered2.has(`${finding.run_id} ${finding.finding_id}`)).map((finding) => ({ finding_id: finding.finding_id, run_id: finding.run_id, severity: finding.severity, stage: finding.stage }));
-}
-function dependencyOrder(tickets) {
-  const ids = new Set(tickets.map((ticket) => ticket.id));
-  const place = (left, placed) => {
-    const [first] = left;
-    if (first === void 0) return [];
-    const next = left.find((ticket) => ticket.blockedBy.every((blocker) => !ids.has(blocker) || placed.has(blocker))) ?? first;
-    return [next, ...place(left.filter((ticket) => ticket !== next), /* @__PURE__ */ new Set([...placed, next.id]))];
-  };
-  return place(tickets, /* @__PURE__ */ new Set());
-}
-function flowPhase(state) {
-  const critique = !state.no_critique;
-  if (state.spec === null) return "planning";
-  if (critique && state.stages.spec.status !== "recorded") return "planning";
-  if (state.tickets.length === 0) return "planning";
-  if (critique && state.stages.tickets.status !== "recorded") return "planning";
-  return state.tickets.some((ticket) => !ticket.landed) ? "implementation" : "finishing";
-}
-function nextStep(state) {
-  if (state.spec === null) return draftStep(state);
-  return planningStep(state) ?? workStep(state);
-}
-function command(skill, reason, argument) {
-  return { command: argument === void 0 ? skill : `${skill} ${argument}`, kind: "command", reason, skill };
-}
-function stageStep(state, stage, notRun) {
-  const progress = state.stages[stage];
-  const run = progress.latest_run_id ?? "";
-  switch (progress.status) {
-    case "not-run":
-      return { kind: "stage", reason: notRun, stage };
-    case "in-progress":
-      return { kind: "stage", reason: `Run ${run} of the ${stage} stage is not recorded yet: finish it before moving on.`, resume_run_id: run, stage };
-    case "second-round-due":
-      return {
-        kind: "stage",
-        previous_run_id: run,
-        reason: `Run ${run} of the ${stage} stage accepted more than three critical findings: run its second round on the revised artifact.`,
-        stage
-      };
-    case "check-failed":
-      return { kind: "stage", reason: "The ticket check found a dependency cycle: fix the blocker links and check the tickets again.", stage };
-    case "recorded":
-      return void 0;
-  }
-}
-function draftStep(state) {
-  if (!state.grilled) return command("/grill-with-docs", "Every flow starts by grilling the idea against the domain docs; type /flow again when the grilling is done.");
-  const decisions = state.no_critique ? void 0 : stageStep(state, "decisions", "The grilling is done: have critics from other model families look for decisions it left open before the spec is written.");
-  return decisions ?? command("/to-spec", "The decisions are settled, so the spec can be written from them.");
-}
-function openCritical(state) {
-  return state.no_critique ? void 0 : state.open_questions.find((question) => question.severity === "critical");
-}
-function questionStep(question, next) {
-  return command(
-    "/grill-me",
-    `Critical question ${question.finding_id} from the ${question.stage} critique (run ${question.run_id}) is unanswered: settle it before ${next}.`
-  );
-}
-function planningStep(state) {
-  const critique = !state.no_critique;
-  const spec = critique ? stageStep(state, "spec", "The spec is written: have critics from other model families red-team it before it is cut into tickets.") : void 0;
-  if (spec !== void 0) return spec;
-  if (state.tickets.length === 0) {
-    const question = openCritical(state);
-    return question === void 0 ? command("/to-tickets", "The spec is settled, so it can be cut into tickets.") : questionStep(question, "cutting tickets from the spec");
-  }
-  return critique ? stageStep(state, "tickets", "The tickets are cut: check them for cycles, untestable criteria and missing seams before implementing.") : void 0;
-}
-function workStep(state) {
-  const waiting = state.tickets.filter((ticket2) => !ticket2.landed);
-  const [ticket] = waiting;
-  if (ticket === void 0) return finishingStep(state);
-  const question = openCritical(state);
-  if (question !== void 0) return questionStep(question, "implementing");
-  if (ticket.review === "findings-open" && !state.no_critique) {
-    return {
-      kind: "stage",
-      reason: `The review of ticket ${ticket.id} accepted a critical finding that is not fixed: fix it, then review the staged change again.`,
-      stage: "ticket-review",
-      ticket: ticket.id
-    };
-  }
-  const left = waiting.length === 1 ? "it is the last ticket left" : `it is the next of ${String(waiting.length)} tickets left in dependency order`;
-  return command("/implement", `Ticket ${ticket.id} has not landed and ${left}; start it in a fresh session.`, implementArgument(ticket));
-}
-function implementArgument(ticket) {
-  return ticket.reference.includes("#") ? ticket.id : ticket.reference;
-}
-function finishingStep(state) {
-  if (state.no_critique) return { kind: "done", reason: "Every ticket has landed, and critique was skipped on purpose, so there is no feature review to run." };
-  const finish = stageStep(state, "feature-review", "Every ticket has landed: review the feature as a whole before the pull request.");
-  if (finish !== void 0) return finish;
-  const gate = state.gate;
-  if (gate.status === "pass" && gate.head_commit === state.head_commit) {
-    return { kind: "done", reason: "GATE: PASS for the current head: the feature is ready for its pull request." };
-  }
-  const reasons = {
-    fail: `The last feature review held the gate shut (${gate.line ?? "GATE: FAIL"}) and its follow-ups have landed: review the feature again on the new head.`,
-    none: "The feature review left no gate: review the feature again.",
-    pass: "The gate passed for an earlier head: review the feature again on the current one."
-  };
-  return { kind: "stage", reason: reasons[gate.status], stage: "feature-review" };
-}
-function parseFlowState(text) {
-  const file = JsonFields.parse(text);
-  const stages = file.object("stages");
-  const progress = (name) => {
-    const stage = stages.object(name);
-    return { latest_run_id: stage.nullableString("latest_run_id"), run_ids: stage.strings("run_ids"), status: stage.oneOf("status", STAGE_STATUSES) };
-  };
-  const gate = file.object("gate");
-  return {
-    draft: file.nullableString("draft"),
-    flow: file.string("flow"),
-    gate: {
-      head_commit: gate.nullableString("head_commit"),
-      line: gate.nullableString("line"),
-      run_id: gate.nullableString("run_id"),
-      status: gate.oneOf("status", GATE_STATUSES)
-    },
-    grilled: file.boolean("grilled"),
-    head_commit: file.string("head_commit"),
-    no_critique: file.boolean("no_critique"),
-    open_questions: file.list("open_questions", (question) => ({
-      finding_id: question.string("finding_id"),
-      run_id: question.string("run_id"),
-      severity: question.oneOf("severity", SEVERITIES),
-      stage: question.oneOf("stage", CRITIQUE_STAGES)
-    })),
-    phase: file.oneOf("phase", FLOW_PHASES),
-    repository: file.string("repository"),
-    spec: file.nullableString("spec"),
-    stages: { decisions: progress("decisions"), "feature-review": progress("feature-review"), spec: progress("spec"), tickets: progress("tickets") },
-    tickets: file.list("tickets", (ticket) => ({
-      blocked_by: ticket.strings("blocked_by"),
-      id: ticket.string("id"),
-      landed: ticket.boolean("landed"),
-      reference: ticket.string("reference"),
-      review: ticket.oneOf("review", REVIEW_STATUSES),
-      review_run_ids: ticket.strings("review_run_ids"),
-      title: ticket.string("title")
-    })),
-    updated_at: file.string("updated_at"),
-    version: file.literal("version", 1),
-    vibe_spend_usd: file.number("vibe_spend_usd")
-  };
-}
-
-// src/contexts/critique/application/flow-state.ts
-function flowStatePath(critiqueDir, flow) {
-  return join13(critiqueDir, "flows", flowStateFileName(flow));
-}
-var DRAFT_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
-var StateCommand = class {
-  constructor(deps) {
-    this.deps = deps;
-    this.repositories = new RepositoryGate(deps);
-    this.trackers = new TrackerResolver(deps);
-  }
-  deps;
-  repositories;
-  trackers;
-  async run(raw) {
-    const input = readInput(raw, "state", readStateInput);
-    const repository = await this.repositories.resolve(input.repo);
-    if (repository.status === "refused") return repository;
-    const tracker = await this.trackers.resolve(repository);
-    if (tracker.status === "refused") return tracker;
-    const spec = input.spec === void 0 ? void 0 : await tracker.artifact({ comments: false, reference: input.spec });
-    if (spec?.status === "refused") return spec;
-    const flow = spec?.reference ?? draftFlow(input.draft ?? "");
-    const critiqueDir = join13(repository.commonDir, "critique");
-    const path = flowStatePath(critiqueDir, flow);
-    const saved = await this.deps.files.exists(path);
-    if (input.cached && input.record === void 0 && saved) {
-      const state2 = await this.cachedState(path);
-      if (state2 !== void 0) return { next: nextStep(state2), source: "cache", state: state2, state_path: path, status: "read" };
-    }
-    const tickets = spec === void 0 ? [] : await this.tickets(tracker, input.spec ?? "");
-    if (!Array.isArray(tickets)) return tickets;
-    const ledgerText = await this.ledgerText();
-    const ledger = decoded("invalid-ledger", ledgerPath(this.deps.env), () => ledgerText === "" ? EMPTY_LEDGER : parseLedger(ledgerText));
-    const draft = input.draft ?? linkedDraft(ledger, repository.key, flow);
-    const keys = spec === void 0 || draft === void 0 ? [flow] : [flow, draftFlow(draft)];
-    const gather = {
-      critiqueDir,
-      draft: spec === void 0 ? null : draft ?? null,
-      flow,
-      keys,
-      ledger,
-      ledgerText,
-      repository,
-      spec: spec?.reference ?? null,
-      tickets
-    };
-    const before = await this.sources(gather);
-    const events = newEvents(input, flowState(before), spec !== void 0 && input.draft !== void 0 && linkedDraft(ledger, repository.key, flow) !== input.draft);
-    await this.recordEvents(events, repository.key, flow);
-    const state = flowState({ ...before, events: [...before.events, ...events] });
-    await this.deps.files.writeText(path, `${JSON.stringify(state, null, 2)}
-`);
-    return { next: nextStep(state), source: saved ? "refreshed" : "rebuilt", state, state_path: path, status: "read" };
-  }
-  /** The saved state, or undefined when it no longer reads as one, so it is rebuilt. */
-  async cachedState(path) {
-    try {
-      return parseFlowState(await this.deps.files.readText(path));
-    } catch {
-      return void 0;
-    }
-  }
-  async tickets(tracker, spec) {
-    const read = await tracker.tickets(spec);
-    return read.status === "refused" ? read : read.tickets;
-  }
-  async ledgerText() {
-    const path = ledgerPath(this.deps.env);
-    return await this.deps.files.exists(path) ? this.deps.files.readText(path) : "";
-  }
-  async recordEvents(events, repository, flow) {
-    if (events.length === 0) return;
-    const context = { flow, recorded_at: this.deps.clock.now().toISOString(), repository };
-    await this.deps.files.appendText(ledgerPath(this.deps.env), events.map((event) => `${flowEventLine(event, context)}
-`).join(""));
-  }
-  async sources(gather) {
-    const { keys, ledger, repository, spec } = gather;
-    const belongs = (line) => line.repository === repository.key && (line.flow !== void 0 && keys.includes(line.flow) || spec !== null && line.spec === spec);
-    const runs = await this.runs(gather, belongs);
-    const runIds = new Set(runs.map((run) => run.run_id));
-    const reviews = (await this.index(ticketReviewIndexPath(gather.critiqueDir), parseTicketReviewRecord)).filter(
-      (review) => review.repository === repository.key
-    );
-    const gates = (await this.index(gateIndexPath(gather.critiqueDir), parseGateRecord)).filter(
-      (gate) => gate.repository === repository.key && gate.spec === spec
-    );
-    const invocations = invocationLines(gather.ledgerText);
-    return {
-      draft: gather.draft,
-      events: ledger.flow_events.filter((event) => event.repository === repository.key && keys.includes(event.flow)),
-      findings: ledger.findings.filter((finding) => runIds.has(finding.run_id)),
-      flow: gather.flow,
-      gates,
-      head_commit: await this.deps.git.resolveCommit(repository.root, "HEAD"),
-      now: this.deps.clock.now().toISOString(),
-      repository: repository.key,
-      reviews,
-      runs,
-      // Matched to tickets by reference: a triage run without the spec keeps the ticket's own flow.
-      skipped_reviews: ledger.skipped_reviews.filter((skip) => skip.repository === repository.key),
-      spec,
-      tickets: gather.tickets,
-      vibe_spend_usd: keys.reduce((total, key2) => total + flowSpend(invocations, repository.key, key2), 0)
-    };
-  }
-  /**
-   * The flow's runs, from the run directories (which hold runs not yet
-   * recorded, and recorded runs no critic took part in) and from the ledger
-   * (which still holds runs whose directory is gone).
-   */
-  async runs(gather, belongs) {
-    const runs = /* @__PURE__ */ new Map();
-    for (const name of await this.deps.files.listDirectories(gather.critiqueDir)) {
-      const runDir = join13(gather.critiqueDir, name);
-      if (!await this.deps.files.exists(manifestPath(runDir))) continue;
-      const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
-      if (!belongs({ flow: manifest.flow, repository: manifest.repository, spec: specReference(manifest) })) continue;
-      runs.set(manifest.run_id, {
-        recorded: await this.deps.files.exists(reportPath(runDir)),
-        round: manifest.round,
-        run_id: manifest.run_id,
-        stage: manifest.stage,
-        ticket_check: manifest.ticket_check?.status ?? null
-      });
-    }
-    for (const line of gather.ledger.runs.filter(belongs)) {
-      const known = runs.get(line.run_id);
-      runs.set(line.run_id, known === void 0 ? { recorded: true, round: line.round, run_id: line.run_id, stage: line.stage, ticket_check: null } : { ...known, recorded: true });
-    }
-    return [...runs.values()];
-  }
-  /** One JSON line per record, oldest first; a line that does not parse is an unreadable run record. */
-  async index(path, parse) {
-    if (!await this.deps.files.exists(path)) return [];
-    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
-    return lines.map((line, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parse(line)));
-  }
-};
-function linkedDraft(ledger, repository, flow) {
-  return ledger.flow_events.reduce(
-    (draft, event) => event.event === "draft" && event.repository === repository && event.flow === flow ? event.draft : draft,
-    void 0
-  );
-}
-function newEvents(input, state, link) {
-  const record = input.record;
-  const events = link ? [{ draft: input.draft ?? "", event: "draft" }] : [];
-  if (record === void 0) return events;
-  if (record.grilled) events.push({ event: "grilled" });
-  if (record.no_critique !== void 0) events.push({ event: "no-critique", value: record.no_critique });
-  for (const named of record.landed) {
-    const ticket = state.tickets.find((candidate) => candidate.id === named || candidate.reference === named);
-    if (ticket === void 0) throw new CritiqueError("invalid-input", `state input: ${named} is not a ticket of ${state.flow}`);
-    events.push({ event: "landed", ticket: ticket.reference });
-  }
-  for (const answer of record.answered) {
-    const open = state.open_questions.some((question) => question.run_id === answer.run_id && question.finding_id === answer.finding_id);
-    if (!open) throw new CritiqueError("invalid-input", `state input: ${answer.finding_id} of run ${answer.run_id} is not an open question of ${state.flow}`);
-    events.push({ event: "answered", finding_id: answer.finding_id, run_id: answer.run_id });
-  }
-  return events;
-}
-function readStateInput(fields) {
-  const spec = fields.optionalString("spec");
-  const draft = fields.optionalMatching("draft", isDraftName, "a draft name: letters, digits, dots, dashes, underscores and slashes");
-  if (spec === void 0 && draft === void 0) {
-    throw new CritiqueError("invalid-input", "state input: name the feature by its spec, or by a draft name before /to-spec has written one");
-  }
-  return {
-    cached: fields.has("cached") && fields.boolean("cached"),
-    draft,
-    record: fields.has("record") ? readRecord(fields.object("record")) : void 0,
-    repo: fields.string("repo"),
-    spec
-  };
-}
-function readRecord(fields) {
-  return {
-    answered: fields.has("answered") ? fields.list("answered", (answer) => ({ finding_id: answer.string("finding_id"), run_id: answer.string("run_id") })) : [],
-    grilled: fields.has("grilled") && fields.boolean("grilled"),
-    landed: fields.has("landed") ? fields.strings("landed") : [],
-    no_critique: fields.has("no_critique") ? fields.boolean("no_critique") : void 0
-  };
-}
-function isDraftName(value) {
-  return DRAFT_NAME.test(value);
 }
 
 // src/contexts/critique/domain/stats.ts
@@ -4484,6 +4583,7 @@ function modelCall(call, report) {
 function createCritiqueCommands(deps) {
   return {
     allow: new AllowCommand(deps),
+    budget: new BudgetCommand(deps),
     checkTickets: new CheckTicketsCommand(deps),
     fanOut: new FanOutCommand(deps),
     prepare: new PrepareCommand(deps),
@@ -5218,6 +5318,7 @@ var GitCliAdapter = class {
 // src/critique-cli/index.ts
 var COMMANDS = {
   allow: "allow",
+  budget: "budget",
   "check-tickets": "checkTickets",
   "fan-out": "fanOut",
   prepare: "prepare",
@@ -5226,7 +5327,7 @@ var COMMANDS = {
   stats: "stats",
   triage: "triage"
 };
-var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state> [--input FILE | --json TEXT]
+var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".

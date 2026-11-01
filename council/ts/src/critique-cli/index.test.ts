@@ -107,6 +107,17 @@ describe('critique runner command line', () => {
     })
   })
 
+  it("prints a flow's Vibe spend and today's Antigravity launches against their caps", async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'budget', '--json', JSON.stringify({ draft: 'widgets', repo: h.repo }))).toMatchObject({
+      antigravity: { daily_cap: 20, invocations: 0 },
+      status: 'read',
+      vibe: { cap_usd: 5, spent_usd: 0 },
+    })
+  })
+
   it('exits 0 with the decision when triage calls a change risky', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)

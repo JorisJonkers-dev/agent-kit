@@ -39,7 +39,7 @@ directory per critique run, named by its run id. The **flows folder** is
 | `/flow no-critique` | Steps the feature through the plain Pocock flow, skipping critique on purpose. `/flow critique` turns critique back on. |
 | `/flow setup` | Comes with agent-kit#195. |
 | `/flow explain <thing>` | Comes with agent-kit#194. |
-| `/flow budget` | Comes with agent-kit#193. |
+| `/flow budget` | The Vibe spend for this flow against its cap, Antigravity invocations today against the daily cap and the reserve, and which stages would fall back now. |
 
 ## /flow
 
@@ -178,5 +178,59 @@ agent-kit#194, and stop.
 
 ## /flow budget
 
-Not built yet: say in one line that `/flow budget` comes with agent-kit#193,
-and stop.
+Shows what the next costly stage would draw on, before it runs. You
+**report**: the runner computes every figure from the ledger and routing,
+this machine's routing override included, by the rules prepare and fan-out
+enforce the limits with. Never work a figure out yourself, round it
+differently, or add a stage the runner did not list.
+
+### 1. Run budget
+
+Find the feature (step 1 of `/flow`), then run the runner's `budget`
+command with `repo` and `spec`, or `repo` and `draft`:
+
+```sh
+node <critique dir>/critique.mjs budget --json '{"repo": "<repository root>", "spec": "<spec>"}'
+```
+
+Done when it returned `"status": "read"`, or you stopped on a refusal or
+an error.
+
+### 2. Show it in at most about six lines
+
+```
+Vibe: $<vibe.spent_usd> of the $<vibe.cap_usd> cap for this flow
+Antigravity: <antigravity.invocations> of <antigravity.daily_cap> today (<antigravity.day>, UTC); past <antigravity.reserve_threshold> only <antigravity.reserved_stages> may use it
+Would fall back now:
+- <stage>: <what happens>
+```
+
+- Show amounts with two decimals.
+- When `vibe.flows` has two entries, add the split to the Vibe line:
+  `(spec $x.xx, draft $y.yy)`. Each flow key is held to the cap on its
+  own: the decisions stage charges the draft's, every later stage the
+  spec's, so a stage's line can differ from the total.
+- List only the `stages` whose `vibe` or `antigravity` is not null, in the
+  runner's order. For each:
+  - `antigravity` set: for each `falls_back` entry, "the `<client>` slot
+    runs through `<to>` instead" ("is left empty" when `to` is null; say
+    "deep" for a deep slot), then the `antigravity` reason in brackets.
+  - `vibe` set: "its Vibe critics would be skipped", then the `vibe`
+    reason in brackets. A skipped critic is not a failure and gets no
+    fallback.
+- When no stage is listed, write `Would fall back now: nothing`.
+
+The fallback named is routing's. When the stage runs, prepare also applies
+the repository's family allowlist, the orchestrator's family and whether
+each client is ready on this machine; say so only when the owner asks why
+a different critic ran.
+
+Done when the owner has the lines.
+
+### 3. Offer the next step
+
+End with one sentence. If the stage `/flow` would run next falls back or
+skips, say so, and that the caps live in this machine's routing override
+(`~/.config/agent-kit/critique-routing.json`); `/flow explain budget` says
+how to change them. Never edit the override or routing unless the owner
+asks. Otherwise offer to return to `/flow`.

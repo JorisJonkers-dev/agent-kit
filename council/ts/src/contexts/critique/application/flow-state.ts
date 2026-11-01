@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { flowSpend, invocationLines } from '../domain/budget.js'
+import { invocationLines, spendByFlow, totalSpend } from '../domain/budget.js'
 import { parseGateRecord, type GateRecord } from '../domain/feature-review.js'
 import {
   draftFlow,
@@ -24,7 +24,7 @@ import { ledgerPath, manifestPath, reportPath } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { ticketReviewIndexPath } from './ticket-review.js'
-import { TrackerResolver, type TrackedTicket, type Tracker } from './tracker.js'
+import { TrackerResolver, type TrackedArtifact, type TrackedTicket, type Tracker } from './tracker.js'
 
 /** Where one flow's state is kept: the critique folder of the git common directory, which every worktree shares. */
 export function flowStatePath(critiqueDir: string, flow: string): string {
@@ -51,10 +51,7 @@ interface StateRecord {
   readonly answered: readonly { readonly run_id: string; readonly finding_id: string }[]
 }
 
-interface StateInput {
-  readonly repo: string
-  readonly spec: string | undefined
-  readonly draft: string | undefined
+interface StateInput extends FlowName {
   readonly cached: boolean
   readonly record: StateRecord | undefined
 }
@@ -71,23 +68,17 @@ const DRAFT_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/
  * refused here too.
  */
 export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
-  private readonly repositories: RepositoryGate
-  private readonly trackers: TrackerResolver
+  private readonly flows: FlowLocator
 
   constructor(private readonly deps: CritiqueDeps) {
-    this.repositories = new RepositoryGate(deps)
-    this.trackers = new TrackerResolver(deps)
+    this.flows = new FlowLocator(deps)
   }
 
   async run(raw: unknown): Promise<StateResult | Refusal> {
     const input = readInput(raw, 'state', readStateInput)
-    const repository = await this.repositories.resolve(input.repo)
-    if (repository.status === 'refused') return repository
-    const tracker = await this.trackers.resolve(repository)
-    if (tracker.status === 'refused') return tracker
-    const spec = input.spec === undefined ? undefined : await tracker.artifact({ comments: false, reference: input.spec })
-    if (spec?.status === 'refused') return spec
-    const flow = spec?.reference ?? draftFlow(input.draft ?? '')
+    const located = await this.flows.locate(input)
+    if (located.status === 'refused') return located
+    const { flow, repository, spec, tracker } = located
     const critiqueDir = join(repository.commonDir, 'critique')
     const path = flowStatePath(critiqueDir, flow)
     const saved = await this.deps.files.exists(path)
@@ -99,8 +90,7 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
     if (!Array.isArray(tickets)) return tickets as Refusal
     const ledgerText = await this.ledgerText()
     const ledger = decoded('invalid-ledger', ledgerPath(this.deps.env), () => (ledgerText === '' ? EMPTY_LEDGER : parseLedger(ledgerText)))
-    const draft = input.draft ?? linkedDraft(ledger, repository.key, flow)
-    const keys = spec === undefined || draft === undefined ? [flow] : [flow, draftFlow(draft)]
+    const { draft, keys } = flowKeys(ledger, located, input.draft)
     const gather = {
       critiqueDir,
       draft: spec === undefined ? null : (draft ?? null),
@@ -173,7 +163,7 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
       skipped_reviews: ledger.skipped_reviews.filter((skip) => skip.repository === repository.key),
       spec,
       tickets: gather.tickets,
-      vibe_spend_usd: keys.reduce((total, key) => total + flowSpend(invocations, repository.key, key), 0),
+      vibe_spend_usd: totalSpend(spendByFlow(invocations, repository.key, keys)),
     }
   }
 
@@ -227,6 +217,63 @@ interface Gather {
   readonly tickets: readonly TrackedTicket[]
 }
 
+/** One feature's flow: its repository and tracker, its spec when it has one, and the key its runs carry. */
+export interface LocatedFlow {
+  readonly status: 'located'
+  readonly repository: ResolvedRepository
+  readonly tracker: Tracker
+  readonly spec: TrackedArtifact | undefined
+  readonly flow: string
+}
+
+/** How a caller names a feature: by its spec, or by a draft name before `/to-spec` has written one. */
+export interface FlowName {
+  readonly repo: string
+  readonly spec: string | undefined
+  readonly draft: string | undefined
+}
+
+/**
+ * Finds the flow a caller names, the way every flow command does: a spec,
+ * read through the repository's tracker, keys it by its reference, and a
+ * draft name by `draft:<name>`. A repository whose remotes refuse a
+ * critique, an unsupported tracker and a spec the tracker cannot read are
+ * refused.
+ */
+export class FlowLocator {
+  private readonly repositories: RepositoryGate
+  private readonly trackers: TrackerResolver
+
+  constructor(deps: Pick<CritiqueDeps, 'env' | 'files' | 'gh' | 'git'>) {
+    this.repositories = new RepositoryGate(deps)
+    this.trackers = new TrackerResolver(deps)
+  }
+
+  async locate(name: FlowName): Promise<LocatedFlow | Refusal> {
+    const repository = await this.repositories.resolve(name.repo)
+    if (repository.status === 'refused') return repository
+    const tracker = await this.trackers.resolve(repository)
+    if (tracker.status === 'refused') return tracker
+    const spec = name.spec === undefined ? undefined : await tracker.artifact({ comments: false, reference: name.spec })
+    if (spec?.status === 'refused') return spec
+    return { flow: spec?.reference ?? draftFlow(name.draft ?? ''), repository, spec, status: 'located', tracker }
+  }
+}
+
+/**
+ * The keys a flow's runs and launches carry: its own, and once a spec has a
+ * draft (named now, or linked earlier), the draft's too, so the draft's runs
+ * and spend count with the spec's.
+ */
+export function flowKeys(
+  ledger: Ledger,
+  located: Pick<LocatedFlow, 'flow' | 'repository' | 'spec'>,
+  draft: string | undefined,
+): { readonly draft: string | undefined; readonly keys: readonly string[] } {
+  const linked = draft ?? linkedDraft(ledger, located.repository.key, located.flow)
+  return { draft: linked, keys: located.spec === undefined || linked === undefined ? [located.flow] : [located.flow, draftFlow(linked)] }
+}
+
 /** The draft a spec flow grew from, as the last `draft` event of the flow names it. */
 function linkedDraft(ledger: Ledger, repository: string, flow: string): string | undefined {
   return ledger.flow_events.reduce<string | undefined>(
@@ -256,18 +303,21 @@ function newEvents(input: StateInput, state: FlowState, link: boolean): readonly
 }
 
 function readStateInput(fields: JsonFields): StateInput {
+  return {
+    ...readFlowName(fields, 'state'),
+    cached: fields.has('cached') && fields.boolean('cached'),
+    record: fields.has('record') ? readRecord(fields.object('record')) : undefined,
+  }
+}
+
+/** Reads `repo` with `spec` or `draft`, at least one of the two, for the command `command`. */
+export function readFlowName(fields: JsonFields, command: string): FlowName {
   const spec = fields.optionalString('spec')
   const draft = fields.optionalMatching('draft', isDraftName, 'a draft name: letters, digits, dots, dashes, underscores and slashes')
   if (spec === undefined && draft === undefined) {
-    throw new CritiqueError('invalid-input', 'state input: name the feature by its spec, or by a draft name before /to-spec has written one')
+    throw new CritiqueError('invalid-input', `${command} input: name the feature by its spec, or by a draft name before /to-spec has written one`)
   }
-  return {
-    cached: fields.has('cached') && fields.boolean('cached'),
-    draft,
-    record: fields.has('record') ? readRecord(fields.object('record')) : undefined,
-    repo: fields.string('repo'),
-    spec,
-  }
+  return { draft, repo: fields.string('repo'), spec }
 }
 
 function readRecord(fields: JsonFields): StateRecord {
