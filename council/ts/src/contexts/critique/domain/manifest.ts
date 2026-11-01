@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { readLimits, type CritiqueLimits } from './budget.js'
+import { readDepthChoice, type DepthChoice } from './depth.js'
 import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
@@ -36,6 +37,8 @@ export interface RunManifest {
   readonly created_at: string
   readonly stage: CritiqueStage
   readonly depth: Depth
+  /** How the depth was chosen, and the signals that decided it. */
+  readonly depth_choice: DepthChoice
   readonly orchestrator_family: OrchestratorFamily
   readonly repository: string
   readonly repo_root: string
@@ -65,6 +68,7 @@ export function parseManifest(text: string): RunManifest {
     critics: file.list('critics', readRosterCritic),
     depth: file.oneOf('depth', DEPTHS),
     distinct_families: file.boolean('distinct_families'),
+    depth_choice: readDepthChoice(file.object('depth_choice')),
     dropped: file.list('dropped', readDroppedCritic),
     flow: file.string('flow'),
     limits: readLimits(file.object('limits')),

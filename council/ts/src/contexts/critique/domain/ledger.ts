@@ -9,6 +9,9 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
   const common = {
     depth: run.depth,
     flow: run.flow,
+    depth_chosen_by: run.depth_choice.chosen_by,
+    depth_measures: run.depth_choice.measures,
+    depth_signals: run.depth_choice.signals,
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
     run_id: run.run_id,
