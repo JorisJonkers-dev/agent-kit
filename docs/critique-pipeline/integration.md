@@ -1312,6 +1312,60 @@ The read-only tripwire (agent-kit#172) fixed these:
   the wire and voids every review, so the create-a-file check should also
   confirm that a clean run leaves the copy unchanged.
 
+## What #184 settled
+
+The deterministic ticket checker (agent-kit#184) fixed these:
+
+- **The command.** `critique check-tickets` takes `{ "repo", "spec" }`,
+  with `spec` named the way prepare names it. It resolves the repository
+  and the tracker as prepare does, so a refused remote or an unsupported
+  tracker is refused the same way, but it needs no family allowlist entry
+  and writes nothing: it sends nothing to a critic. The result is
+  `{ status, spec, tickets, cycles, dangling_blockers, coverage }`.
+  `status` is `failed` only while there is a cycle, and the command line
+  then exits **3** (1 stays an error, 2 usage), so a skill sees the failure
+  without parsing the JSON. Any result with `"status": "failed"` exits 3.
+- **Reading tickets.** `Tracker.tickets(spec)` sits beside `artifact` and
+  returns `TrackedTicket`s (`id`, `reference`, `title`, `text`,
+  `blockedBy`, `name`) in tracker order, ready for #185's prepare to
+  freeze into the packet. GitHub: the spec issue's sub-issues, then each
+  one's native blocked-by links; `GhPort` gained `subIssues` and
+  `blockedBy`, read with `gh api --hostname <host> --paginate --slurp
+  repos/<owner>/<repo>/issues/<n>/{sub_issues,dependencies/blocked_by}`.
+  A `Blocked by` line in a GitHub issue body is not read. Ticket ids are
+  `#184`, or the full `host/owner/repo#184` for an issue of another
+  repository. Any gh failure is `tracker-unreachable`. Local markdown: the
+  `.md` files of the `issues/` folder beside the spec, in file-name order;
+  an id is the number the file name starts with as written (`01`), or the
+  file name without `.md`.
+- **Local "Blocked by".** The first line starting with `Blocked by`
+  (`**Blocked by:** 01, 02`, or a `## Blocked by` heading), and the list
+  items under it when the line itself is empty. Items are split on `,` and
+  `;`. `None`, `n/a` and `-` name nothing. An item starting with a number
+  (`01`, `#1`, `01-schema.md`, `02 and 04`) is matched by its value; any
+  other item is matched against ticket titles (the heading without its
+  `NN:` prefix), ignoring case. An unmatched item stays as written and is
+  reported as dangling.
+- **Dangling blockers** are any blocker that is no ticket of the spec,
+  including a ticket of another spec. On #181 itself every cross-spec
+  dependency on #167's tickets is listed, so #185's skill should read the
+  list as "check these" rather than as defects.
+- **Cycles** are every elementary cycle (Johnson's search), each starting
+  at its earliest ticket and listing tickets so that each is blocked by
+  the next and the last by the first. A self-blocking ticket is a cycle of
+  one.
+- **Criteria** are the task-list items (`- [ ]`, `- [x]`, `*`, `+`) under
+  the ticket's `Acceptance criteria` heading, or anywhere before its
+  `## Comments` when it has none, outside code blocks.
+- **User stories.** The spec's stories are the top-level numbered items
+  under its `User Stories` heading, through its subheadings. A ticket cites
+  a story with `user story 3`, `user stories 3, 5 and 7`, `User stories:
+  3–5` or `user story #3`. Coverage is `{ status: "checked", stories,
+  uncited }` only when some ticket cites a story and the spec numbers its
+  stories; otherwise it is `not-checkable` with the reason. Pocock's
+  ticket template has no story field, so #185's `ticket-linter` judges
+  coverage whenever this is `not-checkable`.
+
 ## What #174 settled
 
 Automatic depth and the per-machine routing override (agent-kit#174) fixed
@@ -1426,6 +1480,101 @@ The `/critique-spec` skill (agent-kit#177) fixed these:
   is how prepare knows the two belong to one flow, so the per-flow Vibe cap
   can add the first round's spend to the second's from there.
 
+## What #186 settled
+
+Code packets and the code permission (agent-kit#186) fixed these:
+
+- **The code permission.** An allowlist entry has `code`, true or false.
+  An entry without it (every entry recorded before #186) reads as false,
+  and any other value makes the file `invalid-allowlist`. `allow` takes an
+  optional `"code": true | false`; left out, it keeps the entry's current
+  value (false for a new entry), so re-running `allow` to change families
+  never drops or grants code. Its result now carries `code`. Prepare of
+  `ticket-review` or `feature-review` with code off is the refusal
+  `code-not-allowed`, after `no-remote`, `nedap` and `not-opted-in` and
+  before the tracker is read or anything is written. #187's triage call
+  should check `entry.code` the same way; #188 and #189 offer to call
+  `allow` with the entry's families and `"code": true`.
+- **Prepare's input for a code stage.** `base` (required: a commit or a
+  branch the change is diffed against), `head` (default `HEAD`), and, for
+  `ticket-review`, `ticket` (required, named the way the tracker names a
+  spec). `feature-review` reads the spec's tickets through
+  `Tracker.tickets` (#184) and ignores `ticket`; `references` is ignored by
+  both. A revision that names no commit is `invalid-input` before anything
+  is written. `head` can be any commit, so #188 can review a staged change
+  before it is committed by passing the id `git stash create` prints (that
+  writes a commit object but touches neither the stash list nor the index).
+- **The code packet.** `tree/<repository path>` for every regular file of
+  `head`'s tree, read from git's object store (`git ls-tree`, `git cat-file
+  blob`), so there is never a `.git`, worktree metadata or an untracked or
+  uncommitted file. Symbolic links and submodules are left out, and so is any
+  file holding a NUL byte (binary). `diff/change.diff` is the diff from the
+  merge base of `base` and `head` to `head` (`--no-ext-diff --no-textconv
+  --no-color`, `core.quotePath=false`). `tickets/<name>` holds the ticket, or
+  every ticket of the spec, and `spec/<name>` the spec, both rendered as a
+  document stage renders them. Nothing else is at the packet root, so the
+  repository's `AGENTS.md`, `.vibe/` and `.agents/` land under `tree/`.
+  Packet file kinds are now `tree`, `diff`, `ticket` and `spec` beside
+  `artifact` and `reference`.
+- **The manifest and prepare's result.** The manifest gains `code: { base,
+  base_commit, head, head_commit, changed_files }`, where `changed_files`
+  are packet paths under `tree/` of the files the diff touches that are
+  still in the tree (#189's "the head it reviewed" is `head_commit`).
+  `manifest.artifact` is the ticket for a ticket review and the spec for a
+  feature review, so #174's `risk:high` signal reads the ticket's or the
+  spec's labels. After the merge with #174, a code stage's depth is chosen
+  from that artifact's labels and text (risk terms); `STAGE_MEASURES` has
+  no measure for either code stage yet, so changed lines and risk path hits
+  are still to be added as measures (the diff and `code.changed_files` are
+  there to measure). Prepare's result `packet_files` now lists what the
+  critics' prompts name: every file for a document packet, and for a code
+  packet the diff, the changed files, the tickets and the spec, but not the
+  rest of the tree (which can be thousands of files). The result adds
+  `code: { base_commit, head_commit, changed_files, tree_files }`.
+- **The prompt.** A code packet's file list names the diff, the changed
+  files, the tickets and the spec, then tells the critic that the rest of
+  the tree is under `tree/` and readable by path, and to cite code as
+  `tree/<path>:<line>` or `tree/<path>:<first>-<last>` in `location` and in
+  each trace step. This is in the runner's prompt assembly, not in a
+  hashed asset. #188's `diff-reviewer` role does not need to repeat it.
+- **The tripwire** needed no change: every tree file is a packet file, so
+  each critic's copy holds the whole tree and a change anywhere in it (or a
+  file added at the copy's root) voids the critic as `violated-readonly`.
+- **File-and-line evidence.** At a code stage only, fan-out reads every
+  `path:line` and `path:first-last` in a finding's `location` and in each
+  `trace` evidence value. A path counts when it has a `/` or a file
+  extension, so `10:30` is not a file, and URLs are skipped. It is looked up
+  as written, then under `tree/`, then, for a diff's `a/` or `b/` prefix,
+  under `tree/` without it. A path the packet does not hold, or a line below
+  1 or past the file's last line, pre-rejects the finding as
+  `fabricated-evidence` (after the quote check, before the hint rule). A
+  code finding with no `failing-test` and no `trace` that cites a file and
+  line is the hint `no-test-or-trace`. The document stages are unchanged. The
+  evidence check now takes the packet indexed once per fan-out
+  (`indexPacket`), so a large tree is normalised once, not once per
+  finding. Whether a feature-review trace touches two tickets is the
+  orchestrator's check (#189), not a mechanical one.
+- **Git.** `GitRevisionPort` (in `src/ports/git.ts`, implemented by
+  `GitCliAdapter`, added to `CritiqueGitPort`) has `resolveCommit`,
+  `mergeBase`, `treeFiles`, `fileAt`, `diffCommits` and `changedPaths`. The
+  harness's `FakeGit.commit()` now records a commit (`c1`, `c2`, ...; the
+  harness makes `c1`) and serves `HEAD`, `HEAD~<n>` and those ids on one
+  line of history. `codeStageRouting()` in the harness routes one Vibe
+  critic on both code stages until #188 and #189 ship their routing; with
+  shipped routing, a code stage's prepare reads the packet and then fails
+  `invalid-routing` before writing anything.
+- **Process output.** `NodeProcessAdapter` decoded each output chunk on its
+  own, so a multi-byte character split across chunks became two
+  replacement characters; the streams now decode. A code packet reads every
+  file through it.
+- **Live check.** On a scratch clone of this repository (origin pointed at
+  GitHub, a scratch `HOME`), prepare refused without an entry
+  (`not-opted-in`) and with documents only (`code-not-allowed`), then, after
+  `allow` with `"code": true`, froze #186 and #181 through gh, 689 tree
+  files, and a 1,932-line diff over `HEAD~5`. The packet root held only
+  `diff`, `spec`, `tickets` and `tree`, no path had a `.git` component, and
+  the tree matched `HEAD`, not the uncommitted working tree.
+
 ## What #173 settled
 
 Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
@@ -1507,3 +1656,356 @@ Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
   or left empty by routing, and the summary already names it, so the skill
   need not ask the owner about it. A `budget-skip` critic is not a failure
   either.
+
+## What #183 settled
+
+The `/critique-decisions` skill (agent-kit#183) fixed these:
+
+- **Prepare's input at the decisions stage.** `feature` (required, at most
+  5 lines) is the orchestrator's statement of the feature being grilled; it
+  is frozen to `feature/feature.md`, a new packet file kind `feature`
+  (prompt: "the feature the decisions are for"). `decision_summary`
+  (optional, at most 40 lines) is the orchestrator's summary after
+  `/grill-me`. `spec` is ignored here and is now an `invalid-input` error
+  only when a stage that needs it lacks it (`<stage> needs spec: ...`).
+  Longer text is `invalid-input`.
+- **The decisions packet.** No tracker is read, so an unsupported tracker
+  does not refuse this stage. Without a summary, the decision docs (#175's
+  resolution, or explicit `references`) are the artifact, under
+  `artifact/<repository path>`, and there are no references; with none at
+  all the refusal is the new reason `no-decision-docs`. With a summary, it is
+  `artifact/decision-summary.md` and the decision docs are `references/`.
+  `artifact` is `{ tracker: "none", reference: "decision-docs" |
+  "decision-summary", labels: [] }`; `tracker` now reads `github`,
+  `local-markdown` or `none`.
+- **Flow.** A decisions run belongs to no tracker item, so its default flow
+  is its own run id; a caller may still pass `flow`.
+- **Routing and depth.** Shipped `decisions`: base `vibe-mistral-large`
+  (unasked-questions) and `agy-gemini-flash-high` (unasked-questions,
+  failure-modes), deep `vibe-glm` (integration), all `gap-critic`, $0.30 and
+  240 s, distinct families. Gemini drops for `quota` past the reserve (the
+  reserve names only spec and feature-review) and GLM takes its slot; the
+  budget tests now use the shipped stage. `STAGE_MEASURES.decisions` has
+  `decisions` (lines opening with a bold glossary term and a colon, plus
+  top-level list items; nested items are not counted) and `words`, measured
+  over the artifact files only, never the feature statement. Thresholds 40
+  and 4000, with the spec stage's risk terms and no labels.
+- **Evidence rule.** At the decisions stage a finding whose category is not
+  `unasked-question` or `contradiction` is the hint `not-a-decision-gap`; one
+  with no quote from an artifact or reference file is `no-decision-quote` (a
+  quote from the feature statement does not count); one with no `input`,
+  `failing-test` or `trace` is the new hint `no-scenario`.
+- **Verdicts.** At the decisions stage an accepted finding is the question
+  for the owner: it may carry `answered: true` (any other verdict with
+  `answered` is `invalid-input`), and `needs-human` is `invalid-input`. The
+  skill records a skipped question as `reason_code: "skipped-by-owner"` and
+  one past the seventh as `not-asked`. A summary's Accepted line ends with
+  `(answered)`, or with `(<reason_code>)` when an accepted verdict carries
+  one, at any stage. `second_round_due` is never true at the decisions
+  stage. The `answered` check moved from reading the input to after the
+  manifest is read, since it now depends on the stage.
+- **Not checked live.** The live check of #181 (`/critique-decisions` asks
+  questions and changes no decision on its own, on a real small feature)
+  has not been run; it needs the personal Vibe login and agy.
+
+## What #187 settled
+
+Risk triage for ticket review (agent-kit#187) fixed these:
+
+- **The command.** `critique triage` takes `{ "repo", "ticket", "base" }`,
+  with an optional `head` (default `HEAD`) and `flow` (default the ticket's
+  reference; #188 should pass the spec's, as for prepare). `ticket` is named
+  the way prepare names it, and its tracker labels are read through the
+  tracker. A `no-remote` or `nedap` repository, an unsupported tracker and a
+  ticket gh cannot read are refused as prepare refuses them. The result is
+  `{ status: "risky" | "low-risk", run_id, signal, signals, ticket, flow,
+  change, model?, summary }`; both statuses exit 0. `signal` decided it;
+  `signals` lists every risk rule that fired, the deciding one first.
+  `summary` is one line, such as `Triage: risky: src/auth/session.ts matches
+  the risk path <glob>.` or `Triage: low-risk: no risk rule fired, and the
+  triage model (vibe-mistral-small) answered no, so the review is skipped.`
+- **Routing.** A top-level `triage`: `risk_paths` (globs),
+  `changed_lines_threshold` (300), `labels` (`risk:high`) and `model`
+  (`client`, `max_price_usd` 0.03, `time_limit_s` 60). The model's client must
+  be a `vibe` client of `clients` (else `invalid-routing`); shipped, it is the
+  new `vibe-mistral-small` (`critic-mistral-small`, `mistral-small-latest`,
+  family `mistral`, already declared and installed by #176). Routing without
+  `triage` cannot triage (`invalid-routing`). The per-machine override applies
+  as to everything else in routing, so `{"triage": {"risk_paths": [...]}}`
+  replaces the whole list.
+- **Globs.** `**` is any number of whole path segments, none included; `*`
+  any characters but `/`; `?` one character but `/`; `{a,b}` either. A glob
+  matches the whole repository path as git prints it, case-sensitively.
+  The shipped list covers auth, crypto and secrets, migrations and `.sql`,
+  concurrency primitives, API surface (`api/`, `.proto`, `.graphql`, OpenAPI
+  and Swagger files) and infra and deploy (Terraform, Kubernetes, Helm,
+  Dockerfiles, compose files, `.github/workflows/`). Deleted files count.
+- **The rules, in order.** A touched path matching a risk path (one signal
+  per path, with the first glob it matches), changed lines above the
+  threshold (`git diff` added plus removed lines, headers not counted), then
+  each configured label the ticket carries (any case). **For #197:** the
+  deterministic part is pure and exported from the critique barrel:
+  `riskSignals(change, labels, rules)` with `codeChange(diff, paths)`, and
+  `CodeChangeReader.read(root, base, head)` reads a change from git alone.
+  Neither needs an allowlist entry, a model or the network; a staged diff can
+  be read with `head` set to the commit `git stash create` prints, or
+  `codeChange` applied to `git diff --cached` and its paths directly.
+- **The model.** Asked only when no rule fired. Before launching, in this
+  order, it counts as unable to run (so the change is risky, with signal
+  `{ kind: "model-unavailable", reason, detail }`): no allowlist entry
+  (`not-opted-in`), code permission off (`code-not-allowed`), the model's
+  family not allowed (`family-not-allowed`), the flow's Vibe spend at its cap
+  (`budget`), and the client not ready (`unavailable`, with Vibe's readiness
+  detail). The orchestrator's family is not checked: the answer is a signal,
+  not a finding the orchestrator adjudicates. Otherwise `VibeCriticClient.ask`
+  launches it as a critic is launched (same isolation flags and the same
+  `unsafe-config` check), in `critique/<run-id>/packet/` holding only
+  `diff/change.diff`, with `prompts/triage.md` plus the file line as
+  `prompt.md` outside it. A failed run is `failed`; an answer other than one
+  word yes or no (any case, markup and a full stop allowed) is
+  `unclear-answer`; both leave the change risky. Yes is risky, no low-risk.
+  `CriticClients.vibe` is now also a `QuestionClientPort` (`ask`).
+- **Spend.** The launch appends an invocation line (`critic_id: "triage"`,
+  stage `ticket-review`, round 1) charged like a critic, so it counts against
+  the flow's Vibe cap.
+- **Run id and files.** `<timestamp>-triage` (then `-2`, ...) in the git
+  common directory's `critique/`, holding `triage.json` (the result) and,
+  when the model was asked, `packet/`, `prompt.md`, `export/`, `stdout.json`
+  and `stderr.txt`. There is no `manifest.json`, so it is not a run fan-out
+  or record can be pointed at.
+- **The ledger.** One line per triage. Low-risk is
+  `{ type: "run", stage: "ticket-review", status: "skipped-low-risk", ... }`;
+  risky is the same fields with `type: "triage"` and `status: "risky"`, since
+  the review that follows writes its own run lines. Fields: `recorded_at`,
+  `repository`, `flow`, `run_id`, `ticket` (reference), `triage_signal`,
+  `risk_signals`, `changed_files`, `changed_lines`,
+  `changed_lines_threshold`, `client`, `model`, `answer`, `cost_usd`,
+  `charged_usd` and `prompt_hash` (null when the model was not asked). A risk
+  path signal keeps its glob, never the path; an unavailable model keeps its
+  reason, never its detail. **For #199:** a `skipped-low-risk` run line has
+  no `critic_id`, `role` or `finding_count`; stats that read run lines per
+  critic should skip it.
+- **Ticket-review depth.** `STAGE_MEASURES` gained `changed_lines` and
+  `risk_path_hits` for `ticket-review`, measured from the code packet's change
+  with triage's `risk_paths` (no hits when routing has no `triage`).
+  `DepthEvidence` gained an optional `change`. **For #188:** shipped routing
+  sets no thresholds for them; `{"risk_path_hits": 0}` makes any risk path
+  select deep. A feature review gets the same `change`; #189 adds its measures.
+
+## What #185 settled
+
+The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
+
+- **The tickets packet.** Prepare at `stage: "tickets"` reads the spec and
+  its tickets through `readCheckedTickets` (`application/check-tickets.ts`),
+  the same read the `check-tickets` command makes, and freezes
+  `spec/<name>` (kind `spec`), `tickets/<name>` (kind `ticket`, rendered as a
+  code stage renders them) and `check/tickets.json` (the new kind `check`):
+  exactly what `check-tickets` prints, plus `size: { max_modules,
+  max_criteria, over_criteria }`. Nothing else is at the packet root, and
+  `references` is ignored. `manifest.artifact` is the spec, so its labels
+  feed `risk:high` and the default `flow` is the spec's reference, as #173
+  asked. A spec with no tickets is the new refusal `no-tickets`, before
+  anything is written. The prompt calls a ticket "a ticket under review" at
+  this stage only; at a code stage it stays "a ticket the change delivers"
+  (`assemblePrompt` now takes the stage instead of a code-packet flag).
+- **Routing.** Shipped `tickets`: base `vibe-deepseek-flash` (`ticket-linter`,
+  testability), deep `vibe-mistral-large` (`ticket-linter`, simplicity), each
+  $0.10 and 180 s, `distinct_families`. A stage may carry `ticket_size:
+  { max_modules, max_criteria }` (shipped 5 and 8; #181's starting values
+  when left out); only the tickets stage reads it. Depth signals: the new
+  measure `tickets` (the ticket count, threshold 10, a value #181 left open),
+  the spec stage's risk terms over the spec and the tickets' text, and
+  `risk:high` on the spec. `STAGE_MEASURES.tickets` is no longer empty, and
+  `DepthEvidence` gained an optional `tickets`.
+- **The evidence rule.** A tickets-stage finding's `location` names the
+  ticket's id as the report lists it and one rule:
+  `untestable-criterion`, `no-seam`, `uncovered-requirement` or `too-big`
+  (`TICKET_RULES` in `domain/tickets.ts`), such as `#184: no-seam`. No rule is
+  the hint `no-ticket-rule`; a rule but no ticket of the spec is
+  `no-ticket-id`, except `uncovered-requirement`, which belongs to the spec.
+  The ticket ids come from the manifest's `ticket_check.ticket_ids`, passed
+  to `indexPacket`. The finding schema and the output contract are
+  unchanged: the rule rides in `location`.
+- **A failed stage.** The manifest keeps `ticket_check` (status, ticket ids,
+  cycles, dangling blockers, uncited stories or why coverage was not
+  checkable). Record's result carries `ticket_check: "passed" | "failed"`,
+  and the summary and the report gain one line under the verdict counts,
+  such as `Ticket check: failed: 3 tickets; cycle #170 → #171 → #170; no
+  dangling blocker; user story coverage not checkable (no ticket cites a
+  user story)`, at most five dangling blockers named. While it failed, the
+  summary says `Do not start /implement: the tickets hold a dependency
+  cycle.` At the tickets stage an unanswered critical question also reads
+  `Do not start /implement`, not `/to-tickets`. The line reflects the
+  tickets as prepare froze them; the skill runs `check-tickets` again after
+  its fixes and says when the cycles are gone. Record's run status is still
+  `recorded`, and the ledger is unchanged.
+- **The skill.** `skills/check-tickets/SKILL.md`, a `local_skills` entry for
+  every agent beside `critique-spec`. A finding is accepted only after the
+  orchestrator re-checks its rule on the named ticket. Structural fixes
+  (reworded criteria, a named seam, blocker links, splits and merges that
+  keep every behaviour) go straight to the tracker: GitHub blocker links
+  through `repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by` (POST
+  with `issue_id`, DELETE `/<id>`) and new tickets through
+  `issues/<spec>/sub_issues` (POST with `sub_issue_id`); local tickets by
+  editing the `issues/` files. A fix that adds, drops or changes a behaviour
+  is a `needs-human` question. One comment on the spec lists the changes.
+  Dangling blockers are read as "check these", per #184.
+- **Not done here.** The live check on a real ticket set with a planted
+  cycle and an uncovered story is #190's.
+- **After #183's merge.** `contents()` in prepare now routes the tickets
+  stage to its packet, and `PacketContents` (artifact source plus text,
+  files, optional code and ticket check) is the one shape every stage's
+  packet returns. Every document stage now has its own evidence rule, so
+  fan-out's "another stage" test runs at the tickets stage.
+
+## What #189 settled
+
+The `/review-feature` skill and its gate (agent-kit#189) fixed these:
+
+- **Routing.** Shipped `routing.json` now defines `feature-review`: base
+  `vibe-mistral-large` (integration) and `agy-gemini-flash-high`
+  (failure-modes), deep `vibe-glm` (operability) and `vibe-deepseek-flash`
+  (simplicity), all in the `feature-reviewer` role, `max_price_usd` 1 and
+  `time_limit_s` 720, `distinct_families`. Its `depth_signals` hold only the
+  `risk:high` label (read from the spec's labels): changed-line and risk-path
+  measures for the code stages are #187's to add to `STAGE_MEASURES`, after
+  which this stage can take thresholds too. The Antigravity reserve already
+  named `feature-review`, so Gemini keeps running past the threshold.
+- **The role.** `roles/feature-reviewer.md` (pinned in `manifest.yaml`)
+  asks for broken contracts at seams, inconsistent error handling across
+  slices, an undelivered requirement and duplicated logic, and requires a
+  failing test in the repository's framework and style, or a trace citing
+  `tree/<path>:<line>` across code from two or more tickets. #188's
+  `diff-reviewer` states the same failing-test rule; neither role refers to
+  the other.
+- **Accepting a feature finding.** At `feature-review`, record refuses
+  (`invalid-input`) an `accepted` verdict unless `reason_code` is
+  `test-fails` or `cross-ticket-trace`; a `cross-ticket-trace` needs
+  `trace_tickets`, at least two distinct packet paths of `ticket` files
+  (`tickets/01-store.md`, `tickets/issue-183.md`); and every accepted verdict
+  needs `follow_up`, the follow-up ticket it became (`#301`, an issue URL,
+  `host/owner/repo#301`, `07` or the ticket's path). `follow_up` and
+  `trace_tickets` are refused on any other verdict and at any other stage.
+  `test-passes` (rejected) is a convention of the skill, not checked.
+- **The gate.** Record of a `feature-review` run reads the spec's tickets
+  through the tracker (`Tracker.tickets`), refuses a `follow_up` that is not
+  one of them, and computes the gate before writing anything. It fails while
+  any critical follow-up is open: this run's, and every earlier recorded
+  feature review's for the same repository and spec (deduplicated by ticket
+  reference), so a re-run on a new head keeps failing until those tickets are
+  closed even when no critic raises the finding again. A follow-up that is no
+  longer a ticket of the spec counts as open. A degraded run still gets a
+  gate (from earlier follow-ups only). `TrackedTicket` gained `open`: a
+  GitHub sub-issue is open unless its REST `state` is `closed`
+  (`GhIssue.state`, optional, filled by `subIssues` only); a local ticket is
+  open unless its first `Status:` line reads `closed`, `done`, `resolved` or
+  `wontfix`. A tracker that cannot be read is the new error code
+  `tracker-unreachable` (exit 1, nothing written). `parseIssueReference` now
+  also reads `host/owner/repo#<n>`, the form a manifest records.
+- **Where the gate is, for #197.** The summary's and the report's first line
+  is `GATE: PASS` or `GATE: FAIL (<n> critical)`. Record's result carries
+  `gate`, the same object it writes to `<run_dir>/gate.json` and appends as
+  one JSON line to `<git common dir>/critique/gates.jsonl`:
+  `{ version: 1, stage: "feature-review", run_id, recorded_at, repository,
+  spec, base_commit, head_commit, gate: "pass" | "fail", critical_open, line,
+  follow_ups: [{ finding_id, severity, ticket, reference, open }],
+  open_critical: [{ finding_id, run_id, ticket, reference }] }`. The PR gate
+  needs no model call and no directory scan: read `gates.jsonl` (oldest
+  first), keep lines whose `head_commit` is the current `HEAD` commit (and
+  whose `repository` matches), and take the last; `parseGateRecord`,
+  `gatePath` and `gateIndexPath` are exported from the critique context. A
+  line that does not parse makes the next record fail with `invalid-run`,
+  so a hook should treat it as unreadable state.
+- **Closing a follow-up is what opens the gate.** Pocock's flow closes
+  tickets when the PR merges, which is after this gate. The skill therefore
+  tells the owner to close each follow-up once its fix is on the feature
+  branch, then re-run on the new head.
+- **For #199.** A feature review's `manifest.artifact` is already the spec,
+  so `AdjudicatedRun.spec` (once #199's change merges here) is the spec's
+  reference with no extra work; the default `flow` is the same reference.
+- **Not covered yet.** The live check from #181's testing decisions (a
+  planted cross-ticket contract mismatch giving `GATE: FAIL (1 critical)`,
+  then `GATE: PASS` after the follow-up is fixed) costs money and has not
+  been run.
+
+## What #188 settled
+
+The `/review-ticket` skill (agent-kit#188) fixed these:
+
+- **Routing.** Shipped `ticket-review`: base `agy-gemini-flash-high`
+  (`diff-reviewer`, failure-modes and security), deep `vibe-mistral-large`
+  (`diff-reviewer`, integration), each $0.50 and 480 s, `distinct_families`.
+  Gemini falls back to GLM through the existing `fallbacks` entry, and drops
+  for `quota` once only the Antigravity reserve is left (the reserve names
+  spec and feature-review only). Deep is Mistral Large rather than GLM, so it
+  stays in a further family when GLM took the base slot. Depth signals, the
+  values #187 left unset: `changed_lines` 600 (twice triage's threshold) and
+  `risk_path_hits` 3, plus `risk:high`. One risk path hit does not go deep,
+  since every ticket that reached review by a risk path has one.
+- **The role.** `roles/diff-reviewer.md` (pinned) asks for bugs, unmet
+  acceptance criteria and security issues, puts style, naming and linter
+  rules out of scope, and states `feature-reviewer`'s failing-test rule, with
+  a trace citing `tree/<path>:<line>` as the alternative.
+- **The staged change.** Prepare and triage take `"staged": true` in place
+  of `head` (both together, or `staged` at another stage, is
+  `invalid-input`). The runner writes the index as a tree and a commit on
+  `HEAD` (`git write-tree`, then `git commit-tree --no-gpg-sign` under a
+  fixed identity), which moves no ref, index entry or file, and reviews that
+  commit; `code.head_commit` is it. `GitIndexPort` (`src/ports/git.ts`:
+  `stagedEntries`, `treeOf`, `writeIndexTree`, `commitTree`, implemented by
+  `GitCliAdapter`) joined `CritiqueGitPort`. The harness's `FakeGit` gained an
+  index (`stage()` is `git add -A`; `commit()` leaves the index at the new
+  commit) and off-line commits `s1`, `s2`, ... that `HEAD` never names.
+- **The staged-diff hash, for #197.** `stagedDiffHash(<HEAD's tree id>,
+  <git ls-files --stage -z>)`: a sha256 over the tree id and every staged
+  entry's mode, blob id and path. Git's diff settings and the working tree do
+  not enter it, and reading it writes nothing. `StagedDiffReader.read(root)`
+  returns `{ head_commit, sha256 }` for the current index, so the commit
+  gate computes it exactly as the runner does; `snapshot(root)` is prepare's
+  commit of the index. `manifest.code.staged_diff` holds the hash prepare
+  reviewed.
+- **The review record, for #197.** Record of a ticket-review run writes
+  `<run_dir>/review.json` and appends the same object as one line to
+  `<git common dir>/critique/ticket-reviews.jsonl`: `{ version: 1, stage:
+  "ticket-review", run_id, recorded_at, repository, spec, ticket,
+  base_commit, head_commit, reviewed_staged_diff, staged_diff, review: "pass"
+  | "fail", degraded, unfixed_critical }`. `reviewed_staged_diff` is what the
+  critics read; `staged_diff` is the index hashed again at record time, after
+  the fixes and kept regression tests were staged, and is **the one the
+  commit gate matches**: take the last line of the index whose `repository`
+  and `staged_diff` match the current staged change, and allow when its
+  `review` is `pass`. Both are `null` for a review of a commit. `review` is
+  `fail` while an accepted critical finding has no `fixed`; a degraded run
+  passes with `degraded: true`, so an outage blocks nothing. Exported:
+  `parseTicketReviewRecord`, `ticketReviewPath`, `ticketReviewIndexPath`,
+  `StagedDiffReader`, `stagedDiffHash`. Record only appends to the index and
+  never reads it, so a bad line there breaks no record; a gate that cannot
+  parse a line should fail open, as for `gates.jsonl`.
+- **Accepting a ticket finding.** At `ticket-review`, record refuses
+  (`invalid-input`) an `accepted` verdict unless `reason_code` is
+  `test-fails` or `trace-walked`; `test-fails` needs `regression_test`, the
+  repository path the test was kept at in the ticket's change, and only
+  `test-fails` takes it. An accepted verdict may carry `"fixed": true`. Both
+  fields are refused on any other verdict and at any other stage.
+  `test-passes`, `test-broken` and `unsafe-test` (rejected) are the skill's
+  convention, not checked. No test code reaches the ledger: finding lines
+  keep `evidence_kinds` and `reason_code` only.
+- **Do not commit.** While an accepted critical finding is unfixed, the
+  summary's last line is `Critical finding F1 is accepted and not fixed: do
+  not commit.` (`Critical findings F1, F2 are ...`). An accepted line ends
+  `(test-fails, fixed)`; the report's verdict reads `accepted (test-fails),
+  regression test <path>, fixed`.
+- **The flow.** A ticket review's default flow is now the spec's reference
+  (the packet's spec file), not the ticket's. Triage takes an optional
+  `spec`, read through the tracker for its reference, and then defaults its
+  flow to it; a spec gh cannot read is refused before anything is written.
+- **For #199.** `specReference(manifest)` (exported) is the spec's reference
+  at every stage: the artifact's, except at ticket review, where it is the
+  packet's spec file. When #199's `AdjudicatedRun.spec` merges here, set it
+  from `specReference(manifest)` so ticket reviews count under their spec.
+  The feature gate already uses it.
+- **Not checked live.** #181's live check (a planted off-by-one in a risky
+  path yields a failing test the orchestrator runs and keeps) costs money and
+  has not been run, and the runner's `git commit-tree` call has been tested
+  against a recorded process only, not a real repository.

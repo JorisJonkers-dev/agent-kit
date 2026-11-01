@@ -118,7 +118,9 @@ _Avoid_: provider (Vibe serves several families)
 **Packet**:
 The frozen copy of the artifact and its reference material that every critic
 of one critique run (one pass of a critique stage over one artifact) reads.
-Later edits to the artifact never reach it.
+Later edits to the artifact never reach it. At a code stage (ticket review,
+feature review) it is a code packet: every file of the commit under review,
+the diff against the base, the ticket or tickets, and the spec.
 _Avoid_: bundle, context, snapshot
 
 **Finding**:
@@ -138,9 +140,11 @@ tickets, ticket review, feature review).
 _Avoid_: step, phase (a phase is a span of the flow, not one stage)
 
 **Depth**:
-How many critics a critique stage runs: base (two families) or deep (base
-plus every further family the family allowlist permits). Chosen automatically
-from signals in the artifact unless the user names it.
+How many critics a critique stage runs: base (the stage's base roster in
+routing, one critic at a cheap stage, two families at the spec stage) or deep
+(base plus the stage's deep critics, each only where the family allowlist
+permits). Chosen automatically from signals in the artifact unless the user
+names it.
 _Avoid_: tier, mode, --fast
 
 **Role**:
@@ -158,5 +162,7 @@ The per-repository list of model families a critique may send content to,
 kept per machine outside the repository, so nothing about it is committed.
 It is keyed by the repository's remote. A repository with no entry, or with
 no remote, sends nothing; a repository owned by the `nedap` GitHub
-organisation sends nothing, whatever its entry says.
+organisation sends nothing, whatever its entry says. An entry allows
+documents only unless its code permission is on; the code stages refuse
+while it is off.
 _Avoid_: data policy, provider list

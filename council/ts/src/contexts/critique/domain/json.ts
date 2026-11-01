@@ -69,6 +69,11 @@ export class JsonFields {
     return value
   }
 
+  /** A non-empty string, or `null`. */
+  nullableString(key: string): string | null {
+    return this.value[key] === null ? null : this.string(key)
+  }
+
   number(key: string): number {
     const value = this.value[key]
     JsonFields.ensure(typeof value === 'number' && Number.isFinite(value), this.at(key), 'a number')
@@ -112,6 +117,19 @@ export class JsonFields {
 
   strings(key: string): readonly string[] {
     return this.listOf(key, (item): item is string => typeof item === 'string', 'a string')
+  }
+
+  numbers(key: string): readonly number[] {
+    return this.listOf(key, (item): item is number => typeof item === 'number' && Number.isFinite(item), 'a number')
+  }
+
+  /** A list whose every item is a list of strings. */
+  stringListList(key: string): readonly (readonly string[])[] {
+    return this.items(key).map((item, index) => {
+      const path = `${this.at(key)}[${String(index)}]`
+      JsonFields.ensure(Array.isArray(item) && item.every((value) => typeof value === 'string'), path, 'a list of strings')
+      return item
+    })
   }
 
   oneOfList<T extends string>(key: string, allowed: readonly T[]): readonly T[] {

@@ -3,14 +3,23 @@ import type { CritiqueStage, Depth } from './stage.js'
 
 /**
  * What a stage's depth signals are read from. The spec stage needs the
- * artifact's text and its tracker labels; a later stage may add what it
- * measures (a diff, a ticket list) here.
+ * artifact's text and its tracker labels; a code stage adds its change.
  */
 export interface DepthEvidence {
   /** The artifact as the packet freezes it. */
   readonly text: string
   /** The artifact's tracker labels; empty for a markdown file. */
   readonly labels: readonly string[]
+  /** A code stage's change, measured as risk triage measures it. */
+  readonly change?: ChangeMeasures
+  /** At the tickets stage: how many tickets the spec has. */
+  readonly tickets?: number
+}
+
+/** A code stage's change in numbers: its changed lines, and how many touched paths match a risk path. */
+export interface ChangeMeasures {
+  readonly changed_lines: number
+  readonly risk_path_hits: number
 }
 
 type Measure = (evidence: DepthEvidence) => number
@@ -22,11 +31,14 @@ type Measure = (evidence: DepthEvidence) => number
  * not know is rejected.
  */
 const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Measure>>>> = {
-  decisions: {},
+  decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   'feature-review': {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
-  'ticket-review': {},
-  tickets: {},
+  'ticket-review': {
+    changed_lines: ({ change }) => change?.changed_lines ?? 0,
+    risk_path_hits: ({ change }) => change?.risk_path_hits ?? 0,
+  },
+  tickets: { tickets: ({ tickets = 0 }) => tickets },
 }
 
 /** One stage's depth signals as routing configures them. Any one that fires selects deep. */
@@ -152,6 +164,16 @@ function countUserStories(text: string): number {
     }
   }
   return count
+}
+
+/**
+ * The decisions a decisions-stage artifact records: each glossary term (a
+ * line opening with a bold term and a colon, `**Term**:`) and each top-level
+ * list item, the shape a decision summary takes. Nested items are details of
+ * the decision above them.
+ */
+function countDecisions(text: string): number {
+  return text.split(/\r?\n/).filter((line) => /^\*\*[^*\n]+(?::\*\*|\*\*\s*:)/.test(line) || /^(?:[-*+]|\d+[.)])\s+\S/.test(line)).length
 }
 
 function countWords(text: string): number {

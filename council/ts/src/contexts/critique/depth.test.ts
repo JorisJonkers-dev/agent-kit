@@ -367,10 +367,10 @@ describe('the routing override on this machine', () => {
     )
   })
 
-  it('rejects depth signals on a stage that has no measures yet', async () => {
-    const override = { stages: { tickets: { base: [], depth_signals: { thresholds: { tickets: 3 } }, distinct_families: false } } }
+  it('names the measures of the tickets stage when a threshold names another', async () => {
+    const override = { stages: { tickets: { depth_signals: { thresholds: { words: 3 } } } } }
     const h = await optedIn(EVERY_FAMILY, { routingOverride: override })
 
-    await expect(ready(h)).rejects.toThrow(/thresholds\.tickets is not a measure of stage tickets; it knows none/)
+    await expect(ready(h)).rejects.toThrow(/thresholds\.words is not a measure of stage tickets; it knows tickets/)
   })
 })

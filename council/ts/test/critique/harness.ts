@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -7,7 +8,9 @@ import type {
   ClockPort,
   EnvPort,
   GhIssue,
+  GhIssueLocator,
   GhIssueRequest,
+  GhLinkedIssue,
   GitPorcelainEntry,
   GitRemote,
   ProcessCommand,
@@ -67,12 +70,24 @@ export class FixedClock implements ClockPort {
 }
 
 /**
- * A repository without git: `porcelainStatus` compares the files on disk,
- * outside `.git/`, with those present at the last `commit()`, the way git
- * compares the working tree with HEAD.
+ * A repository without git: `commit()` snapshots the files on disk, outside
+ * `.git/`, as a new commit on one line of history, and `porcelainStatus`
+ * compares the files on disk with the last commit, the way git compares the
+ * working tree with HEAD. A commit's id is `c<n>`; `HEAD` and `HEAD~<n>`
+ * name commits too. The index holds what `commit()` committed until
+ * `stage()` copies the files on disk into it, as `git add -A` would; a
+ * commit made with `commitTree` (`s<n>`) is off that line and moves no HEAD.
  */
 export class FakeGit implements CritiqueGitPort {
-  private committed = new Map<string, string>()
+  private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string>; readonly parent?: string }[] = []
+  /** HEAD's line of history, oldest first; commits made with `commitTree` are not on it. */
+  private readonly line: string[] = []
+  private index: ReadonlyMap<string, string> = new Map()
+  private readonly trees = new Map<string, ReadonlyMap<string, string>>()
+  /** Every revision the runner asked about, so a test can see what it resolved. */
+  readonly resolved: string[] = []
+  /** How many times the index was written as a tree. */
+  indexTreeWrites = 0
 
   constructor(
     private readonly repoRoot: string,
@@ -91,20 +106,125 @@ export class FakeGit implements CritiqueGitPort {
     return Promise.resolve(this.remoteList)
   }
 
-  async commit(): Promise<void> {
-    this.committed = await this.workingTree()
+  /** Records the working tree as a new commit on HEAD's line, stages it as `git commit -a` leaves it, and returns its id. */
+  async commit(): Promise<string> {
+    const id = `c${String(this.line.length + 1)}`
+    const tree = await this.workingTree()
+    const parent = this.line.at(-1)
+    this.history.push({ id, tree, ...(parent === undefined ? {} : { parent }) })
+    this.line.push(id)
+    this.index = tree
+    return id
+  }
+
+  /** Copies the files on disk into the index, as `git add -A` does. */
+  async stage(): Promise<void> {
+    this.index = await this.workingTree()
   }
 
   async porcelainStatus(): Promise<readonly GitPorcelainEntry[]> {
     const tree = await this.workingTree()
+    const committed = this.headTree()
     const entries: GitPorcelainEntry[] = []
     for (const [path, text] of tree) {
-      const committed = this.committed.get(path)
-      if (committed === undefined) entries.push({ code: '??', path })
-      else if (committed !== text) entries.push({ code: ' M', path })
+      const before = committed.get(path)
+      if (before === undefined) entries.push({ code: '??', path })
+      else if (before !== text) entries.push({ code: ' M', path })
     }
-    for (const path of this.committed.keys()) if (!tree.has(path)) entries.push({ code: ' D', path })
+    for (const path of committed.keys()) if (!tree.has(path)) entries.push({ code: ' D', path })
     return entries.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  async resolveCommit(_cwd: string, revision: string): Promise<string> {
+    this.resolved.push(revision)
+    const back = /^HEAD(?:~(\d+))?$/.exec(revision)
+    const id = back === null ? revision : this.line[this.line.length - 1 - Number(back[1] ?? 0)]
+    const commit = this.history.find((entry) => entry.id === id)
+    if (commit === undefined) throw new Error(`fatal: ambiguous argument '${revision}': unknown revision or path not in the working tree.`)
+    return Promise.resolve(commit.id)
+  }
+
+  /** The first ancestor of `b`, itself included, that is also an ancestor of `a`. */
+  async mergeBase(_cwd: string, a: string, b: string): Promise<string> {
+    const ofA = new Set(this.ancestors(a))
+    return Promise.resolve(this.ancestors(b).find((id) => ofA.has(id)) ?? '')
+  }
+
+  async treeFiles(_cwd: string, commit: string): Promise<readonly string[]> {
+    return Promise.resolve([...this.treeOfCommit(commit).keys()].sort())
+  }
+
+  async fileAt(_cwd: string, commit: string, path: string): Promise<string> {
+    const text = this.treeOfCommit(commit).get(path)
+    if (text === undefined) throw new Error(`fatal: path '${path}' does not exist in '${commit}'`)
+    return Promise.resolve(text)
+  }
+
+  /** Each changed file in full: its old lines removed and its new lines added. */
+  async diffCommits(_cwd: string, base: string, head: string): Promise<string> {
+    const before = this.treeOfCommit(base)
+    const after = this.treeOfCommit(head)
+    const lines = (text: string | undefined, sign: string) =>
+      text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
+    return Promise.resolve(
+      this.changed(before, after)
+        .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
+        .map((section) => `${section}\n`)
+        .join(''),
+    )
+  }
+
+  async changedPaths(_cwd: string, base: string, head: string): Promise<readonly string[]> {
+    return Promise.resolve(this.changed(this.treeOfCommit(base), this.treeOfCommit(head)))
+  }
+
+  /** `<mode> <blob> 0\t<path>\0` per staged file, sorted by path, as `git ls-files --stage -z` prints it. */
+  async stagedEntries(): Promise<string> {
+    return Promise.resolve(entriesOf(this.index))
+  }
+
+  async treeOf(cwd: string, revision: string): Promise<string> {
+    return treeId(this.treeOfCommit(await this.resolveCommit(cwd, revision)))
+  }
+
+  async writeIndexTree(): Promise<string> {
+    this.indexTreeWrites += 1
+    const id = treeId(this.index)
+    this.trees.set(id, this.index)
+    return Promise.resolve(id)
+  }
+
+  /** A commit off HEAD's line; the same tree on the same parent is the same commit, as with git's fixed identity and time. */
+  async commitTree(_cwd: string, tree: string, parent: string): Promise<string> {
+    const files = this.trees.get(tree)
+    if (files === undefined) throw new Error(`fatal: ${tree} is not a valid 'tree' object`)
+    const same = this.history.find((entry) => entry.parent === parent && entry.id.startsWith('s') && treeId(entry.tree) === tree)
+    if (same !== undefined) return Promise.resolve(same.id)
+    const id = `s${String(this.history.filter((entry) => entry.id.startsWith('s')).length + 1)}`
+    this.history.push({ id, parent, tree: files })
+    return Promise.resolve(id)
+  }
+
+  private changed(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): readonly string[] {
+    return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
+  }
+
+  /** A commit, then its parent, and so on back to the first commit. */
+  private ancestors(commit: string): readonly string[] {
+    const chain: string[] = []
+    for (let id: string | undefined = commit; id !== undefined; id = this.history.find((entry) => entry.id === id)?.parent) chain.push(id)
+    return chain
+  }
+
+  private headTree(): ReadonlyMap<string, string> {
+    const head = this.line.at(-1)
+    return head === undefined ? new Map<string, string>() : this.treeOfCommit(head)
+  }
+
+  private treeOfCommit(commit: string): ReadonlyMap<string, string> {
+    const tree = this.history.find((entry) => entry.id === commit)?.tree
+    if (tree === undefined) throw new Error(`fatal: not a valid object name ${commit}`)
+    return tree
   }
 
   private async workingTree(): Promise<Map<string, string>> {
@@ -118,6 +238,28 @@ export class FakeGit implements CritiqueGitPort {
   }
 }
 
+function entriesOf(files: ReadonlyMap<string, string>): string {
+  return [...files.keys()]
+    .sort()
+    .map((path) => `100644 ${createHash('sha1').update(files.get(path) ?? '').digest('hex')} 0\t${path}\0`)
+    .join('')
+}
+
+function treeId(files: ReadonlyMap<string, string>): string {
+  return `t${createHash('sha1').update(entriesOf(files)).digest('hex').slice(0, 12)}`
+}
+
+/**
+ * How the fake's issues link to each other, keyed by `<repo>#<number>` like
+ * the issues: each spec's sub-issues, by number in the spec's repository,
+ * and each issue's native blocked-by links, by `<repo>#<number>`. A string in
+ * place of a list is the stderr of a gh failure.
+ */
+export interface FakeGhLinks {
+  readonly subIssues?: Readonly<Record<string, readonly number[] | string>>
+  readonly blockedBy?: Readonly<Record<string, readonly string[] | string>>
+}
+
 /**
  * Serves GitHub issues by `<repo>#<number>`, where `repo` is what the runner
  * passes as `--repo`. A string in place of an issue is the stderr of a gh
@@ -125,19 +267,78 @@ export class FakeGit implements CritiqueGitPort {
  */
 export class FakeGh implements CritiqueGhPort {
   readonly requests: GhIssueRequest[] = []
+  /** Every sub-issue and blocked-by read, as `<kind> <repo>#<number>`. */
+  readonly linkRequests: string[] = []
 
-  constructor(private readonly issues: Readonly<Record<string, GhIssue | string>>) {}
+  private readonly issues: Record<string, GhIssue | string>
+
+  constructor(
+    issues: Readonly<Record<string, GhIssue | string>>,
+    private readonly links: FakeGhLinks = {},
+  ) {
+    this.issues = { ...issues }
+  }
+
+  /** Serves `issue` as `<repo>#<number>` from now on. */
+  serve(key: string, issue: GhIssue | string): void {
+    this.issues[key] = issue
+  }
 
   async viewIssue(request: GhIssueRequest): Promise<GhIssue> {
     this.requests.push(request)
-    const issue = this.issues[`${request.repo}#${String(request.number)}`]
+    const issue = this.issue(request.repo, request.number)
+    return Promise.resolve(request.comments ? issue : { ...issue, comments: [] })
+  }
+
+  async subIssues(request: GhIssueLocator): Promise<readonly GhIssue[]> {
+    const numbers = this.linked('sub-issues', this.links.subIssues, request)
+    return Promise.resolve(numbers.map((number) => ({ ...this.issue(request.repo, number), comments: [] })))
+  }
+
+  async blockedBy(request: GhIssueLocator): Promise<readonly GhLinkedIssue[]> {
+    const references = this.linked('blocked-by', this.links.blockedBy, request)
+    return Promise.resolve(
+      references.map((reference) => {
+        const [repo = '', number = ''] = reference.split('#')
+        const [host, ...path] = repo.split('/')
+        return { number: Number(number), url: `https://${host ?? ''}/${path.join('/')}/issues/${number}` }
+      }),
+    )
+  }
+
+  private issue(repo: string, number: number): GhIssue {
+    const issue = this.issues[`${repo}#${String(number)}`]
     if (issue === undefined) {
       throw new Error(
-        `gh issue view ${String(request.number)} failed: GraphQL: Could not resolve to an issue or pull request with the number of ${String(request.number)}. (repository.issue)`,
+        `gh issue view ${String(number)} failed: GraphQL: Could not resolve to an issue or pull request with the number of ${String(number)}. (repository.issue)`,
       )
     }
     if (typeof issue === 'string') throw new Error(issue)
-    return Promise.resolve(request.comments ? issue : { ...issue, comments: [] })
+    return issue
+  }
+
+  private linked<T>(
+    kind: string,
+    table: Readonly<Record<string, readonly T[] | string>> | undefined,
+    request: GhIssueLocator,
+  ): readonly T[] {
+    const key = `${request.repo}#${String(request.number)}`
+    this.linkRequests.push(`${kind} ${key}`)
+    const entry = table?.[key] ?? []
+    if (typeof entry === 'string') throw new Error(entry)
+    return entry
+  }
+}
+
+/** A ticket issue: a sub-issue of a spec, with its acceptance criteria. */
+export function ticketIssue(number: number, title: string, body: string): GhIssue {
+  return {
+    body,
+    comments: [],
+    labels: ['type:feature'],
+    number,
+    title,
+    url: `https://github.com/JorisJonkers-dev/agent-kit/issues/${String(number)}`,
   }
 }
 
@@ -408,6 +609,21 @@ export function twoCriticRouting(): unknown {
   }
 }
 
+/** One Vibe critic on each code stage, so prepare can build a code packet and fan-out can run it. */
+export function codeStageRouting(): unknown {
+  const slot = { client: 'vibe-mistral-large', lenses: ['failure-modes'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 }
+  return {
+    clients: {
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+    },
+    stages: {
+      'feature-review': { base: [slot], distinct_families: true },
+      'ticket-review': { base: [slot], distinct_families: true },
+    },
+    version: 1,
+  }
+}
+
 export interface Harness {
   readonly home: string
   readonly repo: string
@@ -464,6 +680,8 @@ export async function harness(
     readonly tracker?: keyof typeof TRACKER_DOCS | 'none'
     /** The issues gh serves, by `<repo>#<number>`. */
     readonly issues?: Readonly<Record<string, GhIssue | string>>
+    /** How those issues link: sub-issues and native blocked-by links. */
+    readonly links?: FakeGhLinks
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -505,7 +723,7 @@ export async function harness(
   }
   const git = new FakeGit(repo, options.remotes ?? [AGENT_KIT_REMOTE])
   await git.commit()
-  const gh = new FakeGh(options.issues ?? {})
+  const gh = new FakeGh(options.issues ?? {}, options.links)
   const launches = new LaunchLog()
   const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain')
   const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)

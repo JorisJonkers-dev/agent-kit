@@ -2,10 +2,10 @@ import { join } from 'node:path'
 
 import { budgetReached, quotaReached } from '../domain/budget.js'
 import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } from '../domain/critic.js'
-import { checkEvidence, type PacketText } from '../domain/evidence.js'
+import { checkEvidence, indexPacket, type PacketIndex, type PacketText } from '../domain/evidence.js'
 import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
-import { parseManifest, type RunManifest } from '../domain/manifest.js'
+import { listedFiles, parseManifest, type RunManifest } from '../domain/manifest.js'
 import { mergeFindings } from '../domain/merge.js'
 import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
@@ -27,7 +27,7 @@ export interface FanOutResult {
   readonly findings: readonly RunFinding[]
 }
 
-function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: readonly PacketText[]): RunFinding {
+function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex): RunFinding {
   const preVerdict = checkEvidence(finding, stage, packet)
   return preVerdict === undefined ? finding : { ...finding, pre_verdict: preVerdict }
 }
@@ -62,7 +62,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
-    const packet = await this.readPacket(manifest)
+    const packet = indexPacket(await this.readPacket(manifest), manifest.ticket_check?.ticket_ids)
     const budget = new FlowBudget(this.deps)
     const spent = await budget.vibeSpend(manifest)
     const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)))
@@ -149,7 +149,8 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
         role: await asset(`roles/${critic.role}.md`),
         schema: await asset(SCHEMA),
       },
-      manifest.packet_files,
+      listedFiles(manifest),
+      manifest.stage,
     )
     await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
     return prompt

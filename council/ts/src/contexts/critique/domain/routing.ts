@@ -1,9 +1,11 @@
 import { readLimits, type CritiqueLimits } from './budget.js'
 import { NO_DEPTH_SIGNALS, readDepthSignalsConfig, type DepthSignalsConfig } from './depth.js'
 import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
-import { JsonFields } from './json.js'
+import { JsonFields, JsonShapeError } from './json.js'
 import { CritiqueError } from './outcomes.js'
 import type { CritiqueStage, Depth } from './stage.js'
+import { DEFAULT_TICKET_SIZE, type TicketSize } from './tickets.js'
+import { readTriageRules, type TriageModel, type TriageRules } from './triage.js'
 
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
 export interface VibeCriticClient {
@@ -39,6 +41,23 @@ export type ClientReadiness = { readonly ready: true } | { readonly ready: false
  */
 export type ClientAvailability = ClientReadiness | { readonly ready: false; readonly detail: string; readonly reason: 'quota' }
 
+/** Routing's `triage`, with the Vibe client its model runs through. */
+export interface TriageRouting extends TriageRules {
+  readonly model: TriageModel & { readonly client_config: VibeCriticClient }
+}
+
+/** The triage model asks a yes/no question through Vibe, so its client must be a Vibe client routing defines. */
+function readTriageRouting(fields: JsonFields, clients: Readonly<Record<string, CriticClient>>): TriageRouting {
+  const rules = readTriageRules(fields)
+  const client = clients[rules.model.client]
+  if (client?.kind !== 'vibe') {
+    throw new JsonShapeError(
+      `triage.model.client must name a vibe client of clients; ${rules.model.client} is ${client === undefined ? 'not defined' : 'an agy client'}`,
+    )
+  }
+  return { ...rules, model: { ...rules.model, client_config: client } }
+}
+
 export interface RosterSlot {
   readonly client: string
   readonly role: string
@@ -55,6 +74,8 @@ export interface StageRouting {
   readonly deep: readonly RosterSlot[]
   /** What makes the stage go deep when the caller names no depth. */
   readonly depth_signals: DepthSignalsConfig
+  /** When a ticket is likely too big for one `/implement` context; only the tickets stage reads it. */
+  readonly ticket_size: TicketSize
 }
 
 export interface Routing {
@@ -65,6 +86,8 @@ export interface Routing {
   readonly stages: Readonly<Partial<Record<CritiqueStage, StageRouting>>>
   /** The per-flow Vibe cap and the Antigravity quota. */
   readonly limits: CritiqueLimits
+  /** Ticket-review risk triage: the risk rules and the triage model; routing without it cannot triage. */
+  readonly triage?: TriageRouting
 }
 
 /** A client a critic may be retried through. */
@@ -109,8 +132,10 @@ export interface Roster {
 
 export function parseRouting(text: string): Routing {
   const file = JsonFields.parse(text)
+  const clients = file.entries('clients', readCriticClient)
+  const triage = file.has('triage') ? readTriageRouting(file.object('triage'), clients) : undefined
   return {
-    clients: file.entries('clients', readCriticClient),
+    clients,
     fallbacks: file.has('fallbacks') ? file.stringLists('fallbacks') : {},
     limits: readLimits(file),
     stages: file.entries('stages', (stage, name) => ({
@@ -118,9 +143,15 @@ export function parseRouting(text: string): Routing {
       deep: stage.has('deep') ? stage.list('deep', readRosterSlot) : [],
       depth_signals: stage.has('depth_signals') ? readDepthSignalsConfig(stage.object('depth_signals'), name) : NO_DEPTH_SIGNALS,
       distinct_families: stage.boolean('distinct_families'),
+      ticket_size: stage.has('ticket_size') ? readTicketSize(stage.object('ticket_size')) : DEFAULT_TICKET_SIZE,
     })),
+    ...(triage === undefined ? {} : { triage }),
     version: file.literal('version', 1),
   }
+}
+
+function readTicketSize(fields: JsonFields): TicketSize {
+  return { max_criteria: fields.number('max_criteria'), max_modules: fields.number('max_modules') }
 }
 
 export function readCriticClient(fields: JsonFields): CriticClient {

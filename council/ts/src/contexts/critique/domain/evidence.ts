@@ -1,6 +1,8 @@
-import type { Category, FindingBody, HintCode, PreVerdict } from './findings.js'
+import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './findings.js'
+import { lineCount, lineReferences, packetCandidates } from './line-references.js'
 import type { PacketFile } from './manifest.js'
-import type { CritiqueStage } from './stage.js'
+import { isCodeStage, type CritiqueStage } from './stage.js'
+import { ticketTarget } from './tickets.js'
 
 /** One packet file's text, as it was frozen before any critic ran. */
 export interface PacketText {
@@ -8,6 +10,26 @@ export interface PacketText {
   readonly kind: PacketFile['kind']
   readonly text: string
 }
+
+/** The packet as the evidence check reads it, built once for every finding of a run. */
+export interface PacketIndex {
+  readonly files: readonly (PacketText & { readonly normalised: string })[]
+  /** How many lines each packet file has, by packet path. */
+  readonly lines: ReadonlyMap<string, number>
+  /** At the tickets stage, the ids of the spec's tickets, which a finding's location must name. */
+  readonly tickets: readonly string[]
+}
+
+export function indexPacket(packet: readonly PacketText[], tickets: readonly string[] = []): PacketIndex {
+  return {
+    files: packet.map((file) => ({ ...file, normalised: normalise(file.text) })),
+    lines: new Map(packet.map((file) => [file.path, lineCount(file.text)])),
+    tickets,
+  }
+}
+
+/** The packet folder a code packet keeps its tree in. */
+const TREE_DIR = 'tree'
 
 /** What a finding's evidence holds, once each quote is found in the packet. */
 interface EvidenceFound {
@@ -25,17 +47,14 @@ const DECISION_CATEGORIES: readonly Category[] = ['omission', 'invention']
 
 /**
  * The mechanical check fan-out runs on every finding before the orchestrator
- * sees it. Every quote must occur in the packet, or the finding is rejected
- * as fabricated evidence. Then the stage's evidence rule decides whether the
- * finding has anything checkable; if not, it is a hint. Returns nothing when
- * the orchestrator must adjudicate the finding itself.
+ * sees it. Every quote must occur in the packet, and at a code stage every
+ * file and line the location or a trace step cites must be in the packet's
+ * frozen copy, or the finding is rejected as fabricated evidence. Then the
+ * stage's evidence rule decides whether the finding has anything checkable;
+ * if not, it is a hint. Returns nothing when the orchestrator must
+ * adjudicate the finding itself.
  */
-export function checkEvidence(
-  finding: FindingBody,
-  stage: CritiqueStage,
-  packet: readonly PacketText[],
-): PreVerdict | undefined {
-  const files = packet.map((file) => ({ ...file, text: normalise(file.text) }))
+export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet: PacketIndex): PreVerdict | undefined {
   const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false }
   for (const [index, evidence] of finding.evidence.entries()) {
     if (evidence.kind !== 'quote') {
@@ -43,19 +62,72 @@ export function checkEvidence(
       continue
     }
     const quote = normalise(evidence.value)
-    const holders = files.filter((file) => file.text.includes(quote))
-    if (holders.length === 0) {
-      return {
-        reason: `evidence ${String(index + 1)} quotes text that is not in the packet`,
-        reason_code: 'fabricated-evidence',
-        verdict: 'rejected',
-      }
-    }
+    const holders = packet.files.filter((file) => file.normalised.includes(quote))
+    if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`)
     found.spec ||= holders.some((file) => file.kind === 'artifact')
     found.decision ||= holders.some((file) => file.kind === 'reference')
   }
-  const hint = found.items === 0 ? 'no-evidence' : stage === 'spec' ? specRule(finding.category, found) : undefined
+  if (isCodeStage(stage)) {
+    const missing = missingLine(finding, packet)
+    if (missing !== undefined) return fabricated(missing)
+  }
+  const hint =
+    found.items === 0
+      ? 'no-evidence'
+      : stage === 'spec'
+        ? specRule(finding.category, found)
+        : stage === 'decisions'
+          ? decisionsRule(finding.category, found)
+          : isCodeStage(stage)
+            ? codeRule(finding.evidence)
+            : ticketRule(finding.location, packet.tickets)
   return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
+}
+
+function fabricated(reason: string): PreVerdict {
+  return { reason, reason_code: 'fabricated-evidence', verdict: 'rejected' }
+}
+
+/**
+ * Why the first file-and-line citation of the location, or of a trace step,
+ * names a file the packet does not hold or a line its file does not have.
+ */
+function missingLine(finding: FindingBody, packet: PacketIndex): string | undefined {
+  const sources = [
+    { text: finding.location, where: 'the location' },
+    ...finding.evidence.flatMap((evidence, index) =>
+      evidence.kind === 'trace' ? [{ text: evidence.value, where: `evidence ${String(index + 1)}` }] : [],
+    ),
+  ]
+  for (const { text, where } of sources) {
+    for (const reference of lineReferences(text)) {
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate))
+      if (path === undefined) return `${where} cites ${reference.path}, which is not in the packet`
+      const lines = packet.lines.get(path) ?? 0
+      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines)
+      if (outside !== undefined) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`
+    }
+  }
+  return undefined
+}
+
+/** #181's code-stage rule: a code finding needs a failing test, or a trace that cites a file and line. */
+function codeRule(evidence: readonly Evidence[]): HintCode | undefined {
+  const checkable = evidence.some(
+    (item) => item.kind === 'failing-test' || (item.kind === 'trace' && lineReferences(item.value).length > 0),
+  )
+  return checkable ? undefined : 'no-test-or-trace'
+}
+
+/**
+ * #181's tickets-stage rule: a finding names the rule it breaks and the
+ * ticket it is about, so the orchestrator can re-check that rule on that
+ * ticket. An uncovered requirement is about the spec, so it needs no ticket.
+ */
+function ticketRule(location: string, tickets: readonly string[]): HintCode | undefined {
+  const target = ticketTarget(location, tickets)
+  if (target.rule === undefined) return 'no-ticket-rule'
+  return target.rule === 'uncovered-requirement' || target.ticket !== undefined ? undefined : 'no-ticket-id'
 }
 
 /**
@@ -69,11 +141,31 @@ function specRule(category: Category, found: EvidenceFound): HintCode | undefine
   return found.decision || found.scenario ? undefined : 'no-decision-or-scenario'
 }
 
+/** What a decisions-stage finding may be: a branch never opened, or two decisions that clash. */
+const GAP_CATEGORIES: readonly Category[] = ['unasked-question', 'contradiction']
+
+/**
+ * #181's decisions-stage rule: a gap is an unasked question or a
+ * contradiction, quotes the decisions under review or the decision docs
+ * beside them (never the feature statement alone), and gives a concrete
+ * scenario.
+ */
+function decisionsRule(category: Category, found: EvidenceFound): HintCode | undefined {
+  if (!GAP_CATEGORIES.includes(category)) return 'not-a-decision-gap'
+  if (!found.spec && !found.decision) return 'no-decision-quote'
+  return found.scenario ? undefined : 'no-scenario'
+}
+
 const HINT_REASONS: Readonly<Record<HintCode, string>> = {
   'no-decision-or-scenario': 'no quote from a decision source and no concrete scenario',
   'no-decision-quote': 'no quote from a decision source',
   'no-evidence': 'no evidence to check',
+  'no-scenario': 'no concrete scenario',
   'no-spec-quote': 'no quote from the spec',
+  'no-test-or-trace': 'no failing test and no trace with a file and line',
+  'no-ticket-id': 'the location names no ticket of the spec',
+  'no-ticket-rule': 'the location names no ticket rule',
+  'not-a-decision-gap': 'neither an unasked question nor a contradiction',
 }
 
 /** Runs of white space count as one space, so a quote may cross a line break. */

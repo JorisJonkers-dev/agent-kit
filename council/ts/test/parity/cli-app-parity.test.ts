@@ -18,6 +18,7 @@ import { commandRegistry, runCli } from '../../src/cli/index.js'
 import type {
   ClockPort,
   GhIssue,
+  GhLinkedIssue,
   GhPort,
   GhPrRequest,
   LiveRunArtifacts,
@@ -665,6 +666,14 @@ class RecordingGh implements GhPort {
 
   viewIssue(): Promise<GhIssue> {
     return Promise.reject(new Error('the parity tests read no issue'))
+  }
+
+  subIssues(): Promise<readonly GhIssue[]> {
+    return Promise.reject(new Error('the parity tests read no sub-issues'))
+  }
+
+  blockedBy(): Promise<readonly GhLinkedIssue[]> {
+    return Promise.reject(new Error('the parity tests read no blockers'))
   }
 }
 

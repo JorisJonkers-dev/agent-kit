@@ -96,6 +96,7 @@ describe('family allowlist', () => {
       status: 'allowed',
       repository: 'github.com/jorisjonkers-dev/agent-kit',
       families: ['mistral'],
+      code: false,
       allowlist_path: path,
     })
     expect(JSON.parse(await h.readText(path))).toMatchObject({
@@ -165,6 +166,121 @@ describe('family allowlist', () => {
 
     expect(await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })).toMatchObject({
       repository: 'github.com/jorisjonkers-dev/agent-kit',
+    })
+  })
+
+  describe('the code permission', () => {
+    function allowlistFile(h: Harness): string {
+      return join(h.home, '.config', 'agent-kit', 'critique-allowlist.json')
+    }
+
+    async function entry(h: Harness): Promise<{ families: string[]; code: boolean }> {
+      const allowlist = JSON.parse(await h.readText(allowlistFile(h))) as {
+        repositories: Record<string, { families: string[]; code: boolean }>
+      }
+      const found = allowlist.repositories['github.com/jorisjonkers-dev/agent-kit']
+      if (found === undefined) throw new Error('no entry')
+      return found
+    }
+
+    it('is off for a new entry', async () => {
+      const h = await setup()
+
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
+
+      expect((await entry(h)).code).toBe(false)
+    })
+
+    it('is turned on by allow', async () => {
+      const h = await setup()
+
+      const result = await h.commands.allow.run({ repo: h.repo, families: ['mistral'], code: true })
+
+      expect(result).toMatchObject({ status: 'allowed', code: true })
+      expect((await entry(h)).code).toBe(true)
+    })
+
+    it('is turned off again by allow', async () => {
+      const h = await setup()
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], code: true })
+
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], code: false })
+
+      expect((await entry(h)).code).toBe(false)
+    })
+
+    it('stays as it was when allow changes only the families', async () => {
+      const h = await setup()
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], code: true })
+
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral', 'google'] })
+
+      expect(await entry(h)).toMatchObject({ families: ['mistral', 'google'], code: true })
+    })
+
+    it('is off for an entry recorded before the permission existed', async () => {
+      const h = await setup()
+      await h.writeText(
+        allowlistFile(h),
+        JSON.stringify({ repositories: { 'github.com/jorisjonkers-dev/agent-kit': { families: ['mistral'], updated_at: 'x' } }, version: 1 }),
+      )
+
+      const result = await h.commands.prepare.run({ ...prepareInput(h), stage: 'ticket-review', ticket: '.scratch/widgets/issues/01-widgets.md', base: 'HEAD' })
+
+      expect(result).toMatchObject({ status: 'refused', reason: 'code-not-allowed' })
+    })
+
+    it('refuses to trust an entry whose code permission is not true or false', async () => {
+      const h = await setup()
+      await h.writeText(
+        allowlistFile(h),
+        JSON.stringify({
+          repositories: { 'github.com/jorisjonkers-dev/agent-kit': { families: ['mistral'], code: 'yes', updated_at: 'x' } },
+          version: 1,
+        }),
+      )
+
+      await expect(h.commands.prepare.run(prepareInput(h))).rejects.toThrow(/critique-allowlist\.json: .*code/)
+    })
+
+    it.each(['ticket-review', 'feature-review'])(
+      'refuses %s with one line saying why before any packet exists while it is off',
+      async (stage) => {
+        const h = await setup()
+        await h.commands.allow.run({ repo: h.repo, families: ['mistral', 'google'] })
+
+        const result = await h.commands.prepare.run({ ...prepareInput(h), stage, ticket: '.scratch/widgets/issues/01-widgets.md', base: 'HEAD' })
+
+        expect(result).toEqual({
+          status: 'refused',
+          reason: 'code-not-allowed',
+          message:
+            'github.com/jorisjonkers-dev/agent-kit allows documents but not code; record the code permission with allow and "code": true',
+        })
+        expect(existsSync(critiqueDir(h))).toBe(false)
+      },
+    )
+
+    it('lets the nedap deny win over a code permission', async () => {
+      const h = await setup()
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], code: true })
+      h.git.remoteList = [AGENT_KIT_REMOTE, { name: 'work', url: 'git@github.com:nedap/widgets.git' }]
+
+      const result = await h.commands.prepare.run({ ...prepareInput(h), stage: 'ticket-review', ticket: '.scratch/widgets/issues/01-widgets.md', base: 'HEAD' })
+
+      expect(result).toMatchObject({ status: 'refused', reason: 'nedap' })
+      expect(existsSync(critiqueDir(h))).toBe(false)
+    })
+
+    it('lets the no-remote refusal win over a code permission', async () => {
+      const h = await setup()
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], code: true })
+      h.git.remoteList = []
+
+      const result = await h.commands.prepare.run({ ...prepareInput(h), stage: 'feature-review', base: 'HEAD' })
+
+      expect(result).toMatchObject({ status: 'refused', reason: 'no-remote' })
+      expect(existsSync(critiqueDir(h))).toBe(false)
     })
   })
 })

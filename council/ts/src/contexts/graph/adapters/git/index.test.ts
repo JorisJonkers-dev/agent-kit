@@ -514,3 +514,117 @@ describe('GitCliAdapter repository facts', () => {
     await expect(new GitCliAdapter(process).remotes('/tmp')).rejects.toThrow(/not a git repository/)
   })
 })
+
+describe('GitCliAdapter commits', () => {
+  it('resolves a revision to the full id of the commit it names', async () => {
+    const process = new RecordingProcess(() => success('0123456789abcdef0123456789abcdef01234567\n'))
+
+    expect(await new GitCliAdapter(process).resolveCommit('/r', 'main')).toBe('0123456789abcdef0123456789abcdef01234567')
+    expect(process.commands).toEqual([
+      { args: ['rev-parse', '--verify', '--quiet', '--end-of-options', 'main^{commit}'], command: 'git', cwd: '/r' },
+    ])
+  })
+
+  it('throws when a revision names no commit', async () => {
+    const process = new RecordingProcess(() => failure(1))
+
+    await expect(new GitCliAdapter(process).resolveCommit('/r', 'nope')).rejects.toThrow(/rev-parse/)
+  })
+
+  it('reads the merge base of two commits', async () => {
+    const process = new RecordingProcess(() => success('abc\n'))
+
+    expect(await new GitCliAdapter(process).mergeBase('/r', 'a1', 'b2')).toBe('abc')
+    expect(process.commands[0]?.args).toEqual(['merge-base', '--end-of-options', 'a1', 'b2'])
+  })
+
+  it('lists the regular files of a commit and leaves out symbolic links and submodules', async () => {
+    const process = new RecordingProcess(() =>
+      success(
+        [
+          '100644 blob aaa\tsrc/a b.ts',
+          '100755 blob bbb\tbin/run',
+          '120000 blob ccc\tlink',
+          '160000 commit ddd\tvendor/lib',
+          '',
+        ].join('\0'),
+      ),
+    )
+
+    expect(await new GitCliAdapter(process).treeFiles('/r', 'abc')).toEqual(['src/a b.ts', 'bin/run'])
+    expect(process.commands[0]?.args).toEqual(['ls-tree', '-r', '-z', '--full-tree', 'abc'])
+  })
+
+  it('reads a file as it is in a commit', async () => {
+    const process = new RecordingProcess(() => success('line one\n'))
+
+    expect(await new GitCliAdapter(process).fileAt('/r', 'abc', 'src/a.ts')).toBe('line one\n')
+    expect(process.commands[0]?.args).toEqual(['cat-file', 'blob', 'abc:src/a.ts'])
+  })
+
+  it('reads the diff between two commits without diff drivers, text conversion or colour', async () => {
+    const process = new RecordingProcess(() => success('diff --git a/x b/x\n'))
+
+    expect(await new GitCliAdapter(process).diffCommits('/r', 'a1', 'b2')).toBe('diff --git a/x b/x\n')
+    expect(process.commands[0]?.args).toEqual([
+      '-c',
+      'core.quotePath=false',
+      'diff',
+      '--no-ext-diff',
+      '--no-textconv',
+      '--no-color',
+      'a1',
+      'b2',
+      '--',
+    ])
+  })
+
+  it('lists the paths a diff between two commits touches, a rename as both paths', async () => {
+    const process = new RecordingProcess(() => success('src/a.ts\0old name.ts\0new name.ts\0'))
+
+    expect(await new GitCliAdapter(process).changedPaths('/r', 'a1', 'b2')).toEqual(['src/a.ts', 'old name.ts', 'new name.ts'])
+    expect(process.commands[0]?.args).toEqual(['diff', '--name-only', '-z', '--no-renames', 'a1', 'b2', '--'])
+  })
+})
+
+describe('GitCliAdapter index', () => {
+  it('lists the staged entries without writing anything', async () => {
+    const process = new RecordingProcess(() => success('100644 aaa 0\tsrc/a.ts\0'))
+
+    expect(await new GitCliAdapter(process).stagedEntries('/r')).toBe('100644 aaa 0\tsrc/a.ts\0')
+    expect(process.commands[0]?.args).toEqual(['ls-files', '--stage', '-z'])
+  })
+
+  it("reads the tree a revision's commit holds", async () => {
+    const process = new RecordingProcess(() => success('4b825dc642cb6eb9a060e54bf8d69288fbee4904\n'))
+
+    expect(await new GitCliAdapter(process).treeOf('/r', 'HEAD')).toBe('4b825dc642cb6eb9a060e54bf8d69288fbee4904')
+    expect(process.commands[0]?.args).toEqual(['rev-parse', '--verify', '--quiet', '--end-of-options', 'HEAD^{tree}'])
+  })
+
+  it('writes the index as a tree', async () => {
+    const process = new RecordingProcess(() => success('abc123\n'))
+
+    expect(await new GitCliAdapter(process).writeIndexTree('/r')).toBe('abc123')
+    expect(process.commands[0]?.args).toEqual(['write-tree'])
+  })
+
+  it('writes a commit of a tree on its parent, unsigned and under a fixed identity, so it never prompts or fails on missing config', async () => {
+    const process = new RecordingProcess(() => success('def456\n'))
+
+    expect(await new GitCliAdapter(process).commitTree('/r', 'abc123', 'c0ffee', 'staged change')).toBe('def456')
+    expect(process.commands[0]?.args).toEqual([
+      '-c',
+      'user.name=agent-kit critique',
+      '-c',
+      'user.email=critique@agent-kit.invalid',
+      'commit-tree',
+      '--no-gpg-sign',
+      '-p',
+      'c0ffee',
+      '-m',
+      'staged change',
+      'abc123',
+    ])
+  })
+})

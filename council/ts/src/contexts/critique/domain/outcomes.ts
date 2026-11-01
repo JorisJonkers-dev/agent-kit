@@ -11,12 +11,18 @@ export type RefusalReason =
   | 'no-remote'
   | 'nedap'
   | 'not-opted-in'
+  /** A code stage, for a repository whose allowlist entry allows documents only. */
+  | 'code-not-allowed'
   /** The issue-tracker doc names a tracker the critique cannot read. */
   | 'unsupported-tracker'
   /** gh failed, or the issue could not be read. */
   | 'tracker-unreachable'
   /** The run named as the first round was already a second round. */
   | 'round-limit'
+  /** The tickets stage, for a spec that has no tickets to check. */
+  | 'no-tickets'
+  /** The decisions stage found no decision docs, and the caller gave no decision summary. */
+  | 'no-decision-docs'
 
 export interface Refusal {
   readonly status: 'refused'
@@ -41,6 +47,8 @@ export type CritiqueErrorCode =
   | 'outside-repository'
   /** A run whose verdicts are already recorded. */
   | 'already-recorded'
+  /** The tracker could not be read when a feature review's gate needed the spec's tickets. */
+  | 'tracker-unreachable'
 
 export class CritiqueError extends Error {
   override readonly name = 'CritiqueError'
