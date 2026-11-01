@@ -38,7 +38,7 @@ directory per critique run, named by its run id. The **flows folder** is
 | `/flow finish` | The feature review and its gate, once every ticket has landed. |
 | `/flow no-critique` | Steps the feature through the plain Pocock flow, skipping critique on purpose. `/flow critique` turns critique back on. |
 | `/flow setup` | Walks this machine's critique checklist one item at a time, then offers this repository's opt-in. |
-| `/flow explain <thing>` | Comes with agent-kit#194. |
+| `/flow explain <thing>` | A short explanation of one stage, lens, depth, routing, the gate or the budget, read from the pipeline README. |
 | `/flow budget` | The Vibe spend for this flow against its cap, Antigravity invocations today against the daily cap and the reserve, and which stages would fall back now. |
 
 ## /flow
@@ -254,8 +254,35 @@ whole checklist (`current` items count as passed). Then offer `/flow`.
 
 ## /flow explain
 
-Not built yet: say in one line that `/flow explain` comes with
-agent-kit#194, and stop.
+The explanations live in one place: `README.md` in the critique skill
+directory (`../critique/README.md` from the folder this file is in). Read it
+on every call and explain from what it says now, never from memory or from
+this file, so the answer moves with the README. When it is missing, say the
+`critique` skill is not installed beside this one, re-run agent-kit setup,
+and stop.
+
+1. **Find the section** for `<thing>`:
+
+   | The owner names | README section |
+   |---|---|
+   | a stage, its skill, or "stages" | `## Stages`: the stage's row, and the paragraphs under the table that bear on it |
+   | a lens, or "lenses" | `## Lenses`: the lens's line |
+   | depth, base or deep | `## Depth` |
+   | routing, fallbacks or retuning | `## Routing` |
+   | a gate, the hooks or the kill switch | `## Gates and the kill switch` |
+   | budget, quota or cost | `## Budget and quota` |
+
+   A stage or lens is any name in that section's table or list. With no
+   `<thing>`, or one no section covers, list the six things above that can
+   be explained, and stop.
+
+2. **Explain** in at most about six lines, in the README's words and terms,
+   from that section alone: for one stage or lens, only its row or line and
+   what bears on it. End with a line naming the README section to read for
+   more.
+
+Done when the reply covers the one thing asked, and every claim in it is in
+that README section.
 
 ## /flow budget
 

@@ -16,6 +16,7 @@ and before the first `/implement`, `/review-ticket` after a ticket's
 
 | path | what it is |
 |---|---|
+| `README.md` | the owner's guide to the pipeline: what runs when, depth, budget, the gates, the kill switch and routing; `/flow explain` reads it |
 | `critique.mjs` | the runner, one self-contained Node file built from `council/ts` |
 | `routing.json` | the default routing: which critic clients, roles and lenses each stage runs at base and deep depth, with their caps and depth signals, and risk triage's risk paths, size threshold and triage model |
 | `prompts/` | the shared preamble and the output contract every critic prompt carries, and the triage model's yes/no prompt |
