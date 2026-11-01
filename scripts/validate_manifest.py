@@ -277,22 +277,45 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
             if targets != supported_set:
                 fail(f"skill {name} targets {sorted(targets)} but supports {sorted(supported_set)}")
 
-    # The estate ships no agent hooks. The knowledge-recall hooks were
-    # retired with the knowledge base they wrote into, so both the `hooks`
-    # ledger and the `settings` ledger that existed only to wire them must
-    # stay absent. Assert that rather than trusting the removal held: a
-    # re-introduced section is exactly the drift this guard exists for.
-    for retired_section in ("hooks", "settings"):
-        if retired_section in manifest:
-            fail(
-                f"manifest must not declare a `{retired_section}` section: agent hooks "
-                "are retired estate-wide (see manifest.yaml notes)",
-            )
+    # The `settings` ledger existed only to wire the retired knowledge hooks;
+    # the critique hooks are merged into the operator's files by setup, so it
+    # stays absent. The `hooks` section is checked by validate_hooks.
+    if "settings" in manifest:
+        fail(
+            "manifest must not declare a `settings` section: it only ever wired the "
+            "retired knowledge hooks (see manifest.yaml notes)",
+        )
 
     # The top-level `installer:` block (install.sh/install-agents.sh pins) is
     # retired along with those files (agent-kit#40); it must stay absent.
     if "installer" in manifest:
         fail("manifest must not declare a top-level `installer` section: install.sh is retired")
+
+
+HOOKS_ADR = "docs/adr/0002-exactly-three-critique-hooks.md"
+# ADR-0002 allows exactly these hooks, each on one event. Any other name
+# needs its own ADR before it can be added here.
+ALLOWED_HOOK_EVENTS = {
+    "critique-commit-gate": "PreToolUse",
+    "critique-pr-gate": "PreToolUse",
+    "critique-session-start": "SessionStart",
+}
+
+
+def validate_hooks(manifest: dict[str, Any]) -> None:
+    hooks = as_mapping(manifest.get("hooks", {}), "hooks")
+    for name, value in hooks.items():
+        if name not in ALLOWED_HOOK_EVENTS:
+            fail(f"hook {name} is not allowed: {HOOKS_ADR} allows only {', '.join(ALLOWED_HOOK_EVENTS)}")
+        hook = as_mapping(value, f"hook {name}")
+        if hook.get("adr") != HOOKS_ADR or not (ROOT / HOOKS_ADR).is_file():
+            fail(f"hook {name} must cite {HOOKS_ADR}")
+        if hook.get("event") != ALLOWED_HOOK_EVENTS[name]:
+            fail(f"hook {name} must run on {ALLOWED_HOOK_EVENTS[name]}, not {hook.get('event')}")
+        agents = as_string_list(hook.get("agents"), f"hook {name}.agents", min_items=1)
+        # Vibe and Antigravity stay out until their hook events are checked.
+        if not set(agents) <= {"claude", "codex"}:
+            fail(f"hook {name} agents must be claude and/or codex, not {agents}")
 
 
 def _has_council_command_spec(source: str, command: str) -> bool:
@@ -815,6 +838,7 @@ def main(argv: list[str] | None = None) -> int:
         managed_paths = validate_renderer(manifest)
         validate_checksums(manifest, managed_paths)
         validate_surface_parity(manifest)
+        validate_hooks(manifest)
         validate_council_command_surface()
         validate_council(manifest)
         validate_runtime_package_manifest(manifest)

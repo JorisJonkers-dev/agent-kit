@@ -2,7 +2,7 @@ version: 2
 generated: partial
 notes:
   - "This manifest pins the current repo surfaces: repo skills, commands, and the runtime package are rendered from agent-kit templates by render-agent-kit.py. installer/setup-workstation.sh is a SEPARATE artifact, rendered from registry/estate-tooling.yaml by scripts/render_registry.py and verified by its own --check; this manifest does not pin it."
-  - "The estate ships NO agent hooks. The knowledge-recall hooks (edit recall, git-commit capture, session digest) were retired with the knowledge base they wrote into; setup-workstation.sh purges them from an existing settings.json rather than installing anything (agent-kit#40 moved this off the retired install-agents.sh). Do not add a hooks section back without an ADR."
+  - "The estate ships exactly three agent hooks, the critique hooks docs/adr/0002-exactly-three-critique-hooks.md allows: critique-commit-gate, critique-pr-gate and critique-session-start. The validator fails on any other name; a new hook needs its own ADR. The knowledge-recall hooks (edit recall, git-commit capture, session digest) stay retired with the knowledge base they wrote into, and setup-workstation.sh still purges them from an existing settings.json (agent-kit#40 moved this off the retired install-agents.sh)."
   - "Repo skill bodies are intentionally agent-specific today; parity means every shared skill has both Claude and Codex targets unless an explicit unsupported reason is present."
 
 artifact:
@@ -442,17 +442,35 @@ skills:
 # memory-api equivalent, so nothing replaces them. See the
 # agent-kit#40 PR body.
 
-# hooks: intentionally absent.
+# hooks: exactly the three critique hooks ADR-0002 allows.
 #
-# The estate ships no agent hooks. The three knowledge-recall hooks that
-# used to live here were retired with the knowledge base they wrote into,
-# and setup-workstation.sh now purges them from an existing settings.json
-# instead of installing them. A `hooks:` key reappearing here means
-# something re-introduced them.
+# The three knowledge-recall hooks that used to live here were retired with
+# the knowledge base they wrote into, and setup-workstation.sh still purges
+# them from Claude's settings.json and Codex's hooks.json. ADR-0002 lifts
+# the no-hooks rule for these three names only; scripts/validate_manifest.py
+# fails on any other name, and a new hook needs its own ADR. Setup installs
+# them into the Claude Code and Codex homes only.
+hooks:
+  critique-commit-gate:
+    adr: docs/adr/0002-exactly-three-critique-hooks.md
+    event: PreToolUse
+    agents: [claude, codex]
+    purpose: Block a risky staged diff before `git commit` until a passing /review-ticket run matches it.
+  critique-pr-gate:
+    adr: docs/adr/0002-exactly-three-critique-hooks.md
+    event: PreToolUse
+    agents: [claude, codex]
+    purpose: Block `gh pr create`, or a push outside the feature branch patterns, unless /review-feature passed for the head.
+  critique-session-start:
+    adr: docs/adr/0002-exactly-three-critique-hooks.md
+    event: SessionStart
+    agents: [claude, codex]
+    purpose: Print one line suggesting /flow setup in an opted-in repository whose machine setup is missing or failing.
 
-# settings: intentionally absent for the same reason -- the only settings
-# files the kit ever managed (.claude/settings.json, .codex/hooks.json)
-# existed solely to wire those hooks.
+# settings: intentionally absent. The only settings files the kit ever
+# pinned (.claude/settings.json, .codex/hooks.json) existed solely to wire the
+# retired hooks; setup merges the critique hooks into the operator's own
+# files by name instead.
 
 specify:
   project_seed:
