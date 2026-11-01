@@ -2271,3 +2271,67 @@ added no runner behaviour. #193, #194, #195 and #197 build on it:
 - **For #192.** The subcommand text replaced the `budget` stub section and
   its Arguments row in `skills/flow/SKILL.md`; it passes the feature `/flow`
   found as `spec` or `draft`. `/flow explain budget` is the README's job.
+
+## What #195 settled
+
+`/flow setup` (agent-kit#195) is skill text on a new runner command,
+`setup`. #198 and #178 build on these:
+
+- **The command.** `critique setup` takes `{ action: "list", repo? }`,
+  `{ action: "check", check, confirmed?, force? }` or `{ action: "quota",
+  daily_cap, reserve_threshold }` (no `action` lists). `list` returns
+  `{ status: "listed", results_path, items, repository? }` and launches no
+  critic. `check` returns `{ status, results_path, item }` with status
+  `checked`, `current` (it passed and nothing it depends on changed, so it
+  did not run; `force: true` runs it anyway), `needs-confirmation` or
+  `not-available`. `quota` writes `antigravity_quota.daily_cap` and
+  `reserve_threshold` into `~/.config/agent-kit/critique-routing.json`,
+  keeping the override's other keys (a reserve above the cap is
+  `invalid-input`; an override that does not parse is `invalid-routing`
+  and is left as it was), then re-runs the quota check.
+- **The items**, from routing's clients in routing order: `vibe-signed-in`,
+  `critic:<client>` per Vibe client, `agy-signed-in`, `critic:<client>` per
+  agy client, `agy-quota`, then `read-only:<client>` per client. Each item
+  has `id`, `kind`, `title`, `why` (one sentence), `fix`, `cost` (`free`,
+  `vibe` or `agy`), `status` (`current`, `due` or `not-available`),
+  `due_because` (`never-checked`, `failed`, `inputs-changed`, with
+  `changed`), `inputs` and `last`. A CLI with no client in routing gets no
+  items. #198 adds its hook and kill-switch items to `setupChecklist` in
+  `domain/setup.ts`; the skill walks whatever the runner lists, so it needs
+  no new step for them.
+- **Results.** `~/.local/share/agent-kit/critique/machine-setup.json`,
+  beside the ledger: `{ version: 1, checks: { <id>: { checked_at, result:
+  "pass" | "fail", detail, inputs } } }`. `inputs` are `cli_version` (first
+  line of `<binary> --version`, null when it cannot be read), `agent_hash`
+  (sha256 of `~/.vibe/agents/<agent>.toml`, null when missing) and
+  `routing_hash` (sha256 of the client's merged routing config, or for the
+  quota of the merged `antigravity_quota` plus the override's own). An item
+  is due when it never ran, any input differs, or it last failed. A file
+  that does not parse is the new error code `invalid-setup`. #198's
+  session-start hook can read this file for "missing or failing".
+- **Checks.** A sign-in uses the client port's new `signIn` (Vibe:
+  readiness without the agent file; agy: readiness), so its `detail` is
+  setup's own wording. A critic check runs readiness first, free, and fails
+  without asking when it is not ready; otherwise, unless `confirmed`, it
+  returns `needs-confirmation` and launches nothing. Confirmed, it sends a
+  trivial prompt through the client's real `review` (same isolation and
+  outcome rules as a critic) in `~/.local/share/agent-kit/critique/
+  setup-checks/<client>/packet/` (one `note.md`), capped at $0.05 and
+  120 s, and passes when the reply is a valid empty findings list. The
+  earlier export is removed first so it is never read again. The quota
+  check passes once the override names `antigravity_quota.daily_cap`
+  (agy never reports its quota), and its detail gives today's count.
+- **Ledger.** A critic check appends an invocation line with `repository`
+  and `flow` `machine-setup` and no `stage`, `round` or `run_id`, so it
+  counts in today's agy count (`FlowBudget.agyInvocationsToday`) and in no
+  flow's Vibe spend. A reader that requires `stage` on invocation lines must
+  accept its absence.
+- **Confirmation per session** is the skill's: the runner cannot see a
+  session, so it only refuses to spend without `confirmed`, and the skill
+  asks the first time each cost (`vibe`, `agy`) comes up.
+- **For #178.** The read-only items always answer `not-available` with
+  `READ_ONLY_PENDING` and record nothing. #178 should make `read-only`
+  items run its smoke check on request, through `check`, and drop that
+  constant; the skill text already walks them like any other item. The
+  probe has not been run against the real CLIs; agy may need the probe
+  directory listed as a trusted workspace, which only a live run will show.

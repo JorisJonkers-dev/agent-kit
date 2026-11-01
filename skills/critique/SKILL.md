@@ -26,7 +26,7 @@ and before the first `/implement`, `/review-ticket` after a ticket's
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-node <this directory>/critique.mjs <prepare|fan-out|record|allow|check-tickets|stats|triage|state> --input FILE
+node <this directory>/critique.mjs <prepare|fan-out|record|allow|check-tickets|stats|triage|state|setup> --input FILE
 node <this directory>/critique.mjs --help
 ```
 
@@ -45,6 +45,10 @@ is `risky` or `low-risk` for ticket review, and names the signal that
 decided it. `state` computes one feature's flow state (keyed by its spec, or
 by a draft name before `/to-spec`) and returns the single next step: a
 critique stage to run, or the Pocock command for the owner to type; `/flow`
+drives it. `setup` keeps this machine's setup checklist: it lists each
+check as current or due, runs one check (one that spends Vibe money or
+Antigravity quota only when confirmed) and records its result in
+`~/.local/share/agent-kit/critique/machine-setup.json`; `/flow setup`
 drives it.
 
 The Vibe critic clients run through read-only `critic-<model>` agents that

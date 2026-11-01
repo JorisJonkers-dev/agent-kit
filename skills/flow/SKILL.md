@@ -37,7 +37,7 @@ directory per critique run, named by its run id. The **flows folder** is
 | `/flow [spec \| draft name]` | Where the feature stands and its next step. Without an argument, the feature is found from the branch and the tracker. |
 | `/flow finish` | The feature review and its gate, once every ticket has landed. |
 | `/flow no-critique` | Steps the feature through the plain Pocock flow, skipping critique on purpose. `/flow critique` turns critique back on. |
-| `/flow setup` | Comes with agent-kit#195. |
+| `/flow setup` | Walks this machine's critique checklist one item at a time, then offers this repository's opt-in. |
 | `/flow explain <thing>` | Comes with agent-kit#194. |
 | `/flow budget` | The Vibe spend for this flow against its cap, Antigravity invocations today against the daily cap and the reserve, and which stages would fall back now. |
 
@@ -168,8 +168,89 @@ the flow shows critique was skipped on purpose. Report as `/flow` does.
 
 ## /flow setup
 
-Not built yet: say in one line that `/flow setup` comes with agent-kit#195,
-and stop.
+Takes this machine, then this repository, from nothing to ready for a
+critique. You are a **guide**: one item at a time, each with its reason, its
+check and its fix, and the owner decides at every item. The runner keeps the
+results per machine, so a later `/flow setup` re-runs only what changed or
+failed. Every check runs through the runner's `setup` command:
+
+```sh
+node <critique dir>/critique.mjs setup --json '<object>'
+```
+
+| Input | What it does |
+|---|---|
+| `{"action": "list", "repo": "<repository root>"}` | The checklist with each item's state, and the repository's opt-in. Leave `repo` out outside a repository. Launches no critic. |
+| `{"action": "check", "check": "<item id>"}` | Runs one item and records its result. Add `"confirmed": true` once the owner has agreed to the item's cost. |
+| `{"action": "quota", "daily_cap": <n>, "reserve_threshold": <n>}` | Stores the Antigravity plan's limit in this machine's routing override and checks the quota again. |
+
+An error result carries a `code` and a `message`: show both and stop.
+
+### 1. List
+
+Run `list`, with `repo` when `git rev-parse --show-toplevel` names one. Keep
+`items` and `repository`.
+
+Open with one line: how many items are `current` (they passed, and nothing
+they depend on changed since) and how many are due.
+
+Done when `list` returned `"status": "listed"`.
+
+### 2. Walk the machine checklist
+
+Take the items in the runner's order, skipping the `current` ones. For each:
+
+1. **Say why.** Give its `title`, then its `why` as it stands, in one
+   sentence.
+2. **Check.** Run `check` with the item's `id`.
+   - `not-available`: give the item's `detail`. The read-only proofs all
+     answer this way until agent-kit#178 lands, so give them together in one
+     line once the first one answers it.
+   - `needs-confirmation`: the item costs money or quota. Its `cost` says
+     which: `vibe` is one trivial prompt on the personal Mistral account
+     (capped at $0.05), `agy` is one of today's Antigravity invocations. The
+     first time each cost comes up in this session, ask the owner before
+     spending it; on yes, run `check` again with `"confirmed": true`, and
+     pass `"confirmed": true` for later items of that cost without asking
+     again. A no is a skip.
+   - `checked`: the result is the item's `last`.
+3. **Report.** One line: `pass` or `fail`, with `last.detail`.
+4. **Offer the fix** on a fail: the item's `fix`. For `agy-quota`, ask for
+   the plan's daily request limit and the reserve to keep for the spec and
+   feature reviews (propose half the limit), then run `quota` with both.
+5. **Wait.** The owner says the fix is done (run `check` again for the
+   item), moves on, or says skip. Skip works at every item and records
+   nothing.
+
+Done when every item that was not `current` has passed, failed or been
+skipped, with the owner's word at each.
+
+### 3. Offer the repository's opt-in
+
+By `repository.status`:
+
+- `refused`: give its `message`; the repository sends nothing, so there is
+  nothing to offer.
+- `opted-in`: one line with its `families`, and whether `code` is on.
+- `not-opted-in`: two separate offers, each with its own yes, no or skip:
+  1. **Families**: which model families this repository may send documents
+     to. Propose `routed_families`; the owner may name fewer. On yes, run
+     the runner's `allow` command (`critique.mjs allow --json '<object>'`)
+     with `{"repo": ..., "families": [...]}`.
+  2. **Code**, only once families are allowed: whether the code stages
+     (ticket review and feature review) may send this repository's code to
+     those families. On yes, run `allow` again with the same families and
+     `"code": true`.
+
+Without `repository` (outside a repository), skip this step.
+
+Done when the owner has answered each offer, or the repository was refused
+or already opted in.
+
+### 4. Close
+
+One line: passed, failed, skipped and not available, counted over the
+whole checklist (`current` items count as passed). Then offer `/flow`.
 
 ## /flow explain
 
