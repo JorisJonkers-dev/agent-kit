@@ -2205,3 +2205,32 @@ The flow state and the next-step rule (agent-kit#191) fixed these. #192
 - **For #197.** The gates should keep reading `gates.jsonl` and
   `ticket-reviews.jsonl` directly; the state file is a convenience, not the
   gate's source of truth.
+
+## What #192 settled
+
+`/flow` (agent-kit#192) is skill text on the runner's `state` command; it
+added no runner behaviour. #193, #194, #195 and #197 build on it:
+
+- **Finding the feature** is the skill's job, not the runner's: the owner's
+  argument, else an issue number in the branch (`gh issue view <n> --json
+  parent` gives a ticket's spec; an issue with sub-issues is the spec), else
+  a saved state in `critique/flows/` whose `draft` or `flow` names the
+  branch, else a choice among the saved flows, else a new draft named after
+  the branch. A repository on its default branch with no saved flow asks the
+  owner for the draft's name.
+- **What the runner cannot see is asked once per `/flow` call** before the
+  report: whether the grilling finished (`grilled`), which spec `/to-spec`
+  wrote (the first spec call carries the `draft` too), whether `/grill-me`
+  settled a question (`answered`), and whether the ticket `/implement` was
+  named for is already committed (`landed`, since a low-risk commit leaves
+  no record).
+- **Stages run through their skills.** `/flow` loads the stage skill and
+  passes it the step's inputs: `/critique-decisions` now takes a `flow` from
+  `/flow` and passes it to prepare (`draft:<name>`); a second spec round
+  passes `previous_run_dir`; a `resume_run_id` resumes the run at its
+  fan-out step, or at its ruling step once `findings.json` exists. The
+  feature review is reached as `/flow finish`, which runs `/review-feature`.
+- **Seams for the siblings.** `/flow setup`, `/flow explain` and `/flow
+  budget` are stub sections of `skills/flow/SKILL.md`, each one heading that
+  says which ticket brings it (#195, #194, #193); replace the section, and
+  the matching row of the Arguments table, rather than adding new ones.
