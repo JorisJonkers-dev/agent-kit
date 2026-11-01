@@ -97,6 +97,16 @@ describe('critique runner command line', () => {
     })
   })
 
+  it("lists this machine's setup checklist", async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'setup', '--json', JSON.stringify({ action: 'list', repo: h.repo }))).toMatchObject({
+      repository: { status: 'not-opted-in' },
+      status: 'listed',
+    })
+  })
+
   it('exits 0 with the decision when triage calls a change risky', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)

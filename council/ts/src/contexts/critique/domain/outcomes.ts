@@ -49,6 +49,8 @@ export type CritiqueErrorCode =
   | 'already-recorded'
   /** A line of the user's ledger that record could not have written. */
   | 'invalid-ledger'
+  /** This machine's setup results file. */
+  | 'invalid-setup'
   /** The tracker could not be read when a feature review's gate needed the spec's tickets. */
   | 'tracker-unreachable'
 

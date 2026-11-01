@@ -17,6 +17,16 @@ export function ledgerPath(env: EnvPort): string {
   return join(env.require('HOME'), '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl')
 }
 
+/** This machine's setup results, one per check, beside the ledger. */
+export function setupResultsPath(env: EnvPort): string {
+  return join(env.require('HOME'), '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json')
+}
+
+/** Where setup's trivial prompt to one critic client runs: a packet of one note, the prompt and what the client writes. */
+export function setupProbeDir(env: EnvPort, client: string): string {
+  return join(env.require('HOME'), '.local', 'share', 'agent-kit', 'critique', 'setup-checks', client)
+}
+
 export function manifestPath(runDir: string): string {
   return join(runDir, 'manifest.json')
 }

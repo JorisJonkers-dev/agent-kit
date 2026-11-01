@@ -426,6 +426,8 @@ export class FakeVibeProcess implements ProcessPort {
     private readonly scripts: VibeScript[],
     private readonly log: LaunchLog = new LaunchLog(),
     private readonly signIn: VibeSignIn = 'keychain',
+    /** What `vibe --version` prints; null when vibe is not installed, so the call fails. */
+    public version: string | null = 'vibe 3.0.4',
   ) {}
 
   /** Adds runs to play, for a test that needs the prepared run's paths to write them. */
@@ -440,6 +442,11 @@ export class FakeVibeProcess implements ProcessPort {
       return this.signIn === 'keychain'
         ? { exitCode: 0, stderr: '', stdout: 'keychain: "/Users/me/Library/Keychains/login.keychain-db"\n' }
         : { exitCode: 44, stderr: 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n', stdout: '' }
+    }
+    if (command.args.length === 1 && command.args[0] === '--version') {
+      this.checks.push(command)
+      if (this.version === null) throw new Error(`spawn ${command.command} ENOENT`)
+      return { exitCode: 0, stderr: '', stdout: `${this.version}\n` }
     }
     this.commands.push(command)
     const agent = command.args[command.args.indexOf('--agent') + 1]
@@ -484,15 +491,21 @@ export class FakeAgyProcess implements ProcessPort {
     private readonly scripts: AgyScript[],
     private readonly signedIn: boolean | 'no-security-tool',
     private readonly log: LaunchLog = new LaunchLog(),
+    /** What `agy --version` prints; null when agy is not installed, so the call fails. */
+    public version: string | null = '1.4.12',
   ) {}
 
-  /** The critic launches only, without the readiness checks. */
+  /** The critic launches only, without the readiness checks and version reads. */
   get launches(): readonly ProcessCommand[] {
-    return this.commands.filter((command) => command.command !== 'security')
+    return this.commands.filter((command) => command.command !== 'security' && command.args[0] !== '--version')
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     this.commands.push(command)
+    if (command.args.length === 1 && command.args[0] === '--version') {
+      if (this.version === null) throw new Error(`spawn ${command.command} ENOENT`)
+      return { exitCode: 0, stderr: '', stdout: `${this.version}\n` }
+    }
     if (command.command === 'security') {
       if (this.signedIn === 'no-security-tool') throw new Error('spawn security ENOENT')
       return this.signedIn
@@ -679,6 +692,10 @@ export async function harness(
     readonly vibeOnPath?: boolean
     /** How the personal Vibe home is signed in. */
     readonly vibeSignIn?: VibeSignIn
+    /** What `vibe --version` prints when vibe is on PATH. */
+    readonly vibeVersion?: string
+    /** What `agy --version` prints when agy is on PATH. */
+    readonly agyVersion?: string
     /** The critic agents setup installed into `~/.vibe/agents/`; every one setup declares unless named. */
     readonly vibeAgents?: readonly string[]
     /**
@@ -734,8 +751,10 @@ export async function harness(
   await git.commit()
   const gh = new FakeGh(options.issues ?? {}, options.links)
   const launches = new LaunchLog()
-  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain')
-  const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)
+  const vibeVersion = (options.vibeOnPath ?? true) ? (options.vibeVersion ?? 'vibe 3.0.4') : null
+  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain', vibeVersion)
+  const agyVersion = (options.agyOnPath ?? true) ? (options.agyVersion ?? '1.4.12') : null
+  const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches, agyVersion)
   const files = new NodeCritiqueFiles()
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':') })
   const clock = new FixedClock('2026-10-30T12:00:00.000Z')

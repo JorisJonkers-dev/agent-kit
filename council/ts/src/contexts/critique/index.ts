@@ -5,6 +5,17 @@ export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
 export type { StatsResult } from './application/stats.js'
+export type { RepositorySetup, SetupCheckOutput, SetupListResult, SetupQuotaOutput, SetupResult } from './application/setup.js'
+export {
+  READ_ONLY_PENDING,
+  parseSetupResults,
+  type DueReason,
+  type SetupCheckResult,
+  type SetupCost,
+  type SetupInputs,
+  type SetupItem,
+  type SetupResults,
+} from './domain/setup.js'
 export { flowStatePath, type StateResult } from './application/flow-state.js'
 export {
   dependencyOrder,
