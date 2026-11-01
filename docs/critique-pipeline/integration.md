@@ -1656,3 +1656,87 @@ Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
   or left empty by routing, and the summary already names it, so the skill
   need not ask the owner about it. A `budget-skip` critic is not a failure
   either.
+
+## What #187 settled
+
+Risk triage for ticket review (agent-kit#187) fixed these:
+
+- **The command.** `critique triage` takes `{ "repo", "ticket", "base" }`,
+  with an optional `head` (default `HEAD`) and `flow` (default the ticket's
+  reference; #188 should pass the spec's, as for prepare). `ticket` is named
+  the way prepare names it, and its tracker labels are read through the
+  tracker. A `no-remote` or `nedap` repository, an unsupported tracker and a
+  ticket gh cannot read are refused as prepare refuses them. The result is
+  `{ status: "risky" | "low-risk", run_id, signal, signals, ticket, flow,
+  change, model?, summary }`; both statuses exit 0. `signal` decided it;
+  `signals` lists every risk rule that fired, the deciding one first.
+  `summary` is one line, such as `Triage: risky: src/auth/session.ts matches
+  the risk path <glob>.` or `Triage: low-risk: no risk rule fired, and the
+  triage model (vibe-mistral-small) answered no, so the review is skipped.`
+- **Routing.** A top-level `triage`: `risk_paths` (globs),
+  `changed_lines_threshold` (300), `labels` (`risk:high`) and `model`
+  (`client`, `max_price_usd` 0.03, `time_limit_s` 60). The model's client must
+  be a `vibe` client of `clients` (else `invalid-routing`); shipped, it is the
+  new `vibe-mistral-small` (`critic-mistral-small`, `mistral-small-latest`,
+  family `mistral`, already declared and installed by #176). Routing without
+  `triage` cannot triage (`invalid-routing`). The per-machine override applies
+  as to everything else in routing, so `{"triage": {"risk_paths": [...]}}`
+  replaces the whole list.
+- **Globs.** `**` is any number of whole path segments, none included; `*`
+  any characters but `/`; `?` one character but `/`; `{a,b}` either. A glob
+  matches the whole repository path as git prints it, case-sensitively.
+  The shipped list covers auth, crypto and secrets, migrations and `.sql`,
+  concurrency primitives, API surface (`api/`, `.proto`, `.graphql`, OpenAPI
+  and Swagger files) and infra and deploy (Terraform, Kubernetes, Helm,
+  Dockerfiles, compose files, `.github/workflows/`). Deleted files count.
+- **The rules, in order.** A touched path matching a risk path (one signal
+  per path, with the first glob it matches), changed lines above the
+  threshold (`git diff` added plus removed lines, headers not counted), then
+  each configured label the ticket carries (any case). **For #197:** the
+  deterministic part is pure and exported from the critique barrel:
+  `riskSignals(change, labels, rules)` with `codeChange(diff, paths)`, and
+  `CodeChangeReader.read(root, base, head)` reads a change from git alone.
+  Neither needs an allowlist entry, a model or the network; a staged diff can
+  be read with `head` set to the commit `git stash create` prints, or
+  `codeChange` applied to `git diff --cached` and its paths directly.
+- **The model.** Asked only when no rule fired. Before launching, in this
+  order, it counts as unable to run (so the change is risky, with signal
+  `{ kind: "model-unavailable", reason, detail }`): no allowlist entry
+  (`not-opted-in`), code permission off (`code-not-allowed`), the model's
+  family not allowed (`family-not-allowed`), the flow's Vibe spend at its cap
+  (`budget`), and the client not ready (`unavailable`, with Vibe's readiness
+  detail). The orchestrator's family is not checked: the answer is a signal,
+  not a finding the orchestrator adjudicates. Otherwise `VibeCriticClient.ask`
+  launches it as a critic is launched (same isolation flags and the same
+  `unsafe-config` check), in `critique/<run-id>/packet/` holding only
+  `diff/change.diff`, with `prompts/triage.md` plus the file line as
+  `prompt.md` outside it. A failed run is `failed`; an answer other than one
+  word yes or no (any case, markup and a full stop allowed) is
+  `unclear-answer`; both leave the change risky. Yes is risky, no low-risk.
+  `CriticClients.vibe` is now also a `QuestionClientPort` (`ask`).
+- **Spend.** The launch appends an invocation line (`critic_id: "triage"`,
+  stage `ticket-review`, round 1) charged like a critic, so it counts against
+  the flow's Vibe cap.
+- **Run id and files.** `<timestamp>-triage` (then `-2`, ...) in the git
+  common directory's `critique/`, holding `triage.json` (the result) and,
+  when the model was asked, `packet/`, `prompt.md`, `export/`, `stdout.json`
+  and `stderr.txt`. There is no `manifest.json`, so it is not a run fan-out
+  or record can be pointed at.
+- **The ledger.** One line per triage. Low-risk is
+  `{ type: "run", stage: "ticket-review", status: "skipped-low-risk", ... }`;
+  risky is the same fields with `type: "triage"` and `status: "risky"`, since
+  the review that follows writes its own run lines. Fields: `recorded_at`,
+  `repository`, `flow`, `run_id`, `ticket` (reference), `triage_signal`,
+  `risk_signals`, `changed_files`, `changed_lines`,
+  `changed_lines_threshold`, `client`, `model`, `answer`, `cost_usd`,
+  `charged_usd` and `prompt_hash` (null when the model was not asked). A risk
+  path signal keeps its glob, never the path; an unavailable model keeps its
+  reason, never its detail. **For #199:** a `skipped-low-risk` run line has
+  no `critic_id`, `role` or `finding_count`; stats that read run lines per
+  critic should skip it.
+- **Ticket-review depth.** `STAGE_MEASURES` gained `changed_lines` and
+  `risk_path_hits` for `ticket-review`, measured from the code packet's change
+  with triage's `risk_paths` (no hits when routing has no `triage`).
+  `DepthEvidence` gained an optional `change`. **For #188:** shipped routing
+  sets no thresholds for them; `{"risk_path_hits": 0}` makes any risk path
+  select deep. A feature review gets the same `change`; #189 adds its measures.
