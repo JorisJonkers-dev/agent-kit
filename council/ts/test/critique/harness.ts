@@ -308,6 +308,8 @@ export interface VibeScript {
   readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
   /** Do not return until this many critics have started, so a test can see critics overlap. */
   readonly waitForStarts?: number
+  /** The run never returned and the outer timer killed it: no export, exit 124, `timedOut`. */
+  readonly timedOut?: boolean
 }
 
 /** Every critic launch and return, in the order they happened, across all critic clients. */
@@ -329,14 +331,28 @@ export class LaunchLog {
   }
 }
 
-/** Plays canned Vibe runs: writes export.json into --output-dir and returns stdout and exit code. */
+/**
+ * How the personal Vibe home is signed in: Vibe's Keychain item, its
+ * `~/.vibe/.env`, the `.env` on a machine with no `security` tool to ask
+ * (Linux), or not at all.
+ */
+export type VibeSignIn = 'keychain' | 'env-file' | 'env-file-no-keychain' | 'none'
+
+/**
+ * Plays canned Vibe runs: writes export.json into --output-dir and returns
+ * stdout and exit code. It also answers the Keychain lookup the Vibe
+ * readiness check makes with `security`; `commands` holds the critic
+ * launches only, `checks` those lookups.
+ */
 export class FakeVibeProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
+  readonly checks: ProcessCommand[] = []
 
   constructor(
     private readonly repo: string,
     private readonly scripts: VibeScript[],
     private readonly log: LaunchLog = new LaunchLog(),
+    private readonly signIn: VibeSignIn = 'keychain',
   ) {}
 
   /** Adds runs to play, for a test that needs the prepared run's paths to write them. */
@@ -345,6 +361,13 @@ export class FakeVibeProcess implements ProcessPort {
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
+    if (command.command === 'security') {
+      this.checks.push(command)
+      if (this.signIn === 'env-file-no-keychain') throw new Error('spawn security ENOENT')
+      return this.signIn === 'keychain'
+        ? { exitCode: 0, stderr: '', stdout: 'keychain: "/Users/me/Library/Keychains/login.keychain-db"\n' }
+        : { exitCode: 44, stderr: 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n', stdout: '' }
+    }
     this.commands.push(command)
     const agent = command.args[command.args.indexOf('--agent') + 1]
     const named = this.scripts.findIndex((script) => script.agent === agent)
@@ -359,6 +382,7 @@ export class FakeVibeProcess implements ProcessPort {
       await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
     }
     await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }
@@ -371,6 +395,8 @@ export interface AgyScript {
   readonly waitForStarts?: number
   /** What the critic does while it runs: `cwd` is its working directory, `repo` the repository. */
   readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
+  /** The run never returned and the outer timer killed it. */
+  readonly timedOut?: boolean
 }
 
 /**
@@ -404,6 +430,7 @@ export class FakeAgyProcess implements ProcessPort {
     if (script === undefined) throw new Error('unexpected agy launch')
     await this.log.play('agy', script.waitForStarts)
     await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }
@@ -548,6 +575,9 @@ export interface Harness {
   readonly removeFile: (path: string) => Promise<void>
 }
 
+/** The `critic-<model>` agents setup installs (registry `vibe_critic_agents:`). */
+export const VIBE_CRITIC_AGENTS = ['critic-mistral-large', 'critic-mistral-small', 'critic-glm', 'critic-deepseek-flash'] as const
+
 export const AGENT_KIT_REMOTE: GitRemote = {
   name: 'origin',
   url: 'git@github.com:JorisJonkers-dev/agent-kit.git',
@@ -571,6 +601,12 @@ export async function harness(
     readonly agyOnPath?: boolean
     /** Whether the Keychain holds the `Antigravity CLI` item, or whether there is no `security` tool to ask. */
     readonly agySignedIn?: boolean | 'no-security-tool'
+    /** Whether `vibe` is on PATH. */
+    readonly vibeOnPath?: boolean
+    /** How the personal Vibe home is signed in. */
+    readonly vibeSignIn?: VibeSignIn
+    /** The critic agents setup installed into `~/.vibe/agents/`; every one setup declares unless named. */
+    readonly vibeAgents?: readonly string[]
     /**
      * The issue-tracker doc Pocock's setup wrote, or `none` for a repository
      * without one. Local markdown unless named, so the `.scratch/` spec is the
@@ -610,6 +646,11 @@ export async function harness(
   const bin = join(base, 'bin')
   await mkdir(bin, { recursive: true })
   if (options.agyOnPath ?? true) await writeFile(join(bin, 'agy'), '#!/bin/sh\n')
+  if (options.vibeOnPath ?? true) await writeFile(join(bin, 'vibe'), '#!/bin/sh\n')
+  const vibeHome = join(home, '.vibe')
+  await mkdir(join(vibeHome, 'agents'), { recursive: true })
+  for (const agent of options.vibeAgents ?? VIBE_CRITIC_AGENTS) await writeFile(join(vibeHome, 'agents', `${agent}.toml`), '')
+  if (options.vibeSignIn === 'env-file' || options.vibeSignIn === 'env-file-no-keychain') await writeFile(join(vibeHome, '.env'), "MISTRAL_API_KEY='sk-personal'\n")
   const tracker = options.tracker ?? 'local-markdown'
   if (tracker !== 'none') {
     await mkdir(join(repo, 'docs', 'agents'), { recursive: true })
@@ -619,7 +660,7 @@ export async function harness(
   await git.commit()
   const gh = new FakeGh(options.issues ?? {}, options.links)
   const launches = new LaunchLog()
-  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches)
+  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain')
   const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)
   const files = new NodeCritiqueFiles()
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':') })
@@ -627,7 +668,7 @@ export async function harness(
     assetsRoot,
     clients: {
       agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
-      vibe: new VibeCriticClient(process, files),
+      vibe: new VibeCriticClient(process, files, env),
     },
     clock: new FixedClock('2026-10-30T12:00:00.000Z'),
     env,

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { readLimits, type CritiqueLimits } from './budget.js'
 import { readDepthChoice, type DepthChoice } from './depth.js'
 import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
@@ -73,9 +74,17 @@ export interface RunManifest {
   readonly packet_dir: string
   readonly allowed_families: readonly ModelFamily[]
   readonly artifact: ArtifactSource
+  /**
+   * The flow this run belongs to: the spend of every run of one flow of one
+   * repository counts against one Vibe cap.
+   */
+  readonly flow: string
+  readonly limits: CritiqueLimits
   readonly packet_files: readonly PacketFile[]
   /** Only for a code stage. */
   readonly code?: CodeSource
+  /** Whether no two critics of the stage may share a family; a fallback retry keeps to it too. */
+  readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
 }
@@ -102,8 +111,11 @@ export function parseManifest(text: string): RunManifest {
     created_at: file.string('created_at'),
     critics: file.list('critics', readRosterCritic),
     depth: file.oneOf('depth', DEPTHS),
+    distinct_families: file.boolean('distinct_families'),
     depth_choice: readDepthChoice(file.object('depth_choice')),
     dropped: file.list('dropped', readDroppedCritic),
+    flow: file.string('flow'),
+    limits: readLimits(file.object('limits')),
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),
     ...(file.has('code') ? { code: readCodeSource(file.object('code')) } : {}),

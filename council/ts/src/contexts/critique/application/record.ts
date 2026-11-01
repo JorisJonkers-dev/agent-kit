@@ -56,6 +56,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       depth_choice: manifest.depth_choice,
       dropped: manifest.dropped,
       findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
+      flow: manifest.flow,
       repository: manifest.repository,
       round: manifest.round,
       ...(manifest.previous_run_id === undefined ? {} : { previous_run_id: manifest.previous_run_id }),

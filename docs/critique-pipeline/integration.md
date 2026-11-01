@@ -1574,3 +1574,85 @@ Code packets and the code permission (agent-kit#186) fixed these:
   files, and a 1,932-line diff over `HEAD~5`. The packet root held only
   `diff`, `spec`, `tickets` and `tree`, no path had a `.git` component, and
   the tree matched `HEAD`, not the uncommitted working tree.
+
+## What #173 settled
+
+Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
+
+- **Outer timeout.** `ProcessResult` gained `timedOut`, which council's
+  `NodeProcessAdapter` sets when a command outlives `timeoutMs`; it sends
+  SIGTERM, then SIGKILL after a 5-second grace, so a CLI that ignores
+  SIGTERM still stops. Both critic clients record a killed run as the
+  failure `timeout` (not `exit-124`). The outer timer is still the CLI's own
+  limit plus 60 seconds.
+- **What a launch is charged.** `CriticReport.chargedUsd`, and `charged_usd`
+  on the critic run and the ledger run line, beside the reported `cost_usd`.
+  For Vibe it is the export's `cost_usd`, even past the critic's cap (the
+  overshoot of up to one turn counts). The critic's `max_price_usd` is
+  charged instead where Vibe's figure cannot be trusted: a killed run, no
+  export or no cost, a `deadline` stop (at least the cap), and a zero cost
+  with tokens used (an unpriced model). An argument error that writes no
+  export is charged the cap too: conservative, and rare. agy is always 0.
+- **Invocation lines.** Fan-out appends `{ type: "invocation", recorded_at,
+  repository, flow, run_id, stage, round, critic_id, client, kind, family,
+  model, status, charged_usd }` to the ledger as each launch ends, so spend
+  and the agy count hold even for a run that is never recorded. They are the
+  only lines the budget reads; record's run lines do not count twice. A line
+  that does not parse (a write cut short) is skipped. Tests that read "every
+  ledger line" now filter these out, and they carry no depth fields.
+- **The flow.** Prepare takes an optional `flow`; by default it is the
+  artifact's reference (`host/owner/repo#<n>`, or the markdown path), and a
+  second round (`previous_run_dir`) inherits its first round's flow. The
+  manifest carries `flow` and `limits`. Later stages (tickets, ticket
+  review, feature review) should pass the spec's reference as `flow`, so the
+  whole spec-to-ticket flow shares one cap. `/flow budget` (#193) can sum
+  `charged_usd` of the `vibe` invocation lines of a repository and flow.
+- **Per-flow cap.** Routing's `budget.vibe_flow_cap_usd` (5). Before each
+  wave, fan-out reads the flow's spend; a Vibe critic is not launched once it
+  has reached the cap, and is recorded with status `budget-skip` (exit code
+  null, no stdout or export path, charged 0) and a `detail` such as `the
+  flow's Vibe spend $5.2500 has reached its $5.00 cap`. The summary lists it
+  as `<client> (...): budget-skip: <detail>`. A wave's critics start
+  together, so one wave can overshoot by its critics' caps (plus a turn each).
+  A budget skip gets no fallback retry.
+- **Antigravity quota.** Routing's `antigravity_quota` (`daily_cap` 20,
+  `reserve_threshold` 10, `reserved_stages` `spec` and `feature-review`).
+  Prepare counts today's `agy` invocation lines (the UTC day of the clock),
+  and an agy client past the quota is dropped with the new reason `quota`
+  and a `detail` naming the count and the cap or the reserve; its slot falls
+  back as for any other drop. A readiness failure (Linux, not signed in, not
+  on PATH) is checked first, so it keeps the reason `unavailable` and
+  launches nothing. Both limits are read through `RoutingSource`, so the
+  per-machine override can change them, and they default to #167's values
+  when routing leaves them out.
+- **Fallback retry.** Each roster critic carries `fallbacks` in the manifest:
+  its slot's other clients, in routing order, that the allowlist permits,
+  the orchestrator does not share and that were ready at prepare (base and
+  deep slots alike). After the first wave, a `failed` critic (not
+  `violated-readonly`, not `budget-skip`) gets one retry through the first
+  fallback whose family no critic that reviewed, nor an earlier retry,
+  already has (with `distinct_families`, now in the manifest too), whose agy
+  quota is not reached, and, past the cap, that is not Vibe if another one is
+  left. The retry's critic id is `<critic id>-retry-<client>`, so it gets its
+  own packet copy and tripwire; it has `retry_of`, the failed critic's slot,
+  role, lenses, cap and time limit, and no fallbacks of its own. The summary
+  line reads `..., fallback for <critic id> (<failure>)`. A stage whose
+  critics and retries all failed is degraded, as before.
+- **Vibe readiness.** `VibeCriticClient` now takes the env port and checks,
+  launching nothing but a Keychain lookup: `vibe` on PATH (or the absolute
+  path), the personal home signed in the way setup checks it (Vibe's
+  Keychain item `ai.mistral.vibe`, else a non-empty `MISTRAL_API_KEY` in the
+  personal home's `.env`; the environment variable does not count, since a
+  critic runs with it unset), and `~/.vibe/agents/<agent>.toml`. The
+  `detail`s are `vibe: <binary> is not on PATH`, setup's own `vibe: not
+  signed in; run vibe and sign in with your Mistral account, then re-run
+  setup`, and `vibe: the critic agent <agent> is not installed in
+  ~/.vibe/agents; re-run setup`, with reason `unavailable`, which is what
+  #177's skill quotes. The harness installs `vibe`, the four critic agents
+  and a Keychain sign-in by default (`vibeOnPath`, `vibeSignIn`,
+  `vibeAgents`); `FakeVibeProcess.commands` still holds launches only, and
+  the lookups are in `checks`.
+- **For #177.** A `quota` drop is not a missing CLI: its slot was refilled
+  or left empty by routing, and the summary already names it, so the skill
+  need not ask the owner about it. A `budget-skip` critic is not a failure
+  either.

@@ -92,7 +92,7 @@ export function defaultCritiqueRuntime(
       assetsRoot,
       clients: {
         agy: new AgyCriticClient(processPort, files, env, platform),
-        vibe: new VibeCriticClient(processPort, files),
+        vibe: new VibeCriticClient(processPort, files, env),
       },
       clock: new SystemClockAdapter(),
       env,

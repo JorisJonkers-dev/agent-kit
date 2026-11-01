@@ -67,7 +67,12 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
     const run = readStream(result.stdout)
     const exportPath = join(launch.criticDir, 'result.json')
     if (run.result !== undefined) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}\n`)
-    return { ...result, exportPath, outcome: classifyAgyRun(result.exitCode, result.stdout, run) }
+    const outcome =
+      result.timedOut === true
+        ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S)
+        : classifyAgyRun(result.exitCode, result.stdout, run)
+    // Antigravity is quota, not money: it counts against the daily cap, never the Vibe cap.
+    return { ...result, chargedUsd: 0, exportPath, outcome }
   }
 
   private async onPath(binary: string): Promise<boolean> {
@@ -133,6 +138,10 @@ function readStream(stdout: string): AgyStream {
     if (event.event === 'result') result = jsonObjectOrUndefined(event.result)
   }
   return { parsed: true, result, tools }
+}
+
+function timedOut(timeoutS: number): CriticOutcome {
+  return { cost_usd: null, detail: `agy did not return within ${String(timeoutS)}s, so the outer timer killed it`, failure: 'timeout', status: 'failed' }
 }
 
 /**

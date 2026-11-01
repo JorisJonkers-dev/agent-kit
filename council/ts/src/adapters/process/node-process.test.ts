@@ -76,6 +76,27 @@ describe('NodeProcessAdapter', () => {
       exitCode: 124,
       stderr: '',
       stdout: '',
+      timedOut: true,
     })
+  })
+
+  it('kills a command that ignores the termination signal once the grace period ends', async () => {
+    const adapter = new NodeProcessAdapter({ killGraceMs: 50 })
+
+    const result = await adapter.exec({
+      args: ['-e', "process.on('SIGTERM', () => undefined); setTimeout(() => undefined, 5000)"],
+      command: process.execPath,
+      timeoutMs: 200,
+    })
+
+    expect(result).toMatchObject({ exitCode: 124, timedOut: true })
+  })
+
+  it('does not call a command that finishes in time timed out', async () => {
+    const adapter = new NodeProcessAdapter()
+
+    const result = await adapter.exec({ args: ['-e', ''], command: process.execPath, timeoutMs: 5000 })
+
+    expect(result.timedOut).toBeUndefined()
   })
 })
