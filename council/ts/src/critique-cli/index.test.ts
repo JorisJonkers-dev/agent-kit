@@ -87,6 +87,16 @@ describe('critique runner command line', () => {
     expect(await run(cli(h), 'stats', '--json', '{}')).toMatchObject({ cells: [], status: 'reported' })
   })
 
+  it("prints a flow's state and its next step", async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'state', '--json', JSON.stringify({ draft: 'widgets', repo: h.repo }))).toMatchObject({
+      next: { command: '/grill-with-docs', kind: 'command' },
+      status: 'read',
+    })
+  })
+
   it('exits 0 with the decision when triage calls a change risky', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)

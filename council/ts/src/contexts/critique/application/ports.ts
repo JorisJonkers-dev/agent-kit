@@ -25,6 +25,8 @@ export interface CritiqueFilesPort {
   listFiles(path: string): Promise<readonly string[]>
   /** Every file under the directory, at any depth, relative to it; none when it does not exist. */
   listTree(dir: string): Promise<readonly string[]>
+  /** The names of the directories directly inside a directory, sorted; empty when it does not exist. */
+  listDirectories(path: string): Promise<readonly string[]>
   remove(path: string): Promise<void>
 }
 

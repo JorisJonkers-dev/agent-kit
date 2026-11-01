@@ -5,6 +5,26 @@ export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
 export type { StatsResult } from './application/stats.js'
+export { flowStatePath, type StateResult } from './application/flow-state.js'
+export {
+  dependencyOrder,
+  draftFlow,
+  flowPhase,
+  nextStep,
+  parseFlowState,
+  POCOCK_SKILLS,
+  type FlowGate,
+  type FlowPhase,
+  type FlowStage,
+  type FlowState,
+  type FlowTicket,
+  type NextStep,
+  type OpenQuestion,
+  type PocockSkill,
+  type ReviewStatus,
+  type StageProgress,
+  type StageStatus,
+} from './domain/flow.js'
 export type { TriageModelCall, TriageResult } from './application/triage.js'
 export type {
   CriticClientPort,

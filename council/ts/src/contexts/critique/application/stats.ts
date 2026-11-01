@@ -1,5 +1,5 @@
 import type { JsonFields } from '../domain/json.js'
-import { parseLedger, type Ledger } from '../domain/ledger.js'
+import { EMPTY_LEDGER, parseLedger, type Ledger } from '../domain/ledger.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
 import type { StatsThresholds } from '../domain/routing.js'
 import {
@@ -78,7 +78,7 @@ export class StatsCommand implements CritiqueCommand<StatsResult | Refusal> {
   }
 
   private async readLedger(path: string): Promise<Ledger> {
-    if (!(await this.deps.files.exists(path))) return { findings: [], runs: [] }
+    if (!(await this.deps.files.exists(path))) return EMPTY_LEDGER
     return readJsonFile(this.deps.files, path, 'invalid-ledger', parseLedger)
   }
 }

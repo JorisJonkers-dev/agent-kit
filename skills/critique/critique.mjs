@@ -156,10 +156,10 @@ var NodeProcessAdapter = class {
   constructor(options = {}) {
     this.killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
   }
-  async exec(command) {
-    const child = spawn(command.command, [...command.args], {
-      ...command.cwd === void 0 ? {} : { cwd: command.cwd },
-      env: command.env === void 0 ? process.env : { ...process.env, ...command.env },
+  async exec(command2) {
+    const child = spawn(command2.command, [...command2.args], {
+      ...command2.cwd === void 0 ? {} : { cwd: command2.cwd },
+      env: command2.env === void 0 ? process.env : { ...process.env, ...command2.env },
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -172,7 +172,7 @@ var NodeProcessAdapter = class {
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
-    const timer = new ProcessTimer(child, command.timeoutMs, this.killGraceMs);
+    const timer = new ProcessTimer(child, command2.timeoutMs, this.killGraceMs);
     const exitCode = await new Promise((resolve2, reject) => {
       child.once("error", reject);
       child.once("close", (code) => {
@@ -456,8 +456,8 @@ function decoded(code, where, read) {
     throw error instanceof JsonShapeError || error instanceof SyntaxError ? new CritiqueError(code, `${where}: ${error.message}`) : error;
   }
 }
-function readInput(raw, command, read) {
-  return decoded("invalid-input", `${command} input`, () => read(JsonFields.of(raw, "")));
+function readInput(raw, command2, read) {
+  return decoded("invalid-input", `${command2} input`, () => read(JsonFields.of(raw, "")));
 }
 async function readJsonFile(files, path, code, parse) {
   if (!await files.exists(path)) throw new CritiqueError(code, `${path} does not exist`);
@@ -2531,6 +2531,25 @@ var RoutingSource = class {
 function stagedDiffHash(headTree, stagedEntries) {
   return sha256(`staged-diff v1\0${headTree}\0${stagedEntries}`);
 }
+function parseTicketReviewRecord(text) {
+  const file = JsonFields.parse(text);
+  return {
+    base_commit: file.string("base_commit"),
+    degraded: file.boolean("degraded"),
+    head_commit: file.string("head_commit"),
+    recorded_at: file.string("recorded_at"),
+    repository: file.string("repository"),
+    review: file.oneOf("review", ["pass", "fail"]),
+    reviewed_staged_diff: file.nullableString("reviewed_staged_diff"),
+    run_id: file.string("run_id"),
+    spec: file.string("spec"),
+    stage: file.literal("stage", "ticket-review"),
+    staged_diff: file.nullableString("staged_diff"),
+    ticket: file.string("ticket"),
+    unfixed_critical: file.strings("unfixed_critical"),
+    version: file.literal("version", 1)
+  };
+}
 
 // src/contexts/critique/application/staged-change.ts
 var SNAPSHOT_MESSAGE = "critique: the staged change under review";
@@ -2946,6 +2965,8 @@ function ledgerLines(run, recordedAt) {
     finding_id: finding.id,
     /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
     pre_verdict: finding.pre_verdict?.reason_code ?? null,
+    /** Whether the owner answered a needs-human question before the run was recorded. */
+    answered: finding.verdict.answered === true,
     raised_by: finding.raised_by,
     raised_by_families: familiesOf(run, finding),
     reason_code: finding.verdict.reason_code ?? null,
@@ -2954,17 +2975,45 @@ function ledgerLines(run, recordedAt) {
   }));
   return [...runLines, ...findingLines].map((line) => JSON.stringify(line));
 }
+var SKIPPED_LOW_RISK = "skipped-low-risk";
+var FLOW_EVENTS = ["grilled", "no-critique", "landed", "answered", "draft"];
+function flowEventLine(event, context) {
+  return JSON.stringify({ type: "flow", ...context, ...event });
+}
+var EMPTY_LEDGER = { findings: [], flow_events: [], runs: [], skipped_reviews: [] };
 function parseLedger(text) {
   const runs = [];
   const findings = [];
+  const skipped = [];
+  const events = [];
   text.split("\n").forEach((line, index) => {
     if (line.trim() === "") return;
     const fields = JsonFields.of(parseLine(line, index + 1), `line ${String(index + 1)}`);
     const type = fields.string("type");
-    if (type === "run") runs.push(readCriticRunLine(fields));
+    if (type === "run" && fields.optionalString("status") === SKIPPED_LOW_RISK) skipped.push(readSkippedReview(fields));
+    else if (type === "run") runs.push(readCriticRunLine(fields));
     if (type === "finding") findings.push(readFindingLine(fields));
+    if (type === "flow") events.push(readFlowEvent(fields));
   });
-  return { findings, runs };
+  return { findings, flow_events: events, runs, skipped_reviews: skipped };
+}
+function readSkippedReview(fields) {
+  return {
+    flow: fields.string("flow"),
+    recorded_at: fields.string("recorded_at"),
+    repository: fields.string("repository"),
+    run_id: fields.string("run_id"),
+    ticket: fields.string("ticket")
+  };
+}
+function readFlowEvent(fields) {
+  const context = { flow: fields.string("flow"), recorded_at: fields.string("recorded_at"), repository: fields.string("repository") };
+  const event = fields.oneOf("event", FLOW_EVENTS);
+  if (event === "no-critique") return { ...context, event, value: fields.boolean("value") };
+  if (event === "landed") return { ...context, event, ticket: fields.string("ticket") };
+  if (event === "answered") return { ...context, event, finding_id: fields.string("finding_id"), run_id: fields.string("run_id") };
+  if (event === "draft") return { ...context, draft: fields.string("draft"), event };
+  return { ...context, event };
 }
 function parseLine(line, number) {
   try {
@@ -2979,6 +3028,8 @@ function readContext(fields) {
     repository: fields.string("repository"),
     run_id: fields.string("run_id"),
     spec: fields.optionalString("spec"),
+    flow: fields.optionalString("flow"),
+    round: fields.has("round") ? fields.number("round") : 1,
     stage: fields.oneOf("stage", CRITIQUE_STAGES)
   };
 }
@@ -3006,7 +3057,10 @@ function readCriticRunLine(fields) {
 function readFindingLine(fields) {
   return {
     ...readContext(fields),
+    answered: fields.has("answered") && fields.boolean("answered"),
+    finding_id: fields.string("finding_id"),
     pre_verdict: fields.nullableString("pre_verdict"),
+    severity: fields.oneOf("severity", SEVERITIES),
     raised_by: fields.strings("raised_by"),
     verdict: fields.oneOf("verdict", VERDICTS)
   };
@@ -3438,7 +3492,7 @@ var RecordCommand = class {
       round: manifest.round,
       ...manifest.previous_run_id === void 0 ? {} : { previous_run_id: manifest.previous_run_id },
       run_id: manifest.run_id,
-      spec: manifest.artifact.reference,
+      spec: specReference(manifest),
       stage: manifest.stage,
       ...manifest.ticket_check === void 0 ? {} : { ticket_check: manifest.ticket_check }
     };
@@ -3524,6 +3578,430 @@ function readVerdict(fields) {
 }
 function isReasonCode(value) {
   return REASON_CODE.test(value);
+}
+
+// src/contexts/critique/application/flow-state.ts
+import { join as join13 } from "node:path";
+
+// src/contexts/critique/domain/flow.ts
+var FLOW_PHASES = ["planning", "implementation", "finishing"];
+var STAGE_STATUSES = ["not-run", "in-progress", "second-round-due", "check-failed", "recorded"];
+var REVIEW_STATUSES = ["not-reviewed", "skipped-low-risk", "reviewed", "findings-open"];
+var GATE_STATUSES = ["none", "pass", "fail"];
+function draftFlow(name) {
+  return `draft:${name}`;
+}
+function flowStateFileName(flow) {
+  const slug = flow.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return `${slug}-${sha256(flow).slice(0, 12)}.json`;
+}
+function flowState(sources) {
+  const stage = (name) => stageProgress(sources, name);
+  const stages = {
+    decisions: stage("decisions"),
+    "feature-review": stage("feature-review"),
+    spec: stage("spec"),
+    tickets: stage("tickets")
+  };
+  const noCritique = sources.events.reduce((value, event) => event.event === "no-critique" ? event.value : value, false);
+  const grilled = sources.spec !== null || stages.decisions.run_ids.length > 0 || sources.events.some((event) => event.event === "grilled");
+  const tickets = dependencyOrder(sources.tickets).map((ticket) => flowTicket(sources, ticket));
+  const latestGate = sources.gates.at(-1);
+  const partial = { no_critique: noCritique, spec: sources.spec, stages, tickets };
+  return {
+    draft: sources.draft,
+    flow: sources.flow,
+    gate: latestGate === void 0 ? { head_commit: null, line: null, run_id: null, status: "none" } : { head_commit: latestGate.head_commit, line: latestGate.line, run_id: latestGate.run_id, status: latestGate.gate },
+    grilled,
+    head_commit: sources.head_commit,
+    no_critique: noCritique,
+    open_questions: openQuestions(sources),
+    phase: flowPhase(partial),
+    repository: sources.repository,
+    spec: sources.spec,
+    stages,
+    tickets,
+    updated_at: sources.now,
+    version: 1,
+    vibe_spend_usd: sources.vibe_spend_usd
+  };
+}
+function stageProgress(sources, stage) {
+  const runs = sources.runs.filter((run) => run.stage === stage).sort((a, b) => compareRunIds(a.run_id, b.run_id));
+  const latest = runs.at(-1);
+  const progress = (status) => ({ latest_run_id: latest?.run_id ?? null, run_ids: runs.map((run) => run.run_id), status });
+  if (latest === void 0) return progress("not-run");
+  if (!latest.recorded) return progress("in-progress");
+  if (latest.ticket_check === "failed") return progress("check-failed");
+  const critical = sources.findings.filter(
+    (finding) => finding.run_id === latest.run_id && finding.severity === "critical" && finding.verdict === "accepted"
+  );
+  if (latest.round === 1 && stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL) return progress("second-round-due");
+  return progress("recorded");
+}
+function compareRunIds(a, b) {
+  return a.localeCompare(b, "en", { numeric: true });
+}
+function flowTicket(sources, ticket) {
+  const decisions = [
+    ...sources.reviews.filter((review2) => review2.ticket === ticket.reference).map((review2) => ({ at: review2.recorded_at, review: review2.review === "pass" ? "reviewed" : "findings-open", run_id: review2.run_id })),
+    ...sources.skipped_reviews.filter((skip) => skip.ticket === ticket.reference).map((skip) => ({ at: skip.recorded_at, review: "skipped-low-risk", run_id: skip.run_id }))
+  ].sort((a, b) => a.at.localeCompare(b.at) || compareRunIds(a.run_id, b.run_id));
+  const review = decisions.at(-1)?.review ?? "not-reviewed";
+  const marked = sources.events.some((event) => event.event === "landed" && event.ticket === ticket.reference);
+  return {
+    blocked_by: ticket.blockedBy,
+    id: ticket.id,
+    landed: !ticket.open || marked || review === "reviewed" || review === "skipped-low-risk",
+    reference: ticket.reference,
+    review,
+    review_run_ids: decisions.map((decision) => decision.run_id),
+    title: ticket.title
+  };
+}
+function openQuestions(sources) {
+  const answered2 = new Set(
+    sources.events.flatMap((event) => event.event === "answered" ? [`${event.run_id} ${event.finding_id}`] : [])
+  );
+  return sources.findings.filter((finding) => finding.verdict === "needs-human" && !finding.answered && !answered2.has(`${finding.run_id} ${finding.finding_id}`)).map((finding) => ({ finding_id: finding.finding_id, run_id: finding.run_id, severity: finding.severity, stage: finding.stage }));
+}
+function dependencyOrder(tickets) {
+  const ids = new Set(tickets.map((ticket) => ticket.id));
+  const place = (left, placed) => {
+    const [first] = left;
+    if (first === void 0) return [];
+    const next = left.find((ticket) => ticket.blockedBy.every((blocker) => !ids.has(blocker) || placed.has(blocker))) ?? first;
+    return [next, ...place(left.filter((ticket) => ticket !== next), /* @__PURE__ */ new Set([...placed, next.id]))];
+  };
+  return place(tickets, /* @__PURE__ */ new Set());
+}
+function flowPhase(state) {
+  const critique = !state.no_critique;
+  if (state.spec === null) return "planning";
+  if (critique && state.stages.spec.status !== "recorded") return "planning";
+  if (state.tickets.length === 0) return "planning";
+  if (critique && state.stages.tickets.status !== "recorded") return "planning";
+  return state.tickets.some((ticket) => !ticket.landed) ? "implementation" : "finishing";
+}
+function nextStep(state) {
+  if (state.spec === null) return draftStep(state);
+  return planningStep(state) ?? workStep(state);
+}
+function command(skill, reason, argument) {
+  return { command: argument === void 0 ? skill : `${skill} ${argument}`, kind: "command", reason, skill };
+}
+function stageStep(state, stage, notRun) {
+  const progress = state.stages[stage];
+  const run = progress.latest_run_id ?? "";
+  switch (progress.status) {
+    case "not-run":
+      return { kind: "stage", reason: notRun, stage };
+    case "in-progress":
+      return { kind: "stage", reason: `Run ${run} of the ${stage} stage is not recorded yet: finish it before moving on.`, resume_run_id: run, stage };
+    case "second-round-due":
+      return {
+        kind: "stage",
+        previous_run_id: run,
+        reason: `Run ${run} of the ${stage} stage accepted more than three critical findings: run its second round on the revised artifact.`,
+        stage
+      };
+    case "check-failed":
+      return { kind: "stage", reason: "The ticket check found a dependency cycle: fix the blocker links and check the tickets again.", stage };
+    case "recorded":
+      return void 0;
+  }
+}
+function draftStep(state) {
+  if (!state.grilled) return command("/grill-with-docs", "Every flow starts by grilling the idea against the domain docs; type /flow again when the grilling is done.");
+  const decisions = state.no_critique ? void 0 : stageStep(state, "decisions", "The grilling is done: have critics from other model families look for decisions it left open before the spec is written.");
+  return decisions ?? command("/to-spec", "The decisions are settled, so the spec can be written from them.");
+}
+function openCritical(state) {
+  return state.no_critique ? void 0 : state.open_questions.find((question) => question.severity === "critical");
+}
+function questionStep(question, next) {
+  return command(
+    "/grill-me",
+    `Critical question ${question.finding_id} from the ${question.stage} critique (run ${question.run_id}) is unanswered: settle it before ${next}.`
+  );
+}
+function planningStep(state) {
+  const critique = !state.no_critique;
+  const spec = critique ? stageStep(state, "spec", "The spec is written: have critics from other model families red-team it before it is cut into tickets.") : void 0;
+  if (spec !== void 0) return spec;
+  if (state.tickets.length === 0) {
+    const question = openCritical(state);
+    return question === void 0 ? command("/to-tickets", "The spec is settled, so it can be cut into tickets.") : questionStep(question, "cutting tickets from the spec");
+  }
+  return critique ? stageStep(state, "tickets", "The tickets are cut: check them for cycles, untestable criteria and missing seams before implementing.") : void 0;
+}
+function workStep(state) {
+  const waiting = state.tickets.filter((ticket2) => !ticket2.landed);
+  const [ticket] = waiting;
+  if (ticket === void 0) return finishingStep(state);
+  const question = openCritical(state);
+  if (question !== void 0) return questionStep(question, "implementing");
+  if (ticket.review === "findings-open" && !state.no_critique) {
+    return {
+      kind: "stage",
+      reason: `The review of ticket ${ticket.id} accepted a critical finding that is not fixed: fix it, then review the staged change again.`,
+      stage: "ticket-review",
+      ticket: ticket.id
+    };
+  }
+  const left = waiting.length === 1 ? "it is the last ticket left" : `it is the next of ${String(waiting.length)} tickets left in dependency order`;
+  return command("/implement", `Ticket ${ticket.id} has not landed and ${left}; start it in a fresh session.`, implementArgument(ticket));
+}
+function implementArgument(ticket) {
+  return ticket.reference.includes("#") ? ticket.id : ticket.reference;
+}
+function finishingStep(state) {
+  if (state.no_critique) return { kind: "done", reason: "Every ticket has landed, and critique was skipped on purpose, so there is no feature review to run." };
+  const finish = stageStep(state, "feature-review", "Every ticket has landed: review the feature as a whole before the pull request.");
+  if (finish !== void 0) return finish;
+  const gate = state.gate;
+  if (gate.status === "pass" && gate.head_commit === state.head_commit) {
+    return { kind: "done", reason: "GATE: PASS for the current head: the feature is ready for its pull request." };
+  }
+  const reasons = {
+    fail: `The last feature review held the gate shut (${gate.line ?? "GATE: FAIL"}) and its follow-ups have landed: review the feature again on the new head.`,
+    none: "The feature review left no gate: review the feature again.",
+    pass: "The gate passed for an earlier head: review the feature again on the current one."
+  };
+  return { kind: "stage", reason: reasons[gate.status], stage: "feature-review" };
+}
+function parseFlowState(text) {
+  const file = JsonFields.parse(text);
+  const stages = file.object("stages");
+  const progress = (name) => {
+    const stage = stages.object(name);
+    return { latest_run_id: stage.nullableString("latest_run_id"), run_ids: stage.strings("run_ids"), status: stage.oneOf("status", STAGE_STATUSES) };
+  };
+  const gate = file.object("gate");
+  return {
+    draft: file.nullableString("draft"),
+    flow: file.string("flow"),
+    gate: {
+      head_commit: gate.nullableString("head_commit"),
+      line: gate.nullableString("line"),
+      run_id: gate.nullableString("run_id"),
+      status: gate.oneOf("status", GATE_STATUSES)
+    },
+    grilled: file.boolean("grilled"),
+    head_commit: file.string("head_commit"),
+    no_critique: file.boolean("no_critique"),
+    open_questions: file.list("open_questions", (question) => ({
+      finding_id: question.string("finding_id"),
+      run_id: question.string("run_id"),
+      severity: question.oneOf("severity", SEVERITIES),
+      stage: question.oneOf("stage", CRITIQUE_STAGES)
+    })),
+    phase: file.oneOf("phase", FLOW_PHASES),
+    repository: file.string("repository"),
+    spec: file.nullableString("spec"),
+    stages: { decisions: progress("decisions"), "feature-review": progress("feature-review"), spec: progress("spec"), tickets: progress("tickets") },
+    tickets: file.list("tickets", (ticket) => ({
+      blocked_by: ticket.strings("blocked_by"),
+      id: ticket.string("id"),
+      landed: ticket.boolean("landed"),
+      reference: ticket.string("reference"),
+      review: ticket.oneOf("review", REVIEW_STATUSES),
+      review_run_ids: ticket.strings("review_run_ids"),
+      title: ticket.string("title")
+    })),
+    updated_at: file.string("updated_at"),
+    version: file.literal("version", 1),
+    vibe_spend_usd: file.number("vibe_spend_usd")
+  };
+}
+
+// src/contexts/critique/application/flow-state.ts
+function flowStatePath(critiqueDir, flow) {
+  return join13(critiqueDir, "flows", flowStateFileName(flow));
+}
+var DRAFT_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
+var StateCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.repositories = new RepositoryGate(deps);
+    this.trackers = new TrackerResolver(deps);
+  }
+  deps;
+  repositories;
+  trackers;
+  async run(raw) {
+    const input = readInput(raw, "state", readStateInput);
+    const repository = await this.repositories.resolve(input.repo);
+    if (repository.status === "refused") return repository;
+    const tracker = await this.trackers.resolve(repository);
+    if (tracker.status === "refused") return tracker;
+    const spec = input.spec === void 0 ? void 0 : await tracker.artifact({ comments: false, reference: input.spec });
+    if (spec?.status === "refused") return spec;
+    const flow = spec?.reference ?? draftFlow(input.draft ?? "");
+    const critiqueDir = join13(repository.commonDir, "critique");
+    const path = flowStatePath(critiqueDir, flow);
+    const saved = await this.deps.files.exists(path);
+    if (input.cached && input.record === void 0 && saved) {
+      const state2 = await this.cachedState(path);
+      if (state2 !== void 0) return { next: nextStep(state2), source: "cache", state: state2, state_path: path, status: "read" };
+    }
+    const tickets = spec === void 0 ? [] : await this.tickets(tracker, input.spec ?? "");
+    if (!Array.isArray(tickets)) return tickets;
+    const ledgerText = await this.ledgerText();
+    const ledger = decoded("invalid-ledger", ledgerPath(this.deps.env), () => ledgerText === "" ? EMPTY_LEDGER : parseLedger(ledgerText));
+    const draft = input.draft ?? linkedDraft(ledger, repository.key, flow);
+    const keys = spec === void 0 || draft === void 0 ? [flow] : [flow, draftFlow(draft)];
+    const gather = {
+      critiqueDir,
+      draft: spec === void 0 ? null : draft ?? null,
+      flow,
+      keys,
+      ledger,
+      ledgerText,
+      repository,
+      spec: spec?.reference ?? null,
+      tickets
+    };
+    const before = await this.sources(gather);
+    const events = newEvents(input, flowState(before), spec !== void 0 && input.draft !== void 0 && linkedDraft(ledger, repository.key, flow) !== input.draft);
+    await this.recordEvents(events, repository.key, flow);
+    const state = flowState({ ...before, events: [...before.events, ...events] });
+    await this.deps.files.writeText(path, `${JSON.stringify(state, null, 2)}
+`);
+    return { next: nextStep(state), source: saved ? "refreshed" : "rebuilt", state, state_path: path, status: "read" };
+  }
+  /** The saved state, or undefined when it no longer reads as one, so it is rebuilt. */
+  async cachedState(path) {
+    try {
+      return parseFlowState(await this.deps.files.readText(path));
+    } catch {
+      return void 0;
+    }
+  }
+  async tickets(tracker, spec) {
+    const read = await tracker.tickets(spec);
+    return read.status === "refused" ? read : read.tickets;
+  }
+  async ledgerText() {
+    const path = ledgerPath(this.deps.env);
+    return await this.deps.files.exists(path) ? this.deps.files.readText(path) : "";
+  }
+  async recordEvents(events, repository, flow) {
+    if (events.length === 0) return;
+    const context = { flow, recorded_at: this.deps.clock.now().toISOString(), repository };
+    await this.deps.files.appendText(ledgerPath(this.deps.env), events.map((event) => `${flowEventLine(event, context)}
+`).join(""));
+  }
+  async sources(gather) {
+    const { keys, ledger, repository, spec } = gather;
+    const belongs = (line) => line.repository === repository.key && (line.flow !== void 0 && keys.includes(line.flow) || spec !== null && line.spec === spec);
+    const runs = await this.runs(gather, belongs);
+    const runIds = new Set(runs.map((run) => run.run_id));
+    const reviews = (await this.index(ticketReviewIndexPath(gather.critiqueDir), parseTicketReviewRecord)).filter(
+      (review) => review.repository === repository.key
+    );
+    const gates = (await this.index(gateIndexPath(gather.critiqueDir), parseGateRecord)).filter(
+      (gate) => gate.repository === repository.key && gate.spec === spec
+    );
+    const invocations = invocationLines(gather.ledgerText);
+    return {
+      draft: gather.draft,
+      events: ledger.flow_events.filter((event) => event.repository === repository.key && keys.includes(event.flow)),
+      findings: ledger.findings.filter((finding) => runIds.has(finding.run_id)),
+      flow: gather.flow,
+      gates,
+      head_commit: await this.deps.git.resolveCommit(repository.root, "HEAD"),
+      now: this.deps.clock.now().toISOString(),
+      repository: repository.key,
+      reviews,
+      runs,
+      skipped_reviews: ledger.skipped_reviews.filter(belongs),
+      spec,
+      tickets: gather.tickets,
+      vibe_spend_usd: keys.reduce((total, key2) => total + flowSpend(invocations, repository.key, key2), 0)
+    };
+  }
+  /**
+   * The flow's runs, from the run directories (which hold runs not yet
+   * recorded, and recorded runs no critic took part in) and from the ledger
+   * (which still holds runs whose directory is gone).
+   */
+  async runs(gather, belongs) {
+    const runs = /* @__PURE__ */ new Map();
+    for (const name of await this.deps.files.listDirectories(gather.critiqueDir)) {
+      const runDir = join13(gather.critiqueDir, name);
+      if (!await this.deps.files.exists(manifestPath(runDir))) continue;
+      const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
+      if (!belongs({ flow: manifest.flow, repository: manifest.repository, spec: specReference(manifest) })) continue;
+      runs.set(manifest.run_id, {
+        recorded: await this.deps.files.exists(reportPath(runDir)),
+        round: manifest.round,
+        run_id: manifest.run_id,
+        stage: manifest.stage,
+        ticket_check: manifest.ticket_check?.status ?? null
+      });
+    }
+    for (const line of gather.ledger.runs.filter(belongs)) {
+      const known = runs.get(line.run_id);
+      runs.set(line.run_id, known === void 0 ? { recorded: true, round: line.round, run_id: line.run_id, stage: line.stage, ticket_check: null } : { ...known, recorded: true });
+    }
+    return [...runs.values()];
+  }
+  /** One JSON line per record, oldest first; a line that does not parse is an unreadable run record. */
+  async index(path, parse) {
+    if (!await this.deps.files.exists(path)) return [];
+    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
+    return lines.map((line, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parse(line)));
+  }
+};
+function linkedDraft(ledger, repository, flow) {
+  return ledger.flow_events.reduce(
+    (draft, event) => event.event === "draft" && event.repository === repository && event.flow === flow ? event.draft : draft,
+    void 0
+  );
+}
+function newEvents(input, state, link) {
+  const record = input.record;
+  const events = link ? [{ draft: input.draft ?? "", event: "draft" }] : [];
+  if (record === void 0) return events;
+  if (record.grilled) events.push({ event: "grilled" });
+  if (record.no_critique !== void 0) events.push({ event: "no-critique", value: record.no_critique });
+  for (const named of record.landed) {
+    const ticket = state.tickets.find((candidate) => candidate.id === named || candidate.reference === named);
+    if (ticket === void 0) throw new CritiqueError("invalid-input", `state input: ${named} is not a ticket of ${state.flow}`);
+    events.push({ event: "landed", ticket: ticket.reference });
+  }
+  for (const answer of record.answered) {
+    const open = state.open_questions.some((question) => question.run_id === answer.run_id && question.finding_id === answer.finding_id);
+    if (!open) throw new CritiqueError("invalid-input", `state input: ${answer.finding_id} of run ${answer.run_id} is not an open question of ${state.flow}`);
+    events.push({ event: "answered", finding_id: answer.finding_id, run_id: answer.run_id });
+  }
+  return events;
+}
+function readStateInput(fields) {
+  const spec = fields.optionalString("spec");
+  const draft = fields.optionalMatching("draft", isDraftName, "a draft name: letters, digits, dots, dashes, underscores and slashes");
+  if (spec === void 0 && draft === void 0) {
+    throw new CritiqueError("invalid-input", "state input: name the feature by its spec, or by a draft name before /to-spec has written one");
+  }
+  return {
+    cached: fields.has("cached") && fields.boolean("cached"),
+    draft,
+    record: fields.has("record") ? readRecord(fields.object("record")) : void 0,
+    repo: fields.string("repo"),
+    spec
+  };
+}
+function readRecord(fields) {
+  return {
+    answered: fields.has("answered") ? fields.list("answered", (answer) => ({ finding_id: answer.string("finding_id"), run_id: answer.string("run_id") })) : [],
+    grilled: fields.has("grilled") && fields.boolean("grilled"),
+    landed: fields.has("landed") ? fields.strings("landed") : [],
+    no_critique: fields.has("no_critique") ? fields.boolean("no_critique") : void 0
+  };
+}
+function isDraftName(value) {
+  return DRAFT_NAME.test(value);
 }
 
 // src/contexts/critique/domain/stats.ts
@@ -3807,7 +4285,7 @@ var StatsCommand = class {
     };
   }
   async readLedger(path) {
-    if (!await this.deps.files.exists(path)) return { findings: [], runs: [] };
+    if (!await this.deps.files.exists(path)) return EMPTY_LEDGER;
     return readJsonFile(this.deps.files, path, "invalid-ledger", parseLedger);
   }
 };
@@ -3840,9 +4318,9 @@ function isDay(value) {
 }
 
 // src/contexts/critique/application/triage.ts
-import { join as join13 } from "node:path";
+import { join as join14 } from "node:path";
 var TRIAGE_PROMPT = "prompts/triage.md";
-var DIFF_PATH2 = join13("diff", "change.diff");
+var DIFF_PATH2 = join14("diff", "change.diff");
 var TriageCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -3884,7 +4362,7 @@ var TriageCommand = class {
     const head = input.staged ? (await this.staged.snapshot(repository.root)).commit : input.head;
     const read = await this.changes.read(repository.root, input.base, head);
     const runId = await this.freshRunId(repository);
-    const runDir = join13(repository.commonDir, "critique", runId);
+    const runDir = join14(repository.commonDir, "critique", runId);
     const flow = input.flow ?? spec?.reference ?? ticket.reference;
     const signals = riskSignals(read.change, ticket.labels, triage);
     const [first] = signals;
@@ -3907,7 +4385,7 @@ var TriageCommand = class {
       summary: triageSummary(asked.decision, signal, triage.model.client),
       ticket: { labels: ticket.labels, reference: ticket.reference }
     };
-    await this.deps.files.writeText(join13(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
+    await this.deps.files.writeText(join14(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
 `);
     const line = triageLedgerLine({
       ...result2,
@@ -3940,10 +4418,10 @@ var TriageCommand = class {
     if (spent !== void 0) return unavailable("budget", spent);
     const ready = await this.deps.clients.vibe.readiness(config);
     if (!ready.ready) return unavailable("unavailable", ready.detail);
-    const promptAsset = await this.deps.files.readText(join13(this.deps.assetsRoot, TRIAGE_PROMPT));
-    const workDir = join13(request.runDir, "packet");
-    const promptPath = join13(request.runDir, "prompt.md");
-    await this.deps.files.writeText(join13(workDir, DIFF_PATH2), request.diff);
+    const promptAsset = await this.deps.files.readText(join14(this.deps.assetsRoot, TRIAGE_PROMPT));
+    const workDir = join14(request.runDir, "packet");
+    const promptPath = join14(request.runDir, "prompt.md");
+    await this.deps.files.writeText(join14(workDir, DIFF_PATH2), request.diff);
     await this.deps.files.writeText(
       promptPath,
       `${promptAsset.trim()}
@@ -3957,8 +4435,8 @@ var TriageCommand = class {
       { max_price_usd: triage.model.max_price_usd, outputDir: request.runDir, promptPath, time_limit_s: triage.model.time_limit_s, workDir },
       config
     );
-    await this.deps.files.writeText(join13(request.runDir, "stdout.json"), report.stdout);
-    await this.deps.files.writeText(join13(request.runDir, "stderr.txt"), report.stderr);
+    await this.deps.files.writeText(join14(request.runDir, "stdout.json"), report.stdout);
+    await this.deps.files.writeText(join14(request.runDir, "stderr.txt"), report.stderr);
     const call = { client: triage.model.client, family: config.family, model: config.model };
     await this.budget.logInvocation(
       { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: "ticket-review" },
@@ -3970,7 +4448,7 @@ var TriageCommand = class {
   async freshRunId(repository) {
     const base = `${compactTimestamp(this.deps.clock.now())}-triage`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(join13(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
+    for (let n = 2; await this.deps.files.exists(join14(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
@@ -4009,6 +4487,7 @@ function createCritiqueCommands(deps) {
     fanOut: new FanOutCommand(deps),
     prepare: new PrepareCommand(deps),
     record: new RecordCommand(deps),
+    state: new StateCommand(deps),
     stats: new StatsCommand(deps),
     triage: new TriageCommand(deps)
   };
@@ -4016,7 +4495,7 @@ function createCritiqueCommands(deps) {
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname5, join as join14, relative as relative2 } from "node:path";
+import { dirname as dirname5, join as join15, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -4042,10 +4521,14 @@ var NodeCritiqueFiles = class {
     const entries = await readdir(path, { withFileTypes: true }).catch(() => []);
     return entries.filter((entry) => entry.isFile()).map((entry) => entry.name).sort();
   }
+  async listDirectories(path) {
+    const entries = await readdir(path, { withFileTypes: true }).catch(() => []);
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  }
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join14(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join15(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -4053,7 +4536,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute2, join as join15 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join16 } from "node:path";
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
@@ -4087,7 +4570,7 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join15(launch.criticDir, "result.json");
+    const exportPath = join16(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
     const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run);
@@ -4096,7 +4579,7 @@ var AgyCriticClient = class {
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join15(dir, binary))) return true;
+      if (await this.files.exists(join16(dir, binary))) return true;
     }
     return false;
   }
@@ -4175,7 +4658,7 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { isAbsolute as isAbsolute3, join as join16 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join17 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files, env) {
     this.process = process2;
@@ -4195,9 +4678,9 @@ var VibeCriticClient = class {
    */
   async readiness(config) {
     if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
-    const home = join16(this.env.require("HOME"), ".vibe");
+    const home = join17(this.env.require("HOME"), ".vibe");
     if (!await this.signedIn(home)) return { detail: SIGN_IN2, ready: false };
-    if (!await this.files.exists(join16(home, "agents", `${config.agent}.toml`))) {
+    if (!await this.files.exists(join17(home, "agents", `${config.agent}.toml`))) {
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
     }
     return { ready: true };
@@ -4205,20 +4688,20 @@ var VibeCriticClient = class {
   async signedIn(home) {
     const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY"], command: "security" }).catch(() => ({ exitCode: 1 }));
     if (keychain.exitCode === 0) return true;
-    const dotenv = join16(home, ".env");
+    const dotenv = join17(home, ".env");
     if (!await this.files.exists(dotenv)) return false;
     return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
   }
   async onPath(binary) {
     if (isAbsolute3(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join16(dir, binary))) return true;
+      if (await this.files.exists(join17(dir, binary))) return true;
     }
     return false;
   }
   async review(launch, config) {
-    const exportDir = join16(launch.criticDir, "export");
-    const exportPath = join16(exportDir, "export.json");
+    const exportDir = join17(launch.criticDir, "export");
+    const exportPath = join17(exportDir, "export.json");
     const { result: result2, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir });
     return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
   }
@@ -4228,7 +4711,7 @@ var VibeCriticClient = class {
    * returns its final message as plain text.
    */
   async ask(question, config) {
-    const exportDir = join16(question.outputDir, "export");
+    const exportDir = join17(question.outputDir, "export");
     const { result: result2, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir });
     const message = vibeMessage(run);
     const answer = message.status === "failed" ? message : { cost_usd: message.cost_usd, status: "answered", text: message.text };
@@ -4238,7 +4721,7 @@ var VibeCriticClient = class {
     const result2 = await this.process.exec(vibeLaunch(limits, config, paths));
     const run = {
       exitCode: result2.exitCode,
-      exported: await this.readExport(join16(paths.exportDir, "export.json")),
+      exported: await this.readExport(join17(paths.exportDir, "export.json")),
       stderr: result2.stderr,
       stdout: result2.stdout,
       timedOut: result2.timedOut === true,
@@ -4695,12 +5178,12 @@ var GitCliAdapter = class {
     await this.git(cwd, ["checkout", "-B", request.integrationBranch, baseBranch]);
   }
   async git(cwd, args, options = {}) {
-    const command = {
+    const command2 = {
       args,
       command: "git",
       cwd
     };
-    const result2 = await this.process.exec(command);
+    const result2 = await this.process.exec(command2);
     const acceptedExitCodes = options.acceptedExitCodes ?? [0];
     if (!acceptedExitCodes.includes(result2.exitCode)) {
       throw new GitCommandError(args, cwd, result2);
@@ -4738,10 +5221,11 @@ var COMMANDS = {
   "fan-out": "fanOut",
   prepare: "prepare",
   record: "record",
+  state: "state",
   stats: "stats",
   triage: "triage"
 };
-var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage> [--input FILE | --json TEXT]
+var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".

@@ -25,7 +25,7 @@ and before the first `/implement`, `/review-ticket` after a ticket's
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-node <this directory>/critique.mjs <prepare|fan-out|record|allow|check-tickets|stats|triage> --input FILE
+node <this directory>/critique.mjs <prepare|fan-out|record|allow|check-tickets|stats|triage|state> --input FILE
 node <this directory>/critique.mjs --help
 ```
 
@@ -41,7 +41,9 @@ deterministic ticket checker; while it finds a dependency cycle it prints
 `"status": "failed"` and exits 3. `stats` reads the ledger and writes nothing;
 `/critique-stats` drives it. `triage` decides whether a ticket's change
 is `risky` or `low-risk` for ticket review, and names the signal that
-decided it.
+decided it. `state` computes one feature's flow state (keyed by its spec, or
+by a draft name before `/to-spec`) and returns the single next step: a
+critique stage to run, or the Pocock command for the owner to type.
 
 The Vibe critic clients run through read-only `critic-<model>` agents that
 agent-kit setup installs into the shared Vibe home (`~/.vibe/agents/`).

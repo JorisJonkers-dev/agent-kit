@@ -52,11 +52,19 @@ export class FakeEnv implements EnvPort {
 
 export class FixedClock implements ClockPort {
   private ticks = 0
+  private at: number
 
-  constructor(private readonly iso: string) {}
+  constructor(iso: string) {
+    this.at = Date.parse(iso)
+  }
 
   now(): Date {
-    return new Date(this.iso)
+    return new Date(this.at)
+  }
+
+  /** Moves the clock on, so the next run gets a later run id and record time. */
+  advance(minutes: number): void {
+    this.at += minutes * 60_000
   }
 
   monotonicMs(): number {
@@ -633,6 +641,7 @@ export interface Harness {
   readonly process: FakeVibeProcess
   readonly agy: FakeAgyProcess
   readonly launches: LaunchLog
+  readonly clock: FixedClock
   readonly commands: CritiqueCommands
   readonly cleanup: () => Promise<void>
   readonly readText: (path: string) => Promise<string>
@@ -729,13 +738,14 @@ export async function harness(
   const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)
   const files = new NodeCritiqueFiles()
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':') })
+  const clock = new FixedClock('2026-10-30T12:00:00.000Z')
   const commands = createCritiqueCommands({
     assetsRoot,
     clients: {
       agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
       vibe: new VibeCriticClient(process, files, env),
     },
-    clock: new FixedClock('2026-10-30T12:00:00.000Z'),
+    clock,
     env,
     files,
     gh,
@@ -745,6 +755,7 @@ export async function harness(
     agy,
     assetsRoot,
     cleanup: () => rm(base, { force: true, recursive: true }),
+    clock,
     commands,
     gh,
     git,

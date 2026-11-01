@@ -5,6 +5,7 @@ import { FanOutCommand, type FanOutResult } from './fan-out.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { PrepareCommand, type PrepareResult } from './prepare.js'
 import { RecordCommand, type RecordResult } from './record.js'
+import { StateCommand, type StateResult } from './flow-state.js'
 import { StatsCommand, type StatsResult } from './stats.js'
 import { TriageCommand, type TriageResult } from './triage.js'
 
@@ -16,6 +17,7 @@ export interface CritiqueCommands {
   readonly allow: CritiqueCommand<AllowResult | Refusal>
   readonly checkTickets: CritiqueCommand<CheckTicketsResult | Refusal>
   readonly stats: CritiqueCommand<StatsResult | Refusal>
+  readonly state: CritiqueCommand<StateResult | Refusal>
   readonly triage: CritiqueCommand<TriageResult | Refusal>
 }
 
@@ -26,6 +28,7 @@ export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
     fanOut: new FanOutCommand(deps),
     prepare: new PrepareCommand(deps),
     record: new RecordCommand(deps),
+    state: new StateCommand(deps),
     stats: new StatsCommand(deps),
     triage: new TriageCommand(deps),
   }
