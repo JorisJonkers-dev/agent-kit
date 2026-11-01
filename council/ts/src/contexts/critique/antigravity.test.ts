@@ -163,6 +163,22 @@ describe('the Antigravity critic', () => {
     expect(result.degraded).toBe(true)
   })
 
+  it.each<[string, string, string]>([
+    [
+      "agy's own error line",
+      'error: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 115h35m37s.\n' +
+        'AGY_ERROR: {"short_error":"RESOURCE_EXHAUSTED (code 429): Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 115h35m37s.","status":"RESOURCE_EXHAUSTED","error_code":429}\n',
+      'agy exited 3: RESOURCE_EXHAUSTED (code 429): Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 115h35m37s.',
+    ],
+    ['the first line of stderr', '\n  agy: authentication required  \nmore\n', 'agy exited 3: agy: authentication required'],
+    ['nothing when stderr is empty', '', 'agy exited 3'],
+    ['the first line when the error line is not JSON', 'boom\nAGY_ERROR: {not json\n', 'agy exited 3: boom'],
+  ])('says why agy exited non-zero, from %s', async (_name, stderr, detail) => {
+    const { result } = await geminiReview({ exitCode: 3, stderr, stdout: '' })
+
+    expect(result.critics[0]).toMatchObject({ detail, failure: 'exit-3', status: 'failed' })
+  })
+
   it.each([
     ['an MCP tool call', 'call_mcp_tool'],
     ['a web search', 'search_web'],
