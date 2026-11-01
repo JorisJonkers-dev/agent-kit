@@ -10,7 +10,7 @@ export function isCodeStage(stage: CritiqueStage): stage is CodeStage {
   return (CODE_STAGES as readonly CritiqueStage[]).includes(stage)
 }
 
-/** How many critics a stage runs: base (two families) or deep (base plus every further allowed family). */
+/** How many critics a stage runs: base (the stage's base roster in routing) or deep (base plus its allowed deep critics). */
 export const DEPTHS = ['base', 'deep'] as const
 export type Depth = (typeof DEPTHS)[number]
 
