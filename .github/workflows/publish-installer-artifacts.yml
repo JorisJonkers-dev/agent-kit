@@ -4,10 +4,12 @@
 # release as release assets. install.sh and install-agents.sh are retired by
 # #40 and are never attached from here.
 #
-# Publishing to the public asset host (assets.jorisjonkers.dev) is a
-# separate, in-cluster concern owned by fleet-infra: a Flux-managed CronJob
-# pulls these release assets and uploads them to Garage over the ClusterIP S3
-# API, which this workflow cannot reach and does not attempt to.
+# The release assets ARE the published installer: the bootstrap one-liner is
+#   curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh | bash
+# and the script it fetches downloads the kit bundle of its own tag from
+# releases/download/<tag>/. assets.jorisjonkers.dev is legacy: the in-cluster
+# Garage sync that mirrored these assets there is being retired, and any redirect
+# from it to GitHub is owned outside this repo.
 'on':
   'release':
     'types':

@@ -1,9 +1,9 @@
 #!/bin/bash
 # Paste into a Claude Code cloud environment's "Setup script" field (agent-kit docs/CLOUD.md).
 # The result is cached for about a week; bump this date to pull a newer release sooner.
-# refreshed: 2026-09-26
+# refreshed: 2026-11-01
 
-url="https://assets.jorisjonkers.dev/setup-workstation.sh"
+url="https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh"
 log="${AGENT_KIT_SETUP_LOG:-/var/log/agent-kit-setup.log}"
 script="$(mktemp)"
 
@@ -11,7 +11,7 @@ if curl -fsSL --retry 3 -o "${script}" "${url}"; then
   echo "agent-kit: $(sed -n 2p "${script}") from ${url}"
   bash "${script}" --cloud 2>&1 | tee "${log}"
 else
-  echo "agent-kit: cannot fetch ${url}; is *.jorisjonkers.dev allowed?" | tee "${log}" >&2
+  echo "agent-kit: cannot fetch ${url}; are github.com and release-assets.githubusercontent.com allowed?" | tee "${log}" >&2
 fi
 
 # A failed step must not stop the session starting; the log says what broke.

@@ -13,6 +13,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -30,6 +31,7 @@ from setup_harness import Run, setup_run  # noqa: E402
 ROUTING = KIT_ROOT / "skills" / "critique" / "routing.json"
 AGENTS_DIR = render_registry.VIBE_CRITIC_AGENTS_DIR
 EVERY_AGENT = {"claude", "codex", "vibe", "antigravity"}
+CRITIC_AGENT_NAMES = ["critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"]
 
 # Every key a rendered agent file may hold. Each is a Vibe setting: the
 # top-level ones are fields of Vibe's config schema (vibe/core/config/
@@ -250,7 +252,10 @@ def test_a_pending_skill_installs_once_its_directory_exists() -> None:
     script = render_registry.render_setup_script(data)
     block = script[script.index('src="${KIT_ROOT}/skills/no-such-skill"'):]
     block = block[: block.index("\nfi\n")]
-    assert 'log "critique-spec: not built yet (https://github.com/JorisJonkers-dev/agent-kit/issues/177); skipped"' in block
+    assert (
+        'log "critique-spec: not built yet '
+        '(https://github.com/JorisJonkers-dev/agent-kit/issues/177); skipped"'
+    ) in block
     assert "fail " not in block.split("else", 1)[0]
     assert 'dest="${CLAUDE_HOME}/skills/critique-spec"' in block
 
@@ -269,7 +274,7 @@ def test_a_missing_skill_that_is_not_pending_is_refused() -> None:
     skill = _skill(data, "critique-spec")
     skill.pop("pending", None)
     skill["path"] = "skills/no-such-skill"
-    with pytest.raises(render_registry.RegistryError, match="has no SKILL.md"):
+    with pytest.raises(render_registry.RegistryError, match=re.escape("has no SKILL.md")):
         render_registry.validate(data)
 
 
@@ -317,7 +322,7 @@ def test_a_runner_file_missing_from_the_pin_fails_validation() -> None:
     manifest["critique"]["files"] = [
         f for f in manifest["critique"]["files"] if f["path"] != "skills/critique/routing.json"
     ]
-    with pytest.raises(AssertionError, match="critique.files mismatch"):
+    with pytest.raises(AssertionError, match=re.escape("critique.files mismatch")):
         _validator().validate_critique(manifest)
 
 
@@ -395,7 +400,7 @@ def test_a_critic_agent_is_only_for_the_workstation() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", ["critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"])
+@pytest.mark.parametrize("name", CRITIC_AGENT_NAMES)
 def test_each_agent_file_can_only_read_inside_its_working_directory(name: str) -> None:
     doc = _agent_file(name)
     assert doc["enabled_tools"] == ["read_file"]
@@ -407,7 +412,7 @@ def test_each_agent_file_can_only_read_inside_its_working_directory(name: str) -
     assert doc["safety"] == "safe"
 
 
-@pytest.mark.parametrize("name", ["critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"])
+@pytest.mark.parametrize("name", CRITIC_AGENT_NAMES)
 def test_each_agent_file_pins_its_own_priced_model(name: str) -> None:
     entry = next(a for a in _registry()["vibe_critic_agents"] if a["name"] == name)
     doc = _agent_file(name)
@@ -430,7 +435,7 @@ def test_the_prices_are_mistrals_published_ones() -> None:
     }
 
 
-@pytest.mark.parametrize("name", ["critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"])
+@pytest.mark.parametrize("name", CRITIC_AGENT_NAMES)
 def test_every_key_in_an_agent_file_is_a_vibe_setting(name: str) -> None:
     doc = _agent_file(name)
     assert set(doc) <= PROFILE_KEYS | SETTING_KEYS, set(doc) - PROFILE_KEYS - SETTING_KEYS
