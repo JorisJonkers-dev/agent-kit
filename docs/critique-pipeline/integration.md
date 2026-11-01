@@ -964,3 +964,42 @@ them:
 - **Stages.** The stage names are `decisions`, `spec`, `tickets`,
   `ticket-review` and `feature-review`, and prepare rejects any other.
   Shipped routing defines `spec` only.
+
+## What #170 settled
+
+The mechanical evidence checks (agent-kit#170) fixed these:
+
+- **Where the check runs.** Fan-out reads every packet file before it
+  launches a critic, so a critic that writes into the packet cannot plant a
+  quote. After the critics finish, `checkEvidence` (in the critique domain)
+  gives each finding an optional `pre_verdict`. It runs on the list of
+  findings just before `findings.json` is written; dedupe (#171) belongs
+  before it. A finding merged from several critics should keep every
+  critic's evidence, so one fabricated quote rejects the merged finding.
+- **Fabricated evidence.** Every `quote` must occur in some packet file, or
+  the finding gets `{ verdict: "rejected", reason_code:
+  "fabricated-evidence" }`. Runs of white space count as one space on both
+  sides, so a quote may cross a line break of a wrapped file; nothing else is
+  normalised. A quote's `file` is not trusted: which side a quote is on is
+  decided by where it actually occurs.
+- **Hints.** A finding with no evidence is a hint (`no-evidence`). At the
+  spec stage, a quote found in `packet/artifact/` counts as a spec quote and
+  one found in `packet/references/` as a decision quote; an `input`,
+  `failing-test` or `trace` counts as a scenario. An omission or invention
+  without both quotes is a hint (`no-spec-quote` or `no-decision-quote`);
+  any other category without a spec quote, or without a decision quote or a
+  scenario, is a hint (`no-spec-quote` or `no-decision-or-scenario`). Other
+  stages have no rule yet beyond `no-evidence`; their tickets add one.
+- **Record.** A finding with a pre-verdict needs no verdict. A
+  fabricated-evidence rejection stands: a verdict other than `rejected` is
+  an `invalid-input` error, and a `rejected` one keeps the
+  `fabricated-evidence` code. A hint may become `accepted` or `rejected`;
+  `needs-human` is an error. The report shows an overruled pre-verdict, and
+  each ledger finding line carries `pre_verdict` (the code, or `null`).
+- **Minor findings.** The summary has a `## Minor` section between the
+  questions and Dissent, with one line per critic that raised a minor
+  finding: `- <critic id>: <n> minor: accepted F2; needs-human F3; hint F4`.
+  Minor findings no longer appear under Accepted or Questions. Dissent is
+  unchanged, so a rejected minor finding from two families is still listed
+  there. A fabricated-evidence rejection of a critical finding also counts
+  as dissent under the current rule; #171 may want to exclude it.
