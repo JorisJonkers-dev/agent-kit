@@ -80,6 +80,13 @@ describe('critique runner command line', () => {
     })
   })
 
+  it('reports critique stats from the ledger', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'stats', '--json', '{}')).toMatchObject({ cells: [], status: 'reported' })
+  })
+
   it('prints a refusal as a normal result', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)

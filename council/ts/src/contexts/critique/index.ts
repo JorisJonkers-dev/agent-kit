@@ -4,6 +4,7 @@ export type { CheckTicketsResult } from './application/check-tickets.js'
 export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
+export type { StatsResult } from './application/stats.js'
 export type {
   CriticClientPort,
   CriticClients,
@@ -17,6 +18,7 @@ export type {
 export type { CriticIdentity, CriticOutcome, CriticRun } from './domain/critic.js'
 export type { ModelFamily, OrchestratorFamily } from './domain/family.js'
 export type { RunFinding } from './domain/findings.js'
+export type { RemovalCandidate, StatsCell, StatsFilter } from './domain/stats.js'
 export { CritiqueError, type CritiqueErrorCode, type Refusal, type RefusalReason } from './domain/outcomes.js'
 export type { CritiqueStage, Depth } from './domain/stage.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'

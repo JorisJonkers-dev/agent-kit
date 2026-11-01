@@ -45,12 +45,22 @@ export interface StageRouting {
   readonly base: readonly RosterSlot[]
 }
 
+/** When critique stats may draw a conclusion. They live in routing, beside what they tune; stats never writes them. */
+export interface StatsThresholds {
+  /** A cell with fewer accepted plus rejected findings than this gets no routing suggestion. */
+  readonly min_adjudicated_findings: number
+  /** How many of a stage's latest features must pass without a unique accepted catch before it is a removal candidate. */
+  readonly removal_features: number
+}
+
 export interface Routing {
   readonly version: 1
   readonly clients: Readonly<Record<string, CriticClient>>
   /** Per client, the clients tried in order when it may not run. */
   readonly fallbacks: Readonly<Record<string, readonly string[]>>
   readonly stages: Readonly<Partial<Record<CritiqueStage, StageRouting>>>
+  /** Read by the stats command only, so a routing without them still prepares runs. */
+  readonly stats?: StatsThresholds
 }
 
 /** A critic resolved for one run: the slot plus the client it runs through. */
@@ -88,6 +98,14 @@ export function parseRouting(text: string): Routing {
       distinct_families: stage.boolean('distinct_families'),
     })),
     version: file.literal('version', 1),
+    ...(file.has('stats') ? { stats: readStatsThresholds(file.object('stats')) } : {}),
+  }
+}
+
+function readStatsThresholds(fields: JsonFields): StatsThresholds {
+  return {
+    min_adjudicated_findings: fields.positiveInteger('min_adjudicated_findings'),
+    removal_features: fields.positiveInteger('removal_features'),
   }
 }
 

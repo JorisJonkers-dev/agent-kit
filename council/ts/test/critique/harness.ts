@@ -562,3 +562,126 @@ export async function harness(
     },
   }
 }
+
+/** The model and family of each shipped critic client, as record writes them to the ledger. */
+const LEDGER_CLIENTS: Readonly<Record<string, { readonly model: string; readonly family: string }>> = {
+  'agy-gemini-flash-high': { family: 'google', model: 'gemini-3.8-flash-high' },
+  'vibe-glm': { family: 'zhipu', model: 'glm-5-3' },
+  'vibe-mistral-large': { family: 'mistral', model: 'mistral-large-4-0-3' },
+}
+
+/** One critic of a synthetic run. `role_hash` and `lens_hash` stand in for the hashes of its role and lens files. */
+export interface SyntheticCritic {
+  readonly client: string
+  readonly role_hash?: string
+  readonly lens_hash?: string
+  readonly cost_usd?: number | null
+  readonly status?: 'ok' | 'failed' | 'violated-readonly'
+  readonly failure?: string
+}
+
+/** One finding of a synthetic run, raised by the critics of the named clients. */
+export interface SyntheticFinding {
+  readonly raised_by: readonly string[]
+  readonly verdict: 'accepted' | 'rejected' | 'needs-human' | 'hint'
+  readonly pre_verdict?: string
+}
+
+export interface SyntheticRun {
+  readonly critics: readonly SyntheticCritic[]
+  readonly findings?: readonly SyntheticFinding[]
+  readonly stage?: string
+  /** The spec reference; null leaves it out, as on lines recorded before the ledger named the spec. */
+  readonly spec?: string | null
+  readonly repository?: string
+  /** When record wrote the run; one minute after the previous run by default. */
+  readonly recorded_at?: string
+}
+
+/**
+ * Builds a user ledger the way record writes one: per run, one `run` line
+ * per critic, then one `finding` line per finding, metadata only.
+ */
+export class SyntheticLedger {
+  private readonly lines: Record<string, unknown>[] = []
+  private count = 0
+
+  /** Adds one run. */
+  run(run: SyntheticRun): this {
+    this.count += 1
+    const recordedAt = run.recorded_at ?? new Date(Date.UTC(2026, 9, 1) + this.count * 60_000).toISOString()
+    const common = {
+      depth: 'base',
+      recorded_at: recordedAt,
+      repository: run.repository ?? 'github.com/jorisjonkers-dev/agent-kit',
+      run_id: `run-${String(this.count)}`,
+      stage: run.stage ?? 'spec',
+      ...(run.spec === null ? {} : { spec: run.spec ?? 'github.com/jorisjonkers-dev/agent-kit#167' }),
+    }
+    const ids = run.critics.map((critic, index) => `c${String(index + 1)}-${critic.client}`)
+    const identity = (index: number) => {
+      const critic = run.critics[index]
+      if (critic === undefined) throw new Error(`no critic ${String(index)}`)
+      const client = LEDGER_CLIENTS[critic.client] ?? { family: 'mistral', model: critic.client }
+      return {
+        client: critic.client,
+        critic_id: ids[index],
+        family: client.family,
+        lens_hashes: { fidelity: critic.lens_hash ?? 'lens-1' },
+        lenses: ['fidelity'],
+        model: client.model,
+        prompt_hashes: { contract: 'contract-1', preamble: 'preamble-1', role: critic.role_hash ?? 'role-1', schema: 'schema-1' },
+        role: 'spec-redteam',
+      }
+    }
+    run.critics.forEach((critic, index) => {
+      const status = critic.status ?? 'ok'
+      this.lines.push({
+        type: 'run',
+        ...common,
+        ...identity(index),
+        cost_usd: critic.cost_usd === undefined ? 0.01 : critic.cost_usd,
+        duration_ms: 1000,
+        exit_code: status === 'ok' ? 0 : 1,
+        failure: critic.failure ?? null,
+        finding_count: 0,
+        status,
+      })
+    })
+    ;(run.findings ?? []).forEach((finding, index) => {
+      const raisers = finding.raised_by.map((client) => run.critics.findIndex((critic) => critic.client === client))
+      this.lines.push({
+        type: 'finding',
+        ...common,
+        ...identity(Math.max(raisers[0] ?? 0, 0)),
+        category: 'contradiction',
+        evidence_kinds: ['quote'],
+        finding_id: `F${String(index + 1)}`,
+        pre_verdict: finding.pre_verdict ?? null,
+        raised_by: raisers.map((raiser) => ids[raiser] ?? `c0-${String(raiser)}`),
+        raised_by_families: [],
+        reason_code: finding.pre_verdict ?? null,
+        severity: 'major',
+        verdict: finding.verdict,
+      })
+    })
+    return this
+  }
+
+  /** Adds a line as it is, for a ledger a later version or a broken write left. */
+  raw(line: unknown): this {
+    this.lines.push(line as Record<string, unknown>)
+    return this
+  }
+
+  text(): string {
+    return this.lines.map((line) => `${JSON.stringify(line)}\n`).join('')
+  }
+
+  /** Writes the ledger where the runner reads it in the harness's HOME, and returns its path. */
+  async writeTo(h: Pick<Harness, 'home' | 'writeText'>): Promise<string> {
+    const path = join(h.home, '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl')
+    await h.writeText(path, this.text())
+    return path
+  }
+}
