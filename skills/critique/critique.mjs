@@ -307,6 +307,11 @@ var JsonFields = class _JsonFields {
     const map = this.object(key2);
     return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.strings(name)]));
   }
+  /** An object whose every value is a number. */
+  numberMap(key2) {
+    const map = this.object(key2);
+    return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.number(name)]));
+  }
   /** An object whose every value is a non-empty string. */
   stringMap(key2) {
     const map = this.object(key2);
@@ -414,6 +419,9 @@ async function readJsonFile(files, path, code, parse) {
 import { join } from "node:path";
 function allowlistPath(env) {
   return join(env.require("HOME"), ".config", "agent-kit", "critique-allowlist.json");
+}
+function routingOverridePath(env) {
+  return join(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
 }
 function ledgerPath(env) {
   return join(env.require("HOME"), ".local", "share", "agent-kit", "critique", "ledger.jsonl");
@@ -1117,6 +1125,91 @@ function normalise(text) {
 // src/contexts/critique/domain/manifest.ts
 import { createHash } from "node:crypto";
 
+// src/contexts/critique/domain/depth.ts
+var STAGE_MEASURES = {
+  decisions: {},
+  "feature-review": {},
+  spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
+  "ticket-review": {},
+  tickets: {}
+};
+var NO_DEPTH_SIGNALS = { labels: [], risk_terms: [], thresholds: {} };
+function readDepthSignalsConfig(fields, stage) {
+  const known = measuresOf(stage);
+  const thresholds = fields.has("thresholds") ? fields.numberMap("thresholds") : {};
+  for (const measure of Object.keys(thresholds)) {
+    if (known[measure] === void 0) {
+      const names = Object.keys(known);
+      throw new JsonShapeError(
+        `stages.${stage}.depth_signals.thresholds.${measure} is not a measure of stage ${stage}; it knows ${names.length === 0 ? "none" : names.join(", ")}`
+      );
+    }
+  }
+  return {
+    labels: fields.has("labels") ? fields.strings("labels") : [],
+    risk_terms: fields.has("risk_terms") ? fields.strings("risk_terms") : [],
+    thresholds
+  };
+}
+function chooseDepth(stage, config, evidence, explicit) {
+  const measures = Object.fromEntries(
+    Object.entries(measuresOf(stage)).flatMap(([name, measure]) => {
+      const threshold = config.thresholds[name];
+      return threshold === void 0 ? [] : [[name, { threshold, value: measure(evidence) }]];
+    })
+  );
+  const labels = new Set(evidence.labels.map((label) => label.toLowerCase()));
+  const signals = [
+    ...Object.entries(measures).filter(([, { threshold, value }]) => value > threshold).map(([measure, { threshold, value }]) => ({ kind: "threshold", measure, threshold, value })),
+    ...config.risk_terms.filter((term) => containsTerm(evidence.text, term)).map((term) => ({ kind: "risk-term", term })),
+    ...config.labels.filter((label) => labels.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
+  ];
+  const choice = { chosen_by: explicit === void 0 ? "signals" : "argument", measures, signals };
+  return { choice, depth: explicit ?? (signals.length > 0 ? "deep" : "base") };
+}
+function signalledDepth(choice) {
+  return choice.signals.length > 0 ? "deep" : "base";
+}
+function readDepthChoice(fields) {
+  return {
+    chosen_by: fields.oneOf("chosen_by", ["argument", "signals"]),
+    measures: fields.entries("measures", (measure) => ({ threshold: measure.number("threshold"), value: measure.number("value") })),
+    signals: fields.list("signals", readDepthSignal)
+  };
+}
+function readDepthSignal(fields) {
+  const kind = fields.oneOf("kind", ["threshold", "risk-term", "label"]);
+  if (kind === "threshold") {
+    return { kind, measure: fields.string("measure"), threshold: fields.number("threshold"), value: fields.number("value") };
+  }
+  return kind === "risk-term" ? { kind, term: fields.string("term") } : { kind, label: fields.string("label") };
+}
+function measuresOf(stage) {
+  return STAGE_MEASURES[stage] ?? {};
+}
+function countUserStories(text) {
+  let level;
+  let count = 0;
+  for (const line of text.split(/\r?\n/)) {
+    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (heading !== null) {
+      const depth = (heading[1] ?? "").length;
+      if (level !== void 0 && depth <= level) level = void 0;
+      if (level === void 0 && /^user stories$/i.test(heading[2] ?? "")) level = depth;
+    } else if (level !== void 0 && /^\s*\d+[.)]\s+\S/.test(line)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+function countWords(text) {
+  return text.split(/\s+/).filter((word) => word.length > 0).length;
+}
+function containsTerm(text, term) {
+  const pattern = term.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+  return new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, "iu").test(text);
+}
+
 // src/contexts/critique/domain/routing.ts
 var CLIENT_KINDS = ["vibe", "agy"];
 var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable"];
@@ -1125,8 +1218,10 @@ function parseRouting(text) {
   return {
     clients: file.entries("clients", readCriticClient),
     fallbacks: file.has("fallbacks") ? file.stringLists("fallbacks") : {},
-    stages: file.entries("stages", (stage) => ({
+    stages: file.entries("stages", (stage, name) => ({
       base: stage.list("base", readRosterSlot),
+      deep: stage.has("deep") ? stage.list("deep", readRosterSlot) : [],
+      depth_signals: stage.has("depth_signals") ? readDepthSignalsConfig(stage.object("depth_signals"), name) : NO_DEPTH_SIGNALS,
       distinct_families: stage.boolean("distinct_families")
     })),
     version: file.literal("version", 1)
@@ -1176,11 +1271,12 @@ function readDroppedCritic(fields) {
     family: fields.oneOf("family", MODEL_FAMILIES),
     reason: fields.oneOf("reason", DROP_REASONS),
     ...detail === void 0 ? {} : { detail },
-    ...replacedBy === void 0 ? {} : { replaced_by: replacedBy }
+    ...replacedBy === void 0 ? {} : { replaced_by: replacedBy },
+    ...fields.has("deep") && fields.boolean("deep") ? { deep: true } : {}
   };
 }
 function candidateClients(routing, request) {
-  const names = new Set(stageRouting(routing, request).base.flatMap((slot) => slotCandidates(routing, slot.client)));
+  const names = new Set(slotsAt(stageRouting(routing, request), request.depth).flatMap(({ slot }) => slotCandidates(routing, slot.client)));
   return [...names].map((name) => [name, clientNamed(routing, request, name)]).filter(([, client]) => familyReason(client.family, request) === void 0);
 }
 function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) {
@@ -1193,7 +1289,7 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     const ready = readiness.get(name);
     return ready?.ready === false ? { detail: ready.detail, reason: "unavailable" } : void 0;
   };
-  for (const slot of stage.base) {
+  for (const { slot, deep } of slotsAt(stage, request.depth)) {
     const primary = clientNamed(routing, request, slot.client);
     const primaryRefusal = refusal2(slot.client, primary);
     const name = slotCandidates(routing, slot.client).find(
@@ -1205,12 +1301,16 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
         client: slot.client,
         family: primary.family,
         ...primaryRefusal,
-        ...chosen === void 0 ? {} : { replaced_by: chosen.critic_id }
+        ...chosen === void 0 ? {} : { replaced_by: chosen.critic_id },
+        ...deep ? { deep } : {}
       });
     }
     if (chosen !== void 0) critics.push(chosen);
   }
-  return { critics, depth: "base", dropped };
+  return { critics, depth: request.depth, dropped };
+}
+function slotsAt(stage, depth) {
+  return [...stage.base.map((slot) => ({ slot })), ...depth === "deep" ? stage.deep.map((slot) => ({ deep: true, slot })) : []];
 }
 function stageRouting(routing, request) {
   const stage = routing.stages[request.stage];
@@ -1253,6 +1353,7 @@ function parseManifest(text) {
     created_at: file.string("created_at"),
     critics: file.list("critics", readRosterCritic),
     depth: file.oneOf("depth", DEPTHS),
+    depth_choice: readDepthChoice(file.object("depth_choice")),
     dropped: file.list("dropped", readDroppedCritic),
     orchestrator_family: file.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
     packet_dir: file.string("packet_dir"),
@@ -1590,7 +1691,7 @@ function criticStatus(outcome, violations) {
 }
 
 // src/contexts/critique/application/prepare.ts
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 
 // src/contexts/critique/application/code-packet.ts
 import { join as join5 } from "node:path";
@@ -1747,6 +1848,46 @@ var DecisionDocs = class {
   }
 };
 
+// src/contexts/critique/application/routing.ts
+import { join as join7 } from "node:path";
+
+// src/contexts/critique/domain/merge-patch.ts
+function mergePatch(target, patch) {
+  if (!isJsonObject(patch)) return patch;
+  const base = isJsonObject(target) ? target : {};
+  const keys = /* @__PURE__ */ new Set([...Object.keys(base), ...Object.keys(patch)]);
+  return Object.fromEntries(
+    [...keys].flatMap((key2) => {
+      if (!(key2 in patch)) return [[key2, base[key2]]];
+      const value = patch[key2];
+      return value === null ? [] : [[key2, mergePatch(base[key2], value)]];
+    })
+  );
+}
+
+// src/contexts/critique/application/routing.ts
+var RoutingSource = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async load() {
+    const shippedPath = join7(this.deps.assetsRoot, "routing.json");
+    const shipped = await readJsonFile(this.deps.files, shippedPath, "invalid-routing", (text) => JSON.parse(text));
+    const overridePath = routingOverridePath(this.deps.env);
+    if (!await this.deps.files.exists(overridePath)) {
+      return decoded("invalid-routing", shippedPath, () => parseRouting(JSON.stringify(shipped)));
+    }
+    const override = await readJsonFile(this.deps.files, overridePath, "invalid-routing", (text) => JSON.parse(text));
+    if (!isJsonObject(override)) throw new CritiqueError("invalid-routing", `${overridePath}: the override must be a JSON object`);
+    return decoded(
+      "invalid-routing",
+      `${shippedPath} with the override ${overridePath}`,
+      () => parseRouting(JSON.stringify(mergePatch(shipped, override)))
+    );
+  }
+};
+
 // src/contexts/critique/application/prepare.ts
 var PrepareCommand = class {
   constructor(deps) {
@@ -1755,16 +1896,19 @@ var PrepareCommand = class {
     this.trackers = new TrackerResolver(deps);
     this.decisionDocs = new DecisionDocs(deps.files);
     this.codePackets = new CodePacketReader(deps);
+    this.routing = new RoutingSource(deps);
   }
   deps;
   repositories;
   trackers;
   decisionDocs;
   codePackets;
+  routing;
   async run(raw) {
     const input = readInput(raw, "prepare", (fields) => ({
       base: fields.optionalString("base"),
       comments: fields.has("comments") ? fields.boolean("comments") : false,
+      depth: fields.has("depth") ? fields.oneOf("depth", DEPTHS) : void 0,
       head: fields.optionalString("head") ?? "HEAD",
       orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
       references: fields.has("references") ? fields.strings("references") : void 0,
@@ -1791,12 +1935,18 @@ var PrepareCommand = class {
     const contents = isCodeStage(stage) ? await this.codePackets.read(repository, tracker, { ...input, stage }) : await this.documentPacket(repository, tracker, input);
     if (contents.status === "refused") return contents;
     const { artifact, code } = contents;
-    const routing = await readJsonFile(this.deps.files, join7(this.deps.assetsRoot, "routing.json"), "invalid-routing", parseRouting);
-    const request = { allowedFamilies: entry.families, orchestratorFamily, stage };
+    const routing = await this.routing.load();
+    const { choice, depth } = chooseDepth(
+      stage,
+      stageRouting(routing, { stage }).depth_signals,
+      { labels: artifact.labels, text: artifact.text },
+      input.depth
+    );
+    const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage };
     const roster = resolveRoster(routing, request, await this.readiness(routing, request));
     const runId = await this.freshRunId(repository, stage);
-    const runDir = join7(repository.commonDir, "critique", runId);
-    const packetDir = join7(runDir, "packet");
+    const runDir = join8(repository.commonDir, "critique", runId);
+    const packetDir = join8(runDir, "packet");
     const packetFiles = await this.freezePacket(packetDir, contents.files);
     const source = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker };
     const manifest = {
@@ -1806,6 +1956,7 @@ var PrepareCommand = class {
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
+      depth_choice: choice,
       dropped: roster.dropped,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
@@ -1824,6 +1975,7 @@ var PrepareCommand = class {
       ...code === void 0 ? {} : { code: preparedCode(code, packetFiles) },
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
+      depth_choice: choice,
       dropped: roster.dropped,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
@@ -1843,7 +1995,7 @@ var PrepareCommand = class {
   async freshRunId(repository, stage) {
     const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(manifestPath(join7(repository.commonDir, "critique", candidate))); n += 1) {
+    for (let n = 2; await this.deps.files.exists(manifestPath(join8(repository.commonDir, "critique", candidate))); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
@@ -1859,13 +2011,13 @@ var PrepareCommand = class {
     if (artifact.status === "refused") return artifact;
     const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const files = [
-      { kind: "artifact", path: join7("artifact", artifact.name), source: artifact.reference, text: artifact.text },
+      { kind: "artifact", path: join8("artifact", artifact.name), source: artifact.reference, text: artifact.text },
       ...await Promise.all(
         references.map(async (source) => ({
           kind: "reference",
-          path: join7("references", source),
+          path: join8("references", source),
           source,
-          text: await this.deps.files.readText(join7(repository.root, source))
+          text: await this.deps.files.readText(join8(repository.root, source))
         }))
       )
     ];
@@ -1874,7 +2026,7 @@ var PrepareCommand = class {
   async freezePacket(packetDir, files) {
     const frozen = [];
     for (const { text, ...file } of files) {
-      await this.deps.files.writeText(join7(packetDir, file.path), text);
+      await this.deps.files.writeText(join8(packetDir, file.path), text);
       frozen.push({ ...file, sha256: sha256(text) });
     }
     return frozen;
@@ -1890,7 +2042,7 @@ function preparedCode(code, files) {
 }
 
 // src/contexts/critique/application/record.ts
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 
 // src/contexts/critique/domain/verdicts.ts
 var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
@@ -1911,6 +2063,9 @@ function isDissent(run, finding) {
 function ledgerLines(run, recordedAt) {
   const common = {
     depth: run.depth,
+    depth_chosen_by: run.depth_choice.chosen_by,
+    depth_measures: run.depth_choice.measures,
+    depth_signals: run.depth_choice.signals,
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
     run_id: run.run_id,
@@ -1976,7 +2131,7 @@ function renderSummary(run, reportPath) {
     `# Critique: ${run.stage}, run ${run.run_id}`,
     "",
     ...degradedLines(run),
-    `Depth: ${run.depth}`,
+    depthLine(run),
     verdictLine(run),
     "",
     "## Critics",
@@ -2023,7 +2178,7 @@ function renderReport(run) {
     "",
     ...degradedLines(run),
     `Repository: ${run.repository}`,
-    `Depth: ${run.depth}`,
+    depthLine(run),
     verdictLine(run),
     "",
     "## Critics",
@@ -2062,9 +2217,19 @@ function violationLines(run) {
 function degradedLines(run) {
   return run.degraded ? ["degraded: no critique ran", ""] : [];
 }
+function depthLine(run) {
+  const choice = run.depth_choice;
+  const measured = Object.entries(choice.measures).map(([measure, { threshold, value }]) => `${measure} ${String(value)} of ${String(threshold)}`);
+  const signals = choice.signals.length > 0 ? choice.signals.map(signalText).join("; ") : ["none fired", ...measured.length === 0 ? [] : [measured.join(", ")]].join(": ");
+  return choice.chosen_by === "argument" ? `Depth: ${run.depth}, chosen by argument; the signals alone would choose ${signalledDepth(choice)} (${signals})` : `Depth: ${run.depth}, chosen by signals: ${signals}`;
+}
+function signalText(signal) {
+  if (signal.kind === "threshold") return `${signal.measure} ${String(signal.value)} > ${String(signal.threshold)}`;
+  return signal.kind === "risk-term" ? `risk term "${signal.term}"` : `label ${signal.label}`;
+}
 function droppedLine(dropped) {
   const detail = dropped.detail === void 0 ? "" : ` (${dropped.detail})`;
-  const slot = dropped.replaced_by === void 0 ? "no fallback left, so the stage runs with fewer critics" : `replaced by ${dropped.replaced_by}`;
+  const slot = dropped.replaced_by !== void 0 ? `replaced by ${dropped.replaced_by}` : dropped.deep === true ? "deep critic left out" : "no fallback left, so the stage runs with fewer critics";
   return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}${detail}; ${slot}`;
 }
 function hashList(hashes) {
@@ -2142,12 +2307,13 @@ var RecordCommand = class {
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
-    const reportPath = join8(input.runDir, "report.md");
+    const reportPath = join9(input.runDir, "report.md");
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
     const run = {
       critics: merged.critics,
       degraded: merged.degraded,
       depth: manifest.depth,
+      depth_choice: manifest.depth_choice,
       dropped: manifest.dropped,
       findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
       repository: manifest.repository,
@@ -2155,7 +2321,7 @@ var RecordCommand = class {
       stage: manifest.stage
     };
     const summary = renderSummary(run, reportPath);
-    const summaryPath = join8(input.runDir, "summary.md");
+    const summaryPath = join9(input.runDir, "summary.md");
     const ledger = ledgerPath(this.deps.env);
     await this.deps.files.writeText(reportPath, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
@@ -2231,7 +2397,7 @@ function createCritiqueCommands(deps) {
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname3, join as join9, relative as relative2 } from "node:path";
+import { dirname as dirname3, join as join10, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -2260,7 +2426,7 @@ var NodeCritiqueFiles = class {
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join9(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join10(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -2268,7 +2434,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute2, join as join10 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join11 } from "node:path";
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
@@ -2302,7 +2468,7 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join10(launch.criticDir, "result.json");
+    const exportPath = join11(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
     return { ...result2, exportPath, outcome: classifyAgyRun(result2.exitCode, result2.stdout, run) };
@@ -2310,7 +2476,7 @@ var AgyCriticClient = class {
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join10(dir, binary))) return true;
+      if (await this.files.exists(join11(dir, binary))) return true;
     }
     return false;
   }
@@ -2386,7 +2552,7 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { join as join11 } from "node:path";
+import { join as join12 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files) {
     this.process = process2;
@@ -2399,8 +2565,8 @@ var VibeCriticClient = class {
     return Promise.resolve({ ready: true });
   }
   async review(launch, config) {
-    const exportDir = join11(launch.criticDir, "export");
-    const exportPath = join11(exportDir, "export.json");
+    const exportDir = join12(launch.criticDir, "export");
+    const exportPath = join12(exportDir, "export.json");
     const result2 = await this.process.exec(
       vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
     );

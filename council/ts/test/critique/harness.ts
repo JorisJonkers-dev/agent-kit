@@ -560,6 +560,11 @@ export async function harness(
     readonly agyScripts?: AgyScript[]
     /** Replaces the shipped routing.json in a private copy of the assets. */
     readonly routing?: unknown
+    /**
+     * This machine's routing override in `~/.config/agent-kit/critique-routing.json`:
+     * a value is written as JSON, a string as it is.
+     */
+    readonly routingOverride?: unknown
     /** The platform the runner reports; Antigravity is set up on macOS only. */
     readonly platform?: NodeJS.Platform
     /** Whether `agy` is on PATH. */
@@ -586,6 +591,14 @@ export async function harness(
     await writeFile(join(assetsRoot, 'routing.json'), JSON.stringify(options.routing))
   }
   const home = join(base, 'home')
+  if (options.routingOverride !== undefined) {
+    await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
+    const override = options.routingOverride
+    await writeFile(
+      join(home, '.config', 'agent-kit', 'critique-routing.json'),
+      typeof override === 'string' ? override : JSON.stringify(override),
+    )
+  }
   const repo = join(base, 'repo')
   await mkdir(join(repo, '.git'), { recursive: true })
   await mkdir(join(repo, '.scratch', 'widgets'), { recursive: true })
