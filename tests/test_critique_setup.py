@@ -139,8 +139,25 @@ def test_setup_copies_the_whole_critique_skill_into_every_agent_home(macos_run: 
         assert (dest / "critique.mjs").read_bytes() == (source / "critique.mjs").read_bytes(), home
 
 
+def test_critique_spec_is_built_so_it_is_no_longer_pending() -> None:
+    skill = _skill(_registry(), "critique-spec")
+    assert "pending" not in skill
+    assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
+
+
+def test_setup_installs_critique_spec_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "critique-spec" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "critique-spec" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "critique-spec" / ".." / "critique" / "critique.mjs").is_file(), home
+    assert "critique-spec: not built yet" not in macos_run.stdout
+
+
 def test_a_pending_skill_is_skipped_with_a_notice_not_a_failure(macos_run: Run) -> None:
-    """critique-spec is #177's: until its directory exists, setup says so and carries on."""
+    """Until a pending skill's directory exists, setup says so and carries on."""
     for skill in (s for s in _registry()["local_skills"] if s.get("pending")):
         name = skill["name"]
         assert f"{name}: not built yet" in macos_run.stdout, name

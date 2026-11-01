@@ -144,6 +144,42 @@ export class GitCliAdapter implements GitDagExecutorPort {
     return entries
   }
 
+  async resolveCommit(cwd: string, revision: string): Promise<string> {
+    const result = await this.git(cwd, ['rev-parse', '--verify', '--quiet', '--end-of-options', `${revision}^{commit}`])
+    return result.stdout.trim()
+  }
+
+  async mergeBase(cwd: string, a: string, b: string): Promise<string> {
+    const result = await this.git(cwd, ['merge-base', '--end-of-options', a, b])
+    return result.stdout.trim()
+  }
+
+  async treeFiles(cwd: string, commit: string): Promise<readonly string[]> {
+    const result = await this.git(cwd, ['ls-tree', '-r', '-z', '--full-tree', commit])
+    // Each entry is `<mode> <type> <object>\t<path>`. A symbolic link is a
+    // blob of mode 120000, and a submodule is a commit.
+    return result.stdout.split('\0').flatMap((entry) => {
+      const match = /^(\d+) (\w+) \w+\t(.+)$/s.exec(entry)
+      return match !== null && match[2] === 'blob' && match[1] !== '120000' ? [match[3] ?? ''] : []
+    })
+  }
+
+  async fileAt(cwd: string, commit: string, path: string): Promise<string> {
+    const result = await this.git(cwd, ['cat-file', 'blob', `${commit}:${path}`])
+    return result.stdout
+  }
+
+  async diffCommits(cwd: string, base: string, head: string): Promise<string> {
+    const args = ['-c', 'core.quotePath=false', 'diff', '--no-ext-diff', '--no-textconv', '--no-color', base, head, '--']
+    const result = await this.git(cwd, args)
+    return result.stdout
+  }
+
+  async changedPaths(cwd: string, base: string, head: string): Promise<readonly string[]> {
+    const result = await this.git(cwd, ['diff', '--name-only', '-z', '--no-renames', base, head, '--'])
+    return result.stdout.split('\0').filter((path) => path.length > 0)
+  }
+
   async diff(cwd: string, options: GitDiffOptions = {}): Promise<string> {
     const args = ['diff']
     if (options.staged === true) {

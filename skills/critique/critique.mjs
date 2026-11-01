@@ -149,7 +149,12 @@ function isRecord(value) {
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
+var DEFAULT_KILL_GRACE_MS = 5e3;
 var NodeProcessAdapter = class {
+  killGraceMs;
+  constructor(options = {}) {
+    this.killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
+  }
   async exec(command) {
     const child = spawn(command.command, [...command.args], {
       ...command.cwd === void 0 ? {} : { cwd: command.cwd },
@@ -158,36 +163,61 @@ var NodeProcessAdapter = class {
     });
     let stdout = "";
     let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
+      stdout += chunk;
     });
     child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
+      stderr += chunk;
     });
-    const timeout = setProcessTimeout(child, command.timeoutMs);
+    const timer = new ProcessTimer(child, command.timeoutMs, this.killGraceMs);
     const exitCode = await new Promise((resolve2, reject) => {
       child.once("error", reject);
       child.once("close", (code) => {
         resolve2(processExitCode(code));
       });
     }).finally(() => {
-      if (timeout !== void 0) clearTimeout(timeout);
+      timer.clear();
     });
     return {
       exitCode,
       stderr,
-      stdout
+      stdout,
+      ...timer.fired ? { timedOut: true } : {}
     };
   }
 };
-function setProcessTimeout(child, timeoutMs) {
-  if (timeoutMs === void 0) return void 0;
-  const timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-  }, timeoutMs);
-  timeout.unref();
-  return timeout;
-}
+var ProcessTimer = class {
+  constructor(child, timeoutMs, killGraceMs) {
+    this.child = child;
+    this.killGraceMs = killGraceMs;
+    if (timeoutMs !== void 0) {
+      this.after(timeoutMs, () => {
+        this.terminate();
+      });
+    }
+  }
+  child;
+  killGraceMs;
+  fired = false;
+  timers = [];
+  clear() {
+    for (const timer of this.timers) clearTimeout(timer);
+  }
+  terminate() {
+    this.fired = true;
+    this.child.kill("SIGTERM");
+    this.after(this.killGraceMs, () => {
+      this.child.kill("SIGKILL");
+    });
+  }
+  after(ms, action) {
+    const timer = setTimeout(action, ms);
+    timer.unref();
+    this.timers.push(timer);
+  }
+};
 function processExitCode(code) {
   if (code !== null) return code;
   return 124;
@@ -389,16 +419,20 @@ function parseAllowlist(text) {
   const file = JsonFields.parse(text);
   return {
     repositories: file.entries("repositories", (entry) => ({
+      code: entry.has("code") ? entry.boolean("code") : false,
       families: entry.oneOfList("families", MODEL_FAMILIES),
       updated_at: entry.string("updated_at")
     })),
     version: file.literal("version", 1)
   };
 }
-function withEntry(allowlist, key2, families, at) {
+function withEntry(allowlist, key2, permission, at) {
   return {
     version: 1,
-    repositories: { ...allowlist.repositories, [key2]: { families, updated_at: at.toISOString() } }
+    repositories: {
+      ...allowlist.repositories,
+      [key2]: { code: permission.code, families: permission.families, updated_at: at.toISOString() }
+    }
   };
 }
 
@@ -436,6 +470,9 @@ function manifestPath(runDir) {
 function findingsPath(runDir) {
   return join(runDir, "findings.json");
 }
+function reportPath(runDir) {
+  return join(runDir, "report.md");
+}
 
 // src/contexts/critique/application/repository.ts
 var RepositoryGate = class {
@@ -472,16 +509,19 @@ var AllowCommand = class {
   repositories;
   async run(raw) {
     const input = readInput(raw, "allow", (fields) => ({
+      code: fields.has("code") ? fields.boolean("code") : void 0,
       families: fields.oneOfList("families", MODEL_FAMILIES),
       repo: fields.string("repo")
     }));
     const repository = await this.repositories.resolve(input.repo);
     if (repository.status === "refused") return repository;
     const path = allowlistPath(this.deps.env);
-    const next = withEntry(await this.repositories.allowlist(), repository.key, input.families, this.deps.clock.now());
+    const allowlist = await this.repositories.allowlist();
+    const code = input.code ?? allowlist.repositories[repository.key]?.code ?? false;
+    const next = withEntry(allowlist, repository.key, { code, families: input.families }, this.deps.clock.now());
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
 `);
-    return { allowlist_path: path, families: input.families, repository: repository.key, status: "allowed" };
+    return { allowlist_path: path, code, families: input.families, repository: repository.key, status: "allowed" };
   }
 };
 
@@ -869,6 +909,71 @@ var CheckTicketsCommand = class {
 // src/contexts/critique/application/fan-out.ts
 import { join as join4 } from "node:path";
 
+// src/contexts/critique/domain/stage.ts
+var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
+var CODE_STAGES = ["ticket-review", "feature-review"];
+function isCodeStage(stage) {
+  return CODE_STAGES.includes(stage);
+}
+var DEPTHS = ["base", "deep"];
+var SECOND_ROUND_AFTER_CRITICAL = 3;
+
+// src/contexts/critique/domain/budget.ts
+var DEFAULT_LIMITS = {
+  antigravity_quota: { daily_cap: 20, reserve_threshold: 10, reserved_stages: ["spec", "feature-review"] },
+  budget: { vibe_flow_cap_usd: 5 }
+};
+function readLimits(file) {
+  const quota = file.has("antigravity_quota") ? file.object("antigravity_quota") : void 0;
+  return {
+    antigravity_quota: quota === void 0 ? DEFAULT_LIMITS.antigravity_quota : {
+      daily_cap: quota.number("daily_cap"),
+      reserve_threshold: quota.number("reserve_threshold"),
+      reserved_stages: quota.oneOfList("reserved_stages", CRITIQUE_STAGES)
+    },
+    budget: file.has("budget") ? { vibe_flow_cap_usd: file.object("budget").number("vibe_flow_cap_usd") } : DEFAULT_LIMITS.budget
+  };
+}
+function invocationLines(ledger) {
+  return ledger.split("\n").flatMap((text) => {
+    try {
+      const line = JsonFields.parse(text);
+      if (!line.has("type") || line.string("type") !== "invocation") return [];
+      return [
+        {
+          charged_usd: line.number("charged_usd"),
+          flow: line.string("flow"),
+          kind: line.oneOf("kind", ["vibe", "agy"]),
+          recorded_at: line.string("recorded_at"),
+          repository: line.string("repository")
+        }
+      ];
+    } catch {
+      return [];
+    }
+  });
+}
+function flowSpend(lines, repository, flow) {
+  return lines.filter((line) => line.kind === "vibe" && line.repository === repository && line.flow === flow).reduce((total, line) => total + line.charged_usd, 0);
+}
+function agyInvocationsOn(lines, now) {
+  const day = now.toISOString().slice(0, 10);
+  return lines.filter((line) => line.kind === "agy" && line.recorded_at.slice(0, 10) === day).length;
+}
+function budgetReached(spend, limits) {
+  const cap = limits.budget.vibe_flow_cap_usd;
+  return spend >= cap ? `the flow's Vibe spend $${spend.toFixed(4)} has reached its $${cap.toFixed(2)} cap` : void 0;
+}
+function quotaReached(count, quota, stage) {
+  if (count >= quota.daily_cap) {
+    return `antigravity: ${String(count)} invocations today have reached the daily cap of ${String(quota.daily_cap)}`;
+  }
+  if (count >= quota.reserve_threshold && !quota.reserved_stages.includes(stage)) {
+    return `antigravity: ${String(count)} invocations today have reached the reserve threshold of ${String(quota.reserve_threshold)}; the rest is kept for ${quota.reserved_stages.join(" and ")}`;
+  }
+  return void 0;
+}
+
 // src/contexts/critique/domain/findings.ts
 var SEVERITIES = ["critical", "major", "minor"];
 var CATEGORIES = [
@@ -884,7 +989,7 @@ var CATEGORIES = [
   "integration"
 ];
 var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
-var HINT_CODES = ["no-evidence", "no-spec-quote", "no-decision-quote", "no-decision-or-scenario"];
+var HINT_CODES = ["no-evidence", "no-spec-quote", "no-decision-quote", "no-decision-or-scenario", "no-test-or-trace"];
 var FINDINGS_FAILURES = [
   "no-findings-block",
   "unparseable-findings",
@@ -973,9 +1078,11 @@ var RUN_FAILURES = [
   "print-timeout",
   "denied-action",
   "missing-structured-output",
-  "unsafe-tool"
+  "unsafe-tool",
+  /** The CLI outlived its outer timeout and was killed. */
+  "timeout"
 ];
-var CRITIC_STATUSES = ["ok", "failed", "violated-readonly"];
+var CRITIC_STATUSES = ["ok", "failed", "violated-readonly", "budget-skip"];
 function criticIdentity(critic) {
   return {
     client: critic.client,
@@ -990,14 +1097,17 @@ function readCriticRun(fields) {
   const failure = fields.optionalMatching("failure", isCriticFailure, "a critic failure");
   const detail = fields.optionalString("detail");
   const noFindingsReason = fields.optionalString("no_findings_reason");
+  const retryOf = fields.optionalString("retry_of");
+  const stdoutPath = fields.optionalString("stdout_path");
+  const exportPath = fields.optionalString("export_path");
   const hashes = fields.object("prompt_hashes");
   return {
+    charged_usd: fields.number("charged_usd"),
     client: fields.string("client"),
     cost_usd: fields.nullableNumber("cost_usd"),
     critic_id: fields.string("critic_id"),
     duration_ms: fields.number("duration_ms"),
-    exit_code: fields.number("exit_code"),
-    export_path: fields.string("export_path"),
+    exit_code: fields.nullableNumber("exit_code"),
     family: fields.oneOf("family", MODEL_FAMILIES),
     finding_count: fields.number("finding_count"),
     lens_hashes: fields.stringMap("lens_hashes"),
@@ -1012,20 +1122,49 @@ function readCriticRun(fields) {
     prompt_path: fields.string("prompt_path"),
     role: fields.string("role"),
     status: fields.oneOf("status", CRITIC_STATUSES),
-    stdout_path: fields.string("stdout_path"),
     ...failure === void 0 ? {} : { failure },
     ...detail === void 0 ? {} : { detail },
-    ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason }
+    ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason },
+    ...retryOf === void 0 ? {} : { retry_of: retryOf },
+    ...stdoutPath === void 0 ? {} : { stdout_path: stdoutPath },
+    ...exportPath === void 0 ? {} : { export_path: exportPath }
   };
 }
 function isCriticFailure(value) {
   return isOneOf(RUN_FAILURES, value) || /^exit-\d+$/.test(value);
 }
 
+// src/contexts/critique/domain/line-references.ts
+var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
+var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
+var LOOKS_LIKE_A_FILE = /\/|\.[A-Za-z]\w*$/;
+function lineReferences(text) {
+  return [...text.replace(URL, " ").matchAll(REFERENCE)].flatMap((match) => {
+    const path = (match[1] ?? "").replace(/^\.\//, "");
+    if (!LOOKS_LIKE_A_FILE.test(path)) return [];
+    const first = Number(match[2]);
+    return [{ first, last: match[3] === void 0 ? first : Number(match[3]), path }];
+  });
+}
+function packetCandidates(path, treeDir) {
+  const diffSide = /^[ab]\/(.+)$/.exec(path);
+  return [path, `${treeDir}/${path}`, ...diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ""}`]];
+}
+function lineCount(text) {
+  if (text.length === 0) return 0;
+  return text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+}
+
 // src/contexts/critique/domain/evidence.ts
+function indexPacket(packet) {
+  return {
+    files: packet.map((file) => ({ ...file, normalised: normalise(file.text) })),
+    lines: new Map(packet.map((file) => [file.path, lineCount(file.text)]))
+  };
+}
+var TREE_DIR = "tree";
 var DECISION_CATEGORIES = ["omission", "invention"];
 function checkEvidence(finding, stage, packet) {
-  const files = packet.map((file) => ({ ...file, text: normalise(file.text) }));
   const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false };
   for (const [index, evidence] of finding.evidence.entries()) {
     if (evidence.kind !== "quote") {
@@ -1033,19 +1172,44 @@ function checkEvidence(finding, stage, packet) {
       continue;
     }
     const quote = normalise(evidence.value);
-    const holders = files.filter((file) => file.text.includes(quote));
-    if (holders.length === 0) {
-      return {
-        reason: `evidence ${String(index + 1)} quotes text that is not in the packet`,
-        reason_code: "fabricated-evidence",
-        verdict: "rejected"
-      };
-    }
+    const holders = packet.files.filter((file) => file.normalised.includes(quote));
+    if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`);
     found.spec ||= holders.some((file) => file.kind === "artifact");
     found.decision ||= holders.some((file) => file.kind === "reference");
   }
-  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : void 0;
+  if (isCodeStage(stage)) {
+    const missing = missingLine(finding, packet);
+    if (missing !== void 0) return fabricated(missing);
+  }
+  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : void 0;
   return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
+}
+function fabricated(reason) {
+  return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
+}
+function missingLine(finding, packet) {
+  const sources = [
+    { text: finding.location, where: "the location" },
+    ...finding.evidence.flatMap(
+      (evidence, index) => evidence.kind === "trace" ? [{ text: evidence.value, where: `evidence ${String(index + 1)}` }] : []
+    )
+  ];
+  for (const { text, where } of sources) {
+    for (const reference of lineReferences(text)) {
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate));
+      if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
+      const lines = packet.lines.get(path) ?? 0;
+      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines);
+      if (outside !== void 0) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`;
+    }
+  }
+  return void 0;
+}
+function codeRule(evidence) {
+  const checkable = evidence.some(
+    (item) => item.kind === "failing-test" || item.kind === "trace" && lineReferences(item.value).length > 0
+  );
+  return checkable ? void 0 : "no-test-or-trace";
 }
 function specRule(category, found) {
   if (!found.spec) return "no-spec-quote";
@@ -1056,7 +1220,8 @@ var HINT_REASONS = {
   "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
   "no-decision-quote": "no quote from a decision source",
   "no-evidence": "no evidence to check",
-  "no-spec-quote": "no quote from the spec"
+  "no-spec-quote": "no quote from the spec",
+  "no-test-or-trace": "no failing test and no trace with a file and line"
 };
 function normalise(text) {
   return text.replace(/\s+/g, " ").trim();
@@ -1152,12 +1317,13 @@ function containsTerm(text, term) {
 
 // src/contexts/critique/domain/routing.ts
 var CLIENT_KINDS = ["vibe", "agy"];
-var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable"];
+var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota"];
 function parseRouting(text) {
   const file = JsonFields.parse(text);
   return {
     clients: file.entries("clients", readCriticClient),
     fallbacks: file.has("fallbacks") ? file.stringLists("fallbacks") : {},
+    limits: readLimits(file),
     stages: file.entries("stages", (stage, name) => ({
       base: stage.list("base", readRosterSlot),
       deep: stage.has("deep") ? stage.list("deep", readRosterSlot) : [],
@@ -1207,7 +1373,11 @@ function readRosterCritic(fields) {
   return {
     ...readRosterSlot(fields),
     client_config: readCriticClient(fields.object("client_config")),
-    critic_id: fields.string("critic_id")
+    critic_id: fields.string("critic_id"),
+    fallbacks: fields.list("fallbacks", (fallback) => ({
+      client: fallback.string("client"),
+      client_config: readCriticClient(fallback.object("client_config"))
+    }))
   };
 }
 function readDroppedCritic(fields) {
@@ -1234,7 +1404,8 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     const reason = familyReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
     if (reason !== void 0) return { reason };
     const ready = readiness.get(name);
-    return ready?.ready === false ? { detail: ready.detail, reason: "unavailable" } : void 0;
+    if (ready?.ready !== false) return void 0;
+    return { detail: ready.detail, reason: "reason" in ready ? ready.reason : "unavailable" };
   };
   for (const { slot, deep } of slotsAt(stage, request.depth)) {
     const primary = clientNamed(routing, request, slot.client);
@@ -1242,7 +1413,16 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     const name = slotCandidates(routing, slot.client).find(
       (candidate) => refusal2(candidate, clientNamed(routing, request, candidate)) === void 0
     );
-    const chosen = name === void 0 ? void 0 : { ...slot, client: name, client_config: clientNamed(routing, request, name), critic_id: `c${String(critics.length + 1)}-${name}` };
+    const fallbacks = slotCandidates(routing, slot.client).filter((candidate) => candidate !== name).map((candidate) => ({ client: candidate, client_config: clientNamed(routing, request, candidate) })).filter(
+      (fallback) => familyReason(fallback.client_config.family, request) === void 0 && readiness.get(fallback.client)?.ready !== false
+    );
+    const chosen = name === void 0 ? void 0 : {
+      ...slot,
+      client: name,
+      client_config: clientNamed(routing, request, name),
+      critic_id: `c${String(critics.length + 1)}-${name}`,
+      fallbacks
+    };
     if (primaryRefusal !== void 0) {
       dropped.push({
         client: slot.client,
@@ -1254,7 +1434,7 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     }
     if (chosen !== void 0) critics.push(chosen);
   }
-  return { critics, depth: request.depth, dropped };
+  return { critics, depth: request.depth, distinct_families: stage.distinct_families, dropped };
 }
 function slotsAt(stage, depth) {
   return [...stage.base.map((slot) => ({ slot })), ...depth === "deep" ? stage.deep.map((slot) => ({ deep: true, slot })) : []];
@@ -1280,13 +1460,17 @@ function familyReason(family, request) {
   return void 0;
 }
 
-// src/contexts/critique/domain/stage.ts
-var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
-var DEPTHS = ["base", "deep"];
-
 // src/contexts/critique/domain/manifest.ts
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
+}
+var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec"];
+function listedFiles(manifest) {
+  const { code, packet_files: files } = manifest;
+  if (code === void 0) return files;
+  const changed = new Set(code.changed_files);
+  const ofKind = (kind) => files.filter((file) => file.kind === kind);
+  return [...ofKind("diff"), ...ofKind("tree").filter((file) => changed.has(file.path)), ...ofKind("ticket"), ...ofKind("spec")];
 }
 function parseManifest(text) {
   const file = JsonFields.parse(text);
@@ -1296,22 +1480,40 @@ function parseManifest(text) {
     created_at: file.string("created_at"),
     critics: file.list("critics", readRosterCritic),
     depth: file.oneOf("depth", DEPTHS),
+    distinct_families: file.boolean("distinct_families"),
     depth_choice: readDepthChoice(file.object("depth_choice")),
     dropped: file.list("dropped", readDroppedCritic),
+    flow: file.string("flow"),
+    limits: readLimits(file.object("limits")),
     orchestrator_family: file.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
     packet_dir: file.string("packet_dir"),
+    ...file.has("code") ? { code: readCodeSource(file.object("code")) } : {},
     packet_files: file.list("packet_files", (packetFile) => ({
-      kind: packetFile.oneOf("kind", ["artifact", "reference"]),
+      kind: packetFile.oneOf("kind", PACKET_FILE_KINDS),
       path: packetFile.string("path"),
       sha256: packetFile.string("sha256"),
       source: packetFile.string("source")
     })),
+    ...readRound(file),
     repo_root: file.string("repo_root"),
     repository: file.string("repository"),
     run_dir: file.string("run_dir"),
     run_id: file.string("run_id"),
     stage: file.oneOf("stage", CRITIQUE_STAGES),
     version: file.literal("version", 1)
+  };
+}
+function readRound(file) {
+  if (!file.has("round") || file.number("round") !== 2) return { round: file.has("round") ? file.literal("round", 1) : 1 };
+  return { previous_run_id: file.string("previous_run_id"), round: 2 };
+}
+function readCodeSource(code) {
+  return {
+    base: code.string("base"),
+    base_commit: code.string("base_commit"),
+    changed_files: code.strings("changed_files"),
+    head: code.string("head"),
+    head_commit: code.string("head_commit")
   };
 }
 function readArtifactSource(artifact) {
@@ -1366,7 +1568,20 @@ function rank(severity) {
 
 // src/contexts/critique/domain/prompt.ts
 var BLOCK_SEPARATOR = "\n\n---\n\n";
-function assemblePrompt(sources, files) {
+var DESCRIPTIONS = {
+  artifact: "the artifact under review",
+  diff: "the change under review, as a diff against its base",
+  reference: "reference material",
+  spec: "the spec the tickets come from",
+  ticket: "a ticket the change delivers",
+  tree: "a file the change touched, as it is at the commit under review"
+};
+var CODE_PACKET_NOTE = [
+  "Every other file of the repository at the commit under review is under `tree/`, at its repository path; read one with read_file as `tree/<repository path>`.",
+  "",
+  "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line past the end of its file, is rejected as fabricated evidence."
+].join("\n");
+function assemblePrompt(sources, files, codePacket = false) {
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join("\n\n");
   const contract = `${sources.contract.trim()}
 
@@ -1376,9 +1591,10 @@ ${sources.schema.trim()}
   const fileList = [
     "# Files",
     "",
-    "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
+    codePacket ? "Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:" : "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
     "",
-    ...files.map((file) => `- \`${file.path}\`: ${file.kind === "artifact" ? "the artifact under review" : "reference material"}`)
+    ...files.map((file) => `- \`${file.path}\`: ${DESCRIPTIONS[file.kind]}`),
+    ...codePacket ? ["", CODE_PACKET_NOTE] : []
   ].join("\n");
   return {
     lens_hashes: Object.fromEntries(sources.lenses.map((lens) => [lens.name, sha256(lens.text)])),
@@ -1392,6 +1608,46 @@ ${sources.schema.trim()}
 `
   };
 }
+
+// src/contexts/critique/application/budget.ts
+var FlowBudget = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  /** What the Vibe critics of this run's flow have been charged so far, this run's included. */
+  async vibeSpend(manifest) {
+    return flowSpend(await this.lines(), manifest.repository, manifest.flow);
+  }
+  /** agy launches on this machine today. */
+  async agyInvocationsToday() {
+    return agyInvocationsOn(await this.lines(), this.deps.clock.now());
+  }
+  async logInvocation(manifest, run, kind) {
+    const line = {
+      charged_usd: run.charged_usd,
+      client: run.client,
+      critic_id: run.critic_id,
+      family: run.family,
+      flow: manifest.flow,
+      kind,
+      model: run.model,
+      recorded_at: this.deps.clock.now().toISOString(),
+      repository: manifest.repository,
+      round: manifest.round,
+      run_id: manifest.run_id,
+      stage: manifest.stage,
+      status: run.status,
+      type: "invocation"
+    };
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+`);
+  }
+  async lines() {
+    const path = ledgerPath(this.deps.env);
+    return await this.deps.files.exists(path) ? invocationLines(await this.deps.files.readText(path)) : [];
+  }
+};
 
 // src/contexts/critique/application/ports.ts
 function clientReadiness(clients, config) {
@@ -1527,8 +1783,11 @@ var FanOutCommand = class {
     const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
-    const packet = await this.readPacket(manifest);
-    const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)));
+    const packet = indexPacket(await this.readPacket(manifest));
+    const budget = new FlowBudget(this.deps);
+    const spent = await budget.vibeSpend(manifest);
+    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)));
+    const outcomes = [...first, ...await this.retries({ budget, manifest, tripwire }, first)];
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet));
     const result2 = {
@@ -1554,8 +1813,51 @@ var FanOutCommand = class {
       }))
     );
   }
-  async runCritic(manifest, tripwire, critic) {
-    const criticDir = join4(manifest.run_dir, "critics", critic.critic_id);
+  /**
+   * Once the first wave has ended, retries every failed critic that has a
+   * fallback left, with the flow's spend and today's agy count read again,
+   * since the first wave (and any other session on this machine) has added
+   * to them.
+   */
+  async retries(wave, first) {
+    const { manifest } = wave;
+    const spent = await wave.budget.vibeSpend(manifest);
+    const blocked = {
+      agy: quotaReached(await wave.budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage) !== void 0,
+      vibe: budgetReached(spent, manifest.limits) !== void 0
+    };
+    const retries = fallbackRetries(manifest, first, blocked);
+    return Promise.all(retries.map((retry) => this.attempt({ ...wave, spent }, retry.critic, retry.retryOf)));
+  }
+  /**
+   * Launches one critic, unless it is a Vibe critic and the flow has spent
+   * its cap: then it is recorded as a budget skip and never launched.
+   */
+  async attempt(wave, critic, retryOf) {
+    const skip = critic.client_config.kind === "vibe" ? budgetReached(wave.spent, wave.manifest.limits) : void 0;
+    const criticDir = join4(wave.manifest.run_dir, "critics", critic.critic_id);
+    const prompt = await this.writePrompt(wave.manifest, critic, criticDir);
+    const retry = retryOf === void 0 ? {} : { retry_of: retryOf };
+    if (skip !== void 0) {
+      const run = {
+        ...criticIdentity(critic),
+        ...promptFields(prompt, criticDir),
+        ...retry,
+        charged_usd: 0,
+        cost_usd: null,
+        detail: skip,
+        duration_ms: 0,
+        exit_code: null,
+        finding_count: 0,
+        status: "budget-skip"
+      };
+      return { findings: [], run };
+    }
+    const attempt = await this.runCritic(wave.tripwire, critic, criticDir, prompt, retry);
+    await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind);
+    return attempt;
+  }
+  async writePrompt(manifest, critic, criticDir) {
     const asset = (path) => this.deps.files.readText(join4(this.deps.assetsRoot, path));
     const prompt = assemblePrompt(
       {
@@ -1565,11 +1867,15 @@ var FanOutCommand = class {
         role: await asset(`roles/${critic.role}.md`),
         schema: await asset(SCHEMA)
       },
-      manifest.packet_files
+      listedFiles(manifest),
+      manifest.code !== void 0
     );
-    const promptPath = join4(criticDir, "prompt.md");
+    await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text);
+    return prompt;
+  }
+  async runCritic(tripwire, critic, criticDir, prompt, retry) {
+    const { prompt_path: promptPath } = promptFields(prompt, criticDir);
     const stdoutPath = join4(criticDir, "stdout.json");
-    await this.deps.files.writeText(promptPath, prompt.text);
     const packetDir = join4(criticDir, "packet");
     const armed = await tripwire.arm(packetDir);
     const started = this.deps.clock.monotonicMs();
@@ -1588,20 +1894,47 @@ var FanOutCommand = class {
     const findings = outcome.status === "ok" && violations.length === 0 ? outcome.findings : [];
     const run = {
       ...criticIdentity(critic),
+      ...promptFields(prompt, criticDir),
+      ...retry,
+      charged_usd: report.chargedUsd,
       cost_usd: outcome.cost_usd,
       duration_ms: durationMs,
       exit_code: report.exitCode,
       export_path: report.exportPath,
       finding_count: findings.length,
-      lens_hashes: prompt.lens_hashes,
-      prompt_hashes: prompt.prompt_hashes,
-      prompt_path: promptPath,
       stdout_path: stdoutPath,
       ...criticStatus(outcome, violations)
     };
     return { findings, run };
   }
 };
+function promptFields(prompt, criticDir) {
+  return { lens_hashes: prompt.lens_hashes, prompt_hashes: prompt.prompt_hashes, prompt_path: join4(criticDir, "prompt.md") };
+}
+function fallbackRetries(manifest, first, blocked) {
+  const taken = new Set(first.filter((attempt) => attempt.run.status === "ok").map((attempt) => attempt.run.family));
+  const retries = [];
+  manifest.critics.forEach((critic, index) => {
+    if (first[index]?.run.status !== "failed") return;
+    const eligible = critic.fallbacks.filter(
+      (candidate) => !(candidate.client_config.kind === "agy" && blocked.agy) && (!manifest.distinct_families || !taken.has(candidate.client_config.family))
+    );
+    const fallback = eligible.find((candidate) => !(candidate.client_config.kind === "vibe" && blocked.vibe)) ?? eligible[0];
+    if (fallback === void 0) return;
+    taken.add(fallback.client_config.family);
+    retries.push({
+      critic: {
+        ...critic,
+        client: fallback.client,
+        client_config: fallback.client_config,
+        critic_id: `${critic.critic_id}-retry-${fallback.client}`,
+        fallbacks: []
+      },
+      retryOf: critic.critic_id
+    });
+  });
+  return retries;
+}
 function criticStatus(outcome, violations) {
   if (violations.length > 0) return { detail: `read-only violated: ${violations.join("; ")}`, status: "violated-readonly" };
   if (outcome.status === "failed") return { detail: outcome.detail, failure: outcome.failure, status: "failed" };
@@ -1609,10 +1942,95 @@ function criticStatus(outcome, violations) {
 }
 
 // src/contexts/critique/application/prepare.ts
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
+
+// src/contexts/critique/application/code-packet.ts
+import { join as join5 } from "node:path";
+var TREE_DIR2 = "tree";
+var DIFF_PATH = join5("diff", "change.diff");
+var READ_CONCURRENCY = 16;
+var CodePacketReader = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async read(repository, tracker, request) {
+    const { stage } = request;
+    if (request.base === void 0) {
+      throw new CritiqueError("invalid-input", `${stage} needs base: the commit or branch the change is diffed against`);
+    }
+    if (stage === "ticket-review" && request.ticket === void 0) {
+      throw new CritiqueError("invalid-input", "ticket-review needs ticket: the ticket the change delivers");
+    }
+    const root = repository.root;
+    const head = await this.commit(root, "head", request.head);
+    const base = await this.deps.git.mergeBase(root, await this.commit(root, "base", request.base), head);
+    const spec = await tracker.artifact({ comments: request.comments, reference: request.spec });
+    if (spec.status === "refused") return spec;
+    const tickets = await this.tickets(tracker, request, stage === "ticket-review" ? request.ticket : void 0);
+    if (tickets.status === "refused") return tickets;
+    const tree = await this.tree(root, head);
+    const inTree = new Set(tree.map((file) => file.source));
+    const changed = (await this.deps.git.changedPaths(root, base, head)).filter((path) => inTree.has(path));
+    const files = [
+      { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: await this.deps.git.diffCommits(root, base, head) },
+      ...tickets.files,
+      { kind: "spec", path: join5("spec", spec.name), source: spec.reference, text: spec.text },
+      ...tree
+    ];
+    return {
+      artifact: tickets.ticket ?? spec,
+      code: {
+        base: request.base,
+        base_commit: base,
+        changed_files: changed.map((path) => join5(TREE_DIR2, path)),
+        head: request.head,
+        head_commit: head
+      },
+      files,
+      status: "read"
+    };
+  }
+  async commit(root, field, revision) {
+    try {
+      return await this.deps.git.resolveCommit(root, revision);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new CritiqueError("invalid-input", `${field} ${revision} names no commit: ${detail}`);
+    }
+  }
+  /** The one ticket a ticket review names, or else every ticket of the spec. */
+  async tickets(tracker, request, reference) {
+    if (reference !== void 0) {
+      const ticket = await tracker.artifact({ comments: request.comments, reference });
+      if (ticket.status === "refused") return ticket;
+      return { files: [ticketFile(ticket.name, ticket.reference, ticket.text)], status: "read", ticket };
+    }
+    const read = await tracker.tickets(request.spec);
+    if (read.status === "refused") return read;
+    return { files: read.tickets.map((ticket) => ticketFile(ticket.name, ticket.reference, ticket.text)), status: "read" };
+  }
+  /** Every text file of the commit's tree; a file holding a NUL byte is binary and left out. */
+  async tree(root, commit) {
+    const paths = await this.deps.git.treeFiles(root, commit);
+    const files = [];
+    for (let start = 0; start < paths.length; start += READ_CONCURRENCY) {
+      const batch = paths.slice(start, start + READ_CONCURRENCY);
+      const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
+      batch.forEach((path, i) => {
+        const text = texts[i] ?? "";
+        if (!text.includes("\0")) files.push({ kind: "tree", path: join5(TREE_DIR2, path), source: path, text });
+      });
+    }
+    return files;
+  }
+};
+function ticketFile(name, reference, text) {
+  return { kind: "ticket", path: join5("tickets", name), source: reference, text };
+}
 
 // src/contexts/critique/application/decision-docs.ts
-import { basename as basename2, dirname as dirname2, join as join5 } from "node:path";
+import { basename as basename2, dirname as dirname2, join as join6 } from "node:path";
 
 // src/contexts/critique/domain/decision-docs.ts
 var DOMAIN_DOC = "docs/agents/domain.md";
@@ -1633,7 +2051,7 @@ var DecisionDocs = class {
   }
   files;
   async resolve(root) {
-    const domainDoc = join5(root, DOMAIN_DOC);
+    const domainDoc = join6(root, DOMAIN_DOC);
     const found = await this.files.exists(domainDoc) ? await this.fromDomainDoc(root, await this.files.readText(domainDoc)) : await this.fallback(root);
     return [...new Set(found)];
   }
@@ -1642,7 +2060,7 @@ var DecisionDocs = class {
     for (const path of namedPaths(text)) {
       found.push(...await this.expand(root, path));
       if (basename2(path) === CONTEXT_MAP && await this.isFile(root, path)) {
-        found.push(...await this.contexts(root, await this.files.readText(join5(root, path))));
+        found.push(...await this.contexts(root, await this.files.readText(join6(root, path))));
       }
     }
     return found;
@@ -1651,7 +2069,7 @@ var DecisionDocs = class {
   async contexts(root, map) {
     const found = [];
     for (const path of namedPaths(map).filter((named) => basename2(named) === "CONTEXT.md")) {
-      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join5(dirname2(path), ADR_DIRECTORY)));
+      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join6(dirname2(path), ADR_DIRECTORY)));
     }
     return found;
   }
@@ -1672,17 +2090,17 @@ var DecisionDocs = class {
     return await this.isFile(root, path) ? [path] : [];
   }
   async markdownIn(root, directory) {
-    const names = await this.files.listFiles(join5(root, directory));
-    return names.filter((name) => name.endsWith(".md")).map((name) => join5(directory, name));
+    const names = await this.files.listFiles(join6(root, directory));
+    return names.filter((name) => name.endsWith(".md")).map((name) => join6(directory, name));
   }
   /** True only for a plain file, so an empty directory is never read as a doc. */
   async isFile(root, path) {
-    return (await this.files.listFiles(join5(root, dirname2(path)))).includes(basename2(path));
+    return (await this.files.listFiles(join6(root, dirname2(path)))).includes(basename2(path));
   }
 };
 
 // src/contexts/critique/application/routing.ts
-import { join as join6 } from "node:path";
+import { join as join7 } from "node:path";
 
 // src/contexts/critique/domain/merge-patch.ts
 function mergePatch(target, patch) {
@@ -1705,7 +2123,7 @@ var RoutingSource = class {
   }
   deps;
   async load() {
-    const shippedPath = join6(this.deps.assetsRoot, "routing.json");
+    const shippedPath = join7(this.deps.assetsRoot, "routing.json");
     const shipped = await readJsonFile(this.deps.files, shippedPath, "invalid-routing", (text) => JSON.parse(text));
     const overridePath = routingOverridePath(this.deps.env);
     if (!await this.deps.files.exists(overridePath)) {
@@ -1728,22 +2146,29 @@ var PrepareCommand = class {
     this.repositories = new RepositoryGate(deps);
     this.trackers = new TrackerResolver(deps);
     this.decisionDocs = new DecisionDocs(deps.files);
+    this.codePackets = new CodePacketReader(deps);
     this.routing = new RoutingSource(deps);
   }
   deps;
   repositories;
   trackers;
   decisionDocs;
+  codePackets;
   routing;
   async run(raw) {
     const input = readInput(raw, "prepare", (fields) => ({
+      base: fields.optionalString("base"),
       comments: fields.has("comments") ? fields.boolean("comments") : false,
+      flow: fields.optionalString("flow"),
       depth: fields.has("depth") ? fields.oneOf("depth", DEPTHS) : void 0,
+      head: fields.optionalString("head") ?? "HEAD",
       orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
+      previousRunDir: fields.has("previous_run_dir") ? fields.string("previous_run_dir") : void 0,
       references: fields.has("references") ? fields.strings("references") : void 0,
       repo: fields.string("repo"),
       spec: fields.string("spec"),
-      stage: fields.oneOf("stage", CRITIQUE_STAGES)
+      stage: fields.oneOf("stage", CRITIQUE_STAGES),
+      ticket: fields.optionalString("ticket")
     }));
     const { orchestratorFamily, stage } = input;
     const repository = await this.repositories.resolve(input.repo);
@@ -1752,11 +2177,20 @@ var PrepareCommand = class {
     if (entry === void 0) {
       return refusal("not-opted-in", `${repository.key} has no family allowlist entry on this machine; record one with allow`);
     }
+    if (isCodeStage(stage) && !entry.code) {
+      return refusal(
+        "code-not-allowed",
+        `${repository.key} allows documents but not code; record the code permission with allow and "code": true`
+      );
+    }
     const tracker = await this.trackers.resolve(repository);
     if (tracker.status === "refused") return tracker;
-    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec });
-    if (artifact.status === "refused") return artifact;
-    const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
+    const contents = isCodeStage(stage) ? await this.codePackets.read(repository, tracker, { ...input, stage }) : await this.documentPacket(repository, tracker, input);
+    if (contents.status === "refused") return contents;
+    const { artifact, code } = contents;
+    const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage });
+    if ("status" in round) return round;
+    const { previousFlow, ...roundFields } = round;
     const routing = await this.routing.load();
     const { choice, depth } = chooseDepth(
       stage,
@@ -1767,23 +2201,28 @@ var PrepareCommand = class {
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage };
     const roster = resolveRoster(routing, request, await this.readiness(routing, request));
     const runId = await this.freshRunId(repository, stage);
-    const runDir = join7(repository.commonDir, "critique", runId);
-    const packetDir = join7(runDir, "packet");
-    const packetFiles = await this.freezePacket(repository, packetDir, artifact, references);
+    const runDir = join8(repository.commonDir, "critique", runId);
+    const packetDir = join8(runDir, "packet");
+    const packetFiles = await this.freezePacket(packetDir, contents.files);
     const source = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker };
     const manifest = {
       allowed_families: entry.families,
       artifact: source,
+      ...code === void 0 ? {} : { code },
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
+      distinct_families: roster.distinct_families,
       depth_choice: choice,
       dropped: roster.dropped,
+      flow: input.flow ?? previousFlow ?? artifact.reference,
+      limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
       repo_root: repository.root,
       repository: repository.key,
+      ...roundFields,
       run_dir: runDir,
       run_id: runId,
       stage,
@@ -1793,62 +2232,109 @@ var PrepareCommand = class {
 `);
     return {
       artifact: source,
+      ...code === void 0 ? {} : { code: preparedCode(code, packetFiles) },
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
       depth_choice: choice,
       dropped: roster.dropped,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
-      packet_files: packetFiles.map((file) => file.path),
+      packet_files: listedFiles(manifest).map((file) => file.path),
+      round: roundFields.round,
       run_dir: runDir,
       run_id: runId,
       status: "ready"
     };
   }
-  /** Asks each client the stage could run, and that the family rules permit, whether it can run here. */
+  /**
+   * A first round, or the second round after the recorded first round named
+   * by `previous_run_dir`. A run that was itself a second round is refused, so
+   * a stage never runs a third time over one artifact.
+   */
+  async round(previousRunDir, current) {
+    if (previousRunDir === void 0) return { round: 1 };
+    const previous = await readJsonFile(this.deps.files, manifestPath(previousRunDir), "invalid-run", parseManifest);
+    if (previous.round === 2) {
+      return refusal("round-limit", `run ${previous.run_id} was already the second round; a stage runs at most two rounds`);
+    }
+    if (!await this.deps.files.exists(reportPath(previousRunDir))) {
+      throw new CritiqueError("invalid-run", `run ${previous.run_id} is not recorded yet; record it before its second round`);
+    }
+    const { reference, repository, stage } = current;
+    if (previous.repository !== repository || previous.stage !== stage || previous.artifact.reference !== reference) {
+      throw new CritiqueError(
+        "invalid-input",
+        `run ${previous.run_id} critiqued ${previous.artifact.reference} at the ${previous.stage} stage, not ${reference}`
+      );
+    }
+    return { previousFlow: previous.flow, previous_run_id: previous.run_id, round: 2 };
+  }
+  /**
+   * Asks each client the stage could run, and that the family rules permit,
+   * whether it can run here, and holds an agy client that can to the day's
+   * Antigravity quota. Counting reads the ledger and launches nothing, so an
+   * agy that is not set up falls back without touching the counter.
+   */
   async readiness(routing, request) {
-    const checks = candidateClients(routing, request).map(
-      async ([name, client]) => [name, await clientReadiness(this.deps.clients, client)]
-    );
+    const agyToday = await new FlowBudget(this.deps).agyInvocationsToday();
+    const checks = candidateClients(routing, request).map(async ([name, client]) => {
+      const ready = await clientReadiness(this.deps.clients, client);
+      const quota = ready.ready && client.kind === "agy" ? quotaReached(agyToday, routing.limits.antigravity_quota, request.stage) : void 0;
+      return [name, quota === void 0 ? ready : { detail: quota, ready: false, reason: "quota" }];
+    });
     return new Map(await Promise.all(checks));
   }
   async freshRunId(repository, stage) {
     const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(manifestPath(join7(repository.commonDir, "critique", candidate))); n += 1) {
+    for (let n = 2; await this.deps.files.exists(manifestPath(join8(repository.commonDir, "critique", candidate))); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
   }
   /**
-   * Writes the artifact to `artifact/` and copies each reference to
-   * `references/` under its repository path. Nothing else is ever put at the
-   * packet root, so a `.vibe/`, `.agents/` or `AGENTS.md` there can never
-   * become critic config.
+   * A document stage's packet: the artifact goes to `artifact/` and each
+   * reference to `references/` under its repository path. Nothing else is
+   * ever put at the packet root, so a `.vibe/`, `.agents/` or `AGENTS.md`
+   * there can never become critic config.
    */
-  async freezePacket(repository, packetDir, artifact, references) {
+  async documentPacket(repository, tracker, input) {
+    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec });
+    if (artifact.status === "refused") return artifact;
+    const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const files = [
-      { kind: "artifact", path: join7("artifact", artifact.name), source: artifact.reference, text: artifact.text },
+      { kind: "artifact", path: join8("artifact", artifact.name), source: artifact.reference, text: artifact.text },
       ...await Promise.all(
         references.map(async (source) => ({
           kind: "reference",
-          path: join7("references", source),
+          path: join8("references", source),
           source,
-          text: await this.deps.files.readText(join7(repository.root, source))
+          text: await this.deps.files.readText(join8(repository.root, source))
         }))
       )
     ];
+    return { artifact, code: void 0, files, status: "read" };
+  }
+  async freezePacket(packetDir, files) {
     const frozen = [];
     for (const { text, ...file } of files) {
-      await this.deps.files.writeText(join7(packetDir, file.path), text);
+      await this.deps.files.writeText(join8(packetDir, file.path), text);
       frozen.push({ ...file, sha256: sha256(text) });
     }
     return frozen;
   }
 };
+function preparedCode(code, files) {
+  return {
+    base_commit: code.base_commit,
+    changed_files: code.changed_files,
+    head_commit: code.head_commit,
+    tree_files: files.filter((file) => file.kind === "tree").length
+  };
+}
 
 // src/contexts/critique/application/record.ts
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 
 // src/contexts/critique/domain/verdicts.ts
 var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
@@ -1856,6 +2342,13 @@ function countVerdicts(run) {
   const counts = { accepted: 0, hint: 0, "needs-human": 0, rejected: 0 };
   for (const finding of run.findings) counts[finding.verdict.verdict] += 1;
   return counts;
+}
+function secondRoundDue(run) {
+  const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
+  return run.round === 1 && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+}
+function openCriticalQuestions(run) {
+  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
 }
 function familiesOf(run, finding) {
   const families = run.critics.filter((critic) => finding.raised_by.includes(critic.critic_id)).map((c) => c.family);
@@ -1869,11 +2362,13 @@ function isDissent(run, finding) {
 function ledgerLines(run, recordedAt) {
   const common = {
     depth: run.depth,
+    flow: run.flow,
     depth_chosen_by: run.depth_choice.chosen_by,
     depth_measures: run.depth_choice.measures,
     depth_signals: run.depth_choice.signals,
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
+    round: run.round,
     run_id: run.run_id,
     spec: run.spec,
     stage: run.stage
@@ -1895,11 +2390,13 @@ function ledgerLines(run, recordedAt) {
     type: "run",
     ...common,
     ...criticFields(critic.critic_id),
+    charged_usd: critic.charged_usd,
     cost_usd: critic.cost_usd,
     duration_ms: critic.duration_ms,
     exit_code: critic.exit_code,
     failure: critic.failure ?? null,
     finding_count: critic.finding_count,
+    retry_of: critic.retry_of ?? null,
     status: critic.status
   }));
   const findingLines = run.findings.map((finding) => ({
@@ -1982,12 +2479,12 @@ var SUMMARY_MAX_CHARS = 6e3;
 var CLAIM_MAX_CHARS = 160;
 var CHECKED_MAX_CHARS = 300;
 var MINOR_MAX_CHARS = 300;
-function renderSummary(run, reportPath) {
+function renderSummary(run, reportPath2) {
   const serious = run.findings.filter((f) => f.severity !== "minor");
   const lists = {
     accepted: serious.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(run, f)),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ""}`)),
-    questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(run, f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
+    questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(run, f, questionTail(f.verdict)))
   };
   const hidden = { accepted: 0, dissent: 0, questions: 0 };
   const render = () => [
@@ -1996,11 +2493,13 @@ function renderSummary(run, reportPath) {
     "",
     ...degradedLines(run),
     depthLine(run),
+    ...roundLines(run),
     verdictLine(run),
+    ...toTicketsLines(run),
     "",
     "## Critics",
     "",
-    ...run.critics.map((critic) => `- ${criticLine(critic, CHECKED_MAX_CHARS)}`),
+    ...run.critics.map((critic) => `- ${criticLine(run, critic, CHECKED_MAX_CHARS)}`),
     ...run.dropped.map(droppedLine),
     "",
     "## Accepted",
@@ -2021,7 +2520,7 @@ function renderSummary(run, reportPath) {
     "",
     "## Report",
     "",
-    reportPath,
+    reportPath2,
     ""
   ].join("\n");
   const trimmable = () => Object.keys(lists).filter((key2) => lists[key2].length > 0);
@@ -2050,7 +2549,7 @@ function renderReport(run) {
     ...run.critics.flatMap((critic) => [
       `### ${critic.critic_id}`,
       "",
-      `- ${criticLine(critic)}`,
+      `- ${criticLine(run, critic)}`,
       `- Role ${critic.role}, lenses ${critic.lenses.join(", ")}`,
       `- Exit code ${String(critic.exit_code)}, ${String(critic.duration_ms)} ms`,
       ...critic.detail === void 0 ? [] : [`- Detail: ${critic.detail}`],
@@ -2080,6 +2579,22 @@ function violationLines(run) {
 }
 function degradedLines(run) {
   return run.degraded ? ["degraded: no critique ran", ""] : [];
+}
+function roundLines(run) {
+  return run.round === 2 ? [`Round 2, after run ${run.previous_run_id ?? ""}`] : [];
+}
+function toTicketsLines(run) {
+  const open = openCriticalQuestions(run).map((f) => f.id);
+  if (open.length === 0) return [];
+  const which = open.length === 1 ? `critical question ${open.join("")} is` : `critical questions ${open.join(", ")} are`;
+  return [`Do not start /to-tickets: ${which} unanswered.`];
+}
+function questionTail(verdict) {
+  const parts = [
+    ...verdict.reason === void 0 ? [] : [`Question: ${verdict.reason}`],
+    ...verdict.answered === true ? ["(answered)"] : []
+  ];
+  return parts.length === 0 ? void 0 : parts.join(" ");
 }
 function depthLine(run) {
   const choice = run.depth_choice;
@@ -2118,18 +2633,26 @@ function findingSection(run, finding) {
 }
 function verdictText(verdict) {
   const code = verdict.reason_code === void 0 ? "" : ` (${verdict.reason_code})`;
+  const answered = verdict.answered === true ? ", answered" : "";
   const reason = verdict.reason === void 0 ? "" : `: ${verdict.reason}`;
-  return `${verdict.verdict}${code}${reason}`;
+  return `${verdict.verdict}${answered}${code}${reason}`;
 }
 function verdictLine(run) {
   const counts = countVerdicts(run);
   return `Verdicts: accepted ${String(counts.accepted)}, rejected ${String(counts.rejected)}, needs-human ${String(counts["needs-human"])}, hint ${String(counts.hint)}`;
 }
-function criticLine(critic, checkedMaxChars = Infinity) {
+function criticLine(run, critic, checkedMaxChars = Infinity) {
+  const who = `${critic.client} (${critic.model}, ${critic.family})`;
+  if (critic.status === "budget-skip") return `${who}: budget-skip: ${critic.detail ?? ""}${retryText(run, critic)}`;
   const cost = critic.cost_usd === null ? "cost unknown" : `$${critic.cost_usd.toFixed(4)}`;
   const status = critic.status === "ok" ? "ok" : critic.status === "violated-readonly" ? "violated read-only" : `failed (${critic.failure ?? "unknown"})`;
   const checked = critic.no_findings_reason === void 0 ? "" : ` (checked: ${clip(critic.no_findings_reason, checkedMaxChars)})`;
-  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? "" : "s"}, ${cost}${checked}`;
+  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? "" : "s"}, ${cost}${retryText(run, critic)}${checked}`;
+}
+function retryText(run, critic) {
+  if (critic.retry_of === void 0) return "";
+  const failed = run.critics.find((other) => other.critic_id === critic.retry_of);
+  return `, fallback for ${critic.retry_of} (${failed?.failure ?? "failed"})`;
 }
 function clip(text, maxChars) {
   return text.length > maxChars ? `${text.slice(0, maxChars - 1)}\u2026` : text;
@@ -2171,8 +2694,8 @@ var RecordCommand = class {
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
-    const reportPath = join8(input.runDir, "report.md");
-    if (await this.deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
+    const reportPath2 = reportPath(input.runDir);
+    if (await this.deps.files.exists(reportPath2)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
     const run = {
       critics: merged.critics,
       degraded: merged.degraded,
@@ -2180,15 +2703,18 @@ var RecordCommand = class {
       depth_choice: manifest.depth_choice,
       dropped: manifest.dropped,
       findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
+      flow: manifest.flow,
       repository: manifest.repository,
+      round: manifest.round,
+      ...manifest.previous_run_id === void 0 ? {} : { previous_run_id: manifest.previous_run_id },
       run_id: manifest.run_id,
       spec: manifest.artifact.reference,
       stage: manifest.stage
     };
-    const summary = renderSummary(run, reportPath);
-    const summaryPath = join8(input.runDir, "summary.md");
+    const summary = renderSummary(run, reportPath2);
+    const summaryPath = join9(input.runDir, "summary.md");
     const ledger = ledgerPath(this.deps.env);
-    await this.deps.files.writeText(reportPath, renderReport(run));
+    await this.deps.files.writeText(reportPath2, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
     await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line) => `${line}
 `).join(""));
@@ -2196,8 +2722,10 @@ var RecordCommand = class {
       counts: countVerdicts(run),
       degraded: run.degraded,
       ledger_path: ledger,
-      report_path: reportPath,
+      report_path: reportPath2,
+      round: run.round,
       run_id: manifest.run_id,
+      second_round_due: secondRoundDue(run),
       status: "recorded",
       summary,
       summary_path: summaryPath
@@ -2238,11 +2766,17 @@ function readVerdict(fields) {
   const verdict = fields.oneOf("verdict", VERDICTS);
   const reason = verdict === "rejected" || fields.has("reason") ? fields.string("reason") : void 0;
   const code = fields.optionalMatching("reason_code", isReasonCode, "a short lowercase slug");
+  const findingId = fields.string("finding_id");
+  const answered = fields.has("answered") ? fields.boolean("answered") : void 0;
+  if (answered !== void 0 && verdict !== "needs-human") {
+    throw new CritiqueError("invalid-input", `${findingId}: only a needs-human verdict can be answered`);
+  }
   return {
-    finding_id: fields.string("finding_id"),
+    finding_id: findingId,
     verdict,
     ...reason === void 0 ? {} : { reason },
-    ...code === void 0 ? {} : { reason_code: code }
+    ...code === void 0 ? {} : { reason_code: code },
+    ...answered === void 0 ? {} : { answered }
   };
 }
 function isReasonCode(value) {
@@ -2576,7 +3110,7 @@ function createCritiqueCommands(deps) {
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname3, join as join9, relative as relative2 } from "node:path";
+import { dirname as dirname3, join as join10, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -2605,7 +3139,7 @@ var NodeCritiqueFiles = class {
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join9(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join10(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -2613,7 +3147,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute2, join as join10 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join11 } from "node:path";
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
@@ -2647,15 +3181,16 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join10(launch.criticDir, "result.json");
+    const exportPath = join11(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
-    return { ...result2, exportPath, outcome: classifyAgyRun(result2.exitCode, result2.stdout, run) };
+    const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run);
+    return { ...result2, chargedUsd: 0, exportPath, outcome };
   }
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join10(dir, binary))) return true;
+      if (await this.files.exists(join11(dir, binary))) return true;
     }
     return false;
   }
@@ -2701,6 +3236,9 @@ function readStream(stdout) {
   }
   return { parsed: true, result: result2, tools };
 }
+function timedOut(timeoutS) {
+  return { cost_usd: null, detail: `agy did not return within ${String(timeoutS)}s, so the outer timer killed it`, failure: "timeout", status: "failed" };
+}
 function classifyAgyRun(exitCode, stdout, run) {
   const failed = (failure, detail) => ({ cost_usd: null, detail, failure, status: "failed" });
   if (exitCode !== 0) return failed(`exit-${String(exitCode)}`, `agy exited ${String(exitCode)}`);
@@ -2731,31 +3269,62 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { join as join11 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join12 } from "node:path";
 var VibeCriticClient = class {
-  constructor(process2, files) {
+  constructor(process2, files, env) {
     this.process = process2;
     this.files = files;
+    this.env = env;
   }
   process;
   files;
-  /** Vibe is not checked ahead of a run: a missing binary or agent fails the critic at launch. */
-  async readiness() {
-    return Promise.resolve({ ready: true });
+  env;
+  /**
+   * Whether the critic can run on the personal home: `vibe` on `PATH`, the
+   * home signed in the way setup checks it (Vibe's Keychain item, else a key
+   * in `~/.vibe/.env`; `MISTRAL_API_KEY` does not count, since a critic runs
+   * with it unset), and the `critic-<model>` agent setup installs. Nothing is
+   * launched, so a client that is not ready falls back in prepare and costs
+   * nothing.
+   */
+  async readiness(config) {
+    if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
+    const home = join12(this.env.require("HOME"), ".vibe");
+    if (!await this.signedIn(home)) return { detail: SIGN_IN2, ready: false };
+    if (!await this.files.exists(join12(home, "agents", `${config.agent}.toml`))) {
+      return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
+    }
+    return { ready: true };
+  }
+  async signedIn(home) {
+    const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY"], command: "security" }).catch(() => ({ exitCode: 1 }));
+    if (keychain.exitCode === 0) return true;
+    const dotenv = join12(home, ".env");
+    if (!await this.files.exists(dotenv)) return false;
+    return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
+  }
+  async onPath(binary) {
+    if (isAbsolute3(binary)) return this.files.exists(binary);
+    for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
+      if (await this.files.exists(join12(dir, binary))) return true;
+    }
+    return false;
   }
   async review(launch, config) {
-    const exportDir = join11(launch.criticDir, "export");
-    const exportPath = join11(exportDir, "export.json");
+    const exportDir = join12(launch.criticDir, "export");
+    const exportPath = join12(exportDir, "export.json");
     const result2 = await this.process.exec(
       vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
     );
-    const outcome = classifyVibeRun({
+    const run = {
       exitCode: result2.exitCode,
       exported: await this.readExport(exportPath),
       stderr: result2.stderr,
-      stdout: result2.stdout
-    });
-    return { ...result2, exportPath, outcome };
+      stdout: result2.stdout,
+      timedOut: result2.timedOut === true,
+      timeoutS: launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S2
+    };
+    return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
   }
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
   async readExport(path) {
@@ -2767,6 +3336,7 @@ var VibeCriticClient = class {
     }
   }
 };
+var SIGN_IN2 = "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup";
 var OUTER_TIMEOUT_GRACE_S2 = 60;
 var ISOLATION_ENV = {
   VIBE_ENABLE_MCP: "false",
@@ -2813,6 +3383,7 @@ function classifyVibeRun(run) {
   const exported = jsonObjectOrUndefined(run.exported);
   const cost = typeof exported?.cost_usd === "number" ? exported.cost_usd : null;
   const failed = (failure, detail) => ({ cost_usd: cost, detail, failure, status: "failed" });
+  if (run.timedOut) return failed("timeout", `vibe did not return within ${String(run.timeoutS)}s, so the outer timer killed it`);
   if (run.exitCode !== 0) {
     const outcome = typeof exported?.outcome === "string" ? `outcome ${exported.outcome}` : run.stderr.trim();
     return failed(EXIT_FAILURES[run.exitCode] ?? `exit-${String(run.exitCode)}`, `vibe exited ${String(run.exitCode)}: ${outcome}`);
@@ -2831,6 +3402,16 @@ function classifyVibeRun(run) {
     status: "ok",
     ...parsed.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed.no_findings_reason }
   };
+}
+function vibeCharge(run, cap) {
+  const exported = jsonObjectOrUndefined(run.exported);
+  const cost = exported?.cost_usd;
+  if (run.timedOut || typeof cost !== "number") return cap;
+  if (exported?.outcome === "deadline") return Math.max(cost, cap);
+  return cost === 0 && usedTokens(jsonObjectOrUndefined(exported?.usage)) ? cap : cost;
+}
+function usedTokens(usage) {
+  return [usage?.input_tokens, usage?.output_tokens].some((tokens) => typeof tokens === "number" && tokens > 0);
 }
 function isolationViolations(config) {
   const violations = [];
@@ -3059,6 +3640,34 @@ var GitCliAdapter = class {
     }
     return entries;
   }
+  async resolveCommit(cwd, revision) {
+    const result2 = await this.git(cwd, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${revision}^{commit}`]);
+    return result2.stdout.trim();
+  }
+  async mergeBase(cwd, a, b) {
+    const result2 = await this.git(cwd, ["merge-base", "--end-of-options", a, b]);
+    return result2.stdout.trim();
+  }
+  async treeFiles(cwd, commit) {
+    const result2 = await this.git(cwd, ["ls-tree", "-r", "-z", "--full-tree", commit]);
+    return result2.stdout.split("\0").flatMap((entry) => {
+      const match = /^(\d+) (\w+) \w+\t(.+)$/s.exec(entry);
+      return match !== null && match[2] === "blob" && match[1] !== "120000" ? [match[3] ?? ""] : [];
+    });
+  }
+  async fileAt(cwd, commit, path) {
+    const result2 = await this.git(cwd, ["cat-file", "blob", `${commit}:${path}`]);
+    return result2.stdout;
+  }
+  async diffCommits(cwd, base, head) {
+    const args = ["-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", base, head, "--"];
+    const result2 = await this.git(cwd, args);
+    return result2.stdout;
+  }
+  async changedPaths(cwd, base, head) {
+    const result2 = await this.git(cwd, ["diff", "--name-only", "-z", "--no-renames", base, head, "--"]);
+    return result2.stdout.split("\0").filter((path) => path.length > 0);
+  }
   async diff(cwd, options = {}) {
     const args = ["diff"];
     if (options.staged === true) {
@@ -3240,7 +3849,7 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       assetsRoot,
       clients: {
         agy: new AgyCriticClient(processPort, files, env, platform),
-        vibe: new VibeCriticClient(processPort, files)
+        vibe: new VibeCriticClient(processPort, files, env)
       },
       clock: new SystemClockAdapter(),
       env,

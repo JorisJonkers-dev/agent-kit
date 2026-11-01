@@ -837,16 +837,14 @@ local_skills:
 
   - name: critique-spec
     path: skills/critique-spec
-    pending: https://github.com/JorisJonkers-dev/agent-kit/issues/177
     purpose: >-
       Critique a spec after /to-spec: critics from other model families
       review it read-only, and the orchestrator rules on their findings.
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      `pending:` names the issue that writes the skill. Until its SKILL.md
-      exists, setup skips it with a notice; once it exists, validation
-      refuses the `pending:` line, so the entry installs like the others.
+      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      allow), so setup installs both side by side in every agent home.
 
   - name: critique-stats
     path: skills/critique-stats

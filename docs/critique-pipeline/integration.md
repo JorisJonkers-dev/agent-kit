@@ -1542,3 +1542,222 @@ these:
   the report, explains each suggestion and candidate, and points the owner
   at `skills/critique/routing.json`; nothing writes routing. #200's dogfood
   run reads its removal candidates from the same report.
+
+## What #177 settled
+
+The `/critique-spec` skill (agent-kit#177) fixed these:
+
+- **The skill.** `skills/critique-spec/SKILL.md` is agent-neutral and finds
+  the runner at `../critique/critique.mjs`, so the two skills must always be
+  installed side by side (a pytest checks every agent home). It maps the
+  orchestrator's own model, not its app, to `orchestrator_family`: Claude
+  `anthropic`, GPT `openai`, Mistral `mistral`, GLM `zhipu`, DeepSeek
+  `deepseek`, Gemini `google`. Antigravity and Vibe's fallbacks are the
+  runner's (#171); the skill only reports them. The registry entry no longer
+  carries `pending:`.
+- **Order of a round.** Prepare, fan-out, verdicts, fixes to the spec, the
+  owner's answers, then record. The questions come before record so record
+  knows which are answered, and before a second round so the answers reach
+  the revised spec. The single change comment is posted after the last
+  round, so no round's results reach the next round's packet (for local
+  markdown the comment is part of the spec file, which prepare freezes
+  whole).
+- **Answered questions.** A `needs-human` verdict may carry
+  `"answered": true`; on any other verdict it is an `invalid-input` error.
+  The summary marks an answered question `(answered)`, the report says
+  `Verdict: needs-human, answered: ...`, and while a critical question is
+  unanswered the summary has `Do not start /to-tickets: critical question F3
+  is unanswered.` under the verdict counts. The ledger does not record
+  answers.
+- **Rounds.** Record's result has `round` and `second_round_due`, true when
+  a first round accepted more than three critical findings
+  (`SECOND_ROUND_AFTER_CRITICAL` in `domain/stage.ts`). Prepare takes an
+  optional `previous_run_dir`: the run must be recorded (`report.md` exists,
+  else `invalid-run`) and be of the same repository, stage and artifact
+  reference (else `invalid-input`). A run that was itself round 2 is refused
+  with the new reason `round-limit`, so a stage never runs a third time.
+  Prepare's result, the manifest (`round`, and `previous_run_id` on round 2)
+  and every ledger line carry the round; a manifest without `round` reads as
+  round 1. A round-2 summary says `Round 2, after run <id>` under the depth
+  line. Prepare does not check that the first round actually called for a
+  second one; the skill follows `second_round_due`.
+- **For #173.** A second round is a second prepared run. `previous_run_dir`
+  is how prepare knows the two belong to one flow, so the per-flow Vibe cap
+  can add the first round's spend to the second's from there.
+
+## What #186 settled
+
+Code packets and the code permission (agent-kit#186) fixed these:
+
+- **The code permission.** An allowlist entry has `code`, true or false.
+  An entry without it (every entry recorded before #186) reads as false,
+  and any other value makes the file `invalid-allowlist`. `allow` takes an
+  optional `"code": true | false`; left out, it keeps the entry's current
+  value (false for a new entry), so re-running `allow` to change families
+  never drops or grants code. Its result now carries `code`. Prepare of
+  `ticket-review` or `feature-review` with code off is the refusal
+  `code-not-allowed`, after `no-remote`, `nedap` and `not-opted-in` and
+  before the tracker is read or anything is written. #187's triage call
+  should check `entry.code` the same way; #188 and #189 offer to call
+  `allow` with the entry's families and `"code": true`.
+- **Prepare's input for a code stage.** `base` (required: a commit or a
+  branch the change is diffed against), `head` (default `HEAD`), and, for
+  `ticket-review`, `ticket` (required, named the way the tracker names a
+  spec). `feature-review` reads the spec's tickets through
+  `Tracker.tickets` (#184) and ignores `ticket`; `references` is ignored by
+  both. A revision that names no commit is `invalid-input` before anything
+  is written. `head` can be any commit, so #188 can review a staged change
+  before it is committed by passing the id `git stash create` prints (that
+  writes a commit object but touches neither the stash list nor the index).
+- **The code packet.** `tree/<repository path>` for every regular file of
+  `head`'s tree, read from git's object store (`git ls-tree`, `git cat-file
+  blob`), so there is never a `.git`, worktree metadata or an untracked or
+  uncommitted file. Symbolic links and submodules are left out, and so is any
+  file holding a NUL byte (binary). `diff/change.diff` is the diff from the
+  merge base of `base` and `head` to `head` (`--no-ext-diff --no-textconv
+  --no-color`, `core.quotePath=false`). `tickets/<name>` holds the ticket, or
+  every ticket of the spec, and `spec/<name>` the spec, both rendered as a
+  document stage renders them. Nothing else is at the packet root, so the
+  repository's `AGENTS.md`, `.vibe/` and `.agents/` land under `tree/`.
+  Packet file kinds are now `tree`, `diff`, `ticket` and `spec` beside
+  `artifact` and `reference`.
+- **The manifest and prepare's result.** The manifest gains `code: { base,
+  base_commit, head, head_commit, changed_files }`, where `changed_files`
+  are packet paths under `tree/` of the files the diff touches that are
+  still in the tree (#189's "the head it reviewed" is `head_commit`).
+  `manifest.artifact` is the ticket for a ticket review and the spec for a
+  feature review, so #174's `risk:high` signal reads the ticket's or the
+  spec's labels. After the merge with #174, a code stage's depth is chosen
+  from that artifact's labels and text (risk terms); `STAGE_MEASURES` has
+  no measure for either code stage yet, so changed lines and risk path hits
+  are still to be added as measures (the diff and `code.changed_files` are
+  there to measure). Prepare's result `packet_files` now lists what the
+  critics' prompts name: every file for a document packet, and for a code
+  packet the diff, the changed files, the tickets and the spec, but not the
+  rest of the tree (which can be thousands of files). The result adds
+  `code: { base_commit, head_commit, changed_files, tree_files }`.
+- **The prompt.** A code packet's file list names the diff, the changed
+  files, the tickets and the spec, then tells the critic that the rest of
+  the tree is under `tree/` and readable by path, and to cite code as
+  `tree/<path>:<line>` or `tree/<path>:<first>-<last>` in `location` and in
+  each trace step. This is in the runner's prompt assembly, not in a
+  hashed asset. #188's `diff-reviewer` role does not need to repeat it.
+- **The tripwire** needed no change: every tree file is a packet file, so
+  each critic's copy holds the whole tree and a change anywhere in it (or a
+  file added at the copy's root) voids the critic as `violated-readonly`.
+- **File-and-line evidence.** At a code stage only, fan-out reads every
+  `path:line` and `path:first-last` in a finding's `location` and in each
+  `trace` evidence value. A path counts when it has a `/` or a file
+  extension, so `10:30` is not a file, and URLs are skipped. It is looked up
+  as written, then under `tree/`, then, for a diff's `a/` or `b/` prefix,
+  under `tree/` without it. A path the packet does not hold, or a line below
+  1 or past the file's last line, pre-rejects the finding as
+  `fabricated-evidence` (after the quote check, before the hint rule). A
+  code finding with no `failing-test` and no `trace` that cites a file and
+  line is the hint `no-test-or-trace`. The document stages are unchanged. The
+  evidence check now takes the packet indexed once per fan-out
+  (`indexPacket`), so a large tree is normalised once, not once per
+  finding. Whether a feature-review trace touches two tickets is the
+  orchestrator's check (#189), not a mechanical one.
+- **Git.** `GitRevisionPort` (in `src/ports/git.ts`, implemented by
+  `GitCliAdapter`, added to `CritiqueGitPort`) has `resolveCommit`,
+  `mergeBase`, `treeFiles`, `fileAt`, `diffCommits` and `changedPaths`. The
+  harness's `FakeGit.commit()` now records a commit (`c1`, `c2`, ...; the
+  harness makes `c1`) and serves `HEAD`, `HEAD~<n>` and those ids on one
+  line of history. `codeStageRouting()` in the harness routes one Vibe
+  critic on both code stages until #188 and #189 ship their routing; with
+  shipped routing, a code stage's prepare reads the packet and then fails
+  `invalid-routing` before writing anything.
+- **Process output.** `NodeProcessAdapter` decoded each output chunk on its
+  own, so a multi-byte character split across chunks became two
+  replacement characters; the streams now decode. A code packet reads every
+  file through it.
+- **Live check.** On a scratch clone of this repository (origin pointed at
+  GitHub, a scratch `HOME`), prepare refused without an entry
+  (`not-opted-in`) and with documents only (`code-not-allowed`), then, after
+  `allow` with `"code": true`, froze #186 and #181 through gh, 689 tree
+  files, and a 1,932-line diff over `HEAD~5`. The packet root held only
+  `diff`, `spec`, `tickets` and `tree`, no path had a `.git` component, and
+  the tree matched `HEAD`, not the uncommitted working tree.
+
+## What #173 settled
+
+Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
+
+- **Outer timeout.** `ProcessResult` gained `timedOut`, which council's
+  `NodeProcessAdapter` sets when a command outlives `timeoutMs`; it sends
+  SIGTERM, then SIGKILL after a 5-second grace, so a CLI that ignores
+  SIGTERM still stops. Both critic clients record a killed run as the
+  failure `timeout` (not `exit-124`). The outer timer is still the CLI's own
+  limit plus 60 seconds.
+- **What a launch is charged.** `CriticReport.chargedUsd`, and `charged_usd`
+  on the critic run and the ledger run line, beside the reported `cost_usd`.
+  For Vibe it is the export's `cost_usd`, even past the critic's cap (the
+  overshoot of up to one turn counts). The critic's `max_price_usd` is
+  charged instead where Vibe's figure cannot be trusted: a killed run, no
+  export or no cost, a `deadline` stop (at least the cap), and a zero cost
+  with tokens used (an unpriced model). An argument error that writes no
+  export is charged the cap too: conservative, and rare. agy is always 0.
+- **Invocation lines.** Fan-out appends `{ type: "invocation", recorded_at,
+  repository, flow, run_id, stage, round, critic_id, client, kind, family,
+  model, status, charged_usd }` to the ledger as each launch ends, so spend
+  and the agy count hold even for a run that is never recorded. They are the
+  only lines the budget reads; record's run lines do not count twice. A line
+  that does not parse (a write cut short) is skipped. Tests that read "every
+  ledger line" now filter these out, and they carry no depth fields.
+- **The flow.** Prepare takes an optional `flow`; by default it is the
+  artifact's reference (`host/owner/repo#<n>`, or the markdown path), and a
+  second round (`previous_run_dir`) inherits its first round's flow. The
+  manifest carries `flow` and `limits`. Later stages (tickets, ticket
+  review, feature review) should pass the spec's reference as `flow`, so the
+  whole spec-to-ticket flow shares one cap. `/flow budget` (#193) can sum
+  `charged_usd` of the `vibe` invocation lines of a repository and flow.
+- **Per-flow cap.** Routing's `budget.vibe_flow_cap_usd` (5). Before each
+  wave, fan-out reads the flow's spend; a Vibe critic is not launched once it
+  has reached the cap, and is recorded with status `budget-skip` (exit code
+  null, no stdout or export path, charged 0) and a `detail` such as `the
+  flow's Vibe spend $5.2500 has reached its $5.00 cap`. The summary lists it
+  as `<client> (...): budget-skip: <detail>`. A wave's critics start
+  together, so one wave can overshoot by its critics' caps (plus a turn each).
+  A budget skip gets no fallback retry.
+- **Antigravity quota.** Routing's `antigravity_quota` (`daily_cap` 20,
+  `reserve_threshold` 10, `reserved_stages` `spec` and `feature-review`).
+  Prepare counts today's `agy` invocation lines (the UTC day of the clock),
+  and an agy client past the quota is dropped with the new reason `quota`
+  and a `detail` naming the count and the cap or the reserve; its slot falls
+  back as for any other drop. A readiness failure (Linux, not signed in, not
+  on PATH) is checked first, so it keeps the reason `unavailable` and
+  launches nothing. Both limits are read through `RoutingSource`, so the
+  per-machine override can change them, and they default to #167's values
+  when routing leaves them out.
+- **Fallback retry.** Each roster critic carries `fallbacks` in the manifest:
+  its slot's other clients, in routing order, that the allowlist permits,
+  the orchestrator does not share and that were ready at prepare (base and
+  deep slots alike). After the first wave, a `failed` critic (not
+  `violated-readonly`, not `budget-skip`) gets one retry through the first
+  fallback whose family no critic that reviewed, nor an earlier retry,
+  already has (with `distinct_families`, now in the manifest too), whose agy
+  quota is not reached, and, past the cap, that is not Vibe if another one is
+  left. The retry's critic id is `<critic id>-retry-<client>`, so it gets its
+  own packet copy and tripwire; it has `retry_of`, the failed critic's slot,
+  role, lenses, cap and time limit, and no fallbacks of its own. The summary
+  line reads `..., fallback for <critic id> (<failure>)`. A stage whose
+  critics and retries all failed is degraded, as before.
+- **Vibe readiness.** `VibeCriticClient` now takes the env port and checks,
+  launching nothing but a Keychain lookup: `vibe` on PATH (or the absolute
+  path), the personal home signed in the way setup checks it (Vibe's
+  Keychain item `ai.mistral.vibe`, else a non-empty `MISTRAL_API_KEY` in the
+  personal home's `.env`; the environment variable does not count, since a
+  critic runs with it unset), and `~/.vibe/agents/<agent>.toml`. The
+  `detail`s are `vibe: <binary> is not on PATH`, setup's own `vibe: not
+  signed in; run vibe and sign in with your Mistral account, then re-run
+  setup`, and `vibe: the critic agent <agent> is not installed in
+  ~/.vibe/agents; re-run setup`, with reason `unavailable`, which is what
+  #177's skill quotes. The harness installs `vibe`, the four critic agents
+  and a Keychain sign-in by default (`vibeOnPath`, `vibeSignIn`,
+  `vibeAgents`); `FakeVibeProcess.commands` still holds launches only, and
+  the lookups are in `checks`.
+- **For #177.** A `quota` drop is not a missing CLI: its slot was refilled
+  or left empty by routing, and the summary already names it, so the skill
+  need not ask the owner about it. A `budget-skip` critic is not a failure
+  either.

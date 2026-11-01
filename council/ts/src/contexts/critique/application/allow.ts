@@ -10,10 +10,16 @@ export interface AllowResult {
   readonly status: 'allowed'
   readonly repository: string
   readonly families: readonly ModelFamily[]
+  /** Whether the repository may send code to the code stages. */
+  readonly code: boolean
   readonly allowlist_path: string
 }
 
-/** Records which model families this machine lets a repository send content to. */
+/**
+ * Records which model families this machine lets a repository send content
+ * to, and whether that content may be code. `code` left out keeps the
+ * entry's current permission, which is off for a new entry.
+ */
 export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
   private readonly repositories: RepositoryGate
 
@@ -23,14 +29,17 @@ export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
 
   async run(raw: unknown): Promise<AllowResult | Refusal> {
     const input = readInput(raw, 'allow', (fields) => ({
+      code: fields.has('code') ? fields.boolean('code') : undefined,
       families: fields.oneOfList('families', MODEL_FAMILIES),
       repo: fields.string('repo'),
     }))
     const repository = await this.repositories.resolve(input.repo)
     if (repository.status === 'refused') return repository
     const path = allowlistPath(this.deps.env)
-    const next = withEntry(await this.repositories.allowlist(), repository.key, input.families, this.deps.clock.now())
+    const allowlist = await this.repositories.allowlist()
+    const code = input.code ?? allowlist.repositories[repository.key]?.code ?? false
+    const next = withEntry(allowlist, repository.key, { code, families: input.families }, this.deps.clock.now())
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}\n`)
-    return { allowlist_path: path, families: input.families, repository: repository.key, status: 'allowed' }
+    return { allowlist_path: path, code, families: input.families, repository: repository.key, status: 'allowed' }
   }
 }

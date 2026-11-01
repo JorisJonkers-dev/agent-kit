@@ -227,7 +227,11 @@ describe('a read-only violation in the record', () => {
 
     const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
-    const lines = (await readFile(result.ledger_path, 'utf8')).trim().split('\n').map((line) => JSON.parse(line) as unknown)
+    const lines = (await readFile(result.ledger_path, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((line) => line.type === 'run')
     expect(lines).toEqual([
       expect.objectContaining({ client: 'vibe-mistral-large', finding_count: 0, status: 'violated-readonly', type: 'run' }),
     ])

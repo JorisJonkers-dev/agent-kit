@@ -69,12 +69,16 @@ export class FixedClock implements ClockPort {
 }
 
 /**
- * A repository without git: `porcelainStatus` compares the files on disk,
- * outside `.git/`, with those present at the last `commit()`, the way git
- * compares the working tree with HEAD.
+ * A repository without git: `commit()` snapshots the files on disk, outside
+ * `.git/`, as a new commit on one line of history, and `porcelainStatus`
+ * compares the files on disk with the last commit, the way git compares the
+ * working tree with HEAD. A commit's id is `c<n>`; `HEAD` and `HEAD~<n>`
+ * name commits too.
  */
 export class FakeGit implements CritiqueGitPort {
-  private committed = new Map<string, string>()
+  private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string> }[] = []
+  /** Every revision the runner asked about, so a test can see what it resolved. */
+  readonly resolved: string[] = []
 
   constructor(
     private readonly repoRoot: string,
@@ -93,20 +97,80 @@ export class FakeGit implements CritiqueGitPort {
     return Promise.resolve(this.remoteList)
   }
 
-  async commit(): Promise<void> {
-    this.committed = await this.workingTree()
+  /** Records the working tree as a new commit and returns its id. */
+  async commit(): Promise<string> {
+    const id = `c${String(this.history.length + 1)}`
+    this.history.push({ id, tree: await this.workingTree() })
+    return id
   }
 
   async porcelainStatus(): Promise<readonly GitPorcelainEntry[]> {
     const tree = await this.workingTree()
+    const committed = this.history.at(-1)?.tree ?? new Map<string, string>()
     const entries: GitPorcelainEntry[] = []
     for (const [path, text] of tree) {
-      const committed = this.committed.get(path)
-      if (committed === undefined) entries.push({ code: '??', path })
-      else if (committed !== text) entries.push({ code: ' M', path })
+      const before = committed.get(path)
+      if (before === undefined) entries.push({ code: '??', path })
+      else if (before !== text) entries.push({ code: ' M', path })
     }
-    for (const path of this.committed.keys()) if (!tree.has(path)) entries.push({ code: ' D', path })
+    for (const path of committed.keys()) if (!tree.has(path)) entries.push({ code: ' D', path })
     return entries.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  async resolveCommit(_cwd: string, revision: string): Promise<string> {
+    this.resolved.push(revision)
+    const back = /^HEAD(?:~(\d+))?$/.exec(revision)
+    const index = back === null ? this.history.findIndex((commit) => commit.id === revision) : this.history.length - 1 - Number(back[1] ?? 0)
+    const commit = this.history[index]
+    if (commit === undefined) throw new Error(`fatal: ambiguous argument '${revision}': unknown revision or path not in the working tree.`)
+    return Promise.resolve(commit.id)
+  }
+
+  /** History is one line, so the merge base of two commits is the older one. */
+  async mergeBase(_cwd: string, a: string, b: string): Promise<string> {
+    return Promise.resolve(this.indexOf(a) <= this.indexOf(b) ? a : b)
+  }
+
+  async treeFiles(_cwd: string, commit: string): Promise<readonly string[]> {
+    return Promise.resolve([...this.treeOf(commit).keys()].sort())
+  }
+
+  async fileAt(_cwd: string, commit: string, path: string): Promise<string> {
+    const text = this.treeOf(commit).get(path)
+    if (text === undefined) throw new Error(`fatal: path '${path}' does not exist in '${commit}'`)
+    return Promise.resolve(text)
+  }
+
+  /** Each changed file in full: its old lines removed and its new lines added. */
+  async diffCommits(_cwd: string, base: string, head: string): Promise<string> {
+    const before = this.treeOf(base)
+    const after = this.treeOf(head)
+    const lines = (text: string | undefined, sign: string) =>
+      text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
+    return Promise.resolve(
+      this.changed(before, after)
+        .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
+        .map((section) => `${section}\n`)
+        .join(''),
+    )
+  }
+
+  async changedPaths(_cwd: string, base: string, head: string): Promise<readonly string[]> {
+    return Promise.resolve(this.changed(this.treeOf(base), this.treeOf(head)))
+  }
+
+  private changed(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): readonly string[] {
+    return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
+  }
+
+  private indexOf(commit: string): number {
+    return this.history.findIndex((entry) => entry.id === commit)
+  }
+
+  private treeOf(commit: string): ReadonlyMap<string, string> {
+    const tree = this.history[this.indexOf(commit)]?.tree
+    if (tree === undefined) throw new Error(`fatal: not a valid object name ${commit}`)
+    return tree
   }
 
   private async workingTree(): Promise<Map<string, string>> {
@@ -244,6 +308,8 @@ export interface VibeScript {
   readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
   /** Do not return until this many critics have started, so a test can see critics overlap. */
   readonly waitForStarts?: number
+  /** The run never returned and the outer timer killed it: no export, exit 124, `timedOut`. */
+  readonly timedOut?: boolean
 }
 
 /** Every critic launch and return, in the order they happened, across all critic clients. */
@@ -265,14 +331,28 @@ export class LaunchLog {
   }
 }
 
-/** Plays canned Vibe runs: writes export.json into --output-dir and returns stdout and exit code. */
+/**
+ * How the personal Vibe home is signed in: Vibe's Keychain item, its
+ * `~/.vibe/.env`, the `.env` on a machine with no `security` tool to ask
+ * (Linux), or not at all.
+ */
+export type VibeSignIn = 'keychain' | 'env-file' | 'env-file-no-keychain' | 'none'
+
+/**
+ * Plays canned Vibe runs: writes export.json into --output-dir and returns
+ * stdout and exit code. It also answers the Keychain lookup the Vibe
+ * readiness check makes with `security`; `commands` holds the critic
+ * launches only, `checks` those lookups.
+ */
 export class FakeVibeProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
+  readonly checks: ProcessCommand[] = []
 
   constructor(
     private readonly repo: string,
     private readonly scripts: VibeScript[],
     private readonly log: LaunchLog = new LaunchLog(),
+    private readonly signIn: VibeSignIn = 'keychain',
   ) {}
 
   /** Adds runs to play, for a test that needs the prepared run's paths to write them. */
@@ -281,6 +361,13 @@ export class FakeVibeProcess implements ProcessPort {
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
+    if (command.command === 'security') {
+      this.checks.push(command)
+      if (this.signIn === 'env-file-no-keychain') throw new Error('spawn security ENOENT')
+      return this.signIn === 'keychain'
+        ? { exitCode: 0, stderr: '', stdout: 'keychain: "/Users/me/Library/Keychains/login.keychain-db"\n' }
+        : { exitCode: 44, stderr: 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n', stdout: '' }
+    }
     this.commands.push(command)
     const agent = command.args[command.args.indexOf('--agent') + 1]
     const named = this.scripts.findIndex((script) => script.agent === agent)
@@ -295,6 +382,7 @@ export class FakeVibeProcess implements ProcessPort {
       await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
     }
     await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }
@@ -307,6 +395,8 @@ export interface AgyScript {
   readonly waitForStarts?: number
   /** What the critic does while it runs: `cwd` is its working directory, `repo` the repository. */
   readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
+  /** The run never returned and the outer timer killed it. */
+  readonly timedOut?: boolean
 }
 
 /**
@@ -340,6 +430,7 @@ export class FakeAgyProcess implements ProcessPort {
     if (script === undefined) throw new Error('unexpected agy launch')
     await this.log.play('agy', script.waitForStarts)
     await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }
@@ -453,6 +544,21 @@ export function twoCriticRouting(): unknown {
   }
 }
 
+/** One Vibe critic on each code stage, so prepare can build a code packet and fan-out can run it. */
+export function codeStageRouting(): unknown {
+  const slot = { client: 'vibe-mistral-large', lenses: ['failure-modes'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 }
+  return {
+    clients: {
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+    },
+    stages: {
+      'feature-review': { base: [slot], distinct_families: true },
+      'ticket-review': { base: [slot], distinct_families: true },
+    },
+    version: 1,
+  }
+}
+
 export interface Harness {
   readonly home: string
   readonly repo: string
@@ -468,6 +574,9 @@ export interface Harness {
   readonly writeText: (path: string, content: string) => Promise<void>
   readonly removeFile: (path: string) => Promise<void>
 }
+
+/** The `critic-<model>` agents setup installs (registry `vibe_critic_agents:`). */
+export const VIBE_CRITIC_AGENTS = ['critic-mistral-large', 'critic-mistral-small', 'critic-glm', 'critic-deepseek-flash'] as const
 
 export const AGENT_KIT_REMOTE: GitRemote = {
   name: 'origin',
@@ -492,6 +601,12 @@ export async function harness(
     readonly agyOnPath?: boolean
     /** Whether the Keychain holds the `Antigravity CLI` item, or whether there is no `security` tool to ask. */
     readonly agySignedIn?: boolean | 'no-security-tool'
+    /** Whether `vibe` is on PATH. */
+    readonly vibeOnPath?: boolean
+    /** How the personal Vibe home is signed in. */
+    readonly vibeSignIn?: VibeSignIn
+    /** The critic agents setup installed into `~/.vibe/agents/`; every one setup declares unless named. */
+    readonly vibeAgents?: readonly string[]
     /**
      * The issue-tracker doc Pocock's setup wrote, or `none` for a repository
      * without one. Local markdown unless named, so the `.scratch/` spec is the
@@ -531,6 +646,11 @@ export async function harness(
   const bin = join(base, 'bin')
   await mkdir(bin, { recursive: true })
   if (options.agyOnPath ?? true) await writeFile(join(bin, 'agy'), '#!/bin/sh\n')
+  if (options.vibeOnPath ?? true) await writeFile(join(bin, 'vibe'), '#!/bin/sh\n')
+  const vibeHome = join(home, '.vibe')
+  await mkdir(join(vibeHome, 'agents'), { recursive: true })
+  for (const agent of options.vibeAgents ?? VIBE_CRITIC_AGENTS) await writeFile(join(vibeHome, 'agents', `${agent}.toml`), '')
+  if (options.vibeSignIn === 'env-file' || options.vibeSignIn === 'env-file-no-keychain') await writeFile(join(vibeHome, '.env'), "MISTRAL_API_KEY='sk-personal'\n")
   const tracker = options.tracker ?? 'local-markdown'
   if (tracker !== 'none') {
     await mkdir(join(repo, 'docs', 'agents'), { recursive: true })
@@ -540,7 +660,7 @@ export async function harness(
   await git.commit()
   const gh = new FakeGh(options.issues ?? {}, options.links)
   const launches = new LaunchLog()
-  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches)
+  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain')
   const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)
   const files = new NodeCritiqueFiles()
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':') })
@@ -548,7 +668,7 @@ export async function harness(
     assetsRoot,
     clients: {
       agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
-      vibe: new VibeCriticClient(process, files),
+      vibe: new VibeCriticClient(process, files, env),
     },
     clock: new FixedClock('2026-10-30T12:00:00.000Z'),
     env,

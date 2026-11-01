@@ -1,9 +1,12 @@
-import type { ClockPort, EnvPort, GhPort, GitPort } from '../../../ports/index.js'
+import type { ClockPort, EnvPort, GhPort, GitPort, GitRevisionPort } from '../../../ports/index.js'
 import type { CriticOutcome } from '../domain/critic.js'
 import type { ClientReadiness, CriticClient, RosterCritic } from '../domain/routing.js'
 
-/** The repository facts the critique needs: council's git port, narrowed to what it reads. */
-export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'>
+/**
+ * The repository facts the critique needs: council's git port, narrowed to
+ * what it reads, and the commits a code stage freezes.
+ */
+export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'> & GitRevisionPort
 
 /** What the critique reads from GitHub: council's gh port, narrowed to reading issues and their links. */
 export type CritiqueGhPort = Pick<GhPort, 'viewIssue' | 'subIssues' | 'blockedBy'>
@@ -45,6 +48,11 @@ export interface CriticReport {
   /** The file the client read cost and effective config from. */
   readonly exportPath: string
   readonly outcome: CriticOutcome
+  /**
+   * What the run counts against the flow's Vibe cap: the client's own best
+   * estimate of its spend, never less than it reported.
+   */
+  readonly chargedUsd: number
 }
 
 /** One critic client: launches a critic in its packet and reads its review. */

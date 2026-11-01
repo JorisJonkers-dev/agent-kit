@@ -46,12 +46,14 @@ async function reviewed(
   return { fan, h, run }
 }
 
+/** The lines record appends: fan-out's invocation lines, which the budget reads, are left out. */
 function ledgerLines(h: Harness): Promise<Record<string, unknown>[]> {
   return readFile(join(h.home, '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl'), 'utf8').then((text) =>
     text
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line) as Record<string, unknown>),
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((line) => line.type !== 'invocation'),
   )
 }
 

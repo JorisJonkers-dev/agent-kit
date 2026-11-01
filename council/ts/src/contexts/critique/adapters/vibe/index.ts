@@ -1,6 +1,6 @@
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 
-import type { ProcessCommand, ProcessPort } from '../../../../ports/index.js'
+import type { EnvPort, ProcessCommand, ProcessPort } from '../../../../ports/index.js'
 import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { parseFindings } from '../../domain/findings.js'
@@ -17,11 +17,45 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
   constructor(
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
+    private readonly env: EnvPort,
   ) {}
 
-  /** Vibe is not checked ahead of a run: a missing binary or agent fails the critic at launch. */
-  async readiness(): Promise<ClientReadiness> {
-    return Promise.resolve({ ready: true })
+  /**
+   * Whether the critic can run on the personal home: `vibe` on `PATH`, the
+   * home signed in the way setup checks it (Vibe's Keychain item, else a key
+   * in `~/.vibe/.env`; `MISTRAL_API_KEY` does not count, since a critic runs
+   * with it unset), and the `critic-<model>` agent setup installs. Nothing is
+   * launched, so a client that is not ready falls back in prepare and costs
+   * nothing.
+   */
+  async readiness(config: VibeClientConfig): Promise<ClientReadiness> {
+    if (!(await this.onPath(config.binary))) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false }
+    const home = join(this.env.require('HOME'), '.vibe')
+    if (!(await this.signedIn(home))) return { detail: SIGN_IN, ready: false }
+    if (!(await this.files.exists(join(home, 'agents', `${config.agent}.toml`)))) {
+      return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false }
+    }
+    return { ready: true }
+  }
+
+  private async signedIn(home: string): Promise<boolean> {
+    const keychain = await this.process
+      .exec({ args: ['find-generic-password', '-s', 'ai.mistral.vibe', '-a', 'MISTRAL_API_KEY'], command: 'security' })
+      .catch(() => ({ exitCode: 1 }))
+    if (keychain.exitCode === 0) return true
+    const dotenv = join(home, '.env')
+    if (!(await this.files.exists(dotenv))) return false
+    return (await this.files.readText(dotenv))
+      .split('\n')
+      .some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line))
+  }
+
+  private async onPath(binary: string): Promise<boolean> {
+    if (isAbsolute(binary)) return this.files.exists(binary)
+    for (const dir of (this.env.get('PATH') ?? '').split(':').filter((entry) => entry.length > 0)) {
+      if (await this.files.exists(join(dir, binary))) return true
+    }
+    return false
   }
 
   async review(launch: CriticLaunch, config: VibeClientConfig): Promise<CriticReport> {
@@ -30,13 +64,15 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
     const result = await this.process.exec(
       vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath }),
     )
-    const outcome = classifyVibeRun({
+    const run: VibeRun = {
       exitCode: result.exitCode,
       exported: await this.readExport(exportPath),
       stderr: result.stderr,
       stdout: result.stdout,
-    })
-    return { ...result, exportPath, outcome }
+      timedOut: result.timedOut === true,
+      timeoutS: launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S,
+    }
+    return { ...result, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) }
   }
 
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
@@ -49,6 +85,9 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
     }
   }
 }
+
+/** Setup's own warning for a personal Vibe home that is not signed in. */
+const SIGN_IN = 'vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup'
 
 /** Seconds the outer timer allows beyond Vibe's own `--time-limit`. */
 const OUTER_TIMEOUT_GRACE_S = 60
@@ -116,6 +155,9 @@ interface VibeRun {
   readonly stderr: string
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
   readonly exported: unknown
+  /** The outer timer killed Vibe after `timeoutS` seconds. */
+  readonly timedOut: boolean
+  readonly timeoutS: number
 }
 
 const EXIT_FAILURES: Readonly<Record<number, CriticFailure>> = {
@@ -134,6 +176,7 @@ function classifyVibeRun(run: VibeRun): CriticOutcome {
   const cost = typeof exported?.cost_usd === 'number' ? exported.cost_usd : null
   const failed = (failure: CriticFailure, detail: string): CriticOutcome => ({ cost_usd: cost, detail, failure, status: 'failed' })
 
+  if (run.timedOut) return failed('timeout', `vibe did not return within ${String(run.timeoutS)}s, so the outer timer killed it`)
   if (run.exitCode !== 0) {
     const outcome = typeof exported?.outcome === 'string' ? `outcome ${exported.outcome}` : run.stderr.trim()
     return failed(EXIT_FAILURES[run.exitCode] ?? `exit-${String(run.exitCode)}`, `vibe exited ${String(run.exitCode)}: ${outcome}`)
@@ -152,6 +195,26 @@ function classifyVibeRun(run: VibeRun): CriticOutcome {
     status: 'ok',
     ...(parsed.no_findings_reason === undefined ? {} : { no_findings_reason: parsed.no_findings_reason }),
   }
+}
+
+/**
+ * What a Vibe run counts against the flow's cap. The export's `cost_usd` is
+ * the base, and it may exceed the critic's cap: `--max-price` is checked only
+ * between turns. Where the export cannot be trusted the cap is charged
+ * instead, as a conservative estimate: no export or no cost (a killed run
+ * included), a deadline stop (Vibe drops the interrupted turn's tokens and
+ * reports $0), and a zero cost for tokens used (a model with no prices).
+ */
+function vibeCharge(run: VibeRun, cap: number): number {
+  const exported = jsonObjectOrUndefined(run.exported)
+  const cost = exported?.cost_usd
+  if (run.timedOut || typeof cost !== 'number') return cap
+  if (exported?.outcome === 'deadline') return Math.max(cost, cap)
+  return cost === 0 && usedTokens(jsonObjectOrUndefined(exported?.usage)) ? cap : cost
+}
+
+function usedTokens(usage: Readonly<Record<string, unknown>> | undefined): boolean {
+  return [usage?.input_tokens, usage?.output_tokens].some((tokens) => typeof tokens === 'number' && tokens > 0)
 }
 
 function isolationViolations(config: Readonly<Record<string, unknown>> | undefined): readonly string[] {

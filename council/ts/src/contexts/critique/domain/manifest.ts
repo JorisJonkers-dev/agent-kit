@@ -1,23 +1,49 @@
 import { createHash } from 'node:crypto'
 
+import { readLimits, type CritiqueLimits } from './budget.js'
 import { readDepthChoice, type DepthChoice } from './depth.js'
 import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
-import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from './stage.js'
+import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from './stage.js'
 import { TRACKER_KINDS, type TrackerKind } from './tracker.js'
 
 export function sha256(content: string | Uint8Array): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
+/**
+ * What a packet file is. A document stage freezes its `artifact` and its
+ * `reference`s. A code stage freezes the `tree` at the commit under review,
+ * the `diff` against the base, the `ticket` or tickets the change delivers
+ * and the `spec` they come from.
+ */
+export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec'] as const
+export type PacketFileKind = (typeof PACKET_FILE_KINDS)[number]
+
 export interface PacketFile {
   /** Path inside the packet, which is the critic's working directory. */
   readonly path: string
-  /** Repository-relative path it was frozen from, or the issue reference for an artifact read from GitHub. */
+  /**
+   * Where it was frozen from: a repository path, an issue reference for a
+   * file read from GitHub, or `<base commit>..<head commit>` for a diff.
+   */
   readonly source: string
-  readonly kind: 'artifact' | 'reference'
+  readonly kind: PacketFileKind
   readonly sha256: string
+}
+
+/** The commits a code stage reviewed. */
+export interface CodeSource {
+  /** The base as the caller named it. */
+  readonly base: string
+  /** Where the change left the base: the merge base of the base and the head. */
+  readonly base_commit: string
+  /** The commit under review as the caller named it. */
+  readonly head: string
+  readonly head_commit: string
+  /** The packet path, under `tree/`, of every file the change touched that is still in the tree. */
+  readonly changed_files: readonly string[]
 }
 
 /** Where the artifact under critique came from. */
@@ -36,6 +62,9 @@ export interface RunManifest {
   readonly created_at: string
   readonly stage: CritiqueStage
   readonly depth: Depth
+  readonly round: Round
+  /** The first round's run id, on a second round. */
+  readonly previous_run_id?: string
   /** How the depth was chosen, and the signals that decided it. */
   readonly depth_choice: DepthChoice
   readonly orchestrator_family: OrchestratorFamily
@@ -45,9 +74,33 @@ export interface RunManifest {
   readonly packet_dir: string
   readonly allowed_families: readonly ModelFamily[]
   readonly artifact: ArtifactSource
+  /**
+   * The flow this run belongs to: the spend of every run of one flow of one
+   * repository counts against one Vibe cap.
+   */
+  readonly flow: string
+  readonly limits: CritiqueLimits
   readonly packet_files: readonly PacketFile[]
+  /** Only for a code stage. */
+  readonly code?: CodeSource
+  /** Whether no two critics of the stage may share a family; a fallback retry keeps to it too. */
+  readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
+}
+
+/**
+ * The packet files a critic's prompt names. A document packet names every
+ * file. A code packet names the diff, the files the change touched, the
+ * tickets and the spec, and leaves the rest of the tree for the critic to
+ * read by path.
+ */
+export function listedFiles(manifest: Pick<RunManifest, 'packet_files' | 'code'>): readonly PacketFile[] {
+  const { code, packet_files: files } = manifest
+  if (code === undefined) return files
+  const changed = new Set(code.changed_files)
+  const ofKind = (kind: PacketFileKind) => files.filter((file) => file.kind === kind)
+  return [...ofKind('diff'), ...ofKind('tree').filter((file) => changed.has(file.path)), ...ofKind('ticket'), ...ofKind('spec')]
 }
 
 export function parseManifest(text: string): RunManifest {
@@ -58,22 +111,43 @@ export function parseManifest(text: string): RunManifest {
     created_at: file.string('created_at'),
     critics: file.list('critics', readRosterCritic),
     depth: file.oneOf('depth', DEPTHS),
+    distinct_families: file.boolean('distinct_families'),
     depth_choice: readDepthChoice(file.object('depth_choice')),
     dropped: file.list('dropped', readDroppedCritic),
+    flow: file.string('flow'),
+    limits: readLimits(file.object('limits')),
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),
+    ...(file.has('code') ? { code: readCodeSource(file.object('code')) } : {}),
     packet_files: file.list('packet_files', (packetFile) => ({
-      kind: packetFile.oneOf('kind', ['artifact', 'reference']),
+      kind: packetFile.oneOf('kind', PACKET_FILE_KINDS),
       path: packetFile.string('path'),
       sha256: packetFile.string('sha256'),
       source: packetFile.string('source'),
     })),
+    ...readRound(file),
     repo_root: file.string('repo_root'),
     repository: file.string('repository'),
     run_dir: file.string('run_dir'),
     run_id: file.string('run_id'),
     stage: file.oneOf('stage', CRITIQUE_STAGES),
     version: file.literal('version', 1),
+  }
+}
+
+/** A manifest written before rounds existed is a first round. */
+function readRound(file: JsonFields): Pick<RunManifest, 'round' | 'previous_run_id'> {
+  if (!file.has('round') || file.number('round') !== 2) return { round: file.has('round') ? file.literal('round', 1) : 1 }
+  return { previous_run_id: file.string('previous_run_id'), round: 2 }
+}
+
+function readCodeSource(code: JsonFields): CodeSource {
+  return {
+    base: code.string('base'),
+    base_commit: code.string('base_commit'),
+    changed_files: code.strings('changed_files'),
+    head: code.string('head'),
+    head_commit: code.string('head_commit'),
   }
 }
 
