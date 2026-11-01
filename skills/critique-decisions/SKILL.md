@@ -29,6 +29,10 @@ carries a `code` and a `message`: show both and stop. Keep your own files
 `/critique-decisions [base|deep]`: the **depth**. Pass it to prepare as
 `"depth"` only when the owner named it; otherwise the runner chooses.
 
+When `/flow` starts this stage it names the feature's flow
+(`draft:<name>`). Pass it to prepare as `"flow"`, so the run counts in that
+flow; without one, the run is a flow of its own.
+
 ## Your model family
 
 Prepare needs `orchestrator_family`, the vendor of the model you are running
@@ -65,7 +69,8 @@ decisions are for and run on the decision docs.
 
 Run prepare with `stage: "decisions"`, `orchestrator_family`, `repo` (the
 repository's root, `git rev-parse --show-toplevel`), `feature`,
-`decision_summary` when you wrote one, and `depth` when given.
+`decision_summary` when you wrote one, `depth` when given, and `flow`
+when `/flow` named one.
 
 - **Refused with `not-opted-in`**: this repository has no **family
   allowlist** entry, so nothing may be sent yet. Offer the opt-in: name the
