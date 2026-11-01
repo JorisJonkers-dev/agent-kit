@@ -2,7 +2,11 @@
 
 This document settles what the critique runner can rely on from the two critic
 CLIs, maps every deliverable of the critique pipeline onto agent-kit's layout,
-and lists where the design departs from its brief and why. The words in bold
+and lists where the design departs from its brief and why. For what the
+pipeline does from its user's side (what runs when, depth, budget, the gates,
+the kill switch and retuning routing), read
+[the pipeline README](../../skills/critique/README.md), which `/flow explain`
+reads from; this document does not repeat it. The words in bold
 in [CONTEXT.md](../../CONTEXT.md) under "Critique pipeline" mean what they say
 there, and [ADR-0001](../adr/0001-critics-run-as-direct-cli-calls.md) records
 why critics are direct CLI calls.
@@ -803,9 +807,9 @@ and in the grilling session behind it.
   [ADR-0002](../adr/0002-exactly-three-critique-hooks.md).
 - **`/flow` becomes a stepper merged with `/flow-guide`.** There is one
   entry point that steps through the flow and owns setup, explanation and
-  budget, instead of two overlapping ones. It is out of scope for this
-  slice; the only part delivered now is the opt-in, offered by
-  `/critique-spec`.
+  budget, instead of two overlapping ones. It was out of scope for #167,
+  whose only part of it was the opt-in offered by `/critique-spec`; #182
+  delivers it (#192 and its siblings).
 - **Storage in the git directory.** Run directories live under the
   repository's git common directory, so they are never committed, need no
   `.gitignore` change, and are shared by every worktree of the repository.
@@ -861,6 +865,28 @@ all four, and #167 was amended on 2026-10-30 to match.
    input and output prices, which makes the agent files, next to routing, a
    place where model names and prices are kept (user story 65 already counts
    the critic client definitions as one).
+
+### Departures #182 makes
+
+#182 (`/flow`, the hooks and `/critique-stats`) departs from the brief in
+three more places:
+
+1. **`/flow` names Pocock's commands instead of running them.** Pocock
+   1.3.1's `/grill-with-docs`, `/grill-me`, `/to-spec`, `/to-tickets` and
+   `/implement` are not model-invocable, so `/flow` runs only the critique
+   stages and its own subcommands, and for every other step names the
+   command for the owner to type. The brief's `/flow <idea>` becomes "type
+   `/grill-with-docs <idea>`, then `/flow`".
+2. **`--light` and `--fast` are dropped.** The owner types the grilling, so a
+   flag on `/flow` has no grilling to lighten, and depth replaced `--fast`
+   and `--deep` in #167. The `no-critique` choice stays, recorded in the
+   flow state so the flow shows critique was skipped on purpose.
+3. **Hooks for Claude Code and Codex only.** [ADR-0002](../adr/0002-exactly-three-critique-hooks.md)
+   allows three hooks, installed into Claude Code's `settings.json` and
+   Codex's `hooks.json`, which share one layout. Vibe and Antigravity get none
+   until their hook events are checked against the installed CLIs, and the
+   brief's `after-skill` hook is dropped: no tool-call hook sees a skill the
+   owner types.
 
 ## What this changes for the later tickets
 
@@ -2234,3 +2260,31 @@ added no runner behaviour. #193, #194, #195 and #197 build on it:
   budget` are stub sections of `skills/flow/SKILL.md`, each one heading that
   says which ticket brings it (#195, #194, #193); replace the section, and
   the matching row of the Arguments table, rather than adding new ones.
+
+## What #194 settled
+
+The pipeline README and `/flow explain` (agent-kit#194) fixed these:
+
+- **One copy.** The README is `skills/critique/README.md`, so setup copies it
+  into every agent home with the rest of the `critique` skill. The root
+  `README.md` and this document link to it and do not repeat it. It is
+  pinned in `manifest.yaml` `critique.files` like every other file there but
+  `SKILL.md`, so **every README edit refreshes its sha256** in the same
+  commit.
+- **`/flow explain` reads it on every call.** The skill maps the owner's
+  `<thing>` to one of six `## ` headings (Stages, Lenses, Depth, Routing,
+  Gates and the kill switch, Budget and quota) and answers from that section
+  alone; no explanation lives in `skills/flow/SKILL.md`. A pytest checks that
+  each heading the skill names is in the README, that every stage in
+  `routing.json` has a row and that every file in `lenses/` has a line, so
+  renaming a heading or adding a stage or lens means updating the README.
+- **Written from what is built.** Figures (caps, thresholds, rosters,
+  fallbacks) are the shipped `routing.json`'s. A routing change that alters
+  one of them should update the README's figure too; no test catches that.
+- **For #193, #197 and #198.** The README's budget section already describes
+  `/flow budget` as #193's ticket defines it; adjust it if #193 shows
+  something else. The gates section says both gates stay advisory until
+  setup installs the hooks (#197, #198): #198 should drop that sentence once
+  it does, and name the per-machine disabled flag's file in the kill switch
+  line once #197 settles it. The root `README.md`'s "The estate ships **no
+  agent hooks**" line is #198's to update too.
