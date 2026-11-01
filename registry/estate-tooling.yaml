@@ -846,6 +846,20 @@ local_skills:
       Drives the runner in skills/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home.
 
+  - name: review-feature
+    path: skills/review-feature
+    purpose: >-
+      Review a whole feature after all tickets of a spec landed and before
+      the PR: critics from two other model families read the spec, the
+      tickets and the feature diff, each accepted finding becomes a
+      follow-up ticket, and the report opens with the gate line.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      allow), so setup installs both side by side in every agent home. Its
+      run's gate.json is what the PR gate reads.
+
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,

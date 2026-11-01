@@ -132,6 +132,33 @@ def test_setup_installs_critique_spec_beside_the_shared_skill_in_every_agent_hom
     assert "critique-spec: not built yet" not in macos_run.stdout
 
 
+def test_review_feature_is_declared_for_every_agent() -> None:
+    skill = _skill(_registry(), "review-feature")
+    assert skill["path"] == "skills/review-feature"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+
+
+def test_review_feature_says_it_applies_after_all_tickets_landed_and_before_the_pr() -> None:
+    text = (KIT_ROOT / "skills" / "review-feature" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "review-feature"
+    assert front["description"].startswith(
+        "Use after every ticket of a spec has landed on its feature branch and before the PR."
+    )
+
+
+def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "review-feature" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "review-feature" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "review-feature" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
 def test_a_pending_skill_is_skipped_with_a_notice_not_a_failure(macos_run: Run) -> None:
     """Until a pending skill's directory exists, setup says so and carries on."""
     for skill in (s for s in _registry()["local_skills"] if s.get("pending")):
