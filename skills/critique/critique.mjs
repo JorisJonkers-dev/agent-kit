@@ -229,6 +229,12 @@ var JsonFields = class _JsonFields {
     _JsonFields.ensure(value === void 0 || accept(value), this.at(key2), expected);
     return value;
   }
+  /** A non-empty string `accept` recognises. */
+  matching(key2, accept, expected) {
+    const value = this.string(key2);
+    _JsonFields.ensure(accept(value), this.at(key2), expected);
+    return value;
+  }
   strings(key2) {
     return this.listOf(key2, (item) => typeof item === "string", "a string");
   }
@@ -245,6 +251,11 @@ var JsonFields = class _JsonFields {
   entries(key2, read) {
     const map = this.object(key2);
     return Object.fromEntries(Object.keys(map.value).map((name) => [name, read(map.object(name), name)]));
+  }
+  /** An object whose every value is a list of strings. */
+  stringLists(key2) {
+    const map = this.object(key2);
+    return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.strings(name)]));
   }
   /** An object whose every value is a non-empty string. */
   stringMap(key2) {
@@ -444,6 +455,9 @@ function parseFindings(text) {
   } catch (error) {
     return { detail: String(error), failure: "unparseable-findings", ok: false };
   }
+  return readFindings(value);
+}
+function readFindings(value) {
   let findings;
   try {
     findings = JsonFields.of(value, "the block").list("findings", readCriticFinding);
@@ -508,7 +522,11 @@ var RUN_FAILURES = [
   "unsafe-config",
   "config-error",
   "infrastructure-failure",
-  "stopped-early"
+  "stopped-early",
+  "print-timeout",
+  "denied-action",
+  "missing-structured-output",
+  "unsafe-tool"
 ];
 var CRITIC_STATUSES = ["ok", "failed", "violated-readonly"];
 function criticIdentity(critic) {
@@ -601,11 +619,13 @@ function normalise(text) {
 import { createHash } from "node:crypto";
 
 // src/contexts/critique/domain/routing.ts
-var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family"];
+var CLIENT_KINDS = ["vibe", "agy"];
+var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable"];
 function parseRouting(text) {
   const file = JsonFields.parse(text);
   return {
     clients: file.entries("clients", readCriticClient),
+    fallbacks: file.has("fallbacks") ? file.stringLists("fallbacks") : {},
     stages: file.entries("stages", (stage) => ({
       base: stage.list("base", readRosterSlot),
       distinct_families: stage.boolean("distinct_families")
@@ -614,13 +634,24 @@ function parseRouting(text) {
   };
 }
 function readCriticClient(fields) {
+  if (fields.oneOf("kind", CLIENT_KINDS) === "agy") {
+    return {
+      binary: fields.string("binary"),
+      family: fields.literal("family", "google"),
+      kind: "agy",
+      model: fields.matching("model", isGeminiModel, "a Gemini model: agy's Claude and GPT-OSS models are never critics")
+    };
+  }
   return {
     agent: fields.string("agent"),
     binary: fields.string("binary"),
     family: fields.oneOf("family", MODEL_FAMILIES),
-    kind: fields.literal("kind", "vibe"),
+    kind: "vibe",
     model: fields.string("model")
   };
+}
+function isGeminiModel(model) {
+  return model.startsWith("gemini-");
 }
 function readRosterSlot(fields) {
   return {
@@ -639,32 +670,65 @@ function readRosterCritic(fields) {
   };
 }
 function readDroppedCritic(fields) {
+  const detail = fields.optionalString("detail");
+  const replacedBy = fields.optionalString("replaced_by");
   return {
     client: fields.string("client"),
     family: fields.oneOf("family", MODEL_FAMILIES),
-    reason: fields.oneOf("reason", DROP_REASONS)
+    reason: fields.oneOf("reason", DROP_REASONS),
+    ...detail === void 0 ? {} : { detail },
+    ...replacedBy === void 0 ? {} : { replaced_by: replacedBy }
   };
 }
-function resolveRoster(routing, request) {
-  const stage = routing.stages[request.stage];
-  if (stage === void 0) throw new CritiqueError("invalid-routing", `routing has no stage ${request.stage}`);
+function candidateClients(routing, request) {
+  const names = new Set(stageRouting(routing, request).base.flatMap((slot) => slotCandidates(routing, slot.client)));
+  return [...names].map((name) => [name, clientNamed(routing, request, name)]).filter(([, client]) => familyReason(client.family, request) === void 0);
+}
+function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) {
+  const stage = stageRouting(routing, request);
   const critics = [];
   const dropped = [];
+  const refusal2 = (name, client) => {
+    const reason = familyReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
+    if (reason !== void 0) return { reason };
+    const ready = readiness.get(name);
+    return ready?.ready === false ? { detail: ready.detail, reason: "unavailable" } : void 0;
+  };
   for (const slot of stage.base) {
-    const client = routing.clients[slot.client];
-    if (client === void 0) {
-      throw new CritiqueError("invalid-routing", `routing stage ${request.stage} names unknown client ${slot.client}`);
+    const primary = clientNamed(routing, request, slot.client);
+    const primaryRefusal = refusal2(slot.client, primary);
+    const name = slotCandidates(routing, slot.client).find(
+      (candidate) => refusal2(candidate, clientNamed(routing, request, candidate)) === void 0
+    );
+    const chosen = name === void 0 ? void 0 : { ...slot, client: name, client_config: clientNamed(routing, request, name), critic_id: `c${String(critics.length + 1)}-${name}` };
+    if (primaryRefusal !== void 0) {
+      dropped.push({
+        client: slot.client,
+        family: primary.family,
+        ...primaryRefusal,
+        ...chosen === void 0 ? {} : { replaced_by: chosen.critic_id }
+      });
     }
-    const reason = dropReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
-    if (reason === void 0) {
-      critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}` });
-    } else {
-      dropped.push({ client: slot.client, family: client.family, reason });
-    }
+    if (chosen !== void 0) critics.push(chosen);
   }
   return { critics, depth: "base", dropped };
 }
-function dropReason(family, request) {
+function stageRouting(routing, request) {
+  const stage = routing.stages[request.stage];
+  if (stage === void 0) throw new CritiqueError("invalid-routing", `routing has no stage ${request.stage}`);
+  return stage;
+}
+function slotCandidates(routing, client) {
+  return [client, ...routing.fallbacks[client] ?? []];
+}
+function clientNamed(routing, request, name) {
+  const client = routing.clients[name];
+  if (client === void 0) {
+    throw new CritiqueError("invalid-routing", `routing stage ${request.stage} names unknown client ${name}`);
+  }
+  return client;
+}
+function familyReason(family, request) {
   if (!request.allowedFamilies.includes(family)) return "family-not-allowed";
   if (family === request.orchestratorFamily) return "orchestrator-family";
   return void 0;
@@ -752,6 +816,45 @@ function compactTimestamp(at) {
   return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
+// src/contexts/critique/domain/merge.ts
+function mergeFindings(perCritic) {
+  const merged = [];
+  for (const { critic_id, findings } of perCritic) {
+    for (const finding of findings) {
+      const same = merged.find((candidate) => sameDefect(candidate, finding));
+      if (same === void 0) {
+        const { id, ...fields } = finding;
+        merged.push({ ...fields, critic_finding_id: id, raised_by: [critic_id] });
+        continue;
+      }
+      if (!same.raised_by.includes(critic_id)) same.raised_by = [...same.raised_by, critic_id];
+      same.evidence = [...same.evidence, ...finding.evidence.filter((e) => !same.evidence.some((known) => sameEvidence(known, e)))];
+      if (rank(finding.severity) < rank(same.severity)) same.severity = finding.severity;
+      if (same.suggestion === void 0 && finding.suggestion !== void 0) same.suggestion = finding.suggestion;
+    }
+  }
+  return merged.map((finding, index) => ({ ...finding, id: `F${String(index + 1)}` }));
+}
+function sameDefect(a, b) {
+  if (a.category !== b.category || normal(a.location) !== normal(b.location)) return false;
+  const quotesA = quotes(a.evidence);
+  const quotesB = quotes(b.evidence);
+  if (quotesA.length === 0 && quotesB.length === 0) return normal(a.claim) === normal(b.claim);
+  return quotesA.some((qa) => quotesB.some((qb) => qa.includes(qb) || qb.includes(qa)));
+}
+function quotes(evidence) {
+  return evidence.filter((e) => e.kind === "quote").map((e) => normal(e.value));
+}
+function sameEvidence(a, b) {
+  return a.kind === b.kind && a.value === b.value && a.file === b.file;
+}
+function normal(text) {
+  return text.toLowerCase().replace(/\s+/g, " ").trim().replace(/^["'`“‘]+|["'`”’.,;:]+$/g, "");
+}
+function rank(severity) {
+  return SEVERITIES.indexOf(severity);
+}
+
 // src/contexts/critique/domain/prompt.ts
 var BLOCK_SEPARATOR = "\n\n---\n\n";
 function assemblePrompt(sources, files) {
@@ -779,6 +882,15 @@ ${sources.schema.trim()}
     text: `${[sources.preamble.trim(), sources.role.trim(), lenses, contract, fileList].join(BLOCK_SEPARATOR)}
 `
   };
+}
+
+// src/contexts/critique/application/ports.ts
+function clientReadiness(clients, config) {
+  return config.kind === "agy" ? clients.agy.readiness(config) : clients.vibe.readiness(config);
+}
+function reviewWith(clients, launch) {
+  const config = launch.critic.client_config;
+  return config.kind === "agy" ? clients.agy.review(launch, config) : clients.vibe.review(launch, config);
 }
 
 // src/contexts/critique/application/tripwire.ts
@@ -896,6 +1008,7 @@ function parseFanOutResult(text) {
     status: file.literal("status", "reviewed")
   };
 }
+var SCHEMA = "schemas/finding.schema.json";
 var FanOutCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -907,14 +1020,8 @@ var FanOutCommand = class {
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
     const packet = await this.readPacket(manifest);
     const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)));
-    const raised = [];
-    for (const outcome of outcomes) {
-      for (const finding of outcome.findings) {
-        const { id, ...fields } = finding;
-        raised.push({ ...fields, critic_finding_id: id, id: `F${String(raised.length + 1)}`, raised_by: [outcome.run.critic_id] });
-      }
-    }
-    const findings = raised.map((finding) => withPreVerdict(finding, manifest.stage, packet));
+    const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
+    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet));
     const result2 = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== "ok"),
@@ -947,7 +1054,7 @@ var FanOutCommand = class {
         lenses: await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) }))),
         preamble: await asset("prompts/preamble.md"),
         role: await asset(`roles/${critic.role}.md`),
-        schema: await asset("schemas/finding.schema.json")
+        schema: await asset(SCHEMA)
       },
       manifest.packet_files
     );
@@ -957,11 +1064,12 @@ var FanOutCommand = class {
     const packetDir = join3(criticDir, "packet");
     const armed = await tripwire.arm(packetDir);
     const started = this.deps.clock.monotonicMs();
-    const report = await this.deps.clients[critic.client_config.kind].review({
+    const report = await reviewWith(this.deps.clients, {
       criticDir,
       critic,
       packetDir,
-      promptPath
+      promptPath,
+      schemaPath: join3(this.deps.assetsRoot, SCHEMA)
     });
     const durationMs = this.deps.clock.monotonicMs() - started;
     const violations = await armed.check();
@@ -1199,11 +1307,8 @@ var PrepareCommand = class {
     if (artifact.status === "refused") return artifact;
     const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const routing = await readJsonFile(this.deps.files, join6(this.deps.assetsRoot, "routing.json"), "invalid-routing", parseRouting);
-    const roster = resolveRoster(routing, {
-      allowedFamilies: entry.families,
-      orchestratorFamily,
-      stage
-    });
+    const request = { allowedFamilies: entry.families, orchestratorFamily, stage };
+    const roster = resolveRoster(routing, request, await this.readiness(routing, request));
     const runId = await this.freshRunId(repository, stage);
     const runDir = join6(repository.commonDir, "critique", runId);
     const packetDir = join6(runDir, "packet");
@@ -1240,6 +1345,13 @@ var PrepareCommand = class {
       run_id: runId,
       status: "ready"
     };
+  }
+  /** Asks each client the stage could run, and that the family rules permit, whether it can run here. */
+  async readiness(routing, request) {
+    const checks = candidateClients(routing, request).map(
+      async ([name, client]) => [name, await clientReadiness(this.deps.clients, client)]
+    );
+    return new Map(await Promise.all(checks));
   }
   async freshRunId(repository, stage) {
     const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
@@ -1291,7 +1403,7 @@ function familiesOf(run, finding) {
   return [...new Set(families)];
 }
 function isDissent(run, finding) {
-  return finding.verdict.verdict === "rejected" && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
+  return finding.verdict.verdict === "rejected" && finding.verdict.reason_code !== "fabricated-evidence" && (finding.severity === "critical" || familiesOf(run, finding).length >= 2);
 }
 
 // src/contexts/critique/domain/ledger.ts
@@ -1353,9 +1465,9 @@ var MINOR_MAX_CHARS = 300;
 function renderSummary(run, reportPath) {
   const serious = run.findings.filter((f) => f.severity !== "minor");
   const lists = {
-    accepted: serious.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(f)),
-    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(f, `Rejected: ${f.verdict.reason ?? ""}`)),
-    questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
+    accepted: serious.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(run, f)),
+    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ""}`)),
+    questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(run, f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
   };
   const hidden = { accepted: 0, dissent: 0, questions: 0 };
   const render = () => [
@@ -1429,7 +1541,7 @@ function renderReport(run) {
     ...run.dropped.map(droppedLine),
     "## Findings",
     "",
-    ...run.findings.length === 0 ? ["none", ""] : run.findings.flatMap(findingSection),
+    ...run.findings.length === 0 ? ["none", ""] : run.findings.flatMap((f) => findingSection(run, f)),
     "## Dissent",
     "",
     ...dissent.length === 0 ? ["none"] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ""}`),
@@ -1450,16 +1562,18 @@ function degradedLines(run) {
   return run.degraded ? ["degraded: no critique ran", ""] : [];
 }
 function droppedLine(dropped) {
-  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}`;
+  const detail = dropped.detail === void 0 ? "" : ` (${dropped.detail})`;
+  const slot = dropped.replaced_by === void 0 ? "no fallback left, so the stage runs with fewer critics" : `replaced by ${dropped.replaced_by}`;
+  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}${detail}; ${slot}`;
 }
 function hashList(hashes) {
   return Object.entries(hashes).map(([name, hash]) => `${name} ${hash}`).join(", ");
 }
-function findingSection(finding) {
+function findingSection(run, finding) {
   return [
     `### ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}`,
     "",
-    `Raised by: ${finding.raised_by.join(", ")}`,
+    `Raised by: ${finding.raised_by.join(", ")} (${familiesOf(run, finding).join(", ")})`,
     `Verdict: ${verdictText(finding.verdict)}`,
     ...finding.pre_verdict === void 0 || finding.pre_verdict.verdict === finding.verdict.verdict ? [] : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`],
     "",
@@ -1490,9 +1604,11 @@ function criticLine(critic, checkedMaxChars = Infinity) {
 function clip(text, maxChars) {
   return text.length > maxChars ? `${text.slice(0, maxChars - 1)}\u2026` : text;
 }
-function findingLine(finding, tail) {
+function findingLine(run, finding, tail) {
   const claim = clip(finding.claim, CLAIM_MAX_CHARS);
-  return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === void 0 ? "" : ` ${tail}`}`;
+  const families = familiesOf(run, finding);
+  const agreement = families.length < 2 ? "" : ` (raised by ${families.join(" and ")})`;
+  return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${agreement}${tail === void 0 ? "" : ` ${tail}`}`;
 }
 function minorLines(run) {
   return run.critics.flatMap((critic) => {
@@ -1649,8 +1765,126 @@ var NodeCritiqueFiles = class {
   }
 };
 
+// src/contexts/critique/adapters/agy/index.ts
+import { isAbsolute as isAbsolute2, join as join9 } from "node:path";
+var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
+var OUTER_TIMEOUT_GRACE_S = 60;
+var SESSION_SETTINGS = {
+  permissions: {
+    deny: ["mcp(*)", "read_url(*)", "execute_url(*)", "command(*)", "write_file(*)"]
+  }
+};
+var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["read_file", "view_file", "list_dir", "grep_search", "find_by_name", "finish"]);
+var AgyCriticClient = class {
+  constructor(process2, files, env, platform) {
+    this.process = process2;
+    this.files = files;
+    this.env = env;
+    this.platform = platform;
+  }
+  process;
+  files;
+  env;
+  platform;
+  /**
+   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
+   * `PATH`, and the Keychain must hold an `Antigravity CLI` item.
+   */
+  async readiness(config) {
+    if (this.platform !== "darwin") return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false };
+    if (!await this.onPath(config.binary)) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false };
+    const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "Antigravity CLI"], command: "security" }).catch(() => ({ exitCode: 1 }));
+    return keychain.exitCode === 0 ? { ready: true } : { detail: SIGN_IN, ready: false };
+  }
+  async review(launch, config) {
+    const prompt = await this.files.readText(launch.promptPath);
+    const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
+    const run = readStream(result2.stdout);
+    const exportPath = join9(launch.criticDir, "result.json");
+    if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
+`);
+    return { ...result2, exportPath, outcome: classifyAgyRun(result2.exitCode, result2.stdout, run) };
+  }
+  async onPath(binary) {
+    if (isAbsolute2(binary)) return this.files.exists(binary);
+    for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
+      if (await this.files.exists(join9(dir, binary))) return true;
+    }
+    return false;
+  }
+};
+function agyLaunch(launch, config, prompt) {
+  const timeLimit = launch.critic.time_limit_s;
+  return {
+    args: [
+      "-p",
+      prompt,
+      "--output-format",
+      "stream-json",
+      "--model",
+      config.model,
+      "--print-timeout",
+      `${String(timeLimit)}s`,
+      "--disable-slash-commands",
+      "--sandbox",
+      "--json-schema",
+      launch.schemaPath,
+      "--settings",
+      JSON.stringify(SESSION_SETTINGS)
+    ],
+    command: config.binary,
+    cwd: launch.packetDir,
+    timeoutMs: (timeLimit + OUTER_TIMEOUT_GRACE_S) * 1e3
+  };
+}
+function readStream(stdout) {
+  const tools = [];
+  let result2;
+  for (const line of stdout.split("\n").filter((text) => text.trim().length > 0)) {
+    let event;
+    try {
+      event = jsonObjectOrUndefined(JSON.parse(line));
+    } catch {
+      event = void 0;
+    }
+    if (event === void 0) return { parsed: false, result: void 0, tools };
+    const step = jsonObjectOrUndefined(event.step_update);
+    if (step?.step_type === "tool" && typeof step.tool_name === "string") tools.push(step.tool_name);
+    if (event.event === "result") result2 = jsonObjectOrUndefined(event.result);
+  }
+  return { parsed: true, result: result2, tools };
+}
+function classifyAgyRun(exitCode, stdout, run) {
+  const failed = (failure, detail) => ({ cost_usd: null, detail, failure, status: "failed" });
+  if (exitCode !== 0) return failed(`exit-${String(exitCode)}`, `agy exited ${String(exitCode)}`);
+  if (stdout.trim().length === 0) return failed("empty-output", "agy exited 0 with empty stdout");
+  const { result: result2 } = run;
+  if (result2 === void 0) return failed("unparseable-output", "stdout is not an agy event stream with a result event");
+  const unsafe = [...new Set(run.tools.filter((tool) => !READ_ONLY_TOOLS.has(tool)))];
+  if (unsafe.length > 0) return failed("unsafe-tool", `the critic used tools beyond reading its packet: ${unsafe.join(", ")}`);
+  if (result2.finished_reason === "print_timeout") return failed("print-timeout", "agy stopped at its print timeout");
+  const denied = Array.isArray(result2.denied_actions) ? result2.denied_actions.map(jsonObjectOrUndefined) : [];
+  if (denied.length > 0) {
+    return failed("denied-action", `headless agy denied: ${denied.map((action) => String(action?.action)).join(", ")}`);
+  }
+  if (typeof result2.response !== "string" || result2.response.trim().length === 0) {
+    return failed("empty-output", "agy returned an empty response");
+  }
+  if (result2.structured_output === void 0) {
+    return failed("missing-structured-output", "the reply did not match the finding schema, so agy returned no structured_output");
+  }
+  const parsed = readFindings(result2.structured_output);
+  if (!parsed.ok) return failed(parsed.failure, parsed.detail);
+  return {
+    cost_usd: null,
+    findings: parsed.findings,
+    status: "ok",
+    ...parsed.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed.no_findings_reason }
+  };
+}
+
 // src/contexts/critique/adapters/vibe/index.ts
-import { join as join9 } from "node:path";
+import { join as join10 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files) {
     this.process = process2;
@@ -1658,11 +1892,15 @@ var VibeCriticClient = class {
   }
   process;
   files;
-  async review(launch) {
-    const exportDir = join9(launch.criticDir, "export");
-    const exportPath = join9(exportDir, "export.json");
+  /** Vibe is not checked ahead of a run: a missing binary or agent fails the critic at launch. */
+  async readiness() {
+    return Promise.resolve({ ready: true });
+  }
+  async review(launch, config) {
+    const exportDir = join10(launch.criticDir, "export");
+    const exportPath = join10(exportDir, "export.json");
     const result2 = await this.process.exec(
-      vibeLaunch(launch.critic, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
+      vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
     );
     const outcome = classifyVibeRun({
       exitCode: result2.exitCode,
@@ -1682,28 +1920,28 @@ var VibeCriticClient = class {
     }
   }
 };
-var OUTER_TIMEOUT_GRACE_S = 60;
+var OUTER_TIMEOUT_GRACE_S2 = 60;
 var ISOLATION_ENV = {
   VIBE_ENABLE_MCP: "false",
   VIBE_ENABLE_SUBAGENTS: "false",
   VIBE_INCLUDE_PROJECT_CONTEXT: "false",
   VIBE_OUTSIDE_WORKDIR: "deny"
 };
-function vibeLaunch(critic, paths) {
+function vibeLaunch(critic, config, paths) {
   return {
     args: [
       "-u",
       "MISTRAL_API_KEY",
       "-u",
       "VIBE_HOME",
-      critic.client_config.binary,
+      config.binary,
       "--prompt-file",
       paths.promptPath,
       "--output",
       "json",
       "--trust",
       "--agent",
-      critic.client_config.agent,
+      config.agent,
       "--enabled-tools",
       "read_file",
       "--max-price",
@@ -1716,7 +1954,7 @@ function vibeLaunch(critic, paths) {
     command: "env",
     cwd: paths.packetDir,
     env: ISOLATION_ENV,
-    timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
+    timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S2) * 1e3
   };
 }
 var EXIT_FAILURES = {
@@ -2140,15 +2378,19 @@ function parseInput(text) {
     throw new CritiqueError("invalid-input", `the input is not JSON: ${String(error)}`);
   }
 }
-function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.env) {
+function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.env, platform = process.platform) {
   const files = new NodeCritiqueFiles();
   const processPort = new NodeProcessAdapter();
+  const env = new ProcessEnvAdapter(environment);
   return {
     commands: createCritiqueCommands({
       assetsRoot,
-      clients: { vibe: new VibeCriticClient(processPort, files) },
+      clients: {
+        agy: new AgyCriticClient(processPort, files, env, platform),
+        vibe: new VibeCriticClient(processPort, files)
+      },
       clock: new SystemClockAdapter(),
-      env: new ProcessEnvAdapter(environment),
+      env,
       files,
       gh: new GhCliAdapter(processPort),
       git: new GitCliAdapter(processPort)

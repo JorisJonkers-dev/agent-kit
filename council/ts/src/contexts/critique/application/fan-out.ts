@@ -5,12 +5,13 @@ import { checkEvidence, type PacketText } from '../domain/evidence.js'
 import { readRunFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { parseManifest, type RunManifest } from '../domain/manifest.js'
+import { mergeFindings } from '../domain/merge.js'
 import { assemblePrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
-import type { CritiqueCommand, CritiqueDeps } from './ports.js'
+import { reviewWith, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { ReadOnlyTripwire } from './tripwire.js'
 
 export interface FanOutResult {
@@ -43,7 +44,15 @@ export function parseFanOutResult(text: string): FanOutResult {
   }
 }
 
-/** Runs every critic of a prepared run and collects its findings. */
+const SCHEMA = 'schemas/finding.schema.json'
+
+/**
+ * Runs every critic of a prepared run at once, so a stage takes as long as
+ * its slowest critic. Each critic is blind: its prompt is built from the
+ * shipped prompt files and the packet's file list alone, and its client
+ * starts a fresh session, so it never sees another critic's output, the
+ * conversation or an earlier session. Duplicate findings are then merged.
+ */
 export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   constructor(private readonly deps: CritiqueDeps) {}
 
@@ -53,14 +62,8 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
     const packet = await this.readPacket(manifest)
     const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)))
-    const raised: RunFinding[] = []
-    for (const outcome of outcomes) {
-      for (const finding of outcome.findings) {
-        const { id, ...fields } = finding
-        raised.push({ ...fields, critic_finding_id: id, id: `F${String(raised.length + 1)}`, raised_by: [outcome.run.critic_id] })
-      }
-    }
-    const findings = raised.map((finding) => withPreVerdict(finding, manifest.stage, packet))
+    const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
+    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet))
     const result: FanOutResult = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== 'ok'),
@@ -94,7 +97,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
         lenses: await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) }))),
         preamble: await asset('prompts/preamble.md'),
         role: await asset(`roles/${critic.role}.md`),
-        schema: await asset('schemas/finding.schema.json'),
+        schema: await asset(SCHEMA),
       },
       manifest.packet_files,
     )
@@ -105,11 +108,12 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const packetDir = join(criticDir, 'packet')
     const armed = await tripwire.arm(packetDir)
     const started = this.deps.clock.monotonicMs()
-    const report = await this.deps.clients[critic.client_config.kind].review({
+    const report = await reviewWith(this.deps.clients, {
       criticDir,
       critic,
       packetDir,
       promptPath,
+      schemaPath: join(this.deps.assetsRoot, SCHEMA),
     })
     const durationMs = this.deps.clock.monotonicMs() - started
     const violations = await armed.check()

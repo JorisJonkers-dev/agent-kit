@@ -46,9 +46,16 @@ export function familiesOf(run: AdjudicatedRun, finding: RunFinding): readonly M
   return [...new Set(families)]
 }
 
-/** A rejection with a strong signal: raised by two or more families, or critical. */
+/**
+ * The orchestrator's rejection of a finding with a strong signal: raised by
+ * two or more families, or critical. A finding rejected for fabricated
+ * evidence is not dissent: its evidence does not exist, and no orchestrator
+ * ruled against it.
+ */
 export function isDissent(run: AdjudicatedRun, finding: AdjudicatedFinding): boolean {
   return (
-    finding.verdict.verdict === 'rejected' && (finding.severity === 'critical' || familiesOf(run, finding).length >= 2)
+    finding.verdict.verdict === 'rejected' &&
+    finding.verdict.reason_code !== 'fabricated-evidence' &&
+    (finding.severity === 'critical' || familiesOf(run, finding).length >= 2)
   )
 }
