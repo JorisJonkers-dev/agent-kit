@@ -1,26 +1,31 @@
 import type { CriticRun } from './critic.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
-import { countVerdicts, isDissent, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
+import { countVerdicts, isDissent, VERDICTS, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
 
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
 const CLAIM_MAX_CHARS = 160
 /** What a critic that found nothing says it checked; the report keeps all of it. */
 const CHECKED_MAX_CHARS = 300
+/** One critic's minor findings, by id; the report keeps each in full. */
+const MINOR_MAX_CHARS = 300
 
 /**
  * The compact summary, always in the same shape: header, critics, accepted
- * findings, questions for the owner, dissent, and the report path. When it
+ * findings, questions for the owner, minor findings, dissent, and the report
+ * path. Minor findings never take a line of their own: each critic gets one
+ * line naming its minor findings by verdict (#167 US33). When it
  * would exceed its budget, the longest list loses items from its end and says
  * how many more the report holds. Text outside the lists is clipped, so
  * emptying the lists always brings it within budget.
  */
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
+  const serious = run.findings.filter((f) => f.severity !== 'minor')
   const lists = {
-    accepted: run.findings.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(f)),
+    accepted: serious.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(f)),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(f, `Rejected: ${f.verdict.reason ?? ''}`)),
-    questions: run.findings
+    questions: serious
       .filter((f) => f.verdict.verdict === 'needs-human')
       .map((f) => findingLine(f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
   }
@@ -46,6 +51,10 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '## Questions for you',
       '',
       ...bullets(lists.questions, hidden.questions),
+      '',
+      '## Minor',
+      '',
+      ...bullets(minorLines(run), 0),
       '',
       '## Dissent',
       '',
@@ -142,6 +151,9 @@ function findingSection(finding: AdjudicatedFinding): readonly string[] {
     '',
     `Raised by: ${finding.raised_by.join(', ')}`,
     `Verdict: ${verdictText(finding.verdict)}`,
+    ...(finding.pre_verdict === undefined || finding.pre_verdict.verdict === finding.verdict.verdict
+      ? []
+      : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`]),
     '',
     finding.claim,
     '',
@@ -182,6 +194,18 @@ function clip(text: string, maxChars: number): string {
 function findingLine(finding: RunFinding, tail?: string): string {
   const claim = clip(finding.claim, CLAIM_MAX_CHARS)
   return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === undefined ? '' : ` ${tail}`}`
+}
+
+function minorLines(run: AdjudicatedRun): readonly string[] {
+  return run.critics.flatMap((critic) => {
+    const minor = run.findings.filter((f) => f.severity === 'minor' && f.raised_by.includes(critic.critic_id))
+    if (minor.length === 0) return []
+    const byVerdict = VERDICTS.flatMap((verdict) => {
+      const ids = minor.filter((f) => f.verdict.verdict === verdict).map((f) => f.id)
+      return ids.length === 0 ? [] : [`${verdict} ${ids.join(', ')}`]
+    })
+    return [clip(`- ${critic.critic_id}: ${String(minor.length)} minor: ${byVerdict.join('; ')}`, MINOR_MAX_CHARS)]
+  })
 }
 
 function bullets(items: readonly string[], hidden: number): readonly string[] {

@@ -370,6 +370,7 @@ var CATEGORIES = [
   "integration"
 ];
 var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
+var HINT_CODES = ["no-evidence", "no-spec-quote", "no-decision-quote", "no-decision-or-scenario"];
 var FINDINGS_FAILURES = [
   "no-findings-block",
   "unparseable-findings",
@@ -419,8 +420,16 @@ function readRunFinding(fields) {
     ...readFindingBody(fields),
     critic_finding_id: fields.string("critic_finding_id"),
     id: fields.string("id"),
-    raised_by: fields.strings("raised_by")
+    raised_by: fields.strings("raised_by"),
+    ...fields.has("pre_verdict") ? { pre_verdict: readPreVerdict(fields.object("pre_verdict")) } : {}
   };
+}
+function readPreVerdict(fields) {
+  const reason = fields.string("reason");
+  if (fields.oneOf("verdict", ["rejected", "hint"]) === "rejected") {
+    return { reason, reason_code: fields.literal("reason_code", "fabricated-evidence"), verdict: "rejected" };
+  }
+  return { reason, reason_code: fields.oneOf("reason_code", HINT_CODES), verdict: "hint" };
 }
 function readCriticFinding(fields) {
   return { ...readFindingBody(fields), id: fields.string("id") };
@@ -490,6 +499,46 @@ function readCriticRun(fields) {
 }
 function isCriticFailure(value) {
   return isOneOf(RUN_FAILURES, value) || /^exit-\d+$/.test(value);
+}
+
+// src/contexts/critique/domain/evidence.ts
+var DECISION_CATEGORIES = ["omission", "invention"];
+function checkEvidence(finding, stage, packet) {
+  const files = packet.map((file) => ({ ...file, text: normalise(file.text) }));
+  const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false };
+  for (const [index, evidence] of finding.evidence.entries()) {
+    if (evidence.kind !== "quote") {
+      found.scenario = true;
+      continue;
+    }
+    const quote = normalise(evidence.value);
+    const holders = files.filter((file) => file.text.includes(quote));
+    if (holders.length === 0) {
+      return {
+        reason: `evidence ${String(index + 1)} quotes text that is not in the packet`,
+        reason_code: "fabricated-evidence",
+        verdict: "rejected"
+      };
+    }
+    found.spec ||= holders.some((file) => file.kind === "artifact");
+    found.decision ||= holders.some((file) => file.kind === "reference");
+  }
+  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : void 0;
+  return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
+}
+function specRule(category, found) {
+  if (!found.spec) return "no-spec-quote";
+  if (DECISION_CATEGORIES.includes(category)) return found.decision ? void 0 : "no-decision-quote";
+  return found.decision || found.scenario ? void 0 : "no-decision-or-scenario";
+}
+var HINT_REASONS = {
+  "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
+  "no-decision-quote": "no quote from a decision source",
+  "no-evidence": "no evidence to check",
+  "no-spec-quote": "no quote from the spec"
+};
+function normalise(text) {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 // src/contexts/critique/domain/manifest.ts
@@ -729,6 +778,10 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
 };
 
 // src/contexts/critique/application/fan-out.ts
+function withPreVerdict(finding, stage, packet) {
+  const preVerdict = checkEvidence(finding, stage, packet);
+  return preVerdict === void 0 ? finding : { ...finding, pre_verdict: preVerdict };
+}
 function parseFanOutResult(text) {
   const file = JsonFields.parse(text);
   return {
@@ -750,14 +803,16 @@ var FanOutCommand = class {
     const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
+    const packet = await this.readPacket(manifest);
     const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)));
-    const findings = [];
+    const raised = [];
     for (const outcome of outcomes) {
       for (const finding of outcome.findings) {
         const { id, ...fields } = finding;
-        findings.push({ ...fields, critic_finding_id: id, id: `F${String(findings.length + 1)}`, raised_by: [outcome.run.critic_id] });
+        raised.push({ ...fields, critic_finding_id: id, id: `F${String(raised.length + 1)}`, raised_by: [outcome.run.critic_id] });
       }
     }
+    const findings = raised.map((finding) => withPreVerdict(finding, manifest.stage, packet));
     const result2 = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== "ok"),
@@ -770,6 +825,16 @@ var FanOutCommand = class {
     await this.deps.files.writeText(result2.findings_path, `${JSON.stringify(result2, null, 2)}
 `);
     return result2;
+  }
+  /** The packet as prepare froze it, read before any critic runs, so no critic can plant a quote. */
+  async readPacket(manifest) {
+    return Promise.all(
+      manifest.packet_files.map(async (file) => ({
+        kind: file.kind,
+        path: file.path,
+        text: await this.deps.files.readText(join3(manifest.packet_dir, file.path))
+      }))
+    );
   }
   async runCritic(manifest, tripwire, critic) {
     const criticDir = join3(manifest.run_dir, "critics", critic.critic_id);
@@ -988,6 +1053,8 @@ function ledgerLines(run, recordedAt) {
     category: finding.category,
     evidence_kinds: finding.evidence.map((e) => e.kind),
     finding_id: finding.id,
+    /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
+    pre_verdict: finding.pre_verdict?.reason_code ?? null,
     raised_by: finding.raised_by,
     raised_by_families: familiesOf(run, finding),
     reason_code: finding.verdict.reason_code ?? null,
@@ -1001,11 +1068,13 @@ function ledgerLines(run, recordedAt) {
 var SUMMARY_MAX_CHARS = 6e3;
 var CLAIM_MAX_CHARS = 160;
 var CHECKED_MAX_CHARS = 300;
+var MINOR_MAX_CHARS = 300;
 function renderSummary(run, reportPath) {
+  const serious = run.findings.filter((f) => f.severity !== "minor");
   const lists = {
-    accepted: run.findings.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(f)),
+    accepted: serious.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(f)),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(f, `Rejected: ${f.verdict.reason ?? ""}`)),
-    questions: run.findings.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
+    questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
   };
   const hidden = { accepted: 0, dissent: 0, questions: 0 };
   const render = () => [
@@ -1028,6 +1097,10 @@ function renderSummary(run, reportPath) {
     "## Questions for you",
     "",
     ...bullets(lists.questions, hidden.questions),
+    "",
+    "## Minor",
+    "",
+    ...bullets(minorLines(run), 0),
     "",
     "## Dissent",
     "",
@@ -1107,6 +1180,7 @@ function findingSection(finding) {
     "",
     `Raised by: ${finding.raised_by.join(", ")}`,
     `Verdict: ${verdictText(finding.verdict)}`,
+    ...finding.pre_verdict === void 0 || finding.pre_verdict.verdict === finding.verdict.verdict ? [] : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`],
     "",
     finding.claim,
     "",
@@ -1139,6 +1213,17 @@ function findingLine(finding, tail) {
   const claim = clip(finding.claim, CLAIM_MAX_CHARS);
   return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === void 0 ? "" : ` ${tail}`}`;
 }
+function minorLines(run) {
+  return run.critics.flatMap((critic) => {
+    const minor = run.findings.filter((f) => f.severity === "minor" && f.raised_by.includes(critic.critic_id));
+    if (minor.length === 0) return [];
+    const byVerdict = VERDICTS.flatMap((verdict) => {
+      const ids = minor.filter((f) => f.verdict.verdict === verdict).map((f) => f.id);
+      return ids.length === 0 ? [] : [`${verdict} ${ids.join(", ")}`];
+    });
+    return [clip(`- ${critic.critic_id}: ${String(minor.length)} minor: ${byVerdict.join("; ")}`, MINOR_MAX_CHARS)];
+  });
+}
 function bullets(items, hidden) {
   if (items.length === 0 && hidden === 0) return ["none"];
   return [...items, ...hidden === 0 ? [] : [`- \u2026 ${String(hidden)} more in the report`]];
@@ -1166,7 +1251,7 @@ var RecordCommand = class {
       degraded: merged.degraded,
       depth: manifest.depth,
       dropped: manifest.dropped,
-      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
+      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
       repository: manifest.repository,
       run_id: manifest.run_id,
       stage: manifest.stage
@@ -1190,10 +1275,24 @@ var RecordCommand = class {
     };
   }
 };
-function verdictFor(verdicts, id) {
-  const verdict = verdicts.get(id);
-  if (verdict === void 0) throw new CritiqueError("invalid-input", `no verdict for ${id}`);
-  return verdict;
+function verdictFor(verdicts, finding) {
+  const given = verdicts.get(finding.id);
+  const pre = finding.pre_verdict;
+  if (pre === void 0) {
+    if (given === void 0) throw new CritiqueError("invalid-input", `no verdict for ${finding.id}`);
+    return given;
+  }
+  const mechanical = { finding_id: finding.id, reason: pre.reason, reason_code: pre.reason_code, verdict: pre.verdict };
+  if (pre.verdict === "rejected") {
+    if (given !== void 0 && given.verdict !== "rejected") {
+      throw new CritiqueError("invalid-input", `${finding.id} was rejected as fabricated-evidence, which a verdict cannot overturn`);
+    }
+    return mechanical;
+  }
+  if (given?.verdict === "needs-human") {
+    throw new CritiqueError("invalid-input", `${finding.id} is a hint: its verdict may only be accepted, rejected or hint`);
+  }
+  return given ?? mechanical;
 }
 function verdictsByFinding(list, known) {
   const verdicts = /* @__PURE__ */ new Map();

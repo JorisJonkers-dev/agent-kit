@@ -44,6 +44,8 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     category: finding.category,
     evidence_kinds: finding.evidence.map((e) => e.kind),
     finding_id: finding.id,
+    /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
+    pre_verdict: finding.pre_verdict?.reason_code ?? null,
     raised_by: finding.raised_by,
     raised_by_families: familiesOf(run, finding),
     reason_code: finding.verdict.reason_code ?? null,
