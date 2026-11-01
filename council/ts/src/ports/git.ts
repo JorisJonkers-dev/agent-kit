@@ -59,6 +59,25 @@ export interface GitPort {
   ): Promise<GitReconcileResult>
 }
 
+/**
+ * Reading commits rather than the working tree: what a code review freezes.
+ * Every method takes a commit, never the working tree or the index.
+ */
+export interface GitRevisionPort {
+  /** The full id of the commit a revision names; throws when it names none. */
+  resolveCommit(cwd: string, revision: string): Promise<string>
+  /** The best common ancestor of two commits. */
+  mergeBase(cwd: string, a: string, b: string): Promise<string>
+  /** The path of every regular file in the commit's tree; symbolic links and submodules are not files. */
+  treeFiles(cwd: string, commit: string): Promise<readonly string[]>
+  /** One file's contents at a commit. */
+  fileAt(cwd: string, commit: string, path: string): Promise<string>
+  /** The unified diff from one commit to another, with no external diff driver or text conversion. */
+  diffCommits(cwd: string, base: string, head: string): Promise<string>
+  /** Every path the diff from one commit to another adds, changes or deletes, a rename as both of its paths. */
+  changedPaths(cwd: string, base: string, head: string): Promise<readonly string[]>
+}
+
 export interface GitDagExecutorPort extends GitPort {
   commitAll(cwd: string, request: GitCommitAllRequest): Promise<GitCommitAllResult>
   reconcileIntegrationBranch(cwd: string, request: GitReconcileRequest): Promise<GitReconcileResult>
