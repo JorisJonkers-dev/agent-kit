@@ -4,11 +4,19 @@ import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
 import { compactTimestamp, sha256, type PacketFile, type RunManifest } from '../domain/manifest.js'
 import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
-import { parseRouting, resolveRoster, type DroppedCritic } from '../domain/routing.js'
+import {
+  candidateClients,
+  parseRouting,
+  resolveRoster,
+  type ClientReadiness,
+  type DroppedCritic,
+  type Routing,
+  type RosterRequest,
+} from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage, type Depth } from '../domain/stage.js'
 import { readInput, readJsonFile } from './decode.js'
 import { manifestPath } from './locations.js'
-import type { CritiqueCommand, CritiqueDeps } from './ports.js'
+import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 
 /** Decision docs tried, in order, when the caller names none. */
@@ -65,11 +73,8 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
     }
     const routing = await readJsonFile(this.deps.files, join(this.deps.assetsRoot, 'routing.json'), 'invalid-routing', parseRouting)
-    const roster = resolveRoster(routing, {
-      allowedFamilies: entry.families,
-      orchestratorFamily,
-      stage,
-    })
+    const request = { allowedFamilies: entry.families, orchestratorFamily, stage }
+    const roster = resolveRoster(routing, request, await this.readiness(routing, request))
     const runId = await this.freshRunId(repository, stage)
     const runDir = join(repository.commonDir, 'critique', runId)
     const packetDir = join(runDir, 'packet')
@@ -102,6 +107,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       run_id: runId,
       status: 'ready',
     }
+  }
+
+  /** Asks each client the stage could run, and that the family rules permit, whether it can run here. */
+  private async readiness(routing: Routing, request: RosterRequest): Promise<ReadonlyMap<string, ClientReadiness>> {
+    const checks = candidateClients(routing, request).map(
+      async ([name, client]) => [name, await clientReadiness(this.deps.clients, client)] as const,
+    )
+    return new Map(await Promise.all(checks))
   }
 
   private async freshRunId(repository: ResolvedRepository, stage: CritiqueStage): Promise<string> {

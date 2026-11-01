@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import type { ClockPort, EnvPort, GitRemote, ProcessCommand, ProcessPort, ProcessResult } from '../../src/ports/index.js'
 import {
+  AgyCriticClient,
   createCritiqueCommands,
   NodeCritiqueFiles,
   VibeCriticClient,
@@ -78,18 +79,33 @@ export interface VibeScript {
   readonly stderr?: string
   readonly exitCode: number
   readonly exportJson?: unknown
+  /** How long the critic takes, so a test can see critics overlap. */
+  readonly delayMs?: number
+}
+
+/** Every critic launch and return, in the order they happened, across all critic clients. */
+export type LaunchLog = string[]
+
+async function played(log: LaunchLog, name: string, delayMs = 0): Promise<void> {
+  log.push(`start ${name}`)
+  await new Promise((resolve) => setTimeout(resolve, delayMs))
+  log.push(`end ${name}`)
 }
 
 /** Plays canned Vibe runs: writes export.json into --output-dir and returns stdout and exit code. */
 export class FakeVibeProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
 
-  constructor(private readonly scripts: VibeScript[]) {}
+  constructor(
+    private readonly scripts: VibeScript[],
+    private readonly log: LaunchLog = [],
+  ) {}
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     this.commands.push(command)
     const script = this.scripts.shift()
     if (script === undefined) throw new Error('unexpected process launch')
+    await played(this.log, 'vibe', script.delayMs)
     const outputDirIndex = command.args.indexOf('--output-dir')
     const outputDir = command.args[outputDirIndex + 1]
     if (script.exportJson !== undefined && outputDir !== undefined) {
@@ -98,6 +114,81 @@ export class FakeVibeProcess implements ProcessPort {
     }
     return { exitCode: script.exitCode, stderr: script.stderr ?? '', stdout: script.stdout }
   }
+}
+
+export interface AgyScript {
+  readonly stdout: string
+  readonly stderr?: string
+  readonly exitCode?: number
+  readonly delayMs?: number
+}
+
+/**
+ * Plays canned agy runs, and answers the Keychain lookup the Antigravity
+ * readiness check makes with `security`.
+ */
+export class FakeAgyProcess implements ProcessPort {
+  readonly commands: ProcessCommand[] = []
+
+  constructor(
+    private readonly scripts: AgyScript[],
+    private readonly signedIn: boolean | 'no-security-tool',
+    private readonly log: LaunchLog = [],
+  ) {}
+
+  /** The critic launches only, without the readiness checks. */
+  get launches(): readonly ProcessCommand[] {
+    return this.commands.filter((command) => command.command !== 'security')
+  }
+
+  async exec(command: ProcessCommand): Promise<ProcessResult> {
+    this.commands.push(command)
+    if (command.command === 'security') {
+      if (this.signedIn === 'no-security-tool') throw new Error('spawn security ENOENT')
+      return this.signedIn
+        ? { exitCode: 0, stderr: '', stdout: 'keychain: "/Users/me/Library/Keychains/login.keychain-db"\n' }
+        : { exitCode: 44, stderr: 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n', stdout: '' }
+    }
+    const script = this.scripts.shift()
+    if (script === undefined) throw new Error('unexpected agy launch')
+    await played(this.log, 'agy', script.delayMs)
+    return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
+  }
+}
+
+/** The `result` event agy prints last, for a run that returned the given structured output. */
+export function agyResult(structured: unknown, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    conversation_id: 'c0ffee00-0000-4000-8000-000000000000',
+    status: 'SUCCESS',
+    response: 'I read both files and report what I found.\n',
+    duration_seconds: 21.5,
+    num_turns: 2,
+    usage: { input_tokens: 9370, output_tokens: 812, thinking_tokens: 300, cache_read_tokens: 0, total_tokens: 10482 },
+    ...(structured === undefined ? {} : { structured_output: structured }),
+    ...overrides,
+  }
+}
+
+/** agy's `stream-json` output: the init event, one tool step per named tool, then the result event. */
+export function agyStream(result: Record<string, unknown>, tools: readonly string[] = ['read_file', 'read_file']): string {
+  const id = 'c0ffee00-0000-4000-8000-000000000000'
+  const events: unknown[] = [
+    { event: 'init', conversation_id: id, init: { model: 'gemini-3.8-flash-high', cwd: '/packet', tools: ['read_file'], permission_mode: 'request-review' } },
+    { event: 'step_update', step_update: { conversation_id: id, step_index: 0, state: 'DONE', step_type: 'user_input' } },
+    ...tools.flatMap((tool, i) => [
+      { event: 'step_update', step_update: { conversation_id: id, step_index: i + 1, state: 'ACTIVE', step_type: 'tool', tool_name: tool, tool_info: { name: tool, parameters: {} } } },
+      { event: 'step_update', step_update: { conversation_id: id, step_index: i + 1, state: 'DONE', step_type: 'tool', tool_name: tool, tool_info: { name: tool, parameters: {} } } },
+    ]),
+    { event: 'step_update', step_update: { conversation_id: id, step_index: tools.length + 1, state: 'DONE', step_type: 'agent_response', text_delta: 'Done.' } },
+    { event: 'result', result },
+  ]
+  return `${events.map((event) => JSON.stringify(event)).join('\n')}\n`
+}
+
+/** An agy run that returned the given findings as structured output. */
+export function agyFindings(value: unknown, tools?: readonly string[]): AgyScript {
+  return { stdout: agyStream(agyResult(value), tools) }
 }
 
 export function vibeStdout(finalText: string): string {
@@ -160,6 +251,8 @@ export interface Harness {
   readonly assetsRoot: string
   readonly git: FakeGit
   readonly process: FakeVibeProcess
+  readonly agy: FakeAgyProcess
+  readonly launches: LaunchLog
   readonly commands: CritiqueCommands
   readonly cleanup: () => Promise<void>
   readonly readText: (path: string) => Promise<string>
@@ -176,8 +269,15 @@ export async function harness(
   options: {
     readonly remotes?: readonly GitRemote[]
     readonly scripts?: VibeScript[]
+    readonly agyScripts?: AgyScript[]
     /** Replaces the shipped routing.json in a private copy of the assets. */
     readonly routing?: unknown
+    /** The platform the runner reports; Antigravity is set up on macOS only. */
+    readonly platform?: NodeJS.Platform
+    /** Whether `agy` is on PATH. */
+    readonly agyOnPath?: boolean
+    /** Whether the Keychain holds the `Antigravity CLI` item, or whether there is no `security` tool to ask. */
+    readonly agySignedIn?: boolean | 'no-security-tool'
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -196,23 +296,34 @@ export async function harness(
     `# Widgets\n\n## User Stories\n\n1. As the owner, I want widgets.\n\n3. ${SPEC_CANARY}\n`,
   )
   await writeFile(join(repo, 'CONTEXT.md'), `# Glossary\n\n${DECISION_CANARY}\n`)
+  const bin = join(base, 'bin')
+  await mkdir(bin, { recursive: true })
+  if (options.agyOnPath ?? true) await writeFile(join(bin, 'agy'), '#!/bin/sh\n')
   const git = new FakeGit(repo, options.remotes ?? [AGENT_KIT_REMOTE])
-  const process = new FakeVibeProcess(options.scripts ?? [])
+  const launches: LaunchLog = []
+  const process = new FakeVibeProcess(options.scripts ?? [], launches)
+  const agy = new FakeAgyProcess(options.agyScripts ?? [], options.agySignedIn ?? true, launches)
   const files = new NodeCritiqueFiles()
+  const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':') })
   const commands = createCritiqueCommands({
     assetsRoot,
-    clients: { vibe: new VibeCriticClient(process, files) },
+    clients: {
+      agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
+      vibe: new VibeCriticClient(process, files),
+    },
     clock: new FixedClock('2026-10-30T12:00:00.000Z'),
-    env: new FakeEnv({ HOME: home }),
+    env,
     files,
     git,
   })
   return {
+    agy,
     assetsRoot,
     cleanup: () => rm(base, { force: true, recursive: true }),
     commands,
     git,
     home,
+    launches,
     process,
     readText: (path) => readFile(path, 'utf8'),
     removeFile: (path) => rm(path),

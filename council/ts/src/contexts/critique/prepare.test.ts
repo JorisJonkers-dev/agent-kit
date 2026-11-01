@@ -64,7 +64,7 @@ describe('prepare', () => {
     expect(await readFile(join(result.packet_dir, 'references', 'CONTEXT.md'), 'utf8')).toContain(DECISION_CANARY)
   })
 
-  it('resolves a one-critic roster from the shipped routing', async () => {
+  it('resolves the roster the allowlist permits from the shipped routing', async () => {
     const h = await optedIn()
 
     const result = await ready(h)
@@ -80,7 +80,7 @@ describe('prepare', () => {
         role: 'spec-redteam',
       },
     ])
-    expect(result.dropped).toEqual([])
+    expect(result.dropped).toEqual([{ client: 'agy-gemini-flash-high', family: 'google', reason: 'family-not-allowed' }])
     const manifest = JSON.parse(await readFile(result.manifest_path, 'utf8')) as Record<string, unknown>
     expect(manifest).toMatchObject({ repository: 'github.com/jorisjonkers-dev/agent-kit', stage: 'spec' })
   })
@@ -134,13 +134,16 @@ describe('prepare', () => {
     await expect(ready(h, { spec: '../elsewhere/spec.md' })).rejects.toThrow(/outside the repository/)
   })
 
-  it('prepares a run with no critics when the only critic shares the orchestrator family', async () => {
+  it('prepares a run with no critics when the only allowed critic shares the orchestrator family', async () => {
     const h = await optedIn()
 
     const result = await ready(h, { orchestrator_family: 'mistral' })
 
     expect(result.critics).toEqual([])
-    expect(result.dropped).toEqual([{ client: 'vibe-mistral-large', family: 'mistral', reason: 'orchestrator-family' }])
+    expect(result.dropped).toEqual([
+      { client: 'vibe-mistral-large', family: 'mistral', reason: 'orchestrator-family' },
+      { client: 'agy-gemini-flash-high', family: 'google', reason: 'family-not-allowed' },
+    ])
   })
 
   it('reports a dropped critic next to the ones that run', async () => {

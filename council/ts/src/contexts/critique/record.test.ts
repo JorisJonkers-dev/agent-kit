@@ -184,7 +184,7 @@ describe('record', () => {
   it('says no critique ran when no critic was allowed to run', async () => {
     const h = await harness()
     open.push(h)
-    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['deepseek'] })
     const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
     if (run.status !== 'ready') throw new Error('not ready')
     await h.commands.fanOut.run({ run_dir: run.run_dir })
@@ -192,7 +192,12 @@ describe('record', () => {
     const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(summary).toContain('degraded: no critique ran')
-    expect(section(summary, 'Critics')).toBe('- Not run: vibe-mistral-large (mistral): family-not-allowed')
+    expect(section(summary, 'Critics')).toBe(
+      [
+        '- Not run: vibe-mistral-large (mistral): family-not-allowed; no fallback left, so the stage runs with fewer critics',
+        '- Not run: agy-gemini-flash-high (google): family-not-allowed; no fallback left, so the stage runs with fewer critics',
+      ].join('\n'),
+    )
   })
 
   it('does not call a run degraded when a critic reviewed the artifact', async () => {
@@ -217,7 +222,7 @@ describe('record', () => {
   })
 
   it('stays within its size budget however many findings there are', async () => {
-    const many = Array.from({ length: 60 }, (_, i) => finding({ claim: LONG_CLAIM, id: `F${String(i + 1)}` }))
+    const many = Array.from({ length: 60 }, (_, i) => finding({ claim: LONG_CLAIM, id: `F${String(i + 1)}`, location: `User story ${String(i + 1)}` }))
     const { h, run } = await reviewed(many)
 
     const { summary } = await h.commands.record.run({

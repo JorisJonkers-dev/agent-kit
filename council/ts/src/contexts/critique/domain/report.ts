@@ -1,7 +1,7 @@
 import type { CriticRun } from './critic.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
-import { countVerdicts, isDissent, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
+import { countVerdicts, familiesOf, isDissent, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
 
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
@@ -18,11 +18,11 @@ const CHECKED_MAX_CHARS = 300
  */
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const lists = {
-    accepted: run.findings.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(f)),
-    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(f, `Rejected: ${f.verdict.reason ?? ''}`)),
+    accepted: run.findings.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(run, f)),
+    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ''}`)),
     questions: run.findings
       .filter((f) => f.verdict.verdict === 'needs-human')
-      .map((f) => findingLine(f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
+      .map((f) => findingLine(run, f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
   }
   const hidden = { accepted: 0, dissent: 0, questions: 0 }
   const render = (): string =>
@@ -93,7 +93,7 @@ export function renderReport(run: AdjudicatedRun): string {
     ...run.dropped.map(droppedLine),
     '## Findings',
     '',
-    ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap(findingSection)),
+    ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap((f) => findingSection(run, f))),
     '## Dissent',
     '',
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
@@ -107,7 +107,12 @@ function degradedLines(run: AdjudicatedRun): readonly string[] {
 }
 
 function droppedLine(dropped: DroppedCritic): string {
-  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}`
+  const detail = dropped.detail === undefined ? '' : ` (${dropped.detail})`
+  const slot =
+    dropped.replaced_by === undefined
+      ? 'no fallback left, so the stage runs with fewer critics'
+      : `replaced by ${dropped.replaced_by}`
+  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}${detail}; ${slot}`
 }
 
 function hashList(hashes: Readonly<Record<string, string>>): string {
@@ -116,11 +121,11 @@ function hashList(hashes: Readonly<Record<string, string>>): string {
     .join(', ')
 }
 
-function findingSection(finding: AdjudicatedFinding): readonly string[] {
+function findingSection(run: AdjudicatedRun, finding: AdjudicatedFinding): readonly string[] {
   return [
     `### ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}`,
     '',
-    `Raised by: ${finding.raised_by.join(', ')}`,
+    `Raised by: ${finding.raised_by.join(', ')} (${familiesOf(run, finding).join(', ')})`,
     `Verdict: ${verdictText(finding.verdict)}`,
     '',
     finding.claim,
@@ -158,9 +163,12 @@ function clip(text: string, maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text
 }
 
-function findingLine(finding: RunFinding, tail?: string): string {
+/** One finding in the summary; agreement across families is named, so it stays visible. */
+function findingLine(run: AdjudicatedRun, finding: RunFinding, tail?: string): string {
   const claim = clip(finding.claim, CLAIM_MAX_CHARS)
-  return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === undefined ? '' : ` ${tail}`}`
+  const families = familiesOf(run, finding)
+  const agreement = families.length < 2 ? '' : ` (raised by ${families.join(' and ')})`
+  return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${agreement}${tail === undefined ? '' : ` ${tail}`}`
 }
 
 function bullets(items: readonly string[], hidden: number): readonly string[] {

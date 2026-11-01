@@ -111,7 +111,7 @@ describe('fan-out launches the critic', () => {
 
 describe('fan-out reads the critic output', () => {
   it('turns a valid fenced JSON block into findings', async () => {
-    const { result } = await fanOut(ok(fenced({ findings: [finding(), finding({ id: 'F2', severity: 'minor' })] })))
+    const { result } = await fanOut(ok(fenced({ findings: [finding(), finding({ id: 'F2', location: 'User story 1', severity: 'minor' })] })))
 
     expect(result.critics).toEqual([
       expect.objectContaining({
@@ -248,7 +248,7 @@ describe('fan-out reads the critic output', () => {
   it('launches nothing and reports the run degraded when it has no critics', async () => {
     const h = await harness()
     open.push(h)
-    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['deepseek'] })
     const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
     if (run.status !== 'ready') throw new Error('not ready')
 

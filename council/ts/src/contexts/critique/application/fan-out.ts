@@ -4,12 +4,13 @@ import { criticIdentity, readCriticRun, type CriticRun } from '../domain/critic.
 import { readRunFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { parseManifest, type RunManifest } from '../domain/manifest.js'
+import { mergeFindings } from '../domain/merge.js'
 import { assemblePrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
-import type { CritiqueCommand, CritiqueDeps } from './ports.js'
+import { reviewWith, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 
 export interface FanOutResult {
   readonly status: 'reviewed'
@@ -36,7 +37,15 @@ export function parseFanOutResult(text: string): FanOutResult {
   }
 }
 
-/** Runs every critic of a prepared run and collects its findings. */
+const SCHEMA = 'schemas/finding.schema.json'
+
+/**
+ * Runs every critic of a prepared run at once, so a stage takes as long as
+ * its slowest critic. Each critic is blind: its prompt is built from the
+ * shipped prompt files and the packet's file list alone, and its client
+ * starts a fresh session, so it never sees another critic's output, the
+ * conversation or an earlier session. Duplicate findings are then merged.
+ */
 export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   constructor(private readonly deps: CritiqueDeps) {}
 
@@ -44,13 +53,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
     const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, critic)))
-    const findings: RunFinding[] = []
-    for (const outcome of outcomes) {
-      for (const finding of outcome.findings) {
-        const { id, ...fields } = finding
-        findings.push({ ...fields, critic_finding_id: id, id: `F${String(findings.length + 1)}`, raised_by: [outcome.run.critic_id] })
-      }
-    }
+    const findings = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
     const result: FanOutResult = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status === 'failed'),
@@ -73,7 +76,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
         lenses: await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) }))),
         preamble: await asset('prompts/preamble.md'),
         role: await asset(`roles/${critic.role}.md`),
-        schema: await asset('schemas/finding.schema.json'),
+        schema: await asset(SCHEMA),
       },
       manifest.packet_files,
     )
@@ -82,11 +85,12 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     await this.deps.files.writeText(promptPath, prompt.text)
 
     const started = this.deps.clock.monotonicMs()
-    const report = await this.deps.clients[critic.client_config.kind].review({
+    const report = await reviewWith(this.deps.clients, {
       criticDir,
       critic,
       packetDir: manifest.packet_dir,
       promptPath,
+      schemaPath: join(this.deps.assetsRoot, SCHEMA),
     })
     const durationMs = this.deps.clock.monotonicMs() - started
     await this.deps.files.writeText(stdoutPath, report.stdout)

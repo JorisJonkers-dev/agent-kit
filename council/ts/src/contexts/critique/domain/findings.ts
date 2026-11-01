@@ -73,6 +73,11 @@ export function parseFindings(text: string): FindingsParse {
   } catch (error) {
     return { detail: String(error), failure: 'unparseable-findings', ok: false }
   }
+  return readFindings(value)
+}
+
+/** Checks a findings object, already parsed from JSON, against the output contract. */
+export function readFindings(value: unknown): FindingsParse {
   let findings: readonly CriticFinding[]
   try {
     findings = JsonFields.of(value, 'the block').list('findings', readCriticFinding)
