@@ -2205,3 +2205,42 @@ The flow state and the next-step rule (agent-kit#191) fixed these. #192
 - **For #197.** The gates should keep reading `gates.jsonl` and
   `ticket-reviews.jsonl` directly; the state file is a convenience, not the
   gate's source of truth.
+
+## What #193 settled
+
+`/flow budget` (agent-kit#193) fixed these:
+
+- **The command.** `critique budget` takes `{ repo, spec?, draft? }`, named
+  and refused exactly as `state` names and refuses a feature (`FlowLocator`
+  and `readFlowName` in `application/flow-state.ts` are now shared by both,
+  and so is `flowKeys`, which adds a linked draft's key). It launches
+  nothing and writes nothing. The result is `{ status: "read", flow, vibe:
+  { spent_usd, cap_usd, flows: [{ flow, spent_usd }] }, antigravity: {
+  daily_cap, reserve_threshold, reserved_stages, day, invocations },
+  stages: [...] }`.
+- **Same code as the stages.** Spend is `flowSpend` over the invocation
+  lines (through `FlowBudget.vibeSpendByFlow`), today's count is
+  `FlowBudget.agyInvocationsToday` (UTC day, `utcDay`), limits come from
+  `RoutingSource`, and each stage's reasons are `budgetReached` (fan-out's
+  wording) and `quotaReached` (prepare's). `vibe.spent_usd` equals the
+  state's `vibe_spend_usd`; tests check that, and that the reasons equal
+  the `budget-skip` detail fan-out records and the `quota` drop prepare
+  makes.
+- **Each key is capped on its own.** Fan-out holds a run to the spend of
+  its manifest's `flow`, not the feature's total. So `stages[]` gives each
+  stage the key its run would charge (`flow`: the draft's for decisions,
+  the spec's otherwise, null when there is none yet) and judges `vibe`
+  against that key's spend; the total and `flows` are for display.
+- **Stages.** One entry per stage routing defines, in flow order: `{ stage,
+  flow, vibe, antigravity, falls_back }`. `vibe` and `antigravity` are the
+  reason strings or null; `antigravity` is null for a stage routing no agy
+  slot. `falls_back` lists each held agy slot (`{ client, to, deep? }`), with
+  `to` the first non-agy client of routing's `fallbacks` for it, or null.
+  That is routing's fallback only: the allowlist, the orchestrator's family
+  and readiness, which prepare also applies, are not considered, so a real
+  run may pick a later fallback or leave the slot empty.
+- **For #192.** The subcommand text is `skills/flow/budget.md`, written as a
+  section file beside the `SKILL.md` #192 writes (setup copies the whole
+  skill directory). `SKILL.md`'s `budget` subcommand should say "follow
+  `budget.md` in this folder" and pass the feature it found as `spec` or
+  `draft`. `/flow explain budget` is the README's job.
