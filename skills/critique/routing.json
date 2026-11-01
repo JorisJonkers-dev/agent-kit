@@ -218,6 +218,31 @@
         "labels": ["risk:high"]
       }
     },
+    "ticket-review": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "diff-reviewer",
+          "lenses": ["failure-modes", "security"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 480
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "diff-reviewer",
+          "lenses": ["integration"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 480
+        }
+      ],
+      "depth_signals": {
+        "thresholds": { "changed_lines": 600, "risk_path_hits": 3 },
+        "labels": ["risk:high"]
+      }
+    },
     "feature-review": {
       "distinct_families": true,
       "base": [

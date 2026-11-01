@@ -38,6 +38,8 @@ export interface CodePacket {
   readonly change: CodeChange
   /** What the stage critiques: the ticket for a ticket review, the spec for a feature review. */
   readonly artifact: TrackedArtifact
+  /** The spec's reference, which a ticket review's flow defaults to. */
+  readonly specReference: string
 }
 
 /** The packet folder of the tree at the commit under review. */
@@ -98,6 +100,7 @@ export class CodePacketReader {
         head_commit: head,
       },
       files,
+      specReference: spec.reference,
       status: 'read',
     }
   }

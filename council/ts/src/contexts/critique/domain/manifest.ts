@@ -47,6 +47,12 @@ export interface CodeSource {
   readonly head_commit: string
   /** The packet path, under `tree/`, of every file the change touched that is still in the tree. */
   readonly changed_files: readonly string[]
+  /**
+   * Only when a ticket review reviewed the staged change: its hash
+   * (`stagedDiffHash`), so a commit gate can tell whether what it is about
+   * to commit is what was reviewed.
+   */
+  readonly staged_diff?: string
 }
 
 /**
@@ -102,6 +108,16 @@ export interface RunManifest {
   readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
+}
+
+/**
+ * The reference of the spec a run belongs to: its artifact's, unless the
+ * artifact is a ticket. A ticket review critiques a ticket, so its spec is
+ * the source of the packet's spec file.
+ */
+export function specReference(manifest: Pick<RunManifest, 'stage' | 'artifact' | 'packet_files'>): string {
+  const spec = manifest.stage === 'ticket-review' ? manifest.packet_files.find((file) => file.kind === 'spec') : undefined
+  return spec?.source ?? manifest.artifact.reference
 }
 
 /**
@@ -176,6 +192,7 @@ function readCodeSource(code: JsonFields): CodeSource {
     changed_files: code.strings('changed_files'),
     head: code.string('head'),
     head_commit: code.string('head_commit'),
+    ...(code.has('staged_diff') ? { staged_diff: code.string('staged_diff') } : {}),
   }
 }
 

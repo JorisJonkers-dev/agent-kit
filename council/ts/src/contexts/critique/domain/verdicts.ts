@@ -24,6 +24,10 @@ export interface Verdict {
   readonly follow_up?: string
   /** On a feature-review verdict accepted by a cross-ticket trace: the packet's ticket files the trace crossed. */
   readonly trace_tickets?: readonly string[]
+  /** On a ticket-review verdict accepted by `test-fails`: the repository path the test was kept at, in the ticket's change. */
+  readonly regression_test?: string
+  /** On an accepted ticket-review verdict: the finding is fixed in the change about to be committed. */
+  readonly fixed?: boolean
 }
 
 export interface AdjudicatedFinding extends RunFinding {
@@ -124,6 +128,10 @@ export const FEATURE_ACCEPT_REASONS = ['test-fails', 'cross-ticket-trace'] as co
  * accepted it, and a cross-ticket trace the packet tickets it crossed.
  */
 export function verdictProblem(stage: CritiqueStage, verdict: Verdict, packetFiles: readonly PacketFile[]): string | undefined {
+  return featureVerdictProblem(stage, verdict, packetFiles) ?? ticketVerdictProblem(stage, verdict)
+}
+
+function featureVerdictProblem(stage: CritiqueStage, verdict: Verdict, packetFiles: readonly PacketFile[]): string | undefined {
   const id = verdict.finding_id
   const extras = verdict.follow_up !== undefined || verdict.trace_tickets !== undefined
   if (stage !== 'feature-review') return extras ? `${id}: follow_up and trace_tickets belong to a feature-review verdict` : undefined
@@ -142,4 +150,38 @@ export function verdictProblem(stage: CritiqueStage, verdict: Verdict, packetFil
     return `${id}: trace_tickets belong to a cross-ticket-trace`
   }
   return verdict.follow_up === undefined ? `${id}: an accepted feature finding names its follow-up ticket in follow_up` : undefined
+}
+
+/**
+ * The two ways a ticket finding can be accepted: a failing test the
+ * orchestrator ran in a scratch worktree, or a trace it walked line by line.
+ */
+export const TICKET_ACCEPT_REASONS = ['test-fails', 'trace-walked'] as const
+
+/**
+ * What is wrong with a verdict's ticket-review fields, if anything. Only a
+ * ticket review takes `regression_test` and `fixed`, and only on an accepted
+ * finding; there a finding is accepted by a failing test or a walked trace,
+ * and one a test decided names where the test was kept.
+ */
+function ticketVerdictProblem(stage: CritiqueStage, verdict: Verdict): string | undefined {
+  const id = verdict.finding_id
+  const extras = verdict.regression_test !== undefined || verdict.fixed !== undefined
+  if (stage !== 'ticket-review') return extras ? `${id}: regression_test and fixed belong to a ticket-review verdict` : undefined
+  if (verdict.verdict !== 'accepted') return extras ? `${id}: only an accepted ticket finding has a regression_test or is fixed` : undefined
+  const reason = verdict.reason_code
+  if (reason !== 'test-fails' && reason !== 'trace-walked') {
+    return `${id}: a ticket finding is accepted only with reason_code ${TICKET_ACCEPT_REASONS.join(' or ')}`
+  }
+  if (reason === 'test-fails' && verdict.regression_test === undefined) {
+    return `${id}: a finding accepted by test-fails names the test kept in the ticket's change in regression_test`
+  }
+  if (reason !== 'test-fails' && verdict.regression_test !== undefined) return `${id}: regression_test belongs to a finding accepted by test-fails`
+  return undefined
+}
+
+/** #181 US53: accepted critical findings of a ticket review not yet fixed; while any is, the change must not be committed. */
+export function unfixedCritical(run: Pick<AdjudicatedRun, 'stage' | 'findings'>): readonly AdjudicatedFinding[] {
+  if (run.stage !== 'ticket-review') return []
+  return run.findings.filter((f) => f.severity === 'critical' && f.verdict.verdict === 'accepted' && f.verdict.fixed !== true)
 }

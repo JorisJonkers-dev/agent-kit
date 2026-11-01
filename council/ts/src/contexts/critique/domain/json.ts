@@ -69,6 +69,11 @@ export class JsonFields {
     return value
   }
 
+  /** A non-empty string, or `null`. */
+  nullableString(key: string): string | null {
+    return this.value[key] === null ? null : this.string(key)
+  }
+
   number(key: string): number {
     const value = this.value[key]
     JsonFields.ensure(typeof value === 'number' && Number.isFinite(value), this.at(key), 'a number')

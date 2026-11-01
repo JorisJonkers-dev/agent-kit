@@ -21,6 +21,7 @@ import { ledgerPath } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps, ModelAnswerReport } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { RoutingSource } from './routing.js'
+import { StagedDiffReader, stagedInput } from './staged-change.js'
 import { TrackerResolver } from './tracker.js'
 
 interface TriageInput {
@@ -29,7 +30,11 @@ interface TriageInput {
   readonly ticket: string
   readonly base: string
   readonly head: string
-  /** The flow whose Vibe spend the triage call adds to; the ticket's reference by default. */
+  /** Whether the change is the staged one rather than `head`. */
+  readonly staged: boolean
+  /** The spec the ticket belongs to, named the way prepare names it; only its reference is read, for the default flow. */
+  readonly spec: string | undefined
+  /** The flow whose Vibe spend the triage call adds to; the spec's reference, else the ticket's, by default. */
   readonly flow: string | undefined
 }
 
@@ -85,6 +90,7 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
   private readonly changes: CodeChangeReader
   private readonly routing: RoutingSource
   private readonly budget: FlowBudget
+  private readonly staged: StagedDiffReader
 
   constructor(private readonly deps: CritiqueDeps) {
     this.repositories = new RepositoryGate(deps)
@@ -92,6 +98,7 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     this.changes = new CodeChangeReader(deps)
     this.routing = new RoutingSource(deps)
     this.budget = new FlowBudget(deps)
+    this.staged = new StagedDiffReader(deps)
   }
 
   async run(raw: unknown): Promise<TriageResult | Refusal> {
@@ -100,6 +107,8 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
       flow: fields.optionalString('flow'),
       head: fields.optionalString('head') ?? 'HEAD',
       repo: fields.string('repo'),
+      spec: fields.optionalString('spec'),
+      staged: stagedInput(fields, 'ticket-review'),
       ticket: fields.string('ticket'),
     }))
     const repository = await this.repositories.resolve(input.repo)
@@ -111,10 +120,13 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     if (tracker.status === 'refused') return tracker
     const ticket = await tracker.artifact({ comments: false, reference: input.ticket })
     if (ticket.status === 'refused') return ticket
-    const read = await this.changes.read(repository.root, input.base, input.head)
+    const spec = input.spec === undefined ? undefined : await tracker.artifact({ comments: false, reference: input.spec })
+    if (spec?.status === 'refused') return spec
+    const head = input.staged ? (await this.staged.snapshot(repository.root)).commit : input.head
+    const read = await this.changes.read(repository.root, input.base, head)
     const runId = await this.freshRunId(repository)
     const runDir = join(repository.commonDir, 'critique', runId)
-    const flow = input.flow ?? ticket.reference
+    const flow = input.flow ?? spec?.reference ?? ticket.reference
     const signals = riskSignals(read.change, ticket.labels, triage)
     const [first] = signals
     const asked: Decided =

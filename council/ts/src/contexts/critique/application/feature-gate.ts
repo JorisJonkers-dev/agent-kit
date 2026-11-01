@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path'
 
 import { gateLine, openCriticalFollowUps, parseGateRecord, type FollowUp, type GateRecord } from '../domain/feature-review.js'
-import type { RunManifest } from '../domain/manifest.js'
+import { specReference, type RunManifest } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
 import { parseIssueReference } from '../domain/tracker.js'
 import type { AdjudicatedFinding } from '../domain/verdicts.js'
@@ -41,7 +41,7 @@ export class FeatureGate {
   async compute(manifest: RunManifest, findings: readonly AdjudicatedFinding[]): Promise<GateRecord> {
     const code = manifest.code
     if (code === undefined) throw new CritiqueError('invalid-run', `run ${manifest.run_id} is a feature review without the commits it reviewed`)
-    const spec = manifest.artifact.reference
+    const spec = specReference(manifest)
     const tickets = await this.tickets(manifest)
     const followUps = findings
       .filter((finding) => finding.verdict.verdict === 'accepted')

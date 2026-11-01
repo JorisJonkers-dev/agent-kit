@@ -38,6 +38,7 @@ import { insideRepository } from './paths.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { RoutingSource } from './routing.js'
+import { StagedDiffReader, stagedInput } from './staged-change.js'
 import { TrackerResolver, type Tracker } from './tracker.js'
 
 interface PrepareInput {
@@ -70,6 +71,8 @@ interface PrepareInput {
   readonly base: string | undefined
   /** A code stage's commit under review. */
   readonly head: string
+  /** Whether a ticket review reviews the staged change instead of a commit. */
+  readonly staged: boolean
   /** The ticket a ticket review delivers. */
   readonly ticket: string | undefined
 }
@@ -95,6 +98,8 @@ interface PacketContents {
   readonly change?: CodeChange | undefined
   /** Only for the tickets stage: what the ticket checker found. */
   readonly ticketCheck?: CheckTicketsResult
+  /** The spec's reference when the artifact is not the spec itself: a ticket review's. */
+  readonly specReference?: string
 }
 
 type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'> & {
@@ -137,6 +142,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly codePackets: CodePacketReader
   private readonly decisionsPackets: DecisionsPacketReader
   private readonly routing: RoutingSource
+  private readonly staged: StagedDiffReader
 
   constructor(private readonly deps: CritiqueDeps) {
     this.repositories = new RepositoryGate(deps)
@@ -145,6 +151,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     this.codePackets = new CodePacketReader(deps)
     this.decisionsPackets = new DecisionsPacketReader(deps.files)
     this.routing = new RoutingSource(deps)
+    this.staged = new StagedDiffReader(deps)
   }
 
   async run(raw: unknown): Promise<PrepareResult | Refusal> {
@@ -162,6 +169,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       repo: fields.string('repo'),
       spec: fields.optionalString('spec'),
       stage: fields.oneOf('stage', CRITIQUE_STAGES),
+      staged: stagedInput(fields, fields.oneOf('stage', CRITIQUE_STAGES)),
       ticket: fields.optionalString('ticket'),
     }))
     const { orchestratorFamily, stage } = input
@@ -177,9 +185,11 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         `${repository.key} allows documents but not code; record the code permission with allow and "code": true`,
       )
     }
-    const contents = await this.contents(repository, input)
+    const snapshot = input.staged ? await this.staged.snapshot(repository.root) : undefined
+    const contents = await this.contents(repository, snapshot === undefined ? input : { ...input, head: snapshot.commit })
     if (contents.status === 'refused') return contents
-    const { artifact, change, code, ticketCheck } = contents
+    const { artifact, change, ticketCheck } = contents
+    const code = contents.code === undefined || snapshot === undefined ? contents.code : { ...contents.code, staged_diff: snapshot.sha256 }
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage })
     if ('status' in round) return round
     const { previousFlow, ...roundFields } = round
@@ -217,8 +227,9 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       distinct_families: roster.distinct_families,
       depth_choice: choice,
       dropped: roster.dropped,
-      // A decisions run belongs to no tracker item, so unless named its flow is its own.
-      flow: input.flow ?? previousFlow ?? (stage === 'decisions' ? runId : artifact.reference),
+      // A decisions run belongs to no tracker item, so unless named its flow is its
+      // own; a ticket review's is its spec's, so it counts with the spec's other stages.
+      flow: input.flow ?? previousFlow ?? (stage === 'decisions' ? runId : (contents.specReference ?? artifact.reference)),
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,

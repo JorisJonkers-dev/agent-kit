@@ -39,6 +39,10 @@ export {
   type TriageSignal,
 } from './domain/triage.js'
 export { CodeChangeReader, type ReadChange } from './application/code-change.js'
+export { StagedDiffReader, type StagedDiff, type StagedSnapshot } from './application/staged-change.js'
+export { ticketReviewIndexPath, ticketReviewPath } from './application/ticket-review.js'
+export { parseTicketReviewRecord, stagedDiffHash, type TicketReviewRecord } from './domain/ticket-review.js'
+export { specReference } from './domain/manifest.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
 export { AgyCriticClient } from './adapters/agy/index.js'
 export { VibeCriticClient } from './adapters/vibe/index.js'

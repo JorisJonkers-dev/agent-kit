@@ -2,7 +2,17 @@ import type { CriticRun } from './critic.js'
 import { signalledDepth, type DepthSignal } from './depth.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
-import { countVerdicts, familiesOf, isDissent, openCriticalQuestions, VERDICTS, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
+import {
+  countVerdicts,
+  familiesOf,
+  isDissent,
+  openCriticalQuestions,
+  unfixedCritical,
+  VERDICTS,
+  type AdjudicatedFinding,
+  type AdjudicatedRun,
+  type Verdict,
+} from './verdicts.js'
 
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
@@ -68,6 +78,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '## Report',
       '',
       reportPath,
+      ...doNotCommitLines(run),
       '',
     ].join('\n')
   const trimmable = () => (Object.keys(lists) as (keyof typeof lists)[]).filter((key) => lists[key].length > 0)
@@ -187,6 +198,17 @@ function doNotStartLines(run: AdjudicatedRun): readonly string[] {
   ]
 }
 
+/**
+ * #181 US53: a ticket review whose accepted critical finding is not fixed
+ * yet ends its summary with "do not commit", the gate before any hook.
+ */
+function doNotCommitLines(run: AdjudicatedRun): readonly string[] {
+  const ids = unfixedCritical(run).map((f) => f.id)
+  if (ids.length === 0) return []
+  const which = ids.length === 1 ? `Critical finding ${ids.join('')} is` : `Critical findings ${ids.join(', ')} are`
+  return ['', `${which} accepted and not fixed: do not commit.`]
+}
+
 /** How many dangling blockers the ticket check line names; the checker's report in the packet has all of them. */
 const DANGLING_SHOWN = 5
 
@@ -227,7 +249,8 @@ function ticketCheckLines(run: AdjudicatedRun): readonly string[] {
  */
 function acceptedTail(verdict: Verdict): string | undefined {
   if (verdict.answered === true) return '(answered)'
-  return verdict.reason_code === undefined ? undefined : `(${verdict.reason_code})`
+  const parts = [...(verdict.reason_code === undefined ? [] : [verdict.reason_code]), ...(verdict.fixed === true ? ['fixed'] : [])]
+  return parts.length === 0 ? undefined : `(${parts.join(', ')})`
 }
 
 function questionTail(verdict: Verdict): string | undefined {
@@ -301,9 +324,11 @@ function verdictText(verdict: Verdict): string {
   const code = verdict.reason_code === undefined ? '' : ` (${verdict.reason_code})`
   const followUp = verdict.follow_up === undefined ? '' : `, follow-up ${verdict.follow_up}`
   const crossed = verdict.trace_tickets === undefined ? '' : `, trace across ${verdict.trace_tickets.join(', ')}`
+  const kept = verdict.regression_test === undefined ? '' : `, regression test ${verdict.regression_test}`
+  const fixed = verdict.fixed === true ? ', fixed' : ''
   const answered = verdict.answered === true ? ', answered' : ''
   const reason = verdict.reason === undefined ? '' : `: ${verdict.reason}`
-  return `${verdict.verdict}${answered}${code}${followUp}${crossed}${reason}`
+  return `${verdict.verdict}${answered}${code}${followUp}${crossed}${kept}${fixed}${reason}`
 }
 
 function verdictLine(run: AdjudicatedRun): string {

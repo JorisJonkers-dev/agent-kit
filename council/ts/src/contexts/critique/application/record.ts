@@ -8,6 +8,7 @@ import { parseManifest } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import type { Round } from '../domain/stage.js'
+import type { TicketReviewRecord } from '../domain/ticket-review.js'
 import type { TicketCheckStatus } from '../domain/tickets.js'
 import {
   countVerdicts,
@@ -24,6 +25,7 @@ import { parseFanOutResult } from './fan-out.js'
 import { FeatureGate } from './feature-gate.js'
 import { findingsPath, ledgerPath, manifestPath, reportPath as reportPathOf } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
+import { TicketReviewLog } from './ticket-review.js'
 
 export interface RecordResult {
   readonly status: 'recorded'
@@ -42,6 +44,8 @@ export interface RecordResult {
   readonly ticket_check?: TicketCheckStatus
   /** A feature review's gate: its line, the head it holds for and the follow-ups that hold it. */
   readonly gate?: GateRecord
+  /** A ticket review's record: whether it passed, and the staged change it vouches for. */
+  readonly ticket_review?: TicketReviewRecord
 }
 
 const REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/
@@ -88,6 +92,8 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       stage: manifest.stage,
       ...(manifest.ticket_check === undefined ? {} : { ticket_check: manifest.ticket_check }),
     }
+    const reviews = new TicketReviewLog(this.deps)
+    const ticketReview = manifest.stage === 'ticket-review' ? await reviews.compute(manifest, run) : undefined
     const summary = renderSummary(run, reportPath)
     const summaryPath = join(input.runDir, 'summary.md')
     const ledger = ledgerPath(this.deps.env)
@@ -95,6 +101,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     await this.deps.files.writeText(summaryPath, summary)
     await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line) => `${line}\n`).join(''))
     if (gate !== undefined) await gates.save(manifest, gate)
+    if (ticketReview !== undefined) await reviews.save(manifest, ticketReview)
     return {
       counts: countVerdicts(run),
       degraded: run.degraded,
@@ -108,6 +115,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       summary,
       summary_path: summaryPath,
       ...(run.ticket_check === undefined ? {} : { ticket_check: run.ticket_check.status }),
+      ...(ticketReview === undefined ? {} : { ticket_review: ticketReview }),
     }
   }
 }
@@ -159,6 +167,8 @@ function readVerdict(fields: JsonFields): Verdict {
   const answered = fields.has('answered') ? fields.boolean('answered') : undefined
   const followUp = fields.optionalString('follow_up')
   const traceTickets = fields.has('trace_tickets') ? fields.strings('trace_tickets') : undefined
+  const regressionTest = fields.optionalString('regression_test')
+  const fixed = fields.has('fixed') ? fields.boolean('fixed') : undefined
   return {
     finding_id: findingId,
     verdict,
@@ -167,6 +177,8 @@ function readVerdict(fields: JsonFields): Verdict {
     ...(answered === undefined ? {} : { answered }),
     ...(followUp === undefined ? {} : { follow_up: followUp }),
     ...(traceTickets === undefined ? {} : { trace_tickets: traceTickets }),
+    ...(regressionTest === undefined ? {} : { regression_test: regressionTest }),
+    ...(fixed === undefined ? {} : { fixed }),
   }
 }
 
