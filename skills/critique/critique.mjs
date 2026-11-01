@@ -101,7 +101,12 @@ function isRecord(value) {
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
+var DEFAULT_KILL_GRACE_MS = 5e3;
 var NodeProcessAdapter = class {
+  killGraceMs;
+  constructor(options = {}) {
+    this.killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
+  }
   async exec(command) {
     const child = spawn(command.command, [...command.args], {
       ...command.cwd === void 0 ? {} : { cwd: command.cwd },
@@ -116,30 +121,53 @@ var NodeProcessAdapter = class {
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString("utf8");
     });
-    const timeout = setProcessTimeout(child, command.timeoutMs);
+    const timer = new ProcessTimer(child, command.timeoutMs, this.killGraceMs);
     const exitCode = await new Promise((resolve2, reject) => {
       child.once("error", reject);
       child.once("close", (code) => {
         resolve2(processExitCode(code));
       });
     }).finally(() => {
-      if (timeout !== void 0) clearTimeout(timeout);
+      timer.clear();
     });
     return {
       exitCode,
       stderr,
-      stdout
+      stdout,
+      ...timer.fired ? { timedOut: true } : {}
     };
   }
 };
-function setProcessTimeout(child, timeoutMs) {
-  if (timeoutMs === void 0) return void 0;
-  const timeout = setTimeout(() => {
-    child.kill("SIGTERM");
-  }, timeoutMs);
-  timeout.unref();
-  return timeout;
-}
+var ProcessTimer = class {
+  constructor(child, timeoutMs, killGraceMs) {
+    this.child = child;
+    this.killGraceMs = killGraceMs;
+    if (timeoutMs !== void 0) {
+      this.after(timeoutMs, () => {
+        this.terminate();
+      });
+    }
+  }
+  child;
+  killGraceMs;
+  fired = false;
+  timers = [];
+  clear() {
+    for (const timer of this.timers) clearTimeout(timer);
+  }
+  terminate() {
+    this.fired = true;
+    this.child.kill("SIGTERM");
+    this.after(this.killGraceMs, () => {
+      this.child.kill("SIGKILL");
+    });
+  }
+  after(ms, action) {
+    const timer = setTimeout(action, ms);
+    timer.unref();
+    this.timers.push(timer);
+  }
+};
 function processExitCode(code) {
   if (code !== null) return code;
   return 124;
@@ -430,6 +458,66 @@ var AllowCommand = class {
 // src/contexts/critique/application/fan-out.ts
 import { join as join3 } from "node:path";
 
+// src/contexts/critique/domain/stage.ts
+var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
+var DEPTHS = ["base", "deep"];
+
+// src/contexts/critique/domain/budget.ts
+var DEFAULT_LIMITS = {
+  antigravity_quota: { daily_cap: 20, reserve_threshold: 10, reserved_stages: ["spec", "feature-review"] },
+  budget: { vibe_flow_cap_usd: 5 }
+};
+function readLimits(file) {
+  const quota = file.has("antigravity_quota") ? file.object("antigravity_quota") : void 0;
+  return {
+    antigravity_quota: quota === void 0 ? DEFAULT_LIMITS.antigravity_quota : {
+      daily_cap: quota.number("daily_cap"),
+      reserve_threshold: quota.number("reserve_threshold"),
+      reserved_stages: quota.oneOfList("reserved_stages", CRITIQUE_STAGES)
+    },
+    budget: file.has("budget") ? { vibe_flow_cap_usd: file.object("budget").number("vibe_flow_cap_usd") } : DEFAULT_LIMITS.budget
+  };
+}
+function invocationLines(ledger) {
+  return ledger.split("\n").flatMap((text) => {
+    try {
+      const line = JsonFields.parse(text);
+      if (!line.has("type") || line.string("type") !== "invocation") return [];
+      return [
+        {
+          charged_usd: line.number("charged_usd"),
+          flow: line.string("flow"),
+          kind: line.oneOf("kind", ["vibe", "agy"]),
+          recorded_at: line.string("recorded_at"),
+          repository: line.string("repository")
+        }
+      ];
+    } catch {
+      return [];
+    }
+  });
+}
+function flowSpend(lines, repository, flow) {
+  return lines.filter((line) => line.kind === "vibe" && line.repository === repository && line.flow === flow).reduce((total, line) => total + line.charged_usd, 0);
+}
+function agyInvocationsOn(lines, now) {
+  const day = now.toISOString().slice(0, 10);
+  return lines.filter((line) => line.kind === "agy" && line.recorded_at.slice(0, 10) === day).length;
+}
+function budgetReached(spend, limits) {
+  const cap = limits.budget.vibe_flow_cap_usd;
+  return spend >= cap ? `the flow's Vibe spend $${spend.toFixed(4)} has reached its $${cap.toFixed(2)} cap` : void 0;
+}
+function quotaReached(count, quota, stage) {
+  if (count >= quota.daily_cap) {
+    return `antigravity: ${String(count)} invocations today have reached the daily cap of ${String(quota.daily_cap)}`;
+  }
+  if (count >= quota.reserve_threshold && !quota.reserved_stages.includes(stage)) {
+    return `antigravity: ${String(count)} invocations today have reached the reserve threshold of ${String(quota.reserve_threshold)}; the rest is kept for ${quota.reserved_stages.join(" and ")}`;
+  }
+  return void 0;
+}
+
 // src/contexts/critique/domain/findings.ts
 var SEVERITIES = ["critical", "major", "minor"];
 var CATEGORIES = [
@@ -534,9 +622,11 @@ var RUN_FAILURES = [
   "print-timeout",
   "denied-action",
   "missing-structured-output",
-  "unsafe-tool"
+  "unsafe-tool",
+  /** The CLI outlived its outer timeout and was killed. */
+  "timeout"
 ];
-var CRITIC_STATUSES = ["ok", "failed", "violated-readonly"];
+var CRITIC_STATUSES = ["ok", "failed", "violated-readonly", "budget-skip"];
 function criticIdentity(critic) {
   return {
     client: critic.client,
@@ -551,14 +641,17 @@ function readCriticRun(fields) {
   const failure = fields.optionalMatching("failure", isCriticFailure, "a critic failure");
   const detail = fields.optionalString("detail");
   const noFindingsReason = fields.optionalString("no_findings_reason");
+  const retryOf = fields.optionalString("retry_of");
+  const stdoutPath = fields.optionalString("stdout_path");
+  const exportPath = fields.optionalString("export_path");
   const hashes = fields.object("prompt_hashes");
   return {
+    charged_usd: fields.number("charged_usd"),
     client: fields.string("client"),
     cost_usd: fields.nullableNumber("cost_usd"),
     critic_id: fields.string("critic_id"),
     duration_ms: fields.number("duration_ms"),
-    exit_code: fields.number("exit_code"),
-    export_path: fields.string("export_path"),
+    exit_code: fields.nullableNumber("exit_code"),
     family: fields.oneOf("family", MODEL_FAMILIES),
     finding_count: fields.number("finding_count"),
     lens_hashes: fields.stringMap("lens_hashes"),
@@ -573,10 +666,12 @@ function readCriticRun(fields) {
     prompt_path: fields.string("prompt_path"),
     role: fields.string("role"),
     status: fields.oneOf("status", CRITIC_STATUSES),
-    stdout_path: fields.string("stdout_path"),
     ...failure === void 0 ? {} : { failure },
     ...detail === void 0 ? {} : { detail },
-    ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason }
+    ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason },
+    ...retryOf === void 0 ? {} : { retry_of: retryOf },
+    ...stdoutPath === void 0 ? {} : { stdout_path: stdoutPath },
+    ...exportPath === void 0 ? {} : { export_path: exportPath }
   };
 }
 function isCriticFailure(value) {
@@ -713,12 +808,13 @@ function containsTerm(text, term) {
 
 // src/contexts/critique/domain/routing.ts
 var CLIENT_KINDS = ["vibe", "agy"];
-var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable"];
+var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota"];
 function parseRouting(text) {
   const file = JsonFields.parse(text);
   return {
     clients: file.entries("clients", readCriticClient),
     fallbacks: file.has("fallbacks") ? file.stringLists("fallbacks") : {},
+    limits: readLimits(file),
     stages: file.entries("stages", (stage, name) => ({
       base: stage.list("base", readRosterSlot),
       deep: stage.has("deep") ? stage.list("deep", readRosterSlot) : [],
@@ -761,7 +857,11 @@ function readRosterCritic(fields) {
   return {
     ...readRosterSlot(fields),
     client_config: readCriticClient(fields.object("client_config")),
-    critic_id: fields.string("critic_id")
+    critic_id: fields.string("critic_id"),
+    fallbacks: fields.list("fallbacks", (fallback) => ({
+      client: fallback.string("client"),
+      client_config: readCriticClient(fallback.object("client_config"))
+    }))
   };
 }
 function readDroppedCritic(fields) {
@@ -788,7 +888,8 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     const reason = familyReason(client.family, request) ?? (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family) ? "same-family" : void 0);
     if (reason !== void 0) return { reason };
     const ready = readiness.get(name);
-    return ready?.ready === false ? { detail: ready.detail, reason: "unavailable" } : void 0;
+    if (ready?.ready !== false) return void 0;
+    return { detail: ready.detail, reason: "reason" in ready ? ready.reason : "unavailable" };
   };
   for (const { slot, deep } of slotsAt(stage, request.depth)) {
     const primary = clientNamed(routing, request, slot.client);
@@ -796,7 +897,16 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     const name = slotCandidates(routing, slot.client).find(
       (candidate) => refusal2(candidate, clientNamed(routing, request, candidate)) === void 0
     );
-    const chosen = name === void 0 ? void 0 : { ...slot, client: name, client_config: clientNamed(routing, request, name), critic_id: `c${String(critics.length + 1)}-${name}` };
+    const fallbacks = slotCandidates(routing, slot.client).filter((candidate) => candidate !== name).map((candidate) => ({ client: candidate, client_config: clientNamed(routing, request, candidate) })).filter(
+      (fallback) => familyReason(fallback.client_config.family, request) === void 0 && readiness.get(fallback.client)?.ready !== false
+    );
+    const chosen = name === void 0 ? void 0 : {
+      ...slot,
+      client: name,
+      client_config: clientNamed(routing, request, name),
+      critic_id: `c${String(critics.length + 1)}-${name}`,
+      fallbacks
+    };
     if (primaryRefusal !== void 0) {
       dropped.push({
         client: slot.client,
@@ -808,7 +918,7 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     }
     if (chosen !== void 0) critics.push(chosen);
   }
-  return { critics, depth: request.depth, dropped };
+  return { critics, depth: request.depth, distinct_families: stage.distinct_families, dropped };
 }
 function slotsAt(stage, depth) {
   return [...stage.base.map((slot) => ({ slot })), ...depth === "deep" ? stage.deep.map((slot) => ({ deep: true, slot })) : []];
@@ -833,10 +943,6 @@ function familyReason(family, request) {
   if (family === request.orchestratorFamily) return "orchestrator-family";
   return void 0;
 }
-
-// src/contexts/critique/domain/stage.ts
-var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
-var DEPTHS = ["base", "deep"];
 
 // src/contexts/critique/domain/tracker.ts
 var TRACKER_KINDS = ["github", "local-markdown"];
@@ -888,8 +994,11 @@ function parseManifest(text) {
     created_at: file.string("created_at"),
     critics: file.list("critics", readRosterCritic),
     depth: file.oneOf("depth", DEPTHS),
+    distinct_families: file.boolean("distinct_families"),
     depth_choice: readDepthChoice(file.object("depth_choice")),
     dropped: file.list("dropped", readDroppedCritic),
+    flow: file.string("flow"),
+    limits: readLimits(file.object("limits")),
     orchestrator_family: file.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
     packet_dir: file.string("packet_dir"),
     packet_files: file.list("packet_files", (packetFile) => ({
@@ -984,6 +1093,45 @@ ${sources.schema.trim()}
 `
   };
 }
+
+// src/contexts/critique/application/budget.ts
+var FlowBudget = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  /** What the Vibe critics of this run's flow have been charged so far, this run's included. */
+  async vibeSpend(manifest) {
+    return flowSpend(await this.lines(), manifest.repository, manifest.flow);
+  }
+  /** agy launches on this machine today. */
+  async agyInvocationsToday() {
+    return agyInvocationsOn(await this.lines(), this.deps.clock.now());
+  }
+  async logInvocation(manifest, run, kind) {
+    const line = {
+      charged_usd: run.charged_usd,
+      client: run.client,
+      critic_id: run.critic_id,
+      family: run.family,
+      flow: manifest.flow,
+      kind,
+      model: run.model,
+      recorded_at: this.deps.clock.now().toISOString(),
+      repository: manifest.repository,
+      run_id: manifest.run_id,
+      stage: manifest.stage,
+      status: run.status,
+      type: "invocation"
+    };
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+`);
+  }
+  async lines() {
+    const path = ledgerPath(this.deps.env);
+    return await this.deps.files.exists(path) ? invocationLines(await this.deps.files.readText(path)) : [];
+  }
+};
 
 // src/contexts/critique/application/ports.ts
 function clientReadiness(clients, config) {
@@ -1120,7 +1268,10 @@ var FanOutCommand = class {
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
     const packet = await this.readPacket(manifest);
-    const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)));
+    const budget = new FlowBudget(this.deps);
+    const spent = await budget.vibeSpend(manifest);
+    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)));
+    const outcomes = [...first, ...await this.retries({ budget, manifest, tripwire }, first)];
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet));
     const result2 = {
@@ -1146,8 +1297,51 @@ var FanOutCommand = class {
       }))
     );
   }
-  async runCritic(manifest, tripwire, critic) {
-    const criticDir = join3(manifest.run_dir, "critics", critic.critic_id);
+  /**
+   * Once the first wave has ended, retries every failed critic that has a
+   * fallback left, with the flow's spend and today's agy count read again,
+   * since the first wave (and any other session on this machine) has added
+   * to them.
+   */
+  async retries(wave, first) {
+    const { manifest } = wave;
+    const spent = await wave.budget.vibeSpend(manifest);
+    const blocked = {
+      agy: quotaReached(await wave.budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage) !== void 0,
+      vibe: budgetReached(spent, manifest.limits) !== void 0
+    };
+    const retries = fallbackRetries(manifest, first, blocked);
+    return Promise.all(retries.map((retry) => this.attempt({ ...wave, spent }, retry.critic, retry.retryOf)));
+  }
+  /**
+   * Launches one critic, unless it is a Vibe critic and the flow has spent
+   * its cap: then it is recorded as a budget skip and never launched.
+   */
+  async attempt(wave, critic, retryOf) {
+    const skip = critic.client_config.kind === "vibe" ? budgetReached(wave.spent, wave.manifest.limits) : void 0;
+    const criticDir = join3(wave.manifest.run_dir, "critics", critic.critic_id);
+    const prompt = await this.writePrompt(wave.manifest, critic, criticDir);
+    const retry = retryOf === void 0 ? {} : { retry_of: retryOf };
+    if (skip !== void 0) {
+      const run = {
+        ...criticIdentity(critic),
+        ...promptFields(prompt, criticDir),
+        ...retry,
+        charged_usd: 0,
+        cost_usd: null,
+        detail: skip,
+        duration_ms: 0,
+        exit_code: null,
+        finding_count: 0,
+        status: "budget-skip"
+      };
+      return { findings: [], run };
+    }
+    const attempt = await this.runCritic(wave.tripwire, critic, criticDir, prompt, retry);
+    await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind);
+    return attempt;
+  }
+  async writePrompt(manifest, critic, criticDir) {
     const asset = (path) => this.deps.files.readText(join3(this.deps.assetsRoot, path));
     const prompt = assemblePrompt(
       {
@@ -1159,9 +1353,12 @@ var FanOutCommand = class {
       },
       manifest.packet_files
     );
-    const promptPath = join3(criticDir, "prompt.md");
+    await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text);
+    return prompt;
+  }
+  async runCritic(tripwire, critic, criticDir, prompt, retry) {
+    const { prompt_path: promptPath } = promptFields(prompt, criticDir);
     const stdoutPath = join3(criticDir, "stdout.json");
-    await this.deps.files.writeText(promptPath, prompt.text);
     const packetDir = join3(criticDir, "packet");
     const armed = await tripwire.arm(packetDir);
     const started = this.deps.clock.monotonicMs();
@@ -1180,20 +1377,47 @@ var FanOutCommand = class {
     const findings = outcome.status === "ok" && violations.length === 0 ? outcome.findings : [];
     const run = {
       ...criticIdentity(critic),
+      ...promptFields(prompt, criticDir),
+      ...retry,
+      charged_usd: report.chargedUsd,
       cost_usd: outcome.cost_usd,
       duration_ms: durationMs,
       exit_code: report.exitCode,
       export_path: report.exportPath,
       finding_count: findings.length,
-      lens_hashes: prompt.lens_hashes,
-      prompt_hashes: prompt.prompt_hashes,
-      prompt_path: promptPath,
       stdout_path: stdoutPath,
       ...criticStatus(outcome, violations)
     };
     return { findings, run };
   }
 };
+function promptFields(prompt, criticDir) {
+  return { lens_hashes: prompt.lens_hashes, prompt_hashes: prompt.prompt_hashes, prompt_path: join3(criticDir, "prompt.md") };
+}
+function fallbackRetries(manifest, first, blocked) {
+  const taken = new Set(first.filter((attempt) => attempt.run.status === "ok").map((attempt) => attempt.run.family));
+  const retries = [];
+  manifest.critics.forEach((critic, index) => {
+    if (first[index]?.run.status !== "failed") return;
+    const eligible = critic.fallbacks.filter(
+      (candidate) => !(candidate.client_config.kind === "agy" && blocked.agy) && (!manifest.distinct_families || !taken.has(candidate.client_config.family))
+    );
+    const fallback = eligible.find((candidate) => !(candidate.client_config.kind === "vibe" && blocked.vibe)) ?? eligible[0];
+    if (fallback === void 0) return;
+    taken.add(fallback.client_config.family);
+    retries.push({
+      critic: {
+        ...critic,
+        client: fallback.client,
+        client_config: fallback.client_config,
+        critic_id: `${critic.critic_id}-retry-${fallback.client}`,
+        fallbacks: []
+      },
+      retryOf: critic.critic_id
+    });
+  });
+  return retries;
+}
 function criticStatus(outcome, violations) {
   if (violations.length > 0) return { detail: `read-only violated: ${violations.join("; ")}`, status: "violated-readonly" };
   if (outcome.status === "failed") return { detail: outcome.detail, failure: outcome.failure, status: "failed" };
@@ -1431,6 +1655,7 @@ var PrepareCommand = class {
   async run(raw) {
     const input = readInput(raw, "prepare", (fields) => ({
       comments: fields.has("comments") ? fields.boolean("comments") : false,
+      flow: fields.optionalString("flow"),
       depth: fields.has("depth") ? fields.oneOf("depth", DEPTHS) : void 0,
       orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
       references: fields.has("references") ? fields.strings("references") : void 0,
@@ -1470,8 +1695,11 @@ var PrepareCommand = class {
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
+      distinct_families: roster.distinct_families,
       depth_choice: choice,
       dropped: roster.dropped,
+      flow: input.flow ?? artifact.reference,
+      limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
@@ -1498,11 +1726,19 @@ var PrepareCommand = class {
       status: "ready"
     };
   }
-  /** Asks each client the stage could run, and that the family rules permit, whether it can run here. */
+  /**
+   * Asks each client the stage could run, and that the family rules permit,
+   * whether it can run here, and holds an agy client that can to the day's
+   * Antigravity quota. Counting reads the ledger and launches nothing, so an
+   * agy that is not set up falls back without touching the counter.
+   */
   async readiness(routing, request) {
-    const checks = candidateClients(routing, request).map(
-      async ([name, client]) => [name, await clientReadiness(this.deps.clients, client)]
-    );
+    const agyToday = await new FlowBudget(this.deps).agyInvocationsToday();
+    const checks = candidateClients(routing, request).map(async ([name, client]) => {
+      const ready = await clientReadiness(this.deps.clients, client);
+      const quota = ready.ready && client.kind === "agy" ? quotaReached(agyToday, routing.limits.antigravity_quota, request.stage) : void 0;
+      return [name, quota === void 0 ? ready : { detail: quota, ready: false, reason: "quota" }];
+    });
     return new Map(await Promise.all(checks));
   }
   async freshRunId(repository, stage) {
@@ -1562,6 +1798,7 @@ function isDissent(run, finding) {
 function ledgerLines(run, recordedAt) {
   const common = {
     depth: run.depth,
+    flow: run.flow,
     depth_chosen_by: run.depth_choice.chosen_by,
     depth_measures: run.depth_choice.measures,
     depth_signals: run.depth_choice.signals,
@@ -1587,11 +1824,13 @@ function ledgerLines(run, recordedAt) {
     type: "run",
     ...common,
     ...criticFields(critic.critic_id),
+    charged_usd: critic.charged_usd,
     cost_usd: critic.cost_usd,
     duration_ms: critic.duration_ms,
     exit_code: critic.exit_code,
     failure: critic.failure ?? null,
     finding_count: critic.finding_count,
+    retry_of: critic.retry_of ?? null,
     status: critic.status
   }));
   const findingLines = run.findings.map((finding) => ({
@@ -1635,7 +1874,7 @@ function renderSummary(run, reportPath) {
     "",
     "## Critics",
     "",
-    ...run.critics.map((critic) => `- ${criticLine(critic, CHECKED_MAX_CHARS)}`),
+    ...run.critics.map((critic) => `- ${criticLine(run, critic, CHECKED_MAX_CHARS)}`),
     ...run.dropped.map(droppedLine),
     "",
     "## Accepted",
@@ -1685,7 +1924,7 @@ function renderReport(run) {
     ...run.critics.flatMap((critic) => [
       `### ${critic.critic_id}`,
       "",
-      `- ${criticLine(critic)}`,
+      `- ${criticLine(run, critic)}`,
       `- Role ${critic.role}, lenses ${critic.lenses.join(", ")}`,
       `- Exit code ${String(critic.exit_code)}, ${String(critic.duration_ms)} ms`,
       ...critic.detail === void 0 ? [] : [`- Detail: ${critic.detail}`],
@@ -1760,11 +1999,18 @@ function verdictLine(run) {
   const counts = countVerdicts(run);
   return `Verdicts: accepted ${String(counts.accepted)}, rejected ${String(counts.rejected)}, needs-human ${String(counts["needs-human"])}, hint ${String(counts.hint)}`;
 }
-function criticLine(critic, checkedMaxChars = Infinity) {
+function criticLine(run, critic, checkedMaxChars = Infinity) {
+  const who = `${critic.client} (${critic.model}, ${critic.family})`;
+  if (critic.status === "budget-skip") return `${who}: budget-skip: ${critic.detail ?? ""}${retryText(run, critic)}`;
   const cost = critic.cost_usd === null ? "cost unknown" : `$${critic.cost_usd.toFixed(4)}`;
   const status = critic.status === "ok" ? "ok" : critic.status === "violated-readonly" ? "violated read-only" : `failed (${critic.failure ?? "unknown"})`;
   const checked = critic.no_findings_reason === void 0 ? "" : ` (checked: ${clip(critic.no_findings_reason, checkedMaxChars)})`;
-  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? "" : "s"}, ${cost}${checked}`;
+  return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? "" : "s"}, ${cost}${retryText(run, critic)}${checked}`;
+}
+function retryText(run, critic) {
+  if (critic.retry_of === void 0) return "";
+  const failed = run.critics.find((other) => other.critic_id === critic.retry_of);
+  return `, fallback for ${critic.retry_of} (${failed?.failure ?? "failed"})`;
 }
 function clip(text, maxChars) {
   return text.length > maxChars ? `${text.slice(0, maxChars - 1)}\u2026` : text;
@@ -1815,6 +2061,7 @@ var RecordCommand = class {
       depth_choice: manifest.depth_choice,
       dropped: manifest.dropped,
       findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
+      flow: manifest.flow,
       repository: manifest.repository,
       run_id: manifest.run_id,
       stage: manifest.stage
@@ -1969,7 +2216,8 @@ var AgyCriticClient = class {
     const exportPath = join10(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
-    return { ...result2, exportPath, outcome: classifyAgyRun(result2.exitCode, result2.stdout, run) };
+    const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run);
+    return { ...result2, chargedUsd: 0, exportPath, outcome };
   }
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
@@ -2020,6 +2268,9 @@ function readStream(stdout) {
   }
   return { parsed: true, result: result2, tools };
 }
+function timedOut(timeoutS) {
+  return { cost_usd: null, detail: `agy did not return within ${String(timeoutS)}s, so the outer timer killed it`, failure: "timeout", status: "failed" };
+}
 function classifyAgyRun(exitCode, stdout, run) {
   const failed = (failure, detail) => ({ cost_usd: null, detail, failure, status: "failed" });
   if (exitCode !== 0) return failed(`exit-${String(exitCode)}`, `agy exited ${String(exitCode)}`);
@@ -2068,13 +2319,15 @@ var VibeCriticClient = class {
     const result2 = await this.process.exec(
       vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
     );
-    const outcome = classifyVibeRun({
+    const run = {
       exitCode: result2.exitCode,
       exported: await this.readExport(exportPath),
       stderr: result2.stderr,
-      stdout: result2.stdout
-    });
-    return { ...result2, exportPath, outcome };
+      stdout: result2.stdout,
+      timedOut: result2.timedOut === true,
+      timeoutS: launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S2
+    };
+    return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
   }
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
   async readExport(path) {
@@ -2132,6 +2385,7 @@ function classifyVibeRun(run) {
   const exported = jsonObjectOrUndefined(run.exported);
   const cost = typeof exported?.cost_usd === "number" ? exported.cost_usd : null;
   const failed = (failure, detail) => ({ cost_usd: cost, detail, failure, status: "failed" });
+  if (run.timedOut) return failed("timeout", `vibe did not return within ${String(run.timeoutS)}s, so the outer timer killed it`);
   if (run.exitCode !== 0) {
     const outcome = typeof exported?.outcome === "string" ? `outcome ${exported.outcome}` : run.stderr.trim();
     return failed(EXIT_FAILURES[run.exitCode] ?? `exit-${String(run.exitCode)}`, `vibe exited ${String(run.exitCode)}: ${outcome}`);
@@ -2150,6 +2404,16 @@ function classifyVibeRun(run) {
     status: "ok",
     ...parsed.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed.no_findings_reason }
   };
+}
+function vibeCharge(run, cap) {
+  const exported = jsonObjectOrUndefined(run.exported);
+  const cost = exported?.cost_usd;
+  if (run.timedOut || typeof cost !== "number") return cap;
+  if (exported?.outcome === "deadline") return Math.max(cost, cap);
+  return cost === 0 && usedTokens(jsonObjectOrUndefined(exported?.usage)) ? cap : cost;
+}
+function usedTokens(usage) {
+  return [usage?.input_tokens, usage?.output_tokens].some((tokens) => typeof tokens === "number" && tokens > 0);
 }
 function isolationViolations(config) {
   const violations = [];

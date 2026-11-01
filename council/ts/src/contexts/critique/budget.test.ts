@@ -499,7 +499,8 @@ async function shippedRouting(): Promise<ShippedRouting> {
 /** The shipped routing, with the spec stage's critics also routed for the decisions stage. */
 async function withDecisionsStage(): Promise<unknown> {
   const routing = await shippedRouting()
-  const { depth_signals: _spec_signals, ...decisions } = routing.stages.spec
+  // The spec stage's depth signals measure user stories, which a decisions stage has none of.
+  const decisions = Object.fromEntries(Object.entries(routing.stages.spec).filter(([key]) => key !== 'depth_signals'))
   return { ...routing, stages: { ...routing.stages, decisions } }
 }
 
