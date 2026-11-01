@@ -36,5 +36,6 @@ mcp_servers:
     env:
       OVERLEAF_BASE_URL: "https://overleaf.jorisjonkers.dev"
       OVERLEAF_COOKIE_NAME: "overleaf.sid"
+      OLCLI_MCP_UNCONFIRMED_WRITES: "1"
       OVERLEAF_SESSION: "${OVERLEAF_SESSION}"
     timeout: 120

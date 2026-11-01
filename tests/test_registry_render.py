@@ -197,6 +197,29 @@ def test_overleaf_cookie_name_is_the_self_hosted_one() -> None:
         assert "overleaf.sid" in surface
 
 
+def test_overleaf_writes_do_not_ask_per_write() -> None:
+    """olcli-mcp asks through MCP elicitation before every write by default.
+
+    Since olcli 0.15.1 each push_file, rename or comment opens its own
+    confirmation dialog on top of the agent client's tool approval. The
+    registry turns that off with OLCLI_MCP_UNCONFIRMED_WRITES=1 so the client's
+    approval is the only gate, and every surface that registers overleaf must
+    carry it, or re-running setup brings the per-write dialog back.
+    """
+    data = _registry()
+    script = render_registry.render_setup_script(data)
+    overleaf_adds = [line for line in script.splitlines() if "mcp add" in line and " overleaf " in line]
+    assert overleaf_adds, "setup script no longer registers overleaf"
+    for line in overleaf_adds:
+        assert '--env OLCLI_MCP_UNCONFIRMED_WRITES="1"' in line, line
+    for surface in (
+        render_registry.render_hermes_mcp(data),
+        render_registry.render_hermes_local_mcp(data),
+    ):
+        overleaf_entry = surface.split("  overleaf:")[1].split("\n\n")[0]
+        assert 'OLCLI_MCP_UNCONFIRMED_WRITES: "1"' in overleaf_entry
+
+
 def test_local_hermes_mcp_uses_workstation_command_not_npx() -> None:
     """Local Hermes has olcli on PATH, so it uses the command directly.
 

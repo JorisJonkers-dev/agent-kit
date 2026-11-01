@@ -260,6 +260,17 @@ def validate(data: dict[str, Any]) -> None:
         if "apiToken" in (ca.get("config") or {}):
             raise RegistryError("coding_agents.config may not hold apiToken; it is read from HINDSIGHT_API_TOKEN")
 
+    for server in _entries(data, "mcp_servers"):
+        if "claude_allow_tools" not in server:
+            continue
+        if not isinstance(server["claude_allow_tools"], bool):
+            raise RegistryError(f"mcp server {server.get('name')}: claude_allow_tools must be true or false")
+        if server["claude_allow_tools"] and "workstation" not in (server.get("surfaces") or []):
+            raise RegistryError(
+                f"mcp server {server.get('name')}: claude_allow_tools needs the workstation surface, "
+                "where setup registers it for Claude Code",
+            )
+
     deny = data.get("claude_private_deny") or []
     if not isinstance(deny, list) or not all(isinstance(r, str) and r.endswith(")") for r in deny):
         raise RegistryError("claude_private_deny must be a list of Claude permission rules, like Read(~/.vibe/**)")
@@ -1019,6 +1030,20 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w("")
 
 
+def claude_allow_rules(data: dict[str, Any]) -> list[str]:
+    """Claude permission rules for MCP servers with ``claude_allow_tools: true``.
+
+    ``mcp__<server>__*`` matches every tool the server offers, so Claude Code
+    runs them without asking. Only servers setup registers for Claude Code (the
+    workstation surface) qualify.
+    """
+    return [
+        f"mcp__{server['name']}__*"
+        for server in _entries(data, "mcp_servers")
+        if server.get("claude_allow_tools") is True and "workstation" in (server.get("surfaces") or [])
+    ]
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
@@ -1245,6 +1270,35 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("back = json.loads(path.read_text())['permissions']['deny']")
     w("if any(r not in back for r in rules):")
     w("    raise SystemExit(f'{path}: deny rules did not read back')")
+    w("PY")
+    w("  done")
+    w("}")
+    w("")
+    allows = json.dumps(claude_allow_rules(data))
+    w("# Joins the allow rules for MCP servers whose every tool runs without a")
+    w("# prompt (registry: claude_allow_tools) to each Claude profile's own; nothing else changes.")
+    w("claude_mcp_allows() {")
+    w('  local profile_dir')
+    w('  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('    if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('      log "would add the MCP allow rules to ${profile_dir}/settings.json"')
+    w("      continue")
+    w("    fi")
+    w(f"    python3 - \"${{profile_dir}}/settings.json\" '{allows}' <<'PY' \\")
+    w('      && ok "MCP allow rules in ${profile_dir}/settings.json" \\')
+    w('      || fail "could not add the MCP allow rules to ${profile_dir}/settings.json"')
+    w("import json, pathlib, sys")
+    w("path, rules = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])")
+    w("data = json.loads(path.read_text() or '{}') if path.exists() else {}")
+    w("allow = data.setdefault('permissions', {}).setdefault('allow', [])")
+    w("missing = [r for r in rules if r not in allow]")
+    w("if missing:")
+    w("    allow.extend(missing)")
+    w("    path.parent.mkdir(parents=True, exist_ok=True)")
+    w("    path.write_text(json.dumps(data, indent=2) + '\\n')")
+    w("back = json.loads(path.read_text()).get('permissions', {}).get('allow', [])")
+    w("if any(r not in back for r in rules):")
+    w("    raise SystemExit(f'{path}: allow rules did not read back')")
     w("PY")
     w("  done")
     w("}")
@@ -2138,6 +2192,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# files: the Vibe homes (their session logs) and the gated token. Against accidents,")
     w("# not a determined agent; the passphrase is the boundary.")
     w("claude_private_denies")
+    w("")
+    w("# MCP servers the registry trusts to run every tool without a prompt.")
+    w("claude_mcp_allows")
     w("")
     w("# Before anything touches a Vibe home (MCP merge, converge, skills), and")
     w("# whether or not vibe is on PATH yet.")
