@@ -8,7 +8,7 @@ import { CritiqueError } from '../domain/outcomes.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import type { Round } from '../domain/stage.js'
 import type { TicketCheckStatus } from '../domain/tickets.js'
-import { countVerdicts, secondRoundDue, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts } from '../domain/verdicts.js'
+import { countVerdicts, secondRoundDue, stageVerdictError, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts } from '../domain/verdicts.js'
 import { readInput, readJsonFile } from './decode.js'
 import { parseFanOutResult } from './fan-out.js'
 import { findingsPath, ledgerPath, manifestPath, reportPath as reportPathOf } from './locations.js'
@@ -48,6 +48,10 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     }))
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), 'invalid-run', parseManifest)
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), 'invalid-run', parseFanOutResult)
+    for (const verdict of input.verdicts) {
+      const error = stageVerdictError(manifest.stage, verdict)
+      if (error !== undefined) throw new CritiqueError('invalid-input', error)
+    }
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))
     const reportPath = reportPathOf(input.runDir)
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
@@ -134,9 +138,6 @@ function readVerdict(fields: JsonFields): Verdict {
   const code = fields.optionalMatching('reason_code', isReasonCode, 'a short lowercase slug')
   const findingId = fields.string('finding_id')
   const answered = fields.has('answered') ? fields.boolean('answered') : undefined
-  if (answered !== undefined && verdict !== 'needs-human') {
-    throw new CritiqueError('invalid-input', `${findingId}: only a needs-human verdict can be answered`)
-  }
   return {
     finding_id: findingId,
     verdict,

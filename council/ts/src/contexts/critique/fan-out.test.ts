@@ -349,18 +349,20 @@ describe('fan-out applies the spec-stage evidence rule', () => {
           'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
         },
         stages: {
-          decisions: {
-            base: [{ client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.1, role: 'spec-redteam', time_limit_s: 60 }],
+          tickets: {
+            base: [{ client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.1, role: 'ticket-linter', time_limit_s: 60 }],
             distinct_families: true,
           },
         },
         version: 1,
       },
-      scripts: [ok(fenced({ findings: [finding({ category: 'untestable', evidence: [specQuote] })] }))],
+      // A spec quote from `spec/`, not `artifact/`: the spec rule would make it a no-spec-quote hint.
+      scripts: [ok(fenced({ findings: [finding({ category: 'untestable', evidence: [quote('spec/spec.md', SPEC_CANARY)], location: '01: untestable-criterion' })] }))],
     })
     open.push(h)
+    await h.writeText(join(h.repo, '.scratch', 'widgets', 'issues', '01-schema.md'), '# 01: Schema\n')
     await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
-    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'decisions' })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'tickets' })
     if (run.status !== 'ready') throw new Error('not ready')
 
     const result = await h.commands.fanOut.run({ run_dir: run.run_dir })

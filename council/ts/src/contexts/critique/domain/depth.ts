@@ -24,7 +24,7 @@ type Measure = (evidence: DepthEvidence) => number
  * not know is rejected.
  */
 const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Measure>>>> = {
-  decisions: {},
+  decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   'feature-review': {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
   'ticket-review': {},
@@ -154,6 +154,16 @@ function countUserStories(text: string): number {
     }
   }
   return count
+}
+
+/**
+ * The decisions a decisions-stage artifact records: each glossary term (a
+ * line opening with a bold term and a colon, `**Term**:`) and each top-level
+ * list item, the shape a decision summary takes. Nested items are details of
+ * the decision above them.
+ */
+function countDecisions(text: string): number {
+  return text.split(/\r?\n/).filter((line) => /^\*\*[^*\n]+(?::\*\*|\*\*\s*:)/.test(line) || /^(?:[-*+]|\d+[.)])\s+\S/.test(line)).length
 }
 
 function countWords(text: string): number {

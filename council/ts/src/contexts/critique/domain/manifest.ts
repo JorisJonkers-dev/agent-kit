@@ -7,7 +7,7 @@ import { JsonFields } from './json.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
 import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from './stage.js'
 import type { TicketCheckSummary } from './tickets.js'
-import { TRACKER_KINDS, type TrackerKind } from './tracker.js'
+import { TRACKER_KINDS } from './tracker.js'
 
 export function sha256(content: string | Uint8Array): string {
   return createHash('sha256').update(content).digest('hex')
@@ -18,9 +18,10 @@ export function sha256(content: string | Uint8Array): string {
  * `reference`s. A code stage freezes the `tree` at the commit under review,
  * the `diff` against the base, the `ticket` or tickets the change delivers
  * and the `spec` they come from. The tickets stage freezes the `spec`, its
- * `ticket`s and the ticket checker's report (`check`).
+ * `ticket`s and the ticket checker's report (`check`). The decisions stage
+ * adds the `feature` the decisions under review are for.
  */
-export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'check'] as const
+export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'check', 'feature'] as const
 export type PacketFileKind = (typeof PACKET_FILE_KINDS)[number]
 
 export interface PacketFile {
@@ -48,10 +49,20 @@ export interface CodeSource {
   readonly changed_files: readonly string[]
 }
 
+/**
+ * Where an artifact came from: a tracker, or `none` for the decisions
+ * stage's decision docs or decision summary, which no tracker holds.
+ */
+export const ARTIFACT_ORIGINS = [...TRACKER_KINDS, 'none'] as const
+export type ArtifactOrigin = (typeof ARTIFACT_ORIGINS)[number]
+
 /** Where the artifact under critique came from. */
 export interface ArtifactSource {
-  readonly tracker: TrackerKind
-  /** `host/owner/repo#<number>` for a GitHub issue, the repository path for a markdown file. */
+  readonly tracker: ArtifactOrigin
+  /**
+   * `host/owner/repo#<number>` for a GitHub issue, the repository path for a
+   * markdown file, and `decision-docs` or `decision-summary` at the decisions stage.
+   */
   readonly reference: string
   /** The issue's labels when it was read; empty for a markdown file. */
   readonly labels: readonly string[]
@@ -172,7 +183,7 @@ function readArtifactSource(artifact: JsonFields): ArtifactSource {
   return {
     labels: artifact.strings('labels'),
     reference: artifact.string('reference'),
-    tracker: artifact.oneOf('tracker', TRACKER_KINDS),
+    tracker: artifact.oneOf('tracker', ARTIFACT_ORIGINS),
   }
 }
 

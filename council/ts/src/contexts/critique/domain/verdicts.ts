@@ -51,10 +51,30 @@ export function countVerdicts(run: AdjudicatedRun): VerdictCounts {
   return counts
 }
 
-/** More than three accepted critical findings call for a second round, unless this was it. */
+/**
+ * More than three accepted critical findings call for a second round, unless
+ * this was it. The decisions stage never calls for one: its accepted
+ * findings are questions for the owner and change no artifact.
+ */
 export function secondRoundDue(run: AdjudicatedRun): boolean {
   const critical = run.findings.filter((f) => f.severity === 'critical' && f.verdict.verdict === 'accepted')
-  return run.round === 1 && critical.length > SECOND_ROUND_AFTER_CRITICAL
+  return run.round === 1 && run.stage !== 'decisions' && critical.length > SECOND_ROUND_AFTER_CRITICAL
+}
+
+/**
+ * Why a verdict does not fit its stage, if it does not. A question is
+ * answered on a needs-human verdict. At the decisions stage every accepted
+ * finding is a question for the owner, so the answer goes on the accepted
+ * verdict, and needs-human is never given.
+ */
+export function stageVerdictError(stage: CritiqueStage, verdict: Verdict): string | undefined {
+  const id = verdict.finding_id
+  if (stage === 'decisions') {
+    if (verdict.verdict === 'needs-human') return `${id}: the decisions stage asks every accepted gap as a question; give it accepted, not needs-human`
+    if (verdict.answered !== undefined && verdict.verdict !== 'accepted') return `${id}: only an accepted verdict can be answered at the decisions stage`
+    return undefined
+  }
+  return verdict.answered !== undefined && verdict.verdict !== 'needs-human' ? `${id}: only a needs-human verdict can be answered` : undefined
 }
 
 /** Critical questions the owner has not answered yet; while any is open, tickets must not be cut from the spec. */

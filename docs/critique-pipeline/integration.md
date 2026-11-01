@@ -1657,6 +1657,57 @@ Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
   need not ask the owner about it. A `budget-skip` critic is not a failure
   either.
 
+## What #183 settled
+
+The `/critique-decisions` skill (agent-kit#183) fixed these:
+
+- **Prepare's input at the decisions stage.** `feature` (required, at most
+  5 lines) is the orchestrator's statement of the feature being grilled; it
+  is frozen to `feature/feature.md`, a new packet file kind `feature`
+  (prompt: "the feature the decisions are for"). `decision_summary`
+  (optional, at most 40 lines) is the orchestrator's summary after
+  `/grill-me`. `spec` is ignored here and is now an `invalid-input` error
+  only when a stage that needs it lacks it (`<stage> needs spec: ...`).
+  Longer text is `invalid-input`.
+- **The decisions packet.** No tracker is read, so an unsupported tracker
+  does not refuse this stage. Without a summary, the decision docs (#175's
+  resolution, or explicit `references`) are the artifact, under
+  `artifact/<repository path>`, and there are no references; with none at
+  all the refusal is the new reason `no-decision-docs`. With a summary, it is
+  `artifact/decision-summary.md` and the decision docs are `references/`.
+  `artifact` is `{ tracker: "none", reference: "decision-docs" |
+  "decision-summary", labels: [] }`; `tracker` now reads `github`,
+  `local-markdown` or `none`.
+- **Flow.** A decisions run belongs to no tracker item, so its default flow
+  is its own run id; a caller may still pass `flow`.
+- **Routing and depth.** Shipped `decisions`: base `vibe-mistral-large`
+  (unasked-questions) and `agy-gemini-flash-high` (unasked-questions,
+  failure-modes), deep `vibe-glm` (integration), all `gap-critic`, $0.30 and
+  240 s, distinct families. Gemini drops for `quota` past the reserve (the
+  reserve names only spec and feature-review) and GLM takes its slot; the
+  budget tests now use the shipped stage. `STAGE_MEASURES.decisions` has
+  `decisions` (lines opening with a bold glossary term and a colon, plus
+  top-level list items; nested items are not counted) and `words`, measured
+  over the artifact files only, never the feature statement. Thresholds 40
+  and 4000, with the spec stage's risk terms and no labels.
+- **Evidence rule.** At the decisions stage a finding whose category is not
+  `unasked-question` or `contradiction` is the hint `not-a-decision-gap`; one
+  with no quote from an artifact or reference file is `no-decision-quote` (a
+  quote from the feature statement does not count); one with no `input`,
+  `failing-test` or `trace` is the new hint `no-scenario`.
+- **Verdicts.** At the decisions stage an accepted finding is the question
+  for the owner: it may carry `answered: true` (any other verdict with
+  `answered` is `invalid-input`), and `needs-human` is `invalid-input`. The
+  skill records a skipped question as `reason_code: "skipped-by-owner"` and
+  one past the seventh as `not-asked`. A summary's Accepted line ends with
+  `(answered)`, or with `(<reason_code>)` when an accepted verdict carries
+  one, at any stage. `second_round_due` is never true at the decisions
+  stage. The `answered` check moved from reading the input to after the
+  manifest is read, since it now depends on the stage.
+- **Not checked live.** The live check of #181 (`/critique-decisions` asks
+  questions and changes no decision on its own, on a real small feature)
+  has not been run; it needs the personal Vibe login and agy.
+
 ## What #185 settled
 
 The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
@@ -1717,5 +1768,9 @@ The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
   is a `needs-human` question. One comment on the spec lists the changes.
   Dangling blockers are read as "check these", per #184.
 - **Not done here.** The live check on a real ticket set with a planted
-  cycle and an uncovered story is #190's. `CONTEXT.md`'s **Depth** still says
-  "two families"; #181's amendment to it was not made in this ticket.
+  cycle and an uncovered story is #190's.
+- **After #183's merge.** `contents()` in prepare now routes the tickets
+  stage to its packet, and `PacketContents` (artifact source plus text,
+  files, optional code and ticket check) is the one shape every stage's
+  packet returns. Every document stage now has its own evidence rule, so
+  fan-out's "another stage" test runs at the tickets stage.

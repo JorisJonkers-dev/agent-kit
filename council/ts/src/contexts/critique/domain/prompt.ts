@@ -29,6 +29,7 @@ const DESCRIPTIONS: Readonly<Record<PacketFileKind, string>> = {
   artifact: 'the artifact under review',
   check: "the deterministic ticket checker's report on these tickets",
   diff: 'the change under review, as a diff against its base',
+  feature: 'the feature the decisions are for',
   reference: 'reference material',
   spec: 'the spec the tickets come from',
   ticket: 'a ticket the change delivers',

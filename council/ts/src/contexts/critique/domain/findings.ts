@@ -59,6 +59,8 @@ export const HINT_CODES = [
   'no-test-or-trace',
   'no-ticket-rule',
   'no-ticket-id',
+  'no-scenario',
+  'not-a-decision-gap',
 ] as const
 export type HintCode = (typeof HINT_CODES)[number]
 

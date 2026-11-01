@@ -24,7 +24,7 @@ const MINOR_MAX_CHARS = 300
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const serious = run.findings.filter((f) => f.severity !== 'minor')
   const lists = {
-    accepted: serious.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(run, f)),
+    accepted: serious.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(run, f, acceptedTail(f.verdict))),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ''}`)),
     questions: serious
       .filter((f) => f.verdict.verdict === 'needs-human')
@@ -190,6 +190,16 @@ function ticketCheckLines(run: AdjudicatedRun): readonly string[] {
         ? 'every user story cited'
         : `user stor${uncited.length === 1 ? 'y' : 'ies'} ${uncited.join(', ')} cited by no ticket`
   return [`Ticket check: ${check.status}: ${[tickets, cycles, blockers, coverage].join('; ')}`]
+}
+
+/**
+ * At the decisions stage an accepted finding is a question for the owner:
+ * the summary says whether the owner answered it, or why it was left open
+ * (`skipped-by-owner`).
+ */
+function acceptedTail(verdict: Verdict): string | undefined {
+  if (verdict.answered === true) return '(answered)'
+  return verdict.reason_code === undefined ? undefined : `(${verdict.reason_code})`
 }
 
 function questionTail(verdict: Verdict): string | undefined {
