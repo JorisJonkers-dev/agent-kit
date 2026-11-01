@@ -20,7 +20,19 @@ export {
 } from './domain/gate.js'
 export { gatedInvocations, simpleCommands, type GatedInvocation, type PushTarget } from './domain/shell-command.js'
 export type { StatsResult } from './application/stats.js'
-export type { RepositorySetup, SetupCheckOutput, SetupListResult, SetupQuotaOutput, SetupResult } from './application/setup.js'
+export type { RepositorySetup, SetupCheckOutput, SetupKillSwitchOutput, SetupListResult, SetupQuotaOutput, SetupResult } from './application/setup.js'
+export type { SessionSilentReason, SessionStartResult } from './application/session-start.js'
+export {
+  codexHookHash,
+  codexHookKey,
+  codexHookStates,
+  CRITIQUE_HOOKS,
+  wiredHooks,
+  type CodexHookState,
+  type CritiqueHookName,
+  type HookEvent,
+  type WiredHook,
+} from './domain/agent-hooks.js'
 export {
   READ_ONLY_PENDING,
   parseSetupResults,

@@ -8,6 +8,7 @@ import { GateCommand } from './gate.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { PrepareCommand, type PrepareResult } from './prepare.js'
 import { RecordCommand, type RecordResult } from './record.js'
+import { SessionStartCommand, type SessionStartResult } from './session-start.js'
 import { SetupCommand, type SetupResult } from './setup.js'
 import { StateCommand, type StateResult } from './flow-state.js'
 import { StatsCommand, type StatsResult } from './stats.js'
@@ -25,6 +26,7 @@ export interface CritiqueCommands {
   readonly state: CritiqueCommand<StateResult | Refusal>
   readonly triage: CritiqueCommand<TriageResult | Refusal>
   readonly gate: CritiqueCommand<GateResult>
+  readonly sessionStart: CritiqueCommand<SessionStartResult>
   readonly setup: CritiqueCommand<SetupResult>
 }
 
@@ -37,6 +39,7 @@ export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
     gate: new GateCommand(deps),
     prepare: new PrepareCommand(deps),
     record: new RecordCommand(deps),
+    sessionStart: new SessionStartCommand(deps),
     setup: new SetupCommand(deps),
     state: new StateCommand(deps),
     stats: new StatsCommand(deps),

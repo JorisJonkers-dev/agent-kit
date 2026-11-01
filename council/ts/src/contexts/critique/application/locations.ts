@@ -17,6 +17,16 @@ export function critiqueConfigPath(env: EnvPort): string {
   return join(env.require('HOME'), '.config', 'agent-kit', 'critique.json')
 }
 
+/** Claude Code's config root, where its settings.json wires hooks: `CLAUDE_CONFIG_DIR`, or `~/.claude`. */
+export function claudeHomePath(env: EnvPort): string {
+  return env.get('CLAUDE_CONFIG_DIR') ?? join(env.require('HOME'), '.claude')
+}
+
+/** Codex's home, where hooks.json wires hooks and config.toml records their trust: `CODEX_HOME`, or `~/.codex`. */
+export function codexHomePath(env: EnvPort): string {
+  return env.get('CODEX_HOME') ?? join(env.require('HOME'), '.codex')
+}
+
 /** Where the gate logs each time it failed open, one JSON line each, beside the ledger. */
 export function gateLogPath(env: EnvPort): string {
   return join(env.require('HOME'), '.local', 'share', 'agent-kit', 'critique', 'gate.log.jsonl')

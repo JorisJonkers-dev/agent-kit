@@ -116,15 +116,17 @@ the feature branch patterns) and `critique-session-start` (one line
 suggesting `/flow setup` when this machine's setup is missing or failing).
 They do nothing in a repository that isn't opted in, call no model or
 network, let the command through on their own errors, and block only on an
-explicit FAIL, with one line naming the skill to run. Codex runs them once
-you trust them in `/hooks`. The runner's `gate` command decides both gates
-(agent-kit#197); until setup installs the hooks (#198), they are advisory:
-the runner records them and the skills report them.
+explicit FAIL, with one line naming the skill to run. Setup installs them
+into Claude Code's `settings.json` and Codex's `hooks.json`, merged by name
+beside your own hooks; Codex runs them once you trust them in `/hooks`, and
+`/flow setup`'s "hooks installed" item checks that. The runner's `gate`
+command decides both gates.
 
 **Kill switch**: `CRITIQUE_OFF=1` in the environment, or
 `{"disabled": true}` in `~/.config/agent-kit/critique.json` (the per-machine
-critique configuration), turns every hook into a no-op. A stage you start
-yourself still runs.
+critique configuration), turns every hook into a no-op; `/flow setup`'s
+kill-switch item writes or clears that flag. A stage you start yourself
+still runs.
 
 ## Routing
 

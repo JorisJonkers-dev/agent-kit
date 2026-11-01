@@ -9,6 +9,7 @@ import {
   EMPTY_SETUP_RESULTS,
   parseSetupResults,
   setupChecklist,
+  isMachineCheck,
   setupItem,
   type SetupCheck,
   type SetupCheckResult,
@@ -17,6 +18,7 @@ import {
   type SetupOutcome,
   type SetupResults,
 } from '../domain/setup.js'
+import { InstalledHooks, KillSwitch } from './agent-hooks.js'
 import { FlowBudget } from './budget.js'
 import { readInput, readJsonFile } from './decode.js'
 import { ledgerPath, routingOverridePath, setupProbeDir, setupResultsPath } from './locations.js'
@@ -73,7 +75,15 @@ export interface SetupQuotaOutput {
   readonly item: SetupItem
 }
 
-export type SetupResult = SetupListResult | SetupCheckOutput | SetupQuotaOutput
+export interface SetupKillSwitchOutput {
+  readonly status: 'kill-switch-set'
+  readonly config_path: string
+  readonly disabled: boolean
+  /** The kill-switch check, run again on the new value. */
+  readonly item: SetupItem
+}
+
+export type SetupResult = SetupListResult | SetupCheckOutput | SetupQuotaOutput | SetupKillSwitchOutput
 
 type SetupInput =
   | { readonly action: 'list'; readonly repo: string | undefined }
@@ -84,6 +94,7 @@ type SetupInput =
       readonly force: boolean
     }
   | { readonly action: 'quota'; readonly daily_cap: number; readonly reserve_threshold: number }
+  | { readonly action: 'kill-switch'; readonly disabled: boolean }
 
 /** Setup's trivial prompt is a one-turn answer: a few cents at most, and never long. */
 const PROBE_PRICE_USD = 0.05
@@ -107,24 +118,37 @@ const SETUP_LEDGER_SCOPE = 'machine-setup'
  * result per machine, with the inputs it depended on; `quota` stores the
  * owner's Antigravity plan limit in the per-machine routing override. A
  * check that costs Vibe money or Antigravity quota runs only when the input
- * confirms it. The one-item-at-a-time walk with the owner is the skill's.
+ * confirms it. `kill-switch` turns the critique hooks off or on in the
+ * per-machine critique configuration. The one-item-at-a-time walk with the
+ * owner is the skill's.
  */
 export class SetupCommand implements CritiqueCommand<SetupResult> {
   private readonly routing: RoutingSource
   private readonly repositories: RepositoryGate
   private readonly budget: FlowBudget
+  private readonly hooks: InstalledHooks
+  private readonly killSwitch: KillSwitch
 
   constructor(private readonly deps: CritiqueDeps) {
     this.routing = new RoutingSource(deps)
     this.repositories = new RepositoryGate(deps)
     this.budget = new FlowBudget(deps)
+    this.hooks = new InstalledHooks(deps)
+    this.killSwitch = new KillSwitch(deps)
   }
 
   async run(raw: unknown): Promise<SetupResult> {
     const input = readInput(raw, 'setup', readSetupInput)
     if (input.action === 'list') return this.list(input.repo)
     if (input.action === 'check') return this.check(input.check, input.confirmed, input.force)
+    if (input.action === 'kill-switch') return this.setKillSwitch(input.disabled)
     return this.setQuota(input.daily_cap, input.reserve_threshold)
+  }
+
+  private async setKillSwitch(disabled: boolean): Promise<SetupKillSwitchOutput> {
+    const config_path = await this.killSwitch.set(disabled)
+    const output = await this.check('kill-switch', false, true)
+    return { config_path, disabled, item: output.item, status: 'kill-switch-set' }
   }
 
   private async list(repo: string | undefined): Promise<SetupListResult> {
@@ -192,6 +216,7 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
   /** What the check's result depends on, read without launching a model. */
   private async inputs(check: SetupCheck, routing: Routing): Promise<SetupInputs> {
     if (check.kind === 'read-only') return {}
+    if (isMachineCheck(check)) return { files_hash: await (check.kind === 'hooks' ? this.hooks : this.killSwitch).filesHash() }
     if (check.kind === 'agy-quota') {
       const override = await this.override()
       return {
@@ -216,6 +241,7 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     routing: Routing,
     confirmed: boolean,
   ): Promise<{ readonly result: SetupOutcome; readonly detail: string } | 'needs-confirmation'> {
+    if (isMachineCheck(check)) return (check.kind === 'hooks' ? this.hooks : this.killSwitch).check()
     if (check.kind === 'agy-quota') return this.quotaCheck(routing)
     const config = check.client_config
     if (check.kind !== 'critic') {
@@ -381,7 +407,7 @@ function sha256(value: unknown): string {
 
 function readSetupInput(fields: JsonFields): SetupInput {
   const action = fields.has('action')
-    ? fields.oneOf('action', ['list', 'check', 'quota'] as const)
+    ? fields.oneOf('action', ['list', 'check', 'quota', 'kill-switch'] as const)
     : 'list'
   if (action === 'list') return { action, repo: fields.optionalString('repo') }
   if (action === 'check') {
@@ -392,6 +418,7 @@ function readSetupInput(fields: JsonFields): SetupInput {
       force: fields.has('force') ? fields.boolean('force') : false,
     }
   }
+  if (action === 'kill-switch') return { action, disabled: fields.boolean('disabled') }
   return {
     action,
     daily_cap: fields.positiveInteger('daily_cap'),

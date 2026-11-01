@@ -183,6 +183,7 @@ node <critique dir>/critique.mjs setup --json '<object>'
 | `{"action": "list", "repo": "<repository root>"}` | The checklist with each item's state, and the repository's opt-in. Leave `repo` out outside a repository. Launches no critic. |
 | `{"action": "check", "check": "<item id>"}` | Runs one item and records its result. Add `"confirmed": true` once the owner has agreed to the item's cost. |
 | `{"action": "quota", "daily_cap": <n>, "reserve_threshold": <n>}` | Stores the Antigravity plan's limit in this machine's routing override and checks the quota again. |
+| `{"action": "kill-switch", "disabled": true \| false}` | Turns every critique hook off (`true`) or back on (`false`) in this machine's critique configuration and checks the kill switch again. |
 
 An error result carries a `code` and a `message`: show both and stop.
 
@@ -218,6 +219,13 @@ Take the items in the runner's order, skipping the `current` ones. For each:
 4. **Offer the fix** on a fail: the item's `fix`. For `agy-quota`, ask for
    the plan's daily request limit and the reserve to keep for the spec and
    feature reviews (propose half the limit), then run `quota` with both.
+   For `hooks-installed`, a Codex hook that is not trusted yet (or changed
+   since it was trusted) is fixed in Codex itself: tell the owner to open
+   `/hooks` in a Codex session and trust the critique hooks it names, then
+   check again; never bypass Codex's hook trust.
+   For `kill-switch`, the item passes whether the hooks are on or off: its
+   detail says which. Offer to switch them the other way only when the
+   owner asks, then run `kill-switch` with `"disabled": true` or `false`.
 5. **Wait.** The owner says the fix is done (run `check` again for the
    item), moves on, or says skip. Skip works at every item and records
    nothing.

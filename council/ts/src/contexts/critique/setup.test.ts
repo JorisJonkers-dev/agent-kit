@@ -45,7 +45,7 @@ async function check(
   extra: Record<string, unknown> = {},
 ): Promise<SetupCheckOutput> {
   const result = await h.commands.setup.run({ action: 'check', check: id, ...extra })
-  if (result.status === 'listed' || result.status === 'quota-set')
+  if (result.status === 'listed' || result.status === 'quota-set' || result.status === 'kill-switch-set')
     throw new Error(`not a check: ${JSON.stringify(result)}`)
   return result
 }
@@ -96,7 +96,7 @@ async function ledgerLines(h: Harness): Promise<readonly unknown[]> {
 }
 
 describe("setup's machine checklist", () => {
-  it('lists every check in the order setup walks them, Vibe first, then Antigravity, then the read-only proofs', async () => {
+  it('lists every check in the order setup walks them, Vibe first, then Antigravity, the read-only proofs, then the hooks', async () => {
     const h = await machine()
 
     expect((await list(h)).map((entry) => entry.id)).toEqual([
@@ -113,6 +113,8 @@ describe("setup's machine checklist", () => {
       'read-only:vibe-glm',
       'read-only:vibe-deepseek-flash',
       'read-only:vibe-mistral-small',
+      'hooks-installed',
+      'kill-switch',
     ])
   })
 
@@ -149,7 +151,7 @@ describe("setup's machine checklist", () => {
     const checks = (await list(h)).filter((entry) => entry.kind !== 'read-only')
 
     expect(checks.map((entry) => [entry.status, entry.due_because])).toEqual(
-      Array.from({ length: 8 }, () => ['due', 'never-checked']),
+      Array.from({ length: 10 }, () => ['due', 'never-checked']),
     )
   })
 
@@ -199,6 +201,8 @@ describe("setup's machine checklist", () => {
       'vibe-signed-in',
       'critic:vibe-glm',
       'read-only:vibe-glm',
+      'hooks-installed',
+      'kill-switch',
     ])
   })
 
@@ -223,6 +227,8 @@ describe("setup's machine checklist", () => {
       'critic:agy-gemini-flash-high',
       'agy-quota',
       'read-only:agy-gemini-flash-high',
+      'hooks-installed',
+      'kill-switch',
     ])
   })
 })
@@ -695,10 +701,10 @@ describe("setup's input and results file", () => {
     const h = await machine()
 
     await expect(
-      h.commands.setup.run({ action: 'check', check: 'hooks-installed' }),
+      h.commands.setup.run({ action: 'check', check: 'after-skill-hook' }),
     ).rejects.toMatchObject({
       code: 'invalid-input',
-      message: "setup input: check hooks-installed is not on this machine's checklist",
+      message: "setup input: check after-skill-hook is not on this machine's checklist",
     })
   })
 

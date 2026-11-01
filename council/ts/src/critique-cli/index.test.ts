@@ -150,6 +150,93 @@ describe('critique runner command line', () => {
     expect(await run(cli(h, '{not json'), 'gate')).toMatchObject({ failure: 'error', reason: 'failed-open', status: 'allowed' })
   })
 
+  it('as a hook, prints only the deny the agent reads when the commit gate blocks, and exits 0', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
+    await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    await h.git.stage()
+    const payload = (command: string) => JSON.stringify({ cwd: h.repo, hook_event_name: 'PreToolUse', tool_input: { command }, tool_name: 'Bash' })
+
+    const commit = await runCritiqueCli(['hook', 'critique-commit-gate'], cli(h, payload('git commit -m x')))
+    const prOnly = await runCritiqueCli(['hook', 'critique-commit-gate'], cli(h, payload('gh pr create')))
+
+    expect([commit.exitCode, commit.stderr, JSON.parse(commit.stdout)]).toEqual([
+      0,
+      '',
+      {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            'Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. Run /review-ticket, then commit.',
+        },
+      },
+    ])
+    expect(prOnly).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('as the PR gate hook, blocks a PR with no feature review and leaves commits to the commit gate', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
+    await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    await h.git.stage()
+    const payload = (command: string) => JSON.stringify({ cwd: h.repo, tool_input: { command }, tool_name: 'Bash' })
+
+    const pr = await runCritiqueCli(['hook', 'critique-pr-gate'], cli(h, payload('gh pr create')))
+    const commit = await runCritiqueCli(['hook', 'critique-pr-gate'], cli(h, payload('git commit -m x')))
+
+    expect([pr.exitCode, (JSON.parse(pr.stdout) as { hookSpecificOutput: { permissionDecisionReason: string } }).hookSpecificOutput.permissionDecisionReason]).toEqual([
+      0,
+      'PR blocked: no /review-feature run has recorded a gate for c1. Run /review-feature, then open the PR.',
+    ])
+    expect(commit).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('as the session-start hook, prints its one line as plain text, or nothing', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    const payload = JSON.stringify({ cwd: h.repo, hook_event_name: 'SessionStart', source: 'startup' })
+    const before = await runCritiqueCli(['hook', 'critique-session-start'], cli(h, payload))
+    await h.commands.allow.run({ families: ['mistral'], repo: h.repo })
+
+    const after = await runCritiqueCli(['hook', 'critique-session-start'], cli(h, payload))
+
+    expect([before, after]).toEqual([
+      { exitCode: 0, stderr: '', stdout: '' },
+      { exitCode: 0, stderr: '', stdout: 'Critique: /flow setup has not checked this machine yet (10 of 10 checks never ran). Run /flow setup.\n' },
+    ])
+    expect(await run(cli(h, payload), 'session-start')).toMatchObject({ reason: 'setup-missing', status: 'suggest' })
+  })
+
+  it('as a hook, prints nothing and exits 0 on a payload that is not JSON', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await runCritiqueCli(['hook', 'critique-commit-gate'], cli(h, '{not json'))).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+    expect(await runCritiqueCli(['hook', 'critique-session-start'], cli(h, '{not json'))).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('as a hook, prints nothing and exits 0 when the payload cannot be read', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    const broken: CritiqueCliRuntime = { ...cli(h), readStdin: () => Promise.reject(new Error('stdin closed')) }
+
+    expect(await runCritiqueCli(['hook', 'critique-pr-gate'], broken)).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('refuses a hook ADR-0002 does not name with exit 1, which both agents treat as a hook error that does not block', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    const result = await runCritiqueCli(['hook', 'after-skill'], cli(h))
+    const extra = await runCritiqueCli(['hook', 'critique-pr-gate', 'x'], cli(h))
+
+    expect([result.exitCode, result.stdout, result.stderr]).toEqual([1, '', CRITIQUE_USAGE])
+    expect(extra.exitCode).toBe(1)
+  })
+
   it('prints a refusal as a normal result', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
