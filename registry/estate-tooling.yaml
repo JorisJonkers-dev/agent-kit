@@ -835,6 +835,18 @@ local_skills:
       manifest.yaml's critique.files, the way council's runner is pinned in
       council.files.
 
+  - name: critique-decisions
+    path: skills/critique-decisions
+    purpose: >-
+      Critique a feature's decisions after grilling and before /to-spec:
+      gap critics from other model families list the questions nobody
+      asked, and the orchestrator asks the owner the real ones.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      allow), so setup installs both side by side in every agent home.
+
   - name: critique-spec
     path: skills/critique-spec
     purpose: >-
