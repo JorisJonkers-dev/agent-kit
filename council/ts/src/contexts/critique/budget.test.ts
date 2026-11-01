@@ -14,6 +14,7 @@ import {
   type AgyScript,
   type Harness,
   type VibeScript,
+  type VibeSignIn,
 } from '../../../test/critique/harness.js'
 import type { OrchestratorFamily, PrepareResult } from './index.js'
 
@@ -30,6 +31,9 @@ interface Flow {
   readonly agy?: AgyScript[]
   readonly platform?: NodeJS.Platform
   readonly routing?: unknown
+  readonly vibeOnPath?: boolean
+  readonly vibeSignIn?: VibeSignIn
+  readonly vibeAgents?: readonly string[]
 }
 
 async function opened(flow: Flow): Promise<Harness> {
@@ -38,6 +42,9 @@ async function opened(flow: Flow): Promise<Harness> {
     platform: flow.platform ?? 'darwin',
     scripts: flow.vibe ?? [],
     ...(flow.routing === undefined ? {} : { routing: flow.routing }),
+    ...(flow.vibeOnPath === undefined ? {} : { vibeOnPath: flow.vibeOnPath }),
+    ...(flow.vibeSignIn === undefined ? {} : { vibeSignIn: flow.vibeSignIn }),
+    ...(flow.vibeAgents === undefined ? {} : { vibeAgents: flow.vibeAgents }),
   })
   open.push(h)
   await h.commands.allow.run({ families: flow.families ?? ['mistral', 'google', 'zhipu'], repo: h.repo })
@@ -657,5 +664,92 @@ describe('the Antigravity quota', () => {
 
     expect(h.agy.launches).toEqual([])
     expect(result.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
+  })
+})
+
+describe('a Vibe critic that cannot run here', () => {
+  it('falls back from a Vibe that is not on PATH before launching it, and says so', async () => {
+    const h = await opened({ families: ['mistral', 'google'], vibeOnPath: false })
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual(['c1-agy-gemini-flash-high'])
+    expect(run.dropped[0]).toEqual({
+      client: 'vibe-mistral-large',
+      detail: 'vibe: vibe is not on PATH',
+      family: 'mistral',
+      reason: 'unavailable',
+      replaced_by: 'c1-agy-gemini-flash-high',
+    })
+  })
+
+  it('finds vibe by an absolute path in routing', async () => {
+    const routing = await shippedRouting()
+    const clients = routing.clients as Record<string, Record<string, unknown>>
+    const h = await opened({
+      families: ['mistral'],
+      routing: { ...routing, clients: { ...clients, 'vibe-mistral-large': { ...clients['vibe-mistral-large'], binary: '/opt/vibe/bin/vibe' } } },
+      vibeOnPath: false,
+    })
+
+    const run = await prepare(h)
+
+    expect(run.dropped).toEqual([
+      expect.objectContaining({ client: 'vibe-mistral-large', detail: 'vibe: /opt/vibe/bin/vibe is not on PATH', reason: 'unavailable' }),
+      expect.objectContaining({ client: 'agy-gemini-flash-high', reason: 'family-not-allowed' }),
+    ])
+  })
+
+  it("names a Vibe that is not signed in in setup's words", async () => {
+    const h = await opened({ families: ['mistral', 'google'], vibeSignIn: 'none' })
+
+    const run = await prepare(h)
+
+    expect(run.dropped[0]).toMatchObject({
+      client: 'vibe-mistral-large',
+      detail: 'vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup',
+      reason: 'unavailable',
+    })
+  })
+
+  it("asks the Keychain for Vibe's own sign-in item", async () => {
+    const h = await opened({ families: ['mistral', 'google'] })
+
+    await prepare(h)
+
+    expect(h.process.checks[0]).toMatchObject({
+      args: ['find-generic-password', '-s', 'ai.mistral.vibe', '-a', 'MISTRAL_API_KEY'],
+      command: 'security',
+    })
+  })
+
+  it("counts a key in the personal home's .env as signed in", async () => {
+    const h = await opened({ families: ['mistral'], vibeSignIn: 'env-file' })
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
+  })
+
+  it("counts a key in the personal home's .env as signed in where there is no Keychain to ask", async () => {
+    const h = await opened({ families: ['mistral'], vibeSignIn: 'env-file-no-keychain' })
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
+  })
+
+  it('names a critic agent that setup has not installed', async () => {
+    const h = await opened({ families: ['mistral', 'google', 'zhipu'], vibeAgents: ['critic-mistral-large'] })
+
+    const run = await prepare(h, {}, { depth: 'deep' })
+
+    expect(run.dropped).toContainEqual(
+      expect.objectContaining({
+        client: 'vibe-glm',
+        detail: 'vibe: the critic agent critic-glm is not installed in ~/.vibe/agents; re-run setup',
+        reason: 'unavailable',
+      }),
+    )
   })
 })

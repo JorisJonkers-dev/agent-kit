@@ -1,6 +1,6 @@
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 
-import type { ProcessCommand, ProcessPort } from '../../../../ports/index.js'
+import type { EnvPort, ProcessCommand, ProcessPort } from '../../../../ports/index.js'
 import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { parseFindings } from '../../domain/findings.js'
@@ -17,11 +17,45 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
   constructor(
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
+    private readonly env: EnvPort,
   ) {}
 
-  /** Vibe is not checked ahead of a run: a missing binary or agent fails the critic at launch. */
-  async readiness(): Promise<ClientReadiness> {
-    return Promise.resolve({ ready: true })
+  /**
+   * Whether the critic can run on the personal home: `vibe` on `PATH`, the
+   * home signed in the way setup checks it (Vibe's Keychain item, else a key
+   * in `~/.vibe/.env`; `MISTRAL_API_KEY` does not count, since a critic runs
+   * with it unset), and the `critic-<model>` agent setup installs. Nothing is
+   * launched, so a client that is not ready falls back in prepare and costs
+   * nothing.
+   */
+  async readiness(config: VibeClientConfig): Promise<ClientReadiness> {
+    if (!(await this.onPath(config.binary))) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false }
+    const home = join(this.env.require('HOME'), '.vibe')
+    if (!(await this.signedIn(home))) return { detail: SIGN_IN, ready: false }
+    if (!(await this.files.exists(join(home, 'agents', `${config.agent}.toml`)))) {
+      return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false }
+    }
+    return { ready: true }
+  }
+
+  private async signedIn(home: string): Promise<boolean> {
+    const keychain = await this.process
+      .exec({ args: ['find-generic-password', '-s', 'ai.mistral.vibe', '-a', 'MISTRAL_API_KEY'], command: 'security' })
+      .catch(() => ({ exitCode: 1 }))
+    if (keychain.exitCode === 0) return true
+    const dotenv = join(home, '.env')
+    if (!(await this.files.exists(dotenv))) return false
+    return (await this.files.readText(dotenv))
+      .split('\n')
+      .some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line))
+  }
+
+  private async onPath(binary: string): Promise<boolean> {
+    if (isAbsolute(binary)) return this.files.exists(binary)
+    for (const dir of (this.env.get('PATH') ?? '').split(':').filter((entry) => entry.length > 0)) {
+      if (await this.files.exists(join(dir, binary))) return true
+    }
+    return false
   }
 
   async review(launch: CriticLaunch, config: VibeClientConfig): Promise<CriticReport> {
@@ -51,6 +85,9 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
     }
   }
 }
+
+/** Setup's own warning for a personal Vibe home that is not signed in. */
+const SIGN_IN = 'vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup'
 
 /** Seconds the outer timer allows beyond Vibe's own `--time-limit`. */
 const OUTER_TIMEOUT_GRACE_S = 60

@@ -406,6 +406,9 @@ function manifestPath(runDir) {
 function findingsPath(runDir) {
   return join(runDir, "findings.json");
 }
+function reportPath(runDir) {
+  return join(runDir, "report.md");
+}
 
 // src/contexts/critique/application/repository.ts
 var RepositoryGate = class {
@@ -461,6 +464,7 @@ import { join as join3 } from "node:path";
 // src/contexts/critique/domain/stage.ts
 var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
 var DEPTHS = ["base", "deep"];
+var SECOND_ROUND_AFTER_CRITICAL = 3;
 
 // src/contexts/critique/domain/budget.ts
 var DEFAULT_LIMITS = {
@@ -1007,6 +1011,7 @@ function parseManifest(text) {
       sha256: packetFile.string("sha256"),
       source: packetFile.string("source")
     })),
+    ...readRound(file),
     repo_root: file.string("repo_root"),
     repository: file.string("repository"),
     run_dir: file.string("run_dir"),
@@ -1014,6 +1019,10 @@ function parseManifest(text) {
     stage: file.oneOf("stage", CRITIQUE_STAGES),
     version: file.literal("version", 1)
   };
+}
+function readRound(file) {
+  if (!file.has("round") || file.number("round") !== 2) return { round: file.has("round") ? file.literal("round", 1) : 1 };
+  return { previous_run_id: file.string("previous_run_id"), round: 2 };
 }
 function readArtifactSource(artifact) {
   return {
@@ -1119,6 +1128,7 @@ var FlowBudget = class {
       model: run.model,
       recorded_at: this.deps.clock.now().toISOString(),
       repository: manifest.repository,
+      round: manifest.round,
       run_id: manifest.run_id,
       stage: manifest.stage,
       status: run.status,
@@ -1658,6 +1668,7 @@ var PrepareCommand = class {
       flow: fields.optionalString("flow"),
       depth: fields.has("depth") ? fields.oneOf("depth", DEPTHS) : void 0,
       orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
+      previousRunDir: fields.has("previous_run_dir") ? fields.string("previous_run_dir") : void 0,
       references: fields.has("references") ? fields.strings("references") : void 0,
       repo: fields.string("repo"),
       spec: fields.string("spec"),
@@ -1674,6 +1685,9 @@ var PrepareCommand = class {
     if (tracker.status === "refused") return tracker;
     const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec });
     if (artifact.status === "refused") return artifact;
+    const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage });
+    if ("status" in round) return round;
+    const { previousFlow, ...roundFields } = round;
     const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const routing = await this.routing.load();
     const { choice, depth } = chooseDepth(
@@ -1698,13 +1712,14 @@ var PrepareCommand = class {
       distinct_families: roster.distinct_families,
       depth_choice: choice,
       dropped: roster.dropped,
-      flow: input.flow ?? artifact.reference,
+      flow: input.flow ?? previousFlow ?? artifact.reference,
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
       repo_root: repository.root,
       repository: repository.key,
+      ...roundFields,
       run_dir: runDir,
       run_id: runId,
       stage,
@@ -1721,10 +1736,34 @@ var PrepareCommand = class {
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
       packet_files: packetFiles.map((file) => file.path),
+      round: roundFields.round,
       run_dir: runDir,
       run_id: runId,
       status: "ready"
     };
+  }
+  /**
+   * A first round, or the second round after the recorded first round named
+   * by `previous_run_dir`. A run that was itself a second round is refused, so
+   * a stage never runs a third time over one artifact.
+   */
+  async round(previousRunDir, current) {
+    if (previousRunDir === void 0) return { round: 1 };
+    const previous = await readJsonFile(this.deps.files, manifestPath(previousRunDir), "invalid-run", parseManifest);
+    if (previous.round === 2) {
+      return refusal("round-limit", `run ${previous.run_id} was already the second round; a stage runs at most two rounds`);
+    }
+    if (!await this.deps.files.exists(reportPath(previousRunDir))) {
+      throw new CritiqueError("invalid-run", `run ${previous.run_id} is not recorded yet; record it before its second round`);
+    }
+    const { reference, repository, stage } = current;
+    if (previous.repository !== repository || previous.stage !== stage || previous.artifact.reference !== reference) {
+      throw new CritiqueError(
+        "invalid-input",
+        `run ${previous.run_id} critiqued ${previous.artifact.reference} at the ${previous.stage} stage, not ${reference}`
+      );
+    }
+    return { previousFlow: previous.flow, previous_run_id: previous.run_id, round: 2 };
   }
   /**
    * Asks each client the stage could run, and that the family rules permit,
@@ -1786,6 +1825,13 @@ function countVerdicts(run) {
   for (const finding of run.findings) counts[finding.verdict.verdict] += 1;
   return counts;
 }
+function secondRoundDue(run) {
+  const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
+  return run.round === 1 && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+}
+function openCriticalQuestions(run) {
+  return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
+}
 function familiesOf(run, finding) {
   const families = run.critics.filter((critic) => finding.raised_by.includes(critic.critic_id)).map((c) => c.family);
   return [...new Set(families)];
@@ -1804,6 +1850,7 @@ function ledgerLines(run, recordedAt) {
     depth_signals: run.depth_choice.signals,
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
+    round: run.round,
     run_id: run.run_id,
     stage: run.stage
   };
@@ -1856,12 +1903,12 @@ var SUMMARY_MAX_CHARS = 6e3;
 var CLAIM_MAX_CHARS = 160;
 var CHECKED_MAX_CHARS = 300;
 var MINOR_MAX_CHARS = 300;
-function renderSummary(run, reportPath) {
+function renderSummary(run, reportPath2) {
   const serious = run.findings.filter((f) => f.severity !== "minor");
   const lists = {
     accepted: serious.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(run, f)),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ""}`)),
-    questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(run, f, f.verdict.reason === void 0 ? void 0 : `Question: ${f.verdict.reason}`))
+    questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(run, f, questionTail(f.verdict)))
   };
   const hidden = { accepted: 0, dissent: 0, questions: 0 };
   const render = () => [
@@ -1870,7 +1917,9 @@ function renderSummary(run, reportPath) {
     "",
     ...degradedLines(run),
     depthLine(run),
+    ...roundLines(run),
     verdictLine(run),
+    ...toTicketsLines(run),
     "",
     "## Critics",
     "",
@@ -1895,7 +1944,7 @@ function renderSummary(run, reportPath) {
     "",
     "## Report",
     "",
-    reportPath,
+    reportPath2,
     ""
   ].join("\n");
   const trimmable = () => Object.keys(lists).filter((key2) => lists[key2].length > 0);
@@ -1955,6 +2004,22 @@ function violationLines(run) {
 function degradedLines(run) {
   return run.degraded ? ["degraded: no critique ran", ""] : [];
 }
+function roundLines(run) {
+  return run.round === 2 ? [`Round 2, after run ${run.previous_run_id ?? ""}`] : [];
+}
+function toTicketsLines(run) {
+  const open = openCriticalQuestions(run).map((f) => f.id);
+  if (open.length === 0) return [];
+  const which = open.length === 1 ? `critical question ${open.join("")} is` : `critical questions ${open.join(", ")} are`;
+  return [`Do not start /to-tickets: ${which} unanswered.`];
+}
+function questionTail(verdict) {
+  const parts = [
+    ...verdict.reason === void 0 ? [] : [`Question: ${verdict.reason}`],
+    ...verdict.answered === true ? ["(answered)"] : []
+  ];
+  return parts.length === 0 ? void 0 : parts.join(" ");
+}
 function depthLine(run) {
   const choice = run.depth_choice;
   const measured = Object.entries(choice.measures).map(([measure, { threshold, value }]) => `${measure} ${String(value)} of ${String(threshold)}`);
@@ -1992,8 +2057,9 @@ function findingSection(run, finding) {
 }
 function verdictText(verdict) {
   const code = verdict.reason_code === void 0 ? "" : ` (${verdict.reason_code})`;
+  const answered = verdict.answered === true ? ", answered" : "";
   const reason = verdict.reason === void 0 ? "" : `: ${verdict.reason}`;
-  return `${verdict.verdict}${code}${reason}`;
+  return `${verdict.verdict}${answered}${code}${reason}`;
 }
 function verdictLine(run) {
   const counts = countVerdicts(run);
@@ -2052,8 +2118,8 @@ var RecordCommand = class {
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
-    const reportPath = join8(input.runDir, "report.md");
-    if (await this.deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
+    const reportPath2 = reportPath(input.runDir);
+    if (await this.deps.files.exists(reportPath2)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
     const run = {
       critics: merged.critics,
       degraded: merged.degraded,
@@ -2063,13 +2129,15 @@ var RecordCommand = class {
       findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
       flow: manifest.flow,
       repository: manifest.repository,
+      round: manifest.round,
+      ...manifest.previous_run_id === void 0 ? {} : { previous_run_id: manifest.previous_run_id },
       run_id: manifest.run_id,
       stage: manifest.stage
     };
-    const summary = renderSummary(run, reportPath);
+    const summary = renderSummary(run, reportPath2);
     const summaryPath = join8(input.runDir, "summary.md");
     const ledger = ledgerPath(this.deps.env);
-    await this.deps.files.writeText(reportPath, renderReport(run));
+    await this.deps.files.writeText(reportPath2, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
     await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line) => `${line}
 `).join(""));
@@ -2077,8 +2145,10 @@ var RecordCommand = class {
       counts: countVerdicts(run),
       degraded: run.degraded,
       ledger_path: ledger,
-      report_path: reportPath,
+      report_path: reportPath2,
+      round: run.round,
       run_id: manifest.run_id,
+      second_round_due: secondRoundDue(run),
       status: "recorded",
       summary,
       summary_path: summaryPath
@@ -2119,11 +2189,17 @@ function readVerdict(fields) {
   const verdict = fields.oneOf("verdict", VERDICTS);
   const reason = verdict === "rejected" || fields.has("reason") ? fields.string("reason") : void 0;
   const code = fields.optionalMatching("reason_code", isReasonCode, "a short lowercase slug");
+  const findingId = fields.string("finding_id");
+  const answered = fields.has("answered") ? fields.boolean("answered") : void 0;
+  if (answered !== void 0 && verdict !== "needs-human") {
+    throw new CritiqueError("invalid-input", `${findingId}: only a needs-human verdict can be answered`);
+  }
   return {
-    finding_id: fields.string("finding_id"),
+    finding_id: findingId,
     verdict,
     ...reason === void 0 ? {} : { reason },
-    ...code === void 0 ? {} : { reason_code: code }
+    ...code === void 0 ? {} : { reason_code: code },
+    ...answered === void 0 ? {} : { answered }
   };
 }
 function isReasonCode(value) {
@@ -2301,17 +2377,46 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { join as join11 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join11 } from "node:path";
 var VibeCriticClient = class {
-  constructor(process2, files) {
+  constructor(process2, files, env) {
     this.process = process2;
     this.files = files;
+    this.env = env;
   }
   process;
   files;
-  /** Vibe is not checked ahead of a run: a missing binary or agent fails the critic at launch. */
-  async readiness() {
-    return Promise.resolve({ ready: true });
+  env;
+  /**
+   * Whether the critic can run on the personal home: `vibe` on `PATH`, the
+   * home signed in the way setup checks it (Vibe's Keychain item, else a key
+   * in `~/.vibe/.env`; `MISTRAL_API_KEY` does not count, since a critic runs
+   * with it unset), and the `critic-<model>` agent setup installs. Nothing is
+   * launched, so a client that is not ready falls back in prepare and costs
+   * nothing.
+   */
+  async readiness(config) {
+    if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
+    const home = join11(this.env.require("HOME"), ".vibe");
+    if (!await this.signedIn(home)) return { detail: SIGN_IN2, ready: false };
+    if (!await this.files.exists(join11(home, "agents", `${config.agent}.toml`))) {
+      return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
+    }
+    return { ready: true };
+  }
+  async signedIn(home) {
+    const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY"], command: "security" }).catch(() => ({ exitCode: 1 }));
+    if (keychain.exitCode === 0) return true;
+    const dotenv = join11(home, ".env");
+    if (!await this.files.exists(dotenv)) return false;
+    return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
+  }
+  async onPath(binary) {
+    if (isAbsolute3(binary)) return this.files.exists(binary);
+    for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
+      if (await this.files.exists(join11(dir, binary))) return true;
+    }
+    return false;
   }
   async review(launch, config) {
     const exportDir = join11(launch.criticDir, "export");
@@ -2339,6 +2444,7 @@ var VibeCriticClient = class {
     }
   }
 };
+var SIGN_IN2 = "vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup";
 var OUTER_TIMEOUT_GRACE_S2 = 60;
 var ISOLATION_ENV = {
   VIBE_ENABLE_MCP: "false",
@@ -2817,7 +2923,7 @@ function defaultCritiqueRuntime(assetsRoot, readStdin2, environment = process.en
       assetsRoot,
       clients: {
         agy: new AgyCriticClient(processPort, files, env, platform),
-        vibe: new VibeCriticClient(processPort, files)
+        vibe: new VibeCriticClient(processPort, files, env)
       },
       clock: new SystemClockAdapter(),
       env,
