@@ -640,22 +640,41 @@ oauth_status() {
   fi
 }
 
-# Antigravity signs in through a browser once and keeps the credential in
-# the macOS Keychain, so an unsigned machine only fails later, in a
-# non-interactive run. Reported under --check too, and for the desktop app
-# as well as the CLI: either one signs the others in.
+# Antigravity signs in through a browser once, so an unsigned machine only
+# fails later, in a non-interactive run. `agy models` lists the account's
+# models without calling one, so it spends no quota, and asks for a sign-in
+# when there is none. Stdin is closed and a perl alarm ends it after 20s;
+# signed in it answers in about a second. Only the CLI can be asked: the
+# desktop app on its own is not checked. Reported under --check too.
 report_antigravity_signin() {
-  local present=0
-  command -v agy >/dev/null 2>&1 && present=1
-  if [ "${present}" = 0 ] && command -v brew >/dev/null 2>&1 \
-     && brew list --cask antigravity >/dev/null 2>&1; then
-    present=1
+  command -v agy >/dev/null 2>&1 || return 0
+  local out rc=0 lower line=""
+  if command -v perl >/dev/null 2>&1; then
+    out="$(perl -e 'alarm shift; exec @ARGV or exit 127' 20 agy models </dev/null 2>&1)" || rc=$?
+  else
+    out="$(agy models </dev/null 2>&1)" || rc=$?
   fi
-  if [ "${present}" = 0 ] || ! command -v security >/dev/null 2>&1; then
+  if [ "${rc}" = 0 ]; then
     return 0
   fi
-  security find-generic-password -s "Antigravity CLI" >/dev/null 2>&1 \
-    || warn "antigravity: needs sign-in: run agy and sign in with your Google account"
+  lower="$(printf '%s' "${out}" | tr '[:upper:]' '[:lower:]')"
+  case "${lower}" in
+    *"sign in"*)
+      warn "antigravity: needs sign-in: run agy and sign in with your Google account"
+      return 0 ;;
+  esac
+  # 142 is SIGALRM: the alarm ended a call that did not answer.
+  if [ "${rc}" = 142 ]; then
+    warn "antigravity: agy models failed: no answer within 20s"
+    return 0
+  fi
+  while IFS= read -r line; do
+    case "${line}" in
+      *[![:space:]]*) [ "${line}" = 'Fetching available models...' ] || break ;;
+    esac
+    line=""
+  done <<< "${out}"
+  warn "antigravity: agy models failed: ${line:-exit ${rc}}"
 }
 
 # Removes retired and undeclared MCP servers from every surface; the keep file spares undeclared ones.

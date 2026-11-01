@@ -299,7 +299,7 @@ describe('a sign-in check', () => {
   })
 
   it("fails with setup's own sign-in wording when Antigravity is signed out", async () => {
-    const h = await machine({ agySignedIn: false })
+    const h = await machine({ agyModels: 'signed-out' })
 
     expect((await check(h, 'agy-signed-in')).item.last?.detail).toBe(
       'antigravity: needs sign-in: run agy and sign in with your Google account',

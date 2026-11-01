@@ -1137,13 +1137,19 @@ agy 1.4.11 on macOS, in a scratch directory outside any trusted workspace.
   (`CriticClientPort<Config>`; `CriticClients` maps each kind to its port).
   Prepare asks every client the stage could run, routed or fallback, whose
   family the allowlist permits and the orchestrator does not share. agy is
-  ready only on macOS, with `agy` on `PATH` (or at its absolute path) and an
-  `Antigravity CLI` Keychain item (`security find-generic-password -s
-  "Antigravity CLI"`; if `security` cannot run, it counts as not signed in).
-  The details are `antigravity: macOS only; not set up on <platform>`,
-  `antigravity: agy is not on PATH` and setup's
-  `antigravity: needs sign-in: run agy and sign in with your Google account`.
-  No readiness check launches agy, so #173's daily counter is untouched.
+  ready only on macOS, with `agy` on `PATH` (or at its absolute path), and
+  when `agy models` exits 0 and lists the routed model as a model id (the
+  first tab-separated field of a line). The Keychain lookup this used to be
+  reported a signed-in agy 1.4.12 as signed out; the "Live check for #178"
+  section has the evidence. `agy models` runs with stdin closed and a 20 s
+  timeout. The details are `antigravity: macOS only; not set up on
+  <platform>`, `antigravity: agy is not on PATH`, setup's
+  `antigravity: needs sign-in: run agy and sign in with your Google account`
+  when a failed `agy models` mentions signing in,
+  `antigravity: agy does not offer <model>`, and
+  `antigravity: agy models failed: <first line past the progress line>` for
+  anything else. `agy models` calls no model, so no readiness check spends
+  quota or touches #173's daily counter.
   Vibe's readiness always says ready; a missing Vibe still fails at launch.
 - **Routing and fallbacks.** Routing gained a top-level
   `fallbacks: { client: [client, ...] }`. Shipped: `vibe-mistral-large` falls
@@ -2777,12 +2783,17 @@ The runner never launches such a critic: Vibe readiness checks for
 0 with `"response":"pong\n"`, so agy is signed in. Yet the setup check
 `agy-signed-in` and every prepare reported
 `antigravity: needs sign-in: run agy and sign in with your Google account`.
-That readiness check is a Keychain lookup,
-`security find-generic-password -s "Antigravity CLI"`. This session was not
-allowed to run `security`. So it is not settled whether agy 1.4.12 stopped
-writing that item or the lookup fails for another reason. **Still open.**
-Until it is settled, prepare drops every Gemini slot as `unavailable` on this
-machine, and GLM takes it.
+That readiness check was a Keychain lookup,
+`security find-generic-password -s "Antigravity CLI"`, and on this machine
+the item does not exist (exit 44) although agy 1.4.12 is signed in. **Fixed**
+by the `fix/agy-sign-in-check` change: readiness and setup now run
+`agy models` instead. Signed in, it exits 0 in about a second and prints
+`Fetching available models...` on stderr and one `<id>\t<label>` line per
+model on stdout, even while the quota is spent, because it calls no model.
+Signed out (an empty `HOME`), it exits 1 with
+`Error: Please sign in to view available models. Launch the CLI without
+arguments to sign in.` After the change, the `agy-signed-in` check passes
+on this machine.
 
 ### Create-a-file, and what a CLI writes into its working directory
 
@@ -3052,14 +3063,10 @@ gate on `git commit -m cancel` then returned
 
 ### Still open
 
-- **agy readiness.** The Keychain check reports a signed-in agy as signed
-  out (above). On this machine the Keychain has no `Antigravity CLI` item
-  (`security find-generic-password -s "Antigravity CLI"` exits 44) while agy
-  answers prompts, so the item is not where agy 1.4.12 keeps its sign-in.
-  Setup's `antigravity: needs sign-in` warning has the same cause. Until
-  readiness asks agy itself, prepare drops Gemini from every stage here.
+- **agy readiness.** Fixed: readiness and setup ask `agy models` instead of
+  the Keychain (above), so a signed-in agy is ready again.
 - **Gemini in the base pair.** The seeded run with Gemini in slot 2 waits
-  for the readiness fix and agy's quota. Mistral Large is done (above).
+  for agy's quota. Mistral Large is done (above).
 - **agy's `search_web`, `invoke_subagent` and `schedule`** run headless. Only
   the `unsafe-tool` check discards a critic that used them, after the run.
 - **The read-only setup items.** #195 handed them to #178. They still answer

@@ -539,8 +539,36 @@ export interface AgyScript {
 }
 
 /**
- * Plays canned agy runs, and answers the Keychain lookup the Antigravity
- * readiness check makes with `security`.
+ * What `agy models` answers, as agy 1.4.12 does: `signed-in` lists the
+ * models (`gemini-3.8-flash-high` among them), `signed-out` exits 1 asking for
+ * a sign-in, `spawn-error` cannot start, and a result is returned as it is.
+ */
+export type AgyModelsReply = 'signed-in' | 'signed-out' | 'spawn-error' | ProcessResult
+
+const AGY_MODELS_FETCHING = 'Fetching available models...\n'
+
+const AGY_MODELS: Readonly<Record<'signed-in' | 'signed-out', ProcessResult>> = {
+  'signed-in': {
+    exitCode: 0,
+    stderr: AGY_MODELS_FETCHING,
+    stdout: [
+      'gemini-3.8-flash-high\tGemini 3.8 Flash (High)',
+      'gemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)',
+      'gemini-3.8-flash-low\tGemini 3.8 Flash (Low)',
+      'claude-sonnet-4-6\tClaude Sonnet 4.6 (Thinking)',
+      '',
+    ].join('\n'),
+  },
+  'signed-out': {
+    exitCode: 1,
+    stderr: `${AGY_MODELS_FETCHING}Error: Please sign in to view available models. Launch the CLI without arguments to sign in.\n`,
+    stdout: '',
+  },
+}
+
+/**
+ * Plays canned agy runs, and answers the `agy models` call the Antigravity
+ * readiness check makes.
  */
 export class FakeAgyProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
@@ -548,7 +576,7 @@ export class FakeAgyProcess implements ProcessPort {
   constructor(
     private readonly repo: string,
     private readonly scripts: AgyScript[],
-    private readonly signedIn: boolean | 'no-security-tool',
+    private readonly models: AgyModelsReply,
     private readonly log: LaunchLog = new LaunchLog(),
     /** What `agy --version` prints; null when agy is not installed, so the call fails. */
     public version: string | null = '1.4.12',
@@ -556,7 +584,7 @@ export class FakeAgyProcess implements ProcessPort {
 
   /** The critic launches only, without the readiness checks and version reads. */
   get launches(): readonly ProcessCommand[] {
-    return this.commands.filter((command) => command.command !== 'security' && command.args[0] !== '--version')
+    return this.commands.filter((command) => !isAgyProbe(command))
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
@@ -565,11 +593,9 @@ export class FakeAgyProcess implements ProcessPort {
       if (this.version === null) throw new Error(`spawn ${command.command} ENOENT`)
       return { exitCode: 0, stderr: '', stdout: `${this.version}\n` }
     }
-    if (command.command === 'security') {
-      if (this.signedIn === 'no-security-tool') throw new Error('spawn security ENOENT')
-      return this.signedIn
-        ? { exitCode: 0, stderr: '', stdout: 'keychain: "/Users/me/Library/Keychains/login.keychain-db"\n' }
-        : { exitCode: 44, stderr: 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n', stdout: '' }
+    if (command.args.length === 1 && command.args[0] === 'models') {
+      if (this.models === 'spawn-error') throw new Error(`spawn ${command.command} EACCES`)
+      return typeof this.models === 'string' ? AGY_MODELS[this.models] : this.models
     }
     const script = this.scripts.shift()
     if (script === undefined) throw new Error('unexpected agy launch')
@@ -578,6 +604,11 @@ export class FakeAgyProcess implements ProcessPort {
     if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
   }
+}
+
+/** `agy --version` and `agy models`: the calls that read agy without starting a critic. */
+function isAgyProbe(command: ProcessCommand): boolean {
+  return command.args.length === 1 && (command.args[0] === '--version' || command.args[0] === 'models')
 }
 
 /** The `result` event agy prints last, for a run that returned the given structured output. */
@@ -745,8 +776,8 @@ export async function harness(
     readonly platform?: NodeJS.Platform
     /** Whether `agy` is on PATH. */
     readonly agyOnPath?: boolean
-    /** Whether the Keychain holds the `Antigravity CLI` item, or whether there is no `security` tool to ask. */
-    readonly agySignedIn?: boolean | 'no-security-tool'
+    /** What `agy models` answers; signed in unless named. */
+    readonly agyModels?: AgyModelsReply
     /** Whether `vibe` is on PATH. */
     readonly vibeOnPath?: boolean
     /** How the personal Vibe home is signed in. */
@@ -815,7 +846,7 @@ export async function harness(
   const vibeVersion = (options.vibeOnPath ?? true) ? (options.vibeVersion ?? 'vibe 3.0.4') : null
   const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain', vibeVersion)
   const agyVersion = (options.agyOnPath ?? true) ? (options.agyVersion ?? '1.4.12') : null
-  const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches, agyVersion)
+  const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agyModels ?? 'signed-in', launches, agyVersion)
   const files = new NodeCritiqueFiles()
   const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':'), ...options.env })
   const clock = new FixedClock('2026-10-30T12:00:00.000Z')

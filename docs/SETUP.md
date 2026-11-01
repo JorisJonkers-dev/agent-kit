@@ -474,17 +474,22 @@ half of it behind in `~/.gemini`. In `--cloud` mode it logs
 ### Signing in is yours to do
 
 Antigravity signs in with a Google account through the browser on first launch
-of `agy` or the app, and keeps the credential in the macOS Keychain, under the
-item `Antigravity CLI`. agent-kit never sees, stores or passes a Google
-credential, and signing in on one surface signs in the others.
+of `agy` or the app, and keeps the credential itself. agent-kit never sees,
+stores or passes a Google credential, and signing in on one surface signs in
+the others.
 
 That leaves one failure setup can only report: a headless run uses the cached
 credential, so an unsigned machine fails later with an authentication-required
-error instead of at setup. When Antigravity is installed at all — `agy` on
-`PATH`, or the app's cask — and the Keychain has no `Antigravity CLI` item,
-setup warns
-`antigravity: needs sign-in: run agy and sign in with your Google account` —
-under `--check` too, so it is in **Still to do** before you hit it.
+error instead of at setup. So when `agy` is on `PATH`, setup runs
+`agy models`, with stdin closed and a 20-second alarm. Listing the models
+needs a signed-in account but calls no model, so it spends no quota and
+answers even while the quota is spent; signed in, it takes about a second.
+When agy answers that you must sign in, setup warns
+`antigravity: needs sign-in: run agy and sign in with your Google account`;
+any other failure warns `antigravity: agy models failed: <agy's first line>`.
+Both show under `--check` too, so they are in **Still to do** before you hit
+them. Only the CLI can be asked: a machine with the desktop app and no `agy`
+is not checked.
 
 ### Shared Memory, through a proxy
 
