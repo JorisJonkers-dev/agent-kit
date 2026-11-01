@@ -8,6 +8,7 @@ import {
   ASSETS_ROOT,
   FakeGit,
   fenced,
+  finding,
   harness,
   isolatedExport,
   ticketIssue,
@@ -209,6 +210,20 @@ describe('the diff-reviewer role', () => {
     const role = await readFile(join(ASSETS_ROOT, 'roles', 'diff-reviewer.md'), 'utf8')
     const [line] = await ledgerLines(h)
     expect(line).toMatchObject({ prompt_hashes: { role: createHash('sha256').update(role).digest('hex') }, role: 'diff-reviewer' })
+  })
+
+  it('names the spec, not the ticket, on every ledger line, so the review counts under its feature', async () => {
+    const h = await ticketRepository({ families: ['mistral', 'zhipu'], scripts: [critic([finding({ id: 'F1' })])] })
+    const run = await prepared(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', reason: 'Not a bug.', verdict: 'rejected' }] })
+
+    const lines = await ledgerLines(h)
+    expect(lines.map((line) => [line.type, line.spec])).toEqual([
+      ['run', SPEC],
+      ['finding', SPEC],
+    ])
   })
 })
 
