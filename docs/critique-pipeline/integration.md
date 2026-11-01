@@ -1125,3 +1125,59 @@ agy 1.4.11 on macOS, in a scratch directory outside any trusted workspace.
   merged finding.
 - **Minor lines after merging.** A merged minor finding appears on the minor
   line of every critic that raised it.
+
+## What #175 settled
+
+Tracker and domain-doc resolution (agent-kit#175) fixed these:
+
+- **Tracker kind.** Prepare reads the `# Issue tracker: <name>` heading of
+  `docs/agents/issue-tracker.md`, the file Pocock's setup writes. `GitHub`
+  and `Local Markdown` are read; any other name (GitLab, or the free-form
+  prose the setup writes for Jira or Linear), or a doc with no such heading,
+  is a refusal with the reason `unsupported-tracker`. With no doc, the
+  tracker is GitHub when the allowlist key is on `github.com`, and local
+  markdown otherwise.
+- **What `spec` means.** The tracker decides it. With GitHub, `spec` is an
+  issue reference: `167`, `#167`, `owner/repo#167` or an issue URL. With
+  local markdown, it is a repository path. A reference of the wrong kind is
+  an `invalid-input` error. An issue of any repository other than the one
+  the allowlist is keyed by is an `outside-repository` error, so a spec from
+  another repository (a `nedap` one, say) cannot ride on this repository's
+  allowlist entry.
+- **Reading an issue.** Council's `GhPort` gained `viewIssue`, which the
+  critique narrows to `CritiqueGhPort`; the real adapter is
+  `src/adapters/gh/` (`gh issue view <n> --repo <allowlist key> --json ...`).
+  `--repo` is always passed, so gh never chooses the repository from its own
+  remote rules. Any gh failure, an issue gh cannot find included, is a
+  refusal with the reason `tracker-unreachable` and a one-line message that
+  carries gh's first line of output, returned before any run directory
+  exists. The harness's `FakeGh` serves issues by `<repo>#<number>`.
+- **Comments.** An issue's comments are frozen only when prepare's input
+  has `"comments": true`; the default is the body alone. Comments can hold
+  the change summary `/critique-spec` posts after a round (#177), so leaving
+  them out keeps one round's results from reaching the next round's critics.
+- **The frozen issue.** `packet/artifact/issue-<n>.md` holds `# <title>`,
+  the body and, when asked, `## Comments` with one `### <login>, <date>`
+  section each. Line endings become `\n`, so a quote copied from the packet
+  matches it.
+- **Where the artifact came from.** The manifest and prepare's result carry
+  `artifact: { tracker, reference, labels }`. `reference` is
+  `host/owner/repo#<n>` for an issue and the repository path for a file; it
+  is also the artifact's `source` in `packet_files`. `labels` holds the
+  issue's labels, which #174's `risk:high` signal can read without calling
+  gh again.
+- **Decision docs.** With `docs/agents/domain.md`, the references are the
+  paths it names in inline code or link targets outside code blocks: a file
+  as itself, a directory as the `.md` files directly inside it, and a missing
+  path as nothing. Placeholders such as `src/<context>/docs/adr/`, absolute
+  paths and `..` are skipped. A named `CONTEXT-MAP.md` is followed to each
+  `CONTEXT.md` it names and the `docs/adr/` beside it. Without the domain
+  doc, the references are the first of `GLOSSARY.md` and `CONTEXT.md`, then
+  every `.md` in `docs/adr/`. Explicit `references` in the input still win.
+  `CritiqueFilesPort` gained `listFiles`.
+- **For #184.** `application/tracker.ts` holds a `Tracker` per tracker kind,
+  chosen by `TrackerResolver`. Reading a spec's tickets (sub-issues with
+  native blocked-by links, or `.scratch/<feature>/issues/` files) belongs
+  there as a second method beside `artifact`, so `check-tickets` resolves the
+  tracker the way prepare does. `CritiqueGhPort` will need a sub-issue and
+  dependency read for it.

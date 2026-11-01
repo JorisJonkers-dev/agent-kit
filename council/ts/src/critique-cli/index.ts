@@ -1,4 +1,5 @@
 import { ProcessEnvAdapter, SystemClockAdapter } from '../adapters/clock/index.js'
+import { GhCliAdapter } from '../adapters/gh/index.js'
 import { NodeProcessAdapter } from '../adapters/process/index.js'
 import {
   AgyCriticClient,
@@ -89,6 +90,7 @@ export function defaultCritiqueRuntime(
       clock: new SystemClockAdapter(),
       env,
       files,
+      gh: new GhCliAdapter(processPort),
       git: new GitCliAdapter(processPort),
     }),
     readFile: (path) => files.readText(path),

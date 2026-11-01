@@ -3,13 +3,23 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type { ClockPort, EnvPort, GitRemote, ProcessCommand, ProcessPort, ProcessResult } from '../../src/ports/index.js'
+import type {
+  ClockPort,
+  EnvPort,
+  GhIssue,
+  GhIssueRequest,
+  GitRemote,
+  ProcessCommand,
+  ProcessPort,
+  ProcessResult,
+} from '../../src/ports/index.js'
 import {
   AgyCriticClient,
   createCritiqueCommands,
   NodeCritiqueFiles,
   VibeCriticClient,
   type CritiqueCommands,
+  type CritiqueGhPort,
   type CritiqueGitPort,
 } from '../../src/contexts/critique/index.js'
 
@@ -73,6 +83,49 @@ export class FakeGit implements CritiqueGitPort {
     return Promise.resolve(this.remoteList)
   }
 }
+
+/**
+ * Serves GitHub issues by `<repo>#<number>`, where `repo` is what the runner
+ * passes as `--repo`. A string in place of an issue is the stderr of a gh
+ * failure. An issue it does not hold fails the way gh does.
+ */
+export class FakeGh implements CritiqueGhPort {
+  readonly requests: GhIssueRequest[] = []
+
+  constructor(private readonly issues: Readonly<Record<string, GhIssue | string>>) {}
+
+  async viewIssue(request: GhIssueRequest): Promise<GhIssue> {
+    this.requests.push(request)
+    const issue = this.issues[`${request.repo}#${String(request.number)}`]
+    if (issue === undefined) {
+      throw new Error(
+        `gh issue view ${String(request.number)} failed: GraphQL: Could not resolve to an issue or pull request with the number of ${String(request.number)}. (repository.issue)`,
+      )
+    }
+    if (typeof issue === 'string') throw new Error(issue)
+    return Promise.resolve(request.comments ? issue : { ...issue, comments: [] })
+  }
+}
+
+/** A spec issue in agent-kit's tracker, as gh reports it. */
+export function specIssue(overrides: Partial<GhIssue> = {}): GhIssue {
+  return {
+    body: `## User Stories\r\n\r\n1. As the owner, I want widgets.\r\n\r\n3. ${SPEC_CANARY}\r\n`,
+    comments: [{ author: 'joris', body: 'Amended: the window is seven seconds.', createdAt: '2026-10-30T09:00:00Z' }],
+    labels: ['type:feature'],
+    number: 167,
+    title: 'Widgets',
+    url: 'https://github.com/JorisJonkers-dev/agent-kit/issues/167',
+    ...overrides,
+  }
+}
+
+/** The tracker headings Pocock's setup writes into `docs/agents/issue-tracker.md`. */
+export const TRACKER_DOCS = {
+  github: '# Issue tracker: GitHub\n\nIssues and specs for this repo live as GitHub issues.\n',
+  gitlab: '# Issue tracker: GitLab\n\nIssues and specs for this repo live as GitLab issues.\n',
+  'local-markdown': '# Issue tracker: Local Markdown\n\nIssues and specs for this repo live as markdown files in `.scratch/`.\n',
+} as const
 
 export interface VibeScript {
   readonly stdout: string
@@ -261,6 +314,7 @@ export interface Harness {
   readonly repo: string
   readonly assetsRoot: string
   readonly git: FakeGit
+  readonly gh: FakeGh
   readonly process: FakeVibeProcess
   readonly agy: FakeAgyProcess
   readonly launches: LaunchLog
@@ -289,6 +343,14 @@ export async function harness(
     readonly agyOnPath?: boolean
     /** Whether the Keychain holds the `Antigravity CLI` item, or whether there is no `security` tool to ask. */
     readonly agySignedIn?: boolean | 'no-security-tool'
+    /**
+     * The issue-tracker doc Pocock's setup wrote, or `none` for a repository
+     * without one. Local markdown unless named, so the `.scratch/` spec is the
+     * tracker's.
+     */
+    readonly tracker?: keyof typeof TRACKER_DOCS | 'none'
+    /** The issues gh serves, by `<repo>#<number>`. */
+    readonly issues?: Readonly<Record<string, GhIssue | string>>
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -310,7 +372,13 @@ export async function harness(
   const bin = join(base, 'bin')
   await mkdir(bin, { recursive: true })
   if (options.agyOnPath ?? true) await writeFile(join(bin, 'agy'), '#!/bin/sh\n')
+  const tracker = options.tracker ?? 'local-markdown'
+  if (tracker !== 'none') {
+    await mkdir(join(repo, 'docs', 'agents'), { recursive: true })
+    await writeFile(join(repo, 'docs', 'agents', 'issue-tracker.md'), TRACKER_DOCS[tracker])
+  }
   const git = new FakeGit(repo, options.remotes ?? [AGENT_KIT_REMOTE])
+  const gh = new FakeGh(options.issues ?? {})
   const launches = new LaunchLog()
   const process = new FakeVibeProcess(options.scripts ?? [], launches)
   const agy = new FakeAgyProcess(options.agyScripts ?? [], options.agySignedIn ?? true, launches)
@@ -325,6 +393,7 @@ export async function harness(
     clock: new FixedClock('2026-10-30T12:00:00.000Z'),
     env,
     files,
+    gh,
     git,
   })
   return {
@@ -332,6 +401,7 @@ export async function harness(
     assetsRoot,
     cleanup: () => rm(base, { force: true, recursive: true }),
     commands,
+    gh,
     git,
     home,
     launches,
