@@ -80,7 +80,7 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
     const outcome =
       result.timedOut === true
         ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S)
-        : classifyAgyRun(result.exitCode, result.stdout, run)
+        : classifyAgyRun(result.exitCode, result.stdout, run, result.stderr)
     // Antigravity is quota, not money: it counts against the daily cap, never the Vibe cap.
     return { ...result, chargedUsd: 0, exportPath, outcome }
   }
@@ -150,6 +150,26 @@ function readStream(stdout: string): AgyStream {
   return { parsed: true, result, tools }
 }
 
+/**
+ * Why agy exited non-zero: the `short_error` of its `AGY_ERROR: {...}` line
+ * (a spent quota reads `RESOURCE_EXHAUSTED (code 429): Individual quota
+ * reached. ... Resets in <time>.`), else the first line of stderr.
+ */
+function exitReason(stderr: string): string | undefined {
+  const lines = stderr.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
+  for (const line of lines.filter((text) => text.startsWith(AGY_ERROR_PREFIX))) {
+    try {
+      const shortError = jsonObjectOrUndefined(JSON.parse(line.slice(AGY_ERROR_PREFIX.length)))?.short_error
+      if (typeof shortError === 'string' && shortError.length > 0) return shortError
+    } catch {
+      // Not JSON: fall back to the first line.
+    }
+  }
+  return lines[0]
+}
+
+const AGY_ERROR_PREFIX = 'AGY_ERROR:'
+
 function timedOut(timeoutS: number): CriticOutcome {
   return { cost_usd: null, detail: `agy did not return within ${String(timeoutS)}s, so the outer timer killed it`, failure: 'timeout', status: 'failed' }
 }
@@ -161,9 +181,12 @@ function timedOut(timeoutS: number): CriticOutcome {
  * so is any tool beyond reading the packet. Findings come from
  * `structured_output` only, checked against the output contract again.
  */
-function classifyAgyRun(exitCode: number, stdout: string, run: AgyStream): CriticOutcome {
+function classifyAgyRun(exitCode: number, stdout: string, run: AgyStream, stderr: string): CriticOutcome {
   const failed = (failure: CriticFailure, detail: string): CriticOutcome => ({ cost_usd: null, detail, failure, status: 'failed' })
-  if (exitCode !== 0) return failed(`exit-${String(exitCode)}`, `agy exited ${String(exitCode)}`)
+  if (exitCode !== 0) {
+    const reason = exitReason(stderr)
+    return failed(`exit-${String(exitCode)}`, `agy exited ${String(exitCode)}${reason === undefined ? '' : `: ${reason}`}`)
+  }
   if (stdout.trim().length === 0) return failed('empty-output', 'agy exited 0 with empty stdout')
   const { result } = run
   if (result === undefined) return failed('unparseable-output', 'stdout is not an agy event stream with a result event')

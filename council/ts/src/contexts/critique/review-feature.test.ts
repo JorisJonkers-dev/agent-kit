@@ -77,7 +77,7 @@ describe('the feature-review roster in shipped routing', () => {
         critic_id: 'c1-vibe-mistral-large',
         family: 'mistral',
         lenses: ['integration'],
-        model: 'mistral-large-4-0-3',
+        model: 'mistral-large-4-0',
         role: 'feature-reviewer',
       },
       {

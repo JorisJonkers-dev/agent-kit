@@ -483,7 +483,7 @@ describe('a critic check', () => {
     await check(h, 'critic:vibe-glm', { confirmed: true })
     await h.writeText(
       overridePath(h),
-      JSON.stringify({ clients: { 'vibe-glm': { model: 'zai-glm-5-3' } } }),
+      JSON.stringify({ clients: { 'vibe-glm': { model: 'zai-glm-5-3-flash' } } }),
     )
 
     expect(item(await list(h), 'critic:vibe-glm').changed).toEqual(['routing_hash'])
@@ -529,7 +529,7 @@ describe('a critic check', () => {
         family: 'zhipu',
         flow: 'machine-setup',
         kind: 'vibe',
-        model: 'glm-5-3',
+        model: 'zai-glm-5-3',
         recorded_at: '2026-10-30T12:00:00.000Z',
         repository: 'machine-setup',
         status: 'ok',

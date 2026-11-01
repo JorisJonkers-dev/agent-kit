@@ -80,7 +80,7 @@ describe('record', () => {
     expect(result.report_path).toBe(join(run.run_dir, 'report.md'))
     expect(result.counts).toEqual({ accepted: 1, hint: 1, 'needs-human': 1, rejected: 1 })
     const summary = result.summary
-    expect(summary).toContain('vibe-mistral-large (mistral-large-4-0-3, mistral): ok, 4 findings, $0.0123')
+    expect(summary).toContain('vibe-mistral-large (mistral-large-4-0, mistral): ok, 4 findings, $0.0123')
     expect(summary).toContain('Verdicts: accepted 1, rejected 1, needs-human 1, hint 1')
     const headings = summary.split('\n').filter((line) => line.startsWith('## '))
     expect(headings).toEqual(['## Critics', '## Accepted', '## Questions for you', '## Minor', '## Dissent', '## Report'])
@@ -176,7 +176,7 @@ describe('record', () => {
 
     const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
-    expect(result.summary).toContain('vibe-mistral-large (mistral-large-4-0-3, mistral): failed (empty-output)')
+    expect(result.summary).toContain('vibe-mistral-large (mistral-large-4-0, mistral): failed (empty-output)')
     expect(section(result.summary, 'Accepted')).toBe('none')
     expect(await ledgerLines(h)).toEqual([
       expect.objectContaining({ failure: 'empty-output', finding_count: 0, status: 'failed', type: 'run' }),
@@ -268,8 +268,8 @@ describe('record', () => {
   it('names critics that were dropped before the run', async () => {
     const routing = {
       clients: {
-        'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
-        'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5-3' },
+        'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0' },
+        'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'zai-glm-5-3' },
       },
       stages: {
         spec: {
@@ -425,8 +425,8 @@ describe('the summary batches minor findings', () => {
     const h = await harness({
       routing: {
         clients: {
-          'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5-3' },
-          'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+          'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'zai-glm-5-3' },
+          'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0' },
         },
         stages: {
           spec: {

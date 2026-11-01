@@ -6025,7 +6025,7 @@ var AgyCriticClient = class {
     const exportPath = join20(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
-    const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run);
+    const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run, result2.stderr);
     return { ...result2, chargedUsd: 0, exportPath, outcome };
   }
   async onPath(binary) {
@@ -6077,12 +6077,27 @@ function readStream(stdout) {
   }
   return { parsed: true, result: result2, tools };
 }
+function exitReason(stderr) {
+  const lines = stderr.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
+  for (const line of lines.filter((text) => text.startsWith(AGY_ERROR_PREFIX))) {
+    try {
+      const shortError = jsonObjectOrUndefined(JSON.parse(line.slice(AGY_ERROR_PREFIX.length)))?.short_error;
+      if (typeof shortError === "string" && shortError.length > 0) return shortError;
+    } catch {
+    }
+  }
+  return lines[0];
+}
+var AGY_ERROR_PREFIX = "AGY_ERROR:";
 function timedOut(timeoutS) {
   return { cost_usd: null, detail: `agy did not return within ${String(timeoutS)}s, so the outer timer killed it`, failure: "timeout", status: "failed" };
 }
-function classifyAgyRun(exitCode, stdout, run) {
+function classifyAgyRun(exitCode, stdout, run, stderr) {
   const failed = (failure2, detail) => ({ cost_usd: null, detail, failure: failure2, status: "failed" });
-  if (exitCode !== 0) return failed(`exit-${String(exitCode)}`, `agy exited ${String(exitCode)}`);
+  if (exitCode !== 0) {
+    const reason = exitReason(stderr);
+    return failed(`exit-${String(exitCode)}`, `agy exited ${String(exitCode)}${reason === void 0 ? "" : `: ${reason}`}`);
+  }
   if (stdout.trim().length === 0) return failed("empty-output", "agy exited 0 with empty stdout");
   const { result: result2 } = run;
   if (result2 === void 0) return failed("unparseable-output", "stdout is not an agy event stream with a result event");
