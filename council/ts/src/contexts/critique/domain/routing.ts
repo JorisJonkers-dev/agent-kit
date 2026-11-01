@@ -13,12 +13,29 @@ export interface VibeCriticClient {
   readonly family: ModelFamily
 }
 
-export type CriticClient = VibeCriticClient
+/**
+ * Antigravity in print mode. agy also offers Claude and GPT-OSS models; those
+ * are never critics, so the model must be a Gemini one and the family Google.
+ */
+export interface AgyCriticClient {
+  readonly kind: 'agy'
+  readonly binary: string
+  readonly model: string
+  readonly family: 'google'
+}
+
+export type CriticClient = VibeCriticClient | AgyCriticClient
+
+export const CLIENT_KINDS = ['vibe', 'agy'] as const satisfies readonly CriticClient['kind'][]
+
+/** Whether a critic client can run on this machine now; `detail` says why not, in setup's words where setup has them. */
+export type ClientReadiness = { readonly ready: true } | { readonly ready: false; readonly detail: string }
 
 export interface RosterSlot {
   readonly client: string
   readonly role: string
   readonly lenses: readonly string[]
+  /** Vibe's price cap. Antigravity is quota, not money, so agy ignores it. */
   readonly max_price_usd: number
   readonly time_limit_s: number
 }
@@ -31,6 +48,8 @@ export interface StageRouting {
 export interface Routing {
   readonly version: 1
   readonly clients: Readonly<Record<string, CriticClient>>
+  /** Per client, the clients tried in order when it may not run. */
+  readonly fallbacks: Readonly<Record<string, readonly string[]>>
   readonly stages: Readonly<Partial<Record<CritiqueStage, StageRouting>>>
 }
 
@@ -40,12 +59,17 @@ export interface RosterCritic extends RosterSlot {
   readonly client_config: CriticClient
 }
 
-export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family'] as const
+export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable'] as const
 
+/** A routed critic that does not run, and the fallback critic that runs in its slot, if one could. */
 export interface DroppedCritic {
   readonly client: string
   readonly family: ModelFamily
   readonly reason: (typeof DROP_REASONS)[number]
+  /** Why an unavailable client cannot run on this machine. */
+  readonly detail?: string
+  /** The critic id of the fallback that took the slot. */
+  readonly replaced_by?: string
 }
 
 export interface Roster {
@@ -58,6 +82,7 @@ export function parseRouting(text: string): Routing {
   const file = JsonFields.parse(text)
   return {
     clients: file.entries('clients', readCriticClient),
+    fallbacks: file.has('fallbacks') ? file.stringLists('fallbacks') : {},
     stages: file.entries('stages', (stage) => ({
       base: stage.list('base', readRosterSlot),
       distinct_families: stage.boolean('distinct_families'),
@@ -67,13 +92,25 @@ export function parseRouting(text: string): Routing {
 }
 
 export function readCriticClient(fields: JsonFields): CriticClient {
+  if (fields.oneOf('kind', CLIENT_KINDS) === 'agy') {
+    return {
+      binary: fields.string('binary'),
+      family: fields.literal('family', 'google'),
+      kind: 'agy',
+      model: fields.matching('model', isGeminiModel, "a Gemini model: agy's Claude and GPT-OSS models are never critics"),
+    }
+  }
   return {
     agent: fields.string('agent'),
     binary: fields.string('binary'),
     family: fields.oneOf('family', MODEL_FAMILIES),
-    kind: fields.literal('kind', 'vibe'),
+    kind: 'vibe',
     model: fields.string('model'),
   }
+}
+
+function isGeminiModel(model: string): model is string {
+  return model.startsWith('gemini-')
 }
 
 export function readRosterSlot(fields: JsonFields): RosterSlot {
@@ -95,10 +132,14 @@ export function readRosterCritic(fields: JsonFields): RosterCritic {
 }
 
 export function readDroppedCritic(fields: JsonFields): DroppedCritic {
+  const detail = fields.optionalString('detail')
+  const replacedBy = fields.optionalString('replaced_by')
   return {
     client: fields.string('client'),
     family: fields.oneOf('family', MODEL_FAMILIES),
     reason: fields.oneOf('reason', DROP_REASONS),
+    ...(detail === undefined ? {} : { detail }),
+    ...(replacedBy === undefined ? {} : { replaced_by: replacedBy }),
   }
 }
 
@@ -109,36 +150,87 @@ export interface RosterRequest {
 }
 
 /**
- * Resolves the base roster of a stage. A critic is dropped when the
- * repository's allowlist does not permit its family, when it shares the
- * orchestrator's family, which adjudicates its findings, or when the stage
- * requires distinct families and an earlier critic already has its family.
+ * The clients a stage could run, routed or fallback, whose family the
+ * allowlist permits and the orchestrator does not share: the ones whose
+ * readiness is worth checking.
  */
-export function resolveRoster(routing: Routing, request: RosterRequest): Roster {
-  const stage = routing.stages[request.stage]
-  if (stage === undefined) throw new CritiqueError('invalid-routing', `routing has no stage ${request.stage}`)
+export function candidateClients(routing: Routing, request: RosterRequest): readonly (readonly [string, CriticClient])[] {
+  const names = new Set(stageRouting(routing, request).base.flatMap((slot) => slotCandidates(routing, slot.client)))
+  return [...names]
+    .map((name) => [name, clientNamed(routing, request, name)] as const)
+    .filter(([, client]) => familyReason(client.family, request) === undefined)
+}
+
+/**
+ * Resolves the base roster of a stage. Each slot runs its routed client, or
+ * else the first of that client's fallbacks that may run, with the slot's
+ * role and lenses. A client may not run when the repository's allowlist does
+ * not permit its family, when it shares the orchestrator's family (the
+ * orchestrator adjudicates its findings), when the stage requires distinct
+ * families and a critic already has its family, or when it is not ready on
+ * this machine. A slot no client can fill stays empty, so the stage runs with
+ * fewer critics rather than two of one family.
+ */
+export function resolveRoster(
+  routing: Routing,
+  request: RosterRequest,
+  readiness: ReadonlyMap<string, ClientReadiness> = new Map(),
+): Roster {
+  const stage = stageRouting(routing, request)
   const critics: RosterCritic[] = []
   const dropped: DroppedCritic[] = []
-  for (const slot of stage.base) {
-    const client = routing.clients[slot.client]
-    if (client === undefined) {
-      throw new CritiqueError('invalid-routing', `routing stage ${request.stage} names unknown client ${slot.client}`)
-    }
+  const refusal = (name: string, client: CriticClient): Pick<DroppedCritic, 'reason' | 'detail'> | undefined => {
     const reason =
-      dropReason(client.family, request) ??
+      familyReason(client.family, request) ??
       (stage.distinct_families && critics.some((critic) => critic.client_config.family === client.family)
         ? 'same-family'
         : undefined)
-    if (reason === undefined) {
-      critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}` })
-    } else {
-      dropped.push({ client: slot.client, family: client.family, reason })
+    if (reason !== undefined) return { reason }
+    const ready = readiness.get(name)
+    return ready?.ready === false ? { detail: ready.detail, reason: 'unavailable' } : undefined
+  }
+  for (const slot of stage.base) {
+    const primary = clientNamed(routing, request, slot.client)
+    const primaryRefusal = refusal(slot.client, primary)
+    const name = slotCandidates(routing, slot.client).find((candidate) =>
+      refusal(candidate, clientNamed(routing, request, candidate)) === undefined,
+    )
+    const chosen =
+      name === undefined
+        ? undefined
+        : { ...slot, client: name, client_config: clientNamed(routing, request, name), critic_id: `c${String(critics.length + 1)}-${name}` }
+    if (primaryRefusal !== undefined) {
+      dropped.push({
+        client: slot.client,
+        family: primary.family,
+        ...primaryRefusal,
+        ...(chosen === undefined ? {} : { replaced_by: chosen.critic_id }),
+      })
     }
+    if (chosen !== undefined) critics.push(chosen)
   }
   return { critics, depth: 'base', dropped }
 }
 
-function dropReason(family: ModelFamily, request: RosterRequest): DroppedCritic['reason'] | undefined {
+function stageRouting(routing: Routing, request: RosterRequest): StageRouting {
+  const stage = routing.stages[request.stage]
+  if (stage === undefined) throw new CritiqueError('invalid-routing', `routing has no stage ${request.stage}`)
+  return stage
+}
+
+function slotCandidates(routing: Routing, client: string): readonly string[] {
+  return [client, ...(routing.fallbacks[client] ?? [])]
+}
+
+function clientNamed(routing: Routing, request: RosterRequest, name: string): CriticClient {
+  const client = routing.clients[name]
+  if (client === undefined) {
+    throw new CritiqueError('invalid-routing', `routing stage ${request.stage} names unknown client ${name}`)
+  }
+  return client
+}
+
+function familyReason(family: ModelFamily, request: RosterRequest): DroppedCritic['reason'] | undefined {
   if (!request.allowedFamilies.includes(family)) return 'family-not-allowed'
   if (family === request.orchestratorFamily) return 'orchestrator-family'
   return undefined

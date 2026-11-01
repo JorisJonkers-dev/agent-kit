@@ -5,6 +5,7 @@ export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
 export type {
   CriticClientPort,
+  CriticClients,
   CriticLaunch,
   CriticReport,
   CritiqueDeps,
@@ -18,4 +19,5 @@ export type { RunFinding } from './domain/findings.js'
 export { CritiqueError, type CritiqueErrorCode, type Refusal, type RefusalReason } from './domain/outcomes.js'
 export type { CritiqueStage, Depth } from './domain/stage.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
+export { AgyCriticClient } from './adapters/agy/index.js'
 export { VibeCriticClient } from './adapters/vibe/index.js'

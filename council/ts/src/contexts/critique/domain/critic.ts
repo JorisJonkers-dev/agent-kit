@@ -23,6 +23,10 @@ const RUN_FAILURES = [
   'config-error',
   'infrastructure-failure',
   'stopped-early',
+  'print-timeout',
+  'denied-action',
+  'missing-structured-output',
+  'unsafe-tool',
 ] as const
 
 /** Why a critic's run counts as no review. `exit-<code>` is an exit code the client does not document. */

@@ -1,6 +1,6 @@
 import type { ClockPort, EnvPort, GhPort, GitPort } from '../../../ports/index.js'
 import type { CriticOutcome } from '../domain/critic.js'
-import type { CriticClient, RosterCritic } from '../domain/routing.js'
+import type { ClientReadiness, CriticClient, RosterCritic } from '../domain/routing.js'
 
 /** The repository facts the critique needs: council's git port, narrowed to what it reads. */
 export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'>
@@ -33,6 +33,8 @@ export interface CriticLaunch {
   readonly promptPath: string
   /** The critic's own directory in the run, for whatever its client writes there. */
   readonly criticDir: string
+  /** The finding schema, for a client that can enforce it. */
+  readonly schemaPath: string
 }
 
 /** A critic's run as its client saw it: the raw output, and what that output amounts to. */
@@ -46,8 +48,27 @@ export interface CriticReport {
 }
 
 /** One critic client: launches a critic in its packet and reads its review. */
-export interface CriticClientPort {
-  review(launch: CriticLaunch): Promise<CriticReport>
+export interface CriticClientPort<Config extends CriticClient = CriticClient> {
+  /** Whether the client can run on this machine now. Prepare asks before it puts the client on the roster. */
+  readiness(config: Config): Promise<ClientReadiness>
+  /** Runs one critic; `config` is the launch's client config, narrowed to this client's kind. */
+  review(launch: CriticLaunch, config: Config): Promise<CriticReport>
+}
+
+/** The client each kind of critic runs through. */
+export type CriticClients = {
+  readonly [Kind in CriticClient['kind']]: CriticClientPort<Extract<CriticClient, { readonly kind: Kind }>>
+}
+
+/** Asks the client of `config`'s kind whether it can run. */
+export function clientReadiness(clients: CriticClients, config: CriticClient): Promise<ClientReadiness> {
+  return config.kind === 'agy' ? clients.agy.readiness(config) : clients.vibe.readiness(config)
+}
+
+/** Runs the launch's critic through the client of its kind. */
+export function reviewWith(clients: CriticClients, launch: CriticLaunch): Promise<CriticReport> {
+  const config = launch.critic.client_config
+  return config.kind === 'agy' ? clients.agy.review(launch, config) : clients.vibe.review(launch, config)
 }
 
 /** One runner command: it takes the JSON the skill sends and returns a JSON result. */
@@ -65,5 +86,5 @@ export interface CritiqueDeps {
   /** Reads spec issues when the repository's tracker is GitHub. */
   readonly gh: CritiqueGhPort
   /** The client each kind of critic runs through. */
-  readonly clients: Readonly<Record<CriticClient['kind'], CriticClientPort>>
+  readonly clients: CriticClients
 }
