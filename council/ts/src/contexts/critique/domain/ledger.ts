@@ -98,6 +98,9 @@ export interface LedgerFinding extends LedgerRunContext {
   readonly pre_verdict: string | null
 }
 
+/** The status of the run line a low-risk triage writes for the ticket review it skipped. */
+export const SKIPPED_LOW_RISK = 'skipped-low-risk'
+
 export interface Ledger {
   readonly runs: readonly LedgerCriticRun[]
   readonly findings: readonly LedgerFinding[]
@@ -116,6 +119,8 @@ export function parseLedger(text: string): Ledger {
     if (line.trim() === '') return
     const fields = JsonFields.of(parseLine(line, index + 1), `line ${String(index + 1)}`)
     const type = fields.string('type')
+    // A low-risk triage writes a run line for the review it skipped, which no critic ran.
+    if (type === 'run' && fields.optionalString('status') === SKIPPED_LOW_RISK) return
     if (type === 'run') runs.push(readCriticRunLine(fields))
     if (type === 'finding') findings.push(readFindingLine(fields))
   })

@@ -622,6 +622,37 @@ describe('critique stats ledger', () => {
     expect(cell(result, MISTRAL).accepted).toBe(20)
   })
 
+  it("skips a low-risk triage's run line, which names no critic", async () => {
+    const ledger = runs(new SyntheticLedger(), 20, raised(MISTRAL, { accepted: 20 })).raw({
+      answer: 'no',
+      changed_files: 1,
+      changed_lines: 2,
+      changed_lines_threshold: 300,
+      charged_usd: 0.001,
+      client: 'vibe-mistral-small',
+      cost_usd: 0.001,
+      flow: 'github.com/jorisjonkers-dev/agent-kit#167',
+      model: 'mistral-small-latest',
+      prompt_hash: 'triage-1',
+      recorded_at: '2026-10-30T12:00:00.000Z',
+      repository: 'github.com/jorisjonkers-dev/agent-kit',
+      risk_signals: [],
+      run_id: '20261030T120000Z-triage',
+      stage: 'ticket-review',
+      status: 'skipped-low-risk',
+      ticket: 'github.com/jorisjonkers-dev/agent-kit#170',
+      triage_signal: { answer: 'no', kind: 'model' },
+      type: 'run',
+    })
+    const h = await opened()
+    await ledger.writeTo(h)
+
+    const result = await h.commands.stats.run({})
+
+    if (result.status !== 'reported') throw new Error('not reported')
+    expect(cell(result, MISTRAL).accepted).toBe(20)
+  })
+
   it('refuses a ledger line that is not JSON, naming its line', async () => {
     const h = await opened()
     const path = await runs(new SyntheticLedger(), 1, []).writeTo(h)
