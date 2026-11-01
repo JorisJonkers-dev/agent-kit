@@ -697,7 +697,15 @@ var CATEGORIES = [
   "integration"
 ];
 var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
-var HINT_CODES = ["no-evidence", "no-spec-quote", "no-decision-quote", "no-decision-or-scenario", "no-test-or-trace"];
+var HINT_CODES = [
+  "no-evidence",
+  "no-spec-quote",
+  "no-decision-quote",
+  "no-decision-or-scenario",
+  "no-test-or-trace",
+  "no-scenario",
+  "not-a-decision-gap"
+];
 var FINDINGS_FAILURES = [
   "no-findings-block",
   "unparseable-findings",
@@ -1210,15 +1218,15 @@ function lineCount(text) {
 }
 
 // src/contexts/critique/domain/evidence.ts
-function indexPacket(packet) {
+function indexPacket(packet2) {
   return {
-    files: packet.map((file) => ({ ...file, normalised: normalise(file.text) })),
-    lines: new Map(packet.map((file) => [file.path, lineCount(file.text)]))
+    files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
+    lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)]))
   };
 }
 var TREE_DIR = "tree";
 var DECISION_CATEGORIES = ["omission", "invention"];
-function checkEvidence(finding, stage, packet) {
+function checkEvidence(finding, stage, packet2) {
   const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false };
   for (const [index, evidence] of finding.evidence.entries()) {
     if (evidence.kind !== "quote") {
@@ -1226,22 +1234,22 @@ function checkEvidence(finding, stage, packet) {
       continue;
     }
     const quote = normalise(evidence.value);
-    const holders = packet.files.filter((file) => file.normalised.includes(quote));
+    const holders = packet2.files.filter((file) => file.normalised.includes(quote));
     if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`);
     found.spec ||= holders.some((file) => file.kind === "artifact");
     found.decision ||= holders.some((file) => file.kind === "reference");
   }
   if (isCodeStage(stage)) {
-    const missing = missingLine(finding, packet);
+    const missing = missingLine(finding, packet2);
     if (missing !== void 0) return fabricated(missing);
   }
-  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : void 0;
+  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : stage === "decisions" ? decisionsRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : void 0;
   return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
 }
 function fabricated(reason) {
   return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
 }
-function missingLine(finding, packet) {
+function missingLine(finding, packet2) {
   const sources = [
     { text: finding.location, where: "the location" },
     ...finding.evidence.flatMap(
@@ -1250,9 +1258,9 @@ function missingLine(finding, packet) {
   ];
   for (const { text, where } of sources) {
     for (const reference of lineReferences(text)) {
-      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate));
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate));
       if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
-      const lines = packet.lines.get(path) ?? 0;
+      const lines = packet2.lines.get(path) ?? 0;
       const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines);
       if (outside !== void 0) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`;
     }
@@ -1270,12 +1278,20 @@ function specRule(category, found) {
   if (DECISION_CATEGORIES.includes(category)) return found.decision ? void 0 : "no-decision-quote";
   return found.decision || found.scenario ? void 0 : "no-decision-or-scenario";
 }
+var GAP_CATEGORIES = ["unasked-question", "contradiction"];
+function decisionsRule(category, found) {
+  if (!GAP_CATEGORIES.includes(category)) return "not-a-decision-gap";
+  if (!found.spec && !found.decision) return "no-decision-quote";
+  return found.scenario ? void 0 : "no-scenario";
+}
 var HINT_REASONS = {
   "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
   "no-decision-quote": "no quote from a decision source",
   "no-evidence": "no evidence to check",
+  "no-scenario": "no concrete scenario",
   "no-spec-quote": "no quote from the spec",
-  "no-test-or-trace": "no failing test and no trace with a file and line"
+  "no-test-or-trace": "no failing test and no trace with a file and line",
+  "not-a-decision-gap": "neither an unasked question nor a contradiction"
 };
 function normalise(text) {
   return text.replace(/\s+/g, " ").trim();
@@ -1286,7 +1302,7 @@ import { createHash } from "node:crypto";
 
 // src/contexts/critique/domain/depth.ts
 var STAGE_MEASURES = {
-  decisions: {},
+  decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   "feature-review": {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
   "ticket-review": {},
@@ -1360,6 +1376,9 @@ function countUserStories(text) {
     }
   }
   return count;
+}
+function countDecisions(text) {
+  return text.split(/\r?\n/).filter((line) => /^\*\*[^*\n]+(?::\*\*|\*\*\s*:)/.test(line) || /^(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
 }
 function countWords(text) {
   return text.split(/\s+/).filter((word) => word.length > 0).length;
@@ -1511,7 +1530,8 @@ function familyReason(family, request) {
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
-var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec"];
+var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec", "feature"];
+var ARTIFACT_ORIGINS = [...TRACKER_KINDS, "none"];
 function listedFiles(manifest) {
   const { code, packet_files: files } = manifest;
   if (code === void 0) return files;
@@ -1567,7 +1587,7 @@ function readArtifactSource(artifact) {
   return {
     labels: artifact.strings("labels"),
     reference: artifact.string("reference"),
-    tracker: artifact.oneOf("tracker", TRACKER_KINDS)
+    tracker: artifact.oneOf("tracker", ARTIFACT_ORIGINS)
   };
 }
 function compactTimestamp(at) {
@@ -1618,6 +1638,7 @@ var BLOCK_SEPARATOR = "\n\n---\n\n";
 var DESCRIPTIONS = {
   artifact: "the artifact under review",
   diff: "the change under review, as a diff against its base",
+  feature: "the feature the decisions are for",
   reference: "reference material",
   spec: "the spec the tickets come from",
   ticket: "a ticket the change delivers",
@@ -1709,10 +1730,10 @@ function reviewWith(clients, launch) {
 import { join as join3 } from "node:path";
 
 // src/contexts/critique/domain/readonly.ts
-function packetChanges(packet, before, after) {
+function packetChanges(packet2, before, after) {
   return changedPaths(before, after).map((path) => {
     const change = !before.has(path) ? "added" : !after.has(path) ? "removed" : "changed";
-    return `${packet}: ${change} ${path}`;
+    return `${packet2}: ${change} ${path}`;
   });
 }
 function workingTreeChanges(before, after) {
@@ -1804,8 +1825,8 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
 };
 
 // src/contexts/critique/application/fan-out.ts
-function withPreVerdict(finding, stage, packet) {
-  const preVerdict = checkEvidence(finding, stage, packet);
+function withPreVerdict(finding, stage, packet2) {
+  const preVerdict = checkEvidence(finding, stage, packet2);
   return preVerdict === void 0 ? finding : { ...finding, pre_verdict: preVerdict };
 }
 function parseFanOutResult(text) {
@@ -1830,13 +1851,13 @@ var FanOutCommand = class {
     const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
-    const packet = indexPacket(await this.readPacket(manifest));
+    const packet2 = indexPacket(await this.readPacket(manifest));
     const budget = new FlowBudget(this.deps);
     const spent = await budget.vibeSpend(manifest);
     const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)));
     const outcomes = [...first, ...await this.retries({ budget, manifest, tripwire }, first)];
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
-    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet));
+    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet2));
     const result2 = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== "ok"),
@@ -1989,7 +2010,7 @@ function criticStatus(outcome, violations) {
 }
 
 // src/contexts/critique/application/prepare.ts
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 
 // src/contexts/critique/application/code-packet.ts
 import { join as join5 } from "node:path";
@@ -2146,8 +2167,78 @@ var DecisionDocs = class {
   }
 };
 
-// src/contexts/critique/application/routing.ts
+// src/contexts/critique/application/decisions-packet.ts
 import { join as join7 } from "node:path";
+
+// src/contexts/critique/domain/decisions.ts
+var FEATURE_MAX_LINES = 5;
+var SUMMARY_MAX_LINES = 40;
+var DECISION_ARTIFACTS = { docs: "decision-docs", summary: "decision-summary" };
+var FEATURE_PATH = "feature/feature.md";
+var SUMMARY_NAME = "decision-summary.md";
+function featureStatement(feature) {
+  return `# Feature
+
+${limitedLines("feature", feature, FEATURE_MAX_LINES)}
+`;
+}
+function decisionSummary(summary) {
+  return `${limitedLines("decision_summary", summary, SUMMARY_MAX_LINES)}
+`;
+}
+function limitedLines(field, text, max) {
+  const trimmed = text.trim();
+  const lines = trimmed.split(/\r?\n/).length;
+  if (lines > max) throw new CritiqueError("invalid-input", `${field} must be at most ${String(max)} lines; it has ${String(lines)}`);
+  return trimmed;
+}
+
+// src/contexts/critique/application/decisions-packet.ts
+var DecisionsPacketReader = class {
+  constructor(files) {
+    this.files = files;
+    this.decisionDocs = new DecisionDocs(files);
+  }
+  files;
+  decisionDocs;
+  async read(root, request) {
+    if (request.feature === void 0) {
+      throw new CritiqueError("invalid-input", "decisions needs feature: a short statement of the feature the decisions are for");
+    }
+    const feature = { kind: "feature", path: FEATURE_PATH, source: "feature-statement", text: featureStatement(request.feature) };
+    const docs = request.references === void 0 ? await this.decisionDocs.resolve(root) : request.references.map((path) => insideRepository(root, path));
+    const read = async (folder, source) => ({
+      kind: folder,
+      path: join7(folder === "artifact" ? "artifact" : "references", source),
+      source,
+      text: await this.files.readText(join7(root, source))
+    });
+    if (request.summary !== void 0) {
+      const summary = {
+        kind: "artifact",
+        path: join7("artifact", SUMMARY_NAME),
+        source: DECISION_ARTIFACTS.summary,
+        text: decisionSummary(request.summary)
+      };
+      const references = await Promise.all(docs.map((source) => read("reference", source)));
+      return packet(DECISION_ARTIFACTS.summary, [feature, summary, ...references]);
+    }
+    if (docs.length === 0) {
+      return refusal(
+        "no-decision-docs",
+        `found no decision docs (${DOMAIN_DOC}, ${GLOSSARIES.join(", ")} or ${ADR_DIRECTORY}/); after /grill-me, pass the decisions as decision_summary`
+      );
+    }
+    return packet(DECISION_ARTIFACTS.docs, [feature, ...await Promise.all(docs.map((source) => read("artifact", source)))]);
+  }
+};
+function packet(reference, files) {
+  const text = files.filter((file) => file.kind === "artifact").map((file) => file.text).join("\n\n");
+  return { artifact: { labels: [], reference, text, tracker: "none" }, code: void 0, files, status: "read" };
+}
+
+// src/contexts/critique/application/routing.ts
+import { join as join8 } from "node:path";
 
 // src/contexts/critique/domain/merge-patch.ts
 function mergePatch(target, patch) {
@@ -2170,7 +2261,7 @@ var RoutingSource = class {
   }
   deps;
   async load() {
-    const shippedPath = join7(this.deps.assetsRoot, "routing.json");
+    const shippedPath = join8(this.deps.assetsRoot, "routing.json");
     const shipped = await readJsonFile(this.deps.files, shippedPath, "invalid-routing", (text) => JSON.parse(text));
     const overridePath = routingOverridePath(this.deps.env);
     if (!await this.deps.files.exists(overridePath)) {
@@ -2194,6 +2285,7 @@ var PrepareCommand = class {
     this.trackers = new TrackerResolver(deps);
     this.decisionDocs = new DecisionDocs(deps.files);
     this.codePackets = new CodePacketReader(deps);
+    this.decisionsPackets = new DecisionsPacketReader(deps.files);
     this.routing = new RoutingSource(deps);
   }
   deps;
@@ -2201,11 +2293,14 @@ var PrepareCommand = class {
   trackers;
   decisionDocs;
   codePackets;
+  decisionsPackets;
   routing;
   async run(raw) {
     const input = readInput(raw, "prepare", (fields) => ({
       base: fields.optionalString("base"),
       comments: fields.has("comments") ? fields.boolean("comments") : false,
+      decisionSummary: fields.optionalString("decision_summary"),
+      feature: fields.optionalString("feature"),
       flow: fields.optionalString("flow"),
       depth: fields.has("depth") ? fields.oneOf("depth", DEPTHS) : void 0,
       head: fields.optionalString("head") ?? "HEAD",
@@ -2213,7 +2308,7 @@ var PrepareCommand = class {
       previousRunDir: fields.has("previous_run_dir") ? fields.string("previous_run_dir") : void 0,
       references: fields.has("references") ? fields.strings("references") : void 0,
       repo: fields.string("repo"),
-      spec: fields.string("spec"),
+      spec: fields.optionalString("spec"),
       stage: fields.oneOf("stage", CRITIQUE_STAGES),
       ticket: fields.optionalString("ticket")
     }));
@@ -2230,9 +2325,7 @@ var PrepareCommand = class {
         `${repository.key} allows documents but not code; record the code permission with allow and "code": true`
       );
     }
-    const tracker = await this.trackers.resolve(repository);
-    if (tracker.status === "refused") return tracker;
-    const contents = isCodeStage(stage) ? await this.codePackets.read(repository, tracker, { ...input, stage }) : await this.documentPacket(repository, tracker, input);
+    const contents = await this.contents(repository, input);
     if (contents.status === "refused") return contents;
     const { artifact, code } = contents;
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage });
@@ -2248,8 +2341,8 @@ var PrepareCommand = class {
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage };
     const roster = resolveRoster(routing, request, await this.readiness(routing, request));
     const runId = await this.freshRunId(repository, stage);
-    const runDir = join8(repository.commonDir, "critique", runId);
-    const packetDir = join8(runDir, "packet");
+    const runDir = join9(repository.commonDir, "critique", runId);
+    const packetDir = join9(runDir, "packet");
     const packetFiles = await this.freezePacket(packetDir, contents.files);
     const source = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker };
     const manifest = {
@@ -2262,7 +2355,8 @@ var PrepareCommand = class {
       distinct_families: roster.distinct_families,
       depth_choice: choice,
       dropped: roster.dropped,
-      flow: input.flow ?? previousFlow ?? artifact.reference,
+      // A decisions run belongs to no tracker item, so unless named its flow is its own.
+      flow: input.flow ?? previousFlow ?? (stage === "decisions" ? runId : artifact.reference),
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
@@ -2292,6 +2386,20 @@ var PrepareCommand = class {
       run_id: runId,
       status: "ready"
     };
+  }
+  /**
+   * What the stage freezes. The decisions stage reads no tracker: grilling
+   * comes before any spec. Every other stage reads its spec, or its ticket,
+   * from the repository's tracker.
+   */
+  async contents(repository, input) {
+    const { stage } = input;
+    if (stage === "decisions") return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary });
+    const tracker = await this.trackers.resolve(repository);
+    if (tracker.status === "refused") return tracker;
+    if (input.spec === void 0) throw new CritiqueError("invalid-input", `${stage} needs spec: the spec, named the way its tracker names it`);
+    const request = { ...input, spec: input.spec };
+    return isCodeStage(stage) ? this.codePackets.read(repository, tracker, { ...request, stage }) : this.documentPacket(repository, tracker, request);
   }
   /**
    * A first round, or the second round after the recorded first round named
@@ -2334,7 +2442,7 @@ var PrepareCommand = class {
   async freshRunId(repository, stage) {
     const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(manifestPath(join8(repository.commonDir, "critique", candidate))); n += 1) {
+    for (let n = 2; await this.deps.files.exists(manifestPath(join9(repository.commonDir, "critique", candidate))); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
@@ -2350,13 +2458,13 @@ var PrepareCommand = class {
     if (artifact.status === "refused") return artifact;
     const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const files = [
-      { kind: "artifact", path: join8("artifact", artifact.name), source: artifact.reference, text: artifact.text },
+      { kind: "artifact", path: join9("artifact", artifact.name), source: artifact.reference, text: artifact.text },
       ...await Promise.all(
         references.map(async (source) => ({
           kind: "reference",
-          path: join8("references", source),
+          path: join9("references", source),
           source,
-          text: await this.deps.files.readText(join8(repository.root, source))
+          text: await this.deps.files.readText(join9(repository.root, source))
         }))
       )
     ];
@@ -2365,7 +2473,7 @@ var PrepareCommand = class {
   async freezePacket(packetDir, files) {
     const frozen = [];
     for (const { text, ...file } of files) {
-      await this.deps.files.writeText(join8(packetDir, file.path), text);
+      await this.deps.files.writeText(join9(packetDir, file.path), text);
       frozen.push({ ...file, sha256: sha256(text) });
     }
     return frozen;
@@ -2381,7 +2489,7 @@ function preparedCode(code, files) {
 }
 
 // src/contexts/critique/application/record.ts
-import { join as join10 } from "node:path";
+import { join as join11 } from "node:path";
 
 // src/contexts/critique/domain/verdicts.ts
 var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
@@ -2392,7 +2500,16 @@ function countVerdicts(run) {
 }
 function secondRoundDue(run) {
   const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
-  return run.round === 1 && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+  return run.round === 1 && run.stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+}
+function stageVerdictError(stage, verdict) {
+  const id = verdict.finding_id;
+  if (stage === "decisions") {
+    if (verdict.verdict === "needs-human") return `${id}: the decisions stage asks every accepted gap as a question; give it accepted, not needs-human`;
+    if (verdict.answered !== void 0 && verdict.verdict !== "accepted") return `${id}: only an accepted verdict can be answered at the decisions stage`;
+    return void 0;
+  }
+  return verdict.answered !== void 0 && verdict.verdict !== "needs-human" ? `${id}: only a needs-human verdict can be answered` : void 0;
 }
 function openCriticalQuestions(run) {
   return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
@@ -2492,7 +2609,7 @@ var MINOR_MAX_CHARS = 300;
 function renderSummary(run, reportPath2) {
   const serious = run.findings.filter((f) => f.severity !== "minor");
   const lists = {
-    accepted: serious.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(run, f)),
+    accepted: serious.filter((f) => f.verdict.verdict === "accepted").map((f) => findingLine(run, f, acceptedTail(f.verdict))),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ""}`)),
     questions: serious.filter((f) => f.verdict.verdict === "needs-human").map((f) => findingLine(run, f, questionTail(f.verdict)))
   };
@@ -2623,6 +2740,10 @@ function toTicketsLines(run) {
   const which = open.length === 1 ? `critical question ${open.join("")} is` : `critical questions ${open.join(", ")} are`;
   return [`Do not start /to-tickets: ${which} unanswered.`];
 }
+function acceptedTail(verdict) {
+  if (verdict.answered === true) return "(answered)";
+  return verdict.reason_code === void 0 ? void 0 : `(${verdict.reason_code})`;
+}
 function questionTail(verdict) {
   const parts = [
     ...verdict.reason === void 0 ? [] : [`Question: ${verdict.reason}`],
@@ -2716,12 +2837,12 @@ function bullets(items, hidden) {
 }
 
 // src/contexts/critique/application/feature-gate.ts
-import { dirname as dirname3, join as join9 } from "node:path";
+import { dirname as dirname3, join as join10 } from "node:path";
 function gatePath(runDir) {
-  return join9(runDir, "gate.json");
+  return join10(runDir, "gate.json");
 }
 function gateIndexPath(critiqueDir) {
-  return join9(critiqueDir, "gates.jsonl");
+  return join10(critiqueDir, "gates.jsonl");
 }
 var FeatureGate = class {
   constructor(deps) {
@@ -2808,11 +2929,11 @@ var RecordCommand = class {
     }));
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
-    const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
     for (const verdict of input.verdicts) {
-      const problem = verdictProblem(manifest.stage, verdict, manifest.packet_files);
-      if (problem !== void 0) throw new CritiqueError("invalid-input", problem);
+      const error = stageVerdictError(manifest.stage, verdict) ?? verdictProblem(manifest.stage, verdict, manifest.packet_files);
+      if (error !== void 0) throw new CritiqueError("invalid-input", error);
     }
+    const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
     const reportPath2 = reportPath(input.runDir);
     if (await this.deps.files.exists(reportPath2)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
     const adjudicated = merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) }));
@@ -2834,7 +2955,7 @@ var RecordCommand = class {
       stage: manifest.stage
     };
     const summary = renderSummary(run, reportPath2);
-    const summaryPath = join10(input.runDir, "summary.md");
+    const summaryPath = join11(input.runDir, "summary.md");
     const ledger = ledgerPath(this.deps.env);
     await this.deps.files.writeText(reportPath2, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
@@ -2894,9 +3015,6 @@ function readVerdict(fields) {
   const answered = fields.has("answered") ? fields.boolean("answered") : void 0;
   const followUp = fields.optionalString("follow_up");
   const traceTickets = fields.has("trace_tickets") ? fields.strings("trace_tickets") : void 0;
-  if (answered !== void 0 && verdict !== "needs-human") {
-    throw new CritiqueError("invalid-input", `${findingId}: only a needs-human verdict can be answered`);
-  }
   return {
     finding_id: findingId,
     verdict,
@@ -2924,7 +3042,7 @@ function createCritiqueCommands(deps) {
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname4, join as join11, relative as relative2 } from "node:path";
+import { dirname as dirname4, join as join12, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -2953,7 +3071,7 @@ var NodeCritiqueFiles = class {
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join11(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join12(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -2961,7 +3079,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute2, join as join12 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join13 } from "node:path";
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
@@ -2995,7 +3113,7 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join12(launch.criticDir, "result.json");
+    const exportPath = join13(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
     const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run);
@@ -3004,7 +3122,7 @@ var AgyCriticClient = class {
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join12(dir, binary))) return true;
+      if (await this.files.exists(join13(dir, binary))) return true;
     }
     return false;
   }
@@ -3083,7 +3201,7 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { isAbsolute as isAbsolute3, join as join13 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join14 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files, env) {
     this.process = process2;
@@ -3103,9 +3221,9 @@ var VibeCriticClient = class {
    */
   async readiness(config) {
     if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
-    const home = join13(this.env.require("HOME"), ".vibe");
+    const home = join14(this.env.require("HOME"), ".vibe");
     if (!await this.signedIn(home)) return { detail: SIGN_IN2, ready: false };
-    if (!await this.files.exists(join13(home, "agents", `${config.agent}.toml`))) {
+    if (!await this.files.exists(join14(home, "agents", `${config.agent}.toml`))) {
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
     }
     return { ready: true };
@@ -3113,20 +3231,20 @@ var VibeCriticClient = class {
   async signedIn(home) {
     const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY"], command: "security" }).catch(() => ({ exitCode: 1 }));
     if (keychain.exitCode === 0) return true;
-    const dotenv = join13(home, ".env");
+    const dotenv = join14(home, ".env");
     if (!await this.files.exists(dotenv)) return false;
     return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
   }
   async onPath(binary) {
     if (isAbsolute3(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join13(dir, binary))) return true;
+      if (await this.files.exists(join14(dir, binary))) return true;
     }
     return false;
   }
   async review(launch, config) {
-    const exportDir = join13(launch.criticDir, "export");
-    const exportPath = join13(exportDir, "export.json");
+    const exportDir = join14(launch.criticDir, "export");
+    const exportPath = join14(exportDir, "export.json");
     const result2 = await this.process.exec(
       vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
     );

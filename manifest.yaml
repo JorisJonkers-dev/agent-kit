@@ -644,7 +644,7 @@ council:
 critique:
   files:
     - path: skills/critique/critique.mjs
-      sha256: fa31d02c114820d55c212f11c22faec747419ae4062baf7eb5a28a510fb975e3
+      sha256: dedce510384ed0a02494d57577330ac1cdf63ddd75a2d51eb031fc1d3f87800d
       mode: "0755"
     - path: skills/critique/lenses/failure-modes.md
       sha256: 71a3ec754f10e74d2ec77e81d0523317c02a5fc6871796036ea85c4396e88169
@@ -679,11 +679,14 @@ critique:
     - path: skills/critique/roles/feature-reviewer.md
       sha256: c23a6c21bd00f0d4449a97237ca152244f626f26176a056a4f2bf01f202b954b
       mode: "0644"
+    - path: skills/critique/roles/gap-critic.md
+      sha256: fe4d20b12262030fe08cc7aff79037b059a3acccdcc421300e5f95eea9a6c114
+      mode: "0644"
     - path: skills/critique/roles/spec-redteam.md
       sha256: a744044cab7eed533c9fcb096dc9ae4a7484f61f8cfc5f5a865ebeda4dae7684
       mode: "0644"
     - path: skills/critique/routing.json
-      sha256: 80cdd20f7ccdc226f6bbc91f0ee761cbc82e00ba60541dcc6ad049b55a86ede7
+      sha256: 2123e9cb88ff0b0130a88b5ffc3120ee69cebb19a86d3c37d8cbe0584d24965d
       mode: "0644"
     - path: skills/critique/schemas/finding.schema.json
       sha256: fc6d8739d26cf1209c2ca00a644de32aea6f305f301c84abecb1d2d460b49780

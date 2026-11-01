@@ -72,7 +72,9 @@ export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet
       ? 'no-evidence'
       : stage === 'spec'
         ? specRule(finding.category, found)
-        : isCodeStage(stage)
+        : stage === 'decisions'
+          ? decisionsRule(finding.category, found)
+          : isCodeStage(stage)
           ? codeRule(finding.evidence)
           : undefined
   return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
@@ -124,12 +126,29 @@ function specRule(category: Category, found: EvidenceFound): HintCode | undefine
   return found.decision || found.scenario ? undefined : 'no-decision-or-scenario'
 }
 
+/** What a decisions-stage finding may be: a branch never opened, or two decisions that clash. */
+const GAP_CATEGORIES: readonly Category[] = ['unasked-question', 'contradiction']
+
+/**
+ * #181's decisions-stage rule: a gap is an unasked question or a
+ * contradiction, quotes the decisions under review or the decision docs
+ * beside them (never the feature statement alone), and gives a concrete
+ * scenario.
+ */
+function decisionsRule(category: Category, found: EvidenceFound): HintCode | undefined {
+  if (!GAP_CATEGORIES.includes(category)) return 'not-a-decision-gap'
+  if (!found.spec && !found.decision) return 'no-decision-quote'
+  return found.scenario ? undefined : 'no-scenario'
+}
+
 const HINT_REASONS: Readonly<Record<HintCode, string>> = {
   'no-decision-or-scenario': 'no quote from a decision source and no concrete scenario',
   'no-decision-quote': 'no quote from a decision source',
   'no-evidence': 'no evidence to check',
+  'no-scenario': 'no concrete scenario',
   'no-spec-quote': 'no quote from the spec',
   'no-test-or-trace': 'no failing test and no trace with a file and line',
+  'not-a-decision-gap': 'neither an unasked question nor a contradiction',
 }
 
 /** Runs of white space count as one space, so a quote may cross a line break. */

@@ -515,13 +515,8 @@ async function shippedRouting(): Promise<ShippedRouting> {
   return JSON.parse(await readFile(join(ASSETS_ROOT, 'routing.json'), 'utf8')) as ShippedRouting
 }
 
-/** The shipped routing, with the spec stage's critics also routed for the decisions stage. */
-async function withDecisionsStage(): Promise<unknown> {
-  const routing = await shippedRouting()
-  // The spec stage's depth signals measure user stories, which a decisions stage has none of.
-  const decisions = Object.fromEntries(Object.entries(routing.stages.spec).filter(([key]) => key !== 'depth_signals'))
-  return { ...routing, stages: { ...routing.stages, decisions } }
-}
+/** A decisions run of the shipped routing, which keeps no Antigravity reserve for that stage. */
+const DECISIONS = { feature: 'Widgets get a frobnication window.', stage: 'decisions' }
 
 const agyLaunches = (count: number, recordedAt = '2026-10-30T08:00:00.000Z'): Record<string, unknown>[] =>
   Array.from({ length: count }, () => ({
@@ -545,10 +540,10 @@ describe('the Antigravity quota', () => {
   })
 
   it('falls back from Gemini at a stage the reserve is not kept for, once the reserve threshold is passed', async () => {
-    const h = await opened({ routing: await withDecisionsStage() })
+    const h = await opened({})
     await seedLedger(h, agyLaunches(10))
 
-    const run = await prepare(h, {}, { stage: 'decisions' })
+    const run = await prepare(h, {}, DECISIONS)
 
     expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE, 'c2-vibe-glm'])
     expect(run.dropped).toEqual([
@@ -564,10 +559,10 @@ describe('the Antigravity quota', () => {
   })
 
   it('runs Gemini at any stage below the reserve threshold', async () => {
-    const h = await opened({ routing: await withDecisionsStage() })
+    const h = await opened({})
     await seedLedger(h, agyLaunches(9))
 
-    const run = await prepare(h, {}, { stage: 'decisions' })
+    const run = await prepare(h, {}, DECISIONS)
 
     expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE, AGY])
   })
