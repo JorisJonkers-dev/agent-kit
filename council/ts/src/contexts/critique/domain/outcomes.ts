@@ -19,6 +19,8 @@ export type RefusalReason =
   | 'tracker-unreachable'
   /** The run named as the first round was already a second round. */
   | 'round-limit'
+  /** The decisions stage found no decision docs, and the caller gave no decision summary. */
+  | 'no-decision-docs'
 
 export interface Refusal {
   readonly status: 'refused'

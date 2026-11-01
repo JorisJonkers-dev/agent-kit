@@ -40,6 +40,53 @@
     "agy-gemini-flash-high": ["vibe-glm"]
   },
   "stages": {
+    "decisions": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        },
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions", "failure-modes"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-glm",
+          "role": "gap-critic",
+          "lenses": ["integration"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        }
+      ],
+      "depth_signals": {
+        "thresholds": { "decisions": 40, "words": 4000 },
+        "risk_terms": [
+          "auth",
+          "authentication",
+          "authorisation",
+          "authorization",
+          "migration",
+          "migrations",
+          "payment",
+          "payments",
+          "crypto",
+          "cryptography",
+          "encryption",
+          "concurrency",
+          "concurrent",
+          "public API"
+        ]
+      }
+    },
     "spec": {
       "distinct_families": true,
       "base": [

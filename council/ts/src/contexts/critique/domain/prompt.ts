@@ -27,6 +27,7 @@ const BLOCK_SEPARATOR = '\n\n---\n\n'
 const DESCRIPTIONS: Readonly<Record<PacketFileKind, string>> = {
   artifact: 'the artifact under review',
   diff: 'the change under review, as a diff against its base',
+  feature: 'the feature the decisions are for',
   reference: 'reference material',
   spec: 'the spec the tickets come from',
   ticket: 'a ticket the change delivers',
