@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 
+import type { RunFinding } from '../domain/findings.js'
 import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
 import { parseManifest } from '../domain/manifest.js'
@@ -49,7 +50,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       degraded: merged.degraded,
       depth: manifest.depth,
       dropped: manifest.dropped,
-      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
+      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
       repository: manifest.repository,
       run_id: manifest.run_id,
       stage: manifest.stage,
@@ -73,10 +74,31 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
   }
 }
 
-function verdictFor(verdicts: ReadonlyMap<string, Verdict>, id: string): Verdict {
-  const verdict = verdicts.get(id)
-  if (verdict === undefined) throw new CritiqueError('invalid-input', `no verdict for ${id}`)
-  return verdict
+/**
+ * The orchestrator's verdict, weighed against fan-out's pre-verdict. A
+ * fabricated-evidence rejection stands whatever the orchestrator says, and
+ * only a rejection may restate it. A hint stands unless the orchestrator
+ * accepts or rejects the finding. A finding without a pre-verdict needs a
+ * verdict.
+ */
+function verdictFor(verdicts: ReadonlyMap<string, Verdict>, finding: RunFinding): Verdict {
+  const given = verdicts.get(finding.id)
+  const pre = finding.pre_verdict
+  if (pre === undefined) {
+    if (given === undefined) throw new CritiqueError('invalid-input', `no verdict for ${finding.id}`)
+    return given
+  }
+  const mechanical: Verdict = { finding_id: finding.id, reason: pre.reason, reason_code: pre.reason_code, verdict: pre.verdict }
+  if (pre.verdict === 'rejected') {
+    if (given !== undefined && given.verdict !== 'rejected') {
+      throw new CritiqueError('invalid-input', `${finding.id} was rejected as fabricated-evidence, which a verdict cannot overturn`)
+    }
+    return mechanical
+  }
+  if (given?.verdict === 'needs-human') {
+    throw new CritiqueError('invalid-input', `${finding.id} is a hint: its verdict may only be accepted, rejected or hint`)
+  }
+  return given ?? mechanical
 }
 
 function verdictsByFinding(list: readonly Verdict[], known: ReadonlySet<string>): ReadonlyMap<string, Verdict> {
