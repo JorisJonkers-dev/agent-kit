@@ -4,8 +4,8 @@ A cloud environment on [claude.ai/code](https://claude.ai/code) gets the same
 agent baseline as a laptop: Codex, Hermes, the plugins, the language servers
 the estate uses, the MCP fleet and the memory platform. Two files in
 [`cloud/`](../cloud) are all you paste; everything else is fetched from the
-home cluster at setup time, so the kit keeps changing here without editing the
-environment again.
+latest GitHub release at setup time, so the kit keeps changing here without
+editing the environment again.
 
 | File | Goes into the environment's |
 |---|---|
@@ -13,9 +13,10 @@ environment again.
 | [`cloud/environment.env`](../cloud/environment.env) | **Environment variables** field, values filled in |
 
 The setup script downloads the latest release's `setup-workstation.sh` from
-`https://assets.jorisjonkers.dev` and runs it with `--cloud`. That copy is not
-in a checkout, so it fetches the kit bundle of the same release, checks its
-sha256, and re-runs the copy inside it.
+`https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh` and runs it with `--cloud`. That copy is not in a checkout, so it
+fetches the kit bundle attached to the same release
+(`releases/download/v<version>/agent-kit-skills.tar.gz`), checks its sha256,
+and re-runs the copy inside it.
 
 ## Set it up
 
@@ -28,6 +29,7 @@ sha256, and re-runs the copy inside it.
 
    ```text
    *.jorisjonkers.dev
+   release-assets.githubusercontent.com
    download-cdn.jetbrains.com
    openrouter.ai
    api.openai.com
@@ -35,8 +37,11 @@ sha256, and re-runs the copy inside it.
    playwright.download.prss.microsoft.com
    ```
 
-   `*.jorisjonkers.dev` carries the asset host, both memory hosts and
-   Overleaf; without it the setup script cannot even fetch the kit. The
+   `*.jorisjonkers.dev` carries both memory hosts and Overleaf. GitHub
+   serves the kit: `github.com` is a Trusted default, and release downloads
+   redirect to `release-assets.githubusercontent.com`, listed in case the
+   defaults do not cover it; without it the setup script cannot even fetch
+   the kit. The
    JetBrains CDN serves the Kotlin language server, the next two are Hermes'
    and Codex' model APIs, and the last two serve Playwright's browser on first
    use. **Full** access works too.
@@ -90,9 +95,9 @@ different path does not split it.
 
 ## Getting a change onto the cloud
 
-1. Merge the change here. A release publishes `setup-workstation.sh` and the
-   kit bundle; fleet-infra's `garage-asset-sync` CronJob copies them to the
-   asset host within about 15 minutes.
+1. Merge the change here. A release attaches `setup-workstation.sh` and the
+   kit bundle to its GitHub release, and `releases/latest` serves them as soon
+   as the publish workflow finishes.
 2. The environment re-runs its setup script only when the script text or the
    network settings change, or after about a week. Bump the `refreshed:` date
    in the pasted script to pick the release up now.

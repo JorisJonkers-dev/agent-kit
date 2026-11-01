@@ -16,10 +16,11 @@ one installer now. From a checkout:
 ./installer/setup-workstation.sh --check   # report only, change nothing
 ```
 
-Fetched over HTTP, once agent-kit#35 publishes the skills bundle:
+Fetched over HTTP from the latest GitHub release; outside a checkout it
+fetches the kit bundle attached to that same release and runs that:
 
 ```bash
-curl -fsSL https://assets.jorisjonkers.dev/setup-workstation.sh | bash
+curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh | bash
 ```
 
 Writes to `CLAUDE_CONFIG_DIR` or `~/.claude` and `CODEX_HOME` or `~/.codex`;

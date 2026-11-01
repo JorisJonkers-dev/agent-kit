@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import stat
 import subprocess
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -102,6 +103,7 @@ def fake_repo(tmp_path: Path) -> Path:
     (repo / "installer").mkdir(parents=True)
     (repo / "installer" / "setup-workstation.sh").write_text(
         "#!/usr/bin/env bash\n# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.\nset -uo pipefail\n"
+        "AGENT_KIT_RELEASE_TAG='@AGENT_KIT_RELEASE_TAG@'\n"
     )
     (repo / "skills" / "pr-composer").mkdir(parents=True)
     (repo / "skills" / "pr-composer" / "SKILL.md").write_text("---\nname: pr-composer\n---\nbody\n")
@@ -223,6 +225,39 @@ def test_verify_script_fails_when_asset_version_does_not_match_release(
     result = run_step("verify-script", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag)
     assert result.returncode != 0
     assert "version token" in result.stderr
+
+
+def test_the_attached_script_fetches_the_bundle_of_its_own_release(
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path
+):
+    stage_dir = tmp_path / "stage"
+    release_store = tmp_path / "release-store"
+    tag = "v1.0.0"
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    assert run_step("attach-script", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    attached = (release_store / tag / "setup-workstation.sh").read_text()
+    assert "AGENT_KIT_RELEASE_TAG='v1.0.0'\n" in attached
+    assert "@AGENT_KIT_RELEASE_TAG@" not in attached
+    # The copy inside the bundle stays unstamped: it runs from a kit root.
+    with tarfile.open(stage_dir / "agent-kit-skills.tar.gz") as tar:
+        member = tar.extractfile("installer/setup-workstation.sh")
+        assert member is not None
+        assert "@AGENT_KIT_RELEASE_TAG@" in member.read().decode()
+
+
+def test_verify_script_fails_when_the_release_tag_does_not_match(
+    fake_repo: Path, fake_gh_bin: Path, tmp_path: Path
+):
+    stage_dir = tmp_path / "stage"
+    release_store = tmp_path / "release-store"
+    tag = "v1.0.0"
+    assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    assert run_step("attach-script", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag).returncode == 0
+    attached = release_store / tag / "setup-workstation.sh"
+    attached.write_text(attached.read_text().replace("TAG='v1.0.0'", "TAG='v0.9.0'"))
+    result = run_step("verify-script", fake_repo, stage_dir, fake_gh_bin, release_store, tag=tag)
+    assert result.returncode != 0
+    assert "release tag mismatch" in result.stderr
 
 
 def test_verify_skills_fails_when_asset_is_corrupted(fake_repo: Path, fake_gh_bin: Path, tmp_path: Path):

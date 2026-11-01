@@ -9,6 +9,7 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 from verify_release_asset import (  # noqa: E402
+    RELEASE_TAG_PLACEHOLDER,
     check_checksum_file,
     check_version,
     extract_version,
@@ -17,7 +18,10 @@ from verify_release_asset import (  # noqa: E402
     stamp_version,
 )
 
-SCRIPT = "#!/usr/bin/env bash\n# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.\nset -uo pipefail\n"
+SCRIPT = (
+    "#!/usr/bin/env bash\n# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.\nset -uo pipefail\n"
+    f"AGENT_KIT_RELEASE_TAG='{RELEASE_TAG_PLACEHOLDER}'\n"
+)
 
 
 class TestStampAndExtractVersion:
@@ -26,7 +30,20 @@ class TestStampAndExtractVersion:
         lines = stamped.splitlines()
         assert lines[0] == "#!/usr/bin/env bash"
         assert lines[1] == "# agent-kit v4.1.0"
-        assert lines[2:] == SCRIPT.splitlines()[1:]
+        assert lines[2:-1] == SCRIPT.splitlines()[1:-1]
+
+    def test_stamp_sets_the_release_tag_the_script_fetches_its_bundle_by(self):
+        stamped = stamp_version(SCRIPT, "v4.1.0")
+        assert stamped.splitlines()[-1] == "AGENT_KIT_RELEASE_TAG='v4.1.0'"
+        assert RELEASE_TAG_PLACEHOLDER not in stamped
+
+    def test_stamp_rejects_a_script_without_the_release_tag_placeholder(self):
+        with pytest.raises(ValueError, match="placeholder"):
+            stamp_version("#!/usr/bin/env bash\necho hi\n", "v4.1.0")
+
+    def test_stamp_rejects_a_tag_that_would_break_the_quoting(self):
+        with pytest.raises(ValueError, match="tag"):
+            stamp_version(SCRIPT, "v4.1.0'; rm -rf /; '")
 
     def test_extract_reads_back_what_stamp_wrote(self):
         stamped = stamp_version(SCRIPT, "v4.1.0")
@@ -53,6 +70,11 @@ class TestCheckVersion:
     def test_fails_when_unstamped(self):
         with pytest.raises(SystemExit, match="version token mismatch"):
             check_version(SCRIPT, "v4.1.0")
+
+    def test_fails_when_the_release_tag_does_not_match(self):
+        stamped = stamp_version(SCRIPT, "v4.1.0").replace("TAG='v4.1.0'", "TAG='v4.0.0'")
+        with pytest.raises(SystemExit, match="release tag mismatch"):
+            check_version(stamped, "v4.1.0")
 
 
 class TestParseSha256sumLine:
