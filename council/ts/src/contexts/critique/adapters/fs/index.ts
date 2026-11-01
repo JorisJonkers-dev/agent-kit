@@ -37,6 +37,14 @@ export class NodeCritiqueFiles implements CritiqueFilesPort {
       .sort()
   }
 
+  async listDirectories(path: string): Promise<readonly string[]> {
+    const entries = await readdir(path, { withFileTypes: true }).catch(() => [])
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+  }
+
   async listTree(dir: string): Promise<readonly string[]> {
     if (!(await this.exists(dir))) return []
     const entries = await readdir(dir, { recursive: true, withFileTypes: true })

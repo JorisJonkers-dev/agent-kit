@@ -96,7 +96,20 @@ export interface GitIndexPort {
   writeIndexTree(cwd: string): Promise<string>
   /** Writes a commit object holding `tree`, with `parent` as its parent, and returns its id; no ref moves. */
   commitTree(cwd: string, tree: string, parent: string, message: string): Promise<string>
+  /**
+   * The unified diff from HEAD to the index, or to the working tree's
+   * tracked files, in the form `diffCommits` prints. Takes no lock and
+   * writes nothing, so a hook may call it before every commit.
+   */
+  diffAgainstHead(cwd: string, from: GitChangeSource): Promise<string>
+  /** Every path that diff touches, a rename as both of its paths. */
+  pathsAgainstHead(cwd: string, from: GitChangeSource): Promise<readonly string[]>
+  /** Every file in the working tree that the index does not hold and no ignore rule hides. */
+  untrackedPaths(cwd: string): Promise<readonly string[]>
 }
+
+/** What a change against HEAD is read from: the staged change, or the tracked files as they are on disk. */
+export type GitChangeSource = 'index' | 'working-tree'
 
 export interface GitDagExecutorPort extends GitPort {
   commitAll(cwd: string, request: GitCommitAllRequest): Promise<GitCommitAllResult>

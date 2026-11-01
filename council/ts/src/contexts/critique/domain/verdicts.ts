@@ -42,6 +42,11 @@ export interface AdjudicatedRun {
   readonly previous_run_id?: string
   readonly depth_choice: DepthChoice
   readonly repository: string
+  /**
+   * The spec the run belongs to, as the artifact's reference names it
+   * (`host/owner/repo#<n>` or a repository path). Stats counts features by it.
+   */
+  readonly spec: string
   /** The flow whose Vibe spend the run adds to. */
   readonly flow: string
   /** True when no critic produced a usable review. */

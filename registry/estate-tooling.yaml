@@ -858,6 +858,18 @@ local_skills:
       Drives the runner in skills/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home.
 
+  - name: critique-stats
+    path: skills/critique-stats
+    purpose: >-
+      Report how each critique critic client performs per stage, from the
+      ledger, ending with routing suggestions the owner acts on.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner's stats command in skills/critique/, so setup
+      installs both side by side in every agent home. It reads the ledger
+      and routing and writes nothing.
+
   - name: check-tickets
     path: skills/check-tickets
     purpose: >-
@@ -901,6 +913,20 @@ local_skills:
       Drives the runner in skills/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home. Its
       run's gate.json is what the PR gate reads.
+
+  - name: flow
+    path: skills/flow
+    purpose: >-
+      The critique pipeline's stepper: says in a few lines where the
+      current feature stands (phase, stage runs, open questions, gate)
+      and names the single next step, running a critique stage on the
+      owner's word and naming the Pocock command otherwise.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner's state command in skills/critique/ and invokes
+      the stage skills, so setup installs it beside them in every agent
+      home. It never runs one of Pocock's skills.
 
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-

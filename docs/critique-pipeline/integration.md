@@ -2,7 +2,11 @@
 
 This document settles what the critique runner can rely on from the two critic
 CLIs, maps every deliverable of the critique pipeline onto agent-kit's layout,
-and lists where the design departs from its brief and why. The words in bold
+and lists where the design departs from its brief and why. For what the
+pipeline does from its user's side (what runs when, depth, budget, the gates,
+the kill switch and retuning routing), read
+[the pipeline README](../../skills/critique/README.md), which `/flow explain`
+reads from; this document does not repeat it. The words in bold
 in [CONTEXT.md](../../CONTEXT.md) under "Critique pipeline" mean what they say
 there, and [ADR-0001](../adr/0001-critics-run-as-direct-cli-calls.md) records
 why critics are direct CLI calls.
@@ -799,12 +803,13 @@ and in the grilling session behind it.
   the 100% coverage and dependency-cruiser gates that already apply there.
 - **No hooks in v1.** No Claude Code hooks ship (no commit gate, PR gate or
   session-start suggestion). The estate ships no agent hooks, and changing
-  that needs its own ADR first.
+  that needs its own ADR first. #182 brought those three hooks back under
+  [ADR-0002](../adr/0002-exactly-three-critique-hooks.md).
 - **`/flow` becomes a stepper merged with `/flow-guide`.** There is one
   entry point that steps through the flow and owns setup, explanation and
-  budget, instead of two overlapping ones. It is out of scope for this
-  slice; the only part delivered now is the opt-in, offered by
-  `/critique-spec`.
+  budget, instead of two overlapping ones. It was out of scope for #167,
+  whose only part of it was the opt-in offered by `/critique-spec`; #182
+  delivers it (#192 and its siblings).
 - **Storage in the git directory.** Run directories live under the
   repository's git common directory, so they are never committed, need no
   `.gitignore` change, and are shared by every worktree of the repository.
@@ -860,6 +865,28 @@ all four, and #167 was amended on 2026-10-30 to match.
    input and output prices, which makes the agent files, next to routing, a
    place where model names and prices are kept (user story 65 already counts
    the critic client definitions as one).
+
+### Departures #182 makes
+
+#182 (`/flow`, the hooks and `/critique-stats`) departs from the brief in
+three more places:
+
+1. **`/flow` names Pocock's commands instead of running them.** Pocock
+   1.3.1's `/grill-with-docs`, `/grill-me`, `/to-spec`, `/to-tickets` and
+   `/implement` are not model-invocable, so `/flow` runs only the critique
+   stages and its own subcommands, and for every other step names the
+   command for the owner to type. The brief's `/flow <idea>` becomes "type
+   `/grill-with-docs <idea>`, then `/flow`".
+2. **`--light` and `--fast` are dropped.** The owner types the grilling, so a
+   flag on `/flow` has no grilling to lighten, and depth replaced `--fast`
+   and `--deep` in #167. The `no-critique` choice stays, recorded in the
+   flow state so the flow shows critique was skipped on purpose.
+3. **Hooks for Claude Code and Codex only.** [ADR-0002](../adr/0002-exactly-three-critique-hooks.md)
+   allows three hooks, installed into Claude Code's `settings.json` and
+   Codex's `hooks.json`, which share one layout. Vibe and Antigravity get none
+   until their hook events are checked against the installed CLIs, and the
+   brief's `after-skill` hook is dropped: no tool-call hook sees a skill the
+   owner types.
 
 ## What this changes for the later tickets
 
@@ -964,6 +991,41 @@ them:
 - **Stages.** The stage names are `decisions`, `spec`, `tickets`,
   `ticket-review` and `feature-review`, and prepare rejects any other.
   Shipped routing defines `spec` only.
+
+## What #196 settled
+
+[ADR-0002](../adr/0002-exactly-three-critique-hooks.md) replaces the "No
+hooks in v1" departure above for three hooks. It records the hook facts
+checked against Claude Code 2.1.316 and Codex 0.166.0. #197 and #198 build on
+these:
+
+- **Names.** `critique-commit-gate` and `critique-pr-gate` (`PreToolUse` on
+  `Bash`) and `critique-session-start` (`SessionStart`), declared in
+  `manifest.yaml`'s `hooks` section. `scripts/validate_manifest.py`'s
+  `validate_hooks` fails on any other name, on a different event, on another
+  ADR, or on an agent other than `claude` or `codex`, and
+  `tests/test_validate_manifest.py` runs it against the checked-in manifest
+  under `uv run pytest`. The full `validate_manifest.py` run is not part of CI
+  (it already fails on a stale `agent-session-bootstrap` checksum), so that
+  pytest test is the CI guard. #198 can add a `targets` list of
+  `path`/`sha256` pins to each entry; the generic checksum check covers it.
+- **Blocking.** Print `{"hookSpecificOutput": {"hookEventName": "PreToolUse",
+  "permissionDecision": "deny", "permissionDecisionReason": "<one line>"}}` and
+  exit 0. Both agents accept that shape, and Claude Code shows the model the
+  reason alone. An exit-2 block also shows the hook's whole command line, and
+  in Codex exit 2 with empty stderr doesn't block. Never print `ask`,
+  `continue`, `stopReason` or `suppressOutput` on `PreToolUse`: Codex marks
+  the hook failed. Never set `onFailure: "block"`.
+- **Payload.** The command is `tool_input.command` in both agents. Codex's
+  unified exec also arrives as `tool_name: "Bash"`.
+- **Session start.** Plain-text stdout reaches the model in both agents.
+- **Fail open comes free.** Any exit code other than 0 or 2, a crash or a
+  timeout lets the call through in both agents. The handler `timeout` is in
+  whole seconds.
+- **Codex trust.** Codex skips a new or changed user hook until the owner
+  trusts it in `/hooks`, so `/flow setup`'s "hooks installed" item has to
+  check that, and the hook commands have to stay byte-stable across upgrades.
+  The live Codex check is still owed: #198's live check covers it.
 
 ## What #170 settled
 
@@ -1437,6 +1499,75 @@ these:
   source names none. The `vibe-glm` client says `glm-5-3` where its agent
   file pins `zai-glm-5-3`; the Vibe model field is informational (the agent
   pins the model), so this was left for whoever next edits that client.
+
+## What #199 settled
+
+`/critique-stats` and the runner's `stats` command (agent-kit#199) fixed
+these:
+
+- **The ledger names the spec.** Every ledger line now carries `spec`, the
+  manifest's `artifact.reference` (`host/owner/repo#<n>` or the repository
+  path), which is what prepare's `spec` input resolved to. It was the
+  narrowest field to add: no manifest or input change. A feature is one
+  distinct `spec`. Lines written before this have no `spec` and count toward
+  every figure but no feature. **A stage whose artifact is not the spec
+  itself (ticket review, feature review) must still put the spec's reference
+  in `AdjudicatedRun.spec`**, or its runs count as features of their own.
+- **The command.** `critique stats` takes `{ repo?, repository?, since?,
+  until? }`: `repo` is a working directory resolved to its allowlist key the
+  way prepare resolves it (so a `nedap` or remote-less repository is
+  refused), `repository` is a key given directly (compared ignoring case),
+  and both together are `invalid-input`. Dates are `YYYY-MM-DD`, both ends
+  included, matched against the UTC day of `recorded_at`. The result is
+  `{ status: "reported", ledger_path, filter, thresholds, cells,
+  removal_candidates, suggestions, report }`; `report` is the markdown the
+  skill prints. A missing ledger is an empty one. A malformed line, or a
+  finding whose `raised_by` names a critic with no run line in the same run,
+  is the new error code `invalid-ledger`; blank lines and lines of an
+  unknown `type` are skipped, so a later ticket can add a line type.
+  `parseLedger` sits in `domain/ledger.ts` beside the writer.
+- **Cells.** A cell is one stage, one client and one prompt hash: the first
+  twelve hex digits of a sha256 over the run line's four `prompt_hashes` and
+  its sorted `lens_hashes`, so any prompt file change (not only a role or a
+  lens) starts a new cell. A finding counts once in every cell whose critic
+  raised it, through the run lines of its run.
+- **Figures.** Precision is accepted over accepted plus rejected; hints and
+  needs-human are left out, and a fabricated-evidence rejection counts as
+  rejected. A unique catch is an accepted finding whose raisers are all one
+  client. Fabrication rate is findings with `pre_verdict:
+  "fabricated-evidence"` over every finding the cell raised; a merged
+  finding's fabrication counts against each raiser, since the ledger cannot
+  say whose quote it was. Cost per accepted is the summed known `cost_usd`
+  over accepted findings, null with none accepted or no priced run
+  (`unpriced_runs` counts the rest). Failure rate counts every run whose
+  status is not `ok`; timeout rate counts `print-timeout`, `exit-124` and
+  Vibe's `stopped-early`, which also covers a price-limit stop.
+- **Thresholds live in routing.** `routing.json` gained
+  `stats: { min_adjudicated_findings: 20, removal_features: 3 }`, read by
+  `stats` only: a routing without it still prepares runs, and `stats`
+  then fails with `invalid-routing`. `stats` reads routing through #174's
+  `RoutingSource`, so the per-machine override can change a threshold
+  (`{ "stats": { "min_adjudicated_findings": 10 } }`), and the routed
+  clients it compares are the override's too.
+- **Suggestions.** For each stage, each routed client (the stage's `base`
+  roster in routing) is compared with the clients off the roster, each on
+  its latest prompt hash for that stage, when both cells have at least the
+  threshold of adjudicated findings. The off-roster client with the highest
+  precision above the routed one gets `<client> has higher precision than
+  <client> on the <stage> stage over <n> findings (<p> against <p>);
+  consider swapping.`, where `n` is both cells' adjudicated findings.
+  Routed clients are never compared with each other.
+- **Removal candidates.** Per stage, the `removal_features` latest
+  features, ordered by their latest run of that stage; a stage that ran on
+  fewer is not judged. It is a candidate when no accepted finding of those
+  features was unique. Taken literally from the ticket: a stage whose
+  critics agree on every accepted finding is flagged too.
+- **The skill.** `skills/critique-stats/SKILL.md` is user-invoked
+  (`disable-model-invocation: true`; the other agents ignore the key) and a
+  `local_skills` entry for claude, codex, vibe and antigravity. It prints
+  the report, explains each suggestion and candidate, and points the owner
+  at `skills/critique/routing.json`; nothing writes routing. #200's dogfood
+  run reads its removal candidates from the same report.
 
 ## What #177 settled
 
@@ -2009,3 +2140,529 @@ The `/review-ticket` skill (agent-kit#188) fixed these:
   path yields a failing test the orchestrator runs and keeps) costs money and
   has not been run, and the runner's `git commit-tree` call has been tested
   against a recorded process only, not a real repository.
+
+## What #191 settled
+
+The flow state and the next-step rule (agent-kit#191) fixed these. #192
+(`/flow`), #193 (`/flow budget`) and #197 (the gates) build on them:
+
+- **The command.** `critique state` takes `{ repo, spec?, draft?, cached?,
+  record? }`. `spec` is named the way prepare names it and keys the flow by
+  its reference (`host/owner/repo#<n>` or the repository path). Before
+  `/to-spec` there is no spec, so `draft` (a name such as the branch,
+  `[A-Za-z0-9][A-Za-z0-9._/-]*`) keys a draft flow `draft:<name>`; one of
+  the two is required. Both together link the spec's flow to the draft, once,
+  and later calls with the spec alone keep the link. The result is
+  `{ status: "read", source, state_path, state, next }`, where `source` is
+  `rebuilt` (no file was there), `refreshed` or `cache`. It needs no
+  allowlist entry and writes nothing a critic sees, but a `no-remote` or
+  `nedap` repository, an unsupported tracker and a spec or tickets the
+  tracker cannot read are refused as prepare refuses them. A bad ledger line
+  is `invalid-ledger`, a bad manifest or index line `invalid-run`.
+- **Always recomputed.** Every call computes the state from its sources and
+  saves it to `<git common dir>/critique/flows/<slug>-<12 hex of sha256>.json`
+  (`flowStatePath`, `parseFlowState` exported); `cached: true` returns the
+  saved file as it is when it parses, for a reader that must be quick. So a
+  deleted file is rebuilt by the next call, and nothing lives only in it.
+- **Sources.** Run directories (`manifest.json` of each directory under
+  `critique/`; `report.md` means recorded; `ticket_check.status`) and the
+  ledger's run lines (a recorded run whose directory is gone); a run belongs
+  to the flow when its repository matches and its `flow` is the flow's key or
+  its linked draft's, or its `specReference` is the spec. Finding lines give
+  the open needs-human questions and the accepted critical count for a second
+  round; low-risk triage run lines and `ticket-reviews.jsonl` give each
+  ticket's review; `gates.jsonl` gives the last gate of the spec; invocation
+  lines give the Vibe spend (the flow's and its draft's). The tracker gives
+  the tickets and whether each is still open.
+- **Ledger changes.** Finding lines now carry `answered` (true when the
+  owner answered a needs-human question before record), and `parseLedger`
+  reads `flow`, `round`, `finding_id` and `severity` and two new arrays. What
+  the owner tells `state` through `record` becomes a `type: "flow"` ledger
+  line (`event`: `grilled`, `no-critique` with `value`, `landed` with
+  `ticket`, `answered` with `run_id` and `finding_id`, `draft` with `draft`),
+  so a rebuild keeps it. `record.landed` names tickets of the spec and
+  `record.answered` open questions of the flow, or the call is
+  `invalid-input`. Two fixes on the way: record now sets the ledger's `spec`
+  from `specReference(manifest)` (a ticket review's lines named the ticket,
+  as #188 warned), and `parseLedger` no longer fails on a low-risk triage's
+  run line, which broke `stats` for any ledger holding one.
+- **What the state holds.** `phase`; `stages` for `decisions`, `spec`,
+  `tickets` and `feature-review`, each `{ status, run_ids, latest_run_id }`
+  with status `not-run`, `in-progress` (latest run not recorded),
+  `second-round-due` (a first round accepted more than three critical
+  findings), `check-failed` (the ticket check found a cycle) or `recorded`;
+  `tickets` in dependency order (blockers of the spec first, tracker order
+  otherwise, a cycle broken at its earliest ticket), each with `review`
+  (`not-reviewed`, `skipped-low-risk`, `reviewed`, `findings-open`, the
+  latest decision winning), `review_run_ids` and `landed`; `open_questions`;
+  `gate` (`none`, `pass` or `fail`, with its run, head and line);
+  `head_commit` (HEAD now); `vibe_spend_usd`; `no_critique`; `grilled`.
+- **Landed.** Pocock's `/implement` commits and closes nothing, and GitHub
+  tickets close when the PR merges, after the gate. So a ticket has landed
+  when its tracker shows it closed, the owner recorded it as landed, or its
+  latest review passed or was skipped as low-risk (both are recorded at the
+  commit). A low-risk commit the commit gate let through leaves no record,
+  so `/flow` should ask and record `landed`.
+- **The next-step rule** (`nextStep`, pure, exported) returns `{ kind:
+  "stage", stage, reason, ticket?, resume_run_id?, previous_run_id? }`,
+  `{ kind: "command", skill, command, reason }` or `{ kind: "done", reason }`.
+  It only ever names Pocock's skills. In order: a draft not grilled is
+  `/grill-with-docs`; then the decisions stage, then `/to-spec`. With a spec:
+  the spec stage (resume an unrecorded run, or a second round with
+  `previous_run_id`); `/grill-me` while a critical needs-human question is
+  open and no ticket is cut; `/to-tickets`; the tickets stage (again while it
+  found a cycle). Then for the first ticket that has not landed: `/grill-me`
+  while a critical question is open, the `ticket-review` stage while its
+  review has a critical finding unfixed, else `/implement <#n or the local
+  ticket's path>` with "start it in a fresh session". Once all landed: the
+  `feature-review` stage (which `/flow` shows as `/flow finish`) until
+  `GATE: PASS` holds for the current HEAD, then `done`. A failing gate's
+  follow-ups are open tickets of the spec, so the flow goes back to
+  implementation until they close. With `no_critique` every stage is
+  skipped and the end is `done` with no feature review.
+- **For #192.** Pass `flow: "draft:<name>"` to the decisions stage's
+  prepare, so its run joins the draft; a decisions run with its default flow
+  (its own run id) belongs to no flow. Record `grilled` after the owner's
+  grilling, and pass the draft name with the spec on the first call after
+  `/to-spec`.
+- **For #193.** `vibe_spend_usd` is the same sum of `charged_usd` the stages
+  enforce, over the flow's key and its draft's; per-day agy counts are not
+  per flow and are not in the state.
+- **For #197.** The gates should keep reading `gates.jsonl` and
+  `ticket-reviews.jsonl` directly; the state file is a convenience, not the
+  gate's source of truth.
+
+## What #192 settled
+
+`/flow` (agent-kit#192) is skill text on the runner's `state` command; it
+added no runner behaviour. #193, #194, #195 and #197 build on it:
+
+- **Finding the feature** is the skill's job, not the runner's: the owner's
+  argument, else an issue number in the branch (`gh issue view <n> --json
+  parent` gives a ticket's spec; an issue with sub-issues is the spec), else
+  a saved state in `critique/flows/` whose `draft` or `flow` names the
+  branch, else a choice among the saved flows, else a new draft named after
+  the branch. A repository on its default branch with no saved flow asks the
+  owner for the draft's name.
+- **What the runner cannot see is asked once per `/flow` call** before the
+  report: whether the grilling finished (`grilled`), which spec `/to-spec`
+  wrote (the first spec call carries the `draft` too), whether `/grill-me`
+  settled a question (`answered`), and whether the ticket `/implement` was
+  named for is already committed (`landed`, since a low-risk commit leaves
+  no record).
+- **Stages run through their skills.** `/flow` loads the stage skill and
+  passes it the step's inputs: `/critique-decisions` now takes a `flow` from
+  `/flow` and passes it to prepare (`draft:<name>`); a second spec round
+  passes `previous_run_dir`; a `resume_run_id` resumes the run at its
+  fan-out step, or at its ruling step once `findings.json` exists. The
+  feature review is reached as `/flow finish`, which runs `/review-feature`.
+- **Seams for the siblings.** `/flow setup`, `/flow explain` and `/flow
+  budget` are stub sections of `skills/flow/SKILL.md`, each one heading that
+  says which ticket brings it (#195, #194, #193); replace the section, and
+  the matching row of the Arguments table, rather than adding new ones.
+
+## What #193 settled
+
+`/flow budget` (agent-kit#193) fixed these:
+
+- **The command.** `critique budget` takes `{ repo, spec?, draft? }`, named
+  and refused exactly as `state` names and refuses a feature (`FlowLocator`
+  and `readFlowName` in `application/flow-state.ts` are now shared by both,
+  and so is `flowKeys`, which adds a linked draft's key). It launches
+  nothing and writes nothing. The result is `{ status: "read", flow, vibe:
+  { spent_usd, cap_usd, flows: [{ flow, spent_usd }] }, antigravity: {
+  daily_cap, reserve_threshold, reserved_stages, day, invocations },
+  stages: [...] }`.
+- **Same code as the stages.** Spend is `flowSpend` over the invocation
+  lines (through `FlowBudget.vibeSpendByFlow`), today's count is
+  `FlowBudget.agyInvocationsToday` (UTC day, `utcDay`), limits come from
+  `RoutingSource`, and each stage's reasons are `budgetReached` (fan-out's
+  wording) and `quotaReached` (prepare's). `vibe.spent_usd` equals the
+  state's `vibe_spend_usd`; tests check that, and that the reasons equal
+  the `budget-skip` detail fan-out records and the `quota` drop prepare
+  makes.
+- **Each key is capped on its own.** Fan-out holds a run to the spend of
+  its manifest's `flow`, not the feature's total. So `stages[]` gives each
+  stage the key its run would charge (`flow`: the draft's for decisions,
+  the spec's otherwise, null when there is none yet) and judges `vibe`
+  against that key's spend; the total and `flows` are for display.
+- **Stages.** One entry per stage routing defines, in flow order: `{ stage,
+  flow, vibe, antigravity, falls_back }`. `vibe` and `antigravity` are the
+  reason strings or null; `antigravity` is null for a stage routing no agy
+  slot. `falls_back` lists each held agy slot (`{ client, to, deep? }`), with
+  `to` the first non-agy client of routing's `fallbacks` for it, or null.
+  That is routing's fallback only: the allowlist, the orchestrator's family
+  and readiness, which prepare also applies, are not considered, so a real
+  run may pick a later fallback or leave the slot empty.
+- **For #192.** The subcommand text replaced the `budget` stub section and
+  its Arguments row in `skills/flow/SKILL.md`; it passes the feature `/flow`
+  found as `spec` or `draft`. `/flow explain budget` is the README's job.
+
+## What #194 settled
+
+The pipeline README and `/flow explain` (agent-kit#194) fixed these:
+
+- **One copy.** The README is `skills/critique/README.md`, so setup copies it
+  into every agent home with the rest of the `critique` skill. The root
+  `README.md` and this document link to it and do not repeat it. It is
+  pinned in `manifest.yaml` `critique.files` like every other file there but
+  `SKILL.md`, so **every README edit refreshes its sha256** in the same
+  commit.
+- **`/flow explain` reads it on every call.** The skill maps the owner's
+  `<thing>` to one of six `## ` headings (Stages, Lenses, Depth, Routing,
+  Gates and the kill switch, Budget and quota) and answers from that section
+  alone; no explanation lives in `skills/flow/SKILL.md`. A pytest checks that
+  each heading the skill names is in the README, that every stage in
+  `routing.json` has a row and that every file in `lenses/` has a line, so
+  renaming a heading or adding a stage or lens means updating the README.
+- **Written from what is built.** Figures (caps, thresholds, rosters,
+  fallbacks) are the shipped `routing.json`'s. A routing change that alters
+  one of them should update the README's figure too; no test catches that.
+- **Budget.** The README's budget section follows "What #193 settled": each
+  flow key is capped on its own, and the fallback `/flow budget` shows is
+  routing's, before the allowlist and readiness.
+- **For #197 and #198.** The gates section says both gates stay advisory until
+  setup installs the hooks (#198): #198 should drop that sentence once it
+  does. #197 named the per-machine disabled flag's file in the kill switch
+  line. The root `README.md`'s "The estate ships **no
+  agent hooks**" line is #198's to update too.
+
+## What #197 settled
+
+The runner's `gate` command (agent-kit#197) decides the commit and PR gates.
+It makes no model and no network call: it reads git, the family allowlist,
+routing and the critique's JSON-lines indexes. #198's hooks are thin wrappers
+around it.
+
+- **Input.** The `PreToolUse` payload as the agent sends it, on stdin:
+  `{ cwd, tool_name?, tool_input: { command } }`; other fields are ignored.
+  An optional `gate` (`"commit"` or `"pr"`) runs only that gate; without it,
+  the command line decides which apply, so one hook script could serve both.
+  A `tool_name` other than `Bash` is not gated. Input that is not JSON, or
+  not a payload, is allowed and logged (the command line passes it through
+  rather than exiting 1).
+- **The output contract.** One JSON object, always exit 0:
+
+  ```json
+  { "status": "allowed", "gate": "commit" | "pr" | null, "reason": "<allow reason>", "line": null }
+  { "status": "allowed", "gate": ..., "reason": "failed-open", "line": null,
+    "failure": "error" | "unreadable-state" | "deadline", "detail": "..." }
+  { "status": "blocked", "gate": "commit" | "pr", "reason": "<block reason>", "line": "<one line>",
+    "hook_output": { "hookSpecificOutput": { "hookEventName": "PreToolUse",
+      "permissionDecision": "deny", "permissionDecisionReason": "<the same line>" } } }
+  ```
+
+  **A hook prints `hook_output` as it is when the result has one, prints
+  nothing otherwise, and exits 0** (#196's convention). It prints nothing else
+  from the result: `status`, `reason` and the rest are for logs and tests,
+  and Codex marks a hook failed for fields it does not support. Allow
+  reasons: `off`, `disabled`, `not-gated`, `no-remote`, `nedap`,
+  `not-opted-in`, `code-not-allowed` (an entry with code off can never run a
+  code stage, so its gates are inert too), `low-risk`, `reviewed`,
+  `feature-branch`, `gate-pass`, `failed-open`. Block reasons: `unreviewed`,
+  `review-failed`, `unstaged`, `no-feature-review`, `gate-fail`,
+  `head-unknown`. Each block line names `/review-ticket` or
+  `/review-feature`.
+- **Kill switch.** `CRITIQUE_OFF=1` returns `off` before anything is read.
+  The per-machine flag is `{"disabled": true}` in
+  `~/.config/agent-kit/critique.json` (`critiqueConfigPath`); a file that does
+  not parse fails open. The README's kill-switch line names it. `/flow setup`
+  (#195, #198) owns writing it.
+- **Fail open.** The gate races its work against a 700 ms deadline
+  (`GATE_DEADLINE_MS`, through `ClockPort.sleep`). A crash, an index line or
+  allowlist that does not parse, broken routing or the deadline returns
+  `failed-open` and appends `{ recorded_at, gate, failure, detail, cwd }` to
+  `~/.local/share/agent-kit/critique/gate.log.jsonl` (`gateLogPath`). The
+  command text is never logged. A log that cannot be written is ignored. The
+  bundled runner now exits as soon as its output is flushed, so a gate that
+  gave up does not wait for the git it abandoned. Measured: an inert gate
+  takes 0.08 to 0.11 s through `node critique.mjs`; five opted-in decisions
+  against a real repository, including setting it up, take 0.86 s in the
+  CLI test.
+- **Reading the command line.** `gatedInvocations` (pure, exported) splits
+  the line into simple commands. It handles quotes, `$(...)`, backticks,
+  here-documents (the `$(cat <<'EOF' ... EOF)` commit message included),
+  redirections, comments, `&&`, `||`, `;`, `|`, and parentheses. It follows
+  `cd` and `git -C`, skips assignments and `env`, `command` and similar
+  wrappers, and finds `git commit` (not `--dry-run`), `git push` (not
+  `--dry-run` or `-n`, tags only or deletions) and `gh pr create`. A `cd`
+  the text alone can't place (`cd -`, a variable) fails that check open.
+  When several commands are found, a block wins over a fail-open, and a
+  fail-open over an allow.
+- **Commit gate.** Risk comes from `riskSignals` over the staged change
+  (`git diff --cached HEAD`, through the new `GitIndexPort.diffAgainstHead`
+  and `pathsAgainstHead`, both run with `--no-optional-locks`) and the
+  routing `triage` rules. A risky change needs the last
+  `ticket-reviews.jsonl` line whose `repository` and `staged_diff` match
+  `StagedDiffReader.read`'s hash. `review: "fail"` blocks with its
+  `unfixed_critical` named. The `risk:high` label can't come from the
+  tracker without the network, so **triage of a staged change now appends a
+  line to `<git common dir>/critique/triages.jsonl`**: `{ version: 1,
+  run_id, recorded_at, repository, ticket, labels, staged_on, staged_diff,
+  status }` (`triageIndexPath`, `parseTriageIndexRecord`). The gate takes the
+  labels of the last line whose `staged_on` is the current HEAD, so the label
+  still counts after the fixes change the staged hash. With no such triage,
+  no label is known, and only paths and size decide.
+- **A commit that records more than is staged.** `-a`, `--include`,
+  `--only`, `--patch`, `--interactive`, pathspecs, or an index-changing git
+  command earlier in the same line (`git add ... && git commit`) widen the
+  change to the tracked files on disk. An earlier `git add` or `git stage`
+  adds untracked files too (`GitIndexPort.untrackedPaths`). The hook runs
+  before the whole line, so the index it sees is not yet the one committed.
+  If the widened change is risky and differs from the index, the result is
+  `unstaged`: stage in a command of its own, review, then commit.
+- **PR gate.** `gh pr create` (with `--head <branch>`, that branch) and any
+  push that updates a branch outside routing's new `gate.feature_branches`
+  globs need the last `gates.jsonl` line whose `repository` and
+  `head_commit` match the commit sent, with `gate: "pass"`. A refspec's
+  source is resolved, so `git push origin c1:main` reads `c1`'s gate. A push
+  with no refspec reads `git branch --show-current` (`currentBranch` joined
+  `CritiqueGitPort`). A detached HEAD, `--all`, `--branches` and `--mirror`
+  count as non-feature. Shipped patterns: `feat/**`, `feature/**`,
+  `features/**`, `fix/**`, `bugfix/**`, `impl/**`, `chore/**`, `docs/**`,
+  `refactor/**`, `test/**`, `perf/**`, `ci/**`, `spike/**`, `wip/**`,
+  `claude/**`, `codex/**`, `worktree-*`. Routing without `gate` gates every
+  push. A push or PR after a HEAD-moving git command in the same line
+  (commit, merge, rebase, reset, ...) is `head-unknown`, since no gate can
+  exist yet for what it sends.
+- **Not done here.** `state` is not called (#191). No hook script is
+  written and nothing is installed (#198). The per-machine config file is
+  only read. #198's live check should confirm the timings with the installed
+  hooks, and that Codex accepts the printed `hook_output` unchanged.
+
+## What #195 settled
+
+`/flow setup` (agent-kit#195) is skill text on a new runner command,
+`setup`. #198 and #178 build on these:
+
+- **The command.** `critique setup` takes `{ action: "list", repo? }`,
+  `{ action: "check", check, confirmed?, force? }` or `{ action: "quota",
+  daily_cap, reserve_threshold }` (no `action` lists). `list` returns
+  `{ status: "listed", results_path, items, repository? }` and launches no
+  critic. `check` returns `{ status, results_path, item }` with status
+  `checked`, `current` (it passed and nothing it depends on changed, so it
+  did not run; `force: true` runs it anyway), `needs-confirmation` or
+  `not-available`. `quota` writes `antigravity_quota.daily_cap` and
+  `reserve_threshold` into `~/.config/agent-kit/critique-routing.json`,
+  keeping the override's other keys (a reserve above the cap is
+  `invalid-input`; an override that does not parse is `invalid-routing`
+  and is left as it was), then re-runs the quota check.
+- **The items**, from routing's clients in routing order: `vibe-signed-in`,
+  `critic:<client>` per Vibe client, `agy-signed-in`, `critic:<client>` per
+  agy client, `agy-quota`, then `read-only:<client>` per client. Each item
+  has `id`, `kind`, `title`, `why` (one sentence), `fix`, `cost` (`free`,
+  `vibe` or `agy`), `status` (`current`, `due` or `not-available`),
+  `due_because` (`never-checked`, `failed`, `inputs-changed`, with
+  `changed`), `inputs` and `last`. A CLI with no client in routing gets no
+  items. #198 adds its hook and kill-switch items to `setupChecklist` in
+  `domain/setup.ts`; the skill walks whatever the runner lists, so it needs
+  no new step for them. #195 writes nothing to `critique.json`: writing
+  #197's `disabled` flag belongs to #198's kill-switch item.
+- **Results.** `~/.local/share/agent-kit/critique/machine-setup.json`,
+  beside the ledger: `{ version: 1, checks: { <id>: { checked_at, result:
+  "pass" | "fail", detail, inputs } } }`. `inputs` are `cli_version` (first
+  line of `<binary> --version`, null when it cannot be read), `agent_hash`
+  (sha256 of `~/.vibe/agents/<agent>.toml`, null when missing) and
+  `routing_hash` (sha256 of the client's merged routing config, or for the
+  quota of the merged `antigravity_quota` plus the override's own). An item
+  is due when it never ran, any input differs, or it last failed. A file
+  that does not parse is the new error code `invalid-setup`. #198's
+  session-start hook can read this file for "missing or failing".
+- **Checks.** A sign-in uses the client port's new `signIn` (Vibe:
+  readiness without the agent file; agy: readiness), so its `detail` is
+  setup's own wording. A critic check runs readiness first, free, and fails
+  without asking when it is not ready; otherwise, unless `confirmed`, it
+  returns `needs-confirmation` and launches nothing. Confirmed, it sends a
+  trivial prompt through the client's real `review` (same isolation and
+  outcome rules as a critic) in `~/.local/share/agent-kit/critique/
+  setup-checks/<client>/packet/` (one `note.md`), capped at $0.05 and
+  120 s, and passes when the reply is a valid empty findings list. The
+  earlier export is removed first so it is never read again. The quota
+  check passes once the override names `antigravity_quota.daily_cap`
+  (agy never reports its quota), and its detail gives today's count.
+- **Ledger.** A critic check appends an invocation line with `repository`
+  and `flow` `machine-setup` and no `stage`, `round` or `run_id`, so it
+  counts in today's agy count (`FlowBudget.agyInvocationsToday`) and in no
+  flow's Vibe spend. A reader that requires `stage` on invocation lines must
+  accept its absence.
+- **Confirmation per session** is the skill's: the runner cannot see a
+  session, so it only refuses to spend without `confirmed`, and the skill
+  asks the first time each cost (`vibe`, `agy`) comes up.
+- **For #178.** The read-only items always answer `not-available` with
+  `READ_ONLY_PENDING` and record nothing. #178 should make `read-only`
+  items run its smoke check on request, through `check`, and drop that
+  constant; the skill text already walks them like any other item. The
+  probe has not been run against the real CLIs; agy may need the probe
+  directory listed as a trusted workspace, which only a live run will show.
+
+## What #198 settled
+
+Setup installs the three hooks of
+[ADR-0002](../adr/0002-exactly-three-critique-hooks.md) (agent-kit#198).
+Later work builds on these:
+
+- **The scripts.** `skills/critique/hooks/<name>.sh`, one per hook, shipped
+  with the `critique` skill and pinned in `manifest.yaml` `critique.files`.
+  Each is one `exec node "${0%/*}/../critique.mjs" hook <name>`. A missing
+  `node` or runner exits 127, which both agents treat as a failed hook that
+  does not block.
+- **`critique hook <name>`.** New runner command line: it reads the agent's
+  payload from stdin and prints only what the agent reads. The two gates add
+  `gate: "commit"` or `"pr"` to the payload, run `gate`, and print
+  `hook_output` compactly when blocked, nothing otherwise. The session-start
+  hook prints its line as plain text. It always exits 0. A payload it cannot
+  read prints nothing. An unknown hook name exits 1, never 2, because a
+  `PreToolUse` exit 2 blocks in Claude Code.
+- **`session-start`.** New runner command (`SessionStartCommand`), JSON in
+  and out like `gate`. It is silent with `off`, `disabled`, `no-remote`,
+  `nedap`, `not-opted-in` (no allowlist entry at all; families alone are
+  enough, unlike the gates, which need `code`), `setup-current` or
+  `failed-open`. It suggests with `setup-missing` (an item other than the
+  read-only proofs never ran) or `setup-failing` (an item's last result is
+  `fail`, named first). It reads `machine-setup.json` only and launches no
+  CLI, so an input that changed since a check ran (a CLI version, say) is
+  for `/flow setup` to find, not the hook. Same 700 ms deadline as the
+  gate. Failures go to `gate.log.jsonl` with `gate: "session-start"`.
+- **Two setup items**, last on the checklist, both `free`:
+  `hooks-installed` (kind `hooks`) and `kill-switch` (kind `kill-switch`).
+  `SetupCheck` is now `ClientCheck | MachineCheck`. Only a client check has
+  `client_config`. `SetupInputs` gained `files_hash`, the sha256 of the local
+  files the item reads, so editing a hook file, Codex's trust or
+  `critique.json` makes the item due again.
+  - `hooks-installed` reads `$CLAUDE_CONFIG_DIR` (or `~/.claude`)
+    `/settings.json` and `$CODEX_HOME` (or `~/.codex`) `/hooks.json`,
+    skipping a home that does not exist. It passes when each present home
+    wires all three hooks to scripts that exist, and Codex trusts each one.
+    It fails with neither home.
+  - **Codex trust, as checked against Codex 0.166.0 in a throwaway
+    `CODEX_HOME`** (`codex app-server`, `hooks/list` and
+    `config/batchWrite`; no real home touched): the owner's trust lives in
+    `config.toml` as `[hooks.state."<hooks.json path>:<event>:<group>:<handler>"]`
+    with `trusted_hash = "sha256:…"` and, when turned off, `enabled = false`.
+    The event label is `pre_tool_use` or `session_start`. The hash is the
+    sha256 of `{event_name, matcher?, hooks: [{type, command, timeout,
+    async, statusMessage?, additionalContextLimit?}]}` serialized as JSON
+    with sorted keys. A missing timeout counts as 600, and a context limit
+    of 2500 is left out. `codexHookHash` reproduces the three hashes
+    `hooks/list` reported. **Trust is keyed by position.** If the operator
+    inserts or removes a hook group before ours under the same event, Codex
+    sees our hook as new (untrusted) or changed. The check reports it as
+    "not trusted yet" or "changed since it was trusted".
+  - `kill-switch` runs the gate in-process on a command it never gates
+    (`true`). `off` and `disabled` pass as "Off: …", `not-gated` passes as
+    "On: the hooks run …", and `failed-open` (a `critique.json` that does not
+    parse) fails. `setup` gained `{action: "kill-switch", disabled}`, which
+    writes the flag and keeps the file's other keys. It refuses (`invalid-input`)
+    a file that is not a JSON object and leaves it as it is, then checks again
+    and returns `{status: "kill-switch-set", config_path, disabled, item}`.
+- **Setup's merge** (`scripts/render_registry.py`, `critique_hooks
+  install|remove`, rendered into `setup-workstation.sh`). It reads the hook
+  names, events and agents from `manifest.yaml`'s `hooks` section, the one
+  place they live. Matchers (`Bash` for `PreToolUse`) and the timeout (5 s)
+  are renderer constants. Each hook is a matcher group of its own,
+  `{"matcher": "Bash", "hooks": [{"type": "command", "command": "/bin/sh
+  \"<agent home>/skills/critique/hooks/<name>.sh\"", "timeout": 5}]}`, and
+  the session-start group has no matcher. A hook is found by its command
+  naming `<name>.sh`, like the retired-hook purge.
+  - An existing critique group is replaced **in place**, to keep Codex's
+    trust key.
+  - A critique handler that shares a group with the operator's handlers is
+    split out, and the operator's handlers stay.
+  - A new hook is appended.
+  - The file is rewritten only when its content changes, and through a
+    symlink, so the personal profile's shared `settings.json` stays a link.
+    A second run leaves both files byte for byte.
+  - A file that is not valid JSON is warned about and left untouched.
+  - Install fails rather than wire a hook whose script is missing. It runs
+    in step 9, after the retired-hook purge and after step 7 copied the
+    scripts.
+  - `--uninstall` removes the hooks from both files, after the purge, and
+    drops a `hooks` section it emptied.
+  - `--check` reports "would install" and writes nothing.
+- **Measured** with the bundled runner through the scripts, against a real
+  opted-in repository with a risky change staged, in a throwaway HOME
+  (5 runs each): commit gate blocking, 0.10 to 0.11 s; PR gate blocking,
+  0.08 s; session-start suggesting, 0.07 s; commit gate outside any
+  repository, 0.05 s. `tests/test_critique_hooks.py` asserts the commit gate
+  blocks in under one second.
+- **Not done here.** No hook ran inside a live Claude Code or Codex session:
+  see the live check below. Vibe and Antigravity still get no hooks.
+
+## Live check for #198 (owner)
+
+Not run by the implementer: an agent session may not install hooks into the
+machine's real `~/.claude` or `~/.codex`. Run it on the owner's machine, in
+order, after merging. `<kit>` is an agent-kit checkout on the merged branch.
+
+1. **Install.** `bash <kit>/installer/setup-workstation.sh --no-mcp`.
+   Expect, in the output:
+
+   ```text
+   setup: critique hooks
+   setup:   ok    critique hooks installed in Claude Code (/Users/<you>/.claude/settings.json)
+   setup:   ok    critique hooks installed in Codex (/Users/<you>/.codex/hooks.json)
+   ```
+
+   Then `jq '.hooks.PreToolUse, .hooks.SessionStart' ~/.claude/settings.json`
+   shows your own groups unchanged plus three groups whose commands are
+   `/bin/sh "/Users/<you>/.claude/skills/critique/hooks/critique-{commit-gate,pr-gate,session-start}.sh"`
+   with `"timeout": 5`. `~/.codex/hooks.json` matches it, with `.codex`
+   paths, and still holds the Hindsight Coding Agents hooks. Run setup a
+   second time: both lines say `already installed`, and `shasum` of both
+   files is unchanged.
+2. **Codex trust.** Start `codex` in any directory, open `/hooks`, and trust
+   `critique-commit-gate`, `critique-pr-gate` and `critique-session-start`.
+   Quit. Then `/flow setup` (or
+   `node ~/.claude/skills/critique/critique.mjs setup --json '{"action":"check","check":"hooks-installed","force":true}'`)
+   returns `last.result: "pass"` with detail
+   `Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.`
+   Before trusting, the detail names the three as `not trusted yet`.
+3. **A scratch repository.** `gh repo create <you>/critique-hook-probe
+   --private --clone`, then `cd` into it, commit a README and push. Opt it in
+   with code:
+   `node ~/.claude/skills/critique/critique.mjs allow --json '{"repo":"'"$PWD"'","families":["mistral"],"code":true}'`.
+4. **Session start, both agents.** Start `claude` in the repository. On
+   this machine, while any setup item has never run or failed, the session
+   receives one line,
+   `Critique: /flow setup has not checked this machine yet (<n> of <m> checks never ran). Run /flow setup.`
+   or `Critique: /flow setup's <id> check failed on this machine… Run /flow setup.`.
+   Ask the model to quote any line that starts with `Critique:`, and record
+   its answer. Do the same in `codex`. In a repository with no allowlist
+   entry, both say there is none.
+5. **Commit gate blocks, Claude Code.** In the repository,
+   `mkdir -p src/auth && echo 'export const ttl = 60' > src/auth/session.ts && git add -A`.
+   In `claude`, ask: "Run `git commit -m 'Expire sessions'` and report the
+   result verbatim." Expect the tool call refused with
+   `Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. Run /review-ticket, then commit.`
+   and `git log` unchanged. Time it:
+   `time (echo '{"cwd":"'"$PWD"'","tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' | /bin/sh ~/.claude/skills/critique/hooks/critique-commit-gate.sh)`
+   prints the deny in well under a second (0.10 to 0.11 s here, in a
+   throwaway HOME).
+6. **Commit gate allows after a passing review.** Run `/review-ticket` on
+   the staged change. It needs a ticket file, for example a
+   `.scratch/probe/issues/01-ttl.md` with acceptance criteria, staged too.
+   When it passes, ask `claude` to run the same commit again. Expect it to
+   commit, and `git log -1` to show it. Restage a different risky change and
+   the commit is blocked again.
+7. **Same two steps in Codex.** Repeat 5 and 6 in `codex`. Expect the same
+   refusal text as the reason Codex shows, and no "hook failed" warning,
+   which would mean Codex rejected the printed `hook_output`.
+8. **PR gate.** On a branch named `release` (outside the feature patterns),
+   ask either agent to run `git push origin release`. Expect
+   `Push to release blocked: no /review-feature run has recorded a gate for <sha>. Run /review-feature, then push.`
+   A push of `feat/probe` goes through.
+9. **Kill switch.** Turn the kill switch on at its `/flow setup` item, or
+   run
+   `node ~/.claude/skills/critique/critique.mjs setup --json '{"action":"kill-switch","disabled":true}'`.
+   The commit from step 5 now goes through in both agents, and a session
+   start prints no line. With the switch back off (`"disabled":false`),
+   `CRITIQUE_OFF=1 claude` does the same.
+10. **Uninstall.** `bash <kit>/installer/setup-workstation.sh --uninstall`
+    prints `critique hooks removed from Claude Code` and `…from Codex`. Both
+    files keep your own hooks, and no group names `critique-`. Run setup
+    again to reinstall, then check Codex `/hooks`: the positions are the
+    same, so Codex may already count them trusted.
+
+Paste each step's output under this heading, with the date and the
+`claude --version` and `codex --version` it ran against, then delete the
+scratch repository.

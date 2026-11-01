@@ -253,6 +253,78 @@ class ValidateManifestAttachmentProfiles(unittest.TestCase):
             self.validator._validate_runtime_attachment_profiles(runtime, {"minimal"})
 
 
+class ValidateManifestHooks(unittest.TestCase):
+    """ADR-0002 allows exactly three critique hooks; anything else fails CI."""
+
+    validator: ClassVar[ModuleType]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.validator = load_validator()
+
+    def test_checked_in_manifest_declares_exactly_the_three_adr_hooks(self) -> None:
+        manifest = self.validator.load_manifest()
+
+        self.validator.validate_hooks(manifest)
+
+        self.assertEqual(
+            set(manifest["hooks"]),
+            {"critique-commit-gate", "critique-pr-gate", "critique-session-start"},
+        )
+
+    @staticmethod
+    def hook(event: str = "PreToolUse") -> dict[str, object]:
+        return {
+            "adr": "docs/adr/0002-exactly-three-critique-hooks.md",
+            "event": event,
+            "agents": ["claude", "codex"],
+            "purpose": "test",
+        }
+
+    def test_a_manifest_without_hooks_passes(self) -> None:
+        self.validator.validate_hooks({})
+
+    def test_a_hook_the_adr_does_not_name_fails(self) -> None:
+        manifest = {"hooks": {"critique-commit-gate": self.hook(), "after-skill": self.hook("PostToolUse")}}
+
+        with self.assertRaisesRegex(AssertionError, "hook after-skill is not allowed"):
+            self.validator.validate_hooks(manifest)
+
+    def test_a_retired_knowledge_hook_fails(self) -> None:
+        manifest = {"hooks": {"pre-tool-use-edit-recall": self.hook()}}
+
+        with self.assertRaisesRegex(AssertionError, "hook pre-tool-use-edit-recall is not allowed"):
+            self.validator.validate_hooks(manifest)
+
+    def test_an_allowed_hook_on_another_event_fails(self) -> None:
+        manifest = {"hooks": {"critique-session-start": self.hook("UserPromptSubmit")}}
+
+        with self.assertRaisesRegex(AssertionError, "hook critique-session-start must run on SessionStart"):
+            self.validator.validate_hooks(manifest)
+
+    def test_an_allowed_hook_citing_another_adr_fails(self) -> None:
+        hook = self.hook() | {"adr": "docs/adr/0001-critics-run-as-direct-cli-calls.md"}
+
+        with self.assertRaisesRegex(AssertionError, "hook critique-pr-gate must cite docs/adr/0002"):
+            self.validator.validate_hooks({"hooks": {"critique-pr-gate": hook}})
+
+    def test_an_allowed_hook_for_vibe_or_antigravity_fails(self) -> None:
+        hook = self.hook() | {"agents": ["claude", "vibe"]}
+
+        with self.assertRaisesRegex(AssertionError, r"hook critique-commit-gate agents must be claude and/or codex"):
+            self.validator.validate_hooks({"hooks": {"critique-commit-gate": hook}})
+
+    def test_a_hooks_section_that_is_not_a_mapping_fails(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "hooks must be a mapping"):
+            self.validator.validate_hooks({"hooks": ["critique-commit-gate"]})
+
+    def test_a_settings_section_still_fails(self) -> None:
+        manifest = self.validator.load_manifest() | {"settings": {}}
+
+        with self.assertRaisesRegex(AssertionError, "must not declare a `settings` section"):
+            self.validator.validate_surface_parity(manifest)
+
+
 class RenderAgentKitDoctor(unittest.TestCase):
     renderer: ClassVar[ModuleType]
 

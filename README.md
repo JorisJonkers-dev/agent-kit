@@ -49,12 +49,19 @@ script is generated from `registry/estate-tooling.yaml` -- see
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
 - [docs/CLOUD.md](docs/CLOUD.md): the same setup in a Claude Code cloud
   environment, from the two files in `cloud/`.
+- [skills/critique/README.md](skills/critique/README.md): the critique
+  pipeline for its user: what runs when, depth, budget, the gates, the kill
+  switch and how to retune routing.
 - [docs/critique-pipeline/integration.md](docs/critique-pipeline/integration.md):
   what the critic CLIs were shown to do, where the critique pipeline lands in
   agent-kit, and where it departs from its brief.
 
-The estate ships **no agent hooks**. `setup-workstation.sh` purges the
-retired knowledge hooks from a machine that still has them, on every run.
+The estate ships **exactly three agent hooks**, the critique pipeline's
+commit gate, PR gate and session-start line
+([ADR-0002](docs/adr/0002-exactly-three-critique-hooks.md)).
+`setup-workstation.sh` merges them by name into Claude Code's `settings.json`
+and Codex's `hooks.json`, leaving your own hooks alone, and purges the retired
+knowledge hooks from a machine that still has them, on every run.
 
 ## Layout
 
@@ -92,7 +99,8 @@ curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/downloa
 
 `--uninstall` removes what a machine set up by the retired `install.sh` /
 `install-agents.sh` wrote (base skills, Spec Kit commands/skills, their MCP
-entries) and purges the retired knowledge hooks. See
+entries), purges the retired knowledge hooks and removes the critique hooks;
+a later run without it installs them again. See
 [PORTABILITY.md](PORTABILITY.md).
 
 ## Links

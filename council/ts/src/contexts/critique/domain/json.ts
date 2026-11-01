@@ -69,11 +69,6 @@ export class JsonFields {
     return value
   }
 
-  /** A non-empty string, or `null`. */
-  nullableString(key: string): string | null {
-    return this.value[key] === null ? null : this.string(key)
-  }
-
   number(key: string): number {
     const value = this.value[key]
     JsonFields.ensure(typeof value === 'number' && Number.isFinite(value), this.at(key), 'a number')
@@ -82,6 +77,18 @@ export class JsonFields {
 
   nullableNumber(key: string): number | null {
     return this.value[key] === null ? null : this.number(key)
+  }
+
+  /** A whole number of at least one. */
+  positiveInteger(key: string): number {
+    const value = this.number(key)
+    JsonFields.ensure(Number.isInteger(value) && value >= 1, this.at(key), 'a whole number of at least 1')
+    return value
+  }
+
+  /** A non-empty string, or null. */
+  nullableString(key: string): string | null {
+    return this.value[key] === null ? null : this.string(key)
   }
 
   boolean(key: string): boolean {

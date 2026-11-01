@@ -578,12 +578,23 @@ runs the installer when it does not.
 
 ## Hooks
 
-The estate ships **no agent hooks**. The three knowledge-recall hooks are
-retired along with the knowledge base they wrote into.
+The estate ships **exactly three agent hooks**, the critique pipeline's
+`critique-commit-gate`, `critique-pr-gate` and `critique-session-start`
+([ADR-0002](adr/0002-exactly-three-critique-hooks.md)). The three
+knowledge-recall hooks are retired along with the knowledge base they wrote
+into.
 
-`setup-workstation.sh` does the purge itself, on every run: it strips hook
-groups from `settings.json` whose command basename is one of the retired
-scripts, deletes the leftover script files and `~/.codex/hooks.json`, then
+`setup-workstation.sh` merges the critique hooks by name into Claude Code's
+`settings.json` and Codex's `hooks.json`, one matcher group each, running the
+script of that name in the agent home's `critique` skill. An existing group is
+rewritten where it stands, because Codex keys its trust by position, and the
+file is rewritten only when it changes. Codex runs them once you trust them in
+`/hooks`; `/flow setup` checks that. `--uninstall` removes them. What they do
+is in [the pipeline README](../skills/critique/README.md).
+
+Just before that merge, on every run, it purges the retired hooks itself: it strips hook
+groups from `settings.json` and `~/.codex/hooks.json` whose command basename is
+one of the retired scripts, deletes the leftover script files, then
 reads the file back and fails if any retired name survives. Your own hooks
 are matched by basename and left alone. (Before agent-kit#40, `install-agents.sh`
 owned this; it is retired along with `install.sh`, and `--uninstall` covers

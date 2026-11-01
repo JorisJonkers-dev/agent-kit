@@ -1025,6 +1025,206 @@ def render_antigravity_mcp(data: dict[str, Any]) -> str:
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
+MANIFEST_PATH = KIT_ROOT / "manifest.yaml"
+# The critique hooks' scripts, in each agent home's copy of the critique skill.
+CRITIQUE_HOOK_SCRIPTS = "skills/critique/hooks"
+# A PreToolUse hook gates shell commands only; SessionStart takes no matcher.
+CRITIQUE_HOOK_MATCHERS = {"PreToolUse": "Bash"}
+# Seconds: a backstop to the runner's own deadline below one second (ADR-0002).
+CRITIQUE_HOOK_TIMEOUT = 5
+# The hook file setup merges into, per agent the manifest may name.
+CRITIQUE_HOOK_HOMES = {
+    "claude": ("CLAUDE_HOME", "settings.json", "Claude Code"),
+    "codex": ("CODEX_HOME", "hooks.json", "Codex"),
+}
+
+
+def critique_hooks(manifest_path: Path = MANIFEST_PATH) -> list[dict[str, Any]]:
+    """The hooks manifest.yaml declares (ADR-0002), in its order: name, event, matcher and agents.
+
+    The manifest is the one place the hook names live, and its validator
+    allows exactly the three ADR-0002 names, so setup installs nothing else.
+    """
+    hooks = yaml.safe_load(manifest_path.read_text()).get("hooks") or {}
+    return [
+        {
+            "name": name,
+            "event": entry["event"],
+            "matcher": CRITIQUE_HOOK_MATCHERS.get(entry["event"]),
+            "agents": list(entry["agents"]),
+        }
+        for name, entry in hooks.items()
+    ]
+
+
+# Merges the critique hooks into one agent's hook file by NAME, or removes
+# them. A hook is found by its command naming `<name>.sh`, the way the
+# retired-hook purge finds its own, so the operator's hooks are never touched.
+# Each hook is one matcher group of its own; an existing group is replaced in
+# place, because Codex keys a hook's trust by its position in the file.
+CRITIQUE_HOOKS_PY = r'''
+import json
+import os
+import pathlib
+import sys
+
+path = pathlib.Path(os.environ["AK_HOOKS_FILE"])
+home = os.environ["AK_HOOKS_HOME"]
+mode = os.environ["AK_HOOKS_MODE"]
+check_only = os.environ["AK_CHECK_ONLY"] == "1"
+spec = json.loads(os.environ["AK_HOOKS_SPEC"])
+timeout = int(os.environ["AK_HOOKS_TIMEOUT"])
+
+
+def names(handler, name):
+    command = handler.get("command", "") if isinstance(handler, dict) else ""
+    if not isinstance(command, str):
+        return False
+    return any(token.rsplit("/", 1)[-1] == name + ".sh" for token in command.replace('"', " ").split())
+
+
+def wanted(name, matcher):
+    script = "%s/skills/critique/hooks/%s.sh" % (home, name)
+    group = {"matcher": matcher} if matcher else {}
+    group["hooks"] = [{"type": "command", "command": '/bin/sh "%s"' % script, "timeout": timeout}]
+    return group
+
+
+text = path.read_text() if path.exists() else None
+if text is None and mode == "remove":
+    print("unchanged")
+    raise SystemExit(0)
+try:
+    data = json.loads(text or "{}")
+except json.JSONDecodeError:
+    print("%s is not valid JSON" % path, file=sys.stderr)
+    raise SystemExit(2)
+if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+    print("%s has no hooks mapping setup can merge into" % path, file=sys.stderr)
+    raise SystemExit(2)
+before = json.loads(json.dumps(data))
+hooks = data.setdefault("hooks", {})
+
+for name, event, matcher in spec:
+    want = wanted(name, matcher) if mode == "install" else None
+    placed = False
+    for current in list(hooks):
+        groups = hooks[current]
+        if not isinstance(groups, list):
+            continue
+        kept = []
+        for group in groups:
+            handlers = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(handlers, list) or not any(names(h, name) for h in handlers):
+                kept.append(group)
+                continue
+            others = [h for h in handlers if not names(h, name)]
+            if want is not None and not placed and current == event and not others:
+                kept.append(want)
+                placed = True
+            elif others:
+                kept.append(dict(group, hooks=others))
+        if kept or not groups:
+            hooks[current] = kept
+        else:
+            hooks.pop(current)
+    if want is not None and not placed:
+        hooks.setdefault(event, []).append(want)
+if not hooks and before.get("hooks") != {}:
+    data.pop("hooks", None)
+
+if data == before:
+    print("unchanged")
+    raise SystemExit(0)
+if check_only:
+    print("would-change")
+    raise SystemExit(0)
+path.parent.mkdir(parents=True, exist_ok=True)
+# Written in place, so a profile's settings.json symlink stays a symlink.
+path.write_text(json.dumps(data, indent=2) + "\n")
+
+back = json.loads(path.read_text()).get("hooks", {})
+for name, event, matcher in spec:
+    found = [
+        (current, group)
+        for current, groups in back.items()
+        if isinstance(groups, list)
+        for group in groups
+        if isinstance(group, dict) and any(names(h, name) for h in group.get("hooks", []))
+    ]
+    expected = [(event, wanted(name, matcher))] if mode == "install" else []
+    if found != expected:
+        print("%s: %s is wired as %r, not %r" % (path, name, found, expected), file=sys.stderr)
+        raise SystemExit(1)
+print("changed")
+'''
+
+
+def _critique_hooks_fn(w: Any) -> None:
+    """`critique_hooks install|remove`: the three critique hooks, merged by name into Claude Code and Codex."""
+    hooks = critique_hooks()
+    w("# -----------------------------------------------------------------")
+    w("# The critique hooks (docs/adr/0002-exactly-three-critique-hooks.md):")
+    w("# merged by NAME into Claude Code's settings.json and Codex's")
+    w("# hooks.json, so the operator's own hooks survive, and removed by")
+    w("# --uninstall. Each command is a fixed path into the agent home's")
+    w("# critique skill, never a version, so an upgrade leaves the definition")
+    w("# Codex trusted unchanged. Codex still runs them only once the owner")
+    w("# trusts them in /hooks; /flow setup checks that.")
+    w("# -----------------------------------------------------------------")
+    w("_critique_hooks() {")
+    w('  local mode="$1" home="$2" file="$3" label="$4" spec="$5" names="$6"')
+    w('  local path="${home}/${file}" out rc name')
+    w("  if ! command -v python3 >/dev/null 2>&1; then")
+    w('    warn "python3 is not on PATH; cannot merge the critique hooks into ${path}"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${mode}" = install ] && [ "${CHECK_ONLY}" != 1 ]; then')
+    w("    for name in ${names}; do")
+    w(f'      if [ ! -f "${{home}}/{CRITIQUE_HOOK_SCRIPTS}/${{name}}.sh" ]; then')
+    missing = f"${{home}}/{CRITIQUE_HOOK_SCRIPTS}/${{name}}.sh is missing"
+    w(f'        fail "critique hooks: {missing}; not wired into ${{path}}"')
+    w("        return 0")
+    w("      fi")
+    w("    done")
+    w("  fi")
+    # The result word goes through a file: bash 3.2 misparses a heredoc
+    # inside $(...) whose body has unbalanced quotes.
+    w('  out="$(mktemp)"')
+    w('  AK_HOOKS_FILE="${path}" AK_HOOKS_HOME="${home}" AK_HOOKS_MODE="${mode}" \\')
+    w(f'    AK_CHECK_ONLY="${{CHECK_ONLY}}" AK_HOOKS_SPEC="${{spec}}" AK_HOOKS_TIMEOUT={CRITIQUE_HOOK_TIMEOUT} \\')
+    w('    python3 - >"${out}" <<\'CRITIQUE_HOOKS\'')
+    for line in CRITIQUE_HOOKS_PY.strip("\n").split("\n"):
+        w(line)
+    w("CRITIQUE_HOOKS")
+    w("  rc=$?")
+    w('  name="$(cat "${out}")"')
+    w('  rm -f "${out}"')
+    w('  out="${name}"')
+    w('  case "${rc}:${mode}:${out}" in')
+    w('    0:install:changed) ok "critique hooks installed in ${label} (${path})" ;;')
+    w('    0:remove:changed) ok "critique hooks removed from ${label} (${path})" ;;')
+    w('    0:install:unchanged) ok "critique hooks already installed in ${label} (${path})" ;;')
+    w('    0:remove:unchanged) ok "no critique hooks in ${label} (${path})" ;;')
+    w('    0:install:would-change) log "would install the critique hooks in ${label} (${path})" ;;')
+    w('    0:remove:would-change) log "would remove the critique hooks from ${label} (${path})" ;;')
+    w('    2:*) warn "critique hooks: ${path} left untouched; fix it, then re-run setup" ;;')
+    w('    *) fail "critique hooks: merging into ${path} failed" ;;')
+    w("  esac")
+    w("}")
+    w("")
+    w("critique_hooks() {")
+    for agent, (home_var, file, label) in CRITIQUE_HOOK_HOMES.items():
+        mine = [h for h in hooks if agent in h["agents"]]
+        if not mine:
+            continue
+        spec = json.dumps([[h["name"], h["event"], h["matcher"]] for h in mine], separators=(",", ":"))
+        names = " ".join(h["name"] for h in mine)
+        w(f'  _critique_hooks "$1" "${{{home_var}}}" {file} {_q(label)} {_q(spec)} {_q(names)}')
+    w("}")
+    w("")
+
+
 def _retired_vibe_hooks() -> str:
     return " ".join(f"--remove {n}" for n in RETIRED_VIBE_HOOKS)
 
@@ -1214,9 +1414,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("#                                          setup script (docs/CLOUD.md)")
     w("#   ./setup-workstation.sh --uninstall     remove what a PREVIOUS install.sh /")
     w("#                                          install-agents.sh install wrote,")
-    w("#                                          then purge retired knowledge hooks")
-    w("#                                          and exit -- does not touch anything")
-    w("#                                          this script itself manages")
+    w("#                                          then purge retired knowledge hooks,")
+    w("#                                          remove the critique hooks and exit")
     w("#")
     w("# Run outside an agent-kit checkout (`curl | bash`), it fetches the kit")
     w("# bundle attached to its own GitHub release and re-runs the copy inside it.")
@@ -2022,7 +2221,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
 
     # --- retired-hook purge, callable from a normal run AND --uninstall ---
     w("# -----------------------------------------------------------------")
-    w("# The estate ships no hand-authored agent hooks. This purges the three")
+    w("# The only agent hooks the estate ships are the critique hooks below")
+    w("# (ADR-0002). This purges the three")
     w("# retired knowledge-recall hook groups (edit recall, git-commit")
     w("# capture, session digest) from Claude settings.json by COMMAND")
     w("# BASENAME, so an operator's own hooks survive, and removes the now-dead")
@@ -2144,6 +2344,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  fi")
     w("}")
     w("")
+    _critique_hooks_fn(w)
 
     # --- --uninstall: remove what a PREVIOUS install.sh/install-agents.sh wrote ---
     council_dir = KIT_ROOT / "skills" / "council"
@@ -2184,10 +2385,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# -----------------------------------------------------------------")
     w("# --uninstall: remove every file the retired install.sh /")
     w("# install-agents.sh wrote (base skills, Spec Kit commands/skills, the")
-    w("# knowledge-system version manifest), then purge retired hooks and")
-    w("# exit. A normal run removes their MCP entries (converge_mcp). It does")
-    w("# not touch anything this script itself manages -- a")
-    w("# re-run with no flags reinstalls the current local_skills afterward.")
+    w("# knowledge-system version manifest), then purge retired hooks, remove")
+    w("# the critique hooks from Claude Code and Codex, and exit. A normal run")
+    w("# removes their MCP entries (converge_mcp). Beyond the critique hooks it")
+    w("# does not touch anything this script itself manages -- a re-run with no")
+    w("# flags reinstalls the current local_skills and the hooks afterward.")
     w("# -----------------------------------------------------------------")
     w('if [ "${UNINSTALL}" = 1 ]; then')
     w('  log "uninstalling files from a previous install.sh / install-agents.sh"')
@@ -2205,6 +2407,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     for rel in legacy_codex_paths:
         w(f'  legacy_remove "${{CODEX_HOME}}/{rel}"')
     w("  purge_retired_hooks")
+    w("  critique_hooks remove")
     w('  log "uninstall complete: ${failures} failure(s), ${warnings} warning(s)"')
     w('  [ "${failures}" = 0 ]')
     w("  exit $?")
@@ -3015,11 +3218,14 @@ def render_setup_script(data: dict[str, Any]) -> str:
 
     # --- retired hooks ---
     w("# -----------------------------------------------------------------")
-    w("# 9. Retired hooks: actually purge them (see purge_retired_hooks above),")
-    w("# not just report them. A machine set up by the retired install.sh /")
-    w("# install-agents.sh is exactly the one that still has these.")
+    w("# 9. Agent hooks. Purge the retired ones (see purge_retired_hooks above),")
+    w("# not just report them: a machine set up by the retired install.sh /")
+    w("# install-agents.sh is exactly the one that still has these. Then merge")
+    w("# in the critique hooks, after step 7 copied the scripts they run.")
     w("# -----------------------------------------------------------------")
     w("purge_retired_hooks")
+    w('log "critique hooks"')
+    w("critique_hooks install")
     w("")
     w('if [ "${CLOUD}" = 1 ]; then')
     w("  cloud_finish")

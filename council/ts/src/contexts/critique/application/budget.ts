@@ -1,4 +1,12 @@
-import { agyInvocationsOn, flowSpend, invocationLines, type InvocationLine, type LoggedInvocation } from '../domain/budget.js'
+import {
+  agyInvocationsOn,
+  flowSpend,
+  invocationLines,
+  spendByFlow,
+  type FlowSpend,
+  type InvocationLine,
+  type LoggedInvocation,
+} from '../domain/budget.js'
 import type { CriticRun } from '../domain/critic.js'
 import type { RunManifest } from '../domain/manifest.js'
 import { ledgerPath } from './locations.js'
@@ -16,6 +24,11 @@ export class FlowBudget {
   /** What the Vibe critics of this run's flow have been charged so far, this run's included. */
   async vibeSpend(manifest: Pick<RunManifest, 'repository' | 'flow'>): Promise<number> {
     return flowSpend(await this.lines(), manifest.repository, manifest.flow)
+  }
+
+  /** What the Vibe critics were charged under each of a feature's flow keys. */
+  async vibeSpendByFlow(repository: string, flows: readonly string[]): Promise<readonly FlowSpend[]> {
+    return spendByFlow(await this.lines(), repository, flows)
   }
 
   /** agy launches on this machine today. */

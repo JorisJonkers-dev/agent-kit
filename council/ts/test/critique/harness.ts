@@ -52,11 +52,19 @@ export class FakeEnv implements EnvPort {
 
 export class FixedClock implements ClockPort {
   private ticks = 0
+  private at: number
 
-  constructor(private readonly iso: string) {}
+  constructor(iso: string) {
+    this.at = Date.parse(iso)
+  }
 
   now(): Date {
-    return new Date(this.iso)
+    return new Date(this.at)
+  }
+
+  /** Moves the clock on, so the next run gets a later run id and record time. */
+  advance(minutes: number): void {
+    this.at += minutes * 60_000
   }
 
   monotonicMs(): number {
@@ -64,8 +72,25 @@ export class FixedClock implements ClockPort {
     return this.ticks
   }
 
+  private awake = false
+  private readonly sleepers: (() => void)[] = []
+
+  /**
+   * Sleeps until `wake()`, so a runner's deadline never fires on its own in
+   * a test: the work under test always finishes first unless the test says
+   * time ran out.
+   */
   async sleep(): Promise<void> {
-    await Promise.resolve()
+    if (this.awake) return
+    await new Promise<void>((resolve) => this.sleepers.push(resolve))
+  }
+
+  /** Ends every sleep, now and from now on: each deadline the runner set has passed. */
+  wake(): void {
+    this.awake = true
+    this.sleepers.splice(0).forEach((resolve) => {
+      resolve()
+    })
   }
 }
 
@@ -88,6 +113,10 @@ export class FakeGit implements CritiqueGitPort {
   readonly resolved: string[] = []
   /** How many times the index was written as a tree. */
   indexTreeWrites = 0
+  /** The branch HEAD is on; empty for a detached HEAD, as `git branch --show-current` prints it. */
+  branch = 'main'
+  /** What reading the remotes does: answer, never return (a git that hangs), or throw this error (a git that crashes). */
+  remotesBehaviour: 'answer' | 'hang' | Error = 'answer'
 
   constructor(
     private readonly repoRoot: string,
@@ -103,7 +132,14 @@ export class FakeGit implements CritiqueGitPort {
   }
 
   async remotes(): Promise<readonly GitRemote[]> {
+    const behaviour = this.remotesBehaviour
+    if (behaviour === 'hang') return new Promise<readonly GitRemote[]>(() => undefined)
+    if (behaviour instanceof Error) throw behaviour
     return Promise.resolve(this.remoteList)
+  }
+
+  async currentBranch(): Promise<string> {
+    return Promise.resolve(this.branch)
   }
 
   /** Records the working tree as a new commit on HEAD's line, stages it as `git commit -a` leaves it, and returns its id. */
@@ -137,7 +173,7 @@ export class FakeGit implements CritiqueGitPort {
 
   async resolveCommit(_cwd: string, revision: string): Promise<string> {
     this.resolved.push(revision)
-    const back = /^HEAD(?:~(\d+))?$/.exec(revision)
+    const back = /^HEAD(?:~(\d+))?$/.exec(revision === this.branch && revision !== '' ? 'HEAD' : revision)
     const id = back === null ? revision : this.line[this.line.length - 1 - Number(back[1] ?? 0)]
     const commit = this.history.find((entry) => entry.id === id)
     if (commit === undefined) throw new Error(`fatal: ambiguous argument '${revision}': unknown revision or path not in the working tree.`)
@@ -162,16 +198,7 @@ export class FakeGit implements CritiqueGitPort {
 
   /** Each changed file in full: its old lines removed and its new lines added. */
   async diffCommits(_cwd: string, base: string, head: string): Promise<string> {
-    const before = this.treeOfCommit(base)
-    const after = this.treeOfCommit(head)
-    const lines = (text: string | undefined, sign: string) =>
-      text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
-    return Promise.resolve(
-      this.changed(before, after)
-        .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
-        .map((section) => `${section}\n`)
-        .join(''),
-    )
+    return Promise.resolve(fileDiff(this.treeOfCommit(base), this.treeOfCommit(head)))
   }
 
   async changedPaths(_cwd: string, base: string, head: string): Promise<readonly string[]> {
@@ -181,6 +208,20 @@ export class FakeGit implements CritiqueGitPort {
   /** `<mode> <blob> 0\t<path>\0` per staged file, sorted by path, as `git ls-files --stage -z` prints it. */
   async stagedEntries(): Promise<string> {
     return Promise.resolve(entriesOf(this.index))
+  }
+
+  /** HEAD against the index, or against the working tree for every path HEAD or the index tracks, in `diffCommits`' form. */
+  async diffAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<string> {
+    return Promise.resolve(fileDiff(this.headTree(), await this.against(from)))
+  }
+
+  async pathsAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<readonly string[]> {
+    return this.changed(this.headTree(), await this.against(from))
+  }
+
+  /** Files on disk the index does not hold. */
+  async untrackedPaths(): Promise<readonly string[]> {
+    return [...(await this.workingTree()).keys()].filter((path) => !this.index.has(path)).sort()
   }
 
   async treeOf(cwd: string, revision: string): Promise<string> {
@@ -206,7 +247,19 @@ export class FakeGit implements CritiqueGitPort {
   }
 
   private changed(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): readonly string[] {
-    return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
+    return changedBetween(before, after)
+  }
+
+  /** The index, or the working tree narrowed to the paths HEAD or the index tracks. */
+  private async against(from: 'index' | 'working-tree'): Promise<ReadonlyMap<string, string>> {
+    if (from === 'index') return this.index
+    const disk = await this.workingTree()
+    const tracked = new Map<string, string>()
+    for (const path of new Set([...this.headTree().keys(), ...this.index.keys()])) {
+      const text = disk.get(path)
+      if (text !== undefined) tracked.set(path, text)
+    }
+    return tracked
   }
 
   /** A commit, then its parent, and so on back to the first commit. */
@@ -236,6 +289,20 @@ export class FakeGit implements CritiqueGitPort {
     }
     return tree
   }
+}
+
+function changedBetween(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): readonly string[] {
+  return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
+}
+
+/** Each changed file in full: its old lines removed and its new lines added. */
+function fileDiff(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): string {
+  const lines = (text: string | undefined, sign: string) =>
+    text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
+  return changedBetween(before, after)
+    .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
+    .map((section) => `${section}\n`)
+    .join('')
 }
 
 function entriesOf(files: ReadonlyMap<string, string>): string {
@@ -418,6 +485,8 @@ export class FakeVibeProcess implements ProcessPort {
     private readonly scripts: VibeScript[],
     private readonly log: LaunchLog = new LaunchLog(),
     private readonly signIn: VibeSignIn = 'keychain',
+    /** What `vibe --version` prints; null when vibe is not installed, so the call fails. */
+    public version: string | null = 'vibe 3.0.4',
   ) {}
 
   /** Adds runs to play, for a test that needs the prepared run's paths to write them. */
@@ -432,6 +501,11 @@ export class FakeVibeProcess implements ProcessPort {
       return this.signIn === 'keychain'
         ? { exitCode: 0, stderr: '', stdout: 'keychain: "/Users/me/Library/Keychains/login.keychain-db"\n' }
         : { exitCode: 44, stderr: 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n', stdout: '' }
+    }
+    if (command.args.length === 1 && command.args[0] === '--version') {
+      this.checks.push(command)
+      if (this.version === null) throw new Error(`spawn ${command.command} ENOENT`)
+      return { exitCode: 0, stderr: '', stdout: `${this.version}\n` }
     }
     this.commands.push(command)
     const agent = command.args[command.args.indexOf('--agent') + 1]
@@ -476,15 +550,21 @@ export class FakeAgyProcess implements ProcessPort {
     private readonly scripts: AgyScript[],
     private readonly signedIn: boolean | 'no-security-tool',
     private readonly log: LaunchLog = new LaunchLog(),
+    /** What `agy --version` prints; null when agy is not installed, so the call fails. */
+    public version: string | null = '1.4.12',
   ) {}
 
-  /** The critic launches only, without the readiness checks. */
+  /** The critic launches only, without the readiness checks and version reads. */
   get launches(): readonly ProcessCommand[] {
-    return this.commands.filter((command) => command.command !== 'security')
+    return this.commands.filter((command) => command.command !== 'security' && command.args[0] !== '--version')
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     this.commands.push(command)
+    if (command.args.length === 1 && command.args[0] === '--version') {
+      if (this.version === null) throw new Error(`spawn ${command.command} ENOENT`)
+      return { exitCode: 0, stderr: '', stdout: `${this.version}\n` }
+    }
     if (command.command === 'security') {
       if (this.signedIn === 'no-security-tool') throw new Error('spawn security ENOENT')
       return this.signedIn
@@ -633,6 +713,7 @@ export interface Harness {
   readonly process: FakeVibeProcess
   readonly agy: FakeAgyProcess
   readonly launches: LaunchLog
+  readonly clock: FixedClock
   readonly commands: CritiqueCommands
   readonly cleanup: () => Promise<void>
   readonly readText: (path: string) => Promise<string>
@@ -670,6 +751,10 @@ export async function harness(
     readonly vibeOnPath?: boolean
     /** How the personal Vibe home is signed in. */
     readonly vibeSignIn?: VibeSignIn
+    /** What `vibe --version` prints when vibe is on PATH. */
+    readonly vibeVersion?: string
+    /** What `agy --version` prints when agy is on PATH. */
+    readonly agyVersion?: string
     /** The critic agents setup installed into `~/.vibe/agents/`; every one setup declares unless named. */
     readonly vibeAgents?: readonly string[]
     /**
@@ -682,6 +767,8 @@ export async function harness(
     readonly issues?: Readonly<Record<string, GhIssue | string>>
     /** How those issues link: sub-issues and native blocked-by links. */
     readonly links?: FakeGhLinks
+    /** Further environment variables the runner sees, such as `CRITIQUE_OFF`. */
+    readonly env?: Readonly<Record<string, string>>
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -725,17 +812,20 @@ export async function harness(
   await git.commit()
   const gh = new FakeGh(options.issues ?? {}, options.links)
   const launches = new LaunchLog()
-  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain')
-  const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)
+  const vibeVersion = (options.vibeOnPath ?? true) ? (options.vibeVersion ?? 'vibe 3.0.4') : null
+  const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain', vibeVersion)
+  const agyVersion = (options.agyOnPath ?? true) ? (options.agyVersion ?? '1.4.12') : null
+  const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches, agyVersion)
   const files = new NodeCritiqueFiles()
-  const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':') })
+  const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':'), ...options.env })
+  const clock = new FixedClock('2026-10-30T12:00:00.000Z')
   const commands = createCritiqueCommands({
     assetsRoot,
     clients: {
       agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
       vibe: new VibeCriticClient(process, files, env),
     },
-    clock: new FixedClock('2026-10-30T12:00:00.000Z'),
+    clock,
     env,
     files,
     gh,
@@ -745,6 +835,7 @@ export async function harness(
     agy,
     assetsRoot,
     cleanup: () => rm(base, { force: true, recursive: true }),
+    clock,
     commands,
     gh,
     git,
@@ -758,5 +849,165 @@ export async function harness(
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, content)
     },
+  }
+}
+
+/** The model and family of each shipped critic client, as record writes them to the ledger. */
+const LEDGER_CLIENTS: Readonly<Record<string, { readonly model: string; readonly family: string }>> = {
+  'agy-gemini-flash-high': { family: 'google', model: 'gemini-3.8-flash-high' },
+  'vibe-glm': { family: 'zhipu', model: 'glm-5-3' },
+  'vibe-mistral-large': { family: 'mistral', model: 'mistral-large-4-0-3' },
+}
+
+/** One critic of a synthetic run. `role_hash` and `lens_hash` stand in for the hashes of its role and lens files. */
+export interface SyntheticCritic {
+  readonly client: string
+  readonly role_hash?: string
+  readonly lens_hash?: string
+  readonly cost_usd?: number | null
+  readonly status?: 'ok' | 'failed' | 'violated-readonly'
+  readonly failure?: string
+}
+
+/** One finding of a synthetic run, raised by the critics of the named clients. */
+export interface SyntheticFinding {
+  readonly raised_by: readonly string[]
+  readonly verdict: 'accepted' | 'rejected' | 'needs-human' | 'hint'
+  readonly pre_verdict?: string
+}
+
+export interface SyntheticRun {
+  readonly critics: readonly SyntheticCritic[]
+  readonly findings?: readonly SyntheticFinding[]
+  readonly stage?: string
+  /** The spec reference; null leaves it out, as on lines recorded before the ledger named the spec. */
+  readonly spec?: string | null
+  readonly repository?: string
+  /** When record wrote the run; one minute after the previous run by default. */
+  readonly recorded_at?: string
+}
+
+/** One critic launch as fan-out appends it to the ledger. */
+export interface SyntheticInvocation {
+  readonly kind: 'vibe' | 'agy'
+  readonly flow: string
+  /** What the launch was charged; 0 unless named, as for every agy launch. */
+  readonly charged_usd?: number
+  readonly recorded_at?: string
+  readonly repository?: string
+  readonly stage?: string
+}
+
+/**
+ * Builds a user ledger the way record writes one: per run, one `run` line
+ * per critic, then one `finding` line per finding, metadata only.
+ */
+export class SyntheticLedger {
+  private readonly lines: Record<string, unknown>[] = []
+  private count = 0
+
+  /** Adds one run. */
+  run(run: SyntheticRun): this {
+    this.count += 1
+    const recordedAt = run.recorded_at ?? new Date(Date.UTC(2026, 9, 1) + this.count * 60_000).toISOString()
+    const common = {
+      depth: 'base',
+      recorded_at: recordedAt,
+      repository: run.repository ?? 'github.com/jorisjonkers-dev/agent-kit',
+      run_id: `run-${String(this.count)}`,
+      stage: run.stage ?? 'spec',
+      ...(run.spec === null ? {} : { spec: run.spec ?? 'github.com/jorisjonkers-dev/agent-kit#167' }),
+    }
+    const ids = run.critics.map((critic, index) => `c${String(index + 1)}-${critic.client}`)
+    const identity = (index: number) => {
+      const critic = run.critics[index]
+      if (critic === undefined) throw new Error(`no critic ${String(index)}`)
+      const client = LEDGER_CLIENTS[critic.client] ?? { family: 'mistral', model: critic.client }
+      return {
+        client: critic.client,
+        critic_id: ids[index],
+        family: client.family,
+        lens_hashes: { fidelity: critic.lens_hash ?? 'lens-1' },
+        lenses: ['fidelity'],
+        model: client.model,
+        prompt_hashes: { contract: 'contract-1', preamble: 'preamble-1', role: critic.role_hash ?? 'role-1', schema: 'schema-1' },
+        role: 'spec-redteam',
+      }
+    }
+    run.critics.forEach((critic, index) => {
+      const status = critic.status ?? 'ok'
+      this.lines.push({
+        type: 'run',
+        ...common,
+        ...identity(index),
+        cost_usd: critic.cost_usd === undefined ? 0.01 : critic.cost_usd,
+        duration_ms: 1000,
+        exit_code: status === 'ok' ? 0 : 1,
+        failure: critic.failure ?? null,
+        finding_count: 0,
+        status,
+      })
+    })
+    ;(run.findings ?? []).forEach((finding, index) => {
+      const raisers = finding.raised_by.map((client) => run.critics.findIndex((critic) => critic.client === client))
+      this.lines.push({
+        type: 'finding',
+        ...common,
+        ...identity(Math.max(raisers[0] ?? 0, 0)),
+        category: 'contradiction',
+        evidence_kinds: ['quote'],
+        finding_id: `F${String(index + 1)}`,
+        pre_verdict: finding.pre_verdict ?? null,
+        raised_by: raisers.map((raiser) => ids[raiser] ?? `c0-${String(raiser)}`),
+        raised_by_families: [],
+        reason_code: finding.pre_verdict ?? null,
+        severity: 'major',
+        verdict: finding.verdict,
+      })
+    })
+    return this
+  }
+
+  /**
+   * Adds one critic launch the way fan-out logs it. Recorded an hour before
+   * the harness clock unless named, so it counts as today's.
+   */
+  invocation(launch: SyntheticInvocation): this {
+    this.count += 1
+    const client = launch.kind === 'vibe' ? 'vibe-mistral-large' : 'agy-gemini-flash-high'
+    this.lines.push({
+      charged_usd: launch.charged_usd ?? 0,
+      client,
+      critic_id: `c1-${client}`,
+      family: LEDGER_CLIENTS[client]?.family,
+      flow: launch.flow,
+      kind: launch.kind,
+      model: LEDGER_CLIENTS[client]?.model,
+      recorded_at: launch.recorded_at ?? '2026-10-30T11:00:00.000Z',
+      repository: launch.repository ?? 'github.com/jorisjonkers-dev/agent-kit',
+      round: 1,
+      run_id: `run-${String(this.count)}`,
+      stage: launch.stage ?? 'spec',
+      status: 'ok',
+      type: 'invocation',
+    })
+    return this
+  }
+
+  /** Adds a line as it is, for a ledger a later version or a broken write left. */
+  raw(line: unknown): this {
+    this.lines.push(line as Record<string, unknown>)
+    return this
+  }
+
+  text(): string {
+    return this.lines.map((line) => `${JSON.stringify(line)}\n`).join('')
+  }
+
+  /** Writes the ledger where the runner reads it in the harness's HOME, and returns its path. */
+  async writeTo(h: Pick<Harness, 'home' | 'writeText'>): Promise<string> {
+    const path = join(h.home, '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl')
+    await h.writeText(path, this.text())
+    return path
   }
 }

@@ -1,9 +1,68 @@
 export { createCritiqueCommands, type CritiqueCommands } from './application/commands.js'
 export type { AllowResult } from './application/allow.js'
+export type { BudgetResult } from './application/budget-view.js'
+export type { SlotFallback, StageOutlook } from './domain/budget-view.js'
 export type { CheckTicketsResult } from './application/check-tickets.js'
 export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
+export { GATE_DEADLINE_MS } from './application/gate.js'
+export { triageIndexPath } from './application/triage-index.js'
+export {
+  parseTriageIndexRecord,
+  type AllowReason,
+  type BlockReason,
+  type GateFailure,
+  type GateName,
+  type GateResult,
+  type HookDeny,
+  type TriageIndexRecord,
+} from './domain/gate.js'
+export { gatedInvocations, simpleCommands, type GatedInvocation, type PushTarget } from './domain/shell-command.js'
+export type { StatsResult } from './application/stats.js'
+export type { RepositorySetup, SetupCheckOutput, SetupKillSwitchOutput, SetupListResult, SetupQuotaOutput, SetupResult } from './application/setup.js'
+export type { SessionSilentReason, SessionStartResult } from './application/session-start.js'
+export {
+  codexHookHash,
+  codexHookKey,
+  codexHookStates,
+  CRITIQUE_HOOKS,
+  wiredHooks,
+  type CodexHookState,
+  type CritiqueHookName,
+  type HookEvent,
+  type WiredHook,
+} from './domain/agent-hooks.js'
+export {
+  READ_ONLY_PENDING,
+  parseSetupResults,
+  type DueReason,
+  type SetupCheckResult,
+  type SetupCost,
+  type SetupInputs,
+  type SetupItem,
+  type SetupResults,
+} from './domain/setup.js'
+export { flowStatePath, type StateResult } from './application/flow-state.js'
+export {
+  dependencyOrder,
+  draftFlow,
+  flowPhase,
+  nextStep,
+  parseFlowState,
+  POCOCK_SKILLS,
+  type FlowGate,
+  type FlowPhase,
+  type FlowStage,
+  type FlowState,
+  type FlowTicket,
+  type NextStep,
+  type OpenQuestion,
+  type PocockSkill,
+  type ReviewStatus,
+  type StageProgress,
+  type StageStatus,
+} from './domain/flow.js'
 export type { TriageModelCall, TriageResult } from './application/triage.js'
 export type {
   CriticClientPort,
@@ -24,6 +83,7 @@ export type { ModelFamily, OrchestratorFamily } from './domain/family.js'
 export { gateIndexPath, gatePath } from './application/feature-gate.js'
 export { parseGateRecord, type FollowUp, type GateRecord, type OpenCriticalFollowUp } from './domain/feature-review.js'
 export type { RunFinding } from './domain/findings.js'
+export type { RemovalCandidate, StatsCell, StatsFilter } from './domain/stats.js'
 export { CritiqueError, type CritiqueErrorCode, type Refusal, type RefusalReason } from './domain/outcomes.js'
 export type { CritiqueStage, Depth } from './domain/stage.js'
 export {

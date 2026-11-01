@@ -6,6 +6,7 @@ import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { readFindings } from '../../domain/findings.js'
 import { jsonObjectOrUndefined, type JsonObject } from '../../domain/json.js'
 import type { AgyCriticClient as AgyClientConfig, ClientReadiness } from '../../domain/routing.js'
+import { cliVersion } from '../cli-version.js'
 
 /** Setup's own warning for a machine whose Keychain has no `Antigravity CLI` item. */
 const SIGN_IN = 'antigravity: needs sign-in: run agy and sign in with your Google account'
@@ -52,6 +53,15 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
    * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
    * `PATH`, and the Keychain must hold an `Antigravity CLI` item.
    */
+  /** agy has no per-critic file, so being signed in is all a critic needs. */
+  async signIn(config: AgyClientConfig): Promise<ClientReadiness> {
+    return this.readiness(config)
+  }
+
+  async version(config: AgyClientConfig): Promise<string | null> {
+    return cliVersion(this.process, config.binary)
+  }
+
   async readiness(config: AgyClientConfig): Promise<ClientReadiness> {
     if (this.platform !== 'darwin') return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false }
     if (!(await this.onPath(config.binary))) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false }

@@ -7,7 +7,7 @@ import type { AgyCriticClient, ClientReadiness, CriticClient, RosterCritic, Vibe
  * what it reads, the commits a code stage freezes, and the index, which
  * holds a change before it is committed.
  */
-export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'> & GitRevisionPort & GitIndexPort
+export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus' | 'currentBranch'> & GitRevisionPort & GitIndexPort
 
 /** What the critique reads from GitHub: council's gh port, narrowed to reading issues and their links. */
 export type CritiqueGhPort = Pick<GhPort, 'viewIssue' | 'subIssues' | 'blockedBy'>
@@ -25,6 +25,8 @@ export interface CritiqueFilesPort {
   listFiles(path: string): Promise<readonly string[]>
   /** Every file under the directory, at any depth, relative to it; none when it does not exist. */
   listTree(dir: string): Promise<readonly string[]>
+  /** The names of the directories directly inside a directory, sorted; empty when it does not exist. */
+  listDirectories(path: string): Promise<readonly string[]>
   remove(path: string): Promise<void>
 }
 
@@ -60,6 +62,13 @@ export interface CriticReport {
 export interface CriticClientPort<Config extends CriticClient = CriticClient> {
   /** Whether the client can run on this machine now. Prepare asks before it puts the client on the roster. */
   readiness(config: Config): Promise<ClientReadiness>
+  /**
+   * Whether the CLI is installed and signed in, leaving out what one critic
+   * needs beyond that (a Vibe critic's agent file). Launches no model.
+   */
+  signIn(config: Config): Promise<ClientReadiness>
+  /** The first line `<binary> --version` prints, or null when it cannot be read. Launches no model. */
+  version(config: Config): Promise<string | null>
   /** Runs one critic; `config` is the launch's client config, narrowed to this client's kind. */
   review(launch: CriticLaunch, config: Config): Promise<CriticReport>
 }
@@ -108,6 +117,16 @@ export interface CriticClients {
 /** Asks the client of `config`'s kind whether it can run. */
 export function clientReadiness(clients: CriticClients, config: CriticClient): Promise<ClientReadiness> {
   return config.kind === 'agy' ? clients.agy.readiness(config) : clients.vibe.readiness(config)
+}
+
+/** Asks the client of `config`'s kind whether its CLI is installed and signed in. */
+export function clientSignIn(clients: CriticClients, config: CriticClient): Promise<ClientReadiness> {
+  return config.kind === 'agy' ? clients.agy.signIn(config) : clients.vibe.signIn(config)
+}
+
+/** The version of the CLI `config` runs through. */
+export function clientVersion(clients: CriticClients, config: CriticClient): Promise<string | null> {
+  return config.kind === 'agy' ? clients.agy.version(config) : clients.vibe.version(config)
 }
 
 /** Runs the launch's critic through the client of its kind. */

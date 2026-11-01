@@ -4,7 +4,7 @@ import type { GateRecord } from '../domain/feature-review.js'
 import type { RunFinding } from '../domain/findings.js'
 import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
-import { parseManifest } from '../domain/manifest.js'
+import { parseManifest, specReference } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import type { Round } from '../domain/stage.js'
@@ -89,6 +89,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       round: manifest.round,
       ...(manifest.previous_run_id === undefined ? {} : { previous_run_id: manifest.previous_run_id }),
       run_id: manifest.run_id,
+      spec: specReference(manifest),
       stage: manifest.stage,
       ...(manifest.ticket_check === undefined ? {} : { ticket_check: manifest.ticket_check }),
     }

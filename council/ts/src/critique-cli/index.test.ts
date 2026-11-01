@@ -80,6 +80,44 @@ describe('critique runner command line', () => {
     })
   })
 
+  it('reports critique stats from the ledger', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'stats', '--json', '{}')).toMatchObject({ cells: [], status: 'reported' })
+  })
+
+  it("prints a flow's state and its next step", async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'state', '--json', JSON.stringify({ draft: 'widgets', repo: h.repo }))).toMatchObject({
+      next: { command: '/grill-with-docs', kind: 'command' },
+      status: 'read',
+    })
+  })
+
+  it("lists this machine's setup checklist", async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'setup', '--json', JSON.stringify({ action: 'list', repo: h.repo }))).toMatchObject({
+      repository: { status: 'not-opted-in' },
+      status: 'listed',
+    })
+  })
+
+  it("prints a flow's Vibe spend and today's Antigravity launches against their caps", async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'budget', '--json', JSON.stringify({ draft: 'widgets', repo: h.repo }))).toMatchObject({
+      antigravity: { daily_cap: 20, invocations: 0 },
+      status: 'read',
+      vibe: { cap_usd: 5, spent_usd: 0 },
+    })
+  })
+
   it('exits 0 with the decision when triage calls a change risky', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
@@ -89,6 +127,114 @@ describe('critique runner command line', () => {
     expect(
       await run(cli(h), 'triage', '--json', JSON.stringify({ base: 'HEAD~1', repo: h.repo, ticket: '.scratch/widgets/spec.md' })),
     ).toMatchObject({ signal: { kind: 'risk-path', path: 'src/auth/session.ts' }, status: 'risky' })
+  })
+
+  it('exits 0 with the deny a hook prints when the gate blocks', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
+    await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    await h.git.stage()
+    const hook = { cwd: h.repo, hook_event_name: 'PreToolUse', tool_input: { command: 'git commit -m x' }, tool_name: 'Bash' }
+
+    expect(await run(cli(h, JSON.stringify(hook)), 'gate')).toMatchObject({
+      hook_output: { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny' } },
+      status: 'blocked',
+    })
+  })
+
+  it('allows, and exits 0, when the gate is given input that is not JSON', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h, '{not json'), 'gate')).toMatchObject({ failure: 'error', reason: 'failed-open', status: 'allowed' })
+  })
+
+  it('as a hook, prints only the deny the agent reads when the commit gate blocks, and exits 0', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
+    await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    await h.git.stage()
+    const payload = (command: string) => JSON.stringify({ cwd: h.repo, hook_event_name: 'PreToolUse', tool_input: { command }, tool_name: 'Bash' })
+
+    const commit = await runCritiqueCli(['hook', 'critique-commit-gate'], cli(h, payload('git commit -m x')))
+    const prOnly = await runCritiqueCli(['hook', 'critique-commit-gate'], cli(h, payload('gh pr create')))
+
+    expect([commit.exitCode, commit.stderr, JSON.parse(commit.stdout)]).toEqual([
+      0,
+      '',
+      {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            'Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. Run /review-ticket, then commit.',
+        },
+      },
+    ])
+    expect(prOnly).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('as the PR gate hook, blocks a PR with no feature review and leaves commits to the commit gate', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
+    await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    await h.git.stage()
+    const payload = (command: string) => JSON.stringify({ cwd: h.repo, tool_input: { command }, tool_name: 'Bash' })
+
+    const pr = await runCritiqueCli(['hook', 'critique-pr-gate'], cli(h, payload('gh pr create')))
+    const commit = await runCritiqueCli(['hook', 'critique-pr-gate'], cli(h, payload('git commit -m x')))
+
+    expect([pr.exitCode, (JSON.parse(pr.stdout) as { hookSpecificOutput: { permissionDecisionReason: string } }).hookSpecificOutput.permissionDecisionReason]).toEqual([
+      0,
+      'PR blocked: no /review-feature run has recorded a gate for c1. Run /review-feature, then open the PR.',
+    ])
+    expect(commit).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('as the session-start hook, prints its one line as plain text, or nothing', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    const payload = JSON.stringify({ cwd: h.repo, hook_event_name: 'SessionStart', source: 'startup' })
+    const before = await runCritiqueCli(['hook', 'critique-session-start'], cli(h, payload))
+    await h.commands.allow.run({ families: ['mistral'], repo: h.repo })
+
+    const after = await runCritiqueCli(['hook', 'critique-session-start'], cli(h, payload))
+
+    expect([before, after]).toEqual([
+      { exitCode: 0, stderr: '', stdout: '' },
+      { exitCode: 0, stderr: '', stdout: 'Critique: /flow setup has not checked this machine yet (10 of 10 checks never ran). Run /flow setup.\n' },
+    ])
+    expect(await run(cli(h, payload), 'session-start')).toMatchObject({ reason: 'setup-missing', status: 'suggest' })
+  })
+
+  it('as a hook, prints nothing and exits 0 on a payload that is not JSON', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await runCritiqueCli(['hook', 'critique-commit-gate'], cli(h, '{not json'))).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+    expect(await runCritiqueCli(['hook', 'critique-session-start'], cli(h, '{not json'))).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('as a hook, prints nothing and exits 0 when the payload cannot be read', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    const broken: CritiqueCliRuntime = { ...cli(h), readStdin: () => Promise.reject(new Error('stdin closed')) }
+
+    expect(await runCritiqueCli(['hook', 'critique-pr-gate'], broken)).toEqual({ exitCode: 0, stderr: '', stdout: '' })
+  })
+
+  it('refuses a hook ADR-0002 does not name with exit 1, which both agents treat as a hook error that does not block', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    const result = await runCritiqueCli(['hook', 'after-skill'], cli(h))
+    const extra = await runCritiqueCli(['hook', 'critique-pr-gate', 'x'], cli(h))
+
+    expect([result.exitCode, result.stdout, result.stderr]).toEqual([1, '', CRITIQUE_USAGE])
+    expect(extra.exitCode).toBe(1)
   })
 
   it('prints a refusal as a normal result', async () => {
@@ -210,6 +356,28 @@ describe('the real adapters', () => {
 
     expect(String(prepared.packet_dir)).toContain(join('.git', 'critique'))
     expect(await readFile(join(String(prepared.packet_dir), 'artifact', 'spec.md'), 'utf8')).toBe('# Widgets\n')
+  })
+
+  it('gate a commit of a real repository from its staged change, with no model and no network', async () => {
+    const real = await realRepository()
+    const git = (...args: string[]) => execFileSync('git', ['-C', real.repo, ...args], { env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' } })
+    git('add', '-A')
+    git('commit', '-q', '-m', 'base')
+    await mkdir(join(real.allowlistPath, '..'), { recursive: true })
+    await writeFile(
+      real.allowlistPath,
+      JSON.stringify({ repositories: { 'github.com/example/widgets': { code: true, families: ['mistral'], updated_at: 'x' } }, version: 1 }),
+    )
+    await mkdir(join(real.repo, 'src', 'auth'), { recursive: true })
+    await writeFile(join(real.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    const hook = (command: string) => JSON.stringify({ cwd: real.repo, tool_input: { command }, tool_name: 'Bash' })
+
+    expect(await run(real.runtime, 'gate', '--json', hook('git commit -m x'))).toMatchObject({ reason: 'low-risk' })
+    expect(await run(real.runtime, 'gate', '--json', hook('git add -A && git commit -m x'))).toMatchObject({ reason: 'unstaged' })
+    git('add', '-A')
+    expect(await run(real.runtime, 'gate', '--json', hook('git commit -m x'))).toMatchObject({ reason: 'unreviewed', status: 'blocked' })
+    expect(await run(real.runtime, 'gate', '--json', hook('gh pr create'))).toMatchObject({ reason: 'no-feature-review', status: 'blocked' })
+    expect(await run(real.runtime, 'gate', '--json', hook('git push origin feat/widgets'))).toMatchObject({ reason: 'feature-branch' })
   })
 
   it('defaults to the process environment', () => {

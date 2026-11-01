@@ -627,4 +627,36 @@ describe('GitCliAdapter index', () => {
       'abc123',
     ])
   })
+
+  it('diffs HEAD against the index, taking no lock, in the form a diff between commits takes', async () => {
+    const process = new RecordingProcess(() => success('diff --git a/x b/x\n'))
+
+    expect(await new GitCliAdapter(process).diffAgainstHead('/r', 'index')).toBe('diff --git a/x b/x\n')
+    expect(process.commands[0]?.args).toEqual([
+      '--no-optional-locks',
+      '-c',
+      'core.quotePath=false',
+      'diff',
+      '--no-ext-diff',
+      '--no-textconv',
+      '--no-color',
+      '--cached',
+      'HEAD',
+      '--',
+    ])
+  })
+
+  it('lists the paths between HEAD and the working tree, a rename as both paths', async () => {
+    const process = new RecordingProcess(() => success('old name.ts\0new name.ts\0'))
+
+    expect(await new GitCliAdapter(process).pathsAgainstHead('/r', 'working-tree')).toEqual(['old name.ts', 'new name.ts'])
+    expect(process.commands[0]?.args).toEqual(['--no-optional-locks', 'diff', '--name-only', '-z', '--no-renames', 'HEAD', '--'])
+  })
+
+  it('lists the untracked files no ignore rule hides', async () => {
+    const process = new RecordingProcess(() => success('notes.md\0src/new file.ts\0'))
+
+    expect(await new GitCliAdapter(process).untrackedPaths('/r')).toEqual(['notes.md', 'src/new file.ts'])
+    expect(process.commands[0]?.args).toEqual(['--no-optional-locks', 'ls-files', '--others', '--exclude-standard', '-z'])
+  })
 })

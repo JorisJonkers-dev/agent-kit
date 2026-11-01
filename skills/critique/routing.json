@@ -36,6 +36,10 @@
       "family": "mistral"
     }
   },
+  "stats": {
+    "min_adjudicated_findings": 20,
+    "removal_features": 3
+  },
   "budget": { "vibe_flow_cap_usd": 5 },
   "antigravity_quota": {
     "daily_cap": 20,
@@ -68,6 +72,27 @@
     "changed_lines_threshold": 300,
     "labels": ["risk:high"],
     "model": { "client": "vibe-mistral-small", "max_price_usd": 0.03, "time_limit_s": 60 }
+  },
+  "gate": {
+    "feature_branches": [
+      "feat/**",
+      "feature/**",
+      "features/**",
+      "fix/**",
+      "bugfix/**",
+      "impl/**",
+      "chore/**",
+      "docs/**",
+      "refactor/**",
+      "test/**",
+      "perf/**",
+      "ci/**",
+      "spike/**",
+      "wip/**",
+      "claude/**",
+      "codex/**",
+      "worktree-*"
+    ]
   },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],

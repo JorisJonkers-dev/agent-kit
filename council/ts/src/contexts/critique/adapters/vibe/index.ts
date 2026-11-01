@@ -13,6 +13,7 @@ import type {
 } from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { parseFindings } from '../../domain/findings.js'
+import { cliVersion } from '../cli-version.js'
 import { jsonObjectOrUndefined } from '../../domain/json.js'
 import type { ClientReadiness, RosterSlot, VibeCriticClient as VibeClientConfig } from '../../domain/routing.js'
 
@@ -38,13 +39,23 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, Que
    * nothing.
    */
   async readiness(config: VibeClientConfig): Promise<ClientReadiness> {
-    if (!(await this.onPath(config.binary))) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false }
+    const signIn = await this.signIn(config)
+    if (!signIn.ready) return signIn
     const home = join(this.env.require('HOME'), '.vibe')
-    if (!(await this.signedIn(home))) return { detail: SIGN_IN, ready: false }
     if (!(await this.files.exists(join(home, 'agents', `${config.agent}.toml`)))) {
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false }
     }
     return { ready: true }
+  }
+
+  /** `vibe` on `PATH` and the personal home signed in, whatever critic agents are installed. */
+  async signIn(config: VibeClientConfig): Promise<ClientReadiness> {
+    if (!(await this.onPath(config.binary))) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false }
+    return (await this.signedIn(join(this.env.require('HOME'), '.vibe'))) ? { ready: true } : { detail: SIGN_IN, ready: false }
+  }
+
+  async version(config: VibeClientConfig): Promise<string | null> {
+    return cliVersion(this.process, config.binary)
   }
 
   private async signedIn(home: string): Promise<boolean> {
