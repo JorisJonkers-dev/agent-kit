@@ -51,9 +51,12 @@ async function readStdin() {
 
 const runtime = defaultCritiqueRuntime(dirname(fileURLToPath(import.meta.url)), readStdin)
 const result = await runCritiqueCli(process.argv.slice(2), runtime)
-if (result.stdout) process.stdout.write(result.stdout)
-if (result.stderr) process.stderr.write(result.stderr)
-process.exitCode = result.exitCode
+// Exit once both streams are flushed, rather than when the event loop
+// drains: a gate that gave up at its deadline must not wait for the git it
+// abandoned.
+process.stderr.write(result.stderr, () => {
+  process.stdout.write(result.stdout, () => process.exit(result.exitCode))
+})
 `,
       loader: 'ts',
       resolveDir: packageRoot,

@@ -4,6 +4,19 @@ export type { CheckTicketsResult } from './application/check-tickets.js'
 export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
+export { GATE_DEADLINE_MS } from './application/gate.js'
+export { triageIndexPath } from './application/triage-index.js'
+export {
+  parseTriageIndexRecord,
+  type AllowReason,
+  type BlockReason,
+  type GateFailure,
+  type GateName,
+  type GateResult,
+  type HookDeny,
+  type TriageIndexRecord,
+} from './domain/gate.js'
+export { gatedInvocations, simpleCommands, type GatedInvocation, type PushTarget } from './domain/shell-command.js'
 export type { StatsResult } from './application/stats.js'
 export { flowStatePath, type StateResult } from './application/flow-state.js'
 export {

@@ -72,8 +72,25 @@ export class FixedClock implements ClockPort {
     return this.ticks
   }
 
+  private awake = false
+  private readonly sleepers: (() => void)[] = []
+
+  /**
+   * Sleeps until `wake()`, so a runner's deadline never fires on its own in
+   * a test: the work under test always finishes first unless the test says
+   * time ran out.
+   */
   async sleep(): Promise<void> {
-    await Promise.resolve()
+    if (this.awake) return
+    await new Promise<void>((resolve) => this.sleepers.push(resolve))
+  }
+
+  /** Ends every sleep, now and from now on: each deadline the runner set has passed. */
+  wake(): void {
+    this.awake = true
+    this.sleepers.splice(0).forEach((resolve) => {
+      resolve()
+    })
   }
 }
 
@@ -96,6 +113,10 @@ export class FakeGit implements CritiqueGitPort {
   readonly resolved: string[] = []
   /** How many times the index was written as a tree. */
   indexTreeWrites = 0
+  /** The branch HEAD is on; empty for a detached HEAD, as `git branch --show-current` prints it. */
+  branch = 'main'
+  /** What reading the remotes does: answer, never return (a git that hangs), or throw this error (a git that crashes). */
+  remotesBehaviour: 'answer' | 'hang' | Error = 'answer'
 
   constructor(
     private readonly repoRoot: string,
@@ -111,7 +132,14 @@ export class FakeGit implements CritiqueGitPort {
   }
 
   async remotes(): Promise<readonly GitRemote[]> {
+    const behaviour = this.remotesBehaviour
+    if (behaviour === 'hang') return new Promise<readonly GitRemote[]>(() => undefined)
+    if (behaviour instanceof Error) throw behaviour
     return Promise.resolve(this.remoteList)
+  }
+
+  async currentBranch(): Promise<string> {
+    return Promise.resolve(this.branch)
   }
 
   /** Records the working tree as a new commit on HEAD's line, stages it as `git commit -a` leaves it, and returns its id. */
@@ -145,7 +173,7 @@ export class FakeGit implements CritiqueGitPort {
 
   async resolveCommit(_cwd: string, revision: string): Promise<string> {
     this.resolved.push(revision)
-    const back = /^HEAD(?:~(\d+))?$/.exec(revision)
+    const back = /^HEAD(?:~(\d+))?$/.exec(revision === this.branch && revision !== '' ? 'HEAD' : revision)
     const id = back === null ? revision : this.line[this.line.length - 1 - Number(back[1] ?? 0)]
     const commit = this.history.find((entry) => entry.id === id)
     if (commit === undefined) throw new Error(`fatal: ambiguous argument '${revision}': unknown revision or path not in the working tree.`)
@@ -170,16 +198,7 @@ export class FakeGit implements CritiqueGitPort {
 
   /** Each changed file in full: its old lines removed and its new lines added. */
   async diffCommits(_cwd: string, base: string, head: string): Promise<string> {
-    const before = this.treeOfCommit(base)
-    const after = this.treeOfCommit(head)
-    const lines = (text: string | undefined, sign: string) =>
-      text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
-    return Promise.resolve(
-      this.changed(before, after)
-        .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
-        .map((section) => `${section}\n`)
-        .join(''),
-    )
+    return Promise.resolve(fileDiff(this.treeOfCommit(base), this.treeOfCommit(head)))
   }
 
   async changedPaths(_cwd: string, base: string, head: string): Promise<readonly string[]> {
@@ -189,6 +208,20 @@ export class FakeGit implements CritiqueGitPort {
   /** `<mode> <blob> 0\t<path>\0` per staged file, sorted by path, as `git ls-files --stage -z` prints it. */
   async stagedEntries(): Promise<string> {
     return Promise.resolve(entriesOf(this.index))
+  }
+
+  /** HEAD against the index, or against the working tree for every path HEAD or the index tracks, in `diffCommits`' form. */
+  async diffAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<string> {
+    return Promise.resolve(fileDiff(this.headTree(), await this.against(from)))
+  }
+
+  async pathsAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<readonly string[]> {
+    return this.changed(this.headTree(), await this.against(from))
+  }
+
+  /** Files on disk the index does not hold. */
+  async untrackedPaths(): Promise<readonly string[]> {
+    return [...(await this.workingTree()).keys()].filter((path) => !this.index.has(path)).sort()
   }
 
   async treeOf(cwd: string, revision: string): Promise<string> {
@@ -214,7 +247,19 @@ export class FakeGit implements CritiqueGitPort {
   }
 
   private changed(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): readonly string[] {
-    return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
+    return changedBetween(before, after)
+  }
+
+  /** The index, or the working tree narrowed to the paths HEAD or the index tracks. */
+  private async against(from: 'index' | 'working-tree'): Promise<ReadonlyMap<string, string>> {
+    if (from === 'index') return this.index
+    const disk = await this.workingTree()
+    const tracked = new Map<string, string>()
+    for (const path of new Set([...this.headTree().keys(), ...this.index.keys()])) {
+      const text = disk.get(path)
+      if (text !== undefined) tracked.set(path, text)
+    }
+    return tracked
   }
 
   /** A commit, then its parent, and so on back to the first commit. */
@@ -244,6 +289,20 @@ export class FakeGit implements CritiqueGitPort {
     }
     return tree
   }
+}
+
+function changedBetween(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): readonly string[] {
+  return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
+}
+
+/** Each changed file in full: its old lines removed and its new lines added. */
+function fileDiff(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): string {
+  const lines = (text: string | undefined, sign: string) =>
+    text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
+  return changedBetween(before, after)
+    .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
+    .map((section) => `${section}\n`)
+    .join('')
 }
 
 function entriesOf(files: ReadonlyMap<string, string>): string {
@@ -691,6 +750,8 @@ export async function harness(
     readonly issues?: Readonly<Record<string, GhIssue | string>>
     /** How those issues link: sub-issues and native blocked-by links. */
     readonly links?: FakeGhLinks
+    /** Further environment variables the runner sees, such as `CRITIQUE_OFF`. */
+    readonly env?: Readonly<Record<string, string>>
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -737,7 +798,7 @@ export async function harness(
   const process = new FakeVibeProcess(repo, options.scripts ?? [], launches, options.vibeSignIn ?? 'keychain')
   const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)
   const files = new NodeCritiqueFiles()
-  const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':') })
+  const env = new FakeEnv({ HOME: home, PATH: [join(base, 'nothing-here'), bin].join(':'), ...options.env })
   const clock = new FixedClock('2026-10-30T12:00:00.000Z')
   const commands = createCritiqueCommands({
     assetsRoot,

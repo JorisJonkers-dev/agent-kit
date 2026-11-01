@@ -108,6 +108,27 @@ describe('critique runner command line', () => {
     ).toMatchObject({ signal: { kind: 'risk-path', path: 'src/auth/session.ts' }, status: 'risky' })
   })
 
+  it('exits 0 with the deny a hook prints when the gate blocks', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
+    await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    await h.git.stage()
+    const hook = { cwd: h.repo, hook_event_name: 'PreToolUse', tool_input: { command: 'git commit -m x' }, tool_name: 'Bash' }
+
+    expect(await run(cli(h, JSON.stringify(hook)), 'gate')).toMatchObject({
+      hook_output: { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny' } },
+      status: 'blocked',
+    })
+  })
+
+  it('allows, and exits 0, when the gate is given input that is not JSON', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h, '{not json'), 'gate')).toMatchObject({ failure: 'error', reason: 'failed-open', status: 'allowed' })
+  })
+
   it('prints a refusal as a normal result', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
@@ -227,6 +248,28 @@ describe('the real adapters', () => {
 
     expect(String(prepared.packet_dir)).toContain(join('.git', 'critique'))
     expect(await readFile(join(String(prepared.packet_dir), 'artifact', 'spec.md'), 'utf8')).toBe('# Widgets\n')
+  })
+
+  it('gate a commit of a real repository from its staged change, with no model and no network', async () => {
+    const real = await realRepository()
+    const git = (...args: string[]) => execFileSync('git', ['-C', real.repo, ...args], { env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' } })
+    git('add', '-A')
+    git('commit', '-q', '-m', 'base')
+    await mkdir(join(real.allowlistPath, '..'), { recursive: true })
+    await writeFile(
+      real.allowlistPath,
+      JSON.stringify({ repositories: { 'github.com/example/widgets': { code: true, families: ['mistral'], updated_at: 'x' } }, version: 1 }),
+    )
+    await mkdir(join(real.repo, 'src', 'auth'), { recursive: true })
+    await writeFile(join(real.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    const hook = (command: string) => JSON.stringify({ cwd: real.repo, tool_input: { command }, tool_name: 'Bash' })
+
+    expect(await run(real.runtime, 'gate', '--json', hook('git commit -m x'))).toMatchObject({ reason: 'low-risk' })
+    expect(await run(real.runtime, 'gate', '--json', hook('git add -A && git commit -m x'))).toMatchObject({ reason: 'unstaged' })
+    git('add', '-A')
+    expect(await run(real.runtime, 'gate', '--json', hook('git commit -m x'))).toMatchObject({ reason: 'unreviewed', status: 'blocked' })
+    expect(await run(real.runtime, 'gate', '--json', hook('gh pr create'))).toMatchObject({ reason: 'no-feature-review', status: 'blocked' })
+    expect(await run(real.runtime, 'gate', '--json', hook('git push origin feat/widgets'))).toMatchObject({ reason: 'feature-branch' })
   })
 
   it('defaults to the process environment', () => {

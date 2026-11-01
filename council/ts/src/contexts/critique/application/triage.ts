@@ -23,6 +23,7 @@ import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { RoutingSource } from './routing.js'
 import { StagedDiffReader, stagedInput } from './staged-change.js'
 import { TrackerResolver } from './tracker.js'
+import { appendTriageIndex } from './triage-index.js'
 
 interface TriageInput {
   readonly repo: string
@@ -122,7 +123,8 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     if (ticket.status === 'refused') return ticket
     const spec = input.spec === undefined ? undefined : await tracker.artifact({ comments: false, reference: input.spec })
     if (spec?.status === 'refused') return spec
-    const head = input.staged ? (await this.staged.snapshot(repository.root)).commit : input.head
+    const snapshot = input.staged ? await this.staged.snapshot(repository.root) : undefined
+    const head = snapshot?.commit ?? input.head
     const read = await this.changes.read(repository.root, input.base, head)
     const runId = await this.freshRunId(repository)
     const runDir = join(repository.commonDir, 'critique', runId)
@@ -152,13 +154,27 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
       ticket: { labels: ticket.labels, reference: ticket.reference },
     }
     await this.deps.files.writeText(join(runDir, 'triage.json'), `${JSON.stringify(result, null, 2)}\n`)
+    const recordedAt = this.deps.clock.now().toISOString()
     const line = triageLedgerLine({
       ...result,
       prompt_hash: asked.promptHash ?? null,
-      recorded_at: this.deps.clock.now().toISOString(),
+      recorded_at: recordedAt,
       repository: repository.key,
     })
     await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}\n`)
+    if (snapshot !== undefined) {
+      await appendTriageIndex(this.deps.files, repository.commonDir, {
+        labels: ticket.labels,
+        recorded_at: recordedAt,
+        repository: repository.key,
+        run_id: runId,
+        staged_diff: snapshot.sha256,
+        staged_on: snapshot.head_commit,
+        status: result.status,
+        ticket: ticket.reference,
+        version: 1,
+      })
+    }
     return result
   }
 
