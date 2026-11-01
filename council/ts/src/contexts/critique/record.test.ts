@@ -81,7 +81,7 @@ describe('record', () => {
     expect(summary).toContain('vibe-mistral-large (mistral-large-4-0-3, mistral): ok, 4 findings, $0.0123')
     expect(summary).toContain('Verdicts: accepted 1, rejected 1, needs-human 1, hint 1')
     const headings = summary.split('\n').filter((line) => line.startsWith('## '))
-    expect(headings).toEqual(['## Critics', '## Accepted', '## Questions for you', '## Dissent', '## Report'])
+    expect(headings).toEqual(['## Critics', '## Accepted', '## Questions for you', '## Minor', '## Dissent', '## Report'])
     expect(section(summary, 'Accepted')).toContain('F1 [critical contradiction] User story 3')
     expect(section(summary, 'Questions for you')).toContain('F3 [major untestable] User story 9')
     expect(section(summary, 'Questions for you')).toContain('Which threshold should apply?')
@@ -378,6 +378,69 @@ describe('record keeps the mechanical pre-verdicts', () => {
     await expect(
       h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'needs-human' }] }),
     ).rejects.toThrow(/F1 is a hint/)
+  })
+})
+
+describe('the summary batches minor findings', () => {
+  it('puts every minor finding of a critic on one line, out of the accepted findings and the questions', async () => {
+    const { h, run } = await reviewed([
+      finding({ id: 'F1', severity: 'major' }),
+      finding({ id: 'F2', severity: 'minor' }),
+      finding({ id: 'F3', severity: 'minor' }),
+      finding({ evidence: [], id: 'F4', severity: 'minor' }),
+    ])
+
+    const { summary } = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [
+        { finding_id: 'F1', verdict: 'accepted' },
+        { finding_id: 'F2', verdict: 'accepted' },
+        { finding_id: 'F3', reason: 'Which wording?', verdict: 'needs-human' },
+      ],
+    })
+
+    expect(section(summary, 'Accepted')).not.toContain('F2')
+    expect(section(summary, 'Questions for you')).toBe('none')
+    expect(section(summary, 'Minor')).toBe('- c1-vibe-mistral-large: 3 minor: accepted F2; needs-human F3; hint F4')
+  })
+
+  it('gives each critic its own minor line', async () => {
+    const both = vibeStdout(fenced({ findings: [finding({ id: 'A', severity: 'major' }), finding({ id: 'B', severity: 'minor' })] }))
+    const h = await harness({
+      routing: {
+        clients: {
+          'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5-3' },
+          'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+        },
+        stages: {
+          spec: {
+            base: [
+              { client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+              { client: 'vibe-glm', lenses: ['integration'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+            ],
+            distinct_families: true,
+          },
+        },
+        version: 1,
+      },
+      scripts: [0, 1].map(() => ({ exitCode: 0, exportJson: isolatedExport(), stdout: both })),
+    })
+    open.push(h)
+    await h.commands.allow.run({ repo: h.repo, families: ['mistral', 'zhipu'] })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    if (run.status !== 'ready') throw new Error('not ready')
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: ['F1', 'F2', 'F3', 'F4'].map((id) => ({ finding_id: id, verdict: 'accepted' })),
+    })
+
+    expect(section(summary, 'Minor').split('\n')).toEqual([
+      '- c1-vibe-mistral-large: 1 minor: accepted F2',
+      '- c2-vibe-glm: 1 minor: accepted F4',
+    ])
+    expect(section(summary, 'Accepted')).toContain('F3 [major contradiction]')
   })
 })
 
