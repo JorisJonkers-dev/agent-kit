@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   codeStageRouting,
   fenced,
+  finding,
   harness,
   isolatedExport,
   specIssue,
@@ -390,5 +391,146 @@ describe('a critic of a code packet', () => {
 
     expect(result.critics[0]).toMatchObject({ status: 'violated-readonly' })
     expect(result.critics[0]?.detail).toContain('packet: added AGENTS.md')
+  })
+})
+
+/** A bug finding in the widget, with the given location and evidence. */
+function bug(location: string, ...evidence: readonly { kind: string; value: string; file?: string }[]): Record<string, unknown> {
+  return finding({ category: 'bug', claim: 'frobnicate drops one widget.', evidence, location })
+}
+
+const FAILING_TEST = { kind: 'failing-test', value: "expect(frobnicate([1, 2])).toBe(2)" }
+
+async function preVerdictOf(h: Harness, found: Record<string, unknown>): Promise<unknown> {
+  const run = await prepareCode(h)
+  const result = await fanOut(h, run, critic([found]))
+  return result.findings[0]?.pre_verdict
+}
+
+describe('the evidence check on a code finding', () => {
+  it('rejects a location in a file the packet does not hold as fabricated evidence', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('tree/src/gadget.ts:2', FAILING_TEST))).toEqual({
+      reason: 'the location cites tree/src/gadget.ts, which is not in the packet',
+      reason_code: 'fabricated-evidence',
+      verdict: 'rejected',
+    })
+  })
+
+  it('rejects a location past the end of its file as fabricated evidence', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('tree/src/widget.ts:4', FAILING_TEST))).toEqual({
+      reason: 'the location cites line 4 of tree/src/widget.ts, which has 3 lines',
+      reason_code: 'fabricated-evidence',
+      verdict: 'rejected',
+    })
+  })
+
+  it('rejects a range that runs past the end of its file as fabricated evidence', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('tree/src/widget.ts:2-9', FAILING_TEST))).toMatchObject({
+      reason: 'the location cites line 9 of tree/src/widget.ts, which has 3 lines',
+      reason_code: 'fabricated-evidence',
+    })
+  })
+
+  it('rejects line 1 of an empty file as fabricated evidence', async () => {
+    const h = await codeRepository({ beforeHead: (h) => h.writeText(join(h.repo, 'src/empty.ts'), '') })
+
+    expect(await preVerdictOf(h, bug('tree/src/empty.ts:1', FAILING_TEST))).toMatchObject({
+      reason: 'the location cites line 1 of tree/src/empty.ts, which has 0 lines',
+    })
+  })
+
+  it('rejects line 0 as fabricated evidence', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('tree/src/widget.ts:0', FAILING_TEST))).toMatchObject({ reason_code: 'fabricated-evidence' })
+  })
+
+  it('rejects a trace step in a file the packet does not hold as fabricated evidence', async () => {
+    const h = await codeRepository()
+    const trace = { kind: 'trace', value: '1. tree/src/widget.ts:2 returns the length minus one.\n2. src/report.ts:7 prints it.' }
+
+    expect(await preVerdictOf(h, bug('tree/src/widget.ts:2', trace))).toEqual({
+      reason: 'evidence 1 cites src/report.ts, which is not in the packet',
+      reason_code: 'fabricated-evidence',
+      verdict: 'rejected',
+    })
+  })
+
+  it('rejects a trace step past the end of its file as fabricated evidence', async () => {
+    const h = await codeRepository()
+    const trace = { kind: 'trace', value: 'src/widget.ts:12 returns the length minus one.' }
+
+    expect(await preVerdictOf(h, bug('src/widget.ts:2', trace))).toMatchObject({
+      reason: 'evidence 1 cites line 12 of tree/src/widget.ts, which has 3 lines',
+      reason_code: 'fabricated-evidence',
+    })
+  })
+
+  it('passes a trace through lines the packet holds to the orchestrator', async () => {
+    const h = await codeRepository()
+    const trace = { kind: 'trace', value: 'frobnicate([1, 2]) reaches src/widget.ts:2, line 2 of `tree/src/widget.ts:1-3`, and b/src/widget.ts:3 returns 1.' }
+
+    expect(await preVerdictOf(h, bug('tree/src/widget.ts:2', trace))).toBeUndefined()
+  })
+
+  it('passes a failing test to the orchestrator', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('frobnicate', FAILING_TEST))).toBeUndefined()
+  })
+
+  it('accepts a citation of the diff by its own line numbers', async () => {
+    const h = await codeRepository()
+    const trace = { kind: 'trace', value: 'diff/change.diff:4 removes the only line that counted every widget.' }
+
+    expect(await preVerdictOf(h, bug('src/widget.ts:2', trace))).toBeUndefined()
+  })
+
+  it('does not take a URL or a time of day for a file and line', async () => {
+    const h = await codeRepository()
+    const trace = { kind: 'trace', value: 'At 10:30 the job posts to https://example.com:443/widgets, then src/widget.ts:2 runs.' }
+
+    expect(await preVerdictOf(h, bug('src/widget.ts:2', trace))).toBeUndefined()
+  })
+
+  it('makes a code finding with neither a failing test nor a trace a hint', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('src/widget.ts:2', { kind: 'quote', value: 'return widgets.length - 1' }))).toEqual({
+      reason: 'no failing test and no trace with a file and line',
+      reason_code: 'no-test-or-trace',
+      verdict: 'hint',
+    })
+  })
+
+  it('makes a code finding whose trace names no file and line a hint', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('src/widget.ts:2', { kind: 'trace', value: 'frobnicate subtracts one from the count.' }))).toMatchObject({
+      reason_code: 'no-test-or-trace',
+    })
+  })
+
+  it('still rejects a quote that is not in the packet as fabricated evidence', async () => {
+    const h = await codeRepository()
+
+    expect(await preVerdictOf(h, bug('src/widget.ts:2', FAILING_TEST, { kind: 'quote', value: 'return widgets.length - 2' }))).toMatchObject({
+      reason_code: 'fabricated-evidence',
+    })
+  })
+
+  it('checks a feature review finding the same way', async () => {
+    const h = await codeRepository()
+    const run = await prepareCode(h, { stage: 'feature-review', ticket: undefined })
+
+    const result = await fanOut(h, run, critic([bug('tree/src/gadget.ts:2', FAILING_TEST)]))
+
+    expect(result.findings[0]?.pre_verdict).toMatchObject({ reason_code: 'fabricated-evidence' })
   })
 })

@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } from '../domain/critic.js'
-import { checkEvidence, type PacketText } from '../domain/evidence.js'
+import { checkEvidence, indexPacket, type PacketIndex, type PacketText } from '../domain/evidence.js'
 import { readRunFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { listedFiles, parseManifest, type RunManifest } from '../domain/manifest.js'
@@ -25,7 +25,7 @@ export interface FanOutResult {
   readonly findings: readonly RunFinding[]
 }
 
-function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: readonly PacketText[]): RunFinding {
+function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex): RunFinding {
   const preVerdict = checkEvidence(finding, stage, packet)
   return preVerdict === undefined ? finding : { ...finding, pre_verdict: preVerdict }
 }
@@ -60,7 +60,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
-    const packet = await this.readPacket(manifest)
+    const packet = indexPacket(await this.readPacket(manifest))
     const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)))
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet))
