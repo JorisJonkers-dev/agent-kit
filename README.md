@@ -90,7 +90,7 @@ Or fetched over HTTP; outside a checkout it fetches the kit bundle of the
 same release and runs that:
 
 ```bash
-curl -fsSL https://assets.jorisjonkers.dev/setup-workstation.sh | bash
+curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh | bash
 ```
 
 `--uninstall` removes what a machine set up by the retired `install.sh` /

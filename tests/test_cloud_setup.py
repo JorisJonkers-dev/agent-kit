@@ -17,6 +17,7 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 import render_registry  # noqa: E402
+from verify_release_asset import RELEASE_TAG_PLACEHOLDER, stamp_version  # noqa: E402
 
 CLOUD_HELPER = KIT_ROOT / "installer" / "cloud-session.sh"
 SETUP_SCRIPT = KIT_ROOT / "cloud" / "setup-script.sh"
@@ -256,6 +257,50 @@ def test_a_checkout_runs_itself(tmp_path: Path) -> None:
     assert result.stdout.strip() == "fell-through"
 
 
+def _release_tag_line(script: str) -> str:
+    return next(line for line in script.splitlines() if line.startswith("AGENT_KIT_RELEASE_TAG="))
+
+
+def _use_default_bundle(tmp_path: Path, script: str) -> subprocess.CompletedProcess:
+    """Run use_kit_bundle with no override, against a curl that logs and fails."""
+    bin_dir = tmp_path / "bin"
+    _stub(bin_dir, "curl", f'echo "${{@: -1}}" >> "{tmp_path}/curl.log"; exit 22')
+    body = "\n".join(
+        [
+            STUB_LOGGERS,
+            "ORIG_ARGS=()",
+            f'KIT_ROOT="{tmp_path}/not-a-checkout"',
+            _release_tag_line(script),
+            _shell_function("use_kit_bundle"),
+            "use_kit_bundle",
+            "echo fell-through",
+        ],
+    )
+    return _bash(body, {"PATH": f"{bin_dir}:{os.environ['PATH']}"})
+
+
+def test_a_released_copy_fetches_the_bundle_of_its_own_release(tmp_path: Path) -> None:
+    # The release stamps its tag into the script, so installer and bundle
+    # always come from the same release, never from whatever is latest.
+    result = _use_default_bundle(tmp_path, stamp_version(_script(), "v9.9.9"))
+    assert result.returncode == 1
+    fetched = (tmp_path / "curl.log").read_text().splitlines()
+    assert fetched == [
+        "https://github.com/JorisJonkers-dev/agent-kit/releases/download/v9.9.9/agent-kit-skills.tar.gz.sha256",
+    ]
+    assert "fell-through" not in result.stdout
+
+
+def test_an_unreleased_copy_outside_a_checkout_names_the_override(tmp_path: Path) -> None:
+    script = _script()
+    assert _release_tag_line(script) == f"AGENT_KIT_RELEASE_TAG='{RELEASE_TAG_PLACEHOLDER}'"
+    result = _use_default_bundle(tmp_path, script)
+    assert result.returncode == 1
+    assert "carries no release tag" in result.stdout
+    assert "AGENT_KIT_SKILLS_BUNDLE_URL" in result.stdout
+    assert not (tmp_path / "curl.log").exists()
+
+
 # ---------------------------------------------------------------------------
 # installer/cloud-session.sh
 # ---------------------------------------------------------------------------
@@ -328,7 +373,10 @@ def test_the_paste_runs_the_fetched_script_in_cloud_mode(tmp_path: Path) -> None
     fetched = '#!/usr/bin/env bash\\n# agent-kit v9.9.9\\necho "ran with $*"; exit 3\\n'
     result = _paste(tmp_path, f'while [ "$1" != -o ]; do shift; done; printf \'{fetched}\' > "$2"')
     assert result.returncode == 0
-    assert "agent-kit: # agent-kit v9.9.9 from https://assets.jorisjonkers.dev/setup-workstation.sh" in result.stdout
+    assert (
+        "agent-kit: # agent-kit v9.9.9 from "
+        "https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh"
+    ) in result.stdout
     assert "ran with --cloud" in (tmp_path / "setup.log").read_text()
 
 

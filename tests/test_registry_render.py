@@ -959,7 +959,14 @@ def test_setup_script_fetches_a_published_bundle_when_not_a_checkout() -> None:
     data = _registry()
     script = render_registry.render_setup_script(data)
     assert "AGENT_KIT_SKILLS_BUNDLE_URL" in script
-    assert "https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz" in script
+    # The default comes from the script's own release, never from `latest`,
+    # so installer and bundle always match.
+    assert (
+        "https://github.com/JorisJonkers-dev/agent-kit/releases/download/"
+        "${AGENT_KIT_RELEASE_TAG}/agent-kit-skills.tar.gz"
+    ) in script
+    assert "assets.jorisjonkers.dev" not in script
+    assert "releases/latest" not in script
     assert '"${url}.sha256"' in script
     # A checksum mismatch refuses to run the bundle rather than silently
     # trusting an unverified download (tests/test_cloud_setup.py runs it).

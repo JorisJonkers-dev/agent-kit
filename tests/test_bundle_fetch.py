@@ -1,8 +1,9 @@
 """curl | bash fetches the bundle its checksum names, past any cache.
 
-The asset host sits behind Cloudflare, which caches the tarball for hours but
-not its .sha256. Asking for the tarball under a URL keyed by that checksum
-gets the release the checksum describes, never a stale cached copy.
+A release asset ignores the query, but an AGENT_KIT_SKILLS_BUNDLE_URL host
+behind a CDN may cache the tarball longer than its .sha256. Asking for the
+tarball under a URL keyed by that checksum gets the release the checksum
+describes, never a stale cached copy.
 """
 
 from __future__ import annotations
