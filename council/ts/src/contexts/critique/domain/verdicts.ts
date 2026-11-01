@@ -25,6 +25,8 @@ export interface AdjudicatedRun {
   readonly stage: CritiqueStage
   readonly depth: Depth
   readonly repository: string
+  /** The flow whose Vibe spend the run adds to. */
+  readonly flow: string
   /** True when no critic produced a usable review. */
   readonly degraded: boolean
   readonly critics: readonly CriticRun[]

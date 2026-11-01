@@ -30,15 +30,15 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
     const result = await this.process.exec(
       vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath }),
     )
-    const outcome = classifyVibeRun({
+    const run: VibeRun = {
       exitCode: result.exitCode,
       exported: await this.readExport(exportPath),
       stderr: result.stderr,
       stdout: result.stdout,
       timedOut: result.timedOut === true,
       timeoutS: launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S,
-    })
-    return { ...result, exportPath, outcome }
+    }
+    return { ...result, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) }
   }
 
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
@@ -158,6 +158,26 @@ function classifyVibeRun(run: VibeRun): CriticOutcome {
     status: 'ok',
     ...(parsed.no_findings_reason === undefined ? {} : { no_findings_reason: parsed.no_findings_reason }),
   }
+}
+
+/**
+ * What a Vibe run counts against the flow's cap. The export's `cost_usd` is
+ * the base, and it may exceed the critic's cap: `--max-price` is checked only
+ * between turns. Where the export cannot be trusted the cap is charged
+ * instead, as a conservative estimate: no export or no cost (a killed run
+ * included), a deadline stop (Vibe drops the interrupted turn's tokens and
+ * reports $0), and a zero cost for tokens used (a model with no prices).
+ */
+function vibeCharge(run: VibeRun, cap: number): number {
+  const exported = jsonObjectOrUndefined(run.exported)
+  const cost = exported?.cost_usd
+  if (run.timedOut || typeof cost !== 'number') return cap
+  if (exported?.outcome === 'deadline') return Math.max(cost, cap)
+  return cost === 0 && usedTokens(jsonObjectOrUndefined(exported?.usage)) ? cap : cost
+}
+
+function usedTokens(usage: Readonly<Record<string, unknown>> | undefined): boolean {
+  return [usage?.input_tokens, usage?.output_tokens].some((tokens) => typeof tokens === 'number' && tokens > 0)
 }
 
 function isolationViolations(config: Readonly<Record<string, unknown>> | undefined): readonly string[] {

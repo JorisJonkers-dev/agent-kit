@@ -210,3 +210,218 @@ describe('a fallback retry for a failed critic', () => {
     expect(summary).toContain(`- vibe-glm (glm-5-3, zhipu): ok, 1 finding, $0.0123, fallback for ${VIBE} (timeout)`)
   })
 })
+
+const REPOSITORY = 'github.com/jorisjonkers-dev/agent-kit'
+const SPEC = '.scratch/widgets/spec.md'
+
+function ledgerFile(h: Harness): string {
+  return join(h.home, '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl')
+}
+
+async function ledger(h: Harness): Promise<Record<string, unknown>[]> {
+  const text = await h.readText(ledgerFile(h)).catch(() => '')
+  return text
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+}
+
+async function invocations(h: Harness): Promise<Record<string, unknown>[]> {
+  return (await ledger(h)).filter((line) => line.type === 'invocation')
+}
+
+/** Earlier critic launches on this machine, as fan-out logs them. */
+async function seedLedger(h: Harness, lines: readonly Record<string, unknown>[]): Promise<void> {
+  const invocation = (line: Record<string, unknown>) => ({
+    charged_usd: 0,
+    client: 'vibe-mistral-large',
+    critic_id: 'c1-vibe-mistral-large',
+    family: 'mistral',
+    flow: SPEC,
+    kind: 'vibe',
+    model: 'mistral-large-4-0-3',
+    recorded_at: '2026-10-30T09:00:00.000Z',
+    repository: REPOSITORY,
+    run_id: '20261030T090000Z-spec',
+    stage: 'spec',
+    status: 'ok',
+    type: 'invocation',
+    ...line,
+  })
+  await h.writeText(ledgerFile(h), lines.map((line) => `${JSON.stringify(invocation(line))}\n`).join(''))
+}
+
+async function chargedFor(script: VibeScript): Promise<unknown> {
+  const h = await opened({ families: ['mistral'], vibe: [script] })
+  const run = await prepare(h)
+  await h.commands.fanOut.run({ run_dir: run.run_dir })
+  return (await invocations(h))[0]?.charged_usd
+}
+
+describe('what a critic launch is charged', () => {
+  it('logs every launch in the ledger as it ends, with metadata only', async () => {
+    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'], vibe: [vibeOk('critic-mistral-large', 0.0421)] })
+    const run = await prepare(h)
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    // Critics run in parallel, so each line lands when its critic ends.
+    const lines = (await invocations(h)).sort((a, b) => String(a.critic_id).localeCompare(String(b.critic_id)))
+    expect(lines).toEqual([
+      expect.objectContaining({ charged_usd: 0.0421, client: 'vibe-mistral-large', critic_id: VIBE, flow: SPEC, kind: 'vibe', status: 'ok' }),
+      expect.objectContaining({ charged_usd: 0, client: 'agy-gemini-flash-high', critic_id: AGY, flow: SPEC, kind: 'agy', status: 'ok' }),
+    ])
+  })
+
+  it('charges a Vibe critic the cost its export reports, even past its cap', async () => {
+    const charged = await chargedFor({
+      agent: 'critic-mistral-large',
+      exitCode: 3,
+      exportJson: { ...isolatedExport(), cost_usd: 0.83, outcome: 'price_limit' },
+      stdout: '',
+    })
+
+    expect(charged).toBe(0.83)
+  })
+
+  it('charges a Vibe critic stopped at its deadline its price cap, since Vibe reports no cost for it', async () => {
+    const charged = await chargedFor({
+      agent: 'critic-mistral-large',
+      exitCode: 3,
+      exportJson: { ...isolatedExport(), cost_usd: 0, outcome: 'deadline' },
+      stdout: '',
+    })
+
+    expect(charged).toBe(0.5)
+  })
+
+  it('charges a Vibe critic on an unpriced model its price cap', async () => {
+    const charged = await chargedFor({
+      ...vibeOk('critic-mistral-large', 0),
+      exportJson: { ...isolatedExport(), cost_usd: 0, usage: { input_tokens: 7081, output_tokens: 14 } },
+    })
+
+    expect(charged).toBe(0.5)
+  })
+
+  it('charges a Vibe critic that used no tokens nothing', async () => {
+    const charged = await chargedFor({
+      agent: 'critic-mistral-large',
+      exitCode: 2,
+      exportJson: { ...isolatedExport(), cost_usd: 0, outcome: 'infrastructure_failure', usage: { input_tokens: 0, output_tokens: 0 } },
+      stdout: '',
+    })
+
+    expect(charged).toBe(0)
+  })
+
+  it('charges a Vibe critic that wrote no export its price cap', async () => {
+    expect(await chargedFor(timedOutVibe('critic-mistral-large'))).toBe(0.5)
+  })
+
+  it('puts the cost and the charge into the run line of the ledger', async () => {
+    const h = await opened({ families: ['mistral'], vibe: [vibeOk('critic-mistral-large', 0.0421)] })
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+
+    expect((await ledger(h)).find((line) => line.type === 'run')).toMatchObject({ charged_usd: 0.0421, cost_usd: 0.0421, flow: SPEC })
+  })
+})
+
+describe('the per-flow Vibe cap', () => {
+  it('skips every Vibe critic once the flow has spent its cap, and lets the rest run', async () => {
+    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'] })
+    await seedLedger(h, [{ charged_usd: 3.5 }, { charged_usd: 1.5 }])
+    const run = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(h.process.commands).toEqual([])
+    expect(result.critics.map((critic) => [critic.critic_id, critic.status])).toEqual([
+      [VIBE, 'budget-skip'],
+      [AGY, 'ok'],
+    ])
+  })
+
+  it('lists a skipped critic in the summary', async () => {
+    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'] })
+    await seedLedger(h, [{ charged_usd: 5.25 }])
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(summary).toContain("- vibe-mistral-large (mistral-large-4-0-3, mistral): budget-skip: the flow's Vibe spend $5.2500 has reached its $5.00 cap")
+  })
+
+  it('records a skipped critic in the ledger without launching it', async () => {
+    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'] })
+    await seedLedger(h, [{ charged_usd: 5 }])
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    const lines = await ledger(h)
+    expect(lines.filter((line) => line.type === 'invocation' && line.run_id === run.run_id).map((line) => line.client)).toEqual([
+      'agy-gemini-flash-high',
+    ])
+    expect(lines.find((line) => line.type === 'run' && line.critic_id === VIBE)).toMatchObject({
+      charged_usd: 0,
+      exit_code: null,
+      status: 'budget-skip',
+    })
+  })
+
+  it('counts only the spend of this flow and this repository', async () => {
+    const h = await opened({ families: ['mistral'], vibe: [vibeOk('critic-mistral-large')] })
+    await seedLedger(h, [
+      { charged_usd: 4, flow: 'github.com/jorisjonkers-dev/agent-kit#12' },
+      { charged_usd: 4, repository: 'github.com/jorisjonkers-dev/other' },
+      { charged_usd: 4, kind: 'agy' },
+      { charged_usd: 0.9 },
+    ])
+    const run = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => critic.status)).toEqual(['ok'])
+  })
+
+  it('names the flow from the input when the caller gives one', async () => {
+    const h = await opened({ families: ['mistral'] })
+    await seedLedger(h, [{ charged_usd: 5, flow: 'github.com/jorisjonkers-dev/agent-kit#167' }])
+    const run = await prepare(h, {}, { flow: 'github.com/jorisjonkers-dev/agent-kit#167' })
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => critic.status)).toEqual(['budget-skip'])
+  })
+
+  it('checks the spend again before a fallback retry, and skips the retry once the cap is reached', async () => {
+    const h = await opened({ agy: [agyOk()], vibe: [timedOutVibe('critic-mistral-large')] })
+    await seedLedger(h, [{ charged_usd: 4.75 }])
+    const run = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => [critic.critic_id, critic.status])).toEqual([
+      [VIBE, 'failed'],
+      [AGY, 'ok'],
+      [`${VIBE}-retry-vibe-glm`, 'budget-skip'],
+    ])
+  })
+
+  it('says no critique ran when every critic was skipped', async () => {
+    const h = await opened({ families: ['mistral'] })
+    await seedLedger(h, [{ charged_usd: 6 }])
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(summary).toContain('degraded: no critique ran')
+  })
+})

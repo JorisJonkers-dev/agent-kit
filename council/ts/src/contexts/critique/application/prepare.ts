@@ -32,6 +32,8 @@ interface PrepareInput {
   readonly comments: boolean
   /** The reference paths the caller names; undefined means the repository's decision docs. */
   readonly references: readonly string[] | undefined
+  /** The flow whose Vibe spend this run adds to; undefined means the artifact's own reference. */
+  readonly flow: string | undefined
 }
 
 export interface PrepareResult {
@@ -70,6 +72,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   async run(raw: unknown): Promise<PrepareResult | Refusal> {
     const input = readInput(raw, 'prepare', (fields): PrepareInput => ({
       comments: fields.has('comments') ? fields.boolean('comments') : false,
+      flow: fields.optionalString('flow'),
       orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
       references: fields.has('references') ? fields.strings('references') : undefined,
       repo: fields.string('repo'),
@@ -107,6 +110,8 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       depth: roster.depth,
       distinct_families: roster.distinct_families,
       dropped: roster.dropped,
+      flow: input.flow ?? artifact.reference,
+      limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,

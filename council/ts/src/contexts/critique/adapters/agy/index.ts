@@ -71,7 +71,8 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
       result.timedOut === true
         ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S)
         : classifyAgyRun(result.exitCode, result.stdout, run)
-    return { ...result, exportPath, outcome }
+    // Antigravity is quota, not money: it counts against the daily cap, never the Vibe cap.
+    return { ...result, chargedUsd: 0, exportPath, outcome }
   }
 
   private async onPath(binary: string): Promise<boolean> {

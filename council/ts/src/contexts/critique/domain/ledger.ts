@@ -8,6 +8,7 @@ import { familiesOf, type AdjudicatedRun } from './verdicts.js'
 export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly string[] {
   const common = {
     depth: run.depth,
+    flow: run.flow,
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
     run_id: run.run_id,
@@ -30,11 +31,13 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     type: 'run',
     ...common,
     ...criticFields(critic.critic_id),
+    charged_usd: critic.charged_usd,
     cost_usd: critic.cost_usd,
     duration_ms: critic.duration_ms,
     exit_code: critic.exit_code,
     failure: critic.failure ?? null,
     finding_count: critic.finding_count,
+    retry_of: critic.retry_of ?? null,
     status: critic.status,
   }))
   const findingLines = run.findings.map((finding) => ({

@@ -1,3 +1,4 @@
+import { readLimits, type CritiqueLimits } from './budget.js'
 import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { CritiqueError } from './outcomes.js'
@@ -51,6 +52,8 @@ export interface Routing {
   /** Per client, the clients tried in order when it may not run. */
   readonly fallbacks: Readonly<Record<string, readonly string[]>>
   readonly stages: Readonly<Partial<Record<CritiqueStage, StageRouting>>>
+  /** The per-flow Vibe cap and the Antigravity quota. */
+  readonly limits: CritiqueLimits
 }
 
 /** A client a critic may be retried through. */
@@ -96,6 +99,7 @@ export function parseRouting(text: string): Routing {
   return {
     clients: file.entries('clients', readCriticClient),
     fallbacks: file.has('fallbacks') ? file.stringLists('fallbacks') : {},
+    limits: readLimits(file),
     stages: file.entries('stages', (stage) => ({
       base: stage.list('base', readRosterSlot),
       distinct_families: stage.boolean('distinct_families'),

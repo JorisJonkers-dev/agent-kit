@@ -184,6 +184,8 @@ function verdictLine(run: AdjudicatedRun): string {
 }
 
 function criticLine(run: AdjudicatedRun, critic: CriticRun, checkedMaxChars = Infinity): string {
+  const who = `${critic.client} (${critic.model}, ${critic.family})`
+  if (critic.status === 'budget-skip') return `${who}: budget-skip: ${critic.detail ?? ''}${retryText(run, critic)}`
   const cost = critic.cost_usd === null ? 'cost unknown' : `$${critic.cost_usd.toFixed(4)}`
   const status =
     critic.status === 'ok' ? 'ok' : critic.status === 'violated-readonly' ? 'violated read-only' : `failed (${critic.failure ?? 'unknown'})`
