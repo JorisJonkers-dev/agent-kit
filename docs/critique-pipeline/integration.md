@@ -1401,3 +1401,75 @@ The deterministic ticket checker (agent-kit#184) fixed these:
   stories; otherwise it is `not-checkable` with the reason. Pocock's
   ticket template has no story field, so #185's `ticket-linter` judges
   coverage whenever this is `not-checkable`.
+
+## What #174 settled
+
+Automatic depth and the per-machine routing override (agent-kit#174) fixed
+these:
+
+- **Routing shape.** Each stage may carry `deep` (roster slots, the same
+  shape as `base`) and `depth_signals`:
+  `{ "thresholds": { <measure>: <number> }, "risk_terms": [...], "labels": [...] }`.
+  All three keys are optional, and so are `deep` and `depth_signals`: a stage
+  without them never goes deep, and an explicit deep runs its base roster.
+  Shipped spec values: `user_stories` 30, `words` 5000, risk terms for auth,
+  migration, payment, crypto, encryption, concurrency and `public API` (with
+  their common variants), and the label `risk:high`. Deep adds `vibe-glm`
+  (integration, operability) and the new `vibe-deepseek-flash` client
+  (`critic-deepseek-flash`, family `deepseek`; simplicity, fidelity).
+- **For #181: measures are per stage, the shape is not.** A threshold names
+  a *measure*, and the runner keeps a table of the measures each stage knows
+  (`STAGE_MEASURES` in `domain/depth.ts`; spec has `user_stories` and
+  `words`, every other stage has none yet). A threshold on a measure the
+  stage does not know is an `invalid-routing` error that lists the ones it
+  does. A new stage gets its signals by adding measures there (`decisions`,
+  `tickets`, `changed_lines`, `risk_path_hits`, ...) and widening
+  `DepthEvidence` (today the artifact text and its labels) with what they
+  read; routing needs no new key. Risk path globs live wherever #181 puts
+  them (its triage config); a `risk_path_hits` measure with threshold 0 is
+  how they would select deep.
+- **How signals fire.** A measure fires when its value is *above* its
+  threshold. `user_stories` counts numbered list items under a
+  `User Stories` heading, up to the next heading of the same or a higher
+  level (so #167's `###` groups stay inside); `words` counts white-space
+  separated words of the frozen artifact, title and frozen comments
+  included. A risk term matches as a whole word or phrase in any case, and
+  white space in it matches any run of white space, so `public API` matches
+  across a line break while `auth` does not match `author`. A label matches
+  the artifact's tracker labels in any case (`artifact.labels` from #175; a
+  markdown file has none).
+- **The choice.** Prepare's input takes an optional `depth` (`base` or
+  `deep`), which always wins. Prepare's result and the manifest carry
+  `depth` and `depth_choice: { chosen_by: "argument" | "signals", measures:
+  { <measure>: { value, threshold } }, signals: [...] }`, where each signal
+  is `{ kind: "threshold", measure, value, threshold }`,
+  `{ kind: "risk-term", term }` or `{ kind: "label", label }`. The signals
+  are evaluated even when the argument decides, so the summary can say what
+  they would have chosen. The summary and the report show it on the depth
+  line (`Depth: deep, chosen by signals: risk term "auth"`,
+  `Depth: base, chosen by signals: none fired: user_stories 2 of 30, words 25 of 5000`,
+  `Depth: base, chosen by argument; the signals alone would choose deep (...)`),
+  and every ledger line carries `depth`, `depth_chosen_by`,
+  `depth_measures` and `depth_signals`: configured terms, label names and
+  counts only, never artifact text.
+- **Deep slots follow the base rules.** Deep slots are resolved after the
+  base ones, with the same family, orchestrator, distinct-family, readiness
+  and `fallbacks` rules (shipped routing names no fallback for GLM or
+  DeepSeek). A deep critic that cannot run is listed in `dropped` with
+  `deep: true`, and the summary says `deep critic left out` instead of
+  `no fallback left`. When GLM has taken Gemini's base slot, the deep GLM
+  slot is dropped as `same-family`.
+- **The routing override.** `~/.config/agent-kit/critique-routing.json`, if
+  present, is applied over the shipped `routing.json` as a JSON merge patch
+  (RFC 7386): objects merge key by key, `null` removes a key, and any other
+  value, a list included, replaces it. So an override names only what it
+  changes (one client's model, one threshold), and replacing a roster means
+  restating the whole list. The merged routing is validated as a whole; any
+  error is `invalid-routing` and names both files. `RoutingSource`
+  (`application/routing.ts`) loads it; **#173 and anything else that reads
+  routing should go through it** rather than reading `routing.json`.
+- **Model names** still appear only in `routing.json` (and the override,
+  which is routing) and in the `critic-<model>` agent files; the runner's
+  source names none. The `vibe-glm` client says `glm-5-3` where its agent
+  file pins `zai-glm-5-3`; the Vibe model field is informational (the agent
+  pins the model), so this was left for whoever next edits that client.
