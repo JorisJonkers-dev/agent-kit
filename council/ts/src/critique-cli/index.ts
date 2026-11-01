@@ -25,17 +25,23 @@ export interface CritiqueCliRuntime {
 
 const COMMANDS = {
   allow: 'allow',
+  'check-tickets': 'checkTickets',
   'fan-out': 'fanOut',
   prepare: 'prepare',
   record: 'record',
 } as const satisfies Record<string, keyof CritiqueCommands>
 
-export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow> [--input FILE | --json TEXT]
+export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".
-An error prints "status": "error" with its "code" and exits 1.
+An error prints "status": "error" with its "code" and exits 1. A check that
+fails, such as check-tickets finding a dependency cycle, prints
+"status": "failed" and exits 3.
 `
+
+/** The exit code of a result whose status is `failed`: a check failed, though the command did not. */
+export const FAILED_EXIT_CODE = 3
 
 /** The runner's command line: one command, one JSON object in, one JSON object out. */
 export async function runCritiqueCli(argv: readonly string[], runtime: CritiqueCliRuntime): Promise<CritiqueCliResult> {
@@ -50,7 +56,8 @@ export async function runCritiqueCli(argv: readonly string[], runtime: CritiqueC
     const text =
       flag === '--json' ? (value ?? '') : flag === '--input' ? await runtime.readFile(value ?? '') : await runtime.readStdin()
     const result = await runtime.commands[method].run(parseInput(text))
-    return { exitCode: 0, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
+    const exitCode = result.status === 'failed' ? FAILED_EXIT_CODE : 0
+    return { exitCode, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     const code = error instanceof CritiqueError ? error.code : 'unexpected'

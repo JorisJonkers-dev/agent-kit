@@ -27,7 +27,16 @@ export type {
 } from './dag-executor.js'
 export type { EnginePort, EngineRunRequest, EngineRunResult } from './engine.js'
 export type { EnvPort } from './env.js'
-export type { GhIssue, GhIssueComment, GhIssueRequest, GhPort, GhPr, GhPrRequest } from './gh.js'
+export type {
+  GhIssue,
+  GhIssueComment,
+  GhIssueLocator,
+  GhIssueRequest,
+  GhLinkedIssue,
+  GhPort,
+  GhPr,
+  GhPrRequest,
+} from './gh.js'
 export type {
   GitCommitAllRequest,
   GitCommitAllResult,

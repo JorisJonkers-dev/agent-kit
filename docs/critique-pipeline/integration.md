@@ -1311,3 +1311,57 @@ The read-only tripwire (agent-kit#172) fixed these:
   working directory (a session log, a `.vibe/` or `.agents/` folder) trips
   the wire and voids every review, so the create-a-file check should also
   confirm that a clean run leaves the copy unchanged.
+
+## What #184 settled
+
+The deterministic ticket checker (agent-kit#184) fixed these:
+
+- **The command.** `critique check-tickets` takes `{ "repo", "spec" }`,
+  with `spec` named the way prepare names it. It resolves the repository
+  and the tracker as prepare does, so a refused remote or an unsupported
+  tracker is refused the same way, but it needs no family allowlist entry
+  and writes nothing: it sends nothing to a critic. The result is
+  `{ status, spec, tickets, cycles, dangling_blockers, coverage }`.
+  `status` is `failed` only while there is a cycle, and the command line
+  then exits **3** (1 stays an error, 2 usage), so a skill sees the failure
+  without parsing the JSON. Any result with `"status": "failed"` exits 3.
+- **Reading tickets.** `Tracker.tickets(spec)` sits beside `artifact` and
+  returns `TrackedTicket`s (`id`, `reference`, `title`, `text`,
+  `blockedBy`, `name`) in tracker order, ready for #185's prepare to
+  freeze into the packet. GitHub: the spec issue's sub-issues, then each
+  one's native blocked-by links; `GhPort` gained `subIssues` and
+  `blockedBy`, read with `gh api --hostname <host> --paginate --slurp
+  repos/<owner>/<repo>/issues/<n>/{sub_issues,dependencies/blocked_by}`.
+  A `Blocked by` line in a GitHub issue body is not read. Ticket ids are
+  `#184`, or the full `host/owner/repo#184` for an issue of another
+  repository. Any gh failure is `tracker-unreachable`. Local markdown: the
+  `.md` files of the `issues/` folder beside the spec, in file-name order;
+  an id is the number the file name starts with as written (`01`), or the
+  file name without `.md`.
+- **Local "Blocked by".** The first line starting with `Blocked by`
+  (`**Blocked by:** 01, 02`, or a `## Blocked by` heading), and the list
+  items under it when the line itself is empty. Items are split on `,` and
+  `;`. `None`, `n/a` and `-` name nothing. An item starting with a number
+  (`01`, `#1`, `01-schema.md`, `02 and 04`) is matched by its value; any
+  other item is matched against ticket titles (the heading without its
+  `NN:` prefix), ignoring case. An unmatched item stays as written and is
+  reported as dangling.
+- **Dangling blockers** are any blocker that is no ticket of the spec,
+  including a ticket of another spec. On #181 itself every cross-spec
+  dependency on #167's tickets is listed, so #185's skill should read the
+  list as "check these" rather than as defects.
+- **Cycles** are every elementary cycle (Johnson's search), each starting
+  at its earliest ticket and listing tickets so that each is blocked by
+  the next and the last by the first. A self-blocking ticket is a cycle of
+  one.
+- **Criteria** are the task-list items (`- [ ]`, `- [x]`, `*`, `+`) under
+  the ticket's `Acceptance criteria` heading, or anywhere before its
+  `## Comments` when it has none, outside code blocks.
+- **User stories.** The spec's stories are the top-level numbered items
+  under its `User Stories` heading, through its subheadings. A ticket cites
+  a story with `user story 3`, `user stories 3, 5 and 7`, `User stories:
+  3–5` or `user story #3`. Coverage is `{ status: "checked", stories,
+  uncited }` only when some ticket cites a story and the spec numbers its
+  stories; otherwise it is `not-checkable` with the reason. Pocock's
+  ticket template has no story field, so #185's `ticket-linter` judges
+  coverage whenever this is `not-checkable`.

@@ -7,7 +7,9 @@ import type {
   ClockPort,
   EnvPort,
   GhIssue,
+  GhIssueLocator,
   GhIssueRequest,
+  GhLinkedIssue,
   GitPorcelainEntry,
   GitRemote,
   ProcessCommand,
@@ -119,25 +121,95 @@ export class FakeGit implements CritiqueGitPort {
 }
 
 /**
+ * How the fake's issues link to each other, keyed by `<repo>#<number>` like
+ * the issues: each spec's sub-issues, by number in the spec's repository,
+ * and each issue's native blocked-by links, by `<repo>#<number>`. A string in
+ * place of a list is the stderr of a gh failure.
+ */
+export interface FakeGhLinks {
+  readonly subIssues?: Readonly<Record<string, readonly number[] | string>>
+  readonly blockedBy?: Readonly<Record<string, readonly string[] | string>>
+}
+
+/**
  * Serves GitHub issues by `<repo>#<number>`, where `repo` is what the runner
  * passes as `--repo`. A string in place of an issue is the stderr of a gh
  * failure. An issue it does not hold fails the way gh does.
  */
 export class FakeGh implements CritiqueGhPort {
   readonly requests: GhIssueRequest[] = []
+  /** Every sub-issue and blocked-by read, as `<kind> <repo>#<number>`. */
+  readonly linkRequests: string[] = []
 
-  constructor(private readonly issues: Readonly<Record<string, GhIssue | string>>) {}
+  private readonly issues: Record<string, GhIssue | string>
+
+  constructor(
+    issues: Readonly<Record<string, GhIssue | string>>,
+    private readonly links: FakeGhLinks = {},
+  ) {
+    this.issues = { ...issues }
+  }
+
+  /** Serves `issue` as `<repo>#<number>` from now on. */
+  serve(key: string, issue: GhIssue | string): void {
+    this.issues[key] = issue
+  }
 
   async viewIssue(request: GhIssueRequest): Promise<GhIssue> {
     this.requests.push(request)
-    const issue = this.issues[`${request.repo}#${String(request.number)}`]
+    const issue = this.issue(request.repo, request.number)
+    return Promise.resolve(request.comments ? issue : { ...issue, comments: [] })
+  }
+
+  async subIssues(request: GhIssueLocator): Promise<readonly GhIssue[]> {
+    const numbers = this.linked('sub-issues', this.links.subIssues, request)
+    return Promise.resolve(numbers.map((number) => ({ ...this.issue(request.repo, number), comments: [] })))
+  }
+
+  async blockedBy(request: GhIssueLocator): Promise<readonly GhLinkedIssue[]> {
+    const references = this.linked('blocked-by', this.links.blockedBy, request)
+    return Promise.resolve(
+      references.map((reference) => {
+        const [repo = '', number = ''] = reference.split('#')
+        const [host, ...path] = repo.split('/')
+        return { number: Number(number), url: `https://${host ?? ''}/${path.join('/')}/issues/${number}` }
+      }),
+    )
+  }
+
+  private issue(repo: string, number: number): GhIssue {
+    const issue = this.issues[`${repo}#${String(number)}`]
     if (issue === undefined) {
       throw new Error(
-        `gh issue view ${String(request.number)} failed: GraphQL: Could not resolve to an issue or pull request with the number of ${String(request.number)}. (repository.issue)`,
+        `gh issue view ${String(number)} failed: GraphQL: Could not resolve to an issue or pull request with the number of ${String(number)}. (repository.issue)`,
       )
     }
     if (typeof issue === 'string') throw new Error(issue)
-    return Promise.resolve(request.comments ? issue : { ...issue, comments: [] })
+    return issue
+  }
+
+  private linked<T>(
+    kind: string,
+    table: Readonly<Record<string, readonly T[] | string>> | undefined,
+    request: GhIssueLocator,
+  ): readonly T[] {
+    const key = `${request.repo}#${String(request.number)}`
+    this.linkRequests.push(`${kind} ${key}`)
+    const entry = table?.[key] ?? []
+    if (typeof entry === 'string') throw new Error(entry)
+    return entry
+  }
+}
+
+/** A ticket issue: a sub-issue of a spec, with its acceptance criteria. */
+export function ticketIssue(number: number, title: string, body: string): GhIssue {
+  return {
+    body,
+    comments: [],
+    labels: ['type:feature'],
+    number,
+    title,
+    url: `https://github.com/JorisJonkers-dev/agent-kit/issues/${String(number)}`,
   }
 }
 
@@ -423,6 +495,8 @@ export async function harness(
     readonly tracker?: keyof typeof TRACKER_DOCS | 'none'
     /** The issues gh serves, by `<repo>#<number>`. */
     readonly issues?: Readonly<Record<string, GhIssue | string>>
+    /** How those issues link: sub-issues and native blocked-by links. */
+    readonly links?: FakeGhLinks
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -451,7 +525,7 @@ export async function harness(
   }
   const git = new FakeGit(repo, options.remotes ?? [AGENT_KIT_REMOTE])
   await git.commit()
-  const gh = new FakeGh(options.issues ?? {})
+  const gh = new FakeGh(options.issues ?? {}, options.links)
   const launches = new LaunchLog()
   const process = new FakeVibeProcess(repo, options.scripts ?? [], launches)
   const agy = new FakeAgyProcess(repo, options.agyScripts ?? [], options.agySignedIn ?? true, launches)
