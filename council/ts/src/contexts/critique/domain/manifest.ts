@@ -6,8 +6,8 @@ import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCri
 import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from './stage.js'
 import { TRACKER_KINDS, type TrackerKind } from './tracker.js'
 
-export function sha256(text: string): string {
-  return createHash('sha256').update(text).digest('hex')
+export function sha256(content: string | Uint8Array): string {
+  return createHash('sha256').update(content).digest('hex')
 }
 
 export interface PacketFile {

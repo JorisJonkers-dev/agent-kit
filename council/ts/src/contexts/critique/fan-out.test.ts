@@ -54,11 +54,14 @@ const ok = (text: string, exportJson: unknown = isolatedExport()): VibeScript =>
 })
 
 describe('fan-out launches the critic', () => {
-  it('runs plain vibe in the packet, read-only, on the personal account', async () => {
+  it('runs plain vibe in its own copy of the packet, read-only, on the personal account', async () => {
     const { h, run } = await fanOut(ok(fenced({ findings: [finding()] })))
 
     const [command] = h.process.commands
-    expect(command?.cwd).toBe(run.packet_dir)
+    expect(command?.cwd).toBe(join(run.run_dir, 'critics', 'c1-vibe-mistral-large', 'packet'))
+    for (const path of run.packet_files) {
+      expect(await readFile(join(command?.cwd ?? '', path), 'utf8')).toBe(await readFile(join(run.packet_dir, path), 'utf8'))
+    }
     expect(command?.command).toBe('env')
     const args = command?.args ?? []
     expect(args.slice(0, 5)).toEqual(['-u', 'MISTRAL_API_KEY', '-u', 'VIBE_HOME', 'vibe'])

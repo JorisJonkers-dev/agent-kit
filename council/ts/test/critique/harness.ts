@@ -1,6 +1,6 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -8,6 +8,7 @@ import type {
   EnvPort,
   GhIssue,
   GhIssueRequest,
+  GitPorcelainEntry,
   GitRemote,
   ProcessCommand,
   ProcessPort,
@@ -64,7 +65,14 @@ export class FixedClock implements ClockPort {
   }
 }
 
+/**
+ * A repository without git: `porcelainStatus` compares the files on disk,
+ * outside `.git/`, with those present at the last `commit()`, the way git
+ * compares the working tree with HEAD.
+ */
 export class FakeGit implements CritiqueGitPort {
+  private committed = new Map<string, string>()
+
   constructor(
     private readonly repoRoot: string,
     public remoteList: readonly GitRemote[],
@@ -80,6 +88,32 @@ export class FakeGit implements CritiqueGitPort {
 
   async remotes(): Promise<readonly GitRemote[]> {
     return Promise.resolve(this.remoteList)
+  }
+
+  async commit(): Promise<void> {
+    this.committed = await this.workingTree()
+  }
+
+  async porcelainStatus(): Promise<readonly GitPorcelainEntry[]> {
+    const tree = await this.workingTree()
+    const entries: GitPorcelainEntry[] = []
+    for (const [path, text] of tree) {
+      const committed = this.committed.get(path)
+      if (committed === undefined) entries.push({ code: '??', path })
+      else if (committed !== text) entries.push({ code: ' M', path })
+    }
+    for (const path of this.committed.keys()) if (!tree.has(path)) entries.push({ code: ' D', path })
+    return entries.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  private async workingTree(): Promise<Map<string, string>> {
+    const tree = new Map<string, string>()
+    for (const entry of await readdir(this.repoRoot, { recursive: true, withFileTypes: true })) {
+      const path = relative(this.repoRoot, join(entry.parentPath, entry.name))
+      if (entry.isDirectory() || path === '.git' || path.startsWith('.git/')) continue
+      tree.set(path, await readFile(join(this.repoRoot, path), 'utf8'))
+    }
+    return tree
   }
 }
 
@@ -131,17 +165,32 @@ export interface VibeScript {
   readonly stderr?: string
   readonly exitCode: number
   readonly exportJson?: unknown
+  /** Plays this run only for the critic whose `--agent` this is; otherwise for the next launch. */
+  readonly agent?: string
+  /** What the critic does while it runs: `cwd` is its working directory, `repo` the repository. */
+  readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
 }
 
 /** Plays canned Vibe runs: writes export.json into --output-dir and returns stdout and exit code. */
 export class FakeVibeProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
 
-  constructor(private readonly scripts: VibeScript[]) {}
+  constructor(
+    private readonly repo: string,
+    private readonly scripts: VibeScript[],
+  ) {}
+
+  /** Adds runs to play, for a test that needs the prepared run's paths to write them. */
+  queue(...scripts: VibeScript[]): void {
+    this.scripts.push(...scripts)
+  }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     this.commands.push(command)
-    const script = this.scripts.shift()
+    const agent = command.args[command.args.indexOf('--agent') + 1]
+    const named = this.scripts.findIndex((script) => script.agent === agent)
+    const index = named === -1 ? this.scripts.findIndex((script) => script.agent === undefined) : named
+    const [script] = index === -1 ? [] : this.scripts.splice(index, 1)
     if (script === undefined) throw new Error('unexpected process launch')
     const outputDirIndex = command.args.indexOf('--output-dir')
     const outputDir = command.args[outputDirIndex + 1]
@@ -149,6 +198,7 @@ export class FakeVibeProcess implements ProcessPort {
       await mkdir(outputDir, { recursive: true })
       await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
     }
+    await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
     return { exitCode: script.exitCode, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }
@@ -204,6 +254,26 @@ export function finding(overrides: Record<string, unknown> = {}): Record<string,
     ],
     suggestion: 'Say that only the nightly job frobnicates widgets.',
     ...overrides,
+  }
+}
+
+/** Two Vibe critics of different families, both in the spec stage's base roster. */
+export function twoCriticRouting(): unknown {
+  return {
+    clients: {
+      'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5' },
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+    },
+    stages: {
+      spec: {
+        base: [
+          { client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+          { client: 'vibe-glm', lenses: ['testability'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+        ],
+        distinct_families: true,
+      },
+    },
+    version: 1,
   }
 }
 
@@ -264,8 +334,9 @@ export async function harness(
     await writeFile(join(repo, 'docs', 'agents', 'issue-tracker.md'), TRACKER_DOCS[tracker])
   }
   const git = new FakeGit(repo, options.remotes ?? [AGENT_KIT_REMOTE])
+  await git.commit()
   const gh = new FakeGh(options.issues ?? {})
-  const process = new FakeVibeProcess(options.scripts ?? [])
+  const process = new FakeVibeProcess(repo, options.scripts ?? [])
   const files = new NodeCritiqueFiles()
   const commands = createCritiqueCommands({
     assetsRoot,
