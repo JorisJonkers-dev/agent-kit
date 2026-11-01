@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 
 import { criticIdentity, readCriticRun, type CriticRun } from '../domain/critic.js'
+import { checkEvidence, type PacketText } from '../domain/evidence.js'
 import { readRunFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { parseManifest, type RunManifest } from '../domain/manifest.js'
@@ -20,6 +21,11 @@ export interface FanOutResult {
   readonly findings_path: string
   readonly critics: readonly CriticRun[]
   readonly findings: readonly RunFinding[]
+}
+
+function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: readonly PacketText[]): RunFinding {
+  const preVerdict = checkEvidence(finding, stage, packet)
+  return preVerdict === undefined ? finding : { ...finding, pre_verdict: preVerdict }
 }
 
 /** Reads `findings.json`, the merged findings fan-out wrote, back for record. */
@@ -43,14 +49,16 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   async run(raw: unknown): Promise<FanOutResult> {
     const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
+    const packet = await this.readPacket(manifest)
     const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, critic)))
-    const findings: RunFinding[] = []
+    const raised: RunFinding[] = []
     for (const outcome of outcomes) {
       for (const finding of outcome.findings) {
         const { id, ...fields } = finding
-        findings.push({ ...fields, critic_finding_id: id, id: `F${String(findings.length + 1)}`, raised_by: [outcome.run.critic_id] })
+        raised.push({ ...fields, critic_finding_id: id, id: `F${String(raised.length + 1)}`, raised_by: [outcome.run.critic_id] })
       }
     }
+    const findings = raised.map((finding) => withPreVerdict(finding, manifest.stage, packet))
     const result: FanOutResult = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status === 'failed'),
@@ -62,6 +70,17 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     }
     await this.deps.files.writeText(result.findings_path, `${JSON.stringify(result, null, 2)}\n`)
     return result
+  }
+
+  /** The packet as prepare froze it, read before any critic runs, so no critic can plant a quote. */
+  private async readPacket(manifest: RunManifest): Promise<readonly PacketText[]> {
+    return Promise.all(
+      manifest.packet_files.map(async (file) => ({
+        kind: file.kind,
+        path: file.path,
+        text: await this.deps.files.readText(join(manifest.packet_dir, file.path)),
+      })),
+    )
   }
 
   private async runCritic(manifest: RunManifest, critic: RosterCritic) {
