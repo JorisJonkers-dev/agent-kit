@@ -14,7 +14,7 @@ its own: start a critique with the stage skill (`/critique-spec` after
 | path | what it is |
 |---|---|
 | `critique.mjs` | the runner, one self-contained Node file built from `council/ts` |
-| `routing.json` | the default routing: which critic clients, roles and lenses each stage runs, with their caps |
+| `routing.json` | the default routing: which critic clients, roles and lenses each stage runs at base and deep depth, with their caps and depth signals |
 | `prompts/` | the shared preamble and the output contract every critic prompt carries |
 | `roles/` | the role bodies, such as `spec-redteam` |
 | `lenses/` | the lens files a role is combined with |
@@ -26,6 +26,12 @@ The runner takes one command and one JSON object, and prints one JSON object:
 node <this directory>/critique.mjs <prepare|fan-out|record|allow|check-tickets|stats> --input FILE
 node <this directory>/critique.mjs --help
 ```
+
+`prepare` chooses the depth from the artifact unless its input names one
+(`"depth": "base"` or `"deep"`), and returns the choice and the signals behind
+it. A routing override on this machine, `~/.config/agent-kit/critique-routing.json`,
+is applied over `routing.json` key by key (a JSON merge patch: name only what
+changes, `null` removes a key).
 
 A refusal is a normal result with `"status": "refused"`. An error prints
 `"status": "error"` with a `code` and exits 1. `check-tickets` is the

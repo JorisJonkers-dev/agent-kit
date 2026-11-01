@@ -1,3 +1,4 @@
+import { NO_DEPTH_SIGNALS, readDepthSignalsConfig, type DepthSignalsConfig } from './depth.js'
 import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { CritiqueError } from './outcomes.js'
@@ -43,6 +44,10 @@ export interface RosterSlot {
 export interface StageRouting {
   readonly distinct_families: boolean
   readonly base: readonly RosterSlot[]
+  /** The critics deep depth adds after the base roster, each subject to the same family rules. */
+  readonly deep: readonly RosterSlot[]
+  /** What makes the stage go deep when the caller names no depth. */
+  readonly depth_signals: DepthSignalsConfig
 }
 
 /** When critique stats may draw a conclusion. They live in routing, beside what they tune; stats never writes them. */
@@ -80,6 +85,8 @@ export interface DroppedCritic {
   readonly detail?: string
   /** The critic id of the fallback that took the slot. */
   readonly replaced_by?: string
+  /** True for a critic of the deep roster, which is left out rather than leaving the base short. */
+  readonly deep?: true
 }
 
 export interface Roster {
@@ -93,8 +100,10 @@ export function parseRouting(text: string): Routing {
   return {
     clients: file.entries('clients', readCriticClient),
     fallbacks: file.has('fallbacks') ? file.stringLists('fallbacks') : {},
-    stages: file.entries('stages', (stage) => ({
+    stages: file.entries('stages', (stage, name) => ({
       base: stage.list('base', readRosterSlot),
+      deep: stage.has('deep') ? stage.list('deep', readRosterSlot) : [],
+      depth_signals: stage.has('depth_signals') ? readDepthSignalsConfig(stage.object('depth_signals'), name) : NO_DEPTH_SIGNALS,
       distinct_families: stage.boolean('distinct_families'),
     })),
     version: file.literal('version', 1),
@@ -158,11 +167,13 @@ export function readDroppedCritic(fields: JsonFields): DroppedCritic {
     reason: fields.oneOf('reason', DROP_REASONS),
     ...(detail === undefined ? {} : { detail }),
     ...(replacedBy === undefined ? {} : { replaced_by: replacedBy }),
+    ...(fields.has('deep') && fields.boolean('deep') ? { deep: true as const } : {}),
   }
 }
 
 export interface RosterRequest {
   readonly stage: CritiqueStage
+  readonly depth: Depth
   readonly allowedFamilies: readonly ModelFamily[]
   readonly orchestratorFamily: OrchestratorFamily
 }
@@ -173,14 +184,15 @@ export interface RosterRequest {
  * readiness is worth checking.
  */
 export function candidateClients(routing: Routing, request: RosterRequest): readonly (readonly [string, CriticClient])[] {
-  const names = new Set(stageRouting(routing, request).base.flatMap((slot) => slotCandidates(routing, slot.client)))
+  const names = new Set(slotsAt(stageRouting(routing, request), request.depth).flatMap(({ slot }) => slotCandidates(routing, slot.client)))
   return [...names]
     .map((name) => [name, clientNamed(routing, request, name)] as const)
     .filter(([, client]) => familyReason(client.family, request) === undefined)
 }
 
 /**
- * Resolves the base roster of a stage. Each slot runs its routed client, or
+ * Resolves a stage's roster at the request's depth: the base slots, then at
+ * deep depth the deep slots. Each slot runs its routed client, or
  * else the first of that client's fallbacks that may run, with the slot's
  * role and lenses. A client may not run when the repository's allowlist does
  * not permit its family, when it shares the orchestrator's family (the
@@ -207,7 +219,7 @@ export function resolveRoster(
     const ready = readiness.get(name)
     return ready?.ready === false ? { detail: ready.detail, reason: 'unavailable' } : undefined
   }
-  for (const slot of stage.base) {
+  for (const { slot, deep } of slotsAt(stage, request.depth)) {
     const primary = clientNamed(routing, request, slot.client)
     const primaryRefusal = refusal(slot.client, primary)
     const name = slotCandidates(routing, slot.client).find((candidate) =>
@@ -223,14 +235,20 @@ export function resolveRoster(
         family: primary.family,
         ...primaryRefusal,
         ...(chosen === undefined ? {} : { replaced_by: chosen.critic_id }),
+        ...(deep ? { deep } : {}),
       })
     }
     if (chosen !== undefined) critics.push(chosen)
   }
-  return { critics, depth: 'base', dropped }
+  return { critics, depth: request.depth, dropped }
 }
 
-function stageRouting(routing: Routing, request: RosterRequest): StageRouting {
+function slotsAt(stage: StageRouting, depth: Depth): readonly { readonly slot: RosterSlot; readonly deep?: true }[] {
+  return [...stage.base.map((slot) => ({ slot })), ...(depth === 'deep' ? stage.deep.map((slot) => ({ deep: true as const, slot })) : [])]
+}
+
+/** A stage's routing; a stage routing does not define is an error. */
+export function stageRouting(routing: Routing, request: Pick<RosterRequest, 'stage'>): StageRouting {
   const stage = routing.stages[request.stage]
   if (stage === undefined) throw new CritiqueError('invalid-routing', `routing has no stage ${request.stage}`)
   return stage

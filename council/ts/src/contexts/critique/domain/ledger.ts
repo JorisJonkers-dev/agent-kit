@@ -12,6 +12,9 @@ import { familiesOf, VERDICTS, type AdjudicatedRun, type VerdictKind } from './v
 export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly string[] {
   const common = {
     depth: run.depth,
+    depth_chosen_by: run.depth_choice.chosen_by,
+    depth_measures: run.depth_choice.measures,
+    depth_signals: run.depth_choice.signals,
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
     run_id: run.run_id,

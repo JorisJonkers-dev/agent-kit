@@ -150,6 +150,12 @@ export class JsonFields {
     return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.strings(name)]))
   }
 
+  /** An object whose every value is a number. */
+  numberMap(key: string): Readonly<Record<string, number>> {
+    const map = this.object(key)
+    return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.number(name)]))
+  }
+
   /** An object whose every value is a non-empty string. */
   stringMap(key: string): Readonly<Record<string, string>> {
     const map = this.object(key)

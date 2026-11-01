@@ -1,4 +1,5 @@
 import type { CriticRun } from './critic.js'
+import type { DepthChoice } from './depth.js'
 import type { ModelFamily } from './family.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
@@ -24,6 +25,7 @@ export interface AdjudicatedRun {
   readonly run_id: string
   readonly stage: CritiqueStage
   readonly depth: Depth
+  readonly depth_choice: DepthChoice
   readonly repository: string
   /**
    * The spec the run belongs to, as the artifact's reference names it

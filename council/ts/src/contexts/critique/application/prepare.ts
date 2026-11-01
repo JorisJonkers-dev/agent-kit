@@ -1,25 +1,27 @@
 import { join } from 'node:path'
 
 import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
+import { chooseDepth, type DepthChoice } from '../domain/depth.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
 import { compactTimestamp, sha256, type ArtifactSource, type PacketFile, type RunManifest } from '../domain/manifest.js'
 import { refusal, type Refusal } from '../domain/outcomes.js'
 import {
   candidateClients,
-  parseRouting,
   resolveRoster,
+  stageRouting,
   type ClientReadiness,
   type DroppedCritic,
   type Routing,
   type RosterRequest,
 } from '../domain/routing.js'
-import { CRITIQUE_STAGES, type CritiqueStage, type Depth } from '../domain/stage.js'
-import { readInput, readJsonFile } from './decode.js'
+import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from '../domain/stage.js'
+import { readInput } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { manifestPath } from './locations.js'
 import { insideRepository } from './paths.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
+import { RoutingSource } from './routing.js'
 import { TrackerResolver, type TrackedArtifact } from './tracker.js'
 
 interface PrepareInput {
@@ -32,6 +34,8 @@ interface PrepareInput {
   readonly comments: boolean
   /** The reference paths the caller names; undefined means the repository's decision docs. */
   readonly references: readonly string[] | undefined
+  /** The depth the caller names, which always wins over the signals; undefined lets the signals choose. */
+  readonly depth: Depth | undefined
 }
 
 export interface PrepareResult {
@@ -43,13 +47,15 @@ export interface PrepareResult {
   readonly packet_files: readonly string[]
   readonly artifact: ArtifactSource
   readonly depth: Depth
+  readonly depth_choice: DepthChoice
   readonly critics: readonly CriticIdentity[]
   readonly dropped: readonly DroppedCritic[]
 }
 
 /**
  * Resolves the repository and its family allowlist, reads the artifact from
- * the repository's tracker, then resolves the roster, and only then freezes
+ * the repository's tracker, chooses the depth from the artifact (or takes
+ * the caller's), then resolves the roster, and only then freezes
  * the artifact and its decision docs into a packet. A refused repository, an
  * unsupported tracker and an issue gh cannot read all return before anything
  * is written. A roster that drops every
@@ -60,16 +66,19 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly repositories: RepositoryGate
   private readonly trackers: TrackerResolver
   private readonly decisionDocs: DecisionDocs
+  private readonly routing: RoutingSource
 
   constructor(private readonly deps: CritiqueDeps) {
     this.repositories = new RepositoryGate(deps)
     this.trackers = new TrackerResolver(deps)
     this.decisionDocs = new DecisionDocs(deps.files)
+    this.routing = new RoutingSource(deps)
   }
 
   async run(raw: unknown): Promise<PrepareResult | Refusal> {
     const input = readInput(raw, 'prepare', (fields): PrepareInput => ({
       comments: fields.has('comments') ? fields.boolean('comments') : false,
+      depth: fields.has('depth') ? fields.oneOf('depth', DEPTHS) : undefined,
       orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
       references: fields.has('references') ? fields.strings('references') : undefined,
       repo: fields.string('repo'),
@@ -91,8 +100,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       input.references === undefined
         ? await this.decisionDocs.resolve(repository.root)
         : input.references.map((path) => insideRepository(repository.root, path))
-    const routing = await readJsonFile(this.deps.files, join(this.deps.assetsRoot, 'routing.json'), 'invalid-routing', parseRouting)
-    const request = { allowedFamilies: entry.families, orchestratorFamily, stage }
+    const routing = await this.routing.load()
+    const { choice, depth } = chooseDepth(
+      stage,
+      stageRouting(routing, { stage }).depth_signals,
+      { labels: artifact.labels, text: artifact.text },
+      input.depth,
+    )
+    const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage }
     const roster = resolveRoster(routing, request, await this.readiness(routing, request))
     const runId = await this.freshRunId(repository, stage)
     const runDir = join(repository.commonDir, 'critique', runId)
@@ -105,6 +120,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
+      depth_choice: choice,
       dropped: roster.dropped,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
@@ -121,6 +137,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       artifact: source,
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
+      depth_choice: choice,
       dropped: roster.dropped,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
