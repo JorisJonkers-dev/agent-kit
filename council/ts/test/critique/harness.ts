@@ -172,6 +172,8 @@ export interface VibeScript {
   readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
   /** Do not return until this many critics have started, so a test can see critics overlap. */
   readonly waitForStarts?: number
+  /** The run never returned and the outer timer killed it: no export, exit 124, `timedOut`. */
+  readonly timedOut?: boolean
 }
 
 /** Every critic launch and return, in the order they happened, across all critic clients. */
@@ -223,6 +225,7 @@ export class FakeVibeProcess implements ProcessPort {
       await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
     }
     await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }
@@ -235,6 +238,8 @@ export interface AgyScript {
   readonly waitForStarts?: number
   /** What the critic does while it runs: `cwd` is its working directory, `repo` the repository. */
   readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
+  /** The run never returned and the outer timer killed it. */
+  readonly timedOut?: boolean
 }
 
 /**
@@ -268,6 +273,7 @@ export class FakeAgyProcess implements ProcessPort {
     if (script === undefined) throw new Error('unexpected agy launch')
     await this.log.play('agy', script.waitForStarts)
     await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }

@@ -27,6 +27,8 @@ const RUN_FAILURES = [
   'denied-action',
   'missing-structured-output',
   'unsafe-tool',
+  /** The CLI outlived its outer timeout and was killed. */
+  'timeout',
 ] as const
 
 /** Why a critic's run counts as no review. `exit-<code>` is an exit code the client does not document. */

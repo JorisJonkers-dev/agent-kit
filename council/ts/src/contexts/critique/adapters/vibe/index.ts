@@ -35,6 +35,8 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
       exported: await this.readExport(exportPath),
       stderr: result.stderr,
       stdout: result.stdout,
+      timedOut: result.timedOut === true,
+      timeoutS: launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S,
     })
     return { ...result, exportPath, outcome }
   }
@@ -116,6 +118,9 @@ interface VibeRun {
   readonly stderr: string
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
   readonly exported: unknown
+  /** The outer timer killed Vibe after `timeoutS` seconds. */
+  readonly timedOut: boolean
+  readonly timeoutS: number
 }
 
 const EXIT_FAILURES: Readonly<Record<number, CriticFailure>> = {
@@ -134,6 +139,7 @@ function classifyVibeRun(run: VibeRun): CriticOutcome {
   const cost = typeof exported?.cost_usd === 'number' ? exported.cost_usd : null
   const failed = (failure: CriticFailure, detail: string): CriticOutcome => ({ cost_usd: cost, detail, failure, status: 'failed' })
 
+  if (run.timedOut) return failed('timeout', `vibe did not return within ${String(run.timeoutS)}s, so the outer timer killed it`)
   if (run.exitCode !== 0) {
     const outcome = typeof exported?.outcome === 'string' ? `outcome ${exported.outcome}` : run.stderr.trim()
     return failed(EXIT_FAILURES[run.exitCode] ?? `exit-${String(run.exitCode)}`, `vibe exited ${String(run.exitCode)}: ${outcome}`)
