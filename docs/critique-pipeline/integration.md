@@ -1311,3 +1311,45 @@ The read-only tripwire (agent-kit#172) fixed these:
   working directory (a session log, a `.vibe/` or `.agents/` folder) trips
   the wire and voids every review, so the create-a-file check should also
   confirm that a clean run leaves the copy unchanged.
+
+## What #177 settled
+
+The `/critique-spec` skill (agent-kit#177) fixed these:
+
+- **The skill.** `skills/critique-spec/SKILL.md` is agent-neutral and finds
+  the runner at `../critique/critique.mjs`, so the two skills must always be
+  installed side by side (a pytest checks every agent home). It maps the
+  orchestrator's own model, not its app, to `orchestrator_family`: Claude
+  `anthropic`, GPT `openai`, Mistral `mistral`, GLM `zhipu`, DeepSeek
+  `deepseek`, Gemini `google`. Antigravity and Vibe's fallbacks are the
+  runner's (#171); the skill only reports them. The registry entry no longer
+  carries `pending:`.
+- **Order of a round.** Prepare, fan-out, verdicts, fixes to the spec, the
+  owner's answers, then record. The questions come before record so record
+  knows which are answered, and before a second round so the answers reach
+  the revised spec. The single change comment is posted after the last
+  round, so no round's results reach the next round's packet (for local
+  markdown the comment is part of the spec file, which prepare freezes
+  whole).
+- **Answered questions.** A `needs-human` verdict may carry
+  `"answered": true`; on any other verdict it is an `invalid-input` error.
+  The summary marks an answered question `(answered)`, the report says
+  `Verdict: needs-human, answered: ...`, and while a critical question is
+  unanswered the summary has `Do not start /to-tickets: critical question F3
+  is unanswered.` under the verdict counts. The ledger does not record
+  answers.
+- **Rounds.** Record's result has `round` and `second_round_due`, true when
+  a first round accepted more than three critical findings
+  (`SECOND_ROUND_AFTER_CRITICAL` in `domain/stage.ts`). Prepare takes an
+  optional `previous_run_dir`: the run must be recorded (`report.md` exists,
+  else `invalid-run`) and be of the same repository, stage and artifact
+  reference (else `invalid-input`). A run that was itself round 2 is refused
+  with the new reason `round-limit`, so a stage never runs a third time.
+  Prepare's result, the manifest (`round`, and `previous_run_id` on round 2)
+  and every ledger line carry the round; a manifest without `round` reads as
+  round 1. A round-2 summary says `Round 2, after run <id>` under the depth
+  line. Prepare does not check that the first round actually called for a
+  second one; the skill follows `second_round_due`.
+- **For #173.** A second round is a second prepared run. `previous_run_dir`
+  is how prepare knows the two belong to one flow, so the per-flow Vibe cap
+  can add the first round's spend to the second's from there.

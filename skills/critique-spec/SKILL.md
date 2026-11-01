@@ -81,8 +81,9 @@ unavailable critic.
 ### 2. Fan out
 
 Run fan-out with `run_dir`. It runs every critic at once and returns when the
-slowest one ends, which can take as long as the longest `time_limit_s` in
-`routing.json` plus a minute. Give the shell command that long, or run it in
+slowest one ends, which can take as long as the longest `time_limit_s` in the
+routing (`routing.json`, or `~/.config/agent-kit/critique-routing.json` where
+it overrides one) plus a minute. Give the shell command that long, or run it in
 the background and wait; a shell timeout that kills fan-out loses the run.
 
 For each critic with status `failed` whose `detail` says its CLI is missing or
