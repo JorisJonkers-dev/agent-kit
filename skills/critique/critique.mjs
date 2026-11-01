@@ -316,6 +316,17 @@ var JsonFields = class _JsonFields {
   strings(key2) {
     return this.listOf(key2, (item) => typeof item === "string", "a string");
   }
+  numbers(key2) {
+    return this.listOf(key2, (item) => typeof item === "number" && Number.isFinite(item), "a number");
+  }
+  /** A list whose every item is a list of strings. */
+  stringListList(key2) {
+    return this.items(key2).map((item, index) => {
+      const path = `${this.at(key2)}[${String(index)}]`;
+      _JsonFields.ensure(Array.isArray(item) && item.every((value) => typeof value === "string"), path, "a list of strings");
+      return item;
+    });
+  }
   oneOfList(key2, allowed) {
     return this.listOf(key2, (item) => isOneOf(allowed, item), `one of ${allowed.join(", ")}`);
   }
@@ -677,6 +688,32 @@ function beforeComments(lines) {
   const end = lines.findIndex((line) => /^comments$/i.test(headingOf(line)?.title ?? ""));
   return end === -1 ? lines : lines.slice(0, end);
 }
+var DEFAULT_TICKET_SIZE = { max_criteria: 8, max_modules: 5 };
+function ticketCheckStatus(check) {
+  return check.cycles.length > 0 ? "failed" : "passed";
+}
+function sizeReport(check, size) {
+  return { ...size, over_criteria: check.tickets.filter((ticket) => ticket.criteria > size.max_criteria).map((ticket) => ticket.id) };
+}
+function summariseCheck(check) {
+  const { coverage } = check;
+  return {
+    cycles: check.cycles,
+    dangling_blockers: check.dangling_blockers,
+    status: ticketCheckStatus(check),
+    ticket_ids: check.tickets.map((ticket) => ticket.id),
+    ...coverage.status === "checked" ? { uncited_stories: coverage.uncited } : { coverage_reason: coverage.reason, uncited_stories: null }
+  };
+}
+var TICKET_RULES = ["untestable-criterion", "no-seam", "uncovered-requirement", "too-big"];
+function ticketTarget(location, ticketIds) {
+  const rule = TICKET_RULES.find((name) => new RegExp(`(?<![\\w-])${name}(?![\\w-])`, "i").test(location));
+  const ticket = ticketIds.find((id) => new RegExp(`(?<![\\w#/])${escapeRegExp(id)}(?!\\w)`).test(location));
+  return { ...rule === void 0 ? {} : { rule }, ...ticket === void 0 ? {} : { ticket } };
+}
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 // src/contexts/critique/application/tracker.ts
 import { basename, dirname, join as join2 } from "node:path";
@@ -870,6 +907,19 @@ function firstLine2(error) {
 }
 
 // src/contexts/critique/application/check-tickets.ts
+async function readCheckedTickets(tracker, request) {
+  const spec = await tracker.artifact({ comments: request.comments, reference: request.spec });
+  if (spec.status === "refused") return spec;
+  const read = await tracker.tickets(request.spec);
+  if (read.status === "refused") return read;
+  const check = checkTickets(spec.text, read.tickets);
+  return {
+    result: { status: ticketCheckStatus(check), spec: { reference: spec.reference, tracker: spec.tracker }, ...check },
+    spec,
+    status: "read",
+    tickets: read.tickets
+  };
+}
 var CheckTicketsCommand = class {
   repositories;
   trackers;
@@ -883,16 +933,8 @@ var CheckTicketsCommand = class {
     if (repository.status === "refused") return repository;
     const tracker = await this.trackers.resolve(repository);
     if (tracker.status === "refused") return tracker;
-    const spec = await tracker.artifact({ comments: false, reference: input.spec });
-    if (spec.status === "refused") return spec;
-    const read = await tracker.tickets(input.spec);
-    if (read.status === "refused") return read;
-    const check = checkTickets(spec.text, read.tickets);
-    return {
-      status: check.cycles.length > 0 ? "failed" : "passed",
-      spec: { reference: spec.reference, tracker: spec.tracker },
-      ...check
-    };
+    const checked = await readCheckedTickets(tracker, { comments: false, spec: input.spec });
+    return checked.status === "refused" ? checked : checked.result;
   }
 };
 
@@ -985,6 +1027,8 @@ var HINT_CODES = [
   "no-decision-quote",
   "no-decision-or-scenario",
   "no-test-or-trace",
+  "no-ticket-rule",
+  "no-ticket-id",
   "no-scenario",
   "not-a-decision-gap"
 ];
@@ -1154,10 +1198,11 @@ function lineCount(text) {
 }
 
 // src/contexts/critique/domain/evidence.ts
-function indexPacket(packet2) {
+function indexPacket(packet2, tickets = []) {
   return {
     files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
-    lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)]))
+    lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)])),
+    tickets
   };
 }
 var TREE_DIR = "tree";
@@ -1179,7 +1224,7 @@ function checkEvidence(finding, stage, packet2) {
     const missing = missingLine(finding, packet2);
     if (missing !== void 0) return fabricated(missing);
   }
-  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : stage === "decisions" ? decisionsRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : void 0;
+  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : stage === "decisions" ? decisionsRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : ticketRule(finding.location, packet2.tickets);
   return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
 }
 function fabricated(reason) {
@@ -1209,6 +1254,11 @@ function codeRule(evidence) {
   );
   return checkable ? void 0 : "no-test-or-trace";
 }
+function ticketRule(location, tickets) {
+  const target = ticketTarget(location, tickets);
+  if (target.rule === void 0) return "no-ticket-rule";
+  return target.rule === "uncovered-requirement" || target.ticket !== void 0 ? void 0 : "no-ticket-id";
+}
 function specRule(category, found) {
   if (!found.spec) return "no-spec-quote";
   if (DECISION_CATEGORIES.includes(category)) return found.decision ? void 0 : "no-decision-quote";
@@ -1227,6 +1277,8 @@ var HINT_REASONS = {
   "no-scenario": "no concrete scenario",
   "no-spec-quote": "no quote from the spec",
   "no-test-or-trace": "no failing test and no trace with a file and line",
+  "no-ticket-id": "the location names no ticket of the spec",
+  "no-ticket-rule": "the location names no ticket rule",
   "not-a-decision-gap": "neither an unasked question nor a contradiction"
 };
 function normalise(text) {
@@ -1245,7 +1297,7 @@ var STAGE_MEASURES = {
     changed_lines: ({ change }) => change?.changed_lines ?? 0,
     risk_path_hits: ({ change }) => change?.risk_path_hits ?? 0
   },
-  tickets: {}
+  tickets: { tickets: ({ tickets = 0 }) => tickets }
 };
 var NO_DEPTH_SIGNALS = { labels: [], risk_terms: [], thresholds: {} };
 function readDepthSignalsConfig(fields, stage) {
@@ -1471,11 +1523,15 @@ function parseRouting(text) {
       base: stage.list("base", readRosterSlot),
       deep: stage.has("deep") ? stage.list("deep", readRosterSlot) : [],
       depth_signals: stage.has("depth_signals") ? readDepthSignalsConfig(stage.object("depth_signals"), name) : NO_DEPTH_SIGNALS,
-      distinct_families: stage.boolean("distinct_families")
+      distinct_families: stage.boolean("distinct_families"),
+      ticket_size: stage.has("ticket_size") ? readTicketSize(stage.object("ticket_size")) : DEFAULT_TICKET_SIZE
     })),
     ...triage === void 0 ? {} : { triage },
     version: file.literal("version", 1)
   };
+}
+function readTicketSize(fields) {
+  return { max_criteria: fields.number("max_criteria"), max_modules: fields.number("max_modules") };
 }
 function readCriticClient(fields) {
   if (fields.oneOf("kind", CLIENT_KINDS) === "agy") {
@@ -1601,7 +1657,7 @@ function familyReason(family, request) {
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
-var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec", "feature"];
+var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec", "check", "feature"];
 var ARTIFACT_ORIGINS = [...TRACKER_KINDS, "none"];
 function listedFiles(manifest) {
   const { code, packet_files: files } = manifest;
@@ -1633,6 +1689,7 @@ function parseManifest(text) {
       source: packetFile.string("source")
     })),
     ...readRound(file),
+    ...file.has("ticket_check") ? { ticket_check: readTicketCheck(file.object("ticket_check")) } : {},
     repo_root: file.string("repo_root"),
     repository: file.string("repository"),
     run_dir: file.string("run_dir"),
@@ -1644,6 +1701,17 @@ function parseManifest(text) {
 function readRound(file) {
   if (!file.has("round") || file.number("round") !== 2) return { round: file.has("round") ? file.literal("round", 1) : 1 };
   return { previous_run_id: file.string("previous_run_id"), round: 2 };
+}
+function readTicketCheck(check) {
+  const reason = check.optionalString("coverage_reason");
+  return {
+    cycles: check.stringListList("cycles"),
+    dangling_blockers: check.list("dangling_blockers", (blocker) => ({ blocker: blocker.string("blocker"), ticket: blocker.string("ticket") })),
+    status: check.oneOf("status", ["passed", "failed"]),
+    ticket_ids: check.strings("ticket_ids"),
+    uncited_stories: reason === void 0 ? check.numbers("uncited_stories") : null,
+    ...reason === void 0 ? {} : { coverage_reason: reason }
+  };
 }
 function readCodeSource(code) {
   return {
@@ -1708,6 +1776,7 @@ function rank(severity) {
 var BLOCK_SEPARATOR = "\n\n---\n\n";
 var DESCRIPTIONS = {
   artifact: "the artifact under review",
+  check: "the deterministic ticket checker's report on these tickets",
   diff: "the change under review, as a diff against its base",
   feature: "the feature the decisions are for",
   reference: "reference material",
@@ -1715,12 +1784,15 @@ var DESCRIPTIONS = {
   ticket: "a ticket the change delivers",
   tree: "a file the change touched, as it is at the commit under review"
 };
+var TICKETS_STAGE_DESCRIPTIONS = { ticket: "a ticket under review" };
 var CODE_PACKET_NOTE = [
   "Every other file of the repository at the commit under review is under `tree/`, at its repository path; read one with read_file as `tree/<repository path>`.",
   "",
   "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line past the end of its file, is rejected as fabricated evidence."
 ].join("\n");
-function assemblePrompt(sources, files, codePacket = false) {
+function assemblePrompt(sources, files, stage) {
+  const codePacket = isCodeStage(stage);
+  const describe = (kind) => (stage === "tickets" ? TICKETS_STAGE_DESCRIPTIONS[kind] : void 0) ?? DESCRIPTIONS[kind];
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join("\n\n");
   const contract = `${sources.contract.trim()}
 
@@ -1732,7 +1804,7 @@ ${sources.schema.trim()}
     "",
     codePacket ? "Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:" : "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
     "",
-    ...files.map((file) => `- \`${file.path}\`: ${DESCRIPTIONS[file.kind]}`),
+    ...files.map((file) => `- \`${file.path}\`: ${describe(file.kind)}`),
     ...codePacket ? ["", CODE_PACKET_NOTE] : []
   ].join("\n");
   return {
@@ -1922,7 +1994,7 @@ var FanOutCommand = class {
     const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
-    const packet2 = indexPacket(await this.readPacket(manifest));
+    const packet2 = indexPacket(await this.readPacket(manifest), manifest.ticket_check?.ticket_ids);
     const budget = new FlowBudget(this.deps);
     const spent = await budget.vibeSpend(manifest);
     const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)));
@@ -2007,7 +2079,7 @@ var FanOutCommand = class {
         schema: await asset(SCHEMA)
       },
       listedFiles(manifest),
-      manifest.code !== void 0
+      manifest.stage
     );
     await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text);
     return prompt;
@@ -2325,7 +2397,7 @@ var DecisionsPacketReader = class {
 };
 function packet(reference, files) {
   const text = files.filter((file) => file.kind === "artifact").map((file) => file.text).join("\n\n");
-  return { artifact: { labels: [], reference, text, tracker: "none" }, change: void 0, code: void 0, files, status: "read" };
+  return { artifact: { labels: [], reference, text, tracker: "none" }, code: void 0, files, status: "read" };
 }
 
 // src/contexts/critique/application/routing.ts
@@ -2418,16 +2490,17 @@ var PrepareCommand = class {
     }
     const contents = await this.contents(repository, input);
     if (contents.status === "refused") return contents;
-    const { artifact, change, code } = contents;
+    const { artifact, change, code, ticketCheck } = contents;
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage });
     if ("status" in round) return round;
     const { previousFlow, ...roundFields } = round;
     const routing = await this.routing.load();
     const measured = change === void 0 ? {} : { change: { changed_lines: change.changed_lines, risk_path_hits: riskPathHits(change, routing.triage ?? { risk_paths: [] }) } };
+    const stageRoutes = stageRouting(routing, { stage });
     const { choice, depth } = chooseDepth(
       stage,
-      stageRouting(routing, { stage }).depth_signals,
-      { labels: artifact.labels, text: artifact.text, ...measured },
+      stageRoutes.depth_signals,
+      ticketCheck === void 0 ? { labels: artifact.labels, text: artifact.text, ...measured } : { labels: artifact.labels, text: contents.files.map((file) => file.text).join("\n\n"), tickets: ticketCheck.tickets.length },
       input.depth
     );
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage };
@@ -2435,7 +2508,10 @@ var PrepareCommand = class {
     const runId = await this.freshRunId(repository, stage);
     const runDir = join9(repository.commonDir, "critique", runId);
     const packetDir = join9(runDir, "packet");
-    const packetFiles = await this.freezePacket(packetDir, contents.files);
+    const packetFiles = await this.freezePacket(
+      packetDir,
+      ticketCheck === void 0 ? contents.files : [...contents.files, checkReportFile(ticketCheck, stageRoutes.ticket_size)]
+    );
     const source = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker };
     const manifest = {
       allowed_families: entry.families,
@@ -2459,6 +2535,7 @@ var PrepareCommand = class {
       run_dir: runDir,
       run_id: runId,
       stage,
+      ...ticketCheck === void 0 ? {} : { ticket_check: summariseCheck(ticketCheck) },
       version: 1
     };
     await this.deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}
@@ -2491,7 +2568,8 @@ var PrepareCommand = class {
     if (tracker.status === "refused") return tracker;
     if (input.spec === void 0) throw new CritiqueError("invalid-input", `${stage} needs spec: the spec, named the way its tracker names it`);
     const request = { ...input, spec: input.spec };
-    return isCodeStage(stage) ? this.codePackets.read(repository, tracker, { ...request, stage }) : this.documentPacket(repository, tracker, request);
+    if (isCodeStage(stage)) return this.codePackets.read(repository, tracker, { ...request, stage });
+    return stage === "tickets" ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request);
   }
   /**
    * A first round, or the second round after the recorded first round named
@@ -2560,7 +2638,28 @@ var PrepareCommand = class {
         }))
       )
     ];
-    return { artifact, change: void 0, code: void 0, files, status: "read" };
+    return { artifact, files, status: "read" };
+  }
+  /**
+   * The tickets stage's packet: the spec under `spec/` and each of its
+   * tickets under `tickets/`, as a code stage freezes them, read through the
+   * tracker the way check-tickets reads them. A spec without tickets is
+   * refused: there is nothing to check yet.
+   */
+  async ticketsPacket(tracker, input) {
+    const checked = await readCheckedTickets(tracker, { comments: input.comments, spec: input.spec });
+    if (checked.status === "refused") return checked;
+    const { spec, tickets } = checked;
+    if (tickets.length === 0) return refusal("no-tickets", `${spec.reference} has no tickets yet; cut them with /to-tickets first`);
+    return {
+      artifact: spec,
+      files: [
+        { kind: "spec", path: join9("spec", spec.name), source: spec.reference, text: spec.text },
+        ...tickets.map((ticket) => ticketFile(ticket.name, ticket.reference, ticket.text))
+      ],
+      status: "read",
+      ticketCheck: checked.result
+    };
   }
   async freezePacket(packetDir, files) {
     const frozen = [];
@@ -2571,6 +2670,15 @@ var PrepareCommand = class {
     return frozen;
   }
 };
+function checkReportFile(check, size) {
+  return {
+    kind: "check",
+    path: join9("check", "tickets.json"),
+    source: `check-tickets ${check.spec.reference}`,
+    text: `${JSON.stringify({ ...check, size: sizeReport(check, size) }, null, 2)}
+`
+  };
+}
 function preparedCode(code, files) {
   return {
     base_commit: code.base_commit,
@@ -2693,7 +2801,8 @@ function renderSummary(run, reportPath2) {
     depthLine(run),
     ...roundLines(run),
     verdictLine(run),
-    ...toTicketsLines(run),
+    ...ticketCheckLines(run),
+    ...doNotStartLines(run),
     "",
     "## Critics",
     "",
@@ -2741,6 +2850,7 @@ function renderReport(run) {
     `Repository: ${run.repository}`,
     depthLine(run),
     verdictLine(run),
+    ...ticketCheckLines(run),
     "",
     "## Critics",
     "",
@@ -2781,11 +2891,28 @@ function degradedLines(run) {
 function roundLines(run) {
   return run.round === 2 ? [`Round 2, after run ${run.previous_run_id ?? ""}`] : [];
 }
-function toTicketsLines(run) {
+function doNotStartLines(run) {
+  const next = run.stage === "tickets" ? "/implement" : "/to-tickets";
   const open = openCriticalQuestions(run).map((f) => f.id);
-  if (open.length === 0) return [];
   const which = open.length === 1 ? `critical question ${open.join("")} is` : `critical questions ${open.join(", ")} are`;
-  return [`Do not start /to-tickets: ${which} unanswered.`];
+  return [
+    ...run.ticket_check?.status === "failed" ? [`Do not start ${next}: the tickets hold a dependency cycle.`] : [],
+    ...open.length === 0 ? [] : [`Do not start ${next}: ${which} unanswered.`]
+  ];
+}
+var DANGLING_SHOWN = 5;
+function ticketCheckLines(run) {
+  const check = run.ticket_check;
+  if (check === void 0) return [];
+  const tickets = `${String(check.ticket_ids.length)} ticket${check.ticket_ids.length === 1 ? "" : "s"}`;
+  const cycles = check.cycles.length === 0 ? "no cycle" : `${check.cycles.length === 1 ? "cycle" : "cycles"} ${check.cycles.map((cycle) => [...cycle, cycle[0]].join(" \u2192 ")).join(", ")}`;
+  const dangling = check.dangling_blockers;
+  const shown = dangling.slice(0, DANGLING_SHOWN).map((d) => `${d.ticket} blocked by ${d.blocker}`);
+  const more = dangling.length > DANGLING_SHOWN ? [`${String(dangling.length - DANGLING_SHOWN)} more in the packet's check/tickets.json`] : [];
+  const blockers = dangling.length === 0 ? "no dangling blocker" : `${String(dangling.length)} dangling blocker${dangling.length === 1 ? "" : "s"} to check (${[...shown, ...more].join(", ")})`;
+  const uncited = check.uncited_stories;
+  const coverage = uncited === null ? `user story coverage not checkable (${check.coverage_reason ?? "not checked"})` : uncited.length === 0 ? "every user story cited" : `user stor${uncited.length === 1 ? "y" : "ies"} ${uncited.join(", ")} cited by no ticket`;
+  return [`Ticket check: ${check.status}: ${[tickets, cycles, blockers, coverage].join("; ")}`];
 }
 function acceptedTail(verdict) {
   if (verdict.answered === true) return "(answered)";
@@ -2914,7 +3041,8 @@ var RecordCommand = class {
       round: manifest.round,
       ...manifest.previous_run_id === void 0 ? {} : { previous_run_id: manifest.previous_run_id },
       run_id: manifest.run_id,
-      stage: manifest.stage
+      stage: manifest.stage,
+      ...manifest.ticket_check === void 0 ? {} : { ticket_check: manifest.ticket_check }
     };
     const summary = renderSummary(run, reportPath2);
     const summaryPath = join10(input.runDir, "summary.md");
@@ -2933,7 +3061,8 @@ var RecordCommand = class {
       second_round_due: secondRoundDue(run),
       status: "recorded",
       summary,
-      summary_path: summaryPath
+      summary_path: summaryPath,
+      ...run.ticket_check === void 0 ? {} : { ticket_check: run.ticket_check.status }
     };
   }
 };

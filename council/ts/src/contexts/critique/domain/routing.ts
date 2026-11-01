@@ -4,6 +4,7 @@ import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './fam
 import { JsonFields, JsonShapeError } from './json.js'
 import { CritiqueError } from './outcomes.js'
 import type { CritiqueStage, Depth } from './stage.js'
+import { DEFAULT_TICKET_SIZE, type TicketSize } from './tickets.js'
 import { readTriageRules, type TriageModel, type TriageRules } from './triage.js'
 
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
@@ -73,6 +74,8 @@ export interface StageRouting {
   readonly deep: readonly RosterSlot[]
   /** What makes the stage go deep when the caller names no depth. */
   readonly depth_signals: DepthSignalsConfig
+  /** When a ticket is likely too big for one `/implement` context; only the tickets stage reads it. */
+  readonly ticket_size: TicketSize
 }
 
 export interface Routing {
@@ -140,10 +143,15 @@ export function parseRouting(text: string): Routing {
       deep: stage.has('deep') ? stage.list('deep', readRosterSlot) : [],
       depth_signals: stage.has('depth_signals') ? readDepthSignalsConfig(stage.object('depth_signals'), name) : NO_DEPTH_SIGNALS,
       distinct_families: stage.boolean('distinct_families'),
+      ticket_size: stage.has('ticket_size') ? readTicketSize(stage.object('ticket_size')) : DEFAULT_TICKET_SIZE,
     })),
     ...(triage === undefined ? {} : { triage }),
     version: file.literal('version', 1),
   }
+}
+
+function readTicketSize(fields: JsonFields): TicketSize {
+  return { max_criteria: fields.number('max_criteria'), max_modules: fields.number('max_modules') }
 }
 
 export function readCriticClient(fields: JsonFields): CriticClient {

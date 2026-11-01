@@ -57,6 +57,8 @@ export const HINT_CODES = [
   'no-decision-quote',
   'no-decision-or-scenario',
   'no-test-or-trace',
+  'no-ticket-rule',
+  'no-ticket-id',
   'no-scenario',
   'not-a-decision-gap',
 ] as const

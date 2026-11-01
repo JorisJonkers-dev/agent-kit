@@ -24,8 +24,6 @@ export interface DecisionsPacket {
   readonly artifact: ArtifactSource & { readonly text: string }
   readonly files: readonly UnfrozenFile[]
   readonly code: undefined
-  /** A decisions packet has no code change for the risk rules to read. */
-  readonly change: undefined
 }
 
 /**
@@ -83,5 +81,5 @@ function packet(reference: string, files: readonly UnfrozenFile[]): DecisionsPac
     .filter((file) => file.kind === 'artifact')
     .map((file) => file.text)
     .join('\n\n')
-  return { artifact: { labels: [], reference, text, tracker: 'none' }, change: undefined, code: undefined, files, status: 'read' }
+  return { artifact: { labels: [], reference, text, tracker: 'none' }, code: undefined, files, status: 'read' }
 }

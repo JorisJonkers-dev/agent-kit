@@ -4,6 +4,7 @@ import type { ModelFamily } from './family.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
 import { SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage, type Depth, type Round } from './stage.js'
+import type { TicketCheckSummary } from './tickets.js'
 
 export const VERDICTS = ['accepted', 'rejected', 'needs-human', 'hint'] as const
 export type VerdictKind = (typeof VERDICTS)[number]
@@ -38,6 +39,8 @@ export interface AdjudicatedRun {
   readonly critics: readonly CriticRun[]
   readonly dropped: readonly DroppedCritic[]
   readonly findings: readonly AdjudicatedFinding[]
+  /** Only for the tickets stage: what the ticket checker found when the packet was frozen. */
+  readonly ticket_check?: TicketCheckSummary
 }
 
 export type VerdictCounts = Readonly<Record<VerdictKind, number>>

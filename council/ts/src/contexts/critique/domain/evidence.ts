@@ -2,6 +2,7 @@ import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './fi
 import { lineCount, lineReferences, packetCandidates } from './line-references.js'
 import type { PacketFile } from './manifest.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
+import { ticketTarget } from './tickets.js'
 
 /** One packet file's text, as it was frozen before any critic ran. */
 export interface PacketText {
@@ -15,12 +16,15 @@ export interface PacketIndex {
   readonly files: readonly (PacketText & { readonly normalised: string })[]
   /** How many lines each packet file has, by packet path. */
   readonly lines: ReadonlyMap<string, number>
+  /** At the tickets stage, the ids of the spec's tickets, which a finding's location must name. */
+  readonly tickets: readonly string[]
 }
 
-export function indexPacket(packet: readonly PacketText[]): PacketIndex {
+export function indexPacket(packet: readonly PacketText[], tickets: readonly string[] = []): PacketIndex {
   return {
     files: packet.map((file) => ({ ...file, normalised: normalise(file.text) })),
     lines: new Map(packet.map((file) => [file.path, lineCount(file.text)])),
+    tickets,
   }
 }
 
@@ -75,8 +79,8 @@ export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet
         : stage === 'decisions'
           ? decisionsRule(finding.category, found)
           : isCodeStage(stage)
-          ? codeRule(finding.evidence)
-          : undefined
+            ? codeRule(finding.evidence)
+            : ticketRule(finding.location, packet.tickets)
   return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
 }
 
@@ -116,6 +120,17 @@ function codeRule(evidence: readonly Evidence[]): HintCode | undefined {
 }
 
 /**
+ * #181's tickets-stage rule: a finding names the rule it breaks and the
+ * ticket it is about, so the orchestrator can re-check that rule on that
+ * ticket. An uncovered requirement is about the spec, so it needs no ticket.
+ */
+function ticketRule(location: string, tickets: readonly string[]): HintCode | undefined {
+  const target = ticketTarget(location, tickets)
+  if (target.rule === undefined) return 'no-ticket-rule'
+  return target.rule === 'uncovered-requirement' || target.ticket !== undefined ? undefined : 'no-ticket-id'
+}
+
+/**
  * #167's spec-stage rule: an omission or invention needs a quote from the
  * spec and one from the decision source; any other finding needs a spec
  * quote and either a decision quote or a concrete scenario.
@@ -148,6 +163,8 @@ const HINT_REASONS: Readonly<Record<HintCode, string>> = {
   'no-scenario': 'no concrete scenario',
   'no-spec-quote': 'no quote from the spec',
   'no-test-or-trace': 'no failing test and no trace with a file and line',
+  'no-ticket-id': 'the location names no ticket of the spec',
+  'no-ticket-rule': 'the location names no ticket rule',
   'not-a-decision-gap': 'neither an unasked question nor a contradiction',
 }
 

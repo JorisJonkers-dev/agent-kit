@@ -62,7 +62,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
-    const packet = indexPacket(await this.readPacket(manifest))
+    const packet = indexPacket(await this.readPacket(manifest), manifest.ticket_check?.ticket_ids)
     const budget = new FlowBudget(this.deps)
     const spent = await budget.vibeSpend(manifest)
     const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)))
@@ -150,7 +150,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
         schema: await asset(SCHEMA),
       },
       listedFiles(manifest),
-      manifest.code !== undefined,
+      manifest.stage,
     )
     await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
     return prompt

@@ -134,6 +134,6 @@ export class CodePacketReader {
   }
 }
 
-function ticketFile(name: string, reference: string, text: string): UnfrozenFile {
+export function ticketFile(name: string, reference: string, text: string): UnfrozenFile {
   return { kind: 'ticket', path: join('tickets', name), source: reference, text }
 }

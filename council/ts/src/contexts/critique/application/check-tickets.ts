@@ -1,15 +1,45 @@
 import type { Refusal } from '../domain/outcomes.js'
-import { checkTickets, type TicketCheck } from '../domain/tickets.js'
+import { checkTickets, ticketCheckStatus, type TicketCheck, type TicketCheckStatus } from '../domain/tickets.js'
 import type { TrackerKind } from '../domain/tracker.js'
 import { readInput } from './decode.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { RepositoryGate } from './repository.js'
-import { TrackerResolver } from './tracker.js'
+import { TrackerResolver, type TrackedArtifact, type TrackedTicket, type Tracker } from './tracker.js'
 
 export interface CheckTicketsResult extends TicketCheck {
   /** `failed` while the tickets hold a dependency cycle; everything else is reported without failing. */
-  readonly status: 'passed' | 'failed'
+  readonly status: TicketCheckStatus
   readonly spec: { readonly tracker: TrackerKind; readonly reference: string }
+}
+
+/** A spec and its tickets as the tracker holds them, with what the checker reports about them. */
+export interface CheckedTickets {
+  readonly status: 'read'
+  readonly spec: TrackedArtifact
+  readonly tickets: readonly TrackedTicket[]
+  readonly result: CheckTicketsResult
+}
+
+/**
+ * Reads a spec and its tickets through the repository's tracker and checks
+ * them. Both the check-tickets command and the tickets stage's prepare read
+ * them this way, so the packet's report is what check-tickets prints.
+ */
+export async function readCheckedTickets(
+  tracker: Tracker,
+  request: { readonly spec: string; readonly comments: boolean },
+): Promise<CheckedTickets | Refusal> {
+  const spec = await tracker.artifact({ comments: request.comments, reference: request.spec })
+  if (spec.status === 'refused') return spec
+  const read = await tracker.tickets(request.spec)
+  if (read.status === 'refused') return read
+  const check = checkTickets(spec.text, read.tickets)
+  return {
+    result: { status: ticketCheckStatus(check), spec: { reference: spec.reference, tracker: spec.tracker }, ...check },
+    spec,
+    status: 'read',
+    tickets: read.tickets,
+  }
 }
 
 /**
@@ -34,15 +64,7 @@ export class CheckTicketsCommand implements CritiqueCommand<CheckTicketsResult |
     if (repository.status === 'refused') return repository
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker
-    const spec = await tracker.artifact({ comments: false, reference: input.spec })
-    if (spec.status === 'refused') return spec
-    const read = await tracker.tickets(input.spec)
-    if (read.status === 'refused') return read
-    const check = checkTickets(spec.text, read.tickets)
-    return {
-      status: check.cycles.length > 0 ? 'failed' : 'passed',
-      spec: { reference: spec.reference, tracker: spec.tracker },
-      ...check,
-    }
+    const checked = await readCheckedTickets(tracker, { comments: false, spec: input.spec })
+    return checked.status === 'refused' ? checked : checked.result
   }
 }

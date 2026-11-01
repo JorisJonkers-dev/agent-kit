@@ -132,6 +132,44 @@ def test_setup_installs_critique_spec_beside_the_shared_skill_in_every_agent_hom
     assert "critique-spec: not built yet" not in macos_run.stdout
 
 
+def test_check_tickets_is_declared_for_every_agent_and_built() -> None:
+    skill = _skill(_registry(), "check-tickets")
+    assert skill["path"] == "skills/check-tickets"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+    assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
+
+
+def test_check_tickets_says_it_applies_after_to_tickets_and_before_the_first_implement() -> None:
+    text = (KIT_ROOT / "skills" / "check-tickets" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "check-tickets"
+    assert front["description"].startswith("Use after /to-tickets and before the first /implement.")
+
+
+def test_setup_installs_check_tickets_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "check-tickets" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "check-tickets" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "check-tickets" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
+def test_shipped_routing_defines_the_tickets_stage() -> None:
+    tickets = json.loads(ROUTING.read_text())["stages"]["tickets"]
+    assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["base"]] == [
+        ("vibe-deepseek-flash", "ticket-linter", ["testability"], 0.1, 180)
+    ]
+    assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["deep"]] == [
+        ("vibe-mistral-large", "ticket-linter", ["simplicity"], 0.1, 180)
+    ]
+    assert tickets["ticket_size"] == {"max_modules": 5, "max_criteria": 8}
+    assert (KIT_ROOT / "skills" / "critique" / "roles" / "ticket-linter.md").is_file()
+
+
 def test_a_pending_skill_is_skipped_with_a_notice_not_a_failure(macos_run: Run) -> None:
     """Until a pending skill's directory exists, setup says so and carries on."""
     for skill in (s for s in _registry()["local_skills"] if s.get("pending")):

@@ -40,7 +40,8 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       depthLine(run),
       ...roundLines(run),
       verdictLine(run),
-      ...toTicketsLines(run),
+      ...ticketCheckLines(run),
+      ...doNotStartLines(run),
       '',
       '## Critics',
       '',
@@ -90,6 +91,7 @@ export function renderReport(run: AdjudicatedRun): string {
     `Repository: ${run.repository}`,
     depthLine(run),
     verdictLine(run),
+    ...ticketCheckLines(run),
     '',
     '## Critics',
     '',
@@ -142,12 +144,52 @@ function roundLines(run: AdjudicatedRun): readonly string[] {
   return run.round === 2 ? [`Round 2, after run ${run.previous_run_id ?? ''}`] : []
 }
 
-/** #167 US40: tickets are never cut from a spec with an open critical gap. */
-function toTicketsLines(run: AdjudicatedRun): readonly string[] {
+/**
+ * #167 US40: tickets are never cut from a spec with an open critical gap.
+ * #181 US29 and US35: no ticket is implemented from a ticket graph with a
+ * cycle, or while a critical scope question about the tickets is open.
+ */
+function doNotStartLines(run: AdjudicatedRun): readonly string[] {
+  const next = run.stage === 'tickets' ? '/implement' : '/to-tickets'
   const open = openCriticalQuestions(run).map((f) => f.id)
-  if (open.length === 0) return []
   const which = open.length === 1 ? `critical question ${open.join('')} is` : `critical questions ${open.join(', ')} are`
-  return [`Do not start /to-tickets: ${which} unanswered.`]
+  return [
+    ...(run.ticket_check?.status === 'failed' ? [`Do not start ${next}: the tickets hold a dependency cycle.`] : []),
+    ...(open.length === 0 ? [] : [`Do not start ${next}: ${which} unanswered.`]),
+  ]
+}
+
+/** How many dangling blockers the ticket check line names; the checker's report in the packet has all of them. */
+const DANGLING_SHOWN = 5
+
+/**
+ * #181 US27 to US29: the ticket checker's findings in one line. A dangling
+ * blocker may be a ticket of another spec, so it is something to check, not
+ * a defect.
+ */
+function ticketCheckLines(run: AdjudicatedRun): readonly string[] {
+  const check = run.ticket_check
+  if (check === undefined) return []
+  const tickets = `${String(check.ticket_ids.length)} ticket${check.ticket_ids.length === 1 ? '' : 's'}`
+  const cycles =
+    check.cycles.length === 0
+      ? 'no cycle'
+      : `${check.cycles.length === 1 ? 'cycle' : 'cycles'} ${check.cycles.map((cycle) => [...cycle, cycle[0]].join(' → ')).join(', ')}`
+  const dangling = check.dangling_blockers
+  const shown = dangling.slice(0, DANGLING_SHOWN).map((d) => `${d.ticket} blocked by ${d.blocker}`)
+  const more = dangling.length > DANGLING_SHOWN ? [`${String(dangling.length - DANGLING_SHOWN)} more in the packet's check/tickets.json`] : []
+  const blockers =
+    dangling.length === 0
+      ? 'no dangling blocker'
+      : `${String(dangling.length)} dangling blocker${dangling.length === 1 ? '' : 's'} to check (${[...shown, ...more].join(', ')})`
+  const uncited = check.uncited_stories
+  const coverage =
+    uncited === null
+      ? `user story coverage not checkable (${check.coverage_reason ?? 'not checked'})`
+      : uncited.length === 0
+        ? 'every user story cited'
+        : `user stor${uncited.length === 1 ? 'y' : 'ies'} ${uncited.join(', ')} cited by no ticket`
+  return [`Ticket check: ${check.status}: ${[tickets, cycles, blockers, coverage].join('; ')}`]
 }
 
 /**

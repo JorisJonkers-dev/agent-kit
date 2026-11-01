@@ -12,6 +12,8 @@ export interface DepthEvidence {
   readonly labels: readonly string[]
   /** A code stage's change, measured as risk triage measures it. */
   readonly change?: ChangeMeasures
+  /** At the tickets stage: how many tickets the spec has. */
+  readonly tickets?: number
 }
 
 /** A code stage's change in numbers: its changed lines, and how many touched paths match a risk path. */
@@ -36,7 +38,7 @@ const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Mea
     changed_lines: ({ change }) => change?.changed_lines ?? 0,
     risk_path_hits: ({ change }) => change?.risk_path_hits ?? 0,
   },
-  tickets: {},
+  tickets: { tickets: ({ tickets = 0 }) => tickets },
 }
 
 /** One stage's depth signals as routing configures them. Any one that fires selects deep. */

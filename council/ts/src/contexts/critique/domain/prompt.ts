@@ -1,4 +1,5 @@
 import { sha256, type PacketFile, type PacketFileKind } from './manifest.js'
+import { isCodeStage, type CritiqueStage } from './stage.js'
 
 /** The prompt files one critic is given, as read from the shipped assets. */
 export interface PromptSources {
@@ -26,6 +27,7 @@ const BLOCK_SEPARATOR = '\n\n---\n\n'
 
 const DESCRIPTIONS: Readonly<Record<PacketFileKind, string>> = {
   artifact: 'the artifact under review',
+  check: "the deterministic ticket checker's report on these tickets",
   diff: 'the change under review, as a diff against its base',
   feature: 'the feature the decisions are for',
   reference: 'reference material',
@@ -33,6 +35,9 @@ const DESCRIPTIONS: Readonly<Record<PacketFileKind, string>> = {
   ticket: 'a ticket the change delivers',
   tree: 'a file the change touched, as it is at the commit under review',
 }
+
+/** At the tickets stage the tickets are under review; at a code stage they are what the change delivers. */
+const TICKETS_STAGE_DESCRIPTIONS: Readonly<Partial<Record<PacketFileKind, string>>> = { ticket: 'a ticket under review' }
 
 /**
  * What a code packet's prompt adds after its file list: the listed files
@@ -54,7 +59,10 @@ const CODE_PACKET_NOTE = [
  * the rest of its tree. Nothing about other critics, models or the
  * conversation goes in.
  */
-export function assemblePrompt(sources: PromptSources, files: readonly PacketFile[], codePacket = false): CriticPrompt {
+export function assemblePrompt(sources: PromptSources, files: readonly PacketFile[], stage: CritiqueStage): CriticPrompt {
+  const codePacket = isCodeStage(stage)
+  const describe = (kind: PacketFileKind): string =>
+    (stage === 'tickets' ? TICKETS_STAGE_DESCRIPTIONS[kind] : undefined) ?? DESCRIPTIONS[kind]
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join('\n\n')
   const contract = `${sources.contract.trim()}\n\n\`\`\`json\n${sources.schema.trim()}\n\`\`\``
   const fileList = [
@@ -64,7 +72,7 @@ export function assemblePrompt(sources: PromptSources, files: readonly PacketFil
       ? 'Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:'
       : 'Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:',
     '',
-    ...files.map((file) => `- \`${file.path}\`: ${DESCRIPTIONS[file.kind]}`),
+    ...files.map((file) => `- \`${file.path}\`: ${describe(file.kind)}`),
     ...(codePacket ? ['', CODE_PACKET_NOTE] : []),
   ].join('\n')
   return {

@@ -6,6 +6,7 @@ import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type Orchestra
 import { JsonFields } from './json.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
 import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from './stage.js'
+import type { TicketCheckSummary } from './tickets.js'
 import { TRACKER_KINDS } from './tracker.js'
 
 export function sha256(content: string | Uint8Array): string {
@@ -16,10 +17,11 @@ export function sha256(content: string | Uint8Array): string {
  * What a packet file is. A document stage freezes its `artifact` and its
  * `reference`s. A code stage freezes the `tree` at the commit under review,
  * the `diff` against the base, the `ticket` or tickets the change delivers
- * and the `spec` they come from. The decisions stage adds the `feature` the
- * decisions under review are for.
+ * and the `spec` they come from. The tickets stage freezes the `spec`, its
+ * `ticket`s and the ticket checker's report (`check`). The decisions stage
+ * adds the `feature` the decisions under review are for.
  */
-export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'feature'] as const
+export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'check', 'feature'] as const
 export type PacketFileKind = (typeof PACKET_FILE_KINDS)[number]
 
 export interface PacketFile {
@@ -94,6 +96,8 @@ export interface RunManifest {
   readonly packet_files: readonly PacketFile[]
   /** Only for a code stage. */
   readonly code?: CodeSource
+  /** Only for the tickets stage: what the ticket checker found when the packet was frozen. */
+  readonly ticket_check?: TicketCheckSummary
   /** Whether no two critics of the stage may share a family; a fallback retry keeps to it too. */
   readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
@@ -137,6 +141,7 @@ export function parseManifest(text: string): RunManifest {
       source: packetFile.string('source'),
     })),
     ...readRound(file),
+    ...(file.has('ticket_check') ? { ticket_check: readTicketCheck(file.object('ticket_check')) } : {}),
     repo_root: file.string('repo_root'),
     repository: file.string('repository'),
     run_dir: file.string('run_dir'),
@@ -150,6 +155,18 @@ export function parseManifest(text: string): RunManifest {
 function readRound(file: JsonFields): Pick<RunManifest, 'round' | 'previous_run_id'> {
   if (!file.has('round') || file.number('round') !== 2) return { round: file.has('round') ? file.literal('round', 1) : 1 }
   return { previous_run_id: file.string('previous_run_id'), round: 2 }
+}
+
+function readTicketCheck(check: JsonFields): TicketCheckSummary {
+  const reason = check.optionalString('coverage_reason')
+  return {
+    cycles: check.stringListList('cycles'),
+    dangling_blockers: check.list('dangling_blockers', (blocker) => ({ blocker: blocker.string('blocker'), ticket: blocker.string('ticket') })),
+    status: check.oneOf('status', ['passed', 'failed']),
+    ticket_ids: check.strings('ticket_ids'),
+    uncited_stories: reason === undefined ? check.numbers('uncited_stories') : null,
+    ...(reason === undefined ? {} : { coverage_reason: reason }),
+  }
 }
 
 function readCodeSource(code: JsonFields): CodeSource {

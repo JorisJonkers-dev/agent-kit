@@ -25,18 +25,20 @@ import {
   type RosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, DEPTHS, isCodeStage, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
-import { riskPathHits } from '../domain/triage.js'
+import { sizeReport, summariseCheck, type TicketSize } from '../domain/tickets.js'
+import { riskPathHits, type CodeChange } from '../domain/triage.js'
 import { FlowBudget } from './budget.js'
-import { CodePacketReader, type CodePacket, type UnfrozenFile } from './code-packet.js'
+import { readCheckedTickets, type CheckTicketsResult } from './check-tickets.js'
+import { CodePacketReader, ticketFile, type UnfrozenFile } from './code-packet.js'
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
-import { DecisionsPacketReader, type DecisionsPacket } from './decisions-packet.js'
+import { DecisionsPacketReader } from './decisions-packet.js'
 import { manifestPath, reportPath } from './locations.js'
 import { insideRepository } from './paths.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { RoutingSource } from './routing.js'
-import { TrackerResolver, type TrackedArtifact, type Tracker } from './tracker.js'
+import { TrackerResolver, type Tracker } from './tracker.js'
 
 interface PrepareInput {
   readonly stage: CritiqueStage
@@ -79,6 +81,20 @@ export interface PreparedCode {
   readonly changed_files: readonly string[]
   /** How many files of the tree at the head were frozen. */
   readonly tree_files: number
+}
+
+/** What a stage freezes, before the routing decides who reads it. */
+interface PacketContents {
+  readonly status: 'read'
+  /** What the stage critiques, whose labels and text its depth signals read. */
+  readonly artifact: ArtifactSource & { readonly text: string }
+  readonly files: readonly UnfrozenFile[]
+  /** Only for a code stage. */
+  readonly code?: CodeSource | undefined
+  /** Only for a code stage: the change as the risk rules read it, for the stage's depth signals. */
+  readonly change?: CodeChange | undefined
+  /** Only for the tickets stage: what the ticket checker found. */
+  readonly ticketCheck?: CheckTicketsResult
 }
 
 type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'> & {
@@ -163,7 +179,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     }
     const contents = await this.contents(repository, input)
     if (contents.status === 'refused') return contents
-    const { artifact, change, code } = contents
+    const { artifact, change, code, ticketCheck } = contents
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage })
     if ('status' in round) return round
     const { previousFlow, ...roundFields } = round
@@ -172,10 +188,13 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       change === undefined
         ? {}
         : { change: { changed_lines: change.changed_lines, risk_path_hits: riskPathHits(change, routing.triage ?? { risk_paths: [] }) } }
+    const stageRoutes = stageRouting(routing, { stage })
     const { choice, depth } = chooseDepth(
       stage,
-      stageRouting(routing, { stage }).depth_signals,
-      { labels: artifact.labels, text: artifact.text, ...measured },
+      stageRoutes.depth_signals,
+      ticketCheck === undefined
+        ? { labels: artifact.labels, text: artifact.text, ...measured }
+        : { labels: artifact.labels, text: contents.files.map((file) => file.text).join('\n\n'), tickets: ticketCheck.tickets.length },
       input.depth,
     )
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage }
@@ -183,7 +202,10 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     const runId = await this.freshRunId(repository, stage)
     const runDir = join(repository.commonDir, 'critique', runId)
     const packetDir = join(runDir, 'packet')
-    const packetFiles = await this.freezePacket(packetDir, contents.files)
+    const packetFiles = await this.freezePacket(
+      packetDir,
+      ticketCheck === undefined ? contents.files : [...contents.files, checkReportFile(ticketCheck, stageRoutes.ticket_size)],
+    )
     const source: ArtifactSource = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker }
     const manifest: RunManifest = {
       allowed_families: entry.families,
@@ -207,6 +229,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       run_dir: runDir,
       run_id: runId,
       stage,
+      ...(ticketCheck === undefined ? {} : { ticket_check: summariseCheck(ticketCheck) }),
       version: 1,
     }
     await this.deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}\n`)
@@ -235,14 +258,15 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private async contents(
     repository: ResolvedRepository,
     input: PrepareInput,
-  ): Promise<Refusal | DecisionsPacket | DocumentPacket | CodePacket> {
+  ): Promise<Refusal | PacketContents> {
     const { stage } = input
     if (stage === 'decisions') return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary })
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker
     if (input.spec === undefined) throw new CritiqueError('invalid-input', `${stage} needs spec: the spec, named the way its tracker names it`)
     const request = { ...input, spec: input.spec }
-    return isCodeStage(stage) ? this.codePackets.read(repository, tracker, { ...request, stage }) : this.documentPacket(repository, tracker, request)
+    if (isCodeStage(stage)) return this.codePackets.read(repository, tracker, { ...request, stage })
+    return stage === 'tickets' ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request)
   }
 
   /**
@@ -307,7 +331,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     repository: ResolvedRepository,
     tracker: Tracker,
     input: PrepareInput & { readonly spec: string },
-  ): Promise<Refusal | DocumentPacket> {
+  ): Promise<Refusal | PacketContents> {
     const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec })
     if (artifact.status === 'refused') return artifact
     const references =
@@ -325,7 +349,29 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         })),
       )),
     ]
-    return { artifact, change: undefined, code: undefined, files, status: 'read' }
+    return { artifact, files, status: 'read' }
+  }
+
+  /**
+   * The tickets stage's packet: the spec under `spec/` and each of its
+   * tickets under `tickets/`, as a code stage freezes them, read through the
+   * tracker the way check-tickets reads them. A spec without tickets is
+   * refused: there is nothing to check yet.
+   */
+  private async ticketsPacket(tracker: Tracker, input: PrepareInput & { readonly spec: string }): Promise<PacketContents | Refusal> {
+    const checked = await readCheckedTickets(tracker, { comments: input.comments, spec: input.spec })
+    if (checked.status === 'refused') return checked
+    const { spec, tickets } = checked
+    if (tickets.length === 0) return refusal('no-tickets', `${spec.reference} has no tickets yet; cut them with /to-tickets first`)
+    return {
+      artifact: spec,
+      files: [
+        { kind: 'spec', path: join('spec', spec.name), source: spec.reference, text: spec.text },
+        ...tickets.map((ticket) => ticketFile(ticket.name, ticket.reference, ticket.text)),
+      ],
+      status: 'read',
+      ticketCheck: checked.result,
+    }
   }
 
   private async freezePacket(packetDir: string, files: readonly UnfrozenFile[]): Promise<readonly PacketFile[]> {
@@ -338,12 +384,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   }
 }
 
-interface DocumentPacket {
-  readonly status: 'read'
-  readonly artifact: TrackedArtifact
-  readonly files: readonly UnfrozenFile[]
-  readonly code: undefined
-  readonly change: undefined
+/** The checker's report as the ticket linter reads it, with the size limits routing sets. */
+function checkReportFile(check: CheckTicketsResult, size: TicketSize): UnfrozenFile {
+  return {
+    kind: 'check',
+    path: join('check', 'tickets.json'),
+    source: `check-tickets ${check.spec.reference}`,
+    text: `${JSON.stringify({ ...check, size: sizeReport(check, size) }, null, 2)}\n`,
+  }
 }
 
 function preparedCode(code: CodeSource, files: readonly PacketFile[]): PreparedCode {
