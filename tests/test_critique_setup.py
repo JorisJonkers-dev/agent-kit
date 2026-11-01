@@ -13,6 +13,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -272,6 +273,28 @@ def test_flow_loads_only_when_the_owner_asks_about_the_critique_pipeline() -> No
         "Use when the owner asks how the critique pipeline works, what to do next in it,"
         " or to set it up or check its budget."
     )
+
+
+def test_flow_explain_reads_every_section_it_names_from_the_pipeline_readme() -> None:
+    """/flow explain answers from skills/critique/README.md, so each section it names must be there."""
+    flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    explain = flow[flow.index("## /flow explain"):]
+    end = explain.find("\n## ", 1)
+    explain = explain if end < 0 else explain[:end]
+    assert "../critique/README.md" in explain
+    named = set(re.findall(r"`(## [^`]+)`", explain))
+    assert len(named) == 6, named
+    headings = {line for line in (KIT_ROOT / "skills" / "critique" / "README.md").read_text().splitlines()
+                if line.startswith("## ")}
+    assert named <= headings, named - headings
+
+
+def test_the_pipeline_readme_names_every_stage_and_lens_it_explains() -> None:
+    readme = (KIT_ROOT / "skills" / "critique" / "README.md").read_text()
+    for stage in json.loads(ROUTING.read_text())["stages"]:
+        assert f"| `{stage}` |" in readme, stage
+    for lens in (KIT_ROOT / "skills" / "critique" / "lenses").glob("*.md"):
+        assert f"- `{lens.stem}`:" in readme, lens.stem
 
 
 def test_setup_installs_flow_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:

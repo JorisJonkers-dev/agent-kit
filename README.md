@@ -49,6 +49,9 @@ script is generated from `registry/estate-tooling.yaml` -- see
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
 - [docs/CLOUD.md](docs/CLOUD.md): the same setup in a Claude Code cloud
   environment, from the two files in `cloud/`.
+- [skills/critique/README.md](skills/critique/README.md): the critique
+  pipeline for its user: what runs when, depth, budget, the gates, the kill
+  switch and how to retune routing.
 - [docs/critique-pipeline/integration.md](docs/critique-pipeline/integration.md):
   what the critic CLIs were shown to do, where the critique pipeline lands in
   agent-kit, and where it departs from its brief.

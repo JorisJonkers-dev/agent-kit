@@ -712,6 +712,9 @@ critique:
     - path: skills/critique/roles/ticket-linter.md
       sha256: 34e87ea195cb6e83eacf2064ef512d395f651db69d72a4ebd42de3717ca9314c
       mode: "0644"
+    - path: skills/critique/README.md
+      sha256: e454ffc7f7e115405eb4f0e7b6f12f375cfc1fd09dbe66427089d160c2e5672a
+      mode: "0644"
     - path: skills/critique/routing.json
       sha256: b01918e0c52d65f6cae3680b3bd08ad96206d20849a9aff73fe3c0fc81fb4f49
       mode: "0644"
