@@ -20,6 +20,13 @@
       "agent": "critic-glm",
       "model": "glm-5-3",
       "family": "zhipu"
+    },
+    "vibe-deepseek-flash": {
+      "kind": "vibe",
+      "binary": "vibe",
+      "agent": "critic-deepseek-flash",
+      "model": "deepseek-v4-1-flash-1017",
+      "family": "deepseek"
     }
   },
   "fallbacks": {
@@ -44,7 +51,43 @@
           "max_price_usd": 0.5,
           "time_limit_s": 600
         }
-      ]
+      ],
+      "deep": [
+        {
+          "client": "vibe-glm",
+          "role": "spec-redteam",
+          "lenses": ["integration", "operability"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "spec-redteam",
+          "lenses": ["simplicity", "fidelity"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "depth_signals": {
+        "thresholds": { "user_stories": 30, "words": 5000 },
+        "risk_terms": [
+          "auth",
+          "authentication",
+          "authorisation",
+          "authorization",
+          "migration",
+          "migrations",
+          "payment",
+          "payments",
+          "crypto",
+          "cryptography",
+          "encryption",
+          "concurrency",
+          "concurrent",
+          "public API"
+        ],
+        "labels": ["risk:high"]
+      }
     }
   }
 }

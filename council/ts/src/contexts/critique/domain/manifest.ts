@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { readDepthChoice, type DepthChoice } from './depth.js'
 import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
@@ -35,6 +36,8 @@ export interface RunManifest {
   readonly created_at: string
   readonly stage: CritiqueStage
   readonly depth: Depth
+  /** How the depth was chosen, and the signals that decided it. */
+  readonly depth_choice: DepthChoice
   readonly orchestrator_family: OrchestratorFamily
   readonly repository: string
   readonly repo_root: string
@@ -55,6 +58,7 @@ export function parseManifest(text: string): RunManifest {
     created_at: file.string('created_at'),
     critics: file.list('critics', readRosterCritic),
     depth: file.oneOf('depth', DEPTHS),
+    depth_choice: readDepthChoice(file.object('depth_choice')),
     dropped: file.list('dropped', readDroppedCritic),
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),
