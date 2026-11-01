@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { budgetReached } from '../domain/budget.js'
+import { budgetReached, quotaReached } from '../domain/budget.js'
 import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } from '../domain/critic.js'
 import { checkEvidence, type PacketText } from '../domain/evidence.js'
 import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
@@ -94,14 +94,19 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   }
 
   /**
-   * Once the first wave has ended, retries every failed critic that
-   * has a fallback left, with the flow's spend read again, since the first
-   * wave has added to it.
+   * Once the first wave has ended, retries every failed critic that has a
+   * fallback left, with the flow's spend and today's agy count read again,
+   * since the first wave (and any other session on this machine) has added
+   * to them.
    */
   private async retries(wave: Omit<Wave, 'spent'>, first: readonly CriticAttempt[]): Promise<readonly CriticAttempt[]> {
-    const spent = await wave.budget.vibeSpend(wave.manifest)
-    const vibeBlocked = budgetReached(spent, wave.manifest.limits) !== undefined
-    const retries = fallbackRetries(wave.manifest, first, vibeBlocked)
+    const { manifest } = wave
+    const spent = await wave.budget.vibeSpend(manifest)
+    const blocked: Blocked = {
+      agy: quotaReached(await wave.budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage) !== undefined,
+      vibe: budgetReached(spent, manifest.limits) !== undefined,
+    }
+    const retries = fallbackRetries(manifest, first, blocked)
     return Promise.all(retries.map((retry) => this.attempt({ ...wave, spent }, retry.critic, retry.retryOf)))
   }
 
@@ -225,15 +230,22 @@ interface FallbackRetry {
  * so it has its own packet copy and tripwire, and it has no fallbacks of its
  * own.
  */
-function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[], vibeBlocked: boolean): readonly FallbackRetry[] {
+/** Which kinds of client may not be launched now: agy past its quota, Vibe past the flow's cap. */
+type Blocked = Readonly<Record<RosterCritic['client_config']['kind'], boolean>>
+
+function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[], blocked: Blocked): readonly FallbackRetry[] {
   const taken = new Set(first.filter((attempt) => attempt.run.status === 'ok').map((attempt) => attempt.run.family))
   const retries: FallbackRetry[] = []
   manifest.critics.forEach((critic, index) => {
     if (first[index]?.run.status !== 'failed') return
-    const eligible = critic.fallbacks.filter((candidate) => !manifest.distinct_families || !taken.has(candidate.client_config.family))
+    const eligible = critic.fallbacks.filter(
+      (candidate) =>
+        !(candidate.client_config.kind === 'agy' && blocked.agy) &&
+        (!manifest.distinct_families || !taken.has(candidate.client_config.family)),
+    )
     // Past the flow's Vibe cap a fallback that costs no money is preferred;
     // with none, the first fallback is still named, as a budget skip.
-    const fallback = eligible.find((candidate) => !vibeBlocked || candidate.client_config.kind !== 'vibe') ?? eligible[0]
+    const fallback = eligible.find((candidate) => !(candidate.client_config.kind === 'vibe' && blocked.vibe)) ?? eligible[0]
     if (fallback === undefined) return
     taken.add(fallback.client_config.family)
     retries.push({

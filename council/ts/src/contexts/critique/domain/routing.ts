@@ -33,6 +33,12 @@ export const CLIENT_KINDS = ['vibe', 'agy'] as const satisfies readonly CriticCl
 /** Whether a critic client can run on this machine now; `detail` says why not, in setup's words where setup has them. */
 export type ClientReadiness = { readonly ready: true } | { readonly ready: false; readonly detail: string }
 
+/**
+ * Whether a client may run in this run: ready, and within its quota. A
+ * client past the Antigravity quota is set up but may not be launched today.
+ */
+export type ClientAvailability = ClientReadiness | { readonly ready: false; readonly detail: string; readonly reason: 'quota' }
+
 export interface RosterSlot {
   readonly client: string
   readonly role: string
@@ -79,7 +85,7 @@ export interface RosterCritic extends RosterSlot {
   readonly fallbacks: readonly RosterFallback[]
 }
 
-export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable'] as const
+export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable', 'quota'] as const
 
 /** A routed critic that does not run, and the fallback critic that runs in its slot, if one could. */
 export interface DroppedCritic {
@@ -207,7 +213,7 @@ export function candidateClients(routing: Routing, request: RosterRequest): read
 export function resolveRoster(
   routing: Routing,
   request: RosterRequest,
-  readiness: ReadonlyMap<string, ClientReadiness> = new Map(),
+  readiness: ReadonlyMap<string, ClientAvailability> = new Map(),
 ): Roster {
   const stage = stageRouting(routing, request)
   const critics: RosterCritic[] = []
@@ -220,7 +226,8 @@ export function resolveRoster(
         : undefined)
     if (reason !== undefined) return { reason }
     const ready = readiness.get(name)
-    return ready?.ready === false ? { detail: ready.detail, reason: 'unavailable' } : undefined
+    if (ready?.ready !== false) return undefined
+    return { detail: ready.detail, reason: 'reason' in ready ? ready.reason : 'unavailable' }
   }
   for (const { slot, deep } of slotsAt(stage, request.depth)) {
     const primary = clientNamed(routing, request, slot.client)

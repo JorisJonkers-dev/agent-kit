@@ -1,10 +1,11 @@
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   agyFindings,
+  ASSETS_ROOT,
   fenced,
   finding,
   harness,
@@ -390,6 +391,29 @@ describe('the per-flow Vibe cap', () => {
     expect(result.critics.map((critic) => critic.status)).toEqual(['ok'])
   })
 
+  it('counts a recorded launch once, though record also logs its cost', async () => {
+    const h = await opened({ families: ['mistral'], vibe: [vibeOk('critic-mistral-large', 2.6), vibeOk('critic-mistral-large')] })
+    const first = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: first.run_dir })
+    await h.commands.record.run({ run_dir: first.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+    const second = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: second.run_dir })
+
+    expect(result.critics.map((critic) => critic.status)).toEqual(['ok'])
+  })
+
+  it('skips a ledger line that was cut short', async () => {
+    const h = await opened({ families: ['mistral'] })
+    await seedLedger(h, [{ charged_usd: 5 }])
+    await h.writeText(ledgerFile(h), `${await h.readText(ledgerFile(h))}{"type":"invocation","charged_usd":3,"fl`)
+    const run = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => critic.status)).toEqual(['budget-skip'])
+  })
+
   it('names the flow from the input when the caller gives one', async () => {
     const h = await opened({ families: ['mistral'] })
     await seedLedger(h, [{ charged_usd: 5, flow: 'github.com/jorisjonkers-dev/agent-kit#167' }])
@@ -414,6 +438,42 @@ describe('the per-flow Vibe cap', () => {
     ])
   })
 
+  it('takes the cap from routing, so this machine can lower it', async () => {
+    const h = await opened({ families: ['mistral'] })
+    await h.writeText(join(h.home, '.config', 'agent-kit', 'critique-routing.json'), JSON.stringify({ budget: { vibe_flow_cap_usd: 1 } }))
+    await seedLedger(h, [{ charged_usd: 1.2 }])
+    const run = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => [critic.status, critic.detail])).toEqual([
+      ['budget-skip', "the flow's Vibe spend $1.2000 has reached its $1.00 cap"],
+    ])
+  })
+
+  it('prefers a fallback that costs no money once the cap is reached', async () => {
+    const routing = await shippedRouting()
+    const h = await opened({
+      agy: [agyOk()],
+      routing: {
+        ...routing,
+        fallbacks: { 'vibe-mistral-large': ['vibe-deepseek-flash', 'agy-gemini-flash-high'] },
+        stages: { spec: { ...routing.stages.spec, base: [routing.stages.spec.base[0]] } },
+      },
+      families: ['mistral', 'google', 'deepseek'],
+      vibe: [timedOutVibe('critic-mistral-large')],
+    })
+    await seedLedger(h, [{ charged_usd: 4.75 }])
+    const run = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => [critic.critic_id, critic.status])).toEqual([
+      [VIBE, 'failed'],
+      [`${VIBE}-retry-agy-gemini-flash-high`, 'ok'],
+    ])
+  })
+
   it('says no critique ran when every critic was skipped', async () => {
     const h = await opened({ families: ['mistral'] })
     await seedLedger(h, [{ charged_usd: 6 }])
@@ -423,5 +483,166 @@ describe('the per-flow Vibe cap', () => {
     const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(summary).toContain('degraded: no critique ran')
+  })
+})
+
+interface ShippedRouting {
+  readonly fallbacks: Record<string, string[]>
+  readonly stages: { readonly spec: { readonly base: unknown[] } & Record<string, unknown> }
+  readonly [key: string]: unknown
+}
+
+async function shippedRouting(): Promise<ShippedRouting> {
+  return JSON.parse(await readFile(join(ASSETS_ROOT, 'routing.json'), 'utf8')) as ShippedRouting
+}
+
+/** The shipped routing, with the spec stage's critics also routed for the decisions stage. */
+async function withDecisionsStage(): Promise<unknown> {
+  const routing = await shippedRouting()
+  const { depth_signals: _spec_signals, ...decisions } = routing.stages.spec
+  return { ...routing, stages: { ...routing.stages, decisions } }
+}
+
+const agyLaunches = (count: number, recordedAt = '2026-10-30T08:00:00.000Z'): Record<string, unknown>[] =>
+  Array.from({ length: count }, () => ({
+    client: 'agy-gemini-flash-high',
+    critic_id: 'c2-agy-gemini-flash-high',
+    family: 'google',
+    flow: 'github.com/jorisjonkers-dev/agent-kit#12',
+    kind: 'agy',
+    model: 'gemini-3.8-flash-high',
+    recorded_at: recordedAt,
+  }))
+
+describe('the Antigravity quota', () => {
+  it('still runs Gemini for the spec stage once the reserve threshold is passed', async () => {
+    const h = await opened({})
+    await seedLedger(h, agyLaunches(10))
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE, AGY])
+  })
+
+  it('falls back from Gemini at a stage the reserve is not kept for, once the reserve threshold is passed', async () => {
+    const h = await opened({ routing: await withDecisionsStage() })
+    await seedLedger(h, agyLaunches(10))
+
+    const run = await prepare(h, {}, { stage: 'decisions' })
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE, 'c2-vibe-glm'])
+    expect(run.dropped).toEqual([
+      {
+        client: 'agy-gemini-flash-high',
+        detail:
+          'antigravity: 10 invocations today have reached the reserve threshold of 10; the rest is kept for spec and feature-review',
+        family: 'google',
+        reason: 'quota',
+        replaced_by: 'c2-vibe-glm',
+      },
+    ])
+  })
+
+  it('runs Gemini at any stage below the reserve threshold', async () => {
+    const h = await opened({ routing: await withDecisionsStage() })
+    await seedLedger(h, agyLaunches(9))
+
+    const run = await prepare(h, {}, { stage: 'decisions' })
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE, AGY])
+  })
+
+  it('falls back from Gemini at every stage once the daily cap is reached, and the summary names the fallback', async () => {
+    const h = await opened({ vibe: [vibeOk('critic-mistral-large'), vibeOk('critic-glm')] })
+    await seedLedger(h, agyLaunches(20))
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+
+    expect(h.agy.launches).toEqual([])
+    expect(summary).toContain(
+      '- Not run: agy-gemini-flash-high (google): quota (antigravity: 20 invocations today have reached the daily cap of 20); replaced by c2-vibe-glm',
+    )
+  })
+
+  it('takes the cap and the reserve from routing, so this machine can change them', async () => {
+    const h = await opened({})
+    await h.writeText(
+      join(h.home, '.config', 'agent-kit', 'critique-routing.json'),
+      JSON.stringify({ antigravity_quota: { daily_cap: 3, reserve_threshold: 2, reserved_stages: ['feature-review'] } }),
+    )
+    await seedLedger(h, agyLaunches(2))
+
+    const run = await prepare(h)
+
+    expect(run.dropped).toMatchObject([
+      {
+        detail: 'antigravity: 2 invocations today have reached the reserve threshold of 2; the rest is kept for feature-review',
+        reason: 'quota',
+      },
+    ])
+  })
+
+  it('counts only the invocations of the current day', async () => {
+    const h = await opened({})
+    await seedLedger(h, agyLaunches(25, '2026-10-29T23:59:59.000Z'))
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE, AGY])
+  })
+
+  it('counts each Gemini launch toward the day', async () => {
+    const h = await opened({ agy: [agyOk()], vibe: [vibeOk('critic-mistral-large')] })
+    await seedLedger(h, agyLaunches(19))
+    const first = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: first.run_dir })
+
+    const second = await prepare(h)
+
+    expect(second.dropped).toMatchObject([{ client: 'agy-gemini-flash-high', reason: 'quota' }])
+  })
+
+  it('falls back without touching the counter where agy is not set up, and says why', async () => {
+    const h = await opened({ platform: 'linux', vibe: [vibeOk('critic-mistral-large'), vibeOk('critic-glm')] })
+    const run = await prepare(h)
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect((await invocations(h)).map((line) => line.kind)).toEqual(['vibe', 'vibe'])
+    expect(run.dropped).toEqual([
+      {
+        client: 'agy-gemini-flash-high',
+        detail: 'antigravity: macOS only; not set up on linux',
+        family: 'google',
+        reason: 'unavailable',
+        replaced_by: 'c2-vibe-glm',
+      },
+    ])
+  })
+
+  it('does not retry through Gemini once the daily cap is reached during the run', async () => {
+    const routing = await shippedRouting()
+    const h = await opened({
+      routing: {
+        ...routing,
+        fallbacks: { 'vibe-mistral-large': ['agy-gemini-flash-high'] },
+        stages: { spec: { ...routing.stages.spec, base: [routing.stages.spec.base[0]] } },
+      },
+      vibe: [
+        {
+          ...timedOutVibe('critic-mistral-large'),
+          // Another session on this machine uses up the day's quota meanwhile.
+          effect: () => seedLedger(h, agyLaunches(20)),
+        },
+      ],
+    })
+    const run = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(h.agy.launches).toEqual([])
+    expect(result.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
   })
 })

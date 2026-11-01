@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 
+import { quotaReached } from '../domain/budget.js'
 import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { chooseDepth, type DepthChoice } from '../domain/depth.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
@@ -9,12 +10,13 @@ import {
   candidateClients,
   resolveRoster,
   stageRouting,
-  type ClientReadiness,
+  type ClientAvailability,
   type DroppedCritic,
   type Routing,
   type RosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from '../domain/stage.js'
+import { FlowBudget } from './budget.js'
 import { readInput } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { manifestPath } from './locations.js'
@@ -154,11 +156,19 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     }
   }
 
-  /** Asks each client the stage could run, and that the family rules permit, whether it can run here. */
-  private async readiness(routing: Routing, request: RosterRequest): Promise<ReadonlyMap<string, ClientReadiness>> {
-    const checks = candidateClients(routing, request).map(
-      async ([name, client]) => [name, await clientReadiness(this.deps.clients, client)] as const,
-    )
+  /**
+   * Asks each client the stage could run, and that the family rules permit,
+   * whether it can run here, and holds an agy client that can to the day's
+   * Antigravity quota. Counting reads the ledger and launches nothing, so an
+   * agy that is not set up falls back without touching the counter.
+   */
+  private async readiness(routing: Routing, request: RosterRequest): Promise<ReadonlyMap<string, ClientAvailability>> {
+    const agyToday = await new FlowBudget(this.deps).agyInvocationsToday()
+    const checks = candidateClients(routing, request).map(async ([name, client]): Promise<readonly [string, ClientAvailability]> => {
+      const ready = await clientReadiness(this.deps.clients, client)
+      const quota = ready.ready && client.kind === 'agy' ? quotaReached(agyToday, routing.limits.antigravity_quota, request.stage) : undefined
+      return [name, quota === undefined ? ready : { detail: quota, ready: false, reason: 'quota' }]
+    })
     return new Map(await Promise.all(checks))
   }
 
