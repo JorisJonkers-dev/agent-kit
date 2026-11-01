@@ -1473,3 +1473,72 @@ these:
   source names none. The `vibe-glm` client says `glm-5-3` where its agent
   file pins `zai-glm-5-3`; the Vibe model field is informational (the agent
   pins the model), so this was left for whoever next edits that client.
+
+## What #199 settled
+
+`/critique-stats` and the runner's `stats` command (agent-kit#199) fixed
+these:
+
+- **The ledger names the spec.** Every ledger line now carries `spec`, the
+  manifest's `artifact.reference` (`host/owner/repo#<n>` or the repository
+  path), which is what prepare's `spec` input resolved to. It was the
+  narrowest field to add: no manifest or input change. A feature is one
+  distinct `spec`. Lines written before this have no `spec` and count toward
+  every figure but no feature. **A stage whose artifact is not the spec
+  itself (ticket review, feature review) must still put the spec's reference
+  in `AdjudicatedRun.spec`**, or its runs count as features of their own.
+- **The command.** `critique stats` takes `{ repo?, repository?, since?,
+  until? }`: `repo` is a working directory resolved to its allowlist key the
+  way prepare resolves it (so a `nedap` or remote-less repository is
+  refused), `repository` is a key given directly (compared ignoring case),
+  and both together are `invalid-input`. Dates are `YYYY-MM-DD`, both ends
+  included, matched against the UTC day of `recorded_at`. The result is
+  `{ status: "reported", ledger_path, filter, thresholds, cells,
+  removal_candidates, suggestions, report }`; `report` is the markdown the
+  skill prints. A missing ledger is an empty one. A malformed line, or a
+  finding whose `raised_by` names a critic with no run line in the same run,
+  is the new error code `invalid-ledger`; blank lines and lines of an
+  unknown `type` are skipped, so a later ticket can add a line type.
+  `parseLedger` sits in `domain/ledger.ts` beside the writer.
+- **Cells.** A cell is one stage, one client and one prompt hash: the first
+  twelve hex digits of a sha256 over the run line's four `prompt_hashes` and
+  its sorted `lens_hashes`, so any prompt file change (not only a role or a
+  lens) starts a new cell. A finding counts once in every cell whose critic
+  raised it, through the run lines of its run.
+- **Figures.** Precision is accepted over accepted plus rejected; hints and
+  needs-human are left out, and a fabricated-evidence rejection counts as
+  rejected. A unique catch is an accepted finding whose raisers are all one
+  client. Fabrication rate is findings with `pre_verdict:
+  "fabricated-evidence"` over every finding the cell raised; a merged
+  finding's fabrication counts against each raiser, since the ledger cannot
+  say whose quote it was. Cost per accepted is the summed known `cost_usd`
+  over accepted findings, null with none accepted or no priced run
+  (`unpriced_runs` counts the rest). Failure rate counts every run whose
+  status is not `ok`; timeout rate counts `print-timeout`, `exit-124` and
+  Vibe's `stopped-early`, which also covers a price-limit stop.
+- **Thresholds live in routing.** `routing.json` gained
+  `stats: { min_adjudicated_findings: 20, removal_features: 3 }`, read by
+  `stats` only: a routing without it still prepares runs, and `stats`
+  then fails with `invalid-routing`. `stats` reads routing through #174's
+  `RoutingSource`, so the per-machine override can change a threshold
+  (`{ "stats": { "min_adjudicated_findings": 10 } }`), and the routed
+  clients it compares are the override's too.
+- **Suggestions.** For each stage, each routed client (the stage's `base`
+  roster in routing) is compared with the clients off the roster, each on
+  its latest prompt hash for that stage, when both cells have at least the
+  threshold of adjudicated findings. The off-roster client with the highest
+  precision above the routed one gets `<client> has higher precision than
+  <client> on the <stage> stage over <n> findings (<p> against <p>);
+  consider swapping.`, where `n` is both cells' adjudicated findings.
+  Routed clients are never compared with each other.
+- **Removal candidates.** Per stage, the `removal_features` latest
+  features, ordered by their latest run of that stage; a stage that ran on
+  fewer is not judged. It is a candidate when no accepted finding of those
+  features was unique. Taken literally from the ticket: a stage whose
+  critics agree on every accepted finding is flagged too.
+- **The skill.** `skills/critique-stats/SKILL.md` is user-invoked
+  (`disable-model-invocation: true`; the other agents ignore the key) and a
+  `local_skills` entry for claude, codex, vibe and antigravity. It prints
+  the report, explains each suggestion and candidate, and points the owner
+  at `skills/critique/routing.json`; nothing writes routing. #200's dogfood
+  run reads its removal candidates from the same report.

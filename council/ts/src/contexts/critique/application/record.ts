@@ -54,6 +54,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
       repository: manifest.repository,
       run_id: manifest.run_id,
+      spec: manifest.artifact.reference,
       stage: manifest.stage,
     }
     const summary = renderSummary(run, reportPath)

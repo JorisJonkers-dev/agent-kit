@@ -27,6 +27,11 @@ export interface AdjudicatedRun {
   readonly depth: Depth
   readonly depth_choice: DepthChoice
   readonly repository: string
+  /**
+   * The spec the run belongs to, as the artifact's reference names it
+   * (`host/owner/repo#<n>` or a repository path). Stats counts features by it.
+   */
+  readonly spec: string
   /** True when no critic produced a usable review. */
   readonly degraded: boolean
   readonly critics: readonly CriticRun[]

@@ -39,6 +39,8 @@ export type CritiqueErrorCode =
   | 'outside-repository'
   /** A run whose verdicts are already recorded. */
   | 'already-recorded'
+  /** A line of the user's ledger that record could not have written. */
+  | 'invalid-ledger'
 
 export class CritiqueError extends Error {
   override readonly name = 'CritiqueError'

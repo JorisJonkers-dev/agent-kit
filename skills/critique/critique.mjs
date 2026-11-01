@@ -257,6 +257,16 @@ var JsonFields = class _JsonFields {
   nullableNumber(key2) {
     return this.value[key2] === null ? null : this.number(key2);
   }
+  /** A whole number of at least one. */
+  positiveInteger(key2) {
+    const value = this.number(key2);
+    _JsonFields.ensure(Number.isInteger(value) && value >= 1, this.at(key2), "a whole number of at least 1");
+    return value;
+  }
+  /** A non-empty string, or null. */
+  nullableString(key2) {
+    return this.value[key2] === null ? null : this.string(key2);
+  }
   boolean(key2) {
     const value = this.value[key2];
     _JsonFields.ensure(typeof value === "boolean", this.at(key2), "true or false");
@@ -1154,7 +1164,14 @@ function parseRouting(text) {
       depth_signals: stage.has("depth_signals") ? readDepthSignalsConfig(stage.object("depth_signals"), name) : NO_DEPTH_SIGNALS,
       distinct_families: stage.boolean("distinct_families")
     })),
-    version: file.literal("version", 1)
+    version: file.literal("version", 1),
+    ...file.has("stats") ? { stats: readStatsThresholds(file.object("stats")) } : {}
+  };
+}
+function readStatsThresholds(fields) {
+  return {
+    min_adjudicated_findings: fields.positiveInteger("min_adjudicated_findings"),
+    removal_features: fields.positiveInteger("removal_features")
   };
 }
 function readCriticClient(fields) {
@@ -1858,6 +1875,7 @@ function ledgerLines(run, recordedAt) {
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
     run_id: run.run_id,
+    spec: run.spec,
     stage: run.stage
   };
   const criticFields = (criticId) => {
@@ -1900,6 +1918,63 @@ function ledgerLines(run, recordedAt) {
     verdict: finding.verdict.verdict
   }));
   return [...runLines, ...findingLines].map((line) => JSON.stringify(line));
+}
+function parseLedger(text) {
+  const runs = [];
+  const findings = [];
+  text.split("\n").forEach((line, index) => {
+    if (line.trim() === "") return;
+    const fields = JsonFields.of(parseLine(line, index + 1), `line ${String(index + 1)}`);
+    const type = fields.string("type");
+    if (type === "run") runs.push(readCriticRunLine(fields));
+    if (type === "finding") findings.push(readFindingLine(fields));
+  });
+  return { findings, runs };
+}
+function parseLine(line, number) {
+  try {
+    return JSON.parse(line);
+  } catch {
+    throw new JsonShapeError(`line ${String(number)} is not JSON`);
+  }
+}
+function readContext(fields) {
+  return {
+    recorded_at: fields.string("recorded_at"),
+    repository: fields.string("repository"),
+    run_id: fields.string("run_id"),
+    spec: fields.optionalString("spec"),
+    stage: fields.oneOf("stage", CRITIQUE_STAGES)
+  };
+}
+function readCriticRunLine(fields) {
+  const hashes = fields.object("prompt_hashes");
+  return {
+    ...readContext(fields),
+    client: fields.string("client"),
+    cost_usd: fields.nullableNumber("cost_usd"),
+    critic_id: fields.string("critic_id"),
+    failure: fields.nullableString("failure"),
+    lens_hashes: fields.stringMap("lens_hashes"),
+    lenses: fields.strings("lenses"),
+    model: fields.string("model"),
+    prompt_hashes: {
+      contract: hashes.string("contract"),
+      preamble: hashes.string("preamble"),
+      role: hashes.string("role"),
+      schema: hashes.string("schema")
+    },
+    role: fields.string("role"),
+    status: fields.oneOf("status", CRITIC_STATUSES)
+  };
+}
+function readFindingLine(fields) {
+  return {
+    ...readContext(fields),
+    pre_verdict: fields.nullableString("pre_verdict"),
+    raised_by: fields.strings("raised_by"),
+    verdict: fields.oneOf("verdict", VERDICTS)
+  };
 }
 
 // src/contexts/critique/domain/report.ts
@@ -2107,6 +2182,7 @@ var RecordCommand = class {
       findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
       repository: manifest.repository,
       run_id: manifest.run_id,
+      spec: manifest.artifact.reference,
       stage: manifest.stage
     };
     const summary = renderSummary(run, reportPath);
@@ -2173,6 +2249,319 @@ function isReasonCode(value) {
   return REASON_CODE.test(value);
 }
 
+// src/contexts/critique/domain/stats.ts
+var TIMEOUT_FAILURES = /* @__PURE__ */ new Set([
+  "print-timeout",
+  "stopped-early",
+  "exit-124"
+]);
+var Tally = class {
+  constructor(run, promptHash2) {
+    this.promptHash = promptHash2;
+    this.stage = run.stage;
+    this.client = run.client;
+    this.model = run.model;
+    this.role = run.role;
+    this.lenses = run.lenses;
+  }
+  promptHash;
+  stage;
+  client;
+  model;
+  role;
+  lenses;
+  first = "";
+  last = "";
+  runs = 0;
+  failed = 0;
+  timedOut = 0;
+  findings = 0;
+  accepted = 0;
+  rejected = 0;
+  hints = 0;
+  needsHuman = 0;
+  unique = 0;
+  fabricated = 0;
+  cost = 0;
+  unpriced = 0;
+  addRun(run) {
+    this.runs += 1;
+    if (this.first === "" || run.recorded_at < this.first) this.first = run.recorded_at;
+    if (run.recorded_at > this.last) this.last = run.recorded_at;
+    if (run.status !== "ok") this.failed += 1;
+    if (run.failure !== null && TIMEOUT_FAILURES.has(run.failure)) this.timedOut += 1;
+    if (run.cost_usd === null) this.unpriced += 1;
+    else this.cost += run.cost_usd;
+  }
+  addFinding(finding, unique) {
+    this.findings += 1;
+    if (finding.verdict === "accepted") this.accepted += 1;
+    if (finding.verdict === "rejected") this.rejected += 1;
+    if (finding.verdict === "hint") this.hints += 1;
+    if (finding.verdict === "needs-human") this.needsHuman += 1;
+    if (finding.verdict === "accepted" && unique) this.unique += 1;
+    if (finding.pre_verdict === "fabricated-evidence") this.fabricated += 1;
+  }
+  cell(thresholds) {
+    const adjudicated = this.accepted + this.rejected;
+    const priced = this.runs - this.unpriced;
+    return {
+      accepted: this.accepted,
+      adjudicated,
+      below_threshold: adjudicated < thresholds.min_adjudicated_findings,
+      client: this.client,
+      cost_per_accepted_usd: this.accepted === 0 || priced === 0 ? null : this.cost / this.accepted,
+      cost_usd: this.cost,
+      fabricated: this.fabricated,
+      fabrication_rate: this.findings === 0 ? null : this.fabricated / this.findings,
+      failed_runs: this.failed,
+      failure_rate: this.failed / this.runs,
+      findings: this.findings,
+      first_recorded_at: this.first,
+      hints: this.hints,
+      last_recorded_at: this.last,
+      lenses: this.lenses,
+      model: this.model,
+      needs_human: this.needsHuman,
+      precision: adjudicated === 0 ? null : this.accepted / adjudicated,
+      prompt_hash: this.promptHash,
+      rejected: this.rejected,
+      role: this.role,
+      runs: this.runs,
+      stage: this.stage,
+      timed_out_runs: this.timedOut,
+      timeout_rate: this.timedOut / this.runs,
+      unique_catches: this.unique,
+      unpriced_runs: this.unpriced
+    };
+  }
+};
+function critiqueStats(ledger, filter, thresholds, routed) {
+  const runs = ledger.runs.filter((line) => kept(line, filter));
+  const tallies = /* @__PURE__ */ new Map();
+  const byCritic = /* @__PURE__ */ new Map();
+  for (const run of runs) {
+    const hash = promptHash(run);
+    const key2 = `${run.stage} ${run.client} ${hash}`;
+    const tally = tallies.get(key2) ?? new Tally(run, hash);
+    tallies.set(key2, tally);
+    tally.addRun(run);
+    byCritic.set(criticKey(run.run_id, run.critic_id), tally);
+  }
+  const uniqueCatches = [];
+  for (const finding of ledger.findings.filter((line) => kept(line, filter))) {
+    const raisers = new Set(finding.raised_by.map((id) => raiser(byCritic, finding, id)));
+    const unique = new Set([...raisers].map((tally) => tally.client)).size === 1;
+    if (unique && finding.verdict === "accepted") uniqueCatches.push(finding);
+    for (const tally of raisers) tally.addFinding(finding, unique);
+  }
+  const cells = [...tallies.values()].map((tally) => tally.cell(thresholds)).sort(
+    (a, b) => CRITIQUE_STAGES.indexOf(a.stage) - CRITIQUE_STAGES.indexOf(b.stage) || a.client.localeCompare(b.client) || a.first_recorded_at.localeCompare(b.first_recorded_at)
+  );
+  return {
+    cells,
+    removal_candidates: removalCandidates(runs, uniqueCatches, thresholds.removal_features),
+    suggestions: suggestions(cells, routed)
+  };
+}
+function kept(line, filter) {
+  const day = line.recorded_at.slice(0, 10);
+  return (filter.repository === void 0 || line.repository.toLowerCase() === filter.repository.toLowerCase()) && (filter.since === void 0 || day >= filter.since) && (filter.until === void 0 || day <= filter.until);
+}
+function promptHash(run) {
+  const hashes = run.prompt_hashes;
+  const lenses = Object.entries(run.lens_hashes).sort(([a], [b]) => a.localeCompare(b));
+  return sha256(
+    JSON.stringify([hashes.preamble, hashes.role, hashes.contract, hashes.schema, lenses])
+  ).slice(0, 12);
+}
+function criticKey(runId, criticId) {
+  return `${runId} ${criticId}`;
+}
+function raiser(byCritic, finding, criticId) {
+  const tally = byCritic.get(criticKey(finding.run_id, criticId));
+  if (tally === void 0) {
+    throw new CritiqueError(
+      "invalid-ledger",
+      `a finding of run ${finding.run_id} names critic ${criticId}, which has no run line`
+    );
+  }
+  return tally;
+}
+function removalCandidates(runs, uniqueCatches, features) {
+  const candidates = [];
+  for (const stage of CRITIQUE_STAGES) {
+    const latest = /* @__PURE__ */ new Map();
+    for (const run of runs) {
+      if (run.stage !== stage || run.spec === void 0) continue;
+      if ((latest.get(run.spec) ?? "") < run.recorded_at) latest.set(run.spec, run.recorded_at);
+    }
+    if (latest.size < features) continue;
+    const looked = [...latest].sort(([, a], [, b]) => b.localeCompare(a)).slice(0, features).map(([spec]) => spec);
+    if (!uniqueCatches.some(
+      (finding) => finding.stage === stage && looked.includes(finding.spec ?? "")
+    )) {
+      candidates.push({ features: looked, stage });
+    }
+  }
+  return candidates;
+}
+function suggestions(cells, routed) {
+  const sentences = [];
+  for (const stage of CRITIQUE_STAGES) {
+    const current = /* @__PURE__ */ new Map();
+    for (const cell of cells) {
+      if (cell.stage !== stage) continue;
+      const seen = current.get(cell.client);
+      if (seen === void 0 || seen.last_recorded_at < cell.last_recorded_at)
+        current.set(cell.client, cell);
+    }
+    const eligible = [...current.values()].filter((cell) => !cell.below_threshold);
+    const roster = routed(stage);
+    for (const client of roster) {
+      const incumbent = eligible.find((cell) => cell.client === client);
+      if (incumbent === void 0) continue;
+      const [challenger] = eligible.filter(
+        (cell) => !roster.includes(cell.client) && precisionOf(cell) > precisionOf(incumbent)
+      ).sort((a, b) => precisionOf(b) - precisionOf(a));
+      if (challenger === void 0) continue;
+      sentences.push(
+        `${challenger.client} has higher precision than ${client} on the ${stage} stage over ${String(challenger.adjudicated + incumbent.adjudicated)} findings (${precisionOf(challenger).toFixed(2)} against ${precisionOf(incumbent).toFixed(2)}); consider swapping.`
+      );
+    }
+  }
+  return sentences;
+}
+function precisionOf(cell) {
+  return cell.precision ?? 0;
+}
+function renderStats(stats, scope) {
+  const { filter, thresholds } = scope;
+  const dates = filter.since === void 0 && filter.until === void 0 ? "all" : `${filter.since ?? "start"} to ${filter.until ?? "today"}`;
+  const lines = [
+    "# Critique stats",
+    "",
+    `Ledger: ${scope.ledgerPath}. Repository: ${filter.repository ?? "all"}. Dates: ${dates}.`,
+    `One row per critic client and prompt. A row with fewer than ${String(thresholds.min_adjudicated_findings)} adjudicated findings gets no suggestion.`
+  ];
+  if (stats.cells.length === 0) lines.push("", "No critic runs in the ledger match.");
+  for (const stage of CRITIQUE_STAGES) {
+    const rows = stats.cells.filter((cell) => cell.stage === stage);
+    if (rows.length === 0) continue;
+    lines.push(
+      "",
+      `## ${stage}`,
+      "",
+      "| client | prompt | runs | adjudicated | precision | unique | fabricated | cost per accepted | failed | timed out |",
+      "|---|---|---|---|---|---|---|---|---|---|",
+      ...rows.map(
+        (cell) => [
+          cell.client,
+          cell.prompt_hash,
+          String(cell.runs),
+          `${String(cell.adjudicated)}${cell.below_threshold ? " (too few)" : ""}`,
+          cell.precision === null ? "-" : cell.precision.toFixed(2),
+          String(cell.unique_catches),
+          cell.fabrication_rate === null ? "-" : percent(cell.fabrication_rate),
+          cell.cost_per_accepted_usd === null ? "-" : `$${cell.cost_per_accepted_usd.toFixed(4)}`,
+          percent(cell.failure_rate),
+          percent(cell.timeout_rate)
+        ].join(" | ")
+      ).map((row) => `| ${row} |`)
+    );
+  }
+  lines.push("", "## Removal candidates", "");
+  lines.push(
+    ...stats.removal_candidates.length === 0 ? ["none"] : stats.removal_candidates.map(
+      (candidate) => `- ${candidate.stage}: no unique accepted catch across its last ${String(candidate.features.length)} features (${candidate.features.join(", ")})`
+    )
+  );
+  lines.push(
+    "",
+    "## Suggestions",
+    "",
+    ...stats.suggestions.length === 0 ? ["none"] : stats.suggestions.map((s) => `- ${s}`)
+  );
+  return `${lines.join("\n")}
+`;
+}
+function percent(rate) {
+  return `${String(Math.round(rate * 100))}%`;
+}
+
+// src/contexts/critique/application/stats.ts
+var DAY = /^\d{4}-\d{2}-\d{2}$/;
+var StatsCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.repositories = new RepositoryGate(deps);
+    this.routing = new RoutingSource(deps);
+  }
+  deps;
+  repositories;
+  routing;
+  async run(raw) {
+    const input = readInput(raw, "stats", readStatsInput);
+    let filter = input.filter;
+    if (input.repo !== void 0) {
+      const repository = await this.repositories.resolve(input.repo);
+      if (repository.status === "refused") return repository;
+      filter = { ...filter, repository: repository.key };
+    }
+    const routing = await this.routing.load();
+    const thresholds = routing.stats;
+    if (thresholds === void 0)
+      throw new CritiqueError("invalid-routing", "routing has no stats thresholds");
+    const path = ledgerPath(this.deps.env);
+    const ledger = await this.readLedger(path);
+    const stats = critiqueStats(
+      ledger,
+      filter,
+      thresholds,
+      (stage) => routing.stages[stage]?.base.map((slot) => slot.client) ?? []
+    );
+    return {
+      ...stats,
+      filter,
+      ledger_path: path,
+      report: renderStats(stats, { filter, ledgerPath: path, thresholds }),
+      status: "reported",
+      thresholds
+    };
+  }
+  async readLedger(path) {
+    if (!await this.deps.files.exists(path)) return { findings: [], runs: [] };
+    return readJsonFile(this.deps.files, path, "invalid-ledger", parseLedger);
+  }
+};
+function readStatsInput(fields) {
+  if (fields.has("repo") && fields.has("repository")) {
+    throw new CritiqueError(
+      "invalid-input",
+      "stats input: name the repository by repo or by repository, not both"
+    );
+  }
+  const since = fields.optionalMatching("since", isDay, "a date, YYYY-MM-DD");
+  const until = fields.optionalMatching("until", isDay, "a date, YYYY-MM-DD");
+  if (since !== void 0 && until !== void 0 && since > until) {
+    throw new CritiqueError("invalid-input", `stats input: since ${since} is after until ${until}`);
+  }
+  const repository = fields.optionalString("repository");
+  return {
+    filter: {
+      ...repository === void 0 ? {} : { repository },
+      ...since === void 0 ? {} : { since },
+      ...until === void 0 ? {} : { until }
+    },
+    repo: fields.optionalString("repo")
+  };
+}
+function isDay(value) {
+  if (!DAY.test(value)) return false;
+  const day = /* @__PURE__ */ new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().startsWith(value);
+}
+
 // src/contexts/critique/application/commands.ts
 function createCritiqueCommands(deps) {
   return {
@@ -2180,7 +2569,8 @@ function createCritiqueCommands(deps) {
     checkTickets: new CheckTicketsCommand(deps),
     fanOut: new FanOutCommand(deps),
     prepare: new PrepareCommand(deps),
-    record: new RecordCommand(deps)
+    record: new RecordCommand(deps),
+    stats: new StatsCommand(deps)
   };
 }
 
@@ -2796,9 +3186,10 @@ var COMMANDS = {
   "check-tickets": "checkTickets",
   "fan-out": "fanOut",
   prepare: "prepare",
-  record: "record"
+  record: "record",
+  stats: "stats"
 };
-var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets> [--input FILE | --json TEXT]
+var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".

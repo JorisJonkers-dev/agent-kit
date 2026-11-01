@@ -29,6 +29,10 @@
       "family": "deepseek"
     }
   },
+  "stats": {
+    "min_adjudicated_findings": 20,
+    "removal_features": 3
+  },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
     "agy-gemini-flash-high": ["vibe-glm"]
