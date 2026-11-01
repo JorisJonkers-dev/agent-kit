@@ -1,4 +1,5 @@
 import type { CriticRun } from './critic.js'
+import type { DepthChoice } from './depth.js'
 import type { ModelFamily } from './family.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
@@ -28,6 +29,7 @@ export interface AdjudicatedRun {
   readonly depth: Depth
   readonly round: Round
   readonly previous_run_id?: string
+  readonly depth_choice: DepthChoice
   readonly repository: string
   /** True when no critic produced a usable review. */
   readonly degraded: boolean

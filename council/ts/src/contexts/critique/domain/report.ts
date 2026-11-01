@@ -1,4 +1,5 @@
 import type { CriticRun } from './critic.js'
+import { signalledDepth, type DepthSignal } from './depth.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
 import { countVerdicts, familiesOf, isDissent, openCriticalQuestions, VERDICTS, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
@@ -36,7 +37,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       `# Critique: ${run.stage}, run ${run.run_id}`,
       '',
       ...degradedLines(run),
-      `Depth: ${run.depth}`,
+      depthLine(run),
       ...roundLines(run),
       verdictLine(run),
       ...toTicketsLines(run),
@@ -87,7 +88,7 @@ export function renderReport(run: AdjudicatedRun): string {
     '',
     ...degradedLines(run),
     `Repository: ${run.repository}`,
-    `Depth: ${run.depth}`,
+    depthLine(run),
     verdictLine(run),
     '',
     '## Critics',
@@ -157,12 +158,34 @@ function questionTail(verdict: Verdict): string | undefined {
   return parts.length === 0 ? undefined : parts.join(' ')
 }
 
+/**
+ * #167 US44: the depth, whether the caller or the signals chose it, and the
+ * signals that fired (or, when none did, what was measured), so the owner can
+ * tell whether the automatic choice is sound.
+ */
+function depthLine(run: AdjudicatedRun): string {
+  const choice = run.depth_choice
+  const measured = Object.entries(choice.measures).map(([measure, { threshold, value }]) => `${measure} ${String(value)} of ${String(threshold)}`)
+  const signals =
+    choice.signals.length > 0 ? choice.signals.map(signalText).join('; ') : ['none fired', ...(measured.length === 0 ? [] : [measured.join(', ')])].join(': ')
+  return choice.chosen_by === 'argument'
+    ? `Depth: ${run.depth}, chosen by argument; the signals alone would choose ${signalledDepth(choice)} (${signals})`
+    : `Depth: ${run.depth}, chosen by signals: ${signals}`
+}
+
+function signalText(signal: DepthSignal): string {
+  if (signal.kind === 'threshold') return `${signal.measure} ${String(signal.value)} > ${String(signal.threshold)}`
+  return signal.kind === 'risk-term' ? `risk term "${signal.term}"` : `label ${signal.label}`
+}
+
 function droppedLine(dropped: DroppedCritic): string {
   const detail = dropped.detail === undefined ? '' : ` (${dropped.detail})`
   const slot =
-    dropped.replaced_by === undefined
-      ? 'no fallback left, so the stage runs with fewer critics'
-      : `replaced by ${dropped.replaced_by}`
+    dropped.replaced_by !== undefined
+      ? `replaced by ${dropped.replaced_by}`
+      : dropped.deep === true
+        ? 'deep critic left out'
+        : 'no fallback left, so the stage runs with fewer critics'
   return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}${detail}; ${slot}`
 }
 
