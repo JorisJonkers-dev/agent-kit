@@ -636,6 +636,55 @@ council:
     - path: council/schemas/worker-result.schema.json
       sha256: 9ea80441aa00cd871a0ce1931779bef2a20d78853dc8e7fa820bdd3927c8643a
       mode: "0644"
+# The critique runner and the files it reads, pinned the way council.files pins
+# council's. skills/critique/ is itself the copy setup installs (there is no
+# repo copy beside it), so the pin is on it. Its SKILL.md is the skill's text,
+# not the runner's, and is left out. `npm run build` in council/ts rebuilds
+# critique.mjs: update its sha256 here in the same commit.
+critique:
+  files:
+    - path: skills/critique/critique.mjs
+      sha256: bdb6e00582442f404e5027635bf7a01b813904a178dfb268abb54cbef4321e32
+      mode: "0755"
+    - path: skills/critique/lenses/failure-modes.md
+      sha256: 71a3ec754f10e74d2ec77e81d0523317c02a5fc6871796036ea85c4396e88169
+      mode: "0644"
+    - path: skills/critique/lenses/fidelity.md
+      sha256: 900dcd58c7b617a52e0fffcf52c6be734783f6f42f659a999781e2331034ff81
+      mode: "0644"
+    - path: skills/critique/lenses/integration.md
+      sha256: ac08a7bdb75b646dee5ca77c84188df460de0a3c83ad0be59f2e003328a670c1
+      mode: "0644"
+    - path: skills/critique/lenses/operability.md
+      sha256: 938048afeddaf57947c7490de28cb066c7af00ccae702193280f45ab59a88858
+      mode: "0644"
+    - path: skills/critique/lenses/security.md
+      sha256: 48e15bf60b7ac86469a33f8c0b9eded50054d315fdad08e01146895702e3b716
+      mode: "0644"
+    - path: skills/critique/lenses/simplicity.md
+      sha256: 6422a3486077b86b4a81eb86dc69f31c2025c75196e26c8d64933907a1c1e151
+      mode: "0644"
+    - path: skills/critique/lenses/testability.md
+      sha256: beb37d50b71548814c76af2f5b9a3fcf08dcd2c5e962c2ef53b7ab5101fb5f21
+      mode: "0644"
+    - path: skills/critique/lenses/unasked-questions.md
+      sha256: eaebff6b7024799555ce22e31fbc58e07bfe04bb49b4513a8f83d251564185c4
+      mode: "0644"
+    - path: skills/critique/prompts/output-contract.md
+      sha256: 3ba902bb4af8c8e7762c91b72a48d10d067776d730c37a59db1a2d35b1d0e187
+      mode: "0644"
+    - path: skills/critique/prompts/preamble.md
+      sha256: 40cc5147b88be5ecd6a74060e77e7da48e0ce9d77d33efed6995cc492b4b4108
+      mode: "0644"
+    - path: skills/critique/roles/spec-redteam.md
+      sha256: a744044cab7eed533c9fcb096dc9ae4a7484f61f8cfc5f5a865ebeda4dae7684
+      mode: "0644"
+    - path: skills/critique/routing.json
+      sha256: 0481ef12f560d78e4b6ec94f42c52b25ed6a87bca2b7674905c098359fdc9e59
+      mode: "0644"
+    - path: skills/critique/schemas/finding.schema.json
+      sha256: fc6d8739d26cf1209c2ca00a644de32aea6f305f301c84abecb1d2d460b49780
+      mode: "0644"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
   schema: runner-manifests/runtime-package.schema.json

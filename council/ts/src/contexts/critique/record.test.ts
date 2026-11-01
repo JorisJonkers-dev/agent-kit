@@ -46,12 +46,14 @@ async function reviewed(
   return { fan, h, run }
 }
 
+/** The lines record appends: fan-out's invocation lines, which the budget reads, are left out. */
 function ledgerLines(h: Harness): Promise<Record<string, unknown>[]> {
   return readFile(join(h.home, '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl'), 'utf8').then((text) =>
     text
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line) as Record<string, unknown>),
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((line) => line.type !== 'invocation'),
   )
 }
 
@@ -81,7 +83,7 @@ describe('record', () => {
     expect(summary).toContain('vibe-mistral-large (mistral-large-4-0-3, mistral): ok, 4 findings, $0.0123')
     expect(summary).toContain('Verdicts: accepted 1, rejected 1, needs-human 1, hint 1')
     const headings = summary.split('\n').filter((line) => line.startsWith('## '))
-    expect(headings).toEqual(['## Critics', '## Accepted', '## Questions for you', '## Dissent', '## Report'])
+    expect(headings).toEqual(['## Critics', '## Accepted', '## Questions for you', '## Minor', '## Dissent', '## Report'])
     expect(section(summary, 'Accepted')).toContain('F1 [critical contradiction] User story 3')
     expect(section(summary, 'Questions for you')).toContain('F3 [major untestable] User story 9')
     expect(section(summary, 'Questions for you')).toContain('Which threshold should apply?')
@@ -184,7 +186,7 @@ describe('record', () => {
   it('says no critique ran when no critic was allowed to run', async () => {
     const h = await harness()
     open.push(h)
-    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['deepseek'] })
     const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
     if (run.status !== 'ready') throw new Error('not ready')
     await h.commands.fanOut.run({ run_dir: run.run_dir })
@@ -192,7 +194,12 @@ describe('record', () => {
     const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(summary).toContain('degraded: no critique ran')
-    expect(section(summary, 'Critics')).toBe('- Not run: vibe-mistral-large (mistral): family-not-allowed')
+    expect(section(summary, 'Critics')).toBe(
+      [
+        '- Not run: vibe-mistral-large (mistral): family-not-allowed; no fallback left, so the stage runs with fewer critics',
+        '- Not run: agy-gemini-flash-high (google): family-not-allowed; no fallback left, so the stage runs with fewer critics',
+      ].join('\n'),
+    )
   })
 
   it('does not call a run degraded when a critic reviewed the artifact', async () => {
@@ -217,7 +224,7 @@ describe('record', () => {
   })
 
   it('stays within its size budget however many findings there are', async () => {
-    const many = Array.from({ length: 60 }, (_, i) => finding({ claim: LONG_CLAIM, id: `F${String(i + 1)}` }))
+    const many = Array.from({ length: 60 }, (_, i) => finding({ claim: LONG_CLAIM, id: `F${String(i + 1)}`, location: `User story ${String(i + 1)}` }))
     const { h, run } = await reviewed(many)
 
     const { summary } = await h.commands.record.run({
@@ -312,6 +319,135 @@ describe('record', () => {
       h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] }),
     ).rejects.toThrow(/already recorded/)
     expect(await ledgerLines(h)).toHaveLength(2)
+  })
+})
+
+describe('record keeps the mechanical pre-verdicts', () => {
+  const fabricated = finding({ evidence: [{ file: 'artifact/spec.md', kind: 'quote', value: 'Widgets are blue.' }] })
+  const speculative = finding({ evidence: [] })
+
+  it('rejects a fabricated-evidence finding without a verdict and logs the reason', async () => {
+    const { h, run } = await reviewed([fabricated])
+
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(result.counts).toMatchObject({ accepted: 0, rejected: 1 })
+    expect(await readFile(result.report_path, 'utf8')).toContain('Verdict: rejected (fabricated-evidence)')
+    expect((await ledgerLines(h))[1]).toMatchObject({ reason_code: 'fabricated-evidence', type: 'finding', verdict: 'rejected' })
+  })
+
+  it.each(['accepted', 'needs-human', 'hint'])('refuses to overturn a fabricated-evidence rejection to %s', async (verdict) => {
+    const { h, run } = await reviewed([fabricated])
+
+    await expect(
+      h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', reason: 'r', verdict }] }),
+    ).rejects.toThrow(/F1 was rejected as fabricated-evidence/)
+    expect(await h.readText(join(run.run_dir, 'report.md')).catch(() => 'none')).toBe('none')
+  })
+
+  it('keeps fabricated-evidence as the reason when the orchestrator also rejects the finding', async () => {
+    const { h, run } = await reviewed([fabricated])
+
+    await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [{ finding_id: 'F1', reason: 'Not in the spec.', reason_code: 'not-in-spec', verdict: 'rejected' }],
+    })
+
+    expect((await ledgerLines(h))[1]).toMatchObject({ reason_code: 'fabricated-evidence', verdict: 'rejected' })
+  })
+
+  it('keeps a hint that gets no verdict out of the accepted findings', async () => {
+    const { h, run } = await reviewed([speculative])
+
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(result.counts).toMatchObject({ accepted: 0, hint: 1 })
+    expect(section(result.summary, 'Accepted')).toBe('none')
+    expect((await ledgerLines(h))[1]).toMatchObject({ pre_verdict: 'no-evidence', reason_code: 'no-evidence', verdict: 'hint' })
+  })
+
+  it.each(['accepted', 'rejected'])('lets the orchestrator turn a hint into %s', async (verdict) => {
+    const { h, run } = await reviewed([speculative])
+
+    const result = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [{ finding_id: 'F1', reason: 'Checked against the nightly job.', verdict }],
+    })
+
+    expect(result.counts).toMatchObject({ [verdict]: 1, hint: 0 })
+    expect(await readFile(result.report_path, 'utf8')).toContain('Pre-verdict: hint (no-evidence)')
+    expect((await ledgerLines(h))[1]).toMatchObject({ pre_verdict: 'no-evidence', verdict })
+  })
+
+  it('refuses to turn a hint into a question', async () => {
+    const { h, run } = await reviewed([speculative])
+
+    await expect(
+      h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'needs-human' }] }),
+    ).rejects.toThrow(/F1 is a hint/)
+  })
+})
+
+describe('the summary batches minor findings', () => {
+  it('puts every minor finding of a critic on one line, out of the accepted findings and the questions', async () => {
+    const { h, run } = await reviewed([
+      finding({ id: 'F1', severity: 'major' }),
+      finding({ id: 'F2', location: 'User story 1', severity: 'minor' }),
+      finding({ id: 'F3', location: 'Problem Statement', severity: 'minor' }),
+      finding({ evidence: [], id: 'F4', severity: 'minor' }),
+    ])
+
+    const { summary } = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [
+        { finding_id: 'F1', verdict: 'accepted' },
+        { finding_id: 'F2', verdict: 'accepted' },
+        { finding_id: 'F3', reason: 'Which wording?', verdict: 'needs-human' },
+      ],
+    })
+
+    expect(section(summary, 'Accepted')).not.toContain('F2')
+    expect(section(summary, 'Questions for you')).toBe('none')
+    expect(section(summary, 'Minor')).toBe('- c1-vibe-mistral-large: 3 minor: accepted F2; needs-human F3; hint F4')
+  })
+
+  it('gives each critic its own minor line', async () => {
+    const both = vibeStdout(fenced({ findings: [finding({ id: 'A', severity: 'major' }), finding({ id: 'B', location: 'User story 1', severity: 'minor' })] }))
+    const h = await harness({
+      routing: {
+        clients: {
+          'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5-3' },
+          'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+        },
+        stages: {
+          spec: {
+            base: [
+              { client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+              { client: 'vibe-glm', lenses: ['integration'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 },
+            ],
+            distinct_families: true,
+          },
+        },
+        version: 1,
+      },
+      scripts: [0, 1].map(() => ({ exitCode: 0, exportJson: isolatedExport(), stdout: both })),
+    })
+    open.push(h)
+    await h.commands.allow.run({ repo: h.repo, families: ['mistral', 'zhipu'] })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' })
+    if (run.status !== 'ready') throw new Error('not ready')
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: ['F1', 'F2'].map((id) => ({ finding_id: id, verdict: 'accepted' })),
+    })
+
+    expect(section(summary, 'Minor').split('\n')).toEqual([
+      '- c1-vibe-mistral-large: 1 minor: accepted F2',
+      '- c2-vibe-glm: 1 minor: accepted F2',
+    ])
+    expect(section(summary, 'Accepted')).toContain('F1 [major contradiction]')
   })
 })
 

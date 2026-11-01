@@ -487,6 +487,27 @@ describe('GitCliAdapter repository facts', () => {
     expect(await new GitCliAdapter(process).remotes('/r')).toEqual([])
   })
 
+  it('reads the porcelain status with every untracked file and NUL-separated paths', async () => {
+    const process = new RecordingProcess(() =>
+      success(' M changed.ts\0R  new name.ts\0old name.ts\0?? dir/with "quote".md\0'),
+    )
+
+    expect(await new GitCliAdapter(process).porcelainStatus('/r')).toEqual([
+      { code: ' M', path: 'changed.ts' },
+      { code: 'R ', path: 'new name.ts' },
+      { code: '??', path: 'dir/with "quote".md' },
+    ])
+    expect(process.commands).toEqual([
+      { args: ['status', '--porcelain=v1', '-z', '--untracked-files=all'], command: 'git', cwd: '/r' },
+    ])
+  })
+
+  it('reads a clean working tree as no porcelain entries', async () => {
+    const process = new RecordingProcess(() => success(''))
+
+    expect(await new GitCliAdapter(process).porcelainStatus('/r')).toEqual([])
+  })
+
   it('throws with the git error when listing remotes fails otherwise', async () => {
     const process = new RecordingProcess(() => failure(128, 'fatal: not a git repository'))
 

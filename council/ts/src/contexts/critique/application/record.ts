@@ -1,14 +1,16 @@
 import { join } from 'node:path'
 
+import type { RunFinding } from '../domain/findings.js'
 import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
 import { parseManifest } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
 import { renderReport, renderSummary } from '../domain/report.js'
-import { countVerdicts, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts } from '../domain/verdicts.js'
+import type { Round } from '../domain/stage.js'
+import { countVerdicts, secondRoundDue, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts } from '../domain/verdicts.js'
 import { readInput, readJsonFile } from './decode.js'
 import { parseFanOutResult } from './fan-out.js'
-import { findingsPath, ledgerPath, manifestPath } from './locations.js'
+import { findingsPath, ledgerPath, manifestPath, reportPath as reportPathOf } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 
 export interface RecordResult {
@@ -16,6 +18,9 @@ export interface RecordResult {
   readonly run_id: string
   /** True when no critic produced a usable review. */
   readonly degraded: boolean
+  readonly round: Round
+  /** More than three critical findings were accepted in a first round: prepare again with `previous_run_dir`. */
+  readonly second_round_due: boolean
   readonly counts: VerdictCounts
   readonly report_path: string
   readonly summary_path: string
@@ -41,16 +46,20 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), 'invalid-run', parseManifest)
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), 'invalid-run', parseFanOutResult)
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))
-    const reportPath = join(input.runDir, 'report.md')
+    const reportPath = reportPathOf(input.runDir)
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
 
     const run: AdjudicatedRun = {
       critics: merged.critics,
       degraded: merged.degraded,
       depth: manifest.depth,
+      depth_choice: manifest.depth_choice,
       dropped: manifest.dropped,
-      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding.id) })),
+      findings: merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) })),
+      flow: manifest.flow,
       repository: manifest.repository,
+      round: manifest.round,
+      ...(manifest.previous_run_id === undefined ? {} : { previous_run_id: manifest.previous_run_id }),
       run_id: manifest.run_id,
       stage: manifest.stage,
     }
@@ -65,7 +74,9 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       degraded: run.degraded,
       ledger_path: ledger,
       report_path: reportPath,
+      round: run.round,
       run_id: manifest.run_id,
+      second_round_due: secondRoundDue(run),
       status: 'recorded',
       summary,
       summary_path: summaryPath,
@@ -73,10 +84,31 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
   }
 }
 
-function verdictFor(verdicts: ReadonlyMap<string, Verdict>, id: string): Verdict {
-  const verdict = verdicts.get(id)
-  if (verdict === undefined) throw new CritiqueError('invalid-input', `no verdict for ${id}`)
-  return verdict
+/**
+ * The orchestrator's verdict, weighed against fan-out's pre-verdict. A
+ * fabricated-evidence rejection stands whatever the orchestrator says, and
+ * only a rejection may restate it. A hint stands unless the orchestrator
+ * accepts or rejects the finding. A finding without a pre-verdict needs a
+ * verdict.
+ */
+function verdictFor(verdicts: ReadonlyMap<string, Verdict>, finding: RunFinding): Verdict {
+  const given = verdicts.get(finding.id)
+  const pre = finding.pre_verdict
+  if (pre === undefined) {
+    if (given === undefined) throw new CritiqueError('invalid-input', `no verdict for ${finding.id}`)
+    return given
+  }
+  const mechanical: Verdict = { finding_id: finding.id, reason: pre.reason, reason_code: pre.reason_code, verdict: pre.verdict }
+  if (pre.verdict === 'rejected') {
+    if (given !== undefined && given.verdict !== 'rejected') {
+      throw new CritiqueError('invalid-input', `${finding.id} was rejected as fabricated-evidence, which a verdict cannot overturn`)
+    }
+    return mechanical
+  }
+  if (given?.verdict === 'needs-human') {
+    throw new CritiqueError('invalid-input', `${finding.id} is a hint: its verdict may only be accepted, rejected or hint`)
+  }
+  return given ?? mechanical
 }
 
 function verdictsByFinding(list: readonly Verdict[], known: ReadonlySet<string>): ReadonlyMap<string, Verdict> {
@@ -95,11 +127,17 @@ function readVerdict(fields: JsonFields): Verdict {
   const verdict = fields.oneOf('verdict', VERDICTS)
   const reason = verdict === 'rejected' || fields.has('reason') ? fields.string('reason') : undefined
   const code = fields.optionalMatching('reason_code', isReasonCode, 'a short lowercase slug')
+  const findingId = fields.string('finding_id')
+  const answered = fields.has('answered') ? fields.boolean('answered') : undefined
+  if (answered !== undefined && verdict !== 'needs-human') {
+    throw new CritiqueError('invalid-input', `${findingId}: only a needs-human verdict can be answered`)
+  }
   return {
-    finding_id: fields.string('finding_id'),
+    finding_id: findingId,
     verdict,
     ...(reason === undefined ? {} : { reason }),
     ...(code === undefined ? {} : { reason_code: code }),
+    ...(answered === undefined ? {} : { answered }),
   }
 }
 

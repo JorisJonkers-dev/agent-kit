@@ -19,6 +19,7 @@ KIT_FILES = (
     "registry/estate-tooling.yaml",
     "registry/generated/hermes/mcp-servers.local.yaml",
     "registry/generated/vibe/mcp-servers.toml",
+    "registry/generated/vibe/agents/critic-glm.toml",
     "registry/generated/vibe-private/mcp-servers.toml",
     "installer/port-forward-agent.sh",
     "installer/cloud-session.sh",

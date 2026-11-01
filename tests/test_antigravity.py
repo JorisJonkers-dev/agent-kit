@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -21,8 +20,8 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 import render_registry  # noqa: E402
+from setup_harness import Run, setup_run, stub  # noqa: E402
 
-SETUP = KIT_ROOT / "installer" / "setup-workstation.sh"
 SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account"
 SKIPPED = (
     "antigravity-cli: macOS only; skipped on Linux",
@@ -39,7 +38,11 @@ def _script() -> str:
 
 
 def _antigravity_skills() -> list[str]:
-    return [s["name"] for s in _registry()["local_skills"] if "antigravity" in (s.get("agents") or [])]
+    """The skills a run installs for Antigravity: a pending one has nothing to install yet."""
+    return [
+        s["name"] for s in _registry()["local_skills"]
+        if "antigravity" in (s.get("agents") or []) and not s.get("pending")
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -47,82 +50,20 @@ def _antigravity_skills() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class Run:
-    home: Path
-    stdout: str
-    stderr: str
-    calls: list[str]
-
-
-def _stub(bin_dir: Path, name: str, body: str) -> None:
-    path = bin_dir / name
-    path.write_text("#!/usr/bin/env bash\n" + body + "\n")
-    path.chmod(0o755)
-
-
-def _setup_run(root: Path, platform: str, seed: dict | None = None) -> Run:
-    """Run the checked-in setup script with HOME in a temp dir and nothing real on PATH.
-
-    ``agy`` is on PATH on both platforms: the skip has to come from the platform
-    gate, not from a binary that happens to be missing. ``seed`` is written to
-    Antigravity's MCP config before the run, standing in for a config that was
-    already there.
-    """
-    bin_dir = root / "bin"
-    bin_dir.mkdir(parents=True)
-    home = root / "home"
-    home.mkdir()
-    if seed is not None:
-        config = home / ".gemini" / "config" / "mcp_config.json"
-        config.parent.mkdir(parents=True)
-        config.write_text(json.dumps(seed, indent=2) + "\n")
-    calls = root / "calls.log"
-    for name in ("uv", "npm", "node", "npx", "curl", "git", "claude", "codex", "vibe", "gh", "jq", "docker"):
-        _stub(bin_dir, name, f'echo "{name} $*" >> "{calls}"')
-    _stub(bin_dir, "uname", f"echo {platform}")
-    _stub(bin_dir, "security", f'echo "security $*" >> "{calls}"')
-    _stub(bin_dir, "agy", 'echo "agy 1.0.0"')
-    # Homebrew answers `list --cask` for what `install --cask` recorded, so a
-    # fresh machine takes the install branch and a second run the upgrade one.
-    _stub(
-        bin_dir,
-        "brew",
-        f'echo "brew $*" >> "{calls}"\n'
-        'case "$1 $2" in\n'
-        f'  "list --cask") [ -f "{root}/casks/$3" ] ;;\n'
-        f'  "install --cask") mkdir -p "{root}/casks" && : > "{root}/casks/$3" ;;\n'
-        "esac",
-    )
-    result = subprocess.run(
-        ["bash", str(SETUP)],
-        capture_output=True,
-        text=True,
-        check=False,
-        env={"HOME": str(home), "PATH": f"{bin_dir}:/usr/bin:/bin"},
-    )
-    return Run(
-        home=home,
-        stdout=result.stdout,
-        stderr=result.stderr,
-        calls=calls.read_text().splitlines() if calls.exists() else [],
-    )
-
-
 @pytest.fixture(scope="module")
 def macos_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
-    return _setup_run(tmp_path_factory.mktemp("macos"), "Darwin")
+    return setup_run(tmp_path_factory.mktemp("macos"), "Darwin")
 
 
 @pytest.fixture(scope="module")
 def linux_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
-    return _setup_run(tmp_path_factory.mktemp("linux"), "Linux")
+    return setup_run(tmp_path_factory.mktemp("linux"), "Linux")
 
 
 @pytest.fixture(scope="module")
 def macos_run_over_an_existing_config(tmp_path_factory: pytest.TempPathFactory) -> Run:
     """A machine whose mcp_config.json holds a retired server, Private Memory added by hand, and one of its own."""
-    return _setup_run(
+    return setup_run(
         tmp_path_factory.mktemp("macos-existing"),
         "Darwin",
         seed={
@@ -315,10 +256,10 @@ def _signin(tmp_path: Path, *, agy: bool, keychain: bool, cask: bool = False) ->
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     if agy:
-        _stub(bin_dir, "agy", "exit 0")
-    _stub(bin_dir, "security", "exit 0" if keychain else "exit 1")
+        stub(bin_dir, "agy", "exit 0")
+    stub(bin_dir, "security", "exit 0" if keychain else "exit 1")
     if cask:
-        _stub(
+        stub(
             bin_dir,
             "brew",
             'case "$1 $2 $3" in\n  "list --cask antigravity") exit 0 ;;\nesac\nexit 1',

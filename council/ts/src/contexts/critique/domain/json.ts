@@ -103,6 +103,13 @@ export class JsonFields {
     return value
   }
 
+  /** A non-empty string `accept` recognises. */
+  matching<T extends string>(key: string, accept: (value: string) => value is T, expected: string): T {
+    const value = this.string(key)
+    JsonFields.ensure(accept(value), this.at(key), expected)
+    return value
+  }
+
   strings(key: string): readonly string[] {
     return this.listOf(key, (item): item is string => typeof item === 'string', 'a string')
   }
@@ -123,6 +130,18 @@ export class JsonFields {
   entries<T>(key: string, read: (item: JsonFields, name: string) => T): Readonly<Record<string, T>> {
     const map = this.object(key)
     return Object.fromEntries(Object.keys(map.value).map((name) => [name, read(map.object(name), name)]))
+  }
+
+  /** An object whose every value is a list of strings. */
+  stringLists(key: string): Readonly<Record<string, readonly string[]>> {
+    const map = this.object(key)
+    return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.strings(name)]))
+  }
+
+  /** An object whose every value is a number. */
+  numberMap(key: string): Readonly<Record<string, number>> {
+    const map = this.object(key)
+    return Object.fromEntries(Object.keys(map.value).map((name) => [name, map.number(name)]))
   }
 
   /** An object whose every value is a non-empty string. */

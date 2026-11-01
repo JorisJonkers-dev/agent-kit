@@ -41,11 +41,25 @@ export interface CriticFinding extends FindingBody {
   readonly id: string
 }
 
+/**
+ * The verdict fan-out's evidence check gives a finding before the
+ * orchestrator sees it. A quote that is not in the packet is rejected as
+ * fabricated evidence, for good. A finding with nothing to check is a hint,
+ * which the orchestrator may still accept or reject after checking it.
+ */
+export type PreVerdict =
+  | { readonly verdict: 'rejected'; readonly reason_code: 'fabricated-evidence'; readonly reason: string }
+  | { readonly verdict: 'hint'; readonly reason_code: HintCode; readonly reason: string }
+
+export const HINT_CODES = ['no-evidence', 'no-spec-quote', 'no-decision-quote', 'no-decision-or-scenario'] as const
+export type HintCode = (typeof HINT_CODES)[number]
+
 /** A finding as the orchestrator receives it: the critic's fields plus who raised it. */
 export interface RunFinding extends FindingBody {
   readonly id: string
   readonly critic_finding_id: string
   readonly raised_by: readonly string[]
+  readonly pre_verdict?: PreVerdict
 }
 
 export const FINDINGS_FAILURES = [
@@ -73,6 +87,11 @@ export function parseFindings(text: string): FindingsParse {
   } catch (error) {
     return { detail: String(error), failure: 'unparseable-findings', ok: false }
   }
+  return readFindings(value)
+}
+
+/** Checks a findings object, already parsed from JSON, against the output contract. */
+export function readFindings(value: unknown): FindingsParse {
   let findings: readonly CriticFinding[]
   try {
     findings = JsonFields.of(value, 'the block').list('findings', readCriticFinding)
@@ -109,7 +128,16 @@ export function readRunFinding(fields: JsonFields): RunFinding {
     critic_finding_id: fields.string('critic_finding_id'),
     id: fields.string('id'),
     raised_by: fields.strings('raised_by'),
+    ...(fields.has('pre_verdict') ? { pre_verdict: readPreVerdict(fields.object('pre_verdict')) } : {}),
   }
+}
+
+function readPreVerdict(fields: JsonFields): PreVerdict {
+  const reason = fields.string('reason')
+  if (fields.oneOf('verdict', ['rejected', 'hint']) === 'rejected') {
+    return { reason, reason_code: fields.literal('reason_code', 'fabricated-evidence'), verdict: 'rejected' }
+  }
+  return { reason, reason_code: fields.oneOf('reason_code', HINT_CODES), verdict: 'hint' }
 }
 
 function readCriticFinding(fields: JsonFields): CriticFinding {

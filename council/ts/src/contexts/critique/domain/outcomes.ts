@@ -1,12 +1,22 @@
 /**
  * The two ways a command ends without doing its work. A refusal is a normal
- * result: the family allowlist says this repository sends nothing. An error
- * means the command could not run: its input, a file it reads, or the run it
- * was pointed at is wrong. The runner prints a refusal and exits 0, and
- * prints an error with its code and exits 1.
+ * result: the family allowlist says this repository sends nothing, or its
+ * tracker cannot give prepare the artifact. An error means the command could
+ * not run: its input, a file it reads, or the run it was pointed at is wrong.
+ * The runner prints a refusal and exits 0, and prints an error with its code
+ * and exits 1.
  */
 
-export type RefusalReason = 'no-remote' | 'nedap' | 'not-opted-in'
+export type RefusalReason =
+  | 'no-remote'
+  | 'nedap'
+  | 'not-opted-in'
+  /** The issue-tracker doc names a tracker the critique cannot read. */
+  | 'unsupported-tracker'
+  /** gh failed, or the issue could not be read. */
+  | 'tracker-unreachable'
+  /** The run named as the first round was already a second round. */
+  | 'round-limit'
 
 export interface Refusal {
   readonly status: 'refused'

@@ -822,6 +822,30 @@ local_skills:
       `knowledge` MCP server, and setup-workstation.sh's retired-hook purge
       instead of the retired install-agents.sh.
 
+  - name: critique
+    path: skills/critique
+    purpose: >-
+      The critique pipeline's shared files: the bundled runner, the prompt
+      preamble, roles, lenses, finding schema and default routing that the
+      critique skills drive.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      critique.mjs is built from council/ts by its build and pinned in
+      manifest.yaml's critique.files, the way council's runner is pinned in
+      council.files.
+
+  - name: critique-spec
+    path: skills/critique-spec
+    purpose: >-
+      Critique a spec after /to-spec: critics from other model families
+      review it read-only, and the orchestrator rules on their findings.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      allow), so setup installs both side by side in every agent home.
+
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,
@@ -836,6 +860,54 @@ local_skills:
   # provenance notes), and the workstation already gets the same family
   # (grill included) through the `mattpocock-skills` Claude Code plugin
   # above.
+
+# -------------------------------------------------------------------
+# Read-only Vibe critic agents.
+#
+# One `critic-<model>` agent per Vibe critic client of the critique
+# pipeline (CONTEXT.md, "Critique pipeline"). The runner launches
+# `vibe --agent critic-<model>`; the agent file pins the model and carries
+# its own priced `[[models]]` entry, because Vibe computes cost from
+# configured prices and the entries model sync writes are priced at 0, so
+# without these the price caps never fire.
+#
+# Rendered into registry/generated/vibe/agents/ and installed into the
+# shared Vibe home's agents/ (~/.vibe/agents/, which vibe and vibe-study
+# read), never into vibe-private's. The read-only settings (read_file only,
+# outside_workdir deny, MCP, subagents, project context and session logging
+# off) are the renderer's and the same for every agent: an entry names only
+# its model and prices. `surfaces: []` retires an agent, and setup removes
+# its file. Other agents in that directory are the owner's and are left
+# alone.
+#
+# Prices are USD per million tokens, from docs.mistral.ai/inference/pricing
+# (read 2026-11-01). Model names live here and in the critique routing only.
+# -------------------------------------------------------------------
+vibe_critic_agents:
+  - name: critic-mistral-large
+    model: mistral-large-4-0-3
+    input_price: 0.7
+    output_price: 2.1
+    surfaces: [workstation]
+
+  - name: critic-mistral-small
+    model: mistral-small-latest
+    input_price: 0.15
+    output_price: 0.6
+    surfaces: [workstation]
+
+  - name: critic-glm
+    model: zai-glm-5-3
+    input_price: 1.4
+    output_price: 4.4
+    surfaces: [workstation]
+
+  - name: critic-deepseek-flash
+    model: deepseek-v4-1-flash-1017
+    input_price: 0.3
+    output_price: 1.2
+    thinking: high
+    surfaces: [workstation]
 
 # -------------------------------------------------------------------
 # Vendored third-party skills.

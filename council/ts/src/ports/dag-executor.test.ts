@@ -201,6 +201,9 @@ describe('DAG executor ports', () => {
       remotes() {
         return Promise.resolve([])
       },
+      porcelainStatus() {
+        return Promise.resolve([])
+      },
       currentBranch() {
         return Promise.resolve('worker/T1')
       },

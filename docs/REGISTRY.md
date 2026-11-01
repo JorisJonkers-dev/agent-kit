@@ -20,6 +20,7 @@ uv run pytest tests/test_registry_render.py
 | `registry/generated/hermes/mcp-servers.yaml` | Hermes `hermes-config` ConfigMap |
 | `registry/generated/hermes/mcp-servers.local.yaml` | a workstation's local `~/.hermes/config.yaml` |
 | `registry/generated/vibe/mcp-servers.toml` | a workstation's `~/.vibe/config.toml`, via `scripts/vibe-merge-mcp.py` |
+| `registry/generated/vibe/agents/critic-<model>.toml` | a workstation's `~/.vibe/agents/`, copied by setup (never `~/.vibe-private`) |
 | `registry/generated/vibe-private/mcp-servers.toml` | a workstation's `~/.vibe-private/config.toml`, via `scripts/vibe-merge-mcp.py` |
 | `registry/generated/antigravity/mcp_config.json` | a workstation's `~/.gemini/config/mcp_config.json`, via `scripts/antigravity-merge-mcp.py` |
 | `registry/generated/workstation-secrets.json` | `scripts/agent-kit-keys.py`, as the table of tokens and keys to get |
@@ -233,6 +234,56 @@ run. A macOS app that ships as a Homebrew cask names `cask:` instead:
   otherwise warn on every run.
 - Both keys are `clis:` keys only. The renderer rejects them on a plugin,
   language server, MCP server, skill source or local skill.
+
+## A first-party skill whose directory is not written yet
+
+A `local_skills:` entry can be registered before the issue that writes the
+skill has landed, with `pending:` set to that issue's URL:
+
+```yaml
+- name: example-skill
+  path: skills/example-skill
+  pending: https://github.com/JorisJonkers-dev/agent-kit/issues/<n>
+  agents: [claude, codex, vibe, antigravity]
+  surfaces: [workstation]
+```
+
+While its `SKILL.md` is missing, setup logs `<name>: not built yet (<url>);
+skipped` instead of failing. Once the `SKILL.md` exists, the renderer refuses
+the `pending:` line, so the change that writes the skill also drops it, and the
+entry installs like any other. `critique-spec` was registered this way by
+#176 and dropped `pending:` in #177.
+
+## A Vibe critic agent
+
+`vibe_critic_agents:` declares one read-only `critic-<model>` agent per Vibe
+critic client of the critique pipeline. An entry names its model and its
+price per million input and output tokens, nothing else:
+
+```yaml
+- name: critic-glm
+  model: zai-glm-5-3
+  input_price: 1.4
+  output_price: 4.4
+  surfaces: [workstation]
+```
+
+- The renderer writes `registry/generated/vibe/agents/<name>.toml` with the
+  model pinned through its own priced `[[models]]` entry (alias = the agent's
+  name) and the same read-only settings for every critic: `read_file` as the
+  only tool, `outside_workdir = "deny"`, and MCP, subagents, project context
+  and session logging off. Any other key on an entry is refused, so no entry
+  can widen a critic.
+- A price of 0 is refused: Vibe computes cost from these prices, and with 0 no
+  price cap ever fires.
+- Setup copies each file into the shared Vibe home's `agents/`
+  (`~/.vibe/agents/`, read by `vibe` and `vibe-study`), never into
+  `~/.vibe-private`, and replaces a hand-edited one. It never touches
+  `config.toml`, so no critic becomes `default_agent`, and model sync never
+  sees the agents' own model entries.
+- `surfaces: []` retires an agent: its generated file goes, and setup removes
+  the installed one. Agents in that directory the registry does not name are
+  the owner's, and setup leaves them alone.
 
 ## Adding a tool to the agents image
 

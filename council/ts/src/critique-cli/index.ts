@@ -1,6 +1,8 @@
 import { ProcessEnvAdapter, SystemClockAdapter } from '../adapters/clock/index.js'
+import { GhCliAdapter } from '../adapters/gh/index.js'
 import { NodeProcessAdapter } from '../adapters/process/index.js'
 import {
+  AgyCriticClient,
   createCritiqueCommands,
   CritiqueError,
   NodeCritiqueFiles,
@@ -73,16 +75,22 @@ export function defaultCritiqueRuntime(
   assetsRoot: string,
   readStdin: () => Promise<string>,
   environment: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
 ): CritiqueCliRuntime {
   const files = new NodeCritiqueFiles()
   const processPort = new NodeProcessAdapter()
+  const env = new ProcessEnvAdapter(environment)
   return {
     commands: createCritiqueCommands({
       assetsRoot,
-      clients: { vibe: new VibeCriticClient(processPort, files) },
+      clients: {
+        agy: new AgyCriticClient(processPort, files, env, platform),
+        vibe: new VibeCriticClient(processPort, files, env),
+      },
       clock: new SystemClockAdapter(),
-      env: new ProcessEnvAdapter(environment),
+      env,
       files,
+      gh: new GhCliAdapter(processPort),
       git: new GitCliAdapter(processPort),
     }),
     readFile: (path) => files.readText(path),

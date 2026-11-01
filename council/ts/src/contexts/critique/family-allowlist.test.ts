@@ -127,13 +127,16 @@ describe('family allowlist', () => {
 
   it('prepares a run with no critics when the allowlist permits none of the routed families', async () => {
     const h = await setup()
-    await h.commands.allow.run({ repo: h.repo, families: ['google'] })
+    await h.commands.allow.run({ repo: h.repo, families: ['deepseek'] })
 
     const result = await h.commands.prepare.run(prepareInput(h))
 
     expect(result).toMatchObject({
       critics: [],
-      dropped: [{ client: 'vibe-mistral-large', family: 'mistral', reason: 'family-not-allowed' }],
+      dropped: [
+        { client: 'vibe-mistral-large', family: 'mistral', reason: 'family-not-allowed' },
+        { client: 'agy-gemini-flash-high', family: 'google', reason: 'family-not-allowed' },
+      ],
       status: 'ready',
     })
   })

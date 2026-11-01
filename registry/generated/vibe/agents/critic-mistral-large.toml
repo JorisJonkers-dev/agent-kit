@@ -1,0 +1,24 @@
+# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
+# A read-only critic of the critique pipeline, launched by its runner as
+# `vibe --agent critic-mistral-large`. Installed into the shared Vibe home only.
+
+display_name = "Critic Mistral Large"
+description = "Read-only critic pinned to mistral-large-4-0-3"
+safety = "safe"
+active_model = "critic-mistral-large"
+enabled_tools = ["read_file"]
+enabled_skills = ["re:^$"]
+outside_workdir = "deny"
+enable_mcp = false
+enable_subagents = false
+include_project_context = false
+
+[session_logging]
+enabled = false
+
+[[models]]
+name = "mistral-large-4-0-3"
+provider = "mistral"
+alias = "critic-mistral-large"
+input_price = 0.7
+output_price = 2.1

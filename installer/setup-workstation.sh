@@ -542,6 +542,51 @@ _vibe_private_home() {
   _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private
 }
 
+# The read-only critic agents the critique runner launches as
+# `vibe --agent critic-<model>`. Called for the shared Vibe home only:
+# vibe-private never runs critics. Nothing here touches config.toml, so
+# no critic becomes the default agent.
+_vibe_critic_agents() {
+  local home="$1" src dest
+  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-mistral-large.toml"
+  dest="${home}/agents/critic-mistral-large.toml"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Vibe critic agent critic-mistral-large -> ${dest}"
+  else
+    fail "Vibe critic agent critic-mistral-large: ${dest} does not match ${src}"
+  fi
+  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-mistral-small.toml"
+  dest="${home}/agents/critic-mistral-small.toml"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Vibe critic agent critic-mistral-small -> ${dest}"
+  else
+    fail "Vibe critic agent critic-mistral-small: ${dest} does not match ${src}"
+  fi
+  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-glm.toml"
+  dest="${home}/agents/critic-glm.toml"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Vibe critic agent critic-glm -> ${dest}"
+  else
+    fail "Vibe critic agent critic-glm: ${dest} does not match ${src}"
+  fi
+  src="${KIT_ROOT}/registry/generated/vibe/agents/critic-deepseek-flash.toml"
+  dest="${home}/agents/critic-deepseek-flash.toml"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Vibe critic agent critic-deepseek-flash -> ${dest}"
+  else
+    fail "Vibe critic agent critic-deepseek-flash: ${dest} does not match ${src}"
+  fi
+  return 0
+}
+
 # A shell -c wrapper for the pipe-into-sh installers the upstreams publish.
 run_sh() {
   if [ "${CHECK_ONLY}" = 1 ]; then
@@ -3018,6 +3063,239 @@ else
       fail "agent-session-bootstrap: ${dest} is incomplete after copy"
     fi
   fi
+fi
+
+# The critique pipeline's shared files: the bundled runner, the
+# prompt preamble, roles, lenses, finding schema and default
+# routing that the critique skills drive.
+src="${KIT_ROOT}/skills/critique"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "critique: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/critique"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique -> ${dest}"
+    else
+      fail "critique: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/critique"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique -> ${dest}"
+    else
+      fail "critique: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/critique"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique -> ${dest}"
+    else
+      fail "critique: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/critique"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique -> ${dest}"
+    else
+      fail "critique: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/critique"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique -> ${dest}"
+    else
+      fail "critique: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/critique"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique -> ${dest}"
+    else
+      fail "critique: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Critique a spec after /to-spec: critics from other model
+# families review it read-only, and the orchestrator rules on
+# their findings.
+src="${KIT_ROOT}/skills/critique-spec"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "critique-spec: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/critique-spec"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-spec -> ${dest}"
+    else
+      fail "critique-spec: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/critique-spec"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-spec -> ${dest}"
+    else
+      fail "critique-spec: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/critique-spec"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-spec -> ${dest}"
+    else
+      fail "critique-spec: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/critique-spec"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-spec -> ${dest}"
+    else
+      fail "critique-spec: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/critique-spec"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-spec -> ${dest}"
+    else
+      fail "critique-spec: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/critique-spec"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-spec -> ${dest}"
+    else
+      fail "critique-spec: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# The read-only Vibe critic agents, into the shared Vibe home only. Like
+# its skills, a failed split leaves the home alone this run.
+if [ "${VIBE_HOMES_READY}" = 1 ]; then
+  log "Vibe critic agents"
+  _vibe_critic_agents "${VIBE_HOME}"
 fi
 
 # -----------------------------------------------------------------

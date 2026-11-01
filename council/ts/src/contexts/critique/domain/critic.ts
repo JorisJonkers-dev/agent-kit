@@ -23,6 +23,12 @@ const RUN_FAILURES = [
   'config-error',
   'infrastructure-failure',
   'stopped-early',
+  'print-timeout',
+  'denied-action',
+  'missing-structured-output',
+  'unsafe-tool',
+  /** The CLI outlived its outer timeout and was killed. */
+  'timeout',
 ] as const
 
 /** Why a critic's run counts as no review. `exit-<code>` is an exit code the client does not document. */
@@ -39,20 +45,36 @@ export type CriticOutcome =
   | { readonly status: 'failed'; readonly failure: CriticFailure; readonly detail: string; readonly cost_usd: number | null }
 
 /** One critic's run as fan-out recorded it: who ran, how it went, and where its raw output is. */
+export const CRITIC_STATUSES = ['ok', 'failed', 'violated-readonly', 'budget-skip'] as const
+
+/**
+ * `failed`: the critic gave no usable review. `violated-readonly`: it changed
+ * its packet or the working tree, so its findings were discarded.
+ * `budget-skip`: the flow had spent its Vibe cap, so it was never launched.
+ */
+export type CriticStatus = (typeof CRITIC_STATUSES)[number]
+
 export interface CriticRun extends CriticIdentity {
-  readonly status: 'ok' | 'failed'
+  /** The critic id of the failed critic this one is the fallback retry for. */
+  readonly retry_of?: string
+  readonly status: CriticStatus
   readonly failure?: CriticFailure
   readonly detail?: string
   readonly no_findings_reason?: string
-  readonly exit_code: number
+  /** Null for a critic that was never launched. */
+  readonly exit_code: number | null
+  /** What the critic's client reported it cost; null when it reported nothing. */
   readonly cost_usd: number | null
+  /** What the launch counts against the flow's Vibe cap. */
+  readonly charged_usd: number
   readonly duration_ms: number
   readonly finding_count: number
   readonly prompt_hashes: PromptHashes
   readonly lens_hashes: Readonly<Record<string, string>>
   readonly prompt_path: string
-  readonly stdout_path: string
-  readonly export_path: string
+  /** Absent for a critic that was never launched. */
+  readonly stdout_path?: string
+  readonly export_path?: string
 }
 
 /** The identity a roster critic carries into fan-out, record and the ledger. */
@@ -71,14 +93,17 @@ export function readCriticRun(fields: JsonFields): CriticRun {
   const failure = fields.optionalMatching('failure', isCriticFailure, 'a critic failure')
   const detail = fields.optionalString('detail')
   const noFindingsReason = fields.optionalString('no_findings_reason')
+  const retryOf = fields.optionalString('retry_of')
+  const stdoutPath = fields.optionalString('stdout_path')
+  const exportPath = fields.optionalString('export_path')
   const hashes = fields.object('prompt_hashes')
   return {
+    charged_usd: fields.number('charged_usd'),
     client: fields.string('client'),
     cost_usd: fields.nullableNumber('cost_usd'),
     critic_id: fields.string('critic_id'),
     duration_ms: fields.number('duration_ms'),
-    exit_code: fields.number('exit_code'),
-    export_path: fields.string('export_path'),
+    exit_code: fields.nullableNumber('exit_code'),
     family: fields.oneOf('family', MODEL_FAMILIES),
     finding_count: fields.number('finding_count'),
     lens_hashes: fields.stringMap('lens_hashes'),
@@ -92,11 +117,13 @@ export function readCriticRun(fields: JsonFields): CriticRun {
     },
     prompt_path: fields.string('prompt_path'),
     role: fields.string('role'),
-    status: fields.oneOf('status', ['ok', 'failed']),
-    stdout_path: fields.string('stdout_path'),
+    status: fields.oneOf('status', CRITIC_STATUSES),
     ...(failure === undefined ? {} : { failure }),
     ...(detail === undefined ? {} : { detail }),
     ...(noFindingsReason === undefined ? {} : { no_findings_reason: noFindingsReason }),
+    ...(retryOf === undefined ? {} : { retry_of: retryOf }),
+    ...(stdoutPath === undefined ? {} : { stdout_path: stdoutPath }),
+    ...(exportPath === undefined ? {} : { export_path: exportPath }),
   }
 }
 

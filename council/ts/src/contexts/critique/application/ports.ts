@@ -1,29 +1,40 @@
-import type { ClockPort, EnvPort, GitPort } from '../../../ports/index.js'
+import type { ClockPort, EnvPort, GhPort, GitPort } from '../../../ports/index.js'
 import type { CriticOutcome } from '../domain/critic.js'
-import type { CriticClient, RosterCritic } from '../domain/routing.js'
+import type { ClientReadiness, CriticClient, RosterCritic } from '../domain/routing.js'
 
 /** The repository facts the critique needs: council's git port, narrowed to what it reads. */
-export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes'>
+export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'>
+
+/** What the critique reads from GitHub: council's gh port, narrowed to reading one issue. */
+export type CritiqueGhPort = Pick<GhPort, 'viewIssue'>
 
 /** Plain file access; every path is absolute. */
 export interface CritiqueFilesPort {
   readText(path: string): Promise<string>
+  readBytes(path: string): Promise<Uint8Array>
   /** Writes the file, creating parent directories. */
   writeText(path: string, content: string): Promise<void>
   /** Appends to the file, creating it and its parent directories. */
   appendText(path: string, content: string): Promise<void>
   exists(path: string): Promise<boolean>
+  /** The names of the plain files directly inside a directory, sorted; empty when it does not exist. */
+  listFiles(path: string): Promise<readonly string[]>
+  /** Every file under the directory, at any depth, relative to it; none when it does not exist. */
+  listTree(dir: string): Promise<readonly string[]>
+  remove(path: string): Promise<void>
 }
 
 /** Where one critic of a run works. */
 export interface CriticLaunch {
   readonly critic: RosterCritic
-  /** The packet: the critic's working directory, and all it may read. */
+  /** The critic's own copy of the packet: its working directory, and all it may read. */
   readonly packetDir: string
   /** The assembled prompt, written outside the packet. */
   readonly promptPath: string
   /** The critic's own directory in the run, for whatever its client writes there. */
   readonly criticDir: string
+  /** The finding schema, for a client that can enforce it. */
+  readonly schemaPath: string
 }
 
 /** A critic's run as its client saw it: the raw output, and what that output amounts to. */
@@ -34,11 +45,35 @@ export interface CriticReport {
   /** The file the client read cost and effective config from. */
   readonly exportPath: string
   readonly outcome: CriticOutcome
+  /**
+   * What the run counts against the flow's Vibe cap: the client's own best
+   * estimate of its spend, never less than it reported.
+   */
+  readonly chargedUsd: number
 }
 
 /** One critic client: launches a critic in its packet and reads its review. */
-export interface CriticClientPort {
-  review(launch: CriticLaunch): Promise<CriticReport>
+export interface CriticClientPort<Config extends CriticClient = CriticClient> {
+  /** Whether the client can run on this machine now. Prepare asks before it puts the client on the roster. */
+  readiness(config: Config): Promise<ClientReadiness>
+  /** Runs one critic; `config` is the launch's client config, narrowed to this client's kind. */
+  review(launch: CriticLaunch, config: Config): Promise<CriticReport>
+}
+
+/** The client each kind of critic runs through. */
+export type CriticClients = {
+  readonly [Kind in CriticClient['kind']]: CriticClientPort<Extract<CriticClient, { readonly kind: Kind }>>
+}
+
+/** Asks the client of `config`'s kind whether it can run. */
+export function clientReadiness(clients: CriticClients, config: CriticClient): Promise<ClientReadiness> {
+  return config.kind === 'agy' ? clients.agy.readiness(config) : clients.vibe.readiness(config)
+}
+
+/** Runs the launch's critic through the client of its kind. */
+export function reviewWith(clients: CriticClients, launch: CriticLaunch): Promise<CriticReport> {
+  const config = launch.critic.client_config
+  return config.kind === 'agy' ? clients.agy.review(launch, config) : clients.vibe.review(launch, config)
 }
 
 /** One runner command: it takes the JSON the skill sends and returns a JSON result. */
@@ -53,6 +88,8 @@ export interface CritiqueDeps {
   readonly env: EnvPort
   readonly files: CritiqueFilesPort
   readonly git: CritiqueGitPort
+  /** Reads spec issues when the repository's tracker is GitHub. */
+  readonly gh: CritiqueGhPort
   /** The client each kind of critic runs through. */
-  readonly clients: Readonly<Record<CriticClient['kind'], CriticClientPort>>
+  readonly clients: CriticClients
 }
