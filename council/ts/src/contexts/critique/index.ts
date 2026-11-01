@@ -9,6 +9,7 @@ export type {
   CriticReport,
   CritiqueDeps,
   CritiqueFilesPort,
+  CritiqueGhPort,
   CritiqueGitPort,
 } from './application/ports.js'
 export type { CriticIdentity, CriticOutcome, CriticRun } from './domain/critic.js'

@@ -1,9 +1,12 @@
-import type { ClockPort, EnvPort, GitPort } from '../../../ports/index.js'
+import type { ClockPort, EnvPort, GhPort, GitPort } from '../../../ports/index.js'
 import type { CriticOutcome } from '../domain/critic.js'
 import type { CriticClient, RosterCritic } from '../domain/routing.js'
 
 /** The repository facts the critique needs: council's git port, narrowed to what it reads. */
 export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes'>
+
+/** What the critique reads from GitHub: council's gh port, narrowed to reading one issue. */
+export type CritiqueGhPort = Pick<GhPort, 'viewIssue'>
 
 /** Plain file access; every path is absolute. */
 export interface CritiqueFilesPort {
@@ -13,6 +16,8 @@ export interface CritiqueFilesPort {
   /** Appends to the file, creating it and its parent directories. */
   appendText(path: string, content: string): Promise<void>
   exists(path: string): Promise<boolean>
+  /** The names of the plain files directly inside a directory, sorted; empty when it does not exist. */
+  listFiles(path: string): Promise<readonly string[]>
 }
 
 /** Where one critic of a run works. */
@@ -53,6 +58,8 @@ export interface CritiqueDeps {
   readonly env: EnvPort
   readonly files: CritiqueFilesPort
   readonly git: CritiqueGitPort
+  /** Reads spec issues when the repository's tracker is GitHub. */
+  readonly gh: CritiqueGhPort
   /** The client each kind of critic runs through. */
   readonly clients: Readonly<Record<CriticClient['kind'], CriticClientPort>>
 }

@@ -138,6 +138,8 @@ async function realRepository(): Promise<RealRepository> {
   await mkdir(join(repo, '.scratch', 'widgets'), { recursive: true })
   await writeFile(join(repo, '.scratch', 'widgets', 'spec.md'), '# Widgets\n')
   await writeFile(join(repo, 'CONTEXT.md'), '# Words\n')
+  await mkdir(join(repo, 'docs', 'agents'), { recursive: true })
+  await writeFile(join(repo, 'docs', 'agents', 'issue-tracker.md'), '# Issue tracker: Local Markdown\n')
   execFileSync('git', ['init', '-q', repo])
   execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/example/widgets.git'])
   return {
