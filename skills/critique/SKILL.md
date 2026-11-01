@@ -8,7 +8,8 @@ description: Shared files of the critique pipeline (the bundled runner, prompts,
 This directory is what the critique stage skills run on. It does nothing on
 its own: start a critique with the stage skill (`/critique-spec` after
 `/to-spec` produced or changed a spec, `/check-tickets` after `/to-tickets`
-and before the first `/implement`), which tells you how to drive it.
+and before the first `/implement`, `/review-ticket` after a ticket's
+`/code-review` and before its commit), which tells you how to drive it.
 
 ## What is here
 

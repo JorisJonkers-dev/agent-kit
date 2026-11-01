@@ -872,6 +872,22 @@ local_skills:
       allow, check-tickets), so setup installs both side by side in every
       agent home.
 
+  - name: review-ticket
+    path: skills/review-ticket
+    purpose: >-
+      Review a risky ticket's staged change after its /code-review and
+      before its commit: risk triage decides, one critic from another model
+      family reviews the diff, each bug finding is decided by running its
+      failing test, and the summary says "do not commit" while an accepted
+      critical finding is unfixed.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/critique/ (triage, prepare, fan-out,
+      record, allow), so setup installs both side by side in every agent
+      home. Its run's review.json, with the staged change's hash, is what
+      the commit gate reads.
+
   - name: review-feature
     path: skills/review-feature
     purpose: >-

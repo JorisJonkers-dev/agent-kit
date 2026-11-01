@@ -3504,6 +3504,121 @@ else
   fi
 fi
 
+# Review a risky ticket's staged change after its /code-review and
+# before its commit: risk triage decides, one critic from another
+# model family reviews the diff, each bug finding is decided by
+# running its failing test, and the summary says "do not commit"
+# while an accepted critical finding is unfixed.
+src="${KIT_ROOT}/skills/review-ticket"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "review-ticket: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/review-ticket"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/review-ticket"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/review-ticket"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
 # Review a whole feature after all tickets of a spec landed and
 # before the PR: critics from two other model families read the
 # spec, the tickets and the feature diff, each accepted finding

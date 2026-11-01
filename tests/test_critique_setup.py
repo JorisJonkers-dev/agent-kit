@@ -197,6 +197,41 @@ def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_ho
         assert (skills / "review-feature" / ".." / "critique" / "critique.mjs").is_file(), home
 
 
+def test_shipped_routing_defines_the_ticket_review_stage() -> None:
+    review = json.loads(ROUTING.read_text())["stages"]["ticket-review"]
+    assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in review["base"]] == [
+        ("agy-gemini-flash-high", "diff-reviewer", ["failure-modes", "security"], 0.5, 480)
+    ]
+    assert [(s["client"], s["role"]) for s in review["deep"]] == [("vibe-mistral-large", "diff-reviewer")]
+    assert review["depth_signals"]["thresholds"] == {"changed_lines": 600, "risk_path_hits": 3}
+    assert (KIT_ROOT / "skills" / "critique" / "roles" / "diff-reviewer.md").is_file()
+
+
+def test_review_ticket_is_declared_for_every_agent() -> None:
+    skill = _skill(_registry(), "review-ticket")
+    assert skill["path"] == "skills/review-ticket"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+
+
+def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit() -> None:
+    text = (KIT_ROOT / "skills" / "review-ticket" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "review-ticket"
+    assert front["description"].startswith("Use after a ticket's /code-review and before its commit.")
+
+
+def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "review-ticket" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "review-ticket" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "review-ticket" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
 def test_a_pending_skill_is_skipped_with_a_notice_not_a_failure(macos_run: Run) -> None:
     """Until a pending skill's directory exists, setup says so and carries on."""
     for skill in (s for s in _registry()["local_skills"] if s.get("pending")):
