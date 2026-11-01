@@ -216,6 +216,34 @@ PY
   done
 }
 
+# Joins the allow rules for MCP servers whose every tool runs without a
+# prompt (registry: claude_allow_tools) to each Claude profile's own; nothing else changes.
+claude_mcp_allows() {
+  local profile_dir
+  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "would add the MCP allow rules to ${profile_dir}/settings.json"
+      continue
+    fi
+    python3 - "${profile_dir}/settings.json" '["mcp__overleaf__*"]' <<'PY' \
+      && ok "MCP allow rules in ${profile_dir}/settings.json" \
+      || fail "could not add the MCP allow rules to ${profile_dir}/settings.json"
+import json, pathlib, sys
+path, rules = pathlib.Path(sys.argv[1]), json.loads(sys.argv[2])
+data = json.loads(path.read_text() or '{}') if path.exists() else {}
+allow = data.setdefault('permissions', {}).setdefault('allow', [])
+missing = [r for r in rules if r not in allow]
+if missing:
+    allow.extend(missing)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + '\n')
+back = json.loads(path.read_text()).get('permissions', {}).get('allow', [])
+if any(r not in back for r in rules):
+    raise SystemExit(f'{path}: allow rules did not read back')
+PY
+  done
+}
+
 # Hindsight Coding Agents, pinned and locked to recall only (registry: coding_agents).
 hindsight_coding_agents() {
   if ! command -v npx >/dev/null 2>&1; then
@@ -1308,6 +1336,9 @@ fi
 # not a determined agent; the passphrase is the boundary.
 claude_private_denies
 
+# MCP servers the registry trusts to run every tool without a prompt.
+claude_mcp_allows
+
 # Before anything touches a Vibe home (MCP merge, converge, skills), and
 # whether or not vibe is on PATH yet.
 [ "${CLOUD}" = 1 ] || _vibe_split_homes
@@ -2292,7 +2323,7 @@ for install in installs:
     fi
     if command -v claude >/dev/null 2>&1; then
       run claude_each_profile claude mcp remove --scope user overleaf >/dev/null 2>&1 || true
-      if run_redacted "claude mcp add overleaf" claude_each_profile claude mcp add --scope user overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="$(secret_ref OVERLEAF_SESSION optional)" -- olcli-mcp; then
+      if run_redacted "claude mcp add overleaf" claude_each_profile claude mcp add --scope user overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OLCLI_MCP_UNCONFIRMED_WRITES="1" --env OVERLEAF_SESSION="$(secret_ref OVERLEAF_SESSION optional)" -- olcli-mcp; then
         ok "overleaf registered (claude)"
       else
         fail "overleaf registration failed (claude)"
@@ -2300,7 +2331,7 @@ for install in installs:
     fi
     if command -v codex >/dev/null 2>&1; then
       run codex mcp remove overleaf >/dev/null 2>&1 || true
-      if run_redacted "codex mcp add overleaf" codex mcp add overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OVERLEAF_SESSION="${OVERLEAF_SESSION:-}" -- olcli-mcp; then
+      if run_redacted "codex mcp add overleaf" codex mcp add overleaf --env OVERLEAF_BASE_URL="https://overleaf.jorisjonkers.dev" --env OVERLEAF_COOKIE_NAME="overleaf.sid" --env OLCLI_MCP_UNCONFIRMED_WRITES="1" --env OVERLEAF_SESSION="${OVERLEAF_SESSION:-}" -- olcli-mcp; then
         ok "overleaf registered (codex)"
       else
         fail "overleaf registration failed (codex)"

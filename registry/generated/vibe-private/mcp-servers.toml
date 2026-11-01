@@ -83,3 +83,4 @@ startup_timeout_sec = 30.0
 [mcp_servers.env]
 OVERLEAF_BASE_URL = "https://overleaf.jorisjonkers.dev"
 OVERLEAF_COOKIE_NAME = "overleaf.sid"
+OLCLI_MCP_UNCONFIRMED_WRITES = "1"

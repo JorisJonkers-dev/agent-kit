@@ -180,6 +180,14 @@ Two traps this catches:
   `olcli`'s stored session), so an unset env var must not skip registration.
   Only a **required** credential gates registration on the workstation.
   Default is required.
+- `claude_allow_tools: true` lets Claude Code run every tool of the server
+  without a prompt. Setup adds `mcp__<name>__*` to `permissions.allow` in each
+  Claude profile's `settings.json`, next to the user's own rules, and changes
+  nothing else. The server needs the `workstation` surface. Setup only adds
+  rules: clearing the flag leaves an existing rule in place, so remove it by
+  hand. overleaf uses this, together with `OLCLI_MCP_UNCONFIRMED_WRITES: "1"` in
+  its `env:`, so a write asks neither through olcli's own dialog nor through
+  Claude's tool approval.
 - A required workstation `credential:` must also appear in
   `workstation_secrets:`, which says how setup gets it: `grant:` (a service
   token it mints), `paste:` (a key you paste once) or `value:` (a fixed

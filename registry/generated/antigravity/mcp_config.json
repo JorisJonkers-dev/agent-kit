@@ -40,7 +40,8 @@
       "args": [],
       "env": {
         "OVERLEAF_BASE_URL": "https://overleaf.jorisjonkers.dev",
-        "OVERLEAF_COOKIE_NAME": "overleaf.sid"
+        "OVERLEAF_COOKIE_NAME": "overleaf.sid",
+        "OLCLI_MCP_UNCONFIRMED_WRITES": "1"
       },
       "timeoutSeconds": 120
     }

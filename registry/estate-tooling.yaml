@@ -1146,6 +1146,16 @@ mcp_servers:
       # olcli holding a valid session (verified: overleaf_session2 ->
       # "Session invalid", overleaf.sid -> "Authenticated").
       OVERLEAF_COOKIE_NAME: "overleaf.sid"
+      # Since 0.15.1 olcli-mcp asks the user through MCP elicitation before
+      # every write (push_file, rename, comment, accept/reject, ...), which
+      # puts a dialog in front of each edit on top of the client's own tool
+      # approval. "1" restores the 0.15.0 behaviour: the agent client's tool
+      # approval is the only gate. Any value other than 1/true/yes keeps the
+      # per-write dialog on.
+      OLCLI_MCP_UNCONFIRMED_WRITES: "1"
+    # Claude Code runs every overleaf tool without a prompt: setup adds
+    # mcp__overleaf__* to each Claude profile's permissions.allow.
+    claude_allow_tools: true
     # olcli manages its own session (stored under ~/Library/Preferences or
     # olcli-nodejs/config.json) and works WITHOUT OVERLEAF_SESSION set. It is a
     # convenience override, not a requirement -- treating it as mandatory makes
