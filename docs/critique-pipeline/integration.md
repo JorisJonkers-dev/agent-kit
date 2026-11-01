@@ -2494,3 +2494,175 @@ around it.
   constant; the skill text already walks them like any other item. The
   probe has not been run against the real CLIs; agy may need the probe
   directory listed as a trusted workspace, which only a live run will show.
+
+## What #198 settled
+
+Setup installs the three hooks of
+[ADR-0002](../adr/0002-exactly-three-critique-hooks.md) (agent-kit#198).
+Later work builds on these:
+
+- **The scripts.** `skills/critique/hooks/<name>.sh`, one per hook, shipped
+  with the `critique` skill and pinned in `manifest.yaml` `critique.files`.
+  Each is one `exec node "${0%/*}/../critique.mjs" hook <name>`. A missing
+  `node` or runner exits 127, which both agents treat as a failed hook that
+  does not block.
+- **`critique hook <name>`.** New runner command line: it reads the agent's
+  payload from stdin and prints only what the agent reads. The two gates add
+  `gate: "commit"` or `"pr"` to the payload, run `gate`, and print
+  `hook_output` compactly when blocked, nothing otherwise. The session-start
+  hook prints its line as plain text. It always exits 0. A payload it cannot
+  read prints nothing. An unknown hook name exits 1, never 2, because a
+  `PreToolUse` exit 2 blocks in Claude Code.
+- **`session-start`.** New runner command (`SessionStartCommand`), JSON in
+  and out like `gate`. It is silent with `off`, `disabled`, `no-remote`,
+  `nedap`, `not-opted-in` (no allowlist entry at all; families alone are
+  enough, unlike the gates, which need `code`), `setup-current` or
+  `failed-open`. It suggests with `setup-missing` (an item other than the
+  read-only proofs never ran) or `setup-failing` (an item's last result is
+  `fail`, named first). It reads `machine-setup.json` only and launches no
+  CLI, so an input that changed since a check ran (a CLI version, say) is
+  for `/flow setup` to find, not the hook. Same 700 ms deadline as the
+  gate. Failures go to `gate.log.jsonl` with `gate: "session-start"`.
+- **Two setup items**, last on the checklist, both `free`:
+  `hooks-installed` (kind `hooks`) and `kill-switch` (kind `kill-switch`).
+  `SetupCheck` is now `ClientCheck | MachineCheck`. Only a client check has
+  `client_config`. `SetupInputs` gained `files_hash`, the sha256 of the local
+  files the item reads, so editing a hook file, Codex's trust or
+  `critique.json` makes the item due again.
+  - `hooks-installed` reads `$CLAUDE_CONFIG_DIR` (or `~/.claude`)
+    `/settings.json` and `$CODEX_HOME` (or `~/.codex`) `/hooks.json`,
+    skipping a home that does not exist. It passes when each present home
+    wires all three hooks to scripts that exist, and Codex trusts each one.
+    It fails with neither home.
+  - **Codex trust, as checked against Codex 0.166.0 in a throwaway
+    `CODEX_HOME`** (`codex app-server`, `hooks/list` and
+    `config/batchWrite`; no real home touched): the owner's trust lives in
+    `config.toml` as `[hooks.state."<hooks.json path>:<event>:<group>:<handler>"]`
+    with `trusted_hash = "sha256:…"` and, when turned off, `enabled = false`.
+    The event label is `pre_tool_use` or `session_start`. The hash is the
+    sha256 of `{event_name, matcher?, hooks: [{type, command, timeout,
+    async, statusMessage?, additionalContextLimit?}]}` serialized as JSON
+    with sorted keys. A missing timeout counts as 600, and a context limit
+    of 2500 is left out. `codexHookHash` reproduces the three hashes
+    `hooks/list` reported. **Trust is keyed by position.** If the operator
+    inserts or removes a hook group before ours under the same event, Codex
+    sees our hook as new (untrusted) or changed. The check reports it as
+    "not trusted yet" or "changed since it was trusted".
+  - `kill-switch` runs the gate in-process on a command it never gates
+    (`true`). `off` and `disabled` pass as "Off: …", `not-gated` passes as
+    "On: the hooks run …", and `failed-open` (a `critique.json` that does not
+    parse) fails. `setup` gained `{action: "kill-switch", disabled}`, which
+    writes the flag and keeps the file's other keys. It refuses (`invalid-input`)
+    a file that is not a JSON object and leaves it as it is, then checks again
+    and returns `{status: "kill-switch-set", config_path, disabled, item}`.
+- **Setup's merge** (`scripts/render_registry.py`, `critique_hooks
+  install|remove`, rendered into `setup-workstation.sh`). It reads the hook
+  names, events and agents from `manifest.yaml`'s `hooks` section, the one
+  place they live. Matchers (`Bash` for `PreToolUse`) and the timeout (5 s)
+  are renderer constants. Each hook is a matcher group of its own,
+  `{"matcher": "Bash", "hooks": [{"type": "command", "command": "/bin/sh
+  \"<agent home>/skills/critique/hooks/<name>.sh\"", "timeout": 5}]}`, and
+  the session-start group has no matcher. A hook is found by its command
+  naming `<name>.sh`, like the retired-hook purge.
+  - An existing critique group is replaced **in place**, to keep Codex's
+    trust key.
+  - A critique handler that shares a group with the operator's handlers is
+    split out, and the operator's handlers stay.
+  - A new hook is appended.
+  - The file is rewritten only when its content changes, and through a
+    symlink, so the personal profile's shared `settings.json` stays a link.
+    A second run leaves both files byte for byte.
+  - A file that is not valid JSON is warned about and left untouched.
+  - Install fails rather than wire a hook whose script is missing. It runs
+    in step 9, after the retired-hook purge and after step 7 copied the
+    scripts.
+  - `--uninstall` removes the hooks from both files, after the purge, and
+    drops a `hooks` section it emptied.
+  - `--check` reports "would install" and writes nothing.
+- **Measured** with the bundled runner through the scripts, against a real
+  opted-in repository with a risky change staged, in a throwaway HOME
+  (5 runs each): commit gate blocking, 0.10 to 0.11 s; PR gate blocking,
+  0.08 s; session-start suggesting, 0.07 s; commit gate outside any
+  repository, 0.05 s. `tests/test_critique_hooks.py` asserts the commit gate
+  blocks in under one second.
+- **Not done here.** No hook ran inside a live Claude Code or Codex session:
+  see the live check below. Vibe and Antigravity still get no hooks.
+
+## Live check for #198 (owner)
+
+Not run by the implementer: an agent session may not install hooks into the
+machine's real `~/.claude` or `~/.codex`. Run it on the owner's machine, in
+order, after merging. `<kit>` is an agent-kit checkout on the merged branch.
+
+1. **Install.** `bash <kit>/installer/setup-workstation.sh --no-mcp`.
+   Expect, in the output:
+
+   ```text
+   setup: critique hooks
+   setup:   ok    critique hooks installed in Claude Code (/Users/<you>/.claude/settings.json)
+   setup:   ok    critique hooks installed in Codex (/Users/<you>/.codex/hooks.json)
+   ```
+
+   Then `jq '.hooks.PreToolUse, .hooks.SessionStart' ~/.claude/settings.json`
+   shows your own groups unchanged plus three groups whose commands are
+   `/bin/sh "/Users/<you>/.claude/skills/critique/hooks/critique-{commit-gate,pr-gate,session-start}.sh"`
+   with `"timeout": 5`. `~/.codex/hooks.json` matches it, with `.codex`
+   paths, and still holds the Hindsight Coding Agents hooks. Run setup a
+   second time: both lines say `already installed`, and `shasum` of both
+   files is unchanged.
+2. **Codex trust.** Start `codex` in any directory, open `/hooks`, and trust
+   `critique-commit-gate`, `critique-pr-gate` and `critique-session-start`.
+   Quit. Then `/flow setup` (or
+   `node ~/.claude/skills/critique/critique.mjs setup --json '{"action":"check","check":"hooks-installed","force":true}'`)
+   returns `last.result: "pass"` with detail
+   `Claude Code: all three hooks installed. Codex: all three hooks installed and trusted.`
+   Before trusting, the detail names the three as `not trusted yet`.
+3. **A scratch repository.** `gh repo create <you>/critique-hook-probe
+   --private --clone`, then `cd` into it, commit a README and push. Opt it in
+   with code:
+   `node ~/.claude/skills/critique/critique.mjs allow --json '{"repo":"'"$PWD"'","families":["mistral"],"code":true}'`.
+4. **Session start, both agents.** Start `claude` in the repository. On
+   this machine, while any setup item has never run or failed, the session
+   receives one line,
+   `Critique: /flow setup has not checked this machine yet (<n> of <m> checks never ran). Run /flow setup.`
+   or `Critique: /flow setup's <id> check failed on this machine… Run /flow setup.`.
+   Ask the model to quote any line that starts with `Critique:`, and record
+   its answer. Do the same in `codex`. In a repository with no allowlist
+   entry, both say there is none.
+5. **Commit gate blocks, Claude Code.** In the repository,
+   `mkdir -p src/auth && echo 'export const ttl = 60' > src/auth/session.ts && git add -A`.
+   In `claude`, ask: "Run `git commit -m 'Expire sessions'` and report the
+   result verbatim." Expect the tool call refused with
+   `Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. Run /review-ticket, then commit.`
+   and `git log` unchanged. Time it:
+   `time (echo '{"cwd":"'"$PWD"'","tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' | /bin/sh ~/.claude/skills/critique/hooks/critique-commit-gate.sh)`
+   prints the deny in well under a second (0.10 to 0.11 s here, in a
+   throwaway HOME).
+6. **Commit gate allows after a passing review.** Run `/review-ticket` on
+   the staged change. It needs a ticket file, for example a
+   `.scratch/probe/issues/01-ttl.md` with acceptance criteria, staged too.
+   When it passes, ask `claude` to run the same commit again. Expect it to
+   commit, and `git log -1` to show it. Restage a different risky change and
+   the commit is blocked again.
+7. **Same two steps in Codex.** Repeat 5 and 6 in `codex`. Expect the same
+   refusal text as the reason Codex shows, and no "hook failed" warning,
+   which would mean Codex rejected the printed `hook_output`.
+8. **PR gate.** On a branch named `release` (outside the feature patterns),
+   ask either agent to run `git push origin release`. Expect
+   `Push to release blocked: no /review-feature run has recorded a gate for <sha>. Run /review-feature, then push.`
+   A push of `feat/probe` goes through.
+9. **Kill switch.** Turn the kill switch on at its `/flow setup` item, or
+   run
+   `node ~/.claude/skills/critique/critique.mjs setup --json '{"action":"kill-switch","disabled":true}'`.
+   The commit from step 5 now goes through in both agents, and a session
+   start prints no line. With the switch back off (`"disabled":false`),
+   `CRITIQUE_OFF=1 claude` does the same.
+10. **Uninstall.** `bash <kit>/installer/setup-workstation.sh --uninstall`
+    prints `critique hooks removed from Claude Code` and `…from Codex`. Both
+    files keep your own hooks, and no group names `critique-`. Run setup
+    again to reinstall, then check Codex `/hooks`: the positions are the
+    same, so Codex may already count them trusted.
+
+Paste each step's output under this heading, with the date and the
+`claude --version` and `codex --version` it ran against, then delete the
+scratch repository.
