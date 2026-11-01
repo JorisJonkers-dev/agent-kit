@@ -358,7 +358,7 @@ describe('implementation', () => {
       stdout: vibeStdout('no'),
     })
     h.clock.advance(1)
-    const triage = await h.commands.triage.run({ base: 'HEAD~1', repo: h.repo, spec: SPEC, ticket: REPORT })
+    const triage = await h.commands.triage.run({ base: 'HEAD~1', repo: h.repo, ticket: REPORT })
     if (triage.status !== 'low-risk') throw new Error(`triage said ${triage.status}`)
 
     const result = await stateOf(h)

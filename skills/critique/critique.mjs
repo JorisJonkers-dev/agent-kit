@@ -3915,7 +3915,8 @@ var StateCommand = class {
       repository: repository.key,
       reviews,
       runs,
-      skipped_reviews: ledger.skipped_reviews.filter(belongs),
+      // Matched to tickets by reference: a triage run without the spec keeps the ticket's own flow.
+      skipped_reviews: ledger.skipped_reviews.filter((skip) => skip.repository === repository.key),
       spec,
       tickets: gather.tickets,
       vibe_spend_usd: keys.reduce((total, key2) => total + flowSpend(invocations, repository.key, key2), 0)
