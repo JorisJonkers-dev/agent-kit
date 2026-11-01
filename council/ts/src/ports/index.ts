@@ -41,6 +41,7 @@ export type {
   GitCommitAllRequest,
   GitCommitAllResult,
   GitDagExecutorPort,
+  GitIndexPort,
   GitPorcelainEntry,
   GitPort,
   GitReconcileRequest,

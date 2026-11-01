@@ -586,3 +586,45 @@ describe('GitCliAdapter commits', () => {
     expect(process.commands[0]?.args).toEqual(['diff', '--name-only', '-z', '--no-renames', 'a1', 'b2', '--'])
   })
 })
+
+describe('GitCliAdapter index', () => {
+  it('lists the staged entries without writing anything', async () => {
+    const process = new RecordingProcess(() => success('100644 aaa 0\tsrc/a.ts\0'))
+
+    expect(await new GitCliAdapter(process).stagedEntries('/r')).toBe('100644 aaa 0\tsrc/a.ts\0')
+    expect(process.commands[0]?.args).toEqual(['ls-files', '--stage', '-z'])
+  })
+
+  it("reads the tree a revision's commit holds", async () => {
+    const process = new RecordingProcess(() => success('4b825dc642cb6eb9a060e54bf8d69288fbee4904\n'))
+
+    expect(await new GitCliAdapter(process).treeOf('/r', 'HEAD')).toBe('4b825dc642cb6eb9a060e54bf8d69288fbee4904')
+    expect(process.commands[0]?.args).toEqual(['rev-parse', '--verify', '--quiet', '--end-of-options', 'HEAD^{tree}'])
+  })
+
+  it('writes the index as a tree', async () => {
+    const process = new RecordingProcess(() => success('abc123\n'))
+
+    expect(await new GitCliAdapter(process).writeIndexTree('/r')).toBe('abc123')
+    expect(process.commands[0]?.args).toEqual(['write-tree'])
+  })
+
+  it('writes a commit of a tree on its parent, unsigned and under a fixed identity, so it never prompts or fails on missing config', async () => {
+    const process = new RecordingProcess(() => success('def456\n'))
+
+    expect(await new GitCliAdapter(process).commitTree('/r', 'abc123', 'c0ffee', 'staged change')).toBe('def456')
+    expect(process.commands[0]?.args).toEqual([
+      '-c',
+      'user.name=agent-kit critique',
+      '-c',
+      'user.email=critique@agent-kit.invalid',
+      'commit-tree',
+      '--no-gpg-sign',
+      '-p',
+      'c0ffee',
+      '-m',
+      'staged change',
+      'abc123',
+    ])
+  })
+})

@@ -180,6 +180,30 @@ export class GitCliAdapter implements GitDagExecutorPort {
     return result.stdout.split('\0').filter((path) => path.length > 0)
   }
 
+  async stagedEntries(cwd: string): Promise<string> {
+    const result = await this.git(cwd, ['ls-files', '--stage', '-z'])
+    return result.stdout
+  }
+
+  async treeOf(cwd: string, revision: string): Promise<string> {
+    const result = await this.git(cwd, ['rev-parse', '--verify', '--quiet', '--end-of-options', `${revision}^{tree}`])
+    return result.stdout.trim()
+  }
+
+  async writeIndexTree(cwd: string): Promise<string> {
+    const result = await this.git(cwd, ['write-tree'])
+    return result.stdout.trim()
+  }
+
+  async commitTree(cwd: string, tree: string, parent: string, message: string): Promise<string> {
+    // The commit object is a snapshot nobody pushes, so it carries a fixed
+    // identity and no signature: commit-tree then never fails on missing
+    // user config or prompts for a signing key.
+    const identity = ['-c', 'user.name=agent-kit critique', '-c', 'user.email=critique@agent-kit.invalid']
+    const result = await this.git(cwd, [...identity, 'commit-tree', '--no-gpg-sign', '-p', parent, '-m', message, tree])
+    return result.stdout.trim()
+  }
+
   async diff(cwd: string, options: GitDiffOptions = {}): Promise<string> {
     const args = ['diff']
     if (options.staged === true) {
