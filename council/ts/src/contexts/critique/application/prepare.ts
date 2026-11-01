@@ -2,7 +2,15 @@ import { join } from 'node:path'
 
 import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
-import { compactTimestamp, sha256, type ArtifactSource, type PacketFile, type RunManifest } from '../domain/manifest.js'
+import {
+  compactTimestamp,
+  listedFiles,
+  sha256,
+  type ArtifactSource,
+  type CodeSource,
+  type PacketFile,
+  type RunManifest,
+} from '../domain/manifest.js'
 import { refusal, type Refusal } from '../domain/outcomes.js'
 import {
   candidateClients,
@@ -14,13 +22,14 @@ import {
   type RosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, isCodeStage, type CritiqueStage, type Depth } from '../domain/stage.js'
+import { CodePacketReader, type UnfrozenFile } from './code-packet.js'
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { manifestPath } from './locations.js'
 import { insideRepository } from './paths.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
-import { TrackerResolver, type TrackedArtifact } from './tracker.js'
+import { TrackerResolver, type TrackedArtifact, type Tracker } from './tracker.js'
 
 interface PrepareInput {
   readonly stage: CritiqueStage
@@ -32,6 +41,21 @@ interface PrepareInput {
   readonly comments: boolean
   /** The reference paths the caller names; undefined means the repository's decision docs. */
   readonly references: readonly string[] | undefined
+  /** A code stage's base: the commit or branch the change is diffed against. */
+  readonly base: string | undefined
+  /** A code stage's commit under review. */
+  readonly head: string
+  /** The ticket a ticket review delivers. */
+  readonly ticket: string | undefined
+}
+
+/** What a code stage's prepare reports about the commits it froze. */
+export interface PreparedCode {
+  readonly base_commit: string
+  readonly head_commit: string
+  readonly changed_files: readonly string[]
+  /** How many files of the tree at the head were frozen. */
+  readonly tree_files: number
 }
 
 export interface PrepareResult {
@@ -40,7 +64,10 @@ export interface PrepareResult {
   readonly run_dir: string
   readonly manifest_path: string
   readonly packet_dir: string
+  /** The packet files the critics' prompts name; a code packet's tree beyond the changed files is not listed. */
   readonly packet_files: readonly string[]
+  /** Only for a code stage. */
+  readonly code?: PreparedCode
   readonly artifact: ArtifactSource
   readonly depth: Depth
   readonly critics: readonly CriticIdentity[]
@@ -60,21 +87,26 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly repositories: RepositoryGate
   private readonly trackers: TrackerResolver
   private readonly decisionDocs: DecisionDocs
+  private readonly codePackets: CodePacketReader
 
   constructor(private readonly deps: CritiqueDeps) {
     this.repositories = new RepositoryGate(deps)
     this.trackers = new TrackerResolver(deps)
     this.decisionDocs = new DecisionDocs(deps.files)
+    this.codePackets = new CodePacketReader(deps)
   }
 
   async run(raw: unknown): Promise<PrepareResult | Refusal> {
     const input = readInput(raw, 'prepare', (fields): PrepareInput => ({
+      base: fields.optionalString('base'),
       comments: fields.has('comments') ? fields.boolean('comments') : false,
+      head: fields.optionalString('head') ?? 'HEAD',
       orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
       references: fields.has('references') ? fields.strings('references') : undefined,
       repo: fields.string('repo'),
       spec: fields.string('spec'),
       stage: fields.oneOf('stage', CRITIQUE_STAGES),
+      ticket: fields.optionalString('ticket'),
     }))
     const { orchestratorFamily, stage } = input
     const repository = await this.repositories.resolve(input.repo)
@@ -91,23 +123,23 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     }
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker
-    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec })
-    if (artifact.status === 'refused') return artifact
-    const references =
-      input.references === undefined
-        ? await this.decisionDocs.resolve(repository.root)
-        : input.references.map((path) => insideRepository(repository.root, path))
+    const contents = isCodeStage(stage)
+      ? await this.codePackets.read(repository, tracker, { ...input, stage })
+      : await this.documentPacket(repository, tracker, input)
+    if (contents.status === 'refused') return contents
+    const { artifact, code } = contents
     const routing = await readJsonFile(this.deps.files, join(this.deps.assetsRoot, 'routing.json'), 'invalid-routing', parseRouting)
     const request = { allowedFamilies: entry.families, orchestratorFamily, stage }
     const roster = resolveRoster(routing, request, await this.readiness(routing, request))
     const runId = await this.freshRunId(repository, stage)
     const runDir = join(repository.commonDir, 'critique', runId)
     const packetDir = join(runDir, 'packet')
-    const packetFiles = await this.freezePacket(repository, packetDir, artifact, references)
+    const packetFiles = await this.freezePacket(packetDir, contents.files)
     const source: ArtifactSource = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker }
     const manifest: RunManifest = {
       allowed_families: entry.families,
       artifact: source,
+      ...(code === undefined ? {} : { code }),
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
@@ -125,12 +157,13 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     await this.deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}\n`)
     return {
       artifact: source,
+      ...(code === undefined ? {} : { code: preparedCode(code, packetFiles) }),
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
       dropped: roster.dropped,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
-      packet_files: packetFiles.map((file) => file.path),
+      packet_files: listedFiles(manifest).map((file) => file.path),
       run_dir: runDir,
       run_id: runId,
       status: 'ready',
@@ -155,19 +188,26 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   }
 
   /**
-   * Writes the artifact to `artifact/` and copies each reference to
-   * `references/` under its repository path. Nothing else is ever put at the
-   * packet root, so a `.vibe/`, `.agents/` or `AGENTS.md` there can never
-   * become critic config.
+   * A document stage's packet: the artifact goes to `artifact/` and each
+   * reference to `references/` under its repository path. Nothing else is
+   * ever put at the packet root, so a `.vibe/`, `.agents/` or `AGENTS.md`
+   * there can never become critic config.
    */
-  private async freezePacket(
+  private async documentPacket(
     repository: ResolvedRepository,
-    packetDir: string,
-    artifact: TrackedArtifact,
-    references: readonly string[],
-  ): Promise<readonly PacketFile[]> {
-    const files = [
-      { kind: 'artifact' as const, path: join('artifact', artifact.name), source: artifact.reference, text: artifact.text },
+    tracker: Tracker,
+    input: PrepareInput,
+  ): Promise<
+    Refusal | { readonly status: 'read'; readonly artifact: TrackedArtifact; readonly files: readonly UnfrozenFile[]; readonly code: undefined }
+  > {
+    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec })
+    if (artifact.status === 'refused') return artifact
+    const references =
+      input.references === undefined
+        ? await this.decisionDocs.resolve(repository.root)
+        : input.references.map((path) => insideRepository(repository.root, path))
+    const files: UnfrozenFile[] = [
+      { kind: 'artifact', path: join('artifact', artifact.name), source: artifact.reference, text: artifact.text },
       ...(await Promise.all(
         references.map(async (source) => ({
           kind: 'reference' as const,
@@ -177,11 +217,24 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         })),
       )),
     ]
+    return { artifact, code: undefined, files, status: 'read' }
+  }
+
+  private async freezePacket(packetDir: string, files: readonly UnfrozenFile[]): Promise<readonly PacketFile[]> {
     const frozen: PacketFile[] = []
     for (const { text, ...file } of files) {
       await this.deps.files.writeText(join(packetDir, file.path), text)
       frozen.push({ ...file, sha256: sha256(text) })
     }
     return frozen
+  }
+}
+
+function preparedCode(code: CodeSource, files: readonly PacketFile[]): PreparedCode {
+  return {
+    base_commit: code.base_commit,
+    changed_files: code.changed_files,
+    head_commit: code.head_commit,
+    tree_files: files.filter((file) => file.kind === 'tree').length,
   }
 }

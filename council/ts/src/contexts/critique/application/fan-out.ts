@@ -4,7 +4,7 @@ import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } fro
 import { checkEvidence, type PacketText } from '../domain/evidence.js'
 import { readRunFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
-import { parseManifest, type RunManifest } from '../domain/manifest.js'
+import { listedFiles, parseManifest, type RunManifest } from '../domain/manifest.js'
 import { mergeFindings } from '../domain/merge.js'
 import { assemblePrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
@@ -99,7 +99,8 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
         role: await asset(`roles/${critic.role}.md`),
         schema: await asset(SCHEMA),
       },
-      manifest.packet_files,
+      listedFiles(manifest),
+      manifest.code !== undefined,
     )
     const promptPath = join(criticDir, 'prompt.md')
     const stdoutPath = join(criticDir, 'stdout.json')

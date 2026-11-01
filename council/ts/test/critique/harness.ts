@@ -69,12 +69,16 @@ export class FixedClock implements ClockPort {
 }
 
 /**
- * A repository without git: `porcelainStatus` compares the files on disk,
- * outside `.git/`, with those present at the last `commit()`, the way git
- * compares the working tree with HEAD.
+ * A repository without git: `commit()` snapshots the files on disk, outside
+ * `.git/`, as a new commit on one line of history, and `porcelainStatus`
+ * compares the files on disk with the last commit, the way git compares the
+ * working tree with HEAD. A commit's id is `c<n>`; `HEAD` and `HEAD~<n>`
+ * name commits too.
  */
 export class FakeGit implements CritiqueGitPort {
-  private committed = new Map<string, string>()
+  private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string> }[] = []
+  /** Every revision the runner asked about, so a test can see what it resolved. */
+  readonly resolved: string[] = []
 
   constructor(
     private readonly repoRoot: string,
@@ -93,20 +97,80 @@ export class FakeGit implements CritiqueGitPort {
     return Promise.resolve(this.remoteList)
   }
 
-  async commit(): Promise<void> {
-    this.committed = await this.workingTree()
+  /** Records the working tree as a new commit and returns its id. */
+  async commit(): Promise<string> {
+    const id = `c${String(this.history.length + 1)}`
+    this.history.push({ id, tree: await this.workingTree() })
+    return id
   }
 
   async porcelainStatus(): Promise<readonly GitPorcelainEntry[]> {
     const tree = await this.workingTree()
+    const committed = this.history.at(-1)?.tree ?? new Map<string, string>()
     const entries: GitPorcelainEntry[] = []
     for (const [path, text] of tree) {
-      const committed = this.committed.get(path)
-      if (committed === undefined) entries.push({ code: '??', path })
-      else if (committed !== text) entries.push({ code: ' M', path })
+      const before = committed.get(path)
+      if (before === undefined) entries.push({ code: '??', path })
+      else if (before !== text) entries.push({ code: ' M', path })
     }
-    for (const path of this.committed.keys()) if (!tree.has(path)) entries.push({ code: ' D', path })
+    for (const path of committed.keys()) if (!tree.has(path)) entries.push({ code: ' D', path })
     return entries.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  async resolveCommit(_cwd: string, revision: string): Promise<string> {
+    this.resolved.push(revision)
+    const back = /^HEAD(?:~(\d+))?$/.exec(revision)
+    const index = back === null ? this.history.findIndex((commit) => commit.id === revision) : this.history.length - 1 - Number(back[1] ?? 0)
+    const commit = this.history[index]
+    if (commit === undefined) throw new Error(`fatal: ambiguous argument '${revision}': unknown revision or path not in the working tree.`)
+    return Promise.resolve(commit.id)
+  }
+
+  /** History is one line, so the merge base of two commits is the older one. */
+  async mergeBase(_cwd: string, a: string, b: string): Promise<string> {
+    return Promise.resolve(this.indexOf(a) <= this.indexOf(b) ? a : b)
+  }
+
+  async treeFiles(_cwd: string, commit: string): Promise<readonly string[]> {
+    return Promise.resolve([...this.treeOf(commit).keys()].sort())
+  }
+
+  async fileAt(_cwd: string, commit: string, path: string): Promise<string> {
+    const text = this.treeOf(commit).get(path)
+    if (text === undefined) throw new Error(`fatal: path '${path}' does not exist in '${commit}'`)
+    return Promise.resolve(text)
+  }
+
+  /** Each changed file in full: its old lines removed and its new lines added. */
+  async diffCommits(_cwd: string, base: string, head: string): Promise<string> {
+    const before = this.treeOf(base)
+    const after = this.treeOf(head)
+    const lines = (text: string | undefined, sign: string) =>
+      text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
+    return Promise.resolve(
+      this.changed(before, after)
+        .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
+        .map((section) => `${section}\n`)
+        .join(''),
+    )
+  }
+
+  async changedPaths(_cwd: string, base: string, head: string): Promise<readonly string[]> {
+    return Promise.resolve(this.changed(this.treeOf(base), this.treeOf(head)))
+  }
+
+  private changed(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): readonly string[] {
+    return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
+  }
+
+  private indexOf(commit: string): number {
+    return this.history.findIndex((entry) => entry.id === commit)
+  }
+
+  private treeOf(commit: string): ReadonlyMap<string, string> {
+    const tree = this.history[this.indexOf(commit)]?.tree
+    if (tree === undefined) throw new Error(`fatal: not a valid object name ${commit}`)
+    return tree
   }
 
   private async workingTree(): Promise<Map<string, string>> {
@@ -448,6 +512,21 @@ export function twoCriticRouting(): unknown {
         ],
         distinct_families: true,
       },
+    },
+    version: 1,
+  }
+}
+
+/** One Vibe critic on each code stage, so prepare can build a code packet and fan-out can run it. */
+export function codeStageRouting(): unknown {
+  const slot = { client: 'vibe-mistral-large', lenses: ['failure-modes'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 }
+  return {
+    clients: {
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+    },
+    stages: {
+      'feature-review': { base: [slot], distinct_families: true },
+      'ticket-review': { base: [slot], distinct_families: true },
     },
     version: 1,
   }
