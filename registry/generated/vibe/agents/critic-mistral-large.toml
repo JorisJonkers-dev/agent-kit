@@ -3,7 +3,7 @@
 # `vibe --agent critic-mistral-large`. Installed into the shared Vibe home only.
 
 display_name = "Critic Mistral Large"
-description = "Read-only critic pinned to mistral-large-4-0-3"
+description = "Read-only critic pinned to mistral-large-4-0"
 safety = "safe"
 active_model = "critic-mistral-large"
 enabled_tools = ["read_file"]
@@ -17,7 +17,7 @@ include_project_context = false
 enabled = false
 
 [[models]]
-name = "mistral-large-4-0-3"
+name = "mistral-large-4-0"
 provider = "mistral"
 alias = "critic-mistral-large"
 input_price = 0.7

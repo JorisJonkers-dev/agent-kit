@@ -34,7 +34,7 @@ async function ready(h: Harness, extra: Record<string, unknown> = {}): Promise<P
 function twoMistralCritics(distinctFamilies: boolean): unknown {
   return {
     clients: {
-      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0' },
       'vibe-mistral-small': { agent: 'critic-mistral-small', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-small-4' },
     },
     stages: {
@@ -76,7 +76,7 @@ describe('prepare', () => {
         critic_id: 'c1-vibe-mistral-large',
         family: 'mistral',
         lenses: ['fidelity', 'testability'],
-        model: 'mistral-large-4-0-3',
+        model: 'mistral-large-4-0',
         role: 'spec-redteam',
       },
     ])
@@ -149,8 +149,8 @@ describe('prepare', () => {
   it('reports a dropped critic next to the ones that run', async () => {
     const routing = {
       clients: {
-        'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
-        'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5-3' },
+        'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0' },
+        'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'zai-glm-5-3' },
       },
       stages: {
         spec: {

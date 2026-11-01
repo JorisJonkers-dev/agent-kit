@@ -219,7 +219,7 @@ describe('a read-only violation in the record', () => {
     const [first] = result.summary.split('\n')
     expect(first).toContain('vibe-mistral-large')
     expect(first).toMatch(/^> \*\*Warning: read-only violated\*\*/)
-    expect(result.summary).toContain('vibe-mistral-large (mistral-large-4-0-3, mistral): violated read-only, 0 findings')
+    expect(result.summary).toContain('vibe-mistral-large (mistral-large-4-0, mistral): violated read-only, 0 findings')
   })
 
   it('marks the critic run violated-readonly in the ledger', async () => {

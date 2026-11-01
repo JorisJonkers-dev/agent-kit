@@ -127,7 +127,7 @@ describe('fan-out reads the critic output', () => {
         exit_code: 0,
         family: 'mistral',
         finding_count: 2,
-        model: 'mistral-large-4-0-3',
+        model: 'mistral-large-4-0',
         status: 'ok',
       }),
     ])
@@ -346,7 +346,7 @@ describe('fan-out applies the spec-stage evidence rule', () => {
     const h = await harness({
       routing: {
         clients: {
-          'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+          'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0' },
         },
         stages: {
           tickets: {

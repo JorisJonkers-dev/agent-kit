@@ -5,7 +5,7 @@
       "kind": "vibe",
       "binary": "vibe",
       "agent": "critic-mistral-large",
-      "model": "mistral-large-4-0-3",
+      "model": "mistral-large-4-0",
       "family": "mistral"
     },
     "agy-gemini-flash-high": {
@@ -18,7 +18,7 @@
       "kind": "vibe",
       "binary": "vibe",
       "agent": "critic-glm",
-      "model": "glm-5-3",
+      "model": "zai-glm-5-3",
       "family": "zhipu"
     },
     "vibe-deepseek-flash": {

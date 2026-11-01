@@ -215,7 +215,7 @@ describe('a fallback retry for a failed critic', () => {
 
     const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
 
-    expect(summary).toContain(`- vibe-glm (glm-5-3, zhipu): ok, 1 finding, $0.0123, fallback for ${VIBE} (timeout)`)
+    expect(summary).toContain(`- vibe-glm (zai-glm-5-3, zhipu): ok, 1 finding, $0.0123, fallback for ${VIBE} (timeout)`)
   })
 })
 
@@ -247,7 +247,7 @@ async function seedLedger(h: Harness, lines: readonly Record<string, unknown>[])
     family: 'mistral',
     flow: SPEC,
     kind: 'vibe',
-    model: 'mistral-large-4-0-3',
+    model: 'mistral-large-4-0',
     recorded_at: '2026-10-30T09:00:00.000Z',
     repository: REPOSITORY,
     run_id: '20261030T090000Z-spec',
@@ -361,7 +361,7 @@ describe('the per-flow Vibe cap', () => {
 
     const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
-    expect(summary).toContain("- vibe-mistral-large (mistral-large-4-0-3, mistral): budget-skip: the flow's Vibe spend $5.2500 has reached its $5.00 cap")
+    expect(summary).toContain("- vibe-mistral-large (mistral-large-4-0, mistral): budget-skip: the flow's Vibe spend $5.2500 has reached its $5.00 cap")
   })
 
   it('records a skipped critic in the ledger without launching it', async () => {

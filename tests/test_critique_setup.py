@@ -419,6 +419,16 @@ def test_every_vibe_client_in_routing_names_a_declared_agent() -> None:
     assert agents <= declared
 
 
+def test_every_vibe_client_in_routing_names_the_model_its_agent_pins() -> None:
+    """#178: routing's `model` is informational, so it must say what the agent really calls."""
+    routing = json.loads(ROUTING.read_text())
+    clients = {name: c for name, c in routing["clients"].items() if c["kind"] == "vibe"}
+    assert clients, "routing has no Vibe client, so this test proves nothing"
+    for name, client in clients.items():
+        (model,) = _agent_file(client["agent"])["models"]
+        assert client["model"] == model["name"], name
+
+
 def test_the_triage_model_runs_through_the_priced_mistral_small_agent() -> None:
     """#187: triage asks Mistral Small through its own agent, whose priced model entry makes its $0.03 cap real."""
     routing = json.loads(ROUTING.read_text())
@@ -499,10 +509,15 @@ def test_each_agent_file_pins_its_own_priced_model(name: str) -> None:
 
 
 def test_the_prices_are_mistrals_published_ones() -> None:
-    """docs.mistral.ai/inference/pricing, read 2026-11-01, in USD per million tokens."""
+    """docs.mistral.ai/inference/pricing, read 2026-11-01, in USD per million tokens.
+
+    The model is the id the API takes, never the personal home's alias: the
+    live check of #178 saw `mistral-large-4-0-3` (an alias) rejected with
+    `Status 400 ... Invalid model`, and the alias resolve to `mistral-large-4-0`.
+    """
     prices = {a["name"]: (a["model"], a["input_price"], a["output_price"]) for a in _critics(_registry())}
     assert prices == {
-        "critic-mistral-large": ("mistral-large-4-0-3", 0.7, 2.1),
+        "critic-mistral-large": ("mistral-large-4-0", 0.7, 2.1),
         "critic-mistral-small": ("mistral-small-latest", 0.15, 0.6),
         "critic-glm": ("zai-glm-5-3", 1.4, 4.4),
         "critic-deepseek-flash": ("deepseek-v4-1-flash-1017", 0.3, 1.2),

@@ -967,7 +967,7 @@ local_skills:
 # -------------------------------------------------------------------
 vibe_critic_agents:
   - name: critic-mistral-large
-    model: mistral-large-4-0-3
+    model: mistral-large-4-0
     input_price: 0.7
     output_price: 2.1
     surfaces: [workstation]

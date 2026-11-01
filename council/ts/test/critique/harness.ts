@@ -639,7 +639,7 @@ export function isolatedExport(overrides: Record<string, unknown> = {}): Record<
     cost_usd: 0.0123,
     steps: 3,
     config: {
-      active_model: 'mistral-large-4-0-3',
+      active_model: 'mistral-large-4-0',
       enable_mcp: false,
       enabled_tools: ['read_file'],
       include_project_context: false,
@@ -674,7 +674,7 @@ export function twoCriticRouting(): unknown {
   return {
     clients: {
       'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5' },
-      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0' },
     },
     stages: {
       spec: {
@@ -694,7 +694,7 @@ export function codeStageRouting(): unknown {
   const slot = { client: 'vibe-mistral-large', lenses: ['failure-modes'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 }
   return {
     clients: {
-      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+      'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0' },
     },
     stages: {
       'feature-review': { base: [slot], distinct_families: true },
@@ -855,8 +855,8 @@ export async function harness(
 /** The model and family of each shipped critic client, as record writes them to the ledger. */
 const LEDGER_CLIENTS: Readonly<Record<string, { readonly model: string; readonly family: string }>> = {
   'agy-gemini-flash-high': { family: 'google', model: 'gemini-3.8-flash-high' },
-  'vibe-glm': { family: 'zhipu', model: 'glm-5-3' },
-  'vibe-mistral-large': { family: 'mistral', model: 'mistral-large-4-0-3' },
+  'vibe-glm': { family: 'zhipu', model: 'zai-glm-5-3' },
+  'vibe-mistral-large': { family: 'mistral', model: 'mistral-large-4-0' },
 }
 
 /** One critic of a synthetic run. `role_hash` and `lens_hash` stand in for the hashes of its role and lens files. */
