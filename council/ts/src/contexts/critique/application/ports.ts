@@ -5,8 +5,8 @@ import type { CriticClient, RosterCritic } from '../domain/routing.js'
 /** The repository facts the critique needs: council's git port, narrowed to what it reads. */
 export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'>
 
-/** What the critique reads from GitHub: council's gh port, narrowed to reading one issue. */
-export type CritiqueGhPort = Pick<GhPort, 'viewIssue'>
+/** What the critique reads from GitHub: council's gh port, narrowed to reading issues and their links. */
+export type CritiqueGhPort = Pick<GhPort, 'viewIssue' | 'subIssues' | 'blockedBy'>
 
 /** Plain file access; every path is absolute. */
 export interface CritiqueFilesPort {
@@ -62,7 +62,7 @@ export interface CritiqueDeps {
   readonly env: EnvPort
   readonly files: CritiqueFilesPort
   readonly git: CritiqueGitPort
-  /** Reads spec issues when the repository's tracker is GitHub. */
+  /** Reads spec and ticket issues when the repository's tracker is GitHub. */
   readonly gh: CritiqueGhPort
   /** The client each kind of critic runs through. */
   readonly clients: Readonly<Record<CriticClient['kind'], CriticClientPort>>

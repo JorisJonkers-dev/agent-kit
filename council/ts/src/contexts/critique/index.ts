@@ -1,5 +1,6 @@
 export { createCritiqueCommands, type CritiqueCommands } from './application/commands.js'
 export type { AllowResult } from './application/allow.js'
+export type { CheckTicketsResult } from './application/check-tickets.js'
 export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'

@@ -23,12 +23,14 @@ its own: start a critique with the stage skill (`/critique-spec` after
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-node <this directory>/critique.mjs <prepare|fan-out|record|allow> --input FILE
+node <this directory>/critique.mjs <prepare|fan-out|record|allow|check-tickets> --input FILE
 node <this directory>/critique.mjs --help
 ```
 
 A refusal is a normal result with `"status": "refused"`. An error prints
-`"status": "error"` with a `code` and exits 1.
+`"status": "error"` with a `code` and exits 1. `check-tickets` is the
+deterministic ticket checker; while it finds a dependency cycle it prints
+`"status": "failed"` and exits 3.
 
 The Vibe critic clients run through read-only `critic-<model>` agents that
 agent-kit setup installs into the shared Vibe home (`~/.vibe/agents/`).
