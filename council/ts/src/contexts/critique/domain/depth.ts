@@ -3,14 +3,21 @@ import type { CritiqueStage, Depth } from './stage.js'
 
 /**
  * What a stage's depth signals are read from. The spec stage needs the
- * artifact's text and its tracker labels; a later stage may add what it
- * measures (a diff, a ticket list) here.
+ * artifact's text and its tracker labels; a code stage adds its change.
  */
 export interface DepthEvidence {
   /** The artifact as the packet freezes it. */
   readonly text: string
   /** The artifact's tracker labels; empty for a markdown file. */
   readonly labels: readonly string[]
+  /** A code stage's change, measured as risk triage measures it. */
+  readonly change?: ChangeMeasures
+}
+
+/** A code stage's change in numbers: its changed lines, and how many touched paths match a risk path. */
+export interface ChangeMeasures {
+  readonly changed_lines: number
+  readonly risk_path_hits: number
 }
 
 type Measure = (evidence: DepthEvidence) => number
@@ -25,7 +32,10 @@ const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Mea
   decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   'feature-review': {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
-  'ticket-review': {},
+  'ticket-review': {
+    changed_lines: ({ change }) => change?.changed_lines ?? 0,
+    risk_path_hits: ({ change }) => change?.risk_path_hits ?? 0,
+  },
   tickets: {},
 }
 

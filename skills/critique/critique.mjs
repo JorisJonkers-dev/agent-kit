@@ -1241,7 +1241,10 @@ var STAGE_MEASURES = {
   decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   "feature-review": {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
-  "ticket-review": {},
+  "ticket-review": {
+    changed_lines: ({ change }) => change?.changed_lines ?? 0,
+    risk_path_hits: ({ change }) => change?.risk_path_hits ?? 0
+  },
   tickets: {}
 };
 var NO_DEPTH_SIGNALS = { labels: [], risk_terms: [], thresholds: {} };
@@ -1324,13 +1327,144 @@ function containsTerm(text, term) {
   return new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, "iu").test(text);
 }
 
+// src/contexts/critique/domain/triage.ts
+function readTriageRules(fields) {
+  const model = fields.object("model");
+  return {
+    changed_lines_threshold: fields.number("changed_lines_threshold"),
+    labels: fields.strings("labels"),
+    model: {
+      client: model.string("client"),
+      max_price_usd: model.number("max_price_usd"),
+      time_limit_s: model.number("time_limit_s")
+    },
+    risk_paths: fields.strings("risk_paths")
+  };
+}
+function codeChange(diff, paths) {
+  return { changed_lines: countChangedLines(diff), paths };
+}
+function riskSignals(change, labels, rules) {
+  const carried = new Set(labels.map((label) => label.toLowerCase()));
+  return [
+    ...change.paths.flatMap((path) => {
+      const glob = rules.risk_paths.find((candidate) => matchesGlob(path, candidate));
+      return glob === void 0 ? [] : [{ glob, kind: "risk-path", path }];
+    }),
+    ...change.changed_lines > rules.changed_lines_threshold ? [{ changed_lines: change.changed_lines, kind: "size", threshold: rules.changed_lines_threshold }] : [],
+    ...rules.labels.filter((label) => carried.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
+  ];
+}
+function riskPathHits(change, rules) {
+  return change.paths.filter((path) => rules.risk_paths.some((glob) => matchesGlob(path, glob))).length;
+}
+function matchesGlob(path, glob) {
+  return globPattern(glob).test(path);
+}
+function globPattern(glob) {
+  let pattern = "";
+  let braces = 0;
+  for (let i = 0; i < glob.length; i += 1) {
+    const char = glob.charAt(i);
+    if (glob.startsWith("**/", i)) {
+      pattern += "(?:.*/)?";
+      i += 2;
+    } else if (glob.startsWith("/**", i) && i + 3 === glob.length) {
+      pattern += "(?:/.*)?";
+      i += 2;
+    } else if (glob.startsWith("**", i)) {
+      pattern += ".*";
+      i += 1;
+    } else if (char === "*") pattern += "[^/]*";
+    else if (char === "?") pattern += "[^/]";
+    else if (char === "{") {
+      braces += 1;
+      pattern += "(?:";
+    } else if (char === "}" && braces > 0) {
+      braces -= 1;
+      pattern += ")";
+    } else if (char === "," && braces > 0) pattern += "|";
+    else pattern += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${pattern}$`);
+}
+function countChangedLines(diff) {
+  let header = false;
+  let count = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git ")) header = true;
+    else if (header && (line.startsWith("+++ ") || line.startsWith("@@"))) header = false;
+    else if (!header && (line.startsWith("+") || line.startsWith("-"))) count += 1;
+  }
+  return count;
+}
+function readTriageAnswer(text) {
+  const word = text.trim().toLowerCase().replace(/^[\s*_`"']+|[\s*_`"'.!]+$/g, "");
+  return word === "yes" || word === "no" ? word : void 0;
+}
+function triageSummary(decision, signal, client) {
+  const model = `no risk rule fired, and the triage model (${client})`;
+  switch (signal.kind) {
+    case "risk-path":
+      return `Triage: risky: ${signal.path} matches the risk path ${signal.glob}.`;
+    case "size":
+      return `Triage: risky: ${String(signal.changed_lines)} changed lines, above the threshold of ${String(signal.threshold)}.`;
+    case "label":
+      return `Triage: risky: the ticket carries the label ${signal.label}.`;
+    case "model":
+      return decision === "risky" ? `Triage: risky: ${model} answered yes.` : `Triage: low-risk: ${model} answered no, so the review is skipped.`;
+    case "model-unavailable":
+      return `Triage: risky: ${model} could not answer: ${signal.detail}.`;
+  }
+}
+function triageLedgerLine(record) {
+  return {
+    type: record.status === "low-risk" ? "run" : "triage",
+    recorded_at: record.recorded_at,
+    repository: record.repository,
+    flow: record.flow,
+    run_id: record.run_id,
+    stage: "ticket-review",
+    status: record.status === "low-risk" ? "skipped-low-risk" : "risky",
+    ticket: record.ticket.reference,
+    triage_signal: ledgerSignal(record.signal),
+    risk_signals: record.signals.map(ledgerSignal),
+    changed_files: record.change.changed_files,
+    changed_lines: record.change.changed_lines,
+    changed_lines_threshold: record.change.changed_lines_threshold,
+    client: record.model?.client ?? null,
+    model: record.model?.model ?? null,
+    answer: record.model?.answer ?? null,
+    cost_usd: record.model?.cost_usd ?? null,
+    charged_usd: record.model?.charged_usd ?? 0,
+    prompt_hash: record.prompt_hash
+  };
+}
+function ledgerSignal(signal) {
+  if (signal.kind === "risk-path") return { glob: signal.glob, kind: signal.kind };
+  if (signal.kind === "model-unavailable") return { kind: signal.kind, reason: signal.reason };
+  return signal;
+}
+
 // src/contexts/critique/domain/routing.ts
 var CLIENT_KINDS = ["vibe", "agy"];
+function readTriageRouting(fields, clients) {
+  const rules = readTriageRules(fields);
+  const client = clients[rules.model.client];
+  if (client?.kind !== "vibe") {
+    throw new JsonShapeError(
+      `triage.model.client must name a vibe client of clients; ${rules.model.client} is ${client === void 0 ? "not defined" : "an agy client"}`
+    );
+  }
+  return { ...rules, model: { ...rules.model, client_config: client } };
+}
 var DROP_REASONS = ["family-not-allowed", "orchestrator-family", "same-family", "unavailable", "quota"];
 function parseRouting(text) {
   const file = JsonFields.parse(text);
+  const clients = file.entries("clients", readCriticClient);
+  const triage = file.has("triage") ? readTriageRouting(file.object("triage"), clients) : void 0;
   return {
-    clients: file.entries("clients", readCriticClient),
+    clients,
     fallbacks: file.has("fallbacks") ? file.stringLists("fallbacks") : {},
     limits: readLimits(file),
     stages: file.entries("stages", (stage, name) => ({
@@ -1339,6 +1473,7 @@ function parseRouting(text) {
       depth_signals: stage.has("depth_signals") ? readDepthSignalsConfig(stage.object("depth_signals"), name) : NO_DEPTH_SIGNALS,
       distinct_families: stage.boolean("distinct_families")
     })),
+    ...triage === void 0 ? {} : { triage },
     version: file.literal("version", 1)
   };
 }
@@ -1950,14 +2085,41 @@ import { join as join9 } from "node:path";
 
 // src/contexts/critique/application/code-packet.ts
 import { join as join5 } from "node:path";
+
+// src/contexts/critique/application/code-change.ts
+var CodeChangeReader = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async read(root, base, head) {
+    const headCommit = await this.commit(root, "head", head);
+    const baseCommit = await this.deps.git.mergeBase(root, await this.commit(root, "base", base), headCommit);
+    const diff = await this.deps.git.diffCommits(root, baseCommit, headCommit);
+    const paths = await this.deps.git.changedPaths(root, baseCommit, headCommit);
+    return { base_commit: baseCommit, change: codeChange(diff, paths), diff, head_commit: headCommit };
+  }
+  async commit(root, field, revision) {
+    try {
+      return await this.deps.git.resolveCommit(root, revision);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new CritiqueError("invalid-input", `${field} ${revision} names no commit: ${detail}`);
+    }
+  }
+};
+
+// src/contexts/critique/application/code-packet.ts
 var TREE_DIR2 = "tree";
 var DIFF_PATH = join5("diff", "change.diff");
 var READ_CONCURRENCY = 16;
 var CodePacketReader = class {
   constructor(deps) {
     this.deps = deps;
+    this.changes = new CodeChangeReader(deps);
   }
   deps;
+  changes;
   async read(repository, tracker, request) {
     const { stage } = request;
     if (request.base === void 0) {
@@ -1967,23 +2129,24 @@ var CodePacketReader = class {
       throw new CritiqueError("invalid-input", "ticket-review needs ticket: the ticket the change delivers");
     }
     const root = repository.root;
-    const head = await this.commit(root, "head", request.head);
-    const base = await this.deps.git.mergeBase(root, await this.commit(root, "base", request.base), head);
+    const read = await this.changes.read(root, request.base, request.head);
+    const { base_commit: base, head_commit: head } = read;
     const spec = await tracker.artifact({ comments: request.comments, reference: request.spec });
     if (spec.status === "refused") return spec;
     const tickets = await this.tickets(tracker, request, stage === "ticket-review" ? request.ticket : void 0);
     if (tickets.status === "refused") return tickets;
     const tree = await this.tree(root, head);
     const inTree = new Set(tree.map((file) => file.source));
-    const changed = (await this.deps.git.changedPaths(root, base, head)).filter((path) => inTree.has(path));
+    const changed = read.change.paths.filter((path) => inTree.has(path));
     const files = [
-      { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: await this.deps.git.diffCommits(root, base, head) },
+      { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
       ...tickets.files,
       { kind: "spec", path: join5("spec", spec.name), source: spec.reference, text: spec.text },
       ...tree
     ];
     return {
       artifact: tickets.ticket ?? spec,
+      change: read.change,
       code: {
         base: request.base,
         base_commit: base,
@@ -1994,14 +2157,6 @@ var CodePacketReader = class {
       files,
       status: "read"
     };
-  }
-  async commit(root, field, revision) {
-    try {
-      return await this.deps.git.resolveCommit(root, revision);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new CritiqueError("invalid-input", `${field} ${revision} names no commit: ${detail}`);
-    }
   }
   /** The one ticket a ticket review names, or else every ticket of the spec. */
   async tickets(tracker, request, reference) {
@@ -2170,7 +2325,7 @@ var DecisionsPacketReader = class {
 };
 function packet(reference, files) {
   const text = files.filter((file) => file.kind === "artifact").map((file) => file.text).join("\n\n");
-  return { artifact: { labels: [], reference, text, tracker: "none" }, code: void 0, files, status: "read" };
+  return { artifact: { labels: [], reference, text, tracker: "none" }, change: void 0, code: void 0, files, status: "read" };
 }
 
 // src/contexts/critique/application/routing.ts
@@ -2263,15 +2418,16 @@ var PrepareCommand = class {
     }
     const contents = await this.contents(repository, input);
     if (contents.status === "refused") return contents;
-    const { artifact, code } = contents;
+    const { artifact, change, code } = contents;
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage });
     if ("status" in round) return round;
     const { previousFlow, ...roundFields } = round;
     const routing = await this.routing.load();
+    const measured = change === void 0 ? {} : { change: { changed_lines: change.changed_lines, risk_path_hits: riskPathHits(change, routing.triage ?? { risk_paths: [] }) } };
     const { choice, depth } = chooseDepth(
       stage,
       stageRouting(routing, { stage }).depth_signals,
-      { labels: artifact.labels, text: artifact.text },
+      { labels: artifact.labels, text: artifact.text, ...measured },
       input.depth
     );
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage };
@@ -2404,7 +2560,7 @@ var PrepareCommand = class {
         }))
       )
     ];
-    return { artifact, code: void 0, files, status: "read" };
+    return { artifact, change: void 0, code: void 0, files, status: "read" };
   }
   async freezePacket(packetDir, files) {
     const frozen = [];
@@ -2679,9 +2835,9 @@ function findingSection(run, finding) {
 }
 function verdictText(verdict) {
   const code = verdict.reason_code === void 0 ? "" : ` (${verdict.reason_code})`;
-  const answered = verdict.answered === true ? ", answered" : "";
+  const answered2 = verdict.answered === true ? ", answered" : "";
   const reason = verdict.reason === void 0 ? "" : `: ${verdict.reason}`;
-  return `${verdict.verdict}${answered}${code}${reason}`;
+  return `${verdict.verdict}${answered2}${code}${reason}`;
 }
 function verdictLine(run) {
   const counts = countVerdicts(run);
@@ -2816,17 +2972,172 @@ function readVerdict(fields) {
   const reason = verdict === "rejected" || fields.has("reason") ? fields.string("reason") : void 0;
   const code = fields.optionalMatching("reason_code", isReasonCode, "a short lowercase slug");
   const findingId = fields.string("finding_id");
-  const answered = fields.has("answered") ? fields.boolean("answered") : void 0;
+  const answered2 = fields.has("answered") ? fields.boolean("answered") : void 0;
   return {
     finding_id: findingId,
     verdict,
     ...reason === void 0 ? {} : { reason },
     ...code === void 0 ? {} : { reason_code: code },
-    ...answered === void 0 ? {} : { answered }
+    ...answered2 === void 0 ? {} : { answered: answered2 }
   };
 }
 function isReasonCode(value) {
   return REASON_CODE.test(value);
+}
+
+// src/contexts/critique/application/triage.ts
+import { join as join11 } from "node:path";
+var TRIAGE_PROMPT = "prompts/triage.md";
+var DIFF_PATH2 = join11("diff", "change.diff");
+var TriageCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.repositories = new RepositoryGate(deps);
+    this.trackers = new TrackerResolver(deps);
+    this.changes = new CodeChangeReader(deps);
+    this.routing = new RoutingSource(deps);
+    this.budget = new FlowBudget(deps);
+  }
+  deps;
+  repositories;
+  trackers;
+  changes;
+  routing;
+  budget;
+  async run(raw) {
+    const input = readInput(raw, "triage", (fields) => ({
+      base: fields.string("base"),
+      flow: fields.optionalString("flow"),
+      head: fields.optionalString("head") ?? "HEAD",
+      repo: fields.string("repo"),
+      ticket: fields.string("ticket")
+    }));
+    const repository = await this.repositories.resolve(input.repo);
+    if (repository.status === "refused") return repository;
+    const routing = await this.routing.load();
+    const triage = routing.triage;
+    if (triage === void 0) throw new CritiqueError("invalid-routing", "routing has no triage, so a change cannot be triaged");
+    const tracker = await this.trackers.resolve(repository);
+    if (tracker.status === "refused") return tracker;
+    const ticket = await tracker.artifact({ comments: false, reference: input.ticket });
+    if (ticket.status === "refused") return ticket;
+    const read = await this.changes.read(repository.root, input.base, input.head);
+    const runId = await this.freshRunId(repository);
+    const runDir = join11(repository.commonDir, "critique", runId);
+    const flow = input.flow ?? ticket.reference;
+    const signals = riskSignals(read.change, ticket.labels, triage);
+    const [first] = signals;
+    const asked = first === void 0 ? await this.ask({ diff: read.diff, flow, repository, routing, runDir, runId, triage }) : { decision: "risky", signal: first };
+    const signal = asked.signal;
+    const result2 = {
+      change: {
+        base_commit: read.base_commit,
+        changed_files: read.change.paths.length,
+        changed_lines: read.change.changed_lines,
+        changed_lines_threshold: triage.changed_lines_threshold,
+        head_commit: read.head_commit
+      },
+      flow,
+      ...asked.model === void 0 ? {} : { model: asked.model },
+      run_id: runId,
+      signal,
+      signals,
+      status: asked.decision,
+      summary: triageSummary(asked.decision, signal, triage.model.client),
+      ticket: { labels: ticket.labels, reference: ticket.reference }
+    };
+    await this.deps.files.writeText(join11(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
+`);
+    const line = triageLedgerLine({
+      ...result2,
+      prompt_hash: asked.promptHash ?? null,
+      recorded_at: this.deps.clock.now().toISOString(),
+      repository: repository.key
+    });
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+`);
+    return result2;
+  }
+  /**
+   * Asks the triage model, when it may run, whether the change warrants a
+   * second review. Each reason it may not run leaves the change risky.
+   */
+  async ask(request) {
+    const { repository, routing, triage } = request;
+    const config = triage.model.client_config;
+    const unavailable = (reason, detail) => ({
+      decision: "risky",
+      signal: { detail, kind: "model-unavailable", reason }
+    });
+    const entry = (await this.repositories.allowlist()).repositories[repository.key];
+    if (entry === void 0) return unavailable("not-opted-in", `${repository.key} has no family allowlist entry on this machine`);
+    if (!entry.code) return unavailable("code-not-allowed", `${repository.key} allows documents but not code`);
+    if (!entry.families.includes(config.family)) {
+      return unavailable("family-not-allowed", `${repository.key} does not allow the ${config.family} family`);
+    }
+    const spent = budgetReached(await this.budget.vibeSpend({ flow: request.flow, repository: repository.key }), routing.limits);
+    if (spent !== void 0) return unavailable("budget", spent);
+    const ready = await this.deps.clients.vibe.readiness(config);
+    if (!ready.ready) return unavailable("unavailable", ready.detail);
+    const promptAsset = await this.deps.files.readText(join11(this.deps.assetsRoot, TRIAGE_PROMPT));
+    const workDir = join11(request.runDir, "packet");
+    const promptPath = join11(request.runDir, "prompt.md");
+    await this.deps.files.writeText(join11(workDir, DIFF_PATH2), request.diff);
+    await this.deps.files.writeText(
+      promptPath,
+      `${promptAsset.trim()}
+
+# Files
+
+- \`${DIFF_PATH2}\`: the change under review, as a diff against its base
+`
+    );
+    const report = await this.deps.clients.vibe.ask(
+      { max_price_usd: triage.model.max_price_usd, outputDir: request.runDir, promptPath, time_limit_s: triage.model.time_limit_s, workDir },
+      config
+    );
+    await this.deps.files.writeText(join11(request.runDir, "stdout.json"), report.stdout);
+    await this.deps.files.writeText(join11(request.runDir, "stderr.txt"), report.stderr);
+    const call = { client: triage.model.client, family: config.family, model: config.model };
+    await this.budget.logInvocation(
+      { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: "ticket-review" },
+      { ...call, charged_usd: report.chargedUsd, critic_id: "triage", status: report.answer.status === "answered" ? "ok" : "failed" },
+      "vibe"
+    );
+    return { ...answered(report), model: modelCall(call, report), promptHash: sha256(promptAsset) };
+  }
+  async freshRunId(repository) {
+    const base = `${compactTimestamp(this.deps.clock.now())}-triage`;
+    let candidate = base;
+    for (let n = 2; await this.deps.files.exists(join11(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
+      candidate = `${base}-${String(n)}`;
+    }
+    return candidate;
+  }
+};
+function answered(report) {
+  const { answer } = report;
+  if (answer.status === "failed") {
+    return { decision: "risky", signal: { detail: `${answer.failure}: ${answer.detail}`, kind: "model-unavailable", reason: "failed" } };
+  }
+  const word = readTriageAnswer(answer.text);
+  if (word === void 0) {
+    return {
+      decision: "risky",
+      signal: { detail: "the triage model answered neither yes nor no", kind: "model-unavailable", reason: "unclear-answer" }
+    };
+  }
+  return { decision: word === "yes" ? "risky" : "low-risk", signal: { answer: word, kind: "model" } };
+}
+function modelCall(call, report) {
+  const word = report.answer.status === "answered" ? readTriageAnswer(report.answer.text) : void 0;
+  return {
+    charged_usd: report.chargedUsd,
+    client: call.client,
+    cost_usd: report.answer.cost_usd,
+    model: call.model,
+    ...word === void 0 ? {} : { answer: word }
+  };
 }
 
 // src/contexts/critique/application/commands.ts
@@ -2836,13 +3147,14 @@ function createCritiqueCommands(deps) {
     checkTickets: new CheckTicketsCommand(deps),
     fanOut: new FanOutCommand(deps),
     prepare: new PrepareCommand(deps),
-    record: new RecordCommand(deps)
+    record: new RecordCommand(deps),
+    triage: new TriageCommand(deps)
   };
 }
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname3, join as join11, relative as relative2 } from "node:path";
+import { dirname as dirname3, join as join12, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -2871,7 +3183,7 @@ var NodeCritiqueFiles = class {
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join11(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join12(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -2879,7 +3191,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute2, join as join12 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join13 } from "node:path";
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
@@ -2913,7 +3225,7 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join12(launch.criticDir, "result.json");
+    const exportPath = join13(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
     const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run);
@@ -2922,7 +3234,7 @@ var AgyCriticClient = class {
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join12(dir, binary))) return true;
+      if (await this.files.exists(join13(dir, binary))) return true;
     }
     return false;
   }
@@ -3001,7 +3313,7 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { isAbsolute as isAbsolute3, join as join13 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join14 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files, env) {
     this.process = process2;
@@ -3021,9 +3333,9 @@ var VibeCriticClient = class {
    */
   async readiness(config) {
     if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
-    const home = join13(this.env.require("HOME"), ".vibe");
+    const home = join14(this.env.require("HOME"), ".vibe");
     if (!await this.signedIn(home)) return { detail: SIGN_IN2, ready: false };
-    if (!await this.files.exists(join13(home, "agents", `${config.agent}.toml`))) {
+    if (!await this.files.exists(join14(home, "agents", `${config.agent}.toml`))) {
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
     }
     return { ready: true };
@@ -3031,32 +3343,46 @@ var VibeCriticClient = class {
   async signedIn(home) {
     const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY"], command: "security" }).catch(() => ({ exitCode: 1 }));
     if (keychain.exitCode === 0) return true;
-    const dotenv = join13(home, ".env");
+    const dotenv = join14(home, ".env");
     if (!await this.files.exists(dotenv)) return false;
     return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
   }
   async onPath(binary) {
     if (isAbsolute3(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join13(dir, binary))) return true;
+      if (await this.files.exists(join14(dir, binary))) return true;
     }
     return false;
   }
   async review(launch, config) {
-    const exportDir = join13(launch.criticDir, "export");
-    const exportPath = join13(exportDir, "export.json");
-    const result2 = await this.process.exec(
-      vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
-    );
+    const exportDir = join14(launch.criticDir, "export");
+    const exportPath = join14(exportDir, "export.json");
+    const { result: result2, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir });
+    return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
+  }
+  /**
+   * Puts one question to the agent's model, launched exactly as a critic is
+   * (the same isolation, the same checks of the effective config), and
+   * returns its final message as plain text.
+   */
+  async ask(question, config) {
+    const exportDir = join14(question.outputDir, "export");
+    const { result: result2, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir });
+    const message = vibeMessage(run);
+    const answer = message.status === "failed" ? message : { cost_usd: message.cost_usd, status: "answered", text: message.text };
+    return { ...result2, answer, chargedUsd: vibeCharge(run, question.max_price_usd) };
+  }
+  async launch(limits, config, paths) {
+    const result2 = await this.process.exec(vibeLaunch(limits, config, paths));
     const run = {
       exitCode: result2.exitCode,
-      exported: await this.readExport(exportPath),
+      exported: await this.readExport(join14(paths.exportDir, "export.json")),
       stderr: result2.stderr,
       stdout: result2.stdout,
       timedOut: result2.timedOut === true,
-      timeoutS: launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S2
+      timeoutS: limits.time_limit_s + OUTER_TIMEOUT_GRACE_S2
     };
-    return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
+    return { result: { exitCode: result2.exitCode, stderr: result2.stderr, stdout: result2.stdout }, run };
   }
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
   async readExport(path) {
@@ -3101,7 +3427,7 @@ function vibeLaunch(critic, config, paths) {
       paths.exportDir
     ],
     command: "env",
-    cwd: paths.packetDir,
+    cwd: paths.workDir,
     env: ISOLATION_ENV,
     timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S2) * 1e3
   };
@@ -3112,6 +3438,18 @@ var EXIT_FAILURES = {
   3: "stopped-early"
 };
 function classifyVibeRun(run) {
+  const message = vibeMessage(run);
+  if (message.status === "failed") return message;
+  const parsed = parseFindings(message.text);
+  if (!parsed.ok) return { cost_usd: message.cost_usd, detail: parsed.detail, failure: parsed.failure, status: "failed" };
+  return {
+    cost_usd: message.cost_usd,
+    findings: parsed.findings,
+    status: "ok",
+    ...parsed.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed.no_findings_reason }
+  };
+}
+function vibeMessage(run) {
   const exported = jsonObjectOrUndefined(run.exported);
   const cost = typeof exported?.cost_usd === "number" ? exported.cost_usd : null;
   const failed = (failure, detail) => ({ cost_usd: cost, detail, failure, status: "failed" });
@@ -3126,14 +3464,7 @@ function classifyVibeRun(run) {
   if (violations.length > 0) return failed("unsafe-config", `effective config: ${violations.join("; ")}`);
   const message = finalAssistantText(run.stdout);
   if (message === void 0) return failed("unparseable-output", "stdout is not a Vibe journal with an assistant message");
-  const parsed = parseFindings(message);
-  if (!parsed.ok) return failed(parsed.failure, parsed.detail);
-  return {
-    cost_usd: cost,
-    findings: parsed.findings,
-    status: "ok",
-    ...parsed.no_findings_reason === void 0 ? {} : { no_findings_reason: parsed.no_findings_reason }
-  };
+  return { cost_usd: cost, status: "ok", text: message };
 }
 function vibeCharge(run, cap) {
   const exported = jsonObjectOrUndefined(run.exported);
@@ -3527,9 +3858,10 @@ var COMMANDS = {
   "check-tickets": "checkTickets",
   "fan-out": "fanOut",
   prepare: "prepare",
-  record: "record"
+  record: "record",
+  triage: "triage"
 };
-var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets> [--input FILE | --json TEXT]
+var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|triage> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".

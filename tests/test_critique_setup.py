@@ -99,7 +99,7 @@ def test_critique_spec_is_declared_for_every_agent() -> None:
 
 def test_the_shared_skill_carries_the_runner_prompts_lenses_schema_and_routing() -> None:
     root = KIT_ROOT / "skills" / "critique"
-    for path in ("SKILL.md", "critique.mjs", "routing.json", "prompts/preamble.md",
+    for path in ("SKILL.md", "critique.mjs", "routing.json", "prompts/preamble.md", "prompts/triage.md",
                  "roles/spec-redteam.md", "lenses/fidelity.md", "schemas/finding.schema.json"):
         assert (root / path).is_file(), path
 
@@ -238,6 +238,18 @@ def test_every_vibe_client_in_routing_names_a_declared_agent() -> None:
     agents = {c["agent"] for c in routing["clients"].values() if c["kind"] == "vibe"}
     assert agents, "routing has no Vibe client, so this test proves nothing"
     assert agents <= declared
+
+
+def test_the_triage_model_runs_through_the_priced_mistral_small_agent() -> None:
+    """#187: triage asks Mistral Small through its own agent, whose priced model entry makes its $0.03 cap real."""
+    routing = json.loads(ROUTING.read_text())
+    client = routing["clients"][routing["triage"]["model"]["client"]]
+    assert (client["kind"], client["agent"], client["family"]) == ("vibe", "critic-mistral-small", "mistral")
+    (model,) = _agent_file(client["agent"])["models"]
+    assert model["name"] == client["model"] == "mistral-small-latest"
+    assert model["input_price"] > 0 and model["output_price"] > 0
+    assert routing["triage"]["model"]["max_price_usd"] == 0.03
+    assert routing["triage"]["model"]["time_limit_s"] == 60
 
 
 def test_every_critic_agent_is_a_generated_artifact() -> None:

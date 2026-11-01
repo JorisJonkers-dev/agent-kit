@@ -80,6 +80,17 @@ describe('critique runner command line', () => {
     })
   })
 
+  it('exits 0 with the decision when triage calls a change risky', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
+    await h.git.commit()
+
+    expect(
+      await run(cli(h), 'triage', '--json', JSON.stringify({ base: 'HEAD~1', repo: h.repo, ticket: '.scratch/widgets/spec.md' })),
+    ).toMatchObject({ signal: { kind: 'risk-path', path: 'src/auth/session.ts' }, status: 'risky' })
+  })
+
   it('prints a refusal as a normal result', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)

@@ -27,6 +27,13 @@
       "agent": "critic-deepseek-flash",
       "model": "deepseek-v4-1-flash-1017",
       "family": "deepseek"
+    },
+    "vibe-mistral-small": {
+      "kind": "vibe",
+      "binary": "vibe",
+      "agent": "critic-mistral-small",
+      "model": "mistral-small-latest",
+      "family": "mistral"
     }
   },
   "budget": { "vibe_flow_cap_usd": 5 },
@@ -34,6 +41,33 @@
     "daily_cap": 20,
     "reserve_threshold": 10,
     "reserved_stages": ["spec", "feature-review"]
+  },
+  "triage": {
+    "risk_paths": [
+      "**/{auth,authn,authz,oauth,oidc,sso,login,session,sessions,permissions,rbac,acl}/**",
+      "**/{auth,authn,authz,oauth,oidc,login,session,sessions,permissions,rbac,acl}.*",
+      "**/*{-,_}{auth,oauth,login,session,permission,permissions}.*",
+      "**/{crypto,cryptography,encryption,secrets,keys,certs,tls}/**",
+      "**/{crypto,encryption,cipher,secrets,jwt,signing,signature,hashing}.*",
+      "**/{migrations,migration,migrate}/**",
+      "**/*.sql",
+      "**/{lock,locks,locking,mutex,semaphore,atomic,atomics,concurrency,threading,scheduler}/**",
+      "**/{lock,locks,locking,mutex,semaphore,atomic,atomics,concurrency,threading,scheduler,worker_pool,threadpool}.*",
+      "**/*{-,_}{lock,mutex,semaphore}.*",
+      "**/api/**",
+      "**/*.proto",
+      "**/*.graphql",
+      "**/{openapi,swagger}*.{json,yaml,yml}",
+      "**/{infra,infrastructure,deploy,deployment,deployments,terraform,k8s,kubernetes,helm,charts,ansible}/**",
+      "**/*.tf",
+      "**/Dockerfile*",
+      "**/{docker-compose,compose}*.{yml,yaml}",
+      ".github/workflows/**",
+      "**/{Jenkinsfile,.gitlab-ci.yml}"
+    ],
+    "changed_lines_threshold": 300,
+    "labels": ["risk:high"],
+    "model": { "client": "vibe-mistral-small", "max_price_usd": 0.03, "time_limit_s": 60 }
   },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
