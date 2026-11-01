@@ -211,16 +211,15 @@ describe('Antigravity readiness', () => {
     return { h, run }
   }
 
-  it('checks the Keychain for the Antigravity CLI item, as setup does', async () => {
-    const { h } = await prepared({}, ['google'])
+  it('asks agy which models it offers, with a time limit, and never asks the Keychain', async () => {
+    const { h, run } = await prepared({}, ['google'])
 
-    expect(h.agy.commands).toEqual([
-      expect.objectContaining({ args: ['find-generic-password', '-s', 'Antigravity CLI'], command: 'security' }),
-    ])
+    expect(h.agy.commands).toEqual([{ args: ['models'], command: 'agy', timeoutMs: 20_000 }])
+    expect(run.critics.map((critic) => critic.client)).toEqual(['agy-gemini-flash-high'])
   })
 
   it('replaces a Gemini critic that is not signed in with GLM, in setup words', async () => {
-    const { run } = await prepared({ agySignedIn: false }, ['mistral', 'google', 'zhipu'])
+    const { run } = await prepared({ agyModels: 'signed-out' }, ['mistral', 'google', 'zhipu'])
 
     expect(run.critics.map((critic) => [critic.client, critic.lenses])).toEqual([
       ['vibe-mistral-large', ['fidelity', 'testability']],
@@ -237,10 +236,51 @@ describe('Antigravity readiness', () => {
     ])
   })
 
-  it('counts agy as not signed in when the Keychain cannot be asked', async () => {
-    const { run } = await prepared({ agySignedIn: 'no-security-tool' }, ['google', 'zhipu'])
+  it('reads a sign-in request on stdout as well as stderr', async () => {
+    const reply = { exitCode: 1, stderr: '', stdout: 'Error: Please Sign In to view available models.\n' }
+    const { run } = await prepared({ agyModels: reply }, ['google', 'zhipu'])
 
     expect(run.dropped).toContainEqual(expect.objectContaining({ client: 'agy-gemini-flash-high', detail: SIGN_IN }))
+  })
+
+  it('counts agy as unavailable when it does not offer the routed model', async () => {
+    const reply = { exitCode: 0, stderr: 'Fetching available models...\n', stdout: 'gemini-3.8-flash-high-preview\tPreview\nclaude-sonnet-4-6\tClaude\n' }
+    const { run } = await prepared({ agyModels: reply }, ['google', 'zhipu'])
+
+    expect(run.dropped).toContainEqual(
+      expect.objectContaining({ client: 'agy-gemini-flash-high', detail: 'antigravity: agy does not offer gemini-3.8-flash-high' }),
+    )
+  })
+
+  it('names the first line of any other failure, past the progress line', async () => {
+    const reply = { exitCode: 2, stderr: 'Fetching available models...\n\nError: connect ECONNREFUSED 127.0.0.1:443\nmore detail\n', stdout: '' }
+    const { run } = await prepared({ agyModels: reply }, ['google', 'zhipu'])
+
+    expect(run.dropped).toContainEqual(
+      expect.objectContaining({ detail: 'antigravity: agy models failed: Error: connect ECONNREFUSED 127.0.0.1:443' }),
+    )
+  })
+
+  it('names the exit code of a failure that printed nothing else', async () => {
+    const reply = { exitCode: 3, stderr: 'Fetching available models...\n', stdout: '' }
+    const { run } = await prepared({ agyModels: reply }, ['google', 'zhipu'])
+
+    expect(run.dropped).toContainEqual(expect.objectContaining({ detail: 'antigravity: agy models failed: exit 3' }))
+  })
+
+  it('says so when agy models outlived its time limit', async () => {
+    const reply = { exitCode: 124, stderr: 'Fetching available models...\n', stdout: '', timedOut: true }
+    const { run } = await prepared({ agyModels: reply }, ['google', 'zhipu'])
+
+    expect(run.dropped).toContainEqual(
+      expect.objectContaining({ detail: 'antigravity: agy models failed: no answer within 20s' }),
+    )
+  })
+
+  it('names the error when agy cannot be started', async () => {
+    const { run } = await prepared({ agyModels: 'spawn-error' }, ['google', 'zhipu'])
+
+    expect(run.dropped).toContainEqual(expect.objectContaining({ detail: 'antigravity: agy models failed: spawn agy EACCES' }))
   })
 
   it('finds agy by an absolute path in routing', async () => {
@@ -263,7 +303,7 @@ describe('Antigravity readiness', () => {
     expect(h.agy.commands).toEqual([])
   })
 
-  it('counts agy as unavailable off macOS without asking the Keychain', async () => {
+  it('counts agy as unavailable off macOS without asking agy', async () => {
     const { h, run } = await prepared({ platform: 'linux' }, ['google', 'zhipu'])
 
     expect(run.critics.map((critic) => critic.client)).toEqual(['vibe-glm'])
@@ -278,7 +318,7 @@ describe('Antigravity readiness', () => {
   })
 
   it('drops an unavailable Gemini critic and says so when the allowlist permits no fallback', async () => {
-    const { h, run } = await prepared({ agySignedIn: false }, ['google'])
+    const { h, run } = await prepared({ agyModels: 'signed-out' }, ['google'])
 
     expect(run.critics).toEqual([])
     expect(run.dropped).toContainEqual({ client: 'agy-gemini-flash-high', detail: SIGN_IN, family: 'google', reason: 'unavailable' })

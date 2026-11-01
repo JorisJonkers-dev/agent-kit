@@ -5983,6 +5983,8 @@ async function cliVersion(process2, binary) {
 
 // src/contexts/critique/adapters/agy/index.ts
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
+var MODELS_TIMEOUT_MS = 2e4;
+var MODELS_PROGRESS = "Fetching available models...";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
   permissions: {
@@ -6001,10 +6003,6 @@ var AgyCriticClient = class {
   files;
   env;
   platform;
-  /**
-   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
-   * `PATH`, and the Keychain must hold an `Antigravity CLI` item.
-   */
   /** agy has no per-critic file, so being signed in is all a critic needs. */
   async signIn(config) {
     return this.readiness(config);
@@ -6012,11 +6010,17 @@ var AgyCriticClient = class {
   async version(config) {
     return cliVersion(this.process, config.binary);
   }
+  /**
+   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
+   * `PATH`, and `agy models` must list the routed model. Listing the models
+   * needs a signed-in account but calls no model, so it spends no quota and
+   * answers even while the quota is spent.
+   */
   async readiness(config) {
     if (this.platform !== "darwin") return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false };
     if (!await this.onPath(config.binary)) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false };
-    const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "Antigravity CLI"], command: "security" }).catch(() => ({ exitCode: 1 }));
-    return keychain.exitCode === 0 ? { ready: true } : { detail: SIGN_IN, ready: false };
+    const listed = await this.process.exec({ args: ["models"], command: config.binary, timeoutMs: MODELS_TIMEOUT_MS }).catch((error) => error instanceof Error ? error.message : String(error));
+    return modelsReadiness(listed, config);
   }
   async review(launch, config) {
     const prompt = await this.files.readText(launch.promptPath);
@@ -6036,6 +6040,19 @@ var AgyCriticClient = class {
     return false;
   }
 };
+function modelsReadiness(listed, config) {
+  const failed = (reason) => ({ detail: `antigravity: ${config.binary} models failed: ${reason}`, ready: false });
+  if (typeof listed === "string") return failed(listed);
+  if (listed.timedOut === true) return failed(`no answer within ${String(MODELS_TIMEOUT_MS / 1e3)}s`);
+  const lines = `${listed.stdout}
+${listed.stderr}`.split("\n").map((line) => line.trim()).filter((line) => line.length > 0 && line !== MODELS_PROGRESS);
+  if (listed.exitCode !== 0) {
+    if (lines.some((line) => /sign in/i.test(line))) return { detail: SIGN_IN, ready: false };
+    return failed(lines[0] ?? `exit ${String(listed.exitCode)}`);
+  }
+  if (lines.some((line) => line.split("	")[0] === config.model)) return { ready: true };
+  return { detail: `antigravity: ${config.binary} does not offer ${config.model}`, ready: false };
+}
 function agyLaunch(launch, config, prompt) {
   const timeLimit = launch.critic.time_limit_s;
   return {

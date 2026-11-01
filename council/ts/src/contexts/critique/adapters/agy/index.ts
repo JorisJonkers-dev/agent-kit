@@ -1,6 +1,6 @@
 import { isAbsolute, join } from 'node:path'
 
-import type { EnvPort, ProcessCommand, ProcessPort } from '../../../../ports/index.js'
+import type { EnvPort, ProcessCommand, ProcessPort, ProcessResult } from '../../../../ports/index.js'
 import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { readFindings } from '../../domain/findings.js'
@@ -8,8 +8,17 @@ import { jsonObjectOrUndefined, type JsonObject } from '../../domain/json.js'
 import type { AgyCriticClient as AgyClientConfig, ClientReadiness } from '../../domain/routing.js'
 import { cliVersion } from '../cli-version.js'
 
-/** Setup's own warning for a machine whose Keychain has no `Antigravity CLI` item. */
+/** Setup's own warning for a machine where `agy models` asks for a sign-in. */
 const SIGN_IN = 'antigravity: needs sign-in: run agy and sign in with your Google account'
+
+/**
+ * The longest `agy models` may take. Signed in it answers in about a second;
+ * stdin is closed, so it cannot wait on a prompt either.
+ */
+const MODELS_TIMEOUT_MS = 20_000
+
+/** The progress line `agy models` prints first, which says nothing about the outcome. */
+const MODELS_PROGRESS = 'Fetching available models...'
 
 /** Seconds the outer timer allows beyond agy's own `--print-timeout`. */
 const OUTER_TIMEOUT_GRACE_S = 60
@@ -49,10 +58,6 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
     private readonly platform: NodeJS.Platform,
   ) {}
 
-  /**
-   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
-   * `PATH`, and the Keychain must hold an `Antigravity CLI` item.
-   */
   /** agy has no per-critic file, so being signed in is all a critic needs. */
   async signIn(config: AgyClientConfig): Promise<ClientReadiness> {
     return this.readiness(config)
@@ -62,13 +67,19 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
     return cliVersion(this.process, config.binary)
   }
 
+  /**
+   * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
+   * `PATH`, and `agy models` must list the routed model. Listing the models
+   * needs a signed-in account but calls no model, so it spends no quota and
+   * answers even while the quota is spent.
+   */
   async readiness(config: AgyClientConfig): Promise<ClientReadiness> {
     if (this.platform !== 'darwin') return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false }
     if (!(await this.onPath(config.binary))) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false }
-    const keychain = await this.process
-      .exec({ args: ['find-generic-password', '-s', 'Antigravity CLI'], command: 'security' })
-      .catch(() => ({ exitCode: 1 }))
-    return keychain.exitCode === 0 ? { ready: true } : { detail: SIGN_IN, ready: false }
+    const listed = await this.process
+      .exec({ args: ['models'], command: config.binary, timeoutMs: MODELS_TIMEOUT_MS })
+      .catch((error: unknown) => (error instanceof Error ? error.message : String(error)))
+    return modelsReadiness(listed, config)
   }
 
   async review(launch: CriticLaunch, config: AgyClientConfig): Promise<CriticReport> {
@@ -92,6 +103,28 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
     }
     return false
   }
+}
+
+/**
+ * What `agy models` says about this machine. It prints one model per line,
+ * the id, a tab and a label, after a progress line; signed out, it exits 1
+ * with `Error: Please sign in to view available models. ...`. A string is the
+ * error that kept it from starting.
+ */
+function modelsReadiness(listed: ProcessResult | string, config: AgyClientConfig): ClientReadiness {
+  const failed = (reason: string): ClientReadiness => ({ detail: `antigravity: ${config.binary} models failed: ${reason}`, ready: false })
+  if (typeof listed === 'string') return failed(listed)
+  if (listed.timedOut === true) return failed(`no answer within ${String(MODELS_TIMEOUT_MS / 1000)}s`)
+  const lines = `${listed.stdout}\n${listed.stderr}`
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && line !== MODELS_PROGRESS)
+  if (listed.exitCode !== 0) {
+    if (lines.some((line) => /sign in/i.test(line))) return { detail: SIGN_IN, ready: false }
+    return failed(lines[0] ?? `exit ${String(listed.exitCode)}`)
+  }
+  if (lines.some((line) => line.split('\t')[0] === config.model)) return { ready: true }
+  return { detail: `antigravity: ${config.binary} does not offer ${config.model}`, ready: false }
 }
 
 /**

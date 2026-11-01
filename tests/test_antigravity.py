@@ -249,59 +249,100 @@ def test_the_runner_hermes_and_container_outputs_have_no_antigravity() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _signin(tmp_path: Path, *, agy: bool, keychain: bool, cask: bool = False) -> subprocess.CompletedProcess[str]:
+# What agy 1.4.12 prints for `agy models`: a progress line on stderr, then one
+# model per line on stdout; signed out, an error line and exit 1.
+FETCHING = "Fetching available models..."
+SIGNED_IN = (
+    f'echo "{FETCHING}" >&2\n'
+    "printf 'gemini-3.8-flash-high\\tGemini 3.8 Flash (High)\\n'\n"
+    "exit 0"
+)
+SIGNED_OUT = (
+    f'echo "{FETCHING}" >&2\n'
+    'echo "Error: Please sign in to view available models. Launch the CLI without arguments to sign in." >&2\n'
+    "exit 1"
+)
+
+
+def _signin(tmp_path: Path, agy: str | None, *, cask: bool = False) -> subprocess.CompletedProcess[str]:
+    """Runs the rendered doctor alone; `agy` is the body of a stub `agy`, None for no CLI."""
     script = _script()
     start = script.index("report_antigravity_signin() {")
     fn = script[start : script.index("\n}\n", start) + 3]
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    if agy:
-        stub(bin_dir, "agy", "exit 0")
-    stub(bin_dir, "security", "exit 0" if keychain else "exit 1")
+    calls = tmp_path / "calls"
+    if agy is not None:
+        stub(bin_dir, "agy", f'echo "agy $* stdin=$(cat)" >> "{calls}"\n{agy}')
+    stub(bin_dir, "security", f'echo "security $*" >> "{calls}"\nexit 1')
     if cask:
-        stub(
-            bin_dir,
-            "brew",
-            'case "$1 $2 $3" in\n  "list --cask antigravity") exit 0 ;;\nesac\nexit 1',
-        )
-    body = 'warn() { echo "warn $*"; }\n' + fn + "\nreport_antigravity_signin\n"
+        stub(bin_dir, "brew", 'case "$1 $2 $3" in\n  "list --cask antigravity") exit 0 ;;\nesac\nexit 1')
+    body = "set -uo pipefail\n" + 'warn() { echo "warn $*"; }\n' + fn + "\nreport_antigravity_signin\n"
     return subprocess.run(
-        ["bash", "-c", body],
+        ["/bin/bash", "-c", body],
         capture_output=True,
         text=True,
         check=False,
+        timeout=60,
         env={"HOME": str(tmp_path), "PATH": f"{bin_dir}:/usr/bin:/bin"},
     )
 
 
+def _calls(tmp_path: Path) -> list[str]:
+    calls = tmp_path / "calls"
+    return calls.read_text().splitlines() if calls.exists() else []
+
+
+def test_the_doctor_is_quiet_when_agy_lists_its_models(tmp_path: Path) -> None:
+    result = _signin(tmp_path, SIGNED_IN)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+
+
+def test_the_doctor_asks_agy_models_with_stdin_closed_and_never_the_keychain(tmp_path: Path) -> None:
+    _signin(tmp_path, SIGNED_IN)
+    assert _calls(tmp_path) == ["agy models stdin="]
+
+
 def test_the_doctor_names_a_missing_sign_in(tmp_path: Path) -> None:
-    result = _signin(tmp_path, agy=True, keychain=False)
+    result = _signin(tmp_path, SIGNED_OUT)
     assert result.returncode == 0, result.stderr
-    assert f"warn {SIGN_IN}" in result.stdout
+    assert result.stdout == f"warn {SIGN_IN}\n"
 
 
-def test_the_doctor_reports_for_the_desktop_app_alone(tmp_path: Path) -> None:
-    """No `agy`, but the app's cask is installed: still a machine that needs a sign-in."""
-    result = _signin(tmp_path, agy=False, keychain=False, cask=True)
+def test_the_doctor_reads_a_sign_in_request_in_any_case(tmp_path: Path) -> None:
+    result = _signin(tmp_path, 'echo "ERROR: SIGN IN FIRST"\nexit 1')
+    assert result.stdout == f"warn {SIGN_IN}\n"
+
+
+def test_the_doctor_names_agys_own_line_for_any_other_failure(tmp_path: Path) -> None:
+    agy = f'echo "{FETCHING}" >&2\necho "" >&2\necho "Error: connect ECONNREFUSED" >&2\necho "more" >&2\nexit 2'
+    result = _signin(tmp_path, agy)
     assert result.returncode == 0, result.stderr
-    assert f"warn {SIGN_IN}" in result.stdout
+    assert result.stdout == "warn antigravity: agy models failed: Error: connect ECONNREFUSED\n"
 
 
-def test_the_doctor_is_quiet_for_the_desktop_app_once_signed_in(tmp_path: Path) -> None:
-    result = _signin(tmp_path, agy=False, keychain=True, cask=True)
+def test_the_doctor_names_the_exit_code_of_a_silent_failure(tmp_path: Path) -> None:
+    result = _signin(tmp_path, f'echo "{FETCHING}" >&2\nexit 3')
+    assert result.stdout == "warn antigravity: agy models failed: exit 3\n"
+
+
+def test_the_doctor_says_so_when_agy_models_does_not_answer(tmp_path: Path) -> None:
+    """The alarm that bounds the call ends it with SIGALRM; the stub sends that signal to itself."""
+    result = _signin(tmp_path, f'echo "{FETCHING}" >&2\nkill -ALRM $$')
+    assert result.stdout == "warn antigravity: agy models failed: no answer within 20s\n"
+
+
+def test_the_doctor_says_nothing_for_the_desktop_app_alone(tmp_path: Path) -> None:
+    """Only the CLI can be asked; the app's cask on its own is not checked."""
+    result = _signin(tmp_path, None, cask=True)
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
-
-
-def test_the_doctor_is_quiet_once_the_keychain_holds_the_credential(tmp_path: Path) -> None:
-    result = _signin(tmp_path, agy=True, keychain=True)
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == ""
+    assert _calls(tmp_path) == []
 
 
 def test_the_doctor_says_nothing_without_antigravity(tmp_path: Path) -> None:
-    """Neither `agy` nor the app's cask: nothing to sign in to."""
-    result = _signin(tmp_path, agy=False, keychain=False)
+    result = _signin(tmp_path, None)
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
 
