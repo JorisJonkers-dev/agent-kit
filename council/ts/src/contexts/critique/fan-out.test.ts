@@ -5,10 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   ASSETS_ROOT,
+  DECISION_CANARY,
   fenced,
   finding,
   harness,
   isolatedExport,
+  SPEC_CANARY,
   vibeStdout,
   type Harness,
   type VibeScript,
@@ -270,5 +272,96 @@ describe('fan-out reads the critic output', () => {
     const { h, run } = await preparedRun([])
 
     await expect(h.commands.fanOut.run({ run_dir: join(run.run_dir, 'nope') })).rejects.toThrow()
+  })
+})
+
+describe('fan-out checks the evidence of every finding', () => {
+  const quote = (file: string, value: string) => ({ file, kind: 'quote', value })
+
+  it('rejects a finding whose quote is not in the packet as fabricated evidence', async () => {
+    const invented = finding({
+      evidence: [quote('artifact/spec.md', SPEC_CANARY), quote('references/CONTEXT.md', 'Decided: widgets are never frobnicated.')],
+    })
+
+    const { result } = await fanOut(ok(fenced({ findings: [invented] })))
+
+    expect(result.findings[0]?.pre_verdict).toMatchObject({ reason_code: 'fabricated-evidence', verdict: 'rejected' })
+  })
+
+  it('leaves a finding whose quotes are all in the packet to the orchestrator', async () => {
+    const { result } = await fanOut(ok(fenced({ findings: [finding()] })))
+
+    expect(result.findings[0]?.pre_verdict).toBeUndefined()
+  })
+
+  it('finds a quote that crosses a line break in the packet', async () => {
+    const wrapped = finding({
+      evidence: [quote('artifact/spec.md', 'I want\n   widgets.'), quote('references/CONTEXT.md', `# Glossary ${DECISION_CANARY}`)],
+    })
+
+    const { result } = await fanOut(ok(fenced({ findings: [wrapped] })))
+
+    expect(result.findings[0]?.pre_verdict).toBeUndefined()
+  })
+
+  it('marks a finding with no evidence as a hint', async () => {
+    const { result } = await fanOut(ok(fenced({ findings: [finding({ evidence: [] })] })))
+
+    expect(result.findings[0]?.pre_verdict).toMatchObject({ reason_code: 'no-evidence', verdict: 'hint' })
+  })
+
+  it('rejects a fabricated quote even when the finding would otherwise be a hint', async () => {
+    const { result } = await fanOut(ok(fenced({ findings: [finding({ evidence: [quote('artifact/spec.md', 'Widgets are blue.')] })] })))
+
+    expect(result.findings[0]?.pre_verdict).toMatchObject({ reason_code: 'fabricated-evidence', verdict: 'rejected' })
+  })
+})
+
+describe('fan-out applies the spec-stage evidence rule', () => {
+  const quote = (file: string, value: string) => ({ file, kind: 'quote', value })
+  const specQuote = quote('artifact/spec.md', SPEC_CANARY)
+  const decisionQuote = quote('references/CONTEXT.md', DECISION_CANARY)
+  const scenario = { kind: 'input', value: 'A widget created at 23:59 during the nightly job.' }
+
+  it.each<[string, string, unknown[], string | undefined]>([
+    ['an omission with a spec and a decision quote', 'omission', [specQuote, decisionQuote], undefined],
+    ['an omission without a decision quote', 'omission', [specQuote, scenario], 'no-decision-quote'],
+    ['an invention without a spec quote', 'invention', [decisionQuote], 'no-spec-quote'],
+    ['an omission whose "spec" quote is really from a reference', 'omission', [quote('artifact/spec.md', DECISION_CANARY), decisionQuote], 'no-spec-quote'],
+    ['a contradiction with a spec quote and a scenario', 'contradiction', [specQuote, scenario], undefined],
+    ['an untestable requirement with only a spec quote', 'untestable', [specQuote], 'no-decision-or-scenario'],
+    ['a failure mode with only a scenario', 'failure-mode', [scenario], 'no-spec-quote'],
+  ])('%s', async (_name, category, evidence, hint) => {
+    const { result } = await fanOut(ok(fenced({ findings: [finding({ category, evidence })] })))
+
+    expect(result.findings[0]?.pre_verdict).toEqual(
+      hint === undefined ? undefined : expect.objectContaining({ reason_code: hint, verdict: 'hint' }),
+    )
+  })
+
+  it('does not apply the rule at another stage', async () => {
+    const h = await harness({
+      routing: {
+        clients: {
+          'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
+        },
+        stages: {
+          tickets: {
+            base: [{ client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.1, role: 'spec-redteam', time_limit_s: 60 }],
+            distinct_families: true,
+          },
+        },
+        version: 1,
+      },
+      scripts: [ok(fenced({ findings: [finding({ category: 'untestable', evidence: [specQuote] })] }))],
+    })
+    open.push(h)
+    await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'tickets' })
+    if (run.status !== 'ready') throw new Error('not ready')
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.findings[0]?.pre_verdict).toBeUndefined()
   })
 })
