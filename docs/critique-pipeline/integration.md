@@ -1045,7 +1045,11 @@ The read-only tripwire (agent-kit#172) fixed these:
   the critics too. Decide whether a `violated-readonly` critic gets a
   fallback: its client is unsafe, but a fallback through a different
   client is not. Load the tripwire once per fan-out (`ReadOnlyTripwire.load`)
-  so the frozen contents are read before any critic launches.
+  so the frozen contents are read before any critic launches; #170's
+  `readPacket` runs right after it, so the text the evidence check quotes
+  against has already been checked against the manifest. A test shows that
+  a quote one critic plants in its own copy, cited by another critic, is
+  rejected as `fabricated-evidence`.
 - **For #178 (live smoke check).** Any file a real CLI writes into its
   working directory (a session log, a `.vibe/` or `.agents/` folder) trips
   the wire and voids every review, so the create-a-file check should also
