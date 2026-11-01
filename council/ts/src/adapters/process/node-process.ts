@@ -11,11 +11,14 @@ export class NodeProcessAdapter implements ProcessPort {
     })
     let stdout = ''
     let stderr = ''
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8')
+    // The streams decode, so a character split across two chunks stays whole.
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk
     })
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf8')
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk
     })
     const timeout = setProcessTimeout(child, command.timeoutMs)
     const exitCode = await new Promise<number>((resolve, reject) => {

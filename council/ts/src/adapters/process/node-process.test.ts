@@ -38,6 +38,16 @@ describe('NodeProcessAdapter', () => {
     })
   })
 
+  it('keeps a character whose bytes arrive in two chunks of output', async () => {
+    const adapter = new NodeProcessAdapter()
+    // "é" is two bytes in UTF-8; the child writes them in two separate chunks.
+    const script = 'process.stdout.write(Buffer.from([0xc3]), () => setTimeout(() => process.stdout.write(Buffer.from([0xa9])), 50))'
+
+    const result = await adapter.exec({ args: ['-e', script], command: process.execPath })
+
+    expect(result.stdout).toBe('é')
+  })
+
   it('captures stderr output from commands', async () => {
     const adapter = new NodeProcessAdapter()
 
