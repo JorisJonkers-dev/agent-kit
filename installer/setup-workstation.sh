@@ -3167,7 +3167,7 @@ fi
 # their findings.
 src="${KIT_ROOT}/skills/critique-spec"
 if [ ! -f "${src}/SKILL.md" ]; then
-  log "critique-spec: not built yet (https://github.com/JorisJonkers-dev/agent-kit/issues/177); skipped"
+  fail "critique-spec: ${src}/SKILL.md is missing; nothing to install"
 else
   dest="${CLAUDE_HOME}/skills/critique-spec"
   if [ "${CHECK_ONLY}" = 1 ]; then
