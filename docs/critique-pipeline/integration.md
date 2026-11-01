@@ -1125,6 +1125,15 @@ agy 1.4.11 on macOS, in a scratch directory outside any trusted workspace.
   merged finding.
 - **Minor lines after merging.** A merged minor finding appears on the minor
   line of every critic that raised it.
+- **With the tripwire (#172).** Every critic of the stage, a fallback that
+  took a slot included, has its own critic id and so its own packet copy at
+  `critics/<id>/packet/`; the tripwire is armed just before `reviewWith` and
+  checked just after, per critic, while the critics run in parallel. A
+  `violated-readonly` critic gets no fallback: it stays failed and the
+  summary warns about it, because a client that wrote once may write again.
+  #171's fallbacks are chosen in prepare only; fan-out never relaunches. If
+  #173 adds a retry in fan-out, each attempt needs its own critic id and
+  packet copy, and a violation should not be retried.
 
 ## What #175 settled
 
@@ -1249,3 +1258,56 @@ agents. Later tickets build on these:
   agents too.
 - Nothing is added to Antigravity's configuration for critics, and no hook,
   `hooks:` or `settings:` section is introduced.
+
+## What #172 settled
+
+The read-only tripwire (agent-kit#172) fixed these:
+
+- **Each critic has its own copy of the packet.** Fan-out writes the frozen
+  packet to `critics/<critic-id>/packet/` and launches the critic there, so
+  `CriticLaunch.packetDir` is that copy, not the run's `packet/`. A critic
+  that writes to its copy is caught without voiding the critics running
+  beside it, and nothing one critic writes can reach another. Before any
+  critic starts, fan-out checks the run's `packet/` against the manifest's
+  hashes and stops with `invalid-run` if a file no longer matches.
+  `CritiqueFilesPort` gained `listTree` (every file under a directory, at
+  any depth) and `remove`; `listFiles` keeps #175's meaning.
+- **What is compared.** Around each critic the tripwire records, before and
+  after: the hash of every file in its copy (so a changed, added or removed
+  file shows), the same for the run's `packet/`, and the repository's
+  working tree as `git status --porcelain=v1 -z --untracked-files=all`
+  reports it (`GitPort.porcelainStatus`), with a hash of each listed path.
+  The hash catches a critic that edits a file the owner had already
+  changed, which the status line alone would not. Ignored paths are not
+  watched.
+- **What a violation does.** The critic's status becomes
+  `violated-readonly` (a third value beside `ok` and `failed`), its
+  findings are dropped, and `detail` lists the changes, such as
+  `packet: added notes.md` or `working tree: ?? pwned.txt`. The violation
+  outranks any other outcome, so a critic that also failed has no
+  `failure`. Its copy and the run's `packet/` are restored from the frozen
+  contents; the working tree is not touched. A run whose critics all
+  failed or violated is degraded. The ledger's run line carries
+  `status: "violated-readonly"`, and the summary and the report open with
+  one `> **Warning: read-only violated** by critic client <client>` line
+  per such critic, before the title.
+- **For #171 (parallel fan-out and fallbacks).** Arm the tripwire
+  (`ReadOnlyTripwire.arm`) immediately before each client's `review` and
+  check it immediately after, per critic and per fallback attempt, with the
+  critic's own packet copy as its working directory; never share one copy
+  between two critics or attempts. A change to the run's `packet/` or the
+  working tree cannot be traced to one of several critics running at once,
+  so it voids every critic whose run it fell within; that is intended (fail
+  closed), and the owner editing the working tree during a critique voids
+  the critics too. Decide whether a `violated-readonly` critic gets a
+  fallback: its client is unsafe, but a fallback through a different
+  client is not. Load the tripwire once per fan-out (`ReadOnlyTripwire.load`)
+  so the frozen contents are read before any critic launches; #170's
+  `readPacket` runs right after it, so the text the evidence check quotes
+  against has already been checked against the manifest. A test shows that
+  a quote one critic plants in its own copy, cited by another critic, is
+  rejected as `fabricated-evidence`.
+- **For #178 (live smoke check).** Any file a real CLI writes into its
+  working directory (a session log, a `.vibe/` or `.agents/` folder) trips
+  the wire and voids every review, so the create-a-file check should also
+  confirm that a clean run leaves the copy unchanged.

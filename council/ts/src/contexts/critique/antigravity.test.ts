@@ -57,7 +57,7 @@ describe('the Antigravity critic', () => {
 
     const [command] = h.agy.launches
     expect(command?.command).toBe('agy')
-    expect(command?.cwd).toBe(run.packet_dir)
+    expect(command?.cwd).toBe(join(run.run_dir, 'critics', 'c1-agy-gemini-flash-high', 'packet'))
     const args = command?.args ?? []
     const prompt = await readFile(join(run.run_dir, 'critics', 'c1-agy-gemini-flash-high', 'prompt.md'), 'utf8')
     expect(argAfter(args, '-p')).toBe(prompt)

@@ -32,6 +32,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const hidden = { accepted: 0, dissent: 0, questions: 0 }
   const render = (): string =>
     [
+      ...violationLines(run),
       `# Critique: ${run.stage}, run ${run.run_id}`,
       '',
       ...degradedLines(run),
@@ -79,6 +80,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
 export function renderReport(run: AdjudicatedRun): string {
   const dissent = run.findings.filter((f) => isDissent(run, f))
   return [
+    ...violationLines(run),
     `# Critique report: ${run.stage}, run ${run.run_id}`,
     '',
     ...degradedLines(run),
@@ -108,6 +110,24 @@ export function renderReport(run: AdjudicatedRun): string {
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/**
+ * #167 US22: a critic that changed its packet or the working tree makes its
+ * critic client unsafe, so the summary and the report open with that, one
+ * line per such critic, before anything else.
+ */
+function violationLines(run: AdjudicatedRun): readonly string[] {
+  const violators = run.critics.filter((critic) => critic.status === 'violated-readonly')
+  if (violators.length === 0) return []
+  return [
+    ...violators.map(
+      (critic) =>
+        `> **Warning: read-only violated** by critic client ${critic.client} (${critic.critic_id}). ` +
+        'Its findings were discarded and the packet restored. Do not rely on this client until its read-only settings are fixed.',
+    ),
+    '',
+  ]
 }
 
 /** #167 US29: a stage where no critic reviewed anything says so first. */
@@ -165,7 +185,8 @@ function verdictLine(run: AdjudicatedRun): string {
 
 function criticLine(critic: CriticRun, checkedMaxChars = Infinity): string {
   const cost = critic.cost_usd === null ? 'cost unknown' : `$${critic.cost_usd.toFixed(4)}`
-  const status = critic.status === 'ok' ? 'ok' : `failed (${critic.failure ?? 'unknown'})`
+  const status =
+    critic.status === 'ok' ? 'ok' : critic.status === 'violated-readonly' ? 'violated read-only' : `failed (${critic.failure ?? 'unknown'})`
   const checked =
     critic.no_findings_reason === undefined ? '' : ` (checked: ${clip(critic.no_findings_reason, checkedMaxChars)})`
   return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? '' : 's'}, ${cost}${checked}`

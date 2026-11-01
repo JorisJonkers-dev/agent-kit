@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -142,6 +142,35 @@ describe('fan-out across families', () => {
     }
     const vibeArgs = h.process.commands[0]?.args ?? []
     for (const flag of ['-c', '--continue', '--resume']) expect(vibeArgs).not.toContain(flag)
+  })
+
+  it('gives each critic of the stage its own packet copy as its working directory', async () => {
+    const { h, run } = await bothFamilies([finding()], [])
+
+    expect(h.process.commands[0]?.cwd).toBe(join(run.run_dir, 'critics', VIBE, 'packet'))
+    expect(h.agy.launches[0]?.cwd).toBe(join(run.run_dir, 'critics', AGY, 'packet'))
+  })
+
+  it('voids only the critic that changed its packet, and runs no fallback in its place', async () => {
+    const { h, run } = await prepared({
+      agy: [
+        {
+          ...agyFindings({ findings: [finding({ id: 'G1', location: 'Problem Statement' })] }),
+          effect: ({ cwd }) => writeFile(join(cwd, 'artifact', 'spec.md'), 'rewritten\n'),
+        },
+      ],
+      families: ['mistral', 'google', 'zhipu'],
+      vibe: [{ exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced({ findings: [finding()] })) }],
+    })
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => [critic.critic_id, critic.status])).toEqual([
+      [VIBE, 'ok'],
+      [AGY, 'violated-readonly'],
+    ])
+    expect(result.findings.map((f) => f.raised_by)).toEqual([[VIBE]])
+    expect(h.process.commands).toHaveLength(1)
   })
 
   it('merges a finding both families raised into one that keeps both critics, every quote and the highest severity', async () => {
