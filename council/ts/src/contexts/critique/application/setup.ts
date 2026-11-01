@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 
-import { agyInvocationsOn, invocationLines } from '../domain/budget.js'
 import { isJsonObject, type JsonFields } from '../domain/json.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
 import type { ModelFamily } from '../domain/family.js'
@@ -18,9 +17,17 @@ import {
   type SetupOutcome,
   type SetupResults,
 } from '../domain/setup.js'
+import { FlowBudget } from './budget.js'
 import { readInput, readJsonFile } from './decode.js'
 import { ledgerPath, routingOverridePath, setupProbeDir, setupResultsPath } from './locations.js'
-import { clientReadiness, clientSignIn, clientVersion, reviewWith, type CritiqueCommand, type CritiqueDeps } from './ports.js'
+import {
+  clientReadiness,
+  clientSignIn,
+  clientVersion,
+  reviewWith,
+  type CritiqueCommand,
+  type CritiqueDeps,
+} from './ports.js'
 import { RepositoryGate } from './repository.js'
 import { RoutingSource } from './routing.js'
 
@@ -70,7 +77,12 @@ export type SetupResult = SetupListResult | SetupCheckOutput | SetupQuotaOutput
 
 type SetupInput =
   | { readonly action: 'list'; readonly repo: string | undefined }
-  | { readonly action: 'check'; readonly check: string; readonly confirmed: boolean; readonly force: boolean }
+  | {
+      readonly action: 'check'
+      readonly check: string
+      readonly confirmed: boolean
+      readonly force: boolean
+    }
   | { readonly action: 'quota'; readonly daily_cap: number; readonly reserve_threshold: number }
 
 /** Setup's trivial prompt is a one-turn answer: a few cents at most, and never long. */
@@ -100,10 +112,12 @@ const SETUP_LEDGER_SCOPE = 'machine-setup'
 export class SetupCommand implements CritiqueCommand<SetupResult> {
   private readonly routing: RoutingSource
   private readonly repositories: RepositoryGate
+  private readonly budget: FlowBudget
 
   constructor(private readonly deps: CritiqueDeps) {
     this.routing = new RoutingSource(deps)
     this.repositories = new RepositoryGate(deps)
+    this.budget = new FlowBudget(deps)
   }
 
   async run(raw: unknown): Promise<SetupResult> {
@@ -117,7 +131,8 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     const routing = await this.routing.load()
     const results = await this.results()
     const items: SetupItem[] = []
-    for (const check of setupChecklist(routing.clients)) items.push(setupItem(check, await this.inputs(check, routing), results.checks[check.id]))
+    for (const check of setupChecklist(routing.clients))
+      items.push(setupItem(check, await this.inputs(check, routing), results.checks[check.id]))
     return {
       items,
       results_path: setupResultsPath(this.deps.env),
@@ -129,7 +144,11 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
   private async check(id: string, confirmed: boolean, force: boolean): Promise<SetupCheckOutput> {
     const routing = await this.routing.load()
     const check = setupChecklist(routing.clients).find((entry) => entry.id === id)
-    if (check === undefined) throw new CritiqueError('invalid-input', `setup input: check ${id} is not on this machine's checklist`)
+    if (check === undefined)
+      throw new CritiqueError(
+        'invalid-input',
+        `setup input: check ${id} is not on this machine's checklist`,
+      )
     const inputs = await this.inputs(check, routing)
     const results = await this.results()
     const item = setupItem(check, inputs, results.checks[id])
@@ -147,13 +166,19 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
 
   private async setQuota(dailyCap: number, reserve: number): Promise<SetupQuotaOutput> {
     if (reserve > dailyCap) {
-      throw new CritiqueError('invalid-input', `setup input: the reserve of ${String(reserve)} is above the daily cap of ${String(dailyCap)}`)
+      throw new CritiqueError(
+        'invalid-input',
+        `setup input: the reserve of ${String(reserve)} is above the daily cap of ${String(dailyCap)}`,
+      )
     }
     await this.routing.load()
     const path = routingOverridePath(this.deps.env)
     const override = await this.override()
     const quota = isJsonObject(override.antigravity_quota) ? override.antigravity_quota : {}
-    const next = { ...override, antigravity_quota: { ...quota, daily_cap: dailyCap, reserve_threshold: reserve } }
+    const next = {
+      ...override,
+      antigravity_quota: { ...quota, daily_cap: dailyCap, reserve_threshold: reserve },
+    }
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}\n`)
     const output = await this.check('agy-quota', false, true)
     return {
@@ -169,7 +194,12 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     if (check.kind === 'read-only') return {}
     if (check.kind === 'agy-quota') {
       const override = await this.override()
-      return { routing_hash: sha256({ override: override.antigravity_quota ?? null, quota: routing.limits.antigravity_quota }) }
+      return {
+        routing_hash: sha256({
+          override: override.antigravity_quota ?? null,
+          quota: routing.limits.antigravity_quota,
+        }),
+      }
     }
     const config = check.client_config
     const cli_version = await clientVersion(this.deps.clients, config)
@@ -190,7 +220,9 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     const config = check.client_config
     if (check.kind !== 'critic') {
       const signIn = await clientSignIn(this.deps.clients, config)
-      return signIn.ready ? { detail: `${config.binary} is installed and signed in`, result: 'pass' } : { detail: signIn.detail, result: 'fail' }
+      return signIn.ready
+        ? { detail: `${config.binary} is installed and signed in`, result: 'pass' }
+        : { detail: signIn.detail, result: 'fail' }
     }
     const readiness = await clientReadiness(this.deps.clients, config)
     if (!readiness.ready) return { detail: readiness.detail, result: 'fail' }
@@ -199,19 +231,29 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
   }
 
   /** Antigravity reports no quota, so the check passes once the owner has stored the plan's limit in the override. */
-  private async quotaCheck(routing: Routing): Promise<{ readonly result: SetupOutcome; readonly detail: string }> {
+  private async quotaCheck(
+    routing: Routing,
+  ): Promise<{ readonly result: SetupOutcome; readonly detail: string }> {
     const { daily_cap, reserve_threshold } = routing.limits.antigravity_quota
-    const used = await this.agyToday()
+    const used = await this.budget.agyInvocationsToday()
     const override = await this.override()
-    const stored = isJsonObject(override.antigravity_quota) && typeof override.antigravity_quota.daily_cap === 'number'
+    const stored =
+      isJsonObject(override.antigravity_quota) &&
+      typeof override.antigravity_quota.daily_cap === 'number'
     const figures = `daily cap ${String(daily_cap)}, reserve threshold ${String(reserve_threshold)}, ${String(used)} used today`
     return stored
       ? { detail: `${figures}; set in ${routingOverridePath(this.deps.env)}`, result: 'pass' }
-      : { detail: `Antigravity cannot report its quota, so routing's default applies (${figures}); give your plan's daily limit`, result: 'fail' }
+      : {
+          detail: `Antigravity cannot report its quota, so routing's default applies (${figures}); give your plan's daily limit`,
+          result: 'fail',
+        }
   }
 
   /** Puts the trivial prompt to one critic client, exactly as a critic is launched, and logs the launch to the ledger. */
-  private async probe(client: string, config: CriticClient): Promise<{ readonly result: SetupOutcome; readonly detail: string }> {
+  private async probe(
+    client: string,
+    config: CriticClient,
+  ): Promise<{ readonly result: SetupOutcome; readonly detail: string }> {
     const dir = setupProbeDir(this.deps.env, client)
     const packetDir = join(dir, 'packet')
     const criticDir = join(dir, 'critic')
@@ -250,7 +292,12 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
    * counts against today's Antigravity quota and its Vibe spend stays on
    * record. It belongs to no repository, flow, run or stage.
    */
-  private async logInvocation(client: string, config: CriticClient, status: string, charged: number): Promise<void> {
+  private async logInvocation(
+    client: string,
+    config: CriticClient,
+    status: string,
+    charged: number,
+  ): Promise<void> {
     const line = {
       charged_usd: charged,
       client,
@@ -267,11 +314,23 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}\n`)
   }
 
-  private async record(check: SetupCheck, inputs: SetupInputs, outcome: { readonly result: SetupOutcome; readonly detail: string }): Promise<SetupItem> {
+  private async record(
+    check: SetupCheck,
+    inputs: SetupInputs,
+    outcome: { readonly result: SetupOutcome; readonly detail: string },
+  ): Promise<SetupItem> {
     const results = await this.results()
-    const entry: SetupCheckResult = { checked_at: this.deps.clock.now().toISOString(), detail: outcome.detail, inputs, result: outcome.result }
+    const entry: SetupCheckResult = {
+      checked_at: this.deps.clock.now().toISOString(),
+      detail: outcome.detail,
+      inputs,
+      result: outcome.result,
+    }
     const next: SetupResults = { checks: { ...results.checks, [check.id]: entry }, version: 1 }
-    await this.deps.files.writeText(setupResultsPath(this.deps.env), `${JSON.stringify(next, null, 2)}\n`)
+    await this.deps.files.writeText(
+      setupResultsPath(this.deps.env),
+      `${JSON.stringify(next, null, 2)}\n`,
+    )
     return setupItem(check, inputs, entry)
   }
 
@@ -279,22 +338,26 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     const resolved = await this.repositories.resolve(repo)
     if (resolved.status === 'refused') return resolved
     const entry = (await this.repositories.allowlist()).repositories[resolved.key]
-    const routed_families = [...new Set(Object.values(routing.clients).map((client) => client.family))]
+    const routed_families = [
+      ...new Set(Object.values(routing.clients).map((client) => client.family)),
+    ]
     return entry === undefined
       ? { code: false, families: [], key: resolved.key, routed_families, status: 'not-opted-in' }
-      : { code: entry.code, families: entry.families, key: resolved.key, routed_families, status: 'opted-in' }
+      : {
+          code: entry.code,
+          families: entry.families,
+          key: resolved.key,
+          routed_families,
+          status: 'opted-in',
+        }
   }
 
   private async agentHash(agent: string): Promise<string | null> {
     const path = join(this.deps.env.require('HOME'), '.vibe', 'agents', `${agent}.toml`)
     if (!(await this.deps.files.exists(path))) return null
-    return createHash('sha256').update(await this.deps.files.readBytes(path)).digest('hex')
-  }
-
-  private async agyToday(): Promise<number> {
-    const path = ledgerPath(this.deps.env)
-    const lines = (await this.deps.files.exists(path)) ? invocationLines(await this.deps.files.readText(path)) : []
-    return agyInvocationsOn(lines, this.deps.clock.now())
+    return createHash('sha256')
+      .update(await this.deps.files.readBytes(path))
+      .digest('hex')
   }
 
   /** This machine's routing override as it is on disk; none is an empty one. RoutingSource has already checked it is an object. */
@@ -317,7 +380,9 @@ function sha256(value: unknown): string {
 }
 
 function readSetupInput(fields: JsonFields): SetupInput {
-  const action = fields.has('action') ? fields.oneOf('action', ['list', 'check', 'quota'] as const) : 'list'
+  const action = fields.has('action')
+    ? fields.oneOf('action', ['list', 'check', 'quota'] as const)
+    : 'list'
   if (action === 'list') return { action, repo: fields.optionalString('repo') }
   if (action === 'check') {
     return {
@@ -327,5 +392,9 @@ function readSetupInput(fields: JsonFields): SetupInput {
       force: fields.has('force') ? fields.boolean('force') : false,
     }
   }
-  return { action, daily_cap: fields.positiveInteger('daily_cap'), reserve_threshold: fields.positiveInteger('reserve_threshold') }
+  return {
+    action,
+    daily_cap: fields.positiveInteger('daily_cap'),
+    reserve_threshold: fields.positiveInteger('reserve_threshold'),
+  }
 }

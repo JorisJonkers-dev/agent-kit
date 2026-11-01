@@ -39,9 +39,14 @@ async function list(h: Harness): Promise<readonly SetupItem[]> {
   return (await listed(h)).items
 }
 
-async function check(h: Harness, id: string, extra: Record<string, unknown> = {}): Promise<SetupCheckOutput> {
+async function check(
+  h: Harness,
+  id: string,
+  extra: Record<string, unknown> = {},
+): Promise<SetupCheckOutput> {
   const result = await h.commands.setup.run({ action: 'check', check: id, ...extra })
-  if (result.status === 'listed' || result.status === 'quota-set') throw new Error(`not a check: ${JSON.stringify(result)}`)
+  if (result.status === 'listed' || result.status === 'quota-set')
+    throw new Error(`not a check: ${JSON.stringify(result)}`)
   return result
 }
 
@@ -63,11 +68,16 @@ function vibeAnswers(agent: string): VibeScript {
     agent,
     exitCode: 0,
     exportJson: { ...isolatedExport({ active_model: agent }), cost_usd: 0.0042 },
-    stdout: vibeStdout(fenced({ findings: [], no_findings_reason: 'setup check: nothing to review' })),
+    stdout: vibeStdout(
+      fenced({ findings: [], no_findings_reason: 'setup check: nothing to review' }),
+    ),
   }
 }
 
-const AGY_ANSWERS = agyFindings({ findings: [], no_findings_reason: 'setup check: nothing to review' })
+const AGY_ANSWERS = agyFindings({
+  findings: [],
+  no_findings_reason: 'setup check: nothing to review',
+})
 
 function dataDir(h: Harness): string {
   return join(h.home, '.local', 'share', 'agent-kit', 'critique')
@@ -125,7 +135,12 @@ describe("setup's machine checklist", () => {
 
     const items = await list(h)
 
-    expect(items.filter((entry) => entry.why.split('. ').length !== 1 || !entry.why.endsWith('.') || entry.fix.length === 0)).toEqual([])
+    expect(
+      items.filter(
+        (entry) =>
+          entry.why.split('. ').length !== 1 || !entry.why.endsWith('.') || entry.fix.length === 0,
+      ),
+    ).toEqual([])
   })
 
   it('marks every check never checked on a fresh machine', async () => {
@@ -133,7 +148,9 @@ describe("setup's machine checklist", () => {
 
     const checks = (await list(h)).filter((entry) => entry.kind !== 'read-only')
 
-    expect(checks.map((entry) => [entry.status, entry.due_because])).toEqual(Array.from({ length: 8 }, () => ['due', 'never-checked']))
+    expect(checks.map((entry) => [entry.status, entry.due_because])).toEqual(
+      Array.from({ length: 8 }, () => ['due', 'never-checked']),
+    )
   })
 
   it('launches no critic while listing', async () => {
@@ -164,19 +181,38 @@ describe("setup's machine checklist", () => {
   it('leaves out the Antigravity items when routing has no agy client', async () => {
     const h = await machine({
       routing: {
-        clients: { 'vibe-glm': { agent: 'critic-glm', binary: 'vibe', family: 'zhipu', kind: 'vibe', model: 'glm-5' } },
+        clients: {
+          'vibe-glm': {
+            agent: 'critic-glm',
+            binary: 'vibe',
+            family: 'zhipu',
+            kind: 'vibe',
+            model: 'glm-5',
+          },
+        },
         stages: {},
         version: 1,
       },
     })
 
-    expect((await list(h)).map((entry) => entry.id)).toEqual(['vibe-signed-in', 'critic:vibe-glm', 'read-only:vibe-glm'])
+    expect((await list(h)).map((entry) => entry.id)).toEqual([
+      'vibe-signed-in',
+      'critic:vibe-glm',
+      'read-only:vibe-glm',
+    ])
   })
 
   it('leaves out the Vibe items when routing has no Vibe client', async () => {
     const h = await machine({
       routing: {
-        clients: { 'agy-gemini-flash-high': { binary: 'agy', family: 'google', kind: 'agy', model: 'gemini-3.8-flash-high' } },
+        clients: {
+          'agy-gemini-flash-high': {
+            binary: 'agy',
+            family: 'google',
+            kind: 'agy',
+            model: 'gemini-3.8-flash-high',
+          },
+        },
         stages: {},
         version: 1,
       },
@@ -198,7 +234,10 @@ describe('the read-only proof', () => {
     const proofs = (await list(h)).filter((entry) => entry.kind === 'read-only')
 
     expect(proofs.map((entry) => [entry.status, entry.detail])).toEqual(
-      Array.from({ length: 5 }, () => ['not-available', expect.stringContaining('not available until agent-kit#178 lands') as unknown]),
+      Array.from({ length: 5 }, () => [
+        'not-available',
+        expect.stringContaining('not available until agent-kit#178 lands') as unknown,
+      ]),
     )
   })
 
@@ -207,12 +246,12 @@ describe('the read-only proof', () => {
 
     const result = await check(h, 'read-only:vibe-glm', { confirmed: true })
 
-    expect([result.status, h.process.commands, h.agy.launches, await h.readText(result.results_path).catch(() => 'no file')]).toEqual([
-      'not-available',
-      [],
-      [],
-      'no file',
-    ])
+    expect([
+      result.status,
+      h.process.commands,
+      h.agy.launches,
+      await h.readText(result.results_path).catch(() => 'no file'),
+    ]).toEqual(['not-available', [], [], 'no file'])
   })
 })
 
@@ -256,7 +295,9 @@ describe('a sign-in check', () => {
   it("fails with setup's own sign-in wording when Antigravity is signed out", async () => {
     const h = await machine({ agySignedIn: false })
 
-    expect((await check(h, 'agy-signed-in')).item.last?.detail).toBe('antigravity: needs sign-in: run agy and sign in with your Google account')
+    expect((await check(h, 'agy-signed-in')).item.last?.detail).toBe(
+      'antigravity: needs sign-in: run agy and sign in with your Google account',
+    )
   })
 
   it('passes Antigravity on a signed-in Mac', async () => {
@@ -279,7 +320,10 @@ describe('a sign-in check', () => {
 
     const result = await check(h, 'agy-signed-in')
 
-    expect([result.status, h.agy.commands.map((command) => command.command)]).toEqual(['current', ['agy']])
+    expect([result.status, h.agy.commands.map((command) => command.command)]).toEqual([
+      'current',
+      ['agy'],
+    ])
   })
 
   it('runs again while current when forced', async () => {
@@ -296,7 +340,11 @@ describe('a sign-in check', () => {
 
     const entry = item(await list(h), 'vibe-signed-in')
 
-    expect([entry.status, entry.due_because, entry.changed]).toEqual(['due', 'inputs-changed', ['cli_version']])
+    expect([entry.status, entry.due_because, entry.changed]).toEqual([
+      'due',
+      'inputs-changed',
+      ['cli_version'],
+    ])
   })
 
   it('is due again after it failed, though nothing changed', async () => {
@@ -376,7 +424,9 @@ describe('a critic check', () => {
   })
 
   it('fails with the failure and the charge when the critic does not answer', async () => {
-    const h = await machine({ scripts: [{ agent: 'critic-glm', exitCode: 2, stderr: 'agent not found', stdout: '' }] })
+    const h = await machine({
+      scripts: [{ agent: 'critic-glm', exitCode: 2, stderr: 'agent not found', stdout: '' }],
+    })
 
     const result = await check(h, 'critic:vibe-glm', { confirmed: true })
 
@@ -414,7 +464,10 @@ describe('a critic check', () => {
   it('is due again after its agent file changed', async () => {
     const h = await machine({ scripts: [vibeAnswers('critic-glm')] })
     await check(h, 'critic:vibe-glm', { confirmed: true })
-    await h.writeText(join(h.home, '.vibe', 'agents', 'critic-glm.toml'), 'active_model = "critic-glm"\n')
+    await h.writeText(
+      join(h.home, '.vibe', 'agents', 'critic-glm.toml'),
+      'active_model = "critic-glm"\n',
+    )
 
     expect(item(await list(h), 'critic:vibe-glm').changed).toEqual(['agent_hash'])
   })
@@ -422,7 +475,10 @@ describe('a critic check', () => {
   it('is due again after the routing override changed its client', async () => {
     const h = await machine({ scripts: [vibeAnswers('critic-glm')] })
     await check(h, 'critic:vibe-glm', { confirmed: true })
-    await h.writeText(overridePath(h), JSON.stringify({ clients: { 'vibe-glm': { model: 'zai-glm-5-3' } } }))
+    await h.writeText(
+      overridePath(h),
+      JSON.stringify({ clients: { 'vibe-glm': { model: 'zai-glm-5-3' } } }),
+    )
 
     expect(item(await list(h), 'critic:vibe-glm').changed).toEqual(['routing_hash'])
   })
@@ -430,18 +486,28 @@ describe('a critic check', () => {
   it('stays current when routing changes another client', async () => {
     const h = await machine({ scripts: [vibeAnswers('critic-glm')] })
     await check(h, 'critic:vibe-glm', { confirmed: true })
-    await h.writeText(overridePath(h), JSON.stringify({ clients: { 'vibe-mistral-small': { model: 'mistral-small-4' } } }))
+    await h.writeText(
+      overridePath(h),
+      JSON.stringify({ clients: { 'vibe-mistral-small': { model: 'mistral-small-4' } } }),
+    )
 
     expect(item(await list(h), 'critic:vibe-glm').status).toBe('current')
   })
 
   it("never reads an earlier check's export as this one's", async () => {
-    const h = await machine({ scripts: [vibeAnswers('critic-glm'), { agent: 'critic-glm', exitCode: 0, stdout: vibeStdout('pong') }] })
+    const h = await machine({
+      scripts: [
+        vibeAnswers('critic-glm'),
+        { agent: 'critic-glm', exitCode: 0, stdout: vibeStdout('pong') },
+      ],
+    })
     await check(h, 'critic:vibe-glm', { confirmed: true })
 
     const result = await check(h, 'critic:vibe-glm', { confirmed: true, force: true })
 
-    expect(result.item.last?.detail).toBe('missing-export: vibe wrote no readable export.json (charged $0.0500)')
+    expect(result.item.last?.detail).toBe(
+      'missing-export: vibe wrote no readable export.json (charged $0.0500)',
+    )
   })
 
   it('logs the launch to the ledger outside any repository or flow, so its Vibe spend stays on record', async () => {
@@ -471,7 +537,10 @@ describe('a critic check', () => {
 
     const result = await check(h, 'critic:agy-gemini-flash-high', { confirmed: true })
 
-    expect([result.item.last?.result, result.item.last?.detail]).toEqual(['pass', 'agy-gemini-flash-high answered the trivial prompt'])
+    expect([result.item.last?.result, result.item.last?.detail]).toEqual([
+      'pass',
+      'agy-gemini-flash-high answered the trivial prompt',
+    ])
   })
 
   it('fails the Gemini critic when agy returns prose instead of structured output', async () => {
@@ -509,12 +578,17 @@ describe('the Antigravity quota', () => {
 
     await setQuota(h, { daily_cap: 50, reserve_threshold: 25 })
 
-    expect(JSON.parse(await h.readText(overridePath(h)))).toEqual({ antigravity_quota: { daily_cap: 50, reserve_threshold: 25 } })
+    expect(JSON.parse(await h.readText(overridePath(h)))).toEqual({
+      antigravity_quota: { daily_cap: 50, reserve_threshold: 25 },
+    })
   })
 
   it("keeps the override's other keys", async () => {
     const h = await machine({
-      routingOverride: { antigravity_quota: { reserved_stages: ['spec'] }, clients: { 'vibe-glm': { model: 'zai-glm-5-3' } } },
+      routingOverride: {
+        antigravity_quota: { reserved_stages: ['spec'] },
+        clients: { 'vibe-glm': { model: 'zai-glm-5-3' } },
+      },
     })
 
     await setQuota(h, { daily_cap: 50, reserve_threshold: 25 })
@@ -539,7 +613,9 @@ describe('the Antigravity quota', () => {
   it('rejects a reserve above the daily cap', async () => {
     const h = await machine()
 
-    await expect(h.commands.setup.run({ action: 'quota', daily_cap: 10, reserve_threshold: 11 })).rejects.toMatchObject({
+    await expect(
+      h.commands.setup.run({ action: 'quota', daily_cap: 10, reserve_threshold: 11 }),
+    ).rejects.toMatchObject({
       code: 'invalid-input',
       message: 'setup input: the reserve of 11 is above the daily cap of 10',
     })
@@ -548,7 +624,9 @@ describe('the Antigravity quota', () => {
   it('writes nothing over a routing override that does not parse', async () => {
     const h = await machine({ routingOverride: '{ not json' })
 
-    await expect(h.commands.setup.run({ action: 'quota', daily_cap: 50, reserve_threshold: 25 })).rejects.toMatchObject({
+    await expect(
+      h.commands.setup.run({ action: 'quota', daily_cap: 50, reserve_threshold: 25 }),
+    ).rejects.toMatchObject({
       code: 'invalid-routing',
     })
     expect(await h.readText(overridePath(h))).toBe('{ not json')
@@ -557,7 +635,10 @@ describe('the Antigravity quota', () => {
   it('is due again after the stored limit changed', async () => {
     const h = await machine()
     await setQuota(h, { daily_cap: 50, reserve_threshold: 25 })
-    await h.writeText(overridePath(h), JSON.stringify({ antigravity_quota: { daily_cap: 60, reserve_threshold: 25 } }))
+    await h.writeText(
+      overridePath(h),
+      JSON.stringify({ antigravity_quota: { daily_cap: 60, reserve_threshold: 25 } }),
+    )
 
     expect(item(await list(h), 'agy-quota').changed).toEqual(['routing_hash'])
   })
@@ -580,13 +661,20 @@ describe("the repository's opt-in", () => {
     const h = await machine()
     await h.commands.allow.run({ families: ['mistral', 'google'], repo: h.repo })
 
-    expect((await listed(h, { repo: h.repo })).repository).toMatchObject({ code: false, families: ['mistral', 'google'], status: 'opted-in' })
+    expect((await listed(h, { repo: h.repo })).repository).toMatchObject({
+      code: false,
+      families: ['mistral', 'google'],
+      status: 'opted-in',
+    })
   })
 
   it('reports the refusal for a repository with no remote', async () => {
     const h = await machine({ remotes: [] })
 
-    expect((await listed(h, { repo: h.repo })).repository).toMatchObject({ reason: 'no-remote', status: 'refused' })
+    expect((await listed(h, { repo: h.repo })).repository).toMatchObject({
+      reason: 'no-remote',
+      status: 'refused',
+    })
   })
 
   it('says nothing about a repository when none is named', async () => {
@@ -606,7 +694,9 @@ describe("setup's input and results file", () => {
   it('rejects a check that is not on the checklist', async () => {
     const h = await machine()
 
-    await expect(h.commands.setup.run({ action: 'check', check: 'hooks-installed' })).rejects.toMatchObject({
+    await expect(
+      h.commands.setup.run({ action: 'check', check: 'hooks-installed' }),
+    ).rejects.toMatchObject({
       code: 'invalid-input',
       message: "setup input: check hooks-installed is not on this machine's checklist",
     })

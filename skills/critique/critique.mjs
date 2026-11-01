@@ -476,6 +476,12 @@ function routingOverridePath(env) {
 function ledgerPath(env) {
   return join(env.require("HOME"), ".local", "share", "agent-kit", "critique", "ledger.jsonl");
 }
+function setupResultsPath(env) {
+  return join(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
+}
+function setupProbeDir(env, client) {
+  return join(env.require("HOME"), ".local", "share", "agent-kit", "critique", "setup-checks", client);
+}
 function manifestPath(runDir) {
   return join(runDir, "manifest.json");
 }
@@ -2921,6 +2927,12 @@ ${sources.schema.trim()}
 function clientReadiness(clients, config) {
   return config.kind === "agy" ? clients.agy.readiness(config) : clients.vibe.readiness(config);
 }
+function clientSignIn(clients, config) {
+  return config.kind === "agy" ? clients.agy.signIn(config) : clients.vibe.signIn(config);
+}
+function clientVersion(clients, config) {
+  return config.kind === "agy" ? clients.agy.version(config) : clients.vibe.version(config);
+}
 function reviewWith(clients, launch) {
   const config = launch.critic.client_config;
   return config.kind === "agy" ? clients.agy.review(launch, config) : clients.vibe.review(launch, config);
@@ -4104,6 +4116,384 @@ function isReasonCode(value) {
   return REASON_CODE.test(value);
 }
 
+// src/contexts/critique/application/setup.ts
+import { createHash as createHash2 } from "node:crypto";
+import { join as join14 } from "node:path";
+
+// src/contexts/critique/domain/setup.ts
+var SETUP_INPUTS = [
+  "cli_version",
+  "agent_hash",
+  "routing_hash"
+];
+var EMPTY_SETUP_RESULTS = { checks: {}, version: 1 };
+var READ_ONLY_PENDING = "not available until agent-kit#178 lands: the read-only proof reuses its live smoke check";
+function setupChecklist(clients) {
+  const entries = Object.entries(clients);
+  const vibe = entries.filter(([, config]) => config.kind === "vibe");
+  const agy = entries.filter(([, config]) => config.kind === "agy");
+  const [firstVibe] = vibe;
+  const [firstAgy] = agy;
+  return [
+    ...firstVibe === void 0 ? [] : [
+      { ...VIBE_SIGNED_IN, client_config: firstVibe[1] },
+      ...vibe.map(([client, config]) => criticCheck(client, config))
+    ],
+    ...firstAgy === void 0 ? [] : [
+      { ...AGY_SIGNED_IN, client_config: firstAgy[1] },
+      ...agy.map(([client, config]) => criticCheck(client, config)),
+      { ...AGY_QUOTA, client_config: firstAgy[1] }
+    ],
+    ...entries.map(([client, config]) => readOnlyCheck(client, config))
+  ];
+}
+var VIBE_SIGNED_IN = {
+  cost: "free",
+  fix: "Run vibe and sign in with your personal Mistral account, then check again.",
+  id: "vibe-signed-in",
+  kind: "vibe-signed-in",
+  title: "Vibe is signed in on the personal account",
+  why: "Every Vibe critic runs on the personal Mistral account, so while it is signed out each one drops out of a run."
+};
+var AGY_SIGNED_IN = {
+  cost: "free",
+  fix: "Run agy and sign in with your Google account, then check again.",
+  id: "agy-signed-in",
+  kind: "agy-signed-in",
+  title: "Antigravity is signed in",
+  why: "The Gemini critic runs through agy on your Google account, so while it is signed out its slots fall back to Vibe."
+};
+var AGY_QUOTA = {
+  cost: "free",
+  fix: "Give your Antigravity plan's daily request limit and the reserve to keep for the spec and feature reviews.",
+  id: "agy-quota",
+  kind: "agy-quota",
+  title: "The Antigravity daily cap and reserve are set",
+  why: "agy reports no quota, so the runner counts its own launches against a daily cap, which should be your plan\u2019s real limit."
+};
+function criticCheck(client, config) {
+  const through = config.kind === "vibe" ? `the ${config.agent} agent` : "agy";
+  return {
+    client,
+    client_config: config,
+    cost: config.kind,
+    fix: config.kind === "vibe" ? `Re-run agent-kit setup to reinstall ${config.agent}, then check again; if it still fails, read the detail.` : "Check that agy runs and offers the model, then check again; if it still fails, read the detail.",
+    id: `critic:${client}`,
+    kind: "critic",
+    title: `${client} answers a trivial prompt`,
+    why: `${config.model} runs through ${through}; a critic that cannot answer a trivial prompt fails every review it is routed to.`
+  };
+}
+function readOnlyCheck(client, config) {
+  return {
+    client,
+    client_config: config,
+    cost: config.kind,
+    fix: "Wait for agent-kit#178.",
+    id: `read-only:${client}`,
+    kind: "read-only",
+    title: `${client} is proven read-only`,
+    why: "A critic may only read its packet; this proves the client refuses to change files on this machine."
+  };
+}
+function setupItem(check, inputs, last) {
+  const shown = shownCheck(check);
+  if (check.kind === "read-only")
+    return { ...shown, detail: READ_ONLY_PENDING, status: "not-available" };
+  const base = { ...shown, inputs, ...last === void 0 ? {} : { last } };
+  if (last === void 0) return { ...base, due_because: "never-checked", status: "due" };
+  const changed = SETUP_INPUTS.filter((key2) => last.inputs[key2] !== inputs[key2]);
+  if (changed.length > 0) return { ...base, changed, due_because: "inputs-changed", status: "due" };
+  if (last.result === "fail") return { ...base, due_because: "failed", status: "due" };
+  return { ...base, status: "current" };
+}
+function shownCheck(check) {
+  return {
+    cost: check.cost,
+    fix: check.fix,
+    id: check.id,
+    kind: check.kind,
+    title: check.title,
+    why: check.why,
+    ...check.client === void 0 ? {} : { client: check.client }
+  };
+}
+function parseSetupResults(text) {
+  const file = JsonFields.parse(text);
+  return {
+    checks: file.entries("checks", (entry) => {
+      const inputs = entry.object("inputs");
+      return {
+        checked_at: entry.string("checked_at"),
+        detail: entry.string("detail"),
+        inputs: {
+          ...inputs.has("cli_version") ? { cli_version: inputs.nullableString("cli_version") } : {},
+          ...inputs.has("agent_hash") ? { agent_hash: inputs.nullableString("agent_hash") } : {},
+          ...inputs.has("routing_hash") ? { routing_hash: inputs.string("routing_hash") } : {}
+        },
+        result: entry.oneOf("result", ["pass", "fail"])
+      };
+    }),
+    version: file.literal("version", 1)
+  };
+}
+
+// src/contexts/critique/application/setup.ts
+var PROBE_PRICE_USD = 0.05;
+var PROBE_TIME_LIMIT_S = 120;
+var PROBE_NOTE = "This note is agent-kit's setup check. It has nothing in it to review.\n";
+var PROBE_PROMPT = `This is agent-kit's setup check, not a review. Your working directory holds one file, note.md, which has nothing in it to review. Reply with exactly this findings object in a json code block:
+
+\`\`\`json
+{"findings": [], "no_findings_reason": "setup check: nothing to review"}
+\`\`\`
+`;
+var SETUP_LEDGER_SCOPE = "machine-setup";
+var SetupCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.routing = new RoutingSource(deps);
+    this.repositories = new RepositoryGate(deps);
+    this.budget = new FlowBudget(deps);
+  }
+  deps;
+  routing;
+  repositories;
+  budget;
+  async run(raw) {
+    const input = readInput(raw, "setup", readSetupInput);
+    if (input.action === "list") return this.list(input.repo);
+    if (input.action === "check") return this.check(input.check, input.confirmed, input.force);
+    return this.setQuota(input.daily_cap, input.reserve_threshold);
+  }
+  async list(repo) {
+    const routing = await this.routing.load();
+    const results = await this.results();
+    const items = [];
+    for (const check of setupChecklist(routing.clients))
+      items.push(setupItem(check, await this.inputs(check, routing), results.checks[check.id]));
+    return {
+      items,
+      results_path: setupResultsPath(this.deps.env),
+      status: "listed",
+      ...repo === void 0 ? {} : { repository: await this.repository(repo, routing) }
+    };
+  }
+  async check(id, confirmed, force) {
+    const routing = await this.routing.load();
+    const check = setupChecklist(routing.clients).find((entry) => entry.id === id);
+    if (check === void 0)
+      throw new CritiqueError(
+        "invalid-input",
+        `setup input: check ${id} is not on this machine's checklist`
+      );
+    const inputs = await this.inputs(check, routing);
+    const results = await this.results();
+    const item = setupItem(check, inputs, results.checks[id]);
+    const output = (status, shown) => ({
+      item: shown,
+      results_path: setupResultsPath(this.deps.env),
+      status
+    });
+    if (item.status === "not-available") return output("not-available", item);
+    if (item.status === "current" && !force) return output("current", item);
+    const outcome = await this.runCheck(check, routing, confirmed);
+    if (outcome === "needs-confirmation") return output("needs-confirmation", item);
+    return output("checked", await this.record(check, inputs, outcome));
+  }
+  async setQuota(dailyCap, reserve) {
+    if (reserve > dailyCap) {
+      throw new CritiqueError(
+        "invalid-input",
+        `setup input: the reserve of ${String(reserve)} is above the daily cap of ${String(dailyCap)}`
+      );
+    }
+    await this.routing.load();
+    const path = routingOverridePath(this.deps.env);
+    const override = await this.override();
+    const quota = isJsonObject(override.antigravity_quota) ? override.antigravity_quota : {};
+    const next = {
+      ...override,
+      antigravity_quota: { ...quota, daily_cap: dailyCap, reserve_threshold: reserve }
+    };
+    await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
+`);
+    const output = await this.check("agy-quota", false, true);
+    return {
+      antigravity_quota: { daily_cap: dailyCap, reserve_threshold: reserve },
+      item: output.item,
+      override_path: path,
+      status: "quota-set"
+    };
+  }
+  /** What the check's result depends on, read without launching a model. */
+  async inputs(check, routing) {
+    if (check.kind === "read-only") return {};
+    if (check.kind === "agy-quota") {
+      const override = await this.override();
+      return {
+        routing_hash: sha2562({
+          override: override.antigravity_quota ?? null,
+          quota: routing.limits.antigravity_quota
+        })
+      };
+    }
+    const config = check.client_config;
+    const cli_version = await clientVersion(this.deps.clients, config);
+    if (check.kind !== "critic") return { cli_version };
+    return {
+      cli_version,
+      ...config.kind === "vibe" ? { agent_hash: await this.agentHash(config.agent) } : {},
+      routing_hash: sha2562(config)
+    };
+  }
+  async runCheck(check, routing, confirmed) {
+    if (check.kind === "agy-quota") return this.quotaCheck(routing);
+    const config = check.client_config;
+    if (check.kind !== "critic") {
+      const signIn = await clientSignIn(this.deps.clients, config);
+      return signIn.ready ? { detail: `${config.binary} is installed and signed in`, result: "pass" } : { detail: signIn.detail, result: "fail" };
+    }
+    const readiness = await clientReadiness(this.deps.clients, config);
+    if (!readiness.ready) return { detail: readiness.detail, result: "fail" };
+    if (!confirmed) return "needs-confirmation";
+    return this.probe(check.client ?? "", config);
+  }
+  /** Antigravity reports no quota, so the check passes once the owner has stored the plan's limit in the override. */
+  async quotaCheck(routing) {
+    const { daily_cap, reserve_threshold } = routing.limits.antigravity_quota;
+    const used = await this.budget.agyInvocationsToday();
+    const override = await this.override();
+    const stored = isJsonObject(override.antigravity_quota) && typeof override.antigravity_quota.daily_cap === "number";
+    const figures = `daily cap ${String(daily_cap)}, reserve threshold ${String(reserve_threshold)}, ${String(used)} used today`;
+    return stored ? { detail: `${figures}; set in ${routingOverridePath(this.deps.env)}`, result: "pass" } : {
+      detail: `Antigravity cannot report its quota, so routing's default applies (${figures}); give your plan's daily limit`,
+      result: "fail"
+    };
+  }
+  /** Puts the trivial prompt to one critic client, exactly as a critic is launched, and logs the launch to the ledger. */
+  async probe(client, config) {
+    const dir = setupProbeDir(this.deps.env, client);
+    const packetDir = join14(dir, "packet");
+    const criticDir = join14(dir, "critic");
+    const promptPath = join14(dir, "prompt.md");
+    await this.deps.files.writeText(join14(packetDir, "note.md"), PROBE_NOTE);
+    await this.deps.files.writeText(promptPath, PROBE_PROMPT);
+    await this.deps.files.remove(join14(criticDir, "export", "export.json"));
+    await this.deps.files.remove(join14(criticDir, "result.json"));
+    const critic = {
+      client,
+      client_config: config,
+      critic_id: `setup-${client}`,
+      fallbacks: [],
+      lenses: [],
+      max_price_usd: PROBE_PRICE_USD,
+      role: "setup-check",
+      time_limit_s: PROBE_TIME_LIMIT_S
+    };
+    const report = await reviewWith(this.deps.clients, {
+      critic,
+      criticDir,
+      packetDir,
+      promptPath,
+      schemaPath: join14(this.deps.assetsRoot, "schemas", "finding.schema.json")
+    });
+    await this.logInvocation(client, config, report.outcome.status, report.chargedUsd);
+    const charged = config.kind === "vibe" ? ` (charged $${report.chargedUsd.toFixed(4)})` : "";
+    return report.outcome.status === "ok" ? { detail: `${client} answered the trivial prompt${charged}`, result: "pass" } : { detail: `${report.outcome.failure}: ${report.outcome.detail}${charged}`, result: "fail" };
+  }
+  /**
+   * An invocation line, as fan-out writes one per launch, so a setup check
+   * counts against today's Antigravity quota and its Vibe spend stays on
+   * record. It belongs to no repository, flow, run or stage.
+   */
+  async logInvocation(client, config, status, charged) {
+    const line = {
+      charged_usd: charged,
+      client,
+      critic_id: `setup-${client}`,
+      family: config.family,
+      flow: SETUP_LEDGER_SCOPE,
+      kind: config.kind,
+      model: config.model,
+      recorded_at: this.deps.clock.now().toISOString(),
+      repository: SETUP_LEDGER_SCOPE,
+      status,
+      type: "invocation"
+    };
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+`);
+  }
+  async record(check, inputs, outcome) {
+    const results = await this.results();
+    const entry = {
+      checked_at: this.deps.clock.now().toISOString(),
+      detail: outcome.detail,
+      inputs,
+      result: outcome.result
+    };
+    const next = { checks: { ...results.checks, [check.id]: entry }, version: 1 };
+    await this.deps.files.writeText(
+      setupResultsPath(this.deps.env),
+      `${JSON.stringify(next, null, 2)}
+`
+    );
+    return setupItem(check, inputs, entry);
+  }
+  async repository(repo, routing) {
+    const resolved = await this.repositories.resolve(repo);
+    if (resolved.status === "refused") return resolved;
+    const entry = (await this.repositories.allowlist()).repositories[resolved.key];
+    const routed_families = [
+      ...new Set(Object.values(routing.clients).map((client) => client.family))
+    ];
+    return entry === void 0 ? { code: false, families: [], key: resolved.key, routed_families, status: "not-opted-in" } : {
+      code: entry.code,
+      families: entry.families,
+      key: resolved.key,
+      routed_families,
+      status: "opted-in"
+    };
+  }
+  async agentHash(agent) {
+    const path = join14(this.deps.env.require("HOME"), ".vibe", "agents", `${agent}.toml`);
+    if (!await this.deps.files.exists(path)) return null;
+    return createHash2("sha256").update(await this.deps.files.readBytes(path)).digest("hex");
+  }
+  /** This machine's routing override as it is on disk; none is an empty one. RoutingSource has already checked it is an object. */
+  async override() {
+    const path = routingOverridePath(this.deps.env);
+    if (!await this.deps.files.exists(path)) return {};
+    const value = JSON.parse(await this.deps.files.readText(path));
+    return isJsonObject(value) ? value : {};
+  }
+  async results() {
+    const path = setupResultsPath(this.deps.env);
+    if (!await this.deps.files.exists(path)) return EMPTY_SETUP_RESULTS;
+    return readJsonFile(this.deps.files, path, "invalid-setup", parseSetupResults);
+  }
+};
+function sha2562(value) {
+  return createHash2("sha256").update(JSON.stringify(value)).digest("hex");
+}
+function readSetupInput(fields) {
+  const action = fields.has("action") ? fields.oneOf("action", ["list", "check", "quota"]) : "list";
+  if (action === "list") return { action, repo: fields.optionalString("repo") };
+  if (action === "check") {
+    return {
+      action,
+      check: fields.string("check"),
+      confirmed: fields.has("confirmed") ? fields.boolean("confirmed") : false,
+      force: fields.has("force") ? fields.boolean("force") : false
+    };
+  }
+  return {
+    action,
+    daily_cap: fields.positiveInteger("daily_cap"),
+    reserve_threshold: fields.positiveInteger("reserve_threshold")
+  };
+}
+
 // src/contexts/critique/domain/stats.ts
 var TIMEOUT_FAILURES = /* @__PURE__ */ new Set([
   "print-timeout",
@@ -4418,9 +4808,9 @@ function isDay(value) {
 }
 
 // src/contexts/critique/application/triage.ts
-import { join as join14 } from "node:path";
+import { join as join15 } from "node:path";
 var TRIAGE_PROMPT = "prompts/triage.md";
-var DIFF_PATH2 = join14("diff", "change.diff");
+var DIFF_PATH2 = join15("diff", "change.diff");
 var TriageCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -4462,7 +4852,7 @@ var TriageCommand = class {
     const head = input.staged ? (await this.staged.snapshot(repository.root)).commit : input.head;
     const read = await this.changes.read(repository.root, input.base, head);
     const runId = await this.freshRunId(repository);
-    const runDir = join14(repository.commonDir, "critique", runId);
+    const runDir = join15(repository.commonDir, "critique", runId);
     const flow = input.flow ?? spec?.reference ?? ticket.reference;
     const signals = riskSignals(read.change, ticket.labels, triage);
     const [first] = signals;
@@ -4485,7 +4875,7 @@ var TriageCommand = class {
       summary: triageSummary(asked.decision, signal, triage.model.client),
       ticket: { labels: ticket.labels, reference: ticket.reference }
     };
-    await this.deps.files.writeText(join14(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
+    await this.deps.files.writeText(join15(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
 `);
     const line = triageLedgerLine({
       ...result2,
@@ -4518,10 +4908,10 @@ var TriageCommand = class {
     if (spent !== void 0) return unavailable("budget", spent);
     const ready = await this.deps.clients.vibe.readiness(config);
     if (!ready.ready) return unavailable("unavailable", ready.detail);
-    const promptAsset = await this.deps.files.readText(join14(this.deps.assetsRoot, TRIAGE_PROMPT));
-    const workDir = join14(request.runDir, "packet");
-    const promptPath = join14(request.runDir, "prompt.md");
-    await this.deps.files.writeText(join14(workDir, DIFF_PATH2), request.diff);
+    const promptAsset = await this.deps.files.readText(join15(this.deps.assetsRoot, TRIAGE_PROMPT));
+    const workDir = join15(request.runDir, "packet");
+    const promptPath = join15(request.runDir, "prompt.md");
+    await this.deps.files.writeText(join15(workDir, DIFF_PATH2), request.diff);
     await this.deps.files.writeText(
       promptPath,
       `${promptAsset.trim()}
@@ -4535,8 +4925,8 @@ var TriageCommand = class {
       { max_price_usd: triage.model.max_price_usd, outputDir: request.runDir, promptPath, time_limit_s: triage.model.time_limit_s, workDir },
       config
     );
-    await this.deps.files.writeText(join14(request.runDir, "stdout.json"), report.stdout);
-    await this.deps.files.writeText(join14(request.runDir, "stderr.txt"), report.stderr);
+    await this.deps.files.writeText(join15(request.runDir, "stdout.json"), report.stdout);
+    await this.deps.files.writeText(join15(request.runDir, "stderr.txt"), report.stderr);
     const call = { client: triage.model.client, family: config.family, model: config.model };
     await this.budget.logInvocation(
       { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: "ticket-review" },
@@ -4548,7 +4938,7 @@ var TriageCommand = class {
   async freshRunId(repository) {
     const base = `${compactTimestamp(this.deps.clock.now())}-triage`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(join14(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
+    for (let n = 2; await this.deps.files.exists(join15(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
@@ -4588,6 +4978,7 @@ function createCritiqueCommands(deps) {
     fanOut: new FanOutCommand(deps),
     prepare: new PrepareCommand(deps),
     record: new RecordCommand(deps),
+    setup: new SetupCommand(deps),
     state: new StateCommand(deps),
     stats: new StatsCommand(deps),
     triage: new TriageCommand(deps)
@@ -4596,7 +4987,7 @@ function createCritiqueCommands(deps) {
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname5, join as join15, relative as relative2 } from "node:path";
+import { dirname as dirname5, join as join16, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -4629,7 +5020,7 @@ var NodeCritiqueFiles = class {
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join15(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join16(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -4637,7 +5028,17 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute2, join as join16 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join17 } from "node:path";
+
+// src/contexts/critique/adapters/cli-version.ts
+var VERSION_TIMEOUT_MS = 1e4;
+async function cliVersion(process2, binary) {
+  const result2 = await process2.exec({ args: ["--version"], command: binary, timeoutMs: VERSION_TIMEOUT_MS }).catch(() => void 0);
+  const line = result2?.exitCode === 0 ? result2.stdout.split("\n")[0]?.trim() ?? "" : "";
+  return line.length > 0 ? line : null;
+}
+
+// src/contexts/critique/adapters/agy/index.ts
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
@@ -4661,6 +5062,13 @@ var AgyCriticClient = class {
    * Setup's own check: Antigravity is set up on macOS only, `agy` must be on
    * `PATH`, and the Keychain must hold an `Antigravity CLI` item.
    */
+  /** agy has no per-critic file, so being signed in is all a critic needs. */
+  async signIn(config) {
+    return this.readiness(config);
+  }
+  async version(config) {
+    return cliVersion(this.process, config.binary);
+  }
   async readiness(config) {
     if (this.platform !== "darwin") return { detail: `antigravity: macOS only; not set up on ${this.platform}`, ready: false };
     if (!await this.onPath(config.binary)) return { detail: `antigravity: ${config.binary} is not on PATH`, ready: false };
@@ -4671,7 +5079,7 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join16(launch.criticDir, "result.json");
+    const exportPath = join17(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
     const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run);
@@ -4680,7 +5088,7 @@ var AgyCriticClient = class {
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join16(dir, binary))) return true;
+      if (await this.files.exists(join17(dir, binary))) return true;
     }
     return false;
   }
@@ -4759,7 +5167,7 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { isAbsolute as isAbsolute3, join as join17 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join18 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files, env) {
     this.process = process2;
@@ -4778,31 +5186,39 @@ var VibeCriticClient = class {
    * nothing.
    */
   async readiness(config) {
-    if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
-    const home = join17(this.env.require("HOME"), ".vibe");
-    if (!await this.signedIn(home)) return { detail: SIGN_IN2, ready: false };
-    if (!await this.files.exists(join17(home, "agents", `${config.agent}.toml`))) {
+    const signIn = await this.signIn(config);
+    if (!signIn.ready) return signIn;
+    const home = join18(this.env.require("HOME"), ".vibe");
+    if (!await this.files.exists(join18(home, "agents", `${config.agent}.toml`))) {
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
     }
     return { ready: true };
   }
+  /** `vibe` on `PATH` and the personal home signed in, whatever critic agents are installed. */
+  async signIn(config) {
+    if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
+    return await this.signedIn(join18(this.env.require("HOME"), ".vibe")) ? { ready: true } : { detail: SIGN_IN2, ready: false };
+  }
+  async version(config) {
+    return cliVersion(this.process, config.binary);
+  }
   async signedIn(home) {
     const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY"], command: "security" }).catch(() => ({ exitCode: 1 }));
     if (keychain.exitCode === 0) return true;
-    const dotenv = join17(home, ".env");
+    const dotenv = join18(home, ".env");
     if (!await this.files.exists(dotenv)) return false;
     return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
   }
   async onPath(binary) {
     if (isAbsolute3(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join17(dir, binary))) return true;
+      if (await this.files.exists(join18(dir, binary))) return true;
     }
     return false;
   }
   async review(launch, config) {
-    const exportDir = join17(launch.criticDir, "export");
-    const exportPath = join17(exportDir, "export.json");
+    const exportDir = join18(launch.criticDir, "export");
+    const exportPath = join18(exportDir, "export.json");
     const { result: result2, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir });
     return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
   }
@@ -4812,7 +5228,7 @@ var VibeCriticClient = class {
    * returns its final message as plain text.
    */
   async ask(question, config) {
-    const exportDir = join17(question.outputDir, "export");
+    const exportDir = join18(question.outputDir, "export");
     const { result: result2, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir });
     const message = vibeMessage(run);
     const answer = message.status === "failed" ? message : { cost_usd: message.cost_usd, status: "answered", text: message.text };
@@ -4822,7 +5238,7 @@ var VibeCriticClient = class {
     const result2 = await this.process.exec(vibeLaunch(limits, config, paths));
     const run = {
       exitCode: result2.exitCode,
-      exported: await this.readExport(join17(paths.exportDir, "export.json")),
+      exported: await this.readExport(join18(paths.exportDir, "export.json")),
       stderr: result2.stderr,
       stdout: result2.stdout,
       timedOut: result2.timedOut === true,
@@ -5323,11 +5739,12 @@ var COMMANDS = {
   "fan-out": "fanOut",
   prepare: "prepare",
   record: "record",
+  setup: "setup",
   state: "state",
   stats: "stats",
   triage: "triage"
 };
-var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget> [--input FILE | --json TEXT]
+var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget|setup> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".

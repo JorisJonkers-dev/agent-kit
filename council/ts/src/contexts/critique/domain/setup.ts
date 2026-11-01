@@ -21,7 +21,11 @@ export interface SetupInputs {
   readonly routing_hash?: string
 }
 
-export const SETUP_INPUTS = ['cli_version', 'agent_hash', 'routing_hash'] as const satisfies readonly (keyof SetupInputs)[]
+export const SETUP_INPUTS = [
+  'cli_version',
+  'agent_hash',
+  'routing_hash',
+] as const satisfies readonly (keyof SetupInputs)[]
 
 export type SetupOutcome = 'pass' | 'fail'
 
@@ -42,7 +46,12 @@ export interface SetupResults {
 
 export const EMPTY_SETUP_RESULTS: SetupResults = { checks: {}, version: 1 }
 
-export type SetupCheckKind = 'vibe-signed-in' | 'agy-signed-in' | 'critic' | 'agy-quota' | 'read-only'
+export type SetupCheckKind =
+  | 'vibe-signed-in'
+  | 'agy-signed-in'
+  | 'critic'
+  | 'agy-quota'
+  | 'read-only'
 
 /** One item of the checklist, before anything is checked. */
 export interface SetupCheck {
@@ -86,14 +95,17 @@ export interface SetupItem {
 }
 
 /** The read-only proof per client is #178's live smoke check, which does not exist yet. */
-export const READ_ONLY_PENDING = 'not available until agent-kit#178 lands: the read-only proof reuses its live smoke check'
+export const READ_ONLY_PENDING =
+  'not available until agent-kit#178 lands: the read-only proof reuses its live smoke check'
 
 /**
  * The machine checklist, in the order setup walks it: Vibe's sign-in and each
  * Vibe critic, Antigravity's sign-in, its critic and its quota, then the
  * read-only proof per critic client. Clients come from routing, in its order.
  */
-export function setupChecklist(clients: Readonly<Record<string, CriticClient>>): readonly SetupCheck[] {
+export function setupChecklist(
+  clients: Readonly<Record<string, CriticClient>>,
+): readonly SetupCheck[] {
   const entries = Object.entries(clients)
   const vibe = entries.filter(([, config]) => config.kind === 'vibe')
   const agy = entries.filter(([, config]) => config.kind === 'agy')
@@ -102,7 +114,10 @@ export function setupChecklist(clients: Readonly<Record<string, CriticClient>>):
   return [
     ...(firstVibe === undefined
       ? []
-      : [{ ...VIBE_SIGNED_IN, client_config: firstVibe[1] }, ...vibe.map(([client, config]) => criticCheck(client, config))]),
+      : [
+          { ...VIBE_SIGNED_IN, client_config: firstVibe[1] },
+          ...vibe.map(([client, config]) => criticCheck(client, config)),
+        ]),
     ...(firstAgy === undefined
       ? []
       : [
@@ -175,9 +190,14 @@ function readOnlyCheck(client: string, config: CriticClient): SetupCheck {
  * Whether an item runs: a check that never ran here, last failed, or whose
  * inputs changed is due; one that passed with the same inputs is current.
  */
-export function setupItem(check: SetupCheck, inputs: SetupInputs, last: SetupCheckResult | undefined): SetupItem {
+export function setupItem(
+  check: SetupCheck,
+  inputs: SetupInputs,
+  last: SetupCheckResult | undefined,
+): SetupItem {
   const shown = shownCheck(check)
-  if (check.kind === 'read-only') return { ...shown, detail: READ_ONLY_PENDING, status: 'not-available' }
+  if (check.kind === 'read-only')
+    return { ...shown, detail: READ_ONLY_PENDING, status: 'not-available' }
   const base = { ...shown, inputs, ...(last === undefined ? {} : { last }) }
   if (last === undefined) return { ...base, due_because: 'never-checked', status: 'due' }
   const changed = SETUP_INPUTS.filter((key) => last.inputs[key] !== inputs[key])
@@ -208,7 +228,9 @@ export function parseSetupResults(text: string): SetupResults {
         checked_at: entry.string('checked_at'),
         detail: entry.string('detail'),
         inputs: {
-          ...(inputs.has('cli_version') ? { cli_version: inputs.nullableString('cli_version') } : {}),
+          ...(inputs.has('cli_version')
+            ? { cli_version: inputs.nullableString('cli_version') }
+            : {}),
           ...(inputs.has('agent_hash') ? { agent_hash: inputs.nullableString('agent_hash') } : {}),
           ...(inputs.has('routing_hash') ? { routing_hash: inputs.string('routing_hash') } : {}),
         },
