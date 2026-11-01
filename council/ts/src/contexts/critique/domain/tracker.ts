@@ -40,7 +40,8 @@ export interface IssueReference {
 }
 
 /**
- * Reads `167`, `#167`, `owner/repo#167` or an issue URL. A bare number names
+ * Reads `167`, `#167`, `owner/repo#167`, `host/owner/repo#167` (the form a
+ * manifest records) or an issue URL. A bare number names
  * an issue of `repositoryKey`. Anything else is not an issue reference.
  */
 export function parseIssueReference(reference: string, repositoryKey: string): IssueReference | undefined {
@@ -49,6 +50,8 @@ export function parseIssueReference(reference: string, repositoryKey: string): I
   if (local !== null) return { number: Number(local[1]), repository: repositoryKey }
   const short = /^([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(text)
   if (short !== null) return { number: Number(short[3]), repository: key('github.com', short[1], short[2]) }
+  const full = /^([\w.-]+)\/([\w.-]+)\/([\w.-]+)#(\d+)$/.exec(text)
+  if (full !== null) return { number: Number(full[4]), repository: key(full[1], full[2], full[3]) }
   const url = /^https?:\/\/([^/\s]+)\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)(?:[/?#]\S*)?$/i.exec(text)
   if (url !== null) return { number: Number(url[4]), repository: key(url[1], url[2], url[3]) }
   return undefined

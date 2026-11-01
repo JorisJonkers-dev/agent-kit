@@ -31,6 +31,7 @@ export class GhCliAdapter implements Pick<GhPort, 'viewIssue' | 'subIssues' | 'b
       comments: [],
       labels: list(issue.labels).flatMap((label) => (isRecord(label) && typeof label.name === 'string' ? [label.name] : [])),
       number: issue.number,
+      ...(issue.state === 'open' || issue.state === 'closed' ? { state: issue.state } : {}),
       title: typeof issue.title === 'string' ? issue.title : '',
       url: issue.html_url,
     }))
