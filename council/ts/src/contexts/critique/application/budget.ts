@@ -34,6 +34,7 @@ export class FlowBudget {
       model: run.model,
       recorded_at: this.deps.clock.now().toISOString(),
       repository: manifest.repository,
+      round: manifest.round,
       run_id: manifest.run_id,
       stage: manifest.stage,
       status: run.status,

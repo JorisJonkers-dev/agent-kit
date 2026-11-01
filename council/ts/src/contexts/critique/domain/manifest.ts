@@ -5,7 +5,7 @@ import { readDepthChoice, type DepthChoice } from './depth.js'
 import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
-import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from './stage.js'
+import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from './stage.js'
 import { TRACKER_KINDS, type TrackerKind } from './tracker.js'
 
 export function sha256(content: string | Uint8Array): string {
@@ -37,6 +37,9 @@ export interface RunManifest {
   readonly created_at: string
   readonly stage: CritiqueStage
   readonly depth: Depth
+  readonly round: Round
+  /** The first round's run id, on a second round. */
+  readonly previous_run_id?: string
   /** How the depth was chosen, and the signals that decided it. */
   readonly depth_choice: DepthChoice
   readonly orchestrator_family: OrchestratorFamily
@@ -80,6 +83,7 @@ export function parseManifest(text: string): RunManifest {
       sha256: packetFile.string('sha256'),
       source: packetFile.string('source'),
     })),
+    ...readRound(file),
     repo_root: file.string('repo_root'),
     repository: file.string('repository'),
     run_dir: file.string('run_dir'),
@@ -87,6 +91,12 @@ export function parseManifest(text: string): RunManifest {
     stage: file.oneOf('stage', CRITIQUE_STAGES),
     version: file.literal('version', 1),
   }
+}
+
+/** A manifest written before rounds existed is a first round. */
+function readRound(file: JsonFields): Pick<RunManifest, 'round' | 'previous_run_id'> {
+  if (!file.has('round') || file.number('round') !== 2) return { round: file.has('round') ? file.literal('round', 1) : 1 }
+  return { previous_run_id: file.string('previous_run_id'), round: 2 }
 }
 
 function readArtifactSource(artifact: JsonFields): ArtifactSource {

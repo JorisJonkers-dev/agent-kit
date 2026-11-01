@@ -1,5 +1,5 @@
 import { JsonFields } from './json.js'
-import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
+import { CRITIQUE_STAGES, type CritiqueStage, type Round } from './stage.js'
 
 /**
  * Antigravity reports no quota headless, so the runner counts its own agy
@@ -56,6 +56,7 @@ export interface InvocationLine {
   readonly flow: string
   readonly run_id: string
   readonly stage: CritiqueStage
+  readonly round: Round
   readonly critic_id: string
   readonly client: string
   readonly kind: 'vibe' | 'agy'

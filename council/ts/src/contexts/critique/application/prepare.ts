@@ -4,8 +4,8 @@ import { quotaReached } from '../domain/budget.js'
 import { criticIdentity, type CriticIdentity } from '../domain/critic.js'
 import { chooseDepth, type DepthChoice } from '../domain/depth.js'
 import { ORCHESTRATOR_FAMILIES, type OrchestratorFamily } from '../domain/family.js'
-import { compactTimestamp, sha256, type ArtifactSource, type PacketFile, type RunManifest } from '../domain/manifest.js'
-import { refusal, type Refusal } from '../domain/outcomes.js'
+import { compactTimestamp, parseManifest, sha256, type ArtifactSource, type PacketFile, type RunManifest } from '../domain/manifest.js'
+import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
 import {
   candidateClients,
   resolveRoster,
@@ -15,11 +15,11 @@ import {
   type Routing,
   type RosterRequest,
 } from '../domain/routing.js'
-import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from '../domain/stage.js'
+import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
 import { FlowBudget } from './budget.js'
-import { readInput } from './decode.js'
+import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
-import { manifestPath } from './locations.js'
+import { manifestPath, reportPath } from './locations.js'
 import { insideRepository } from './paths.js'
 import { clientReadiness, type CritiqueCommand, type CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
@@ -36,10 +36,20 @@ interface PrepareInput {
   readonly comments: boolean
   /** The reference paths the caller names; undefined means the repository's decision docs. */
   readonly references: readonly string[] | undefined
-  /** The flow whose Vibe spend this run adds to; undefined means the artifact's own reference. */
+  /**
+   * The flow whose Vibe spend this run adds to; undefined means the first
+   * round's flow on a second round, and the artifact's own reference otherwise.
+   */
   readonly flow: string | undefined
+  /** The recorded first round, when this run is the second round of the same stage over the same artifact. */
+  readonly previousRunDir: string | undefined
   /** The depth the caller names, which always wins over the signals; undefined lets the signals choose. */
   readonly depth: Depth | undefined
+}
+
+type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'> & {
+  /** A second round's first-round flow, so both rounds count against one Vibe cap. */
+  readonly previousFlow?: string
 }
 
 export interface PrepareResult {
@@ -51,6 +61,7 @@ export interface PrepareResult {
   readonly packet_files: readonly string[]
   readonly artifact: ArtifactSource
   readonly depth: Depth
+  readonly round: Round
   readonly depth_choice: DepthChoice
   readonly critics: readonly CriticIdentity[]
   readonly dropped: readonly DroppedCritic[]
@@ -85,6 +96,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       flow: fields.optionalString('flow'),
       depth: fields.has('depth') ? fields.oneOf('depth', DEPTHS) : undefined,
       orchestratorFamily: fields.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
+      previousRunDir: fields.has('previous_run_dir') ? fields.string('previous_run_dir') : undefined,
       references: fields.has('references') ? fields.strings('references') : undefined,
       repo: fields.string('repo'),
       spec: fields.string('spec'),
@@ -101,6 +113,9 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     if (tracker.status === 'refused') return tracker
     const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec })
     if (artifact.status === 'refused') return artifact
+    const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage })
+    if ('status' in round) return round
+    const { previousFlow, ...roundFields } = round
     const references =
       input.references === undefined
         ? await this.decisionDocs.resolve(repository.root)
@@ -128,13 +143,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       distinct_families: roster.distinct_families,
       depth_choice: choice,
       dropped: roster.dropped,
-      flow: input.flow ?? artifact.reference,
+      flow: input.flow ?? previousFlow ?? artifact.reference,
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
       repo_root: repository.root,
       repository: repository.key,
+      ...roundFields,
       run_dir: runDir,
       run_id: runId,
       stage,
@@ -150,10 +166,38 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
       packet_files: packetFiles.map((file) => file.path),
+      round: roundFields.round,
       run_dir: runDir,
       run_id: runId,
       status: 'ready',
     }
+  }
+
+  /**
+   * A first round, or the second round after the recorded first round named
+   * by `previous_run_dir`. A run that was itself a second round is refused, so
+   * a stage never runs a third time over one artifact.
+   */
+  private async round(
+    previousRunDir: string | undefined,
+    current: { readonly repository: string; readonly stage: CritiqueStage; readonly reference: string },
+  ): Promise<RoundOf | Refusal> {
+    if (previousRunDir === undefined) return { round: 1 }
+    const previous = await readJsonFile(this.deps.files, manifestPath(previousRunDir), 'invalid-run', parseManifest)
+    if (previous.round === 2) {
+      return refusal('round-limit', `run ${previous.run_id} was already the second round; a stage runs at most two rounds`)
+    }
+    if (!(await this.deps.files.exists(reportPath(previousRunDir)))) {
+      throw new CritiqueError('invalid-run', `run ${previous.run_id} is not recorded yet; record it before its second round`)
+    }
+    const { reference, repository, stage } = current
+    if (previous.repository !== repository || previous.stage !== stage || previous.artifact.reference !== reference) {
+      throw new CritiqueError(
+        'invalid-input',
+        `run ${previous.run_id} critiqued ${previous.artifact.reference} at the ${previous.stage} stage, not ${reference}`,
+      )
+    }
+    return { previousFlow: previous.flow, previous_run_id: previous.run_id, round: 2 }
   }
 
   /**

@@ -14,6 +14,7 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     depth_signals: run.depth_choice.signals,
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
+    round: run.round,
     run_id: run.run_id,
     stage: run.stage,
   }

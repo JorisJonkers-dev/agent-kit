@@ -241,9 +241,9 @@ A `local_skills:` entry can be registered before the issue that writes the
 skill has landed, with `pending:` set to that issue's URL:
 
 ```yaml
-- name: critique-spec
-  path: skills/critique-spec
-  pending: https://github.com/JorisJonkers-dev/agent-kit/issues/177
+- name: example-skill
+  path: skills/example-skill
+  pending: https://github.com/JorisJonkers-dev/agent-kit/issues/<n>
   agents: [claude, codex, vibe, antigravity]
   surfaces: [workstation]
 ```
@@ -251,7 +251,8 @@ skill has landed, with `pending:` set to that issue's URL:
 While its `SKILL.md` is missing, setup logs `<name>: not built yet (<url>);
 skipped` instead of failing. Once the `SKILL.md` exists, the renderer refuses
 the `pending:` line, so the change that writes the skill also drops it, and the
-entry installs like any other.
+entry installs like any other. `critique-spec` was registered this way by
+#176 and dropped `pending:` in #177.
 
 ## A Vibe critic agent
 

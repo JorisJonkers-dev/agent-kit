@@ -424,6 +424,18 @@ describe('the per-flow Vibe cap', () => {
     expect(result.critics.map((critic) => critic.status)).toEqual(['budget-skip'])
   })
 
+  it("adds a second round's spend to its first round's flow", async () => {
+    const h = await opened({ families: ['mistral'], vibe: [vibeOk('critic-mistral-large', 5.1)] })
+    const first = await prepare(h, {}, { flow: 'github.com/jorisjonkers-dev/agent-kit#167' })
+    await h.commands.fanOut.run({ run_dir: first.run_dir })
+    await h.commands.record.run({ run_dir: first.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+    const second = await prepare(h, {}, { previous_run_dir: first.run_dir })
+
+    const result = await h.commands.fanOut.run({ run_dir: second.run_dir })
+
+    expect(result.critics.map((critic) => critic.status)).toEqual(['budget-skip'])
+  })
+
   it('checks the spend again before a fallback retry, and skips the retry once the cap is reached', async () => {
     const h = await opened({ agy: [agyOk()], vibe: [timedOutVibe('critic-mistral-large')] })
     await seedLedger(h, [{ charged_usd: 4.75 }])
