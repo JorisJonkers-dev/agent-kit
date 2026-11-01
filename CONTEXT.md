@@ -166,3 +166,13 @@ organisation sends nothing, whatever its entry says. An entry allows
 documents only unless its code permission is on; the code stages refuse
 while it is off.
 _Avoid_: data policy, provider list
+
+**Flow state**:
+Where one feature stands in the spec-to-ticket flow: its phase (planning,
+implementation or finishing), the runs of each critique stage, each ticket
+with its review status, the open needs-human questions, the gate, the flow's
+Vibe spend and whether critique was skipped on purpose. It is kept per
+feature in the git common directory, so every worktree shares it, and it is
+only a cache: it can always be rebuilt from the ledger, the run directories
+and the tracker.
+_Avoid_: session, progress, checkpoint

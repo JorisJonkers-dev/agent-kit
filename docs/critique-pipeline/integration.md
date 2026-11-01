@@ -2114,3 +2114,94 @@ The `/review-ticket` skill (agent-kit#188) fixed these:
   path yields a failing test the orchestrator runs and keeps) costs money and
   has not been run, and the runner's `git commit-tree` call has been tested
   against a recorded process only, not a real repository.
+
+## What #191 settled
+
+The flow state and the next-step rule (agent-kit#191) fixed these. #192
+(`/flow`), #193 (`/flow budget`) and #197 (the gates) build on them:
+
+- **The command.** `critique state` takes `{ repo, spec?, draft?, cached?,
+  record? }`. `spec` is named the way prepare names it and keys the flow by
+  its reference (`host/owner/repo#<n>` or the repository path). Before
+  `/to-spec` there is no spec, so `draft` (a name such as the branch,
+  `[A-Za-z0-9][A-Za-z0-9._/-]*`) keys a draft flow `draft:<name>`; one of
+  the two is required. Both together link the spec's flow to the draft, once,
+  and later calls with the spec alone keep the link. The result is
+  `{ status: "read", source, state_path, state, next }`, where `source` is
+  `rebuilt` (no file was there), `refreshed` or `cache`. It needs no
+  allowlist entry and writes nothing a critic sees, but a `no-remote` or
+  `nedap` repository, an unsupported tracker and a spec or tickets the
+  tracker cannot read are refused as prepare refuses them. A bad ledger line
+  is `invalid-ledger`, a bad manifest or index line `invalid-run`.
+- **Always recomputed.** Every call computes the state from its sources and
+  saves it to `<git common dir>/critique/flows/<slug>-<12 hex of sha256>.json`
+  (`flowStatePath`, `parseFlowState` exported); `cached: true` returns the
+  saved file as it is when it parses, for a reader that must be quick. So a
+  deleted file is rebuilt by the next call, and nothing lives only in it.
+- **Sources.** Run directories (`manifest.json` of each directory under
+  `critique/`; `report.md` means recorded; `ticket_check.status`) and the
+  ledger's run lines (a recorded run whose directory is gone); a run belongs
+  to the flow when its repository matches and its `flow` is the flow's key or
+  its linked draft's, or its `specReference` is the spec. Finding lines give
+  the open needs-human questions and the accepted critical count for a second
+  round; low-risk triage run lines and `ticket-reviews.jsonl` give each
+  ticket's review; `gates.jsonl` gives the last gate of the spec; invocation
+  lines give the Vibe spend (the flow's and its draft's). The tracker gives
+  the tickets and whether each is still open.
+- **Ledger changes.** Finding lines now carry `answered` (true when the
+  owner answered a needs-human question before record), and `parseLedger`
+  reads `flow`, `round`, `finding_id` and `severity` and two new arrays. What
+  the owner tells `state` through `record` becomes a `type: "flow"` ledger
+  line (`event`: `grilled`, `no-critique` with `value`, `landed` with
+  `ticket`, `answered` with `run_id` and `finding_id`, `draft` with `draft`),
+  so a rebuild keeps it. `record.landed` names tickets of the spec and
+  `record.answered` open questions of the flow, or the call is
+  `invalid-input`. Two fixes on the way: record now sets the ledger's `spec`
+  from `specReference(manifest)` (a ticket review's lines named the ticket,
+  as #188 warned), and `parseLedger` no longer fails on a low-risk triage's
+  run line, which broke `stats` for any ledger holding one.
+- **What the state holds.** `phase`; `stages` for `decisions`, `spec`,
+  `tickets` and `feature-review`, each `{ status, run_ids, latest_run_id }`
+  with status `not-run`, `in-progress` (latest run not recorded),
+  `second-round-due` (a first round accepted more than three critical
+  findings), `check-failed` (the ticket check found a cycle) or `recorded`;
+  `tickets` in dependency order (blockers of the spec first, tracker order
+  otherwise, a cycle broken at its earliest ticket), each with `review`
+  (`not-reviewed`, `skipped-low-risk`, `reviewed`, `findings-open`, the
+  latest decision winning), `review_run_ids` and `landed`; `open_questions`;
+  `gate` (`none`, `pass` or `fail`, with its run, head and line);
+  `head_commit` (HEAD now); `vibe_spend_usd`; `no_critique`; `grilled`.
+- **Landed.** Pocock's `/implement` commits and closes nothing, and GitHub
+  tickets close when the PR merges, after the gate. So a ticket has landed
+  when its tracker shows it closed, the owner recorded it as landed, or its
+  latest review passed or was skipped as low-risk (both are recorded at the
+  commit). A low-risk commit the commit gate let through leaves no record,
+  so `/flow` should ask and record `landed`.
+- **The next-step rule** (`nextStep`, pure, exported) returns `{ kind:
+  "stage", stage, reason, ticket?, resume_run_id?, previous_run_id? }`,
+  `{ kind: "command", skill, command, reason }` or `{ kind: "done", reason }`.
+  It only ever names Pocock's skills. In order: a draft not grilled is
+  `/grill-with-docs`; then the decisions stage, then `/to-spec`. With a spec:
+  the spec stage (resume an unrecorded run, or a second round with
+  `previous_run_id`); `/grill-me` while a critical needs-human question is
+  open and no ticket is cut; `/to-tickets`; the tickets stage (again while it
+  found a cycle). Then for the first ticket that has not landed: `/grill-me`
+  while a critical question is open, the `ticket-review` stage while its
+  review has a critical finding unfixed, else `/implement <#n or the local
+  ticket's path>` with "start it in a fresh session". Once all landed: the
+  `feature-review` stage (which `/flow` shows as `/flow finish`) until
+  `GATE: PASS` holds for the current HEAD, then `done`. A failing gate's
+  follow-ups are open tickets of the spec, so the flow goes back to
+  implementation until they close. With `no_critique` every stage is
+  skipped and the end is `done` with no feature review.
+- **For #192.** Pass `flow: "draft:<name>"` to the decisions stage's
+  prepare, so its run joins the draft; a decisions run with its default flow
+  (its own run id) belongs to no flow. Record `grilled` after the owner's
+  grilling, and pass the draft name with the spec on the first call after
+  `/to-spec`.
+- **For #193.** `vibe_spend_usd` is the same sum of `charged_usd` the stages
+  enforce, over the flow's key and its draft's; per-day agy counts are not
+  per flow and are not in the state.
+- **For #197.** The gates should keep reading `gates.jsonl` and
+  `ticket-reviews.jsonl` directly; the state file is a convenience, not the
+  gate's source of truth.
