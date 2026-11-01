@@ -1,5 +1,6 @@
 import type { Refusal } from '../domain/outcomes.js'
 import { AllowCommand, type AllowResult } from './allow.js'
+import { BudgetCommand, type BudgetResult } from './budget-view.js'
 import { CheckTicketsCommand, type CheckTicketsResult } from './check-tickets.js'
 import { FanOutCommand, type FanOutResult } from './fan-out.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
@@ -15,6 +16,7 @@ export interface CritiqueCommands {
   readonly fanOut: CritiqueCommand<FanOutResult>
   readonly record: CritiqueCommand<RecordResult>
   readonly allow: CritiqueCommand<AllowResult | Refusal>
+  readonly budget: CritiqueCommand<BudgetResult | Refusal>
   readonly checkTickets: CritiqueCommand<CheckTicketsResult | Refusal>
   readonly stats: CritiqueCommand<StatsResult | Refusal>
   readonly state: CritiqueCommand<StateResult | Refusal>
@@ -24,6 +26,7 @@ export interface CritiqueCommands {
 export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
   return {
     allow: new AllowCommand(deps),
+    budget: new BudgetCommand(deps),
     checkTickets: new CheckTicketsCommand(deps),
     fanOut: new FanOutCommand(deps),
     prepare: new PrepareCommand(deps),

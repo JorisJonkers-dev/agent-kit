@@ -25,6 +25,7 @@ export interface CritiqueCliRuntime {
 
 const COMMANDS = {
   allow: 'allow',
+  budget: 'budget',
   'check-tickets': 'checkTickets',
   'fan-out': 'fanOut',
   prepare: 'prepare',
@@ -34,7 +35,7 @@ const COMMANDS = {
   triage: 'triage',
 } as const satisfies Record<string, keyof CritiqueCommands>
 
-export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state> [--input FILE | --json TEXT]
+export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".
