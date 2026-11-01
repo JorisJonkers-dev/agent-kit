@@ -799,7 +799,8 @@ and in the grilling session behind it.
   the 100% coverage and dependency-cruiser gates that already apply there.
 - **No hooks in v1.** No Claude Code hooks ship (no commit gate, PR gate or
   session-start suggestion). The estate ships no agent hooks, and changing
-  that needs its own ADR first.
+  that needs its own ADR first. #182 brought those three hooks back under
+  [ADR-0002](../adr/0002-exactly-three-critique-hooks.md).
 - **`/flow` becomes a stepper merged with `/flow-guide`.** There is one
   entry point that steps through the flow and owns setup, explanation and
   budget, instead of two overlapping ones. It is out of scope for this
@@ -964,3 +965,38 @@ them:
 - **Stages.** The stage names are `decisions`, `spec`, `tickets`,
   `ticket-review` and `feature-review`, and prepare rejects any other.
   Shipped routing defines `spec` only.
+
+## What #196 settled
+
+[ADR-0002](../adr/0002-exactly-three-critique-hooks.md) replaces the "No
+hooks in v1" departure above for three hooks. It records the hook facts
+checked against Claude Code 2.1.316 and Codex 0.166.0. #197 and #198 build on
+these:
+
+- **Names.** `critique-commit-gate` and `critique-pr-gate` (`PreToolUse` on
+  `Bash`) and `critique-session-start` (`SessionStart`), declared in
+  `manifest.yaml`'s `hooks` section. `scripts/validate_manifest.py`'s
+  `validate_hooks` fails on any other name, on a different event, on another
+  ADR, or on an agent other than `claude` or `codex`, and
+  `tests/test_validate_manifest.py` runs it against the checked-in manifest
+  under `uv run pytest`. The full `validate_manifest.py` run is not part of CI
+  (it already fails on a stale `agent-session-bootstrap` checksum), so that
+  pytest test is the CI guard. #198 can add a `targets` list of
+  `path`/`sha256` pins to each entry; the generic checksum check covers it.
+- **Blocking.** Print `{"hookSpecificOutput": {"hookEventName": "PreToolUse",
+  "permissionDecision": "deny", "permissionDecisionReason": "<one line>"}}` and
+  exit 0. Both agents accept that shape, and Claude Code shows the model the
+  reason alone. An exit-2 block also shows the hook's whole command line, and
+  in Codex exit 2 with empty stderr doesn't block. Never print `ask`,
+  `continue`, `stopReason` or `suppressOutput` on `PreToolUse`: Codex marks
+  the hook failed. Never set `onFailure: "block"`.
+- **Payload.** The command is `tool_input.command` in both agents. Codex's
+  unified exec also arrives as `tool_name: "Bash"`.
+- **Session start.** Plain-text stdout reaches the model in both agents.
+- **Fail open comes free.** Any exit code other than 0 or 2, a crash or a
+  timeout lets the call through in both agents. The handler `timeout` is in
+  whole seconds.
+- **Codex trust.** Codex skips a new or changed user hook until the owner
+  trusts it in `/hooks`, so `/flow setup`'s "hooks installed" item has to
+  check that, and the hook commands have to stay byte-stable across upgrades.
+  The live Codex check is still owed: #198's live check covers it.
