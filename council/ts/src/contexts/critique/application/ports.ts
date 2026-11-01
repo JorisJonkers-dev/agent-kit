@@ -1,6 +1,6 @@
 import type { ClockPort, EnvPort, GhPort, GitPort, GitRevisionPort } from '../../../ports/index.js'
-import type { CriticOutcome } from '../domain/critic.js'
-import type { ClientReadiness, CriticClient, RosterCritic } from '../domain/routing.js'
+import type { CriticFailure, CriticOutcome } from '../domain/critic.js'
+import type { AgyCriticClient, ClientReadiness, CriticClient, RosterCritic, VibeCriticClient } from '../domain/routing.js'
 
 /**
  * The repository facts the critique needs: council's git port, narrowed to
@@ -63,9 +63,45 @@ export interface CriticClientPort<Config extends CriticClient = CriticClient> {
   review(launch: CriticLaunch, config: Config): Promise<CriticReport>
 }
 
-/** The client each kind of critic runs through. */
-export type CriticClients = {
-  readonly [Kind in CriticClient['kind']]: CriticClientPort<Extract<CriticClient, { readonly kind: Kind }>>
+/**
+ * One question put to a model in a working directory of its own: a yes/no
+ * question such as triage asks, never a review, so its answer is plain text
+ * rather than findings.
+ */
+export interface ModelQuestion {
+  /** The model's working directory, and all it may read. */
+  readonly workDir: string
+  /** The question, written outside the working directory. */
+  readonly promptPath: string
+  /** Where the client writes what it keeps of the run. */
+  readonly outputDir: string
+  readonly max_price_usd: number
+  readonly time_limit_s: number
+}
+
+/** The model's final message, or why there is none. */
+export type ModelAnswer =
+  | { readonly status: 'answered'; readonly text: string; readonly cost_usd: number | null }
+  | { readonly status: 'failed'; readonly failure: CriticFailure; readonly detail: string; readonly cost_usd: number | null }
+
+export interface ModelAnswerReport {
+  readonly exitCode: number
+  readonly stdout: string
+  readonly stderr: string
+  readonly answer: ModelAnswer
+  /** What the run counts against the flow's Vibe cap, as for a critic. */
+  readonly chargedUsd: number
+}
+
+/** A client that can also put one question to its model. */
+export interface QuestionClientPort<Config extends CriticClient> {
+  ask(question: ModelQuestion, config: Config): Promise<ModelAnswerReport>
+}
+
+/** The client each kind of critic runs through. Vibe also answers triage's question. */
+export interface CriticClients {
+  readonly agy: CriticClientPort<AgyCriticClient>
+  readonly vibe: CriticClientPort<VibeCriticClient> & QuestionClientPort<VibeCriticClient>
 }
 
 /** Asks the client of `config`'s kind whether it can run. */

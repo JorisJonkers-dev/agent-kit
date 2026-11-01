@@ -14,7 +14,7 @@ export class FlowBudget {
   constructor(private readonly deps: Pick<CritiqueDeps, 'clock' | 'env' | 'files'>) {}
 
   /** What the Vibe critics of this run's flow have been charged so far, this run's included. */
-  async vibeSpend(manifest: RunManifest): Promise<number> {
+  async vibeSpend(manifest: Pick<RunManifest, 'repository' | 'flow'>): Promise<number> {
     return flowSpend(await this.lines(), manifest.repository, manifest.flow)
   }
 
@@ -23,7 +23,11 @@ export class FlowBudget {
     return agyInvocationsOn(await this.lines(), this.deps.clock.now())
   }
 
-  async logInvocation(manifest: RunManifest, run: CriticRun, kind: InvocationLine['kind']): Promise<void> {
+  async logInvocation(
+    manifest: Pick<RunManifest, 'flow' | 'repository' | 'round' | 'run_id' | 'stage'>,
+    run: Pick<CriticRun, 'charged_usd' | 'client' | 'critic_id' | 'family' | 'model' | 'status'>,
+    kind: InvocationLine['kind'],
+  ): Promise<void> {
     const line: InvocationLine = {
       charged_usd: run.charged_usd,
       client: run.client,

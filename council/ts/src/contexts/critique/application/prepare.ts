@@ -25,6 +25,7 @@ import {
   type RosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, DEPTHS, isCodeStage, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
+import { riskPathHits } from '../domain/triage.js'
 import { FlowBudget } from './budget.js'
 import { CodePacketReader, type UnfrozenFile } from './code-packet.js'
 import { readInput, readJsonFile } from './decode.js'
@@ -154,15 +155,19 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       ? await this.codePackets.read(repository, tracker, { ...input, stage })
       : await this.documentPacket(repository, tracker, input)
     if (contents.status === 'refused') return contents
-    const { artifact, code } = contents
+    const { artifact, change, code } = contents
     const round = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage })
     if ('status' in round) return round
     const { previousFlow, ...roundFields } = round
     const routing = await this.routing.load()
+    const measured =
+      change === undefined
+        ? {}
+        : { change: { changed_lines: change.changed_lines, risk_path_hits: riskPathHits(change, routing.triage ?? { risk_paths: [] }) } }
     const { choice, depth } = chooseDepth(
       stage,
       stageRouting(routing, { stage }).depth_signals,
-      { labels: artifact.labels, text: artifact.text },
+      { labels: artifact.labels, text: artifact.text, ...measured },
       input.depth,
     )
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage }
@@ -276,7 +281,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     tracker: Tracker,
     input: PrepareInput,
   ): Promise<
-    Refusal | { readonly status: 'read'; readonly artifact: TrackedArtifact; readonly files: readonly UnfrozenFile[]; readonly code: undefined }
+    | Refusal
+    | {
+        readonly status: 'read'
+        readonly artifact: TrackedArtifact
+        readonly files: readonly UnfrozenFile[]
+        readonly code: undefined
+        readonly change: undefined
+      }
   > {
     const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec })
     if (artifact.status === 'refused') return artifact
@@ -295,7 +307,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         })),
       )),
     ]
-    return { artifact, code: undefined, files, status: 'read' }
+    return { artifact, change: undefined, code: undefined, files, status: 'read' }
   }
 
   private async freezePacket(packetDir: string, files: readonly UnfrozenFile[]): Promise<readonly PacketFile[]> {

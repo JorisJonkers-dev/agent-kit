@@ -4,6 +4,7 @@ export type { CheckTicketsResult } from './application/check-tickets.js'
 export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
+export type { TriageModelCall, TriageResult } from './application/triage.js'
 export type {
   CriticClientPort,
   CriticClients,
@@ -13,12 +14,29 @@ export type {
   CritiqueFilesPort,
   CritiqueGhPort,
   CritiqueGitPort,
+  ModelAnswer,
+  ModelAnswerReport,
+  ModelQuestion,
+  QuestionClientPort,
 } from './application/ports.js'
 export type { CriticIdentity, CriticOutcome, CriticRun } from './domain/critic.js'
 export type { ModelFamily, OrchestratorFamily } from './domain/family.js'
 export type { RunFinding } from './domain/findings.js'
 export { CritiqueError, type CritiqueErrorCode, type Refusal, type RefusalReason } from './domain/outcomes.js'
 export type { CritiqueStage, Depth } from './domain/stage.js'
+export {
+  codeChange,
+  countChangedLines,
+  matchesGlob,
+  riskPathHits,
+  riskSignals,
+  type CodeChange,
+  type RiskRules,
+  type RiskSignal,
+  type TriageDecision,
+  type TriageSignal,
+} from './domain/triage.js'
+export { CodeChangeReader, type ReadChange } from './application/code-change.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
 export { AgyCriticClient } from './adapters/agy/index.js'
 export { VibeCriticClient } from './adapters/vibe/index.js'
