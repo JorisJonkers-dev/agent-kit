@@ -1928,3 +1928,84 @@ The `/review-feature` skill and its gate (agent-kit#189) fixed these:
   planted cross-ticket contract mismatch giving `GATE: FAIL (1 critical)`,
   then `GATE: PASS` after the follow-up is fixed) costs money and has not
   been run.
+
+## What #188 settled
+
+The `/review-ticket` skill (agent-kit#188) fixed these:
+
+- **Routing.** Shipped `ticket-review`: base `agy-gemini-flash-high`
+  (`diff-reviewer`, failure-modes and security), deep `vibe-mistral-large`
+  (`diff-reviewer`, integration), each $0.50 and 480 s, `distinct_families`.
+  Gemini falls back to GLM through the existing `fallbacks` entry, and drops
+  for `quota` once only the Antigravity reserve is left (the reserve names
+  spec and feature-review only). Deep is Mistral Large rather than GLM, so it
+  stays in a further family when GLM took the base slot. Depth signals, the
+  values #187 left unset: `changed_lines` 600 (twice triage's threshold) and
+  `risk_path_hits` 3, plus `risk:high`. One risk path hit does not go deep,
+  since every ticket that reached review by a risk path has one.
+- **The role.** `roles/diff-reviewer.md` (pinned) asks for bugs, unmet
+  acceptance criteria and security issues, puts style, naming and linter
+  rules out of scope, and states `feature-reviewer`'s failing-test rule, with
+  a trace citing `tree/<path>:<line>` as the alternative.
+- **The staged change.** Prepare and triage take `"staged": true` in place
+  of `head` (both together, or `staged` at another stage, is
+  `invalid-input`). The runner writes the index as a tree and a commit on
+  `HEAD` (`git write-tree`, then `git commit-tree --no-gpg-sign` under a
+  fixed identity), which moves no ref, index entry or file, and reviews that
+  commit; `code.head_commit` is it. `GitIndexPort` (`src/ports/git.ts`:
+  `stagedEntries`, `treeOf`, `writeIndexTree`, `commitTree`, implemented by
+  `GitCliAdapter`) joined `CritiqueGitPort`. The harness's `FakeGit` gained an
+  index (`stage()` is `git add -A`; `commit()` leaves the index at the new
+  commit) and off-line commits `s1`, `s2`, ... that `HEAD` never names.
+- **The staged-diff hash, for #197.** `stagedDiffHash(<HEAD's tree id>,
+  <git ls-files --stage -z>)`: a sha256 over the tree id and every staged
+  entry's mode, blob id and path. Git's diff settings and the working tree do
+  not enter it, and reading it writes nothing. `StagedDiffReader.read(root)`
+  returns `{ head_commit, sha256 }` for the current index, so the commit
+  gate computes it exactly as the runner does; `snapshot(root)` is prepare's
+  commit of the index. `manifest.code.staged_diff` holds the hash prepare
+  reviewed.
+- **The review record, for #197.** Record of a ticket-review run writes
+  `<run_dir>/review.json` and appends the same object as one line to
+  `<git common dir>/critique/ticket-reviews.jsonl`: `{ version: 1, stage:
+  "ticket-review", run_id, recorded_at, repository, spec, ticket,
+  base_commit, head_commit, reviewed_staged_diff, staged_diff, review: "pass"
+  | "fail", degraded, unfixed_critical }`. `reviewed_staged_diff` is what the
+  critics read; `staged_diff` is the index hashed again at record time, after
+  the fixes and kept regression tests were staged, and is **the one the
+  commit gate matches**: take the last line of the index whose `repository`
+  and `staged_diff` match the current staged change, and allow when its
+  `review` is `pass`. Both are `null` for a review of a commit. `review` is
+  `fail` while an accepted critical finding has no `fixed`; a degraded run
+  passes with `degraded: true`, so an outage blocks nothing. Exported:
+  `parseTicketReviewRecord`, `ticketReviewPath`, `ticketReviewIndexPath`,
+  `StagedDiffReader`, `stagedDiffHash`. Record only appends to the index and
+  never reads it, so a bad line there breaks no record; a gate that cannot
+  parse a line should fail open, as for `gates.jsonl`.
+- **Accepting a ticket finding.** At `ticket-review`, record refuses
+  (`invalid-input`) an `accepted` verdict unless `reason_code` is
+  `test-fails` or `trace-walked`; `test-fails` needs `regression_test`, the
+  repository path the test was kept at in the ticket's change, and only
+  `test-fails` takes it. An accepted verdict may carry `"fixed": true`. Both
+  fields are refused on any other verdict and at any other stage.
+  `test-passes`, `test-broken` and `unsafe-test` (rejected) are the skill's
+  convention, not checked. No test code reaches the ledger: finding lines
+  keep `evidence_kinds` and `reason_code` only.
+- **Do not commit.** While an accepted critical finding is unfixed, the
+  summary's last line is `Critical finding F1 is accepted and not fixed: do
+  not commit.` (`Critical findings F1, F2 are ...`). An accepted line ends
+  `(test-fails, fixed)`; the report's verdict reads `accepted (test-fails),
+  regression test <path>, fixed`.
+- **The flow.** A ticket review's default flow is now the spec's reference
+  (the packet's spec file), not the ticket's. Triage takes an optional
+  `spec`, read through the tracker for its reference, and then defaults its
+  flow to it; a spec gh cannot read is refused before anything is written.
+- **For #199.** `specReference(manifest)` (exported) is the spec's reference
+  at every stage: the artifact's, except at ticket review, where it is the
+  packet's spec file. When #199's `AdjudicatedRun.spec` merges here, set it
+  from `specReference(manifest)` so ticket reviews count under their spec.
+  The feature gate already uses it.
+- **Not checked live.** #181's live check (a planted off-by-one in a risky
+  path yields a failing test the orchestrator runs and keeps) costs money and
+  has not been run, and the runner's `git commit-tree` call has been tested
+  against a recorded process only, not a real repository.
