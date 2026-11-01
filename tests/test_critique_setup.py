@@ -97,6 +97,30 @@ def test_critique_spec_is_declared_for_every_agent() -> None:
     assert skill["surfaces"] == ["workstation"]
 
 
+def test_critique_stats_is_declared_for_every_agent_and_built() -> None:
+    skill = _skill(_registry(), "critique-stats")
+    assert skill["path"] == "skills/critique-stats"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+    assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
+
+
+def test_setup_installs_critique_stats_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "critique-stats" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "critique-stats" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "critique-stats" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
+def test_routing_carries_the_stats_thresholds() -> None:
+    """/critique-stats reads its thresholds from routing and never writes them."""
+    assert json.loads(ROUTING.read_text())["stats"] == {"min_adjudicated_findings": 20, "removal_features": 3}
+
+
 def test_the_shared_skill_carries_the_runner_prompts_lenses_schema_and_routing() -> None:
     root = KIT_ROOT / "skills" / "critique"
     for path in ("SKILL.md", "critique.mjs", "routing.json", "prompts/preamble.md",

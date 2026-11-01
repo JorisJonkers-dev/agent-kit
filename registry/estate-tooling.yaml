@@ -848,6 +848,18 @@ local_skills:
       exists, setup skips it with a notice; once it exists, validation
       refuses the `pending:` line, so the entry installs like the others.
 
+  - name: critique-stats
+    path: skills/critique-stats
+    purpose: >-
+      Report how each critique critic client performs per stage, from the
+      ledger, ending with routing suggestions the owner acts on.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner's stats command in skills/critique/, so setup
+      installs both side by side in every agent home. It reads the ledger
+      and routing and writes nothing.
+
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,
