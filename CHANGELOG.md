@@ -1,5 +1,19 @@
 # Changelog
 
+## [5.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v5.0.0...v5.1.0) (2026-11-01)
+
+
+### Features
+
+* **critique:** /critique-decisions, /check-tickets, /review-ticket and /review-feature ([#205](https://github.com/JorisJonkers-dev/agent-kit/issues/205)) ([ef2ca46](https://github.com/JorisJonkers-dev/agent-kit/commit/ef2ca46b7663f1556aac9aeb6c86d608b5620f3e))
+* **critique:** /flow, hooks and /critique-stats ([#202](https://github.com/JorisJonkers-dev/agent-kit/issues/202)) ([0e13e79](https://github.com/JorisJonkers-dev/agent-kit/commit/0e13e790707f1d0b4b6041403c34c79cec6208c0))
+* **critique:** critic families, tripwire, budget, depth and /critique-spec ([#203](https://github.com/JorisJonkers-dev/agent-kit/issues/203)) ([914b80f](https://github.com/JorisJonkers-dev/agent-kit/commit/914b80f03e68d6777010cb1a8bfac62d4e9d3726))
+
+
+### Bug Fixes
+
+* **installer:** serve the installer and its kit bundle from GitHub releases ([#206](https://github.com/JorisJonkers-dev/agent-kit/issues/206)) ([7c5fd29](https://github.com/JorisJonkers-dev/agent-kit/commit/7c5fd2970a1da891c70c8fd265c439b7ef92379c))
+
 ## [5.0.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v4.16.0...v5.0.0) (2026-11-01)
 
 
