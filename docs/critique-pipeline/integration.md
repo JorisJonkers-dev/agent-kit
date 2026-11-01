@@ -1656,3 +1656,66 @@ Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
   or left empty by routing, and the summary already names it, so the skill
   need not ask the owner about it. A `budget-skip` critic is not a failure
   either.
+
+## What #185 settled
+
+The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
+
+- **The tickets packet.** Prepare at `stage: "tickets"` reads the spec and
+  its tickets through `readCheckedTickets` (`application/check-tickets.ts`),
+  the same read the `check-tickets` command makes, and freezes
+  `spec/<name>` (kind `spec`), `tickets/<name>` (kind `ticket`, rendered as a
+  code stage renders them) and `check/tickets.json` (the new kind `check`):
+  exactly what `check-tickets` prints, plus `size: { max_modules,
+  max_criteria, over_criteria }`. Nothing else is at the packet root, and
+  `references` is ignored. `manifest.artifact` is the spec, so its labels
+  feed `risk:high` and the default `flow` is the spec's reference, as #173
+  asked. A spec with no tickets is the new refusal `no-tickets`, before
+  anything is written. The prompt calls a ticket "a ticket under review" at
+  this stage only; at a code stage it stays "a ticket the change delivers"
+  (`assemblePrompt` now takes the stage instead of a code-packet flag).
+- **Routing.** Shipped `tickets`: base `vibe-deepseek-flash` (`ticket-linter`,
+  testability), deep `vibe-mistral-large` (`ticket-linter`, simplicity), each
+  $0.10 and 180 s, `distinct_families`. A stage may carry `ticket_size:
+  { max_modules, max_criteria }` (shipped 5 and 8; #181's starting values
+  when left out); only the tickets stage reads it. Depth signals: the new
+  measure `tickets` (the ticket count, threshold 10, a value #181 left open),
+  the spec stage's risk terms over the spec and the tickets' text, and
+  `risk:high` on the spec. `STAGE_MEASURES.tickets` is no longer empty, and
+  `DepthEvidence` gained an optional `tickets`.
+- **The evidence rule.** A tickets-stage finding's `location` names the
+  ticket's id as the report lists it and one rule:
+  `untestable-criterion`, `no-seam`, `uncovered-requirement` or `too-big`
+  (`TICKET_RULES` in `domain/tickets.ts`), such as `#184: no-seam`. No rule is
+  the hint `no-ticket-rule`; a rule but no ticket of the spec is
+  `no-ticket-id`, except `uncovered-requirement`, which belongs to the spec.
+  The ticket ids come from the manifest's `ticket_check.ticket_ids`, passed
+  to `indexPacket`. The finding schema and the output contract are
+  unchanged: the rule rides in `location`.
+- **A failed stage.** The manifest keeps `ticket_check` (status, ticket ids,
+  cycles, dangling blockers, uncited stories or why coverage was not
+  checkable). Record's result carries `ticket_check: "passed" | "failed"`,
+  and the summary and the report gain one line under the verdict counts,
+  such as `Ticket check: failed: 3 tickets; cycle #170 → #171 → #170; no
+  dangling blocker; user story coverage not checkable (no ticket cites a
+  user story)`, at most five dangling blockers named. While it failed, the
+  summary says `Do not start /implement: the tickets hold a dependency
+  cycle.` At the tickets stage an unanswered critical question also reads
+  `Do not start /implement`, not `/to-tickets`. The line reflects the
+  tickets as prepare froze them; the skill runs `check-tickets` again after
+  its fixes and says when the cycles are gone. Record's run status is still
+  `recorded`, and the ledger is unchanged.
+- **The skill.** `skills/check-tickets/SKILL.md`, a `local_skills` entry for
+  every agent beside `critique-spec`. A finding is accepted only after the
+  orchestrator re-checks its rule on the named ticket. Structural fixes
+  (reworded criteria, a named seam, blocker links, splits and merges that
+  keep every behaviour) go straight to the tracker: GitHub blocker links
+  through `repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by` (POST
+  with `issue_id`, DELETE `/<id>`) and new tickets through
+  `issues/<spec>/sub_issues` (POST with `sub_issue_id`); local tickets by
+  editing the `issues/` files. A fix that adds, drops or changes a behaviour
+  is a `needs-human` question. One comment on the spec lists the changes.
+  Dangling blockers are read as "check these", per #184.
+- **Not done here.** The live check on a real ticket set with a planted
+  cycle and an uncovered story is #190's. `CONTEXT.md`'s **Depth** still says
+  "two families"; #181's amendment to it was not made in this ticket.
