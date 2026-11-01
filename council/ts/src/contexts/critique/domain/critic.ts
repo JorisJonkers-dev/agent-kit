@@ -23,6 +23,10 @@ const RUN_FAILURES = [
   'config-error',
   'infrastructure-failure',
   'stopped-early',
+  'print-timeout',
+  'denied-action',
+  'missing-structured-output',
+  'unsafe-tool',
 ] as const
 
 /** Why a critic's run counts as no review. `exit-<code>` is an exit code the client does not document. */
@@ -39,8 +43,16 @@ export type CriticOutcome =
   | { readonly status: 'failed'; readonly failure: CriticFailure; readonly detail: string; readonly cost_usd: number | null }
 
 /** One critic's run as fan-out recorded it: who ran, how it went, and where its raw output is. */
+export const CRITIC_STATUSES = ['ok', 'failed', 'violated-readonly'] as const
+
+/**
+ * `failed`: the critic gave no usable review. `violated-readonly`: it changed
+ * its packet or the working tree, so its findings were discarded.
+ */
+export type CriticStatus = (typeof CRITIC_STATUSES)[number]
+
 export interface CriticRun extends CriticIdentity {
-  readonly status: 'ok' | 'failed'
+  readonly status: CriticStatus
   readonly failure?: CriticFailure
   readonly detail?: string
   readonly no_findings_reason?: string
@@ -92,7 +104,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
     },
     prompt_path: fields.string('prompt_path'),
     role: fields.string('role'),
-    status: fields.oneOf('status', ['ok', 'failed']),
+    status: fields.oneOf('status', CRITIC_STATUSES),
     stdout_path: fields.string('stdout_path'),
     ...(failure === undefined ? {} : { failure }),
     ...(detail === undefined ? {} : { detail }),

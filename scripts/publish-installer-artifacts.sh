@@ -41,6 +41,7 @@ KIT_PATHS=(
   registry/estate-tooling.yaml
   registry/generated/hermes/mcp-servers.local.yaml
   registry/generated/vibe/mcp-servers.toml
+  registry/generated/vibe/agents
   registry/generated/vibe-private/mcp-servers.toml
   registry/generated/antigravity/mcp_config.json
   installer/setup-workstation.sh

@@ -60,6 +60,26 @@ describe('critique runner command line', () => {
     expect(recorded).toMatchObject({ counts: { accepted: 1 }, status: 'recorded' })
   })
 
+  it('exits 3 when check-tickets finds a dependency cycle, so a caller sees the failure without reading the JSON', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.writeText(join(h.repo, '.scratch', 'widgets', 'issues', '01-schema.md'), '# 01: Schema\n\n**Blocked by:** 01\n')
+
+    const result = await runCritiqueCli(['check-tickets', '--json', JSON.stringify({ repo: h.repo, spec: '.scratch/widgets/spec.md' })], cli(h))
+
+    expect(result.exitCode).toBe(3)
+    expect(JSON.parse(result.stdout)).toMatchObject({ cycles: [['01']], status: 'failed' })
+  })
+
+  it('exits 0 when check-tickets finds no cycle', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+
+    expect(await run(cli(h), 'check-tickets', '--json', JSON.stringify({ repo: h.repo, spec: '.scratch/widgets/spec.md' }))).toMatchObject({
+      status: 'passed',
+    })
+  })
+
   it('prints a refusal as a normal result', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
@@ -138,6 +158,8 @@ async function realRepository(): Promise<RealRepository> {
   await mkdir(join(repo, '.scratch', 'widgets'), { recursive: true })
   await writeFile(join(repo, '.scratch', 'widgets', 'spec.md'), '# Widgets\n')
   await writeFile(join(repo, 'CONTEXT.md'), '# Words\n')
+  await mkdir(join(repo, 'docs', 'agents'), { recursive: true })
+  await writeFile(join(repo, 'docs', 'agents', 'issue-tracker.md'), '# Issue tracker: Local Markdown\n')
   execFileSync('git', ['init', '-q', repo])
   execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/example/widgets.git'])
   return {

@@ -1,32 +1,38 @@
 import type { CriticRun } from './critic.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
-import { countVerdicts, isDissent, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
+import { countVerdicts, familiesOf, isDissent, VERDICTS, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
 
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
 const CLAIM_MAX_CHARS = 160
 /** What a critic that found nothing says it checked; the report keeps all of it. */
 const CHECKED_MAX_CHARS = 300
+/** One critic's minor findings, by id; the report keeps each in full. */
+const MINOR_MAX_CHARS = 300
 
 /**
  * The compact summary, always in the same shape: header, critics, accepted
- * findings, questions for the owner, dissent, and the report path. When it
+ * findings, questions for the owner, minor findings, dissent, and the report
+ * path. Minor findings never take a line of their own: each critic gets one
+ * line naming its minor findings by verdict (#167 US33). When it
  * would exceed its budget, the longest list loses items from its end and says
  * how many more the report holds. Text outside the lists is clipped, so
  * emptying the lists always brings it within budget.
  */
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
+  const serious = run.findings.filter((f) => f.severity !== 'minor')
   const lists = {
-    accepted: run.findings.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(f)),
-    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(f, `Rejected: ${f.verdict.reason ?? ''}`)),
-    questions: run.findings
+    accepted: serious.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(run, f)),
+    dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ''}`)),
+    questions: serious
       .filter((f) => f.verdict.verdict === 'needs-human')
-      .map((f) => findingLine(f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
+      .map((f) => findingLine(run, f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
   }
   const hidden = { accepted: 0, dissent: 0, questions: 0 }
   const render = (): string =>
     [
+      ...violationLines(run),
       `# Critique: ${run.stage}, run ${run.run_id}`,
       '',
       ...degradedLines(run),
@@ -45,6 +51,10 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '## Questions for you',
       '',
       ...bullets(lists.questions, hidden.questions),
+      '',
+      '## Minor',
+      '',
+      ...bullets(minorLines(run), 0),
       '',
       '## Dissent',
       '',
@@ -70,6 +80,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
 export function renderReport(run: AdjudicatedRun): string {
   const dissent = run.findings.filter((f) => isDissent(run, f))
   return [
+    ...violationLines(run),
     `# Critique report: ${run.stage}, run ${run.run_id}`,
     '',
     ...degradedLines(run),
@@ -93,12 +104,30 @@ export function renderReport(run: AdjudicatedRun): string {
     ...run.dropped.map(droppedLine),
     '## Findings',
     '',
-    ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap(findingSection)),
+    ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap((f) => findingSection(run, f))),
     '## Dissent',
     '',
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/**
+ * #167 US22: a critic that changed its packet or the working tree makes its
+ * critic client unsafe, so the summary and the report open with that, one
+ * line per such critic, before anything else.
+ */
+function violationLines(run: AdjudicatedRun): readonly string[] {
+  const violators = run.critics.filter((critic) => critic.status === 'violated-readonly')
+  if (violators.length === 0) return []
+  return [
+    ...violators.map(
+      (critic) =>
+        `> **Warning: read-only violated** by critic client ${critic.client} (${critic.critic_id}). ` +
+        'Its findings were discarded and the packet restored. Do not rely on this client until its read-only settings are fixed.',
+    ),
+    '',
+  ]
 }
 
 /** #167 US29: a stage where no critic reviewed anything says so first. */
@@ -107,7 +136,12 @@ function degradedLines(run: AdjudicatedRun): readonly string[] {
 }
 
 function droppedLine(dropped: DroppedCritic): string {
-  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}`
+  const detail = dropped.detail === undefined ? '' : ` (${dropped.detail})`
+  const slot =
+    dropped.replaced_by === undefined
+      ? 'no fallback left, so the stage runs with fewer critics'
+      : `replaced by ${dropped.replaced_by}`
+  return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}${detail}; ${slot}`
 }
 
 function hashList(hashes: Readonly<Record<string, string>>): string {
@@ -116,12 +150,15 @@ function hashList(hashes: Readonly<Record<string, string>>): string {
     .join(', ')
 }
 
-function findingSection(finding: AdjudicatedFinding): readonly string[] {
+function findingSection(run: AdjudicatedRun, finding: AdjudicatedFinding): readonly string[] {
   return [
     `### ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}`,
     '',
-    `Raised by: ${finding.raised_by.join(', ')}`,
+    `Raised by: ${finding.raised_by.join(', ')} (${familiesOf(run, finding).join(', ')})`,
     `Verdict: ${verdictText(finding.verdict)}`,
+    ...(finding.pre_verdict === undefined || finding.pre_verdict.verdict === finding.verdict.verdict
+      ? []
+      : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`]),
     '',
     finding.claim,
     '',
@@ -148,7 +185,8 @@ function verdictLine(run: AdjudicatedRun): string {
 
 function criticLine(critic: CriticRun, checkedMaxChars = Infinity): string {
   const cost = critic.cost_usd === null ? 'cost unknown' : `$${critic.cost_usd.toFixed(4)}`
-  const status = critic.status === 'ok' ? 'ok' : `failed (${critic.failure ?? 'unknown'})`
+  const status =
+    critic.status === 'ok' ? 'ok' : critic.status === 'violated-readonly' ? 'violated read-only' : `failed (${critic.failure ?? 'unknown'})`
   const checked =
     critic.no_findings_reason === undefined ? '' : ` (checked: ${clip(critic.no_findings_reason, checkedMaxChars)})`
   return `${critic.client} (${critic.model}, ${critic.family}): ${status}, ${String(critic.finding_count)} finding${critic.finding_count === 1 ? '' : 's'}, ${cost}${checked}`
@@ -158,9 +196,24 @@ function clip(text: string, maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text
 }
 
-function findingLine(finding: RunFinding, tail?: string): string {
+/** One finding in the summary; agreement across families is named, so it stays visible. */
+function findingLine(run: AdjudicatedRun, finding: RunFinding, tail?: string): string {
   const claim = clip(finding.claim, CLAIM_MAX_CHARS)
-  return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${tail === undefined ? '' : ` ${tail}`}`
+  const families = familiesOf(run, finding)
+  const agreement = families.length < 2 ? '' : ` (raised by ${families.join(' and ')})`
+  return `- ${finding.id} [${finding.severity} ${finding.category}] ${finding.location}: ${claim}${agreement}${tail === undefined ? '' : ` ${tail}`}`
+}
+
+function minorLines(run: AdjudicatedRun): readonly string[] {
+  return run.critics.flatMap((critic) => {
+    const minor = run.findings.filter((f) => f.severity === 'minor' && f.raised_by.includes(critic.critic_id))
+    if (minor.length === 0) return []
+    const byVerdict = VERDICTS.flatMap((verdict) => {
+      const ids = minor.filter((f) => f.verdict.verdict === verdict).map((f) => f.id)
+      return ids.length === 0 ? [] : [`${verdict} ${ids.join(', ')}`]
+    })
+    return [clip(`- ${critic.critic_id}: ${String(minor.length)} minor: ${byVerdict.join('; ')}`, MINOR_MAX_CHARS)]
+  })
 }
 
 function bullets(items: readonly string[], hidden: number): readonly string[] {

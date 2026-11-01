@@ -41,6 +41,11 @@ HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
 ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
+# One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry.
+VIBE_CRITIC_AGENTS_DIR = Path("registry/generated/vibe/agents")
+VIBE_CRITIC_AGENT_KEYS = {"name", "model", "input_price", "output_price", "thinking", "surfaces", "note"}
+# Vibe's standard thinking levels (vibe/config_values.py THINKING_LEVELS).
+VIBE_THINKING_LEVELS = ("off", "low", "medium", "high", "xhigh", "max")
 # Antigravity expands no environment variables, so a token-bearing server is
 # reached through this stdio proxy, which reads the token from the secret store.
 ANTIGRAVITY_PROXY = "$HOME/.local/bin/antigravity-mcp-proxy"
@@ -301,7 +306,16 @@ def validate(data: dict[str, Any]) -> None:
 
     for skill in _entries(data, "local_skills"):
         path = KIT_ROOT / str(skill.get("path") or "")
-        if not (path / "SKILL.md").is_file():
+        pending = skill.get("pending")
+        if pending is not None and not re.fullmatch(r"https://github\.com/[^/\s]+/[^/\s]+/issues/\d+", str(pending)):
+            raise RegistryError(
+                f"local skill {skill.get('name')} pending must be the URL of the issue that builds it",
+            )
+        if pending and (path / "SKILL.md").is_file():
+            raise RegistryError(
+                f"local skill {skill.get('name')} has its SKILL.md now; drop pending: so it installs",
+            )
+        if not pending and not (path / "SKILL.md").is_file():
             raise RegistryError(
                 f"local skill {skill.get('name')} has no SKILL.md at {skill.get('path')}",
             )
@@ -316,6 +330,8 @@ def validate(data: dict[str, Any]) -> None:
                 f"local skill {skill.get('name')} cannot target hermes: sync-skills clones "
                 "public git URLs with no credential and this repository is private",
             )
+
+    _validate_vibe_critic_agents(data)
 
     for key in ("clis", "plugins", "language_servers", "mcp_servers"):
         for item in _entries(data, key):
@@ -473,6 +489,89 @@ def _cloud_guard(block: list[str], item: dict[str, Any], indent: str) -> list[st
         *[f"  {line}" if line else line for line in block],
         f"{indent}fi",
     ]
+
+
+def _validate_vibe_critic_agents(data: dict[str, Any]) -> None:
+    seen: set[str] = set()
+    for agent in _entries(data, "vibe_critic_agents"):
+        name = str(agent.get("name") or "")
+        if not re.fullmatch(r"critic-[a-z0-9]+(-[a-z0-9]+)*", name):
+            raise RegistryError(f"vibe critic agent {name!r} must be named critic-<model>, in lower case")
+        if name in seen:
+            raise RegistryError(f"vibe critic agent {name} is declared twice")
+        seen.add(name)
+        unknown = set(agent) - VIBE_CRITIC_AGENT_KEYS
+        if unknown:
+            raise RegistryError(
+                f"vibe critic agent {name} sets {sorted(unknown)}; an entry names only its model and "
+                "prices, and the read-only settings are the same for every critic",
+            )
+        if not isinstance(agent.get("model"), str) or not agent["model"]:
+            raise RegistryError(f"vibe critic agent {name} must name its model")
+        for field in ("input_price", "output_price"):
+            price = agent.get(field)
+            if isinstance(price, bool) or not isinstance(price, int | float) or price <= 0:
+                raise RegistryError(
+                    f"vibe critic agent {name} {field} must be the model's real price per million tokens: "
+                    "Vibe computes cost from it, and 0 turns every price cap off",
+                )
+        if "thinking" in agent and agent["thinking"] not in VIBE_THINKING_LEVELS:
+            raise RegistryError(f"vibe critic agent {name} thinking must be one of {list(VIBE_THINKING_LEVELS)}")
+        if agent.get("surfaces") not in ([], ["workstation"]):
+            raise RegistryError(
+                f"vibe critic agent {name} surfaces must be [workstation], or [] to retire it",
+            )
+
+
+def vibe_critic_agents(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The declared critic agents; a retired one has ``surfaces: []``."""
+    return [a for a in _entries(data, "vibe_critic_agents") if on_surface(a, "workstation")]
+
+
+def retired_vibe_critic_agents(data: dict[str, Any]) -> list[str]:
+    return [str(a["name"]) for a in _entries(data, "vibe_critic_agents") if not on_surface(a, "workstation")]
+
+
+def render_vibe_critic_agent(agent: dict[str, Any]) -> str:
+    """One read-only critic agent file, a Vibe config overlay for ``vibe --agent <name>``.
+
+    Every setting but the model and its prices is fixed here, so no entry can
+    widen a critic. Its tool list (``read_file`` alone) is what keeps both
+    writes and skills from it; ``include_project_context = false`` keeps the
+    home's ``AGENTS.md`` out of its prompt. It sets no ``default_agent``, so it
+    never becomes the agent a plain ``vibe`` starts with.
+    """
+    name = str(agent["name"])
+    model = str(agent["model"])
+    lines = [
+        f"# {GENERATED_BANNER}",
+        "# A read-only critic of the critique pipeline, launched by its runner as",
+        f"# `vibe --agent {name}`. Installed into the shared Vibe home only.",
+        "",
+        f"display_name = {_toml_str(name.replace('-', ' ').title())}",
+        f"description = {_toml_str(f'Read-only critic pinned to {model}')}",
+        'safety = "safe"',
+        f"active_model = {_toml_str(name)}",
+        'enabled_tools = ["read_file"]',
+        'enabled_skills = ["re:^$"]',
+        'outside_workdir = "deny"',
+        "enable_mcp = false",
+        "enable_subagents = false",
+        "include_project_context = false",
+        "",
+        "[session_logging]",
+        "enabled = false",
+        "",
+        "[[models]]",
+        f"name = {_toml_str(model)}",
+        'provider = "mistral"',
+        f"alias = {_toml_str(name)}",
+        f"input_price = {agent['input_price']!r}",
+        f"output_price = {agent['output_price']!r}",
+    ]
+    if "thinking" in agent:
+        lines.append(f"thinking = {_toml_str(str(agent['thinking']))}")
+    return "\n".join(lines) + "\n"
 
 
 def _validate_claude_profiles(data: dict[str, Any]) -> None:
@@ -1030,6 +1129,46 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w("")
 
 
+def _critic_agents_step(data: dict[str, Any], w: Any) -> None:
+    """The shell function that converges the critic agents in one Vibe home.
+
+    Each declared agent's file is replaced, so a hand edit is undone; a retired
+    one's is removed; any other agent in the directory is the owner's and is
+    left alone. One line per file keeps every path setup reads from the kit
+    literal, which is how the bundle test sees it.
+    """
+    w("# The read-only critic agents the critique runner launches as")
+    w("# `vibe --agent critic-<model>`. Called for the shared Vibe home only:")
+    w("# vibe-private never runs critics. Nothing here touches config.toml, so")
+    w("# no critic becomes the default agent.")
+    w("_vibe_critic_agents() {")
+    w('  local home="$1" src dest')
+    for agent in vibe_critic_agents(data):
+        name = agent["name"]
+        w(f'  src="${{KIT_ROOT}}/{VIBE_CRITIC_AGENTS_DIR}/{name}.toml"')
+        w(f'  dest="${{home}}/agents/{name}.toml"')
+        w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would write ${dest}"')
+        w('  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then')
+        w(f'    ok "Vibe critic agent {name} -> ${{dest}}"')
+        w("  else")
+        w(f'    fail "Vibe critic agent {name}: ${{dest}} does not match ${{src}}"')
+        w("  fi")
+    for name in retired_vibe_critic_agents(data):
+        w(f'  dest="${{home}}/agents/{name}.toml"')
+        w('  if [ ! -e "${dest}" ]; then')
+        w("    :")
+        w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would remove ${dest}"')
+        w("  else")
+        w('    rm -f "${dest}"')
+        w(f'    ok "removed retired Vibe critic agent {name}"')
+        w("  fi")
+    w("  return 0")
+    w("}")
+    w("")
+
+
 def claude_allow_rules(data: dict[str, Any]) -> list[str]:
     """Claude permission rules for MCP servers with ``claude_allow_tools: true``.
 
@@ -1576,6 +1715,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private')
     w("}")
     w("")
+    _critic_agents_step(data, w)
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
     w("run_sh() {")
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
@@ -2734,7 +2874,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w(f"# {chunk}")
         w(f'src="${{KIT_ROOT}}/{source}"')
         w('if [ ! -f "${src}/SKILL.md" ]; then')
-        w(f'  fail "{name}: ${{src}}/SKILL.md is missing; nothing to install"')
+        if skill.get("pending"):
+            # Registered before the issue that writes it has landed.
+            w(f'  log "{name}: not built yet ({skill["pending"]}); skipped"')
+        else:
+            w(f'  fail "{name}: ${{src}}/SKILL.md is missing; nothing to install"')
         w("else")
         homes = [
             h for agent in skill.get("agents") or ["claude"]
@@ -2776,6 +2920,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w("  fi")
         w("fi")
     w("")
+
+    # --- the critique pipeline's Vibe critic agents ---
+    if _entries(data, "vibe_critic_agents"):
+        w("# The read-only Vibe critic agents, into the shared Vibe home only. Like")
+        w("# its skills, a failed split leaves the home alone this run.")
+        w('if [ "${VIBE_HOMES_READY}" = 1 ]; then')
+        w('  log "Vibe critic agents"')
+        w('  _vibe_critic_agents "${VIBE_HOME}"')
+        w("fi")
+        w("")
 
     # --- vendored third-party skills (skill_sources on the workstation surface) ---
     w("# -----------------------------------------------------------------")
@@ -3094,7 +3248,23 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         VIBE_PRIVATE_MCP: (render_vibe_private_mcp(data), 0o644),
         ANTIGRAVITY_MCP: (render_antigravity_mcp(data), 0o644),
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
+        **{
+            VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
+            for agent in vibe_critic_agents(data)
+        },
     }
+
+
+def _leftover_critic_agents(data: dict[str, Any], root: Path) -> list[Path]:
+    """Files in the critic agents' directory that no declared agent renders."""
+    directory = root / VIBE_CRITIC_AGENTS_DIR
+    if not directory.is_dir():
+        return []
+    rendered = set(artifacts(data))
+    return sorted(
+        path.relative_to(root) for path in directory.iterdir()
+        if path.is_file() and path.relative_to(root) not in rendered
+    )
 
 
 def stale_artifacts(data: dict[str, Any], root: Path = KIT_ROOT) -> list[str]:
@@ -3104,6 +3274,8 @@ def stale_artifacts(data: dict[str, Any], root: Path = KIT_ROOT) -> list[str]:
         target = root / relative
         if (target.read_text() if target.is_file() else None) != content:
             stale.append(str(relative))
+    # A retired critic agent's file would otherwise linger, and ship.
+    stale.extend(str(path) for path in _leftover_critic_agents(data, root))
     return stale
 
 
@@ -3139,6 +3311,8 @@ def main(argv: list[str] | None = None) -> int:
         if current != content:
             target.write_text(content)
         target.chmod(mode)
+    for leftover in _leftover_critic_agents(data, KIT_ROOT):
+        (KIT_ROOT / leftover).unlink()
 
     print(f"rendered {len(artifacts(data))} registry artifacts")
     return 0

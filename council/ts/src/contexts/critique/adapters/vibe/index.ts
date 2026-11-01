@@ -5,7 +5,7 @@ import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } 
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { parseFindings } from '../../domain/findings.js'
 import { jsonObjectOrUndefined } from '../../domain/json.js'
-import type { RosterCritic } from '../../domain/routing.js'
+import type { ClientReadiness, RosterCritic, VibeCriticClient as VibeClientConfig } from '../../domain/routing.js'
 
 /**
  * The Vibe critic client: runs one Vibe critic in its packet and reads its
@@ -13,17 +13,22 @@ import type { RosterCritic } from '../../domain/routing.js'
  * launch, the isolation it needs, its exit codes, its journal and export
  * formats) stays here.
  */
-export class VibeCriticClient implements CriticClientPort {
+export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
   constructor(
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
   ) {}
 
-  async review(launch: CriticLaunch): Promise<CriticReport> {
+  /** Vibe is not checked ahead of a run: a missing binary or agent fails the critic at launch. */
+  async readiness(): Promise<ClientReadiness> {
+    return Promise.resolve({ ready: true })
+  }
+
+  async review(launch: CriticLaunch, config: VibeClientConfig): Promise<CriticReport> {
     const exportDir = join(launch.criticDir, 'export')
     const exportPath = join(exportDir, 'export.json')
     const result = await this.process.exec(
-      vibeLaunch(launch.critic, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath }),
+      vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath }),
     )
     const outcome = classifyVibeRun({
       exitCode: result.exitCode,
@@ -74,21 +79,21 @@ interface VibeLaunchPaths {
   readonly exportDir: string
 }
 
-function vibeLaunch(critic: RosterCritic, paths: VibeLaunchPaths): ProcessCommand {
+function vibeLaunch(critic: RosterCritic, config: VibeClientConfig, paths: VibeLaunchPaths): ProcessCommand {
   return {
     args: [
       '-u',
       'MISTRAL_API_KEY',
       '-u',
       'VIBE_HOME',
-      critic.client_config.binary,
+      config.binary,
       '--prompt-file',
       paths.promptPath,
       '--output',
       'json',
       '--trust',
       '--agent',
-      critic.client_config.agent,
+      config.agent,
       '--enabled-tools',
       'read_file',
       '--max-price',

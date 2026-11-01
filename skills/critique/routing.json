@@ -7,7 +7,24 @@
       "agent": "critic-mistral-large",
       "model": "mistral-large-4-0-3",
       "family": "mistral"
+    },
+    "agy-gemini-flash-high": {
+      "kind": "agy",
+      "binary": "agy",
+      "model": "gemini-3.8-flash-high",
+      "family": "google"
+    },
+    "vibe-glm": {
+      "kind": "vibe",
+      "binary": "vibe",
+      "agent": "critic-glm",
+      "model": "glm-5-3",
+      "family": "zhipu"
     }
+  },
+  "fallbacks": {
+    "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
+    "agy-gemini-flash-high": ["vibe-glm"]
   },
   "stages": {
     "spec": {
@@ -17,6 +34,13 @@
           "client": "vibe-mistral-large",
           "role": "spec-redteam",
           "lenses": ["fidelity", "testability"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "spec-redteam",
+          "lenses": ["failure-modes", "security"],
           "max_price_usd": 0.5,
           "time_limit_s": 600
         }

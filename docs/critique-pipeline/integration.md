@@ -1000,3 +1000,404 @@ these:
   trusts it in `/hooks`, so `/flow setup`'s "hooks installed" item has to
   check that, and the hook commands have to stay byte-stable across upgrades.
   The live Codex check is still owed: #198's live check covers it.
+
+## What #170 settled
+
+The mechanical evidence checks (agent-kit#170) fixed these:
+
+- **Where the check runs.** Fan-out reads every packet file before it
+  launches a critic, so a critic that writes into the packet cannot plant a
+  quote. After the critics finish, `checkEvidence` (in the critique domain)
+  gives each finding an optional `pre_verdict`. It runs on the list of
+  findings just before `findings.json` is written; dedupe (#171) belongs
+  before it. A finding merged from several critics should keep every
+  critic's evidence, so one fabricated quote rejects the merged finding.
+- **Fabricated evidence.** Every `quote` must occur in some packet file, or
+  the finding gets `{ verdict: "rejected", reason_code:
+  "fabricated-evidence" }`. Runs of white space count as one space on both
+  sides, so a quote may cross a line break of a wrapped file; nothing else is
+  normalised. A quote's `file` is not trusted: which side a quote is on is
+  decided by where it actually occurs.
+- **Hints.** A finding with no evidence is a hint (`no-evidence`). At the
+  spec stage, a quote found in `packet/artifact/` counts as a spec quote and
+  one found in `packet/references/` as a decision quote; an `input`,
+  `failing-test` or `trace` counts as a scenario. An omission or invention
+  without both quotes is a hint (`no-spec-quote` or `no-decision-quote`);
+  any other category without a spec quote, or without a decision quote or a
+  scenario, is a hint (`no-spec-quote` or `no-decision-or-scenario`). Other
+  stages have no rule yet beyond `no-evidence`; their tickets add one.
+- **Record.** A finding with a pre-verdict needs no verdict. A
+  fabricated-evidence rejection stands: a verdict other than `rejected` is
+  an `invalid-input` error, and a `rejected` one keeps the
+  `fabricated-evidence` code. A hint may become `accepted` or `rejected`;
+  `needs-human` is an error. The report shows an overruled pre-verdict, and
+  each ledger finding line carries `pre_verdict` (the code, or `null`).
+- **Minor findings.** The summary has a `## Minor` section between the
+  questions and Dissent, with one line per critic that raised a minor
+  finding: `- <critic id>: <n> minor: accepted F2; needs-human F3; hint F4`.
+  Minor findings no longer appear under Accepted or Questions. Dissent is
+  unchanged, so a rejected minor finding from two families is still listed
+  there. A fabricated-evidence rejection of a critical finding also counts
+  as dissent under the current rule; #171 may want to exclude it.
+
+## What #171 settled
+
+The Antigravity critic and the parallel fan-out across families
+(agent-kit#171) fixed these. The agy facts were checked on 2026-11-01 against
+agy 1.4.11 on macOS, in a scratch directory outside any trusted workspace.
+
+- **Launch.** `AgyCriticClient` runs, with the packet as working directory
+  and stdin closed:
+
+  ```sh
+  agy -p "<prompt>" --output-format stream-json --model gemini-3.8-flash-high \
+    --print-timeout <time_limit_s>s --disable-slash-commands --sandbox \
+    --json-schema <assets>/schemas/finding.schema.json \
+    --settings '{"permissions":{"deny":["mcp(*)","read_url(*)","execute_url(*)","command(*)","write_file(*)"]}}'
+  ```
+
+  There is no `--mode`, `--continue`, `--conversation`, `--project` or
+  `--prompt-interactive`, so every critic is a fresh session. agy has no
+  prompt-file flag; the prompt is passed as the `-p` argument. The outer
+  timeout is the print timeout plus 60 seconds.
+- **`stream-json`, not `json`.** The ticket says JSON output; the client uses
+  `stream-json` because only the event stream shows which tools a critic
+  used. Each tool call is a `step_update` with `step_type: "tool"` and a
+  `tool_name`. The final `result` event carries the same object as `json`
+  output, `structured_output` included. The client saves it as
+  `critics/<id>/result.json`, which is the critic's `export_path`.
+- **Session-only settings.** `--settings` takes `settings.json` keys and
+  never saves them. A deny rule beats any allow rule in the owner's
+  `settings.json`, so the read-only guarantee no longer rests on agy's
+  defaults alone. A denied tool returns an error to the model and the run
+  goes on: with `read_file(*)` denied the critic answered "access was denied
+  by a user-configured deny rule", and `denied_actions` stayed empty. Only
+  headless auto-denial fills `denied_actions`. The `mcp(*)` rule was not
+  tried against a real MCP server: this machine's `mcp_config.json` is empty.
+- **The gap: MCP servers and global instructions still load.** agy's CLI
+  reference lists 33 settings keys. None of them turns off loading the MCP
+  servers in `~/.gemini/config/mcp_config.json`, the global
+  `~/.gemini/config/AGENTS.md` or skills. Rules files are also found by
+  walking up from the working directory to the repository root, so a
+  packet under `.git/critique/` gets that repository's root `AGENTS.md` or
+  `GEMINI.md`. agent-kit has none at its root; other repositories may.
+- **So the runner allows read-only tools only.** A critic may use
+  `read_file`, `view_file`, `list_dir`, `grep_search`, `find_by_name` and
+  `finish`, through which agy returns structured output. Any other tool in
+  the stream fails the critic as `unsafe-tool`, even if agy refused it. That
+  covers `call_mcp_tool`, the browser tools, `read_url_content`,
+  `run_command`, `run_workflow` and `invoke_subagent`, so an agy critic can no
+  longer start a skill through a workflow or a subagent. It also covers
+  `search_web`, which is not permission-gated: it ran with `read_url(*)`
+  denied, so only this check stops a hostile packet from making a critic
+  search the web.
+- **Failures.** In this order, whatever the exit code: a non-zero exit
+  (`exit-<n>`; the outer timer's kill gives `exit-124`), empty stdout
+  (`empty-output`), no `result` event or a line that is not JSON
+  (`unparseable-output`), a tool outside the list (`unsafe-tool`),
+  `finished_reason: print_timeout` (`print-timeout`), a non-empty
+  `denied_actions` (`denied-action`), an empty `response` (`empty-output`), no
+  `structured_output` (`missing-structured-output`), and a `structured_output`
+  that breaks the output contract (the Vibe findings failures). Findings are
+  read from `structured_output` only. Cost is always null.
+- **Live run.** The real prompt (preamble, `spec-redteam`, the failure-modes
+  and security lenses, the contract with the schema, the file list) and the
+  flags above, on a two-file packet: exit 0 after 114 s, two `read_file`
+  calls and nothing else, a schema-valid `structured_output` with the planted
+  contradiction rated critical, and the packet unchanged. That stdout,
+  replayed through fan-out, gives a critic with status `ok`.
+- **Readiness.** `CriticClientPort` gained `readiness(config)`, and
+  `review` takes the client config narrowed to its kind
+  (`CriticClientPort<Config>`; `CriticClients` maps each kind to its port).
+  Prepare asks every client the stage could run, routed or fallback, whose
+  family the allowlist permits and the orchestrator does not share. agy is
+  ready only on macOS, with `agy` on `PATH` (or at its absolute path) and an
+  `Antigravity CLI` Keychain item (`security find-generic-password -s
+  "Antigravity CLI"`; if `security` cannot run, it counts as not signed in).
+  The details are `antigravity: macOS only; not set up on <platform>`,
+  `antigravity: agy is not on PATH` and setup's
+  `antigravity: needs sign-in: run agy and sign in with your Google account`.
+  No readiness check launches agy, so #173's daily counter is untouched.
+  Vibe's readiness always says ready; a missing Vibe still fails at launch.
+- **Routing and fallbacks.** Routing gained a top-level
+  `fallbacks: { client: [client, ...] }`. Shipped: `vibe-mistral-large` falls
+  back to `vibe-glm`, then `agy-gemini-flash-high`; `agy-gemini-flash-high`
+  falls back to `vibe-glm` (agent `critic-glm`, model `glm-5-3`, family
+  `zhipu`, installed by #176). An `agy` client must have family `google` and
+  a `gemini-` model, so routing can never send a critique to agy's Claude or
+  GPT-OSS models. agy ignores `max_price_usd`; the Gemini slot's $0.50 applies
+  when GLM takes it.
+- **Roster.** Each slot runs its client, or else the first fallback that may
+  run, with the slot's role, lenses, cap and time limit. A client may not run
+  when its family is not allowed, is the orchestrator's, is already in the
+  stage (with `distinct_families`) or is not ready. The slot's routed client
+  is then listed in `dropped` with its `reason`, a `detail` when it was
+  unavailable, and `replaced_by`, the fallback's critic id, when one took the
+  slot. A fallback that also could not run is not listed. The summary says
+  `replaced by <critic id>`, or `no fallback left, so the stage runs with
+  fewer critics`. #173's retry of a failed critic can use the same
+  `fallbacks` map.
+- **Parallel and blind.** Fan-out already started every critic at once; a
+  test now shows both critics start before either ends, that neither prompt
+  holds the other's output, a model name or a critic id, and that no
+  continuation flag is passed.
+- **Merging.** `mergeFindings` runs over every critic's findings before
+  anything else, so #170's evidence checks see a merged finding with all of
+  its evidence. Two findings merge when their category matches, their
+  locations match (ignoring case, spacing, surrounding quotes and trailing
+  punctuation) and they share a quote, one containing the other. Findings
+  with no quotes merge only when their claims match the same way. The
+  merged finding keeps the first one's fields and `critic_finding_id`, every
+  critic in `raised_by`, the union of the evidence, the highest severity and
+  the first suggestion. Findings are numbered `F1`, `F2`, ... after merging.
+- **Agreement and dissent.** A summary line names the families when two or
+  more raised the finding (`(raised by mistral and google)`), and the report
+  lists them after the critic ids. Dissent was already computed by record
+  (rejected and raised by two or more families, or rejected and critical);
+  merging is what lets two families raise one finding. A rejection with the
+  reason code `fabricated-evidence` is never dissent: the evidence does not
+  exist, and no orchestrator ruled against it. Because merging runs before
+  the evidence checks, one fabricated quote from either critic rejects the
+  merged finding.
+- **Minor lines after merging.** A merged minor finding appears on the minor
+  line of every critic that raised it.
+- **With the tripwire (#172).** Every critic of the stage, a fallback that
+  took a slot included, has its own critic id and so its own packet copy at
+  `critics/<id>/packet/`; the tripwire is armed just before `reviewWith` and
+  checked just after, per critic, while the critics run in parallel. A
+  `violated-readonly` critic gets no fallback: it stays failed and the
+  summary warns about it, because a client that wrote once may write again.
+  #171's fallbacks are chosen in prepare only; fan-out never relaunches. If
+  #173 adds a retry in fan-out, each attempt needs its own critic id and
+  packet copy, and a violation should not be retried.
+
+## What #175 settled
+
+Tracker and domain-doc resolution (agent-kit#175) fixed these:
+
+- **Tracker kind.** Prepare reads the `# Issue tracker: <name>` heading of
+  `docs/agents/issue-tracker.md`, the file Pocock's setup writes. `GitHub`
+  and `Local Markdown` are read; any other name (GitLab, or the free-form
+  prose the setup writes for Jira or Linear), or a doc with no such heading,
+  is a refusal with the reason `unsupported-tracker`. With no doc, the
+  tracker is GitHub when the allowlist key is on `github.com`, and local
+  markdown otherwise.
+- **What `spec` means.** The tracker decides it. With GitHub, `spec` is an
+  issue reference: `167`, `#167`, `owner/repo#167` or an issue URL. With
+  local markdown, it is a repository path. A reference of the wrong kind is
+  an `invalid-input` error. An issue of any repository other than the one
+  the allowlist is keyed by is an `outside-repository` error, so a spec from
+  another repository (a `nedap` one, say) cannot ride on this repository's
+  allowlist entry.
+- **Reading an issue.** Council's `GhPort` gained `viewIssue`, which the
+  critique narrows to `CritiqueGhPort`; the real adapter is
+  `src/adapters/gh/` (`gh issue view <n> --repo <allowlist key> --json ...`).
+  `--repo` is always passed, so gh never chooses the repository from its own
+  remote rules. Any gh failure, an issue gh cannot find included, is a
+  refusal with the reason `tracker-unreachable` and a one-line message that
+  carries gh's first line of output, returned before any run directory
+  exists. The harness's `FakeGh` serves issues by `<repo>#<number>`.
+- **Comments.** An issue's comments are frozen only when prepare's input
+  has `"comments": true`; the default is the body alone. Comments can hold
+  the change summary `/critique-spec` posts after a round (#177), so leaving
+  them out keeps one round's results from reaching the next round's critics.
+- **The frozen issue.** `packet/artifact/issue-<n>.md` holds `# <title>`,
+  the body and, when asked, `## Comments` with one `### <login>, <date>`
+  section each. Line endings become `\n`, so a quote copied from the packet
+  matches it.
+- **Where the artifact came from.** The manifest and prepare's result carry
+  `artifact: { tracker, reference, labels }`. `reference` is
+  `host/owner/repo#<n>` for an issue and the repository path for a file; it
+  is also the artifact's `source` in `packet_files`. `labels` holds the
+  issue's labels, which #174's `risk:high` signal can read without calling
+  gh again.
+- **Decision docs.** With `docs/agents/domain.md`, the references are the
+  paths it names in inline code or link targets outside code blocks: a file
+  as itself, a directory as the `.md` files directly inside it, and a missing
+  path as nothing. Placeholders such as `src/<context>/docs/adr/`, absolute
+  paths and `..` are skipped. A named `CONTEXT-MAP.md` is followed to each
+  `CONTEXT.md` it names and the `docs/adr/` beside it. Without the domain
+  doc, the references are the first of `GLOSSARY.md` and `CONTEXT.md`, then
+  every `.md` in `docs/adr/`. Explicit `references` in the input still win.
+  `CritiqueFilesPort` gained `listFiles`.
+- **For #184.** `application/tracker.ts` holds a `Tracker` per tracker kind,
+  chosen by `TrackerResolver`. Reading a spec's tickets (sub-issues with
+  native blocked-by links, or `.scratch/<feature>/issues/` files) belongs
+  there as a second method beside `artifact`, so `check-tickets` resolves the
+  tracker the way prepare does. `CritiqueGhPort` will need a sub-issue and
+  dependency read for it.
+
+## What #176 settled
+
+Setup (agent-kit#176) installs the critique skills and the Vibe critic
+agents. Later tickets build on these:
+
+- **Critic agents.** `vibe_critic_agents:` in `registry/estate-tooling.yaml`
+  declares `critic-mistral-large`, `critic-mistral-small`, `critic-glm` and
+  `critic-deepseek-flash`. Each renders to
+  `registry/generated/vibe/agents/<name>.toml` and setup copies it into
+  `~/.vibe/agents/` only, never `~/.vibe-private`. A routing client of kind
+  `vibe` must name one of these as its `agent`; a test checks it.
+- **What each file carries.** `active_model` is the agent's own name, which is
+  also the alias of its single `[[models]]` entry, so it can never collide
+  with an alias model sync writes (sync uses Mistral's API ids). Vibe merges
+  `models` by alias, so the agent's entry is the one used. Beside it:
+  `enabled_tools = ["read_file"]`, `enabled_skills = ["re:^$"]`,
+  `outside_workdir = "deny"`, `enable_mcp`, `enable_subagents` and
+  `include_project_context` false, `[session_logging] enabled = false`, and
+  `safety = "safe"`. These are the keys #169's `unsafe-config` check reads.
+  No file sets `default_agent`, and setup never touches `config.toml` for
+  critics.
+- **Model ids and prices**, USD per million tokens, from
+  docs.mistral.ai/inference/pricing, read 2026-11-01:
+
+  | Agent | Model id | Input | Output |
+  |---|---|---|---|
+  | `critic-mistral-large` | `mistral-large-4-0-3` | 0.7 | 2.1 |
+  | `critic-mistral-small` | `mistral-small-latest` (Mistral Small 4) | 0.15 | 0.6 |
+  | `critic-glm` | `zai-glm-5-3` | 1.4 | 4.4 |
+  | `critic-deepseek-flash` | `deepseek-v4-1-flash-1017` (thinking high, as in the Phase 1 run) | 0.3 | 1.2 |
+
+  GLM's price matches what the personal home already gave it. Mistral
+  Small is `-latest` because that is the id the personal home lists; a price
+  change upstream means a registry change here. #178 should check each
+  agent's `cost_usd` against these prices on a real run.
+- **Strict config.** Every key a rendered file holds is a field of Vibe's
+  config schema or of its agent profile (checked against Vibe 3.0.4's
+  source, the version now installed) and all but `include_project_context`
+  were loaded under `VIBE_STRICT_CONFIG=1` in #168. A pytest holds the files
+  to that key set. Loading the installed files with the real CLI under
+  `VIBE_STRICT_CONFIG=1` is left to #178's live smoke check: it needs the
+  personal login.
+- **Retiring an agent.** `surfaces: []` removes its generated file (and
+  `--check` fails while it lingers) and makes setup remove the installed
+  one. Other files in `~/.vibe/agents/` are the owner's and are left alone.
+- **Skills.** `critique` (`skills/critique/`, with a short `SKILL.md` that
+  points at the stage skills) and `critique-spec` are `local_skills` for
+  claude, codex, vibe and antigravity, so they reach Antigravity's app and
+  `agy` homes through the existing copy, skipped on Linux. `critique-spec`
+  carries `pending: <#177's URL>`: until `skills/critique-spec/SKILL.md`
+  exists, setup logs `critique-spec: not built yet (...); skipped`. **#177
+  must delete that `pending:` line** in the change that adds the skill; the
+  renderer refuses it once the `SKILL.md` exists.
+- **The runner's pin.** `manifest.yaml` `critique.files` pins every file of
+  `skills/critique/` but `SKILL.md`, with its sha256, the way `council.files`
+  pins council's runner. `tests/test_critique_setup.py` checks both the set
+  and the hashes, so **any ticket that rebuilds `critique.mjs` or edits a
+  prompt, lens, schema or `routing.json` updates its sha256 in
+  `manifest.yaml` in the same commit** (`shasum -a 256 <file>`).
+  `scripts/validate_manifest.py` also checks the set, but it already fails
+  on the integration branch on an unrelated stale pin
+  (`.agents/skills/agent-session-bootstrap/SKILL.md`) and is not in CI.
+- **The bundle.** `registry/generated/vibe/agents` is in the release
+  bundle's `KIT_PATHS`, so a setup run from a published bundle installs the
+  agents too.
+- Nothing is added to Antigravity's configuration for critics, and no hook,
+  `hooks:` or `settings:` section is introduced.
+
+## What #172 settled
+
+The read-only tripwire (agent-kit#172) fixed these:
+
+- **Each critic has its own copy of the packet.** Fan-out writes the frozen
+  packet to `critics/<critic-id>/packet/` and launches the critic there, so
+  `CriticLaunch.packetDir` is that copy, not the run's `packet/`. A critic
+  that writes to its copy is caught without voiding the critics running
+  beside it, and nothing one critic writes can reach another. Before any
+  critic starts, fan-out checks the run's `packet/` against the manifest's
+  hashes and stops with `invalid-run` if a file no longer matches.
+  `CritiqueFilesPort` gained `listTree` (every file under a directory, at
+  any depth) and `remove`; `listFiles` keeps #175's meaning.
+- **What is compared.** Around each critic the tripwire records, before and
+  after: the hash of every file in its copy (so a changed, added or removed
+  file shows), the same for the run's `packet/`, and the repository's
+  working tree as `git status --porcelain=v1 -z --untracked-files=all`
+  reports it (`GitPort.porcelainStatus`), with a hash of each listed path.
+  The hash catches a critic that edits a file the owner had already
+  changed, which the status line alone would not. Ignored paths are not
+  watched.
+- **What a violation does.** The critic's status becomes
+  `violated-readonly` (a third value beside `ok` and `failed`), its
+  findings are dropped, and `detail` lists the changes, such as
+  `packet: added notes.md` or `working tree: ?? pwned.txt`. The violation
+  outranks any other outcome, so a critic that also failed has no
+  `failure`. Its copy and the run's `packet/` are restored from the frozen
+  contents; the working tree is not touched. A run whose critics all
+  failed or violated is degraded. The ledger's run line carries
+  `status: "violated-readonly"`, and the summary and the report open with
+  one `> **Warning: read-only violated** by critic client <client>` line
+  per such critic, before the title.
+- **For #171 (parallel fan-out and fallbacks).** Arm the tripwire
+  (`ReadOnlyTripwire.arm`) immediately before each client's `review` and
+  check it immediately after, per critic and per fallback attempt, with the
+  critic's own packet copy as its working directory; never share one copy
+  between two critics or attempts. A change to the run's `packet/` or the
+  working tree cannot be traced to one of several critics running at once,
+  so it voids every critic whose run it fell within; that is intended (fail
+  closed), and the owner editing the working tree during a critique voids
+  the critics too. Decide whether a `violated-readonly` critic gets a
+  fallback: its client is unsafe, but a fallback through a different
+  client is not. Load the tripwire once per fan-out (`ReadOnlyTripwire.load`)
+  so the frozen contents are read before any critic launches; #170's
+  `readPacket` runs right after it, so the text the evidence check quotes
+  against has already been checked against the manifest. A test shows that
+  a quote one critic plants in its own copy, cited by another critic, is
+  rejected as `fabricated-evidence`.
+- **For #178 (live smoke check).** Any file a real CLI writes into its
+  working directory (a session log, a `.vibe/` or `.agents/` folder) trips
+  the wire and voids every review, so the create-a-file check should also
+  confirm that a clean run leaves the copy unchanged.
+
+## What #184 settled
+
+The deterministic ticket checker (agent-kit#184) fixed these:
+
+- **The command.** `critique check-tickets` takes `{ "repo", "spec" }`,
+  with `spec` named the way prepare names it. It resolves the repository
+  and the tracker as prepare does, so a refused remote or an unsupported
+  tracker is refused the same way, but it needs no family allowlist entry
+  and writes nothing: it sends nothing to a critic. The result is
+  `{ status, spec, tickets, cycles, dangling_blockers, coverage }`.
+  `status` is `failed` only while there is a cycle, and the command line
+  then exits **3** (1 stays an error, 2 usage), so a skill sees the failure
+  without parsing the JSON. Any result with `"status": "failed"` exits 3.
+- **Reading tickets.** `Tracker.tickets(spec)` sits beside `artifact` and
+  returns `TrackedTicket`s (`id`, `reference`, `title`, `text`,
+  `blockedBy`, `name`) in tracker order, ready for #185's prepare to
+  freeze into the packet. GitHub: the spec issue's sub-issues, then each
+  one's native blocked-by links; `GhPort` gained `subIssues` and
+  `blockedBy`, read with `gh api --hostname <host> --paginate --slurp
+  repos/<owner>/<repo>/issues/<n>/{sub_issues,dependencies/blocked_by}`.
+  A `Blocked by` line in a GitHub issue body is not read. Ticket ids are
+  `#184`, or the full `host/owner/repo#184` for an issue of another
+  repository. Any gh failure is `tracker-unreachable`. Local markdown: the
+  `.md` files of the `issues/` folder beside the spec, in file-name order;
+  an id is the number the file name starts with as written (`01`), or the
+  file name without `.md`.
+- **Local "Blocked by".** The first line starting with `Blocked by`
+  (`**Blocked by:** 01, 02`, or a `## Blocked by` heading), and the list
+  items under it when the line itself is empty. Items are split on `,` and
+  `;`. `None`, `n/a` and `-` name nothing. An item starting with a number
+  (`01`, `#1`, `01-schema.md`, `02 and 04`) is matched by its value; any
+  other item is matched against ticket titles (the heading without its
+  `NN:` prefix), ignoring case. An unmatched item stays as written and is
+  reported as dangling.
+- **Dangling blockers** are any blocker that is no ticket of the spec,
+  including a ticket of another spec. On #181 itself every cross-spec
+  dependency on #167's tickets is listed, so #185's skill should read the
+  list as "check these" rather than as defects.
+- **Cycles** are every elementary cycle (Johnson's search), each starting
+  at its earliest ticket and listing tickets so that each is blocked by
+  the next and the last by the first. A self-blocking ticket is a cycle of
+  one.
+- **Criteria** are the task-list items (`- [ ]`, `- [x]`, `*`, `+`) under
+  the ticket's `Acceptance criteria` heading, or anywhere before its
+  `## Comments` when it has none, outside code blocks.
+- **User stories.** The spec's stories are the top-level numbered items
+  under its `User Stories` heading, through its subheadings. A ticket cites
+  a story with `user story 3`, `user stories 3, 5 and 7`, `User stories:
+  3–5` or `user story #3`. Coverage is `{ status: "checked", stories,
+  uncited }` only when some ticket cites a story and the spec numbers its
+  stories; otherwise it is `not-checkable` with the reason. Pocock's
+  ticket template has no story field, so #185's `ticket-linter` judges
+  coverage whenever this is `not-checkable`.

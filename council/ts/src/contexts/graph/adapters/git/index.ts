@@ -2,6 +2,7 @@ import type {
   GitCommitAllRequest,
   GitCommitAllResult,
   GitDagExecutorPort,
+  GitPorcelainEntry,
   GitReconcileRequest,
   GitReconcileResult,
   GitRemote,
@@ -126,6 +127,21 @@ export class GitCliAdapter implements GitDagExecutorPort {
     }
 
     return output.split('\n').map((line) => this.parseStatusLine(line))
+  }
+
+  async porcelainStatus(cwd: string): Promise<readonly GitPorcelainEntry[]> {
+    const result = await this.git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])
+    const fields = result.stdout.split('\0')
+    const entries: GitPorcelainEntry[] = []
+    for (let i = 0; i < fields.length; i += 1) {
+      const field = fields[i] ?? ''
+      if (field.length === 0) continue
+      const code = field.slice(0, 2)
+      entries.push({ code, path: field.slice(3) })
+      // A rename or copy is followed by the path it came from.
+      if (code.includes('R') || code.includes('C')) i += 1
+    }
+    return entries
   }
 
   async diff(cwd: string, options: GitDiffOptions = {}): Promise<string> {
