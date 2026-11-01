@@ -5,8 +5,8 @@ import { JsonFields } from './json.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
 import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth } from './stage.js'
 
-export function sha256(text: string): string {
-  return createHash('sha256').update(text).digest('hex')
+export function sha256(content: string | Uint8Array): string {
+  return createHash('sha256').update(content).digest('hex')
 }
 
 export interface PacketFile {

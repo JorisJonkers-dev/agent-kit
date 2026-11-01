@@ -3,22 +3,26 @@ import type { CriticOutcome } from '../domain/critic.js'
 import type { CriticClient, RosterCritic } from '../domain/routing.js'
 
 /** The repository facts the critique needs: council's git port, narrowed to what it reads. */
-export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes'>
+export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'>
 
 /** Plain file access; every path is absolute. */
 export interface CritiqueFilesPort {
   readText(path: string): Promise<string>
+  readBytes(path: string): Promise<Uint8Array>
   /** Writes the file, creating parent directories. */
   writeText(path: string, content: string): Promise<void>
   /** Appends to the file, creating it and its parent directories. */
   appendText(path: string, content: string): Promise<void>
   exists(path: string): Promise<boolean>
+  /** Every file under the directory, at any depth, relative to it; none when it does not exist. */
+  listFiles(dir: string): Promise<readonly string[]>
+  remove(path: string): Promise<void>
 }
 
 /** Where one critic of a run works. */
 export interface CriticLaunch {
   readonly critic: RosterCritic
-  /** The packet: the critic's working directory, and all it may read. */
+  /** The critic's own copy of the packet: its working directory, and all it may read. */
   readonly packetDir: string
   /** The assembled prompt, written outside the packet. */
   readonly promptPath: string
