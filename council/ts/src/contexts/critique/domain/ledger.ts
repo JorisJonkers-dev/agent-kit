@@ -11,6 +11,7 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     recorded_at: recordedAt.toISOString(),
     repository: run.repository,
     run_id: run.run_id,
+    spec: run.spec,
     stage: run.stage,
   }
   const criticFields = (criticId: string) => {

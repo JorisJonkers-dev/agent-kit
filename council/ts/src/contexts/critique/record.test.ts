@@ -146,6 +146,15 @@ describe('record', () => {
     })
   })
 
+  it('names the spec on every ledger line, so stats can count features', async () => {
+    const { h, run } = await reviewed(four)
+
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts })
+
+    const lines = await ledgerLines(h)
+    expect(lines.map((line) => line.spec)).toEqual(Array(5).fill('.scratch/widgets/spec.md'))
+  })
+
   it('keeps artifact text out of the ledger', async () => {
     const { h, run } = await reviewed([finding({ claim: `Claim quoting ${SPEC_CANARY}`, suggestion: DECISION_CANARY })])
 
