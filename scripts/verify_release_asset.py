@@ -9,19 +9,36 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import sys
 from pathlib import Path
 
 VERSION_PREFIX = "# agent-kit "
+# scripts/render_registry.py renders `AGENT_KIT_RELEASE_TAG='<placeholder>'`;
+# stamping puts the release tag there, and a released copy fetches its kit
+# bundle from that same release.
+RELEASE_TAG_PLACEHOLDER = "@AGENT_KIT_RELEASE_TAG@"
+RELEASE_TAG_VAR = "AGENT_KIT_RELEASE_TAG"
+_SAFE_TAG = re.compile(r"[A-Za-z0-9._+-]+")
+
+
+def _release_tag_line(tag: str) -> str:
+    return f"{RELEASE_TAG_VAR}='{tag}'"
 
 
 def stamp_version(script_text: str, tag: str) -> str:
-    """Insert the version token as line 2, right after the shebang."""
+    """Insert the version token as line 2, right after the shebang, and set the release tag."""
     lines = script_text.splitlines(keepends=True)
     if not lines or not lines[0].startswith("#!"):
         raise ValueError("script has no shebang on line 1")
+    if not _SAFE_TAG.fullmatch(tag):
+        raise ValueError(f"tag {tag!r} is not a plain release tag")
+    body = "".join(lines[1:])
+    placeholder_line = _release_tag_line(RELEASE_TAG_PLACEHOLDER)
+    if body.count(placeholder_line) != 1:
+        raise ValueError(f"script must carry exactly one {placeholder_line} placeholder line")
     stamp = f"{VERSION_PREFIX}{tag}\n"
-    return lines[0] + stamp + "".join(lines[1:])
+    return lines[0] + stamp + body.replace(placeholder_line, _release_tag_line(tag))
 
 
 def extract_version(script_text: str) -> str | None:
@@ -36,6 +53,9 @@ def check_version(script_text: str, expected_tag: str) -> None:
     actual = extract_version(script_text)
     if actual != expected_tag:
         raise SystemExit(f"version token mismatch: expected {expected_tag!r}, got {actual!r}")
+    tag_lines = [line for line in script_text.splitlines() if line.startswith(f"{RELEASE_TAG_VAR}=")]
+    if tag_lines != [_release_tag_line(expected_tag)]:
+        raise SystemExit(f"release tag mismatch: expected {_release_tag_line(expected_tag)!r}, got {tag_lines!r}")
 
 
 def sha256_of(path: Path) -> str:

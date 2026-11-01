@@ -4,10 +4,12 @@
 # code. Called by .github/workflows/publish-installer-artifacts.yml, one
 # subcommand per step, so a failed attach still lets the rest run and report.
 #
-# Publishing to the public asset host (assets.jorisjonkers.dev) is a
-# SEPARATE, in-cluster concern: a Flux-managed CronJob in fleet-infra pulls
-# these release assets and uploads them to Garage over the ClusterIP S3 API.
-# This script never talks to Garage or S3 -- it only touches the release.
+# The release assets ARE the published installer: the bootstrap one-liner
+# fetches releases/latest/download/setup-workstation.sh, and staging stamps the
+# tag into that script so it fetches the kit bundle of the same release from
+# releases/download/<tag>/. assets.jorisjonkers.dev is legacy: the in-cluster
+# Garage sync that mirrored these assets there is being retired, and any redirect
+# from it to GitHub is owned outside this repo.
 #
 # install.sh and install-agents.sh are retired by #40 and are deliberately
 # never staged, attached, or included in the skills tarball.
@@ -34,7 +36,7 @@ set -euo pipefail
 SCRIPT_NAME=setup-workstation.sh
 # The "skills" bundle carries everything setup-workstation.sh reads beside
 # itself; a copy run on its own re-runs the one inside it. The asset keeps
-# its name because the asset host syncs it by that name.
+# its name because released installers fetch it by that name.
 SKILLS_TARBALL=agent-kit-skills.tar.gz
 KIT_PATHS=(
   skills

@@ -23,8 +23,8 @@
 #                                          and exit -- does not touch anything
 #                                          this script itself manages
 #
-# Run outside an agent-kit checkout (`curl | bash`), it fetches the
-# published kit bundle and re-runs the copy inside it.
+# Run outside an agent-kit checkout (`curl | bash`), it fetches the kit
+# bundle attached to its own GitHub release and re-runs the copy inside it.
 # AGENT_KIT_SKILLS_BUNDLE_URL overrides where that bundle comes from.
 #
 # Secrets are read from the environment and never written here:
@@ -825,6 +825,10 @@ ANTIGRAVITY_READY=0
 # 0 after a failed split of the Vibe home: nothing then touches either home.
 VIBE_HOMES_READY=1
 
+# The release this copy came from. Publishing a release stamps its tag here;
+# a copy taken from a checkout keeps the placeholder.
+AGENT_KIT_RELEASE_TAG='@AGENT_KIT_RELEASE_TAG@'
+
 # Outside a checkout, re-run the copy in the release's kit bundle; --uninstall needs none of it.
 use_kit_bundle() {
   [ -f "${KIT_ROOT}/registry/estate-tooling.yaml" ] && return 0
@@ -832,13 +836,25 @@ use_kit_bundle() {
     fail "the kit bundle at ${AGENT_KIT_BUNDLE_STAGE} is not a complete kit"
     exit 1
   fi
-  local url="${AGENT_KIT_SKILLS_BUNDLE_URL:-https://assets.jorisjonkers.dev/agent-kit-skills.tar.gz}"
+  local url="${AGENT_KIT_SKILLS_BUNDLE_URL:-}"
+  # The bundle of this script's own release, never `latest`: installer and
+  # bundle then always match, even while a newer release is publishing.
+  if [ -z "${url}" ]; then
+    case "${AGENT_KIT_RELEASE_TAG}" in
+      v[0-9]*) url="https://github.com/JorisJonkers-dev/agent-kit/releases/download/${AGENT_KIT_RELEASE_TAG}/agent-kit-skills.tar.gz" ;;
+      *)
+        fail "this copy carries no release tag, so it has no kit bundle;" \
+          "set AGENT_KIT_SKILLS_BUNDLE_URL or run from a checkout"
+        exit 1
+        ;;
+    esac
+  fi
   local stage expected actual
   stage="$(mktemp -d)"
   log "not an agent-kit checkout; fetching the kit bundle from ${url}"
-  # The checksum first, then the tarball under a URL keyed by it: the CDN caches
-  # the tarball for hours but not its .sha256, so a plain URL can serve the
-  # previous release for a while after each one.
+  # The checksum first, then the tarball under a URL keyed by it: a release
+  # asset ignores the query, but an override host behind a CDN may cache the
+  # tarball longer than its .sha256 and serve the previous release.
   if ! curl -fsSL -o "${stage}/kit.tar.gz.sha256" "${url}.sha256"; then
     fail "kit bundle unavailable at ${url}; set AGENT_KIT_SKILLS_BUNDLE_URL or run from a checkout"
     exit 1
