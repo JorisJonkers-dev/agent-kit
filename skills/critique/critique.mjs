@@ -158,11 +158,13 @@ var NodeProcessAdapter = class {
     });
     let stdout = "";
     let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
+      stdout += chunk;
     });
     child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
+      stderr += chunk;
     });
     const timeout = setProcessTimeout(child, command.timeoutMs);
     const exitCode = await new Promise((resolve2, reject) => {
@@ -374,16 +376,20 @@ function parseAllowlist(text) {
   const file = JsonFields.parse(text);
   return {
     repositories: file.entries("repositories", (entry) => ({
+      code: entry.has("code") ? entry.boolean("code") : false,
       families: entry.oneOfList("families", MODEL_FAMILIES),
       updated_at: entry.string("updated_at")
     })),
     version: file.literal("version", 1)
   };
 }
-function withEntry(allowlist, key2, families, at) {
+function withEntry(allowlist, key2, permission, at) {
   return {
     version: 1,
-    repositories: { ...allowlist.repositories, [key2]: { families, updated_at: at.toISOString() } }
+    repositories: {
+      ...allowlist.repositories,
+      [key2]: { code: permission.code, families: permission.families, updated_at: at.toISOString() }
+    }
   };
 }
 
@@ -454,16 +460,19 @@ var AllowCommand = class {
   repositories;
   async run(raw) {
     const input = readInput(raw, "allow", (fields) => ({
+      code: fields.has("code") ? fields.boolean("code") : void 0,
       families: fields.oneOfList("families", MODEL_FAMILIES),
       repo: fields.string("repo")
     }));
     const repository = await this.repositories.resolve(input.repo);
     if (repository.status === "refused") return repository;
     const path = allowlistPath(this.deps.env);
-    const next = withEntry(await this.repositories.allowlist(), repository.key, input.families, this.deps.clock.now());
+    const allowlist = await this.repositories.allowlist();
+    const code = input.code ?? allowlist.repositories[repository.key]?.code ?? false;
+    const next = withEntry(allowlist, repository.key, { code, families: input.families }, this.deps.clock.now());
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
 `);
-    return { allowlist_path: path, families: input.families, repository: repository.key, status: "allowed" };
+    return { allowlist_path: path, code, families: input.families, repository: repository.key, status: "allowed" };
   }
 };
 
@@ -866,7 +875,7 @@ var CATEGORIES = [
   "integration"
 ];
 var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
-var HINT_CODES = ["no-evidence", "no-spec-quote", "no-decision-quote", "no-decision-or-scenario"];
+var HINT_CODES = ["no-evidence", "no-spec-quote", "no-decision-quote", "no-decision-or-scenario", "no-test-or-trace"];
 var FINDINGS_FAILURES = [
   "no-findings-block",
   "unparseable-findings",
@@ -1004,10 +1013,45 @@ function isCriticFailure(value) {
   return isOneOf(RUN_FAILURES, value) || /^exit-\d+$/.test(value);
 }
 
+// src/contexts/critique/domain/line-references.ts
+var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
+var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
+var LOOKS_LIKE_A_FILE = /\/|\.[A-Za-z]\w*$/;
+function lineReferences(text) {
+  return [...text.replace(URL, " ").matchAll(REFERENCE)].flatMap((match) => {
+    const path = (match[1] ?? "").replace(/^\.\//, "");
+    if (!LOOKS_LIKE_A_FILE.test(path)) return [];
+    const first = Number(match[2]);
+    return [{ first, last: match[3] === void 0 ? first : Number(match[3]), path }];
+  });
+}
+function packetCandidates(path, treeDir) {
+  const diffSide = /^[ab]\/(.+)$/.exec(path);
+  return [path, `${treeDir}/${path}`, ...diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ""}`]];
+}
+function lineCount(text) {
+  if (text.length === 0) return 0;
+  return text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+}
+
+// src/contexts/critique/domain/stage.ts
+var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
+var CODE_STAGES = ["ticket-review", "feature-review"];
+function isCodeStage(stage) {
+  return CODE_STAGES.includes(stage);
+}
+var DEPTHS = ["base", "deep"];
+
 // src/contexts/critique/domain/evidence.ts
+function indexPacket(packet) {
+  return {
+    files: packet.map((file) => ({ ...file, normalised: normalise(file.text) })),
+    lines: new Map(packet.map((file) => [file.path, lineCount(file.text)]))
+  };
+}
+var TREE_DIR = "tree";
 var DECISION_CATEGORIES = ["omission", "invention"];
 function checkEvidence(finding, stage, packet) {
-  const files = packet.map((file) => ({ ...file, text: normalise(file.text) }));
   const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false };
   for (const [index, evidence] of finding.evidence.entries()) {
     if (evidence.kind !== "quote") {
@@ -1015,19 +1059,44 @@ function checkEvidence(finding, stage, packet) {
       continue;
     }
     const quote = normalise(evidence.value);
-    const holders = files.filter((file) => file.text.includes(quote));
-    if (holders.length === 0) {
-      return {
-        reason: `evidence ${String(index + 1)} quotes text that is not in the packet`,
-        reason_code: "fabricated-evidence",
-        verdict: "rejected"
-      };
-    }
+    const holders = packet.files.filter((file) => file.normalised.includes(quote));
+    if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`);
     found.spec ||= holders.some((file) => file.kind === "artifact");
     found.decision ||= holders.some((file) => file.kind === "reference");
   }
-  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : void 0;
+  if (isCodeStage(stage)) {
+    const missing = missingLine(finding, packet);
+    if (missing !== void 0) return fabricated(missing);
+  }
+  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : void 0;
   return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
+}
+function fabricated(reason) {
+  return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
+}
+function missingLine(finding, packet) {
+  const sources = [
+    { text: finding.location, where: "the location" },
+    ...finding.evidence.flatMap(
+      (evidence, index) => evidence.kind === "trace" ? [{ text: evidence.value, where: `evidence ${String(index + 1)}` }] : []
+    )
+  ];
+  for (const { text, where } of sources) {
+    for (const reference of lineReferences(text)) {
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate));
+      if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
+      const lines = packet.lines.get(path) ?? 0;
+      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines);
+      if (outside !== void 0) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`;
+    }
+  }
+  return void 0;
+}
+function codeRule(evidence) {
+  const checkable = evidence.some(
+    (item) => item.kind === "failing-test" || item.kind === "trace" && lineReferences(item.value).length > 0
+  );
+  return checkable ? void 0 : "no-test-or-trace";
 }
 function specRule(category, found) {
   if (!found.spec) return "no-spec-quote";
@@ -1038,7 +1107,8 @@ var HINT_REASONS = {
   "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
   "no-decision-quote": "no quote from a decision source",
   "no-evidence": "no evidence to check",
-  "no-spec-quote": "no quote from the spec"
+  "no-spec-quote": "no quote from the spec",
+  "no-test-or-trace": "no failing test and no trace with a file and line"
 };
 function normalise(text) {
   return text.replace(/\s+/g, " ").trim();
@@ -1163,13 +1233,17 @@ function familyReason(family, request) {
   return void 0;
 }
 
-// src/contexts/critique/domain/stage.ts
-var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
-var DEPTHS = ["base", "deep"];
-
 // src/contexts/critique/domain/manifest.ts
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
+}
+var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec"];
+function listedFiles(manifest) {
+  const { code, packet_files: files } = manifest;
+  if (code === void 0) return files;
+  const changed = new Set(code.changed_files);
+  const ofKind = (kind) => files.filter((file) => file.kind === kind);
+  return [...ofKind("diff"), ...ofKind("tree").filter((file) => changed.has(file.path)), ...ofKind("ticket"), ...ofKind("spec")];
 }
 function parseManifest(text) {
   const file = JsonFields.parse(text);
@@ -1182,8 +1256,9 @@ function parseManifest(text) {
     dropped: file.list("dropped", readDroppedCritic),
     orchestrator_family: file.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
     packet_dir: file.string("packet_dir"),
+    ...file.has("code") ? { code: readCodeSource(file.object("code")) } : {},
     packet_files: file.list("packet_files", (packetFile) => ({
-      kind: packetFile.oneOf("kind", ["artifact", "reference"]),
+      kind: packetFile.oneOf("kind", PACKET_FILE_KINDS),
       path: packetFile.string("path"),
       sha256: packetFile.string("sha256"),
       source: packetFile.string("source")
@@ -1194,6 +1269,15 @@ function parseManifest(text) {
     run_id: file.string("run_id"),
     stage: file.oneOf("stage", CRITIQUE_STAGES),
     version: file.literal("version", 1)
+  };
+}
+function readCodeSource(code) {
+  return {
+    base: code.string("base"),
+    base_commit: code.string("base_commit"),
+    changed_files: code.strings("changed_files"),
+    head: code.string("head"),
+    head_commit: code.string("head_commit")
   };
 }
 function readArtifactSource(artifact) {
@@ -1248,7 +1332,20 @@ function rank(severity) {
 
 // src/contexts/critique/domain/prompt.ts
 var BLOCK_SEPARATOR = "\n\n---\n\n";
-function assemblePrompt(sources, files) {
+var DESCRIPTIONS = {
+  artifact: "the artifact under review",
+  diff: "the change under review, as a diff against its base",
+  reference: "reference material",
+  spec: "the spec the tickets come from",
+  ticket: "a ticket the change delivers",
+  tree: "a file the change touched, as it is at the commit under review"
+};
+var CODE_PACKET_NOTE = [
+  "Every other file of the repository at the commit under review is under `tree/`, at its repository path; read one with read_file as `tree/<repository path>`.",
+  "",
+  "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line past the end of its file, is rejected as fabricated evidence."
+].join("\n");
+function assemblePrompt(sources, files, codePacket = false) {
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join("\n\n");
   const contract = `${sources.contract.trim()}
 
@@ -1258,9 +1355,10 @@ ${sources.schema.trim()}
   const fileList = [
     "# Files",
     "",
-    "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
+    codePacket ? "Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:" : "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
     "",
-    ...files.map((file) => `- \`${file.path}\`: ${file.kind === "artifact" ? "the artifact under review" : "reference material"}`)
+    ...files.map((file) => `- \`${file.path}\`: ${DESCRIPTIONS[file.kind]}`),
+    ...codePacket ? ["", CODE_PACKET_NOTE] : []
   ].join("\n");
   return {
     lens_hashes: Object.fromEntries(sources.lenses.map((lens) => [lens.name, sha256(lens.text)])),
@@ -1409,7 +1507,7 @@ var FanOutCommand = class {
     const runDir = readInput(raw, "fan-out", (fields) => fields.string("run_dir"));
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest);
-    const packet = await this.readPacket(manifest);
+    const packet = indexPacket(await this.readPacket(manifest));
     const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)));
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet));
@@ -1447,7 +1545,8 @@ var FanOutCommand = class {
         role: await asset(`roles/${critic.role}.md`),
         schema: await asset(SCHEMA)
       },
-      manifest.packet_files
+      listedFiles(manifest),
+      manifest.code !== void 0
     );
     const promptPath = join4(criticDir, "prompt.md");
     const stdoutPath = join4(criticDir, "stdout.json");
@@ -1491,10 +1590,95 @@ function criticStatus(outcome, violations) {
 }
 
 // src/contexts/critique/application/prepare.ts
-import { join as join6 } from "node:path";
+import { join as join7 } from "node:path";
+
+// src/contexts/critique/application/code-packet.ts
+import { join as join5 } from "node:path";
+var TREE_DIR2 = "tree";
+var DIFF_PATH = join5("diff", "change.diff");
+var READ_CONCURRENCY = 16;
+var CodePacketReader = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async read(repository, tracker, request) {
+    const { stage } = request;
+    if (request.base === void 0) {
+      throw new CritiqueError("invalid-input", `${stage} needs base: the commit or branch the change is diffed against`);
+    }
+    if (stage === "ticket-review" && request.ticket === void 0) {
+      throw new CritiqueError("invalid-input", "ticket-review needs ticket: the ticket the change delivers");
+    }
+    const root = repository.root;
+    const head = await this.commit(root, "head", request.head);
+    const base = await this.deps.git.mergeBase(root, await this.commit(root, "base", request.base), head);
+    const spec = await tracker.artifact({ comments: request.comments, reference: request.spec });
+    if (spec.status === "refused") return spec;
+    const tickets = await this.tickets(tracker, request, stage === "ticket-review" ? request.ticket : void 0);
+    if (tickets.status === "refused") return tickets;
+    const tree = await this.tree(root, head);
+    const inTree = new Set(tree.map((file) => file.source));
+    const changed = (await this.deps.git.changedPaths(root, base, head)).filter((path) => inTree.has(path));
+    const files = [
+      { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: await this.deps.git.diffCommits(root, base, head) },
+      ...tickets.files,
+      { kind: "spec", path: join5("spec", spec.name), source: spec.reference, text: spec.text },
+      ...tree
+    ];
+    return {
+      artifact: tickets.ticket ?? spec,
+      code: {
+        base: request.base,
+        base_commit: base,
+        changed_files: changed.map((path) => join5(TREE_DIR2, path)),
+        head: request.head,
+        head_commit: head
+      },
+      files,
+      status: "read"
+    };
+  }
+  async commit(root, field, revision) {
+    try {
+      return await this.deps.git.resolveCommit(root, revision);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new CritiqueError("invalid-input", `${field} ${revision} names no commit: ${detail}`);
+    }
+  }
+  /** The one ticket a ticket review names, or else every ticket of the spec. */
+  async tickets(tracker, request, reference) {
+    if (reference !== void 0) {
+      const ticket = await tracker.artifact({ comments: request.comments, reference });
+      if (ticket.status === "refused") return ticket;
+      return { files: [ticketFile(ticket.name, ticket.reference, ticket.text)], status: "read", ticket };
+    }
+    const read = await tracker.tickets(request.spec);
+    if (read.status === "refused") return read;
+    return { files: read.tickets.map((ticket) => ticketFile(ticket.name, ticket.reference, ticket.text)), status: "read" };
+  }
+  /** Every text file of the commit's tree; a file holding a NUL byte is binary and left out. */
+  async tree(root, commit) {
+    const paths = await this.deps.git.treeFiles(root, commit);
+    const files = [];
+    for (let start = 0; start < paths.length; start += READ_CONCURRENCY) {
+      const batch = paths.slice(start, start + READ_CONCURRENCY);
+      const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
+      batch.forEach((path, i) => {
+        const text = texts[i] ?? "";
+        if (!text.includes("\0")) files.push({ kind: "tree", path: join5(TREE_DIR2, path), source: path, text });
+      });
+    }
+    return files;
+  }
+};
+function ticketFile(name, reference, text) {
+  return { kind: "ticket", path: join5("tickets", name), source: reference, text };
+}
 
 // src/contexts/critique/application/decision-docs.ts
-import { basename as basename2, dirname as dirname2, join as join5 } from "node:path";
+import { basename as basename2, dirname as dirname2, join as join6 } from "node:path";
 
 // src/contexts/critique/domain/decision-docs.ts
 var DOMAIN_DOC = "docs/agents/domain.md";
@@ -1515,7 +1699,7 @@ var DecisionDocs = class {
   }
   files;
   async resolve(root) {
-    const domainDoc = join5(root, DOMAIN_DOC);
+    const domainDoc = join6(root, DOMAIN_DOC);
     const found = await this.files.exists(domainDoc) ? await this.fromDomainDoc(root, await this.files.readText(domainDoc)) : await this.fallback(root);
     return [...new Set(found)];
   }
@@ -1524,7 +1708,7 @@ var DecisionDocs = class {
     for (const path of namedPaths(text)) {
       found.push(...await this.expand(root, path));
       if (basename2(path) === CONTEXT_MAP && await this.isFile(root, path)) {
-        found.push(...await this.contexts(root, await this.files.readText(join5(root, path))));
+        found.push(...await this.contexts(root, await this.files.readText(join6(root, path))));
       }
     }
     return found;
@@ -1533,7 +1717,7 @@ var DecisionDocs = class {
   async contexts(root, map) {
     const found = [];
     for (const path of namedPaths(map).filter((named) => basename2(named) === "CONTEXT.md")) {
-      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join5(dirname2(path), ADR_DIRECTORY)));
+      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join6(dirname2(path), ADR_DIRECTORY)));
     }
     return found;
   }
@@ -1554,12 +1738,12 @@ var DecisionDocs = class {
     return await this.isFile(root, path) ? [path] : [];
   }
   async markdownIn(root, directory) {
-    const names = await this.files.listFiles(join5(root, directory));
-    return names.filter((name) => name.endsWith(".md")).map((name) => join5(directory, name));
+    const names = await this.files.listFiles(join6(root, directory));
+    return names.filter((name) => name.endsWith(".md")).map((name) => join6(directory, name));
   }
   /** True only for a plain file, so an empty directory is never read as a doc. */
   async isFile(root, path) {
-    return (await this.files.listFiles(join5(root, dirname2(path)))).includes(basename2(path));
+    return (await this.files.listFiles(join6(root, dirname2(path)))).includes(basename2(path));
   }
 };
 
@@ -1570,19 +1754,24 @@ var PrepareCommand = class {
     this.repositories = new RepositoryGate(deps);
     this.trackers = new TrackerResolver(deps);
     this.decisionDocs = new DecisionDocs(deps.files);
+    this.codePackets = new CodePacketReader(deps);
   }
   deps;
   repositories;
   trackers;
   decisionDocs;
+  codePackets;
   async run(raw) {
     const input = readInput(raw, "prepare", (fields) => ({
+      base: fields.optionalString("base"),
       comments: fields.has("comments") ? fields.boolean("comments") : false,
+      head: fields.optionalString("head") ?? "HEAD",
       orchestratorFamily: fields.oneOf("orchestrator_family", ORCHESTRATOR_FAMILIES),
       references: fields.has("references") ? fields.strings("references") : void 0,
       repo: fields.string("repo"),
       spec: fields.string("spec"),
-      stage: fields.oneOf("stage", CRITIQUE_STAGES)
+      stage: fields.oneOf("stage", CRITIQUE_STAGES),
+      ticket: fields.optionalString("ticket")
     }));
     const { orchestratorFamily, stage } = input;
     const repository = await this.repositories.resolve(input.repo);
@@ -1591,22 +1780,29 @@ var PrepareCommand = class {
     if (entry === void 0) {
       return refusal("not-opted-in", `${repository.key} has no family allowlist entry on this machine; record one with allow`);
     }
+    if (isCodeStage(stage) && !entry.code) {
+      return refusal(
+        "code-not-allowed",
+        `${repository.key} allows documents but not code; record the code permission with allow and "code": true`
+      );
+    }
     const tracker = await this.trackers.resolve(repository);
     if (tracker.status === "refused") return tracker;
-    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec });
-    if (artifact.status === "refused") return artifact;
-    const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
-    const routing = await readJsonFile(this.deps.files, join6(this.deps.assetsRoot, "routing.json"), "invalid-routing", parseRouting);
+    const contents = isCodeStage(stage) ? await this.codePackets.read(repository, tracker, { ...input, stage }) : await this.documentPacket(repository, tracker, input);
+    if (contents.status === "refused") return contents;
+    const { artifact, code } = contents;
+    const routing = await readJsonFile(this.deps.files, join7(this.deps.assetsRoot, "routing.json"), "invalid-routing", parseRouting);
     const request = { allowedFamilies: entry.families, orchestratorFamily, stage };
     const roster = resolveRoster(routing, request, await this.readiness(routing, request));
     const runId = await this.freshRunId(repository, stage);
-    const runDir = join6(repository.commonDir, "critique", runId);
-    const packetDir = join6(runDir, "packet");
-    const packetFiles = await this.freezePacket(repository, packetDir, artifact, references);
+    const runDir = join7(repository.commonDir, "critique", runId);
+    const packetDir = join7(runDir, "packet");
+    const packetFiles = await this.freezePacket(packetDir, contents.files);
     const source = { labels: artifact.labels, reference: artifact.reference, tracker: artifact.tracker };
     const manifest = {
       allowed_families: entry.families,
       artifact: source,
+      ...code === void 0 ? {} : { code },
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
@@ -1625,12 +1821,13 @@ var PrepareCommand = class {
 `);
     return {
       artifact: source,
+      ...code === void 0 ? {} : { code: preparedCode(code, packetFiles) },
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
       dropped: roster.dropped,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
-      packet_files: packetFiles.map((file) => file.path),
+      packet_files: listedFiles(manifest).map((file) => file.path),
       run_dir: runDir,
       run_id: runId,
       status: "ready"
@@ -1646,40 +1843,54 @@ var PrepareCommand = class {
   async freshRunId(repository, stage) {
     const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(manifestPath(join6(repository.commonDir, "critique", candidate))); n += 1) {
+    for (let n = 2; await this.deps.files.exists(manifestPath(join7(repository.commonDir, "critique", candidate))); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
   }
   /**
-   * Writes the artifact to `artifact/` and copies each reference to
-   * `references/` under its repository path. Nothing else is ever put at the
-   * packet root, so a `.vibe/`, `.agents/` or `AGENTS.md` there can never
-   * become critic config.
+   * A document stage's packet: the artifact goes to `artifact/` and each
+   * reference to `references/` under its repository path. Nothing else is
+   * ever put at the packet root, so a `.vibe/`, `.agents/` or `AGENTS.md`
+   * there can never become critic config.
    */
-  async freezePacket(repository, packetDir, artifact, references) {
+  async documentPacket(repository, tracker, input) {
+    const artifact = await tracker.artifact({ comments: input.comments, reference: input.spec });
+    if (artifact.status === "refused") return artifact;
+    const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const files = [
-      { kind: "artifact", path: join6("artifact", artifact.name), source: artifact.reference, text: artifact.text },
+      { kind: "artifact", path: join7("artifact", artifact.name), source: artifact.reference, text: artifact.text },
       ...await Promise.all(
         references.map(async (source) => ({
           kind: "reference",
-          path: join6("references", source),
+          path: join7("references", source),
           source,
-          text: await this.deps.files.readText(join6(repository.root, source))
+          text: await this.deps.files.readText(join7(repository.root, source))
         }))
       )
     ];
+    return { artifact, code: void 0, files, status: "read" };
+  }
+  async freezePacket(packetDir, files) {
     const frozen = [];
     for (const { text, ...file } of files) {
-      await this.deps.files.writeText(join6(packetDir, file.path), text);
+      await this.deps.files.writeText(join7(packetDir, file.path), text);
       frozen.push({ ...file, sha256: sha256(text) });
     }
     return frozen;
   }
 };
+function preparedCode(code, files) {
+  return {
+    base_commit: code.base_commit,
+    changed_files: code.changed_files,
+    head_commit: code.head_commit,
+    tree_files: files.filter((file) => file.kind === "tree").length
+  };
+}
 
 // src/contexts/critique/application/record.ts
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 
 // src/contexts/critique/domain/verdicts.ts
 var VERDICTS = ["accepted", "rejected", "needs-human", "hint"];
@@ -1931,7 +2142,7 @@ var RecordCommand = class {
     const manifest = await readJsonFile(this.deps.files, manifestPath(input.runDir), "invalid-run", parseManifest);
     const merged = await readJsonFile(this.deps.files, findingsPath(input.runDir), "invalid-run", parseFanOutResult);
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
-    const reportPath = join7(input.runDir, "report.md");
+    const reportPath = join8(input.runDir, "report.md");
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
     const run = {
       critics: merged.critics,
@@ -1944,7 +2155,7 @@ var RecordCommand = class {
       stage: manifest.stage
     };
     const summary = renderSummary(run, reportPath);
-    const summaryPath = join7(input.runDir, "summary.md");
+    const summaryPath = join8(input.runDir, "summary.md");
     const ledger = ledgerPath(this.deps.env);
     await this.deps.files.writeText(reportPath, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
@@ -2020,7 +2231,7 @@ function createCritiqueCommands(deps) {
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname3, join as join8, relative as relative2 } from "node:path";
+import { dirname as dirname3, join as join9, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -2049,7 +2260,7 @@ var NodeCritiqueFiles = class {
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join8(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join9(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -2057,7 +2268,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute2, join as join9 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join10 } from "node:path";
 var SIGN_IN = "antigravity: needs sign-in: run agy and sign in with your Google account";
 var OUTER_TIMEOUT_GRACE_S = 60;
 var SESSION_SETTINGS = {
@@ -2091,7 +2302,7 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join9(launch.criticDir, "result.json");
+    const exportPath = join10(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
     return { ...result2, exportPath, outcome: classifyAgyRun(result2.exitCode, result2.stdout, run) };
@@ -2099,7 +2310,7 @@ var AgyCriticClient = class {
   async onPath(binary) {
     if (isAbsolute2(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join9(dir, binary))) return true;
+      if (await this.files.exists(join10(dir, binary))) return true;
     }
     return false;
   }
@@ -2175,7 +2386,7 @@ function classifyAgyRun(exitCode, stdout, run) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { join as join10 } from "node:path";
+import { join as join11 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files) {
     this.process = process2;
@@ -2188,8 +2399,8 @@ var VibeCriticClient = class {
     return Promise.resolve({ ready: true });
   }
   async review(launch, config) {
-    const exportDir = join10(launch.criticDir, "export");
-    const exportPath = join10(exportDir, "export.json");
+    const exportDir = join11(launch.criticDir, "export");
+    const exportPath = join11(exportDir, "export.json");
     const result2 = await this.process.exec(
       vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath })
     );
@@ -2502,6 +2713,34 @@ var GitCliAdapter = class {
       if (code.includes("R") || code.includes("C")) i += 1;
     }
     return entries;
+  }
+  async resolveCommit(cwd, revision) {
+    const result2 = await this.git(cwd, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${revision}^{commit}`]);
+    return result2.stdout.trim();
+  }
+  async mergeBase(cwd, a, b) {
+    const result2 = await this.git(cwd, ["merge-base", "--end-of-options", a, b]);
+    return result2.stdout.trim();
+  }
+  async treeFiles(cwd, commit) {
+    const result2 = await this.git(cwd, ["ls-tree", "-r", "-z", "--full-tree", commit]);
+    return result2.stdout.split("\0").flatMap((entry) => {
+      const match = /^(\d+) (\w+) \w+\t(.+)$/s.exec(entry);
+      return match !== null && match[2] === "blob" && match[1] !== "120000" ? [match[3] ?? ""] : [];
+    });
+  }
+  async fileAt(cwd, commit, path) {
+    const result2 = await this.git(cwd, ["cat-file", "blob", `${commit}:${path}`]);
+    return result2.stdout;
+  }
+  async diffCommits(cwd, base, head) {
+    const args = ["-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", base, head, "--"];
+    const result2 = await this.git(cwd, args);
+    return result2.stdout;
+  }
+  async changedPaths(cwd, base, head) {
+    const result2 = await this.git(cwd, ["diff", "--name-only", "-z", "--no-renames", base, head, "--"]);
+    return result2.stdout.split("\0").filter((path) => path.length > 0);
   }
   async diff(cwd, options = {}) {
     const args = ["diff"];
