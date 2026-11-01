@@ -60,6 +60,12 @@ export function identifyRepository(remotes: readonly GitRemote[]): RepositoryDec
 
 export interface AllowlistEntry {
   readonly families: readonly ModelFamily[]
+  /**
+   * Whether the repository may send code, not only documents: the code
+   * stages refuse while it is false. An entry recorded before the
+   * permission existed has none, and reads as false.
+   */
+  readonly code: boolean
   readonly updated_at: string
 }
 
@@ -75,6 +81,7 @@ export function parseAllowlist(text: string): FamilyAllowlist {
   const file = JsonFields.parse(text)
   return {
     repositories: file.entries('repositories', (entry) => ({
+      code: entry.has('code') ? entry.boolean('code') : false,
       families: entry.oneOfList('families', MODEL_FAMILIES),
       updated_at: entry.string('updated_at'),
     })),
@@ -85,11 +92,14 @@ export function parseAllowlist(text: string): FamilyAllowlist {
 export function withEntry(
   allowlist: FamilyAllowlist,
   key: string,
-  families: readonly ModelFamily[],
+  permission: { readonly families: readonly ModelFamily[]; readonly code: boolean },
   at: Date,
 ): FamilyAllowlist {
   return {
     version: 1,
-    repositories: { ...allowlist.repositories, [key]: { families, updated_at: at.toISOString() } },
+    repositories: {
+      ...allowlist.repositories,
+      [key]: { code: permission.code, families: permission.families, updated_at: at.toISOString() },
+    },
   }
 }

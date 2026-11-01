@@ -13,7 +13,7 @@ import {
   type Routing,
   type RosterRequest,
 } from '../domain/routing.js'
-import { CRITIQUE_STAGES, type CritiqueStage, type Depth } from '../domain/stage.js'
+import { CRITIQUE_STAGES, isCodeStage, type CritiqueStage, type Depth } from '../domain/stage.js'
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { manifestPath } from './locations.js'
@@ -82,6 +82,12 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     const entry = (await this.repositories.allowlist()).repositories[repository.key]
     if (entry === undefined) {
       return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
+    }
+    if (isCodeStage(stage) && !entry.code) {
+      return refusal(
+        'code-not-allowed',
+        `${repository.key} allows documents but not code; record the code permission with allow and "code": true`,
+      )
     }
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker

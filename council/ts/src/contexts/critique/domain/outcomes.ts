@@ -11,6 +11,8 @@ export type RefusalReason =
   | 'no-remote'
   | 'nedap'
   | 'not-opted-in'
+  /** A code stage, for a repository whose allowlist entry allows documents only. */
+  | 'code-not-allowed'
   /** The issue-tracker doc names a tracker the critique cannot read. */
   | 'unsupported-tracker'
   /** gh failed, or the issue could not be read. */
