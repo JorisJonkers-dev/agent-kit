@@ -914,6 +914,20 @@ local_skills:
       allow), so setup installs both side by side in every agent home. Its
       run's gate.json is what the PR gate reads.
 
+  - name: flow
+    path: skills/flow
+    purpose: >-
+      The critique pipeline's stepper: says in a few lines where the
+      current feature stands (phase, stage runs, open questions, gate)
+      and names the single next step, running a critique stage on the
+      owner's word and naming the Pocock command otherwise.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner's state command in skills/critique/ and invokes
+      the stage skills, so setup installs it beside them in every agent
+      home. It never runs one of Pocock's skills.
+
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,

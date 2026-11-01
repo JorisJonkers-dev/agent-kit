@@ -256,6 +256,34 @@ def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_hom
         assert (skills / "review-ticket" / ".." / "critique" / "critique.mjs").is_file(), home
 
 
+def test_flow_is_declared_for_every_agent() -> None:
+    skill = _skill(_registry(), "flow")
+    assert skill["path"] == "skills/flow"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+
+
+def test_flow_loads_only_when_the_owner_asks_about_the_critique_pipeline() -> None:
+    text = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "flow"
+    assert front["description"].startswith(
+        "Use when the owner asks how the critique pipeline works, what to do next in it,"
+        " or to set it up or check its budget."
+    )
+
+
+def test_setup_installs_flow_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "flow" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "flow" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "flow" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
 def test_a_pending_skill_is_skipped_with_a_notice_not_a_failure(macos_run: Run) -> None:
     """Until a pending skill's directory exists, setup says so and carries on."""
     for skill in (s for s in _registry()["local_skills"] if s.get("pending")):
