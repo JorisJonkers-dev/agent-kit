@@ -19,6 +19,10 @@ export type RefusalReason =
   | 'tracker-unreachable'
   /** The run named as the first round was already a second round. */
   | 'round-limit'
+  /** The tickets stage, for a spec that has no tickets to check. */
+  | 'no-tickets'
+  /** The decisions stage found no decision docs, and the caller gave no decision summary. */
+  | 'no-decision-docs'
 
 export interface Refusal {
   readonly status: 'refused'
@@ -45,6 +49,8 @@ export type CritiqueErrorCode =
   | 'already-recorded'
   /** A line of the user's ledger that record could not have written. */
   | 'invalid-ledger'
+  /** The tracker could not be read when a feature review's gate needed the spec's tickets. */
+  | 'tracker-unreachable'
 
 export class CritiqueError extends Error {
   override readonly name = 'CritiqueError'

@@ -6,6 +6,7 @@ import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { PrepareCommand, type PrepareResult } from './prepare.js'
 import { RecordCommand, type RecordResult } from './record.js'
 import { StatsCommand, type StatsResult } from './stats.js'
+import { TriageCommand, type TriageResult } from './triage.js'
 
 /** The runner's commands. */
 export interface CritiqueCommands {
@@ -15,6 +16,7 @@ export interface CritiqueCommands {
   readonly allow: CritiqueCommand<AllowResult | Refusal>
   readonly checkTickets: CritiqueCommand<CheckTicketsResult | Refusal>
   readonly stats: CritiqueCommand<StatsResult | Refusal>
+  readonly triage: CritiqueCommand<TriageResult | Refusal>
 }
 
 export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
@@ -25,5 +27,6 @@ export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
     prepare: new PrepareCommand(deps),
     record: new RecordCommand(deps),
     stats: new StatsCommand(deps),
+    triage: new TriageCommand(deps),
   }
 }

@@ -140,9 +140,11 @@ tickets, ticket review, feature review).
 _Avoid_: step, phase (a phase is a span of the flow, not one stage)
 
 **Depth**:
-How many critics a critique stage runs: base (two families) or deep (base
-plus every further family the family allowlist permits). Chosen automatically
-from signals in the artifact unless the user names it.
+How many critics a critique stage runs: base (the stage's base roster in
+routing, one critic at a cheap stage, two families at the spec stage) or deep
+(base plus the stage's deep critics, each only where the family allowlist
+permits). Chosen automatically from signals in the artifact unless the user
+names it.
 _Avoid_: tier, mode, --fast
 
 **Role**:

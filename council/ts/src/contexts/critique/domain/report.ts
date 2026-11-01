@@ -2,7 +2,17 @@ import type { CriticRun } from './critic.js'
 import { signalledDepth, type DepthSignal } from './depth.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
-import { countVerdicts, familiesOf, isDissent, openCriticalQuestions, VERDICTS, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
+import {
+  countVerdicts,
+  familiesOf,
+  isDissent,
+  openCriticalQuestions,
+  unfixedCritical,
+  VERDICTS,
+  type AdjudicatedFinding,
+  type AdjudicatedRun,
+  type Verdict,
+} from './verdicts.js'
 
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
@@ -24,7 +34,7 @@ const MINOR_MAX_CHARS = 300
 export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const serious = run.findings.filter((f) => f.severity !== 'minor')
   const lists = {
-    accepted: serious.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(run, f)),
+    accepted: serious.filter((f) => f.verdict.verdict === 'accepted').map((f) => findingLine(run, f, acceptedTail(f.verdict))),
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ''}`)),
     questions: serious
       .filter((f) => f.verdict.verdict === 'needs-human')
@@ -33,6 +43,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
   const hidden = { accepted: 0, dissent: 0, questions: 0 }
   const render = (): string =>
     [
+      ...gateLines(run),
       ...violationLines(run),
       `# Critique: ${run.stage}, run ${run.run_id}`,
       '',
@@ -40,7 +51,8 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       depthLine(run),
       ...roundLines(run),
       verdictLine(run),
-      ...toTicketsLines(run),
+      ...ticketCheckLines(run),
+      ...doNotStartLines(run),
       '',
       '## Critics',
       '',
@@ -66,6 +78,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '## Report',
       '',
       reportPath,
+      ...doNotCommitLines(run),
       '',
     ].join('\n')
   const trimmable = () => (Object.keys(lists) as (keyof typeof lists)[]).filter((key) => lists[key].length > 0)
@@ -83,6 +96,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
 export function renderReport(run: AdjudicatedRun): string {
   const dissent = run.findings.filter((f) => isDissent(run, f))
   return [
+    ...gateLines(run),
     ...violationLines(run),
     `# Critique report: ${run.stage}, run ${run.run_id}`,
     '',
@@ -90,7 +104,9 @@ export function renderReport(run: AdjudicatedRun): string {
     `Repository: ${run.repository}`,
     depthLine(run),
     verdictLine(run),
+    ...ticketCheckLines(run),
     '',
+    ...gateSection(run),
     '## Critics',
     '',
     ...run.critics.flatMap((critic) => [
@@ -113,6 +129,31 @@ export function renderReport(run: AdjudicatedRun): string {
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/** #181 US60: a feature review's summary and report open with the gate line, so a script can read it. */
+function gateLines(run: AdjudicatedRun): readonly string[] {
+  return run.gate === undefined ? [] : [run.gate.line, '']
+}
+
+/** The head the gate holds for, and each open critical follow-up that holds it. */
+function gateSection(run: AdjudicatedRun): readonly string[] {
+  const gate = run.gate
+  if (gate === undefined) return []
+  const open = gate.open_critical.map((followUp) => {
+    const from = followUp.run_id === run.run_id ? '' : ` of run ${followUp.run_id}`
+    return `- ${followUp.ticket} (${followUp.reference}), for ${followUp.finding_id}${from}`
+  })
+  return [
+    '## Gate',
+    '',
+    `${gate.line} for head ${gate.head_commit} (base ${gate.base_commit})`,
+    '',
+    'Open critical follow-ups:',
+    '',
+    ...(open.length === 0 ? ['none'] : open),
+    '',
+  ]
 }
 
 /**
@@ -142,12 +183,74 @@ function roundLines(run: AdjudicatedRun): readonly string[] {
   return run.round === 2 ? [`Round 2, after run ${run.previous_run_id ?? ''}`] : []
 }
 
-/** #167 US40: tickets are never cut from a spec with an open critical gap. */
-function toTicketsLines(run: AdjudicatedRun): readonly string[] {
+/**
+ * #167 US40: tickets are never cut from a spec with an open critical gap.
+ * #181 US29 and US35: no ticket is implemented from a ticket graph with a
+ * cycle, or while a critical scope question about the tickets is open.
+ */
+function doNotStartLines(run: AdjudicatedRun): readonly string[] {
+  const next = run.stage === 'tickets' ? '/implement' : '/to-tickets'
   const open = openCriticalQuestions(run).map((f) => f.id)
-  if (open.length === 0) return []
   const which = open.length === 1 ? `critical question ${open.join('')} is` : `critical questions ${open.join(', ')} are`
-  return [`Do not start /to-tickets: ${which} unanswered.`]
+  return [
+    ...(run.ticket_check?.status === 'failed' ? [`Do not start ${next}: the tickets hold a dependency cycle.`] : []),
+    ...(open.length === 0 ? [] : [`Do not start ${next}: ${which} unanswered.`]),
+  ]
+}
+
+/**
+ * #181 US53: a ticket review whose accepted critical finding is not fixed
+ * yet ends its summary with "do not commit", the gate before any hook.
+ */
+function doNotCommitLines(run: AdjudicatedRun): readonly string[] {
+  const ids = unfixedCritical(run).map((f) => f.id)
+  if (ids.length === 0) return []
+  const which = ids.length === 1 ? `Critical finding ${ids.join('')} is` : `Critical findings ${ids.join(', ')} are`
+  return ['', `${which} accepted and not fixed: do not commit.`]
+}
+
+/** How many dangling blockers the ticket check line names; the checker's report in the packet has all of them. */
+const DANGLING_SHOWN = 5
+
+/**
+ * #181 US27 to US29: the ticket checker's findings in one line. A dangling
+ * blocker may be a ticket of another spec, so it is something to check, not
+ * a defect.
+ */
+function ticketCheckLines(run: AdjudicatedRun): readonly string[] {
+  const check = run.ticket_check
+  if (check === undefined) return []
+  const tickets = `${String(check.ticket_ids.length)} ticket${check.ticket_ids.length === 1 ? '' : 's'}`
+  const cycles =
+    check.cycles.length === 0
+      ? 'no cycle'
+      : `${check.cycles.length === 1 ? 'cycle' : 'cycles'} ${check.cycles.map((cycle) => [...cycle, cycle[0]].join(' → ')).join(', ')}`
+  const dangling = check.dangling_blockers
+  const shown = dangling.slice(0, DANGLING_SHOWN).map((d) => `${d.ticket} blocked by ${d.blocker}`)
+  const more = dangling.length > DANGLING_SHOWN ? [`${String(dangling.length - DANGLING_SHOWN)} more in the packet's check/tickets.json`] : []
+  const blockers =
+    dangling.length === 0
+      ? 'no dangling blocker'
+      : `${String(dangling.length)} dangling blocker${dangling.length === 1 ? '' : 's'} to check (${[...shown, ...more].join(', ')})`
+  const uncited = check.uncited_stories
+  const coverage =
+    uncited === null
+      ? `user story coverage not checkable (${check.coverage_reason ?? 'not checked'})`
+      : uncited.length === 0
+        ? 'every user story cited'
+        : `user stor${uncited.length === 1 ? 'y' : 'ies'} ${uncited.join(', ')} cited by no ticket`
+  return [`Ticket check: ${check.status}: ${[tickets, cycles, blockers, coverage].join('; ')}`]
+}
+
+/**
+ * At the decisions stage an accepted finding is a question for the owner:
+ * the summary says whether the owner answered it, or why it was left open
+ * (`skipped-by-owner`).
+ */
+function acceptedTail(verdict: Verdict): string | undefined {
+  if (verdict.answered === true) return '(answered)'
+  const parts = [...(verdict.reason_code === undefined ? [] : [verdict.reason_code]), ...(verdict.fixed === true ? ['fixed'] : [])]
+  return parts.length === 0 ? undefined : `(${parts.join(', ')})`
 }
 
 function questionTail(verdict: Verdict): string | undefined {
@@ -219,9 +322,13 @@ function findingSection(run: AdjudicatedRun, finding: AdjudicatedFinding): reado
 
 function verdictText(verdict: Verdict): string {
   const code = verdict.reason_code === undefined ? '' : ` (${verdict.reason_code})`
+  const followUp = verdict.follow_up === undefined ? '' : `, follow-up ${verdict.follow_up}`
+  const crossed = verdict.trace_tickets === undefined ? '' : `, trace across ${verdict.trace_tickets.join(', ')}`
+  const kept = verdict.regression_test === undefined ? '' : `, regression test ${verdict.regression_test}`
+  const fixed = verdict.fixed === true ? ', fixed' : ''
   const answered = verdict.answered === true ? ', answered' : ''
   const reason = verdict.reason === undefined ? '' : `: ${verdict.reason}`
-  return `${verdict.verdict}${answered}${code}${reason}`
+  return `${verdict.verdict}${answered}${code}${followUp}${crossed}${kept}${fixed}${reason}`
 }
 
 function verdictLine(run: AdjudicatedRun): string {

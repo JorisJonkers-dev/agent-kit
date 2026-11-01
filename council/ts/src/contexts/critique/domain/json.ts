@@ -126,6 +126,19 @@ export class JsonFields {
     return this.listOf(key, (item): item is string => typeof item === 'string', 'a string')
   }
 
+  numbers(key: string): readonly number[] {
+    return this.listOf(key, (item): item is number => typeof item === 'number' && Number.isFinite(item), 'a number')
+  }
+
+  /** A list whose every item is a list of strings. */
+  stringListList(key: string): readonly (readonly string[])[] {
+    return this.items(key).map((item, index) => {
+      const path = `${this.at(key)}[${String(index)}]`
+      JsonFields.ensure(Array.isArray(item) && item.every((value) => typeof value === 'string'), path, 'a list of strings')
+      return item
+    })
+  }
+
   oneOfList<T extends string>(key: string, allowed: readonly T[]): readonly T[] {
     return this.listOf(key, (item): item is T => isOneOf(allowed, item), `one of ${allowed.join(', ')}`)
   }

@@ -39,6 +39,8 @@ export interface GhIssue {
   readonly labels: readonly string[]
   /** Empty unless the request asked for comments. */
   readonly comments: readonly GhIssueComment[]
+  /** Whether the issue is open or closed, where the read reports it (a sub-issue read does). */
+  readonly state?: 'open' | 'closed'
 }
 
 /** An issue another issue links to, such as a blocker. */

@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import type { CodeSource, PacketFileKind } from '../domain/manifest.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
 import type { CodeStage } from '../domain/stage.js'
+import type { CodeChange } from '../domain/triage.js'
+import { CodeChangeReader } from './code-change.js'
 import type { CritiqueDeps } from './ports.js'
 import type { ResolvedRepository } from './repository.js'
 import type { TrackedArtifact, Tracker } from './tracker.js'
@@ -32,8 +34,12 @@ export interface CodePacket {
   readonly status: 'read'
   readonly files: readonly UnfrozenFile[]
   readonly code: CodeSource
+  /** The change as the risk rules read it, for the stage's depth signals. */
+  readonly change: CodeChange
   /** What the stage critiques: the ticket for a ticket review, the spec for a feature review. */
   readonly artifact: TrackedArtifact
+  /** The spec's reference, which a ticket review's flow defaults to. */
+  readonly specReference: string
 }
 
 /** The packet folder of the tree at the commit under review. */
@@ -51,7 +57,11 @@ const READ_CONCURRENCY = 16
  * never at the packet root.
  */
 export class CodePacketReader {
-  constructor(private readonly deps: Pick<CritiqueDeps, 'git'>) {}
+  private readonly changes: CodeChangeReader
+
+  constructor(private readonly deps: Pick<CritiqueDeps, 'git'>) {
+    this.changes = new CodeChangeReader(deps)
+  }
 
   async read(repository: ResolvedRepository, tracker: Tracker, request: CodePacketRequest): Promise<CodePacket | Refusal> {
     const { stage } = request
@@ -62,8 +72,8 @@ export class CodePacketReader {
       throw new CritiqueError('invalid-input', 'ticket-review needs ticket: the ticket the change delivers')
     }
     const root = repository.root
-    const head = await this.commit(root, 'head', request.head)
-    const base = await this.deps.git.mergeBase(root, await this.commit(root, 'base', request.base), head)
+    const read = await this.changes.read(root, request.base, request.head)
+    const { base_commit: base, head_commit: head } = read
 
     const spec = await tracker.artifact({ comments: request.comments, reference: request.spec })
     if (spec.status === 'refused') return spec
@@ -72,15 +82,16 @@ export class CodePacketReader {
 
     const tree = await this.tree(root, head)
     const inTree = new Set(tree.map((file) => file.source))
-    const changed = (await this.deps.git.changedPaths(root, base, head)).filter((path) => inTree.has(path))
+    const changed = read.change.paths.filter((path) => inTree.has(path))
     const files: UnfrozenFile[] = [
-      { kind: 'diff', path: DIFF_PATH, source: `${base}..${head}`, text: await this.deps.git.diffCommits(root, base, head) },
+      { kind: 'diff', path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
       ...tickets.files,
       { kind: 'spec', path: join('spec', spec.name), source: spec.reference, text: spec.text },
       ...tree,
     ]
     return {
       artifact: tickets.ticket ?? spec,
+      change: read.change,
       code: {
         base: request.base,
         base_commit: base,
@@ -89,16 +100,8 @@ export class CodePacketReader {
         head_commit: head,
       },
       files,
+      specReference: spec.reference,
       status: 'read',
-    }
-  }
-
-  private async commit(root: string, field: 'base' | 'head', revision: string): Promise<string> {
-    try {
-      return await this.deps.git.resolveCommit(root, revision)
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error)
-      throw new CritiqueError('invalid-input', `${field} ${revision} names no commit: ${detail}`)
     }
   }
 
@@ -134,6 +137,6 @@ export class CodePacketReader {
   }
 }
 
-function ticketFile(name: string, reference: string, text: string): UnfrozenFile {
+export function ticketFile(name: string, reference: string, text: string): UnfrozenFile {
   return { kind: 'ticket', path: join('tickets', name), source: reference, text }
 }

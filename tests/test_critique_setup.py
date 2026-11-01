@@ -123,7 +123,7 @@ def test_routing_carries_the_stats_thresholds() -> None:
 
 def test_the_shared_skill_carries_the_runner_prompts_lenses_schema_and_routing() -> None:
     root = KIT_ROOT / "skills" / "critique"
-    for path in ("SKILL.md", "critique.mjs", "routing.json", "prompts/preamble.md",
+    for path in ("SKILL.md", "critique.mjs", "routing.json", "prompts/preamble.md", "prompts/triage.md",
                  "roles/spec-redteam.md", "lenses/fidelity.md", "schemas/finding.schema.json"):
         assert (root / path).is_file(), path
 
@@ -154,6 +154,106 @@ def test_setup_installs_critique_spec_beside_the_shared_skill_in_every_agent_hom
         assert (skills / "critique-spec" / "SKILL.md").read_bytes() == source.read_bytes(), home
         assert (skills / "critique-spec" / ".." / "critique" / "critique.mjs").is_file(), home
     assert "critique-spec: not built yet" not in macos_run.stdout
+
+
+def test_check_tickets_is_declared_for_every_agent_and_built() -> None:
+    skill = _skill(_registry(), "check-tickets")
+    assert skill["path"] == "skills/check-tickets"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+    assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
+
+
+def test_check_tickets_says_it_applies_after_to_tickets_and_before_the_first_implement() -> None:
+    text = (KIT_ROOT / "skills" / "check-tickets" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "check-tickets"
+    assert front["description"].startswith("Use after /to-tickets and before the first /implement.")
+
+
+def test_setup_installs_check_tickets_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "check-tickets" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "check-tickets" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "check-tickets" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
+def test_shipped_routing_defines_the_tickets_stage() -> None:
+    tickets = json.loads(ROUTING.read_text())["stages"]["tickets"]
+    assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["base"]] == [
+        ("vibe-deepseek-flash", "ticket-linter", ["testability"], 0.1, 180)
+    ]
+    assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["deep"]] == [
+        ("vibe-mistral-large", "ticket-linter", ["simplicity"], 0.1, 180)
+    ]
+    assert tickets["ticket_size"] == {"max_modules": 5, "max_criteria": 8}
+    assert (KIT_ROOT / "skills" / "critique" / "roles" / "ticket-linter.md").is_file()
+
+
+def test_review_feature_is_declared_for_every_agent() -> None:
+    skill = _skill(_registry(), "review-feature")
+    assert skill["path"] == "skills/review-feature"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+
+
+def test_review_feature_says_it_applies_after_all_tickets_landed_and_before_the_pr() -> None:
+    text = (KIT_ROOT / "skills" / "review-feature" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "review-feature"
+    assert front["description"].startswith(
+        "Use after every ticket of a spec has landed on its feature branch and before the PR."
+    )
+
+
+def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "review-feature" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "review-feature" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "review-feature" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
+def test_shipped_routing_defines_the_ticket_review_stage() -> None:
+    review = json.loads(ROUTING.read_text())["stages"]["ticket-review"]
+    assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in review["base"]] == [
+        ("agy-gemini-flash-high", "diff-reviewer", ["failure-modes", "security"], 0.5, 480)
+    ]
+    assert [(s["client"], s["role"]) for s in review["deep"]] == [("vibe-mistral-large", "diff-reviewer")]
+    assert review["depth_signals"]["thresholds"] == {"changed_lines": 600, "risk_path_hits": 3}
+    assert (KIT_ROOT / "skills" / "critique" / "roles" / "diff-reviewer.md").is_file()
+
+
+def test_review_ticket_is_declared_for_every_agent() -> None:
+    skill = _skill(_registry(), "review-ticket")
+    assert skill["path"] == "skills/review-ticket"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+
+
+def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit() -> None:
+    text = (KIT_ROOT / "skills" / "review-ticket" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "review-ticket"
+    assert front["description"].startswith("Use after a ticket's /code-review and before its commit.")
+
+
+def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "review-ticket" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "review-ticket" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "review-ticket" / ".." / "critique" / "critique.mjs").is_file(), home
 
 
 def test_a_pending_skill_is_skipped_with_a_notice_not_a_failure(macos_run: Run) -> None:
@@ -262,6 +362,18 @@ def test_every_vibe_client_in_routing_names_a_declared_agent() -> None:
     agents = {c["agent"] for c in routing["clients"].values() if c["kind"] == "vibe"}
     assert agents, "routing has no Vibe client, so this test proves nothing"
     assert agents <= declared
+
+
+def test_the_triage_model_runs_through_the_priced_mistral_small_agent() -> None:
+    """#187: triage asks Mistral Small through its own agent, whose priced model entry makes its $0.03 cap real."""
+    routing = json.loads(ROUTING.read_text())
+    client = routing["clients"][routing["triage"]["model"]["client"]]
+    assert (client["kind"], client["agent"], client["family"]) == ("vibe", "critic-mistral-small", "mistral")
+    (model,) = _agent_file(client["agent"])["models"]
+    assert model["name"] == client["model"] == "mistral-small-latest"
+    assert model["input_price"] > 0 and model["output_price"] > 0
+    assert routing["triage"]["model"]["max_price_usd"] == 0.03
+    assert routing["triage"]["model"]["time_limit_s"] == 60
 
 
 def test_every_critic_agent_is_a_generated_artifact() -> None:

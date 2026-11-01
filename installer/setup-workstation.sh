@@ -3162,6 +3162,120 @@ else
   fi
 fi
 
+# Critique a feature's decisions after grilling and before
+# /to-spec: gap critics from other model families list the
+# questions nobody asked, and the orchestrator asks the owner the
+# real ones.
+src="${KIT_ROOT}/skills/critique-decisions"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "critique-decisions: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/critique-decisions"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-decisions -> ${dest}"
+    else
+      fail "critique-decisions: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/critique-decisions"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-decisions -> ${dest}"
+    else
+      fail "critique-decisions: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/critique-decisions"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-decisions -> ${dest}"
+    else
+      fail "critique-decisions: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/critique-decisions"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-decisions -> ${dest}"
+    else
+      fail "critique-decisions: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/critique-decisions"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-decisions -> ${dest}"
+    else
+      fail "critique-decisions: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/critique-decisions"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-decisions -> ${dest}"
+    else
+      fail "critique-decisions: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
 # Critique a spec after /to-spec: critics from other model
 # families review it read-only, and the orchestrator rules on
 # their findings.
@@ -3383,6 +3497,351 @@ else
       ok "critique-stats -> ${dest}"
     else
       fail "critique-stats: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Check a spec's tickets after /to-tickets and before the first
+# /implement: the deterministic ticket checker, then one critic
+# from another model family lints their structure read-only, and
+# the orchestrator fixes the tickets and asks before changing
+# scope.
+src="${KIT_ROOT}/skills/check-tickets"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "check-tickets: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/check-tickets"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "check-tickets -> ${dest}"
+    else
+      fail "check-tickets: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/check-tickets"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "check-tickets -> ${dest}"
+    else
+      fail "check-tickets: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/check-tickets"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "check-tickets -> ${dest}"
+    else
+      fail "check-tickets: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/check-tickets"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "check-tickets -> ${dest}"
+    else
+      fail "check-tickets: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/check-tickets"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "check-tickets -> ${dest}"
+    else
+      fail "check-tickets: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/check-tickets"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "check-tickets -> ${dest}"
+    else
+      fail "check-tickets: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Review a risky ticket's staged change after its /code-review and
+# before its commit: risk triage decides, one critic from another
+# model family reviews the diff, each bug finding is decided by
+# running its failing test, and the summary says "do not commit"
+# while an accepted critical finding is unfixed.
+src="${KIT_ROOT}/skills/review-ticket"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "review-ticket: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/review-ticket"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/review-ticket"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/review-ticket"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Review a whole feature after all tickets of a spec landed and
+# before the PR: critics from two other model families read the
+# spec, the tickets and the feature diff, each accepted finding
+# becomes a follow-up ticket, and the report opens with the gate
+# line.
+src="${KIT_ROOT}/skills/review-feature"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "review-feature: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/review-feature"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-feature -> ${dest}"
+    else
+      fail "review-feature: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/review-feature"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-feature -> ${dest}"
+    else
+      fail "review-feature: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/review-feature"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-feature -> ${dest}"
+    else
+      fail "review-feature: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/review-feature"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-feature -> ${dest}"
+    else
+      fail "review-feature: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/review-feature"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-feature -> ${dest}"
+    else
+      fail "review-feature: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-feature"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-feature -> ${dest}"
+    else
+      fail "review-feature: ${dest} is incomplete after copy"
     fi
   fi
 fi

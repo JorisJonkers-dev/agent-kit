@@ -27,6 +27,13 @@
       "agent": "critic-deepseek-flash",
       "model": "deepseek-v4-1-flash-1017",
       "family": "deepseek"
+    },
+    "vibe-mistral-small": {
+      "kind": "vibe",
+      "binary": "vibe",
+      "agent": "critic-mistral-small",
+      "model": "mistral-small-latest",
+      "family": "mistral"
     }
   },
   "stats": {
@@ -39,11 +46,85 @@
     "reserve_threshold": 10,
     "reserved_stages": ["spec", "feature-review"]
   },
+  "triage": {
+    "risk_paths": [
+      "**/{auth,authn,authz,oauth,oidc,sso,login,session,sessions,permissions,rbac,acl}/**",
+      "**/{auth,authn,authz,oauth,oidc,login,session,sessions,permissions,rbac,acl}.*",
+      "**/*{-,_}{auth,oauth,login,session,permission,permissions}.*",
+      "**/{crypto,cryptography,encryption,secrets,keys,certs,tls}/**",
+      "**/{crypto,encryption,cipher,secrets,jwt,signing,signature,hashing}.*",
+      "**/{migrations,migration,migrate}/**",
+      "**/*.sql",
+      "**/{lock,locks,locking,mutex,semaphore,atomic,atomics,concurrency,threading,scheduler}/**",
+      "**/{lock,locks,locking,mutex,semaphore,atomic,atomics,concurrency,threading,scheduler,worker_pool,threadpool}.*",
+      "**/*{-,_}{lock,mutex,semaphore}.*",
+      "**/api/**",
+      "**/*.proto",
+      "**/*.graphql",
+      "**/{openapi,swagger}*.{json,yaml,yml}",
+      "**/{infra,infrastructure,deploy,deployment,deployments,terraform,k8s,kubernetes,helm,charts,ansible}/**",
+      "**/*.tf",
+      "**/Dockerfile*",
+      "**/{docker-compose,compose}*.{yml,yaml}",
+      ".github/workflows/**",
+      "**/{Jenkinsfile,.gitlab-ci.yml}"
+    ],
+    "changed_lines_threshold": 300,
+    "labels": ["risk:high"],
+    "model": { "client": "vibe-mistral-small", "max_price_usd": 0.03, "time_limit_s": 60 }
+  },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
     "agy-gemini-flash-high": ["vibe-glm"]
   },
   "stages": {
+    "decisions": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        },
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions", "failure-modes"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-glm",
+          "role": "gap-critic",
+          "lenses": ["integration"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        }
+      ],
+      "depth_signals": {
+        "thresholds": { "decisions": 40, "words": 4000 },
+        "risk_terms": [
+          "auth",
+          "authentication",
+          "authorisation",
+          "authorization",
+          "migration",
+          "migrations",
+          "payment",
+          "payments",
+          "crypto",
+          "cryptography",
+          "encryption",
+          "concurrency",
+          "concurrent",
+          "public API"
+        ]
+      }
+    },
     "spec": {
       "distinct_families": true,
       "base": [
@@ -96,6 +177,111 @@
           "concurrent",
           "public API"
         ],
+        "labels": ["risk:high"]
+      }
+    },
+    "tickets": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "ticket-linter",
+          "lenses": ["testability"],
+          "max_price_usd": 0.1,
+          "time_limit_s": 180
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "ticket-linter",
+          "lenses": ["simplicity"],
+          "max_price_usd": 0.1,
+          "time_limit_s": 180
+        }
+      ],
+      "ticket_size": { "max_modules": 5, "max_criteria": 8 },
+      "depth_signals": {
+        "thresholds": { "tickets": 10 },
+        "risk_terms": [
+          "auth",
+          "authentication",
+          "authorisation",
+          "authorization",
+          "migration",
+          "migrations",
+          "payment",
+          "payments",
+          "crypto",
+          "cryptography",
+          "encryption",
+          "concurrency",
+          "concurrent",
+          "public API"
+        ],
+        "labels": ["risk:high"]
+      }
+    },
+    "ticket-review": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "diff-reviewer",
+          "lenses": ["failure-modes", "security"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 480
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "diff-reviewer",
+          "lenses": ["integration"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 480
+        }
+      ],
+      "depth_signals": {
+        "thresholds": { "changed_lines": 600, "risk_path_hits": 3 },
+        "labels": ["risk:high"]
+      }
+    },
+    "feature-review": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "feature-reviewer",
+          "lenses": ["integration"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        },
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "feature-reviewer",
+          "lenses": ["failure-modes"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-glm",
+          "role": "feature-reviewer",
+          "lenses": ["operability"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        },
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "feature-reviewer",
+          "lenses": ["simplicity"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        }
+      ],
+      "depth_signals": {
         "labels": ["risk:high"]
       }
     }

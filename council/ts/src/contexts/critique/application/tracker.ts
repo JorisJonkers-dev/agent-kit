@@ -1,5 +1,6 @@
 import { basename, dirname, join } from 'node:path'
 
+import { localTicketOpen } from '../domain/feature-review.js'
 import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
 import {
   defaultTracker,
@@ -39,6 +40,8 @@ export interface ArtifactRequest {
 export interface TrackedTicket extends Ticket {
   /** Its file name under a packet folder. */
   readonly name: string
+  /** False once the ticket is closed: a closed issue, or a local ticket whose status says it is done. */
+  readonly open: boolean
 }
 
 export interface TrackedTickets {
@@ -122,6 +125,7 @@ class GithubTracker implements Tracker {
             blockedBy: blockers.map((blocker) => this.id(this.issueAt(blocker.url, blocker.number, ticket.repository))),
             id: this.id(ticket),
             name: `issue-${String(ticket.number)}.md`,
+            open: read.state !== 'closed',
             reference: this.reference(ticket),
             text: renderIssue({ ...read, comments: [] }),
             title: read.title,
@@ -206,7 +210,11 @@ class LocalMarkdownTracker implements Tracker {
         text: await this.deps.files.readText(join(this.repository.root, folder, name)),
       })),
     )
-    return { status: 'read', tickets: localTickets(files).map((ticket) => ({ ...ticket, name: basename(ticket.reference) })) }
+    return { status: 'read', tickets: localTickets(files).map((ticket) => ({
+        ...ticket,
+        name: basename(ticket.reference),
+        open: localTicketOpen(ticket.text),
+      })) }
   }
 }
 

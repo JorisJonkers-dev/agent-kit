@@ -78,6 +78,26 @@ export interface GitRevisionPort {
   changedPaths(cwd: string, base: string, head: string): Promise<readonly string[]>
 }
 
+/**
+ * Reading the index: the staged change the next commit would record. A code
+ * review of work not yet committed reviews a commit made of the index, and a
+ * commit gate tells one staged change from another by its entries.
+ */
+export interface GitIndexPort {
+  /**
+   * Every staged entry as `git ls-files --stage -z` prints it: mode, object
+   * id, stage number and path, each entry ending in NUL. Reads the index and
+   * writes nothing.
+   */
+  stagedEntries(cwd: string): Promise<string>
+  /** The id of the tree a revision's commit holds; throws when the revision names no commit. */
+  treeOf(cwd: string, revision: string): Promise<string>
+  /** Writes the index's tree objects and returns the top tree's id; the staged entries, every ref and the working tree stay as they are. */
+  writeIndexTree(cwd: string): Promise<string>
+  /** Writes a commit object holding `tree`, with `parent` as its parent, and returns its id; no ref moves. */
+  commitTree(cwd: string, tree: string, parent: string, message: string): Promise<string>
+}
+
 export interface GitDagExecutorPort extends GitPort {
   commitAll(cwd: string, request: GitCommitAllRequest): Promise<GitCommitAllResult>
   reconcileIntegrationBranch(cwd: string, request: GitReconcileRequest): Promise<GitReconcileResult>

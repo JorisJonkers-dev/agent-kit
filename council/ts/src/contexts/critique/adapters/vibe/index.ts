@@ -1,11 +1,20 @@
 import { isAbsolute, join } from 'node:path'
 
 import type { EnvPort, ProcessCommand, ProcessPort } from '../../../../ports/index.js'
-import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } from '../../application/ports.js'
+import type {
+  CriticClientPort,
+  CriticLaunch,
+  CriticReport,
+  CritiqueFilesPort,
+  ModelAnswer,
+  ModelAnswerReport,
+  ModelQuestion,
+  QuestionClientPort,
+} from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { parseFindings } from '../../domain/findings.js'
 import { jsonObjectOrUndefined } from '../../domain/json.js'
-import type { ClientReadiness, RosterCritic, VibeCriticClient as VibeClientConfig } from '../../domain/routing.js'
+import type { ClientReadiness, RosterSlot, VibeCriticClient as VibeClientConfig } from '../../domain/routing.js'
 
 /**
  * The Vibe critic client: runs one Vibe critic in its packet and reads its
@@ -13,7 +22,7 @@ import type { ClientReadiness, RosterCritic, VibeCriticClient as VibeClientConfi
  * launch, the isolation it needs, its exit codes, its journal and export
  * formats) stays here.
  */
-export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
+export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, QuestionClientPort<VibeClientConfig> {
   constructor(
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
@@ -61,18 +70,38 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig> {
   async review(launch: CriticLaunch, config: VibeClientConfig): Promise<CriticReport> {
     const exportDir = join(launch.criticDir, 'export')
     const exportPath = join(exportDir, 'export.json')
-    const result = await this.process.exec(
-      vibeLaunch(launch.critic, config, { exportDir, packetDir: launch.packetDir, promptPath: launch.promptPath }),
-    )
+    const { result, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir })
+    return { ...result, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) }
+  }
+
+  /**
+   * Puts one question to the agent's model, launched exactly as a critic is
+   * (the same isolation, the same checks of the effective config), and
+   * returns its final message as plain text.
+   */
+  async ask(question: ModelQuestion, config: VibeClientConfig): Promise<ModelAnswerReport> {
+    const exportDir = join(question.outputDir, 'export')
+    const { result, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir })
+    const message = vibeMessage(run)
+    const answer: ModelAnswer = message.status === 'failed' ? message : { cost_usd: message.cost_usd, status: 'answered', text: message.text }
+    return { ...result, answer, chargedUsd: vibeCharge(run, question.max_price_usd) }
+  }
+
+  private async launch(
+    limits: VibeLimits,
+    config: VibeClientConfig,
+    paths: VibeLaunchPaths,
+  ): Promise<{ readonly result: { exitCode: number; stdout: string; stderr: string }; readonly run: VibeRun }> {
+    const result = await this.process.exec(vibeLaunch(limits, config, paths))
     const run: VibeRun = {
       exitCode: result.exitCode,
-      exported: await this.readExport(exportPath),
+      exported: await this.readExport(join(paths.exportDir, 'export.json')),
       stderr: result.stderr,
       stdout: result.stdout,
       timedOut: result.timedOut === true,
-      timeoutS: launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S,
+      timeoutS: limits.time_limit_s + OUTER_TIMEOUT_GRACE_S,
     }
-    return { ...result, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) }
+    return { result: { exitCode: result.exitCode, stderr: result.stderr, stdout: result.stdout }, run }
   }
 
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
@@ -113,12 +142,16 @@ const ISOLATION_ENV: Readonly<Record<string, string>> = {
  * tool; with no `skill` tool the critic cannot load skills.
  */
 interface VibeLaunchPaths {
-  readonly packetDir: string
+  /** The working directory: a critic's packet copy, or a question's own directory. */
+  readonly workDir: string
   readonly promptPath: string
   readonly exportDir: string
 }
 
-function vibeLaunch(critic: RosterCritic, config: VibeClientConfig, paths: VibeLaunchPaths): ProcessCommand {
+/** The price cap and time limit one launch runs under. */
+type VibeLimits = Pick<RosterSlot, 'max_price_usd' | 'time_limit_s'>
+
+function vibeLaunch(critic: VibeLimits, config: VibeClientConfig, paths: VibeLaunchPaths): ProcessCommand {
   return {
     args: [
       '-u',
@@ -143,7 +176,7 @@ function vibeLaunch(critic: RosterCritic, config: VibeClientConfig, paths: VibeL
       paths.exportDir,
     ],
     command: 'env',
-    cwd: paths.packetDir,
+    cwd: paths.workDir,
     env: ISOLATION_ENV,
     timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
   }
@@ -166,15 +199,31 @@ const EXIT_FAILURES: Readonly<Record<number, CriticFailure>> = {
   3: 'stopped-early',
 }
 
-/**
- * Exit code first: anything but 0 is a failed critic, whatever stdout holds.
- * On 0, the export must show an isolated config, and stdout must end in an
- * assistant message whose last ```json block matches the output contract.
- */
+/** A critic's run is a review when its final message's last ```json block matches the output contract. */
 function classifyVibeRun(run: VibeRun): CriticOutcome {
+  const message = vibeMessage(run)
+  if (message.status === 'failed') return message
+  const parsed = parseFindings(message.text)
+  if (!parsed.ok) return { cost_usd: message.cost_usd, detail: parsed.detail, failure: parsed.failure, status: 'failed' }
+  return {
+    cost_usd: message.cost_usd,
+    findings: parsed.findings,
+    status: 'ok',
+    ...(parsed.no_findings_reason === undefined ? {} : { no_findings_reason: parsed.no_findings_reason }),
+  }
+}
+
+type VibeMessage = { readonly status: 'ok'; readonly text: string; readonly cost_usd: number | null } | Extract<CriticOutcome, { status: 'failed' }>
+
+/**
+ * Exit code first: anything but 0 is a failed run, whatever stdout holds.
+ * On 0, the export must show an isolated config, and stdout must end in an
+ * assistant message, whose text is returned.
+ */
+function vibeMessage(run: VibeRun): VibeMessage {
   const exported = jsonObjectOrUndefined(run.exported)
   const cost = typeof exported?.cost_usd === 'number' ? exported.cost_usd : null
-  const failed = (failure: CriticFailure, detail: string): CriticOutcome => ({ cost_usd: cost, detail, failure, status: 'failed' })
+  const failed = (failure: CriticFailure, detail: string): VibeMessage => ({ cost_usd: cost, detail, failure, status: 'failed' })
 
   if (run.timedOut) return failed('timeout', `vibe did not return within ${String(run.timeoutS)}s, so the outer timer killed it`)
   if (run.exitCode !== 0) {
@@ -187,14 +236,7 @@ function classifyVibeRun(run: VibeRun): CriticOutcome {
   if (violations.length > 0) return failed('unsafe-config', `effective config: ${violations.join('; ')}`)
   const message = finalAssistantText(run.stdout)
   if (message === undefined) return failed('unparseable-output', 'stdout is not a Vibe journal with an assistant message')
-  const parsed = parseFindings(message)
-  if (!parsed.ok) return failed(parsed.failure, parsed.detail)
-  return {
-    cost_usd: cost,
-    findings: parsed.findings,
-    status: 'ok',
-    ...(parsed.no_findings_reason === undefined ? {} : { no_findings_reason: parsed.no_findings_reason }),
-  }
+  return { cost_usd: cost, status: 'ok', text: message }
 }
 
 /**

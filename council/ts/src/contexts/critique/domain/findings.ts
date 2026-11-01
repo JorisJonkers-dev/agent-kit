@@ -51,7 +51,17 @@ export type PreVerdict =
   | { readonly verdict: 'rejected'; readonly reason_code: 'fabricated-evidence'; readonly reason: string }
   | { readonly verdict: 'hint'; readonly reason_code: HintCode; readonly reason: string }
 
-export const HINT_CODES = ['no-evidence', 'no-spec-quote', 'no-decision-quote', 'no-decision-or-scenario', 'no-test-or-trace'] as const
+export const HINT_CODES = [
+  'no-evidence',
+  'no-spec-quote',
+  'no-decision-quote',
+  'no-decision-or-scenario',
+  'no-test-or-trace',
+  'no-ticket-rule',
+  'no-ticket-id',
+  'no-scenario',
+  'not-a-decision-gap',
+] as const
 export type HintCode = (typeof HINT_CODES)[number]
 
 /** A finding as the orchestrator receives it: the critic's fields plus who raised it. */
