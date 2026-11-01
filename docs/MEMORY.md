@@ -94,10 +94,14 @@ present *and* a backend has to answer.
 Not part of the bring-up, and deliberately last. **Update (agent-kit#40):**
 `install.sh` and `install-agents.sh` are retired; `setup-workstation.sh`
 (rendered from `registry/estate-tooling.yaml`) is the one installer now, and
-it is published from the public static host described below
-(`https://assets.jorisjonkers.dev/setup-workstation.sh`; agent-kit#35), not
-served by the knowledge service. The blocker this section originally described is
-resolved. The paragraph below is kept for the reasoning, not as a live plan:
+it is published as a GitHub release asset
+(`https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh`),
+not served by the knowledge service. It was first published from the public
+static host described below (agent-kit#35); that host,
+`assets.jorisjonkers.dev`, is legacy now that the in-cluster
+`garage-asset-sync` CronJob is being retired, and can at most become a
+redirect to GitHub, owned outside this repo. The blocker this section
+originally described is resolved. The paragraph below is kept for the reasoning, not as a live plan:
 
 The knowledge service used to serve the installer (`install.sh` /
 `install-agents.sh` were fetched from it with a bearer token), so it could not
