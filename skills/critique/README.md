@@ -82,15 +82,19 @@ that fired either way.
 - **Per critic**: a price cap and a time limit. Vibe checks its cap between
   turns, so a critic can overshoot by one turn; where Vibe's figure can't be
   trusted, the runner charges the cap.
-- **Per flow** (one spec, from its draft on): Vibe spend capped at $5
-  (`budget.vibe_flow_cap_usd`), triage included. Past it, Vibe critics don't
-  launch and show as `budget-skip`.
+- **Per flow**: Vibe spend capped at $5 (`budget.vibe_flow_cap_usd`),
+  triage included. Each flow key is capped on its own: the decisions stage
+  charges the draft's, every later stage the spec's. Past the cap, Vibe
+  critics don't launch and show as `budget-skip`.
 - **Antigravity per day**: 20 invocations a UTC day
   (`antigravity_quota.daily_cap`). After 10 (`reserve_threshold`), the rest
   are kept for the spec and feature-review stages; other stages drop Gemini
   with the reason `quota` and use its fallback. Antigravity reports no cost.
 - `/flow budget` shows the flow's Vibe spend, today's Antigravity count
-  against the cap and reserve, and which stages would fall back now.
+  against the cap and reserve, and which stages would fall back now. The
+  fallback it names is routing's alone; a real run also weighs the
+  allowlist, your family and readiness, so it may pick a later one or leave
+  the slot empty.
 
 ## Gates and the kill switch
 
