@@ -122,6 +122,9 @@ function findingSection(finding: AdjudicatedFinding): readonly string[] {
     '',
     `Raised by: ${finding.raised_by.join(', ')}`,
     `Verdict: ${verdictText(finding.verdict)}`,
+    ...(finding.pre_verdict === undefined || finding.pre_verdict.verdict === finding.verdict.verdict
+      ? []
+      : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`]),
     '',
     finding.claim,
     '',

@@ -315,6 +315,72 @@ describe('record', () => {
   })
 })
 
+describe('record keeps the mechanical pre-verdicts', () => {
+  const fabricated = finding({ evidence: [{ file: 'artifact/spec.md', kind: 'quote', value: 'Widgets are blue.' }] })
+  const speculative = finding({ evidence: [] })
+
+  it('rejects a fabricated-evidence finding without a verdict and logs the reason', async () => {
+    const { h, run } = await reviewed([fabricated])
+
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(result.counts).toMatchObject({ accepted: 0, rejected: 1 })
+    expect(await readFile(result.report_path, 'utf8')).toContain('Verdict: rejected (fabricated-evidence)')
+    expect((await ledgerLines(h))[1]).toMatchObject({ reason_code: 'fabricated-evidence', type: 'finding', verdict: 'rejected' })
+  })
+
+  it.each(['accepted', 'needs-human', 'hint'])('refuses to overturn a fabricated-evidence rejection to %s', async (verdict) => {
+    const { h, run } = await reviewed([fabricated])
+
+    await expect(
+      h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', reason: 'r', verdict }] }),
+    ).rejects.toThrow(/F1 was rejected as fabricated-evidence/)
+    expect(await h.readText(join(run.run_dir, 'report.md')).catch(() => 'none')).toBe('none')
+  })
+
+  it('keeps fabricated-evidence as the reason when the orchestrator also rejects the finding', async () => {
+    const { h, run } = await reviewed([fabricated])
+
+    await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [{ finding_id: 'F1', reason: 'Not in the spec.', reason_code: 'not-in-spec', verdict: 'rejected' }],
+    })
+
+    expect((await ledgerLines(h))[1]).toMatchObject({ reason_code: 'fabricated-evidence', verdict: 'rejected' })
+  })
+
+  it('keeps a hint that gets no verdict out of the accepted findings', async () => {
+    const { h, run } = await reviewed([speculative])
+
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(result.counts).toMatchObject({ accepted: 0, hint: 1 })
+    expect(section(result.summary, 'Accepted')).toBe('none')
+    expect((await ledgerLines(h))[1]).toMatchObject({ pre_verdict: 'no-evidence', reason_code: 'no-evidence', verdict: 'hint' })
+  })
+
+  it.each(['accepted', 'rejected'])('lets the orchestrator turn a hint into %s', async (verdict) => {
+    const { h, run } = await reviewed([speculative])
+
+    const result = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [{ finding_id: 'F1', reason: 'Checked against the nightly job.', verdict }],
+    })
+
+    expect(result.counts).toMatchObject({ [verdict]: 1, hint: 0 })
+    expect(await readFile(result.report_path, 'utf8')).toContain('Pre-verdict: hint (no-evidence)')
+    expect((await ledgerLines(h))[1]).toMatchObject({ pre_verdict: 'no-evidence', verdict })
+  })
+
+  it('refuses to turn a hint into a question', async () => {
+    const { h, run } = await reviewed([speculative])
+
+    await expect(
+      h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'needs-human' }] }),
+    ).rejects.toThrow(/F1 is a hint/)
+  })
+})
+
 function section(summary: string, heading: string): string {
   const start = summary.indexOf(`## ${heading}\n`)
   if (start === -1) return ''
