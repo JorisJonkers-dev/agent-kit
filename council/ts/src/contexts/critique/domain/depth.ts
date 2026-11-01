@@ -11,6 +11,8 @@ export interface DepthEvidence {
   readonly text: string
   /** The artifact's tracker labels; empty for a markdown file. */
   readonly labels: readonly string[]
+  /** At the tickets stage: how many tickets the spec has. */
+  readonly tickets?: number
 }
 
 type Measure = (evidence: DepthEvidence) => number
@@ -26,7 +28,7 @@ const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Mea
   'feature-review': {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
   'ticket-review': {},
-  tickets: {},
+  tickets: { tickets: ({ tickets = 0 }) => tickets },
 }
 
 /** One stage's depth signals as routing configures them. Any one that fires selects deep. */

@@ -94,6 +94,48 @@
         ],
         "labels": ["risk:high"]
       }
+    },
+    "tickets": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "ticket-linter",
+          "lenses": ["testability"],
+          "max_price_usd": 0.1,
+          "time_limit_s": 180
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "ticket-linter",
+          "lenses": ["simplicity"],
+          "max_price_usd": 0.1,
+          "time_limit_s": 180
+        }
+      ],
+      "ticket_size": { "max_modules": 5, "max_criteria": 8 },
+      "depth_signals": {
+        "thresholds": { "tickets": 10 },
+        "risk_terms": [
+          "auth",
+          "authentication",
+          "authorisation",
+          "authorization",
+          "migration",
+          "migrations",
+          "payment",
+          "payments",
+          "crypto",
+          "cryptography",
+          "encryption",
+          "concurrency",
+          "concurrent",
+          "public API"
+        ],
+        "labels": ["risk:high"]
+      }
     }
   }
 }

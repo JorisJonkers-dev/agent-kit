@@ -19,6 +19,8 @@ export type RefusalReason =
   | 'tracker-unreachable'
   /** The run named as the first round was already a second round. */
   | 'round-limit'
+  /** The tickets stage, for a spec that has no tickets to check. */
+  | 'no-tickets'
 
 export interface Refusal {
   readonly status: 'refused'

@@ -349,7 +349,7 @@ describe('fan-out applies the spec-stage evidence rule', () => {
           'vibe-mistral-large': { agent: 'critic-mistral-large', binary: 'vibe', family: 'mistral', kind: 'vibe', model: 'mistral-large-4-0-3' },
         },
         stages: {
-          tickets: {
+          decisions: {
             base: [{ client: 'vibe-mistral-large', lenses: ['fidelity'], max_price_usd: 0.1, role: 'spec-redteam', time_limit_s: 60 }],
             distinct_families: true,
           },
@@ -360,7 +360,7 @@ describe('fan-out applies the spec-stage evidence rule', () => {
     })
     open.push(h)
     await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
-    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'tickets' })
+    const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'decisions' })
     if (run.status !== 'ready') throw new Error('not ready')
 
     const result = await h.commands.fanOut.run({ run_dir: run.run_dir })

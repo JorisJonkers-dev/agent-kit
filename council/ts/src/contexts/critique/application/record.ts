@@ -7,6 +7,7 @@ import { parseManifest } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import type { Round } from '../domain/stage.js'
+import type { TicketCheckStatus } from '../domain/tickets.js'
 import { countVerdicts, secondRoundDue, VERDICTS, type AdjudicatedRun, type Verdict, type VerdictCounts } from '../domain/verdicts.js'
 import { readInput, readJsonFile } from './decode.js'
 import { parseFanOutResult } from './fan-out.js'
@@ -26,6 +27,8 @@ export interface RecordResult {
   readonly summary_path: string
   readonly ledger_path: string
   readonly summary: string
+  /** Only for the tickets stage: `failed` while the checker found a dependency cycle, so `/implement` must not start. */
+  readonly ticket_check?: TicketCheckStatus
 }
 
 const REASON_CODE = /^[a-z][a-z0-9-]{0,39}$/
@@ -62,6 +65,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       ...(manifest.previous_run_id === undefined ? {} : { previous_run_id: manifest.previous_run_id }),
       run_id: manifest.run_id,
       stage: manifest.stage,
+      ...(manifest.ticket_check === undefined ? {} : { ticket_check: manifest.ticket_check }),
     }
     const summary = renderSummary(run, reportPath)
     const summaryPath = join(input.runDir, 'summary.md')
@@ -80,6 +84,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       status: 'recorded',
       summary,
       summary_path: summaryPath,
+      ...(run.ticket_check === undefined ? {} : { ticket_check: run.ticket_check.status }),
     }
   }
 }

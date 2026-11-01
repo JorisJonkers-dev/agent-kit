@@ -269,3 +269,82 @@ function beforeComments(lines: readonly string[]): readonly string[] {
   const end = lines.findIndex((line) => /^comments$/i.test(headingOf(line)?.title ?? ''))
   return end === -1 ? lines : lines.slice(0, end)
 }
+
+/**
+ * When a ticket is likely too big for one fresh `/implement` context: it
+ * touches more than about `max_modules` modules or has more than about
+ * `max_criteria` acceptance criteria. Routing configures both.
+ */
+export interface TicketSize {
+  readonly max_modules: number
+  readonly max_criteria: number
+}
+
+/** #181's starting values, for a stage whose routing states none. */
+export const DEFAULT_TICKET_SIZE: TicketSize = { max_criteria: 8, max_modules: 5 }
+
+/** The checker's verdict on a ticket set: failed exactly while the tickets hold a dependency cycle. */
+export type TicketCheckStatus = 'passed' | 'failed'
+
+export function ticketCheckStatus(check: Pick<TicketCheck, 'cycles'>): TicketCheckStatus {
+  return check.cycles.length > 0 ? 'failed' : 'passed'
+}
+
+/**
+ * The size limits as the ticket linter is given them, with the tickets whose
+ * criterion count is already above the limit; the module count is the
+ * linter's judgement.
+ */
+export interface TicketSizeReport extends TicketSize {
+  readonly over_criteria: readonly string[]
+}
+
+export function sizeReport(check: Pick<TicketCheck, 'tickets'>, size: TicketSize): TicketSizeReport {
+  return { ...size, over_criteria: check.tickets.filter((ticket) => ticket.criteria > size.max_criteria).map((ticket) => ticket.id) }
+}
+
+/**
+ * What a tickets-stage run keeps of the checker's report, so record can say
+ * whether the stage failed and fan-out knows which tickets a finding may
+ * name. Ticket ids, numbers and blocker names only.
+ */
+export interface TicketCheckSummary {
+  readonly status: TicketCheckStatus
+  readonly ticket_ids: readonly string[]
+  readonly cycles: readonly (readonly string[])[]
+  readonly dangling_blockers: readonly DanglingBlocker[]
+  /** The user stories no ticket cites; null when coverage was not checkable. */
+  readonly uncited_stories: readonly number[] | null
+  /** Why coverage was not checkable, when it was not. */
+  readonly coverage_reason?: string
+}
+
+export function summariseCheck(check: TicketCheck): TicketCheckSummary {
+  const { coverage } = check
+  return {
+    cycles: check.cycles,
+    dangling_blockers: check.dangling_blockers,
+    status: ticketCheckStatus(check),
+    ticket_ids: check.tickets.map((ticket) => ticket.id),
+    ...(coverage.status === 'checked' ? { uncited_stories: coverage.uncited } : { coverage_reason: coverage.reason, uncited_stories: null }),
+  }
+}
+
+/**
+ * The rules a ticket-linter finding names in its location, beside the
+ * ticket it is about. Only an uncovered requirement may name the spec
+ * instead of a ticket: no ticket delivers it.
+ */
+export const TICKET_RULES = ['untestable-criterion', 'no-seam', 'uncovered-requirement', 'too-big'] as const
+export type TicketRule = (typeof TICKET_RULES)[number]
+
+/** The rule and the ticket of the spec that a finding's location names, where it names them. */
+export function ticketTarget(location: string, ticketIds: readonly string[]): { readonly rule?: TicketRule; readonly ticket?: string } {
+  const rule = TICKET_RULES.find((name) => new RegExp(`(?<![\\w-])${name}(?![\\w-])`, 'i').test(location))
+  const ticket = ticketIds.find((id) => new RegExp(`(?<![\\w#/])${escapeRegExp(id)}(?!\\w)`).test(location))
+  return { ...(rule === undefined ? {} : { rule }), ...(ticket === undefined ? {} : { ticket }) }
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}

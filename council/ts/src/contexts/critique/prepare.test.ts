@@ -198,7 +198,8 @@ describe('prepare', () => {
   })
 
   it('rejects a stage the routing has no critics for', async () => {
-    const h = await optedIn()
+    const h = await optedIn({ routingOverride: { stages: { tickets: null } } })
+    await h.writeText(join(h.repo, '.scratch', 'widgets', 'issues', '01-schema.md'), '# 01: Schema\n')
 
     await expect(ready(h, { stage: 'tickets' })).rejects.toThrow(/routing has no stage tickets/)
   })
