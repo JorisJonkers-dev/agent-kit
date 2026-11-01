@@ -5,6 +5,7 @@ import { JsonFields, JsonShapeError } from './json.js'
 import { CritiqueError } from './outcomes.js'
 import type { CritiqueStage, Depth } from './stage.js'
 import { DEFAULT_TICKET_SIZE, type TicketSize } from './tickets.js'
+import { readGateRouting, type GateRouting } from './gate.js'
 import { readTriageRules, type TriageModel, type TriageRules } from './triage.js'
 
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
@@ -98,6 +99,8 @@ export interface Routing {
   readonly limits: CritiqueLimits
   /** Ticket-review risk triage: the risk rules and the triage model; routing without it cannot triage. */
   readonly triage?: TriageRouting
+  /** What the PR gate reads: the feature branch patterns. Without it, every branch a push updates is gated. */
+  readonly gate?: GateRouting
 }
 
 /** A client a critic may be retried through. */
@@ -158,6 +161,7 @@ export function parseRouting(text: string): Routing {
     ...(triage === undefined ? {} : { triage }),
     version: file.literal('version', 1),
     ...(file.has('stats') ? { stats: readStatsThresholds(file.object('stats')) } : {}),
+    ...(file.has('gate') ? { gate: readGateRouting(file.object('gate')) } : {}),
   }
 }
 

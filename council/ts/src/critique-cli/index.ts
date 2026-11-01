@@ -28,6 +28,7 @@ const COMMANDS = {
   budget: 'budget',
   'check-tickets': 'checkTickets',
   'fan-out': 'fanOut',
+  gate: 'gate',
   prepare: 'prepare',
   record: 'record',
   setup: 'setup',
@@ -36,13 +37,14 @@ const COMMANDS = {
   triage: 'triage',
 } as const satisfies Record<string, keyof CritiqueCommands>
 
-export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget|setup> [--input FILE | --json TEXT]
+export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget|gate|setup> [--input FILE | --json TEXT]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".
 An error prints "status": "error" with its "code" and exits 1. A check that
 fails, such as check-tickets finding a dependency cycle, prints
-"status": "failed" and exits 3.
+"status": "failed" and exits 3. gate always exits 0 with "status": "allowed"
+or "blocked"; input it cannot read is allowed, and logged.
 `
 
 /** The exit code of a result whose status is `failed`: a check failed, though the command did not. */
@@ -60,7 +62,8 @@ export async function runCritiqueCli(argv: readonly string[], runtime: CritiqueC
   try {
     const text =
       flag === '--json' ? (value ?? '') : flag === '--input' ? await runtime.readFile(value ?? '') : await runtime.readStdin()
-    const result = await runtime.commands[method].run(parseInput(text))
+    // The gate fails open: input that is not JSON is the gate's to log and allow, not an error.
+    const result = await runtime.commands[method].run(method === 'gate' ? parseLeniently(text) : parseInput(text))
     const exitCode = result.status === 'failed' ? FAILED_EXIT_CODE : 0
     return { exitCode, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
   } catch (error) {
@@ -79,6 +82,14 @@ function parseInput(text: string): unknown {
     return JSON.parse(text) as unknown
   } catch (error) {
     throw new CritiqueError('invalid-input', `the input is not JSON: ${String(error)}`)
+  }
+}
+
+function parseLeniently(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return text
   }
 }
 

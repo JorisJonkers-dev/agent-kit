@@ -12,6 +12,16 @@ export function routingOverridePath(env: EnvPort): string {
   return join(env.require('HOME'), '.config', 'agent-kit', 'critique-routing.json')
 }
 
+/** This machine's critique configuration: its `disabled` flag is the per-machine kill switch. */
+export function critiqueConfigPath(env: EnvPort): string {
+  return join(env.require('HOME'), '.config', 'agent-kit', 'critique.json')
+}
+
+/** Where the gate logs each time it failed open, one JSON line each, beside the ledger. */
+export function gateLogPath(env: EnvPort): string {
+  return join(env.require('HOME'), '.local', 'share', 'agent-kit', 'critique', 'gate.log.jsonl')
+}
+
 /** One ledger per user, in agent-kit's data directory. */
 export function ledgerPath(env: EnvPort): string {
   return join(env.require('HOME'), '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl')

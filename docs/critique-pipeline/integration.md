@@ -2322,10 +2322,113 @@ The pipeline README and `/flow explain` (agent-kit#194) fixed these:
   flow key is capped on its own, and the fallback `/flow budget` shows is
   routing's, before the allowlist and readiness.
 - **For #197 and #198.** The gates section says both gates stay advisory until
-  setup installs the hooks (#197, #198): #198 should drop that sentence once
-  it does, and name the per-machine disabled flag's file in the kill switch
-  line once #197 settles it. The root `README.md`'s "The estate ships **no
+  setup installs the hooks (#198): #198 should drop that sentence once it
+  does. #197 named the per-machine disabled flag's file in the kill switch
+  line. The root `README.md`'s "The estate ships **no
   agent hooks**" line is #198's to update too.
+
+## What #197 settled
+
+The runner's `gate` command (agent-kit#197) decides the commit and PR gates.
+It makes no model and no network call: it reads git, the family allowlist,
+routing and the critique's JSON-lines indexes. #198's hooks are thin wrappers
+around it.
+
+- **Input.** The `PreToolUse` payload as the agent sends it, on stdin:
+  `{ cwd, tool_name?, tool_input: { command } }`; other fields are ignored.
+  An optional `gate` (`"commit"` or `"pr"`) runs only that gate; without it,
+  the command line decides which apply, so one hook script could serve both.
+  A `tool_name` other than `Bash` is not gated. Input that is not JSON, or
+  not a payload, is allowed and logged (the command line passes it through
+  rather than exiting 1).
+- **The output contract.** One JSON object, always exit 0:
+
+  ```json
+  { "status": "allowed", "gate": "commit" | "pr" | null, "reason": "<allow reason>", "line": null }
+  { "status": "allowed", "gate": ..., "reason": "failed-open", "line": null,
+    "failure": "error" | "unreadable-state" | "deadline", "detail": "..." }
+  { "status": "blocked", "gate": "commit" | "pr", "reason": "<block reason>", "line": "<one line>",
+    "hook_output": { "hookSpecificOutput": { "hookEventName": "PreToolUse",
+      "permissionDecision": "deny", "permissionDecisionReason": "<the same line>" } } }
+  ```
+
+  **A hook prints `hook_output` as it is when the result has one, prints
+  nothing otherwise, and exits 0** (#196's convention). It prints nothing else
+  from the result: `status`, `reason` and the rest are for logs and tests,
+  and Codex marks a hook failed for fields it does not support. Allow
+  reasons: `off`, `disabled`, `not-gated`, `no-remote`, `nedap`,
+  `not-opted-in`, `code-not-allowed` (an entry with code off can never run a
+  code stage, so its gates are inert too), `low-risk`, `reviewed`,
+  `feature-branch`, `gate-pass`, `failed-open`. Block reasons: `unreviewed`,
+  `review-failed`, `unstaged`, `no-feature-review`, `gate-fail`,
+  `head-unknown`. Each block line names `/review-ticket` or
+  `/review-feature`.
+- **Kill switch.** `CRITIQUE_OFF=1` returns `off` before anything is read.
+  The per-machine flag is `{"disabled": true}` in
+  `~/.config/agent-kit/critique.json` (`critiqueConfigPath`); a file that does
+  not parse fails open. The README's kill-switch line names it. `/flow setup`
+  (#195, #198) owns writing it.
+- **Fail open.** The gate races its work against a 700 ms deadline
+  (`GATE_DEADLINE_MS`, through `ClockPort.sleep`). A crash, an index line or
+  allowlist that does not parse, broken routing or the deadline returns
+  `failed-open` and appends `{ recorded_at, gate, failure, detail, cwd }` to
+  `~/.local/share/agent-kit/critique/gate.log.jsonl` (`gateLogPath`). The
+  command text is never logged. A log that cannot be written is ignored. The
+  bundled runner now exits as soon as its output is flushed, so a gate that
+  gave up does not wait for the git it abandoned. Measured: an inert gate
+  takes 0.08 to 0.11 s through `node critique.mjs`; five opted-in decisions
+  against a real repository, including setting it up, take 0.86 s in the
+  CLI test.
+- **Reading the command line.** `gatedInvocations` (pure, exported) splits
+  the line into simple commands. It handles quotes, `$(...)`, backticks,
+  here-documents (the `$(cat <<'EOF' ... EOF)` commit message included),
+  redirections, comments, `&&`, `||`, `;`, `|`, and parentheses. It follows
+  `cd` and `git -C`, skips assignments and `env`, `command` and similar
+  wrappers, and finds `git commit` (not `--dry-run`), `git push` (not
+  `--dry-run` or `-n`, tags only or deletions) and `gh pr create`. A `cd`
+  the text alone can't place (`cd -`, a variable) fails that check open.
+  When several commands are found, a block wins over a fail-open, and a
+  fail-open over an allow.
+- **Commit gate.** Risk comes from `riskSignals` over the staged change
+  (`git diff --cached HEAD`, through the new `GitIndexPort.diffAgainstHead`
+  and `pathsAgainstHead`, both run with `--no-optional-locks`) and the
+  routing `triage` rules. A risky change needs the last
+  `ticket-reviews.jsonl` line whose `repository` and `staged_diff` match
+  `StagedDiffReader.read`'s hash. `review: "fail"` blocks with its
+  `unfixed_critical` named. The `risk:high` label can't come from the
+  tracker without the network, so **triage of a staged change now appends a
+  line to `<git common dir>/critique/triages.jsonl`**: `{ version: 1,
+  run_id, recorded_at, repository, ticket, labels, staged_on, staged_diff,
+  status }` (`triageIndexPath`, `parseTriageIndexRecord`). The gate takes the
+  labels of the last line whose `staged_on` is the current HEAD, so the label
+  still counts after the fixes change the staged hash. With no such triage,
+  no label is known, and only paths and size decide.
+- **A commit that records more than is staged.** `-a`, `--include`,
+  `--only`, `--patch`, `--interactive`, pathspecs, or an index-changing git
+  command earlier in the same line (`git add ... && git commit`) widen the
+  change to the tracked files on disk. An earlier `git add` or `git stage`
+  adds untracked files too (`GitIndexPort.untrackedPaths`). The hook runs
+  before the whole line, so the index it sees is not yet the one committed.
+  If the widened change is risky and differs from the index, the result is
+  `unstaged`: stage in a command of its own, review, then commit.
+- **PR gate.** `gh pr create` (with `--head <branch>`, that branch) and any
+  push that updates a branch outside routing's new `gate.feature_branches`
+  globs need the last `gates.jsonl` line whose `repository` and
+  `head_commit` match the commit sent, with `gate: "pass"`. A refspec's
+  source is resolved, so `git push origin c1:main` reads `c1`'s gate. A push
+  with no refspec reads `git branch --show-current` (`currentBranch` joined
+  `CritiqueGitPort`). A detached HEAD, `--all`, `--branches` and `--mirror`
+  count as non-feature. Shipped patterns: `feat/**`, `feature/**`,
+  `features/**`, `fix/**`, `bugfix/**`, `impl/**`, `chore/**`, `docs/**`,
+  `refactor/**`, `test/**`, `perf/**`, `ci/**`, `spike/**`, `wip/**`,
+  `claude/**`, `codex/**`, `worktree-*`. Routing without `gate` gates every
+  push. A push or PR after a HEAD-moving git command in the same line
+  (commit, merge, rebase, reset, ...) is `head-unknown`, since no gate can
+  exist yet for what it sends.
+- **Not done here.** `state` is not called (#191). No hook script is
+  written and nothing is installed (#198). The per-machine config file is
+  only read. #198's live check should confirm the timings with the installed
+  hooks, and that Codex accepts the printed `hook_output` unchanged.
 
 ## What #195 settled
 
@@ -2353,7 +2456,8 @@ The pipeline README and `/flow explain` (agent-kit#194) fixed these:
   `changed`), `inputs` and `last`. A CLI with no client in routing gets no
   items. #198 adds its hook and kill-switch items to `setupChecklist` in
   `domain/setup.ts`; the skill walks whatever the runner lists, so it needs
-  no new step for them.
+  no new step for them. #195 writes nothing to `critique.json`: writing
+  #197's `disabled` flag belongs to #198's kill-switch item.
 - **Results.** `~/.local/share/agent-kit/critique/machine-setup.json`,
   beside the ledger: `{ version: 1, checks: { <id>: { checked_at, result:
   "pass" | "fail", detail, inputs } } }`. `inputs` are `cli_version` (first

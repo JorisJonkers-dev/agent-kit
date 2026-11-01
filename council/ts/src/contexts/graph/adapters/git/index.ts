@@ -1,4 +1,5 @@
 import type {
+  GitChangeSource,
   GitCommitAllRequest,
   GitCommitAllResult,
   GitDagExecutorPort,
@@ -204,6 +205,22 @@ export class GitCliAdapter implements GitDagExecutorPort {
     return result.stdout.trim()
   }
 
+  async diffAgainstHead(cwd: string, from: GitChangeSource): Promise<string> {
+    const args = ['--no-optional-locks', '-c', 'core.quotePath=false', 'diff', '--no-ext-diff', '--no-textconv', '--no-color']
+    const result = await this.git(cwd, [...args, ...againstHead(from)])
+    return result.stdout
+  }
+
+  async pathsAgainstHead(cwd: string, from: GitChangeSource): Promise<readonly string[]> {
+    const result = await this.git(cwd, ['--no-optional-locks', 'diff', '--name-only', '-z', '--no-renames', ...againstHead(from)])
+    return result.stdout.split('\0').filter((path) => path.length > 0)
+  }
+
+  async untrackedPaths(cwd: string): Promise<readonly string[]> {
+    const result = await this.git(cwd, ['--no-optional-locks', 'ls-files', '--others', '--exclude-standard', '-z'])
+    return result.stdout.split('\0').filter((path) => path.length > 0)
+  }
+
   async diff(cwd: string, options: GitDiffOptions = {}): Promise<string> {
     const args = ['diff']
     if (options.staged === true) {
@@ -349,4 +366,9 @@ export class GitCliAdapter implements GitDagExecutorPort {
     }
     return options.base ?? options.head
   }
+}
+
+/** The `git diff` arguments that compare HEAD with the index, or with the working tree. */
+function againstHead(from: GitChangeSource): readonly string[] {
+  return from === 'index' ? ['--cached', 'HEAD', '--'] : ['HEAD', '--']
 }

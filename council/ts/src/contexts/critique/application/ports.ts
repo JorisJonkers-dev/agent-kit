@@ -7,7 +7,7 @@ import type { AgyCriticClient, ClientReadiness, CriticClient, RosterCritic, Vibe
  * what it reads, the commits a code stage freezes, and the index, which
  * holds a change before it is committed.
  */
-export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus'> & GitRevisionPort & GitIndexPort
+export type CritiqueGitPort = Pick<GitPort, 'root' | 'commonDir' | 'remotes' | 'porcelainStatus' | 'currentBranch'> & GitRevisionPort & GitIndexPort
 
 /** What the critique reads from GitHub: council's gh port, narrowed to reading issues and their links. */
 export type CritiqueGhPort = Pick<GhPort, 'viewIssue' | 'subIssues' | 'blockedBy'>

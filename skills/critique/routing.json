@@ -73,6 +73,27 @@
     "labels": ["risk:high"],
     "model": { "client": "vibe-mistral-small", "max_price_usd": 0.03, "time_limit_s": 60 }
   },
+  "gate": {
+    "feature_branches": [
+      "feat/**",
+      "feature/**",
+      "features/**",
+      "fix/**",
+      "bugfix/**",
+      "impl/**",
+      "chore/**",
+      "docs/**",
+      "refactor/**",
+      "test/**",
+      "perf/**",
+      "ci/**",
+      "spike/**",
+      "wip/**",
+      "claude/**",
+      "codex/**",
+      "worktree-*"
+    ]
+  },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
     "agy-gemini-flash-high": ["vibe-glm"]
