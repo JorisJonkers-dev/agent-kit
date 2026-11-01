@@ -15,6 +15,8 @@ export type RefusalReason =
   | 'unsupported-tracker'
   /** gh failed, or the issue could not be read. */
   | 'tracker-unreachable'
+  /** The run named as the first round was already a second round. */
+  | 'round-limit'
 
 export interface Refusal {
   readonly status: 'refused'

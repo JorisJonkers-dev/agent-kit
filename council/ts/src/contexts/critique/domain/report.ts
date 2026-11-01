@@ -1,7 +1,7 @@
 import type { CriticRun } from './critic.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
-import { countVerdicts, familiesOf, isDissent, VERDICTS, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
+import { countVerdicts, familiesOf, isDissent, openCriticalQuestions, VERDICTS, type AdjudicatedFinding, type AdjudicatedRun, type Verdict } from './verdicts.js'
 
 /** About 1.5k tokens: the most a summary may add to the planning conversation. */
 export const SUMMARY_MAX_CHARS = 6000
@@ -27,7 +27,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
     dissent: run.findings.filter((f) => isDissent(run, f)).map((f) => findingLine(run, f, `Rejected: ${f.verdict.reason ?? ''}`)),
     questions: serious
       .filter((f) => f.verdict.verdict === 'needs-human')
-      .map((f) => findingLine(run, f, f.verdict.reason === undefined ? undefined : `Question: ${f.verdict.reason}`)),
+      .map((f) => findingLine(run, f, questionTail(f.verdict))),
   }
   const hidden = { accepted: 0, dissent: 0, questions: 0 }
   const render = (): string =>
@@ -37,7 +37,9 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       '',
       ...degradedLines(run),
       `Depth: ${run.depth}`,
+      ...roundLines(run),
       verdictLine(run),
+      ...toTicketsLines(run),
       '',
       '## Critics',
       '',
@@ -135,6 +137,26 @@ function degradedLines(run: AdjudicatedRun): readonly string[] {
   return run.degraded ? ['degraded: no critique ran', ''] : []
 }
 
+function roundLines(run: AdjudicatedRun): readonly string[] {
+  return run.round === 2 ? [`Round 2, after run ${run.previous_run_id ?? ''}`] : []
+}
+
+/** #167 US40: tickets are never cut from a spec with an open critical gap. */
+function toTicketsLines(run: AdjudicatedRun): readonly string[] {
+  const open = openCriticalQuestions(run).map((f) => f.id)
+  if (open.length === 0) return []
+  const which = open.length === 1 ? `critical question ${open.join('')} is` : `critical questions ${open.join(', ')} are`
+  return [`Do not start /to-tickets: ${which} unanswered.`]
+}
+
+function questionTail(verdict: Verdict): string | undefined {
+  const parts = [
+    ...(verdict.reason === undefined ? [] : [`Question: ${verdict.reason}`]),
+    ...(verdict.answered === true ? ['(answered)'] : []),
+  ]
+  return parts.length === 0 ? undefined : parts.join(' ')
+}
+
 function droppedLine(dropped: DroppedCritic): string {
   const detail = dropped.detail === undefined ? '' : ` (${dropped.detail})`
   const slot =
@@ -174,8 +196,9 @@ function findingSection(run: AdjudicatedRun, finding: AdjudicatedFinding): reado
 
 function verdictText(verdict: Verdict): string {
   const code = verdict.reason_code === undefined ? '' : ` (${verdict.reason_code})`
+  const answered = verdict.answered === true ? ', answered' : ''
   const reason = verdict.reason === undefined ? '' : `: ${verdict.reason}`
-  return `${verdict.verdict}${code}${reason}`
+  return `${verdict.verdict}${answered}${code}${reason}`
 }
 
 function verdictLine(run: AdjudicatedRun): string {

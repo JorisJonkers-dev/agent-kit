@@ -19,3 +19,8 @@ export function manifestPath(runDir: string): string {
 export function findingsPath(runDir: string): string {
   return join(runDir, 'findings.json')
 }
+
+/** Written by record, so its presence means the run's verdicts are recorded. */
+export function reportPath(runDir: string): string {
+  return join(runDir, 'report.md')
+}
