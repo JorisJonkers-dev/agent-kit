@@ -964,3 +964,121 @@ them:
 - **Stages.** The stage names are `decisions`, `spec`, `tickets`,
   `ticket-review` and `feature-review`, and prepare rejects any other.
   Shipped routing defines `spec` only.
+
+## What #171 settled
+
+The Antigravity critic and the parallel fan-out across families
+(agent-kit#171) fixed these. The agy facts were checked on 2026-11-01 against
+agy 1.4.11 on macOS, in a scratch directory outside any trusted workspace.
+
+- **Launch.** `AgyCriticClient` runs, with the packet as working directory
+  and stdin closed:
+
+  ```sh
+  agy -p "<prompt>" --output-format stream-json --model gemini-3.8-flash-high \
+    --print-timeout <time_limit_s>s --disable-slash-commands --sandbox \
+    --json-schema <assets>/schemas/finding.schema.json \
+    --settings '{"permissions":{"deny":["mcp(*)","read_url(*)","execute_url(*)","command(*)","write_file(*)"]}}'
+  ```
+
+  There is no `--mode`, `--continue`, `--conversation`, `--project` or
+  `--prompt-interactive`, so every critic is a fresh session. agy has no
+  prompt-file flag; the prompt is passed as the `-p` argument. The outer
+  timeout is the print timeout plus 60 seconds.
+- **`stream-json`, not `json`.** The ticket says JSON output; the client uses
+  `stream-json` because only the event stream shows which tools a critic
+  used. Each tool call is a `step_update` with `step_type: "tool"` and a
+  `tool_name`. The final `result` event carries the same object as `json`
+  output, `structured_output` included. The client saves it as
+  `critics/<id>/result.json`, which is the critic's `export_path`.
+- **Session-only settings.** `--settings` takes `settings.json` keys and
+  never saves them. A deny rule beats any allow rule in the owner's
+  `settings.json`, so the read-only guarantee no longer rests on agy's
+  defaults alone. A denied tool returns an error to the model and the run
+  goes on: with `read_file(*)` denied the critic answered "access was denied
+  by a user-configured deny rule", and `denied_actions` stayed empty. Only
+  headless auto-denial fills `denied_actions`. The `mcp(*)` rule was not
+  tried against a real MCP server: this machine's `mcp_config.json` is empty.
+- **The gap: MCP servers and global instructions still load.** agy's CLI
+  reference lists 33 settings keys. None of them turns off loading the MCP
+  servers in `~/.gemini/config/mcp_config.json`, the global
+  `~/.gemini/config/AGENTS.md` or skills. Rules files are also found by
+  walking up from the working directory to the repository root, so a
+  packet under `.git/critique/` gets that repository's root `AGENTS.md` or
+  `GEMINI.md`. agent-kit has none at its root; other repositories may.
+- **So the runner allows read-only tools only.** A critic may use
+  `read_file`, `view_file`, `list_dir`, `grep_search`, `find_by_name` and
+  `finish`, through which agy returns structured output. Any other tool in
+  the stream fails the critic as `unsafe-tool`, even if agy refused it. That
+  covers `call_mcp_tool`, the browser tools, `read_url_content`,
+  `run_command`, `run_workflow` and `invoke_subagent`, so an agy critic can no
+  longer start a skill through a workflow or a subagent. It also covers
+  `search_web`, which is not permission-gated: it ran with `read_url(*)`
+  denied, so only this check stops a hostile packet from making a critic
+  search the web.
+- **Failures.** In this order, whatever the exit code: a non-zero exit
+  (`exit-<n>`; the outer timer's kill gives `exit-124`), empty stdout
+  (`empty-output`), no `result` event or a line that is not JSON
+  (`unparseable-output`), a tool outside the list (`unsafe-tool`),
+  `finished_reason: print_timeout` (`print-timeout`), a non-empty
+  `denied_actions` (`denied-action`), an empty `response` (`empty-output`), no
+  `structured_output` (`missing-structured-output`), and a `structured_output`
+  that breaks the output contract (the Vibe findings failures). Findings are
+  read from `structured_output` only. Cost is always null.
+- **Live run.** The real prompt (preamble, `spec-redteam`, the failure-modes
+  and security lenses, the contract with the schema, the file list) and the
+  flags above, on a two-file packet: exit 0 after 114 s, two `read_file`
+  calls and nothing else, a schema-valid `structured_output` with the planted
+  contradiction rated critical, and the packet unchanged. That stdout,
+  replayed through fan-out, gives a critic with status `ok`.
+- **Readiness.** `CriticClientPort` gained `readiness(config)`, and
+  `review` takes the client config narrowed to its kind
+  (`CriticClientPort<Config>`; `CriticClients` maps each kind to its port).
+  Prepare asks every client the stage could run, routed or fallback, whose
+  family the allowlist permits and the orchestrator does not share. agy is
+  ready only on macOS, with `agy` on `PATH` (or at its absolute path) and an
+  `Antigravity CLI` Keychain item (`security find-generic-password -s
+  "Antigravity CLI"`; if `security` cannot run, it counts as not signed in).
+  The details are `antigravity: macOS only; not set up on <platform>`,
+  `antigravity: agy is not on PATH` and setup's
+  `antigravity: needs sign-in: run agy and sign in with your Google account`.
+  No readiness check launches agy, so #173's daily counter is untouched.
+  Vibe's readiness always says ready; a missing Vibe still fails at launch.
+- **Routing and fallbacks.** Routing gained a top-level
+  `fallbacks: { client: [client, ...] }`. Shipped: `vibe-mistral-large` falls
+  back to `vibe-glm`, then `agy-gemini-flash-high`; `agy-gemini-flash-high`
+  falls back to `vibe-glm` (agent `critic-glm`, model `glm-5-3`, family
+  `zhipu`, installed by #176). An `agy` client must have family `google` and
+  a `gemini-` model, so routing can never send a critique to agy's Claude or
+  GPT-OSS models. agy ignores `max_price_usd`; the Gemini slot's $0.50 applies
+  when GLM takes it.
+- **Roster.** Each slot runs its client, or else the first fallback that may
+  run, with the slot's role, lenses, cap and time limit. A client may not run
+  when its family is not allowed, is the orchestrator's, is already in the
+  stage (with `distinct_families`) or is not ready. The slot's routed client
+  is then listed in `dropped` with its `reason`, a `detail` when it was
+  unavailable, and `replaced_by`, the fallback's critic id, when one took the
+  slot. A fallback that also could not run is not listed. The summary says
+  `replaced by <critic id>`, or `no fallback left, so the stage runs with
+  fewer critics`. #173's retry of a failed critic can use the same
+  `fallbacks` map.
+- **Parallel and blind.** Fan-out already started every critic at once; a
+  test now shows both critics start before either ends, that neither prompt
+  holds the other's output, a model name or a critic id, and that no
+  continuation flag is passed.
+- **Merging.** `mergeFindings` runs over every critic's findings before
+  anything else, so #170's evidence checks see a merged finding with all of
+  its evidence. Two findings merge when their category matches, their
+  locations match (ignoring case, spacing, surrounding quotes and trailing
+  punctuation) and they share a quote, one containing the other. Findings
+  with no quotes merge only when their claims match the same way. The
+  merged finding keeps the first one's fields and `critic_finding_id`, every
+  critic in `raised_by`, the union of the evidence, the highest severity and
+  the first suggestion. Findings are numbered `F1`, `F2`, ... after merging.
+- **Agreement and dissent.** A summary line names the families when two or
+  more raised the finding (`(raised by mistral and google)`), and the report
+  lists them after the critic ids. Dissent was already computed by record
+  (rejected and raised by two or more families, or rejected and critical);
+  merging is what lets two families raise one finding. Whether a
+  `fabricated-evidence` pre-rejection should be kept out of Dissent is left
+  to #170's verdict rules.
