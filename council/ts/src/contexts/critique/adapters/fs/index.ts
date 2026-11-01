@@ -1,4 +1,4 @@
-import { access, appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 import type { CritiqueFilesPort } from '../../application/ports.js'
@@ -23,5 +23,13 @@ export class NodeCritiqueFiles implements CritiqueFilesPort {
       () => true,
       () => false,
     )
+  }
+
+  async listFiles(path: string): Promise<readonly string[]> {
+    const entries = await readdir(path, { withFileTypes: true }).catch(() => [])
+    return entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .sort()
   }
 }

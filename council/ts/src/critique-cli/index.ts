@@ -1,4 +1,5 @@
 import { ProcessEnvAdapter, SystemClockAdapter } from '../adapters/clock/index.js'
+import { GhCliAdapter } from '../adapters/gh/index.js'
 import { NodeProcessAdapter } from '../adapters/process/index.js'
 import {
   createCritiqueCommands,
@@ -83,6 +84,7 @@ export function defaultCritiqueRuntime(
       clock: new SystemClockAdapter(),
       env: new ProcessEnvAdapter(environment),
       files,
+      gh: new GhCliAdapter(processPort),
       git: new GitCliAdapter(processPort),
     }),
     readFile: (path) => files.readText(path),
