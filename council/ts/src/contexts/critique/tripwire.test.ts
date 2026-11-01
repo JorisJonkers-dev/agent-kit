@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
+  DECISION_CANARY,
   fenced,
   finding,
   harness,
@@ -152,6 +153,35 @@ describe('the read-only tripwire', () => {
     ])
     expect(result.findings.map((f) => f.raised_by)).toEqual([['c2-vibe-glm']])
     expect(result.degraded).toBe(false)
+  })
+
+  it('rejects a quote one critic planted in its packet when another critic cites it', async () => {
+    const planted = 'Widgets are frobnicated on demand, never by the nightly job.'
+    const { h, run } = await prepared({ families: ['mistral', 'zhipu'], routing: twoCriticRouting() })
+    h.process.queue(
+      writes(({ cwd }) => writeFile(join(cwd, 'artifact', 'spec.md'), `${planted}\n`), 'critic-mistral-large'),
+      {
+        ...writes(undefined, 'critic-glm'),
+        stdout: vibeStdout(
+          fenced({
+            findings: [
+              finding({
+                evidence: [
+                  { file: 'artifact/spec.md', kind: 'quote', value: planted },
+                  { file: 'references/CONTEXT.md', kind: 'quote', value: DECISION_CANARY },
+                ],
+              }),
+            ],
+          }),
+        ),
+      },
+    )
+
+    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(result.critics.map((critic) => critic.status)).toEqual(['violated-readonly', 'ok'])
+    expect(result.findings.map((f) => f.raised_by)).toEqual([['c2-vibe-glm']])
+    expect(result.findings[0]?.pre_verdict).toMatchObject({ reason_code: 'fabricated-evidence', verdict: 'rejected' })
   })
 
   it('discards the findings even when the critic also failed', async () => {
