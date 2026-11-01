@@ -1,0 +1,25 @@
+# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
+# A read-only critic of the critique pipeline, launched by its runner as
+# `vibe --agent critic-deepseek-flash`. Installed into the shared Vibe home only.
+
+display_name = "Critic Deepseek Flash"
+description = "Read-only critic pinned to deepseek-v4-1-flash-1017"
+safety = "safe"
+active_model = "critic-deepseek-flash"
+enabled_tools = ["read_file"]
+enabled_skills = ["re:^$"]
+outside_workdir = "deny"
+enable_mcp = false
+enable_subagents = false
+include_project_context = false
+
+[session_logging]
+enabled = false
+
+[[models]]
+name = "deepseek-v4-1-flash-1017"
+provider = "mistral"
+alias = "critic-deepseek-flash"
+input_price = 0.3
+output_price = 1.2
+thinking = "high"

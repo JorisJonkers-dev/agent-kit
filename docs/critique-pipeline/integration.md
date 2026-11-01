@@ -1181,3 +1181,71 @@ Tracker and domain-doc resolution (agent-kit#175) fixed these:
   there as a second method beside `artifact`, so `check-tickets` resolves the
   tracker the way prepare does. `CritiqueGhPort` will need a sub-issue and
   dependency read for it.
+
+## What #176 settled
+
+Setup (agent-kit#176) installs the critique skills and the Vibe critic
+agents. Later tickets build on these:
+
+- **Critic agents.** `vibe_critic_agents:` in `registry/estate-tooling.yaml`
+  declares `critic-mistral-large`, `critic-mistral-small`, `critic-glm` and
+  `critic-deepseek-flash`. Each renders to
+  `registry/generated/vibe/agents/<name>.toml` and setup copies it into
+  `~/.vibe/agents/` only, never `~/.vibe-private`. A routing client of kind
+  `vibe` must name one of these as its `agent`; a test checks it.
+- **What each file carries.** `active_model` is the agent's own name, which is
+  also the alias of its single `[[models]]` entry, so it can never collide
+  with an alias model sync writes (sync uses Mistral's API ids). Vibe merges
+  `models` by alias, so the agent's entry is the one used. Beside it:
+  `enabled_tools = ["read_file"]`, `enabled_skills = ["re:^$"]`,
+  `outside_workdir = "deny"`, `enable_mcp`, `enable_subagents` and
+  `include_project_context` false, `[session_logging] enabled = false`, and
+  `safety = "safe"`. These are the keys #169's `unsafe-config` check reads.
+  No file sets `default_agent`, and setup never touches `config.toml` for
+  critics.
+- **Model ids and prices**, USD per million tokens, from
+  docs.mistral.ai/inference/pricing, read 2026-11-01:
+
+  | Agent | Model id | Input | Output |
+  |---|---|---|---|
+  | `critic-mistral-large` | `mistral-large-4-0-3` | 0.7 | 2.1 |
+  | `critic-mistral-small` | `mistral-small-latest` (Mistral Small 4) | 0.15 | 0.6 |
+  | `critic-glm` | `zai-glm-5-3` | 1.4 | 4.4 |
+  | `critic-deepseek-flash` | `deepseek-v4-1-flash-1017` (thinking high, as in the Phase 1 run) | 0.3 | 1.2 |
+
+  GLM's price matches what the personal home already gave it. Mistral
+  Small is `-latest` because that is the id the personal home lists; a price
+  change upstream means a registry change here. #178 should check each
+  agent's `cost_usd` against these prices on a real run.
+- **Strict config.** Every key a rendered file holds is a field of Vibe's
+  config schema or of its agent profile (checked against Vibe 3.0.4's
+  source, the version now installed) and all but `include_project_context`
+  were loaded under `VIBE_STRICT_CONFIG=1` in #168. A pytest holds the files
+  to that key set. Loading the installed files with the real CLI under
+  `VIBE_STRICT_CONFIG=1` is left to #178's live smoke check: it needs the
+  personal login.
+- **Retiring an agent.** `surfaces: []` removes its generated file (and
+  `--check` fails while it lingers) and makes setup remove the installed
+  one. Other files in `~/.vibe/agents/` are the owner's and are left alone.
+- **Skills.** `critique` (`skills/critique/`, with a short `SKILL.md` that
+  points at the stage skills) and `critique-spec` are `local_skills` for
+  claude, codex, vibe and antigravity, so they reach Antigravity's app and
+  `agy` homes through the existing copy, skipped on Linux. `critique-spec`
+  carries `pending: <#177's URL>`: until `skills/critique-spec/SKILL.md`
+  exists, setup logs `critique-spec: not built yet (...); skipped`. **#177
+  must delete that `pending:` line** in the change that adds the skill; the
+  renderer refuses it once the `SKILL.md` exists.
+- **The runner's pin.** `manifest.yaml` `critique.files` pins every file of
+  `skills/critique/` but `SKILL.md`, with its sha256, the way `council.files`
+  pins council's runner. `tests/test_critique_setup.py` checks both the set
+  and the hashes, so **any ticket that rebuilds `critique.mjs` or edits a
+  prompt, lens, schema or `routing.json` updates its sha256 in
+  `manifest.yaml` in the same commit** (`shasum -a 256 <file>`).
+  `scripts/validate_manifest.py` also checks the set, but it already fails
+  on the integration branch on an unrelated stale pin
+  (`.agents/skills/agent-session-bootstrap/SKILL.md`) and is not in CI.
+- **The bundle.** `registry/generated/vibe/agents` is in the release
+  bundle's `KIT_PATHS`, so a setup run from a published bundle installs the
+  agents too.
+- Nothing is added to Antigravity's configuration for critics, and no hook,
+  `hooks:` or `settings:` section is introduced.
