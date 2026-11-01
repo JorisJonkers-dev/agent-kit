@@ -399,6 +399,26 @@ def validate_council(manifest: dict[str, Any]) -> None:
         fail(f"council.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
 
 
+def validate_critique(manifest: dict[str, Any]) -> None:
+    """critique.files pins every file of skills/critique but its SKILL.md.
+
+    The sha256 of each entry is checked with every other pin, by
+    validate_checksums. This checks the set: a file the skill ships and the
+    manifest does not pin is a file setup installs unreviewed.
+    """
+    critique = as_mapping(manifest.get("critique"), "critique")
+    files = as_list(critique.get("files"), "critique.files")
+    manifest_files = {item.get("path") for item in files}
+    root = ROOT / "skills" / "critique"
+    actual_files = {
+        path.relative_to(ROOT).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path.relative_to(root).as_posix() != "SKILL.md"
+    }
+    if manifest_files != actual_files:
+        fail(f"critique.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
+
+
 # _scan_served_installer/validate_installer scanned install.sh/install-agents.sh; retired with them (agent-kit#40).
 
 
@@ -817,6 +837,7 @@ def main(argv: list[str] | None = None) -> int:
         validate_surface_parity(manifest)
         validate_council_command_surface()
         validate_council(manifest)
+        validate_critique(manifest)
         validate_runtime_package_manifest(manifest)
         validate_runtime_package_artifacts()
         validate_runtime_shell_contracts(runtime_selftest=runtime_selftest)
