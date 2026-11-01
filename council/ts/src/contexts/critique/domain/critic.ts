@@ -54,6 +54,8 @@ export const CRITIC_STATUSES = ['ok', 'failed', 'violated-readonly'] as const
 export type CriticStatus = (typeof CRITIC_STATUSES)[number]
 
 export interface CriticRun extends CriticIdentity {
+  /** The critic id of the failed critic this one is the fallback retry for. */
+  readonly retry_of?: string
   readonly status: CriticStatus
   readonly failure?: CriticFailure
   readonly detail?: string
@@ -85,6 +87,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
   const failure = fields.optionalMatching('failure', isCriticFailure, 'a critic failure')
   const detail = fields.optionalString('detail')
   const noFindingsReason = fields.optionalString('no_findings_reason')
+  const retryOf = fields.optionalString('retry_of')
   const hashes = fields.object('prompt_hashes')
   return {
     client: fields.string('client'),
@@ -111,6 +114,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
     ...(failure === undefined ? {} : { failure }),
     ...(detail === undefined ? {} : { detail }),
     ...(noFindingsReason === undefined ? {} : { no_findings_reason: noFindingsReason }),
+    ...(retryOf === undefined ? {} : { retry_of: retryOf }),
   }
 }
 

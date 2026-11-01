@@ -43,6 +43,8 @@ export interface RunManifest {
   readonly allowed_families: readonly ModelFamily[]
   readonly artifact: ArtifactSource
   readonly packet_files: readonly PacketFile[]
+  /** Whether no two critics of the stage may share a family; a fallback retry keeps to it too. */
+  readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
 }
@@ -55,6 +57,7 @@ export function parseManifest(text: string): RunManifest {
     created_at: file.string('created_at'),
     critics: file.list('critics', readRosterCritic),
     depth: file.oneOf('depth', DEPTHS),
+    distinct_families: file.boolean('distinct_families'),
     dropped: file.list('dropped', readDroppedCritic),
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),

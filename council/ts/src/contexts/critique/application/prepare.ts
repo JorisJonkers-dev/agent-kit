@@ -105,6 +105,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       created_at: this.deps.clock.now().toISOString(),
       critics: roster.critics,
       depth: roster.depth,
+      distinct_families: roster.distinct_families,
       dropped: roster.dropped,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,

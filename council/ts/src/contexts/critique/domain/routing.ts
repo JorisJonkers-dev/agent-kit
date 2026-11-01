@@ -53,10 +53,22 @@ export interface Routing {
   readonly stages: Readonly<Partial<Record<CritiqueStage, StageRouting>>>
 }
 
+/** A client a critic may be retried through. */
+export interface RosterFallback {
+  readonly client: string
+  readonly client_config: CriticClient
+}
+
 /** A critic resolved for one run: the slot plus the client it runs through. */
 export interface RosterCritic extends RosterSlot {
   readonly critic_id: string
   readonly client_config: CriticClient
+  /**
+   * The slot's other clients, in routing order, that the allowlist permits,
+   * the orchestrator does not share and that are ready here: what fan-out
+   * may retry a failed critic through. A retry has none.
+   */
+  readonly fallbacks: readonly RosterFallback[]
 }
 
 export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable'] as const
@@ -74,6 +86,7 @@ export interface DroppedCritic {
 
 export interface Roster {
   readonly depth: Depth
+  readonly distinct_families: boolean
   readonly critics: readonly RosterCritic[]
   readonly dropped: readonly DroppedCritic[]
 }
@@ -128,6 +141,10 @@ export function readRosterCritic(fields: JsonFields): RosterCritic {
     ...readRosterSlot(fields),
     client_config: readCriticClient(fields.object('client_config')),
     critic_id: fields.string('critic_id'),
+    fallbacks: fields.list('fallbacks', (fallback) => ({
+      client: fallback.string('client'),
+      client_config: readCriticClient(fallback.object('client_config')),
+    })),
   }
 }
 
@@ -195,10 +212,23 @@ export function resolveRoster(
     const name = slotCandidates(routing, slot.client).find((candidate) =>
       refusal(candidate, clientNamed(routing, request, candidate)) === undefined,
     )
+    const fallbacks = slotCandidates(routing, slot.client)
+      .filter((candidate) => candidate !== name)
+      .map((candidate) => ({ client: candidate, client_config: clientNamed(routing, request, candidate) }))
+      .filter(
+        (fallback) =>
+          familyReason(fallback.client_config.family, request) === undefined && readiness.get(fallback.client)?.ready !== false,
+      )
     const chosen =
       name === undefined
         ? undefined
-        : { ...slot, client: name, client_config: clientNamed(routing, request, name), critic_id: `c${String(critics.length + 1)}-${name}` }
+        : {
+            ...slot,
+            client: name,
+            client_config: clientNamed(routing, request, name),
+            critic_id: `c${String(critics.length + 1)}-${name}`,
+            fallbacks,
+          }
     if (primaryRefusal !== undefined) {
       dropped.push({
         client: slot.client,
@@ -209,7 +239,7 @@ export function resolveRoster(
     }
     if (chosen !== undefined) critics.push(chosen)
   }
-  return { critics, depth: 'base', dropped }
+  return { critics, depth: 'base', distinct_families: stage.distinct_families, dropped }
 }
 
 function stageRouting(routing: Routing, request: RosterRequest): StageRouting {

@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } from '../domain/critic.js'
 import { checkEvidence, type PacketText } from '../domain/evidence.js'
-import { readRunFinding, type RunFinding } from '../domain/findings.js'
+import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { parseManifest, type RunManifest } from '../domain/manifest.js'
 import { mergeFindings } from '../domain/merge.js'
@@ -61,7 +61,11 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
     const packet = await this.readPacket(manifest)
-    const outcomes = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)))
+    const first = await Promise.all(manifest.critics.map((critic) => this.runCritic(manifest, tripwire, critic)))
+    const retries = await Promise.all(
+      fallbackRetries(manifest, first).map((retry) => this.runCritic(manifest, tripwire, retry.critic, retry.retryOf)),
+    )
+    const outcomes = [...first, ...retries]
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet))
     const result: FanOutResult = {
@@ -88,7 +92,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     )
   }
 
-  private async runCritic(manifest: RunManifest, tripwire: ReadOnlyTripwire, critic: RosterCritic) {
+  private async runCritic(manifest: RunManifest, tripwire: ReadOnlyTripwire, critic: RosterCritic, retryOf?: string): Promise<CriticAttempt> {
     const criticDir = join(manifest.run_dir, 'critics', critic.critic_id)
     const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
     const prompt = assemblePrompt(
@@ -133,10 +137,52 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
       prompt_hashes: prompt.prompt_hashes,
       prompt_path: promptPath,
       stdout_path: stdoutPath,
+      ...(retryOf === undefined ? {} : { retry_of: retryOf }),
       ...criticStatus(outcome, violations),
     }
     return { findings, run }
   }
+}
+
+interface CriticAttempt {
+  readonly findings: readonly CriticFinding[]
+  readonly run: CriticRun
+}
+
+interface FallbackRetry {
+  readonly critic: RosterCritic
+  readonly retryOf: string
+}
+
+/**
+ * One retry per failed critic, through the first of its fallbacks whose
+ * family no critic that reviewed, and no earlier retry, already has (when the
+ * stage requires distinct families). A critic that violated read-only gets
+ * none: a client that wrote once may write again. A retry runs with the
+ * failed critic's role, lenses, cap and time limit, under its own critic id,
+ * so it has its own packet copy and tripwire, and it has no fallbacks of its
+ * own.
+ */
+function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[]): readonly FallbackRetry[] {
+  const taken = new Set(first.filter((attempt) => attempt.run.status === 'ok').map((attempt) => attempt.run.family))
+  const retries: FallbackRetry[] = []
+  manifest.critics.forEach((critic, index) => {
+    if (first[index]?.run.status !== 'failed') return
+    const fallback = critic.fallbacks.find((candidate) => !manifest.distinct_families || !taken.has(candidate.client_config.family))
+    if (fallback === undefined) return
+    taken.add(fallback.client_config.family)
+    retries.push({
+      critic: {
+        ...critic,
+        client: fallback.client,
+        client_config: fallback.client_config,
+        critic_id: `${critic.critic_id}-retry-${fallback.client}`,
+        fallbacks: [],
+      },
+      retryOf: critic.critic_id,
+    })
+  })
+  return retries
 }
 
 /**
