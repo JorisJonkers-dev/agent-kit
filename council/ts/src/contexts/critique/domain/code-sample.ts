@@ -1,5 +1,6 @@
 import type { ContextSlice } from './context-slices.js'
 import type { LeftOutFile } from './diff-filter.js'
+import { diffDropLine, windowDiff, type DiffDrop, type WindowedDiff } from './diff-window.js'
 import { refusal, type Refusal } from './outcomes.js'
 import { REPO_MAP_PATH, type RenderedRepoMap } from './repo-map.js'
 import { FACTS_INDEX_PATH, type ExclusionKind, type PacketLimits, type TrackedFile } from './repository-packet.js'
@@ -8,6 +9,7 @@ import {
   bytes,
   candidateOf,
   holdsAll,
+  lineBytes,
   sampledFile,
   sentStatus,
   windowsOf,
@@ -25,6 +27,18 @@ import {
 const CODE_TIERS = ['changed', 'importer', 'related', 'rest'] as const
 type CodeTier = (typeof CODE_TIERS)[number]
 
+/** How much of the room the documents leave a windowed diff may take; the tree keeps the rest. */
+const DIFF_SHARE = 0.5
+/**
+ * How much of the room the documents leave the facts index may take when,
+ * listing every drop, it would not fit: each of its lists then ends with a
+ * line that counts what it leaves unlisted.
+ */
+const INDEX_SHARE = 0.25
+
+const DIFF_WINDOW_NOTE =
+  '`diff/change.diff` did not fit beside the rest of the packet, so it holds the hunks that fit, in windows by file: the changed source files, then the tests, then the docs, each group by changed lines, most first. Each hunk keeps its `@@` line, so a line it shows is cited at its own number as `tree/<path>:<line>`. A line only a left-out hunk shows can be read and cited only where `tree/` holds it, as the Tree section says. The cap left out these hunks, at their lines at the commit under review, or as `base lines` for a hunk that only removes lines:'
+
 export interface CodeSampleRequest {
   readonly commit: string
   readonly limits: PacketLimits
@@ -34,7 +48,9 @@ export interface CodeSampleRequest {
   readonly excluded: Readonly<Record<ExclusionKind, number>>
   /** The files whose hunks the diff leaves out. */
   readonly leftOut: readonly LeftOutFile[]
-  /** The bytes the diff, the tickets and the spec take. */
+  /** The diff, without those hunks, before the cap windows it. */
+  readonly diff: string
+  /** The bytes the tickets and the spec take. */
   readonly documentBytes: number
   readonly repoMap: RenderedRepoMap
   /** The repository paths the change touched that the tree holds. */
@@ -46,6 +62,8 @@ export interface CodeSampleRequest {
 
 export interface CodeSample {
   readonly status: 'sampled'
+  /** The diff as sent: whole, or in windows when it alone does not fit. */
+  readonly diff: string
   readonly index: string
   readonly tree: readonly SampledFile[]
   /** The slices the cap let in, in the order they were chosen. */
@@ -59,8 +77,13 @@ export interface CodeSample {
  * is capped: first every context slice, then the files the change touched,
  * then the files that import them, then the rest of the tree, in windows
  * from each file's first line, while they fit under the cap beside the
- * diff, the tickets, the spec, the repo map and the facts index. Every drop
- * is recorded in the facts index. Refused when those alone pass the cap.
+ * diff, the tickets, the spec, the repo map and the facts index. A diff
+ * that does not fit beside the rest is sent in windows by file, taking at
+ * most half the room the documents leave, so the tree keeps room for the
+ * slices. Every drop is recorded in the facts index, unless listing them
+ * all would not fit: the index then takes a quarter of that room and counts
+ * what it leaves unlisted. Refused only when the tickets, the spec, the
+ * repo map and the facts index's own text pass the cap.
  */
 export function sampleCodeTree(request: CodeSampleRequest): CodeSample | Refusal {
   const { limits } = request
@@ -75,21 +98,43 @@ export function sampleCodeTree(request: CodeSampleRequest): CodeSample | Refusal
   const slicePieces = sliced.map((entry) => entry.piece)
   const pieces = [...slicePieces, ...windowOrder(candidates, limits.window_lines)]
   const none = { admitted: new Set<TreePiece<CodeTier>>(), held: new Map<TreeCandidate<CodeTier>, readonly LineRange[]>() }
-  const fixed = request.documentBytes + bytes(request.repoMap.text) + bytes(renderIndex(request, candidates, slicePieces, none))
-  if (fixed > limits.cap_bytes) {
-    return refusal(
-      'packet-over-cap',
-      `the diff, the tickets, the spec, ${REPO_MAP_PATH} and ${FACTS_INDEX_PATH} come to ${String(fixed)} bytes, past the packet cap of ${String(limits.cap_bytes)}; review a smaller change or raise packet.cap_bytes in routing`,
-    )
+  const documents = request.documentBytes + bytes(request.repoMap.text)
+  const fixedWith = (diff: WindowedDiff) => documents + bytes(diff.diff) + bytes(renderIndex(request, candidates, slicePieces, none, diff.dropped))
+  const full: WindowedDiff = { diff: request.diff, dropped: [] }
+  let diff = full
+  // Set only when the facts index, listing every drop, would not fit: it is then capped on its own.
+  let indexCap: number | undefined
+  if (fixedWith(full) > limits.cap_bytes) {
+    const empty = windowDiff(request.diff, 0)
+    const fixedBefore = fixedWith(empty)
+    if (fixedBefore <= limits.cap_bytes) {
+      diff = windowDiff(request.diff, Math.floor((limits.cap_bytes - fixedBefore) * DIFF_SHARE))
+    } else {
+      const floor = documents + bytes(empty.diff) + bytes(renderIndex(request, candidates, slicePieces, none, empty.dropped, 0))
+      if (floor > limits.cap_bytes) {
+        return refusal(
+          'packet-over-cap',
+          `the tickets, the spec, ${REPO_MAP_PATH} and ${FACTS_INDEX_PATH} come to ${String(floor)} bytes before any hunk of the diff, past the packet cap of ${String(limits.cap_bytes)}; review a smaller change or raise packet.cap_bytes in routing`,
+        )
+      }
+      const room = limits.cap_bytes - documents - bytes(empty.diff)
+      indexCap = Math.max(floor - documents - bytes(empty.diff), Math.floor(room * INDEX_SHARE))
+      const windowed = windowDiff(request.diff, Math.floor((room - indexCap) * DIFF_SHARE))
+      diff = windowed.dropped.length === 0 ? full : windowed
+    }
   }
-  const admission = admitPieces(pieces, limits.cap_bytes - fixed, treeLine)
+  const admission =
+    indexCap === undefined
+      ? admitPieces(pieces, limits.cap_bytes - fixedWith(diff), treeLine)
+      : admitPieces(pieces, limits.cap_bytes - documents - bytes(diff.diff) - indexCap, undefined)
   const tree = candidates.flatMap((candidate) => {
     const file = sampledFile(candidate, admission.held.get(candidate) ?? [])
     return file === undefined ? [] : [file]
   })
   return {
+    diff: diff.diff,
     dropped: candidates.filter((candidate) => !holdsAll(candidate, admission.held.get(candidate) ?? [])).length,
-    index: renderIndex(request, candidates, slicePieces, admission),
+    index: renderIndex(request, candidates, slicePieces, admission, diff.dropped, indexCap),
     slices: sliced.filter((entry) => admission.admitted.has(entry.piece)).map((entry) => entry.slice),
     status: 'sampled',
     tree,
@@ -146,13 +191,41 @@ function renderIndex(
   candidates: readonly TreeCandidate<CodeTier>[],
   slicePieces: readonly TreePiece<CodeTier>[],
   admission: { readonly admitted: ReadonlySet<TreePiece<CodeTier>>; readonly held: ReadonlyMap<TreeCandidate<CodeTier>, readonly LineRange[]> },
+  diffDropped: readonly DiffDrop[],
+  capBytes?: number,
 ): string {
+  const lists = [
+    request.leftOut.map((file) => `- \`${file.path}\`: ${file.reason}; ${String(file.changed_lines)} changed lines`),
+    diffDropped.map(diffDropLine),
+    slicePieces.map((piece) => piece.note?.(admission.admitted.has(piece)) ?? ''),
+    candidates.flatMap((candidate) => treeLine(candidate, admission.held.get(candidate) ?? []) ?? []),
+  ] as const
+  const render = (shown: readonly (readonly string[])[]) => indexText(request, shown)
+  if (capBytes === undefined) return render(lists)
+  const kept = lists.map(() => 0)
+  const cut = () => lists.map((list, i) => collapse(list, kept[i] ?? 0, capBytes))
+  let remaining = capBytes - bytes(render(cut()))
+  for (const [i, list] of lists.entries()) {
+    for (const line of list) {
+      if (lineBytes(line) > remaining) break
+      remaining -= lineBytes(line)
+      kept[i] = (kept[i] ?? 0) + 1
+    }
+  }
+  return render(cut())
+}
+
+/** A list's first `kept` lines, then, when that leaves some out, one line that counts them. */
+function collapse(list: readonly string[], kept: number, capBytes: number): readonly string[] {
+  if (kept >= list.length) return list
+  return [...list.slice(0, kept), `- … and ${String(list.length - kept)} more, which this index's cap of ${String(capBytes)} bytes leaves unlisted`]
+}
+
+/** The facts index around its four lists: the files left out of the diff, its hunks the cap left out, the slices and the tree. */
+function indexText(request: CodeSampleRequest, [leftOut = [], diffDropped = [], slices = [], tree = []]: readonly (readonly string[])[]): string {
   const { limits, repoMap } = request
   const { generated, lock, vendored } = request.excluded
   const binary = request.tracked.filter((file) => file.text === null).length
-  const leftOut = request.leftOut.map((file) => `- \`${file.path}\`: ${file.reason}; ${String(file.changed_lines)} changed lines`)
-  const slices = slicePieces.map((piece) => piece.note?.(admission.admitted.has(piece)) ?? '')
-  const tree = candidates.flatMap((candidate) => treeLine(candidate, admission.held.get(candidate) ?? []) ?? [])
   return [
     '# Facts',
     '',
@@ -170,6 +243,7 @@ function renderIndex(
     '',
     `Never sent under \`tree/\`: ${String(vendored)} vendored, ${String(generated)} generated and ${String(lock)} lock files, and ${String(binary)} binary files.`,
     ...(leftOut.length === 0 ? [] : ['', 'Left out of `diff/change.diff`, each with one line in its place:', '', ...leftOut]),
+    ...(diffDropped.length === 0 ? [] : ['', '## Diff', '', DIFF_WINDOW_NOTE, '', ...diffDropped]),
     '',
     '## Context slices',
     '',

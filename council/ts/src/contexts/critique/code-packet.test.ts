@@ -136,7 +136,7 @@ describe('a code packet', () => {
     expect(diff).toContain('+++ b/src/widget.ts\n')
     expect(diff).toContain('-  return widgets.length\n')
     expect(diff).toContain('+  return widgets.length - 1\n')
-    expect(diff).toContain('+++ b/src/added.ts\n+export const added = 1\n')
+    expect(diff).toContain('--- /dev/null\n+++ b/src/added.ts\n@@ -0,0 +1 @@\n+export const added = 1\n')
     expect(diff).not.toContain('untouched')
   })
 

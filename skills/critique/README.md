@@ -67,6 +67,21 @@ those lines, a run it does not hold is blank but for a marker, and a
 citation of a line outside them is rejected. `facts/INDEX.md` records every
 slice and every file the cap dropped or cut short.
 
+A diff too big to fit beside the tickets, the spec, the repo map and the
+facts index is sent in windows by file instead of refused: the changed
+source files, then the tests, then the docs, each group by changed lines,
+most first. It takes at most half the room those documents leave, so the
+tree keeps room for the slices. Each hunk keeps its `@@` line, so a line
+it shows can be cited as `tree/<path>:<line>` even where the tree does not
+hold it; `facts/INDEX.md` lists each hunk left out by file and line, and a
+citation of a line only a left-out hunk shows is rejected unless the tree
+holds it. A deleted or emptied file's hunks are cited at their lines at
+the base. When listing every drop would not fit, the facts index takes a
+quarter of the room and ends each list with a line counting what it
+leaves unlisted. Prepare still refuses with `packet-over-cap` when the
+tickets, the spec, the repo map and the facts index's own text pass the
+cap.
+
 A ticket review starts with **triage**: the change is risky when a path
 matches routing's `triage.risk_paths` (auth, crypto, migrations,
 concurrency, API surface, infra), more than 300 lines changed, or the ticket

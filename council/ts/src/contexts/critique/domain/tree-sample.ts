@@ -77,13 +77,14 @@ export function windowsOf<Tier extends string>(candidate: TreeCandidate<Tier>, s
  * Offers each piece to the budget in order. A piece costs the bytes it adds
  * to its file, and the change it makes to the facts index: its file's line
  * there, as `describe` words it (none when the line is undefined), and the
- * piece's own note. A piece that does not fit is left out, and a window
- * that does not fit drops its file's later windows.
+ * piece's own note. With no `describe`, the facts index has a cap of its
+ * own, so a piece costs only its bytes. A piece that does not fit is left
+ * out, and a window that does not fit drops its file's later windows.
  */
 export function admitPieces<Tier extends string>(
   pieces: readonly TreePiece<Tier>[],
   budget: number,
-  describe: (candidate: TreeCandidate<Tier>, held: readonly LineRange[]) => string | undefined,
+  describe: ((candidate: TreeCandidate<Tier>, held: readonly LineRange[]) => string | undefined) | undefined,
 ): TreeAdmission<Tier> {
   const held = new Map<TreeCandidate<Tier>, readonly LineRange[]>()
   const admitted = new Set<TreePiece<Tier>>()
@@ -94,13 +95,11 @@ export function admitPieces<Tier extends string>(
     if (piece.window && blocked.has(candidate)) continue
     const before = held.get(candidate) ?? []
     const after = mergeRanges([...before, ...piece.ranges])
-    const cost =
-      bytes(heldText(candidate, after)) -
-      bytes(heldText(candidate, before)) +
-      lineBytes(describe(candidate, after)) -
-      lineBytes(describe(candidate, before)) +
-      lineBytes(piece.note?.(true)) -
-      lineBytes(piece.note?.(false))
+    const index =
+      describe === undefined
+        ? 0
+        : lineBytes(describe(candidate, after)) - lineBytes(describe(candidate, before)) + lineBytes(piece.note?.(true)) - lineBytes(piece.note?.(false))
+    const cost = bytes(heldText(candidate, after)) - bytes(heldText(candidate, before)) + index
     if (cost > remaining) {
       if (piece.window) blocked.add(candidate)
       continue
