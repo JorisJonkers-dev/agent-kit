@@ -6,6 +6,7 @@ import type { RunFinding } from './findings.js'
 import type { PacketFile } from './manifest.js'
 import type { DroppedCritic } from './routing.js'
 import { SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage, type Depth, type Round } from './stage.js'
+import { STAGE_TABLE } from './stage-table.js'
 import type { TicketCheckSummary } from './tickets.js'
 
 export const VERDICTS = ['accepted', 'rejected', 'needs-human', 'hint'] as const
@@ -75,7 +76,7 @@ export function countVerdicts(run: AdjudicatedRun): VerdictCounts {
  */
 export function secondRoundDue(run: AdjudicatedRun): boolean {
   const critical = run.findings.filter((f) => f.severity === 'critical' && f.verdict.verdict === 'accepted')
-  return run.round === 1 && run.stage !== 'decisions' && critical.length > SECOND_ROUND_AFTER_CRITICAL
+  return run.round === 1 && STAGE_TABLE[run.stage].secondRound && critical.length > SECOND_ROUND_AFTER_CRITICAL
 }
 
 /**

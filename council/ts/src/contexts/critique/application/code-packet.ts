@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import type { CodeSource, PacketFileKind } from '../domain/manifest.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
-import type { CodeStage } from '../domain/stage.js'
+import type { CritiqueStage } from '../domain/stage.js'
 import type { CodeChange } from '../domain/triage.js'
 import { CodeChangeReader } from './code-change.js'
 import type { CritiqueDeps } from './ports.js'
@@ -18,7 +18,7 @@ export interface UnfrozenFile {
 }
 
 export interface CodePacketRequest {
-  readonly stage: CodeStage
+  readonly stage: CritiqueStage
   /** The spec, named the way its tracker names it. */
   readonly spec: string
   /** The ticket a ticket review delivers; a feature review reads every ticket of the spec. */

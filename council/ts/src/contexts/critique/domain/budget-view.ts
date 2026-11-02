@@ -1,6 +1,7 @@
 import { budgetReached, quotaReached, type FlowSpend } from './budget.js'
 import type { Routing, RosterSlot } from './routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
+import { STAGE_TABLE } from './stage-table.js'
 
 /** A routed Antigravity slot the quota holds, and the client prepare would try in its place. */
 export interface SlotFallback {
@@ -43,7 +44,7 @@ export interface FeatureDraw {
  */
 export function stageOutlooks(routing: Routing, draw: FeatureDraw): readonly StageOutlook[] {
   return CRITIQUE_STAGES.flatMap((stage) => {
-    const charged = stage === 'decisions' ? draw.draft : draw.spec
+    const charged = STAGE_TABLE[stage].flowKey === 'draft' ? draw.draft : draw.spec
     const stageRoutes = routing.stages[stage]
     if (stageRoutes === undefined) return []
     const held: readonly { readonly slot: RosterSlot; readonly deep?: true }[] = [

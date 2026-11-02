@@ -25,6 +25,7 @@ import {
   type RosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, DEPTHS, isCodeStage, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
+import { STAGE_TABLE } from '../domain/stage-table.js'
 import { sizeReport, summariseCheck, type TicketSize } from '../domain/tickets.js'
 import { riskPathHits, type CodeChange } from '../domain/triage.js'
 import { FlowBudget } from './budget.js'
@@ -229,7 +230,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       dropped: roster.dropped,
       // A decisions run belongs to no tracker item, so unless named its flow is its
       // own; a ticket review's is its spec's, so it counts with the spec's other stages.
-      flow: input.flow ?? previousFlow ?? (stage === 'decisions' ? runId : (contents.specReference ?? artifact.reference)),
+      flow: input.flow ?? previousFlow ?? (STAGE_TABLE[stage].flowKey === 'draft' ? runId : (contents.specReference ?? artifact.reference)),
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
@@ -271,13 +272,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     input: PrepareInput,
   ): Promise<Refusal | PacketContents> {
     const { stage } = input
-    if (stage === 'decisions') return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary })
+    const packet = STAGE_TABLE[stage].packet
+    if (packet === 'decisions') return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary })
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker
     if (input.spec === undefined) throw new CritiqueError('invalid-input', `${stage} needs spec: the spec, named the way its tracker names it`)
     const request = { ...input, spec: input.spec }
-    if (isCodeStage(stage)) return this.codePackets.read(repository, tracker, { ...request, stage })
-    return stage === 'tickets' ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request)
+    if (packet === 'code') return this.codePackets.read(repository, tracker, request)
+    return packet === 'tickets' ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request)
   }
 
   /**
