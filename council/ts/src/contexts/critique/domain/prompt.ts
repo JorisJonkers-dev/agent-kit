@@ -83,6 +83,7 @@ export function assemblePrompt(sources: PromptSources, files: readonly PacketFil
       role: sha256(sources.role),
       schema: sha256(sources.schema),
     },
-    text: `${[sources.preamble.trim(), sources.role.trim(), lenses, contract, fileList].join(BLOCK_SEPARATOR)}\n`,
+    // A role with no lenses, such as the refuter, has no lens block.
+    text: `${[sources.preamble.trim(), sources.role.trim(), lenses, contract, fileList].filter((block) => block !== '').join(BLOCK_SEPARATOR)}\n`,
   }
 }

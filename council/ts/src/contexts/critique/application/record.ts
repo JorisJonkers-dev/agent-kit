@@ -6,6 +6,7 @@ import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
 import { parseManifest, specReference } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
+import { parseRefuteFile, type RefuteRecord } from '../domain/refute.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import type { Round } from '../domain/stage.js'
 import type { TicketReviewRecord } from '../domain/ticket-review.js'
@@ -25,7 +26,7 @@ import {
 import { readInput, readJsonFile } from './decode.js'
 import { parseFanOutResult } from './fan-out.js'
 import { FeatureGate } from './feature-gate.js'
-import { findingsPath, ledgerPath, manifestPath, reportPath as reportPathOf } from './locations.js'
+import { findingsPath, ledgerPath, manifestPath, refutePath, reportPath as reportPathOf } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { TicketReviewLog } from './ticket-review.js'
 
@@ -80,7 +81,11 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     const reportPath = reportPathOf(input.runDir)
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
 
-    const adjudicated = merged.findings.map((finding) => adjudicate(verdicts, finding))
+    const refutes = await this.refutes(input.runDir, merged.findings)
+    const adjudicated = applyRefutes(
+      merged.findings.map((finding) => adjudicate(verdicts, finding)),
+      refutes ?? [],
+    )
     const gates = new FeatureGate(this.deps)
     const gate = manifest.stage === 'feature-review' ? await gates.compute(manifest, adjudicated) : undefined
     const run: AdjudicatedRun = {
@@ -95,6 +100,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       repository: manifest.repository,
       round: manifest.round,
       ...(manifest.previous_run_id === undefined ? {} : { previous_run_id: manifest.previous_run_id }),
+      ...(refutes === undefined ? {} : { refutes }),
       run_id: manifest.run_id,
       spec: specReference(manifest),
       stage: manifest.stage,
@@ -126,6 +132,37 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       ...(ticketReview === undefined ? {} : { ticket_review: ticketReview }),
     }
   }
+
+  /** The refute round's results, when the run had one; each must name a finding of the run. */
+  private async refutes(runDir: string, findings: readonly RunFinding[]): Promise<readonly RefuteRecord[] | undefined> {
+    const path = refutePath(runDir)
+    if (!(await this.deps.files.exists(path))) return undefined
+    const { results } = await readJsonFile(this.deps.files, path, 'invalid-run', parseRefuteFile)
+    const unknown = results.find((result) => !findings.some((finding) => finding.id === result.finding_id))
+    if (unknown !== undefined) throw new CritiqueError('invalid-run', `${path} refutes ${unknown.finding_id}, which the run does not have`)
+    return results
+  }
+}
+
+/**
+ * Applies the refute round to the orchestrator's verdicts, so the
+ * second-round count sees only the criticals still accepted. A refutation
+ * that holds rejects the finding (`refuted`); a downgrade that holds lowers
+ * its severity and keeps it accepted. Every other outcome leaves the verdict
+ * standing, and a finding the orchestrator no longer accepts is left as it
+ * ruled.
+ */
+function applyRefutes(findings: readonly AdjudicatedFinding[], refutes: readonly RefuteRecord[]): readonly AdjudicatedFinding[] {
+  return findings.map((finding) => {
+    const result = refutes.find((refute) => refute.finding_id === finding.id)
+    if (result === undefined || finding.verdict.verdict !== 'accepted') return finding
+    if (result.outcome === 'downgrade' && result.severity !== undefined) return { ...finding, severity: result.severity }
+    if (result.outcome !== 'refute') return finding
+    const reason = `Refuted by ${result.refuter?.critic_id ?? 'the refuter'}: ${result.reply?.claim ?? ''}`
+    const { severity, severity_reason: severityReason } = finding.verdict
+    const override = { ...(severity === undefined ? {} : { severity }), ...(severityReason === undefined ? {} : { severity_reason: severityReason }) }
+    return { ...finding, verdict: { finding_id: finding.id, reason, reason_code: 'refuted', verdict: 'rejected', ...override } }
+  })
 }
 
 /**
@@ -171,7 +208,7 @@ function verdictFor(verdicts: ReadonlyMap<string, Verdict>, finding: RunFinding)
   return given ?? mechanical
 }
 
-function verdictsByFinding(list: readonly Verdict[], known: ReadonlySet<string>): ReadonlyMap<string, Verdict> {
+export function verdictsByFinding(list: readonly Verdict[], known: ReadonlySet<string>): ReadonlyMap<string, Verdict> {
   const verdicts = new Map<string, Verdict>()
   for (const verdict of list) {
     if (!known.has(verdict.finding_id)) throw new CritiqueError('invalid-input', `unknown finding ${verdict.finding_id}`)
@@ -183,7 +220,7 @@ function verdictsByFinding(list: readonly Verdict[], known: ReadonlySet<string>)
   return verdicts
 }
 
-function readVerdict(fields: JsonFields): Verdict {
+export function readVerdict(fields: JsonFields): Verdict {
   const verdict = fields.oneOf('verdict', VERDICTS)
   const reason = verdict === 'rejected' || fields.has('reason') ? fields.string('reason') : undefined
   const code = fields.optionalMatching('reason_code', isReasonCode, 'a short lowercase slug')
