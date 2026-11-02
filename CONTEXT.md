@@ -135,9 +135,35 @@ never acted on automatically).
 _Avoid_: vote, score
 
 **Critique stage**:
-A point in the spec-to-ticket flow where critics run (decisions, spec,
-tickets, ticket review, feature review).
+A point in the spec-to-ticket flow where critics run (decisions, plan for a
+refactor, spec, tickets, ticket review, feature review).
 _Avoid_: step, phase (a phase is a span of the flow, not one stage)
+
+**Review stage**:
+A point outside any one feature's flow where critics run on demand over a
+repository's decision records or code (ADR review, decision recovery,
+architecture review). Its results feed the spec-to-ticket flow but are not
+part of it.
+_Avoid_: critique stage (that is a point in one feature's flow), audit
+
+**Fact**:
+A measurement of a repository at one commit (its imports, cycles, layer
+violations, churn, files that change together) that the runner computes
+into a packet. Critics cite facts; they never compute or estimate them.
+_Avoid_: metric, analysis, signal (a signal chooses depth)
+
+**Recovered decision**:
+A decision a critic infers from a repository's code, and from its history
+where the family allowlist permits, that no decision record holds. It is a
+question for the owner and never counts as a recorded decision until the
+owner accepts it and it is written as an ADR.
+_Avoid_: recovered ADR, inferred ADR, candidate ADR
+
+**Refactoring plan**:
+The ordered steps that move a refactor feature's code toward a target
+structure, each small enough to ship on its own, written and critiqued
+before the feature's spec.
+_Avoid_: migration plan, roadmap
 
 **Depth**:
 How many critics a critique stage runs: base (the stage's base roster in
@@ -146,6 +172,13 @@ routing, one critic at a cheap stage, two families at the spec stage) or deep
 permits). Chosen automatically from signals in the artifact unless the user
 names it.
 _Avoid_: tier, mode, --fast
+
+**Refute round**:
+The pass after the orchestrator's verdicts in which each accepted critical
+finding goes to one critic from a family that neither raised it nor is the
+orchestrator's. That critic may only refute or downgrade the finding, with
+evidence; without evidence the verdict stands.
+_Avoid_: challenge round, appeal
 
 **Role**:
 The job one critic is given in a critique stage (for example `spec-redteam`):
