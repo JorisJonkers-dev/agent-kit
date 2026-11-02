@@ -22,4 +22,5 @@ provider = "mistral"
 alias = "critic-deepseek-flash"
 input_price = 0.3
 output_price = 1.2
+cached_input_price = 0.03
 thinking = "high"

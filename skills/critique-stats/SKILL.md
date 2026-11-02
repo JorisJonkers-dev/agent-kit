@@ -92,6 +92,11 @@ result's `cells`:
 - **Failed** and **timed out**: shares of the cell's runs. A run that
   violated read-only counts as failed. Vibe reports a price-limit stop the
   same way as a deadline, so both count as timed out.
+- **Wasted**: the known cost of the cell's runs that a price or time limit
+  stopped (Vibe's `price_limit` or deadline, or a run the outer timer
+  interrupted) with no findings, and in brackets how many there were. A dash
+  means none. When any run was stopped, a line under the heading sums it
+  over every row.
 - **Thresholds**: `min_adjudicated_findings` (a cell needs this many before
   it gets a suggestion) and `removal_features` (a stage with no unique
   accepted catch across this many of its latest features is a removal

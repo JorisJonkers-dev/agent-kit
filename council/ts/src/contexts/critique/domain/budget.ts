@@ -65,6 +65,8 @@ export interface InvocationLine {
   readonly status: string
   /** What the launch counts against the flow's Vibe cap; always 0 for agy. */
   readonly charged_usd: number
+  /** What Vibe itself reported, beside the cost the runner computed; absent for agy. */
+  readonly vibe_cost_usd?: number | null
 }
 
 /**

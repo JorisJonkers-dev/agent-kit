@@ -231,6 +231,13 @@ that fired either way.
 - **Per critic**: a price cap and a time limit. Vibe checks its cap between
   turns, so a critic can overshoot by one turn; where Vibe's figure can't be
   trusted, the runner charges the cap.
+- **What a Vibe critic costs**: the runner computes it from the export's
+  tokens at the client's `prices` in routing: uncached input at the input
+  price, cached input at the cached price (10% of the input price, as
+  Mistral bills it), output at the output price. That figure is what the
+  ledger, the flow cap, `/flow budget` and the reports use. Vibe's own
+  `cost_usd` is kept beside it as `vibe_cost_usd`. A client with no prices,
+  or an export with no token counts, falls back to Vibe's figure.
 - **Per flow**: Vibe spend capped at $5 (`budget.vibe_flow_cap_usd`),
   triage included. Each flow key is capped on its own: the decisions stage
   charges the draft's, every later stage the spec's, and each review run
@@ -299,7 +306,8 @@ still runs.
 ## Routing
 
 `routing.json` beside this file holds the critic clients (CLI, model,
-family), each stage's base and deep rosters (client, role, lenses, price cap,
+family, and for Vibe the model's `prices` in USD per million tokens:
+`input`, `cached_input`, `output`, the same as its agent file's), each stage's base and deep rosters (client, role, lenses, price cap,
 time limit), the `fallbacks`, the budget, the Antigravity quota, triage, the feature
 branch patterns a push may update without a feature review (`gate`), the
 stats thresholds and the repository packet's limits (`packet`: a 150 KB cap

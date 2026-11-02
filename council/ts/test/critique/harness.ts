@@ -611,6 +611,16 @@ export interface VibeScript {
   readonly timedOut?: boolean
 }
 
+/**
+ * The export as Vibe would write it. `JSON.stringify` writes Infinity as
+ * null; here it is the literal `1e999`, which JSON.parse reads back as
+ * Infinity, as it would from a corrupt export.
+ */
+function exportText(exported: unknown): string {
+  const infinite = '\u0000infinity\u0000'
+  return JSON.stringify(exported, (_key, value: unknown) => (value === Infinity ? infinite : value)).replaceAll(JSON.stringify(infinite), '1e999')
+}
+
 /** Every critic launch and return, in the order they happened, across all critic clients. */
 export class LaunchLog {
   readonly events: string[] = []
@@ -685,7 +695,7 @@ export class FakeVibeProcess implements ProcessPort {
     const outputDir = command.args[outputDirIndex + 1]
     if (script.exportJson !== undefined && outputDir !== undefined) {
       await mkdir(outputDir, { recursive: true })
-      await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
+      await writeFile(join(outputDir, 'export.json'), exportText(script.exportJson))
     }
     await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
     if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }

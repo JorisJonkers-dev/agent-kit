@@ -81,6 +81,7 @@ export async function runCritic(
     export_path: report.exportPath,
     finding_count: findings.length,
     stdout_path: stdoutPath,
+    ...(report.vibeCostUsd === undefined ? {} : { vibe_cost_usd: report.vibeCostUsd }),
     ...criticStatus(outcome, violations),
   }
   return { findings, run }

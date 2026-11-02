@@ -2,6 +2,7 @@ import { readLimits, type CritiqueLimits } from './budget.js'
 import { NO_DEPTH_SIGNALS, readDepthSignalsConfig, type DepthSignalsConfig } from './depth.js'
 import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields, JsonShapeError } from './json.js'
+import { readTokenPrices, type TokenPrices } from './pricing.js'
 import { CritiqueError } from './outcomes.js'
 import type { CritiqueStage, Depth } from './stage.js'
 import { DEFAULT_PACKET_LIMITS, readPacketLimits, type PacketLimits } from './repository-packet.js'
@@ -17,6 +18,12 @@ export interface VibeCriticClient {
   readonly agent: string
   readonly model: string
   readonly family: ModelFamily
+  /**
+   * The model's prices, the same as its agent file's, for the runner to
+   * compute a launch's cost from its tokens. Without them the runner takes
+   * Vibe's own figure.
+   */
+  readonly prices?: TokenPrices
 }
 
 /**
@@ -195,6 +202,7 @@ export function readCriticClient(fields: JsonFields): CriticClient {
     family: fields.oneOf('family', MODEL_FAMILIES),
     kind: 'vibe',
     model: fields.string('model'),
+    ...(fields.has('prices') ? { prices: readTokenPrices(fields.object('prices')) } : {}),
   }
 }
 

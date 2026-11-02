@@ -22,3 +22,4 @@ provider = "mistral"
 alias = "critic-mistral-small"
 input_price = 0.15
 output_price = 0.6
+cached_input_price = 0.015

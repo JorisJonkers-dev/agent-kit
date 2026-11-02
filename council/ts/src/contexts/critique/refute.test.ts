@@ -65,9 +65,10 @@ async function reviewed(
     readonly orchestrator?: OrchestratorFamily
     readonly ledger?: SyntheticLedger
     readonly assets?: Readonly<Record<string, (shipped: string) => string>>
+    readonly routing?: unknown
   } = {},
 ): Promise<Reviewed> {
-  const h = await harness({ routing: ROUTING, ...(options.assets === undefined ? {} : { assets: options.assets }) })
+  const h = await harness({ routing: options.routing ?? ROUTING, ...(options.assets === undefined ? {} : { assets: options.assets }) })
   open.push(h)
   if (options.ledger !== undefined) await options.ledger.writeTo(h)
   await h.commands.allow.run({ families: options.families ?? ['mistral', 'zhipu', 'deepseek'], repo: h.repo })
@@ -444,6 +445,22 @@ describe('refute: records and spend', () => {
 
     const invocation = (await ledgerLines(r.h)).find((entry) => entry.type === 'invocation' && entry.critic_id === 'r-F1-vibe-glm')
     expect(invocation).toMatchObject({ charged_usd: 0.042, flow: '.scratch/widgets/spec.md', kind: 'vibe', run_id: r.run.run_id })
+  })
+
+  it("charges the refuter the cost computed from its tokens, with Vibe's own figure beside it", async () => {
+    const clients = { ...ROUTING.clients, 'vibe-glm': { ...ROUTING.clients['vibe-glm'], prices: { cached_input: 0.14, input: 1.4, output: 4.4 } } }
+    const r = await reviewed([critical()], { routing: { ...ROUTING, clients } })
+    // 100,000 input tokens, 80,000 of them cached, and 10,000 output: 20,000 × 1.4 + 80,000 × 0.14 + 10,000 × 4.4, over a million.
+    const usage = { cached_input_tokens: 80_000, input_tokens: 100_000, output_tokens: 10_000 }
+
+    const result = await refuted(r, { ...vibe('critic-glm', NOTHING), exportJson: { ...isolatedExport(), cost_usd: 0.2, usage } })
+
+    const invocation = (await ledgerLines(r.h)).find((entry) => entry.type === 'invocation' && entry.critic_id === 'r-F1-vibe-glm')
+    expect(invocation?.charged_usd).toBeCloseTo(0.0832, 9)
+    expect(invocation?.vibe_cost_usd).toBe(0.2)
+    const refuter = result.results[0] !== undefined && 'refuter' in result.results[0] ? result.results[0].refuter : undefined
+    expect(refuter?.cost_usd).toBeCloseTo(0.0832, 9)
+    expect(refuter?.vibe_cost_usd).toBe(0.2)
   })
 
   it("leaves the flow's next critics unlaunched once the refuter's spend reaches the cap", async () => {

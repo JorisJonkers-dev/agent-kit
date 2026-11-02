@@ -14,7 +14,8 @@ import type {
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
 import { parseFindings } from '../../domain/findings.js'
 import { cliVersion } from '../cli-version.js'
-import { jsonObjectOrUndefined } from '../../domain/json.js'
+import { jsonObjectOrUndefined, type JsonObject } from '../../domain/json.js'
+import { tokenCost, type TokenPrices } from '../../domain/pricing.js'
 import type { ClientReadiness, RosterSlot, VibeCriticClient as VibeClientConfig } from '../../domain/routing.js'
 
 /**
@@ -82,7 +83,13 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, Que
     const exportDir = join(launch.criticDir, 'export')
     const exportPath = join(exportDir, 'export.json')
     const { result, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir })
-    return { ...result, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) }
+    return {
+      ...result,
+      chargedUsd: vibeCharge(run, launch.critic.max_price_usd),
+      exportPath,
+      outcome: classifyVibeRun(run),
+      vibeCostUsd: run.vibeCostUsd,
+    }
   }
 
   /**
@@ -95,7 +102,7 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, Que
     const { result, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir })
     const message = vibeMessage(run)
     const answer: ModelAnswer = message.status === 'failed' ? message : { cost_usd: message.cost_usd, status: 'answered', text: message.text }
-    return { ...result, answer, chargedUsd: vibeCharge(run, question.max_price_usd) }
+    return { ...result, answer, chargedUsd: vibeCharge(run, question.max_price_usd), vibeCostUsd: run.vibeCostUsd }
   }
 
   private async launch(
@@ -104,9 +111,14 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, Que
     paths: VibeLaunchPaths,
   ): Promise<{ readonly result: { exitCode: number; stdout: string; stderr: string }; readonly run: VibeRun }> {
     const result = await this.process.exec(vibeLaunch(limits, config, paths))
+    const exported = await this.readExport(join(paths.exportDir, 'export.json'))
+    const vibeCost = jsonObjectOrUndefined(exported)?.cost_usd
+    const vibeCostUsd = typeof vibeCost === 'number' ? vibeCost : null
     const run: VibeRun = {
+      costUsd: computedCost(jsonObjectOrUndefined(exported), config.prices) ?? vibeCostUsd,
       exitCode: result.exitCode,
-      exported: await this.readExport(join(paths.exportDir, 'export.json')),
+      exported,
+      vibeCostUsd,
       stderr: result.stderr,
       stdout: result.stdout,
       timedOut: result.timedOut === true,
@@ -202,6 +214,25 @@ interface VibeRun {
   /** The outer timer killed Vibe after `timeoutS` seconds. */
   readonly timedOut: boolean
   readonly timeoutS: number
+  /** What the run cost: computed from the export's tokens at routing's prices, else Vibe's own figure. */
+  readonly costUsd: number | null
+  /** The export's `cost_usd`: what Vibe priced the run at by its own model table. */
+  readonly vibeCostUsd: number | null
+}
+
+/**
+ * The run's cost at the client's prices, from the export's token counts, or
+ * undefined without prices or counts. Vibe's own `cost_usd` prices cached
+ * input at the full rate when its model table has no cached price, which
+ * made a cache-heavy critic look three times as costly as Mistral billed.
+ */
+function computedCost(exported: JsonObject | undefined, prices: TokenPrices | undefined): number | undefined {
+  const usage = jsonObjectOrUndefined(exported?.usage)
+  const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
+  const input = count(usage?.input_tokens)
+  const output = count(usage?.output_tokens)
+  if (prices === undefined || input === undefined || output === undefined) return undefined
+  return tokenCost({ cached_input: count(usage?.cached_input_tokens) ?? 0, input, output }, prices)
 }
 
 const EXIT_FAILURES: Readonly<Record<number, CriticFailure>> = {
@@ -233,7 +264,7 @@ type VibeMessage = { readonly status: 'ok'; readonly text: string; readonly cost
  */
 function vibeMessage(run: VibeRun): VibeMessage {
   const exported = jsonObjectOrUndefined(run.exported)
-  const cost = typeof exported?.cost_usd === 'number' ? exported.cost_usd : null
+  const cost = run.costUsd
   const failed = (failure: CriticFailure, detail: string): VibeMessage => ({ cost_usd: cost, detail, failure, status: 'failed' })
 
   if (run.timedOut) return failed('timeout', `vibe did not return within ${String(run.timeoutS)}s, so the outer timer killed it`)
@@ -251,17 +282,18 @@ function vibeMessage(run: VibeRun): VibeMessage {
 }
 
 /**
- * What a Vibe run counts against the flow's cap. The export's `cost_usd` is
- * the base, and it may exceed the critic's cap: `--max-price` is checked only
- * between turns. Where the export cannot be trusted the cap is charged
- * instead, as a conservative estimate: no export or no cost (a killed run
- * included), a deadline stop (Vibe drops the interrupted turn's tokens and
- * reports $0), and a zero cost for tokens used (a model with no prices).
+ * What a Vibe run counts against the flow's cap. The run's cost is the base
+ * (computed from its tokens, else Vibe's own figure), and it may exceed the
+ * critic's cap: `--max-price` is checked only between turns. Where the
+ * export cannot be trusted the cap is charged instead, as a conservative
+ * estimate: no export or no cost (a killed run included), a deadline stop
+ * (Vibe drops the interrupted turn's tokens and reports $0), and a zero cost
+ * for tokens used (a model neither routing nor Vibe prices).
  */
 function vibeCharge(run: VibeRun, cap: number): number {
   const exported = jsonObjectOrUndefined(run.exported)
-  const cost = exported?.cost_usd
-  if (run.timedOut || typeof cost !== 'number') return cap
+  const cost = run.costUsd
+  if (run.timedOut || cost === null) return cap
   if (exported?.outcome === 'deadline') return Math.max(cost, cap)
   return cost === 0 && usedTokens(jsonObjectOrUndefined(exported?.usage)) ? cap : cost
 }

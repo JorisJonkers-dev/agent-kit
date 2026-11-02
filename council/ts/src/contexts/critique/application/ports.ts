@@ -52,10 +52,17 @@ export interface CriticReport {
   readonly exportPath: string
   readonly outcome: CriticOutcome
   /**
-   * What the run counts against the flow's Vibe cap: the client's own best
-   * estimate of its spend, never less than it reported.
+   * What the run counts against the flow's Vibe cap: the client's best
+   * estimate of its spend. For Vibe that is the cost the runner computed from
+   * the tokens (or Vibe's own figure without prices), which may be less than
+   * Vibe reported; the critic's price cap where neither can be trusted.
    */
   readonly chargedUsd: number
+  /**
+   * What Vibe itself reported, kept beside the cost the runner computed from
+   * the tokens; null when it reported nothing. Absent for any other client.
+   */
+  readonly vibeCostUsd?: number | null
 }
 
 /** One critic client: launches a critic in its packet and reads its review. */
@@ -101,6 +108,8 @@ export interface ModelAnswerReport {
   readonly answer: ModelAnswer
   /** What the run counts against the flow's Vibe cap, as for a critic. */
   readonly chargedUsd: number
+  /** What Vibe itself reported, as for a critic. */
+  readonly vibeCostUsd: number | null
 }
 
 /** A client that can also put one question to its model. */

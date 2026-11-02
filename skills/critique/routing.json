@@ -6,7 +6,8 @@
       "binary": "vibe",
       "agent": "critic-mistral-large",
       "model": "mistral-large-4-0",
-      "family": "mistral"
+      "family": "mistral",
+      "prices": { "input": 0.7, "cached_input": 0.07, "output": 2.1 }
     },
     "agy-gemini-flash-high": {
       "kind": "agy",
@@ -19,21 +20,24 @@
       "binary": "vibe",
       "agent": "critic-glm",
       "model": "zai-glm-5-3",
-      "family": "zhipu"
+      "family": "zhipu",
+      "prices": { "input": 1.4, "cached_input": 0.14, "output": 4.4 }
     },
     "vibe-deepseek-flash": {
       "kind": "vibe",
       "binary": "vibe",
       "agent": "critic-deepseek-flash",
       "model": "deepseek-v4-1-flash-1017",
-      "family": "deepseek"
+      "family": "deepseek",
+      "prices": { "input": 0.3, "cached_input": 0.03, "output": 1.2 }
     },
     "vibe-mistral-small": {
       "kind": "vibe",
       "binary": "vibe",
       "agent": "critic-mistral-small",
       "model": "mistral-small-latest",
-      "family": "mistral"
+      "family": "mistral",
+      "prices": { "input": 0.15, "cached_input": 0.015, "output": 0.6 }
     }
   },
   "stats": {
