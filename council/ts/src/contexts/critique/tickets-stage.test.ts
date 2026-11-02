@@ -272,7 +272,7 @@ describe('the tickets-stage evidence rule', () => {
     ['names a ticket but no rule', '#170, acceptance criteria', 'no-ticket-rule'],
     ['names a ticket that is not one of the spec', '#999: too-big', 'no-ticket-id'],
   ])('a finding that %s', async (_name, location, hint) => {
-    const h = await github({ scripts: [critic([finding({ category: 'untestable', evidence: [quote], location })])] })
+    const h = await github({ scripts: [critic([finding({ category: 'untestable', check: 'untestable-criterion', evidence: [quote], location })])] })
     const run = await ready(h)
 
     const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
@@ -337,7 +337,7 @@ describe('the tickets-stage summary', () => {
   it('says not to start /implement while a critical scope question is unanswered', async () => {
     const quote = { file: 'tickets/issue-170.md', kind: 'quote', value: 'The report is fast.' }
     const h = await github({
-      scripts: [critic([finding({ evidence: [quote], location: '#170: too-big', severity: 'critical' })])],
+      scripts: [critic([finding({ check: 'too-big', evidence: [quote], location: '#170: too-big', severity: 'critical' })])],
     })
     const run = await ready(h)
     await h.commands.fanOut.run({ run_dir: run.run_dir })

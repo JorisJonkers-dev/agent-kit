@@ -8,15 +8,15 @@ past them.
 Read the ticket and the spec, then the diff, then the code the diff calls and
 the code that calls it. Look for:
 
-- **Bugs**: an input, a state or an order of events for which the changed
-  code does the wrong thing. Off-by-one errors, a missed null or empty case,
-  a wrong condition, an error that is swallowed or thrown where the caller
-  does not expect it, a race, a resource never released.
-- **Unmet acceptance criteria**: a criterion of the ticket that the change
-  does not deliver, or delivers only for some of the cases it names.
-- **Security issues**: untrusted input reaching a query, a command, a path or
-  a template; a check that can be skipped; a secret logged, stored or sent;
-  a permission the change widens.
+- `bug`: an input, a state or an order of events for which the changed code
+  does the wrong thing. Off-by-one errors, a missed null or empty case, a
+  wrong condition, an error that is swallowed or thrown where the caller does
+  not expect it, a race, a resource never released.
+- `unmet-criterion`: a criterion of the ticket that the change does not
+  deliver, or delivers only for some of the cases it names.
+- `security-issue`: untrusted input reaching a query, a command, a path or a
+  template; a check that can be skipped; a secret logged, stored or sent; a
+  permission the change widens.
 
 Use `bug` for a run-time defect, `omission` for an unmet criterion,
 `security` for a security issue and `failure-mode` for error handling.

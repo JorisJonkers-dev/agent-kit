@@ -689,6 +689,7 @@ export function finding(overrides: Record<string, unknown> = {}): Record<string,
     id: 'F1',
     severity: 'major',
     category: 'contradiction',
+    check: 'contradiction',
     location: 'User story 3',
     claim: 'The spec contradicts the recorded decision about when widgets are frobnicated.',
     evidence: [

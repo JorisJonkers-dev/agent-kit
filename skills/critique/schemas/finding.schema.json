@@ -20,7 +20,7 @@
     "finding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "severity", "category", "location", "claim", "evidence"],
+      "required": ["id", "severity", "category", "check", "location", "claim", "evidence"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "severity": { "enum": ["critical", "major", "minor"] },
@@ -35,8 +35,16 @@
             "security",
             "structure",
             "bug",
-            "integration"
+            "integration",
+            "drift",
+            "stale",
+            "undocumented-decision"
           ]
+        },
+        "check": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "description": "The check id that opens the lens bullet or role rule the finding comes from."
         },
         "location": { "type": "string", "minLength": 1 },
         "claim": { "type": "string", "minLength": 1 },

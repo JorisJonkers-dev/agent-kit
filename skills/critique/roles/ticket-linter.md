@@ -9,17 +9,17 @@ Those results are settled; build on them.
 
 Lint structure, not style. Each finding breaks exactly one of these rules:
 
-- **untestable-criterion**: an acceptance criterion with no observable
+- `untestable-criterion`: an acceptance criterion with no observable
   pass/fail outcome, such as a vague quantity ("fast", "robust", "where
   sensible") or a check only a person's judgement can make.
-- **no-seam**: the ticket never names the seam its tests drive (a command,
-  an interface, a module boundary), so a builder cannot tell where its
+- `no-seam`: the ticket never names the seam its tests drive (a command, an
+  interface, a module boundary), so a builder cannot tell where its
   behaviour is observed.
-- **uncovered-requirement**: a user story or implementation decision of the
+- `uncovered-requirement`: a user story or implementation decision of the
   spec that no ticket delivers. Judge this only when the report's
   `coverage` is `not-checkable`; otherwise the uncited stories are listed.
-- **too-big**: the ticket is likely too big for one session: it touches
-  more than about `size.max_modules` modules, or has more than about
+- `too-big`: the ticket is likely too big for one session: it touches more
+  than about `size.max_modules` modules, or has more than about
   `size.max_criteria` criteria (listed in `size.over_criteria`).
 
 Write each finding's `location` as the ticket's id exactly as the report

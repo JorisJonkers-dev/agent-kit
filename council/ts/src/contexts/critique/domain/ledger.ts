@@ -1,3 +1,4 @@
+import { isCheckId } from './checks.js'
 import { CRITIC_STATUSES, type CriticStatus } from './critic.js'
 import { SEVERITIES, type Severity } from './findings.js'
 import { JsonFields, JsonShapeError } from './json.js'
@@ -55,6 +56,8 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     ...common,
     ...criticFields(finding.raised_by[0] ?? ''),
     category: finding.category,
+    /** The lens check or role rule the finding names, so stats can count precision per check; free text stays out. */
+    check: isCheckId(finding.check) ? finding.check : null,
     evidence_kinds: finding.evidence.map((e) => e.kind),
     finding_id: finding.id,
     /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */

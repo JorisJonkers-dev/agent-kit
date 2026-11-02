@@ -400,6 +400,7 @@ describe('implementation', () => {
     await h.git.commit()
     const unclear = finding({
       category: 'bug',
+      check: 'bug',
       evidence: [{ kind: 'trace', value: 'tree/src/widget.ts:1 sets two widgets where the ticket may mean one.' }],
       location: 'tree/src/widget.ts:1',
       severity: 'critical',
