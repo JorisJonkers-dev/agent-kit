@@ -202,6 +202,11 @@ fails while the platform's forward-auth answers a bearer request to `/mcp`
 with the login redirect: Grimoire checks the token itself, so the edge has to
 let `/mcp` through to it first.
 
+Setup registers `grimoire` at user scope. A `grimoire` entry added by hand at
+local scope, for one directory, overrides it there. Remove such an entry in
+that directory with `claude mcp remove grimoire --scope local`, once in each
+Claude profile.
+
 ### Keeping a directory out of the shared bank
 
 The shared bank `default` is the one Hermes and every agent recall from.
