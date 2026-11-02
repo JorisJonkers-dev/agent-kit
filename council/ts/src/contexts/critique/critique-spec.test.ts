@@ -3,14 +3,25 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { fenced, finding, harness, isolatedExport, vibeStdout, type Harness, type VibeScript } from '../../../test/critique/harness.js'
+import {
+  fenced,
+  finding,
+  harness,
+  isolatedExport,
+  SPEC_CANARY,
+  twoCriticRouting,
+  vibeStdout,
+  type Harness,
+  type VibeScript,
+} from '../../../test/critique/harness.js'
 import type { PrepareResult } from './index.js'
 
 /**
  * What `/critique-spec` (#177) relies on the runner for: the warning not to
  * start `/to-tickets` while a critical question is unanswered, and the rule
  * that more than three accepted critical findings call for one second round
- * and never a third.
+ * and never a third; and the refute round between its verdicts and record
+ * (#224), whose result the report shows.
  */
 
 const open: Harness[] = []
@@ -218,5 +229,60 @@ describe('a second round', () => {
     await expect(prepared(h, { previous_run_dir: first.run.run_dir, spec: '.scratch/gadgets/spec.md' })).rejects.toThrow(
       /critiqued .scratch\/widgets\/spec.md at the spec stage, not .scratch\/gadgets\/spec.md/,
     )
+  })
+})
+
+describe('the refute round in a spec-stage run', () => {
+  const NOTHING = { findings: [], no_findings_reason: 'Compared every story with the decision docs.' }
+  const by = (agent: string, value: unknown): VibeScript => ({ agent, exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced(value)) })
+
+  /** Prepare and fan out with Mistral Large raising one critical finding and GLM finding nothing. */
+  async function reviewedRun(families: readonly string[], orchestrator: 'anthropic' | 'zhipu' = 'anthropic') {
+    const h = await harness({ routing: twoCriticRouting() })
+    open.push(h)
+    await h.commands.allow.run({ families, repo: h.repo })
+    const run = await prepared(h, { orchestrator_family: orchestrator })
+    h.process.queue(by('critic-mistral-large', { findings: [finding({ severity: 'critical' })] }), by('critic-glm', NOTHING))
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+    return { h, run }
+  }
+
+  it('shows a refutation of the one accepted critical in the report, and records the finding rejected', async () => {
+    const { h, run } = await reviewedRun(['mistral', 'zhipu'])
+    const ruled = [{ finding_id: 'F1', verdict: 'accepted' }]
+    const refutation = finding({
+      check: 'refute',
+      claim: 'User story 3 already names the nightly job, so nothing contradicts the decision.',
+      evidence: [
+        { file: 'artifact/spec.md', kind: 'quote', value: SPEC_CANARY },
+        { kind: 'input', value: 'A widget created at second three is frobnicated by second seven, as the story says.' },
+      ],
+    })
+    h.process.queue(by('critic-glm', { findings: [refutation] }))
+
+    const refuted = await h.commands.refute.run({ run_dir: run.run_dir, verdicts: ruled })
+    expect(refuted.results).toEqual([expect.objectContaining({ finding_id: 'F1', outcome: 'refute' })])
+    // The skill records a refuted finding as rejected with reason_code refuted, and fixes nothing.
+    const recorded = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [{ finding_id: 'F1', reason: 'Refuted: User story 3 already names the nightly job.', reason_code: 'refuted', verdict: 'rejected' }],
+    })
+
+    expect(recorded.counts).toMatchObject({ accepted: 0, rejected: 1 })
+    const report = await readFile(recorded.report_path, 'utf8')
+    expect(report).toContain('## Refute round')
+    expect(report).toContain('- F1: refute by r-F1-vibe-glm (vibe-glm, glm-5, zhipu): User story 3 already names the nightly job')
+  })
+
+  it('shows a skipped refute in the report and leaves the accepted critical standing', async () => {
+    const { h, run } = await reviewedRun(['mistral', 'zhipu'], 'zhipu')
+    const ruled = [{ finding_id: 'F1', verdict: 'accepted' }]
+
+    const refuted = await h.commands.refute.run({ run_dir: run.run_dir, verdicts: ruled })
+    expect(refuted.results).toEqual([expect.objectContaining({ finding_id: 'F1', outcome: 'skipped', reason_code: 'no-eligible-client' })])
+    const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: ruled })
+
+    expect(recorded.counts).toMatchObject({ accepted: 1 })
+    expect(await readFile(recorded.report_path, 'utf8')).toContain('## Refute round\n\n- F1: skipped (no-eligible-client)')
   })
 })

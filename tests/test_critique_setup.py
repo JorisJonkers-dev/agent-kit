@@ -299,6 +299,31 @@ def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(s
     assert '"history": true' in text, skill
 
 
+REFUTING_SKILLS = ["critique-decisions", "critique-spec", "check-tickets", "review-ticket", "review-feature"]
+
+
+@pytest.mark.parametrize("skill", REFUTING_SKILLS)
+def test_the_stage_skill_runs_the_refute_round_right_after_its_verdicts(skill: str) -> None:
+    """#224: refute comes after the ruling and before any fix, follow-up or owner question."""
+    text = (KIT_ROOT / "skills" / skill / "SKILL.md").read_text()
+    headings = [line for line in text.splitlines() if line.startswith("### ")]
+    numbers = [int(re.match(r"### (\d+)\. ", h).group(1)) for h in headings]
+    assert numbers == list(range(1, len(headings) + 1)), headings
+    refute = next(i for i, h in enumerate(headings) if h.endswith(". Refute"))
+    assert "Rule on every finding" in headings[refute - 1], headings
+    assert "|refute|" in text, "the command line names refute"
+    assert "run refute with `--input <run_dir>/verdicts.json`" in " ".join(text.split())
+
+
+@pytest.mark.parametrize("skill", REFUTING_SKILLS)
+def test_the_stage_skill_says_how_the_refute_round_changes_a_verdict(skill: str) -> None:
+    text = " ".join((KIT_ROOT / "skills" / skill / "SKILL.md").read_text().split())
+    assert '`rejected` with `reason_code: "refuted"`' in text, skill
+    assert "- `downgrade`:" in text, skill
+    assert "A skipped refute is reported, not retried" in text, skill
+    assert "`Refute skipped: <finding_id> (<reason_code>)`" in text, skill
+
+
 def test_the_pipeline_readme_names_every_stage_and_lens_it_explains() -> None:
     readme = (KIT_ROOT / "skills" / "critique" / "README.md").read_text()
     for stage in json.loads(ROUTING.read_text())["stages"]:
