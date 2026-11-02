@@ -3345,3 +3345,32 @@ How the runner chooses a critic's tools:
   - Its result depends on the bundled runner's hash, the Vibe version and
     the critic agent file.
   - agy's item is still `not-available` until #178.
+
+## Live check for #225 (phase 0), 2026-11-02
+
+Run on agent-kit with the integration branch's build of the runner (`feat/critique-architecture` at 62520df). Costs are the runner's own figures, computed from each export's token counts at cache-aware prices (#261). Vibe's own estimate is given beside each one.
+
+**Repository packet and critic spend** (run `20261102T132307Z-adr-review`, stage `adr-review`, base depth, agent-kit with the code permission on):
+
+- **Packet:** 150,309 bytes against the 153,600-byte cap. It holds 13 sampled tree files and records 54 dropped files in a 24-line facts index.
+- **Mistral Large (`spec-redteam`, fidelity):** $0.0787 (Vibe: $0.1134).
+- **GLM (`spec-redteam`, integration):** $0.2149 (Vibe: $0.4495). It took Gemini's slot, because agy's quota was used up.
+- **Search:** both critics read with `read_file` alone and recorded `search_failure: agent-file-disables-mcp`. The installed critic agent files predate #255, and they search once setup is re-run.
+- **Findings:** the critics raised seven findings on agent-kit's own ADRs, for example ADR-0002's nedap rule against CONTEXT.md's. They are left for phase 1's live check (#231), which reviews these ADRs with `/critique-adrs`, so the run has no verdicts.
+
+**Cap chosen:** 150 KB stays. A full packet cost each critic well under the $0.50 per-critic cap, at most $0.22, so a larger cap is not needed for cost. On #254's own review, a 410 KB packet cost Mistral Large $0.20 against Vibe's figure of $0.665. That shows the cost tracks what a critic reads, not the cap.
+
+**Refute round** (run `20261102T132356Z-spec`, stage `spec`, base depth, in a scratch repository seeded with three planted defects):
+
+- **What the critics found:** every planted defect. That covers the quiet-hours contradiction (F3 and F6, both critical), two decisions ADR-0001 records that the spec dropped (F1 and F2), and the untestable "load quickly" requirement (F4 and F11, which stay hints).
+- **Spend:** Mistral Large $0.0119 and GLM $0.0347.
+- **Refuters:** the two accepted criticals went to refuters from a family that did not raise them:
+  - F3 (raised by Mistral) went to GLM: no-objection, $0.0197.
+  - F6 (raised by GLM) went to Mistral Large: no-objection, $0.0088.
+- **Recorded result:** accepted 4, rejected 1, needs-human 2, hint 5. The report carries a `## Refute round` section with both outcomes.
+
+**Allowlist:**
+- **agent-kit's entry:** families mistral, zhipu, deepseek and google. The code permission was turned on for this check; history stays off.
+- **Scratch entry:** `github.com/jorisjonkers-dev/critique-smoke` was added for the refute run and removed afterwards.
+
+**Still open:** a machine override raises Vibe's own `--max-price` for ticket-review critics to $3. The installed critic agent files lack `cached_input_price`, so Vibe stops on its threefold estimate. It is removed once setup installs the files #261 generates.
