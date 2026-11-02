@@ -1054,6 +1054,155 @@ PURGE
 }
 
 # -----------------------------------------------------------------
+# The runner entrypoint (templates/runner-runtime/entrypoint.sh) once
+# wrote its global git settings wherever it ran. On a workstation they
+# name the credential helper agent-gh-app, which only the runner image
+# ships, so every push printed "git: 'credential-agent-gh-app' is not a
+# git command". This removes that helper and the two settings the same
+# run wrote with it: credential.useHttpPath and safe.directory /workspace.
+# Neither goes without the helper: alone, either may be the owner's own.
+# Where git-credential-agent-gh-app is on PATH the settings are real.
+# -----------------------------------------------------------------
+purge_leaked_runner_git_config() {
+  local helpers removed
+  command -v git >/dev/null 2>&1 || return 0
+  helpers="$(git config --global --get-all credential.helper 2>/dev/null || true)"
+  printf '%s\n' "${helpers}" | grep -qxF agent-gh-app || return 0
+  command -v git-credential-agent-gh-app >/dev/null 2>&1 && return 0
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    warn "your ~/.gitconfig names the runner's credential helper agent-gh-app, which is not on PATH; run setup to remove it"
+    return 0
+  fi
+  if ! git config --global --unset-all credential.helper '^agent-gh-app$'; then
+    fail "could not remove the runner's credential helper agent-gh-app from ~/.gitconfig"
+    return 0
+  fi
+  removed="credential.helper agent-gh-app"
+  git config --global --unset-all credential.useHttpPath '^true$' 2>/dev/null \
+    && removed="${removed}, credential.useHttpPath"
+  git config --global --unset-all safe.directory '^/workspace$' 2>/dev/null \
+    && removed="${removed}, safe.directory /workspace"
+  ok "fixed: removed the runner's leaked git settings from ~/.gitconfig (${removed})"
+}
+
+# -----------------------------------------------------------------
+# Run outside its container, the runner entrypoint once trusted its
+# workspace root in the invoking user's .claude.json (a Claude project)
+# and Codex config.toml (a [projects."<root>"] table). Where that root
+# does not exist on this machine, the trust is that leak and nothing else,
+# so it goes from every Claude profile setup manages and from Codex,
+# together with the entries for the repositories under it.
+# -----------------------------------------------------------------
+purge_leaked_runner_workspace_trust() {
+  local root="$1" dir out rc changed
+  local files=()
+  [ -e "${root}" ] && return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+    if [ "${dir}" = "${CLAUDE_HOME}" ] && [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then
+      files+=("${HOME}/.claude.json")
+    else
+      files+=("${dir}/.claude.json")
+    fi
+  done
+  files+=("${CODEX_HOME}/config.toml")
+  out="$(mktemp)"
+  AK_RUNNER_WORKSPACE="${root}" AK_CHECK_ONLY="${CHECK_ONLY}" \
+    python3 - "${files[@]}" >"${out}" <<'RUNNER_WORKSPACE'
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+ROOT = os.environ["AK_RUNNER_WORKSPACE"].rstrip("/")
+CHECK_ONLY = os.environ["AK_CHECK_ONLY"] == "1"
+TABLE = re.compile(r"^\s*\[\[?[^\[\]=,]+\]\]?\s*(?:#.*)?$")
+PROJECT = re.compile(r"""^\s*\[\s*projects\s*\.\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*\]\s*(?:#.*)?$""")
+LOOSE = re.compile(r"^\s*(?:#.*)?$")
+
+
+def leaked(project):
+    return project == ROOT or project.startswith(ROOT + "/")
+
+
+def write(path, text):
+    target = path.resolve()
+    mode = target.stat().st_mode & 0o777
+    staged = target.with_name(target.name + ".agent-kit-tmp")
+    staged.write_text(text)
+    os.chmod(str(staged), mode)
+    os.replace(str(staged), str(target))
+
+
+def claude(path):
+    try:
+        text = path.read_text()
+        data = json.loads(text)
+    except (OSError, ValueError):
+        return False
+    projects = data.get("projects") if isinstance(data, dict) else None
+    if not isinstance(projects, dict):
+        return False
+    gone = [name for name in projects if leaked(name)]
+    if gone and not CHECK_ONLY:
+        for name in gone:
+            del projects[name]
+        write(path, json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if text.endswith("\n") else ""))
+    return bool(gone)
+
+
+def codex(path):
+    try:
+        lines = path.read_text().splitlines(True)
+    except OSError:
+        return False
+    kept, held, dropping, found = [], [], False, False
+    for line in lines:
+        if TABLE.match(line):
+            if dropping:
+                kept.extend(held)
+            held = []
+            match = PROJECT.match(line)
+            name = None
+            if match:
+                name = match.group(1) if match.group(1) is not None else match.group(2)
+            dropping = name is not None and leaked(name)
+            if dropping:
+                found = True
+                while kept and not kept[-1].strip():
+                    kept.pop()
+                continue
+        elif dropping:
+            held = held + [line] if LOOSE.match(line) else []
+            continue
+        kept.append(line)
+    if found and not CHECK_ONLY:
+        write(path, "".join(kept))
+    return found
+
+
+for argument in dict.fromkeys(sys.argv[1:]):
+    path = Path(argument)
+    if path.is_file() and (codex(path) if path.suffix == ".toml" else claude(path)):
+        print(argument)
+RUNNER_WORKSPACE
+  rc=$?
+  changed="$(paste -s -d ' ' "${out}")"
+  rm -f "${out}"
+  if [ "${rc}" != 0 ]; then
+    fail "could not check the Claude and Codex configs for the runner's ${root} trust"
+    return 0
+  fi
+  [ -n "${changed}" ] || return 0
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    warn "the runner's ${root} project trust leaked into ${changed}; run setup to remove it"
+  else
+    ok "fixed: removed the runner's leaked ${root} project trust from ${changed}"
+  fi
+}
+
+# -----------------------------------------------------------------
 # The critique hooks (docs/adr/0002-exactly-three-critique-hooks.md):
 # merged by NAME into Claude Code's settings.json and Codex's
 # hooks.json, so the operator's own hooks survive, and removed by
@@ -4204,6 +4353,8 @@ fi
 # in the critique hooks, after step 7 copied the scripts they run.
 # -----------------------------------------------------------------
 purge_retired_hooks
+purge_leaked_runner_git_config
+purge_leaked_runner_workspace_trust /workspace
 log "critique hooks"
 critique_hooks install
 

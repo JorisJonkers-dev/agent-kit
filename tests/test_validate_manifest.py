@@ -115,6 +115,53 @@ class ValidateManifestRuntimeSelfTest(unittest.TestCase):
             self.validator.validate_git_credential_preseeded_token(runtime_dir, env)
 
 
+class ValidateEntrypointHomeIsolation(unittest.TestCase):
+    """The runner entrypoint writes HOME and CODEX_HOME only inside the runner container."""
+
+    validator: ClassVar[ModuleType]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.validator = load_validator()
+
+    def _assert_refused(self, script: str, pattern: str) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            entrypoint = Path(tmp) / "entrypoint.sh"
+            entrypoint.write_text("#!/bin/sh\n" + script + 'exec "$@"\n')
+            with self.assertRaisesRegex(AssertionError, pattern):
+                self.validator.validate_entrypoint_home_isolation(entrypoint)
+
+    def test_the_checked_in_entrypoint_leaves_a_workstation_home_alone(self) -> None:
+        # Outside the container a full run must neither create nor change any
+        # file under HOME (.gitconfig, .claude.json, .codex/config.toml); inside
+        # it (AGENT_RUNNER_CONTAINER=1) the same run still writes all of them.
+        self.validator.validate_entrypoint_home_isolation(ROOT / "runner-manifests" / "runtime" / "entrypoint.sh")
+
+    def test_the_template_entrypoint_leaves_a_workstation_home_alone(self) -> None:
+        self.validator.validate_entrypoint_home_isolation(ROOT / "templates" / "runner-runtime" / "entrypoint.sh")
+
+    def test_an_entrypoint_that_writes_the_global_git_config_anywhere_fails(self) -> None:
+        self._assert_refused(
+            "git config --global credential.helper agent-gh-app\n",
+            r"outside the runner container changed HOME \(outside-empty\): \['\.gitconfig'\]",
+        )
+
+    def test_an_entrypoint_that_creates_claude_json_anywhere_fails(self) -> None:
+        self._assert_refused(
+            "[ -f \"$HOME/.claude.json\" ] || echo '{}' > \"$HOME/.claude.json\"\n",
+            r"outside the runner container changed HOME \(outside-empty\): \['\.claude\.json'\]",
+        )
+
+    def test_an_entrypoint_that_edits_an_existing_codex_config_anywhere_fails(self) -> None:
+        self._assert_refused(
+            "if [ -f \"$CODEX_HOME/config.toml\" ]; then echo 'x = 1' >> \"$CODEX_HOME/config.toml\"; fi\n",
+            r"outside the runner container changed HOME \(outside-seeded\): \['\.codex/config\.toml'\]",
+        )
+
+    def test_an_entrypoint_that_never_writes_the_git_config_fails_inside_the_container(self) -> None:
+        self._assert_refused("", r"inside the runner container did not set credential.helper")
+
+
 class ValidateManifestCouncilCommandSurface(unittest.TestCase):
     validator: ClassVar[ModuleType]
 

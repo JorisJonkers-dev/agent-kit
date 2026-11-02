@@ -1160,6 +1160,178 @@ print("changed")
 '''
 
 
+# Drops every Claude project and Codex `[projects."<root>"]` table at or under
+# the runner's workspace root from the files named on the command line, and
+# prints each file it changed (under --check: would change). Python 3.9 safe:
+# macOS's /usr/bin/python3 runs it. A Codex table goes with the blank lines
+# that set it off; comments just above the next table stay with that table.
+RUNNER_WORKSPACE_PY = r'''
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+ROOT = os.environ["AK_RUNNER_WORKSPACE"].rstrip("/")
+CHECK_ONLY = os.environ["AK_CHECK_ONLY"] == "1"
+TABLE = re.compile(r"^\s*\[\[?[^\[\]=,]+\]\]?\s*(?:#.*)?$")
+PROJECT = re.compile(r"""^\s*\[\s*projects\s*\.\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*\]\s*(?:#.*)?$""")
+LOOSE = re.compile(r"^\s*(?:#.*)?$")
+
+
+def leaked(project):
+    return project == ROOT or project.startswith(ROOT + "/")
+
+
+def write(path, text):
+    target = path.resolve()
+    mode = target.stat().st_mode & 0o777
+    staged = target.with_name(target.name + ".agent-kit-tmp")
+    staged.write_text(text)
+    os.chmod(str(staged), mode)
+    os.replace(str(staged), str(target))
+
+
+def claude(path):
+    try:
+        text = path.read_text()
+        data = json.loads(text)
+    except (OSError, ValueError):
+        return False
+    projects = data.get("projects") if isinstance(data, dict) else None
+    if not isinstance(projects, dict):
+        return False
+    gone = [name for name in projects if leaked(name)]
+    if gone and not CHECK_ONLY:
+        for name in gone:
+            del projects[name]
+        write(path, json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if text.endswith("\n") else ""))
+    return bool(gone)
+
+
+def codex(path):
+    try:
+        lines = path.read_text().splitlines(True)
+    except OSError:
+        return False
+    kept, held, dropping, found = [], [], False, False
+    for line in lines:
+        if TABLE.match(line):
+            if dropping:
+                kept.extend(held)
+            held = []
+            match = PROJECT.match(line)
+            name = None
+            if match:
+                name = match.group(1) if match.group(1) is not None else match.group(2)
+            dropping = name is not None and leaked(name)
+            if dropping:
+                found = True
+                while kept and not kept[-1].strip():
+                    kept.pop()
+                continue
+        elif dropping:
+            held = held + [line] if LOOSE.match(line) else []
+            continue
+        kept.append(line)
+    if found and not CHECK_ONLY:
+        write(path, "".join(kept))
+    return found
+
+
+for argument in dict.fromkeys(sys.argv[1:]):
+    path = Path(argument)
+    if path.is_file() and (codex(path) if path.suffix == ".toml" else claude(path)):
+        print(argument)
+'''
+
+
+def _leaked_runner_workspace_trust_fn(w: Any) -> None:
+    """`purge_leaked_runner_workspace_trust <root>`: the runner's workspace trust in Claude and Codex configs."""
+    w("# -----------------------------------------------------------------")
+    w("# Run outside its container, the runner entrypoint once trusted its")
+    w("# workspace root in the invoking user's .claude.json (a Claude project)")
+    w('# and Codex config.toml (a [projects."<root>"] table). Where that root')
+    w("# does not exist on this machine, the trust is that leak and nothing else,")
+    w("# so it goes from every Claude profile setup manages and from Codex,")
+    w("# together with the entries for the repositories under it.")
+    w("# -----------------------------------------------------------------")
+    w("purge_leaked_runner_workspace_trust() {")
+    w('  local root="$1" dir out rc changed')
+    w("  local files=()")
+    w('  [ -e "${root}" ] && return 0')
+    w("  command -v python3 >/dev/null 2>&1 || return 0")
+    w('  for dir in "${CLAUDE_PROFILE_DIRS[@]}"; do')
+    w('    if [ "${dir}" = "${CLAUDE_HOME}" ] && [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then')
+    w('      files+=("${HOME}/.claude.json")')
+    w("    else")
+    w('      files+=("${dir}/.claude.json")')
+    w("    fi")
+    w("  done")
+    w('  files+=("${CODEX_HOME}/config.toml")')
+    # Through a file, as the critique hooks do: bash 3.2 misparses a heredoc in $(...).
+    w('  out="$(mktemp)"')
+    w('  AK_RUNNER_WORKSPACE="${root}" AK_CHECK_ONLY="${CHECK_ONLY}" \\')
+    w('    python3 - "${files[@]}" >"${out}" <<\'RUNNER_WORKSPACE\'')
+    for line in RUNNER_WORKSPACE_PY.strip("\n").split("\n"):
+        w(line)
+    w("RUNNER_WORKSPACE")
+    w("  rc=$?")
+    w("  changed=\"$(paste -s -d ' ' \"${out}\")\"")
+    w('  rm -f "${out}"')
+    w('  if [ "${rc}" != 0 ]; then')
+    w('    fail "could not check the Claude and Codex configs for the runner\'s ${root} trust"')
+    w("    return 0")
+    w("  fi")
+    w('  [ -n "${changed}" ] || return 0')
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    warn "the runner\'s ${root} project trust leaked into ${changed}; run setup to remove it"')
+    w("  else")
+    w('    ok "fixed: removed the runner\'s leaked ${root} project trust from ${changed}"')
+    w("  fi")
+    w("}")
+    w("")
+
+
+def _leaked_runner_git_config_fn(w: Any) -> None:
+    """`purge_leaked_runner_git_config`: the runner's git settings that leaked into a workstation's ~/.gitconfig."""
+    w("# -----------------------------------------------------------------")
+    w("# The runner entrypoint (templates/runner-runtime/entrypoint.sh) once")
+    w("# wrote its global git settings wherever it ran. On a workstation they")
+    w("# name the credential helper agent-gh-app, which only the runner image")
+    w("# ships, so every push printed \"git: 'credential-agent-gh-app' is not a")
+    w('# git command". This removes that helper and the two settings the same')
+    w("# run wrote with it: credential.useHttpPath and safe.directory /workspace.")
+    w("# Neither goes without the helper: alone, either may be the owner's own.")
+    w("# Where git-credential-agent-gh-app is on PATH the settings are real.")
+    w("# -----------------------------------------------------------------")
+    w("purge_leaked_runner_git_config() {")
+    w("  local helpers removed")
+    w("  command -v git >/dev/null 2>&1 || return 0")
+    w('  helpers="$(git config --global --get-all credential.helper 2>/dev/null || true)"')
+    w("  printf '%s\\n' \"${helpers}\" | grep -qxF agent-gh-app || return 0")
+    w("  command -v git-credential-agent-gh-app >/dev/null 2>&1 && return 0")
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w(
+        '    warn "your ~/.gitconfig names the runner\'s credential helper agent-gh-app, '
+        'which is not on PATH; run setup to remove it"',
+    )
+    w("    return 0")
+    w("  fi")
+    w("  if ! git config --global --unset-all credential.helper '^agent-gh-app$'; then")
+    w('    fail "could not remove the runner\'s credential helper agent-gh-app from ~/.gitconfig"')
+    w("    return 0")
+    w("  fi")
+    w('  removed="credential.helper agent-gh-app"')
+    w("  git config --global --unset-all credential.useHttpPath '^true$' 2>/dev/null \\")
+    w('    && removed="${removed}, credential.useHttpPath"')
+    w("  git config --global --unset-all safe.directory '^/workspace$' 2>/dev/null \\")
+    w('    && removed="${removed}, safe.directory /workspace"')
+    w('  ok "fixed: removed the runner\'s leaked git settings from ~/.gitconfig (${removed})"')
+    w("}")
+    w("")
+
+
 def _critique_hooks_fn(w: Any) -> None:
     """`critique_hooks install|remove`: the three critique hooks, merged by name into Claude Code and Codex."""
     hooks = critique_hooks()
@@ -2363,6 +2535,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("  fi")
     w("}")
     w("")
+    _leaked_runner_git_config_fn(w)
+    _leaked_runner_workspace_trust_fn(w)
     _critique_hooks_fn(w)
 
     # --- --uninstall: remove what a PREVIOUS install.sh/install-agents.sh wrote ---
@@ -3243,6 +3417,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# in the critique hooks, after step 7 copied the scripts they run.")
     w("# -----------------------------------------------------------------")
     w("purge_retired_hooks")
+    w("purge_leaked_runner_git_config")
+    w("purge_leaked_runner_workspace_trust /workspace")
     w('log "critique hooks"')
     w("critique_hooks install")
     w("")

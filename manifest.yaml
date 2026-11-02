@@ -736,7 +736,7 @@ agent_runner_runtime:
   package: runner-manifests/runtime/runtime-package.yaml
   files:
     - path: runner-manifests/runtime/Containerfile
-      sha256: 8a5bb41f5c10fea71a6bb1c91eb2c83b93f6a621d60546844fa40652f90bdb07
+      sha256: b25a3abebfd5dceaf48b64b0a9fd39a6c232f020aa7e97e12888c7583bcfde6a
       mode: "0644"
     - path: runner-manifests/runtime/bin/agent-github-token
       sha256: 66afeb4ee918e9c27bc324a40dca8767e6615663fa16e71b020488b2b3f2c606
@@ -754,7 +754,7 @@ agent_runner_runtime:
       sha256: a1257f248ca4a5bf6b2420759914d71f3b2f18e095dda5d3d5c9a8ebcbedbc70
       mode: "0644"
     - path: runner-manifests/runtime/entrypoint.sh
-      sha256: 6c58d9990257676aa32cba40fdd006b29299274fa25e71a422b84fc0648c2046
+      sha256: 8ae17eadbc239071e134621340ed135ac40c4192fe64a56dbc2a0610032b18d4
       mode: "0755"
     - path: runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
       sha256: 08ad6f507bbba017272e1737d136eb12b31ef5df5b36d1ca6c2685302af4f317
@@ -787,7 +787,7 @@ agent_runner_runtime:
       sha256: 4e299f6a333cc016efd99fd904e05aa7672ee7a65159ad3c9627185a50acf0fc
       mode: "0644"
     - path: runner-manifests/runtime/runtime-package.yaml
-      sha256: 0349b46e4bf62ad44a485a352b28af1b6dbdc1d8fdcba841fc5cf32ebd660969
+      sha256: 497442f5c8f11077ae3b8a24c06383beb7746deac17eb658b9b78db8fedba6a9
       mode: "0644"
 
 # The top-level `installer:` block (install.sh/install-agents.sh sha256 pins)

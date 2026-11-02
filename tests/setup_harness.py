@@ -38,6 +38,7 @@ def setup_run(
     *,
     args: tuple[str, ...] = (),
     prepare_home: Callable[[Path], None] | None = None,
+    stubs: dict[str, str] | None = None,
 ) -> Run:
     """Run the checked-in setup script with HOME in a temp dir and nothing real on PATH.
 
@@ -46,6 +47,8 @@ def setup_run(
     Antigravity's MCP config before the run, standing in for a config that was
     already there. ``prepare_home`` writes anything else the home should hold
     before the run, and ``args`` are passed to the script (``--check``).
+    ``stubs`` replaces or adds stub bodies by command name, written after the
+    defaults, for a test that needs one command to do real work.
     """
     bin_dir = root / "bin"
     bin_dir.mkdir(parents=True)
@@ -74,6 +77,8 @@ def setup_run(
         f'  "install --cask") mkdir -p "{root}/casks" && : > "{root}/casks/$3" ;;\n'
         "esac",
     )
+    for name, body in (stubs or {}).items():
+        stub(bin_dir, name, body)
     result = subprocess.run(
         ["bash", str(SETUP), *args],
         capture_output=True,
