@@ -633,10 +633,21 @@ function quotaReached(count, quota, stage) {
   return void 0;
 }
 
+// src/contexts/critique/domain/stage-table.ts
+var STAGE_TABLE = {
+  // A decisions run's accepted findings are questions for the owner and change
+  // no artifact, so it never calls for a second round.
+  decisions: { doNotStart: "/to-tickets", evidence: "decisions", flowKey: "draft", packet: "decisions", removal: "features", secondRound: false },
+  "feature-review": { doNotStart: "/to-tickets", evidence: "code", flowKey: "spec", packet: "code", removal: "features", secondRound: true },
+  spec: { doNotStart: "/to-tickets", evidence: "spec", flowKey: "spec", packet: "document", removal: "features", secondRound: true },
+  "ticket-review": { doNotStart: "/to-tickets", evidence: "code", flowKey: "spec", packet: "code", removal: "features", secondRound: true },
+  tickets: { doNotStart: "/implement", evidence: "tickets", flowKey: "spec", packet: "tickets", removal: "features", secondRound: true }
+};
+
 // src/contexts/critique/domain/budget-view.ts
 function stageOutlooks(routing, draw) {
   return CRITIQUE_STAGES.flatMap((stage) => {
-    const charged = stage === "decisions" ? draw.draft : draw.spec;
+    const charged = STAGE_TABLE[stage].flowKey === "draft" ? draw.draft : draw.spec;
     const stageRoutes = routing.stages[stage];
     if (stageRoutes === void 0) return [];
     const held = [
@@ -839,7 +850,7 @@ function countVerdicts(run) {
 }
 function secondRoundDue(run) {
   const critical = run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted");
-  return run.round === 1 && run.stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL;
+  return run.round === 1 && STAGE_TABLE[run.stage].secondRound && critical.length > SECOND_ROUND_AFTER_CRITICAL;
 }
 function stageVerdictError(stage, verdict) {
   const id = verdict.finding_id;
@@ -1945,7 +1956,7 @@ function stageProgress(sources, stage) {
   const critical = sources.findings.filter(
     (finding) => finding.run_id === latest.run_id && finding.severity === "critical" && finding.verdict === "accepted"
   );
-  if (latest.round === 1 && stage !== "decisions" && critical.length > SECOND_ROUND_AFTER_CRITICAL) return progress("second-round-due");
+  if (latest.round === 1 && STAGE_TABLE[stage].secondRound && critical.length > SECOND_ROUND_AFTER_CRITICAL) return progress("second-round-due");
   return progress("recorded");
 }
 function compareRunIds(a, b) {
@@ -2835,9 +2846,15 @@ function checkEvidence(finding, stage, packet2) {
     const missing = missingLine(finding, packet2);
     if (missing !== void 0) return fabricated(missing);
   }
-  const hint = found.items === 0 ? "no-evidence" : stage === "spec" ? specRule(finding.category, found) : stage === "decisions" ? decisionsRule(finding.category, found) : isCodeStage(stage) ? codeRule(finding.evidence) : ticketRule(finding.location, packet2.tickets);
+  const hint = found.items === 0 ? "no-evidence" : EVIDENCE_RULES[STAGE_TABLE[stage].evidence](finding, found, packet2);
   return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
 }
+var EVIDENCE_RULES = {
+  code: (finding) => codeRule(finding.evidence),
+  decisions: (finding, found) => decisionsRule(finding.category, found),
+  spec: (finding, found) => specRule(finding.category, found),
+  tickets: (finding, _found, packet2) => ticketRule(finding.location, packet2.tickets)
+};
 function fabricated(reason) {
   return { reason, reason_code: "fabricated-evidence", verdict: "rejected" };
 }
@@ -4188,7 +4205,7 @@ var PrepareCommand = class {
       dropped: roster.dropped,
       // A decisions run belongs to no tracker item, so unless named its flow is its
       // own; a ticket review's is its spec's, so it counts with the spec's other stages.
-      flow: input.flow ?? previousFlow ?? (stage === "decisions" ? runId : contents.specReference ?? artifact.reference),
+      flow: input.flow ?? previousFlow ?? (STAGE_TABLE[stage].flowKey === "draft" ? runId : contents.specReference ?? artifact.reference),
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
@@ -4228,13 +4245,14 @@ var PrepareCommand = class {
    */
   async contents(repository, input) {
     const { stage } = input;
-    if (stage === "decisions") return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary });
+    const packet2 = STAGE_TABLE[stage].packet;
+    if (packet2 === "decisions") return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary });
     const tracker = await this.trackers.resolve(repository);
     if (tracker.status === "refused") return tracker;
     if (input.spec === void 0) throw new CritiqueError("invalid-input", `${stage} needs spec: the spec, named the way its tracker names it`);
     const request = { ...input, spec: input.spec };
-    if (isCodeStage(stage)) return this.codePackets.read(repository, tracker, { ...request, stage });
-    return stage === "tickets" ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request);
+    if (packet2 === "code") return this.codePackets.read(repository, tracker, request);
+    return packet2 === "tickets" ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request);
   }
   /**
    * A first round, or the second round after the recorded first round named
@@ -4493,7 +4511,7 @@ function roundLines(run) {
   return run.round === 2 ? [`Round 2, after run ${run.previous_run_id ?? ""}`] : [];
 }
 function doNotStartLines(run) {
-  const next = run.stage === "tickets" ? "/implement" : "/to-tickets";
+  const next = STAGE_TABLE[run.stage].doNotStart;
   const open = openCriticalQuestions(run).map((f) => f.id);
   const which = open.length === 1 ? `critical question ${open.join("")} is` : `critical questions ${open.join(", ")} are`;
   return [
@@ -5584,18 +5602,23 @@ function raiser(byCritic, finding, criticId) {
   }
   return tally;
 }
+var REMOVAL_UNITS = {
+  features: (line) => line.spec
+};
 function removalCandidates(runs, uniqueCatches, features) {
   const candidates = [];
   for (const stage of CRITIQUE_STAGES) {
+    const unitOf = REMOVAL_UNITS[STAGE_TABLE[stage].removal];
     const latest = /* @__PURE__ */ new Map();
     for (const run of runs) {
-      if (run.stage !== stage || run.spec === void 0) continue;
-      if ((latest.get(run.spec) ?? "") < run.recorded_at) latest.set(run.spec, run.recorded_at);
+      const unit = unitOf(run);
+      if (run.stage !== stage || unit === void 0) continue;
+      if ((latest.get(unit) ?? "") < run.recorded_at) latest.set(unit, run.recorded_at);
     }
     if (latest.size < features) continue;
-    const looked = [...latest].sort(([, a], [, b]) => b.localeCompare(a)).slice(0, features).map(([spec]) => spec);
+    const looked = [...latest].sort(([, a], [, b]) => b.localeCompare(a)).slice(0, features).map(([unit]) => unit);
     if (!uniqueCatches.some(
-      (finding) => finding.stage === stage && looked.includes(finding.spec ?? "")
+      (finding) => finding.stage === stage && looked.includes(unitOf(finding) ?? "")
     )) {
       candidates.push({ features: looked, stage });
     }

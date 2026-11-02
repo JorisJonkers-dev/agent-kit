@@ -4,6 +4,7 @@ import { JsonFields } from './json.js'
 import type { FlowEvent, LedgerFinding } from './ledger.js'
 import { sha256 } from './manifest.js'
 import { CRITIQUE_STAGES, SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage } from './stage.js'
+import { STAGE_TABLE } from './stage-table.js'
 import type { Ticket } from './tickets.js'
 import type { TicketReviewRecord } from './ticket-review.js'
 
@@ -195,7 +196,7 @@ function stageProgress(sources: FlowSources, stage: FlowStage): StageProgress {
   const critical = sources.findings.filter(
     (finding) => finding.run_id === latest.run_id && finding.severity === 'critical' && finding.verdict === 'accepted',
   )
-  if (latest.round === 1 && stage !== 'decisions' && critical.length > SECOND_ROUND_AFTER_CRITICAL) return progress('second-round-due')
+  if (latest.round === 1 && STAGE_TABLE[stage].secondRound && critical.length > SECOND_ROUND_AFTER_CRITICAL) return progress('second-round-due')
   return progress('recorded')
 }
 

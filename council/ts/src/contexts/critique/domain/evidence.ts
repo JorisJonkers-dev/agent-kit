@@ -2,6 +2,7 @@ import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './fi
 import { lineCount, lineReferences, packetCandidates } from './line-references.js'
 import type { PacketFile } from './manifest.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
+import { STAGE_TABLE, type EvidenceRule } from './stage-table.js'
 import { ticketTarget } from './tickets.js'
 
 /** One packet file's text, as it was frozen before any critic ran. */
@@ -71,17 +72,16 @@ export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet
     const missing = missingLine(finding, packet)
     if (missing !== undefined) return fabricated(missing)
   }
-  const hint =
-    found.items === 0
-      ? 'no-evidence'
-      : stage === 'spec'
-        ? specRule(finding.category, found)
-        : stage === 'decisions'
-          ? decisionsRule(finding.category, found)
-          : isCodeStage(stage)
-            ? codeRule(finding.evidence)
-            : ticketRule(finding.location, packet.tickets)
+  const hint = found.items === 0 ? 'no-evidence' : EVIDENCE_RULES[STAGE_TABLE[stage].evidence](finding, found, packet)
   return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
+}
+
+/** Each evidence rule, as the stage table names it: the hint a finding earns, or nothing when it has something checkable. */
+const EVIDENCE_RULES: Readonly<Record<EvidenceRule, (finding: FindingBody, found: EvidenceFound, packet: PacketIndex) => HintCode | undefined>> = {
+  code: (finding) => codeRule(finding.evidence),
+  decisions: (finding, found) => decisionsRule(finding.category, found),
+  spec: (finding, found) => specRule(finding.category, found),
+  tickets: (finding, _found, packet) => ticketRule(finding.location, packet.tickets),
 }
 
 function fabricated(reason: string): PreVerdict {

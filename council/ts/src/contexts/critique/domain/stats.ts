@@ -3,6 +3,7 @@ import { sha256 } from './manifest.js'
 import { CritiqueError } from './outcomes.js'
 import type { StatsThresholds } from './routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
+import { STAGE_TABLE, type RemovalRule } from './stage-table.js'
 
 /** Which ledger lines the figures cover. Dates are `YYYY-MM-DD`, both ends included, read from `recorded_at` in UTC. */
 export interface StatsFilter {
@@ -251,6 +252,15 @@ function raiser(
 }
 
 /**
+ * What a removal rule counts a ledger line under: for `features`, the spec
+ * it belongs to. A line recorded before the ledger named the spec counts
+ * under none.
+ */
+const REMOVAL_UNITS: Readonly<Record<RemovalRule, (line: { readonly spec: string | undefined }) => string | undefined>> = {
+  features: (line) => line.spec,
+}
+
+/**
  * A stage is a candidate when its latest `features` features (distinct
  * specs, ordered by their latest run of the stage) brought no unique
  * accepted catch. A stage that has run on fewer features is not judged yet.
@@ -262,19 +272,21 @@ function removalCandidates(
 ): readonly RemovalCandidate[] {
   const candidates: RemovalCandidate[] = []
   for (const stage of CRITIQUE_STAGES) {
+    const unitOf = REMOVAL_UNITS[STAGE_TABLE[stage].removal]
     const latest = new Map<string, string>()
     for (const run of runs) {
-      if (run.stage !== stage || run.spec === undefined) continue
-      if ((latest.get(run.spec) ?? '') < run.recorded_at) latest.set(run.spec, run.recorded_at)
+      const unit = unitOf(run)
+      if (run.stage !== stage || unit === undefined) continue
+      if ((latest.get(unit) ?? '') < run.recorded_at) latest.set(unit, run.recorded_at)
     }
     if (latest.size < features) continue
     const looked = [...latest]
       .sort(([, a], [, b]) => b.localeCompare(a))
       .slice(0, features)
-      .map(([spec]) => spec)
+      .map(([unit]) => unit)
     if (
       !uniqueCatches.some(
-        (finding) => finding.stage === stage && looked.includes(finding.spec ?? ''),
+        (finding) => finding.stage === stage && looked.includes(unitOf(finding) ?? ''),
       )
     ) {
       candidates.push({ features: looked, stage })

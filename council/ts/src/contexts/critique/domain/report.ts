@@ -2,6 +2,7 @@ import type { CriticRun } from './critic.js'
 import { signalledDepth, type DepthSignal } from './depth.js'
 import type { RunFinding } from './findings.js'
 import type { DroppedCritic } from './routing.js'
+import { STAGE_TABLE } from './stage-table.js'
 import {
   countVerdicts,
   familiesOf,
@@ -189,7 +190,7 @@ function roundLines(run: AdjudicatedRun): readonly string[] {
  * cycle, or while a critical scope question about the tickets is open.
  */
 function doNotStartLines(run: AdjudicatedRun): readonly string[] {
-  const next = run.stage === 'tickets' ? '/implement' : '/to-tickets'
+  const next = STAGE_TABLE[run.stage].doNotStart
   const open = openCriticalQuestions(run).map((f) => f.id)
   const which = open.length === 1 ? `critical question ${open.join('')} is` : `critical questions ${open.join(', ')} are`
   return [
