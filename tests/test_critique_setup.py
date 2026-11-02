@@ -187,10 +187,10 @@ def test_setup_installs_check_tickets_beside_the_shared_skill_in_every_agent_hom
 def test_shipped_routing_defines_the_tickets_stage() -> None:
     tickets = json.loads(ROUTING.read_text())["stages"]["tickets"]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["base"]] == [
-        ("vibe-deepseek-flash", "ticket-linter", ["testability"], 0.1, 180)
+        ("vibe-deepseek-flash", "ticket-linter", ["testability"], 1, 600)
     ]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in tickets["deep"]] == [
-        ("vibe-mistral-large", "ticket-linter", ["simplicity"], 0.1, 180)
+        ("vibe-mistral-large", "ticket-linter", ["simplicity"], 1, 600)
     ]
     assert tickets["ticket_size"] == {"max_modules": 5, "max_criteria": 8}
     assert (KIT_ROOT / "skills" / "critique" / "roles" / "ticket-linter.md").is_file()

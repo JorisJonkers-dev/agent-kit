@@ -1948,7 +1948,9 @@ The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
   (`assemblePrompt` now takes the stage instead of a code-packet flag).
 - **Routing.** Shipped `tickets`: base `vibe-deepseek-flash` (`ticket-linter`,
   testability), deep `vibe-mistral-large` (`ticket-linter`, simplicity), each
-  $0.10 and 180 s, `distinct_families`. A stage may carry `ticket_size:
+  $0.10 and 180 s, `distinct_families` (raised to $1 and 600 s on
+  2026-11-02: at $0.10 all three critics stopped early on #214's 33
+  tickets). A stage may carry `ticket_size:
   { max_modules, max_criteria }` (shipped 5 and 8; #181's starting values
   when left out); only the tickets stage reads it. Depth signals: the new
   measure `tickets` (the ticket count, threshold 10, a value #181 left open),
