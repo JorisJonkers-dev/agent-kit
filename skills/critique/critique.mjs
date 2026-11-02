@@ -671,25 +671,6 @@ function slotFallback(routing, slot, deep) {
   return { client: slot.client, to: to ?? null, ...deep === void 0 ? {} : { deep } };
 }
 
-// src/contexts/critique/domain/checks.ts
-var CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`:/gm;
-var CHECK_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-function isCheckId(check) {
-  return check !== void 0 && CHECK_ID.test(check);
-}
-function declaredChecks(texts) {
-  return [...new Set(texts.flatMap((text) => [...text.matchAll(CHECK_BULLET)].map((match) => match[1] ?? "")))];
-}
-function checkNamed(finding, declared) {
-  if (finding.check === void 0) return { reason: "names no check", reason_code: "no-check", verdict: "hint" };
-  if (declared.includes(finding.check)) return void 0;
-  return {
-    reason: `names the check ${finding.check}, which no lens or role in its critic's prompt declares`,
-    reason_code: "unknown-check",
-    verdict: "hint"
-  };
-}
-
 // src/contexts/critique/domain/findings.ts
 var SEVERITIES = ["critical", "major", "minor"];
 var CATEGORIES = [
@@ -775,6 +756,7 @@ function readRunFinding(fields) {
     critic_finding_id: fields.string("critic_finding_id"),
     id: fields.string("id"),
     raised_by: fields.strings("raised_by"),
+    ...fields.has("declared_severity") ? { declared_severity: fields.oneOf("declared_severity", SEVERITIES) } : {},
     ...fields.has("pre_verdict") ? { pre_verdict: readPreVerdict(fields.object("pre_verdict")) } : {}
   };
 }
@@ -794,6 +776,34 @@ function readEvidence(fields) {
     kind: fields.oneOf("kind", EVIDENCE_KINDS),
     value: fields.string("value"),
     ...file === void 0 ? {} : { file }
+  };
+}
+
+// src/contexts/critique/domain/checks.ts
+var CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:/gm;
+var CHECK_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+function isCheckId(check) {
+  return check !== void 0 && CHECK_ID.test(check);
+}
+function declaredChecks(texts) {
+  const checks = /* @__PURE__ */ new Map();
+  for (const [, id = "", named] of texts.flatMap((text) => [...text.matchAll(CHECK_BULLET)])) {
+    const severity = SEVERITIES.find((level) => level === named);
+    if (!checks.has(id)) checks.set(id, severity === void 0 ? { id } : { id, severity });
+  }
+  return [...checks.values()];
+}
+function withDeclaredSeverity(finding, declared) {
+  const severity = declared.find((check) => check.id === finding.check)?.severity;
+  return severity === void 0 ? finding : { ...finding, declared_severity: severity, severity };
+}
+function checkNamed(finding, declared) {
+  if (finding.check === void 0) return { reason: "names no check", reason_code: "no-check", verdict: "hint" };
+  if (declared.some((check) => check.id === finding.check)) return void 0;
+  return {
+    reason: `names the check ${finding.check}, which no lens or role in its critic's prompt declares`,
+    reason_code: "unknown-check",
+    verdict: "hint"
   };
 }
 
@@ -885,6 +895,15 @@ function stageVerdictError(stage, verdict) {
     return void 0;
   }
   return verdict.answered !== void 0 && verdict.verdict !== "needs-human" ? `${id}: only a needs-human verdict can be answered` : void 0;
+}
+function severityOverrideProblem(finding, verdict) {
+  const id = verdict.finding_id;
+  if (verdict.severity === void 0) {
+    return verdict.severity_reason === void 0 ? void 0 : `${id}: a severity_reason belongs to a severity override`;
+  }
+  if (finding.declared_severity === void 0) return `${id}: only a finding whose check fixes its severity can be overridden`;
+  if (verdict.severity === finding.declared_severity) return `${id}: the override repeats the declared severity ${verdict.severity}`;
+  return verdict.severity_reason === void 0 ? `${id}: a severity override needs a severity_reason` : void 0;
 }
 function openCriticalQuestions(run) {
   return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "needs-human" && f.verdict.answered !== true);
@@ -998,7 +1017,12 @@ function ledgerLines(run, recordedAt) {
     raised_by: finding.raised_by,
     raised_by_families: familiesOf(run, finding),
     reason_code: finding.verdict.reason_code ?? null,
+    /** The severity as recorded: the check's, the critic's, or the orchestrator's override. */
     severity: finding.severity,
+    /** The severity the finding's check fixed, so stats can measure how often the orchestrator overrides it. */
+    declared_severity: finding.declared_severity ?? null,
+    severity_override: finding.verdict.severity ?? null,
+    severity_reason: finding.verdict.severity_reason ?? null,
     verdict: finding.verdict.verdict
   }));
   return [...runLines, ...findingLines].map((line) => JSON.stringify(line));
@@ -3142,8 +3166,10 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
 
 // src/contexts/critique/application/fan-out.ts
 function withPreVerdict(finding, stage, packet2, checks) {
-  const preVerdict = checkEvidence(finding, stage, packet2) ?? checkNamed(finding, checks.get(finding.raised_by[0] ?? "") ?? []);
-  return preVerdict === void 0 ? finding : { ...finding, pre_verdict: preVerdict };
+  const declared = checks.get(finding.raised_by[0] ?? "") ?? [];
+  const rated = withDeclaredSeverity(finding, declared);
+  const preVerdict = checkEvidence(rated, stage, packet2) ?? checkNamed(rated, declared);
+  return preVerdict === void 0 ? rated : { ...rated, pre_verdict: preVerdict };
 }
 function parseFanOutResult(text) {
   const file = JsonFields.parse(text);
@@ -3242,7 +3268,7 @@ var FanOutCommand = class {
     await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind);
     return { ...attempt, checks };
   }
-  /** Writes the critic's prompt, and returns it with the check ids its role and lenses declare. */
+  /** Writes the critic's prompt, and returns it with the checks its role and lenses declare. */
   async writePrompt(manifest, critic, criticDir) {
     const asset = (path) => this.deps.files.readText(join8(this.deps.assetsRoot, path));
     const role = await asset(`roles/${critic.role}.md`);
@@ -4606,6 +4632,7 @@ function findingSection(run, finding) {
     "",
     `Raised by: ${finding.raised_by.join(", ")} (${familiesOf(run, finding).join(", ")})`,
     `Verdict: ${verdictText(finding.verdict)}`,
+    ...finding.verdict.severity === void 0 ? [] : [`Severity: ${finding.verdict.severity}, overriding the check's ${String(finding.declared_severity)} (${String(finding.verdict.severity_reason)})`],
     ...finding.pre_verdict === void 0 || finding.pre_verdict.verdict === finding.verdict.verdict ? [] : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`],
     "",
     finding.claim,
@@ -4688,9 +4715,14 @@ var RecordCommand = class {
       if (error !== void 0) throw new CritiqueError("invalid-input", error);
     }
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)));
+    for (const finding of merged.findings) {
+      const given = verdicts.get(finding.id);
+      const error = given === void 0 ? void 0 : severityOverrideProblem(finding, given);
+      if (error !== void 0) throw new CritiqueError("invalid-input", error);
+    }
     const reportPath2 = reportPath(input.runDir);
     if (await this.deps.files.exists(reportPath2)) throw new CritiqueError("already-recorded", `run ${manifest.run_id} is already recorded`);
-    const adjudicated = merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) }));
+    const adjudicated = merged.findings.map((finding) => adjudicate(verdicts, finding));
     const gates = new FeatureGate(this.deps);
     const gate = manifest.stage === "feature-review" ? await gates.compute(manifest, adjudicated) : void 0;
     const run = {
@@ -4738,6 +4770,16 @@ var RecordCommand = class {
     };
   }
 };
+function adjudicate(verdicts, finding) {
+  const given = verdicts.get(finding.id);
+  const verdict = verdictFor(verdicts, finding);
+  if (given?.severity === void 0) return { ...finding, verdict };
+  return {
+    ...finding,
+    severity: given.severity,
+    verdict: { ...verdict, severity: given.severity, ...given.severity_reason === void 0 ? {} : { severity_reason: given.severity_reason } }
+  };
+}
 function verdictFor(verdicts, finding) {
   const given = verdicts.get(finding.id);
   const pre = finding.pre_verdict;
@@ -4778,6 +4820,8 @@ function readVerdict(fields) {
   const traceTickets = fields.has("trace_tickets") ? fields.strings("trace_tickets") : void 0;
   const regressionTest = fields.optionalString("regression_test");
   const fixed = fields.has("fixed") ? fields.boolean("fixed") : void 0;
+  const severity = fields.has("severity") ? fields.oneOf("severity", SEVERITIES) : void 0;
+  const severityReason = fields.optionalMatching("severity_reason", isReasonCode, "a short lowercase slug");
   return {
     finding_id: findingId,
     verdict,
@@ -4787,7 +4831,9 @@ function readVerdict(fields) {
     ...followUp === void 0 ? {} : { follow_up: followUp },
     ...traceTickets === void 0 ? {} : { trace_tickets: traceTickets },
     ...regressionTest === void 0 ? {} : { regression_test: regressionTest },
-    ...fixed === void 0 ? {} : { fixed }
+    ...fixed === void 0 ? {} : { fixed },
+    ...severity === void 0 ? {} : { severity },
+    ...severityReason === void 0 ? {} : { severity_reason: severityReason }
   };
 }
 function isReasonCode(value) {

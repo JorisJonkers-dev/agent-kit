@@ -67,7 +67,12 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     raised_by: finding.raised_by,
     raised_by_families: familiesOf(run, finding),
     reason_code: finding.verdict.reason_code ?? null,
+    /** The severity as recorded: the check's, the critic's, or the orchestrator's override. */
     severity: finding.severity,
+    /** The severity the finding's check fixed, so stats can measure how often the orchestrator overrides it. */
+    declared_severity: finding.declared_severity ?? null,
+    severity_override: finding.verdict.severity ?? null,
+    severity_reason: finding.verdict.severity_reason ?? null,
     verdict: finding.verdict.verdict,
   }))
   return [...runLines, ...findingLines].map((line) => JSON.stringify(line))

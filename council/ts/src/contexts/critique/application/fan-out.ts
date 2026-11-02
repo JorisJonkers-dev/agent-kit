@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import { budgetReached, quotaReached } from '../domain/budget.js'
-import { checkNamed, declaredChecks } from '../domain/checks.js'
+import { checkNamed, declaredChecks, withDeclaredSeverity, type DeclaredCheck } from '../domain/checks.js'
 import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } from '../domain/critic.js'
 import { checkEvidence, indexPacket, type PacketIndex, type PacketText } from '../domain/evidence.js'
 import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
@@ -29,17 +29,21 @@ export interface FanOutResult {
 }
 
 /**
- * The stage's evidence check speaks first; only a finding it leaves to the
- * orchestrator is checked for its check id, against the prompt of the critic
- * that raised it first, whose check a merged finding keeps.
+ * A finding is judged against the prompt of the critic that raised it first,
+ * whose check a merged finding keeps: that check's declared severity, if it
+ * declares one, replaces the critic's. The stage's evidence check speaks
+ * first; only a finding it leaves to the orchestrator is checked for its
+ * check id.
  */
 function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex, checks: CriticChecks): RunFinding {
-  const preVerdict = checkEvidence(finding, stage, packet) ?? checkNamed(finding, checks.get(finding.raised_by[0] ?? '') ?? [])
-  return preVerdict === undefined ? finding : { ...finding, pre_verdict: preVerdict }
+  const declared = checks.get(finding.raised_by[0] ?? '') ?? []
+  const rated = withDeclaredSeverity(finding, declared)
+  const preVerdict = checkEvidence(rated, stage, packet) ?? checkNamed(rated, declared)
+  return preVerdict === undefined ? rated : { ...rated, pre_verdict: preVerdict }
 }
 
-/** The check ids each critic's prompt declared, by critic id. */
-type CriticChecks = ReadonlyMap<string, readonly string[]>
+/** The checks each critic's prompt declared, by critic id. */
+type CriticChecks = ReadonlyMap<string, readonly DeclaredCheck[]>
 
 /** Reads `findings.json`, the merged findings fan-out wrote, back for record. */
 export function parseFanOutResult(text: string): FanOutResult {
@@ -149,12 +153,12 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     return { ...attempt, checks }
   }
 
-  /** Writes the critic's prompt, and returns it with the check ids its role and lenses declare. */
+  /** Writes the critic's prompt, and returns it with the checks its role and lenses declare. */
   private async writePrompt(
     manifest: RunManifest,
     critic: RosterCritic,
     criticDir: string,
-  ): Promise<{ readonly prompt: CriticPrompt; readonly checks: readonly string[] }> {
+  ): Promise<{ readonly prompt: CriticPrompt; readonly checks: readonly DeclaredCheck[] }> {
     const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
     const role = await asset(`roles/${critic.role}.md`)
     const lenses = await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) })))
@@ -232,8 +236,8 @@ function promptFields(prompt: CriticPrompt, criticDir: string): Pick<CriticRun, 
 interface CriticAttempt {
   readonly findings: readonly CriticFinding[]
   readonly run: CriticRun
-  /** The check ids the critic's prompt declared. */
-  readonly checks: readonly string[]
+  /** The checks the critic's prompt declared. */
+  readonly checks: readonly DeclaredCheck[]
 }
 
 interface FallbackRetry {
