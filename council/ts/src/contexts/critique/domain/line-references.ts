@@ -26,12 +26,13 @@ export function lineReferences(text: string): readonly LineReference[] {
 
 /**
  * The packet paths a cited path may mean, most literal first: the packet
- * path itself, the repository path under `tree/`, and a path with a diff's
- * `a/` or `b/` prefix under `tree/`.
+ * path itself, the repository path under `tree/`, a path with a diff's
+ * `a/` or `b/` prefix under `tree/`, and a document's repository path under
+ * `artifact/` or `references/`, where a repository packet keeps its records.
  */
 export function packetCandidates(path: string, treeDir: string): readonly string[] {
   const diffSide = /^[ab]\/(.+)$/.exec(path)
-  return [path, `${treeDir}/${path}`, ...(diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ''}`])]
+  return [path, `${treeDir}/${path}`, ...(diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ''}`]), `artifact/${path}`, `references/${path}`]
 }
 
 /** How many lines a file has: a final newline ends the last line rather than starting another. */

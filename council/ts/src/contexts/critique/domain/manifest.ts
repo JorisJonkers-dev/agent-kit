@@ -19,9 +19,11 @@ export function sha256(content: string | Uint8Array): string {
  * the `diff` against the base, the `ticket` or tickets the change delivers
  * and the `spec` they come from. The tickets stage freezes the `spec`, its
  * `ticket`s and the ticket checker's report (`check`). The decisions stage
- * adds the `feature` the decisions under review are for.
+ * adds the `feature` the decisions under review are for. A repository
+ * packet adds a sampled `tree` and the `fact`s the runner computed: the
+ * tree's manifest and everything under `facts/`.
  */
-export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'check', 'feature'] as const
+export const PACKET_FILE_KINDS = ['artifact', 'reference', 'tree', 'diff', 'ticket', 'spec', 'check', 'feature', 'fact'] as const
 export type PacketFileKind = (typeof PACKET_FILE_KINDS)[number]
 
 export interface PacketFile {
@@ -34,6 +36,16 @@ export interface PacketFile {
   readonly source: string
   readonly kind: PacketFileKind
   readonly sha256: string
+  /**
+   * Only for a tree file a repository packet cut short: it holds lines 1 to
+   * `last` of the file's `lines`, at their own numbers.
+   */
+  readonly window?: PacketWindow
+}
+
+export interface PacketWindow {
+  readonly last: number
+  readonly lines: number
 }
 
 /** The commits a code stage reviewed. */
@@ -155,6 +167,7 @@ export function parseManifest(text: string): RunManifest {
       path: packetFile.string('path'),
       sha256: packetFile.string('sha256'),
       source: packetFile.string('source'),
+      ...(packetFile.has('window') ? { window: readWindow(packetFile.object('window')) } : {}),
     })),
     ...readRound(file),
     ...(file.has('ticket_check') ? { ticket_check: readTicketCheck(file.object('ticket_check')) } : {}),
@@ -165,6 +178,10 @@ export function parseManifest(text: string): RunManifest {
     stage: file.oneOf('stage', CRITIQUE_STAGES),
     version: file.literal('version', 1),
   }
+}
+
+function readWindow(window: JsonFields): PacketWindow {
+  return { last: window.positiveInteger('last'), lines: window.positiveInteger('lines') }
 }
 
 /** A manifest written before rounds existed is a first round. */

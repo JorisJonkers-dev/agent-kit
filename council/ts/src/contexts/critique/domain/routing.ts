@@ -4,6 +4,7 @@ import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './fam
 import { JsonFields, JsonShapeError } from './json.js'
 import { CritiqueError } from './outcomes.js'
 import type { CritiqueStage, Depth } from './stage.js'
+import { DEFAULT_PACKET_LIMITS, readPacketLimits, type PacketLimits } from './repository-packet.js'
 import { DEFAULT_TICKET_SIZE, type TicketSize } from './tickets.js'
 import { readGateRouting, type GateRouting } from './gate.js'
 import { readTriageRules, type TriageModel, type TriageRules } from './triage.js'
@@ -97,6 +98,8 @@ export interface Routing {
   readonly stats?: StatsThresholds
   /** The per-flow Vibe cap and the Antigravity quota. */
   readonly limits: CritiqueLimits
+  /** How big a repository packet may be, and the paths it never sends. */
+  readonly packet: PacketLimits
   /** Ticket-review risk triage: the risk rules and the triage model; routing without it cannot triage. */
   readonly triage?: TriageRouting
   /** What the PR gate reads: the feature branch patterns. Without it, every branch a push updates is gated. */
@@ -151,6 +154,7 @@ export function parseRouting(text: string): Routing {
     clients,
     fallbacks: file.has('fallbacks') ? file.stringLists('fallbacks') : {},
     limits: readLimits(file),
+    packet: file.has('packet') ? readPacketLimits(file.object('packet')) : DEFAULT_PACKET_LIMITS,
     stages: file.entries('stages', (stage, name) => ({
       base: stage.list('base', readRosterSlot),
       deep: stage.has('deep') ? stage.list('deep', readRosterSlot) : [],

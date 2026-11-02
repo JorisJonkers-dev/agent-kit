@@ -29,7 +29,7 @@ import { STAGE_TABLE } from '../domain/stage-table.js'
 import { sizeReport, summariseCheck, type TicketSize } from '../domain/tickets.js'
 import { riskPathHits, type CodeChange } from '../domain/triage.js'
 import { FlowBudget } from './budget.js'
-import { AdrPacketReader } from './adr-packet.js'
+import { AdrPacketReader, type PreparedRepository } from './adr-packet.js'
 import { readCheckedTickets, type CheckTicketsResult } from './check-tickets.js'
 import { CodePacketReader, ticketFile, type UnfrozenFile } from './code-packet.js'
 import { readInput, readJsonFile } from './decode.js'
@@ -109,6 +109,8 @@ interface PacketContents {
   readonly specReference?: string
   /** Only for an ADR review: how many records are under review. */
   readonly adrs?: number
+  /** Only for a repository packet: what of the tree it sent. */
+  readonly repository?: PreparedRepository
 }
 
 type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'> & {
@@ -126,6 +128,8 @@ export interface PrepareResult {
   readonly packet_files: readonly string[]
   /** Only for a code stage. */
   readonly code?: PreparedCode
+  /** Only for a repository packet: the commit its tree was sampled at, and how much of it was sent. */
+  readonly repository?: PreparedRepository
   readonly artifact: ArtifactSource
   readonly depth: Depth
   readonly round: Round
@@ -166,7 +170,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     this.decisionDocs = new DecisionDocs(deps.files)
     this.codePackets = new CodePacketReader(deps)
     this.decisionsPackets = new DecisionsPacketReader(deps.files)
-    this.adrPackets = new AdrPacketReader(deps.files)
+    this.adrPackets = new AdrPacketReader(deps)
     this.routing = new RoutingSource(deps)
     this.staged = new StagedDiffReader(deps)
   }
@@ -207,7 +211,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       )
     }
     const snapshot = input.staged ? await this.staged.snapshot(repository.root) : undefined
-    const contents = await this.contents(repository, snapshot === undefined ? input : { ...input, head: snapshot.commit })
+    const contents = await this.contents(repository, snapshot === undefined ? input : { ...input, head: snapshot.commit }, entry.code)
     if (contents.status === 'refused') return contents
     const { artifact, change, ticketCheck } = contents
     const code = contents.code === undefined || snapshot === undefined ? contents.code : { ...contents.code, staged_diff: snapshot.sha256 }
@@ -269,6 +273,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     return {
       artifact: source,
       ...(code === undefined ? {} : { code: preparedCode(code, packetFiles) }),
+      ...(contents.repository === undefined ? {} : { repository: contents.repository }),
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
       depth_choice: choice,
@@ -286,17 +291,22 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
 
   /**
    * What the stage freezes. The decisions stage reads no tracker: grilling
-   * comes before any spec. Every other stage reads its spec, or its ticket,
-   * from the repository's tracker.
+   * comes before any spec, and neither does an ADR review, which samples
+   * the tree beside its records only when the repository allows code. Every
+   * other stage reads its spec, or its ticket, from the repository's tracker.
    */
   private async contents(
     repository: ResolvedRepository,
     input: PrepareInput,
+    codeAllowed: boolean,
   ): Promise<Refusal | PacketContents> {
     const { stage } = input
     const packet = STAGE_TABLE[stage].packet
     if (packet === 'decisions') return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary })
-    if (packet === 'adrs') return this.adrPackets.read(repository.root, input)
+    if (packet === 'adrs') {
+      const code = codeAllowed ? { code: { head: input.head, limits: (await this.routing.load()).packet } } : {}
+      return this.adrPackets.read(repository.root, { ...input, ...code })
+    }
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker
     if (input.spec === undefined) throw new CritiqueError('invalid-input', `${stage} needs spec: the spec, named the way its tracker names it`)
