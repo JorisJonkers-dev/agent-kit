@@ -28,10 +28,19 @@ offers it.
 | `tickets` | `/check-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
 | `ticket-review` | `/review-ticket` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
+| `adr-review` | none yet (`/critique-adrs`) | on demand, outside any feature | Mistral Large, Gemini Flash (`spec-redteam`, until `adr-reviewer` ships) | GLM | Findings on the decision records; the stage is being built and has no skill yet |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
 `/flow no-critique` skips every stage on purpose, for trivial work.
+
+`adr-review` is a **review stage**: it runs over a repository's decision
+records when you ask for one, never as a step of a feature's flow. Each run
+is a flow of its own, keyed by its run id, with its own $5 Vibe cap, so a
+review never draws on a feature's budget. Its packet holds the records under
+review in `artifact/`, and the glossary and the other records in
+`references/`; it sends documents only. `/flow reviews` lists recent review
+runs with their verdicts and spend, and never calls a review due.
 
 A ticket review starts with **triage**: the change is risky when a path
 matches routing's `triage.risk_paths` (auth, crypto, migrations,
@@ -160,6 +169,7 @@ the threshold:
 | `tickets` | more than 10 tickets, a risk term, or `risk:high` on the spec |
 | `ticket-review` | more than 600 changed lines or 3 risk-path hits, or `risk:high` |
 | `feature-review` | `risk:high` on the spec |
+| `adr-review` | more than 10 records under review, or a risk term |
 
 Risk terms are auth, migration, payment, crypto, encryption, concurrency and
 `public API`, with common variants, as whole words. Pass `base` or `deep` to a
@@ -173,7 +183,8 @@ that fired either way.
   trusted, the runner charges the cap.
 - **Per flow**: Vibe spend capped at $5 (`budget.vibe_flow_cap_usd`),
   triage included. Each flow key is capped on its own: the decisions stage
-  charges the draft's, every later stage the spec's. Past the cap, Vibe
+  charges the draft's, every later stage the spec's, and each review run
+  its own run id. Past the cap, Vibe
   critics don't launch and show as `budget-skip`.
 - **Antigravity per day**: 20 invocations a UTC day
   (`antigravity_quota.daily_cap`). After 10 (`reserve_threshold`), the rest

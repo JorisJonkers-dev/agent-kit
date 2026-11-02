@@ -61,12 +61,21 @@ export interface StatsCell {
   readonly cost_per_accepted_usd: number | null
 }
 
-/** A stage whose latest features brought no accepted finding that only one critic client raised. */
-export interface RemovalCandidate {
-  readonly stage: CritiqueStage
-  /** The features (spec references) looked at, latest first. */
-  readonly features: readonly string[]
-}
+/**
+ * A stage whose latest features, or at a review stage whose latest runs,
+ * brought no accepted finding that only one critic client raised.
+ */
+export type RemovalCandidate =
+  | {
+      readonly stage: CritiqueStage
+      /** The features (spec references) looked at, latest first. */
+      readonly features: readonly string[]
+    }
+  | {
+      readonly stage: CritiqueStage
+      /** The review runs looked at, latest first. */
+      readonly runs: readonly string[]
+    }
 
 export interface CritiqueStats {
   readonly cells: readonly StatsCell[]
@@ -253,17 +262,21 @@ function raiser(
 
 /**
  * What a removal rule counts a ledger line under: for `features`, the spec
- * it belongs to. A line recorded before the ledger named the spec counts
- * under none.
+ * it belongs to, and a line recorded before the ledger named the spec counts
+ * under none; for `runs`, the run itself.
  */
-const REMOVAL_UNITS: Readonly<Record<RemovalRule, (line: { readonly spec: string | undefined }) => string | undefined>> = {
+const REMOVAL_UNITS: Readonly<
+  Record<RemovalRule, (line: { readonly spec: string | undefined; readonly run_id: string }) => string | undefined>
+> = {
   features: (line) => line.spec,
+  runs: (line) => line.run_id,
 }
 
 /**
  * A stage is a candidate when its latest `features` features (distinct
  * specs, ordered by their latest run of the stage) brought no unique
- * accepted catch. A stage that has run on fewer features is not judged yet.
+ * accepted catch; a review stage, when its latest `features` runs did. A
+ * stage that has run on fewer is not judged yet.
  */
 function removalCandidates(
   runs: readonly LedgerCriticRun[],
@@ -272,7 +285,8 @@ function removalCandidates(
 ): readonly RemovalCandidate[] {
   const candidates: RemovalCandidate[] = []
   for (const stage of CRITIQUE_STAGES) {
-    const unitOf = REMOVAL_UNITS[STAGE_TABLE[stage].removal]
+    const rule = STAGE_TABLE[stage].removal
+    const unitOf = REMOVAL_UNITS[rule]
     const latest = new Map<string, string>()
     for (const run of runs) {
       const unit = unitOf(run)
@@ -289,7 +303,7 @@ function removalCandidates(
         (finding) => finding.stage === stage && looked.includes(unitOf(finding) ?? ''),
       )
     ) {
-      candidates.push({ features: looked, stage })
+      candidates.push(rule === 'runs' ? { runs: looked, stage } : { features: looked, stage })
     }
   }
   return candidates
@@ -392,8 +406,10 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
     ...(stats.removal_candidates.length === 0
       ? ['none']
       : stats.removal_candidates.map(
-          (candidate) =>
-            `- ${candidate.stage}: no unique accepted catch across its last ${String(candidate.features.length)} features (${candidate.features.join(', ')})`,
+          (candidate) => {
+            const [looked, unit] = 'runs' in candidate ? [candidate.runs, 'runs'] : [candidate.features, 'features']
+            return `- ${candidate.stage}: no unique accepted catch across its last ${String(looked.length)} ${unit} (${looked.join(', ')})`
+          },
         )),
   )
   lines.push(

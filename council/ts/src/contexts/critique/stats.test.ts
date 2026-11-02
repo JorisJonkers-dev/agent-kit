@@ -570,6 +570,37 @@ describe('critique stats removal candidates', () => {
     expect((await stats(ledger)).removal_candidates).toEqual([])
   })
 
+  it('judges a review stage by its latest runs, since a review belongs to no feature', async () => {
+    const ledger = new SyntheticLedger()
+    for (let n = 0; n < 3; n += 1) {
+      ledger.run({
+        critics: [{ client: MISTRAL }, { client: GLM }],
+        findings: raised([MISTRAL, GLM], { accepted: 2 }),
+        spec: 'adrs',
+        stage: 'adr-review',
+      })
+    }
+
+    const result = await stats(ledger)
+
+    expect(result.removal_candidates).toEqual([{ runs: ['run-3', 'run-2', 'run-1'], stage: 'adr-review' }])
+    expect(result.report).toContain('- adr-review: no unique accepted catch across its last 3 runs (run-3, run-2, run-1)\n')
+  })
+
+  it('keeps a review stage whose unique accepted catch was in one of its latest runs', async () => {
+    const ledger = new SyntheticLedger()
+    for (const unique of [0, 1, 0]) {
+      ledger.run({
+        critics: [{ client: MISTRAL }, { client: GLM }],
+        findings: raised(MISTRAL, { accepted: unique, rejected: 1 }),
+        spec: 'adrs',
+        stage: 'adr-review',
+      })
+    }
+
+    expect((await stats(ledger)).removal_candidates).toEqual([])
+  })
+
   it('reads the number of features from routing', async () => {
     const ledger = new SyntheticLedger()
     feature(ledger, '#1')

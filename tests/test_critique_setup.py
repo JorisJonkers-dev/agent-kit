@@ -223,6 +223,30 @@ def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_ho
         assert (skills / "review-feature" / ".." / "critique" / "critique.mjs").is_file(), home
 
 
+def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_reserve() -> None:
+    routing = json.loads(ROUTING.read_text())
+    review = routing["stages"]["adr-review"]
+    assert [(s["client"], s["max_price_usd"]) for s in review["base"]] == [
+        ("vibe-mistral-large", 0.5), ("agy-gemini-flash-high", 0.5)
+    ]
+    assert [s["client"] for s in review["deep"]] == ["vibe-glm"]
+    assert review["depth_signals"]["thresholds"] == {"adrs": 10}
+    assert review["depth_signals"]["risk_terms"] == routing["stages"]["spec"]["depth_signals"]["risk_terms"]
+    assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]
+
+
+def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
+    flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    assert "| `/flow reviews` |" in flow
+    entry = flow[flow.index("## /flow reviews"):]
+    end = entry.find("\n## ", 1)
+    entry = " ".join((entry if end < 0 else entry[:end]).split())
+    assert "critique.mjs reviews" in entry
+    assert "never due" in entry
+    for field in ("stage", "run_id", "verdicts", "spent_usd"):
+        assert f"`{field}`" in entry, field
+
+
 def test_shipped_routing_defines_the_ticket_review_stage() -> None:
     review = json.loads(ROUTING.read_text())["stages"]["ticket-review"]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in review["base"]] == [

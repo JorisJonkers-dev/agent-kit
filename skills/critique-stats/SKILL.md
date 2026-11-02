@@ -96,4 +96,5 @@ result's `cells`:
   it gets a suggestion) and `removal_features` (a stage with no unique
   accepted catch across this many of its latest features is a removal
   candidate) live in routing's `stats` section, which the override can
-  change. A feature is one spec.
+  change. A feature is one spec. A review stage belongs to no feature, so it
+  is judged by that many of its latest runs instead.
