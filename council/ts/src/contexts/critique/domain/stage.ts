@@ -1,6 +1,20 @@
-/** The critique stages of the spec-to-ticket flow, as CONTEXT.md names them. */
-export const CRITIQUE_STAGES = ['decisions', 'spec', 'tickets', 'ticket-review', 'feature-review'] as const
+/**
+ * Every stage the runner knows: the critique stages of the spec-to-ticket
+ * flow, then the review stages, as CONTEXT.md names them.
+ */
+export const CRITIQUE_STAGES = ['decisions', 'spec', 'tickets', 'ticket-review', 'feature-review', 'adr-review'] as const
 export type CritiqueStage = (typeof CRITIQUE_STAGES)[number]
+
+/**
+ * The review stages: run on demand over a repository, outside any feature's
+ * flow, each run a flow of its own keyed by its run id (ADR-0003).
+ */
+export const REVIEW_STAGES = ['adr-review'] as const satisfies readonly CritiqueStage[]
+export type ReviewStage = (typeof REVIEW_STAGES)[number]
+
+export function isReviewStage(stage: CritiqueStage): stage is ReviewStage {
+  return (REVIEW_STAGES as readonly CritiqueStage[]).includes(stage)
+}
 
 /** The stages that send code, not documents, so the allowlist entry must allow code. */
 export const CODE_STAGES = ['ticket-review', 'feature-review'] as const satisfies readonly CritiqueStage[]

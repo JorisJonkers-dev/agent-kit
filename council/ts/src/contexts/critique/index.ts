@@ -7,6 +7,8 @@ export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
 export type { RefuteResult } from './application/refute.js'
+export type { ReviewsResult } from './application/reviews.js'
+export type { ReviewRun } from './domain/review-runs.js'
 export { GATE_DEADLINE_MS } from './application/gate.js'
 export { triageIndexPath } from './application/triage-index.js'
 export {

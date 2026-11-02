@@ -23,6 +23,8 @@ export type RefusalReason =
   | 'no-tickets'
   /** The decisions stage found no decision docs, and the caller gave no decision summary. */
   | 'no-decision-docs'
+  /** An ADR review found no decision records to review. */
+  | 'no-adrs'
 
 export interface Refusal {
   readonly status: 'refused'

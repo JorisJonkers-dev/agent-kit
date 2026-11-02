@@ -4,14 +4,15 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { CRITIQUE_STAGES, isCodeStage } from './domain/stage.js'
+import { CRITIQUE_STAGES, isCodeStage, isReviewStage } from './domain/stage.js'
 import { STAGE_TABLE, type StageTable } from './domain/stage-table.js'
 
 const CONTEXT_DIR = dirname(fileURLToPath(import.meta.url))
 
 describe('the critique stage table', () => {
-  it('gives each existing stage the per-stage behaviour the runner had before the table', () => {
+  it('gives each stage its per-stage behaviour', () => {
     expect(STAGE_TABLE).toEqual({
+      'adr-review': { doNotStart: null, evidence: 'spec', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
       decisions: { doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
       'feature-review': { doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
       spec: { doNotStart: '/to-tickets', evidence: 'spec', flowKey: 'spec', packet: 'document', removal: 'features', secondRound: true },
@@ -30,9 +31,22 @@ describe('the critique stage table', () => {
     }
   })
 
+  it('keys a run by its run id, judges it by its runs and names no command not to start exactly at the review stages', () => {
+    for (const stage of CRITIQUE_STAGES) {
+      const { doNotStart, flowKey, removal } = STAGE_TABLE[stage]
+      expect({ flowKey: flowKey === 'run', noCommand: doNotStart === null, removal: removal === 'runs', stage }).toEqual({
+        flowKey: isReviewStage(stage),
+        noCommand: isReviewStage(stage),
+        removal: isReviewStage(stage),
+        stage,
+      })
+    }
+  })
+
   it('refuses at compile time a table that leaves a stage out', () => {
     // @ts-expect-error -- tickets has no entry, so this is not a stage table
     const partial: StageTable = {
+      'adr-review': STAGE_TABLE['adr-review'],
       decisions: STAGE_TABLE.decisions,
       'feature-review': STAGE_TABLE['feature-review'],
       spec: STAGE_TABLE.spec,

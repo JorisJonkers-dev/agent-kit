@@ -205,10 +205,12 @@ function roundLines(run: AdjudicatedRun): readonly string[] {
 /**
  * #167 US40: tickets are never cut from a spec with an open critical gap.
  * #181 US29 and US35: no ticket is implemented from a ticket graph with a
- * cycle, or while a critical scope question about the tickets is open.
+ * cycle, or while a critical scope question about the tickets is open. A
+ * review stage sits before no command of a feature's flow, so it names none.
  */
 function doNotStartLines(run: AdjudicatedRun): readonly string[] {
   const next = STAGE_TABLE[run.stage].doNotStart
+  if (next === null) return []
   const open = openCriticalQuestions(run).map((f) => f.id)
   const which = open.length === 1 ? `critical question ${open.join('')} is` : `critical questions ${open.join(', ')} are`
   return [
