@@ -14,3 +14,6 @@ requirement.
 - `seam-unnamed`: Check that the testing decisions name the seam each
   behaviour is tested at, and that every behaviour the spec promises is
   listed there.
+- `rule-at-port`: Check that domain rules are tested at a port, with no
+  database, network or framework in the test. A rule that can only be
+  tested through one of them is a finding.

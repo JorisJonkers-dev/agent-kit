@@ -12,3 +12,6 @@ Check what the artifact exposes and to whom.
 - `bypassable-check`: Look for checks that can be bypassed: a deny rule with
   an exception path, a default that is permissive, a check done after the
   action it guards.
+- `trust-boundary`: For each trust boundary, name the input that crosses it
+  and the check applied to it. A boundary whose input nothing checks is a
+  finding.
