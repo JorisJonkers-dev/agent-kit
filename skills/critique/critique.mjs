@@ -2178,8 +2178,12 @@ function riskReason(signals) {
   const why = first.kind === "risk-path" ? `${first.path} is a risk path` : first.kind === "size" ? `${String(first.changed_lines)} changed lines, above ${String(first.threshold)}` : `the ticket carries ${first.label}`;
   return rest.length === 0 ? why : `${why}, and ${String(rest.length)} more risk signal${rest.length === 1 ? "" : "s"}`;
 }
+var DEFAULT_MERGE_COMMITS = 50;
 function readGateRouting(fields) {
-  return { feature_branches: fields.strings("feature_branches") };
+  return {
+    feature_branches: fields.strings("feature_branches"),
+    merge_commits: fields.has("merge_commits") ? fields.positiveInteger("merge_commits") : DEFAULT_MERGE_COMMITS
+  };
 }
 function parseCritiqueConfig(text) {
   const file = JsonFields.parse(text);
@@ -4151,8 +4155,11 @@ function gatedInvocations(line, cwd, home) {
       dir = changeDirectory(dir, args, home);
     } else if (program === "git") {
       const git = gitSubcommand(args, dir, home);
-      if (git.subcommand === "commit" && !git.args.includes("--dry-run")) {
-        found.push({ cwd: git.cwd, kind: "commit", widened: widest(indexChanged, commitWidening(git.args)) });
+      const merge = git.subcommand === "merge" || git.subcommand === "pull" ? mergeOf(git.subcommand, git.args) : "none";
+      if (git.subcommand === "commit" && !git.args.includes("--dry-run") || merge === "continue") {
+        found.push({ cwd: git.cwd, kind: "commit", widened: widest(indexChanged, merge === "continue" ? "none" : commitWidening(git.args)) });
+      } else if (merge !== "none") {
+        found.push({ cwd: git.cwd, head_moves: headMoved, kind: "merge", ...merge });
       } else if (git.subcommand === "push" && !git.args.includes("--dry-run") && !git.args.includes("-n")) {
         const targets = pushTargets(git.args);
         if (targets !== "none") found.push({ cwd: git.cwd, head_moves: headMoved, kind: "push", targets });
@@ -4271,6 +4278,59 @@ function pushTargets(args) {
   });
   return targets.length === 0 ? "none" : targets;
 }
+var MERGE_VALUED_SHORT = /* @__PURE__ */ new Set(["m", "F", "s", "X"]);
+var MERGE_VALUED_LONG = /* @__PURE__ */ new Set(["--message", "--file", "--strategy", "--strategy-option", "--into-name", "--cleanup"]);
+var PULL_VALUED_SHORT = /* @__PURE__ */ new Set(["s", "X", "j", "o"]);
+var PULL_VALUED_LONG = /* @__PURE__ */ new Set([
+  "--strategy",
+  "--strategy-option",
+  "--depth",
+  "--deepen",
+  "--shallow-since",
+  "--shallow-exclude",
+  "--upload-pack",
+  "--server-option",
+  "--jobs",
+  "--negotiation-tip",
+  "--refmap"
+]);
+var NO_MERGE_COMMIT = /* @__PURE__ */ new Set(["--ff-only", "--squash", "--no-commit", "--abort", "--quit"]);
+function mergeOf(subcommand, args) {
+  const [valuedShort, valuedLong] = subcommand === "merge" ? [MERGE_VALUED_SHORT, MERGE_VALUED_LONG] : [PULL_VALUED_SHORT, PULL_VALUED_LONG];
+  const positional = [];
+  let commits = true;
+  let fastForward = true;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i] ?? "";
+    const name = arg.split("=")[0] ?? arg;
+    if (arg === "--") {
+      positional.push(...args.slice(i + 1));
+      break;
+    }
+    if (subcommand === "merge" && arg === "--continue") return "continue";
+    if (NO_MERGE_COMMIT.has(arg)) commits = false;
+    else if (arg === "--commit" || arg === "--no-squash") commits = true;
+    else if (arg === "--no-ff") fastForward = false;
+    else if (arg === "--ff") fastForward = true;
+    else if (subcommand === "pull" && (arg === "-r" || name === "--rebase")) commits = arg === "--rebase=false";
+    else if (subcommand === "pull" && arg === "--no-rebase") commits = true;
+    else if (arg.startsWith("--")) {
+      if (valuedLong.has(arg)) i += 1;
+    } else if (arg.startsWith("-") && arg.length > 1) {
+      let j = 1;
+      while (j < arg.length && !valuedShort.has(arg.charAt(j))) j += 1;
+      if (j === arg.length - 1) i += 1;
+    } else positional.push(arg);
+  }
+  if (!commits) return "none";
+  const revisions = subcommand === "merge" ? positional : pulledBranches(positional);
+  const merged = revisions.length === 0 ? ["@{upstream}"] : revisions;
+  return { fast_forward: fastForward && merged.length === 1, revisions: merged };
+}
+function pulledBranches(positional) {
+  const [remote, ...refspecs] = positional;
+  return refspecs.map((refspec) => `${remote ?? ""}/${(refspec.replace(/^\+/, "").split(":")[0] ?? "").replace(/^refs\/heads\//, "")}`);
+}
 function isPrCreate(args) {
   const words = args.filter((arg) => !arg.startsWith("-"));
   return words[0] === "pr" && words[1] === "create";
@@ -4284,6 +4344,105 @@ function optionValue(args, names) {
   }
   return null;
 }
+
+// src/contexts/critique/domain/merge-commit.ts
+var PIN = /^(\s*(?:-\s+)?sha256:\s*)[0-9a-f]{64}(\s*)$/;
+function isManifest(path) {
+  return path === "manifest.yaml" || path.endsWith("/manifest.yaml");
+}
+function differsOnlyInPins(autoMerged, merged) {
+  const resolved = resolvePinConflicts(masked(autoMerged));
+  return resolved !== null && resolved.join("\n") === masked(merged).join("\n");
+}
+function masked(text) {
+  return text.split("\n").map((line) => line.replace(PIN, "$1<pin>$2"));
+}
+function resolvePinConflicts(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? "";
+    if (!line.startsWith("<<<<<<<")) {
+      out.push(line);
+      continue;
+    }
+    const middle = lines.indexOf("=======", i + 1);
+    const end = lines.findIndex((candidate, n) => n > middle && candidate.startsWith(">>>>>>>"));
+    const ours = lines.slice(i + 1, middle);
+    if (middle === -1 || end === -1 || ours.join("\n") !== lines.slice(middle + 1, end).join("\n")) return null;
+    out.push(...ours);
+    i = end;
+  }
+  return out;
+}
+function diffOfPaths(diff, paths) {
+  const sections = diff.split(/^(?=diff --git )/m);
+  return sections.filter((section2) => {
+    const header = section2.split("\n", 1)[0] ?? "";
+    return paths.some((path) => header.startsWith(`diff --git a/${path} `) || header.endsWith(` b/${path}`));
+  }).join("");
+}
+
+// src/contexts/critique/application/merge-gate.ts
+var CONCURRENT_CHECKS = 8;
+var MergeCheck = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  /** `result` is the tree the merge commit records; null for the clean auto-merge, which adds nothing of its own. */
+  async judge(evidence, ours, theirs, result2) {
+    const links = await this.deps.git.commitsBetween(evidence.root, ours, theirs);
+    if (links.length > evidence.limit) return { count: links.length, kind: "too-many" };
+    const trees = new Map(links.map((link) => [link.commit, link.tree]));
+    for (let start = 0; start < links.length; start += CONCURRENT_CHECKS) {
+      const batch = links.slice(start, start + CONCURRENT_CHECKS);
+      const vouched = await Promise.all(batch.map((link) => this.vouched(evidence, link, trees)));
+      const first = batch.find((_link, n) => vouched[n] !== true);
+      if (first !== void 0) return { commit: first.commit, kind: "unvouched" };
+    }
+    const own = result2 === null ? null : await this.ownChanges(evidence, ours, theirs, result2);
+    return own === null ? { kind: "vouched" } : { kind: "own-changes", ...own };
+  }
+  /** `trees` holds the tree of each commit the merge brings in, so only a parent outside them costs a git call. */
+  async vouched(evidence, { commit, parents }, trees) {
+    const git = this.deps.git;
+    const [first, second, ...more] = parents;
+    const staged = first === void 0 ? null : stagedDiffHash(trees.get(first) ?? await git.treeOf(evidence.root, first), await git.treeEntries(evidence.root, commit));
+    const review = evidence.reviews.filter((record) => record.head_commit === commit || staged !== null && record.staged_diff === staged).at(-1);
+    if (review !== void 0) return review.review === "pass" && !review.degraded;
+    if (first === void 0) return false;
+    if (second !== void 0) return more.length === 0 && await this.ownChanges(evidence, first, second, commit) === null;
+    const [diff, paths] = await Promise.all([git.diffCommits(evidence.root, first, commit), git.changedPaths(evidence.root, first, commit)]);
+    const labels = evidence.triages.filter((record) => record.staged_on === first).at(-1)?.labels ?? [];
+    return riskSignals(codeChange(diff, paths), labels, evidence.rules).length === 0;
+  }
+  /** The merge's own changes beyond the clean auto-merge, pins and generated files apart; null when there are none. */
+  async ownChanges(evidence, ours, theirs, result2) {
+    const git = this.deps.git;
+    const auto = (await git.mergeTree(evidence.root, ours, theirs)).tree;
+    const own = [];
+    for (const path of await git.changedPaths(evidence.root, auto, result2)) {
+      if (!await this.rebuilt(evidence, auto, result2, path)) own.push(path);
+    }
+    if (own.length === 0) return null;
+    return { diff: diffOfPaths(await git.diffCommits(evidence.root, auto, result2), own), paths: own };
+  }
+  /** Whether a path the merge changed beyond the auto-merge is a generated file, or a manifest that differs only in its pins. */
+  async rebuilt(evidence, auto, result2, path) {
+    if (excludedByPath(path, evidence.packet) === "generated") return true;
+    const [before, after] = await Promise.all([this.textAt(evidence.root, auto, path), this.textAt(evidence.root, result2, path)]);
+    if (isGenerated(after ?? before ?? "")) return true;
+    return isManifest(path) && before !== void 0 && after !== void 0 && differsOnlyInPins(before, after);
+  }
+  /** A file's text in a tree; undefined when the tree does not hold it. */
+  async textAt(root, tree, path) {
+    try {
+      return await this.deps.git.fileAt(root, tree, path);
+    } catch {
+      return void 0;
+    }
+  }
+};
 
 // src/contexts/critique/application/triage-index.ts
 import { join as join10 } from "node:path";
@@ -4302,6 +4461,7 @@ var UnreadableState = class extends Error {
 var GateCommand = class {
   constructor(deps) {
     this.deps = deps;
+    this.merges = new MergeCheck(deps);
     this.repositories = new RepositoryGate(deps);
     this.routing = new RoutingSource(deps);
     this.staged = new StagedDiffReader(deps);
@@ -4310,6 +4470,7 @@ var GateCommand = class {
   repositories;
   routing;
   staged;
+  merges;
   async run(raw) {
     if (this.deps.env.get("CRITIQUE_OFF") === "1") return allowed(null, "off");
     const deadline = this.deps.clock.sleep(GATE_DEADLINE_MS).then(() => failedOpen(null, "deadline", `the gate did not decide within ${String(GATE_DEADLINE_MS)} ms`));
@@ -4347,6 +4508,7 @@ var GateCommand = class {
     if (entry === void 0) return allowed(gate, "not-opted-in");
     if (!entry.code) return allowed(gate, "code-not-allowed");
     if (invocation.kind === "commit") return this.commitGate(repository, invocation.widened);
+    if (invocation.kind === "merge") return this.mergeGate(repository, invocation);
     return this.prGate(repository, invocation);
   }
   async commitGate(repository, widened) {
@@ -4367,7 +4529,11 @@ var GateCommand = class {
       parseTriageIndexRecord,
       (record) => record.repository === repository.key && record.staged_on === staged.head_commit
     );
-    const [first, ...more] = riskSignals(codeChange(diff, [...paths, ...untracked]), triaged?.labels ?? [], triage);
+    const merge = widened === "none" ? await this.mergeInProgress(repository, staged.head_commit) : void 0;
+    if (merge?.kind === "vouched") return allowed("commit", "merge-vouched");
+    const own = merge?.kind === "own-changes" ? merge : void 0;
+    const change = own === void 0 ? codeChange(diff, [...paths, ...untracked]) : codeChange(own.diff, own.paths);
+    const [first, ...more] = riskSignals(change, triaged?.labels ?? [], triage);
     if (first === void 0) return allowed("commit", "low-risk");
     const why = riskReason([first, ...more]);
     if (widened !== "none" && (untracked.length > 0 || diff !== await git.diffAgainstHead(root, "index"))) {
@@ -4387,11 +4553,82 @@ var GateCommand = class {
       return blocked(
         "commit",
         "unreviewed",
-        `Commit blocked: the staged change is risky (${why}) and no passing /review-ticket run matches it. Run /review-ticket, then commit.`
+        own === void 0 ? `Commit blocked: the staged change is risky (${why}) and no passing /review-ticket run matches it. Run /review-ticket, then commit.` : `Commit blocked: this merge's own changes beyond the reviewed commits it brings in are risky (${why}) and no passing /review-ticket run matches the staged merge. Run /review-ticket, then commit.`
       );
     }
     if (review.review === "fail") return blocked("commit", "review-failed", reviewFailedLine(review));
     return allowed("commit", "reviewed");
+  }
+  /**
+   * A `git merge` or `git pull` about to run: it records a merge commit
+   * unless it fast-forwards, has nothing to merge, or stops on a conflict
+   * (the `git commit` that concludes that merge is gated then). Each merge
+   * is let through when every commit it brings in is vouched for, since the
+   * clean merge adds nothing of its own, and is otherwise judged on what it
+   * changes against HEAD.
+   */
+  async mergeGate(repository, invocation) {
+    if (invocation.head_moves) {
+      return blocked(
+        "commit",
+        "head-unknown",
+        "Merge blocked: this command moves HEAD before it merges, so the gate cannot tell what the merge brings in. Run the merge in a command of its own."
+      );
+    }
+    const root = repository.root;
+    const git = this.deps.git;
+    const evidence = await this.mergeEvidence(repository);
+    const head = await git.resolveCommit(root, "HEAD");
+    const reasons = [];
+    for (const revision of invocation.revisions) {
+      const theirs = await git.resolveCommit(root, revision);
+      const base = await git.mergeBase(root, head, theirs);
+      if (base === theirs || base === head && invocation.fast_forward) continue;
+      const verdict = await this.merges.judge(evidence, head, theirs, null);
+      if (verdict.kind === "vouched" || verdict.kind === "own-changes") {
+        reasons.push("merge-vouched");
+        continue;
+      }
+      const auto = await git.mergeTree(root, head, theirs);
+      if (auto.conflicts) {
+        reasons.push("merge-stops");
+        continue;
+      }
+      const [diff, paths] = await Promise.all([git.diffCommits(root, head, auto.tree), git.changedPaths(root, head, auto.tree)]);
+      const labels = evidence.triages.filter((record) => record.staged_on === head).at(-1)?.labels ?? [];
+      const [first, ...more] = riskSignals(codeChange(diff, paths), labels, evidence.rules);
+      if (first === void 0) {
+        reasons.push("low-risk");
+        continue;
+      }
+      return blocked(
+        "commit",
+        "unreviewed",
+        `Merge blocked: merging ${revision} is risky (${riskReason([first, ...more])}) and ${unvouchedReason(verdict, evidence.limit)}. Stage the merge with git merge --no-commit ${revision}, run /review-ticket, then commit.`
+      );
+    }
+    return allowed("commit", reasons.find((reason) => reason === "low-risk") ?? reasons[0] ?? "not-gated");
+  }
+  /** The check of the merge a `git commit` concludes while `MERGE_HEAD` is set, of the staged merge; none when no merge is in progress. */
+  async mergeInProgress(repository, head) {
+    const git = this.deps.git;
+    const theirs = await git.resolveCommit(repository.root, "MERGE_HEAD").catch(() => void 0);
+    if (theirs === void 0) return void 0;
+    return this.merges.judge(await this.mergeEvidence(repository), head, theirs, await git.writeIndexTree(repository.root));
+  }
+  /** What a merge check reads: this repository's ticket reviews and triages, and the rules that judge them. */
+  async mergeEvidence(repository) {
+    const routing = await this.routing.load();
+    const critiqueDir = join11(repository.commonDir, "critique");
+    const ours = (record) => record.repository === repository.key;
+    return {
+      packet: routing.packet,
+      reviews: await this.lines(critiqueDir, ticketReviewIndexPath, parseTicketReviewRecord, ours),
+      root: repository.root,
+      limit: routing.gate?.merge_commits ?? DEFAULT_MERGE_COMMITS,
+      rules: riskRules(routing.triage),
+      triages: await this.lines(critiqueDir, triageIndexPath, parseTriageIndexRecord, ours)
+    };
   }
   async prGate(repository, invocation) {
     const root = repository.root;
@@ -4437,11 +4674,15 @@ var GateCommand = class {
   }
   /** The last line of a JSON-lines index that `matches`; none when the file is absent. Any line that does not parse is unreadable state. */
   async lastLine(critiqueDir, pathOf, parse, matches) {
+    return (await this.lines(critiqueDir, pathOf, parse, matches)).at(-1);
+  }
+  /** Every line of a JSON-lines index that `matches`, oldest first; none when the file is absent. Any line that does not parse is unreadable state. */
+  async lines(critiqueDir, pathOf, parse, matches) {
     const path = pathOf(critiqueDir);
-    if (!await this.deps.files.exists(path)) return void 0;
+    if (!await this.deps.files.exists(path)) return [];
     const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
     const records = lines.map((line, n) => readState(`${path} line ${String(n + 1)}`, line, parse));
-    return records.filter(matches).at(-1);
+    return records.filter(matches);
   }
   /** Appends one line to the gate log; a log that cannot be written is left alone, so logging never blocks. */
   async log(raw, result2) {
@@ -4463,8 +4704,15 @@ function readPayload(raw) {
     tool: fields.optionalString("tool_name")
   };
 }
+function unvouchedReason(verdict, limit) {
+  return verdict.kind === "too-many" ? `it brings in ${String(verdict.count)} commits, more than the ${String(limit)} the gate checks one by one` : `${short(verdict.commit)}, a commit it brings in, has no passing /review-ticket run`;
+}
 function gateOf(invocation) {
-  return invocation.kind === "commit" ? "commit" : "pr";
+  return invocation.kind === "commit" || invocation.kind === "merge" ? "commit" : "pr";
+}
+function riskRules(triage) {
+  if (triage === void 0) throw new Error("routing has no triage, so the commit gate has no risk rules");
+  return triage;
 }
 function readState(where, text, parse) {
   try {
@@ -8075,6 +8323,25 @@ var GitCliAdapter = class {
   async changedPaths(cwd, base, head) {
     const result2 = await this.git(cwd, ["diff", "--name-only", "-z", "--no-renames", base, head, "--"]);
     return result2.stdout.split("\0").filter((path) => path.length > 0);
+  }
+  async commitsBetween(cwd, base, head) {
+    const result2 = await this.git(cwd, ["rev-list", "--no-commit-header", "--format=%H %T %P", "--end-of-options", head, `^${base}`]);
+    return result2.stdout.split("\n").filter((line) => line.trim().length > 0).map((line) => {
+      const [commit = "", tree = "", ...parents] = line.trim().split(" ");
+      return { commit, parents, tree };
+    });
+  }
+  async treeEntries(cwd, revision) {
+    const result2 = await this.git(cwd, ["ls-tree", "-r", "-z", "--full-tree", revision]);
+    return result2.stdout.split("\0").flatMap((entry) => {
+      const match = /^(\d+) \w+ (\w+)\t(.+)$/s.exec(entry);
+      return match === null ? [] : [`${match[1] ?? ""} ${match[2] ?? ""} 0	${match[3] ?? ""}\0`];
+    }).join("");
+  }
+  async mergeTree(cwd, ours, theirs) {
+    const args = ["-c", "merge.conflictStyle=merge", "merge-tree", "--write-tree", "--no-messages", "--name-only", "--end-of-options", ours, theirs];
+    const result2 = await this.git(cwd, args, { acceptedExitCodes: [0, 1] });
+    return { conflicts: result2.exitCode === 1, tree: result2.stdout.split("\n", 1)[0]?.trim() ?? "" };
   }
   async stagedEntries(cwd) {
     const result2 = await this.git(cwd, ["ls-files", "--stage", "-z"]);

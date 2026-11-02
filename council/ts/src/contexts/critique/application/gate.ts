@@ -4,6 +4,7 @@ import { parseGateRecord, type GateRecord } from '../domain/feature-review.js'
 import {
   allowed,
   blocked,
+  DEFAULT_MERGE_COMMITS,
   failedOpen,
   parseCritiqueConfig,
   parseTriageIndexRecord,
@@ -14,9 +15,10 @@ import {
 import { isJsonObject, JsonFields } from '../domain/json.js'
 import { gatedInvocations, type GatedInvocation, type PushTarget } from '../domain/shell-command.js'
 import { parseTicketReviewRecord, type TicketReviewRecord } from '../domain/ticket-review.js'
-import { codeChange, matchesGlob, riskSignals } from '../domain/triage.js'
+import { codeChange, matchesGlob, riskSignals, type RiskRules } from '../domain/triage.js'
 import { gateIndexPath } from './feature-gate.js'
 import { critiqueConfigPath, gateLogPath } from './locations.js'
+import { MergeCheck, type MergeEvidence, type MergeVerdict } from './merge-gate.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
 import { RoutingSource } from './routing.js'
@@ -42,6 +44,13 @@ class UnreadableState extends Error {}
  * - a commit is blocked while its staged change is risky by the
  *   deterministic triage rules and the last ticket review of exactly that
  *   staged change is missing or failed;
+ * - a merge commit, whether `git merge` makes it or a `git commit` with
+ *   `MERGE_HEAD` set, is let through when every commit it brings in is
+ *   vouched for and it adds nothing of its own beyond manifest pins and
+ *   rebuilt generated files (`MergeCheck`); otherwise it is judged like a
+ *   commit, on its own changes when only they are not vouched for. Its
+ *   check writes the auto-merge's objects into git's object store, and
+ *   moves no ref, index entry or file;
  * - a `gh pr create`, or a push that updates a branch outside the feature
  *   branch patterns, is blocked unless the latest feature review of the
  *   commit it sends says `GATE: PASS`.
@@ -55,8 +64,10 @@ export class GateCommand implements CritiqueCommand<GateResult> {
   private readonly repositories: RepositoryGate
   private readonly routing: RoutingSource
   private readonly staged: StagedDiffReader
+  private readonly merges: MergeCheck
 
   constructor(private readonly deps: CritiqueDeps) {
+    this.merges = new MergeCheck(deps)
     this.repositories = new RepositoryGate(deps)
     this.routing = new RoutingSource(deps)
     this.staged = new StagedDiffReader(deps)
@@ -108,6 +119,7 @@ export class GateCommand implements CritiqueCommand<GateResult> {
     if (entry === undefined) return allowed(gate, 'not-opted-in')
     if (!entry.code) return allowed(gate, 'code-not-allowed')
     if (invocation.kind === 'commit') return this.commitGate(repository, invocation.widened)
+    if (invocation.kind === 'merge') return this.mergeGate(repository, invocation)
     return this.prGate(repository, invocation)
   }
 
@@ -126,7 +138,11 @@ export class GateCommand implements CritiqueCommand<GateResult> {
     const triaged = await this.lastLine(join(repository.commonDir, 'critique'), triageIndexPath, parseTriageIndexRecord, (record) =>
       record.repository === repository.key && record.staged_on === staged.head_commit,
     )
-    const [first, ...more] = riskSignals(codeChange(diff, [...paths, ...untracked]), triaged?.labels ?? [], triage)
+    const merge = widened === 'none' ? await this.mergeInProgress(repository, staged.head_commit) : undefined
+    if (merge?.kind === 'vouched') return allowed('commit', 'merge-vouched')
+    const own = merge?.kind === 'own-changes' ? merge : undefined
+    const change = own === undefined ? codeChange(diff, [...paths, ...untracked]) : codeChange(own.diff, own.paths)
+    const [first, ...more] = riskSignals(change, triaged?.labels ?? [], triage)
     if (first === undefined) return allowed('commit', 'low-risk')
     const why = riskReason([first, ...more])
     if (widened !== 'none' && (untracked.length > 0 || diff !== (await git.diffAgainstHead(root, 'index')))) {
@@ -143,14 +159,90 @@ export class GateCommand implements CritiqueCommand<GateResult> {
       return blocked(
         'commit',
         'unreviewed',
-        `Commit blocked: the staged change is risky (${why}) and no passing /review-ticket run matches it. Run /review-ticket, then commit.`,
+        own === undefined
+          ? `Commit blocked: the staged change is risky (${why}) and no passing /review-ticket run matches it. Run /review-ticket, then commit.`
+          : `Commit blocked: this merge's own changes beyond the reviewed commits it brings in are risky (${why}) and no passing /review-ticket run matches the staged merge. Run /review-ticket, then commit.`,
       )
     }
     if (review.review === 'fail') return blocked('commit', 'review-failed', reviewFailedLine(review))
     return allowed('commit', 'reviewed')
   }
 
-  private async prGate(repository: ResolvedRepository, invocation: Exclude<GatedInvocation, { kind: 'commit' }>): Promise<GateResult> {
+  /**
+   * A `git merge` or `git pull` about to run: it records a merge commit
+   * unless it fast-forwards, has nothing to merge, or stops on a conflict
+   * (the `git commit` that concludes that merge is gated then). Each merge
+   * is let through when every commit it brings in is vouched for, since the
+   * clean merge adds nothing of its own, and is otherwise judged on what it
+   * changes against HEAD.
+   */
+  private async mergeGate(repository: ResolvedRepository, invocation: Extract<GatedInvocation, { kind: 'merge' }>): Promise<GateResult> {
+    if (invocation.head_moves) {
+      return blocked(
+        'commit',
+        'head-unknown',
+        'Merge blocked: this command moves HEAD before it merges, so the gate cannot tell what the merge brings in. Run the merge in a command of its own.',
+      )
+    }
+    const root = repository.root
+    const git = this.deps.git
+    const evidence = await this.mergeEvidence(repository)
+    const head = await git.resolveCommit(root, 'HEAD')
+    const reasons: Parameters<typeof allowed>[1][] = []
+    for (const revision of invocation.revisions) {
+      const theirs = await git.resolveCommit(root, revision)
+      const base = await git.mergeBase(root, head, theirs)
+      if (base === theirs || (base === head && invocation.fast_forward)) continue
+      const verdict = await this.merges.judge(evidence, head, theirs, null)
+      if (verdict.kind === 'vouched' || verdict.kind === 'own-changes') {
+        reasons.push('merge-vouched')
+        continue
+      }
+      const auto = await git.mergeTree(root, head, theirs)
+      if (auto.conflicts) {
+        reasons.push('merge-stops')
+        continue
+      }
+      const [diff, paths] = await Promise.all([git.diffCommits(root, head, auto.tree), git.changedPaths(root, head, auto.tree)])
+      const labels = evidence.triages.filter((record) => record.staged_on === head).at(-1)?.labels ?? []
+      const [first, ...more] = riskSignals(codeChange(diff, paths), labels, evidence.rules)
+      if (first === undefined) {
+        reasons.push('low-risk')
+        continue
+      }
+      return blocked(
+        'commit',
+        'unreviewed',
+        `Merge blocked: merging ${revision} is risky (${riskReason([first, ...more])}) and ${unvouchedReason(verdict, evidence.limit)}. Stage the merge with git merge --no-commit ${revision}, run /review-ticket, then commit.`,
+      )
+    }
+    return allowed('commit', reasons.find((reason) => reason === 'low-risk') ?? reasons[0] ?? 'not-gated')
+  }
+
+  /** The check of the merge a `git commit` concludes while `MERGE_HEAD` is set, of the staged merge; none when no merge is in progress. */
+  private async mergeInProgress(repository: ResolvedRepository, head: string): Promise<MergeVerdict | undefined> {
+    const git = this.deps.git
+    const theirs = await git.resolveCommit(repository.root, 'MERGE_HEAD').catch(() => undefined)
+    if (theirs === undefined) return undefined
+    return this.merges.judge(await this.mergeEvidence(repository), head, theirs, await git.writeIndexTree(repository.root))
+  }
+
+  /** What a merge check reads: this repository's ticket reviews and triages, and the rules that judge them. */
+  private async mergeEvidence(repository: ResolvedRepository): Promise<MergeEvidence> {
+    const routing = await this.routing.load()
+    const critiqueDir = join(repository.commonDir, 'critique')
+    const ours = (record: { readonly repository: string }) => record.repository === repository.key
+    return {
+      packet: routing.packet,
+      reviews: await this.lines(critiqueDir, ticketReviewIndexPath, parseTicketReviewRecord, ours),
+      root: repository.root,
+      limit: routing.gate?.merge_commits ?? DEFAULT_MERGE_COMMITS,
+      rules: riskRules(routing.triage),
+      triages: await this.lines(critiqueDir, triageIndexPath, parseTriageIndexRecord, ours),
+    }
+  }
+
+  private async prGate(repository: ResolvedRepository, invocation: Extract<GatedInvocation, { kind: 'push' | 'pr-create' }>): Promise<GateResult> {
     const root = repository.root
     const sent: { readonly what: string; readonly retry: string; readonly source: string | null }[] = []
     if (invocation.kind === 'pr-create') {
@@ -197,11 +289,21 @@ export class GateCommand implements CritiqueCommand<GateResult> {
     parse: (text: string) => T,
     matches: (record: T) => boolean,
   ): Promise<T | undefined> {
+    return (await this.lines(critiqueDir, pathOf, parse, matches)).at(-1)
+  }
+
+  /** Every line of a JSON-lines index that `matches`, oldest first; none when the file is absent. Any line that does not parse is unreadable state. */
+  private async lines<T>(
+    critiqueDir: string,
+    pathOf: (critiqueDir: string) => string,
+    parse: (text: string) => T,
+    matches: (record: T) => boolean,
+  ): Promise<readonly T[]> {
     const path = pathOf(critiqueDir)
-    if (!(await this.deps.files.exists(path))) return undefined
+    if (!(await this.deps.files.exists(path))) return []
     const lines = (await this.deps.files.readText(path)).split('\n').filter((line) => line.trim().length > 0)
     const records = lines.map((line, n) => readState(`${path} line ${String(n + 1)}`, line, parse))
-    return records.filter(matches).at(-1)
+    return records.filter(matches)
   }
 
   /** Appends one line to the gate log; a log that cannot be written is left alone, so logging never blocks. */
@@ -234,8 +336,21 @@ function readPayload(raw: unknown): GatePayload {
   }
 }
 
+/** Why a merge's commits do not vouch for it, as the end of its block line. */
+function unvouchedReason(verdict: Extract<MergeVerdict, { kind: 'unvouched' | 'too-many' }>, limit: number): string {
+  return verdict.kind === 'too-many'
+    ? `it brings in ${String(verdict.count)} commits, more than the ${String(limit)} the gate checks one by one`
+    : `${short(verdict.commit)}, a commit it brings in, has no passing /review-ticket run`
+}
+
 function gateOf(invocation: GatedInvocation): GateName {
-  return invocation.kind === 'commit' ? 'commit' : 'pr'
+  return invocation.kind === 'commit' || invocation.kind === 'merge' ? 'commit' : 'pr'
+}
+
+/** The commit gate's risk rules; routing without triage has none, and the gate cannot judge a commit. */
+function riskRules(triage: RiskRules | undefined): RiskRules {
+  if (triage === undefined) throw new Error('routing has no triage, so the commit gate has no risk rules')
+  return triage
 }
 
 function readState<T>(where: string, text: string, parse: (text: string) => T): T {

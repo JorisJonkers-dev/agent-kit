@@ -92,7 +92,8 @@
       "claude/**",
       "codex/**",
       "worktree-*"
-    ]
+    ],
+    "merge_commits": 50
   },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],

@@ -587,6 +587,57 @@ describe('GitCliAdapter commits', () => {
   })
 })
 
+describe('GitCliAdapter merges', () => {
+  it('lists the commits a merge brings in, each with its tree and parents, in one call', async () => {
+    const process = new RecordingProcess(() => success('m1 tm a1 b1\nb1 tb base\nr1 tr \n'))
+
+    expect(await new GitCliAdapter(process).commitsBetween('/r', 'main', 'feat')).toEqual([
+      { commit: 'm1', parents: ['a1', 'b1'], tree: 'tm' },
+      { commit: 'b1', parents: ['base'], tree: 'tb' },
+      { commit: 'r1', parents: [], tree: 'tr' },
+    ])
+    expect(process.commands[0]?.args).toEqual(['rev-list', '--no-commit-header', '--format=%H %T %P', '--end-of-options', 'feat', '^main'])
+  })
+
+  it("reads a commit's tree in the form the index lists its entries, submodules and links included", async () => {
+    const process = new RecordingProcess(() =>
+      success(['100644 blob aaa\tsrc/a b.ts', '120000 blob ccc\tlink', '160000 commit ddd\tvendor/lib', ''].join('\0')),
+    )
+
+    expect(await new GitCliAdapter(process).treeEntries('/r', 'abc')).toBe(['100644 aaa 0\tsrc/a b.ts', '120000 ccc 0\tlink', '160000 ddd 0\tvendor/lib', ''].join('\0'))
+    expect(process.commands[0]?.args).toEqual(['ls-tree', '-r', '-z', '--full-tree', 'abc'])
+  })
+
+  it('merges two commits into a tree without touching the index, the working tree or a ref', async () => {
+    const process = new RecordingProcess(() => success('t1\n'))
+
+    expect(await new GitCliAdapter(process).mergeTree('/r', 'a1', 'b2')).toEqual({ conflicts: false, tree: 't1' })
+    expect(process.commands[0]?.args).toEqual([
+      '-c',
+      'merge.conflictStyle=merge',
+      'merge-tree',
+      '--write-tree',
+      '--no-messages',
+      '--name-only',
+      '--end-of-options',
+      'a1',
+      'b2',
+    ])
+  })
+
+  it('says a merge conflicted when merge-tree exits 1, and still returns its tree', async () => {
+    const process = new RecordingProcess(() => failure(1, '', 't2\nmanifest.yaml\n'))
+
+    expect(await new GitCliAdapter(process).mergeTree('/r', 'a1', 'b2')).toEqual({ conflicts: true, tree: 't2' })
+  })
+
+  it('throws when merge-tree fails otherwise', async () => {
+    const process = new RecordingProcess(() => failure(128, 'fatal: not something we can merge'))
+
+    await expect(new GitCliAdapter(process).mergeTree('/r', 'a1', 'nope')).rejects.toThrow(/not something we can merge/)
+  })
+})
+
 describe('GitCliAdapter index', () => {
   it('lists the staged entries without writing anything', async () => {
     const process = new RecordingProcess(() => success('100644 aaa 0\tsrc/a.ts\0'))

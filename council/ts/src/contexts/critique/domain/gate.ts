@@ -21,6 +21,10 @@ export const ALLOW_REASONS = [
   'low-risk',
   /** The last ticket review of exactly this staged change passed. */
   'reviewed',
+  /** Every commit the merge brings in is vouched for, and it adds nothing of its own beyond manifest pins and rebuilt generated files. */
+  'merge-vouched',
+  /** The merge conflicts, so git stops before committing it; the `git commit` that concludes it is gated then. */
+  'merge-stops',
   /** Every branch the push updates is a feature branch. */
   'feature-branch',
   /** The latest feature review of the commit being sent says `GATE: PASS`. */
@@ -42,7 +46,7 @@ export const BLOCK_REASONS = [
   'no-feature-review',
   /** The latest feature review of the commit being sent says `GATE: FAIL`. */
   'gate-fail',
-  /** The same command moves HEAD before it pushes or opens the PR, so the commit sent is not known yet. */
+  /** The same command moves HEAD before it pushes, opens the PR or merges, so the commit sent, or the merge's HEAD, is not known yet. */
   'head-unknown',
 ] as const
 export type BlockReason = (typeof BLOCK_REASONS)[number]
@@ -113,14 +117,25 @@ export function riskReason(signals: readonly [RiskSignal, ...RiskSignal[]]): str
   return rest.length === 0 ? why : `${why}, and ${String(rest.length)} more risk signal${rest.length === 1 ? '' : 's'}`
 }
 
-/** Routing's `gate`: the branches a push may update without a feature review. */
+/** Routing's `gate`: the branches a push may update without a feature review, and how many commits a merge check reads one by one. */
 export interface GateRouting {
   /** Globs over branch names (see `matchesGlob`); a push that updates only such branches is not gated. */
   readonly feature_branches: readonly string[]
+  /**
+   * The most commits a merge may bring in and still be checked commit by
+   * commit; a merge that brings in more is judged whole, so the check stays
+   * within the gate's deadline. 50 when routing leaves it out.
+   */
+  readonly merge_commits: number
 }
 
+export const DEFAULT_MERGE_COMMITS = 50
+
 export function readGateRouting(fields: JsonFields): GateRouting {
-  return { feature_branches: fields.strings('feature_branches') }
+  return {
+    feature_branches: fields.strings('feature_branches'),
+    merge_commits: fields.has('merge_commits') ? fields.positiveInteger('merge_commits') : DEFAULT_MERGE_COMMITS,
+  }
 }
 
 /** This machine's critique configuration, `~/.config/agent-kit/critique.json`. */

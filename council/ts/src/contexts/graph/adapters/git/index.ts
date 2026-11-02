@@ -1,8 +1,10 @@
 import type {
   GitChangeSource,
   GitCommitAllRequest,
+  GitCommitLink,
   GitCommitAllResult,
   GitDagExecutorPort,
+  GitMergeTree,
   GitPorcelainEntry,
   GitReconcileRequest,
   GitReconcileResult,
@@ -179,6 +181,37 @@ export class GitCliAdapter implements GitDagExecutorPort {
   async changedPaths(cwd: string, base: string, head: string): Promise<readonly string[]> {
     const result = await this.git(cwd, ['diff', '--name-only', '-z', '--no-renames', base, head, '--'])
     return result.stdout.split('\0').filter((path) => path.length > 0)
+  }
+
+  async commitsBetween(cwd: string, base: string, head: string): Promise<readonly GitCommitLink[]> {
+    const result = await this.git(cwd, ['rev-list', '--no-commit-header', '--format=%H %T %P', '--end-of-options', head, `^${base}`])
+    return result.stdout
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        const [commit = '', tree = '', ...parents] = line.trim().split(' ')
+        return { commit, parents, tree }
+      })
+  }
+
+  async treeEntries(cwd: string, revision: string): Promise<string> {
+    const result = await this.git(cwd, ['ls-tree', '-r', '-z', '--full-tree', revision])
+    // `<mode> <type> <object>\t<path>` becomes `<mode> <object> 0\t<path>`,
+    // as `ls-files --stage` prints an index entry; tree order is index order.
+    return result.stdout
+      .split('\0')
+      .flatMap((entry) => {
+        const match = /^(\d+) \w+ (\w+)\t(.+)$/s.exec(entry)
+        return match === null ? [] : [`${match[1] ?? ''} ${match[2] ?? ''} 0\t${match[3] ?? ''}\0`]
+      })
+      .join('')
+  }
+
+  async mergeTree(cwd: string, ours: string, theirs: string): Promise<GitMergeTree> {
+    // Exit 1 is a merge with conflicts, its tree holding the conflict markers.
+    const args = ['-c', 'merge.conflictStyle=merge', 'merge-tree', '--write-tree', '--no-messages', '--name-only', '--end-of-options', ours, theirs]
+    const result = await this.git(cwd, args, { acceptedExitCodes: [0, 1] })
+    return { conflicts: result.exitCode === 1, tree: result.stdout.split('\n', 1)[0]?.trim() ?? '' }
   }
 
   async stagedEntries(cwd: string): Promise<string> {

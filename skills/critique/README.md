@@ -230,6 +230,22 @@ that fired either way.
   and kept tests included, so a change restaged or amended after its review
   needs another. A review fails ("do not commit") while an accepted critical
   finding is unfixed; a degraded review passes, so an outage blocks nothing.
+- **Merge commits**: the commit gate also runs before a `git merge` or
+  `git pull` that may record a merge commit, and before a `git commit` (or
+  `git merge --continue`) while `MERGE_HEAD` is set. A merge goes through
+  when every commit it brings in has a passing, non-degraded `/review-ticket`
+  record (matched by the reviewed commit, or by the staged change it was made
+  from) or was low-risk on its own, and the merge adds nothing beyond the
+  clean auto-merge except manifest sha256 pins and rebuilt generated files
+  (routing's `packet.exclude.generated` globs, or a "do not edit" marker).
+  Otherwise its own changes, or the whole merge when a commit it brings in
+  is unreviewed, are judged like any staged change. A merge that brings in
+  more commits than routing's `gate.merge_commits` (50) is judged whole
+  against HEAD, so the check stays within the gate's deadline. A merge after
+  a command in the same line that moves HEAD (`git checkout`, `git switch`,
+  `git commit` and the like) is blocked: run it as a command of its own. A
+  pull is judged on the remote-tracking branch as it is before the pull
+  fetches.
 - **PR gate**: the feature review opens with `GATE: PASS` or
   `GATE: FAIL (<n> critical)`. It fails while an accepted critical finding,
   from this or an earlier feature review, has an open follow-up ticket. A
@@ -238,7 +254,7 @@ that fired either way.
 
 [ADR-0002](../../docs/adr/0002-exactly-three-critique-hooks.md) allows three
 hooks, for Claude Code and Codex only: `critique-commit-gate` (before
-`git commit`), `critique-pr-gate` (before `gh pr create`, or a push outside
+`git commit`, or a merge that records a merge commit), `critique-pr-gate` (before `gh pr create`, or a push outside
 the feature branch patterns) and `critique-session-start` (one line
 suggesting `/flow setup` when this machine's setup is missing or failing).
 They do nothing in a repository that isn't opted in, call no model or
