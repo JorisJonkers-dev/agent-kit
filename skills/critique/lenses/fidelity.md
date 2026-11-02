@@ -12,3 +12,6 @@ Check that the artifact says what was decided, all of it, and nothing more.
   scope is a contradiction.
 - `term-meaning`: Check that domain terms carry the meaning the glossary
   gives them.
+- `avoid-term`: Look for a term the glossary marks _Avoid_, or a synonym
+  for a term it defines, used in code or ADRs. Give the trace from the use
+  to the glossary entry.

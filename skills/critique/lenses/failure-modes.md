@@ -11,5 +11,7 @@ Check what happens when things go wrong.
 - `bad-input`: Look for empty, missing, duplicated and oversized input.
 - `concurrent-use`: Look for concurrent use: two runs at once, an edit during
   a run.
+- `unbounded-call`: Look for an outbound call with no timeout or no bound
+  on its retries.
 
 A failure mode counts only if you can describe the scenario concretely.
