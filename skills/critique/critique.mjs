@@ -112,7 +112,7 @@ function isRestIssue(value) {
   return isRecord(value) && typeof value.number === "number" && typeof value.html_url === "string";
 }
 function firstLine(text) {
-  return text.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
+  return text.split("\n").map((line2) => line2.trim()).find((line2) => line2.length > 0);
 }
 function readIssue(stdout) {
   let parsed;
@@ -594,16 +594,16 @@ function readLimits(file) {
 function invocationLines(ledger) {
   return ledger.split("\n").flatMap((text) => {
     try {
-      const line = JsonFields.parse(text);
-      if (!line.has("type") || line.string("type") !== "invocation") return [];
+      const line2 = JsonFields.parse(text);
+      if (!line2.has("type") || line2.string("type") !== "invocation") return [];
       return [
         {
-          charged_usd: line.number("charged_usd"),
-          flow: line.string("flow"),
-          kind: line.oneOf("kind", ["vibe", "agy"]),
-          recorded_at: line.string("recorded_at"),
-          repository: line.string("repository"),
-          run_id: line.optionalString("run_id")
+          charged_usd: line2.number("charged_usd"),
+          flow: line2.string("flow"),
+          kind: line2.oneOf("kind", ["vibe", "agy"]),
+          recorded_at: line2.string("recorded_at"),
+          repository: line2.string("repository"),
+          run_id: line2.optionalString("run_id")
         }
       ];
     } catch {
@@ -612,7 +612,7 @@ function invocationLines(ledger) {
   });
 }
 function flowSpend(lines, repository, flow) {
-  return lines.filter((line) => line.kind === "vibe" && line.repository === repository && line.flow === flow).reduce((total, line) => total + line.charged_usd, 0);
+  return lines.filter((line2) => line2.kind === "vibe" && line2.repository === repository && line2.flow === flow).reduce((total, line2) => total + line2.charged_usd, 0);
 }
 function spendByFlow(lines, repository, flows) {
   return flows.map((flow) => ({ flow, spent_usd: flowSpend(lines, repository, flow) }));
@@ -625,7 +625,7 @@ function utcDay(now) {
 }
 function agyInvocationsOn(lines, now) {
   const day = utcDay(now);
-  return lines.filter((line) => line.kind === "agy" && line.recorded_at.slice(0, 10) === day).length;
+  return lines.filter((line2) => line2.kind === "agy" && line2.recorded_at.slice(0, 10) === day).length;
 }
 function budgetReached(spend, limits) {
   const cap = limits.budget.vibe_flow_cap_usd;
@@ -1038,7 +1038,7 @@ function ledgerLines(run, recordedAt) {
     severity_reason: finding.verdict.severity_reason ?? null,
     verdict: finding.verdict.verdict
   }));
-  return [...runLines, ...findingLines].map((line) => JSON.stringify(line));
+  return [...runLines, ...findingLines].map((line2) => JSON.stringify(line2));
 }
 var SKIPPED_LOW_RISK = "skipped-low-risk";
 var FLOW_EVENTS = ["grilled", "no-critique", "landed", "answered", "draft"];
@@ -1051,9 +1051,9 @@ function parseLedger(text) {
   const findings = [];
   const skipped = [];
   const events = [];
-  text.split("\n").forEach((line, index) => {
-    if (line.trim() === "") return;
-    const fields = JsonFields.of(parseLine(line, index + 1), `line ${String(index + 1)}`);
+  text.split("\n").forEach((line2, index) => {
+    if (line2.trim() === "") return;
+    const fields = JsonFields.of(parseLine(line2, index + 1), `line ${String(index + 1)}`);
     const type = fields.string("type");
     if (type === "run" && fields.optionalString("status") === SKIPPED_LOW_RISK) skipped.push(readSkippedReview(fields));
     else if (type === "run") runs.push(readCriticRunLine(fields));
@@ -1080,9 +1080,9 @@ function readFlowEvent(fields) {
   if (event === "draft") return { ...context, draft: fields.string("draft"), event };
   return { ...context, event };
 }
-function parseLine(line, number) {
+function parseLine(line2, number) {
   try {
-    return JSON.parse(line);
+    return JSON.parse(line2);
   } catch {
     throw new JsonShapeError(`line ${String(number)} is not JSON`);
   }
@@ -1150,7 +1150,7 @@ var FlowBudget = class {
     return agyInvocationsOn(await this.lines(), this.deps.clock.now());
   }
   async logInvocation(manifest, run, kind) {
-    const line = {
+    const line2 = {
       charged_usd: run.charged_usd,
       client: run.client,
       critic_id: run.critic_id,
@@ -1166,7 +1166,7 @@ var FlowBudget = class {
       status: run.status,
       type: "invocation"
     };
-    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line2)}
 `);
   }
   async lines() {
@@ -1306,20 +1306,20 @@ function measuresOf(stage) {
 function countUserStories(text) {
   let level;
   let count = 0;
-  for (const line of text.split(/\r?\n/)) {
-    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+  for (const line2 of text.split(/\r?\n/)) {
+    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line2);
     if (heading !== null) {
       const depth = (heading[1] ?? "").length;
       if (level !== void 0 && depth <= level) level = void 0;
       if (level === void 0 && /^user stories$/i.test(heading[2] ?? "")) level = depth;
-    } else if (level !== void 0 && /^\s*\d+[.)]\s+\S/.test(line)) {
+    } else if (level !== void 0 && /^\s*\d+[.)]\s+\S/.test(line2)) {
       count += 1;
     }
   }
   return count;
 }
 function countDecisions(text) {
-  return text.split(/\r?\n/).filter((line) => /^\*\*[^*\n]+(?::\*\*|\*\*\s*:)/.test(line) || /^(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
+  return text.split(/\r?\n/).filter((line2) => /^\*\*[^*\n]+(?::\*\*|\*\*\s*:)/.test(line2) || /^(?:[-*+]|\d+[.)])\s+\S/.test(line2)).length;
 }
 function countWords(text) {
   return text.split(/\s+/).filter((word) => word.length > 0).length;
@@ -1337,8 +1337,8 @@ var TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs
 var TS_DECLARATION = /^(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(function\*?|class|interface|type|enum|const\s+enum|const|let|var|namespace)\s+([A-Za-z_$][\w$]*)/;
 var TS_IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"\n]+)['"]/g;
 var typescript = {
-  declaration: (line) => {
-    const match = TS_DECLARATION.exec(line);
+  declaration: (line2) => {
+    const match = TS_DECLARATION.exec(line2);
     return match === null ? void 0 : { kind: (match[1] ?? "").replace(/\s+/g, " "), name: match[2] ?? "" };
   },
   extensions: TS_EXTENSIONS,
@@ -1361,8 +1361,8 @@ var PY_DECLARATION = /^(?:(async\s+def|def|class)\s+([A-Za-z_]\w*)|([A-Za-z_]\w*
 var PY_FROM = /^\s*from\s+(\.*[\w.]*)\s+import\s+(?:\(([^)]*)\)|([^#\n]*))/gm;
 var PY_IMPORT = /^\s*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)/gm;
 var python = {
-  declaration: (line) => {
-    const match = PY_DECLARATION.exec(line);
+  declaration: (line2) => {
+    const match = PY_DECLARATION.exec(line2);
     if (match === null) return void 0;
     return match[3] === void 0 ? { kind: (match[1] ?? "").replace(/\s+/g, " "), name: match[2] ?? "" } : { kind: "assignment", name: match[3] };
   },
@@ -1404,10 +1404,10 @@ function scanSource(path, text) {
   const scanner = scannerFor(path);
   if (scanner === void 0) return void 0;
   const lines = text.split("\n");
-  const starts = lines.flatMap((line, index) => startsStatement(line) ? [index] : []);
+  const starts = lines.flatMap((line2, index) => startsStatement(line2) ? [index] : []);
   const symbols = starts.flatMap((start, i) => {
-    const line = lines[start] ?? "";
-    const declared = scanner.declaration(line);
+    const line2 = lines[start] ?? "";
+    const declared = scanner.declaration(line2);
     if (declared === void 0) return [];
     let end = (starts[i + 1] ?? lines.length) - 1;
     while (end > start && (lines[end] ?? "").trim() === "") end -= 1;
@@ -1416,15 +1416,15 @@ function scanSource(path, text) {
   });
   return { imports: scanner.imports(text), language: scanner.language, symbols };
 }
-function startsStatement(line) {
-  return /^[^\s)\]}]/.test(line);
+function startsStatement(line2) {
+  return /^[^\s)\]}]/.test(line2);
 }
 function mentions(text, name) {
   return wordPattern(name).test(text);
 }
 function mentionLines(text, name) {
   const pattern = wordPattern(name);
-  return text.split("\n").flatMap((line, index) => pattern.test(line) ? [index + 1] : []);
+  return text.split("\n").flatMap((line2, index) => pattern.test(line2) ? [index + 1] : []);
 }
 function wordPattern(name) {
   return new RegExp(`(?<![\\w$])${name.replace(/\$/g, "\\$")}(?![\\w$])`);
@@ -1512,8 +1512,8 @@ function admitPieces(pieces, budget, describe) {
   }
   return { admitted, held };
 }
-function lineBytes(line) {
-  return line === void 0 ? 0 : bytes(line) + 1;
+function lineBytes(line2) {
+  return line2 === void 0 ? 0 : bytes(line2) + 1;
 }
 function mergeRanges(ranges) {
   const sorted = [...ranges].sort((a, b) => a.first - b.first || a.last - b.last);
@@ -1605,8 +1605,8 @@ var SourceGraph = class _SourceGraph {
     return this.importers(path).filter((importer) => mentions(this.files.get(importer)?.text ?? "", name));
   }
   /** The top-level symbol whose lines hold a line of a file. */
-  enclosing(path, line) {
-    return this.files.get(path)?.scan.symbols.find((symbol) => symbol.first <= line && line <= symbol.last);
+  enclosing(path, line2) {
+    return this.files.get(path)?.scan.symbols.find((symbol) => symbol.first <= line2 && line2 <= symbol.last);
   }
   /** Where a name a file uses is declared: in the file itself, else in the first file it imports that declares it. */
   definition(path, name) {
@@ -1669,6 +1669,73 @@ function droppedLine(count, cap) {
   return `
 The map's cap of ${String(cap)} bytes left out the ${String(count)} least referenced files.
 `;
+}
+
+// src/contexts/critique/domain/drop-summary.ts
+var DROP_SUMMARY_LINES = 24;
+var CAP_DROPPED = "the cap dropped them";
+function capCutShort(windowLines) {
+  return `the cap cut them short: each holds only its first lines, in windows of ${String(windowLines)} lines`;
+}
+function capDrop(candidate, held, windowLines) {
+  if (holdsAll(candidate, held)) return void 0;
+  return {
+    bytes: bytes(candidate.text) - bytes(heldText(candidate, held)),
+    path: candidate.path,
+    reason: held.length === 0 ? CAP_DROPPED : capCutShort(windowLines)
+  };
+}
+function possibleDrops(candidate, windowLines) {
+  const whole = { bytes: bytes(candidate.text), path: candidate.path, reason: CAP_DROPPED };
+  return candidate.lineCount > windowLines ? [whole, { ...whole, reason: capCutShort(windowLines) }] : [whole];
+}
+function summariseDrops(drops) {
+  const deepest = Math.max(0, ...drops.map((drop) => foldersOf(drop.path).length));
+  for (let k = deepest + 1; k > 0; k -= 1) {
+    const lines = groupLines(drops, k);
+    if (lines.length <= DROP_SUMMARY_LINES) return lines;
+  }
+  return groupLines(drops, 0);
+}
+function dropSummaryBound(possible) {
+  const exact = /* @__PURE__ */ new Map();
+  for (const drop of possible) {
+    const key3 = keyOf(drop.path, Infinity);
+    const id = `${key3}\0${drop.reason}`;
+    const group = exact.get(id) ?? { bytes: 0, key: key3, paths: /* @__PURE__ */ new Set(), reason: drop.reason };
+    group.paths.add(drop.path);
+    exact.set(id, { ...group, bytes: group.bytes + drop.bytes });
+  }
+  const groups = [...exact.values()];
+  if (groups.length <= DROP_SUMMARY_LINES) return groups.reduce((sum, group) => sum + lineBytes(line(group.key, group.paths.size, group.bytes, group.reason)), 0);
+  const most = /* @__PURE__ */ new Map();
+  for (const drop of possible) most.set(drop.path, Math.max(most.get(drop.path) ?? 0, drop.bytes));
+  const total = [...most.values()].reduce((sum, size) => sum + size, 0);
+  const key2 = Math.max(...groups.map((group) => bytes(group.key) + "**".length));
+  const reasons = new Set(possible.map((drop) => drop.reason));
+  const widest2 = lineBytes(line("k".repeat(key2), most.size, total, "r".repeat(Math.max(...[...reasons].map(bytes)))));
+  return Math.max(DROP_SUMMARY_LINES, reasons.size) * widest2;
+}
+function foldersOf(path) {
+  return path.split("/").slice(0, -1);
+}
+function keyOf(path, k) {
+  const folders = foldersOf(path);
+  if (folders.length < k) return folders.length === 0 ? "./" : `${folders.join("/")}/`;
+  return k === 0 ? "**" : `${folders.slice(0, k).join("/")}/**`;
+}
+function groupLines(drops, k) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const drop of drops) {
+    const key2 = keyOf(drop.path, k);
+    const id = `${key2}\0${drop.reason}`;
+    const group = groups.get(id) ?? { bytes: 0, count: 0, key: key2, reason: drop.reason };
+    groups.set(id, { ...group, bytes: group.bytes + drop.bytes, count: group.count + 1 });
+  }
+  return [...groups.values()].sort((a, b) => a.key === b.key ? a.reason < b.reason ? -1 : 1 : a.key < b.key ? -1 : 1).map((group) => line(group.key, group.count, group.bytes, group.reason));
+}
+function line(key2, count, size, reason) {
+  return `- \`${key2}\` (${String(count)} ${count === 1 ? "file" : "files"}, ${String(size)} bytes): ${reason}`;
 }
 
 // src/contexts/critique/domain/triage.ts
@@ -1735,10 +1802,10 @@ function globPattern(glob) {
 function countChangedLines(diff) {
   let header = false;
   let count = 0;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("diff --git ")) header = true;
-    else if (header && (line.startsWith("+++ ") || line.startsWith("@@"))) header = false;
-    else if (!header && (line.startsWith("+") || line.startsWith("-"))) count += 1;
+  for (const line2 of diff.split("\n")) {
+    if (line2.startsWith("diff --git ")) header = true;
+    else if (header && (line2.startsWith("+++ ") || line2.startsWith("@@"))) header = false;
+    else if (!header && (line2.startsWith("+") || line2.startsWith("-"))) count += 1;
   }
   return count;
 }
@@ -1793,10 +1860,12 @@ function ledgerSignal(signal) {
 // src/contexts/critique/domain/repository-packet.ts
 var EXCLUSION_KINDS = ["vendored", "generated", "lock"];
 var DEFAULT_REPO_MAP_CAP_BYTES = 20480;
+var DEFAULT_MANIFEST_CAP_BYTES = 30720;
 var DEFAULT_PACKET_LIMITS = {
   cap_bytes: 153600,
   exclude: { generated: [], lock: [], vendored: [] },
   facts_cap_bytes: 30720,
+  manifest_cap_bytes: DEFAULT_MANIFEST_CAP_BYTES,
   repo_map_cap_bytes: DEFAULT_REPO_MAP_CAP_BYTES,
   window_lines: 400
 };
@@ -1806,6 +1875,7 @@ function readPacketLimits(fields) {
     cap_bytes: fields.positiveInteger("cap_bytes"),
     exclude: { generated: exclude.strings("generated"), lock: exclude.strings("lock"), vendored: exclude.strings("vendored") },
     facts_cap_bytes: fields.positiveInteger("facts_cap_bytes"),
+    manifest_cap_bytes: fields.has("manifest_cap_bytes") ? fields.positiveInteger("manifest_cap_bytes") : DEFAULT_MANIFEST_CAP_BYTES,
     repo_map_cap_bytes: fields.has("repo_map_cap_bytes") ? fields.positiveInteger("repo_map_cap_bytes") : DEFAULT_REPO_MAP_CAP_BYTES,
     window_lines: fields.positiveInteger("window_lines")
   };
@@ -1830,6 +1900,7 @@ function isGenerated(text) {
 }
 var NO_FACTS = { files: [] };
 var TIERS = ["named", "hotspot", "entry", "cycle"];
+var LISTED_TIERS = /* @__PURE__ */ new Set(["named", "hotspot"]);
 var ENTRY_FILES = /* @__PURE__ */ new Set([
   "index.ts",
   "index.tsx",
@@ -1853,18 +1924,25 @@ var MANIFEST_PATH = "tree/MANIFEST.tsv";
 var FACTS_INDEX_PATH = "facts/INDEX.md";
 function sampleRepository(request) {
   const { limits } = request;
-  const manifest = renderManifest(request);
   const facts = admitFacts(request.facts.files, limits.facts_cap_bytes);
   const candidates = sampleCandidates(request);
+  const manifest = renderManifest(request, new Set(candidates.map((candidate) => candidate.path)));
+  const counted = candidates.filter((candidate) => !LISTED_TIERS.has(candidate.tier));
+  const reserved = dropSummaryBound(counted.flatMap((candidate) => possibleDrops(candidate, limits.window_lines)));
   const none = /* @__PURE__ */ new Map();
-  const fixed = request.documentBytes + bytes(manifest) + facts.reduce((sum, file) => sum + bytes(file.text), 0) + bytes(renderIndex(request, facts, candidates, none));
+  const fixed = request.documentBytes + bytes(manifest.text) + facts.reduce((sum, file) => sum + bytes(file.text), 0) + bytes(renderIndex(request, manifest, facts, candidates, none, [])) + reserved;
   if (fixed > limits.cap_bytes) {
     return refusal(
       "packet-over-cap",
       `the documents, ${MANIFEST_PATH} and facts/ come to ${String(fixed)} bytes, past the packet cap of ${String(limits.cap_bytes)}; review fewer records or raise packet.cap_bytes in routing`
     );
   }
-  const { held } = admitPieces(windowOrder(candidates, limits.window_lines), limits.cap_bytes - fixed, sampleLine);
+  const { held } = admitPieces(
+    windowOrder(candidates, limits.window_lines),
+    limits.cap_bytes - fixed,
+    (candidate, lines) => LISTED_TIERS.has(candidate.tier) ? sampleLine(candidate, lines) : void 0
+  );
+  const drops = summariseDrops(counted.flatMap((candidate) => capDrop(candidate, held.get(candidate) ?? [], limits.window_lines) ?? []));
   const tree = candidates.flatMap((candidate) => {
     const file = sampledFile(candidate, held.get(candidate) ?? []);
     return file === void 0 ? [] : [file];
@@ -1872,8 +1950,8 @@ function sampleRepository(request) {
   return {
     dropped: candidates.filter((candidate) => !holdsAll(candidate, held.get(candidate) ?? [])).length,
     facts,
-    index: renderIndex(request, facts, candidates, held),
-    manifest,
+    index: renderIndex(request, manifest, facts, candidates, held, drops),
+    manifest: manifest.text,
     status: "sampled",
     tree
   };
@@ -1917,16 +1995,50 @@ function sampleCandidates(request) {
 function namedPaths(text) {
   return (text.match(/[\w@+.\-/]+/g) ?? []).map((word) => word.replace(/^(?:\.\/|tree\/)/, "").replace(/\.+$/, ""));
 }
-function renderManifest(request) {
-  const rank2 = (path) => String(request.facts.churn_ranks?.get(path) ?? "-");
-  const rows = request.tracked.map((file) => `${file.path}	${file.text === null ? "-" : String(lineCount(file.text))}	${rank2(file.path)}`);
-  return `${["path	lines	churn_rank", ...rows].join("\n")}
-`;
+var MANIFEST_HEADER = "path	lines	churn_rank";
+function renderManifest(request, sampled) {
+  const churn = request.facts.churn_ranks;
+  const rows = new Map(
+    request.tracked.map((file) => [file.path, `${file.path}	${file.text === null ? "-" : String(lineCount(file.text))}	${String(churn?.get(file.path) ?? "-")}`])
+  );
+  const cap = request.limits.manifest_cap_bytes;
+  let rowBytes = lineBytes(MANIFEST_HEADER) + [...rows.values()].reduce((sum, row) => sum + lineBytes(row), 0);
+  let countBytes = 0;
+  let collapsed = 0;
+  const counts = /* @__PURE__ */ new Map();
+  const rank2 = (path) => [sampled.has(path) ? 1 : 0, -(churn?.get(path) ?? Infinity), -path.split("/").length];
+  const order = [...rows.keys()].sort((a, b) => {
+    const [x, y] = [rank2(a), rank2(b)];
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || (a < b ? 1 : -1);
+  });
+  for (const path of order) {
+    if (rowBytes + countBytes + (collapsed === 0 ? 0 : lineBytes(collapsedLine(collapsed, cap))) <= cap) break;
+    const directory = path.includes("/") ? `${path.slice(0, path.lastIndexOf("/"))}/` : "./";
+    const count = counts.get(directory) ?? 0;
+    countBytes += lineBytes(countLine(directory, count + 1)) - (count === 0 ? 0 : lineBytes(countLine(directory, count)));
+    rowBytes -= lineBytes(rows.get(path));
+    counts.set(directory, count + 1);
+    rows.delete(path);
+    collapsed += 1;
+  }
+  const counted = rowBytes + countBytes + (collapsed === 0 ? 0 : lineBytes(collapsedLine(collapsed, cap))) <= cap;
+  const tail = collapsed === 0 ? [] : counted ? [collapsedLine(collapsed, cap), ...[...counts].sort(([a], [b]) => a < b ? -1 : 1).map(([directory, count]) => countLine(directory, count))] : [uncountedLine(collapsed, cap)];
+  return { collapsed, counted, text: `${[MANIFEST_HEADER, ...rows.values(), ...tail].join("\n")}
+` };
+}
+function collapsedLine(collapsed, cap) {
+  return `# collapsed: past the manifest cap of ${String(cap)} bytes, its ${String(collapsed)} least-ranked paths are counted per directory below, as directory and paths`;
+}
+function uncountedLine(collapsed, cap) {
+  return `# collapsed: past the manifest cap of ${String(cap)} bytes, its ${String(collapsed)} least-ranked paths are left out, and so are their per-directory counts, which would not fit`;
+}
+function countLine(directory, count) {
+  return `# ${directory}	${String(count)}`;
 }
 function sampleLine(candidate, held) {
   return `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): ${sentStatus(candidate, held)}`;
 }
-function renderIndex(request, facts, candidates, held) {
+function renderIndex(request, manifest, facts, candidates, held, drops) {
   const { limits } = request;
   const admitted = new Set(facts);
   const factLines = request.facts.files.map(
@@ -1937,7 +2049,7 @@ function renderIndex(request, facts, candidates, held) {
     ...request.facts.hotspots === void 0 ? ["No hotspot facts yet, so no hotspot was sampled."] : [],
     ...request.facts.cycles === void 0 ? ["No import facts yet, so no import cycle was sampled."] : []
   ];
-  const samples = candidates.map((candidate) => sampleLine(candidate, held.get(candidate) ?? []));
+  const samples = candidates.flatMap((candidate) => LISTED_TIERS.has(candidate.tier) ? [sampleLine(candidate, held.get(candidate) ?? [])] : []);
   return [
     "# Facts",
     "",
@@ -1945,7 +2057,7 @@ function renderIndex(request, facts, candidates, held) {
     "",
     "## Files",
     "",
-    `- \`${MANIFEST_PATH}\`: every tracked path but the excluded ones, with its line count (\`-\` for a binary file) and its churn rank (\`-\` while no churn facts exist). Columns: \`path\`, \`lines\`, \`churn_rank\`.`,
+    `- \`${MANIFEST_PATH}\`: every tracked path but the excluded ones, with its line count (\`-\` for a binary file) and its churn rank (\`-\` while no churn facts exist). Columns: \`path\`, \`lines\`, \`churn_rank\`.${manifest.collapsed === 0 ? "" : ` Past its cap of ${String(request.limits.manifest_cap_bytes)} bytes, it ${manifest.counted ? "counts" : "leaves out"} its ${String(manifest.collapsed)} least-ranked paths${manifest.counted ? " per directory at its end instead of listing them" : ", and their per-directory counts, which would not fit"}.`}`,
     ...factLines,
     ...factLines.length === 0 ? ["", "No other facts are computed yet."] : [],
     "",
@@ -1959,11 +2071,11 @@ function renderIndex(request, facts, candidates, held) {
     "",
     "## Sample",
     "",
-    `Files sent under \`tree/\`, in the order they were chosen: the files the artifact names, the top hotspots, each module's entry file, then the files on each import cycle. A longer file is sent in windows of ${String(limits.window_lines)} lines from its first line, at its own line numbers. What the cap left out is listed here.`,
+    `Files sent under \`tree/\`, in the order they were chosen: the files the artifact names, the top hotspots, each module's entry file, then the files on each import cycle. A longer file is sent in windows of ${String(limits.window_lines)} lines from its first line, at its own line numbers. The files the artifact names and the top hotspots are listed by name; the cap's drops of entry files and files on a cycle are counted per directory with the bytes left out (\`dir/**\` counts every file under it), and one neither listed nor counted was sent in full.`,
     "",
     ...skipped,
     ...skipped.length === 0 ? [] : [""],
-    ...samples.length === 0 ? ["Nothing was sampled."] : samples,
+    ...candidates.length === 0 ? ["Nothing was sampled."] : [...samples, ...drops],
     ""
   ].join("\n");
 }
@@ -2026,16 +2138,16 @@ var NO_BLOCKER = /^(none|n\/a|nothing|-+)\b/i;
 var EMPHASIS = /[*_`"']+/g;
 function blockerNames(text) {
   const lines = text.split(/\r?\n/);
-  const at = lines.findIndex((line) => /^[\s>*_#-]*blocked by\b/i.test(line));
+  const at = lines.findIndex((line2) => /^[\s>*_#-]*blocked by\b/i.test(line2));
   if (at === -1) return [];
   const rest = (lines[at] ?? "").replace(/^[\s>*_#-]*blocked by\b[\s*_:]*/i, "");
   const items = [];
   if (rest.trim().length > 0) items.push(rest);
   else {
-    for (const line of lines.slice(at + 1)) {
-      const item = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/.exec(line);
+    for (const line2 of lines.slice(at + 1)) {
+      const item = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/.exec(line2);
       if (item !== null) items.push(item[1] ?? "");
-      else if (line.trim().length > 0 || items.length > 0) break;
+      else if (line2.trim().length > 0 || items.length > 0) break;
     }
   }
   return items.flatMap((item) => item.split(/[,;]/)).flatMap((item) => {
@@ -2073,8 +2185,8 @@ function storyCoverage(stories, reports) {
 }
 function userStories(spec) {
   const lines = section(prose(spec), /^user stories$/i) ?? [];
-  const numbers = lines.flatMap((line) => {
-    const item = /^(\d+)[.)]\s/.exec(line)?.[1];
+  const numbers = lines.flatMap((line2) => {
+    const item = /^(\d+)[.)]\s/.exec(line2)?.[1];
     return item === void 0 ? [] : [Number(item)];
   });
   return [...new Set(numbers)];
@@ -2083,7 +2195,7 @@ var TASK_ITEM = /^\s*[-*+]\s+\[[ xX]\]\s/;
 function criteriaCount(text) {
   const lines = prose(text);
   const scope = section(lines, /^acceptance criteria$/i) ?? beforeComments(lines);
-  return scope.filter((line) => TASK_ITEM.test(line)).length;
+  return scope.filter((line2) => TASK_ITEM.test(line2)).length;
 }
 var STORY_NUMBER = String.raw`#?\d+(?:\s*[-–]\s*#?\d+)?`;
 var CITATION = new RegExp(
@@ -2106,28 +2218,28 @@ function citedStories(text) {
 }
 function prose(text) {
   let fenced = false;
-  return text.split(/\r?\n/).filter((line) => {
-    if (/^\s*(?:```|~~~)/.test(line)) {
+  return text.split(/\r?\n/).filter((line2) => {
+    if (/^\s*(?:```|~~~)/.test(line2)) {
       fenced = !fenced;
       return false;
     }
     return !fenced;
   });
 }
-function headingOf(line) {
-  const heading = /^(#{1,6})[ \t]+(.*?)[ \t#]*$/.exec(line);
+function headingOf(line2) {
+  const heading = /^(#{1,6})[ \t]+(.*?)[ \t#]*$/.exec(line2);
   return heading === null ? void 0 : { level: (heading[1] ?? "").length, title: heading[2] ?? "" };
 }
 function section(lines, title) {
-  const start = lines.findIndex((line) => title.test(headingOf(line)?.title ?? ""));
+  const start = lines.findIndex((line2) => title.test(headingOf(line2)?.title ?? ""));
   if (start === -1) return void 0;
   const level = headingOf(lines[start] ?? "")?.level ?? 1;
   const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => (headingOf(line)?.level ?? Infinity) <= level);
+  const end = rest.findIndex((line2) => (headingOf(line2)?.level ?? Infinity) <= level);
   return end === -1 ? rest : rest.slice(0, end);
 }
 function beforeComments(lines) {
-  const end = lines.findIndex((line) => /^comments$/i.test(headingOf(line)?.title ?? ""));
+  const end = lines.findIndex((line2) => /^comments$/i.test(headingOf(line2)?.title ?? ""));
   return end === -1 ? lines : lines.slice(0, end);
 }
 var DEFAULT_TICKET_SIZE = { max_criteria: 8, max_modules: 5 };
@@ -2164,11 +2276,11 @@ function allowed(gate, reason) {
 function failedOpen(gate, failure2, detail) {
   return { detail, failure: failure2, gate, line: null, reason: "failed-open", status: "allowed" };
 }
-function blocked(gate, reason, line) {
+function blocked(gate, reason, line2) {
   return {
     gate,
-    hook_output: { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: line } },
-    line,
+    hook_output: { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: line2 } },
+    line: line2,
     reason,
     status: "blocked"
   };
@@ -2918,7 +3030,7 @@ var LocalMarkdownTracker = class {
 };
 function firstLine3(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "gh failed";
+  return message.split("\n").find((line2) => line2.trim().length > 0)?.trim() ?? "gh failed";
 }
 
 // src/contexts/critique/application/feature-gate.ts
@@ -2972,10 +3084,10 @@ var FeatureGate = class {
   }
   /** Writes the gate into the run and appends it to the repository's gate index. */
   async save(manifest, gate) {
-    const line = JSON.stringify(gate);
+    const line2 = JSON.stringify(gate);
     await this.deps.files.writeText(gatePath(manifest.run_dir), `${JSON.stringify(gate, null, 2)}
 `);
-    await this.deps.files.appendText(gateIndexPath(dirname2(manifest.run_dir)), `${line}
+    await this.deps.files.appendText(gateIndexPath(dirname2(manifest.run_dir)), `${line2}
 `);
   }
   /** The spec's tickets as the tracker holds them now; a tracker that cannot be read leaves the gate unknown. */
@@ -2989,8 +3101,8 @@ var FeatureGate = class {
   async index(manifest) {
     const path = gateIndexPath(dirname2(manifest.run_dir));
     if (!await this.deps.files.exists(path)) return [];
-    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
-    return lines.map((line, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parseGateRecord(line)));
+    const lines = (await this.deps.files.readText(path)).split("\n").filter((line2) => line2.trim().length > 0);
+    return lines.map((line2, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parseGateRecord(line2)));
   }
 };
 function ticketNamed(tickets, given, repositoryKey) {
@@ -3151,7 +3263,7 @@ var StateCommand = class {
   }
   async sources(gather) {
     const { keys, ledger, repository, spec } = gather;
-    const belongs = (line) => line.repository === repository.key && (line.flow !== void 0 && keys.includes(line.flow) || spec !== null && line.spec === spec);
+    const belongs = (line2) => line2.repository === repository.key && (line2.flow !== void 0 && keys.includes(line2.flow) || spec !== null && line2.spec === spec);
     const runs = await this.runs(gather, belongs);
     const runIds = new Set(runs.map((run) => run.run_id));
     const reviews = (await this.index(ticketReviewIndexPath(gather.critiqueDir), parseTicketReviewRecord)).filter(
@@ -3199,17 +3311,17 @@ var StateCommand = class {
         ticket_check: manifest.ticket_check?.status ?? null
       });
     }
-    for (const line of gather.ledger.runs.filter(belongs)) {
-      const known = runs.get(line.run_id);
-      runs.set(line.run_id, known === void 0 ? { recorded: true, round: line.round, run_id: line.run_id, stage: line.stage, ticket_check: null } : { ...known, recorded: true });
+    for (const line2 of gather.ledger.runs.filter(belongs)) {
+      const known = runs.get(line2.run_id);
+      runs.set(line2.run_id, known === void 0 ? { recorded: true, round: line2.round, run_id: line2.run_id, stage: line2.stage, ticket_check: null } : { ...known, recorded: true });
     }
     return [...runs.values()];
   }
   /** One JSON line per record, oldest first; a line that does not parse is an unreadable run record. */
   async index(path, parse) {
     if (!await this.deps.files.exists(path)) return [];
-    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
-    return lines.map((line, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parse(line)));
+    const lines = (await this.deps.files.readText(path)).split("\n").filter((line2) => line2.trim().length > 0);
+    return lines.map((line2, n) => decoded("invalid-run", `${path} line ${String(n + 1)}`, () => parse(line2)));
   }
 };
 var FlowLocator = class {
@@ -3468,7 +3580,7 @@ function missingLine(finding, packet2) {
   return void 0;
 }
 function firstUnheld(reference, held) {
-  const holding = (line) => held.find((range) => range.first <= line && line <= range.last);
+  const holding = (line2) => held.find((range) => range.first <= line2 && line2 <= range.last);
   const first = holding(reference.first);
   if (first === void 0) return reference.first;
   const last = holding(reference.last);
@@ -3569,7 +3681,7 @@ var REPOSITORY_DESCRIPTIONS = {
   tree: "a file of the repository, sampled at the commit under review"
 };
 var REPOSITORY_PACKET_NOTE = [
-  "`tree/` holds a sample of the repository, at each file's repository path. `tree/MANIFEST.tsv` lists every tracked path with its line count, and `facts/INDEX.md` says why each file was sampled, which files were cut short and what the packet cap left out. You cannot read a file the packet does not hold; say what you would need from it instead.",
+  "`tree/` holds a sample of the repository, at each file's repository path. `tree/MANIFEST.tsv` lists every tracked path with its line count (past its own cap, it counts its least-ranked paths per directory instead), and `facts/INDEX.md` says why each file was sampled, which files were cut short and what the packet cap left out, counting per directory the ones nobody named. You cannot read a file the packet does not hold; say what you would need from it instead.",
   "",
   "A file cut short holds its first lines at their own numbers. Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.",
   "",
@@ -3580,7 +3692,7 @@ var CODE_FACT_DESCRIPTIONS = {
   [REPO_MAP_PATH]: "the repository's shape: every source file's top-level symbols and their signatures, ranked by how many other files reference them. Read it first"
 };
 var CODE_PACKET_NOTE = [
-  "`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` lists every file the cap left out or cut short. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.",
+  "`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` records every file the cap left out or cut short: by name for the files the change touched, their importers, the files holding a slice and any file the diff, a ticket or the spec names, and counted per directory for the rest. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.",
   "",
   "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.",
   "",
@@ -3944,8 +4056,8 @@ import { join as join11 } from "node:path";
 
 // src/contexts/critique/domain/shell-command.ts
 import { isAbsolute as isAbsolute2, resolve as resolve2 } from "node:path";
-function simpleCommands(line) {
-  return new ShellScanner(line).commands();
+function simpleCommands(line2) {
+  return new ShellScanner(line2).commands();
 }
 var ShellScanner = class {
   constructor(text) {
@@ -4066,9 +4178,9 @@ function skipHeredocBodies(text, start, heredocs) {
     while (i < text.length) {
       const end = text.indexOf("\n", i);
       const stop = end === -1 ? text.length : end;
-      const line = text.slice(i, stop);
+      const line2 = text.slice(i, stop);
       i = stop + 1;
-      if ((heredoc.stripTabs ? line.replace(/^\t+/, "") : line).trim() === heredoc.delimiter) break;
+      if ((heredoc.stripTabs ? line2.replace(/^\t+/, "") : line2).trim() === heredoc.delimiter) break;
     }
   }
   return Math.min(i, text.length);
@@ -4139,12 +4251,12 @@ var ADDING = /* @__PURE__ */ new Set(["add", "stage"]);
 var HEAD_MOVING = /* @__PURE__ */ new Set(["am", "checkout", "cherry-pick", "commit", "merge", "pull", "rebase", "reset", "revert", "switch"]);
 var WRAPPERS = /* @__PURE__ */ new Set(["builtin", "command", "env", "exec", "nohup", "time"]);
 var GIT_VALUED = /* @__PURE__ */ new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env", "--exec-path"]);
-function gatedInvocations(line, cwd, home) {
+function gatedInvocations(line2, cwd, home) {
   const found = [];
   let dir = cwd;
   let indexChanged = "none";
   let headMoved = false;
-  for (const words of simpleCommands(line)) {
+  for (const words of simpleCommands(line2)) {
     const command2 = unwrap(words);
     const [program, ...args] = command2;
     if (program === "cd") {
@@ -4422,7 +4534,7 @@ var GateCommand = class {
         join11(repository.commonDir, "critique"),
         gateIndexPath,
         parseGateRecord,
-        (line) => line.repository === repository.key && line.head_commit === head
+        (line2) => line2.repository === repository.key && line2.head_commit === head
       );
       if (record === void 0) {
         return blocked(
@@ -4439,16 +4551,16 @@ var GateCommand = class {
   async lastLine(critiqueDir, pathOf, parse, matches) {
     const path = pathOf(critiqueDir);
     if (!await this.deps.files.exists(path)) return void 0;
-    const lines = (await this.deps.files.readText(path)).split("\n").filter((line) => line.trim().length > 0);
-    const records = lines.map((line, n) => readState(`${path} line ${String(n + 1)}`, line, parse));
+    const lines = (await this.deps.files.readText(path)).split("\n").filter((line2) => line2.trim().length > 0);
+    const records = lines.map((line2, n) => readState(`${path} line ${String(n + 1)}`, line2, parse));
     return records.filter(matches).at(-1);
   }
   /** Appends one line to the gate log; a log that cannot be written is left alone, so logging never blocks. */
   async log(raw, result2) {
     const cwd = isJsonObject(raw) && typeof raw.cwd === "string" ? raw.cwd : null;
-    const line = { cwd, detail: result2.detail, failure: result2.failure, gate: result2.gate, recorded_at: this.deps.clock.now().toISOString() };
+    const line2 = { cwd, detail: result2.detail, failure: result2.failure, gate: result2.gate, recorded_at: this.deps.clock.now().toISOString() };
     try {
-      await this.deps.files.appendText(gateLogPath(this.deps.env), `${JSON.stringify(line)}
+      await this.deps.files.appendText(gateLogPath(this.deps.env), `${JSON.stringify(line2)}
 `);
     } catch {
     }
@@ -4529,6 +4641,11 @@ var CODE_TIERS = ["changed", "importer", "related", "rest"];
 function sampleCodeTree(request) {
   const { limits } = request;
   const candidates = codeCandidates(request);
+  const named = new Set(namedPaths(request.namedText));
+  const counted = candidates.filter((candidate) => candidate.tier === "rest" && !named.has(candidate.path));
+  const countedSet = new Set(counted);
+  const treeLine = (candidate, held) => countedSet.has(candidate) || candidate.tier === "rest" && holdsAll(candidate, held) ? void 0 : fileLine(candidate, held);
+  const reserved = dropSummaryBound(counted.flatMap((candidate) => possibleDrops(candidate, limits.window_lines)));
   const byPath = new Map(candidates.map((candidate) => [candidate.path, candidate]));
   const sliced = request.slices.flatMap((slice) => {
     const candidate = byPath.get(slice.path);
@@ -4538,7 +4655,7 @@ function sampleCodeTree(request) {
   const slicePieces = sliced.map((entry) => entry.piece);
   const pieces = [...slicePieces, ...windowOrder2(candidates, limits.window_lines)];
   const none = { admitted: /* @__PURE__ */ new Set(), held: /* @__PURE__ */ new Map() };
-  const fixed = request.documentBytes + bytes(request.repoMap.text) + bytes(renderIndex2(request, candidates, slicePieces, none));
+  const fixed = request.documentBytes + bytes(request.repoMap.text) + bytes(renderIndex2(request, candidates.flatMap((candidate) => treeLine(candidate, []) ?? []), slicePieces, none)) + reserved;
   if (fixed > limits.cap_bytes) {
     return refusal(
       "packet-over-cap",
@@ -4546,13 +4663,18 @@ function sampleCodeTree(request) {
     );
   }
   const admission = admitPieces(pieces, limits.cap_bytes - fixed, treeLine);
+  const heldOf = (candidate) => admission.held.get(candidate) ?? [];
+  const listed = [
+    ...candidates.flatMap((candidate) => treeLine(candidate, heldOf(candidate)) ?? []),
+    ...summariseDrops(counted.flatMap((candidate) => capDrop(candidate, heldOf(candidate), limits.window_lines) ?? []))
+  ];
   const tree = candidates.flatMap((candidate) => {
     const file = sampledFile(candidate, admission.held.get(candidate) ?? []);
     return file === void 0 ? [] : [file];
   });
   return {
     dropped: candidates.filter((candidate) => !holdsAll(candidate, admission.held.get(candidate) ?? [])).length,
-    index: renderIndex2(request, candidates, slicePieces, admission),
+    index: renderIndex2(request, listed, slicePieces, admission),
     slices: sliced.filter((entry) => admission.admitted.has(entry.piece)).map((entry) => entry.slice),
     status: "sampled",
     tree
@@ -4569,8 +4691,7 @@ function windowOrder2(candidates, size) {
   const rank2 = (tier) => Math.min(CODE_TIERS.indexOf(tier), CODE_TIERS.indexOf("related"));
   return candidates.flatMap((candidate, position) => windowsOf(candidate, size).map((piece, window) => ({ piece, position, window }))).sort((a, b) => rank2(a.piece.candidate.tier) - rank2(b.piece.candidate.tier) || a.window - b.window || a.position - b.position).map((entry) => entry.piece);
 }
-function treeLine(candidate, held) {
-  if (candidate.tier === "rest" && holdsAll(candidate, held)) return void 0;
+function fileLine(candidate, held) {
   return `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): ${sentStatus(candidate, held)}`;
 }
 function sliceReason(slice) {
@@ -4586,13 +4707,12 @@ function sliceCitation(slice) {
 function sliceLine(slice, admitted) {
   return `- \`${sliceCitation(slice)}\`: ${sliceReason(slice)}: ${admitted ? "sent" : "the cap dropped it"}`;
 }
-function renderIndex2(request, candidates, slicePieces, admission) {
+function renderIndex2(request, tree, slicePieces, admission) {
   const { limits, repoMap } = request;
   const { generated, lock, vendored } = request.excluded;
   const binary = request.tracked.filter((file) => file.text === null).length;
   const leftOut = request.leftOut.map((file) => `- \`${file.path}\`: ${file.reason}; ${String(file.changed_lines)} changed lines`);
   const slices = slicePieces.map((piece) => piece.note?.(admission.admitted.has(piece)) ?? "");
-  const tree = candidates.flatMap((candidate) => treeLine(candidate, admission.held.get(candidate) ?? []) ?? []);
   return [
     "# Facts",
     "",
@@ -4619,7 +4739,7 @@ function renderIndex2(request, candidates, slicePieces, admission) {
     "",
     "## Tree",
     "",
-    `Files under \`tree/\`, in the order the cap let them in: the slices above, then the files the change touched, then the files that import them, then the rest of the tree. A file goes in windows of ${String(limits.window_lines)} lines from its first line. A file cut short holds the lines listed here at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. A file of the rest of the tree not listed here was sent in full.`,
+    `Files under \`tree/\`, in the order the cap let them in: the slices above, then the files the change touched, then the files that import them, then the rest of the tree. A file goes in windows of ${String(limits.window_lines)} lines from its first line. A file cut short holds the lines listed here at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. Of the rest of the tree, a file the diff, a ticket or the spec names is listed by name, the cap's other drops are counted per directory with the bytes left out (\`dir/**\` counts every file under it), and a file neither listed nor counted was sent in full.`,
     "",
     ...tree,
     ""
@@ -4639,10 +4759,10 @@ function contextSlices(graph, changed) {
     const scanned = graph.files.has(file.path);
     const loose = [];
     const enclosing = /* @__PURE__ */ new Map();
-    for (const line of lines) {
-      const symbol = graph.enclosing(file.path, line);
+    for (const line2 of lines) {
+      const symbol = graph.enclosing(file.path, line2);
       if (symbol !== void 0) enclosing.set(symbol.first, symbol);
-      else loose.push(around(line, scanned ? STATEMENT_CONTEXT_LINES : CONTEXT_LINES, lineCount(file.text)));
+      else loose.push(around(line2, scanned ? STATEMENT_CONTEXT_LINES : CONTEXT_LINES, lineCount(file.text)));
     }
     const found = [...enclosing.values()];
     symbols.push(...found.map((symbol) => ({ path: file.path, symbol })));
@@ -4672,15 +4792,15 @@ function calleesOf(graph, path, symbol) {
 }
 function callersOf(graph, path, symbol) {
   return [path, ...graph.references(path, symbol.name)].flatMap(
-    (caller) => mentionLines(graph.files.get(caller)?.text ?? "", symbol.name).flatMap((line) => {
-      const enclosing = graph.enclosing(caller, line);
+    (caller) => mentionLines(graph.files.get(caller)?.text ?? "", symbol.name).flatMap((line2) => {
+      const enclosing = graph.enclosing(caller, line2);
       if (enclosing === void 0 || caller === path && enclosing.first === symbol.first) return [];
       return [{ first: enclosing.first, last: enclosing.last, of: symbol.name, path: caller, reason: "caller", symbol: enclosing.name }];
     })
   ).filter((slice, index, all) => all.findIndex((other) => other.path === slice.path && other.first === slice.first) === index).slice(0, RELATED_PER_SYMBOL);
 }
-function around(line, context, lines) {
-  return { first: Math.max(1, line - context), last: Math.max(1, Math.min(lines, line + context)) };
+function around(line2, context, lines) {
+  return { first: Math.max(1, line2 - context), last: Math.max(1, Math.min(lines, line2 + context)) };
 }
 function changedLines(before, after) {
   const next = linesOf(after);
@@ -4743,11 +4863,11 @@ function filterDiff(diff, leftOut) {
 }
 function fileSections(diff) {
   const sections = [];
-  for (const line of diff.split(/(?<=\n)/)) {
-    const header = FILE_HEADER.exec(line.replace(/\n$/, ""));
+  for (const line2 of diff.split(/(?<=\n)/)) {
+    const header = FILE_HEADER.exec(line2.replace(/\n$/, ""));
     const current = sections.at(-1);
-    if (header !== null || current === void 0) sections.push({ path: header?.[2], text: line });
-    else current.text += line;
+    if (header !== null || current === void 0) sections.push({ path: header?.[2], text: line2 });
+    else current.text += line2;
   }
   return sections;
 }
@@ -4859,6 +4979,7 @@ var CodePacketReader = class {
       importers: [...new Set(changed.flatMap((path) => graph.importers(path)))].filter((path) => !changed.includes(path)).sort(),
       leftOut: read.left_out,
       limits,
+      namedText: documents.map((file) => file.text).join("\n"),
       repoMap,
       slices: contextSlices(graph, changedFiles),
       tracked
@@ -5907,7 +6028,7 @@ var RecordCommand = class {
     const ledger = ledgerPath(this.deps.env);
     await this.deps.files.writeText(reportPath2, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
-    await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line) => `${line}
+    await this.deps.files.appendText(ledger, ledgerLines(run, this.deps.clock.now()).map((line2) => `${line2}
 `).join(""));
     if (gate !== void 0) await gates.save(manifest, gate);
     if (ticketReview !== void 0) await reviews.save(manifest, ticketReview);
@@ -6073,7 +6194,7 @@ var RefuteCommand = class {
       const finding = targets.find((target) => target.id === result2.finding_id);
       return finding === void 0 ? [] : [refuteLedgerLine(result2, finding, context)];
     });
-    if (lines.length > 0) await this.deps.files.appendText(ledgerPath(this.deps.env), lines.map((line) => `${line}
+    if (lines.length > 0) await this.deps.files.appendText(ledgerPath(this.deps.env), lines.map((line2) => `${line2}
 `).join(""));
     await this.deps.files.writeText(path, `${JSON.stringify(file, null, 2)}
 `);
@@ -6157,12 +6278,12 @@ import { join as join19 } from "node:path";
 function reviewRuns(sources, limit) {
   const runs = /* @__PURE__ */ new Map();
   for (const run of sources.directories) runs.set(run.run_id, run);
-  for (const line of sources.ledgerRuns) runs.set(line.run_id, { ...line, ...runs.get(line.run_id), recorded: true });
+  for (const line2 of sources.ledgerRuns) runs.set(line2.run_id, { ...line2, ...runs.get(line2.run_id), recorded: true });
   return [...runs.values()].flatMap((run) => isReviewStage(run.stage) ? [{ ...run, stage: run.stage }] : []).sort((a, b) => b.run_id.localeCompare(a.run_id, "en", { numeric: true })).slice(0, limit).map((run) => ({
     recorded: run.recorded,
     round: run.round,
     run_id: run.run_id,
-    spent_usd: sources.invocations.filter((line) => line.kind === "vibe" && line.run_id === run.run_id).reduce((total, line) => total + line.charged_usd, 0),
+    spent_usd: sources.invocations.filter((line2) => line2.kind === "vibe" && line2.run_id === run.run_id).reduce((total, line2) => total + line2.charged_usd, 0),
     stage: run.stage,
     verdicts: verdictCounts(sources.findings.filter((finding) => finding.run_id === run.run_id))
   }));
@@ -6190,7 +6311,7 @@ var ReviewsCommand = class {
     const path = ledgerPath(this.deps.env);
     const text = await this.deps.files.exists(path) ? await this.deps.files.readText(path) : "";
     const ledger = decoded("invalid-ledger", path, () => text === "" ? EMPTY_LEDGER : parseLedger(text));
-    const ours = (lines) => lines.filter((line) => line.repository === repository.key);
+    const ours = (lines) => lines.filter((line2) => line2.repository === repository.key);
     const runs = reviewRuns(
       {
         directories: await this.directories(repository),
@@ -6406,9 +6527,9 @@ var SessionStartCommand = class {
   /** Appends one line to the gate log beside the gates' own; a log that cannot be written is left alone. */
   async log(raw, failure2, detail) {
     const cwd = isJsonObject(raw) && typeof raw.cwd === "string" ? raw.cwd : null;
-    const line = { cwd, detail, failure: failure2, gate: "session-start", recorded_at: this.deps.clock.now().toISOString() };
+    const line2 = { cwd, detail, failure: failure2, gate: "session-start", recorded_at: this.deps.clock.now().toISOString() };
     try {
-      await this.deps.files.appendText(gateLogPath(this.deps.env), `${JSON.stringify(line)}
+      await this.deps.files.appendText(gateLogPath(this.deps.env), `${JSON.stringify(line2)}
 `);
     } catch {
     }
@@ -6488,17 +6609,17 @@ function codexHookStates(toml) {
   const states = /* @__PURE__ */ new Map();
   let current;
   for (const raw of toml.split("\n")) {
-    const line = raw.trim();
-    const table = /^\[\s*hooks\.state\."((?:[^"\\]|\\.)*)"\s*\]$/.exec(line);
+    const line2 = raw.trim();
+    const table = /^\[\s*hooks\.state\."((?:[^"\\]|\\.)*)"\s*\]$/.exec(line2);
     if (table !== null) {
       current = {};
       states.set(String(table[1]), current);
       continue;
     }
-    if (line.startsWith("[")) current = void 0;
+    if (line2.startsWith("[")) current = void 0;
     if (current === void 0) continue;
-    const trusted = /^trusted_hash\s*=\s*"([^"]*)"/.exec(line);
-    const enabled = /^enabled\s*=\s*(true|false)\b/.exec(line);
+    const trusted = /^trusted_hash\s*=\s*"([^"]*)"/.exec(line2);
+    const enabled = /^enabled\s*=\s*(true|false)\b/.exec(line2);
     if (trusted !== null) current.trusted_hash = String(trusted[1]);
     if (enabled !== null) current.enabled = enabled[1] === "true";
   }
@@ -6828,7 +6949,7 @@ var SetupCommand = class {
    * record. It belongs to no repository, flow, run or stage.
    */
   async logInvocation(client, config, status, charged) {
-    const line = {
+    const line2 = {
       charged_usd: charged,
       client,
       critic_id: `setup-${client}`,
@@ -6841,7 +6962,7 @@ var SetupCommand = class {
       status,
       type: "invocation"
     };
-    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line2)}
 `);
   }
   async record(check, inputs, outcome) {
@@ -7004,7 +7125,7 @@ var Tally = class {
   }
 };
 function critiqueStats(ledger, filter, thresholds, routed) {
-  const runs = ledger.runs.filter((line) => kept(line, filter));
+  const runs = ledger.runs.filter((line2) => kept(line2, filter));
   const tallies = /* @__PURE__ */ new Map();
   const byCritic = /* @__PURE__ */ new Map();
   for (const run of runs) {
@@ -7016,7 +7137,7 @@ function critiqueStats(ledger, filter, thresholds, routed) {
     byCritic.set(criticKey(run.run_id, run.critic_id), tally);
   }
   const uniqueCatches = [];
-  for (const finding of ledger.findings.filter((line) => kept(line, filter))) {
+  for (const finding of ledger.findings.filter((line2) => kept(line2, filter))) {
     const raisers = new Set(finding.raised_by.map((id) => raiser(byCritic, finding, id)));
     const unique = new Set([...raisers].map((tally) => tally.client)).size === 1;
     if (unique && finding.verdict === "accepted") uniqueCatches.push(finding);
@@ -7031,9 +7152,9 @@ function critiqueStats(ledger, filter, thresholds, routed) {
     suggestions: suggestions(cells, routed)
   };
 }
-function kept(line, filter) {
-  const day = line.recorded_at.slice(0, 10);
-  return (filter.repository === void 0 || line.repository.toLowerCase() === filter.repository.toLowerCase()) && (filter.since === void 0 || day >= filter.since) && (filter.until === void 0 || day <= filter.until);
+function kept(line2, filter) {
+  const day = line2.recorded_at.slice(0, 10);
+  return (filter.repository === void 0 || line2.repository.toLowerCase() === filter.repository.toLowerCase()) && (filter.since === void 0 || day >= filter.since) && (filter.until === void 0 || day <= filter.until);
 }
 function promptHash(run) {
   const hashes = run.prompt_hashes;
@@ -7056,8 +7177,8 @@ function raiser(byCritic, finding, criticId) {
   return tally;
 }
 var REMOVAL_UNITS = {
-  features: (line) => line.spec,
-  runs: (line) => line.run_id
+  features: (line2) => line2.spec,
+  runs: (line2) => line2.run_id
 };
 function removalCandidates(runs, uniqueCatches, features) {
   const candidates = [];
@@ -7311,13 +7432,13 @@ var TriageCommand = class {
     await this.deps.files.writeText(join22(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
 `);
     const recordedAt = this.deps.clock.now().toISOString();
-    const line = triageLedgerLine({
+    const line2 = triageLedgerLine({
       ...result2,
       prompt_hash: asked.promptHash ?? null,
       recorded_at: recordedAt,
       repository: repository.key
     });
-    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
+    await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line2)}
 `);
     if (snapshot !== void 0) {
       await appendTriageIndex(this.deps.files, repository.commonDir, {
@@ -7485,8 +7606,8 @@ import { isAbsolute as isAbsolute3, join as join24 } from "node:path";
 var VERSION_TIMEOUT_MS = 1e4;
 async function cliVersion(process2, binary) {
   const result2 = await process2.exec({ args: ["--version"], command: binary, timeoutMs: VERSION_TIMEOUT_MS }).catch(() => void 0);
-  const line = result2?.exitCode === 0 ? result2.stdout.split("\n")[0]?.trim() ?? "" : "";
-  return line.length > 0 ? line : null;
+  const line2 = result2?.exitCode === 0 ? result2.stdout.split("\n")[0]?.trim() ?? "" : "";
+  return line2.length > 0 ? line2 : null;
 }
 
 // src/contexts/critique/adapters/agy/index.ts
@@ -7553,12 +7674,12 @@ function modelsReadiness(listed, config) {
   if (typeof listed === "string") return failed(listed);
   if (listed.timedOut === true) return failed(`no answer within ${String(MODELS_TIMEOUT_MS / 1e3)}s`);
   const lines = `${listed.stdout}
-${listed.stderr}`.split("\n").map((line) => line.trim()).filter((line) => line.length > 0 && line !== MODELS_PROGRESS);
+${listed.stderr}`.split("\n").map((line2) => line2.trim()).filter((line2) => line2.length > 0 && line2 !== MODELS_PROGRESS);
   if (listed.exitCode !== 0) {
-    if (lines.some((line) => /sign in/i.test(line))) return { detail: SIGN_IN, ready: false };
+    if (lines.some((line2) => /sign in/i.test(line2))) return { detail: SIGN_IN, ready: false };
     return failed(lines[0] ?? `exit ${String(listed.exitCode)}`);
   }
-  if (lines.some((line) => line.split("	")[0] === config.model)) return { ready: true };
+  if (lines.some((line2) => line2.split("	")[0] === config.model)) return { ready: true };
   return { detail: `antigravity: ${config.binary} does not offer ${config.model}`, ready: false };
 }
 function agyLaunch(launch, config, prompt) {
@@ -7588,10 +7709,10 @@ function agyLaunch(launch, config, prompt) {
 function readStream(stdout) {
   const tools = [];
   let result2;
-  for (const line of stdout.split("\n").filter((text) => text.trim().length > 0)) {
+  for (const line2 of stdout.split("\n").filter((text) => text.trim().length > 0)) {
     let event;
     try {
-      event = jsonObjectOrUndefined(JSON.parse(line));
+      event = jsonObjectOrUndefined(JSON.parse(line2));
     } catch {
       event = void 0;
     }
@@ -7603,10 +7724,10 @@ function readStream(stdout) {
   return { parsed: true, result: result2, tools };
 }
 function exitReason(stderr) {
-  const lines = stderr.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
-  for (const line of lines.filter((text) => text.startsWith(AGY_ERROR_PREFIX))) {
+  const lines = stderr.split("\n").map((line2) => line2.trim()).filter((line2) => line2.length > 0);
+  for (const line2 of lines.filter((text) => text.startsWith(AGY_ERROR_PREFIX))) {
     try {
-      const shortError = jsonObjectOrUndefined(JSON.parse(line.slice(AGY_ERROR_PREFIX.length)))?.short_error;
+      const shortError = jsonObjectOrUndefined(JSON.parse(line2.slice(AGY_ERROR_PREFIX.length)))?.short_error;
       if (typeof shortError === "string" && shortError.length > 0) return shortError;
     } catch {
     }
@@ -7690,7 +7811,7 @@ var VibeCriticClient = class {
     if (keychain.exitCode === 0) return true;
     const dotenv = join25(home, ".env");
     if (!await this.files.exists(dotenv)) return false;
-    return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
+    return (await this.files.readText(dotenv)).split("\n").some((line2) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line2));
   }
   async onPath(binary) {
     if (isAbsolute4(binary)) return this.files.exists(binary);
@@ -8002,7 +8123,7 @@ var GitCliAdapter = class {
     const result2 = await this.git(cwd, ["config", "--get-regexp", "^remote\\..*\\.url$"], {
       acceptedExitCodes: [0, 1]
     });
-    return result2.stdout.split("\n").map((line) => /^remote\.(.+)\.url (.+)$/.exec(line.trim())).flatMap((match) => match === null ? [] : [{ name: match[1] ?? "", url: match[2] ?? "" }]);
+    return result2.stdout.split("\n").map((line2) => /^remote\.(.+)\.url (.+)$/.exec(line2.trim())).flatMap((match) => match === null ? [] : [{ name: match[1] ?? "", url: match[2] ?? "" }]);
   }
   async currentBranch(cwd) {
     const result2 = await this.git(cwd, ["branch", "--show-current"]);
@@ -8033,7 +8154,7 @@ var GitCliAdapter = class {
     if (output.length === 0) {
       return [];
     }
-    return output.split("\n").map((line) => this.parseStatusLine(line));
+    return output.split("\n").map((line2) => this.parseStatusLine(line2));
   }
   async porcelainStatus(cwd) {
     const result2 = await this.git(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
@@ -8203,10 +8324,10 @@ var GitCliAdapter = class {
     }
     return result2;
   }
-  parseStatusLine(line) {
-    const index = line.slice(0, 1);
-    const worktree = line.slice(1, 2);
-    const path = line.slice(3);
+  parseStatusLine(line2) {
+    const index = line2.slice(0, 1);
+    const worktree = line2.slice(1, 2);
+    const path = line2.slice(3);
     const renameSeparator = " -> ";
     const renameAt = path.indexOf(renameSeparator);
     if (renameAt === -1) {

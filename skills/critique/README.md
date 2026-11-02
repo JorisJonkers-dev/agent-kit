@@ -44,7 +44,12 @@ With it on, the packet is a **repository packet**: it adds `tree/`, a sample
 of the code chosen by rule (the files the records name, then the top
 hotspots, each module's entry file, then the files on each import cycle),
 `tree/MANIFEST.tsv` listing every tracked path with its line count, and
-`facts/`, whose `INDEX.md` records every file the cap dropped. Vendored,
+`facts/`, whose `INDEX.md` records every file the cap dropped. It names a
+dropped file only when the records name it or it is a top hotspot; it counts
+the other drops per directory and reason, with their bytes, so the index
+stays small however many files are left out. Past its own cap,
+`tree/MANIFEST.tsv` counts its least-ranked paths per directory at its end
+and says how many. Vendored,
 generated and lock files are never sent. A long file is sent in windows from
 its first line, so `tree/<path>:<line>` keeps its number, and a citation
 outside what the packet holds is rejected. A quote from `facts/` is a fact,
@@ -65,7 +70,10 @@ go in first, then the changed files, their importers and the rest of the
 tree, in windows that keep their line numbers. A file cut short holds only
 those lines, a run it does not hold is blank but for a marker, and a
 citation of a line outside them is rejected. `facts/INDEX.md` records every
-slice and every file the cap dropped or cut short.
+slice and every file the cap dropped or cut short: by name for the changed
+files, their importers, the files holding a slice and any file the diff, a
+ticket or the spec names, and counted per directory and reason, with their
+bytes, for the rest of the tree.
 
 A ticket review starts with **triage**: the change is risky when a path
 matches routing's `triage.risk_paths` (auth, crypto, migrations,
@@ -262,7 +270,8 @@ family), each stage's base and deep rosters (client, role, lenses, price cap,
 time limit), the `fallbacks`, the budget, the Antigravity quota, triage, the feature
 branch patterns a push may update without a feature review (`gate`), the
 stats thresholds and the repository packet's limits (`packet`: a 150 KB cap
-in `cap_bytes`, 30 KB of fact files in `facts_cap_bytes`, a code packet's
+in `cap_bytes`, 30 KB of fact files in `facts_cap_bytes`, a 30 KB
+`tree/MANIFEST.tsv` in `manifest_cap_bytes`, a code packet's
 20 KB repo map in `repo_map_cap_bytes`, 400-line windows in
 `window_lines`, and the `exclude` globs for vendored, generated and lock
 files; a file whose first lines say `@generated` or "do not edit" counts as

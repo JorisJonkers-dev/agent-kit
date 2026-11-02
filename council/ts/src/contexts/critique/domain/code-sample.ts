@@ -1,8 +1,9 @@
 import type { ContextSlice } from './context-slices.js'
 import type { LeftOutFile } from './diff-filter.js'
+import { capDrop, dropSummaryBound, possibleDrops, summariseDrops } from './drop-summary.js'
 import { refusal, type Refusal } from './outcomes.js'
 import { REPO_MAP_PATH, type RenderedRepoMap } from './repo-map.js'
-import { FACTS_INDEX_PATH, type ExclusionKind, type PacketLimits, type TrackedFile } from './repository-packet.js'
+import { FACTS_INDEX_PATH, namedPaths, type ExclusionKind, type PacketLimits, type TrackedFile } from './repository-packet.js'
 import {
   admitPieces,
   bytes,
@@ -42,6 +43,8 @@ export interface CodeSampleRequest {
   /** The repository paths that import a changed file. */
   readonly importers: readonly string[]
   readonly slices: readonly ContextSlice[]
+  /** The text that names files: the diff's, the tickets' and the spec's. */
+  readonly namedText: string
 }
 
 export interface CodeSample {
@@ -60,11 +63,21 @@ export interface CodeSample {
  * then the files that import them, then the rest of the tree, in windows
  * from each file's first line, while they fit under the cap beside the
  * diff, the tickets, the spec, the repo map and the facts index. Every drop
- * is recorded in the facts index. Refused when those alone pass the cap.
+ * is recorded in the facts index: by name for a file the change touched, an
+ * importer, a file holding a slice, or a file the diff, a ticket or the spec
+ * names; counted per directory for the rest of the tree, under a share of
+ * the cap reserved for the most that count can take. Refused when those
+ * alone pass the cap.
  */
 export function sampleCodeTree(request: CodeSampleRequest): CodeSample | Refusal {
   const { limits } = request
   const candidates = codeCandidates(request)
+  const named = new Set(namedPaths(request.namedText))
+  const counted = candidates.filter((candidate) => candidate.tier === 'rest' && !named.has(candidate.path))
+  const countedSet = new Set(counted)
+  const treeLine = (candidate: TreeCandidate<CodeTier>, held: readonly LineRange[]): string | undefined =>
+    countedSet.has(candidate) || (candidate.tier === 'rest' && holdsAll(candidate, held)) ? undefined : fileLine(candidate, held)
+  const reserved = dropSummaryBound(counted.flatMap((candidate) => possibleDrops(candidate, limits.window_lines)))
   const byPath = new Map(candidates.map((candidate) => [candidate.path, candidate]))
   const sliced = request.slices.flatMap((slice) => {
     const candidate = byPath.get(slice.path)
@@ -75,7 +88,7 @@ export function sampleCodeTree(request: CodeSampleRequest): CodeSample | Refusal
   const slicePieces = sliced.map((entry) => entry.piece)
   const pieces = [...slicePieces, ...windowOrder(candidates, limits.window_lines)]
   const none = { admitted: new Set<TreePiece<CodeTier>>(), held: new Map<TreeCandidate<CodeTier>, readonly LineRange[]>() }
-  const fixed = request.documentBytes + bytes(request.repoMap.text) + bytes(renderIndex(request, candidates, slicePieces, none))
+  const fixed = request.documentBytes + bytes(request.repoMap.text) + bytes(renderIndex(request, candidates.flatMap((candidate) => treeLine(candidate, []) ?? []), slicePieces, none)) + reserved
   if (fixed > limits.cap_bytes) {
     return refusal(
       'packet-over-cap',
@@ -83,13 +96,18 @@ export function sampleCodeTree(request: CodeSampleRequest): CodeSample | Refusal
     )
   }
   const admission = admitPieces(pieces, limits.cap_bytes - fixed, treeLine)
+  const heldOf = (candidate: TreeCandidate<CodeTier>) => admission.held.get(candidate) ?? []
+  const listed = [
+    ...candidates.flatMap((candidate) => treeLine(candidate, heldOf(candidate)) ?? []),
+    ...summariseDrops(counted.flatMap((candidate) => capDrop(candidate, heldOf(candidate), limits.window_lines) ?? [])),
+  ]
   const tree = candidates.flatMap((candidate) => {
     const file = sampledFile(candidate, admission.held.get(candidate) ?? [])
     return file === undefined ? [] : [file]
   })
   return {
     dropped: candidates.filter((candidate) => !holdsAll(candidate, admission.held.get(candidate) ?? [])).length,
-    index: renderIndex(request, candidates, slicePieces, admission),
+    index: renderIndex(request, listed, slicePieces, admission),
     slices: sliced.filter((entry) => admission.admitted.has(entry.piece)).map((entry) => entry.slice),
     status: 'sampled',
     tree,
@@ -117,9 +135,8 @@ function windowOrder(candidates: readonly TreeCandidate<CodeTier>[], size: numbe
     .map((entry) => entry.piece)
 }
 
-/** A file's line in the facts index; a file of the rest of the tree has one only when the cap cut it. */
-function treeLine(candidate: TreeCandidate<CodeTier>, held: readonly LineRange[]): string | undefined {
-  if (candidate.tier === 'rest' && holdsAll(candidate, held)) return undefined
+/** A file's own line in the facts index. */
+function fileLine(candidate: TreeCandidate<CodeTier>, held: readonly LineRange[]): string {
   return `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): ${sentStatus(candidate, held)}`
 }
 
@@ -143,7 +160,7 @@ function sliceLine(slice: ContextSlice, admitted: boolean): string {
 
 function renderIndex(
   request: CodeSampleRequest,
-  candidates: readonly TreeCandidate<CodeTier>[],
+  tree: readonly string[],
   slicePieces: readonly TreePiece<CodeTier>[],
   admission: { readonly admitted: ReadonlySet<TreePiece<CodeTier>>; readonly held: ReadonlyMap<TreeCandidate<CodeTier>, readonly LineRange[]> },
 ): string {
@@ -152,7 +169,6 @@ function renderIndex(
   const binary = request.tracked.filter((file) => file.text === null).length
   const leftOut = request.leftOut.map((file) => `- \`${file.path}\`: ${file.reason}; ${String(file.changed_lines)} changed lines`)
   const slices = slicePieces.map((piece) => piece.note?.(admission.admitted.has(piece)) ?? '')
-  const tree = candidates.flatMap((candidate) => treeLine(candidate, admission.held.get(candidate) ?? []) ?? [])
   return [
     '# Facts',
     '',
@@ -179,7 +195,7 @@ function renderIndex(
     '',
     '## Tree',
     '',
-    `Files under \`tree/\`, in the order the cap let them in: the slices above, then the files the change touched, then the files that import them, then the rest of the tree. A file goes in windows of ${String(limits.window_lines)} lines from its first line. A file cut short holds the lines listed here at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. A file of the rest of the tree not listed here was sent in full.`,
+    `Files under \`tree/\`, in the order the cap let them in: the slices above, then the files the change touched, then the files that import them, then the rest of the tree. A file goes in windows of ${String(limits.window_lines)} lines from its first line. A file cut short holds the lines listed here at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. Of the rest of the tree, a file the diff, a ticket or the spec names is listed by name, the cap's other drops are counted per directory with the bytes left out (\`dir/**\` counts every file under it), and a file neither listed nor counted was sent in full.`,
     '',
     ...tree,
     '',

@@ -106,13 +106,14 @@ describe('an adr-review prepare with the code permission on', () => {
     )
   })
 
-  it('records the sample, in the order it was chosen, in facts/INDEX.md', async () => {
+  it('records the named files in facts/INDEX.md, and leaves an entry file sent in full unlisted', async () => {
     const h = await repository()
 
     const run = await prepared(h)
 
     const index = await readFile(join(run.packet_dir, 'facts', 'INDEX.md'), 'utf8')
-    expect(index).toContain(['- `src/billing/invoice.ts` (named, 3 lines): sent in full', '- `src/billing/index.ts` (entry, 1 lines): sent in full'].join('\n'))
+    expect(index).toContain('- `src/billing/invoice.ts` (named, 3 lines): sent in full\n')
+    expect(index).not.toContain('src/billing/index.ts')
     expect(index).toContain('No hotspot facts yet, so no hotspot was sampled.')
     expect(index).toContain('No import facts yet, so no import cycle was sampled.')
   })
@@ -167,9 +168,9 @@ describe('a repository packet over a repository larger than the cap', () => {
     expect(sample.map((line) => line.slice(0, line.indexOf(')') + 1))).toEqual([
       '- `src/billing/invoice.ts` (named, 3 lines)',
       '- `src/big.ts` (named, 3000 lines)',
-      '- `src/billing/index.ts` (entry, 1 lines)',
-      ...Array.from({ length: 12 }, (_, i) => `- \`src/m${String(i + 1).padStart(2, '0')}/index.ts\` (entry, 130 lines)`),
+      ...Array.from({ length: 12 }, (_, i) => `- \`src/m${String(i + 1).padStart(2, '0')}/\` (1 file, 9014 bytes)`),
     ])
+    expect(run.packet_files).toContain('tree/src/billing/index.ts')
     expect(sample[0]).toContain('sent in full')
     expect(sample[1]).toMatch(/: sent lines 1-\d+00; the cap dropped lines \d+01-3000$/)
   })
@@ -181,7 +182,9 @@ describe('a repository packet over a repository larger than the cap', () => {
     const sent = new Set(run.packet_files.filter((path) => path.startsWith('tree/src/')).map((path) => path.slice('tree/'.length)))
     const dropped = index.split('\n').filter((line) => line.includes('the cap dropped'))
     expect(dropped.length).toBeGreaterThan(1)
-    expect(run.repository?.dropped_files).toBe(dropped.length)
+    const counted = dropped.flatMap((line) => /^- `[^`]+\/` \((\d+) files?, /.exec(line)?.[1] ?? [])
+    expect(counted.length).toBeGreaterThan(0)
+    expect(run.repository?.dropped_files).toBe(dropped.length - counted.length + counted.reduce((sum, count) => sum + Number(count), 0))
     for (const line of dropped.filter((entry) => entry.endsWith('the cap dropped it'))) {
       expect(sent.has(line.slice(3, line.indexOf('`', 3)))).toBe(false)
     }
@@ -395,7 +398,8 @@ describe('a sample with facts present', () => {
     const sample = sampled()
 
     expect(sample.tree.map((file) => file.path)).toEqual(['src/a.ts', 'src/hot.ts', 'src/e/index.ts', 'src/c.ts', 'src/d.ts'])
-    expect(sample.index).toContain('- `src/hot.ts` (hotspot, 1 lines): sent in full\n- `src/e/index.ts` (entry, 1 lines): sent in full\n- `src/c.ts` (cycle, 1 lines)')
+    expect(sample.index).toContain('- `src/a.ts` (named, 1 lines): sent in full\n- `src/hot.ts` (hotspot, 1 lines): sent in full\n')
+    expect(sample.index).not.toMatch(/\((entry|cycle), /)
     expect(sample.index).not.toContain('No hotspot facts yet')
   })
 
