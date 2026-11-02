@@ -59,9 +59,24 @@ export interface GitPort {
   ): Promise<GitReconcileResult>
 }
 
+/** A commit, the tree it records, and its parents, first parent first. */
+export interface GitCommitLink {
+  readonly commit: string
+  readonly tree: string
+  readonly parents: readonly string[]
+}
+
+/** What merging two commits gives: the tree of the result, and whether a file conflicted. */
+export interface GitMergeTree {
+  /** The merged tree; a conflicted file holds both sides between conflict markers in git's default (`merge`) style. */
+  readonly tree: string
+  readonly conflicts: boolean
+}
+
 /**
  * Reading commits rather than the working tree: what a code review freezes.
- * Every method takes a commit, never the working tree or the index.
+ * Every method takes a commit, never the working tree or the index; where
+ * it says so, a tree's id does as well.
  */
 export interface GitRevisionPort {
   /** The full id of the commit a revision names; throws when it names none. */
@@ -70,12 +85,25 @@ export interface GitRevisionPort {
   mergeBase(cwd: string, a: string, b: string): Promise<string>
   /** The path of every regular file in the commit's tree; symbolic links and submodules are not files. */
   treeFiles(cwd: string, commit: string): Promise<readonly string[]>
-  /** One file's contents at a commit. */
+  /** One file's contents at a commit or in a tree. */
   fileAt(cwd: string, commit: string, path: string): Promise<string>
-  /** The unified diff from one commit to another, with no external diff driver or text conversion. */
+  /** The unified diff from one commit or tree to another, with no external diff driver or text conversion. */
   diffCommits(cwd: string, base: string, head: string): Promise<string>
-  /** Every path the diff from one commit to another adds, changes or deletes, a rename as both of its paths. */
+  /** Every path the diff from one commit or tree to another adds, changes or deletes, a rename as both of its paths. */
   changedPaths(cwd: string, base: string, head: string): Promise<readonly string[]>
+  /** Every commit reachable from `head` and not from `base`, newest first, with its tree and parents: what merging `head` into `base` brings in. One git call. */
+  commitsBetween(cwd: string, base: string, head: string): Promise<readonly GitCommitLink[]>
+  /**
+   * Every entry of a commit's tree in the form `stagedEntries` prints the
+   * index: what the index held when the commit was made from it.
+   */
+  treeEntries(cwd: string, revision: string): Promise<string>
+  /**
+   * Merges two commits as `git merge` would, on their merge base, without
+   * touching the index, the working tree or any ref. It writes the merged
+   * tree's objects, and nothing else.
+   */
+  mergeTree(cwd: string, ours: string, theirs: string): Promise<GitMergeTree>
 }
 
 /**
