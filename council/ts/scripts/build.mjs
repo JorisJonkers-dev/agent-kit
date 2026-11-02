@@ -41,7 +41,7 @@ async function bundleCritiqueRunner() {
     stdin: {
       contents: `import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defaultCritiqueRuntime, runCritiqueCli } from './src/critique-cli/index.ts'
+import { defaultCritiqueRuntime, runCritiqueCli, runSearchServer } from './src/critique-cli/index.ts'
 
 async function readStdin() {
   const chunks = []
@@ -49,14 +49,25 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-const runtime = defaultCritiqueRuntime(dirname(fileURLToPath(import.meta.url)), readStdin)
-const result = await runCritiqueCli(process.argv.slice(2), runtime)
-// Exit once both streams are flushed, rather than when the event loop
-// drains: a gate that gave up at its deadline must not wait for the git it
-// abandoned.
-process.stderr.write(result.stderr, () => {
-  process.stdout.write(result.stdout, () => process.exit(result.exitCode))
-})
+const argv = process.argv.slice(2)
+if (argv[0] === 'search-server') {
+  // The search server streams until stdin closes; it is never a one-shot command.
+  const code = await runSearchServer(argv.slice(1), {
+    stdin: process.stdin,
+    writeStderr: (text) => process.stderr.write(text),
+    writeStdout: (line) => process.stdout.write(line),
+  })
+  process.stdout.write('', () => process.exit(code))
+} else {
+  const runtime = defaultCritiqueRuntime(dirname(fileURLToPath(import.meta.url)), readStdin)
+  const result = await runCritiqueCli(argv, runtime)
+  // Exit once both streams are flushed, rather than when the event loop
+  // drains: a gate that gave up at its deadline must not wait for the git it
+  // abandoned.
+  process.stderr.write(result.stderr, () => {
+    process.stdout.write(result.stdout, () => process.exit(result.exitCode))
+  })
+}
 `,
       loader: 'ts',
       resolveDir: packageRoot,

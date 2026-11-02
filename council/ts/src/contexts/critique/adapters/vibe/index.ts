@@ -10,11 +10,15 @@ import type {
   ModelAnswerReport,
   ModelQuestion,
   QuestionClientPort,
+  SearchingClientPort,
 } from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
+import { READ_ONLY_TOOLSET, VIBE_SEARCH_SERVER, type CriticToolset, type ToolCall } from '../../domain/critic-tools.js'
+import { SEARCH_TOOLS } from '../../domain/packet-search.js'
 import { parseFindings } from '../../domain/findings.js'
 import { cliVersion } from '../cli-version.js'
-import { jsonObjectOrUndefined } from '../../domain/json.js'
+import { isJsonObject, jsonObjectOrUndefined } from '../../domain/json.js'
+import { readToml, type TomlError, type TomlTable } from './toml.js'
 import type { ClientReadiness, RosterSlot, VibeCriticClient as VibeClientConfig } from '../../domain/routing.js'
 
 /**
@@ -23,7 +27,9 @@ import type { ClientReadiness, RosterSlot, VibeCriticClient as VibeClientConfig 
  * launch, the isolation it needs, its exit codes, its journal and export
  * formats) stays here.
  */
-export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, QuestionClientPort<VibeClientConfig> {
+export class VibeCriticClient
+  implements CriticClientPort<VibeClientConfig>, QuestionClientPort<VibeClientConfig>, SearchingClientPort<VibeClientConfig>
+{
   constructor(
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
@@ -46,6 +52,25 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, Que
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false }
     }
     return { ready: true }
+  }
+
+  /**
+   * Why a critic of this agent cannot search, read from the installed agent
+   * file before any launch. The agent file sits above the launch's
+   * environment, so one that sets `enable_mcp = false` (an agent installed
+   * before #255) switches the search server off whatever the launch asks,
+   * and one that does not enable and approve the search tools has every
+   * search call refused. Either way the critic reads alone, rather than
+   * being launched to search and voided once it has spent.
+   */
+  async searchBlocked(config: VibeClientConfig): Promise<string | undefined> {
+    const home = join(this.env.require('HOME'), '.vibe')
+    const path = join(home, 'agents', `${config.agent}.toml`)
+    if (!(await this.files.exists(path))) return `agent-file-missing: ~/.vibe/agents/${config.agent}.toml is not installed; re-run agent-kit setup`
+    const agentProblem = agentFileSearchProblem(await this.files.readText(path), config.agent)
+    if (agentProblem !== undefined) return agentProblem
+    const homeConfig = join(home, 'config.toml')
+    return (await this.files.exists(homeConfig)) ? homeConfigProblem(await this.files.readText(homeConfig)) : undefined
   }
 
   /** `vibe` on `PATH` and the personal home signed in, whatever critic agents are installed. */
@@ -81,8 +106,29 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, Que
   async review(launch: CriticLaunch, config: VibeClientConfig): Promise<CriticReport> {
     const exportDir = join(launch.criticDir, 'export')
     const exportPath = join(exportDir, 'export.json')
-    const { result, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir })
-    return { ...result, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) }
+    const toolset = launch.toolset ?? READ_ONLY_TOOLSET
+    const search = toolset.kind === 'vibe-search' ? { ...toolset, homeServers: await this.homeServers() } : undefined
+    const paths = { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir }
+    const { result, run } = await this.launch(launch.critic, config, paths, search)
+    const failure = search === undefined ? undefined : searchFailure(run.stdout)
+    return {
+      ...result,
+      chargedUsd: vibeCharge(run, launch.critic.max_price_usd),
+      exportPath,
+      outcome: classifyVibeRun(run),
+      ...(failure === undefined ? {} : { searchFailure: failure }),
+      toolCalls: toolCalls(run.stdout),
+    }
+  }
+
+  /**
+   * The MCP servers the personal home's `config.toml` declares, by name. Vibe
+   * adds a launch's servers to the home's, keyed by name, so a critic that
+   * searches switches each of these off by name.
+   */
+  private async homeServers(): Promise<readonly string[]> {
+    const path = join(this.env.require('HOME'), '.vibe', 'config.toml')
+    return (await this.files.exists(path)) ? mcpServerNames(await this.files.readText(path)) : []
   }
 
   /**
@@ -102,10 +148,12 @@ export class VibeCriticClient implements CriticClientPort<VibeClientConfig>, Que
     limits: VibeLimits,
     config: VibeClientConfig,
     paths: VibeLaunchPaths,
+    search?: VibeSearch,
   ): Promise<{ readonly result: { exitCode: number; stdout: string; stderr: string }; readonly run: VibeRun }> {
-    const result = await this.process.exec(vibeLaunch(limits, config, paths))
+    const result = await this.process.exec(vibeLaunch(limits, config, paths, search))
     const run: VibeRun = {
       exitCode: result.exitCode,
+      expected: search === undefined ? { mcp: false } : { command: search.server.command, cwd: paths.workDir, mcp: true },
       exported: await this.readExport(join(paths.exportDir, 'export.json')),
       stderr: result.stderr,
       stdout: result.stdout,
@@ -136,13 +184,47 @@ const OUTER_TIMEOUT_GRACE_S = 60
  * Settings Vibe reads from `VIBE_*` variables. The environment layer sits
  * above the personal home's `config.toml` and below the critic agent file, so
  * these switch off the home's MCP fleet and its `AGENTS.md` pointer even if
- * the agent file forgot to.
+ * the agent file forgot to. The agent file leaves MCP to the launch: off for
+ * a critic that reads alone, on for one that searches.
  */
 const ISOLATION_ENV: Readonly<Record<string, string>> = {
   VIBE_ENABLE_MCP: 'false',
   VIBE_ENABLE_SUBAGENTS: 'false',
   VIBE_INCLUDE_PROJECT_CONTEXT: 'false',
   VIBE_OUTSIDE_WORKDIR: 'deny',
+}
+
+/** The tools a critic agent may have enabled: `read_file`, and the search server's, which exist only while it runs. */
+const AGENT_TOOLS: ReadonlySet<string> = new Set(['read_file', ...SEARCH_TOOLS.map((tool) => `${VIBE_SEARCH_SERVER}_${tool}`)])
+
+/** A searching critic's launch: its search server, and the home's servers it switches off. */
+type VibeSearch = Extract<CriticToolset, { kind: 'vibe-search' }> & { readonly homeServers: readonly string[] }
+
+/**
+ * A critic that searches (ADR-0006) gets MCP and one server, the runner's
+ * own, in its packet copy. Vibe 3.0.4 joins the servers of every layer by
+ * name, so each server the home declares is replaced with a switched-off one
+ * of the same name and never starts. Mistral's hosted connectors stay off.
+ */
+function searchEnv(search: VibeSearch, workDir: string): Readonly<Record<string, string>> {
+  const own = {
+    args: search.server.args,
+    command: search.server.command,
+    cwd: workDir,
+    name: VIBE_SEARCH_SERVER,
+    startup_timeout_sec: 10,
+    tool_timeout_sec: 30,
+    transport: 'stdio',
+  }
+  const off = search.homeServers
+    .filter((name) => name !== VIBE_SEARCH_SERVER)
+    .map((name) => ({ command: 'false', disabled: true, name, transport: 'stdio' }))
+  return {
+    ...ISOLATION_ENV,
+    VIBE_ENABLE_CONNECTORS: 'false',
+    VIBE_ENABLE_MCP: 'true',
+    VIBE_MCP_SERVERS: JSON.stringify([own, ...off]),
+  }
 }
 
 /**
@@ -162,7 +244,8 @@ interface VibeLaunchPaths {
 /** The price cap and time limit one launch runs under. */
 type VibeLimits = Pick<RosterSlot, 'max_price_usd' | 'time_limit_s'>
 
-function vibeLaunch(critic: VibeLimits, config: VibeClientConfig, paths: VibeLaunchPaths): ProcessCommand {
+function vibeLaunch(critic: VibeLimits, config: VibeClientConfig, paths: VibeLaunchPaths, search?: VibeSearch): ProcessCommand {
+  const tools = ['read_file', ...(search?.search ?? []).map((tool) => `${VIBE_SEARCH_SERVER}_${tool}`)]
   return {
     args: [
       '-u',
@@ -177,8 +260,7 @@ function vibeLaunch(critic: VibeLimits, config: VibeClientConfig, paths: VibeLau
       '--trust',
       '--agent',
       config.agent,
-      '--enabled-tools',
-      'read_file',
+      ...tools.flatMap((tool) => ['--enabled-tools', tool]),
       '--max-price',
       String(critic.max_price_usd),
       '--time-limit',
@@ -188,13 +270,17 @@ function vibeLaunch(critic: VibeLimits, config: VibeClientConfig, paths: VibeLau
     ],
     command: 'env',
     cwd: paths.workDir,
-    env: ISOLATION_ENV,
+    env: search === undefined ? ISOLATION_ENV : searchEnv(search, paths.workDir),
     timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
   }
 }
 
+/** What the effective config must show: MCP off, or on with the runner's search server as its only live server. */
+type ExpectedConfig = { readonly mcp: false } | { readonly mcp: true; readonly command: string; readonly cwd: string }
+
 interface VibeRun {
   readonly exitCode: number
+  readonly expected: ExpectedConfig
   readonly stdout: string
   readonly stderr: string
   /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
@@ -243,7 +329,7 @@ function vibeMessage(run: VibeRun): VibeMessage {
   }
   if (run.stdout.trim().length === 0) return failed('empty-output', 'vibe exited 0 with empty stdout')
   if (exported === undefined) return failed('missing-export', 'vibe wrote no readable export.json')
-  const violations = isolationViolations(jsonObjectOrUndefined(exported.config))
+  const violations = isolationViolations(jsonObjectOrUndefined(exported.config), run.expected)
   if (violations.length > 0) return failed('unsafe-config', `effective config: ${violations.join('; ')}`)
   const message = finalAssistantText(run.stdout)
   if (message === undefined) return failed('unparseable-output', 'stdout is not a Vibe journal with an assistant message')
@@ -270,12 +356,13 @@ function usedTokens(usage: Readonly<Record<string, unknown>> | undefined): boole
   return [usage?.input_tokens, usage?.output_tokens].some((tokens) => typeof tokens === 'number' && tokens > 0)
 }
 
-function isolationViolations(config: Readonly<Record<string, unknown>> | undefined): readonly string[] {
+function isolationViolations(config: Readonly<Record<string, unknown>> | undefined, expected: ExpectedConfig): readonly string[] {
   const violations: string[] = []
-  if (config?.enable_mcp !== false) violations.push('enable_mcp is not false')
+  if (config?.enable_mcp !== expected.mcp) violations.push(`enable_mcp is not ${String(expected.mcp)}`)
+  if (expected.mcp) violations.push(...serverViolations(config?.mcp_servers, expected))
   const tools = config?.enabled_tools
-  if (!Array.isArray(tools) || tools.length !== 1 || tools[0] !== 'read_file') {
-    violations.push('enabled_tools is not exactly read_file')
+  if (!Array.isArray(tools) || !tools.includes('read_file') || tools.some((tool) => typeof tool !== 'string' || !AGENT_TOOLS.has(tool))) {
+    violations.push(`enabled_tools is not read_file and the search server's tools (${[...AGENT_TOOLS].join(', ')})`)
   }
   if (config?.include_project_context !== false) {
     violations.push('include_project_context is not false, so the AGENTS.md instructions pointer reaches the critic')
@@ -284,15 +371,149 @@ function isolationViolations(config: Readonly<Record<string, unknown>> | undefin
   return violations
 }
 
-function finalAssistantText(stdout: string): string | undefined {
+/** With MCP on, the only server not switched off must be the runner's own, in this critic's packet copy. */
+function serverViolations(servers: unknown, expected: Extract<ExpectedConfig, { mcp: true }>): readonly string[] {
+  const live = (Array.isArray(servers) ? servers.map(jsonObjectOrUndefined) : []).filter((server) => server?.disabled !== true)
+  const others = live.filter((server) => server?.name !== VIBE_SEARCH_SERVER).map((server) => String(server?.name))
+  const own = live.filter((server) => server?.name === VIBE_SEARCH_SERVER)
+  const violations = others.length === 0 ? [] : [`MCP servers other than the search server are on: ${others.join(', ')}`]
+  const [server] = own
+  if (own.length !== 1 || server?.command !== expected.command || server.cwd !== expected.cwd) {
+    violations.push(`the ${VIBE_SEARCH_SERVER} MCP server is not the runner's search server in this packet`)
+  }
+  return violations
+}
+
+/**
+ * Every tool call the journal records, in order: its `effect` entries, each
+ * with the tool's name (`file_system.bash`, `mcp_packet.grep`), its status
+ * and, for a failed call, the error code (`tool_denied`).
+ */
+function toolCalls(stdout: string): readonly ToolCall[] {
+  return journalEntries(stdout)
+    .filter((entry) => entry?.type === 'effect')
+    .map((entry) => {
+      const state = jsonObjectOrUndefined(entry?.state)
+      const code = jsonObjectOrUndefined(state?.error)?.code
+      return {
+        status: String(state?.status),
+        tool: String(jsonObjectOrUndefined(entry?.detail)?.toolName),
+        ...(typeof code === 'string' ? { code } : {}),
+      }
+    })
+}
+
+/**
+ * Why a searching critic's searches failed, as its journal shows them: each
+ * search call that did not complete, such as one made after the server
+ * died. Undefined when every call completed.
+ */
+function searchFailure(stdout: string): string | undefined {
+  const calls = journalEntries(stdout).filter(
+    (entry) => entry?.type === 'effect' && String(jsonObjectOrUndefined(entry.detail)?.toolName).startsWith(`mcp_${VIBE_SEARCH_SERVER}.`),
+  )
+  const failed = calls.map((entry) => jsonObjectOrUndefined(entry?.state)).filter((state) => state?.status === 'failed')
+  const [first] = failed
+  if (first === undefined) return undefined
+  const error = jsonObjectOrUndefined(first.error)
+  return `${String(failed.length)} of ${String(calls.length)} search calls failed, the first with ${String(error?.code)}: ${String(error?.message)}`
+}
+
+/**
+ * Why an agent file keeps its critics from searching, read as TOML: it
+ * cannot be read, it switches MCP off, it declares MCP servers of its own
+ * (they would run beside the search server, since Vibe joins every layer's
+ * servers), or it leaves a search tool out of `enabled_tools` or without
+ * `permission = "always"` (headless Vibe refuses every call that asks).
+ * Undefined when it lets them search.
+ */
+export function agentFileSearchProblem(toml: string, agent: string): string | undefined {
+  const file = `~/.vibe/agents/${agent}.toml`
+  const fix = 're-run agent-kit setup to install the current critic agents'
+  let doc: TomlTable
+  try {
+    doc = readToml(toml)
+  } catch (error) {
+    return `agent-file-unreadable: ${file} is not TOML the runner can read (${(error as TomlError).message}); ${fix}`
+  }
+  if (doc.enable_mcp === false) return `agent-file-disables-mcp: ${file} sets enable_mcp = false, which the launch cannot override; ${fix}`
+  const servers = declaredServers(doc)
+  if (servers !== undefined) {
+    return `agent-file-declares-servers: ${file} declares MCP servers (${servers.join(', ')}) that would run beside the search server; ${fix}`
+  }
+  const enabled = Array.isArray(doc.enabled_tools) ? doc.enabled_tools : []
+  const settings = isJsonObject(doc.tools) ? doc.tools : {}
+  const unapproved = SEARCH_TOOLS.map((tool) => `${VIBE_SEARCH_SERVER}_${tool}`).filter(
+    (tool) => !enabled.includes(tool) || jsonObjectOrUndefined(settings[tool])?.permission !== 'always',
+  )
+  if (unapproved.length > 0) return `agent-file-lacks-search-tools: ${file} does not enable and approve ${unapproved.join(', ')}; ${fix}`
+  return undefined
+}
+
+/** The names of every `mcp_servers` the document declares, at any depth; undefined when it declares none. */
+function declaredServers(table: TomlTable): readonly string[] | undefined {
+  const declared: unknown[] = []
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(visit)
+    if (!isJsonObject(value)) return
+    for (const [key, child] of Object.entries(value)) {
+      if (key === 'mcp_servers') declared.push(child)
+      visit(child)
+    }
+  }
+  visit(table)
+  return declared.length === 0 ? undefined : declared.flatMap(serverNames)
+}
+
+/** The `name` of each server in an `mcp_servers` value, `?` for one without. */
+function serverNames(servers: unknown): readonly string[] {
+  return (Array.isArray(servers) ? servers : [servers]).map((server) => {
+    const name = jsonObjectOrUndefined(server)?.name
+    return typeof name === 'string' ? name : '?'
+  })
+}
+
+/**
+ * Why the home's `config.toml` keeps a critic from searching: the runner
+ * must read its MCP server names to switch them off, so a file it cannot
+ * read blocks search. Undefined when it reads.
+ */
+export function homeConfigProblem(toml: string): string | undefined {
+  try {
+    readToml(toml)
+    return undefined
+  } catch (error) {
+    return `home-config-unreadable: ~/.vibe/config.toml is not TOML the runner can read (${(error as TomlError).message}), so its MCP servers cannot be switched off by name`
+  }
+}
+
+/**
+ * The names of the MCP servers a Vibe `config.toml` declares, whether as
+ * `[[mcp_servers]]` tables or an `mcp_servers = [...]` array of inline
+ * tables; none for a file that is not TOML, which the pre-launch check has
+ * already refused.
+ */
+export function mcpServerNames(toml: string): readonly string[] {
+  try {
+    const servers = readToml(toml).mcp_servers
+    return servers === undefined ? [] : serverNames(servers).filter((name) => name !== '?')
+  } catch {
+    return []
+  }
+}
+
+function journalEntries(stdout: string): readonly (Readonly<Record<string, unknown>> | undefined)[] {
   let journal: unknown
   try {
     journal = JSON.parse(stdout)
   } catch {
-    return undefined
+    return []
   }
-  const entries = Array.isArray(journal) ? journal.map(jsonObjectOrUndefined) : []
-  const last = entries.findLast((entry) => entry?.type === 'message' && entry.role === 'assistant')
+  return Array.isArray(journal) ? journal.map(jsonObjectOrUndefined) : []
+}
+
+function finalAssistantText(stdout: string): string | undefined {
+  const last = journalEntries(stdout).findLast((entry) => entry?.type === 'message' && entry.role === 'assistant')
   const content = Array.isArray(last?.content) ? last.content.map(jsonObjectOrUndefined) : undefined
   return content?.map((part) => (typeof part?.text === 'string' ? part.text : '')).join('')
 }

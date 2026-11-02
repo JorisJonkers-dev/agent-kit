@@ -37,6 +37,14 @@ const SESSION_SETTINGS = {
 }
 
 /**
+ * The settings of a critic that may not search (ADR-0006: agy's search is
+ * unproven until #178), which also deny agy's own listing and search tools.
+ */
+const READ_ALONE_SETTINGS = {
+  permissions: { deny: [...SESSION_SETTINGS.permissions.deny, 'list_dir(*)', 'grep_search(*)', 'find_by_name(*)'] },
+}
+
+/**
  * The tools a critic may use: reading, listing and searching its packet, and
  * `finish`, through which agy returns structured output. Any other tool in the
  * stream (MCP, web search, browser, workflows, subagents, commands, edits)
@@ -150,7 +158,7 @@ function agyLaunch(launch: CriticLaunch, config: AgyClientConfig, prompt: string
       '--json-schema',
       launch.schemaPath,
       '--settings',
-      JSON.stringify(SESSION_SETTINGS),
+      JSON.stringify(launch.toolset?.kind === 'agy' && launch.toolset.search ? SESSION_SETTINGS : READ_ALONE_SETTINGS),
     ],
     command: config.binary,
     cwd: launch.packetDir,

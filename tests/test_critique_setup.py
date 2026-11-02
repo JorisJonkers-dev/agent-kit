@@ -48,6 +48,7 @@ SETTING_KEYS = {
     "enable_subagents",
     "include_project_context",
     "session_logging",
+    "tools",
     "models",
 }
 MODEL_KEYS = {"name", "provider", "alias", "input_price", "output_price", "thinking"}
@@ -559,11 +560,20 @@ def test_a_critic_agent_is_only_for_the_workstation() -> None:
 
 
 @pytest.mark.parametrize("name", CRITIC_AGENT_NAMES)
-def test_each_agent_file_can_only_read_inside_its_working_directory(name: str) -> None:
+def test_each_agent_file_can_only_read_and_search_inside_its_working_directory(name: str) -> None:
+    """``read_file`` and the runner's search server's tools (ADR-0006), nothing else.
+
+    MCP is the runner's to switch per launch, so the file leaves ``enable_mcp``
+    unset: off for a critic that reads alone, on with the runner's server as the
+    one live server for a critic that searches. Headless Vibe refuses a tool
+    call that asks for approval, so the search tools are approved outright.
+    """
     doc = _agent_file(name)
-    assert doc["enabled_tools"] == ["read_file"]
+    assert doc["enabled_tools"] == ["read_file", "packet_grep", "packet_list", "packet_symbol"]
+    assert doc["tools"] == {tool: {"permission": "always"} for tool in ("packet_grep", "packet_list", "packet_symbol")}
     assert doc["outside_workdir"] == "deny"
-    assert doc["enable_mcp"] is False
+    assert "enable_mcp" not in doc
+    assert "mcp_servers" not in doc
     assert doc["enable_subagents"] is False
     assert doc["include_project_context"] is False
     assert doc["session_logging"] == {"enabled": False}

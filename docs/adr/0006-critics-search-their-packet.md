@@ -52,3 +52,23 @@ because it leaves the cost problem.
   - If the server dies mid-run, the critic carries on, its later search calls fail, and the report names the failure.
   - The runner stops the server whenever the critic process ends, for any reason.
 - **Different tools per family.** agy has no `symbol` tool, and Vibe's `list` matches a glob rather than a name. We accept this: every critic can read `tree/REPO-MAP.md` directly.
+
+## Amended (2026-11-02): `run_typescript` is Vibe's way into the search tools
+
+In Vibe 3.0.4 a critic cannot call an MCP tool directly. The tool is a
+function inside `run_typescript`, named `tools.mcp_packet.grep`, and
+calling it as a top-level tool fails. The decision above rejected
+`run_typescript` on the belief that it runs arbitrary commands. #255 found
+otherwise:
+
+- Vibe already offers `run_typescript` to every critic, whatever
+  `enabled_tools` says.
+- Its sandbox has no file system, no network and no Node.
+- It reaches only tool functions that the critic agent enables and approves.
+
+So `run_typescript` is allowed, but only as the gateway to the search
+server's `grep`, `list` and `symbol`. Called through it, `bash`, `write_file`
+and process starts come back `tool_denied`. Setup's read-only proof for each
+Vibe client shows those refusals live: one confirmed prompt, alongside the
+search-reach proof. A client the proof fails stays on `read_file` alone
+until it passes.

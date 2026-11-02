@@ -75,6 +75,10 @@ export interface CriticRun extends CriticIdentity {
   /** Absent for a critic that was never launched. */
   readonly stdout_path?: string
   readonly export_path?: string
+  /** The tools the critic had, as its prompt named them; absent for a critic that was never launched. */
+  readonly tools?: readonly string[]
+  /** Why the critic could not search, or why its searches failed during the run (ADR-0006). */
+  readonly search_failure?: string
 }
 
 /** The identity a roster critic carries into fan-out, record and the ledger. */
@@ -96,6 +100,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
   const retryOf = fields.optionalString('retry_of')
   const stdoutPath = fields.optionalString('stdout_path')
   const exportPath = fields.optionalString('export_path')
+  const searchFailure = fields.optionalString('search_failure')
   const hashes = fields.object('prompt_hashes')
   return {
     charged_usd: fields.number('charged_usd'),
@@ -124,6 +129,8 @@ export function readCriticRun(fields: JsonFields): CriticRun {
     ...(retryOf === undefined ? {} : { retry_of: retryOf }),
     ...(stdoutPath === undefined ? {} : { stdout_path: stdoutPath }),
     ...(exportPath === undefined ? {} : { export_path: exportPath }),
+    ...(fields.has('tools') ? { tools: fields.strings('tools') } : {}),
+    ...(searchFailure === undefined ? {} : { search_failure: searchFailure }),
   }
 }
 

@@ -7,6 +7,7 @@ import type { ModelFamily } from '../domain/family.js'
 import type { RunFinding } from '../domain/findings.js'
 import { listedFiles, parseManifest, specReference, type RunManifest } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
+import type { CriticToolset } from '../domain/critic-tools.js'
 import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
 import {
   chooseRefuter,
@@ -22,7 +23,8 @@ import {
 } from '../domain/refute.js'
 import { severityOverrideProblem } from '../domain/verdicts.js'
 import { FlowBudget } from './budget.js'
-import { FINDING_SCHEMA, promptFields, readFrozenPacket, runCritic } from './critic-run.js'
+import { FINDING_SCHEMA, readFrozenPacket, runCritic } from './critic-run.js'
+import { CriticTools } from './critic-tools.js'
 import { readInput, readJsonFile } from './decode.js'
 import { parseFanOutResult, type FanOutResult } from './fan-out.js'
 import { findingsPath, ledgerPath, manifestPath, refutePath, reportPath } from './locations.js'
@@ -42,7 +44,9 @@ interface Round {
   readonly candidates: readonly RefuterCandidate[]
   /** Why each candidate client may not run now, by client name; absent while it may. */
   readonly blocked: ReadonlyMap<string, string>
-  readonly prompt: CriticPrompt
+  /** The refuter role's prompt, for the tools a refuter gets. */
+  readonly prompt: (toolset: CriticToolset) => CriticPrompt
+  readonly tools: CriticTools
   /** The check ids the refuter role declares: the answers that object. */
   readonly declared: readonly string[]
 }
@@ -120,18 +124,15 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
   private async round(manifest: RunManifest, merged: FanOutResult, targets: readonly RunFinding[]): Promise<readonly RefuteRecord[]> {
     const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
     const role = await asset('roles/refuter.md')
-    const prompt = assemblePrompt(
-      {
-        contract: await asset('prompts/output-contract.md'),
-        lenses: [],
-        preamble: await asset('prompts/preamble.md'),
-        role,
-        schema: await asset(FINDING_SCHEMA),
-      },
-      listedFiles(manifest),
-      manifest.stage,
-      manifest.code?.slices,
-    )
+    const sources = {
+      contract: await asset('prompts/output-contract.md'),
+      lenses: [],
+      preamble: await asset('prompts/preamble.md'),
+      role,
+      schema: await asset(FINDING_SCHEMA),
+    }
+    const prompt = (toolset: CriticToolset): CriticPrompt =>
+      assemblePrompt(sources, listedFiles(manifest), manifest.stage, manifest.code?.slices, toolset)
     const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage)
     const round: Round = {
       blocked: await this.blocked(manifest, candidates),
@@ -141,6 +142,7 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
       merged,
       packet: indexPacket(await readFrozenPacket(this.deps, manifest), manifest.ticket_check?.ticket_ids),
       prompt,
+      tools: new CriticTools(this.deps, manifest.limits.search, join(manifest.run_dir, 'search-proof')),
       tripwire: await ReadOnlyTripwire.load(this.deps, manifest),
     }
     return Promise.all(targets.map((finding) => this.refute(round, finding)))
@@ -157,9 +159,8 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
     if ('skipped' in choice) return { detail: choice.skipped, finding_id: finding.id, outcome: 'skipped', reason_code: 'no-eligible-client' }
     const { refuter } = choice
     const criticDir = join(manifest.run_dir, 'refute', finding.id)
-    const prompt = withFinding(round.prompt, finding)
-    await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
-    const reply = await runCritic(this.deps, { critic: refuter, criticDir, prompt, tripwire: round.tripwire })
+    const prompt = (toolset: CriticToolset): CriticPrompt => withFinding(round.prompt(toolset), finding)
+    const reply = await runCritic(this.deps, { critic: refuter, criticDir, prompt, tools: round.tools, tripwire: round.tripwire })
     await new FlowBudget(this.deps).logInvocation(manifest, reply.run, refuter.client_config.kind)
     const judged = judgeReply(finding, reply, { declared: round.declared, packet: round.packet, stage: manifest.stage })
     return { finding_id: finding.id, ...judged, refuter: reply.run }

@@ -20,7 +20,7 @@ export class NodeProcessAdapter implements ProcessPort {
     const child = spawn(command.command, [...command.args], {
       ...(command.cwd === undefined ? {} : { cwd: command.cwd }),
       env: command.env === undefined ? process.env : { ...process.env, ...command.env },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     })
     let stdout = ''
     let stderr = ''
@@ -33,6 +33,10 @@ export class NodeProcessAdapter implements ProcessPort {
     child.stderr.on('data', (chunk: string) => {
       stderr += chunk
     })
+    // Stdin carries the command's input, if any, and is closed either way. A
+    // command that exits before reading all of it must not fail the write.
+    child.stdin.on('error', () => undefined)
+    child.stdin.end(command.stdin)
     const timer = new ProcessTimer(child, command.timeoutMs, this.killGraceMs)
     const exitCode = await new Promise<number>((resolve, reject) => {
       child.once('error', reject)

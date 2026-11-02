@@ -1,3 +1,5 @@
+import { join } from 'node:path'
+
 import { ProcessEnvAdapter, SystemClockAdapter } from '../adapters/clock/index.js'
 import { GhCliAdapter } from '../adapters/gh/index.js'
 import { NodeProcessAdapter } from '../adapters/process/index.js'
@@ -6,10 +8,13 @@ import {
   createCritiqueCommands,
   CritiqueError,
   NodeCritiqueFiles,
+  ProcessSearchClient,
   VibeCriticClient,
   type CritiqueCommands,
 } from '../contexts/critique/index.js'
 import { GitCliAdapter } from '../contexts/graph/index.js'
+
+export { runSearchServer } from '../contexts/critique/index.js'
 
 export interface CritiqueCliResult {
   readonly exitCode: number
@@ -42,6 +47,7 @@ const COMMANDS = {
 
 export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|refute|record|allow|check-tickets|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
        critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>
+       critique search-server --root DIR [--max-matches N] [--max-bytes N]
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and
 prints one JSON object. A refusal is a normal result with "status": "refused".
@@ -53,6 +59,9 @@ they cannot read is allowed, and logged.
 hook runs one of ADR-0002's hooks on the agent's payload from stdin and
 prints only what the agent reads: a gate's deny, the session-start line, or
 nothing. It always exits 0.
+
+search-server is the read-only MCP stdio server a Vibe critic searches its
+packet copy through (ADR-0006); the runner starts it, never the owner.
 `
 
 /** The exit code of a result whose status is `failed`: a check failed, though the command did not. */
@@ -155,6 +164,8 @@ export function defaultCritiqueRuntime(
       files,
       gh: new GhCliAdapter(processPort),
       git: new GitCliAdapter(processPort),
+      // Vibe starts the search server as `node critique.mjs search-server ...`.
+      search: new ProcessSearchClient(processPort, { args: [join(assetsRoot, 'critique.mjs')], command: process.execPath }),
     }),
     readFile: (path) => files.readText(path),
     readStdin,

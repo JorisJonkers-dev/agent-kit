@@ -48,6 +48,23 @@ describe('NodeProcessAdapter', () => {
     expect(result.stdout).toBe('é')
   })
 
+  it('writes the given input to stdin and closes it', async () => {
+    const adapter = new NodeProcessAdapter()
+    const script = 'let s = ""; process.stdin.on("data", (c) => { s += c }); process.stdin.on("end", () => process.stdout.write(s.toUpperCase()))'
+
+    const result = await adapter.exec({ args: ['-e', script], command: process.execPath, stdin: 'two\nlines\n' })
+
+    expect(result).toEqual({ exitCode: 0, stderr: '', stdout: 'TWO\nLINES\n' })
+  })
+
+  it('returns normally when the command exits without reading its input', async () => {
+    const adapter = new NodeProcessAdapter()
+
+    const result = await adapter.exec({ args: ['-e', 'process.exit(0)'], command: process.execPath, stdin: 'x'.repeat(4 * 1024 * 1024) })
+
+    expect(result.exitCode).toBe(0)
+  })
+
   it('captures stderr output from commands', async () => {
     const adapter = new NodeProcessAdapter()
 

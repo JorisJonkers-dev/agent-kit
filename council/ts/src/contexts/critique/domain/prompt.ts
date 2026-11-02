@@ -1,3 +1,4 @@
+import { READ_ONLY_TOOLSET, readTool, toolsSection, type CriticToolset } from './critic-tools.js'
 import { sha256, type CodeSlice, type PacketFile, type PacketFileKind } from './manifest.js'
 import { REPO_MAP_PATH } from './repo-map.js'
 import { FACTS_INDEX_PATH } from './repository-packet.js'
@@ -73,8 +74,8 @@ const CODE_FACT_DESCRIPTIONS: Readonly<Record<string, string>> = {
  * is, how a file cut short keeps its line numbers, and how to cite a line,
  * which fan-out then checks.
  */
-const CODE_PACKET_NOTE = [
-  '`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` lists every file the cap left out or cut short. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.',
+const codePacketNote = (read: string): string => [
+  `\`tree/\` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with ${read} as \`tree/<repository path>\`. \`facts/INDEX.md\` lists every file the cap left out or cut short. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.`,
   '',
   'Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding\'s `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.',
   '',
@@ -96,9 +97,10 @@ function sliceList(slices: readonly CodeSlice[]): string {
 
 /**
  * Four blocks in order (preamble, role, lenses, output contract with the
- * finding schema), then the list of packet files the critic is pointed at.
- * Vibe critics cannot list directories, so the list is the only way they
- * learn the paths: a document packet lists every file, and a code packet its
+ * finding schema), then the critic's tools, named exactly as it has them
+ * (ADR-0006), and the list of packet files it is pointed at. A critic that
+ * may only read learns the paths from this list alone: a document packet
+ * lists every file, and a code packet its
  * repo map first, the diff, the tickets, the spec and the facts index, then
  * its context slices, with a note on reading the rest of its tree. Nothing
  * about other critics, models or the conversation goes in.
@@ -108,7 +110,9 @@ export function assemblePrompt(
   files: readonly PacketFile[],
   stage: CritiqueStage,
   slices: readonly CodeSlice[] = [],
+  toolset: CriticToolset = READ_ONLY_TOOLSET,
 ): CriticPrompt {
+  const read = readTool(toolset)
   const codePacket = isCodeStage(stage)
   const repositoryPacket = !codePacket && files.some((file) => file.kind === 'fact')
   const describe = ({ kind, path }: PacketFile): string =>
@@ -119,14 +123,16 @@ export function assemblePrompt(
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join('\n\n')
   const contract = `${sources.contract.trim()}\n\n\`\`\`json\n${sources.schema.trim()}\n\`\`\``
   const fileList = [
+    toolsSection(toolset),
+    '',
     '# Files',
     '',
     codePacket
-      ? 'Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:'
-      : 'Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:',
+      ? `Your working directory holds the change under review. Read each of these files with ${read}, using the path exactly as written here:`
+      : `Your working directory holds these files and no others. Read each one with ${read}, using the path exactly as written here:`,
     '',
     ...files.map((file) => `- \`${file.path}\`: ${describe(file)}`),
-    ...(codePacket ? ['', sliceList(slices), '', CODE_PACKET_NOTE] : []),
+    ...(codePacket ? ['', sliceList(slices), '', codePacketNote(read)] : []),
     ...(repositoryPacket ? ['', REPOSITORY_PACKET_NOTE] : []),
   ].join('\n')
   return {

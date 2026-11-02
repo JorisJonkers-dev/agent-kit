@@ -41,6 +41,10 @@
     "removal_features": 3
   },
   "budget": { "vibe_flow_cap_usd": 5 },
+  "search": {
+    "max_matches": 50,
+    "max_bytes": 8192
+  },
   "antigravity_quota": {
     "daily_cap": 20,
     "reserve_threshold": 10,

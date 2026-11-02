@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
+import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -21,6 +22,8 @@ import {
   AgyCriticClient,
   createCritiqueCommands,
   NodeCritiqueFiles,
+  ProcessSearchClient,
+  runSearchServer,
   VibeCriticClient,
   type CritiqueCommands,
   type CritiqueGhPort,
@@ -28,6 +31,9 @@ import {
 } from '../../src/contexts/critique/index.js'
 
 export const ASSETS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../skills/critique')
+
+/** The critic agent files agent-kit's generator renders, which setup installs into `~/.vibe/agents/`. */
+export const GENERATED_AGENTS = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../registry/generated/vibe/agents')
 
 export const SPEC_CANARY = 'Every widget must be frobnicated within the canary window of seven seconds.'
 export const DECISION_CANARY = 'Decided: widgets are frobnicated by the nightly job only.'
@@ -433,15 +439,48 @@ export interface VibeScript {
   readonly stdout: string
   readonly stderr?: string
   readonly exitCode: number
+  /** The export Vibe writes; a function builds it from the launch, as Vibe reports its effective config from the launch's settings. */
   readonly exportJson?: unknown
   /** Plays this run only for the critic whose `--agent` this is; otherwise for the next launch. */
   readonly agent?: string
-  /** What the critic does while it runs: `cwd` is its working directory, `repo` the repository. */
-  readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
+  /**
+   * What the critic does while it runs: `cwd` is its working directory,
+   * `repo` the repository, and `search` calls the MCP servers its launch
+   * configured, as Vibe would start them (none when it has none).
+   */
+  readonly effect?: (where: { readonly cwd: string; readonly repo: string; readonly search: SearchHelper }) => Promise<void>
   /** Do not return until this many critics have started, so a test can see critics overlap. */
   readonly waitForStarts?: number
   /** The run never returned and the outer timer killed it: no export, exit 124, `timedOut`. */
   readonly timedOut?: boolean
+}
+
+/** Calls one tool of a server the critic's launch configured, by server name, and returns its text answer. */
+export type SearchHelper = (call: { readonly server?: string; readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }) => Promise<string>
+
+/** The MCP servers a Vibe launch configured, as its `VIBE_MCP_SERVERS` lists them. */
+export function launchServers(command: ProcessCommand | undefined): readonly Record<string, unknown>[] {
+  const text = command?.env?.VIBE_MCP_SERVERS
+  return text === undefined ? [] : (JSON.parse(text) as Record<string, unknown>[])
+}
+
+/** The command a harness with search starts the runner's search server with. */
+export const SEARCH_COMMAND = { args: ['/opt/agent-kit/skills/critique/critique.mjs'], command: '/usr/local/bin/node' } as const
+
+/**
+ * The export of a searching critic whose Vibe honoured its launch: MCP on,
+ * the launch's servers as configured, and the critic agent's tool list.
+ */
+export function searchExport(overrides: Record<string, unknown> = {}): (command: ProcessCommand) => Record<string, unknown> {
+  return (command) => {
+    const base = isolatedExport({
+      enable_mcp: command.env?.VIBE_ENABLE_MCP === 'true',
+      enabled_tools: ['read_file', 'packet_grep', 'packet_list', 'packet_symbol'],
+      mcp_servers: launchServers(command).map((server) => ({ disabled: false, ...server, args: ['<redacted>'] })),
+      ...overrides,
+    })
+    return base
+  }
 }
 
 /** Every critic launch and return, in the order they happened, across all critic clients. */
@@ -479,6 +518,15 @@ export type VibeSignIn = 'keychain' | 'env-file' | 'env-file-no-keychain' | 'non
 export class FakeVibeProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
   readonly checks: ProcessCommand[] = []
+  /** Every session the runner opened with its search server, and every `pkill` that stopped one. */
+  readonly searches: ProcessCommand[] = []
+  readonly stops: ProcessCommand[] = []
+  /**
+   * How the search server starts: as the runner's own code, in process, or
+   * not at all (`broken`), or only for the reach proof's packet and never
+   * on a critic's copy (`broken-on-copies`).
+   */
+  searchBehaviour: 'serve' | 'broken' | 'broken-on-copies' = 'serve'
 
   constructor(
     private readonly repo: string,
@@ -495,6 +543,16 @@ export class FakeVibeProcess implements ProcessPort {
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
+    if (command.command === 'pkill') {
+      this.stops.push(command)
+      return { exitCode: 1, stderr: '', stdout: '' }
+    }
+    if (command.args.includes('search-server')) {
+      this.searches.push(command)
+      const proof = command.args[command.args.indexOf('--root') + 1]?.endsWith(join('search-proof', 'packet')) === true
+      if (this.searchBehaviour === 'broken' || (this.searchBehaviour === 'broken-on-copies' && !proof)) return { exitCode: 1, stderr: 'Error: Cannot find module critique.mjs\n', stdout: '' }
+      return serveInProcess(command.args, command.stdin ?? '')
+    }
     if (command.command === 'security') {
       this.checks.push(command)
       if (this.signIn === 'env-file-no-keychain') throw new Error('spawn security ENOENT')
@@ -518,11 +576,45 @@ export class FakeVibeProcess implements ProcessPort {
     const outputDir = command.args[outputDirIndex + 1]
     if (script.exportJson !== undefined && outputDir !== undefined) {
       await mkdir(outputDir, { recursive: true })
-      await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
+      const exported: unknown = typeof script.exportJson === 'function' ? (script.exportJson as (launch: ProcessCommand) => unknown)(command) : script.exportJson
+      await writeFile(join(outputDir, 'export.json'), JSON.stringify(exported))
     }
-    await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo, search: searchHelper(command) })
     if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode, stderr: script.stderr ?? '', stdout: script.stdout }
+  }
+}
+
+/** Runs the runner's search server in this process on the given stdin, as `critique.mjs search-server` would run. */
+async function serveInProcess(args: readonly string[], stdin: string): Promise<ProcessResult> {
+  let stdout = ''
+  let stderr = ''
+  const exitCode = await runSearchServer(args.slice(args.indexOf('search-server') + 1), {
+    stdin: Readable.from([stdin]),
+    writeStderr: (text) => {
+      stderr += text
+    },
+    writeStdout: (line) => {
+      stdout += line
+    },
+  })
+  return { exitCode, stderr, stdout }
+}
+
+/** Calls a server of the launch the way Vibe's MCP client would: initialize, then the one call. */
+function searchHelper(command: ProcessCommand): SearchHelper {
+  return async (call) => {
+    const server = launchServers(command).find((entry) => entry.name === (call.server ?? 'packet') && entry.disabled !== true)
+    if (server === undefined) throw new Error(`the launch configured no live MCP server named ${call.server ?? 'packet'}`)
+    const requests = [
+      { id: 1, jsonrpc: '2.0', method: 'initialize', params: { protocolVersion: '2025-11-25' } },
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { id: 2, jsonrpc: '2.0', method: 'tools/call', params: { arguments: call.arguments, name: call.tool } },
+    ]
+    const result = await serveInProcess(server.args as string[], requests.map((request) => `${JSON.stringify(request)}\n`).join(''))
+    const reply = result.stdout.split('\n').map((line) => (line === '' ? undefined : (JSON.parse(line) as Record<string, unknown>))).find((line) => line?.id === 2)
+    const content = (reply?.result as { content?: { text: string }[] } | undefined)?.content
+    return content?.map((part) => part.text).join('') ?? JSON.stringify(reply?.error)
   }
 }
 
@@ -792,6 +884,12 @@ export async function harness(
     /** The critic agents setup installed into `~/.vibe/agents/`; every one setup declares unless named. */
     readonly vibeAgents?: readonly string[]
     /**
+     * What each installed agent file holds: the one agent-kit's generator
+     * renders for it unless named, or this text for every agent (an older
+     * agent file, say).
+     */
+    readonly vibeAgentFile?: string
+    /**
      * The issue-tracker doc Pocock's setup wrote, or `none` for a repository
      * without one. Local markdown unless named, so the `.scratch/` spec is the
      * tracker's.
@@ -803,6 +901,10 @@ export async function harness(
     readonly links?: FakeGhLinks
     /** Further environment variables the runner sees, such as `CRITIQUE_OFF`. */
     readonly env?: Readonly<Record<string, string>>
+    /** Gives Vibe critics the runner's search server, served in process by the runner's own code. */
+    readonly search?: boolean
+    /** The personal Vibe home's `config.toml`. */
+    readonly vibeConfig?: string
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -838,7 +940,11 @@ export async function harness(
   if (options.vibeOnPath ?? true) await writeFile(join(bin, 'vibe'), '#!/bin/sh\n')
   const vibeHome = join(home, '.vibe')
   await mkdir(join(vibeHome, 'agents'), { recursive: true })
-  for (const agent of options.vibeAgents ?? VIBE_CRITIC_AGENTS) await writeFile(join(vibeHome, 'agents', `${agent}.toml`), '')
+  for (const agent of options.vibeAgents ?? VIBE_CRITIC_AGENTS) {
+    const rendered = await readFile(join(GENERATED_AGENTS, `${agent}.toml`), 'utf8').catch(() => '')
+    await writeFile(join(vibeHome, 'agents', `${agent}.toml`), options.vibeAgentFile ?? rendered)
+  }
+  if (options.vibeConfig !== undefined) await writeFile(join(vibeHome, 'config.toml'), options.vibeConfig)
   if (options.vibeSignIn === 'env-file' || options.vibeSignIn === 'env-file-no-keychain') await writeFile(join(vibeHome, '.env'), "MISTRAL_API_KEY='sk-personal'\n")
   const tracker = options.tracker ?? 'local-markdown'
   if (tracker !== 'none') {
@@ -867,6 +973,7 @@ export async function harness(
     files,
     gh,
     git,
+    ...(options.search === true ? { search: new ProcessSearchClient(process, SEARCH_COMMAND) } : {}),
   })
   return {
     agy,
