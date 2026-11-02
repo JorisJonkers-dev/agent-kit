@@ -7,7 +7,8 @@ description: Use after a ticket's /code-review and before its commit. Risk triag
 
 You are the **orchestrator**: a critic from another model family reviews a
 frozen copy of the ticket's staged change (the **packet**: the ticket, its
-spec, the diff and every file of the staged tree), and you are the only one
+spec, the diff, the repo map, the context slices around the change and as
+much more of the staged tree as the packet cap lets in), and you are the only one
 who rules on its findings. Execution decides each bug finding: the critic's
 test fails as predicted, or the finding is rejected.
 
@@ -78,7 +79,8 @@ counts against the same cap as the spec's other stages.
 
 - **Refused with `code-not-allowed`**: the repository's **family allowlist**
   entry allows documents but not code. Offer to extend it: this stage sends
-  the staged code (every file of the staged tree) to the entry's families.
+  the staged code (the diff and any file of the staged tree, up to the
+  packet cap) to the entry's families.
   Read the entry's families from `~/.config/agent-kit/critique-allowlist.json`
   (`repositories["<host/owner/repo>"].families`). If the owner agrees, run
   allow with `repo`, those `families` and `"code": true`, then triage and

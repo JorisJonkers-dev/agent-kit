@@ -7,7 +7,8 @@ description: Use after every ticket of a spec has landed on its feature branch a
 
 You are the **orchestrator**: critics from other model families review a frozen
 copy of the finished feature (the **packet**: the spec, every ticket, the diff
-against the branch base and every file at the head), and you are the only one
+against the branch base, the repo map, the context slices around the change and
+as much more of the head as the packet cap lets in), and you are the only one
 who rules on their findings. Per-ticket reviews already ran; this stage hunts
 the defects that live between tickets.
 
@@ -59,7 +60,8 @@ counts against the same cap as the spec's other stages.
 
 - **Refused with `code-not-allowed`**: the repository's **family allowlist**
   entry allows documents but not code. Offer to extend it: this stage sends
-  the feature's code (every file at the head) to the entry's families. Read
+  the feature's code (the diff and any file at the head, up to the packet
+  cap) to the entry's families. Read
   the entry's families from `~/.config/agent-kit/critique-allowlist.json`
   (`repositories["<host/owner/repo>"].families`). If the owner agrees, run
   allow with `repo`, those `families` and `"code": true`, then prepare again.
