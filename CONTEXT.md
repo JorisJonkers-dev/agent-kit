@@ -197,7 +197,9 @@ It is keyed by the repository's remote. A repository with no entry, or with
 no remote, sends nothing; a repository owned by the `nedap` GitHub
 organisation sends nothing, whatever its entry says. An entry allows
 documents only unless its code permission is on; the code stages refuse
-while it is off.
+while it is off. Its history permission, also off by default, separately
+lets a stage send the repository's commit messages and issue text; while it
+is off, a stage leaves history out.
 _Avoid_: data policy, provider list
 
 **Flow state**:

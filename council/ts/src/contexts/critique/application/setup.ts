@@ -43,6 +43,8 @@ export type RepositorySetup =
       readonly families: readonly ModelFamily[]
       /** Whether the entry lets the code stages send code. */
       readonly code: boolean
+      /** Whether the entry lets a stage send the repository's commit messages and issue text. */
+      readonly history: boolean
       /** The families routing's critic clients come from, in routing order: what an opt-in would usually allow. */
       readonly routed_families: readonly ModelFamily[]
     }
@@ -368,10 +370,11 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
       ...new Set(Object.values(routing.clients).map((client) => client.family)),
     ]
     return entry === undefined
-      ? { code: false, families: [], key: resolved.key, routed_families, status: 'not-opted-in' }
+      ? { code: false, families: [], history: false, key: resolved.key, routed_families, status: 'not-opted-in' }
       : {
           code: entry.code,
           families: entry.families,
+          history: entry.history,
           key: resolved.key,
           routed_families,
           status: 'opted-in',
