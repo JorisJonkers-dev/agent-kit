@@ -1625,7 +1625,106 @@ The `/critique-spec` skill (agent-kit#177) fixed these:
   is how prepare knows the two belong to one flow, so the per-flow Vibe cap
   can add the first round's spend to the second's from there.
 
-## What #186 settled
+## The code packet, as of 2026-11-02
+
+A code packet (the packet of a ticket review or a feature review) is no
+longer a copy of all of the commit under review. Four tickets of
+agent-kit#214 changed it: #221 brought the packet cap, windows, the
+exclusions and `facts/INDEX.md` for the repository packet, #254 applied them
+to the code packet and added the filtered diff, the repo map and the context
+slices, and its two follow-ups #256 (the facts index stays small) and #257
+(an oversized diff is windowed) closed what #254 left open. Everything below
+is computed by rule at the commit under review, never by a model
+([ADR-0004](../adr/0004-critics-never-compute-facts.md)); the code
+permission and prepare's input are as [#186](#what-186-settled-superseded-2026-11-02)
+left them. The packet root holds only `diff/`, `tickets/`, `spec/`, `tree/`
+and `facts/`, so the repository's own `AGENTS.md`, `.vibe/` and `.agents/`
+still land under `tree/`.
+
+- **The filtered diff (#254).** `diff/change.diff` is still the diff from
+  the merge base of `base` and `head` to `head`, but a vendored, generated
+  or lock file keeps one line in place of its hunks: `Left out of this diff:
+  <path>, <why>; its <n> changed lines are not shown.` A file counts as one
+  when it matches routing's `packet.exclude` globs, or when its first five
+  lines say `@generated` or "do not edit" (read at the head, or at the base
+  for a deleted file). Its lines are not counted as changed lines, and risk
+  triage reads the same filtered diff (`CodeChangeReader` serves both).
+  `code.changed_files` leaves those files out too.
+- **The repo map (#254).** `tree/REPO-MAP.md`, a fact file, lists every
+  TypeScript, JavaScript and Python file at the commit under review with its
+  top-level symbols and their signatures, ranked by how many other files
+  import the file and name the symbol. It is capped at routing's
+  `packet.repo_map_cap_bytes` (20 KB) inside the packet cap; past it, the
+  least referenced files are left out and the facts index says how many. A
+  tracked file at that path is never sent in its place.
+- **Context slices (#254).** Instead of whole files, the prompt lists the
+  lines a reviewer needs beside the diff, each as
+  `tree/<path>:<first>-<last>` with why it is sent: each changed hunk's
+  enclosing top-level symbol (a change outside every symbol sends the lines
+  with three lines either side, and in a file the scan cannot read, ten),
+  then up to eight symbols each changed symbol calls, then up to eight
+  functions that call it, found through the import and reference scan. The
+  manifest records the slices the cap let in under `code.slices` (path,
+  first and last line, reason).
+- **The cap and windows (#221, applied by #254).** `tree/` is read from
+  git's object store at the head, as before, but vendored, generated, lock
+  and binary files are never sent, and routing's `packet.cap_bytes`
+  (150 KB) counts every packet file. The tree is filled in this order: every
+  context slice, then the changed files, then the files that import them,
+  then the rest of the tree, each tier's first window before its second.
+  A file goes in windows of `packet.window_lines` (400) lines from its first
+  line. A file cut short holds the lines it was sent at their own numbers;
+  a run of lines it does not hold is blank but for a marker on its first
+  line, and its `packet_files` entry carries a `window`. A citation of a
+  line outside what the packet holds is `fabricated-evidence`. Prepare
+  refuses with `packet-over-cap` only when the tickets, the spec, the repo
+  map and the facts index's own text pass the cap.
+- **Diff windows (#257).** A diff that does not fit beside the rest of the
+  packet is sent in windows by file instead of refused: the changed source
+  files, then the tests, then the docs, each group by changed lines, most
+  first. It takes at most half the room the documents leave, so the tree
+  keeps room for the slices, and its first line says the cap left hunks
+  out. Each hunk keeps its file's header and its `@@` line, so a line a sent
+  hunk shows can be cited as `tree/<path>:<line>` even where the tree does
+  not hold it; a deleted or emptied file's hunks are cited at their lines at
+  the base. A line only a left-out hunk shows is rejected unless the tree
+  holds it.
+- **The facts index (#221, #254, #256, #257).** `facts/INDEX.md` says what
+  the packet holds: the limits, how many vendored, generated, lock and
+  binary files were never sent, each file left out of the diff with its
+  changed lines, each hunk the cap left out of the diff (by file and line,
+  `base lines` for a hunk that only removes lines), each context slice as
+  sent or dropped, and the tree's drops. A drop is listed by name for a
+  changed file, an importer, a file holding a slice and any file the diff, a
+  ticket or the spec names; since #256 the other drops are counted per
+  directory and reason with the bytes left out, in at most 24 lines, under
+  room the cap reserves for them. Since #257, when listing every named drop
+  would not fit, the lists of names take a quarter of the room the
+  documents and the reserve for those counts leave, and each ends with a
+  line counting what it leaves unlisted; the per-directory counts stay. A quote from `facts/` or
+  `tree/REPO-MAP.md` is a fact, never a recorded decision.
+- **The prompt (#254).** A critic's file list names `tree/REPO-MAP.md`
+  first, then the diff, the tickets, the spec and `facts/INDEX.md`, then the
+  context slices, then a note that `tree/` holds as much of the rest of the
+  repository as the cap let in, how a file cut short keeps its line numbers,
+  and how to cite code.
+- **Prepare's result (#254).** `code` carries `base_commit`, `head_commit`,
+  `changed_files`, `tree_files` (the files frozen in whole or in part),
+  `dropped_files` (the files the cap left out in whole or in part),
+  `packet_bytes` and `cap_bytes`.
+- **The tripwire** is unchanged: each critic's copy is the packet, and a
+  change anywhere in it voids the critic as `violated-readonly`. The copy
+  now holds what the cap let in, not the whole tree.
+
+## What #186 settled (superseded 2026-11-02)
+
+Superseded on 2026-11-02 by [The code packet, as of
+2026-11-02](#the-code-packet-as-of-2026-11-02): the bullets on the code
+packet, the prompt, the tripwire and the live check describe the packet
+before #221 and #254, which froze the whole tree, and the manifest and
+file-and-line evidence bullets hold only in part. The code permission,
+prepare's input, git and process output still hold. The notes stay as they
+were written, as history.
 
 Code packets and the code permission (agent-kit#186) fixed these:
 
