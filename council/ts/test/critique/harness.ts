@@ -11,6 +11,8 @@ import type {
   GhIssueLocator,
   GhIssueRequest,
   GhLinkedIssue,
+  GitCommitLink,
+  GitMergeTree,
   GitPorcelainEntry,
   GitRemote,
   ProcessCommand,
@@ -102,9 +104,15 @@ export class FixedClock implements ClockPort {
  * name commits too. The index holds what `commit()` committed until
  * `stage()` copies the files on disk into it, as `git add -A` would; a
  * commit made with `commitTree` (`s<n>`) is off that line and moves no HEAD.
+ * Branches name commits too: `checkout` switches HEAD's line to one, and
+ * `merge` starts a merge the next `commit()` concludes with two parents.
  */
 export class FakeGit implements CritiqueGitPort {
-  private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string>; readonly parent?: string }[] = []
+  private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string>; readonly parents: readonly string[] }[] = []
+  /** Each branch's tip, as `checkout`, `setBranch` and `commit()` left it. */
+  private readonly branches = new Map<string, string>()
+  /** The commit a merge in progress merges, as `MERGE_HEAD` names it. */
+  private mergeHead: string | undefined
   /** HEAD's line of history, oldest first; commits made with `commitTree` are not on it. */
   private readonly line: string[] = []
   private index: ReadonlyMap<string, string> = new Map()
@@ -113,6 +121,8 @@ export class FakeGit implements CritiqueGitPort {
   readonly resolved: string[] = []
   /** How many times the index was written as a tree. */
   indexTreeWrites = 0
+  /** How many times a commit's tree was read as index entries. */
+  treeEntryReads = 0
   /** The branch HEAD is on; empty for a detached HEAD, as `git branch --show-current` prints it. */
   branch = 'main'
   /** What reading the remotes does: answer, never return (a git that hangs), or throw this error (a git that crashes). */
@@ -146,13 +156,55 @@ export class FakeGit implements CritiqueGitPort {
 
   /** Records the working tree as a new commit on HEAD's line, stages it as `git commit -a` leaves it, and returns its id. */
   async commit(): Promise<string> {
-    const id = `c${String(this.line.length + 1)}`
+    const id = `c${String(this.history.filter((entry) => entry.id.startsWith('c')).length + 1)}`
     const tree = await this.workingTree()
     const parent = this.line.at(-1)
-    this.history.push({ id, tree, ...(parent === undefined ? {} : { parent }) })
+    const parents = [...(parent === undefined ? [] : [parent]), ...(this.mergeHead === undefined ? [] : [this.mergeHead])]
+    this.history.push({ id, parents, tree })
     this.line.push(id)
     this.index = tree
+    this.mergeHead = undefined
+    if (this.branch !== '') this.branches.set(this.branch, id)
     return id
+  }
+
+  /** Points a branch at a commit without moving HEAD, as a fetch moves a remote-tracking branch. */
+  setBranch(name: string, commit: string): void {
+    this.branches.set(name, commit)
+  }
+
+  /**
+   * Switches HEAD to a branch, as `git checkout` does: the index and the
+   * files on disk become its tip's. With `from`, the branch is made there
+   * first, as `git checkout -b` makes it.
+   */
+  async checkout(name: string, from?: string): Promise<void> {
+    if (this.branch !== '' && this.line.length > 0) this.branches.set(this.branch, this.line.at(-1) ?? '')
+    const tip = from === undefined ? this.branches.get(name) : await this.resolveCommit('', from)
+    if (tip === undefined) throw new Error(`error: pathspec '${name}' did not match any file(s) known to git`)
+    this.branches.set(name, tip)
+    this.branch = name
+    this.line.splice(0, this.line.length, ...this.firstParents(tip).reverse())
+    await this.become(this.treeOfCommit(tip))
+  }
+
+  /** Starts a branch with no commits and no files, as `git checkout --orphan` and clearing the index leave it. */
+  async orphan(name: string): Promise<void> {
+    this.branch = name
+    this.line.splice(0)
+    await this.become(new Map())
+  }
+
+  /**
+   * Starts merging a branch into HEAD, as `git merge --no-ff --no-commit`
+   * does: `MERGE_HEAD` names its tip, and the index and the files on disk
+   * hold the merge, conflicted files with their conflict markers.
+   */
+  async merge(name: string): Promise<void> {
+    const theirs = await this.resolveCommit('', name)
+    const merged = await this.mergeTree('', this.line.at(-1) ?? '', theirs)
+    this.mergeHead = theirs
+    await this.become(this.trees.get(merged.tree) ?? new Map())
   }
 
   /** Copies the files on disk into the index, as `git add -A` does. */
@@ -175,11 +227,60 @@ export class FakeGit implements CritiqueGitPort {
 
   async resolveCommit(_cwd: string, revision: string): Promise<string> {
     this.resolved.push(revision)
+    if (revision === 'MERGE_HEAD') {
+      if (this.mergeHead === undefined) throw new Error("fatal: ambiguous argument 'MERGE_HEAD': unknown revision or path not in the working tree.")
+      return Promise.resolve(this.mergeHead)
+    }
+    const tip = revision === this.branch ? undefined : this.branches.get(revision)
+    if (tip !== undefined) return Promise.resolve(tip)
     const back = /^HEAD(?:~(\d+))?$/.exec(revision === this.branch && revision !== '' ? 'HEAD' : revision)
     const id = back === null ? revision : this.line[this.line.length - 1 - Number(back[1] ?? 0)]
     const commit = this.history.find((entry) => entry.id === id)
     if (commit === undefined) throw new Error(`fatal: ambiguous argument '${revision}': unknown revision or path not in the working tree.`)
     return Promise.resolve(commit.id)
+  }
+
+  /** Every commit reachable from `head` and not from `base`, newest first, with its tree and parents. */
+  async commitsBetween(_cwd: string, base: string, head: string): Promise<readonly GitCommitLink[]> {
+    const ofBase = new Set(this.ancestors(base))
+    return Promise.resolve(
+      this.ancestors(head)
+        .filter((id) => !ofBase.has(id))
+        .map((commit) => ({ commit, parents: this.history.find((entry) => entry.id === commit)?.parents ?? [], tree: treeId(this.treeOfCommit(commit)) })),
+    )
+  }
+
+  /** A commit's tree in the form `stagedEntries` prints the index. */
+  async treeEntries(_cwd: string, revision: string): Promise<string> {
+    this.treeEntryReads += 1
+    return Promise.resolve(entriesOf(this.treeOfCommit(revision)))
+  }
+
+  /**
+   * A three-way merge of two commits on their merge base, file by file: a
+   * file only one side changed takes that side; one both changed alike
+   * keeps it; one both changed differently holds both sides between
+   * conflict markers, as git's default conflict style writes them.
+   */
+  async mergeTree(_cwd: string, ours: string, theirs: string): Promise<GitMergeTree> {
+    const base = this.treeOfCommit(await this.mergeBase('', ours, theirs))
+    const [mine, other] = [this.treeOfCommit(ours), this.treeOfCommit(theirs)]
+    const merged = new Map<string, string>()
+    let conflicts = false
+    for (const path of [...new Set([...base.keys(), ...mine.keys(), ...other.keys()])].sort()) {
+      const [b, o, t] = [base.get(path), mine.get(path), other.get(path)]
+      let text: string | undefined
+      if (o === t || t === b) text = o
+      else if (o === b) text = t
+      else {
+        conflicts = true
+        text = `<<<<<<< ${ours}\n${o ?? ''}=======\n${t ?? ''}>>>>>>> ${theirs}\n`
+      }
+      if (text !== undefined) merged.set(path, text)
+    }
+    const tree = treeId(merged)
+    this.trees.set(tree, merged)
+    return Promise.resolve({ conflicts, tree })
   }
 
   /** The first ancestor of `b`, itself included, that is also an ancestor of `a`. */
@@ -241,10 +342,10 @@ export class FakeGit implements CritiqueGitPort {
   async commitTree(_cwd: string, tree: string, parent: string): Promise<string> {
     const files = this.trees.get(tree)
     if (files === undefined) throw new Error(`fatal: ${tree} is not a valid 'tree' object`)
-    const same = this.history.find((entry) => entry.parent === parent && entry.id.startsWith('s') && treeId(entry.tree) === tree)
+    const same = this.history.find((entry) => entry.parents[0] === parent && entry.id.startsWith('s') && treeId(entry.tree) === tree)
     if (same !== undefined) return Promise.resolve(same.id)
     const id = `s${String(this.history.filter((entry) => entry.id.startsWith('s')).length + 1)}`
-    this.history.push({ id, parent, tree: files })
+    this.history.push({ id, parents: [parent], tree: files })
     return Promise.resolve(id)
   }
 
@@ -264,11 +365,33 @@ export class FakeGit implements CritiqueGitPort {
     return tracked
   }
 
-  /** A commit, then its parent, and so on back to the first commit. */
+  /** A commit, then its parents, theirs, and so on back to the first commit, nearest first. */
   private ancestors(commit: string): readonly string[] {
+    const seen: string[] = []
+    const queue = [commit]
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+      if (seen.includes(id)) continue
+      seen.push(id)
+      queue.push(...(this.history.find((entry) => entry.id === id)?.parents ?? []))
+    }
+    return seen
+  }
+
+  /** A commit, its first parent, and so on back to the first commit. */
+  private firstParents(commit: string): string[] {
     const chain: string[] = []
-    for (let id: string | undefined = commit; id !== undefined; id = this.history.find((entry) => entry.id === id)?.parent) chain.push(id)
+    for (let id: string | undefined = commit; id !== undefined; id = this.history.find((entry) => entry.id === id)?.parents[0]) chain.push(id)
     return chain
+  }
+
+  /** Makes the index and the files on disk outside `.git/` hold `tree`. */
+  private async become(tree: ReadonlyMap<string, string>): Promise<void> {
+    for (const path of (await this.workingTree()).keys()) await rm(join(this.repoRoot, path))
+    for (const [path, text] of tree) {
+      await mkdir(dirname(join(this.repoRoot, path)), { recursive: true })
+      await writeFile(join(this.repoRoot, path), text)
+    }
+    this.index = tree
   }
 
   private headTree(): ReadonlyMap<string, string> {
@@ -276,8 +399,9 @@ export class FakeGit implements CritiqueGitPort {
     return head === undefined ? new Map<string, string>() : this.treeOfCommit(head)
   }
 
+  /** A commit's tree, or a tree a merge or the index was written as. */
   private treeOfCommit(commit: string): ReadonlyMap<string, string> {
-    const tree = this.history.find((entry) => entry.id === commit)?.tree
+    const tree = this.history.find((entry) => entry.id === commit)?.tree ?? this.trees.get(commit)
     if (tree === undefined) throw new Error(`fatal: not a valid object name ${commit}`)
     return tree
   }

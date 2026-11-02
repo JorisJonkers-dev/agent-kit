@@ -223,6 +223,23 @@ export type GatedInvocation =
       readonly head_moves: boolean
     }
   | {
+      /** A `git merge` or `git pull` that may record a merge commit without any `git commit`. */
+      readonly kind: 'merge'
+      readonly cwd: string | null
+      /**
+       * What is merged, as revisions to resolve: the commits `git merge`
+       * names, `@{upstream}` for none, and for a pull the remote-tracking
+       * branch of each branch it fetches. The gate reads these as they are
+       * now; whatever the pull itself, or a fetch earlier in the line,
+       * brings in is not known yet.
+       */
+      readonly revisions: readonly string[]
+      /** Whether git may fast-forward instead, recording no merge commit: one revision and no `--no-ff`. */
+      readonly fast_forward: boolean
+      /** An earlier command of the line may move HEAD, so what the merge brings in is not known yet. */
+      readonly head_moves: boolean
+    }
+  | {
       readonly kind: 'pr-create'
       readonly cwd: string | null
       /** The branch `--head` names; null for the current branch. */
@@ -282,8 +299,11 @@ export function gatedInvocations(line: string, cwd: string, home: string | undef
       dir = changeDirectory(dir, args, home)
     } else if (program === 'git') {
       const git = gitSubcommand(args, dir, home)
-      if (git.subcommand === 'commit' && !git.args.includes('--dry-run')) {
-        found.push({ cwd: git.cwd, kind: 'commit', widened: widest(indexChanged, commitWidening(git.args)) })
+      const merge = git.subcommand === 'merge' || git.subcommand === 'pull' ? mergeOf(git.subcommand, git.args) : 'none'
+      if ((git.subcommand === 'commit' && !git.args.includes('--dry-run')) || merge === 'continue') {
+        found.push({ cwd: git.cwd, kind: 'commit', widened: widest(indexChanged, merge === 'continue' ? 'none' : commitWidening(git.args)) })
+      } else if (merge !== 'none') {
+        found.push({ cwd: git.cwd, head_moves: headMoved, kind: 'merge', ...merge })
       } else if (git.subcommand === 'push' && !git.args.includes('--dry-run') && !git.args.includes('-n')) {
         const targets = pushTargets(git.args)
         if (targets !== 'none') found.push({ cwd: git.cwd, head_moves: headMoved, kind: 'push', targets })
@@ -427,6 +447,77 @@ function pushTargets(args: readonly string[]): readonly PushTarget[] | 'all' | '
     return [{ branch: destination?.replace(/^refs\/heads\//, '') ?? null, source }]
   })
   return targets.length === 0 ? 'none' : targets
+}
+
+/** `git merge` options whose value is the next word, or the rest of a cluster such as `-mmessage`. */
+const MERGE_VALUED_SHORT = new Set(['m', 'F', 's', 'X'])
+const MERGE_VALUED_LONG = new Set(['--message', '--file', '--strategy', '--strategy-option', '--into-name', '--cleanup'])
+/** `git pull` options whose value is the next word. */
+const PULL_VALUED_SHORT = new Set(['s', 'X', 'j', 'o'])
+const PULL_VALUED_LONG = new Set([
+  '--strategy',
+  '--strategy-option',
+  '--depth',
+  '--deepen',
+  '--shallow-since',
+  '--shallow-exclude',
+  '--upload-pack',
+  '--server-option',
+  '--jobs',
+  '--negotiation-tip',
+  '--refmap',
+])
+/** Options after which the command records no merge commit: it fast-forwards only, squashes, stops before committing, or ends a merge without one. */
+const NO_MERGE_COMMIT = new Set(['--ff-only', '--squash', '--no-commit', '--abort', '--quit'])
+
+/**
+ * What a `git merge` or `git pull` merges, when it may record a merge
+ * commit; `continue` for `git merge --continue`, which commits the
+ * merge staged in the index as `git commit` does; `none` when it records
+ * no merge commit (it rebases, fast-forwards only, squashes or stops
+ * before committing).
+ */
+function mergeOf(
+  subcommand: 'merge' | 'pull',
+  args: readonly string[],
+): { readonly revisions: readonly string[]; readonly fast_forward: boolean } | 'continue' | 'none' {
+  const [valuedShort, valuedLong] = subcommand === 'merge' ? [MERGE_VALUED_SHORT, MERGE_VALUED_LONG] : [PULL_VALUED_SHORT, PULL_VALUED_LONG]
+  const positional: string[] = []
+  let commits = true
+  let fastForward = true
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i] ?? ''
+    const name = arg.split('=')[0] ?? arg
+    if (arg === '--') {
+      positional.push(...args.slice(i + 1))
+      break
+    }
+    if (subcommand === 'merge' && arg === '--continue') return 'continue'
+    if (NO_MERGE_COMMIT.has(arg)) commits = false
+    else if (arg === '--commit' || arg === '--no-squash') commits = true
+    else if (arg === '--no-ff') fastForward = false
+    else if (arg === '--ff') fastForward = true
+    else if (subcommand === 'pull' && (arg === '-r' || name === '--rebase')) commits = arg === '--rebase=false'
+    else if (subcommand === 'pull' && arg === '--no-rebase') commits = true
+    else if (arg.startsWith('--')) {
+      if (valuedLong.has(arg)) i += 1
+    } else if (arg.startsWith('-') && arg.length > 1) {
+      // A valued flag last in its cluster takes the next word; earlier, the rest of the cluster is its value.
+      let j = 1
+      while (j < arg.length && !valuedShort.has(arg.charAt(j))) j += 1
+      if (j === arg.length - 1) i += 1
+    } else positional.push(arg)
+  }
+  if (!commits) return 'none'
+  const revisions = subcommand === 'merge' ? positional : pulledBranches(positional)
+  const merged = revisions.length === 0 ? ['@{upstream}'] : revisions
+  return { fast_forward: fastForward && merged.length === 1, revisions: merged }
+}
+
+/** The remote-tracking branch of each branch `git pull <remote> <refspec>...` fetches; none when it names no refspec. */
+function pulledBranches(positional: readonly string[]): readonly string[] {
+  const [remote, ...refspecs] = positional
+  return refspecs.map((refspec) => `${remote ?? ''}/${(refspec.replace(/^\+/, '').split(':')[0] ?? '').replace(/^refs\/heads\//, '')}`)
 }
 
 /** Whether `gh` arguments are `pr create`, after any flag. */
