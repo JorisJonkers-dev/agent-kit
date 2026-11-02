@@ -1,6 +1,7 @@
 import type { CriticRun } from './critic.js'
 import { signalledDepth, type DepthSignal } from './depth.js'
 import type { RunFinding } from './findings.js'
+import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
 import { STAGE_TABLE } from './stage-table.js'
 import {
@@ -125,11 +126,28 @@ export function renderReport(run: AdjudicatedRun): string {
     '## Findings',
     '',
     ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap((f) => findingSection(run, f))),
+    ...refuteSection(run.refutes),
     '## Dissent',
     '',
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/** The refute round, when the run had one: each accepted critical finding's outcome and who refuted it. */
+function refuteSection(refutes: readonly RefuteRecord[] | undefined): readonly string[] {
+  if (refutes === undefined) return []
+  return ['## Refute round', '', ...(refutes.length === 0 ? ['no accepted critical finding'] : refutes.map(refuteLine)), '']
+}
+
+function refuteLine(result: RefuteRecord): string {
+  const refuter = result.refuter
+  const by = refuter === undefined ? '' : ` by ${refuter.critic_id} (${refuter.client}, ${refuter.model}, ${refuter.family})`
+  const reason = result.reason_code === undefined ? '' : ` (${result.reason_code})`
+  const answered = result.outcome === 'stands' && result.answer !== undefined ? `, which answered ${result.answer}` : ''
+  const text = result.reply?.claim ?? result.detail
+  const severity = result.severity === undefined ? '' : ` to ${result.severity}`
+  return `- ${result.finding_id}: ${result.outcome}${severity}${reason}${by}${answered}${text === undefined ? '' : `: ${text}`}`
 }
 
 /** #181 US60: a feature review's summary and report open with the gate line, so a script can read it. */

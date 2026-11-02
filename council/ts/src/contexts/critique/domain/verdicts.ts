@@ -4,6 +4,7 @@ import type { GateRecord } from './feature-review.js'
 import type { ModelFamily } from './family.js'
 import type { RunFinding } from './findings.js'
 import type { PacketFile } from './manifest.js'
+import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
 import { SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage, type Depth, type Round } from './stage.js'
 import { STAGE_TABLE } from './stage-table.js'
@@ -59,6 +60,8 @@ export interface AdjudicatedRun {
   readonly ticket_check?: TicketCheckSummary
   /** A feature review's gate, for the head it reviewed. */
   readonly gate?: GateRecord
+  /** The refute round's results, when the run had one; already applied to `findings`. */
+  readonly refutes?: readonly RefuteRecord[]
 }
 
 export type VerdictCounts = Readonly<Record<VerdictKind, number>>

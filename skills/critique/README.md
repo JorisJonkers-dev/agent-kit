@@ -87,6 +87,39 @@ prompt, of the critic that raised it first. Each ledger finding line carries
 not an id. `tests/test_critique_check_ids.py` fails on a check bullet without
 an id, or an id used twice in one file.
 
+## Refute round
+
+After you rule on the findings and before any fix or question, the runner's
+`refute` command sends each accepted critical finding to one more critic.
+It is the first routed client of the stage, base before deep (each slot's
+client, then its fallbacks), whose family neither raised the finding nor is
+yours, that the allowlist permits and that can run now. It runs with the
+`refuter` role, no lens, on the run's own packet; the finding goes in its
+prompt, never in the packet, so a quote of the finding is no evidence.
+
+The refuter answers in the finding format:
+
+- no objection: an empty `findings` list with `no_findings_reason`;
+- `refute` or `downgrade`: exactly one finding whose `check` names that
+  rule of the refuter role, with the original category and location; a
+  downgrade gives `major` or `minor` in `severity`.
+
+Its evidence is checked like any finding's, with the stage's evidence rule.
+A refutation that holds rejects the finding (`refuted`) when record runs; a
+downgrade that holds lowers its severity and keeps it accepted. Anything
+else leaves your verdict standing (`stands`, with the reason): a quote the
+packet does not hold, nothing the stage counts as evidence, an answer
+outside the three, or a refuter that failed or wrote to its packet. With no
+eligible client the finding is `skipped`, and the skip is noted. The second
+round counts only the criticals still accepted after the round.
+
+Results go to `refute.json` in the run directory, a `## Refute round`
+section of the report, and one `refute` line each in the ledger (the
+finding, its check, the outcome and answer, and the refuter's client, model
+and cost). A refuter's launch is logged like any critic's, so its spend
+counts against the flow's Vibe cap, and agy's against the day's quota. A run
+is refuted once, and only before it is recorded.
+
 ## Depth
 
 Base runs a stage's base critics; deep adds its deep critics. The runner

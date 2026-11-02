@@ -47,6 +47,8 @@ export type CritiqueErrorCode =
   | 'outside-repository'
   /** A run whose verdicts are already recorded. */
   | 'already-recorded'
+  /** A run that already had its refute round. */
+  | 'already-refuted'
   /** A line of the user's ledger that record could not have written. */
   | 'invalid-ledger'
   /** This machine's setup results file. */
