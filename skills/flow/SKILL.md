@@ -205,9 +205,13 @@ Take the items in the runner's order, skipping the `current` ones. For each:
 1. **Say why.** Give its `title`, then its `why` as it stands, in one
    sentence.
 2. **Check.** Run `check` with the item's `id`.
-   - `not-available`: give the item's `detail`. The read-only proofs all
-     answer this way until agent-kit#178 lands, so give them together in one
-     line once the first one answers it.
+   - `not-available`: give the item's `detail`. The Antigravity read-only
+     proof answers this way until agent-kit#178 lands.
+   - A Vibe client's read-only proof first checks, for free, that the
+     runner's search server cannot reach past the packet. Then it asks for
+     confirmation, like any `vibe` item, and runs one trivial prompt. That
+     prompt shows `run_typescript` refusing shell commands, file writes and
+     process starts while a search still completes.
    - `needs-confirmation`: the item costs money or quota. Its `cost` says
      which: `vibe` is one trivial prompt on the personal Mistral account
      (capped at $0.05), `agy` is one of today's Antigravity invocations. The

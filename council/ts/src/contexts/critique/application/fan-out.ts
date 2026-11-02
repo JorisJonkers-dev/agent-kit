@@ -8,11 +8,13 @@ import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/f
 import { JsonFields } from '../domain/json.js'
 import { listedFiles, parseManifest, type RunManifest } from '../domain/manifest.js'
 import { mergeFindings } from '../domain/merge.js'
+import { READ_ONLY_TOOLSET, type CriticToolset } from '../domain/critic-tools.js'
 import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { FlowBudget } from './budget.js'
 import { FINDING_SCHEMA, promptFields, readFrozenPacket, runCritic } from './critic-run.js'
+import { CriticTools } from './critic-tools.js'
 import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
@@ -77,8 +79,9 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const packet = indexPacket(await readFrozenPacket(this.deps, manifest), manifest.ticket_check?.ticket_ids)
     const budget = new FlowBudget(this.deps)
     const spent = await budget.vibeSpend(manifest)
-    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)))
-    const outcomes = [...first, ...(await this.retries({ budget, manifest, tripwire }, first))]
+    const tools = new CriticTools(this.deps, manifest.limits.search, join(runDir, 'search-proof'))
+    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tools, tripwire }, critic)))
+    const outcomes = [...first, ...(await this.retries({ budget, manifest, tools, tripwire }, first))]
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
     const checks: CriticChecks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]))
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet, checks))
@@ -119,9 +122,11 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   private async attempt(wave: Wave, critic: RosterCritic, retryOf?: string): Promise<CriticAttempt> {
     const skip = critic.client_config.kind === 'vibe' ? budgetReached(wave.spent, wave.manifest.limits) : undefined
     const criticDir = join(wave.manifest.run_dir, 'critics', critic.critic_id)
-    const { checks, prompt } = await this.writePrompt(wave.manifest, critic, criticDir)
+    const { checks, prompt: promptFor } = await this.promptFor(wave.manifest, critic)
     const retry = retryOf === undefined ? {} : { retry_of: retryOf }
     if (skip !== undefined) {
+      const prompt = promptFor(READ_ONLY_TOOLSET)
+      await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
       const run: CriticRun = {
         ...criticIdentity(critic),
         ...promptFields(prompt, criticDir),
@@ -136,34 +141,30 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
       }
       return { checks, findings: [], run }
     }
-    const attempt = await runCritic(this.deps, { critic, criticDir, prompt, retry, tripwire: wave.tripwire })
+    const attempt = await runCritic(this.deps, { critic, criticDir, prompt: promptFor, retry, tools: wave.tools, tripwire: wave.tripwire })
     await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind)
     return { ...attempt, checks }
   }
 
-  /** Writes the critic's prompt, and returns it with the checks its role and lenses declare. */
-  private async writePrompt(
+  /** The critic's prompt for the tools it gets, and the checks its role and lenses declare. */
+  private async promptFor(
     manifest: RunManifest,
     critic: RosterCritic,
-    criticDir: string,
-  ): Promise<{ readonly prompt: CriticPrompt; readonly checks: readonly DeclaredCheck[] }> {
+  ): Promise<{ readonly prompt: (toolset: CriticToolset) => CriticPrompt; readonly checks: readonly DeclaredCheck[] }> {
     const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
     const role = await asset(`roles/${critic.role}.md`)
     const lenses = await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) })))
-    const prompt = assemblePrompt(
-      {
-        contract: await asset('prompts/output-contract.md'),
-        lenses,
-        preamble: await asset('prompts/preamble.md'),
-        role,
-        schema: await asset(FINDING_SCHEMA),
-      },
-      listedFiles(manifest),
-      manifest.stage,
-      manifest.code?.slices,
-    )
-    await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
-    return { checks: declaredChecks([role, ...lenses.map((lens) => lens.text)]), prompt }
+    const sources = {
+      contract: await asset('prompts/output-contract.md'),
+      lenses,
+      preamble: await asset('prompts/preamble.md'),
+      role,
+      schema: await asset(FINDING_SCHEMA),
+    }
+    return {
+      checks: declaredChecks([role, ...lenses.map((lens) => lens.text)]),
+      prompt: (toolset) => assemblePrompt(sources, listedFiles(manifest), manifest.stage, manifest.code?.slices, toolset),
+    }
   }
 }
 
@@ -173,6 +174,7 @@ interface Wave {
   readonly tripwire: ReadOnlyTripwire
   readonly budget: FlowBudget
   readonly spent: number
+  readonly tools: CriticTools
 }
 
 interface CriticAttempt {

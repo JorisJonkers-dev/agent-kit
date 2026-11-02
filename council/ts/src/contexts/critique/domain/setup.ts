@@ -111,9 +111,17 @@ export interface SetupItem {
   readonly last?: SetupCheckResult
 }
 
-/** The read-only proof per client is #178's live smoke check, which does not exist yet. */
+/**
+ * agy's read-only proof is #178's live smoke check, which does not exist
+ * yet. A Vibe client's is proven now: its search reach, which needs no
+ * model, and one live prompt that shows `run_typescript` refusing all but
+ * the search tools (ADR-0006, amended).
+ */
 export const READ_ONLY_PENDING =
   'not available until agent-kit#178 lands: the read-only proof reuses its live smoke check'
+
+/** What a passed Vibe read-only proof leaves to #178. */
+export const WRITE_PROOF_PENDING = "agent-kit#178's live smoke check adds the rest of the read-only proof"
 
 /**
  * The machine checklist, in the order setup walks it: Vibe's sign-in and each
@@ -212,15 +220,21 @@ function criticCheck(client: string, config: CriticClient): ClientCheck {
 }
 
 function readOnlyCheck(client: string, config: CriticClient): ClientCheck {
+  const vibe = config.kind === 'vibe'
   return {
     client,
     client_config: config,
+    // A Vibe client's proof is one trivial prompt, after a search-reach check that calls no model.
     cost: config.kind,
-    fix: 'Wait for agent-kit#178.',
+    fix: vibe
+      ? 'Re-run agent-kit setup so the critique runner is current, then check again; until it passes, this client reads its packet without searching.'
+      : 'Wait for agent-kit#178.',
     id: `read-only:${client}`,
     kind: 'read-only',
     title: `${client} is proven read-only`,
-    why: 'A critic may only read its packet; this proves the client refuses to change files on this machine.',
+    why: vibe
+      ? 'A critic may only read and search its packet; this proves the search server cannot reach past the packet, and that run_typescript, the only way into the search tools, refuses shell commands, file writes and process starts.'
+      : "A critic may only read and search its packet; this proves the client refuses to change files and its search tools cannot reach past the packet on this machine.",
   }
 }
 
@@ -234,7 +248,7 @@ export function setupItem(
   last: SetupCheckResult | undefined,
 ): SetupItem {
   const shown = shownCheck(check)
-  if (check.kind === 'read-only')
+  if (check.kind === 'read-only' && check.client_config.kind === 'agy')
     return { ...shown, detail: READ_ONLY_PENDING, status: 'not-available' }
   const base = { ...shown, inputs, ...(last === undefined ? {} : { last }) }
   if (last === undefined) return { ...base, due_because: 'never-checked', status: 'due' }

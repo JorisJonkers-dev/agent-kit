@@ -1,4 +1,5 @@
 import { JsonFields } from './json.js'
+import { DEFAULT_SEARCH_LIMITS, readSearchLimits, type SearchLimits } from './packet-search.js'
 import { CRITIQUE_STAGES, type CritiqueStage, type Round } from './stage.js'
 
 /**
@@ -20,12 +21,15 @@ export interface CritiqueLimits {
   /** The most the Vibe critics of one flow may spend, across all its runs. */
   readonly budget: { readonly vibe_flow_cap_usd: number }
   readonly antigravity_quota: AntigravityQuota
+  /** How much one answer of the runner's search server may hold (ADR-0006). */
+  readonly search: SearchLimits
 }
 
 /** #167's limits, for a routing file that does not state its own. */
 export const DEFAULT_LIMITS: CritiqueLimits = {
   antigravity_quota: { daily_cap: 20, reserve_threshold: 10, reserved_stages: ['spec', 'feature-review'] },
   budget: { vibe_flow_cap_usd: 5 },
+  search: DEFAULT_SEARCH_LIMITS,
 }
 
 /** Reads the limits from routing or a run manifest; a missing key keeps #167's value. */
@@ -41,6 +45,7 @@ export function readLimits(file: JsonFields): CritiqueLimits {
             reserved_stages: quota.oneOfList('reserved_stages', CRITIQUE_STAGES),
           },
     budget: file.has('budget') ? { vibe_flow_cap_usd: file.object('budget').number('vibe_flow_cap_usd') } : DEFAULT_LIMITS.budget,
+    search: file.has('search') ? readSearchLimits(file.object('search')) : DEFAULT_LIMITS.search,
   }
 }
 

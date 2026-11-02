@@ -6,12 +6,20 @@ display_name = "Critic Glm"
 description = "Read-only critic pinned to zai-glm-5-3"
 safety = "safe"
 active_model = "critic-glm"
-enabled_tools = ["read_file"]
+enabled_tools = ["read_file", "packet_grep", "packet_list", "packet_symbol"]
 enabled_skills = ["re:^$"]
 outside_workdir = "deny"
-enable_mcp = false
 enable_subagents = false
 include_project_context = false
+
+[tools.packet_grep]
+permission = "always"
+
+[tools.packet_list]
+permission = "always"
+
+[tools.packet_symbol]
+permission = "always"
 
 [session_logging]
 enabled = false

@@ -49,6 +49,10 @@ VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
 ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
 # One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry.
 VIBE_CRITIC_AGENTS_DIR = Path("registry/generated/vibe/agents")
+# The runner's search server goes by `packet` in a critic's launch, so Vibe
+# names its tools `packet_<tool>` (ADR-0006). They exist only while it runs.
+CRITIC_SEARCH_TOOLS = ("packet_grep", "packet_list", "packet_symbol")
+CRITIC_TOOLS = ("read_file", *CRITIC_SEARCH_TOOLS)
 VIBE_CRITIC_AGENT_KEYS = {"name", "model", "input_price", "output_price", "thinking", "surfaces", "note"}
 # Mistral bills cached prompt tokens at this share of the input price
 # (docs.mistral.ai/studio/conversations/advanced/prompt-caching). Every critic
@@ -555,10 +559,15 @@ def render_vibe_critic_agent(agent: dict[str, Any]) -> str:
     """One read-only critic agent file, a Vibe config overlay for ``vibe --agent <name>``.
 
     Every setting but the model and its prices is fixed here, so no entry can
-    widen a critic. Its tool list (``read_file`` alone) is what keeps both
-    writes and skills from it; ``include_project_context = false`` keeps the
-    home's ``AGENTS.md`` out of its prompt. It sets no ``default_agent``, so it
-    never becomes the agent a plain ``vibe`` starts with.
+    widen a critic. Its tool list (``read_file`` and the runner's search
+    server's three tools, ADR-0006) is what keeps both writes and skills from
+    it; ``include_project_context = false`` keeps the home's ``AGENTS.md`` out
+    of its prompt. It leaves MCP to the runner's launch, which switches it off
+    for a critic that reads alone and on, with the runner's search server as
+    its one live server, for a critic that searches. The search tools are
+    approved without asking, since headless Vibe refuses every call that asks.
+    It sets no ``default_agent``, so it never becomes the agent a plain
+    ``vibe`` starts with.
     """
     name = str(agent["name"])
     model = str(agent["model"])
@@ -571,13 +580,13 @@ def render_vibe_critic_agent(agent: dict[str, Any]) -> str:
         f"description = {_toml_str(f'Read-only critic pinned to {model}')}",
         'safety = "safe"',
         f"active_model = {_toml_str(name)}",
-        'enabled_tools = ["read_file"]',
+        "enabled_tools = [" + ", ".join(_toml_str(tool) for tool in CRITIC_TOOLS) + "]",
         'enabled_skills = ["re:^$"]',
         'outside_workdir = "deny"',
-        "enable_mcp = false",
         "enable_subagents = false",
         "include_project_context = false",
         "",
+        *[line for tool in CRITIC_SEARCH_TOOLS for line in (f"[tools.{tool}]", 'permission = "always"', "")],
         "[session_logging]",
         "enabled = false",
         "",

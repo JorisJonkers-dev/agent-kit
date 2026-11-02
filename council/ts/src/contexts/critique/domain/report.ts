@@ -119,6 +119,8 @@ export function renderReport(run: AdjudicatedRun): string {
       `- Role ${critic.role}, lenses ${critic.lenses.join(', ')}`,
       `- Exit code ${String(critic.exit_code)}, ${String(critic.duration_ms)} ms`,
       ...(critic.detail === undefined ? [] : [`- Detail: ${critic.detail}`]),
+      ...(critic.tools === undefined ? [] : [`- Tools: ${critic.tools.join(', ')}`]),
+      ...(critic.search_failure === undefined ? [] : [`- Search failure: ${critic.search_failure}`]),
       `- Prompt hashes: ${hashList({ ...critic.prompt_hashes })}`,
       `- Lens hashes: ${hashList(critic.lens_hashes)}`,
       '',

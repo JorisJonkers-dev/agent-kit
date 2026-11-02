@@ -17,6 +17,7 @@ import {
   type SetupItem,
   type SetupOutcome,
   type SetupResults,
+  WRITE_PROOF_PENDING,
 } from '../domain/setup.js'
 import { InstalledHooks, KillSwitch } from './agent-hooks.js'
 import { FlowBudget } from './budget.js'
@@ -29,7 +30,10 @@ import {
   reviewWith,
   type CritiqueCommand,
   type CritiqueDeps,
+  type SearchClientPort,
 } from './ports.js'
+import { GATEWAY_PROOF, gatewayProblems } from '../domain/critic-tools.js'
+import { proveSearchReach } from './critic-tools.js'
 import { RepositoryGate } from './repository.js'
 import { RoutingSource } from './routing.js'
 
@@ -105,6 +109,23 @@ const PROBE_TIME_LIMIT_S = 120
 const PROBE_NOTE = "This note is agent-kit's setup check. It has nothing in it to review.\n"
 
 const PROBE_PROMPT = `This is agent-kit's setup check, not a review. Your working directory holds one file, note.md, which has nothing in it to review. Reply with exactly this findings object in a json code block:
+
+\`\`\`json
+{"findings": [], "no_findings_reason": "setup check: nothing to review"}
+\`\`\`
+`
+
+/**
+ * The live read-only proof's prompt: one `run_typescript` call that tries
+ * what a critic must never do, and one search, then the empty findings.
+ */
+const GATEWAY_PROMPT = `This is agent-kit's setup check, not a review. Make exactly one tool call: run_typescript with this code, unchanged. Some of its calls are meant to be refused.
+
+\`\`\`typescript
+${GATEWAY_PROOF.code}
+\`\`\`
+
+Then reply with exactly this findings object in a json code block:
 
 \`\`\`json
 {"findings": [], "no_findings_reason": "setup check: nothing to review"}
@@ -217,7 +238,11 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
 
   /** What the check's result depends on, read without launching a model. */
   private async inputs(check: SetupCheck, routing: Routing): Promise<SetupInputs> {
-    if (check.kind === 'read-only') return {}
+    if (check.kind === 'read-only') {
+      const config = check.client_config
+      if (config.kind !== 'vibe') return {}
+      return { agent_hash: await this.agentHash(config.agent), cli_version: await clientVersion(this.deps.clients, config), files_hash: await this.runnerHash() }
+    }
     if (isMachineCheck(check)) return { files_hash: await (check.kind === 'hooks' ? this.hooks : this.killSwitch).filesHash() }
     if (check.kind === 'agy-quota') {
       const override = await this.override()
@@ -246,6 +271,16 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     if (isMachineCheck(check)) return (check.kind === 'hooks' ? this.hooks : this.killSwitch).check()
     if (check.kind === 'agy-quota') return this.quotaCheck(routing)
     const config = check.client_config
+    if (check.kind === 'read-only') {
+      const reach = await this.searchReach(check.client ?? '', routing)
+      // Without a search server the reach proof has already failed.
+      const search = this.deps.search
+      if (reach.result === 'fail' || search === undefined) return reach
+      const blocked = config.kind === 'vibe' ? await this.deps.clients.vibe.searchBlocked(config) : undefined
+      if (blocked !== undefined) return { detail: blocked, result: 'fail' }
+      if (!confirmed) return 'needs-confirmation'
+      return this.gatewayProof(check.client ?? '', config, routing, search)
+    }
     if (check.kind !== 'critic') {
       const signIn = await clientSignIn(this.deps.clients, config)
       return signIn.ready
@@ -256,6 +291,84 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     if (!readiness.ready) return { detail: readiness.detail, result: 'fail' }
     if (!confirmed) return 'needs-confirmation'
     return this.probe(check.client ?? '', config)
+  }
+
+  /**
+   * The part of a Vibe client's read-only proof that needs no model: the
+   * runner's search server, started as a critic's client starts it, finds
+   * nothing past a packet with every way out a critic could try.
+   */
+  private async searchReach(client: string, routing: Routing): Promise<{ readonly result: SetupOutcome; readonly detail: string }> {
+    const problem = await proveSearchReach(this.deps, join(setupProbeDir(this.deps.env, client), 'search-proof'), routing.limits.search)
+    return problem === undefined
+      ? { detail: 'search cannot reach past the packet', result: 'pass' }
+      : { detail: `search is not proven to stay inside the packet: ${problem}`, result: 'fail' }
+  }
+
+  /**
+   * The live part of a Vibe client's read-only proof (ADR-0006, amended): a
+   * critic launched exactly as a searching critic is, in a packet of one
+   * note, calls a shell command, a file write and a process start through
+   * `run_typescript`, then one search. Each of the three must come back
+   * `tool_denied`, the search must complete, and the packet must be as it was.
+   */
+  private async gatewayProof(
+    client: string,
+    config: CriticClient,
+    routing: Routing,
+    search: SearchClientPort,
+  ): Promise<{ readonly result: SetupOutcome; readonly detail: string }> {
+    const dir = join(setupProbeDir(this.deps.env, client), 'read-only')
+    const packetDir = join(dir, 'packet')
+    const criticDir = join(dir, 'critic')
+    const promptPath = join(dir, 'prompt.md')
+    for (const path of await this.deps.files.listTree(packetDir)) await this.deps.files.remove(join(packetDir, path))
+    await this.deps.files.writeText(join(packetDir, 'note.md'), PROBE_NOTE)
+    await this.deps.files.writeText(promptPath, GATEWAY_PROMPT)
+    // A previous check's output must never be read as this one's.
+    await this.deps.files.remove(join(criticDir, 'export', 'export.json'))
+    const limits = routing.limits.search
+    const session = await search.session(packetDir, limits, [])
+    if (session.status === 'failed') return { detail: `search is not proven to stay inside the packet: ${session.detail}`, result: 'fail' }
+    const critic: RosterCritic = {
+      client,
+      client_config: config,
+      critic_id: `setup-${client}`,
+      fallbacks: [],
+      lenses: [],
+      max_price_usd: PROBE_PRICE_USD,
+      role: 'setup-check',
+      time_limit_s: PROBE_TIME_LIMIT_S,
+    }
+    const report = await reviewWith(this.deps.clients, {
+      critic,
+      criticDir,
+      packetDir,
+      promptPath,
+      schemaPath: join(this.deps.assetsRoot, 'schemas', 'finding.schema.json'),
+      toolset: { kind: 'vibe-search', limits, search: session.tools, server: search.server(packetDir, limits) },
+    }).finally(() => search.stop(packetDir))
+    await this.logInvocation(client, config, report.outcome.status, report.chargedUsd)
+    const charged = ` (charged $${report.chargedUsd.toFixed(4)})`
+    if (report.outcome.status === 'failed') return { detail: `${report.outcome.failure}: ${report.outcome.detail}${charged}`, result: 'fail' }
+    const after = await this.deps.files.listTree(packetDir)
+    const untouched = after.length === 1 && after[0] === 'note.md' && (await this.deps.files.readText(join(packetDir, 'note.md'))) === PROBE_NOTE
+    const problems = [...gatewayProblems(report.toolCalls ?? []), ...(untouched ? [] : ['the critic changed its packet'])]
+    return problems.length === 0
+      ? {
+          detail: `search cannot reach past the packet, and through run_typescript ${GATEWAY_PROOF.refused.join(', ')} came back tool_denied while ${GATEWAY_PROOF.searched} completed${charged}; ${WRITE_PROOF_PENDING}`,
+          result: 'pass',
+        }
+      : { detail: `run_typescript is not proven to reach only the search tools: ${problems.join('; ')}${charged}`, result: 'fail' }
+  }
+
+  /** The bundled runner, which is the search server: a new one must be proven again. */
+  private async runnerHash(): Promise<string> {
+    const path = join(this.deps.assetsRoot, 'critique.mjs')
+    if (!(await this.deps.files.exists(path))) return 'none'
+    return createHash('sha256')
+      .update(await this.deps.files.readBytes(path))
+      .digest('hex')
   }
 
   /** Antigravity reports no quota, so the check passes once the owner has stored the plan's limit in the override. */

@@ -3234,3 +3234,114 @@ cap and Vibe's own `--max-price` stop all used the inflated figure.
   any run was stopped. A non-finite token count in the export (a corrupt
   `1e999`) is no count, so the runner falls back to Vibe's figure and the
   cap rules.
+
+## What #255 settled
+
+ADR-0006 lets critics search their own packet. These facts were checked on
+Vibe 3.0.4 with a scripted stand-in for the model: a local endpoint that
+answers in OpenAI's format, in a throwaway `VIBE_HOME`, so no Mistral call
+was made and the personal home was not read.
+
+- **MCP tools are reached through `run_typescript`.** In Vibe 3.0.4 the model
+  is always offered the same eight top-level tools (`search_tool_functions`,
+  `run_typescript`, `wait`, `read_file`, `write_file`, `edit`, `bash`,
+  `skill`), whatever `enabled_tools` says. An MCP server's tools are
+  functions inside `run_typescript`, named `tools.mcp_<server>.<tool>`. A
+  call to a top-level `packet_grep` fails with `unsupported top-level tool`.
+  `run_typescript` runs in a sandbox with no Node, file system or network.
+  It reaches only tool functions, and Vibe checks each call against
+  `enabled_tools` and the tool's permission. With `write_file`,
+  `process.start` and `bash` left out of `enabled_tools`, each call was
+  refused with `tool_denied` (`approvalSource: never`). So a critic that
+  searches has `run_typescript`, but the only functions it can call are
+  `read_file` and the search server's.
+- **The tools need `permission = "always"`.** An MCP tool asks for approval
+  by default, and headless Vibe refuses every call that asks (`decision:
+  skip`). The critic agent file approves `[tools.packet_grep]`,
+  `[tools.packet_list]` and `[tools.packet_symbol]`. The key is
+  `<server>_<tool>`; a `[tools."mcp_packet.list"]` table did nothing.
+- **The agent file's `enabled_tools` wins over `--enabled-tools`.** The
+  export showed the agent file's four names when the flag passed three. The
+  search tools a critic has are therefore the ones the server lists:
+  `symbol` exists only when the packet holds `tree/REPO-MAP.md`.
+- **MCP servers join across layers by name.** `VIBE_MCP_SERVERS` (JSON)
+  adds servers to the home's `config.toml` list, and an agent file's
+  `mcp_servers` adds more, even an empty list. A server given in
+  `VIBE_MCP_SERVERS` with the same name as a home server replaces it. A
+  home server is started to list its tools whenever Vibe has no cached
+  descriptor for it, even when none of its tools is enabled. So the runner
+  reads the server names in `~/.vibe/config.toml` and, for a critic that
+  searches, replaces each with `disabled = true` and the command `false`.
+  The export then lists them switched off, and none started. The runner
+  checks the export: a live server other than its own, or its own server
+  with another command or working directory, fails the critic as
+  `unsafe-config`.
+- **The agent file leaves `enable_mcp` to the launch.** The agent file sits
+  above the environment, so it no longer sets `enable_mcp = false`. A
+  critic that reads alone runs with `VIBE_ENABLE_MCP=false`, as before. One
+  that searches runs with `VIBE_ENABLE_MCP=true` and
+  `VIBE_ENABLE_CONNECTORS=false`. The export showed `enable_connectors:
+  false`.
+- **A dead server shows in the journal.** The stand-in server exited during
+  a call. That call and every later search call came back as `effect`
+  entries with `state.status: failed` and `error.code:
+  mcp_transport_failed`, and the critic carried on. The runner counts those
+  entries and records them as the critic's `search_failure`. The report
+  prints it.
+- **Lifetime.** Vibe starts the server lazily, on the first search call once
+  its descriptors are cached. Each critic's server has its own descriptor
+  cache entry under `~/.vibe/logs/mcp-descriptors/`, since its root differs.
+  The server exits when its stdin closes, so it ends with Vibe. Once the
+  critic ends, however it ended, the runner also runs `pkill -f` on
+  `search-server --root <packet copy>`, so no server outlives its critic.
+- **Strict config.** The generated agent file loaded under
+  `VIBE_STRICT_CONFIG=1`.
+
+How the runner chooses a critic's tools:
+
+- **agy critics read alone for now.** agy's search tools are its own, so
+  only agy's read-only proof can show they stay inside the packet, and that
+  proof is #178's live check. Until setup records `read-only:<agy client>`
+  as passing, an agy critic is told only about `view_file`. Its session
+  settings also deny `list_dir(*)`, `grep_search(*)` and `find_by_name(*)`,
+  and the run records `search_failure: agy-search-unproven: ...`. Once
+  agy's proof passes, it searches with all four tools again. This part of
+  #255's setup criterion stays open until #178.
+  - The deny rules for these three tools follow the `read_file(*)` rule
+    shown above. They have not been run live yet.
+- **Vibe critics, before anything else.** The runner reads the critic's
+  installed agent file before launch. The agent file sits above the launch's
+  environment, so an older one with `enable_mcp = false` would switch the
+  search server off. A file that is missing, or that does not enable and
+  approve `packet_grep`, `packet_list` and `packet_symbol`, would have every
+  search refused. In either case the critic reads with `read_file` alone and
+  the run records `search_failure: agent-file-disables-mcp: ...`,
+  `agent-file-lacks-search-tools: ...` or `agent-file-missing: ...`. The
+  same holds for an agent file that declares `mcp_servers` of its own
+  (`agent-file-declares-servers`), since Vibe would run them beside the
+  search server. It also holds for an agent file or home `config.toml`
+  the runner cannot read (`agent-file-unreadable`,
+  `home-config-unreadable`). Both files are read with a small TOML reader
+  bundled in the runner, so either quote style and multi-line arrays
+  count. This is
+  decided before the launch, never as a void after the critic has spent: a
+  `/review-ticket` run on #255 lost three critics, about $3.90, to that
+  until setup was re-run. The fix is to re-run agent-kit setup. Setup's
+  read-only item fails with the same reason before it asks to spend.
+- **Vibe critics.** Once per fan-out or refute round, the runner proves its
+  search server's reach under `<run>/search-proof/`. That is a packet with
+  one file, a file outside it, and symlinks to both. It then asks the
+  server through `..`, an absolute path, each symlink and a climbing glob.
+  It also starts the server on each critic's copy. If either step fails,
+  that critic reads with `read_file` alone, its prompt says it cannot
+  search, and the run records why.
+- **Setup's `read-only:<vibe client>` item** first runs the same proof for
+  free. Then, once the owner confirms the spend, it runs one prompt, capped
+  at $0.05. That prompt launches a critic exactly as a searching critic is
+  launched. Through `run_typescript` the critic calls `bash`, `write_file`,
+  `process.start` and one search (ADR-0006, amended).
+  - It passes when the journal shows the three calls as `tool_denied`, the
+    search as `completed`, and the packet unchanged.
+  - Its result depends on the bundled runner's hash, the Vibe version and
+    the critic agent file.
+  - agy's item is still `not-available` until #178.

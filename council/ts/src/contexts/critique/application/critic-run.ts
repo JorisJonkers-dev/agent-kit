@@ -5,7 +5,9 @@ import type { PacketText } from '../domain/evidence.js'
 import type { CriticFinding } from '../domain/findings.js'
 import type { RunManifest } from '../domain/manifest.js'
 import type { CriticPrompt } from '../domain/prompt.js'
+import { toolNames, type CriticToolset } from '../domain/critic-tools.js'
 import type { RosterCritic } from '../domain/routing.js'
+import type { CriticTools } from './critic-tools.js'
 import { reviewWith, type CritiqueDeps } from './ports.js'
 import type { ReadOnlyTripwire } from './tripwire.js'
 
@@ -36,25 +38,33 @@ export function promptFields(prompt: CriticPrompt, criticDir: string): Pick<Crit
 
 /**
  * Runs one critic in its own copy of the packet, under the tripwire, through
- * the client of its kind, and keeps its raw output in `criticDir`. The prompt
- * must already be written at its prompt path.
+ * the client of its kind, and keeps its raw output in `criticDir`. Its tools
+ * are chosen once its copy exists, and its prompt, built for those tools,
+ * is written before it starts. A search server started for it is stopped
+ * once it ends, however it ended.
  */
 export async function runCritic(
-  deps: Pick<CritiqueDeps, 'assetsRoot' | 'clients' | 'clock' | 'files'>,
+  deps: Pick<CritiqueDeps, 'assetsRoot' | 'clients' | 'clock' | 'files' | 'search'>,
   launch: {
     readonly tripwire: ReadOnlyTripwire
     readonly critic: RosterCritic
     readonly criticDir: string
-    readonly prompt: CriticPrompt
+    /** The critic's prompt, for the tools it has. */
+    readonly prompt: (toolset: CriticToolset) => CriticPrompt
+    readonly tools: CriticTools
     readonly retry?: Pick<CriticRun, 'retry_of'>
   },
 ): Promise<CriticLaunchResult> {
-  const { critic, criticDir, prompt, tripwire } = launch
-  const { prompt_path: promptPath } = promptFields(prompt, criticDir)
+  const { critic, criticDir, tripwire } = launch
   const stdoutPath = join(criticDir, 'stdout.json')
 
   const packetDir = join(criticDir, 'packet')
   const armed = await tripwire.arm(packetDir)
+  const choice = await launch.tools.choose(critic, packetDir)
+  const { toolset } = choice
+  const prompt = launch.prompt(toolset)
+  const { prompt_path: promptPath } = promptFields(prompt, criticDir)
+  await deps.files.writeText(promptPath, prompt.text)
   const started = deps.clock.monotonicMs()
   const report = await reviewWith(deps.clients, {
     criticDir,
@@ -62,8 +72,12 @@ export async function runCritic(
     packetDir,
     promptPath,
     schemaPath: join(deps.assetsRoot, FINDING_SCHEMA),
+    toolset,
+  }).finally(async () => {
+    if (toolset.kind === 'vibe-search') await deps.search?.stop(packetDir)
   })
   const durationMs = deps.clock.monotonicMs() - started
+  const searchFailure = choice.searchFailure ?? report.searchFailure
   const violations = await armed.check()
   await deps.files.writeText(stdoutPath, report.stdout)
   await deps.files.writeText(join(criticDir, 'stderr.txt'), report.stderr)
@@ -82,6 +96,8 @@ export async function runCritic(
     finding_count: findings.length,
     stdout_path: stdoutPath,
     ...(report.vibeCostUsd === undefined ? {} : { vibe_cost_usd: report.vibeCostUsd }),
+    tools: toolNames(toolset),
+    ...(searchFailure === undefined ? {} : { search_failure: searchFailure }),
     ...criticStatus(outcome, violations),
   }
   return { findings, run }

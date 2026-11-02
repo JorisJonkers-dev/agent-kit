@@ -1,5 +1,7 @@
 import type { ClockPort, EnvPort, GhPort, GitIndexPort, GitPort, GitRevisionPort } from '../../../ports/index.js'
 import type { CriticFailure, CriticOutcome } from '../domain/critic.js'
+import type { CriticToolset, SearchServerLaunch, ToolCall } from '../domain/critic-tools.js'
+import type { SearchCall, SearchLimits, SearchToolName } from '../domain/packet-search.js'
 import type { AgyCriticClient, ClientReadiness, CriticClient, RosterCritic, VibeCriticClient } from '../domain/routing.js'
 
 /**
@@ -28,6 +30,8 @@ export interface CritiqueFilesPort {
   /** The names of the directories directly inside a directory, sorted; empty when it does not exist. */
   listDirectories(path: string): Promise<readonly string[]>
   remove(path: string): Promise<void>
+  /** Creates a symlink at `path` pointing to `target`, creating parent directories; any file already there is replaced. */
+  symlink(target: string, path: string): Promise<void>
 }
 
 /** Where one critic of a run works. */
@@ -41,6 +45,8 @@ export interface CriticLaunch {
   readonly criticDir: string
   /** The finding schema, for a client that can enforce it. */
   readonly schemaPath: string
+  /** The tools the critic has, which its prompt names; a Vibe critic without it reads alone. */
+  readonly toolset?: CriticToolset
 }
 
 /** A critic's run as its client saw it: the raw output, and what that output amounts to. */
@@ -63,6 +69,10 @@ export interface CriticReport {
    * the tokens; null when it reported nothing. Absent for any other client.
    */
   readonly vibeCostUsd?: number | null
+  /** Why the critic's searches failed during the run, such as a search server that died: the report names it. */
+  readonly searchFailure?: string
+  /** Every tool call the critic made, in order, when its client's journal records them. */
+  readonly toolCalls?: readonly ToolCall[]
 }
 
 /** One critic client: launches a critic in its packet and reads its review. */
@@ -117,10 +127,20 @@ export interface QuestionClientPort<Config extends CriticClient> {
   ask(question: ModelQuestion, config: Config): Promise<ModelAnswerReport>
 }
 
-/** The client each kind of critic runs through. Vibe also answers triage's question. */
+/** A client whose critics can search through the runner's search server. */
+export interface SearchingClientPort<Config extends CriticClient> {
+  /**
+   * Why a critic of this config cannot search, read before it is launched
+   * and without launching a model: undefined when nothing on this machine
+   * stops it.
+   */
+  searchBlocked(config: Config): Promise<string | undefined>
+}
+
+/** The client each kind of critic runs through. Vibe also answers triage's question, and its critics search through the runner's server. */
 export interface CriticClients {
   readonly agy: CriticClientPort<AgyCriticClient>
-  readonly vibe: CriticClientPort<VibeCriticClient> & QuestionClientPort<VibeCriticClient>
+  readonly vibe: CriticClientPort<VibeCriticClient> & QuestionClientPort<VibeCriticClient> & SearchingClientPort<VibeCriticClient>
 }
 
 /** Asks the client of `config`'s kind whether it can run. */
@@ -149,6 +169,29 @@ export interface CritiqueCommand<Result> {
   run(input: unknown): Promise<Result>
 }
 
+/** How the runner starts itself as a search server: the command and the arguments before `search-server`. */
+export interface SearchServerCommand {
+  readonly command: string
+  readonly args: readonly string[]
+}
+
+export type { SearchServerLaunch }
+
+/** One session with a search server: the tools it offered and an answer per call, or why it did not start. */
+export type SearchSession =
+  | { readonly status: 'started'; readonly tools: readonly SearchToolName[]; readonly answers: readonly string[] }
+  | { readonly status: 'failed'; readonly detail: string }
+
+/** The runner's own search server (ADR-0006), as the runner starts and stops it. */
+export interface SearchClientPort {
+  /** The command line a critic's client starts the server with, confined to `root`. */
+  server(root: string, limits: SearchLimits): SearchServerLaunch
+  /** Starts the server on `root` as an MCP client would, asks it the calls, and closes it. */
+  session(root: string, limits: SearchLimits, calls: readonly SearchCall[]): Promise<SearchSession>
+  /** Stops every search server still running on `root`. */
+  stop(root: string): Promise<void>
+}
+
 export interface CritiqueDeps {
   /** Directory holding the shipped prompts, lenses, schema and routing. */
   readonly assetsRoot: string
@@ -160,4 +203,6 @@ export interface CritiqueDeps {
   readonly gh: CritiqueGhPort
   /** The client each kind of critic runs through. */
   readonly clients: CriticClients
+  /** The runner's search server for Vibe critics; without it every Vibe critic reads alone. */
+  readonly search?: SearchClientPort
 }

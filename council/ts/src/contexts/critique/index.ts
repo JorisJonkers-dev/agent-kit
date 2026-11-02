@@ -80,6 +80,9 @@ export type {
   ModelAnswerReport,
   ModelQuestion,
   QuestionClientPort,
+  SearchClientPort,
+  SearchServerCommand,
+  SearchSession,
 } from './application/ports.js'
 export type { CriticIdentity, CriticOutcome, CriticRun } from './domain/critic.js'
 export type { ModelFamily, OrchestratorFamily } from './domain/family.js'
@@ -109,3 +112,5 @@ export { specReference } from './domain/manifest.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
 export { AgyCriticClient } from './adapters/agy/index.js'
 export { VibeCriticClient } from './adapters/vibe/index.js'
+export { ProcessSearchClient } from './adapters/search/client.js'
+export { runSearchServer, SEARCH_SERVER_USAGE, type SearchServerIo } from './adapters/search/server.js'
