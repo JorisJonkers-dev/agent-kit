@@ -1,5 +1,20 @@
 # Changelog
 
+## [5.2.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v5.1.0...v5.2.0) (2026-11-02)
+
+
+### Features
+
+* **critique:** spec [#214](https://github.com/JorisJonkers-dev/agent-kit/issues/214) phase 0, runner groundwork for review stages ([#252](https://github.com/JorisJonkers-dev/agent-kit/issues/252)) ([e8ded6e](https://github.com/JorisJonkers-dev/agent-kit/commit/e8ded6e468df848d1f560a74af1eec5f6cf81c9f))
+* **registry:** add the Outline wiki MCP server for the workstation ([#264](https://github.com/JorisJonkers-dev/agent-kit/issues/264)) ([5ab891f](https://github.com/JorisJonkers-dev/agent-kit/commit/5ab891f7e87e7ea6bb20b787174ac30d4f436a32))
+
+
+### Bug Fixes
+
+* **critique:** check agy sign-in with agy models, not the Keychain ([#210](https://github.com/JorisJonkers-dev/agent-kit/issues/210)) ([137e481](https://github.com/JorisJonkers-dev/agent-kit/commit/137e4811f865dc7fb893b03ec1fbb317cb309bc0))
+* **critique:** raise the ticket critics' cap to $1 and 600 s ([#248](https://github.com/JorisJonkers-dev/agent-kit/issues/248)) ([6cd0f41](https://github.com/JorisJonkers-dev/agent-kit/commit/6cd0f41bd027ee74d71167d3f98097b32432d66c))
+* **runner:** keep the entrypoint's home config inside the runner container ([#262](https://github.com/JorisJonkers-dev/agent-kit/issues/262)) ([4de7b69](https://github.com/JorisJonkers-dev/agent-kit/commit/4de7b691eda352ac34a68963fa8a915686f6d4c1))
+
 ## [5.1.0](https://github.com/JorisJonkers-dev/agent-kit/compare/v5.0.0...v5.1.0) (2026-11-01)
 
 
