@@ -4,6 +4,8 @@ import { readLimits, type CritiqueLimits } from './budget.js'
 import { readDepthChoice, type DepthChoice } from './depth.js'
 import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
+import { REPO_MAP_PATH } from './repo-map.js'
+import { FACTS_INDEX_PATH } from './repository-packet.js'
 import { readDroppedCritic, readRosterCritic, type DroppedCritic, type RosterCritic } from './routing.js'
 import { CRITIQUE_STAGES, DEPTHS, type CritiqueStage, type Depth, type Round } from './stage.js'
 import type { TicketCheckSummary } from './tickets.js'
@@ -46,6 +48,16 @@ export interface PacketFile {
 export interface PacketWindow {
   readonly last: number
   readonly lines: number
+  /**
+   * Only when the file holds other lines than 1 to `last`: the runs of lines
+   * it holds, at their own numbers. A code packet sends slices this way.
+   */
+  readonly ranges?: readonly { readonly first: number; readonly last: number }[]
+}
+
+/** The lines a windowed file holds: its ranges, or lines 1 to `last`. */
+export function heldRanges(window: PacketWindow): readonly { readonly first: number; readonly last: number }[] {
+  return window.ranges ?? [{ first: 1, last: window.last }]
 }
 
 /** The commits a code stage reviewed. */
@@ -57,14 +69,33 @@ export interface CodeSource {
   /** The commit under review as the caller named it. */
   readonly head: string
   readonly head_commit: string
-  /** The packet path, under `tree/`, of every file the change touched that is still in the tree. */
+  /**
+   * The packet path, under `tree/`, of every file the change touched that is
+   * still in the tree and is not a generated, vendored or lock file.
+   */
   readonly changed_files: readonly string[]
+  /**
+   * The context slices the packet sends, in the order they were chosen:
+   * each changed symbol or block, its callees, then its callers. A manifest
+   * written before slices existed has none.
+   */
+  readonly slices?: readonly CodeSlice[]
   /**
    * Only when a ticket review reviewed the staged change: its hash
    * (`stagedDiffHash`), so a commit gate can tell whether what it is about
    * to commit is what was reviewed.
    */
   readonly staged_diff?: string
+}
+
+/** One context slice of a code packet: lines of a tree file, and why they are sent. */
+export interface CodeSlice {
+  /** The packet path, under `tree/`. */
+  readonly path: string
+  readonly first: number
+  readonly last: number
+  /** Why: which symbol the change touches, or which changed symbol it calls or is called by. */
+  readonly reason: string
 }
 
 /**
@@ -134,16 +165,17 @@ export function specReference(manifest: Pick<RunManifest, 'stage' | 'artifact' |
 
 /**
  * The packet files a critic's prompt names. A document packet names every
- * file. A code packet names the diff, the files the change touched, the
- * tickets and the spec, and leaves the rest of the tree for the critic to
- * read by path.
+ * file. A code packet names its repo map first, then the diff, the tickets,
+ * the spec and the facts index, and points at its context slices instead
+ * of whole files; the rest of the tree is there for the critic to read by
+ * path.
  */
 export function listedFiles(manifest: Pick<RunManifest, 'packet_files' | 'code'>): readonly PacketFile[] {
   const { code, packet_files: files } = manifest
   if (code === undefined) return files
-  const changed = new Set(code.changed_files)
   const ofKind = (kind: PacketFileKind) => files.filter((file) => file.kind === kind)
-  return [...ofKind('diff'), ...ofKind('tree').filter((file) => changed.has(file.path)), ...ofKind('ticket'), ...ofKind('spec')]
+  const fact = (path: string) => ofKind('fact').filter((file) => file.path === path)
+  return [...fact(REPO_MAP_PATH), ...ofKind('diff'), ...ofKind('ticket'), ...ofKind('spec'), ...fact(FACTS_INDEX_PATH)]
 }
 
 export function parseManifest(text: string): RunManifest {
@@ -181,7 +213,15 @@ export function parseManifest(text: string): RunManifest {
 }
 
 function readWindow(window: JsonFields): PacketWindow {
-  return { last: window.positiveInteger('last'), lines: window.positiveInteger('lines') }
+  return {
+    last: window.positiveInteger('last'),
+    lines: window.positiveInteger('lines'),
+    ...(window.has('ranges') ? { ranges: window.list('ranges', readRange) } : {}),
+  }
+}
+
+function readRange(range: JsonFields): { readonly first: number; readonly last: number } {
+  return { first: range.positiveInteger('first'), last: range.positiveInteger('last') }
 }
 
 /** A manifest written before rounds existed is a first round. */
@@ -209,6 +249,7 @@ function readCodeSource(code: JsonFields): CodeSource {
     changed_files: code.strings('changed_files'),
     head: code.string('head'),
     head_commit: code.string('head_commit'),
+    ...(code.has('slices') ? { slices: code.list('slices', (slice) => ({ ...readRange(slice), path: slice.string('path'), reason: slice.string('reason') })) } : {}),
     ...(code.has('staged_diff') ? { staged_diff: code.string('staged_diff') } : {}),
   }
 }

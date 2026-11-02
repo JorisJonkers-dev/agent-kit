@@ -244,6 +244,13 @@ def test_shipped_routing_caps_the_repository_packet_at_adr_0004s_starting_limits
     assert "**/package-lock.json" in packet["exclude"]["lock"]
 
 
+def test_shipped_routing_caps_a_code_packets_repo_map_inside_the_packet_cap() -> None:
+    """#254: tree/REPO-MAP.md has its own cap, counted inside the packet's."""
+    packet = json.loads(ROUTING.read_text())["packet"]
+    assert packet["repo_map_cap_bytes"] == 20 * 1024
+    assert packet["repo_map_cap_bytes"] < packet["cap_bytes"]
+
+
 def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
     flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
     assert "| `/flow reviews` |" in flow

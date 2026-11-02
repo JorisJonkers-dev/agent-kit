@@ -1,6 +1,6 @@
 import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './findings.js'
-import { lineCount, lineReferences, packetCandidates } from './line-references.js'
-import type { PacketFile, PacketWindow } from './manifest.js'
+import { lineCount, lineReferences, packetCandidates, type LineReference } from './line-references.js'
+import { heldRanges, type PacketFile, type PacketWindow } from './manifest.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
 import { STAGE_TABLE, type EvidenceRule } from './stage-table.js'
 import { ticketTarget } from './tickets.js'
@@ -127,15 +127,31 @@ function missingLine(finding: FindingBody, packet: PacketIndex): string | undefi
       const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate))
       if (path === undefined) return `${where} cites ${reference.path}, which is not in the packet`
       const lines = packet.lines.get(path) ?? 0
-      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines)
-      if (outside === undefined) continue
       const window = packet.windows.get(path)
+      const held = window === undefined ? [{ first: 1, last: lines }] : heldRanges(window)
+      const outside = firstUnheld(reference, held)
+      if (outside === undefined) continue
       return window === undefined
         ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`
-        : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (1-${String(window.last)} of ${String(window.lines)})`
+        : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(', ')} of ${String(window.lines)})`
     }
   }
   return undefined
+}
+
+/**
+ * The first line a citation names that the file does not hold: its first
+ * line, its last, or for a range across a run of lines left out, the first
+ * line of that run. Held ranges are merged, so a range is held only when one
+ * of them holds both its ends.
+ */
+function firstUnheld(reference: LineReference, held: readonly { readonly first: number; readonly last: number }[]): number | undefined {
+  const holding = (line: number) => held.find((range) => range.first <= line && line <= range.last)
+  const first = holding(reference.first)
+  if (first === undefined) return reference.first
+  const last = holding(reference.last)
+  if (last === undefined) return reference.last
+  return first === last ? undefined : first.last + 1
 }
 
 /** #181's code-stage rule: a code finding needs a failing test, or a trace that cites a file and line. */

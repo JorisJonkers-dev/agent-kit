@@ -51,11 +51,29 @@ outside what the packet holds is rejected. A quote from `facts/` is a fact,
 never a recorded decision. `/flow reviews` lists recent review
 runs with their verdicts and spend, and never calls a review due.
 
+A ticket review and a feature review send a **code packet**, computed at the
+reviewed commit by rule. Its diff leaves out the hunks of every vendored,
+generated and lock file (the same `exclude` globs and "do not edit" marker),
+keeping one line that names each and says why. `tree/REPO-MAP.md`, named
+first in the prompt, lists every TypeScript, JavaScript and Python file with
+its top-level symbols and their signatures, ranked by how many other files
+import the file and name the symbol. The prompt then lists **context
+slices** instead of whole files: each changed function or block, the
+symbols it calls, and the functions that call it, found through the import
+and reference scan. `tree/` is capped like a repository packet: the slices
+go in first, then the changed files, their importers and the rest of the
+tree, in windows that keep their line numbers. A file cut short holds only
+those lines, a run it does not hold is blank but for a marker, and a
+citation of a line outside them is rejected. `facts/INDEX.md` records every
+slice and every file the cap dropped or cut short.
+
 A ticket review starts with **triage**: the change is risky when a path
 matches routing's `triage.risk_paths` (auth, crypto, migrations,
 concurrency, API surface, infra), more than 300 lines changed, or the ticket
-is labelled `risk:high`; otherwise Mistral Small answers yes or no. A
-low-risk change skips the review, and the skip is logged.
+is labelled `risk:high`; otherwise Mistral Small answers yes or no. Lines of
+vendored, generated and lock files are not counted, and Mistral Small reads
+the same filtered diff. A low-risk change skips the review, and the skip is
+logged.
 
 **Evidence decides.** A quote found in no packet file rejects its finding as
 fabricated. A finding with no checkable evidence is a hint, reported and
@@ -244,7 +262,8 @@ family), each stage's base and deep rosters (client, role, lenses, price cap,
 time limit), the `fallbacks`, the budget, the Antigravity quota, triage, the feature
 branch patterns a push may update without a feature review (`gate`), the
 stats thresholds and the repository packet's limits (`packet`: a 150 KB cap
-in `cap_bytes`, 30 KB of fact files in `facts_cap_bytes`, 400-line windows in
+in `cap_bytes`, 30 KB of fact files in `facts_cap_bytes`, a code packet's
+20 KB repo map in `repo_map_cap_bytes`, 400-line windows in
 `window_lines`, and the `exclude` globs for vendored, generated and lock
 files; a file whose first lines say `@generated` or "do not edit" counts as
 generated too). Model names live only there and in the

@@ -3,26 +3,14 @@ import { join } from 'node:path'
 import { ADR_DIRECTORY, GLOSSARIES } from '../domain/decision-docs.js'
 import type { ArtifactSource } from '../domain/manifest.js'
 import { refusal, type Refusal } from '../domain/outcomes.js'
-import {
-  excludedByPath,
-  FACTS_INDEX_PATH,
-  isGenerated,
-  MANIFEST_PATH,
-  NO_FACTS,
-  sampleRepository,
-  type ExclusionKind,
-  type PacketLimits,
-  type TrackedFile,
-} from '../domain/repository-packet.js'
+import { FACTS_INDEX_PATH, MANIFEST_PATH, NO_FACTS, sampleRepository, type PacketLimits } from '../domain/repository-packet.js'
 import { TREE_DIR, type UnfrozenFile } from './code-packet.js'
 import { insideRepository } from './paths.js'
 import type { CritiqueDeps } from './ports.js'
+import { readTrackedTree } from './tracked-tree.js'
 
 /** The reference an ADR review's artifact carries: the repository's decision records, not a tracker item. */
 export const ADR_ARTIFACT = 'adrs'
-
-/** How many files of the tree are read from git at once. */
-const READ_CONCURRENCY = 16
 
 export interface AdrPacketRequest {
   /** The records under review; undefined means every record in `docs/adr/`. */
@@ -104,7 +92,7 @@ export class AdrPacketReader {
   /** Adds the sampled tree, its manifest and the facts to a documents-only packet. */
   private async withTree(root: string, packet: AdrPacket, code: NonNullable<AdrPacketRequest['code']>): Promise<AdrPacket | Refusal> {
     const commit = await this.deps.git.resolveCommit(root, code.head)
-    const { excluded, tracked } = await this.tracked(root, commit, code.limits)
+    const { excluded, tracked } = await readTrackedTree(this.deps, root, commit, code.limits)
     const sample = sampleRepository({
       artifactText: packet.artifact.text,
       commit,
@@ -144,35 +132,6 @@ export class AdrPacketReader {
         tree_files: sample.tree.length,
       },
     }
-  }
-
-  /**
-   * Every tracked path at the commit, sorted, with its text, or null for a
-   * binary file; an excluded path is counted, never read past its marker.
-   */
-  private async tracked(
-    root: string,
-    commit: string,
-    limits: PacketLimits,
-  ): Promise<{ readonly tracked: readonly TrackedFile[]; readonly excluded: Record<ExclusionKind, number> }> {
-    const excluded: Record<ExclusionKind, number> = { generated: 0, lock: 0, vendored: 0 }
-    const paths = (await this.deps.git.treeFiles(root, commit)).filter((path) => {
-      const kind = excludedByPath(path, limits)
-      if (kind !== undefined) excluded[kind] += 1
-      return kind === undefined
-    })
-    const tracked: TrackedFile[] = []
-    for (let start = 0; start < paths.length; start += READ_CONCURRENCY) {
-      const batch = paths.slice(start, start + READ_CONCURRENCY)
-      const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)))
-      batch.forEach((path, i) => {
-        const text = texts[i] ?? ''
-        if (text.includes('\u0000')) tracked.push({ path, text: null })
-        else if (isGenerated(text)) excluded.generated += 1
-        else tracked.push({ path, text })
-      })
-    }
-    return { excluded, tracked }
   }
 
   /** The first of `GLOSSARY.md` and `CONTEXT.md` the repository has, as decision docs pick it. */

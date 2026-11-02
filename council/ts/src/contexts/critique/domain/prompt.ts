@@ -1,4 +1,6 @@
-import { sha256, type PacketFile, type PacketFileKind } from './manifest.js'
+import { sha256, type CodeSlice, type PacketFile, type PacketFileKind } from './manifest.js'
+import { REPO_MAP_PATH } from './repo-map.js'
+import { FACTS_INDEX_PATH } from './repository-packet.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
 
 /** The prompt files one critic is given, as read from the shipped assets. */
@@ -58,32 +60,61 @@ const REPOSITORY_PACKET_NOTE = [
   'A quote from `facts/` or `tree/MANIFEST.tsv` is a fact the runner computed, never a recorded decision.',
 ].join('\n')
 
+/** In a code packet, its two fact files say what they are by path. */
+const CODE_FACT_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  [FACTS_INDEX_PATH]: 'what the packet holds: the files left out of the diff and of `tree/`, each context slice, and what the packet cap dropped or cut short',
+  [REPO_MAP_PATH]:
+    "the repository's shape: every source file's top-level symbols and their signatures, ranked by how many other files reference them. Read it first",
+}
+
 /**
- * What a code packet's prompt adds after its file list: the listed files
- * are only what the change touched, so the critic learns where the rest of
- * the tree is and how to cite a line, which fan-out then checks.
+ * What a code packet's prompt adds after its context slices: the listed
+ * files are not the whole tree, so the critic learns where the rest of it
+ * is, how a file cut short keeps its line numbers, and how to cite a line,
+ * which fan-out then checks.
  */
 const CODE_PACKET_NOTE = [
-  'Every other file of the repository at the commit under review is under `tree/`, at its repository path; read one with read_file as `tree/<repository path>`.',
+  '`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` lists every file the cap left out or cut short. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.',
   '',
-  'Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding\'s `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line past the end of its file, is rejected as fabricated evidence.',
+  'Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding\'s `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.',
+  '',
+  'A quote from `tree/REPO-MAP.md` or `facts/` is a fact the runner computed, never a recorded decision.',
 ].join('\n')
+
+/** A code packet's context slices, as its prompt lists them. */
+function sliceList(slices: readonly CodeSlice[]): string {
+  return [
+    '## Context slices',
+    '',
+    'The code around the change, at its own line numbers: each changed function or block, the symbols it calls and the functions that call it. Read these lines of these files:',
+    '',
+    ...(slices.length === 0
+      ? ['None: the change touches no text file the packet holds.']
+      : slices.map((slice) => `- \`${slice.path}:${String(slice.first)}-${String(slice.last)}\`: ${slice.reason}`)),
+  ].join('\n')
+}
 
 /**
  * Four blocks in order (preamble, role, lenses, output contract with the
  * finding schema), then the list of packet files the critic is pointed at.
  * Vibe critics cannot list directories, so the list is the only way they
- * learn the paths: a document packet lists every file, and a code packet the
- * diff, the changed files, the tickets and the spec, with a note on reading
- * the rest of its tree. Nothing about other critics, models or the
- * conversation goes in.
+ * learn the paths: a document packet lists every file, and a code packet its
+ * repo map first, the diff, the tickets, the spec and the facts index, then
+ * its context slices, with a note on reading the rest of its tree. Nothing
+ * about other critics, models or the conversation goes in.
  */
-export function assemblePrompt(sources: PromptSources, files: readonly PacketFile[], stage: CritiqueStage): CriticPrompt {
+export function assemblePrompt(
+  sources: PromptSources,
+  files: readonly PacketFile[],
+  stage: CritiqueStage,
+  slices: readonly CodeSlice[] = [],
+): CriticPrompt {
   const codePacket = isCodeStage(stage)
-  const repositoryPacket = files.some((file) => file.kind === 'fact')
-  const describe = (kind: PacketFileKind): string =>
+  const repositoryPacket = !codePacket && files.some((file) => file.kind === 'fact')
+  const describe = ({ kind, path }: PacketFile): string =>
     (stage === 'tickets' ? TICKETS_STAGE_DESCRIPTIONS[kind] : undefined) ??
     (repositoryPacket ? REPOSITORY_DESCRIPTIONS[kind] : undefined) ??
+    (codePacket ? CODE_FACT_DESCRIPTIONS[path] : undefined) ??
     DESCRIPTIONS[kind]
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join('\n\n')
   const contract = `${sources.contract.trim()}\n\n\`\`\`json\n${sources.schema.trim()}\n\`\`\``
@@ -94,8 +125,8 @@ export function assemblePrompt(sources: PromptSources, files: readonly PacketFil
       ? 'Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:'
       : 'Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:',
     '',
-    ...files.map((file) => `- \`${file.path}\`: ${describe(file.kind)}`),
-    ...(codePacket ? ['', CODE_PACKET_NOTE] : []),
+    ...files.map((file) => `- \`${file.path}\`: ${describe(file)}`),
+    ...(codePacket ? ['', sliceList(slices), '', CODE_PACKET_NOTE] : []),
     ...(repositoryPacket ? ['', REPOSITORY_PACKET_NOTE] : []),
   ].join('\n')
   return {
