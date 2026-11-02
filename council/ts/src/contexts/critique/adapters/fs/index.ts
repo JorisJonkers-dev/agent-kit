@@ -1,4 +1,4 @@
-import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, appendFile, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
 import type { CritiqueFilesPort } from '../../application/ports.js'
@@ -53,5 +53,11 @@ export class NodeCritiqueFiles implements CritiqueFilesPort {
 
   async remove(path: string): Promise<void> {
     await rm(path, { force: true })
+  }
+
+  async symlink(target: string, path: string): Promise<void> {
+    await mkdir(dirname(path), { recursive: true })
+    await rm(path, { force: true, recursive: true })
+    await symlink(target, path)
   }
 }

@@ -119,9 +119,24 @@ _Avoid_: provider (Vibe serves several families)
 The frozen copy of the artifact and its reference material that every critic
 of one critique run (one pass of a critique stage over one artifact) reads.
 Later edits to the artifact never reach it. At a code stage (ticket review,
-feature review) it is a code packet: every file of the commit under review,
-the diff against the base, the ticket or tickets, and the spec.
+feature review) it is a code packet: the diff against the base without its
+generated, vendored and lock files (in windows by file when it does not fit
+the packet cap), the ticket or tickets, the spec, a repo
+map, the context slices around the change, and as much more of the commit
+under review as the packet cap allows.
 _Avoid_: bundle, context, snapshot
+
+**Repo map**:
+The fact a code packet opens with: every source file at the commit under
+review with its top-level symbols and their signatures, ranked by how many
+other files reference them.
+_Avoid_: index, outline
+
+**Context slice**:
+Lines of a file that a code packet sends around a change, at their own line
+numbers: a changed function or block, a symbol it calls, or a function that
+calls it.
+_Avoid_: snippet, excerpt, hunk (a hunk is a piece of the diff)
 
 **Finding**:
 One defect a critic claims, with evidence a third party can check. A finding
@@ -197,7 +212,9 @@ It is keyed by the repository's remote. A repository with no entry, or with
 no remote, sends nothing; a repository owned by the `nedap` GitHub
 organisation sends nothing, whatever its entry says. An entry allows
 documents only unless its code permission is on; the code stages refuse
-while it is off.
+while it is off. Its history permission, also off by default, separately
+lets a stage send the repository's commit messages and issue text; while it
+is off, a stage leaves history out.
 _Avoid_: data policy, provider list
 
 **Flow state**:

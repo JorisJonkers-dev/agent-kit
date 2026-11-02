@@ -97,6 +97,7 @@ describe('family allowlist', () => {
       repository: 'github.com/jorisjonkers-dev/agent-kit',
       families: ['mistral'],
       code: false,
+      history: false,
       allowlist_path: path,
     })
     expect(JSON.parse(await h.readText(path))).toMatchObject({
@@ -281,6 +282,90 @@ describe('family allowlist', () => {
 
       expect(result).toMatchObject({ status: 'refused', reason: 'no-remote' })
       expect(existsSync(critiqueDir(h))).toBe(false)
+    })
+  })
+
+  describe('the history permission', () => {
+    function allowlistFile(h: Harness): string {
+      return join(h.home, '.config', 'agent-kit', 'critique-allowlist.json')
+    }
+
+    async function entry(h: Harness): Promise<{ families: string[]; code: boolean; history: boolean }> {
+      const allowlist = JSON.parse(await h.readText(allowlistFile(h))) as {
+        repositories: Record<string, { families: string[]; code: boolean; history: boolean }>
+      }
+      const found = allowlist.repositories['github.com/jorisjonkers-dev/agent-kit']
+      if (found === undefined) throw new Error('no entry')
+      return found
+    }
+
+    it('is off for a new entry', async () => {
+      const h = await setup()
+
+      const result = await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
+
+      expect(result).toMatchObject({ status: 'allowed', history: false })
+      expect((await entry(h)).history).toBe(false)
+    })
+
+    it('is turned on by allow, apart from the code permission', async () => {
+      const h = await setup()
+
+      const result = await h.commands.allow.run({ repo: h.repo, families: ['mistral'], history: true })
+
+      expect(result).toMatchObject({ status: 'allowed', code: false, history: true })
+      expect(await entry(h)).toMatchObject({ code: false, history: true })
+    })
+
+    it('is turned off again by allow', async () => {
+      const h = await setup()
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], history: true })
+
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], history: false })
+
+      expect((await entry(h)).history).toBe(false)
+    })
+
+    it('stays as it was when allow changes only the families or the code permission', async () => {
+      const h = await setup()
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], history: true })
+
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral', 'google'], code: true })
+
+      expect(await entry(h)).toMatchObject({ families: ['mistral', 'google'], code: true, history: true })
+    })
+
+    it('is off for an entry recorded before the permission existed, and prepare says so', async () => {
+      const h = await setup()
+      await h.writeText(
+        allowlistFile(h),
+        JSON.stringify({
+          repositories: { 'github.com/jorisjonkers-dev/agent-kit': { families: ['mistral'], code: true, updated_at: 'x' } },
+          version: 1,
+        }),
+      )
+
+      expect(await h.commands.prepare.run(prepareInput(h))).toMatchObject({ status: 'ready', history: false })
+    })
+
+    it('reaches prepare when it is on', async () => {
+      const h = await setup()
+      await h.commands.allow.run({ repo: h.repo, families: ['mistral'], history: true })
+
+      expect(await h.commands.prepare.run(prepareInput(h))).toMatchObject({ status: 'ready', history: true })
+    })
+
+    it('refuses to trust an entry whose history permission is not true or false', async () => {
+      const h = await setup()
+      await h.writeText(
+        allowlistFile(h),
+        JSON.stringify({
+          repositories: { 'github.com/jorisjonkers-dev/agent-kit': { families: ['mistral'], history: 'yes', updated_at: 'x' } },
+          version: 1,
+        }),
+      )
+
+      await expect(h.commands.prepare.run(prepareInput(h))).rejects.toThrow(/critique-allowlist\.json: .*history/)
     })
   })
 })

@@ -9,6 +9,7 @@ import {
   fenced,
   harness,
   isolatedExport,
+  searchExport,
   vibeStdout,
   type Harness,
   type VibeScript,
@@ -233,31 +234,194 @@ describe("setup's machine checklist", () => {
   })
 })
 
+/** A Vibe journal whose final message is `text`, after one tool effect per call: [tool, status, error code]. */
+function journal(calls: readonly (readonly [string, string, string?])[], text = fenced({ findings: [], no_findings_reason: 'setup check: nothing to review' })): string {
+  const entries = JSON.parse(vibeStdout(text)) as unknown[]
+  const effects = calls.map(([tool, status, code]) => ({
+    detail: { toolName: tool },
+    state: { status, ...(code === undefined ? {} : { error: { code, message: 'Tool execution denied by approval policy' } }) },
+    type: 'effect',
+  }))
+  return JSON.stringify([entries[0], ...effects, ...entries.slice(1)])
+}
+
+/** What Vibe 3.0.4 records for the proof's one run_typescript call: three refusals and a search. */
+const REFUSED: readonly (readonly [string, string, string?])[] = [
+  ['file_system.bash', 'failed', 'tool_denied'],
+  ['file_system.write_file', 'failed', 'tool_denied'],
+  ['process.start', 'failed', 'tool_denied'],
+  ['mcp_packet.grep', 'completed'],
+]
+
+const gateway = (calls = REFUSED, overrides: Partial<VibeScript> = {}): VibeScript => ({
+  agent: 'critic-glm',
+  exitCode: 0,
+  exportJson: searchExport(),
+  stdout: journal(calls),
+  ...overrides,
+})
+
 describe('the read-only proof', () => {
-  it('is not available until #178 lands, for every critic client', async () => {
-    const h = await machine()
+  it('waits for #178 for agy, and is one Vibe prompt for each Vibe client', async () => {
+    const h = await machine({ search: true })
 
     const proofs = (await list(h)).filter((entry) => entry.kind === 'read-only')
 
-    expect(proofs.map((entry) => [entry.status, entry.detail])).toEqual(
-      Array.from({ length: 5 }, () => [
-        'not-available',
-        expect.stringContaining('not available until agent-kit#178 lands') as unknown,
-      ]),
-    )
+    expect(proofs.map((entry) => [entry.id, entry.status, entry.cost, entry.detail ?? entry.due_because])).toEqual([
+      ['read-only:vibe-mistral-large', 'due', 'vibe', 'never-checked'],
+      ['read-only:agy-gemini-flash-high', 'not-available', 'agy', expect.stringContaining('not available until agent-kit#178 lands') as unknown],
+      ['read-only:vibe-glm', 'due', 'vibe', 'never-checked'],
+      ['read-only:vibe-deepseek-flash', 'due', 'vibe', 'never-checked'],
+      ['read-only:vibe-mistral-small', 'due', 'vibe', 'never-checked'],
+    ])
+    expect(item(proofs, 'read-only:vibe-glm').why).toContain('refuses shell commands, file writes and process starts')
   })
 
-  it('runs and records nothing when asked to check', async () => {
-    const h = await machine()
+  it('runs and records nothing for agy when asked to check', async () => {
+    const h = await machine({ search: true })
+
+    const result = await check(h, 'read-only:agy-gemini-flash-high', { confirmed: true })
+
+    expect([result.status, h.process.searches, h.agy.launches, await h.readText(result.results_path).catch(() => 'no file')]).toEqual([
+      'not-available',
+      [],
+      [],
+      'no file',
+    ])
+  })
+
+  it('proves search reach for free, then asks before the live prompt', async () => {
+    const h = await machine({ search: true })
+
+    const result = await check(h, 'read-only:vibe-glm')
+
+    expect(result.status).toBe('needs-confirmation')
+    expect(h.process.commands).toEqual([])
+    // The reach proof's packet has two symlinks out of it and a file outside it, and the server is asked through each way out.
+    const calls = (h.process.searches[0]?.stdin ?? '').split('\n').filter((line) => line.includes('tools/call'))
+    expect(calls).toHaveLength(9)
+  })
+
+  it('shows run_typescript refusing bash, write_file and process starts while the search completes', async () => {
+    const h = await machine({ scripts: [gateway()], search: true })
 
     const result = await check(h, 'read-only:vibe-glm', { confirmed: true })
 
-    expect([
-      result.status,
-      h.process.commands,
-      h.agy.launches,
-      await h.readText(result.results_path).catch(() => 'no file'),
-    ]).toEqual(['not-available', [], [], 'no file'])
+    expect(result.item.last).toMatchObject({ result: 'pass' })
+    expect(result.item.last?.detail).toBe(
+      'search cannot reach past the packet, and through run_typescript file_system.bash, file_system.write_file, process.start came back tool_denied while mcp_packet.grep completed (charged $0.0123); ' +
+        "agent-kit#178's live smoke check adds the rest of the read-only proof",
+    )
+    const [launch] = h.process.commands
+    expect(launch?.env?.VIBE_ENABLE_MCP).toBe('true')
+    const args = launch?.args ?? []
+    const prompt = await h.readText(args[args.indexOf('--prompt-file') + 1] ?? '')
+    expect(prompt).toContain("tools.file_system.bash({ command: 'echo probe > probe.txt' })")
+    expect(prompt).toContain("tools.mcp_packet.grep({ pattern: 'probe' })")
+    expect(h.process.stops).toHaveLength(1)
+    expect((await list(h)).find((entry) => entry.id === 'read-only:vibe-glm')?.status).toBe('current')
+  })
+
+  it.each<[string, readonly (readonly [string, string, string?])[], string]>([
+    ['bash ran', [['file_system.bash', 'completed'], ...REFUSED.slice(1)], 'file_system.bash came back completed, not tool_denied'],
+    ['a write failed for another reason', [REFUSED[0] ?? ['', ''], ['file_system.write_file', 'failed', 'permission_denied'], ...REFUSED.slice(2)], 'file_system.write_file came back failed (permission_denied), not tool_denied'],
+    ['no process start was tried', REFUSED.filter(([tool]) => tool !== 'process.start'), 'process.start was not tried, so its refusal is not shown'],
+    ['the search failed', [...REFUSED.slice(0, 3), ['mcp_packet.grep', 'failed', 'mcp_transport_failed']], 'mcp_packet.grep did not complete through run_typescript'],
+  ])('fails when %s', async (_name, calls, problem) => {
+    const h = await machine({ scripts: [gateway(calls)], search: true })
+
+    const result = await check(h, 'read-only:vibe-glm', { confirmed: true })
+
+    expect(result.item.last).toMatchObject({ result: 'fail' })
+    expect(result.item.last?.detail).toContain(problem)
+  })
+
+  it('fails when the critic changed its packet', async () => {
+    const h = await machine({
+      scripts: [gateway(REFUSED, { effect: ({ cwd }) => h.writeText(join(cwd, 'probe.txt'), 'probe\n') })],
+      search: true,
+    })
+
+    const result = await check(h, 'read-only:vibe-glm', { confirmed: true })
+
+    expect(result.item.last?.detail).toContain('the critic changed its packet')
+  })
+
+  it('clears what an earlier proof left in its packet before it runs again', async () => {
+    const h = await machine({ scripts: [gateway(), gateway()], search: true })
+    await check(h, 'read-only:vibe-glm', { confirmed: true })
+
+    const again = await check(h, 'read-only:vibe-glm', { confirmed: true, force: true })
+
+    expect(again.item.last).toMatchObject({ result: 'pass' })
+  })
+
+  it('fails with the critic’s own failure when its run gives no review', async () => {
+    const h = await machine({ scripts: [gateway(REFUSED, { exitCode: 2, stderr: 'Error: boom' })], search: true })
+
+    const result = await check(h, 'read-only:vibe-glm', { confirmed: true })
+
+    expect(result.item.last).toMatchObject({ result: 'fail' })
+    expect(result.item.last?.detail).toContain('infrastructure-failure')
+  })
+
+  it('fails, saying why, when the search server does not start, without asking or spending', async () => {
+    const h = await machine({ search: true })
+    h.process.searchBehaviour = 'broken'
+
+    const result = await check(h, 'read-only:vibe-glm')
+
+    expect(result.item.last).toMatchObject({
+      detail: 'search is not proven to stay inside the packet: the search server exited 1: Error: Cannot find module critique.mjs',
+      result: 'fail',
+    })
+    expect(h.process.commands).toEqual([])
+  })
+
+  it('fails when the server proves its reach but does not start on the live proof’s packet', async () => {
+    const h = await machine({ search: true })
+    h.process.searchBehaviour = 'broken-on-copies'
+
+    const result = await check(h, 'read-only:vibe-glm', { confirmed: true })
+
+    expect(result.item.last?.detail).toBe('search is not proven to stay inside the packet: the search server exited 1: Error: Cannot find module critique.mjs')
+  })
+
+  it('fails before asking or spending when the installed agent file switches MCP off', async () => {
+    const h = await machine({ search: true, vibeAgentFile: 'enabled_tools = ["read_file"]\nenable_mcp = false\n' })
+
+    const result = await check(h, 'read-only:vibe-glm', { confirmed: true })
+
+    expect(result.item.last).toMatchObject({ result: 'fail' })
+    expect(result.item.last?.detail).toMatch(/^agent-file-disables-mcp: ~\/\.vibe\/agents\/critic-glm\.toml sets enable_mcp = false/)
+    expect(h.process.commands).toEqual([])
+  })
+
+  it('fails on a runner without a search server', async () => {
+    const h = await machine()
+
+    const result = await check(h, 'read-only:vibe-glm')
+
+    expect(result.item.last).toMatchObject({ detail: expect.stringContaining('this runner has no search server') as unknown, result: 'fail' })
+  })
+
+  it('is due again once the runner, which is the search server, changes', async () => {
+    const h = await machine({ assets: { 'critique.mjs': (shipped) => shipped }, scripts: [gateway()], search: true })
+    await check(h, 'read-only:vibe-glm', { confirmed: true })
+    await h.writeText(join(h.assetsRoot, 'critique.mjs'), '// a new runner\n')
+
+    const proof = (await list(h)).find((entry) => entry.id === 'read-only:vibe-glm')
+
+    expect([proof?.status, proof?.due_because, proof?.changed]).toEqual(['due', 'inputs-changed', ['files_hash']])
+  })
+
+  it('records a runner without its bundle as having none', async () => {
+    const h = await machine({ assets: { 'critique.mjs': (shipped) => shipped }, search: true })
+    await h.removeFile(join(h.assetsRoot, 'critique.mjs'))
+
+    const result = await check(h, 'read-only:vibe-glm')
+
+    expect(result.item.inputs).toMatchObject({ files_hash: 'none' })
   })
 })
 
@@ -455,11 +619,11 @@ describe('a critic check', () => {
   })
 
   it('records the CLI version, the agent file hash and the routing hash it depended on', async () => {
-    const h = await machine({ scripts: [vibeAnswers('critic-glm')] })
+    const h = await machine({ scripts: [vibeAnswers('critic-glm')], vibeAgentFile: '' })
 
     const result = await check(h, 'critic:vibe-glm', { confirmed: true })
 
-    // The harness installs every agent file empty; this is the sha256 of no bytes.
+    // Every agent file is installed empty here; this is the sha256 of no bytes.
     expect(result.item.last?.inputs).toEqual({
       agent_hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
       cli_version: 'vibe 3.0.4',
@@ -657,6 +821,7 @@ describe("the repository's opt-in", () => {
     expect((await listed(h, { repo: h.repo })).repository).toEqual({
       code: false,
       families: [],
+      history: false,
       key: 'github.com/jorisjonkers-dev/agent-kit',
       routed_families: ['mistral', 'google', 'zhipu', 'deepseek'],
       status: 'not-opted-in',
@@ -670,6 +835,17 @@ describe("the repository's opt-in", () => {
     expect((await listed(h, { repo: h.repo })).repository).toMatchObject({
       code: false,
       families: ['mistral', 'google'],
+      status: 'opted-in',
+    })
+  })
+
+  it('reports the history permission of an opted-in repository apart from its code permission', async () => {
+    const h = await machine()
+    await h.commands.allow.run({ families: ['mistral'], history: true, repo: h.repo })
+
+    expect((await listed(h, { repo: h.repo })).repository).toMatchObject({
+      code: false,
+      history: true,
       status: 'opted-in',
     })
   })

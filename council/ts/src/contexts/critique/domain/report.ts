@@ -1,9 +1,12 @@
 import type { CriticRun } from './critic.js'
 import { signalledDepth, type DepthSignal } from './depth.js'
 import type { RunFinding } from './findings.js'
+import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
+import { STAGE_TABLE } from './stage-table.js'
 import {
   countVerdicts,
+  degradedTicketReview,
   familiesOf,
   isDissent,
   openCriticalQuestions,
@@ -116,6 +119,8 @@ export function renderReport(run: AdjudicatedRun): string {
       `- Role ${critic.role}, lenses ${critic.lenses.join(', ')}`,
       `- Exit code ${String(critic.exit_code)}, ${String(critic.duration_ms)} ms`,
       ...(critic.detail === undefined ? [] : [`- Detail: ${critic.detail}`]),
+      ...(critic.tools === undefined ? [] : [`- Tools: ${critic.tools.join(', ')}`]),
+      ...(critic.search_failure === undefined ? [] : [`- Search failure: ${critic.search_failure}`]),
       `- Prompt hashes: ${hashList({ ...critic.prompt_hashes })}`,
       `- Lens hashes: ${hashList(critic.lens_hashes)}`,
       '',
@@ -124,11 +129,28 @@ export function renderReport(run: AdjudicatedRun): string {
     '## Findings',
     '',
     ...(run.findings.length === 0 ? ['none', ''] : run.findings.flatMap((f) => findingSection(run, f))),
+    ...refuteSection(run.refutes),
     '## Dissent',
     '',
     ...(dissent.length === 0 ? ['none'] : dissent.map((f) => `- ${f.id}: ${f.verdict.reason ?? ''}`)),
     '',
   ].join('\n')
+}
+
+/** The refute round, when the run had one: each accepted critical finding's outcome and who refuted it. */
+function refuteSection(refutes: readonly RefuteRecord[] | undefined): readonly string[] {
+  if (refutes === undefined) return []
+  return ['## Refute round', '', ...(refutes.length === 0 ? ['no accepted critical finding'] : refutes.map(refuteLine)), '']
+}
+
+function refuteLine(result: RefuteRecord): string {
+  const refuter = result.refuter
+  const by = refuter === undefined ? '' : ` by ${refuter.critic_id} (${refuter.client}, ${refuter.model}, ${refuter.family})`
+  const reason = result.reason_code === undefined ? '' : ` (${result.reason_code})`
+  const answered = result.outcome === 'stands' && result.answer !== undefined ? `, which answered ${result.answer}` : ''
+  const text = result.reply?.claim ?? result.detail
+  const severity = result.severity === undefined ? '' : ` to ${result.severity}`
+  return `- ${result.finding_id}: ${result.outcome}${severity}${reason}${by}${answered}${text === undefined ? '' : `: ${text}`}`
 }
 
 /** #181 US60: a feature review's summary and report open with the gate line, so a script can read it. */
@@ -186,10 +208,12 @@ function roundLines(run: AdjudicatedRun): readonly string[] {
 /**
  * #167 US40: tickets are never cut from a spec with an open critical gap.
  * #181 US29 and US35: no ticket is implemented from a ticket graph with a
- * cycle, or while a critical scope question about the tickets is open.
+ * cycle, or while a critical scope question about the tickets is open. A
+ * review stage sits before no command of a feature's flow, so it names none.
  */
 function doNotStartLines(run: AdjudicatedRun): readonly string[] {
-  const next = run.stage === 'tickets' ? '/implement' : '/to-tickets'
+  const next = STAGE_TABLE[run.stage].doNotStart
+  if (next === null) return []
   const open = openCriticalQuestions(run).map((f) => f.id)
   const which = open.length === 1 ? `critical question ${open.join('')} is` : `critical questions ${open.join(', ')} are`
   return [
@@ -200,9 +224,13 @@ function doNotStartLines(run: AdjudicatedRun): readonly string[] {
 
 /**
  * #181 US53: a ticket review whose accepted critical finding is not fixed
- * yet ends its summary with "do not commit", the gate before any hook.
+ * yet ends its summary with "do not commit", the gate before any hook. So
+ * does one no critic reported in (#259): nobody reviewed the change.
  */
 function doNotCommitLines(run: AdjudicatedRun): readonly string[] {
+  if (degradedTicketReview(run)) {
+    return ['', 'No critic reported, so this review is degraded and the commit stays blocked: do not commit.']
+  }
   const ids = unfixedCritical(run).map((f) => f.id)
   if (ids.length === 0) return []
   const which = ids.length === 1 ? `Critical finding ${ids.join('')} is` : `Critical findings ${ids.join(', ')} are`
@@ -304,6 +332,9 @@ function findingSection(run: AdjudicatedRun, finding: AdjudicatedFinding): reado
     '',
     `Raised by: ${finding.raised_by.join(', ')} (${familiesOf(run, finding).join(', ')})`,
     `Verdict: ${verdictText(finding.verdict)}`,
+    ...(finding.verdict.severity === undefined
+      ? []
+      : [`Severity: ${finding.verdict.severity}, overriding the check's ${String(finding.declared_severity)} (${String(finding.verdict.severity_reason)})`]),
     ...(finding.pre_verdict === undefined || finding.pre_verdict.verdict === finding.verdict.verdict
       ? []
       : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`]),

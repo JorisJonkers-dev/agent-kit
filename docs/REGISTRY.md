@@ -276,6 +276,11 @@ price per million input and output tokens, nothing else:
   can widen a critic.
 - A price of 0 is refused: Vibe computes cost from these prices, and with 0 no
   price cap ever fires.
+- The renderer adds `cached_input_price`, 10% of `input_price`, as Mistral
+  bills cached prompt tokens. Without it Vibe prices every cached token at
+  the full rate, and a critic re-reads its whole conversation each turn.
+  The critique pipeline's `routing.json` carries the same three prices per
+  Vibe client, and a test holds the two to each other.
 - Setup copies each file into the shared Vibe home's `agents/`
   (`~/.vibe/agents/`, read by `vibe` and `vibe-study`), never into
   `~/.vibe-private`, and replaces a hand-edited one. It never touches

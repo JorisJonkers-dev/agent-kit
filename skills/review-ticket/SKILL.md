@@ -7,7 +7,8 @@ description: Use after a ticket's /code-review and before its commit. Risk triag
 
 You are the **orchestrator**: a critic from another model family reviews a
 frozen copy of the ticket's staged change (the **packet**: the ticket, its
-spec, the diff and every file of the staged tree), and you are the only one
+spec, the diff, the repo map, the context slices around the change and as
+much more of the staged tree as the packet cap lets in), and you are the only one
 who rules on its findings. Execution decides each bug finding: the critic's
 test fails as predicted, or the finding is rejected.
 
@@ -17,7 +18,7 @@ The runner does the deterministic work. It is `critique.mjs` in the
 takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <triage|prepare|fan-out|record|allow> --json '<object>'
+node <critique dir>/critique.mjs <triage|prepare|fan-out|refute|record|allow> --json '<object>'
 node <critique dir>/critique.mjs <command> --input <file.json>
 ```
 
@@ -78,7 +79,8 @@ counts against the same cap as the spec's other stages.
 
 - **Refused with `code-not-allowed`**: the repository's **family allowlist**
   entry allows documents but not code. Offer to extend it: this stage sends
-  the staged code (every file of the staged tree) to the entry's families.
+  the staged code (the diff and any file of the staged tree, up to the
+  packet cap) to the entry's families.
   Read the entry's families from `~/.config/agent-kit/critique-allowlist.json`
   (`repositories["<host/owner/repo>"].families`). If the owner agrees, run
   allow with `repo`, those `families` and `"code": true`, then triage and
@@ -127,7 +129,7 @@ git worktree add --detach "<run_dir>/worktree" <code.head_commit>
 ```
 
 Put the test where the repository keeps its tests, run that one test with the
-repository's own test command, and keep the worktree until step 6 is done.
+repository's own test command, and keep the worktree until step 7 is done.
 
 | Outcome | Verdict |
 |---|---|
@@ -145,7 +147,29 @@ behaviour is right; `reason` is the question for the owner.
 Done when every finding without a pre-verdict has a verdict resting on a test
 you ran or a trace you walked.
 
-### 6. Fix inside the TDD loop
+### 6. Refute
+
+Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json` with
+the verdicts of step 5, leaving out `regression_test` and `fixed`, which come
+in step 7, and run refute with `--input <run_dir>/verdicts.json`. It sends
+each accepted critical finding to one critic of a family that neither raised
+it nor is yours, and returns when the slowest ends; give it as long as
+fan-out. With no accepted critical finding it launches nothing. Each of its
+`results` names a `finding_id` and an `outcome`:
+
+- `refute`: the refuter showed, with a failing test or a trace the runner
+  checked, that the finding does not hold. Change its verdict to `rejected`
+  with `reason_code: "refuted"` and the refuter's `reply.claim` as `reason`.
+  It is not fixed, and its test stays out of the change.
+- `downgrade`: the bug holds but is not critical. Keep it `accepted` and fix
+  it in step 7; record lowers its severity to the result's `severity`, so
+  it no longer holds the commit.
+- `no-objection` or `stands`: your verdict stands.
+- `skipped`: no eligible critic could run (`reason_code` and `detail` say
+  why), and your verdict stands. A skipped refute is reported, not retried:
+  the runner refuses a second refute of one run, and step 9 names the skip.
+
+### 7. Fix inside the TDD loop
 
 Each accepted finding is fixed now, as part of the ticket, before its
 commit:
@@ -166,22 +190,32 @@ the scratch worktree: `git worktree remove --force "<run_dir>/worktree"`.
 Done when every accepted finding is fixed and staged or the owner chose to
 leave it, and the scratch worktree is gone.
 
-### 7. Record
+### 8. Record
 
 Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json`, one
-entry per verdict from step 5: `finding_id`, `verdict`, `reason`,
-`reason_code`, and for an accepted finding `regression_test` (with
-`test-fails`) and `fixed`. Run record with `--input <run_dir>/verdicts.json`.
+entry per verdict from step 5 as steps 6 and 7 left it: `finding_id`,
+`verdict`, `reason`, `reason_code`, and for an accepted finding
+`regression_test` (with `test-fails`) and `fixed`. Run record with
+`--input <run_dir>/verdicts.json`; it applies the refute round.
 
 Record writes `<run_dir>/review.json` and a line of the critique directory's
-`ticket-reviews.jsonl`: whether the review passed, and a hash of the staged
+`ticket-reviews.jsonl`: whether the review passed, failed or was degraded
+(no critic reported), and a hash of the staged
 change as it stands now, fixes and regression tests included. A commit gate
 matches the staged change against that hash, so record last: anything staged
 after it needs another review.
 
-### 8. Return
+### 9. Return
 
-Return triage's `summary` line, then record's `summary` as the runner wrote
-it. When the summary ends with "do not commit", an accepted critical finding
-is unfixed: tell the owner the commit waits until it is fixed, staged and
-reviewed again with `/review-ticket`.
+Return triage's `summary` line, one line per `skipped` result of the refute
+round, `Refute skipped: <finding_id> (<reason_code>)`, then record's
+`summary` as the runner wrote it. When the summary ends with "do not
+commit", the commit is still blocked, and you say so plainly:
+
+- **An accepted critical finding is unfixed**: the commit waits until it is
+  fixed, staged and reviewed again with `/review-ticket`.
+- **No critic reported, so the review is degraded**: nobody reviewed the
+  change, and the commit gate stays shut. Name each critic and why it did
+  not report (`ticket_review.critic_failures` in record's result). The
+  commit waits for another `/review-ticket` run in which a critic reports;
+  only the owner can turn the gate off with the kill switch.

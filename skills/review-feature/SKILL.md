@@ -7,7 +7,8 @@ description: Use after every ticket of a spec has landed on its feature branch a
 
 You are the **orchestrator**: critics from other model families review a frozen
 copy of the finished feature (the **packet**: the spec, every ticket, the diff
-against the branch base and every file at the head), and you are the only one
+against the branch base, the repo map, the context slices around the change and
+as much more of the head as the packet cap lets in), and you are the only one
 who rules on their findings. Per-ticket reviews already ran; this stage hunts
 the defects that live between tickets.
 
@@ -17,7 +18,7 @@ The runner does the deterministic work, the gate included. It is
 takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|record|allow> --json '<object>'
+node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow> --json '<object>'
 node <critique dir>/critique.mjs <command> --input <file.json>
 ```
 
@@ -59,7 +60,8 @@ counts against the same cap as the spec's other stages.
 
 - **Refused with `code-not-allowed`**: the repository's **family allowlist**
   entry allows documents but not code. Offer to extend it: this stage sends
-  the feature's code (every file at the head) to the entry's families. Read
+  the feature's code (the diff and any file at the head, up to the packet
+  cap) to the entry's families. Read
   the entry's families from `~/.config/agent-kit/critique-allowlist.json`
   (`repositories["<host/owner/repo>"].families`). If the owner agrees, run
   allow with `repo`, those `families` and `"code": true`, then prepare again.
@@ -130,7 +132,29 @@ side of a seam is right; `reason` is the question for the owner.
 Done when every finding without a pre-verdict has a verdict resting on a test
 you ran or a trace you walked.
 
-### 4. File a follow-up ticket per accepted finding
+### 4. Refute
+
+Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json` with
+the verdicts of step 3, leaving out `follow_up`, which comes in step 5, and
+run refute with `--input <run_dir>/verdicts.json`. It sends each accepted
+critical finding to one critic of a family that neither raised it nor is
+yours, and returns when the slowest ends; give it as long as fan-out. With
+no accepted critical finding it launches nothing. Each of its `results`
+names a `finding_id` and an `outcome`:
+
+- `refute`: the refuter showed, with a failing test or a trace the runner
+  checked, that the finding does not hold. Change its verdict to `rejected`
+  with `reason_code: "refuted"` and the refuter's `reply.claim` as `reason`,
+  without `follow_up` or `trace_tickets`. It gets no follow-up ticket.
+- `downgrade`: the defect holds but is not critical. Keep it `accepted` and
+  file its follow-up in step 5 at the result's `severity`; record lowers its
+  severity to that, so it does not hold the gate.
+- `no-objection` or `stands`: your verdict stands.
+- `skipped`: no eligible critic could run (`reason_code` and `detail` say
+  why), and your verdict stands. A skipped refute is reported, not retried:
+  the runner refuses a second refute of one run, and step 7 names the skip.
+
+### 5. File a follow-up ticket per accepted finding
 
 Each accepted finding becomes one ticket of the spec, on the spec's tracker,
 blocked by nothing, fixed later through `/implement`. When an earlier
@@ -154,12 +178,13 @@ step; and the run id and report path.
 
 Keep each finding's follow-up id: `#301`, or `07` for a local ticket.
 
-### 5. Record
+### 6. Record
 
 Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json`, one
-entry per verdict from step 3: `finding_id`, `verdict`, `reason`,
-`reason_code`, and for an accepted finding `follow_up` (and `trace_tickets`
-for a trace). Run record with `--input <run_dir>/verdicts.json`.
+entry per verdict from step 3 as steps 4 and 5 left it: `finding_id`,
+`verdict`, `reason`, `reason_code`, and for an accepted finding `follow_up`
+(and `trace_tickets` for a trace). Run record with
+`--input <run_dir>/verdicts.json`; it applies the refute round.
 
 Record reads the spec's tickets from the tracker and refuses a `follow_up`
 that is not one of them. It computes the gate: `GATE: FAIL (n critical)`
@@ -167,11 +192,12 @@ while any accepted critical finding of this run or an earlier one has an
 open follow-up ticket, `GATE: PASS` otherwise. It writes the gate and the
 head it holds for to `<run_dir>/gate.json`, which the PR gate reads.
 
-### 6. Return
+### 7. Return
 
 Return record's `summary` as the runner wrote it; its first line is the gate.
-Under it, list the follow-up tickets you filed. While the gate is FAIL, tell
-the owner the PR waits: fix each critical follow-up through `/implement`,
-close it once its fix is on the feature branch (`gh issue close`, or
-`**Status:** done` in a local ticket), then run `/review-feature` again on the
-new head. Each run's gate belongs to the head it reviewed.
+Under it, list the follow-up tickets you filed, then one line per `skipped`
+result of the refute round, `Refute skipped: <finding_id> (<reason_code>)`.
+While the gate is FAIL, tell the owner the PR waits: fix each critical
+follow-up through `/implement`, close it once its fix is on the feature
+branch (`gh issue close`, or `**Status:** done` in a local ticket), then run
+`/review-feature` again on the new head. Each run's gate belongs to the head it reviewed.

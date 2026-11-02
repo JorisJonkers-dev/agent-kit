@@ -3,6 +3,7 @@ import { sha256 } from './manifest.js'
 import { CritiqueError } from './outcomes.js'
 import type { StatsThresholds } from './routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
+import { STAGE_TABLE, type RemovalRule } from './stage-table.js'
 
 /** Which ledger lines the figures cover. Dates are `YYYY-MM-DD`, both ends included, read from `recorded_at` in UTC. */
 export interface StatsFilter {
@@ -58,14 +59,27 @@ export interface StatsCell {
   readonly unpriced_runs: number
   /** Cost over accepted findings; null with no accepted finding or no priced run. */
   readonly cost_per_accepted_usd: number | null
+  /** Runs a price or time limit stopped (Vibe's `price_limit`, its deadline, or an interrupted run) before they found anything. */
+  readonly stopped_runs: number
+  /** The summed known cost of the stopped runs: spend that bought no finding. */
+  readonly wasted_usd: number
 }
 
-/** A stage whose latest features brought no accepted finding that only one critic client raised. */
-export interface RemovalCandidate {
-  readonly stage: CritiqueStage
-  /** The features (spec references) looked at, latest first. */
-  readonly features: readonly string[]
-}
+/**
+ * A stage whose latest features, or at a review stage whose latest runs,
+ * brought no accepted finding that only one critic client raised.
+ */
+export type RemovalCandidate =
+  | {
+      readonly stage: CritiqueStage
+      /** The features (spec references) looked at, latest first. */
+      readonly features: readonly string[]
+    }
+  | {
+      readonly stage: CritiqueStage
+      /** The review runs looked at, latest first. */
+      readonly runs: readonly string[]
+    }
 
 export interface CritiqueStats {
   readonly cells: readonly StatsCell[]
@@ -79,6 +93,9 @@ const TIMEOUT_FAILURES: ReadonlySet<string> = new Set([
   'stopped-early',
   'exit-124',
 ])
+
+/** A limit stopped the run: a time or price limit, or the outer timer that killed it. */
+const STOPPED_FAILURES: ReadonlySet<string> = new Set([...TIMEOUT_FAILURES, 'timeout'])
 
 /** One cell while the ledger is read. */
 class Tally {
@@ -101,6 +118,8 @@ class Tally {
   fabricated = 0
   cost = 0
   unpriced = 0
+  stopped = 0
+  wasted = 0
 
   constructor(
     run: LedgerCriticRun,
@@ -121,6 +140,10 @@ class Tally {
     if (run.failure !== null && TIMEOUT_FAILURES.has(run.failure)) this.timedOut += 1
     if (run.cost_usd === null) this.unpriced += 1
     else this.cost += run.cost_usd
+    if (run.failure !== null && STOPPED_FAILURES.has(run.failure) && run.finding_count === 0) {
+      this.stopped += 1
+      this.wasted += run.cost_usd ?? 0
+    }
   }
 
   addFinding(finding: LedgerFinding, unique: boolean): void {
@@ -160,10 +183,12 @@ class Tally {
       role: this.role,
       runs: this.runs,
       stage: this.stage,
+      stopped_runs: this.stopped,
       timed_out_runs: this.timedOut,
       timeout_rate: this.timedOut / this.runs,
       unique_catches: this.unique,
       unpriced_runs: this.unpriced,
+      wasted_usd: this.wasted,
     }
   }
 }
@@ -251,9 +276,22 @@ function raiser(
 }
 
 /**
+ * What a removal rule counts a ledger line under: for `features`, the spec
+ * it belongs to, and a line recorded before the ledger named the spec counts
+ * under none; for `runs`, the run itself.
+ */
+const REMOVAL_UNITS: Readonly<
+  Record<RemovalRule, (line: { readonly spec: string | undefined; readonly run_id: string }) => string | undefined>
+> = {
+  features: (line) => line.spec,
+  runs: (line) => line.run_id,
+}
+
+/**
  * A stage is a candidate when its latest `features` features (distinct
  * specs, ordered by their latest run of the stage) brought no unique
- * accepted catch. A stage that has run on fewer features is not judged yet.
+ * accepted catch; a review stage, when its latest `features` runs did. A
+ * stage that has run on fewer is not judged yet.
  */
 function removalCandidates(
   runs: readonly LedgerCriticRun[],
@@ -262,22 +300,25 @@ function removalCandidates(
 ): readonly RemovalCandidate[] {
   const candidates: RemovalCandidate[] = []
   for (const stage of CRITIQUE_STAGES) {
+    const rule = STAGE_TABLE[stage].removal
+    const unitOf = REMOVAL_UNITS[rule]
     const latest = new Map<string, string>()
     for (const run of runs) {
-      if (run.stage !== stage || run.spec === undefined) continue
-      if ((latest.get(run.spec) ?? '') < run.recorded_at) latest.set(run.spec, run.recorded_at)
+      const unit = unitOf(run)
+      if (run.stage !== stage || unit === undefined) continue
+      if ((latest.get(unit) ?? '') < run.recorded_at) latest.set(unit, run.recorded_at)
     }
     if (latest.size < features) continue
     const looked = [...latest]
       .sort(([, a], [, b]) => b.localeCompare(a))
       .slice(0, features)
-      .map(([spec]) => spec)
+      .map(([unit]) => unit)
     if (
       !uniqueCatches.some(
-        (finding) => finding.stage === stage && looked.includes(finding.spec ?? ''),
+        (finding) => finding.stage === stage && looked.includes(unitOf(finding) ?? ''),
       )
     ) {
-      candidates.push({ features: looked, stage })
+      candidates.push(rule === 'runs' ? { runs: looked, stage } : { features: looked, stage })
     }
   }
   return candidates
@@ -347,6 +388,8 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
     `Ledger: ${scope.ledgerPath}. Repository: ${filter.repository ?? 'all'}. Dates: ${dates}.`,
     `One row per critic client and prompt. A row with fewer than ${String(thresholds.min_adjudicated_findings)} adjudicated findings gets no suggestion.`,
   ]
+  const wasted = wastedLine(stats.cells)
+  if (wasted !== undefined) lines.push(wasted)
   if (stats.cells.length === 0) lines.push('', 'No critic runs in the ledger match.')
   for (const stage of CRITIQUE_STAGES) {
     const rows = stats.cells.filter((cell) => cell.stage === stage)
@@ -355,8 +398,8 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
       '',
       `## ${stage}`,
       '',
-      '| client | prompt | runs | adjudicated | precision | unique | fabricated | cost per accepted | failed | timed out |',
-      '|---|---|---|---|---|---|---|---|---|---|',
+      '| client | prompt | runs | adjudicated | precision | unique | fabricated | cost per accepted | failed | timed out | wasted |',
+      '|---|---|---|---|---|---|---|---|---|---|---|',
       ...rows
         .map((cell) =>
           [
@@ -370,6 +413,7 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
             cell.cost_per_accepted_usd === null ? '-' : `$${cell.cost_per_accepted_usd.toFixed(4)}`,
             percent(cell.failure_rate),
             percent(cell.timeout_rate),
+            cell.stopped_runs === 0 ? '-' : `$${cell.wasted_usd.toFixed(4)} (${String(cell.stopped_runs)})`,
           ].join(' | '),
         )
         .map((row) => `| ${row} |`),
@@ -380,8 +424,10 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
     ...(stats.removal_candidates.length === 0
       ? ['none']
       : stats.removal_candidates.map(
-          (candidate) =>
-            `- ${candidate.stage}: no unique accepted catch across its last ${String(candidate.features.length)} features (${candidate.features.join(', ')})`,
+          (candidate) => {
+            const [looked, unit] = 'runs' in candidate ? [candidate.runs, 'runs'] : [candidate.features, 'features']
+            return `- ${candidate.stage}: no unique accepted catch across its last ${String(looked.length)} ${unit} (${looked.join(', ')})`
+          },
         )),
   )
   lines.push(
@@ -391,6 +437,15 @@ export function renderStats(stats: CritiqueStats, scope: StatsScope): string {
     ...(stats.suggestions.length === 0 ? ['none'] : stats.suggestions.map((s) => `- ${s}`)),
   )
   return `${lines.join('\n')}\n`
+}
+
+/** What every row's stopped runs cost together; undefined when no run was stopped. */
+function wastedLine(cells: readonly StatsCell[]): string | undefined {
+  const runs = cells.reduce((total, cell) => total + cell.stopped_runs, 0)
+  if (runs === 0) return undefined
+  const usd = cells.reduce((total, cell) => total + cell.wasted_usd, 0)
+  const runsText = runs === 1 ? '1 run a price or time limit stopped before it' : `${String(runs)} runs a price or time limit stopped before they`
+  return `Wasted: $${usd.toFixed(4)} on ${runsText} found anything.`
 }
 
 function percent(rate: number): string {

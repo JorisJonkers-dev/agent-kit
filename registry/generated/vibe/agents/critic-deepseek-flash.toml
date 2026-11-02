@@ -6,12 +6,20 @@ display_name = "Critic Deepseek Flash"
 description = "Read-only critic pinned to deepseek-v4-1-flash-1017"
 safety = "safe"
 active_model = "critic-deepseek-flash"
-enabled_tools = ["read_file"]
+enabled_tools = ["read_file", "packet_grep", "packet_list", "packet_symbol"]
 enabled_skills = ["re:^$"]
 outside_workdir = "deny"
-enable_mcp = false
 enable_subagents = false
 include_project_context = false
+
+[tools.packet_grep]
+permission = "always"
+
+[tools.packet_list]
+permission = "always"
+
+[tools.packet_symbol]
+permission = "always"
 
 [session_logging]
 enabled = false
@@ -22,4 +30,5 @@ provider = "mistral"
 alias = "critic-deepseek-flash"
 input_price = 0.3
 output_price = 1.2
+cached_input_price = 0.03
 thinking = "high"

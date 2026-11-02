@@ -238,6 +238,49 @@ describe('critique stats figures', () => {
   })
 })
 
+describe('wasted spend', () => {
+  /** Runs a price or time limit stopped before they found anything, beside runs that are not waste. */
+  function stoppedRuns(): SyntheticLedger {
+    const ledger = new SyntheticLedger()
+    const critics: SyntheticCritic[] = [
+      { client: MISTRAL, cost_usd: 0.2, failure: 'stopped-early', status: 'failed' },
+      { client: MISTRAL, cost_usd: 0.3, failure: 'stopped-early', status: 'failed' },
+      { client: MISTRAL, cost_usd: null, failure: 'timeout', status: 'failed' },
+      { client: MISTRAL, cost_usd: 0.1, failure: 'unparseable-output', status: 'failed' },
+      { client: MISTRAL, cost_usd: 0.4 },
+    ]
+    for (const critic of critics) ledger.run({ critics: [critic, { client: GLM }] })
+    return ledger
+  }
+
+  it('counts the spend on runs a price or time limit stopped with no findings', async () => {
+    expect(cell(await stats(stoppedRuns()), MISTRAL)).toMatchObject({ stopped_runs: 3, wasted_usd: 0.5 })
+  })
+
+  it('names a single wasted run in the singular', async () => {
+    const ledger = new SyntheticLedger().run({ critics: [{ client: MISTRAL, cost_usd: 0.2, failure: 'stopped-early', status: 'failed' }] })
+
+    expect((await stats(ledger)).report).toContain('Wasted: $0.2000 on 1 run a price or time limit stopped before it found anything.\n')
+  })
+
+  it('names no wasted spend when the ledger has no runs', async () => {
+    const result = await stats(new SyntheticLedger())
+    expect(result.report).not.toContain('Wasted:')
+  })
+
+  it('counts no waste for a client whose runs all finished', async () => {
+    expect(cell(await stats(stoppedRuns()), GLM)).toMatchObject({ stopped_runs: 0, wasted_usd: 0 })
+  })
+
+  it('shows the wasted spend in the report, in total and per row', async () => {
+    const result = await stats(stoppedRuns())
+
+    expect(result.report).toContain('Wasted: $0.5000 on 3 runs a price or time limit stopped before they found anything.\n')
+    expect(result.report).toContain(`| vibe-mistral-large | ${cell(result, MISTRAL).prompt_hash} | 5 | 0 (too few) | - | 0 | - | - | 80% | 40% | $0.5000 (3) |`)
+    expect(result.report).toContain(`| vibe-glm | ${cell(result, GLM).prompt_hash} | 5 | 0 (too few) | - | 0 | - | - | 0% | 0% | - |`)
+  })
+})
+
 describe('critique stats cells', () => {
   it('splits a client into one cell per prompt when its role changed', async () => {
     const ledger = new SyntheticLedger()
@@ -570,6 +613,37 @@ describe('critique stats removal candidates', () => {
     expect((await stats(ledger)).removal_candidates).toEqual([])
   })
 
+  it('judges a review stage by its latest runs, since a review belongs to no feature', async () => {
+    const ledger = new SyntheticLedger()
+    for (let n = 0; n < 3; n += 1) {
+      ledger.run({
+        critics: [{ client: MISTRAL }, { client: GLM }],
+        findings: raised([MISTRAL, GLM], { accepted: 2 }),
+        spec: 'adrs',
+        stage: 'adr-review',
+      })
+    }
+
+    const result = await stats(ledger)
+
+    expect(result.removal_candidates).toEqual([{ runs: ['run-3', 'run-2', 'run-1'], stage: 'adr-review' }])
+    expect(result.report).toContain('- adr-review: no unique accepted catch across its last 3 runs (run-3, run-2, run-1)\n')
+  })
+
+  it('keeps a review stage whose unique accepted catch was in one of its latest runs', async () => {
+    const ledger = new SyntheticLedger()
+    for (const unique of [0, 1, 0]) {
+      ledger.run({
+        critics: [{ client: MISTRAL }, { client: GLM }],
+        findings: raised(MISTRAL, { accepted: unique, rejected: 1 }),
+        spec: 'adrs',
+        stage: 'adr-review',
+      })
+    }
+
+    expect((await stats(ledger)).removal_candidates).toEqual([])
+  })
+
   it('reads the number of features from routing', async () => {
     const ledger = new SyntheticLedger()
     feature(ledger, '#1')
@@ -790,10 +864,10 @@ describe('the critique stats report', () => {
       [
         '## spec',
         '',
-        '| client | prompt | runs | adjudicated | precision | unique | fabricated | cost per accepted | failed | timed out |',
-        '|---|---|---|---|---|---|---|---|---|---|',
-        `| vibe-glm | ${cell(result, GLM).prompt_hash} | 20 | 20 | 0.80 | 16 | 0% | - | 0% | 0% |`,
-        `| vibe-mistral-large | ${mistral.prompt_hash} | 20 | 20 | 0.55 | 11 | 0% | $0.0400 | 0% | 0% |`,
+        '| client | prompt | runs | adjudicated | precision | unique | fabricated | cost per accepted | failed | timed out | wasted |',
+        '|---|---|---|---|---|---|---|---|---|---|---|',
+        `| vibe-glm | ${cell(result, GLM).prompt_hash} | 20 | 20 | 0.80 | 16 | 0% | - | 0% | 0% | - |`,
+        `| vibe-mistral-large | ${mistral.prompt_hash} | 20 | 20 | 0.55 | 11 | 0% | $0.0400 | 0% | 0% | - |`,
       ].join('\n'),
     )
   })
@@ -802,7 +876,7 @@ describe('the critique stats report', () => {
     const result = await stats(runs(new SyntheticLedger(), 20, raised(GLM, { hint: 20 })))
 
     expect(result.report).toContain(
-      `| vibe-glm | ${cell(result, GLM).prompt_hash} | 20 | 0 (too few) | - | 0 | 0% | - | 0% | 0% |`,
+      `| vibe-glm | ${cell(result, GLM).prompt_hash} | 20 | 0 (too few) | - | 0 | 0% | - | 0% | 0% | - |`,
     )
   })
 

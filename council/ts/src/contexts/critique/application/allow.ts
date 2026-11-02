@@ -12,13 +12,16 @@ export interface AllowResult {
   readonly families: readonly ModelFamily[]
   /** Whether the repository may send code to the code stages. */
   readonly code: boolean
+  /** Whether the repository may send its commit messages and issue text. */
+  readonly history: boolean
   readonly allowlist_path: string
 }
 
 /**
  * Records which model families this machine lets a repository send content
- * to, and whether that content may be code. `code` left out keeps the
- * entry's current permission, which is off for a new entry.
+ * to, whether that content may be code, and whether it may be history.
+ * `code` or `history` left out keeps the entry's current permission, which
+ * is off for a new entry.
  */
 export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
   private readonly repositories: RepositoryGate
@@ -31,15 +34,18 @@ export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
     const input = readInput(raw, 'allow', (fields) => ({
       code: fields.has('code') ? fields.boolean('code') : undefined,
       families: fields.oneOfList('families', MODEL_FAMILIES),
+      history: fields.has('history') ? fields.boolean('history') : undefined,
       repo: fields.string('repo'),
     }))
     const repository = await this.repositories.resolve(input.repo)
     if (repository.status === 'refused') return repository
     const path = allowlistPath(this.deps.env)
     const allowlist = await this.repositories.allowlist()
-    const code = input.code ?? allowlist.repositories[repository.key]?.code ?? false
-    const next = withEntry(allowlist, repository.key, { code, families: input.families }, this.deps.clock.now())
+    const current = allowlist.repositories[repository.key]
+    const code = input.code ?? current?.code ?? false
+    const history = input.history ?? current?.history ?? false
+    const next = withEntry(allowlist, repository.key, { code, families: input.families, history }, this.deps.clock.now())
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}\n`)
-    return { allowlist_path: path, code, families: input.families, repository: repository.key, status: 'allowed' }
+    return { allowlist_path: path, code, families: input.families, history, repository: repository.key, status: 'allowed' }
   }
 }

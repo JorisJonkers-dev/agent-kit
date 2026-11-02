@@ -1,7 +1,10 @@
 import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './findings.js'
-import { lineCount, lineReferences, packetCandidates } from './line-references.js'
-import type { PacketFile } from './manifest.js'
+import { lineCount, lineReferences, packetCandidates, type LineReference } from './line-references.js'
+import { diffShownLines } from './diff-window.js'
+import { heldRanges, type PacketFile, type PacketWindow } from './manifest.js'
+import { mergeRanges, type LineRange } from './tree-sample.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
+import { STAGE_TABLE, type EvidenceRule } from './stage-table.js'
 import { ticketTarget } from './tickets.js'
 
 /** One packet file's text, as it was frozen before any critic ran. */
@@ -9,6 +12,8 @@ export interface PacketText {
   readonly path: string
   readonly kind: PacketFile['kind']
   readonly text: string
+  /** Only for a tree file a repository packet cut short. */
+  readonly window?: PacketWindow
 }
 
 /** The packet as the evidence check reads it, built once for every finding of a run. */
@@ -16,6 +21,15 @@ export interface PacketIndex {
   readonly files: readonly (PacketText & { readonly normalised: string })[]
   /** How many lines each packet file has, by packet path. */
   readonly lines: ReadonlyMap<string, number>
+  /** The tree files a repository packet cut short, by packet path. */
+  readonly windows: ReadonlyMap<string, PacketWindow>
+  /**
+   * The lines at the head the diff's hunks show, by the packet path under
+   * `tree/` they are cited as: a windowed diff shows only the hunks it sent.
+   */
+  readonly shown: ReadonlyMap<string, readonly LineRange[]>
+  /** Whether the packet holds a tree, whose file and line citations are then checked at any stage. */
+  readonly tree: boolean
   /** At the tickets stage, the ids of the spec's tickets, which a finding's location must name. */
   readonly tickets: readonly string[]
 }
@@ -24,7 +38,12 @@ export function indexPacket(packet: readonly PacketText[], tickets: readonly str
   return {
     files: packet.map((file) => ({ ...file, normalised: normalise(file.text) })),
     lines: new Map(packet.map((file) => [file.path, lineCount(file.text)])),
+    shown: new Map(
+      packet.flatMap((file) => (file.kind === 'diff' ? [...diffShownLines(file.text)].map(([path, ranges]) => [`${TREE_DIR}/${path}`, ranges] as const) : [])),
+    ),
     tickets,
+    tree: packet.some((file) => file.kind === 'tree'),
+    windows: new Map(packet.flatMap((file) => (file.window === undefined ? [] : [[file.path, file.window] as const]))),
   }
 }
 
@@ -32,12 +51,14 @@ export function indexPacket(packet: readonly PacketText[], tickets: readonly str
 const TREE_DIR = 'tree'
 
 /** What a finding's evidence holds, once each quote is found in the packet. */
-interface EvidenceFound {
+export interface EvidenceFound {
   readonly items: number
   /** A quote found in the artifact. */
   readonly spec: boolean
   /** A quote found in a reference: the decision source. */
   readonly decision: boolean
+  /** A quote found in a fact the runner computed, which is never spec text or a decision. */
+  readonly fact: boolean
   /** An input, failing test or trace: a concrete scenario. */
   readonly scenario: boolean
 }
@@ -55,7 +76,24 @@ const DECISION_CATEGORIES: readonly Category[] = ['omission', 'invention']
  * adjudicate the finding itself.
  */
 export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet: PacketIndex): PreVerdict | undefined {
-  const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false }
+  const found = evidenceFound(finding, packet)
+  if (typeof found === 'number') return fabricated(`evidence ${String(found + 1)} quotes text that is not in the packet`)
+  if (isCodeStage(stage) || packet.tree) {
+    const missing = missingLine(finding, packet)
+    if (missing !== undefined) return fabricated(missing)
+  }
+  const hint = found.items === 0 ? 'no-evidence' : EVIDENCE_RULES[STAGE_TABLE[stage].evidence](finding, found, packet)
+  return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
+}
+
+/**
+ * Where each quote of a finding was found: a quote from the artifact is spec
+ * text, one from a reference a decision, and one from a fact the runner
+ * computed a fact, never either of the others. Returns the index of the
+ * first quote no packet file holds.
+ */
+export function evidenceFound(finding: FindingBody, packet: PacketIndex): EvidenceFound | number {
+  const found = { decision: false, fact: false, items: finding.evidence.length, scenario: false, spec: false }
   for (const [index, evidence] of finding.evidence.entries()) {
     if (evidence.kind !== 'quote') {
       found.scenario = true
@@ -63,25 +101,20 @@ export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet
     }
     const quote = normalise(evidence.value)
     const holders = packet.files.filter((file) => file.normalised.includes(quote))
-    if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`)
+    if (holders.length === 0) return index
     found.spec ||= holders.some((file) => file.kind === 'artifact')
     found.decision ||= holders.some((file) => file.kind === 'reference')
+    found.fact ||= holders.some((file) => file.kind === 'fact')
   }
-  if (isCodeStage(stage)) {
-    const missing = missingLine(finding, packet)
-    if (missing !== undefined) return fabricated(missing)
-  }
-  const hint =
-    found.items === 0
-      ? 'no-evidence'
-      : stage === 'spec'
-        ? specRule(finding.category, found)
-        : stage === 'decisions'
-          ? decisionsRule(finding.category, found)
-          : isCodeStage(stage)
-            ? codeRule(finding.evidence)
-            : ticketRule(finding.location, packet.tickets)
-  return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
+  return found
+}
+
+/** Each evidence rule, as the stage table names it: the hint a finding earns, or nothing when it has something checkable. */
+const EVIDENCE_RULES: Readonly<Record<EvidenceRule, (finding: FindingBody, found: EvidenceFound, packet: PacketIndex) => HintCode | undefined>> = {
+  code: (finding) => codeRule(finding.evidence),
+  decisions: (finding, found) => decisionsRule(finding.category, found),
+  spec: (finding, found) => specRule(finding.category, found),
+  tickets: (finding, _found, packet) => ticketRule(finding.location, packet.tickets),
 }
 
 function fabricated(reason: string): PreVerdict {
@@ -91,6 +124,8 @@ function fabricated(reason: string): PreVerdict {
 /**
  * Why the first file-and-line citation of the location, or of a trace step,
  * names a file the packet does not hold or a line its file does not have.
+ * A line a hunk of the diff shows is held, whether or not the tree holds it;
+ * a line only a hunk the cap left out of the diff shows is not.
  */
 function missingLine(finding: FindingBody, packet: PacketIndex): string | undefined {
   const sources = [
@@ -101,14 +136,35 @@ function missingLine(finding: FindingBody, packet: PacketIndex): string | undefi
   ]
   for (const { text, where } of sources) {
     for (const reference of lineReferences(text)) {
-      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate))
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate) || packet.shown.has(candidate))
       if (path === undefined) return `${where} cites ${reference.path}, which is not in the packet`
-      const lines = packet.lines.get(path) ?? 0
-      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines)
-      if (outside !== undefined) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`
+      const lines = packet.lines.get(path)
+      const window = packet.windows.get(path)
+      const inTree = lines === undefined ? [] : window === undefined ? [{ first: 1, last: lines }] : heldRanges(window)
+      const held = mergeRanges([...inTree, ...(packet.shown.get(path) ?? [])])
+      const outside = firstUnheld(reference, held)
+      if (outside === undefined) continue
+      return lines !== undefined && window === undefined
+        ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`
+        : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(', ')}${window === undefined ? '' : ` of ${String(window.lines)}`})`
     }
   }
   return undefined
+}
+
+/**
+ * The first line a citation names that the file does not hold: its first
+ * line, its last, or for a range across a run of lines left out, the first
+ * line of that run. Held ranges are merged, so a range is held only when one
+ * of them holds both its ends.
+ */
+function firstUnheld(reference: LineReference, held: readonly { readonly first: number; readonly last: number }[]): number | undefined {
+  const holding = (line: number) => held.find((range) => range.first <= line && line <= range.last)
+  const first = holding(reference.first)
+  if (first === undefined) return reference.first
+  const last = holding(reference.last)
+  if (last === undefined) return reference.last
+  return first === last ? undefined : first.last + 1
 }
 
 /** #181's code-stage rule: a code finding needs a failing test, or a trace that cites a file and line. */

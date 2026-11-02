@@ -1,19 +1,23 @@
 import { join } from 'node:path'
 
 import { budgetReached, quotaReached } from '../domain/budget.js'
-import { criticIdentity, readCriticRun, type CriticOutcome, type CriticRun } from '../domain/critic.js'
-import { checkEvidence, indexPacket, type PacketIndex, type PacketText } from '../domain/evidence.js'
+import { checkNamed, declaredChecks, withDeclaredSeverity, type DeclaredCheck } from '../domain/checks.js'
+import { criticIdentity, readCriticRun, type CriticRun } from '../domain/critic.js'
+import { checkEvidence, indexPacket, type PacketIndex } from '../domain/evidence.js'
 import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { listedFiles, parseManifest, type RunManifest } from '../domain/manifest.js'
 import { mergeFindings } from '../domain/merge.js'
+import { READ_ONLY_TOOLSET, type CriticToolset } from '../domain/critic-tools.js'
 import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { FlowBudget } from './budget.js'
+import { FINDING_SCHEMA, promptFields, readFrozenPacket, runCritic } from './critic-run.js'
+import { CriticTools } from './critic-tools.js'
 import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
-import { reviewWith, type CritiqueCommand, type CritiqueDeps } from './ports.js'
+import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { ReadOnlyTripwire } from './tripwire.js'
 
 export interface FanOutResult {
@@ -27,10 +31,22 @@ export interface FanOutResult {
   readonly findings: readonly RunFinding[]
 }
 
-function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex): RunFinding {
-  const preVerdict = checkEvidence(finding, stage, packet)
-  return preVerdict === undefined ? finding : { ...finding, pre_verdict: preVerdict }
+/**
+ * A finding is judged against the prompt of the critic that raised it first,
+ * whose check a merged finding keeps: that check's declared severity, if it
+ * declares one, replaces the critic's. The stage's evidence check speaks
+ * first; only a finding it leaves to the orchestrator is checked for its
+ * check id.
+ */
+function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex, checks: CriticChecks): RunFinding {
+  const declared = checks.get(finding.raised_by[0] ?? '') ?? []
+  const rated = withDeclaredSeverity(finding, declared)
+  const preVerdict = checkEvidence(rated, stage, packet) ?? checkNamed(rated, declared)
+  return preVerdict === undefined ? rated : { ...rated, pre_verdict: preVerdict }
 }
+
+/** The checks each critic's prompt declared, by critic id. */
+type CriticChecks = ReadonlyMap<string, readonly DeclaredCheck[]>
 
 /** Reads `findings.json`, the merged findings fan-out wrote, back for record. */
 export function parseFanOutResult(text: string): FanOutResult {
@@ -46,8 +62,6 @@ export function parseFanOutResult(text: string): FanOutResult {
   }
 }
 
-const SCHEMA = 'schemas/finding.schema.json'
-
 /**
  * Runs every critic of a prepared run at once, so a stage takes as long as
  * its slowest critic. Each critic is blind: its prompt is built from the
@@ -62,13 +76,15 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const runDir = readInput(raw, 'fan-out', (fields) => fields.string('run_dir'))
     const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), 'invalid-run', parseManifest)
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
-    const packet = indexPacket(await this.readPacket(manifest), manifest.ticket_check?.ticket_ids)
+    const packet = indexPacket(await readFrozenPacket(this.deps, manifest), manifest.ticket_check?.ticket_ids)
     const budget = new FlowBudget(this.deps)
     const spent = await budget.vibeSpend(manifest)
-    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)))
-    const outcomes = [...first, ...(await this.retries({ budget, manifest, tripwire }, first))]
+    const tools = new CriticTools(this.deps, manifest.limits.search, join(runDir, 'search-proof'))
+    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tools, tripwire }, critic)))
+    const outcomes = [...first, ...(await this.retries({ budget, manifest, tools, tripwire }, first))]
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
-    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet))
+    const checks: CriticChecks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]))
+    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet, checks))
     const result: FanOutResult = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== 'ok'),
@@ -80,17 +96,6 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     }
     await this.deps.files.writeText(result.findings_path, `${JSON.stringify(result, null, 2)}\n`)
     return result
-  }
-
-  /** The packet as prepare froze it, read before any critic runs, so no critic can plant a quote. */
-  private async readPacket(manifest: RunManifest): Promise<readonly PacketText[]> {
-    return Promise.all(
-      manifest.packet_files.map(async (file) => ({
-        kind: file.kind,
-        path: file.path,
-        text: await this.deps.files.readText(join(manifest.packet_dir, file.path)),
-      })),
-    )
   }
 
   /**
@@ -117,9 +122,11 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   private async attempt(wave: Wave, critic: RosterCritic, retryOf?: string): Promise<CriticAttempt> {
     const skip = critic.client_config.kind === 'vibe' ? budgetReached(wave.spent, wave.manifest.limits) : undefined
     const criticDir = join(wave.manifest.run_dir, 'critics', critic.critic_id)
-    const prompt = await this.writePrompt(wave.manifest, critic, criticDir)
+    const { checks, prompt: promptFor } = await this.promptFor(wave.manifest, critic)
     const retry = retryOf === undefined ? {} : { retry_of: retryOf }
     if (skip !== undefined) {
+      const prompt = promptFor(READ_ONLY_TOOLSET)
+      await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
       const run: CriticRun = {
         ...criticIdentity(critic),
         ...promptFields(prompt, criticDir),
@@ -132,71 +139,32 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
         finding_count: 0,
         status: 'budget-skip',
       }
-      return { findings: [], run }
+      return { checks, findings: [], run }
     }
-    const attempt = await this.runCritic(wave.tripwire, critic, criticDir, prompt, retry)
+    const attempt = await runCritic(this.deps, { critic, criticDir, prompt: promptFor, retry, tools: wave.tools, tripwire: wave.tripwire })
     await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind)
-    return attempt
+    return { ...attempt, checks }
   }
 
-  private async writePrompt(manifest: RunManifest, critic: RosterCritic, criticDir: string): Promise<CriticPrompt> {
-    const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
-    const prompt = assemblePrompt(
-      {
-        contract: await asset('prompts/output-contract.md'),
-        lenses: await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) }))),
-        preamble: await asset('prompts/preamble.md'),
-        role: await asset(`roles/${critic.role}.md`),
-        schema: await asset(SCHEMA),
-      },
-      listedFiles(manifest),
-      manifest.stage,
-    )
-    await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
-    return prompt
-  }
-
-  private async runCritic(
-    tripwire: ReadOnlyTripwire,
+  /** The critic's prompt for the tools it gets, and the checks its role and lenses declare. */
+  private async promptFor(
+    manifest: RunManifest,
     critic: RosterCritic,
-    criticDir: string,
-    prompt: CriticPrompt,
-    retry: Pick<CriticRun, 'retry_of'>,
-  ): Promise<CriticAttempt> {
-    const { prompt_path: promptPath } = promptFields(prompt, criticDir)
-    const stdoutPath = join(criticDir, 'stdout.json')
-
-    const packetDir = join(criticDir, 'packet')
-    const armed = await tripwire.arm(packetDir)
-    const started = this.deps.clock.monotonicMs()
-    const report = await reviewWith(this.deps.clients, {
-      criticDir,
-      critic,
-      packetDir,
-      promptPath,
-      schemaPath: join(this.deps.assetsRoot, SCHEMA),
-    })
-    const durationMs = this.deps.clock.monotonicMs() - started
-    const violations = await armed.check()
-    await this.deps.files.writeText(stdoutPath, report.stdout)
-    await this.deps.files.writeText(join(criticDir, 'stderr.txt'), report.stderr)
-    const { outcome } = report
-
-    const findings = outcome.status === 'ok' && violations.length === 0 ? outcome.findings : []
-    const run: CriticRun = {
-      ...criticIdentity(critic),
-      ...promptFields(prompt, criticDir),
-      ...retry,
-      charged_usd: report.chargedUsd,
-      cost_usd: outcome.cost_usd,
-      duration_ms: durationMs,
-      exit_code: report.exitCode,
-      export_path: report.exportPath,
-      finding_count: findings.length,
-      stdout_path: stdoutPath,
-      ...criticStatus(outcome, violations),
+  ): Promise<{ readonly prompt: (toolset: CriticToolset) => CriticPrompt; readonly checks: readonly DeclaredCheck[] }> {
+    const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
+    const role = await asset(`roles/${critic.role}.md`)
+    const lenses = await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) })))
+    const sources = {
+      contract: await asset('prompts/output-contract.md'),
+      lenses,
+      preamble: await asset('prompts/preamble.md'),
+      role,
+      schema: await asset(FINDING_SCHEMA),
     }
-    return { findings, run }
+    return {
+      checks: declaredChecks([role, ...lenses.map((lens) => lens.text)]),
+      prompt: (toolset) => assemblePrompt(sources, listedFiles(manifest), manifest.stage, manifest.code?.slices, toolset),
+    }
   }
 }
 
@@ -206,15 +174,14 @@ interface Wave {
   readonly tripwire: ReadOnlyTripwire
   readonly budget: FlowBudget
   readonly spent: number
-}
-
-function promptFields(prompt: CriticPrompt, criticDir: string): Pick<CriticRun, 'prompt_path' | 'prompt_hashes' | 'lens_hashes'> {
-  return { lens_hashes: prompt.lens_hashes, prompt_hashes: prompt.prompt_hashes, prompt_path: join(criticDir, 'prompt.md') }
+  readonly tools: CriticTools
 }
 
 interface CriticAttempt {
   readonly findings: readonly CriticFinding[]
   readonly run: CriticRun
+  /** The checks the critic's prompt declared. */
+  readonly checks: readonly DeclaredCheck[]
 }
 
 interface FallbackRetry {
@@ -261,14 +228,4 @@ function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[],
     })
   })
   return retries
-}
-
-/**
- * A critic that changed what it may only read gave no review, whatever its
- * output says, so the read-only violation outranks every other outcome.
- */
-function criticStatus(outcome: CriticOutcome, violations: readonly string[]): Pick<CriticRun, 'status' | 'failure' | 'detail' | 'no_findings_reason'> {
-  if (violations.length > 0) return { detail: `read-only violated: ${violations.join('; ')}`, status: 'violated-readonly' }
-  if (outcome.status === 'failed') return { detail: outcome.detail, failure: outcome.failure, status: 'failed' }
-  return { status: 'ok', ...(outcome.no_findings_reason === undefined ? {} : { no_findings_reason: outcome.no_findings_reason }) }
 }

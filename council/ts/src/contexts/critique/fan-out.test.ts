@@ -100,7 +100,10 @@ describe('fan-out launches the critic', () => {
       rest = rest.slice(0, at) + rest.slice(at + block.length)
     }
     expect(rest.replace(/\s+/g, ' ').trim()).toBe(
-      '--- --- --- ```json ``` --- # Files Your working directory holds these files and no others. ' +
+      '--- --- --- ```json ``` --- # Tools You have one tool: `read_file`, which reads one file of your working directory, ' +
+        'given its path as listed below. You cannot search: no search tool is switched on for you. You cannot write, edit, ' +
+        'run commands, fetch anything or load skills: those tools are switched off, and calling them only wastes your turns. ' +
+        '# Files Your working directory holds these files and no others. ' +
         'Read each one with read_file, using the path exactly as written here: ' +
         '- `artifact/spec.md`: the artifact under review - `references/CONTEXT.md`: reference material',
     )
@@ -357,7 +360,7 @@ describe('fan-out applies the spec-stage evidence rule', () => {
         version: 1,
       },
       // A spec quote from `spec/`, not `artifact/`: the spec rule would make it a no-spec-quote hint.
-      scripts: [ok(fenced({ findings: [finding({ category: 'untestable', evidence: [quote('spec/spec.md', SPEC_CANARY)], location: '01: untestable-criterion' })] }))],
+      scripts: [ok(fenced({ findings: [finding({ category: 'untestable', check: 'untestable-criterion', evidence: [quote('spec/spec.md', SPEC_CANARY)], location: '01: untestable-criterion' })] }))],
     })
     open.push(h)
     await h.writeText(join(h.repo, '.scratch', 'widgets', 'issues', '01-schema.md'), '# 01: Schema\n')

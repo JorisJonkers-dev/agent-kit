@@ -27,7 +27,7 @@ and before the first `/implement`, `/review-ticket` after a ticket's
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-node <this directory>/critique.mjs <prepare|fan-out|record|allow|check-tickets|stats|triage|state|setup> --input FILE
+node <this directory>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets|stats|triage|state|setup> --input FILE
 node <this directory>/critique.mjs --help
 ```
 
@@ -36,6 +36,11 @@ node <this directory>/critique.mjs --help
 it. A routing override on this machine, `~/.config/agent-kit/critique-routing.json`,
 is applied over `routing.json` key by key (a JSON merge patch: name only what
 changes, `null` removes a key).
+
+`refute` runs the refute round between the verdicts and record: it takes
+the run directory and your verdicts, sends each accepted critical finding to
+a critic of another family with the `refuter` role, and writes
+`refute.json`, which record applies (README, Refute round).
 
 A refusal is a normal result with `"status": "refused"`. An error prints
 `"status": "error"` with a `code` and exits 1. `check-tickets` is the

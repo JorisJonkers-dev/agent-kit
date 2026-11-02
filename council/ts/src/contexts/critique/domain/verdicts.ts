@@ -2,10 +2,12 @@ import type { CriticRun } from './critic.js'
 import type { DepthChoice } from './depth.js'
 import type { GateRecord } from './feature-review.js'
 import type { ModelFamily } from './family.js'
-import type { RunFinding } from './findings.js'
+import type { RunFinding, Severity } from './findings.js'
 import type { PacketFile } from './manifest.js'
+import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
 import { SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage, type Depth, type Round } from './stage.js'
+import { STAGE_TABLE } from './stage-table.js'
 import type { TicketCheckSummary } from './tickets.js'
 
 export const VERDICTS = ['accepted', 'rejected', 'needs-human', 'hint'] as const
@@ -28,6 +30,10 @@ export interface Verdict {
   readonly regression_test?: string
   /** On an accepted ticket-review verdict: the finding is fixed in the change about to be committed. */
   readonly fixed?: boolean
+  /** The orchestrator's override of the severity the finding's check fixes; it needs `severity_reason`. */
+  readonly severity?: Severity
+  /** Why the fixed severity was overridden: a short slug, so the ledger can keep it beside the override. */
+  readonly severity_reason?: string
 }
 
 export interface AdjudicatedFinding extends RunFinding {
@@ -58,6 +64,8 @@ export interface AdjudicatedRun {
   readonly ticket_check?: TicketCheckSummary
   /** A feature review's gate, for the head it reviewed. */
   readonly gate?: GateRecord
+  /** The refute round's results, when the run had one; already applied to `findings`. */
+  readonly refutes?: readonly RefuteRecord[]
 }
 
 export type VerdictCounts = Readonly<Record<VerdictKind, number>>
@@ -75,7 +83,7 @@ export function countVerdicts(run: AdjudicatedRun): VerdictCounts {
  */
 export function secondRoundDue(run: AdjudicatedRun): boolean {
   const critical = run.findings.filter((f) => f.severity === 'critical' && f.verdict.verdict === 'accepted')
-  return run.round === 1 && run.stage !== 'decisions' && critical.length > SECOND_ROUND_AFTER_CRITICAL
+  return run.round === 1 && STAGE_TABLE[run.stage].secondRound && critical.length > SECOND_ROUND_AFTER_CRITICAL
 }
 
 /**
@@ -92,6 +100,22 @@ export function stageVerdictError(stage: CritiqueStage, verdict: Verdict): strin
     return undefined
   }
   return verdict.answered !== undefined && verdict.verdict !== 'needs-human' ? `${id}: only a needs-human verdict can be answered` : undefined
+}
+
+/**
+ * Why a verdict's severity override does not fit its finding, if it does
+ * not. Only a severity the finding's check fixes can be overridden, to a
+ * different level and with a reason; the critic's own rating is not the
+ * orchestrator's to change.
+ */
+export function severityOverrideProblem(finding: RunFinding, verdict: Verdict): string | undefined {
+  const id = verdict.finding_id
+  if (verdict.severity === undefined) {
+    return verdict.severity_reason === undefined ? undefined : `${id}: a severity_reason belongs to a severity override`
+  }
+  if (finding.declared_severity === undefined) return `${id}: only a finding whose check fixes its severity can be overridden`
+  if (verdict.severity === finding.declared_severity) return `${id}: the override repeats the declared severity ${verdict.severity}`
+  return verdict.severity_reason === undefined ? `${id}: a severity override needs a severity_reason` : undefined
 }
 
 /** Critical questions the owner has not answered yet; while any is open, tickets must not be cut from the spec. */
@@ -183,6 +207,11 @@ function ticketVerdictProblem(stage: CritiqueStage, verdict: Verdict): string | 
   }
   if (reason !== 'test-fails' && verdict.regression_test !== undefined) return `${id}: regression_test belongs to a finding accepted by test-fails`
   return undefined
+}
+
+/** A ticket review in which no critic reported: it vouches for no change, so its commit stays blocked (#259). */
+export function degradedTicketReview(run: Pick<AdjudicatedRun, 'stage' | 'degraded'>): boolean {
+  return run.stage === 'ticket-review' && run.degraded
 }
 
 /** #181 US53: accepted critical findings of a ticket review not yet fixed; while any is, the change must not be committed. */

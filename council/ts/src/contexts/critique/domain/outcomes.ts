@@ -23,6 +23,10 @@ export type RefusalReason =
   | 'no-tickets'
   /** The decisions stage found no decision docs, and the caller gave no decision summary. */
   | 'no-decision-docs'
+  /** An ADR review found no decision records to review. */
+  | 'no-adrs'
+  /** A repository packet whose documents, manifest and facts alone pass routing's packet cap. */
+  | 'packet-over-cap'
 
 export interface Refusal {
   readonly status: 'refused'
@@ -47,6 +51,8 @@ export type CritiqueErrorCode =
   | 'outside-repository'
   /** A run whose verdicts are already recorded. */
   | 'already-recorded'
+  /** A run that already had its refute round. */
+  | 'already-refuted'
   /** A line of the user's ledger that record could not have written. */
   | 'invalid-ledger'
   /** This machine's setup results file. */

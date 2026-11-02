@@ -15,7 +15,9 @@ Nothing is sent until the repository has a **family allowlist** entry
 (per machine, `~/.config/agent-kit/critique-allowlist.json`, keyed by the
 remote). A repository with no remote or a `nedap` remote never sends. An
 entry covers documents only until its code permission is on, which the code
-stages need. The first stage that needs either offers it.
+stages need, and leaves out commit messages and issue text until its history
+permission is on. Both are off by default. The first stage that needs one
+offers it.
 
 ## Stages
 
@@ -26,16 +28,75 @@ stages need. The first stage that needs either offers it.
 | `tickets` | `/check-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
 | `ticket-review` | `/review-ticket` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
+| `adr-review` | none yet (`/critique-adrs`) | on demand, outside any feature | Mistral Large, Gemini Flash (`spec-redteam`, until `adr-reviewer` ships) | GLM | Findings on the decision records; the stage is being built and has no skill yet |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
 `/flow no-critique` skips every stage on purpose, for trivial work.
 
+`adr-review` is a **review stage**: it runs over a repository's decision
+records when you ask for one, never as a step of a feature's flow. Each run
+is a flow of its own, keyed by its run id, with its own $5 Vibe cap, so a
+review never draws on a feature's budget. Its packet holds the records under
+review in `artifact/`, and the glossary and the other records in
+`references/`. With the code permission off it sends those documents only.
+With it on, the packet is a **repository packet**: it adds `tree/`, a sample
+of the code chosen by rule (the files the records name, then the top
+hotspots, each module's entry file, then the files on each import cycle),
+`tree/MANIFEST.tsv` listing every tracked path with its line count, and
+`facts/`, whose `INDEX.md` records every file the cap dropped. It names a
+dropped file only when the records name it or it is a top hotspot; it counts
+the other drops per directory and reason, with their bytes, so the index
+stays small however many files are left out. Past its own cap,
+`tree/MANIFEST.tsv` counts its least-ranked paths per directory at its end
+and says how many. Vendored,
+generated and lock files are never sent. A long file is sent in windows from
+its first line, so `tree/<path>:<line>` keeps its number, and a citation
+outside what the packet holds is rejected. A quote from `facts/` is a fact,
+never a recorded decision. `/flow reviews` lists recent review
+runs with their verdicts and spend, and never calls a review due.
+
+A ticket review and a feature review send a **code packet**, computed at the
+reviewed commit by rule. Its diff leaves out the hunks of every vendored,
+generated and lock file (the same `exclude` globs and "do not edit" marker),
+keeping one line that names each and says why. `tree/REPO-MAP.md`, named
+first in the prompt, lists every TypeScript, JavaScript and Python file with
+its top-level symbols and their signatures, ranked by how many other files
+import the file and name the symbol. The prompt then lists **context
+slices** instead of whole files: each changed function or block, the
+symbols it calls, and the functions that call it, found through the import
+and reference scan. `tree/` is capped like a repository packet: the slices
+go in first, then the changed files, their importers and the rest of the
+tree, in windows that keep their line numbers. A file cut short holds only
+those lines, a run it does not hold is blank but for a marker, and a
+citation of a line outside them is rejected. `facts/INDEX.md` records every
+slice and every file the cap dropped or cut short: by name for the changed
+files, their importers, the files holding a slice and any file the diff, a
+ticket or the spec names, and counted per directory and reason, with their
+bytes, for the rest of the tree.
+
+A diff too big to fit beside the tickets, the spec, the repo map and the
+facts index is sent in windows by file instead of refused: the changed
+source files, then the tests, then the docs, each group by changed lines,
+most first. It takes at most half the room those documents leave, so the
+tree keeps room for the slices. Each hunk keeps its `@@` line, so a line
+it shows can be cited as `tree/<path>:<line>` even where the tree does not
+hold it; `facts/INDEX.md` lists each hunk left out by file and line, and a
+citation of a line only a left-out hunk shows is rejected unless the tree
+holds it. A deleted or emptied file's hunks are cited at their lines at
+the base. When listing every drop it names would not fit, the facts index
+takes a quarter of the room and ends each list of names with a line
+counting what it leaves unlisted; the per-directory counts stay. Prepare still refuses with `packet-over-cap` when the
+tickets, the spec, the repo map and the facts index's own text pass the
+cap.
+
 A ticket review starts with **triage**: the change is risky when a path
 matches routing's `triage.risk_paths` (auth, crypto, migrations,
 concurrency, API surface, infra), more than 300 lines changed, or the ticket
-is labelled `risk:high`; otherwise Mistral Small answers yes or no. A
-low-risk change skips the review, and the skip is logged.
+is labelled `risk:high`; otherwise Mistral Small answers yes or no. Lines of
+vendored, generated and lock files are not counted, and Mistral Small reads
+the same filtered diff. A low-risk change skips the review, and the skip is
+logged.
 
 **Evidence decides.** A quote found in no packet file rejects its finding as
 fabricated. A finding with no checkable evidence is a hint, reported and
@@ -58,6 +119,93 @@ in `lenses/`.
 - `simplicity`: mechanisms no user story needs, or two for one problem.
 - `unasked-questions`: choices made without saying who decided.
 
+### Check ids
+
+Every lens bullet and every role rule opens with a **check id**: a
+lower-case slug in backticks, then a colon, at the start of a top-level
+bullet.
+
+```markdown
+- `dependency-fails`: For each external dependency (a process, a network
+  call, a file, a service), ask what the artifact does when it fails, ...
+```
+
+The pattern is `^- \`([a-z0-9]+(?:-[a-z0-9]+)*)\`(?: \((critical|major|minor)\))?:`;
+the bracketed severity is described below. In a lens every bullet
+is a check, and a note that is not one goes in a paragraph after the list.
+In a role the rules are the bullets of its first list; later lists, such as
+evidence kinds and severity levels, carry no id. An id is unique within its
+file and stays stable once shipped: renaming one starts its stats afresh.
+
+Each finding names the check it comes from in its `check` field. Fan-out
+reads the ids from the critic's own role and lenses; a finding that names no
+check, or one its critic's prompt does not declare, becomes a hint
+(`no-check` or `unknown-check`), unless the stage's evidence rule already
+made it one. A merged finding keeps the check, and is judged against the
+prompt, of the critic that raised it first. Each ledger finding line carries
+`check`, or `null` when the finding named none or named something that is
+not an id. `tests/test_critique_check_ids.py` fails on a check bullet without
+an id, or an id used twice in one file.
+
+A check may fix the severity of its findings, in brackets between the id
+and the colon:
+
+```markdown
+- `no-rollback` (critical): A data step with no rollback step ...
+```
+
+Fan-out then sets the severity of a finding that names the check, whatever
+the critic wrote, and keeps it as `declared_severity`. The orchestrator may
+override it on its verdict with `severity` and `severity_reason`, a short
+slug such as `copy-only-change`; record refuses an override without a
+reason, one equal to the declared severity, and one on a finding whose check
+fixes none. The overridden severity is the one that counts, for a second
+round among others. Each ledger finding line carries `declared_severity`,
+`severity_override` and `severity_reason`, or `null`. Only the files on the
+validator's `DECLARES_SEVERITY` list may declare a severity; the list is
+empty until the `adr-record` lens and the `plan-critic` role ship.
+
+## Refute round
+
+After you rule on the findings and before any fix or question, the runner's
+`refute` command sends each accepted critical finding to one more critic.
+Critical is the severity that counts: your verdict's `severity` override
+when it gives one, else the severity fan-out set.
+It is the first routed client of the stage, base before deep (each slot's
+client, then its fallbacks), whose family neither raised the finding nor is
+yours, that the allowlist permits and that can run now. It runs with the
+`refuter` role, no lens, on the run's own packet; the finding goes in its
+prompt, never in the packet, so a quote of the finding is no evidence.
+
+The refuter answers in the finding format:
+
+- no objection: an empty `findings` list with `no_findings_reason`;
+- `refute` or `downgrade`: exactly one finding whose `check` names that
+  rule of the refuter role, with the original category and location; a
+  downgrade gives `major` or `minor` in `severity`.
+
+Its evidence is checked like any finding's, with the stage's evidence rule.
+A refutation that holds rejects the finding (`refuted`) when record runs; a
+downgrade that holds lowers its severity and keeps it accepted. Anything
+else leaves your verdict standing (`stands`, with the reason): a quote the
+packet does not hold, nothing the stage counts as evidence, an answer
+outside the three, or a refuter that failed or wrote to its packet. With no
+eligible client the finding is `skipped`, and the skip is noted. The second
+round counts only the criticals still accepted after the round.
+
+Results go to `refute.json` in the run directory, a `## Refute round`
+section of the report, and one `refute` line each in the ledger (the
+finding, its check, the outcome and answer, and the refuter's client, model
+and cost). A refuter's launch is logged like any critic's, so its spend
+counts against the flow's Vibe cap, and agy's against the day's quota. A run
+is refuted once, and only before it is recorded.
+
+The stage skills run refute right after their verdicts, before any fix,
+follow-up or owner question. They record a refuted finding as `rejected`
+with `reason_code: "refuted"` themselves, since an accepted verdict at the
+code stages needs a `follow_up` or `regression_test` that a refuted finding
+never gets, and they name each skipped refute above the summary.
+
 ## Depth
 
 Base runs a stage's base critics; deep adds its deep critics. The runner
@@ -71,6 +219,7 @@ the threshold:
 | `tickets` | more than 10 tickets, a risk term, or `risk:high` on the spec |
 | `ticket-review` | more than 600 changed lines or 3 risk-path hits, or `risk:high` |
 | `feature-review` | `risk:high` on the spec |
+| `adr-review` | more than 10 records under review, or a risk term |
 
 Risk terms are auth, migration, payment, crypto, encryption, concurrency and
 `public API`, with common variants, as whole words. Pass `base` or `deep` to a
@@ -82,9 +231,17 @@ that fired either way.
 - **Per critic**: a price cap and a time limit. Vibe checks its cap between
   turns, so a critic can overshoot by one turn; where Vibe's figure can't be
   trusted, the runner charges the cap.
+- **What a Vibe critic costs**: the runner computes it from the export's
+  tokens at the client's `prices` in routing: uncached input at the input
+  price, cached input at the cached price (10% of the input price, as
+  Mistral bills it), output at the output price. That figure is what the
+  ledger, the flow cap, `/flow budget` and the reports use. Vibe's own
+  `cost_usd` is kept beside it as `vibe_cost_usd`. A client with no prices,
+  or an export with no token counts, falls back to Vibe's figure.
 - **Per flow**: Vibe spend capped at $5 (`budget.vibe_flow_cap_usd`),
   triage included. Each flow key is capped on its own: the decisions stage
-  charges the draft's, every later stage the spec's. Past the cap, Vibe
+  charges the draft's, every later stage the spec's, and each review run
+  its own run id. Past the cap, Vibe
   critics don't launch and show as `budget-skip`.
 - **Antigravity per day**: 20 invocations a UTC day
   (`antigravity_quota.daily_cap`). After 10 (`reserve_threshold`), the rest
@@ -102,7 +259,25 @@ that fired either way.
   for that exact staged change, matched by a hash taken at record time, fixes
   and kept tests included, so a change restaged or amended after its review
   needs another. A review fails ("do not commit") while an accepted critical
-  finding is unfixed; a degraded review passes, so an outage blocks nothing.
+  finding is unfixed. A degraded review, in which no critic reported, does
+  not pass either: the commit stays blocked until a `/review-ticket` run in
+  which a critic reported, or the kill switch.
+- **Merge commits**: the commit gate also runs before a `git merge` or
+  `git pull` that may record a merge commit, and before a `git commit` (or
+  `git merge --continue`) while `MERGE_HEAD` is set. A merge goes through
+  when every commit it brings in has a passing, non-degraded `/review-ticket`
+  record (matched by the reviewed commit, or by the staged change it was made
+  from) or was low-risk on its own, and the merge adds nothing beyond the
+  clean auto-merge except manifest sha256 pins and rebuilt generated files
+  (routing's `packet.exclude.generated` globs, or a "do not edit" marker).
+  Otherwise its own changes, or the whole merge when a commit it brings in
+  is unreviewed, are judged like any staged change. A merge that brings in
+  more commits than routing's `gate.merge_commits` (50) is judged whole
+  against HEAD, so the check stays within the gate's deadline. A merge after
+  a command in the same line that moves HEAD (`git checkout`, `git switch`,
+  `git commit` and the like) is blocked: run it as a command of its own. A
+  pull is judged on the remote-tracking branch as it is before the pull
+  fetches.
 - **PR gate**: the feature review opens with `GATE: PASS` or
   `GATE: FAIL (<n> critical)`. It fails while an accepted critical finding,
   from this or an earlier feature review, has an open follow-up ticket. A
@@ -111,7 +286,7 @@ that fired either way.
 
 [ADR-0002](../../docs/adr/0002-exactly-three-critique-hooks.md) allows three
 hooks, for Claude Code and Codex only: `critique-commit-gate` (before
-`git commit`), `critique-pr-gate` (before `gh pr create`, or a push outside
+`git commit`, or a merge that records a merge commit), `critique-pr-gate` (before `gh pr create`, or a push outside
 the feature branch patterns) and `critique-session-start` (one line
 suggesting `/flow setup` when this machine's setup is missing or failing).
 They do nothing in a repository that isn't opted in, call no model or
@@ -131,10 +306,17 @@ still runs.
 ## Routing
 
 `routing.json` beside this file holds the critic clients (CLI, model,
-family), each stage's base and deep rosters (client, role, lenses, price cap,
+family, and for Vibe the model's `prices` in USD per million tokens:
+`input`, `cached_input`, `output`, the same as its agent file's), each stage's base and deep rosters (client, role, lenses, price cap,
 time limit), the `fallbacks`, the budget, the Antigravity quota, triage, the feature
-branch patterns a push may update without a feature review (`gate`) and the
-stats thresholds. Model names live only there and in the
+branch patterns a push may update without a feature review (`gate`), the
+stats thresholds and the repository packet's limits (`packet`: a 150 KB cap
+in `cap_bytes`, 30 KB of fact files in `facts_cap_bytes`, a 30 KB
+`tree/MANIFEST.tsv` in `manifest_cap_bytes`, a code packet's
+20 KB repo map in `repo_map_cap_bytes`, 400-line windows in
+`window_lines`, and the `exclude` globs for vendored, generated and lock
+files; a file whose first lines say `@generated` or "do not edit" counts as
+generated too). Model names live only there and in the
 `critic-<model>` Vibe agent files.
 
 No critic shares the orchestrator's family, and a stage runs one critic per

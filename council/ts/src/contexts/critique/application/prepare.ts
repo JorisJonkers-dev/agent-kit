@@ -25,11 +25,13 @@ import {
   type RosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, DEPTHS, isCodeStage, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
+import { STAGE_TABLE } from '../domain/stage-table.js'
 import { sizeReport, summariseCheck, type TicketSize } from '../domain/tickets.js'
 import { riskPathHits, type CodeChange } from '../domain/triage.js'
 import { FlowBudget } from './budget.js'
+import { AdrPacketReader, type PreparedRepository } from './adr-packet.js'
 import { readCheckedTickets, type CheckTicketsResult } from './check-tickets.js'
-import { CodePacketReader, ticketFile, type UnfrozenFile } from './code-packet.js'
+import { CodePacketReader, ticketFile, type CodeTreeSample, type UnfrozenFile } from './code-packet.js'
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { DecisionsPacketReader } from './decisions-packet.js'
@@ -56,8 +58,13 @@ interface PrepareInput {
   readonly decisionSummary: string | undefined
   /** Whether a GitHub issue's comments are frozen with its body. */
   readonly comments: boolean
-  /** The reference paths the caller names; undefined means the repository's decision docs. */
+  /**
+   * The reference paths the caller names; undefined means the repository's
+   * decision docs, or at an ADR review the glossary and the records not under review.
+   */
   readonly references: readonly string[] | undefined
+  /** An ADR review's records under review; undefined means every record. */
+  readonly adrs: readonly string[] | undefined
   /**
    * The flow whose Vibe spend this run adds to; undefined means the first
    * round's flow on a second round, and the artifact's own reference otherwise.
@@ -82,8 +89,13 @@ export interface PreparedCode {
   readonly base_commit: string
   readonly head_commit: string
   readonly changed_files: readonly string[]
-  /** How many files of the tree at the head were frozen. */
+  /** How many files of the tree at the head were frozen, in whole or in part. */
   readonly tree_files: number
+  /** How many files of the tree the packet cap left out, in whole or in part. */
+  readonly dropped_files: number
+  /** The bytes of every packet file. */
+  readonly packet_bytes: number
+  readonly cap_bytes: number
 }
 
 /** What a stage freezes, before the routing decides who reads it. */
@@ -100,6 +112,12 @@ interface PacketContents {
   readonly ticketCheck?: CheckTicketsResult
   /** The spec's reference when the artifact is not the spec itself: a ticket review's. */
   readonly specReference?: string
+  /** Only for an ADR review: how many records are under review. */
+  readonly adrs?: number
+  /** Only for a repository packet: what of the tree it sent. */
+  readonly repository?: PreparedRepository
+  /** Only for a code stage: what of the tree the cap let in. */
+  readonly sample?: CodeTreeSample
 }
 
 type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'> & {
@@ -117,12 +135,20 @@ export interface PrepareResult {
   readonly packet_files: readonly string[]
   /** Only for a code stage. */
   readonly code?: PreparedCode
+  /** Only for a repository packet: the commit its tree was sampled at, and how much of it was sent. */
+  readonly repository?: PreparedRepository
   readonly artifact: ArtifactSource
   readonly depth: Depth
   readonly round: Round
   readonly depth_choice: DepthChoice
   readonly critics: readonly CriticIdentity[]
   readonly dropped: readonly DroppedCritic[]
+  /**
+   * Whether the allowlist entry lets this repository send its history,
+   * commit messages and issue text; a stage that wants history leaves it
+   * out while this is false.
+   */
+  readonly history: boolean
 }
 
 /**
@@ -141,6 +167,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
   private readonly decisionDocs: DecisionDocs
   private readonly codePackets: CodePacketReader
   private readonly decisionsPackets: DecisionsPacketReader
+  private readonly adrPackets: AdrPacketReader
   private readonly routing: RoutingSource
   private readonly staged: StagedDiffReader
 
@@ -150,12 +177,14 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     this.decisionDocs = new DecisionDocs(deps.files)
     this.codePackets = new CodePacketReader(deps)
     this.decisionsPackets = new DecisionsPacketReader(deps.files)
+    this.adrPackets = new AdrPacketReader(deps)
     this.routing = new RoutingSource(deps)
     this.staged = new StagedDiffReader(deps)
   }
 
   async run(raw: unknown): Promise<PrepareResult | Refusal> {
     const input = readInput(raw, 'prepare', (fields): PrepareInput => ({
+      adrs: fields.has('adrs') ? fields.strings('adrs') : undefined,
       base: fields.optionalString('base'),
       comments: fields.has('comments') ? fields.boolean('comments') : false,
       decisionSummary: fields.optionalString('decision_summary'),
@@ -173,6 +202,9 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       ticket: fields.optionalString('ticket'),
     }))
     const { orchestratorFamily, stage } = input
+    if (STAGE_TABLE[stage].flowKey === 'run' && input.flow !== undefined) {
+      throw new CritiqueError('invalid-input', `${stage} is a review stage: each run is a flow of its own, so it takes no flow`)
+    }
     const repository = await this.repositories.resolve(input.repo)
     if (repository.status === 'refused') return repository
     const entry = (await this.repositories.allowlist()).repositories[repository.key]
@@ -186,7 +218,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       )
     }
     const snapshot = input.staged ? await this.staged.snapshot(repository.root) : undefined
-    const contents = await this.contents(repository, snapshot === undefined ? input : { ...input, head: snapshot.commit })
+    const contents = await this.contents(repository, snapshot === undefined ? input : { ...input, head: snapshot.commit }, entry.code)
     if (contents.status === 'refused') return contents
     const { artifact, change, ticketCheck } = contents
     const code = contents.code === undefined || snapshot === undefined ? contents.code : { ...contents.code, staged_diff: snapshot.sha256 }
@@ -203,7 +235,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       stage,
       stageRoutes.depth_signals,
       ticketCheck === undefined
-        ? { labels: artifact.labels, text: artifact.text, ...measured }
+        ? { labels: artifact.labels, text: artifact.text, ...measured, ...(contents.adrs === undefined ? {} : { adrs: contents.adrs }) }
         : { labels: artifact.labels, text: contents.files.map((file) => file.text).join('\n\n'), tickets: ticketCheck.tickets.length },
       input.depth,
     )
@@ -228,8 +260,9 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       depth_choice: choice,
       dropped: roster.dropped,
       // A decisions run belongs to no tracker item, so unless named its flow is its
-      // own; a ticket review's is its spec's, so it counts with the spec's other stages.
-      flow: input.flow ?? previousFlow ?? (stage === 'decisions' ? runId : (contents.specReference ?? artifact.reference)),
+      // own, and a review run's is always its own; a ticket review's is its spec's,
+      // so it counts with the spec's other stages.
+      flow: input.flow ?? previousFlow ?? (STAGE_TABLE[stage].flowKey === 'spec' ? (contents.specReference ?? artifact.reference) : runId),
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
@@ -246,11 +279,13 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     await this.deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}\n`)
     return {
       artifact: source,
-      ...(code === undefined ? {} : { code: preparedCode(code, packetFiles) }),
+      ...(code === undefined || contents.sample === undefined ? {} : { code: preparedCode(code, contents.files, packetFiles, contents.sample) }),
+      ...(contents.repository === undefined ? {} : { repository: contents.repository }),
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
       depth_choice: choice,
       dropped: roster.dropped,
+      history: entry.history,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
       packet_files: listedFiles(manifest).map((file) => file.path),
@@ -263,21 +298,28 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
 
   /**
    * What the stage freezes. The decisions stage reads no tracker: grilling
-   * comes before any spec. Every other stage reads its spec, or its ticket,
-   * from the repository's tracker.
+   * comes before any spec, and neither does an ADR review, which samples
+   * the tree beside its records only when the repository allows code. Every
+   * other stage reads its spec, or its ticket, from the repository's tracker.
    */
   private async contents(
     repository: ResolvedRepository,
     input: PrepareInput,
+    codeAllowed: boolean,
   ): Promise<Refusal | PacketContents> {
     const { stage } = input
-    if (stage === 'decisions') return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary })
+    const packet = STAGE_TABLE[stage].packet
+    if (packet === 'decisions') return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary })
+    if (packet === 'adrs') {
+      const code = codeAllowed ? { code: { head: input.head, limits: (await this.routing.load()).packet } } : {}
+      return this.adrPackets.read(repository.root, { ...input, ...code })
+    }
     const tracker = await this.trackers.resolve(repository)
     if (tracker.status === 'refused') return tracker
     if (input.spec === undefined) throw new CritiqueError('invalid-input', `${stage} needs spec: the spec, named the way its tracker names it`)
     const request = { ...input, spec: input.spec }
-    if (isCodeStage(stage)) return this.codePackets.read(repository, tracker, { ...request, stage })
-    return stage === 'tickets' ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request)
+    if (packet === 'code') return this.codePackets.read(repository, tracker, { ...request, limits: (await this.routing.load()).packet })
+    return packet === 'tickets' ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request)
   }
 
   /**
@@ -405,11 +447,14 @@ function checkReportFile(check: CheckTicketsResult, size: TicketSize): UnfrozenF
   }
 }
 
-function preparedCode(code: CodeSource, files: readonly PacketFile[]): PreparedCode {
+function preparedCode(code: CodeSource, texts: readonly UnfrozenFile[], files: readonly PacketFile[], sample: CodeTreeSample): PreparedCode {
   return {
     base_commit: code.base_commit,
+    cap_bytes: sample.cap_bytes,
     changed_files: code.changed_files,
+    dropped_files: sample.dropped_files,
     head_commit: code.head_commit,
+    packet_bytes: texts.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
     tree_files: files.filter((file) => file.kind === 'tree').length,
   }
 }

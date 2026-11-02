@@ -14,6 +14,9 @@ export const CATEGORIES = [
   'structure',
   'bug',
   'integration',
+  'drift',
+  'stale',
+  'undocumented-decision',
 ] as const
 export type Category = (typeof CATEGORIES)[number]
 
@@ -34,6 +37,12 @@ export interface FindingBody {
   readonly claim: string
   readonly evidence: readonly Evidence[]
   readonly suggestion?: string
+  /**
+   * The check id of the lens bullet or role rule the finding comes from. The
+   * output contract requires it; a finding without one is still read, and
+   * fan-out gives it a hint.
+   */
+  readonly check?: string
 }
 
 /** One finding as a critic reported it, after validation against the output contract. */
@@ -49,7 +58,7 @@ export interface CriticFinding extends FindingBody {
  */
 export type PreVerdict =
   | { readonly verdict: 'rejected'; readonly reason_code: 'fabricated-evidence'; readonly reason: string }
-  | { readonly verdict: 'hint'; readonly reason_code: HintCode; readonly reason: string }
+  | { readonly verdict: 'hint'; readonly reason_code: HintCode | CheckHintCode; readonly reason: string }
 
 export const HINT_CODES = [
   'no-evidence',
@@ -64,12 +73,21 @@ export const HINT_CODES = [
 ] as const
 export type HintCode = (typeof HINT_CODES)[number]
 
+/** Hints about the check a finding names, given after the stage's evidence rule found nothing to say. */
+export const CHECK_HINT_CODES = ['no-check', 'unknown-check'] as const
+export type CheckHintCode = (typeof CHECK_HINT_CODES)[number]
+
 /** A finding as the orchestrator receives it: the critic's fields plus who raised it. */
 export interface RunFinding extends FindingBody {
   readonly id: string
   readonly critic_finding_id: string
   readonly raised_by: readonly string[]
   readonly pre_verdict?: PreVerdict
+  /**
+   * The severity the finding's check fixes, set by fan-out in place of the
+   * critic's. Only the orchestrator's verdict can change it, with a reason.
+   */
+  readonly declared_severity?: Severity
 }
 
 export const FINDINGS_FAILURES = [
@@ -122,8 +140,11 @@ export function readFindings(value: unknown): FindingsParse {
 /** The fields of a finding, read against the output contract. */
 export function readFindingBody(fields: JsonFields): FindingBody {
   const suggestion = fields.optionalText('suggestion')
+  // An empty check is no check: it earns a hint, not a failed review.
+  const check = fields.optionalText('check')?.trim() ?? ''
   return {
     category: fields.oneOf('category', CATEGORIES),
+    ...(check === '' ? {} : { check }),
     claim: fields.string('claim'),
     evidence: fields.list('evidence', readEvidence),
     location: fields.string('location'),
@@ -138,6 +159,7 @@ export function readRunFinding(fields: JsonFields): RunFinding {
     critic_finding_id: fields.string('critic_finding_id'),
     id: fields.string('id'),
     raised_by: fields.strings('raised_by'),
+    ...(fields.has('declared_severity') ? { declared_severity: fields.oneOf('declared_severity', SEVERITIES) } : {}),
     ...(fields.has('pre_verdict') ? { pre_verdict: readPreVerdict(fields.object('pre_verdict')) } : {}),
   }
 }
@@ -147,7 +169,7 @@ function readPreVerdict(fields: JsonFields): PreVerdict {
   if (fields.oneOf('verdict', ['rejected', 'hint']) === 'rejected') {
     return { reason, reason_code: fields.literal('reason_code', 'fabricated-evidence'), verdict: 'rejected' }
   }
-  return { reason, reason_code: fields.oneOf('reason_code', HINT_CODES), verdict: 'hint' }
+  return { reason, reason_code: fields.oneOf('reason_code', [...HINT_CODES, ...CHECK_HINT_CODES]), verdict: 'hint' }
 }
 
 function readCriticFinding(fields: JsonFields): CriticFinding {

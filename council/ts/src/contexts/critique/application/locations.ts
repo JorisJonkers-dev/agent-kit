@@ -55,6 +55,11 @@ export function findingsPath(runDir: string): string {
   return join(runDir, 'findings.json')
 }
 
+/** Written by refute: the refute round's result for each accepted critical finding, which record applies. */
+export function refutePath(runDir: string): string {
+  return join(runDir, 'refute.json')
+}
+
 /** Written by record, so its presence means the run's verdicts are recorded. */
 export function reportPath(runDir: string): string {
   return join(runDir, 'report.md')

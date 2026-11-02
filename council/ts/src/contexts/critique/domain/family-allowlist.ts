@@ -66,6 +66,12 @@ export interface AllowlistEntry {
    * permission existed has none, and reads as false.
    */
   readonly code: boolean
+  /**
+   * Whether the repository may send its history, commit subjects and bodies
+   * and issue text: a stage that wants history leaves it out while it is
+   * false. An entry recorded before the permission existed reads as false.
+   */
+  readonly history: boolean
   readonly updated_at: string
 }
 
@@ -83,6 +89,7 @@ export function parseAllowlist(text: string): FamilyAllowlist {
     repositories: file.entries('repositories', (entry) => ({
       code: entry.has('code') ? entry.boolean('code') : false,
       families: entry.oneOfList('families', MODEL_FAMILIES),
+      history: entry.has('history') ? entry.boolean('history') : false,
       updated_at: entry.string('updated_at'),
     })),
     version: file.literal('version', 1),
@@ -92,14 +99,14 @@ export function parseAllowlist(text: string): FamilyAllowlist {
 export function withEntry(
   allowlist: FamilyAllowlist,
   key: string,
-  permission: { readonly families: readonly ModelFamily[]; readonly code: boolean },
+  permission: Pick<AllowlistEntry, 'families' | 'code' | 'history'>,
   at: Date,
 ): FamilyAllowlist {
   return {
     version: 1,
     repositories: {
       ...allowlist.repositories,
-      [key]: { code: permission.code, families: permission.families, updated_at: at.toISOString() },
+      [key]: { code: permission.code, families: permission.families, history: permission.history, updated_at: at.toISOString() },
     },
   }
 }

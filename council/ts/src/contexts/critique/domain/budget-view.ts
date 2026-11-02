@@ -1,6 +1,7 @@
 import { budgetReached, quotaReached, type FlowSpend } from './budget.js'
 import type { Routing, RosterSlot } from './routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
+import { STAGE_TABLE } from './stage-table.js'
 
 /** A routed Antigravity slot the quota holds, and the client prepare would try in its place. */
 export interface SlotFallback {
@@ -16,8 +17,9 @@ export interface StageOutlook {
   readonly stage: CritiqueStage
   /**
    * The flow key the stage's run would charge: the draft's for decisions,
-   * the spec's for every other stage; null when the feature has none yet,
-   * so the run would start a flow of its own.
+   * the spec's for every other critique stage; null when the feature has
+   * none yet, and always for a review stage, so the run would start a flow
+   * of its own, keyed by its run id.
    */
   readonly flow: string | null
   /** Why a Vibe critic of the stage, a fallback included, would be skipped now, as fan-out words it; null while it may launch. */
@@ -43,7 +45,7 @@ export interface FeatureDraw {
  */
 export function stageOutlooks(routing: Routing, draw: FeatureDraw): readonly StageOutlook[] {
   return CRITIQUE_STAGES.flatMap((stage) => {
-    const charged = stage === 'decisions' ? draw.draft : draw.spec
+    const charged = { draft: draw.draft, run: null, spec: draw.spec }[STAGE_TABLE[stage].flowKey]
     const stageRoutes = routing.stages[stage]
     if (stageRoutes === undefined) return []
     const held: readonly { readonly slot: RosterSlot; readonly deep?: true }[] = [

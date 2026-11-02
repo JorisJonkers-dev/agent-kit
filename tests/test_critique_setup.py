@@ -48,9 +48,10 @@ SETTING_KEYS = {
     "enable_subagents",
     "include_project_context",
     "session_logging",
+    "tools",
     "models",
 }
-MODEL_KEYS = {"name", "provider", "alias", "input_price", "output_price", "thinking"}
+MODEL_KEYS = {"name", "provider", "alias", "input_price", "output_price", "cached_input_price", "thinking"}
 
 
 def _registry() -> dict:
@@ -223,6 +224,53 @@ def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_ho
         assert (skills / "review-feature" / ".." / "critique" / "critique.mjs").is_file(), home
 
 
+def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_reserve() -> None:
+    routing = json.loads(ROUTING.read_text())
+    review = routing["stages"]["adr-review"]
+    assert [(s["client"], s["max_price_usd"]) for s in review["base"]] == [
+        ("vibe-mistral-large", 0.5), ("agy-gemini-flash-high", 0.5)
+    ]
+    assert [s["client"] for s in review["deep"]] == ["vibe-glm"]
+    assert review["depth_signals"]["thresholds"] == {"adrs": 10}
+    assert review["depth_signals"]["risk_terms"] == routing["stages"]["spec"]["depth_signals"]["risk_terms"]
+    assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]
+
+
+def test_shipped_routing_caps_the_repository_packet_at_adr_0004s_starting_limits() -> None:
+    """#221: the phase-0 live check retunes these in routing, so the runner reads them from there."""
+    packet = json.loads(ROUTING.read_text())["packet"]
+    assert (packet["cap_bytes"], packet["facts_cap_bytes"], packet["window_lines"]) == (150 * 1024, 30 * 1024, 400)
+    assert set(packet["exclude"]) == {"vendored", "generated", "lock"}
+    assert "**/node_modules/**" in packet["exclude"]["vendored"]
+    assert "**/package-lock.json" in packet["exclude"]["lock"]
+
+
+def test_shipped_routing_caps_a_code_packets_repo_map_inside_the_packet_cap() -> None:
+    """#254: tree/REPO-MAP.md has its own cap, counted inside the packet's."""
+    packet = json.loads(ROUTING.read_text())["packet"]
+    assert packet["repo_map_cap_bytes"] == 20 * 1024
+    assert packet["repo_map_cap_bytes"] < packet["cap_bytes"]
+
+
+def test_shipped_routing_caps_a_repository_packets_manifest_inside_the_packet_cap() -> None:
+    """#256: past its own cap, tree/MANIFEST.tsv counts its least-ranked paths per directory."""
+    packet = json.loads(ROUTING.read_text())["packet"]
+    assert packet["manifest_cap_bytes"] == 30 * 1024
+    assert packet["manifest_cap_bytes"] < packet["cap_bytes"]
+
+
+def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
+    flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    assert "| `/flow reviews` |" in flow
+    entry = flow[flow.index("## /flow reviews"):]
+    end = entry.find("\n## ", 1)
+    entry = " ".join((entry if end < 0 else entry[:end]).split())
+    assert "critique.mjs reviews" in entry
+    assert "never due" in entry
+    for field in ("stage", "run_id", "verdicts", "spent_usd"):
+        assert f"`{field}`" in entry, field
+
+
 def test_shipped_routing_defines_the_ticket_review_stage() -> None:
     review = json.loads(ROUTING.read_text())["stages"]["ticket-review"]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in review["base"]] == [
@@ -246,6 +294,15 @@ def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit()
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "review-ticket"
     assert front["description"].startswith("Use after a ticket's /code-review and before its commit.")
+
+
+def test_review_ticket_says_a_degraded_run_leaves_the_commit_blocked() -> None:
+    """#259: a run in which no critic reported vouches for nothing, so its summary must not read as a pass."""
+    text = (KIT_ROOT / "skills" / "review-ticket" / "SKILL.md").read_text()
+    step = text.split("### 9. Return")[1]
+    assert "**No critic reported, so the review is degraded**" in step
+    assert "the commit gate stays shut" in step
+    assert "another `/review-ticket` run in which a critic reports" in step
 
 
 def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
@@ -288,6 +345,40 @@ def test_flow_explain_reads_every_section_it_names_from_the_pipeline_readme() ->
     headings = {line for line in (KIT_ROOT / "skills" / "critique" / "README.md").read_text().splitlines()
                 if line.startswith("## ")}
     assert named <= headings, named - headings
+
+
+@pytest.mark.parametrize("skill", ["flow", "critique-spec", "critique-decisions"])
+def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(skill: str) -> None:
+    """The allowlist entry's history permission (commit messages, issue text) is off until the owner turns it on."""
+    text = " ".join((KIT_ROOT / "skills" / skill / "SKILL.md").read_text().split())
+    assert "history permission" in text, skill
+    assert "off by default" in text, skill
+    assert '"history": true' in text, skill
+
+
+REFUTING_SKILLS = ["critique-decisions", "critique-spec", "check-tickets", "review-ticket", "review-feature"]
+
+
+@pytest.mark.parametrize("skill", REFUTING_SKILLS)
+def test_the_stage_skill_runs_the_refute_round_right_after_its_verdicts(skill: str) -> None:
+    """#224: refute comes after the ruling and before any fix, follow-up or owner question."""
+    text = (KIT_ROOT / "skills" / skill / "SKILL.md").read_text()
+    headings = [line for line in text.splitlines() if line.startswith("### ")]
+    numbers = [int(re.match(r"### (\d+)\. ", h).group(1)) for h in headings]
+    assert numbers == list(range(1, len(headings) + 1)), headings
+    refute = next(i for i, h in enumerate(headings) if h.endswith(". Refute"))
+    assert "Rule on every finding" in headings[refute - 1], headings
+    assert "|refute|" in text, "the command line names refute"
+    assert "run refute with `--input <run_dir>/verdicts.json`" in " ".join(text.split())
+
+
+@pytest.mark.parametrize("skill", REFUTING_SKILLS)
+def test_the_stage_skill_says_how_the_refute_round_changes_a_verdict(skill: str) -> None:
+    text = " ".join((KIT_ROOT / "skills" / skill / "SKILL.md").read_text().split())
+    assert '`rejected` with `reason_code: "refuted"`' in text, skill
+    assert "- `downgrade`:" in text, skill
+    assert "A skipped refute is reported, not retried" in text, skill
+    assert "`Refute skipped: <finding_id> (<reason_code>)`" in text, skill
 
 
 def test_the_pipeline_readme_names_every_stage_and_lens_it_explains() -> None:
@@ -485,11 +576,20 @@ def test_a_critic_agent_is_only_for_the_workstation() -> None:
 
 
 @pytest.mark.parametrize("name", CRITIC_AGENT_NAMES)
-def test_each_agent_file_can_only_read_inside_its_working_directory(name: str) -> None:
+def test_each_agent_file_can_only_read_and_search_inside_its_working_directory(name: str) -> None:
+    """``read_file`` and the runner's search server's tools (ADR-0006), nothing else.
+
+    MCP is the runner's to switch per launch, so the file leaves ``enable_mcp``
+    unset: off for a critic that reads alone, on with the runner's server as the
+    one live server for a critic that searches. Headless Vibe refuses a tool
+    call that asks for approval, so the search tools are approved outright.
+    """
     doc = _agent_file(name)
-    assert doc["enabled_tools"] == ["read_file"]
+    assert doc["enabled_tools"] == ["read_file", "packet_grep", "packet_list", "packet_symbol"]
+    assert doc["tools"] == {tool: {"permission": "always"} for tool in ("packet_grep", "packet_list", "packet_symbol")}
     assert doc["outside_workdir"] == "deny"
-    assert doc["enable_mcp"] is False
+    assert "enable_mcp" not in doc
+    assert "mcp_servers" not in doc
     assert doc["enable_subagents"] is False
     assert doc["include_project_context"] is False
     assert doc["session_logging"] == {"enabled": False}
@@ -560,6 +660,40 @@ def test_setup_installs_every_critic_agent_into_the_shared_vibe_home(macos_run: 
         installed = macos_run.home / ".vibe" / "agents" / f"{name}.toml"
         assert installed.read_text() == (KIT_ROOT / AGENTS_DIR / f"{name}.toml").read_text(), name
         assert f"Vibe critic agent {name} -> " in macos_run.stdout
+
+
+# Mistral bills cached prompt tokens at 10% of the input price
+# (docs.mistral.ai/studio/conversations/advanced/prompt-caching, read 2026-11-02).
+CACHED_INPUT_PRICES = {
+    "critic-mistral-large": 0.07,
+    "critic-mistral-small": 0.015,
+    "critic-glm": 0.14,
+    "critic-deepseek-flash": 0.03,
+}
+
+
+@pytest.mark.parametrize("name", CRITIC_AGENT_NAMES)
+def test_setup_installs_each_critic_model_with_its_cached_price(macos_run: Run, name: str) -> None:
+    """#261: without a cached price Vibe bills every cached token at the full rate, so its estimate and its
+    --max-price stop ran about three times what Mistral charged."""
+    installed = tomllib.loads((macos_run.home / ".vibe" / "agents" / f"{name}.toml").read_text())
+    (model,) = installed["models"]
+    assert model["cached_input_price"] == CACHED_INPUT_PRICES[name]
+    assert model["cached_input_price"] == pytest.approx(model["input_price"] / 10)
+
+
+def test_every_vibe_client_in_routing_has_its_agents_prices() -> None:
+    """The runner prices a launch from routing, Vibe from the agent file; the two must agree."""
+    routing = json.loads(ROUTING.read_text())
+    clients = {name: c for name, c in routing["clients"].items() if c["kind"] == "vibe"}
+    assert clients, "routing has no Vibe client, so this test proves nothing"
+    for name, client in clients.items():
+        (model,) = _agent_file(client["agent"])["models"]
+        assert client["prices"] == {
+            "input": model["input_price"],
+            "cached_input": model["cached_input_price"],
+            "output": model["output_price"],
+        }, name
 
 
 def test_setup_never_puts_a_critic_agent_into_vibe_privates_home(macos_run: Run) -> None:

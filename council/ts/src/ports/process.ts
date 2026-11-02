@@ -4,6 +4,8 @@ export interface ProcessCommand {
   readonly cwd?: string
   readonly env?: Readonly<Record<string, string>>
   readonly timeoutMs?: number
+  /** Written to the command's stdin, which is then closed; without it stdin is closed from the start. */
+  readonly stdin?: string
 }
 
 export interface ProcessResult {

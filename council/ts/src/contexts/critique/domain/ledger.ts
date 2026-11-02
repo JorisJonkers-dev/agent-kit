@@ -1,3 +1,4 @@
+import { isCheckId } from './checks.js'
 import { CRITIC_STATUSES, type CriticStatus } from './critic.js'
 import { SEVERITIES, type Severity } from './findings.js'
 import { JsonFields, JsonShapeError } from './json.js'
@@ -49,12 +50,15 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     finding_count: critic.finding_count,
     retry_of: critic.retry_of ?? null,
     status: critic.status,
+    ...(critic.vibe_cost_usd === undefined ? {} : { vibe_cost_usd: critic.vibe_cost_usd }),
   }))
   const findingLines = run.findings.map((finding) => ({
     type: 'finding',
     ...common,
     ...criticFields(finding.raised_by[0] ?? ''),
     category: finding.category,
+    /** The lens check or role rule the finding names, so stats can count precision per check; free text stays out. */
+    check: isCheckId(finding.check) ? finding.check : null,
     evidence_kinds: finding.evidence.map((e) => e.kind),
     finding_id: finding.id,
     /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
@@ -64,7 +68,12 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     raised_by: finding.raised_by,
     raised_by_families: familiesOf(run, finding),
     reason_code: finding.verdict.reason_code ?? null,
+    /** The severity as recorded: the check's, the critic's, or the orchestrator's override. */
     severity: finding.severity,
+    /** The severity the finding's check fixed, so stats can measure how often the orchestrator overrides it. */
+    declared_severity: finding.declared_severity ?? null,
+    severity_override: finding.verdict.severity ?? null,
+    severity_reason: finding.verdict.severity_reason ?? null,
     verdict: finding.verdict.verdict,
   }))
   return [...runLines, ...findingLines].map((line) => JSON.stringify(line))
@@ -96,6 +105,7 @@ export interface LedgerCriticRun extends LedgerRunContext {
   readonly cost_usd: number | null
   readonly status: CriticStatus
   readonly failure: string | null
+  readonly finding_count: number
 }
 
 /** One adjudicated finding, as stats reads it back. */
@@ -231,6 +241,7 @@ function readCriticRunLine(fields: JsonFields): LedgerCriticRun {
     cost_usd: fields.nullableNumber('cost_usd'),
     critic_id: fields.string('critic_id'),
     failure: fields.nullableString('failure'),
+    finding_count: fields.has('finding_count') ? fields.number('finding_count') : 0,
     lens_hashes: fields.stringMap('lens_hashes'),
     lenses: fields.strings('lenses'),
     model: fields.string('model'),

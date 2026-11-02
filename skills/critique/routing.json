@@ -6,7 +6,8 @@
       "binary": "vibe",
       "agent": "critic-mistral-large",
       "model": "mistral-large-4-0",
-      "family": "mistral"
+      "family": "mistral",
+      "prices": { "input": 0.7, "cached_input": 0.07, "output": 2.1 }
     },
     "agy-gemini-flash-high": {
       "kind": "agy",
@@ -19,21 +20,24 @@
       "binary": "vibe",
       "agent": "critic-glm",
       "model": "zai-glm-5-3",
-      "family": "zhipu"
+      "family": "zhipu",
+      "prices": { "input": 1.4, "cached_input": 0.14, "output": 4.4 }
     },
     "vibe-deepseek-flash": {
       "kind": "vibe",
       "binary": "vibe",
       "agent": "critic-deepseek-flash",
       "model": "deepseek-v4-1-flash-1017",
-      "family": "deepseek"
+      "family": "deepseek",
+      "prices": { "input": 0.3, "cached_input": 0.03, "output": 1.2 }
     },
     "vibe-mistral-small": {
       "kind": "vibe",
       "binary": "vibe",
       "agent": "critic-mistral-small",
       "model": "mistral-small-latest",
-      "family": "mistral"
+      "family": "mistral",
+      "prices": { "input": 0.15, "cached_input": 0.015, "output": 0.6 }
     }
   },
   "stats": {
@@ -41,6 +45,10 @@
     "removal_features": 3
   },
   "budget": { "vibe_flow_cap_usd": 5 },
+  "search": {
+    "max_matches": 50,
+    "max_bytes": 8192
+  },
   "antigravity_quota": {
     "daily_cap": 20,
     "reserve_threshold": 10,
@@ -92,11 +100,24 @@
       "claude/**",
       "codex/**",
       "worktree-*"
-    ]
+    ],
+    "merge_commits": 50
   },
   "fallbacks": {
     "vibe-mistral-large": ["vibe-glm", "agy-gemini-flash-high"],
     "agy-gemini-flash-high": ["vibe-glm"]
+  },
+  "packet": {
+    "cap_bytes": 153600,
+    "facts_cap_bytes": 30720,
+    "manifest_cap_bytes": 30720,
+    "repo_map_cap_bytes": 20480,
+    "window_lines": 400,
+    "exclude": {
+      "vendored": ["**/node_modules/**", "**/vendor/**", "**/third_party/**", "**/bower_components/**", "**/.venv/**"],
+      "generated": ["**/dist/**", "**/build/**", "**/*.min.js", "**/*.min.css", "**/*.map", "**/*.generated.*", "**/*_pb2.py", "**/*.pb.go"],
+      "lock": ["**/*.lock", "**/package-lock.json", "**/npm-shrinkwrap.json", "**/pnpm-lock.yaml", "**/go.sum"]
+    }
   },
   "stages": {
     "decisions": {
@@ -304,6 +325,53 @@
       ],
       "depth_signals": {
         "labels": ["risk:high"]
+      }
+    },
+    "adr-review": {
+      "distinct_families": true,
+      "base": [
+        {
+          "client": "vibe-mistral-large",
+          "role": "spec-redteam",
+          "lenses": ["fidelity"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "agy-gemini-flash-high",
+          "role": "spec-redteam",
+          "lenses": ["integration"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "deep": [
+        {
+          "client": "vibe-glm",
+          "role": "spec-redteam",
+          "lenses": ["simplicity"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
+      "depth_signals": {
+        "thresholds": { "adrs": 10 },
+        "risk_terms": [
+          "auth",
+          "authentication",
+          "authorisation",
+          "authorization",
+          "migration",
+          "migrations",
+          "payment",
+          "payments",
+          "crypto",
+          "cryptography",
+          "encryption",
+          "concurrency",
+          "concurrent",
+          "public API"
+        ]
       }
     }
   }

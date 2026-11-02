@@ -577,6 +577,17 @@ describe('do not commit', () => {
     expect(recorded.summary).toContain(`[critical bug] tree/src/widget.ts:2: frobnicate counts one widget fewer than it is given. (test-fails, fixed)`)
   })
 
+  it('is said when no critic reported, since a degraded review leaves the commit blocked', async () => {
+    const h = await stagedRepository({ families: ['mistral', 'zhipu'] })
+    h.process.queue({ exitCode: 1, stdout: '' })
+    const run = await prepared(h, STAGED)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(lastLine(recorded.summary)).toBe('No critic reported, so this review is degraded and the commit stays blocked: do not commit.')
+  })
+
   it('is not said for an unfixed major finding', async () => {
     const { h, run } = await reviewed([offByOne({ severity: 'major' })])
 
@@ -613,6 +624,7 @@ describe('the review record a commit gate reads', () => {
     const now = await new StagedDiffReader({ git: h.git }).read(h.repo)
     expect(JSON.parse(await readFile(join(run.run_dir, 'review.json'), 'utf8'))).toEqual({
       base_commit: 'c2',
+      critic_failures: [],
       degraded: false,
       head_commit: 's1',
       recorded_at: '2026-10-30T12:00:00.000Z',
@@ -638,7 +650,7 @@ describe('the review record a commit gate reads', () => {
     expect(recorded.ticket_review).toMatchObject({ review: 'fail', unfixed_critical: ['F1'] })
   })
 
-  it('passes a run no critic reviewed, and says it was degraded', async () => {
+  it('records a run no critic reported on as degraded, with why each critic did not', async () => {
     const h = await stagedRepository({ families: ['mistral', 'zhipu'] })
     h.process.queue({ exitCode: 1, stdout: '' })
     const run = await prepared(h, STAGED)
@@ -646,7 +658,20 @@ describe('the review record a commit gate reads', () => {
 
     const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
-    expect(recorded.ticket_review).toMatchObject({ degraded: true, review: 'pass' })
+    expect(recorded.ticket_review).toMatchObject({ degraded: true, review: 'degraded' })
+    expect(recorded.ticket_review?.critic_failures).toEqual([{ critic_id: 'c1-vibe-glm', reason: 'config-error' }])
+  })
+
+  it('passes as before when one critic reported, naming the critics that did not', async () => {
+    const h = await stagedRepository({ families: ['mistral', 'zhipu'] })
+    h.process.queue({ agent: 'critic-glm', exitCode: 1, stdout: '' }, { ...critic([]), agent: 'critic-mistral-large' })
+    const run = await prepared(h, { ...STAGED, depth: 'deep' })
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(recorded.ticket_review).toMatchObject({ degraded: false, review: 'pass' })
+    expect(recorded.ticket_review?.critic_failures).toEqual([{ critic_id: 'c1-vibe-glm', reason: 'config-error' }])
   })
 
   it("appends each run's record to one index in the critique directory, oldest first", async () => {

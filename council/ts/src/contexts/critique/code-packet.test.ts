@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -74,6 +74,11 @@ interface CodeManifest {
   readonly packet_files: readonly { readonly path: string; readonly kind: string; readonly source: string }[]
 }
 
+async function packetBytes(dir: string): Promise<number> {
+  const sizes = await Promise.all((await packetTree(dir)).map(async (path) => (await stat(join(dir, path))).size))
+  return sizes.reduce((sum, size) => sum + size, 0)
+}
+
 async function manifestOf(h: Harness, result: PrepareResult): Promise<CodeManifest> {
   return JSON.parse(await h.readText(result.manifest_path)) as CodeManifest
 }
@@ -84,15 +89,17 @@ describe('a code packet', () => {
 
     const result = await prepareCode(h)
 
-    expect(await readdir(result.packet_dir)).toEqual(['diff', 'spec', 'tickets', 'tree'])
+    expect(await readdir(result.packet_dir)).toEqual(['diff', 'facts', 'spec', 'tickets', 'tree'])
     expect(await packetTree(result.packet_dir)).toEqual([
       'diff/change.diff',
+      'facts/INDEX.md',
       'spec/spec.md',
       'tickets/01-frobnicate.md',
       'tree/.scratch/widgets/issues/01-frobnicate.md',
       'tree/.scratch/widgets/issues/02-report.md',
       'tree/.scratch/widgets/spec.md',
       'tree/CONTEXT.md',
+      'tree/REPO-MAP.md',
       'tree/docs/agents/issue-tracker.md',
       'tree/src/added.ts',
       'tree/src/untouched.ts',
@@ -129,7 +136,7 @@ describe('a code packet', () => {
     expect(diff).toContain('+++ b/src/widget.ts\n')
     expect(diff).toContain('-  return widgets.length\n')
     expect(diff).toContain('+  return widgets.length - 1\n')
-    expect(diff).toContain('+++ b/src/added.ts\n+export const added = 1\n')
+    expect(diff).toContain('--- /dev/null\n+++ b/src/added.ts\n@@ -0,0 +1 @@\n+export const added = 1\n')
     expect(diff).not.toContain('untouched')
   })
 
@@ -162,7 +169,7 @@ describe('a code packet', () => {
     const result = await prepareCode(h)
 
     const files = await packetTree(result.packet_dir)
-    expect(await readdir(result.packet_dir)).toEqual(['diff', 'spec', 'tickets', 'tree'])
+    expect(await readdir(result.packet_dir)).toEqual(['diff', 'facts', 'spec', 'tickets', 'tree'])
     expect(files).toEqual(expect.arrayContaining(['tree/AGENTS.md', 'tree/.vibe/config.toml', 'tree/.agents/skills/pwn/SKILL.md']))
     expect(files.filter((path) => path.split('/').includes('.git'))).toEqual([])
   })
@@ -188,8 +195,20 @@ describe('a code packet', () => {
       changed_files: ['tree/src/added.ts', 'tree/src/widget.ts'],
       head: 'HEAD',
       head_commit: 'c3',
+      slices: [
+        { first: 1, last: 1, path: 'tree/src/added.ts', reason: '`added`, which the change touches' },
+        { first: 1, last: 3, path: 'tree/src/widget.ts', reason: '`frobnicate`, which the change touches' },
+      ],
     })
-    expect(result.code).toEqual({ base_commit: 'c2', changed_files: ['tree/src/added.ts', 'tree/src/widget.ts'], head_commit: 'c3', tree_files: 7 })
+    expect(result.code).toEqual({
+      base_commit: 'c2',
+      cap_bytes: 153600,
+      changed_files: ['tree/src/added.ts', 'tree/src/widget.ts'],
+      dropped_files: 0,
+      head_commit: 'c3',
+      packet_bytes: await packetBytes(result.packet_dir),
+      tree_files: 7,
+    })
   })
 
   it('diffs from where the change left its base', async () => {
@@ -200,18 +219,12 @@ describe('a code packet', () => {
     expect((await manifestOf(h, result)).code).toMatchObject({ base_commit: 'c2', head_commit: 'c2', changed_files: [] })
   })
 
-  it('lists what a critic is pointed at, not the whole tree', async () => {
+  it('lists what a critic is pointed at, the repo map first, not the whole tree', async () => {
     const h = await codeRepository()
 
     const result = await prepareCode(h)
 
-    expect(result.packet_files).toEqual([
-      'diff/change.diff',
-      'tree/src/added.ts',
-      'tree/src/widget.ts',
-      'tickets/01-frobnicate.md',
-      'spec/spec.md',
-    ])
+    expect(result.packet_files).toEqual(['tree/REPO-MAP.md', 'diff/change.diff', 'tickets/01-frobnicate.md', 'spec/spec.md', 'facts/INDEX.md'])
   })
 
   it('names the ticket as what a ticket review critiques', async () => {
@@ -330,7 +343,7 @@ async function fanOut(h: Harness, run: PrepareResult, script: VibeScript): Promi
 }
 
 describe('a critic of a code packet', () => {
-  it("is pointed at the diff and the changed files by path, since Vibe can only read the files it is told of", async () => {
+  it("is pointed at the repo map first, then the diff and the context slices by path, since Vibe can only read the files it is told of", async () => {
     const h = await codeRepository()
     const run = await prepareCode(h)
 
@@ -339,12 +352,15 @@ describe('a critic of a code packet', () => {
     const prompt = await h.readText(join(run.run_dir, 'critics', 'c1-vibe-mistral-large', 'prompt.md'))
     expect(prompt).toContain(
       [
+        "- `tree/REPO-MAP.md`: the repository's shape: every source file's top-level symbols and their signatures, ranked by how many other files reference them. Read it first",
         '- `diff/change.diff`: the change under review, as a diff against its base',
-        '- `tree/src/added.ts`: a file the change touched, as it is at the commit under review',
-        '- `tree/src/widget.ts`: a file the change touched, as it is at the commit under review',
         '- `tickets/01-frobnicate.md`: a ticket the change delivers',
         '- `spec/spec.md`: the spec the tickets come from',
+        '- `facts/INDEX.md`: what the packet holds: the files left out of the diff and of `tree/`, each context slice, and what the packet cap dropped or cut short',
       ].join('\n'),
+    )
+    expect(prompt).toContain(
+      ['- `tree/src/added.ts:1-1`: `added`, which the change touches', '- `tree/src/widget.ts:1-3`: `frobnicate`, which the change touches'].join('\n'),
     )
     expect(prompt).not.toContain('`tree/src/untouched.ts`')
   })
@@ -358,6 +374,18 @@ describe('a critic of a code packet', () => {
     const prompt = await h.readText(join(run.run_dir, 'critics', 'c1-vibe-mistral-large', 'prompt.md'))
     expect(prompt).toContain('read one with read_file as `tree/<repository path>`')
     expect(prompt).toContain('`tree/<repository path>:<line>`')
+  })
+
+  it('is told which files the facts index names one by one, the files holding a slice among them', async () => {
+    const h = await codeRepository()
+    const run = await prepareCode(h)
+
+    await fanOut(h, run, critic([]))
+
+    const prompt = await h.readText(join(run.run_dir, 'critics', 'c1-vibe-mistral-large', 'prompt.md'))
+    expect(prompt).toContain(
+      'by name for the files the change touched, their importers, the files holding a slice and any file the diff, a ticket or the spec names, and counted per directory for the rest.',
+    )
   })
 
   it('works in its own copy of the whole packet, tree included', async () => {

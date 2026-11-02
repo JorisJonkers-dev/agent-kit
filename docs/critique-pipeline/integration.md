@@ -1252,6 +1252,14 @@ Tracker and domain-doc resolution (agent-kit#175) fixed these:
   doc, the references are the first of `GLOSSARY.md` and `CONTEXT.md`, then
   every `.md` in `docs/adr/`. Explicit `references` in the input still win.
   `CritiqueFilesPort` gained `listFiles`.
+- **Status-aware decision docs (#219).** Any resolved doc other than
+  `GLOSSARY.md`, `CONTEXT.md` and `CONTEXT-MAP.md` is read as a record and
+  left out when its status is proposed, rejected, superseded or deprecated.
+  The status is the first word of a frontmatter `status:` key, else of a
+  `Status:` line, else of the line under a `## Status` heading, outside code
+  blocks. A record with no status, as agent-kit's own ADRs, counts as
+  accepted. A critic's quote from a record left out is not in the packet, so
+  it is fabricated evidence and never a decision quote.
 - **For #184.** `application/tracker.ts` holds a `Tracker` per tracker kind,
   chosen by `TrackerResolver`. Reading a spec's tickets (sub-issues with
   native blocked-by links, or `.scratch/<feature>/issues/` files) belongs
@@ -1617,7 +1625,106 @@ The `/critique-spec` skill (agent-kit#177) fixed these:
   is how prepare knows the two belong to one flow, so the per-flow Vibe cap
   can add the first round's spend to the second's from there.
 
-## What #186 settled
+## The code packet, as of 2026-11-02
+
+A code packet (the packet of a ticket review or a feature review) is no
+longer a copy of all of the commit under review. Four tickets of
+agent-kit#214 changed it: #221 brought the packet cap, windows, the
+exclusions and `facts/INDEX.md` for the repository packet, #254 applied them
+to the code packet and added the filtered diff, the repo map and the context
+slices, and its two follow-ups #256 (the facts index stays small) and #257
+(an oversized diff is windowed) closed what #254 left open. Everything below
+is computed by rule at the commit under review, never by a model
+([ADR-0004](../adr/0004-critics-never-compute-facts.md)); the code
+permission and prepare's input are as [#186](#what-186-settled-superseded-2026-11-02)
+left them. The packet root holds only `diff/`, `tickets/`, `spec/`, `tree/`
+and `facts/`, so the repository's own `AGENTS.md`, `.vibe/` and `.agents/`
+still land under `tree/`.
+
+- **The filtered diff (#254).** `diff/change.diff` is still the diff from
+  the merge base of `base` and `head` to `head`, but a vendored, generated
+  or lock file keeps one line in place of its hunks: `Left out of this diff:
+  <path>, <why>; its <n> changed lines are not shown.` A file counts as one
+  when it matches routing's `packet.exclude` globs, or when its first five
+  lines say `@generated` or "do not edit" (read at the head, or at the base
+  for a deleted file). Its lines are not counted as changed lines, and risk
+  triage reads the same filtered diff (`CodeChangeReader` serves both).
+  `code.changed_files` leaves those files out too.
+- **The repo map (#254).** `tree/REPO-MAP.md`, a fact file, lists every
+  TypeScript, JavaScript and Python file at the commit under review with its
+  top-level symbols and their signatures, ranked by how many other files
+  import the file and name the symbol. It is capped at routing's
+  `packet.repo_map_cap_bytes` (20 KB) inside the packet cap; past it, the
+  least referenced files are left out and the facts index says how many. A
+  tracked file at that path is never sent in its place.
+- **Context slices (#254).** Instead of whole files, the prompt lists the
+  lines a reviewer needs beside the diff, each as
+  `tree/<path>:<first>-<last>` with why it is sent: each changed hunk's
+  enclosing top-level symbol (a change outside every symbol sends the lines
+  with three lines either side, and in a file the scan cannot read, ten),
+  then up to eight symbols each changed symbol calls, then up to eight
+  functions that call it, found through the import and reference scan. The
+  manifest records the slices the cap let in under `code.slices` (path,
+  first and last line, reason).
+- **The cap and windows (#221, applied by #254).** `tree/` is read from
+  git's object store at the head, as before, but vendored, generated, lock
+  and binary files are never sent, and routing's `packet.cap_bytes`
+  (150 KB) counts every packet file. The tree is filled in this order: every
+  context slice, then the changed files, then the files that import them,
+  then the rest of the tree, each tier's first window before its second.
+  A file goes in windows of `packet.window_lines` (400) lines from its first
+  line. A file cut short holds the lines it was sent at their own numbers;
+  a run of lines it does not hold is blank but for a marker on its first
+  line, and its `packet_files` entry carries a `window`. A citation of a
+  line outside what the packet holds is `fabricated-evidence`. Prepare
+  refuses with `packet-over-cap` only when the tickets, the spec, the repo
+  map and the facts index's own text pass the cap.
+- **Diff windows (#257).** A diff that does not fit beside the rest of the
+  packet is sent in windows by file instead of refused: the changed source
+  files, then the tests, then the docs, each group by changed lines, most
+  first. It takes at most half the room the documents leave, so the tree
+  keeps room for the slices, and its first line says the cap left hunks
+  out. Each hunk keeps its file's header and its `@@` line, so a line a sent
+  hunk shows can be cited as `tree/<path>:<line>` even where the tree does
+  not hold it; a deleted or emptied file's hunks are cited at their lines at
+  the base. A line only a left-out hunk shows is rejected unless the tree
+  holds it.
+- **The facts index (#221, #254, #256, #257).** `facts/INDEX.md` says what
+  the packet holds: the limits, how many vendored, generated, lock and
+  binary files were never sent, each file left out of the diff with its
+  changed lines, each hunk the cap left out of the diff (by file and line,
+  `base lines` for a hunk that only removes lines), each context slice as
+  sent or dropped, and the tree's drops. A drop is listed by name for a
+  changed file, an importer, a file holding a slice and any file the diff, a
+  ticket or the spec names; since #256 the other drops are counted per
+  directory and reason with the bytes left out, in at most 24 lines, under
+  room the cap reserves for them. Since #257, when listing every named drop
+  would not fit, the lists of names take a quarter of the room the
+  documents and the reserve for those counts leave, and each ends with a
+  line counting what it leaves unlisted; the per-directory counts stay. A quote from `facts/` or
+  `tree/REPO-MAP.md` is a fact, never a recorded decision.
+- **The prompt (#254).** A critic's file list names `tree/REPO-MAP.md`
+  first, then the diff, the tickets, the spec and `facts/INDEX.md`, then the
+  context slices, then a note that `tree/` holds as much of the rest of the
+  repository as the cap let in, how a file cut short keeps its line numbers,
+  and how to cite code.
+- **Prepare's result (#254).** `code` carries `base_commit`, `head_commit`,
+  `changed_files`, `tree_files` (the files frozen in whole or in part),
+  `dropped_files` (the files the cap left out in whole or in part),
+  `packet_bytes` and `cap_bytes`.
+- **The tripwire** is unchanged: each critic's copy is the packet, and a
+  change anywhere in it voids the critic as `violated-readonly`. The copy
+  now holds what the cap let in, not the whole tree.
+
+## What #186 settled (superseded 2026-11-02)
+
+Superseded on 2026-11-02 by [The code packet, as of
+2026-11-02](#the-code-packet-as-of-2026-11-02): the bullets on the code
+packet, the prompt, the tripwire and the live check describe the packet
+before #221 and #254, which froze the whole tree, and the manifest and
+file-and-line evidence bullets hold only in part. The code permission,
+prepare's input, git and process output still hold. The notes stay as they
+were written, as history.
 
 Code packets and the code permission (agent-kit#186) fixed these:
 
@@ -2419,6 +2526,21 @@ around it.
   before the whole line, so the index it sees is not yet the one committed.
   If the widened change is risky and differs from the index, the result is
   `unstaged`: stage in a command of its own, review, then commit.
+- **A degraded ticket review blocks (#259).** A ticket-review run in which
+  no critic reported (every critic failed, was skipped at the price cap or
+  had its findings discarded) is recorded as `review: "degraded"`, not
+  `pass`, and its record carries `critic_failures`: one
+  `{ critic_id, reason }` per critic that did not report, the reason being
+  its `failure` or, for a skipped or discarded critic, its status. A run
+  with at least one critic that reported (findings or a
+  `no_findings_reason`) records as before, with `critic_failures` naming any
+  that did not. The commit gate blocks a degraded record with
+  `review-degraded`, naming the run and each critic's reason; a record
+  written before #259 with `review: "pass"` and `degraded: true` blocks the
+  same way. Only a later `/review-ticket` run of the same change in which a
+  critic reported, or the kill switch, lets the commit through. Record's
+  summary for such a run ends with "do not commit", and `/flow` gives the
+  ticket review status `degraded` and names `/review-ticket` again.
 - **PR gate.** `gh pr create` (with `--head <branch>`, that branch) and any
   push that updates a branch outside routing's new `gate.feature_branches`
   globs need the last `gates.jsonl` line whose `repository` and
@@ -3074,3 +3196,181 @@ gate on `git commit -m cancel` then returned
 - **The read-only setup items.** #195 handed them to #178. They still answer
   `not-available` with "Wait for agent-kit#178", and this change does not
   build them.
+
+## What #261 settled
+
+On 2026-11-02, 25 Vibe runs reported $7.89 in `cost_usd` against $2.49
+recomputed from their own token counts, and the Mistral console showed
+€2.17. The critic agent files carried no `cached_input_price`, so Vibe
+priced every cached token at the full input rate. A critic re-reads its
+conversation every turn, so 70–85% of its input is cached, and Mistral
+bills cached prompt tokens at 10% of the input price. The ledger, the flow
+cap and Vibe's own `--max-price` stop all used the inflated figure.
+
+- **Setup.** `scripts/render_registry.py` writes `cached_input_price` = 10%
+  of `input_price` into each critic agent's model entry (0.07 for Mistral
+  Large, 0.015 for Mistral Small, 0.14 for GLM, 0.03 for DeepSeek Flash), so
+  Vibe's estimate and its `--max-price` stop are realistic.
+- **Routing prices.** Each Vibe client in `routing.json` carries `prices:
+  { input, cached_input, output }` in USD per million tokens, the same as
+  its agent file's; `tests/test_critique_setup.py` holds the two together.
+  Input and output must be above 0, cached input at least 0.
+- **The runner computes cost.** The Vibe adapter reads the export's
+  `usage` (`input_tokens`, which includes the cached ones,
+  `cached_input_tokens`, `output_tokens`) and computes
+  `(input − cached) × input + cached × cached_input + output × output`,
+  over a million. That is the critic's `cost_usd`, the base of
+  `charged_usd`, and so what the ledger, the flow cap, `/flow budget`, the
+  summaries and `/critique-stats` use. Vibe's own figure is kept as
+  `vibe_cost_usd` on the critic run, the ledger run line and the invocation
+  line. Without prices or token counts the runner falls back to Vibe's
+  figure, and the cap rules of #173 still apply on top. For the Mistral
+  Large critic of that day (881,212 input tokens, 742,656 of them cached,
+  22,977 output) the runner records $0.1972 where Vibe reported $0.6651.
+- **Wasted spend.** `/critique-stats` gives each cell `stopped_runs` and
+  `wasted_usd`: the runs a price or time limit stopped (`stopped-early`,
+  `timeout`, `print-timeout`, `exit-124`) with no findings, and their known
+  cost. The report shows it per row, and in one line under the heading when
+  any run was stopped. A non-finite token count in the export (a corrupt
+  `1e999`) is no count, so the runner falls back to Vibe's figure and the
+  cap rules.
+
+## What #255 settled
+
+ADR-0006 lets critics search their own packet. These facts were checked on
+Vibe 3.0.4 with a scripted stand-in for the model: a local endpoint that
+answers in OpenAI's format, in a throwaway `VIBE_HOME`, so no Mistral call
+was made and the personal home was not read.
+
+- **MCP tools are reached through `run_typescript`.** In Vibe 3.0.4 the model
+  is always offered the same eight top-level tools (`search_tool_functions`,
+  `run_typescript`, `wait`, `read_file`, `write_file`, `edit`, `bash`,
+  `skill`), whatever `enabled_tools` says. An MCP server's tools are
+  functions inside `run_typescript`, named `tools.mcp_<server>.<tool>`. A
+  call to a top-level `packet_grep` fails with `unsupported top-level tool`.
+  `run_typescript` runs in a sandbox with no Node, file system or network.
+  It reaches only tool functions, and Vibe checks each call against
+  `enabled_tools` and the tool's permission. With `write_file`,
+  `process.start` and `bash` left out of `enabled_tools`, each call was
+  refused with `tool_denied` (`approvalSource: never`). So a critic that
+  searches has `run_typescript`, but the only functions it can call are
+  `read_file` and the search server's.
+- **The tools need `permission = "always"`.** An MCP tool asks for approval
+  by default, and headless Vibe refuses every call that asks (`decision:
+  skip`). The critic agent file approves `[tools.packet_grep]`,
+  `[tools.packet_list]` and `[tools.packet_symbol]`. The key is
+  `<server>_<tool>`; a `[tools."mcp_packet.list"]` table did nothing.
+- **The agent file's `enabled_tools` wins over `--enabled-tools`.** The
+  export showed the agent file's four names when the flag passed three. The
+  search tools a critic has are therefore the ones the server lists:
+  `symbol` exists only when the packet holds `tree/REPO-MAP.md`.
+- **MCP servers join across layers by name.** `VIBE_MCP_SERVERS` (JSON)
+  adds servers to the home's `config.toml` list, and an agent file's
+  `mcp_servers` adds more, even an empty list. A server given in
+  `VIBE_MCP_SERVERS` with the same name as a home server replaces it. A
+  home server is started to list its tools whenever Vibe has no cached
+  descriptor for it, even when none of its tools is enabled. So the runner
+  reads the server names in `~/.vibe/config.toml` and, for a critic that
+  searches, replaces each with `disabled = true` and the command `false`.
+  The export then lists them switched off, and none started. The runner
+  checks the export: a live server other than its own, or its own server
+  with another command or working directory, fails the critic as
+  `unsafe-config`.
+- **The agent file leaves `enable_mcp` to the launch.** The agent file sits
+  above the environment, so it no longer sets `enable_mcp = false`. A
+  critic that reads alone runs with `VIBE_ENABLE_MCP=false`, as before. One
+  that searches runs with `VIBE_ENABLE_MCP=true` and
+  `VIBE_ENABLE_CONNECTORS=false`. The export showed `enable_connectors:
+  false`.
+- **A dead server shows in the journal.** The stand-in server exited during
+  a call. That call and every later search call came back as `effect`
+  entries with `state.status: failed` and `error.code:
+  mcp_transport_failed`, and the critic carried on. The runner counts those
+  entries and records them as the critic's `search_failure`. The report
+  prints it.
+- **Lifetime.** Vibe starts the server lazily, on the first search call once
+  its descriptors are cached. Each critic's server has its own descriptor
+  cache entry under `~/.vibe/logs/mcp-descriptors/`, since its root differs.
+  The server exits when its stdin closes, so it ends with Vibe. Once the
+  critic ends, however it ended, the runner also runs `pkill -f` on
+  `search-server --root <packet copy>`, so no server outlives its critic.
+- **Strict config.** The generated agent file loaded under
+  `VIBE_STRICT_CONFIG=1`.
+
+How the runner chooses a critic's tools:
+
+- **agy critics read alone for now.** agy's search tools are its own, so
+  only agy's read-only proof can show they stay inside the packet, and that
+  proof is #178's live check. Until setup records `read-only:<agy client>`
+  as passing, an agy critic is told only about `view_file`. Its session
+  settings also deny `list_dir(*)`, `grep_search(*)` and `find_by_name(*)`,
+  and the run records `search_failure: agy-search-unproven: ...`. Once
+  agy's proof passes, it searches with all four tools again. This part of
+  #255's setup criterion stays open until #178.
+  - The deny rules for these three tools follow the `read_file(*)` rule
+    shown above. They have not been run live yet.
+- **Vibe critics, before anything else.** The runner reads the critic's
+  installed agent file before launch. The agent file sits above the launch's
+  environment, so an older one with `enable_mcp = false` would switch the
+  search server off. A file that is missing, or that does not enable and
+  approve `packet_grep`, `packet_list` and `packet_symbol`, would have every
+  search refused. In either case the critic reads with `read_file` alone and
+  the run records `search_failure: agent-file-disables-mcp: ...`,
+  `agent-file-lacks-search-tools: ...` or `agent-file-missing: ...`. The
+  same holds for an agent file that declares `mcp_servers` of its own
+  (`agent-file-declares-servers`), since Vibe would run them beside the
+  search server. It also holds for an agent file or home `config.toml`
+  the runner cannot read (`agent-file-unreadable`,
+  `home-config-unreadable`). Both files are read with a small TOML reader
+  bundled in the runner, so either quote style and multi-line arrays
+  count. This is
+  decided before the launch, never as a void after the critic has spent: a
+  `/review-ticket` run on #255 lost three critics, about $3.90, to that
+  until setup was re-run. The fix is to re-run agent-kit setup. Setup's
+  read-only item fails with the same reason before it asks to spend.
+- **Vibe critics.** Once per fan-out or refute round, the runner proves its
+  search server's reach under `<run>/search-proof/`. That is a packet with
+  one file, a file outside it, and symlinks to both. It then asks the
+  server through `..`, an absolute path, each symlink and a climbing glob.
+  It also starts the server on each critic's copy. If either step fails,
+  that critic reads with `read_file` alone, its prompt says it cannot
+  search, and the run records why.
+- **Setup's `read-only:<vibe client>` item** first runs the same proof for
+  free. Then, once the owner confirms the spend, it runs one prompt, capped
+  at $0.05. That prompt launches a critic exactly as a searching critic is
+  launched. Through `run_typescript` the critic calls `bash`, `write_file`,
+  `process.start` and one search (ADR-0006, amended).
+  - It passes when the journal shows the three calls as `tool_denied`, the
+    search as `completed`, and the packet unchanged.
+  - Its result depends on the bundled runner's hash, the Vibe version and
+    the critic agent file.
+  - agy's item is still `not-available` until #178.
+
+## Live check for #225 (phase 0), 2026-11-02
+
+Run on agent-kit with the integration branch's build of the runner (`feat/critique-architecture` at 62520df). Costs are the runner's own figures, computed from each export's token counts at cache-aware prices (#261). Vibe's own estimate is given beside each one.
+
+**Repository packet and critic spend** (run `20261102T132307Z-adr-review`, stage `adr-review`, base depth, agent-kit with the code permission on):
+
+- **Packet:** 150,309 bytes against the 153,600-byte cap. It holds 13 sampled tree files and records 54 dropped files in a 24-line facts index.
+- **Mistral Large (`spec-redteam`, fidelity):** $0.0787 (Vibe: $0.1134).
+- **GLM (`spec-redteam`, integration):** $0.2149 (Vibe: $0.4495). It took Gemini's slot, because agy's quota was used up.
+- **Search:** both critics read with `read_file` alone and recorded `search_failure: agent-file-disables-mcp`. The installed critic agent files predate #255, and they search once setup is re-run.
+- **Findings:** the critics raised seven findings on agent-kit's own ADRs, for example ADR-0002's nedap rule against CONTEXT.md's. They are left for phase 1's live check (#231), which reviews these ADRs with `/critique-adrs`, so the run has no verdicts.
+
+**Cap chosen:** 150 KB stays. A full packet cost each critic well under the $0.50 per-critic cap, at most $0.22, so a larger cap is not needed for cost. On #254's own review, a 410 KB packet cost Mistral Large $0.20 against Vibe's figure of $0.665. That shows the cost tracks what a critic reads, not the cap.
+
+**Refute round** (run `20261102T132356Z-spec`, stage `spec`, base depth, in a scratch repository seeded with three planted defects):
+
+- **What the critics found:** every planted defect. That covers the quiet-hours contradiction (F3 and F6, both critical), two decisions ADR-0001 records that the spec dropped (F1 and F2), and the untestable "load quickly" requirement (F4 and F11, which stay hints).
+- **Spend:** Mistral Large $0.0119 and GLM $0.0347.
+- **Refuters:** the two accepted criticals went to refuters from a family that did not raise them:
+  - F3 (raised by Mistral) went to GLM: no-objection, $0.0197.
+  - F6 (raised by GLM) went to Mistral Large: no-objection, $0.0088.
+- **Recorded result:** accepted 4, rejected 1, needs-human 2, hint 5. The report carries a `## Refute round` section with both outcomes.
+
+**Allowlist:**
+- **agent-kit's entry:** families mistral, zhipu, deepseek and google. The code permission was turned on for this check; history stays off.
+- **Scratch entry:** `github.com/jorisjonkers-dev/critique-smoke` was added for the refute run and removed afterwards.
+
+**Still open:** a machine override raises Vibe's own `--max-price` for ticket-review critics to $3. The installed critic agent files lack `cached_input_price`, so Vibe stops on its threefold estimate. It is removed once setup installs the files #261 generates.

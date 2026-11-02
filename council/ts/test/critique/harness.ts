@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
+import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -11,6 +12,8 @@ import type {
   GhIssueLocator,
   GhIssueRequest,
   GhLinkedIssue,
+  GitCommitLink,
+  GitMergeTree,
   GitPorcelainEntry,
   GitRemote,
   ProcessCommand,
@@ -21,6 +24,8 @@ import {
   AgyCriticClient,
   createCritiqueCommands,
   NodeCritiqueFiles,
+  ProcessSearchClient,
+  runSearchServer,
   VibeCriticClient,
   type CritiqueCommands,
   type CritiqueGhPort,
@@ -28,6 +33,9 @@ import {
 } from '../../src/contexts/critique/index.js'
 
 export const ASSETS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../skills/critique')
+
+/** The critic agent files agent-kit's generator renders, which setup installs into `~/.vibe/agents/`. */
+export const GENERATED_AGENTS = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../registry/generated/vibe/agents')
 
 export const SPEC_CANARY = 'Every widget must be frobnicated within the canary window of seven seconds.'
 export const DECISION_CANARY = 'Decided: widgets are frobnicated by the nightly job only.'
@@ -102,9 +110,15 @@ export class FixedClock implements ClockPort {
  * name commits too. The index holds what `commit()` committed until
  * `stage()` copies the files on disk into it, as `git add -A` would; a
  * commit made with `commitTree` (`s<n>`) is off that line and moves no HEAD.
+ * Branches name commits too: `checkout` switches HEAD's line to one, and
+ * `merge` starts a merge the next `commit()` concludes with two parents.
  */
 export class FakeGit implements CritiqueGitPort {
-  private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string>; readonly parent?: string }[] = []
+  private readonly history: { readonly id: string; readonly tree: ReadonlyMap<string, string>; readonly parents: readonly string[] }[] = []
+  /** Each branch's tip, as `checkout`, `setBranch` and `commit()` left it. */
+  private readonly branches = new Map<string, string>()
+  /** The commit a merge in progress merges, as `MERGE_HEAD` names it. */
+  private mergeHead: string | undefined
   /** HEAD's line of history, oldest first; commits made with `commitTree` are not on it. */
   private readonly line: string[] = []
   private index: ReadonlyMap<string, string> = new Map()
@@ -113,10 +127,14 @@ export class FakeGit implements CritiqueGitPort {
   readonly resolved: string[] = []
   /** How many times the index was written as a tree. */
   indexTreeWrites = 0
+  /** How many times a commit's tree was read as index entries. */
+  treeEntryReads = 0
   /** The branch HEAD is on; empty for a detached HEAD, as `git branch --show-current` prints it. */
   branch = 'main'
   /** What reading the remotes does: answer, never return (a git that hangs), or throw this error (a git that crashes). */
   remotesBehaviour: 'answer' | 'hang' | Error = 'answer'
+  /** How a diff prints a changed file. */
+  hunks: FakeHunks = 'whole-file'
 
   constructor(
     private readonly repoRoot: string,
@@ -144,13 +162,55 @@ export class FakeGit implements CritiqueGitPort {
 
   /** Records the working tree as a new commit on HEAD's line, stages it as `git commit -a` leaves it, and returns its id. */
   async commit(): Promise<string> {
-    const id = `c${String(this.line.length + 1)}`
+    const id = `c${String(this.history.filter((entry) => entry.id.startsWith('c')).length + 1)}`
     const tree = await this.workingTree()
     const parent = this.line.at(-1)
-    this.history.push({ id, tree, ...(parent === undefined ? {} : { parent }) })
+    const parents = [...(parent === undefined ? [] : [parent]), ...(this.mergeHead === undefined ? [] : [this.mergeHead])]
+    this.history.push({ id, parents, tree })
     this.line.push(id)
     this.index = tree
+    this.mergeHead = undefined
+    if (this.branch !== '') this.branches.set(this.branch, id)
     return id
+  }
+
+  /** Points a branch at a commit without moving HEAD, as a fetch moves a remote-tracking branch. */
+  setBranch(name: string, commit: string): void {
+    this.branches.set(name, commit)
+  }
+
+  /**
+   * Switches HEAD to a branch, as `git checkout` does: the index and the
+   * files on disk become its tip's. With `from`, the branch is made there
+   * first, as `git checkout -b` makes it.
+   */
+  async checkout(name: string, from?: string): Promise<void> {
+    if (this.branch !== '' && this.line.length > 0) this.branches.set(this.branch, this.line.at(-1) ?? '')
+    const tip = from === undefined ? this.branches.get(name) : await this.resolveCommit('', from)
+    if (tip === undefined) throw new Error(`error: pathspec '${name}' did not match any file(s) known to git`)
+    this.branches.set(name, tip)
+    this.branch = name
+    this.line.splice(0, this.line.length, ...this.firstParents(tip).reverse())
+    await this.become(this.treeOfCommit(tip))
+  }
+
+  /** Starts a branch with no commits and no files, as `git checkout --orphan` and clearing the index leave it. */
+  async orphan(name: string): Promise<void> {
+    this.branch = name
+    this.line.splice(0)
+    await this.become(new Map())
+  }
+
+  /**
+   * Starts merging a branch into HEAD, as `git merge --no-ff --no-commit`
+   * does: `MERGE_HEAD` names its tip, and the index and the files on disk
+   * hold the merge, conflicted files with their conflict markers.
+   */
+  async merge(name: string): Promise<void> {
+    const theirs = await this.resolveCommit('', name)
+    const merged = await this.mergeTree('', this.line.at(-1) ?? '', theirs)
+    this.mergeHead = theirs
+    await this.become(this.trees.get(merged.tree) ?? new Map())
   }
 
   /** Copies the files on disk into the index, as `git add -A` does. */
@@ -173,11 +233,60 @@ export class FakeGit implements CritiqueGitPort {
 
   async resolveCommit(_cwd: string, revision: string): Promise<string> {
     this.resolved.push(revision)
+    if (revision === 'MERGE_HEAD') {
+      if (this.mergeHead === undefined) throw new Error("fatal: ambiguous argument 'MERGE_HEAD': unknown revision or path not in the working tree.")
+      return Promise.resolve(this.mergeHead)
+    }
+    const tip = revision === this.branch ? undefined : this.branches.get(revision)
+    if (tip !== undefined) return Promise.resolve(tip)
     const back = /^HEAD(?:~(\d+))?$/.exec(revision === this.branch && revision !== '' ? 'HEAD' : revision)
     const id = back === null ? revision : this.line[this.line.length - 1 - Number(back[1] ?? 0)]
     const commit = this.history.find((entry) => entry.id === id)
     if (commit === undefined) throw new Error(`fatal: ambiguous argument '${revision}': unknown revision or path not in the working tree.`)
     return Promise.resolve(commit.id)
+  }
+
+  /** Every commit reachable from `head` and not from `base`, newest first, with its tree and parents. */
+  async commitsBetween(_cwd: string, base: string, head: string): Promise<readonly GitCommitLink[]> {
+    const ofBase = new Set(this.ancestors(base))
+    return Promise.resolve(
+      this.ancestors(head)
+        .filter((id) => !ofBase.has(id))
+        .map((commit) => ({ commit, parents: this.history.find((entry) => entry.id === commit)?.parents ?? [], tree: treeId(this.treeOfCommit(commit)) })),
+    )
+  }
+
+  /** A commit's tree in the form `stagedEntries` prints the index. */
+  async treeEntries(_cwd: string, revision: string): Promise<string> {
+    this.treeEntryReads += 1
+    return Promise.resolve(entriesOf(this.treeOfCommit(revision)))
+  }
+
+  /**
+   * A three-way merge of two commits on their merge base, file by file: a
+   * file only one side changed takes that side; one both changed alike
+   * keeps it; one both changed differently holds both sides between
+   * conflict markers, as git's default conflict style writes them.
+   */
+  async mergeTree(_cwd: string, ours: string, theirs: string): Promise<GitMergeTree> {
+    const base = this.treeOfCommit(await this.mergeBase('', ours, theirs))
+    const [mine, other] = [this.treeOfCommit(ours), this.treeOfCommit(theirs)]
+    const merged = new Map<string, string>()
+    let conflicts = false
+    for (const path of [...new Set([...base.keys(), ...mine.keys(), ...other.keys()])].sort()) {
+      const [b, o, t] = [base.get(path), mine.get(path), other.get(path)]
+      let text: string | undefined
+      if (o === t || t === b) text = o
+      else if (o === b) text = t
+      else {
+        conflicts = true
+        text = `<<<<<<< ${ours}\n${o ?? ''}=======\n${t ?? ''}>>>>>>> ${theirs}\n`
+      }
+      if (text !== undefined) merged.set(path, text)
+    }
+    const tree = treeId(merged)
+    this.trees.set(tree, merged)
+    return Promise.resolve({ conflicts, tree })
   }
 
   /** The first ancestor of `b`, itself included, that is also an ancestor of `a`. */
@@ -196,9 +305,9 @@ export class FakeGit implements CritiqueGitPort {
     return Promise.resolve(text)
   }
 
-  /** Each changed file in full: its old lines removed and its new lines added. */
+  /** Each changed file's hunks, printed the way `hunks` says. */
   async diffCommits(_cwd: string, base: string, head: string): Promise<string> {
-    return Promise.resolve(fileDiff(this.treeOfCommit(base), this.treeOfCommit(head)))
+    return Promise.resolve(fileDiff(this.treeOfCommit(base), this.treeOfCommit(head), this.hunks))
   }
 
   async changedPaths(_cwd: string, base: string, head: string): Promise<readonly string[]> {
@@ -212,7 +321,7 @@ export class FakeGit implements CritiqueGitPort {
 
   /** HEAD against the index, or against the working tree for every path HEAD or the index tracks, in `diffCommits`' form. */
   async diffAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<string> {
-    return Promise.resolve(fileDiff(this.headTree(), await this.against(from)))
+    return Promise.resolve(fileDiff(this.headTree(), await this.against(from), this.hunks))
   }
 
   async pathsAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<readonly string[]> {
@@ -239,10 +348,10 @@ export class FakeGit implements CritiqueGitPort {
   async commitTree(_cwd: string, tree: string, parent: string): Promise<string> {
     const files = this.trees.get(tree)
     if (files === undefined) throw new Error(`fatal: ${tree} is not a valid 'tree' object`)
-    const same = this.history.find((entry) => entry.parent === parent && entry.id.startsWith('s') && treeId(entry.tree) === tree)
+    const same = this.history.find((entry) => entry.parents[0] === parent && entry.id.startsWith('s') && treeId(entry.tree) === tree)
     if (same !== undefined) return Promise.resolve(same.id)
     const id = `s${String(this.history.filter((entry) => entry.id.startsWith('s')).length + 1)}`
-    this.history.push({ id, parent, tree: files })
+    this.history.push({ id, parents: [parent], tree: files })
     return Promise.resolve(id)
   }
 
@@ -262,11 +371,33 @@ export class FakeGit implements CritiqueGitPort {
     return tracked
   }
 
-  /** A commit, then its parent, and so on back to the first commit. */
+  /** A commit, then its parents, theirs, and so on back to the first commit, nearest first. */
   private ancestors(commit: string): readonly string[] {
+    const seen: string[] = []
+    const queue = [commit]
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+      if (seen.includes(id)) continue
+      seen.push(id)
+      queue.push(...(this.history.find((entry) => entry.id === id)?.parents ?? []))
+    }
+    return seen
+  }
+
+  /** A commit, its first parent, and so on back to the first commit. */
+  private firstParents(commit: string): string[] {
     const chain: string[] = []
-    for (let id: string | undefined = commit; id !== undefined; id = this.history.find((entry) => entry.id === id)?.parent) chain.push(id)
+    for (let id: string | undefined = commit; id !== undefined; id = this.history.find((entry) => entry.id === id)?.parents[0]) chain.push(id)
     return chain
+  }
+
+  /** Makes the index and the files on disk outside `.git/` hold `tree`. */
+  private async become(tree: ReadonlyMap<string, string>): Promise<void> {
+    for (const path of (await this.workingTree()).keys()) await rm(join(this.repoRoot, path))
+    for (const [path, text] of tree) {
+      await mkdir(dirname(join(this.repoRoot, path)), { recursive: true })
+      await writeFile(join(this.repoRoot, path), text)
+    }
+    this.index = tree
   }
 
   private headTree(): ReadonlyMap<string, string> {
@@ -274,8 +405,9 @@ export class FakeGit implements CritiqueGitPort {
     return head === undefined ? new Map<string, string>() : this.treeOfCommit(head)
   }
 
+  /** A commit's tree, or a tree a merge or the index was written as. */
   private treeOfCommit(commit: string): ReadonlyMap<string, string> {
-    const tree = this.history.find((entry) => entry.id === commit)?.tree
+    const tree = this.history.find((entry) => entry.id === commit)?.tree ?? this.trees.get(commit)
     if (tree === undefined) throw new Error(`fatal: not a valid object name ${commit}`)
     return tree
   }
@@ -295,14 +427,55 @@ function changedBetween(before: ReadonlyMap<string, string>, after: ReadonlyMap<
   return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
 }
 
-/** Each changed file in full: its old lines removed and its new lines added. */
-function fileDiff(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): string {
-  const lines = (text: string | undefined, sign: string) =>
-    text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
+/**
+ * How the fake prints a changed file: as one hunk that removes every old
+ * line and adds every new one, or, `by-line`, for a file whose line count
+ * did not change, as one hunk per run of changed lines with no context.
+ */
+export type FakeHunks = 'whole-file' | 'by-line'
+
+/** Each changed file's hunks under git's headers; an added file comes from `/dev/null` and a deleted one goes to it. */
+function fileDiff(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>, hunks: FakeHunks = 'whole-file'): string {
+  const lines = (text: string | undefined) => (text === undefined || text === '' ? [] : text.replace(/\n$/, '').split('\n'))
   return changedBetween(before, after)
-    .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
+    .map((path) => {
+      const old = before.get(path)
+      const now = after.get(path)
+      // git ends a `---` or `+++` path that holds a space with a tab.
+      const tab = path.includes(' ') ? '\t' : ''
+      const header = [
+        `diff --git a/${path} b/${path}`,
+        `--- ${old === undefined ? '/dev/null' : `a/${path}${tab}`}`,
+        `+++ ${now === undefined ? '/dev/null' : `b/${path}${tab}`}`,
+      ]
+      return [...header, ...hunksOf(lines(old), lines(now), hunks)].join('\n')
+    })
     .map((section) => `${section}\n`)
     .join('')
+}
+
+function hunksOf(old: readonly string[], now: readonly string[], mode: FakeHunks): readonly string[] {
+  // git prints no hunk for a file that has no lines on either side.
+  if (old.length === 0 && now.length === 0) return []
+  if (mode === 'whole-file' || old.length !== now.length) {
+    const header = hunkHeader(old.length === 0 ? 0 : 1, old.length, now.length === 0 ? 0 : 1, now.length)
+    return [header, ...old.map((line) => `-${line}`), ...now.map((line) => `+${line}`)]
+  }
+  const out: string[] = []
+  for (let i = 0; i < old.length; i += 1) {
+    if (old[i] === now[i]) continue
+    let end = i
+    while (end < old.length && old[end] !== now[end]) end += 1
+    out.push(hunkHeader(i + 1, end - i, i + 1, end - i), ...old.slice(i, end).map((line) => `-${line}`), ...now.slice(i, end).map((line) => `+${line}`))
+    i = end
+  }
+  return out
+}
+
+/** `@@ -<start>[,<count>] +<start>[,<count>] @@`, a count of one left out the way git leaves it out. */
+function hunkHeader(oldStart: number, oldCount: number, newStart: number, newCount: number): string {
+  const side = (start: number, count: number) => (count === 1 ? String(start) : `${String(start)},${String(count)}`)
+  return `@@ -${side(oldStart, oldCount)} +${side(newStart, newCount)} @@`
 }
 
 function entriesOf(files: ReadonlyMap<string, string>): string {
@@ -433,15 +606,58 @@ export interface VibeScript {
   readonly stdout: string
   readonly stderr?: string
   readonly exitCode: number
+  /** The export Vibe writes; a function builds it from the launch, as Vibe reports its effective config from the launch's settings. */
   readonly exportJson?: unknown
   /** Plays this run only for the critic whose `--agent` this is; otherwise for the next launch. */
   readonly agent?: string
-  /** What the critic does while it runs: `cwd` is its working directory, `repo` the repository. */
-  readonly effect?: (where: { readonly cwd: string; readonly repo: string }) => Promise<void>
+  /**
+   * What the critic does while it runs: `cwd` is its working directory,
+   * `repo` the repository, and `search` calls the MCP servers its launch
+   * configured, as Vibe would start them (none when it has none).
+   */
+  readonly effect?: (where: { readonly cwd: string; readonly repo: string; readonly search: SearchHelper }) => Promise<void>
   /** Do not return until this many critics have started, so a test can see critics overlap. */
   readonly waitForStarts?: number
   /** The run never returned and the outer timer killed it: no export, exit 124, `timedOut`. */
   readonly timedOut?: boolean
+}
+
+/**
+ * The export as Vibe would write it. `JSON.stringify` writes Infinity as
+ * null; here it is the literal `1e999`, which JSON.parse reads back as
+ * Infinity, as it would from a corrupt export.
+ */
+function exportText(exported: unknown): string {
+  const infinite = '\u0000infinity\u0000'
+  return JSON.stringify(exported, (_key, value: unknown) => (value === Infinity ? infinite : value)).replaceAll(JSON.stringify(infinite), '1e999')
+}
+
+/** Calls one tool of a server the critic's launch configured, by server name, and returns its text answer. */
+export type SearchHelper = (call: { readonly server?: string; readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }) => Promise<string>
+
+/** The MCP servers a Vibe launch configured, as its `VIBE_MCP_SERVERS` lists them. */
+export function launchServers(command: ProcessCommand | undefined): readonly Record<string, unknown>[] {
+  const text = command?.env?.VIBE_MCP_SERVERS
+  return text === undefined ? [] : (JSON.parse(text) as Record<string, unknown>[])
+}
+
+/** The command a harness with search starts the runner's search server with. */
+export const SEARCH_COMMAND = { args: ['/opt/agent-kit/skills/critique/critique.mjs'], command: '/usr/local/bin/node' } as const
+
+/**
+ * The export of a searching critic whose Vibe honoured its launch: MCP on,
+ * the launch's servers as configured, and the critic agent's tool list.
+ */
+export function searchExport(overrides: Record<string, unknown> = {}): (command: ProcessCommand) => Record<string, unknown> {
+  return (command) => {
+    const base = isolatedExport({
+      enable_mcp: command.env?.VIBE_ENABLE_MCP === 'true',
+      enabled_tools: ['read_file', 'packet_grep', 'packet_list', 'packet_symbol'],
+      mcp_servers: launchServers(command).map((server) => ({ disabled: false, ...server, args: ['<redacted>'] })),
+      ...overrides,
+    })
+    return base
+  }
 }
 
 /** Every critic launch and return, in the order they happened, across all critic clients. */
@@ -479,6 +695,15 @@ export type VibeSignIn = 'keychain' | 'env-file' | 'env-file-no-keychain' | 'non
 export class FakeVibeProcess implements ProcessPort {
   readonly commands: ProcessCommand[] = []
   readonly checks: ProcessCommand[] = []
+  /** Every session the runner opened with its search server, and every `pkill` that stopped one. */
+  readonly searches: ProcessCommand[] = []
+  readonly stops: ProcessCommand[] = []
+  /**
+   * How the search server starts: as the runner's own code, in process, or
+   * not at all (`broken`), or only for the reach proof's packet and never
+   * on a critic's copy (`broken-on-copies`).
+   */
+  searchBehaviour: 'serve' | 'broken' | 'broken-on-copies' = 'serve'
 
   constructor(
     private readonly repo: string,
@@ -495,6 +720,16 @@ export class FakeVibeProcess implements ProcessPort {
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
+    if (command.command === 'pkill') {
+      this.stops.push(command)
+      return { exitCode: 1, stderr: '', stdout: '' }
+    }
+    if (command.args.includes('search-server')) {
+      this.searches.push(command)
+      const proof = command.args[command.args.indexOf('--root') + 1]?.endsWith(join('search-proof', 'packet')) === true
+      if (this.searchBehaviour === 'broken' || (this.searchBehaviour === 'broken-on-copies' && !proof)) return { exitCode: 1, stderr: 'Error: Cannot find module critique.mjs\n', stdout: '' }
+      return serveInProcess(command.args, command.stdin ?? '')
+    }
     if (command.command === 'security') {
       this.checks.push(command)
       if (this.signIn === 'env-file-no-keychain') throw new Error('spawn security ENOENT')
@@ -518,11 +753,45 @@ export class FakeVibeProcess implements ProcessPort {
     const outputDir = command.args[outputDirIndex + 1]
     if (script.exportJson !== undefined && outputDir !== undefined) {
       await mkdir(outputDir, { recursive: true })
-      await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
+      const exported: unknown = typeof script.exportJson === 'function' ? (script.exportJson as (launch: ProcessCommand) => unknown)(command) : script.exportJson
+      await writeFile(join(outputDir, 'export.json'), exportText(exported))
     }
-    await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo })
+    await script.effect?.({ cwd: command.cwd ?? '', repo: this.repo, search: searchHelper(command) })
     if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
     return { exitCode: script.exitCode, stderr: script.stderr ?? '', stdout: script.stdout }
+  }
+}
+
+/** Runs the runner's search server in this process on the given stdin, as `critique.mjs search-server` would run. */
+async function serveInProcess(args: readonly string[], stdin: string): Promise<ProcessResult> {
+  let stdout = ''
+  let stderr = ''
+  const exitCode = await runSearchServer(args.slice(args.indexOf('search-server') + 1), {
+    stdin: Readable.from([stdin]),
+    writeStderr: (text) => {
+      stderr += text
+    },
+    writeStdout: (line) => {
+      stdout += line
+    },
+  })
+  return { exitCode, stderr, stdout }
+}
+
+/** Calls a server of the launch the way Vibe's MCP client would: initialize, then the one call. */
+function searchHelper(command: ProcessCommand): SearchHelper {
+  return async (call) => {
+    const server = launchServers(command).find((entry) => entry.name === (call.server ?? 'packet') && entry.disabled !== true)
+    if (server === undefined) throw new Error(`the launch configured no live MCP server named ${call.server ?? 'packet'}`)
+    const requests = [
+      { id: 1, jsonrpc: '2.0', method: 'initialize', params: { protocolVersion: '2025-11-25' } },
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { id: 2, jsonrpc: '2.0', method: 'tools/call', params: { arguments: call.arguments, name: call.tool } },
+    ]
+    const result = await serveInProcess(server.args as string[], requests.map((request) => `${JSON.stringify(request)}\n`).join(''))
+    const reply = result.stdout.split('\n').map((line) => (line === '' ? undefined : (JSON.parse(line) as Record<string, unknown>))).find((line) => line?.id === 2)
+    const content = (reply?.result as { content?: { text: string }[] } | undefined)?.content
+    return content?.map((part) => part.text).join('') ?? JSON.stringify(reply?.error)
   }
 }
 
@@ -689,6 +958,7 @@ export function finding(overrides: Record<string, unknown> = {}): Record<string,
     id: 'F1',
     severity: 'major',
     category: 'contradiction',
+    check: 'contradiction',
     location: 'User story 3',
     claim: 'The spec contradicts the recorded decision about when widgets are frobnicated.',
     evidence: [
@@ -767,6 +1037,8 @@ export async function harness(
     readonly agyScripts?: AgyScript[]
     /** Replaces the shipped routing.json in a private copy of the assets. */
     readonly routing?: unknown
+    /** Rewrites shipped asset files, by path under the critique skill, in a private copy of the assets. */
+    readonly assets?: Readonly<Record<string, (shipped: string) => string>>
     /**
      * This machine's routing override in `~/.config/agent-kit/critique-routing.json`:
      * a value is written as JSON, a string as it is.
@@ -789,6 +1061,12 @@ export async function harness(
     /** The critic agents setup installed into `~/.vibe/agents/`; every one setup declares unless named. */
     readonly vibeAgents?: readonly string[]
     /**
+     * What each installed agent file holds: the one agent-kit's generator
+     * renders for it unless named, or this text for every agent (an older
+     * agent file, say).
+     */
+    readonly vibeAgentFile?: string
+    /**
      * The issue-tracker doc Pocock's setup wrote, or `none` for a repository
      * without one. Local markdown unless named, so the `.scratch/` spec is the
      * tracker's.
@@ -800,14 +1078,21 @@ export async function harness(
     readonly links?: FakeGhLinks
     /** Further environment variables the runner sees, such as `CRITIQUE_OFF`. */
     readonly env?: Readonly<Record<string, string>>
+    /** Gives Vibe critics the runner's search server, served in process by the runner's own code. */
+    readonly search?: boolean
+    /** The personal Vibe home's `config.toml`. */
+    readonly vibeConfig?: string
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
   let assetsRoot = ASSETS_ROOT
-  if (options.routing !== undefined) {
+  if (options.routing !== undefined || options.assets !== undefined) {
     assetsRoot = join(base, 'assets')
     await cp(ASSETS_ROOT, assetsRoot, { recursive: true })
-    await writeFile(join(assetsRoot, 'routing.json'), JSON.stringify(options.routing))
+    if (options.routing !== undefined) await writeFile(join(assetsRoot, 'routing.json'), JSON.stringify(options.routing))
+    for (const [path, rewrite] of Object.entries(options.assets ?? {})) {
+      await writeFile(join(assetsRoot, path), rewrite(await readFile(join(assetsRoot, path), 'utf8')))
+    }
   }
   const home = join(base, 'home')
   if (options.routingOverride !== undefined) {
@@ -832,7 +1117,11 @@ export async function harness(
   if (options.vibeOnPath ?? true) await writeFile(join(bin, 'vibe'), '#!/bin/sh\n')
   const vibeHome = join(home, '.vibe')
   await mkdir(join(vibeHome, 'agents'), { recursive: true })
-  for (const agent of options.vibeAgents ?? VIBE_CRITIC_AGENTS) await writeFile(join(vibeHome, 'agents', `${agent}.toml`), '')
+  for (const agent of options.vibeAgents ?? VIBE_CRITIC_AGENTS) {
+    const rendered = await readFile(join(GENERATED_AGENTS, `${agent}.toml`), 'utf8').catch(() => '')
+    await writeFile(join(vibeHome, 'agents', `${agent}.toml`), options.vibeAgentFile ?? rendered)
+  }
+  if (options.vibeConfig !== undefined) await writeFile(join(vibeHome, 'config.toml'), options.vibeConfig)
   if (options.vibeSignIn === 'env-file' || options.vibeSignIn === 'env-file-no-keychain') await writeFile(join(vibeHome, '.env'), "MISTRAL_API_KEY='sk-personal'\n")
   const tracker = options.tracker ?? 'local-markdown'
   if (tracker !== 'none') {
@@ -861,6 +1150,7 @@ export async function harness(
     files,
     gh,
     git,
+    ...(options.search === true ? { search: new ProcessSearchClient(process, SEARCH_COMMAND) } : {}),
   })
   return {
     agy,

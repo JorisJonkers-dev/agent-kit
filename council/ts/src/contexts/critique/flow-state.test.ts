@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
+  DECISION_CANARY,
   fenced,
   finding,
   harness,
@@ -254,6 +255,39 @@ describe('planning, once the spec exists', () => {
     expect(later.state.open_questions).toEqual([])
   })
 
+  it('is unchanged by any number of adr-review runs, their questions and their spend', async () => {
+    const h = await repository()
+    await recorded(h, { stage: 'spec' })
+    await h.writeText(join(h.repo, 'docs', 'adr', '0001-nightly-job.md'), '# Nightly job\n\nWidgets are frobnicated nightly.\n')
+    const before = (await stateOf(h)).state
+    const question = finding({
+      evidence: [
+        { file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'Widgets are frobnicated nightly.' },
+        { file: 'references/CONTEXT.md', kind: 'quote', value: DECISION_CANARY },
+      ],
+      location: 'docs/adr/0001-nightly-job.md',
+      severity: 'critical',
+    })
+
+    for (let n = 0; n < 2; n += 1) {
+      h.clock.advance(1)
+      const review = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, stage: 'adr-review' })
+      if (review.status !== 'ready') throw new Error('adr-review not ready')
+      h.process.queue(critic([question]))
+      await h.commands.fanOut.run({ run_dir: review.run_dir })
+      await h.commands.record.run({ run_dir: review.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'needs-human' }] })
+    }
+    const after = (await stateOf(h)).state
+
+    const questions = (await h.readText(join(h.home, LEDGER)))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((line) => line.type === 'finding' && line.stage === 'adr-review' && line.verdict === 'needs-human')
+    expect(questions).toHaveLength(2)
+    expect({ ...after, updated_at: before.updated_at }).toEqual(before)
+  })
+
   it('counts a question the owner answered before the run was recorded as answered', async () => {
     const h = await repository()
     await recorded(h, { stage: 'spec' }, [critical(1)], [{ answered: true, finding_id: 'F1', verdict: 'needs-human' }])
@@ -380,6 +414,26 @@ describe('implementation', () => {
     expect(result.next).toMatchObject({ kind: 'stage', stage: 'ticket-review', ticket: '02' })
   })
 
+  it("runs the ticket review again while a ticket's review was degraded, since no critic reported", async () => {
+    const h = await planned({ families: ['mistral', 'zhipu'] })
+    await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
+    await h.git.commit()
+    const run = await prepared(h, { base: 'HEAD~1', stage: 'ticket-review', ticket: REPORT })
+    h.process.queue({ exitCode: 1, stdout: '' })
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    const result = await stateOf(h)
+
+    expect(result.state.tickets[0]).toMatchObject({ id: '02', landed: false, review: 'degraded', review_run_ids: [run.run_id] })
+    expect(result.next).toEqual({
+      kind: 'stage',
+      reason: 'No critic reported in the review of ticket 02, so nobody reviewed it: review the staged change again.',
+      stage: 'ticket-review',
+      ticket: '02',
+    })
+  })
+
   it('takes the latest review of a ticket: one that passed after its finding was fixed', async () => {
     const h = await planned({ families: ['mistral', 'zhipu'] })
     await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
@@ -400,6 +454,7 @@ describe('implementation', () => {
     await h.git.commit()
     const unclear = finding({
       category: 'bug',
+      check: 'bug',
       evidence: [{ kind: 'trace', value: 'tree/src/widget.ts:1 sets two widgets where the ticket may mean one.' }],
       location: 'tree/src/widget.ts:1',
       severity: 'critical',
@@ -412,7 +467,7 @@ describe('implementation', () => {
   })
 
   it('counts a ticket whose review passed as reviewed and landed', async () => {
-    const h = await planned()
+    const h = await planned({ families: ['mistral', 'zhipu'] })
     await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
     await h.git.commit()
     await recorded(h, { base: 'HEAD~1', stage: 'ticket-review', ticket: REPORT })

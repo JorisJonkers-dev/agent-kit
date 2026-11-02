@@ -6,6 +6,9 @@ export type { CheckTicketsResult } from './application/check-tickets.js'
 export type { FanOutResult } from './application/fan-out.js'
 export type { PrepareResult } from './application/prepare.js'
 export type { RecordResult } from './application/record.js'
+export type { RefuteResult } from './application/refute.js'
+export type { ReviewsResult } from './application/reviews.js'
+export type { ReviewRun } from './domain/review-runs.js'
 export { GATE_DEADLINE_MS } from './application/gate.js'
 export { triageIndexPath } from './application/triage-index.js'
 export {
@@ -77,6 +80,9 @@ export type {
   ModelAnswerReport,
   ModelQuestion,
   QuestionClientPort,
+  SearchClientPort,
+  SearchServerCommand,
+  SearchSession,
 } from './application/ports.js'
 export type { CriticIdentity, CriticOutcome, CriticRun } from './domain/critic.js'
 export type { ModelFamily, OrchestratorFamily } from './domain/family.js'
@@ -106,3 +112,5 @@ export { specReference } from './domain/manifest.js'
 export { NodeCritiqueFiles } from './adapters/fs/index.js'
 export { AgyCriticClient } from './adapters/agy/index.js'
 export { VibeCriticClient } from './adapters/vibe/index.js'
+export { ProcessSearchClient } from './adapters/search/client.js'
+export { runSearchServer, SEARCH_SERVER_USAGE, type SearchServerIo } from './adapters/search/server.js'
