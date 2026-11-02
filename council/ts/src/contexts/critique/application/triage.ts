@@ -217,7 +217,13 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     const call = { client: triage.model.client, family: config.family, model: config.model }
     await this.budget.logInvocation(
       { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: 'ticket-review' },
-      { ...call, charged_usd: report.chargedUsd, critic_id: 'triage', status: report.answer.status === 'answered' ? 'ok' : 'failed' },
+      {
+        ...call,
+        charged_usd: report.chargedUsd,
+        critic_id: 'triage',
+        status: report.answer.status === 'answered' ? 'ok' : 'failed',
+        vibe_cost_usd: report.vibeCostUsd,
+      },
       'vibe',
     )
     return { ...answered(report), model: modelCall(call, report), promptHash: sha256(promptAsset) }

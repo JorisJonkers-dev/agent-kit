@@ -50,6 +50,10 @@ ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
 # One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry.
 VIBE_CRITIC_AGENTS_DIR = Path("registry/generated/vibe/agents")
 VIBE_CRITIC_AGENT_KEYS = {"name", "model", "input_price", "output_price", "thinking", "surfaces", "note"}
+# Mistral bills cached prompt tokens at this share of the input price
+# (docs.mistral.ai/studio/conversations/advanced/prompt-caching). Every critic
+# model runs through Mistral, so its agent file prices cached input this way.
+VIBE_CACHED_INPUT_SHARE = 0.1
 # Vibe's standard thinking levels (vibe/config_values.py THINKING_LEVELS).
 VIBE_THINKING_LEVELS = ("off", "low", "medium", "high", "xhigh", "max")
 # Antigravity expands no environment variables, so a token-bearing server is
@@ -538,6 +542,15 @@ def retired_vibe_critic_agents(data: dict[str, Any]) -> list[str]:
     return [str(a["name"]) for a in _entries(data, "vibe_critic_agents") if not on_surface(a, "workstation")]
 
 
+def cached_input_price(agent: dict[str, Any]) -> float:
+    """The agent's price per million cached input tokens: 10% of its input price, rounded clear of float noise.
+
+    Without it Vibe bills a cached token at the full input rate, and a critic,
+    which re-reads its conversation every turn, has most of its input cached.
+    """
+    return round(float(agent["input_price"]) * VIBE_CACHED_INPUT_SHARE, 10)
+
+
 def render_vibe_critic_agent(agent: dict[str, Any]) -> str:
     """One read-only critic agent file, a Vibe config overlay for ``vibe --agent <name>``.
 
@@ -574,6 +587,7 @@ def render_vibe_critic_agent(agent: dict[str, Any]) -> str:
         f"alias = {_toml_str(name)}",
         f"input_price = {agent['input_price']!r}",
         f"output_price = {agent['output_price']!r}",
+        f"cached_input_price = {cached_input_price(agent)!r}",
     ]
     if "thinking" in agent:
         lines.append(f"thinking = {_toml_str(str(agent['thinking']))}")

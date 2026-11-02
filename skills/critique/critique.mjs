@@ -855,6 +855,7 @@ function readCriticRun(fields) {
   const retryOf = fields.optionalString("retry_of");
   const stdoutPath = fields.optionalString("stdout_path");
   const exportPath = fields.optionalString("export_path");
+  const vibeCost = fields.has("vibe_cost_usd") ? { vibe_cost_usd: fields.nullableNumber("vibe_cost_usd") } : {};
   const hashes = fields.object("prompt_hashes");
   return {
     charged_usd: fields.number("charged_usd"),
@@ -882,7 +883,8 @@ function readCriticRun(fields) {
     ...noFindingsReason === void 0 ? {} : { no_findings_reason: noFindingsReason },
     ...retryOf === void 0 ? {} : { retry_of: retryOf },
     ...stdoutPath === void 0 ? {} : { stdout_path: stdoutPath },
-    ...exportPath === void 0 ? {} : { export_path: exportPath }
+    ...exportPath === void 0 ? {} : { export_path: exportPath },
+    ...vibeCost
   };
 }
 function isCriticFailure(value) {
@@ -1012,7 +1014,8 @@ function ledgerLines(run, recordedAt) {
     failure: critic.failure ?? null,
     finding_count: critic.finding_count,
     retry_of: critic.retry_of ?? null,
-    status: critic.status
+    status: critic.status,
+    ...critic.vibe_cost_usd === void 0 ? {} : { vibe_cost_usd: critic.vibe_cost_usd }
   }));
   const findingLines = run.findings.map((finding) => ({
     type: "finding",
@@ -1106,6 +1109,7 @@ function readCriticRunLine(fields) {
     cost_usd: fields.nullableNumber("cost_usd"),
     critic_id: fields.string("critic_id"),
     failure: fields.nullableString("failure"),
+    finding_count: fields.has("finding_count") ? fields.number("finding_count") : 0,
     lens_hashes: fields.stringMap("lens_hashes"),
     lenses: fields.strings("lenses"),
     model: fields.string("model"),
@@ -1164,7 +1168,8 @@ var FlowBudget = class {
       run_id: manifest.run_id,
       stage: manifest.stage,
       status: run.status,
-      type: "invocation"
+      type: "invocation",
+      ...run.vibe_cost_usd === void 0 ? {} : { vibe_cost_usd: run.vibe_cost_usd }
     };
     await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}
 `);
@@ -1968,6 +1973,22 @@ function renderIndex(request, facts, candidates, held) {
   ].join("\n");
 }
 
+// src/contexts/critique/domain/pricing.ts
+function tokenCost(usage, prices) {
+  const uncached = Math.max(usage.input - usage.cached_input, 0);
+  return (uncached * prices.input + usage.cached_input * prices.cached_input + usage.output * prices.output) / 1e6;
+}
+function readTokenPrices(fields) {
+  const price = (key2, least) => {
+    const value = fields.number(key2);
+    if (least === "positive" ? value <= 0 : value < 0) {
+      throw new JsonShapeError(`prices.${key2} must be ${least === "positive" ? "above 0" : "at least 0"} USD per million tokens`);
+    }
+    return value;
+  };
+  return { cached_input: price("cached_input", "zero"), input: price("input", "positive"), output: price("output", "positive") };
+}
+
 // src/contexts/critique/domain/tickets.ts
 function dependencyCycles(tickets) {
   const index = new Map(tickets.map((ticket, i) => [ticket.id, i]));
@@ -2258,7 +2279,8 @@ function readCriticClient(fields) {
     binary: fields.string("binary"),
     family: fields.oneOf("family", MODEL_FAMILIES),
     kind: "vibe",
-    model: fields.string("model")
+    model: fields.string("model"),
+    ...fields.has("prices") ? { prices: readTokenPrices(fields.object("prices")) } : {}
   };
 }
 function isGeminiModel(model) {
@@ -3692,6 +3714,7 @@ async function runCritic(deps, launch) {
     export_path: report.exportPath,
     finding_count: findings.length,
     stdout_path: stdoutPath,
+    ...report.vibeCostUsd === void 0 ? {} : { vibe_cost_usd: report.vibeCostUsd },
     ...criticStatus(outcome, violations)
   };
   return { findings, run };
@@ -6922,6 +6945,7 @@ var TIMEOUT_FAILURES = /* @__PURE__ */ new Set([
   "stopped-early",
   "exit-124"
 ]);
+var STOPPED_FAILURES = /* @__PURE__ */ new Set([...TIMEOUT_FAILURES, "timeout"]);
 var Tally = class {
   constructor(run, promptHash2) {
     this.promptHash = promptHash2;
@@ -6951,6 +6975,8 @@ var Tally = class {
   fabricated = 0;
   cost = 0;
   unpriced = 0;
+  stopped = 0;
+  wasted = 0;
   addRun(run) {
     this.runs += 1;
     if (this.first === "" || run.recorded_at < this.first) this.first = run.recorded_at;
@@ -6959,6 +6985,10 @@ var Tally = class {
     if (run.failure !== null && TIMEOUT_FAILURES.has(run.failure)) this.timedOut += 1;
     if (run.cost_usd === null) this.unpriced += 1;
     else this.cost += run.cost_usd;
+    if (run.failure !== null && STOPPED_FAILURES.has(run.failure) && run.finding_count === 0) {
+      this.stopped += 1;
+      this.wasted += run.cost_usd ?? 0;
+    }
   }
   addFinding(finding, unique) {
     this.findings += 1;
@@ -6996,10 +7026,12 @@ var Tally = class {
       role: this.role,
       runs: this.runs,
       stage: this.stage,
+      stopped_runs: this.stopped,
       timed_out_runs: this.timedOut,
       timeout_rate: this.timedOut / this.runs,
       unique_catches: this.unique,
-      unpriced_runs: this.unpriced
+      unpriced_runs: this.unpriced,
+      wasted_usd: this.wasted
     };
   }
 };
@@ -7118,6 +7150,8 @@ function renderStats(stats, scope) {
     `Ledger: ${scope.ledgerPath}. Repository: ${filter.repository ?? "all"}. Dates: ${dates}.`,
     `One row per critic client and prompt. A row with fewer than ${String(thresholds.min_adjudicated_findings)} adjudicated findings gets no suggestion.`
   ];
+  const wasted = wastedLine(stats.cells);
+  if (wasted !== void 0) lines.push(wasted);
   if (stats.cells.length === 0) lines.push("", "No critic runs in the ledger match.");
   for (const stage of CRITIQUE_STAGES) {
     const rows = stats.cells.filter((cell) => cell.stage === stage);
@@ -7126,8 +7160,8 @@ function renderStats(stats, scope) {
       "",
       `## ${stage}`,
       "",
-      "| client | prompt | runs | adjudicated | precision | unique | fabricated | cost per accepted | failed | timed out |",
-      "|---|---|---|---|---|---|---|---|---|---|",
+      "| client | prompt | runs | adjudicated | precision | unique | fabricated | cost per accepted | failed | timed out | wasted |",
+      "|---|---|---|---|---|---|---|---|---|---|---|",
       ...rows.map(
         (cell) => [
           cell.client,
@@ -7139,7 +7173,8 @@ function renderStats(stats, scope) {
           cell.fabrication_rate === null ? "-" : percent(cell.fabrication_rate),
           cell.cost_per_accepted_usd === null ? "-" : `$${cell.cost_per_accepted_usd.toFixed(4)}`,
           percent(cell.failure_rate),
-          percent(cell.timeout_rate)
+          percent(cell.timeout_rate),
+          cell.stopped_runs === 0 ? "-" : `$${cell.wasted_usd.toFixed(4)} (${String(cell.stopped_runs)})`
         ].join(" | ")
       ).map((row) => `| ${row} |`)
     );
@@ -7161,6 +7196,13 @@ function renderStats(stats, scope) {
   );
   return `${lines.join("\n")}
 `;
+}
+function wastedLine(cells) {
+  const runs = cells.reduce((total, cell) => total + cell.stopped_runs, 0);
+  if (runs === 0) return void 0;
+  const usd = cells.reduce((total, cell) => total + cell.wasted_usd, 0);
+  const runsText = runs === 1 ? "1 run a price or time limit stopped before it" : `${String(runs)} runs a price or time limit stopped before they`;
+  return `Wasted: $${usd.toFixed(4)} on ${runsText} found anything.`;
 }
 function percent(rate) {
   return `${String(Math.round(rate * 100))}%`;
@@ -7377,7 +7419,13 @@ var TriageCommand = class {
     const call = { client: triage.model.client, family: config.family, model: config.model };
     await this.budget.logInvocation(
       { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: "ticket-review" },
-      { ...call, charged_usd: report.chargedUsd, critic_id: "triage", status: report.answer.status === "answered" ? "ok" : "failed" },
+      {
+        ...call,
+        charged_usd: report.chargedUsd,
+        critic_id: "triage",
+        status: report.answer.status === "answered" ? "ok" : "failed",
+        vibe_cost_usd: report.vibeCostUsd
+      },
       "vibe"
     );
     return { ...answered(report), model: modelCall(call, report), promptHash: sha256(promptAsset) };
@@ -7703,7 +7751,13 @@ var VibeCriticClient = class {
     const exportDir = join25(launch.criticDir, "export");
     const exportPath = join25(exportDir, "export.json");
     const { result: result2, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir });
-    return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
+    return {
+      ...result2,
+      chargedUsd: vibeCharge(run, launch.critic.max_price_usd),
+      exportPath,
+      outcome: classifyVibeRun(run),
+      vibeCostUsd: run.vibeCostUsd
+    };
   }
   /**
    * Puts one question to the agent's model, launched exactly as a critic is
@@ -7715,13 +7769,18 @@ var VibeCriticClient = class {
     const { result: result2, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir });
     const message = vibeMessage(run);
     const answer = message.status === "failed" ? message : { cost_usd: message.cost_usd, status: "answered", text: message.text };
-    return { ...result2, answer, chargedUsd: vibeCharge(run, question.max_price_usd) };
+    return { ...result2, answer, chargedUsd: vibeCharge(run, question.max_price_usd), vibeCostUsd: run.vibeCostUsd };
   }
   async launch(limits, config, paths) {
     const result2 = await this.process.exec(vibeLaunch(limits, config, paths));
+    const exported = await this.readExport(join25(paths.exportDir, "export.json"));
+    const vibeCost = jsonObjectOrUndefined(exported)?.cost_usd;
+    const vibeCostUsd = typeof vibeCost === "number" ? vibeCost : null;
     const run = {
+      costUsd: computedCost(jsonObjectOrUndefined(exported), config.prices) ?? vibeCostUsd,
       exitCode: result2.exitCode,
-      exported: await this.readExport(join25(paths.exportDir, "export.json")),
+      exported,
+      vibeCostUsd,
       stderr: result2.stderr,
       stdout: result2.stdout,
       timedOut: result2.timedOut === true,
@@ -7777,6 +7836,14 @@ function vibeLaunch(critic, config, paths) {
     timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S2) * 1e3
   };
 }
+function computedCost(exported, prices) {
+  const usage = jsonObjectOrUndefined(exported?.usage);
+  const count = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
+  const input = count(usage?.input_tokens);
+  const output = count(usage?.output_tokens);
+  if (prices === void 0 || input === void 0 || output === void 0) return void 0;
+  return tokenCost({ cached_input: count(usage?.cached_input_tokens) ?? 0, input, output }, prices);
+}
 var EXIT_FAILURES = {
   1: "config-error",
   2: "infrastructure-failure",
@@ -7796,7 +7863,7 @@ function classifyVibeRun(run) {
 }
 function vibeMessage(run) {
   const exported = jsonObjectOrUndefined(run.exported);
-  const cost = typeof exported?.cost_usd === "number" ? exported.cost_usd : null;
+  const cost = run.costUsd;
   const failed = (failure2, detail) => ({ cost_usd: cost, detail, failure: failure2, status: "failed" });
   if (run.timedOut) return failed("timeout", `vibe did not return within ${String(run.timeoutS)}s, so the outer timer killed it`);
   if (run.exitCode !== 0) {
@@ -7813,8 +7880,8 @@ function vibeMessage(run) {
 }
 function vibeCharge(run, cap) {
   const exported = jsonObjectOrUndefined(run.exported);
-  const cost = exported?.cost_usd;
-  if (run.timedOut || typeof cost !== "number") return cap;
+  const cost = run.costUsd;
+  if (run.timedOut || cost === null) return cap;
   if (exported?.outcome === "deadline") return Math.max(cost, cap);
   return cost === 0 && usedTokens(jsonObjectOrUndefined(exported?.usage)) ? cap : cost;
 }

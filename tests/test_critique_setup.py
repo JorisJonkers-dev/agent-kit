@@ -50,7 +50,7 @@ SETTING_KEYS = {
     "session_logging",
     "models",
 }
-MODEL_KEYS = {"name", "provider", "alias", "input_price", "output_price", "thinking"}
+MODEL_KEYS = {"name", "provider", "alias", "input_price", "output_price", "cached_input_price", "thinking"}
 
 
 def _registry() -> dict:
@@ -634,6 +634,40 @@ def test_setup_installs_every_critic_agent_into_the_shared_vibe_home(macos_run: 
         installed = macos_run.home / ".vibe" / "agents" / f"{name}.toml"
         assert installed.read_text() == (KIT_ROOT / AGENTS_DIR / f"{name}.toml").read_text(), name
         assert f"Vibe critic agent {name} -> " in macos_run.stdout
+
+
+# Mistral bills cached prompt tokens at 10% of the input price
+# (docs.mistral.ai/studio/conversations/advanced/prompt-caching, read 2026-11-02).
+CACHED_INPUT_PRICES = {
+    "critic-mistral-large": 0.07,
+    "critic-mistral-small": 0.015,
+    "critic-glm": 0.14,
+    "critic-deepseek-flash": 0.03,
+}
+
+
+@pytest.mark.parametrize("name", CRITIC_AGENT_NAMES)
+def test_setup_installs_each_critic_model_with_its_cached_price(macos_run: Run, name: str) -> None:
+    """#261: without a cached price Vibe bills every cached token at the full rate, so its estimate and its
+    --max-price stop ran about three times what Mistral charged."""
+    installed = tomllib.loads((macos_run.home / ".vibe" / "agents" / f"{name}.toml").read_text())
+    (model,) = installed["models"]
+    assert model["cached_input_price"] == CACHED_INPUT_PRICES[name]
+    assert model["cached_input_price"] == pytest.approx(model["input_price"] / 10)
+
+
+def test_every_vibe_client_in_routing_has_its_agents_prices() -> None:
+    """The runner prices a launch from routing, Vibe from the agent file; the two must agree."""
+    routing = json.loads(ROUTING.read_text())
+    clients = {name: c for name, c in routing["clients"].items() if c["kind"] == "vibe"}
+    assert clients, "routing has no Vibe client, so this test proves nothing"
+    for name, client in clients.items():
+        (model,) = _agent_file(client["agent"])["models"]
+        assert client["prices"] == {
+            "input": model["input_price"],
+            "cached_input": model["cached_input_price"],
+            "output": model["output_price"],
+        }, name
 
 
 def test_setup_never_puts_a_critic_agent_into_vibe_privates_home(macos_run: Run) -> None:

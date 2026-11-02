@@ -3082,3 +3082,41 @@ gate on `git commit -m cancel` then returned
 - **The read-only setup items.** #195 handed them to #178. They still answer
   `not-available` with "Wait for agent-kit#178", and this change does not
   build them.
+
+## What #261 settled
+
+On 2026-11-02, 25 Vibe runs reported $7.89 in `cost_usd` against $2.49
+recomputed from their own token counts, and the Mistral console showed
+€2.17. The critic agent files carried no `cached_input_price`, so Vibe
+priced every cached token at the full input rate. A critic re-reads its
+conversation every turn, so 70–85% of its input is cached, and Mistral
+bills cached prompt tokens at 10% of the input price. The ledger, the flow
+cap and Vibe's own `--max-price` stop all used the inflated figure.
+
+- **Setup.** `scripts/render_registry.py` writes `cached_input_price` = 10%
+  of `input_price` into each critic agent's model entry (0.07 for Mistral
+  Large, 0.015 for Mistral Small, 0.14 for GLM, 0.03 for DeepSeek Flash), so
+  Vibe's estimate and its `--max-price` stop are realistic.
+- **Routing prices.** Each Vibe client in `routing.json` carries `prices:
+  { input, cached_input, output }` in USD per million tokens, the same as
+  its agent file's; `tests/test_critique_setup.py` holds the two together.
+  Input and output must be above 0, cached input at least 0.
+- **The runner computes cost.** The Vibe adapter reads the export's
+  `usage` (`input_tokens`, which includes the cached ones,
+  `cached_input_tokens`, `output_tokens`) and computes
+  `(input − cached) × input + cached × cached_input + output × output`,
+  over a million. That is the critic's `cost_usd`, the base of
+  `charged_usd`, and so what the ledger, the flow cap, `/flow budget`, the
+  summaries and `/critique-stats` use. Vibe's own figure is kept as
+  `vibe_cost_usd` on the critic run, the ledger run line and the invocation
+  line. Without prices or token counts the runner falls back to Vibe's
+  figure, and the cap rules of #173 still apply on top. For the Mistral
+  Large critic of that day (881,212 input tokens, 742,656 of them cached,
+  22,977 output) the runner records $0.1972 where Vibe reported $0.6651.
+- **Wasted spend.** `/critique-stats` gives each cell `stopped_runs` and
+  `wasted_usd`: the runs a price or time limit stopped (`stopped-early`,
+  `timeout`, `print-timeout`, `exit-124`) with no findings, and their known
+  cost. The report shows it per row, and in one line under the heading when
+  any run was stopped. A non-finite token count in the export (a corrupt
+  `1e999`) is no count, so the runner falls back to Vibe's figure and the
+  cap rules.

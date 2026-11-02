@@ -259,8 +259,8 @@ async function seedLedger(h: Harness, lines: readonly Record<string, unknown>[])
   await h.writeText(ledgerFile(h), lines.map((line) => `${JSON.stringify(invocation(line))}\n`).join(''))
 }
 
-async function chargedFor(script: VibeScript): Promise<unknown> {
-  const h = await opened({ families: ['mistral'], vibe: [script] })
+async function chargedFor(script: VibeScript, routing?: unknown): Promise<unknown> {
+  const h = await opened({ families: ['mistral'], vibe: [script], ...(routing === undefined ? {} : { routing }) })
   const run = await prepare(h)
   await h.commands.fanOut.run({ run_dir: run.run_dir })
   return (await invocations(h))[0]?.charged_usd
@@ -303,11 +303,11 @@ describe('what a critic launch is charged', () => {
     expect(charged).toBe(0.5)
   })
 
-  it('charges a Vibe critic on an unpriced model its price cap', async () => {
-    const charged = await chargedFor({
-      ...vibeOk('critic-mistral-large', 0),
-      exportJson: { ...isolatedExport(), cost_usd: 0, usage: { input_tokens: 7081, output_tokens: 14 } },
-    })
+  it('charges a Vibe critic on a model neither routing nor Vibe prices its price cap', async () => {
+    const charged = await chargedFor(
+      { ...vibeOk('critic-mistral-large', 0), exportJson: { ...isolatedExport(), cost_usd: 0, usage: { input_tokens: 7081, output_tokens: 14 } } },
+      await unpricedRouting(),
+    )
 
     expect(charged).toBe(0.5)
   })
@@ -335,6 +335,117 @@ describe('what a critic launch is charged', () => {
     await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
 
     expect((await ledger(h)).find((line) => line.type === 'run')).toMatchObject({ charged_usd: 0.0421, cost_usd: 0.0421, flow: SPEC })
+  })
+})
+
+/**
+ * The token counts of a real Mistral Large critic of 2026-11-02 (run
+ * 20261102T105318Z-ticket-review, c2-vibe-mistral-large): 84% of its input
+ * was cached, and Vibe, with no cached price in its model table, priced it
+ * all at the full rate.
+ */
+const CACHED_RUN_USAGE = { cached_input_tokens: 742_656, input_tokens: 881_212, output_tokens: 22_977, total_tokens: 904_189 }
+const CACHED_RUN_VIBE_COST = 0.6651000999999999
+/** At $0.70 per million uncached input, $0.07 cached and $2.10 output: 138,556 × 0.7 + 742,656 × 0.07 + 22,977 × 2.1, over a million. */
+const CACHED_RUN_COST = 0.1972268
+
+const cachedRun = (agent = 'critic-mistral-large'): VibeScript => ({
+  ...vibeOk(agent, CACHED_RUN_VIBE_COST),
+  exportJson: { ...isolatedExport(), cost_usd: CACHED_RUN_VIBE_COST, usage: CACHED_RUN_USAGE },
+})
+
+describe('what a Vibe critic costs, priced by the runner', () => {
+  it("charges the cost the runner computes from the export's tokens at routing's prices, cached input at the cached price", async () => {
+    const h = await opened({ families: ['mistral'], vibe: [cachedRun()] })
+    const run = await prepare(h)
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const [line] = await invocations(h)
+    expect(line?.charged_usd).toBeCloseTo(CACHED_RUN_COST, 6)
+    expect(line?.vibe_cost_usd).toBe(CACHED_RUN_VIBE_COST)
+  })
+
+  it("records the computed cost in the ledger's run line, with Vibe's own figure beside it", async () => {
+    const h = await opened({ families: ['mistral'], vibe: [cachedRun()] })
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+
+    const line = (await ledger(h)).find((entry) => entry.type === 'run')
+    expect(line?.cost_usd).toBeCloseTo(CACHED_RUN_COST, 6)
+    expect(line?.charged_usd).toBeCloseTo(CACHED_RUN_COST, 6)
+    expect(line?.vibe_cost_usd).toBe(CACHED_RUN_VIBE_COST)
+    expect(summary).toContain('$0.1972')
+  })
+
+  it('holds the flow to its cap by the computed cost, not by what Vibe reported', async () => {
+    const h = await opened({ families: ['mistral'], vibe: [cachedRun(), vibeOk('critic-mistral-large')] })
+    // With Vibe's $0.665 the flow would pass its $5 cap; with the computed $0.197 it stays under it.
+    await seedLedger(h, [{ charged_usd: 4.5 }])
+    const first = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: first.run_dir })
+    const second = await prepare(h)
+
+    const result = await h.commands.fanOut.run({ run_dir: second.run_dir })
+
+    expect(result.critics.map((critic) => critic.status)).toEqual(['ok'])
+  })
+
+  it("shows the computed cost in the flow's budget", async () => {
+    const h = await opened({ families: ['mistral'], vibe: [cachedRun()] })
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const result = await h.commands.budget.run({ repo: h.repo, spec: SPEC })
+
+    if (result.status === 'refused') throw new Error(result.message)
+    expect(result.vibe.spent_usd).toBeCloseTo(CACHED_RUN_COST, 6)
+  })
+
+  it("falls back to Vibe's own figure for a client routing gives no prices", async () => {
+    const h = await opened({ families: ['mistral'], routing: await unpricedRouting(), vibe: [cachedRun()] })
+    const run = await prepare(h)
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect((await invocations(h))[0]).toMatchObject({ charged_usd: CACHED_RUN_VIBE_COST, vibe_cost_usd: CACHED_RUN_VIBE_COST })
+  })
+
+  it.each([
+    [{ cached_input: 0.07, input: 0, output: 2.1 }, /prices\.input must be above 0/],
+    [{ cached_input: 0.07, input: 0.7, output: 0 }, /prices\.output must be above 0/],
+    [{ cached_input: -0.01, input: 0.7, output: 2.1 }, /prices\.cached_input must be at least 0/],
+    [{ input: 0.7, output: 2.1 }, /prices\.cached_input must be a number/],
+  ])('refuses routing prices %j', async (prices, message) => {
+    const routing = await shippedRouting()
+    const clients = routing.clients as Record<string, Record<string, unknown>>
+    const h = await opened({ families: ['mistral'], routing: { ...routing, clients: { ...clients, 'vibe-mistral-large': { ...clients['vibe-mistral-large'], prices } } } })
+
+    await expect(prepare(h)).rejects.toThrow(message)
+  })
+
+  it('prices all input at the full rate when the export counts no cached tokens', async () => {
+    const charged = await chargedFor({
+      ...vibeOk('critic-mistral-large'),
+      exportJson: { ...isolatedExport(), cost_usd: 0.9, usage: { input_tokens: 1_000_000, output_tokens: 100_000 } },
+    })
+
+    // 1,000,000 × $0.70 + 100,000 × $2.10, over a million.
+    expect(charged).toBeCloseTo(0.91, 10)
+  })
+
+  it('charges the cap when the export counts more tokens than a finite number', async () => {
+    const charged = await chargedFor({
+      ...vibeOk('critic-mistral-large'),
+      exportJson: { ...isolatedExport(), cost_usd: 0, usage: { input_tokens: Number.POSITIVE_INFINITY, output_tokens: 1 } },
+    })
+    expect(charged).toBe(0.5)
+  })
+
+  it("falls back to Vibe's own figure for an export that counts no tokens", async () => {
+    expect(await chargedFor(vibeOk('critic-mistral-large', 0.0421))).toBe(0.0421)
   })
 })
 
@@ -513,6 +624,18 @@ interface ShippedRouting {
 
 async function shippedRouting(): Promise<ShippedRouting> {
   return JSON.parse(await readFile(join(ASSETS_ROOT, 'routing.json'), 'utf8')) as ShippedRouting
+}
+
+/** The shipped routing with no prices on its Vibe clients, so the runner has only Vibe's own figure. */
+async function unpricedRouting(): Promise<ShippedRouting> {
+  const routing = await shippedRouting()
+  const clients = Object.fromEntries(
+    Object.entries(routing.clients as Record<string, Record<string, unknown>>).map(([name, client]) => [
+      name,
+      Object.fromEntries(Object.entries(client).filter(([key]) => key !== 'prices')),
+    ]),
+  )
+  return { ...routing, clients }
 }
 
 /** A decisions run of the shipped routing, which keeps no Antigravity reserve for that stage. */

@@ -50,6 +50,7 @@ export function ledgerLines(run: AdjudicatedRun, recordedAt: Date): readonly str
     finding_count: critic.finding_count,
     retry_of: critic.retry_of ?? null,
     status: critic.status,
+    ...(critic.vibe_cost_usd === undefined ? {} : { vibe_cost_usd: critic.vibe_cost_usd }),
   }))
   const findingLines = run.findings.map((finding) => ({
     type: 'finding',
@@ -104,6 +105,7 @@ export interface LedgerCriticRun extends LedgerRunContext {
   readonly cost_usd: number | null
   readonly status: CriticStatus
   readonly failure: string | null
+  readonly finding_count: number
 }
 
 /** One adjudicated finding, as stats reads it back. */
@@ -239,6 +241,7 @@ function readCriticRunLine(fields: JsonFields): LedgerCriticRun {
     cost_usd: fields.nullableNumber('cost_usd'),
     critic_id: fields.string('critic_id'),
     failure: fields.nullableString('failure'),
+    finding_count: fields.has('finding_count') ? fields.number('finding_count') : 0,
     lens_hashes: fields.stringMap('lens_hashes'),
     lenses: fields.strings('lenses'),
     model: fields.string('model'),

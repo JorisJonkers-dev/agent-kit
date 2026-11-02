@@ -38,7 +38,7 @@ export class FlowBudget {
 
   async logInvocation(
     manifest: Pick<RunManifest, 'flow' | 'repository' | 'round' | 'run_id' | 'stage'>,
-    run: Pick<CriticRun, 'charged_usd' | 'client' | 'critic_id' | 'family' | 'model' | 'status'>,
+    run: Pick<CriticRun, 'charged_usd' | 'client' | 'critic_id' | 'family' | 'model' | 'status' | 'vibe_cost_usd'>,
     kind: InvocationLine['kind'],
   ): Promise<void> {
     const line: InvocationLine = {
@@ -56,6 +56,7 @@ export class FlowBudget {
       stage: manifest.stage,
       status: run.status,
       type: 'invocation',
+      ...(run.vibe_cost_usd === undefined ? {} : { vibe_cost_usd: run.vibe_cost_usd }),
     }
     await this.deps.files.appendText(ledgerPath(this.deps.env), `${JSON.stringify(line)}\n`)
   }

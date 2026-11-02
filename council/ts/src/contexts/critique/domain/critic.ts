@@ -63,8 +63,13 @@ export interface CriticRun extends CriticIdentity {
   readonly no_findings_reason?: string
   /** Null for a critic that was never launched. */
   readonly exit_code: number | null
-  /** What the critic's client reported it cost; null when it reported nothing. */
+  /**
+   * What the critic cost: for Vibe, computed from its tokens at routing's
+   * prices; otherwise what its client reported. Null when nothing is known.
+   */
   readonly cost_usd: number | null
+  /** What Vibe itself reported, kept for comparison; absent for any other client. */
+  readonly vibe_cost_usd?: number | null
   /** What the launch counts against the flow's Vibe cap. */
   readonly charged_usd: number
   readonly duration_ms: number
@@ -96,6 +101,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
   const retryOf = fields.optionalString('retry_of')
   const stdoutPath = fields.optionalString('stdout_path')
   const exportPath = fields.optionalString('export_path')
+  const vibeCost = fields.has('vibe_cost_usd') ? { vibe_cost_usd: fields.nullableNumber('vibe_cost_usd') } : {}
   const hashes = fields.object('prompt_hashes')
   return {
     charged_usd: fields.number('charged_usd'),
@@ -124,6 +130,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
     ...(retryOf === undefined ? {} : { retry_of: retryOf }),
     ...(stdoutPath === undefined ? {} : { stdout_path: stdoutPath }),
     ...(exportPath === undefined ? {} : { export_path: exportPath }),
+    ...vibeCost,
   }
 }
 
