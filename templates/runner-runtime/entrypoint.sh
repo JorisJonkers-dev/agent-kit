@@ -68,8 +68,62 @@ derive_repo_allow() {
   printf '%s' "$_allow" | tr -s ' ' | sed -e 's/^ *//' -e 's/ *$//'
 }
 
+# What this entrypoint writes into HOME and CODEX_HOME belongs to the runner
+# container: the global git config names the credential helper agent-gh-app,
+# which only its image ships, and ~/.claude.json and Codex's config.toml accept
+# bypass permissions and trust the workspace. Run anywhere else (a workstation
+# shell, CI) it would land in the invoking user's own homes and break every
+# push there, so it is written only inside a container: the runtime
+# Containerfile sets AGENT_RUNNER_CONTAINER=1, and Docker and Podman leave
+# /.dockerenv and /run/.containerenv.
+in_runner_container() {
+  [ "${AGENT_RUNNER_CONTAINER:-}" = 1 ] || [ -f /.dockerenv ] || [ -f /run/.containerenv ]
+}
+
+configure_global_git() {
+  command -v git >/dev/null 2>&1 || return 0
+  git config --global user.name "${GIT_AUTHOR_NAME:-JorisJonkers Agent}"
+  git config --global user.email "${GIT_AUTHOR_EMAIL:-agents@jorisjonkers.dev}"
+  git config --global init.defaultBranch "${GIT_DEFAULT_BRANCH:-main}"
+  git config --global credential.helper agent-gh-app
+  git config --global credential.useHttpPath true
+  if ! git config --global --get-all safe.directory 2>/dev/null | grep -Fxq "$WORKSPACE_ROOT"; then
+    git config --global --add safe.directory "$WORKSPACE_ROOT"
+  fi
+  if [ -n "${AGENT_GIT_HOST:-}" ]; then
+    git_scheme="${AGENT_GIT_SCHEME:-https}"
+    # Both SSH URL spellings must rewrite to the credential-helper scheme.
+    # A bare `git config` per value overwrites rather than appends, so the
+    # second spelling silently dropped the first; --add keeps both. Reset
+    # first so this idempotent boot block does not accumulate duplicates.
+    git config --global --unset-all "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" 2>/dev/null || true
+    git config --global --add "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "git@${AGENT_GIT_HOST}:"
+    git config --global --add "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "ssh://git@${AGENT_GIT_HOST}/"
+  fi
+}
+
+configure_claude_home() {
+  [ -f "$HOME/.claude.json" ] || echo '{}' > "$HOME/.claude.json"
+  command -v jq >/dev/null 2>&1 || return 0
+  claude_tmp=$(mktemp)
+  if jq --arg ws "$WORKSPACE_ROOT" '
+        (.theme //= "dark")
+        | (.hasCompletedOnboarding //= true)
+        | (.bypassPermissionsModeAccepted //= true)
+        | (.projects //= {})
+        | (.projects[$ws] //= {})
+        | (.projects[$ws].hasTrustDialogAccepted //= true)
+        | (.projects[$ws].hasCompletedProjectOnboarding //= true)
+      ' "$HOME/.claude.json" > "$claude_tmp"; then
+    mv "$claude_tmp" "$HOME/.claude.json"
+  else
+    rm -f "$claude_tmp"
+  fi
+}
+
 register_repo_trust() {
   _dir="$1"
+  in_runner_container || return 0
   if command -v git >/dev/null 2>&1 &&
      ! git config --global --get-all safe.directory 2>/dev/null | grep -Fxq "$_dir"; then
     git config --global --add safe.directory "$_dir"
@@ -210,7 +264,7 @@ select_profile_file() {
 
 configure_claude_mcp() {
   [ -f "$HOME/.claude.json" ] || echo '{}' > "$HOME/.claude.json"
-  [ -f "$MCP_SERVERS_FILE" ] || return
+  [ -f "$MCP_SERVERS_FILE" ] || return 0
   mcp_rendered=$(mktemp)
   render_template_placeholders "$MCP_SERVERS_FILE" > "$mcp_rendered"
   mcp_merged=$(mktemp)
@@ -313,47 +367,7 @@ esac
 
 check_agent_kit_manifests
 
-if command -v git >/dev/null 2>&1; then
-  git config --global user.name "${GIT_AUTHOR_NAME:-JorisJonkers Agent}"
-  git config --global user.email "${GIT_AUTHOR_EMAIL:-agents@jorisjonkers.dev}"
-  git config --global init.defaultBranch "${GIT_DEFAULT_BRANCH:-main}"
-  git config --global credential.helper agent-gh-app
-  git config --global credential.useHttpPath true
-  export GIT_TERMINAL_PROMPT=0
-  if ! git config --global --get-all safe.directory 2>/dev/null | grep -Fxq "$WORKSPACE_ROOT"; then
-    git config --global --add safe.directory "$WORKSPACE_ROOT"
-  fi
-  if [ -n "${AGENT_GIT_HOST:-}" ]; then
-    git_scheme="${AGENT_GIT_SCHEME:-https}"
-    # Both SSH URL spellings must rewrite to the credential-helper scheme.
-    # A bare `git config` per value overwrites rather than appends, so the
-    # second spelling silently dropped the first; --add keeps both. Reset
-    # first so this idempotent boot block does not accumulate duplicates.
-    git config --global --unset-all "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" 2>/dev/null || true
-    git config --global --add "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "git@${AGENT_GIT_HOST}:"
-    git config --global --add "url.${git_scheme}://${AGENT_GIT_HOST}/.insteadOf" "ssh://git@${AGENT_GIT_HOST}/"
-  fi
-fi
-
-if [ ! -f "$HOME/.claude.json" ]; then
-  echo '{}' > "$HOME/.claude.json"
-fi
-if command -v jq >/dev/null 2>&1; then
-  claude_tmp=$(mktemp)
-  if jq --arg ws "$WORKSPACE_ROOT" '
-        (.theme //= "dark")
-        | (.hasCompletedOnboarding //= true)
-        | (.bypassPermissionsModeAccepted //= true)
-        | (.projects //= {})
-        | (.projects[$ws] //= {})
-        | (.projects[$ws].hasTrustDialogAccepted //= true)
-        | (.projects[$ws].hasCompletedProjectOnboarding //= true)
-      ' "$HOME/.claude.json" > "$claude_tmp"; then
-    mv "$claude_tmp" "$HOME/.claude.json"
-  else
-    rm -f "$claude_tmp"
-  fi
-fi
+export GIT_TERMINAL_PROMPT=0
 
 AGENT_MCP_PROFILE="${AGENT_MCP_PROFILE:-minimal}"
 case "$AGENT_MCP_PROFILE" in
@@ -367,8 +381,14 @@ esac
 AGENT_MCP_DIR="${AGENT_MCP_DIR:-}"
 MCP_SERVERS_FILE="$(select_profile_file "claude-mcp-servers" "json" "${AGENT_MCP_SERVERS_FILE:-}" "$AGENT_MCP_PROFILE" "$AGENT_MCP_DIR")"
 CODEX_MCP_FILE="$(select_profile_file "codex-mcp-servers" "toml" "${AGENT_CODEX_MCP_FILE:-}" "$AGENT_MCP_PROFILE" "$AGENT_MCP_DIR")"
-configure_claude_mcp
-configure_codex_mcp
+if in_runner_container; then
+  configure_global_git
+  configure_claude_home
+  configure_claude_mcp
+  configure_codex_mcp
+else
+  echo "[entrypoint] WARN: not in the runner container; leaving the git, Claude and Codex config in HOME alone"
+fi
 
 if [ -n "${REPO_URL:-}" ]; then
   clone_repo_into_workspace "$REPO_URL" "${REPO_BRANCH:-}"

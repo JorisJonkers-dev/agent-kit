@@ -80,6 +80,9 @@ runtime:
       - name: AGENT_KIT_EXPECTED_VERSION
         required: false
         description: Expected installed agent-kit version marker.
+      - name: AGENT_RUNNER_CONTAINER
+        required: false
+        description: Set to 1 by the runtime Containerfile. The entrypoint writes the global git config, .claude.json and the Codex config.toml only when it is set or a container runtime marker file exists.
       - name: AGENT_RUNNER_ENTRYPOINT_SELF_TEST
         required: false
         description: Selects a local entrypoint self-test and exits before launching the workload.

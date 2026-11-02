@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -765,6 +766,120 @@ def validate_git_credential_preseeded_token(
         fail("git credential helper did not return a preseeded token for an allowed repo")
 
 
+# A container runtime leaves one of these in the root of every container it
+# starts; the entrypoint treats either as the runner container.
+CONTAINER_MARKER_FILES = (Path("/.dockerenv"), Path("/run/.containerenv"))
+
+
+def _home_tree(home: Path) -> dict[str, bytes | None]:
+    """Every path under ``home`` with its bytes, or None for a directory."""
+    return {
+        str(path.relative_to(home)): (None if path.is_dir() else path.read_bytes()) for path in home.rglob("*")
+    }
+
+
+def validate_entrypoint_home_isolation(entrypoint: Path) -> None:
+    """A full entrypoint run writes HOME and CODEX_HOME only inside the runner container.
+
+    The entrypoint configures the agent homes it runs in: the global git config
+    (naming the credential helper ``agent-gh-app``, which only the runner image
+    ships), ``~/.claude.json`` (onboarding, bypass-permissions acceptance,
+    workspace and repository trust) and Codex's ``config.toml`` (project trust).
+    Run outside the container, on a workstation or in CI, all of it landed in
+    the invoking user's real homes; every push there then failed with
+    "'credential-agent-gh-app' is not a git command". So a run with a temp HOME
+    and no container marker must leave HOME exactly as it was, whether it
+    started empty or already held the owner's files. With the Containerfile's
+    marker set, the same run must still write all of it: the container works
+    unchanged.
+    """
+    seeded = {".claude.json": b'{"mine": true}\n', ".codex/config.toml": b'model = "mine"\n'}
+    cases: tuple[tuple[str, bool, dict[str, bytes]], ...] = (
+        ("outside-empty", False, {}),
+        ("outside-seeded", False, seeded),
+        ("inside", True, {}),
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        for case, in_container, seed in cases:
+            if not in_container and any(marker.exists() for marker in CONTAINER_MARKER_FILES):
+                # This host is itself a container, so "outside" cannot be staged here.
+                continue
+            home = Path(tmp) / case / "home"
+            workspace = Path(tmp) / case / "workspace"
+            repo = workspace / "repo"
+            (repo / ".git").mkdir(parents=True)
+            home.mkdir(parents=True)
+            for relative, content in seed.items():
+                (home / relative).parent.mkdir(parents=True, exist_ok=True)
+                (home / relative).write_bytes(content)
+            before = _home_tree(home)
+            env = {
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": str(home),
+                "CLAUDE_CONFIG_DIR": str(home / ".claude"),
+                "CODEX_HOME": str(home / ".codex"),
+                "WORKSPACE_ROOT": str(workspace),
+                # No AGENT_MCP_DIR: a missing MCP profile file must not end the run.
+                "AGENT_GIT_HOST": "git-host",
+                # An existing checkout: the run registers its trust without cloning.
+                "REPO_URL": "git@git-host:owner/repo.git",
+                "GIT_CONFIG_NOSYSTEM": "1",
+            }
+            if in_container:
+                env["AGENT_RUNNER_CONTAINER"] = "1"
+            run_checked(["sh", str(entrypoint), "true"], env=env)
+
+            if not in_container:
+                after = _home_tree(home)
+                changed = sorted(
+                    path
+                    for path in set(before) | set(after)
+                    if (path in before) != (path in after) or before.get(path) != after.get(path)
+                )
+                if changed:
+                    fail(f"entrypoint run outside the runner container changed HOME ({case}): {changed}")
+                continue
+
+            def global_values(key: str, run_env: dict[str, str] = env) -> list[str]:
+                # Exit 1 means the key is unset: an empty list, not a failure.
+                completed = subprocess.run(
+                    ["git", "config", "--global", "--get-all", key],
+                    env=run_env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                return completed.stdout.splitlines()
+
+            if global_values("credential.helper") != ["agent-gh-app"]:
+                fail("entrypoint run inside the runner container did not set credential.helper agent-gh-app")
+            if global_values("credential.useHttpPath") != ["true"]:
+                fail("entrypoint run inside the runner container did not set credential.useHttpPath")
+            safe = global_values("safe.directory")
+            if str(workspace) not in safe or str(repo) not in safe:
+                fail(f"entrypoint run inside the runner container did not trust the workspace: {safe}")
+            if global_values("url.https://git-host/.insteadOf") != ["git@git-host:", "ssh://git@git-host/"]:
+                fail("entrypoint run inside the runner container did not rewrite both SSH URL spellings")
+
+            claude_json = home / ".claude.json"
+            if not claude_json.is_file():
+                fail("entrypoint run inside the runner container did not write ~/.claude.json")
+            if shutil.which("jq", path=env["PATH"]):
+                claude = json.loads(claude_json.read_text())
+                projects = claude.get("projects", {})
+                if claude.get("bypassPermissionsModeAccepted") is not True:
+                    fail("entrypoint run inside the runner container did not accept bypass permissions")
+                for trusted in (workspace, repo):
+                    if projects.get(str(trusted), {}).get("hasTrustDialogAccepted") is not True:
+                        fail(f"entrypoint run inside the runner container did not trust {trusted} for Claude")
+            codex_config = home / ".codex" / "config.toml"
+            codex = tomllib.loads(codex_config.read_text()) if codex_config.is_file() else {}
+            codex_projects = codex.get("projects", {})
+            for trusted in (workspace, repo):
+                if codex_projects.get(str(trusted), {}).get("trust_level") != "trusted":
+                    fail(f"entrypoint run inside the runner container did not trust {trusted} for Codex")
+
+
 def validate_runtime_shell_contracts(*, runtime_selftest: bool = False) -> None:
     runtime_dir = ROOT / "runner-manifests" / "runtime"
     entrypoint = runtime_dir / "entrypoint.sh"
@@ -833,6 +948,8 @@ def validate_runtime_shell_contracts(*, runtime_selftest: bool = False) -> None:
 
         if runtime_selftest:
             validate_git_credential_preseeded_token(runtime_dir, {**env, "GH_TOKEN": "preseeded-token"})
+
+    validate_entrypoint_home_isolation(entrypoint)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

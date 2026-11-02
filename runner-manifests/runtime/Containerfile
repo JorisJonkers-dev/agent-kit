@@ -43,6 +43,10 @@ COPY bin/gh-mcp-wrapper ${AGENT_RUNNER_BIN_DIR}/gh-mcp-wrapper
 COPY mcp/ ${AGENT_MCP_DIR}/
 
 ENV AGENT_MCP_DIR=${AGENT_MCP_DIR}
+# The entrypoint writes the git, Claude and Codex config in HOME only where
+# this is set, so a run outside the container never touches the invoking
+# user's ~/.gitconfig, ~/.claude.json or Codex config.toml.
+ENV AGENT_RUNNER_CONTAINER=1
 ENV PATH=${AGENT_RUNNER_BIN_DIR}:$PATH
 
 ENTRYPOINT ["agent-runner-entrypoint"]
