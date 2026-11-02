@@ -105,6 +105,13 @@ workstation_secrets:
     check: "https://api.mistral.ai/v1/models"
     check_method: GET
     export: false
+  # An API key made while signed in as a separate Outline user, not the
+  # owner's own account: the key reads and writes exactly what that user can,
+  # so the agent sees only the collections and documents shared with it.
+  - env: OUTLINE_API_KEY
+    paste: "Outline → Settings → API & Apps → New API key, signed in as the agent's Outline user"
+    check: "https://notes.jorisjonkers.dev/mcp"
+    export: true
 
 # -------------------------------------------------------------------
 # Claude Code profiles.
@@ -1211,6 +1218,23 @@ mcp_servers:
     note: >-
       The workstation gets this through the `github` PLUGIN rather than a
       registry entry, so it is not registered twice.
+
+  - name: outline
+    transport: http
+    purpose: Outline wiki at notes.jorisjonkers.dev through its built-in MCP server, as a separate Outline user.
+    url_workstation: "https://notes.jorisjonkers.dev/mcp"
+    credential: OUTLINE_API_KEY
+    timeout: 60
+    surfaces: [workstation]
+    # The key lives in the workstation keychain; a cloud session has none.
+    cloud: false
+    trust: estate
+    note: >-
+      Access is limited by Outline, not by this entry. OUTLINE_API_KEY belongs
+      to a separate Outline user, so the server sees only the collections and
+      documents shared with that user. A collection every member can view is
+      visible to it too. The MCP server must be on under Settings → Workspace
+      → AI.
 
   - name: vuetify
     transport: http
