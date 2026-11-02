@@ -2,7 +2,7 @@ import type { CriticRun } from './critic.js'
 import type { DepthChoice } from './depth.js'
 import type { GateRecord } from './feature-review.js'
 import type { ModelFamily } from './family.js'
-import type { RunFinding } from './findings.js'
+import type { RunFinding, Severity } from './findings.js'
 import type { PacketFile } from './manifest.js'
 import type { DroppedCritic } from './routing.js'
 import { SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage, type Depth, type Round } from './stage.js'
@@ -29,6 +29,10 @@ export interface Verdict {
   readonly regression_test?: string
   /** On an accepted ticket-review verdict: the finding is fixed in the change about to be committed. */
   readonly fixed?: boolean
+  /** The orchestrator's override of the severity the finding's check fixes; it needs `severity_reason`. */
+  readonly severity?: Severity
+  /** Why the fixed severity was overridden: a short slug, so the ledger can keep it beside the override. */
+  readonly severity_reason?: string
 }
 
 export interface AdjudicatedFinding extends RunFinding {
@@ -93,6 +97,22 @@ export function stageVerdictError(stage: CritiqueStage, verdict: Verdict): strin
     return undefined
   }
   return verdict.answered !== undefined && verdict.verdict !== 'needs-human' ? `${id}: only a needs-human verdict can be answered` : undefined
+}
+
+/**
+ * Why a verdict's severity override does not fit its finding, if it does
+ * not. Only a severity the finding's check fixes can be overridden, to a
+ * different level and with a reason; the critic's own rating is not the
+ * orchestrator's to change.
+ */
+export function severityOverrideProblem(finding: RunFinding, verdict: Verdict): string | undefined {
+  const id = verdict.finding_id
+  if (verdict.severity === undefined) {
+    return verdict.severity_reason === undefined ? undefined : `${id}: a severity_reason belongs to a severity override`
+  }
+  if (finding.declared_severity === undefined) return `${id}: only a finding whose check fixes its severity can be overridden`
+  if (verdict.severity === finding.declared_severity) return `${id}: the override repeats the declared severity ${verdict.severity}`
+  return verdict.severity_reason === undefined ? `${id}: a severity override needs a severity_reason` : undefined
 }
 
 /** Critical questions the owner has not answered yet; while any is open, tickets must not be cut from the spec. */

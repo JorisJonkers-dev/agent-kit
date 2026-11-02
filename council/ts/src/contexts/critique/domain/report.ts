@@ -305,6 +305,9 @@ function findingSection(run: AdjudicatedRun, finding: AdjudicatedFinding): reado
     '',
     `Raised by: ${finding.raised_by.join(', ')} (${familiesOf(run, finding).join(', ')})`,
     `Verdict: ${verdictText(finding.verdict)}`,
+    ...(finding.verdict.severity === undefined
+      ? []
+      : [`Severity: ${finding.verdict.severity}, overriding the check's ${String(finding.declared_severity)} (${String(finding.verdict.severity_reason)})`]),
     ...(finding.pre_verdict === undefined || finding.pre_verdict.verdict === finding.verdict.verdict
       ? []
       : [`Pre-verdict: ${finding.pre_verdict.verdict} (${finding.pre_verdict.reason_code}): ${finding.pre_verdict.reason}`]),

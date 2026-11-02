@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import type { GateRecord } from '../domain/feature-review.js'
-import type { RunFinding } from '../domain/findings.js'
+import { SEVERITIES, type RunFinding } from '../domain/findings.js'
 import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
 import { parseManifest, specReference } from '../domain/manifest.js'
@@ -13,9 +13,11 @@ import type { TicketCheckStatus } from '../domain/tickets.js'
 import {
   countVerdicts,
   secondRoundDue,
+  severityOverrideProblem,
   stageVerdictError,
   verdictProblem,
   VERDICTS,
+  type AdjudicatedFinding,
   type AdjudicatedRun,
   type Verdict,
   type VerdictCounts,
@@ -70,10 +72,15 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       if (error !== undefined) throw new CritiqueError('invalid-input', error)
     }
     const verdicts = verdictsByFinding(input.verdicts, new Set(merged.findings.map((finding) => finding.id)))
+    for (const finding of merged.findings) {
+      const given = verdicts.get(finding.id)
+      const error = given === undefined ? undefined : severityOverrideProblem(finding, given)
+      if (error !== undefined) throw new CritiqueError('invalid-input', error)
+    }
     const reportPath = reportPathOf(input.runDir)
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
 
-    const adjudicated = merged.findings.map((finding) => ({ ...finding, verdict: verdictFor(verdicts, finding) }))
+    const adjudicated = merged.findings.map((finding) => adjudicate(verdicts, finding))
     const gates = new FeatureGate(this.deps)
     const gate = manifest.stage === 'feature-review' ? await gates.compute(manifest, adjudicated) : undefined
     const run: AdjudicatedRun = {
@@ -118,6 +125,22 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       ...(run.ticket_check === undefined ? {} : { ticket_check: run.ticket_check.status }),
       ...(ticketReview === undefined ? {} : { ticket_review: ticketReview }),
     }
+  }
+}
+
+/**
+ * A finding with the orchestrator's verdict. A severity override replaces
+ * the severity the finding's check fixed, and stays on the verdict even
+ * where a pre-verdict stands in for the rest of it.
+ */
+function adjudicate(verdicts: ReadonlyMap<string, Verdict>, finding: RunFinding): AdjudicatedFinding {
+  const given = verdicts.get(finding.id)
+  const verdict = verdictFor(verdicts, finding)
+  if (given?.severity === undefined) return { ...finding, verdict }
+  return {
+    ...finding,
+    severity: given.severity,
+    verdict: { ...verdict, severity: given.severity, ...(given.severity_reason === undefined ? {} : { severity_reason: given.severity_reason }) },
   }
 }
 
@@ -170,6 +193,8 @@ function readVerdict(fields: JsonFields): Verdict {
   const traceTickets = fields.has('trace_tickets') ? fields.strings('trace_tickets') : undefined
   const regressionTest = fields.optionalString('regression_test')
   const fixed = fields.has('fixed') ? fields.boolean('fixed') : undefined
+  const severity = fields.has('severity') ? fields.oneOf('severity', SEVERITIES) : undefined
+  const severityReason = fields.optionalMatching('severity_reason', isReasonCode, 'a short lowercase slug')
   return {
     finding_id: findingId,
     verdict,
@@ -180,6 +205,8 @@ function readVerdict(fields: JsonFields): Verdict {
     ...(traceTickets === undefined ? {} : { trace_tickets: traceTickets }),
     ...(regressionTest === undefined ? {} : { regression_test: regressionTest }),
     ...(fixed === undefined ? {} : { fixed }),
+    ...(severity === undefined ? {} : { severity }),
+    ...(severityReason === undefined ? {} : { severity_reason: severityReason }),
   }
 }
 

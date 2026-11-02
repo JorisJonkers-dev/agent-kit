@@ -768,6 +768,8 @@ export async function harness(
     readonly agyScripts?: AgyScript[]
     /** Replaces the shipped routing.json in a private copy of the assets. */
     readonly routing?: unknown
+    /** Rewrites shipped asset files, by path under the critique skill, in a private copy of the assets. */
+    readonly assets?: Readonly<Record<string, (shipped: string) => string>>
     /**
      * This machine's routing override in `~/.config/agent-kit/critique-routing.json`:
      * a value is written as JSON, a string as it is.
@@ -805,10 +807,13 @@ export async function harness(
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
   let assetsRoot = ASSETS_ROOT
-  if (options.routing !== undefined) {
+  if (options.routing !== undefined || options.assets !== undefined) {
     assetsRoot = join(base, 'assets')
     await cp(ASSETS_ROOT, assetsRoot, { recursive: true })
-    await writeFile(join(assetsRoot, 'routing.json'), JSON.stringify(options.routing))
+    if (options.routing !== undefined) await writeFile(join(assetsRoot, 'routing.json'), JSON.stringify(options.routing))
+    for (const [path, rewrite] of Object.entries(options.assets ?? {})) {
+      await writeFile(join(assetsRoot, path), rewrite(await readFile(join(assetsRoot, path), 'utf8')))
+    }
   }
   const home = join(base, 'home')
   if (options.routingOverride !== undefined) {
