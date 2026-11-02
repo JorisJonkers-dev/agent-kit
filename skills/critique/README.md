@@ -80,7 +80,8 @@ bullet.
   call, a file, a service), ask what the artifact does when it fails, ...
 ```
 
-The pattern is `^- \`([a-z0-9]+(?:-[a-z0-9]+)*)\`:`. In a lens every bullet
+The pattern is `^- \`([a-z0-9]+(?:-[a-z0-9]+)*)\`(?: \((critical|major|minor)\))?:`;
+the bracketed severity is described below. In a lens every bullet
 is a check, and a note that is not one goes in a paragraph after the list.
 In a role the rules are the bullets of its first list; later lists, such as
 evidence kinds and severity levels, carry no id. An id is unique within its
@@ -95,6 +96,24 @@ prompt, of the critic that raised it first. Each ledger finding line carries
 `check`, or `null` when the finding named none or named something that is
 not an id. `tests/test_critique_check_ids.py` fails on a check bullet without
 an id, or an id used twice in one file.
+
+A check may fix the severity of its findings, in brackets between the id
+and the colon:
+
+```markdown
+- `no-rollback` (critical): A data step with no rollback step ...
+```
+
+Fan-out then sets the severity of a finding that names the check, whatever
+the critic wrote, and keeps it as `declared_severity`. The orchestrator may
+override it on its verdict with `severity` and `severity_reason`, a short
+slug such as `copy-only-change`; record refuses an override without a
+reason, one equal to the declared severity, and one on a finding whose check
+fixes none. The overridden severity is the one that counts, for a second
+round among others. Each ledger finding line carries `declared_severity`,
+`severity_override` and `severity_reason`, or `null`. Only the files on the
+validator's `DECLARES_SEVERITY` list may declare a severity; the list is
+empty until the `adr-record` lens and the `plan-critic` role ship.
 
 ## Depth
 

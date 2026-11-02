@@ -83,6 +83,11 @@ export interface RunFinding extends FindingBody {
   readonly critic_finding_id: string
   readonly raised_by: readonly string[]
   readonly pre_verdict?: PreVerdict
+  /**
+   * The severity the finding's check fixes, set by fan-out in place of the
+   * critic's. Only the orchestrator's verdict can change it, with a reason.
+   */
+  readonly declared_severity?: Severity
 }
 
 export const FINDINGS_FAILURES = [
@@ -154,6 +159,7 @@ export function readRunFinding(fields: JsonFields): RunFinding {
     critic_finding_id: fields.string('critic_finding_id'),
     id: fields.string('id'),
     raised_by: fields.strings('raised_by'),
+    ...(fields.has('declared_severity') ? { declared_severity: fields.oneOf('declared_severity', SEVERITIES) } : {}),
     ...(fields.has('pre_verdict') ? { pre_verdict: readPreVerdict(fields.object('pre_verdict')) } : {}),
   }
 }
