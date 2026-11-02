@@ -208,8 +208,8 @@
           "client": "vibe-deepseek-flash",
           "role": "ticket-linter",
           "lenses": ["testability"],
-          "max_price_usd": 0.1,
-          "time_limit_s": 180
+          "max_price_usd": 1,
+          "time_limit_s": 600
         }
       ],
       "deep": [
@@ -217,8 +217,8 @@
           "client": "vibe-mistral-large",
           "role": "ticket-linter",
           "lenses": ["simplicity"],
-          "max_price_usd": 0.1,
-          "time_limit_s": 180
+          "max_price_usd": 1,
+          "time_limit_s": 600
         }
       ],
       "ticket_size": { "max_modules": 5, "max_criteria": 8 },

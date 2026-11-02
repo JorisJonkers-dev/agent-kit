@@ -99,7 +99,7 @@ describe('the shipped routing of the tickets stage', () => {
       expect.objectContaining({ client: 'vibe-deepseek-flash', critic_id: 'c1-vibe-deepseek-flash', family: 'deepseek' }),
     ])
     const manifest = JSON.parse(await readFile(run.manifest_path, 'utf8')) as { critics: Record<string, unknown>[] }
-    expect(manifest.critics[0]).toMatchObject({ lenses: ['testability'], max_price_usd: 0.1, role: 'ticket-linter', time_limit_s: 180 })
+    expect(manifest.critics[0]).toMatchObject({ lenses: ['testability'], max_price_usd: 1, role: 'ticket-linter', time_limit_s: 600 })
   })
 
   it('adds a Mistral Large ticket linter on simplicity at deep depth', async () => {
@@ -109,8 +109,8 @@ describe('the shipped routing of the tickets stage', () => {
 
     const manifest = JSON.parse(await readFile(run.manifest_path, 'utf8')) as { critics: Record<string, unknown>[] }
     expect(manifest.critics.map((c) => [c.client, c.role, c.lenses, c.max_price_usd, c.time_limit_s])).toEqual([
-      ['vibe-deepseek-flash', 'ticket-linter', ['testability'], 0.1, 180],
-      ['vibe-mistral-large', 'ticket-linter', ['simplicity'], 0.1, 180],
+      ['vibe-deepseek-flash', 'ticket-linter', ['testability'], 1, 600],
+      ['vibe-mistral-large', 'ticket-linter', ['simplicity'], 1, 600],
     ])
   })
 
