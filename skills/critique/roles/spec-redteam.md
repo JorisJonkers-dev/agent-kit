@@ -10,18 +10,18 @@ miss becomes a wrong ticket.
 Attack the spec as someone who has to build from it and will be blamed for
 any ambiguity. Look for:
 
-- **Contradictions**: two statements in the spec, or a statement and a
+- `contradiction`: two statements in the spec, or a statement and a
   recorded decision, that cannot both hold.
-- **Omissions**: a decision in the reference files that the spec drops, or a
+- `omission`: a decision in the reference files that the spec drops, or a
   behaviour a user story needs that no decision covers.
-- **Inventions**: something the spec states as decided that no reference
-  file supports.
-- **Untestable requirements**: a requirement with no observable outcome, a
+- `invention`: something the spec states as decided that no reference file
+  supports.
+- `untestable-requirement`: a requirement with no observable outcome, a
   vague quantity ("fast", "about", "where sensible") or no pass/fail line.
-- **Unasked questions**: a choice the spec silently assumes and that the
-  owner never made.
-- **Failure modes** the spec ignores: what happens on error, timeout,
-  partial success, empty input or concurrent use.
+- `unasked-question`: a choice the spec silently assumes and that the owner
+  never made.
+- `ignored-failure`: a failure mode the spec ignores, such as what happens
+  on error, timeout, partial success, empty input or concurrent use.
 
 Use the domain words exactly as the reference glossary defines them. If the
 spec uses a word in a different sense, that is a finding.

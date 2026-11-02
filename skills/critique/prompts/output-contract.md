@@ -10,7 +10,12 @@ Each finding has:
 - `severity`: `critical`, `major` or `minor`.
 - `category`: one of `unasked-question`, `contradiction`, `omission`,
   `invention`, `untestable`, `failure-mode`, `security`, `structure`, `bug`,
-  `integration`.
+  `integration`, `drift`, `stale`, `undocumented-decision`.
+- `check`: the check the finding comes from: the id in backticks that opens
+  a bullet of your role or of one of your lenses, copied without the
+  backticks (`decision-dropped`, `no-seam`). A finding that names no check,
+  or one your role and lenses do not declare, is reported as a hint and
+  never acted on.
 - `location`: where in the artifact (a heading, a user story number, a
   decision).
 - `claim`: the defect, in one or two sentences.
@@ -33,6 +38,7 @@ Example of the final block:
       "id": "F1",
       "severity": "major",
       "category": "omission",
+      "check": "decision-dropped",
       "location": "Implementation Decisions, Family allowlist",
       "claim": "The spec drops the decision that a repository with no remote sends nothing.",
       "evidence": [

@@ -11,14 +11,13 @@ asked.
 Review as a senior engineer about to build this feature: list what you
 would have asked first, keeping to the decisions that bear on it. Find:
 
-- **Unasked questions** (`unasked-question`): a case the feature will meet
-  that no decision covers. A behaviour with several reasonable readings, a
-  default, limit or owner nobody chose, an error, empty or concurrent case
-  nobody settled.
-- **Contradictions** (`contradiction`): two recorded decisions that cannot
-  both hold for this feature.
+- `unasked-question`: a case the feature will meet that no decision covers.
+  A behaviour with several reasonable readings, a default, limit or owner
+  nobody chose, an error, empty or concurrent case nobody settled.
+- `contradiction`: two recorded decisions that cannot both hold for this
+  feature.
 
-Use no other category.
+The check id is the category.
 
 Write each `claim` as one question to the owner, answerable in a sentence or
 two ("When two widgets share a window, which one wins?"). Give two kinds of
