@@ -362,6 +362,9 @@ describe('a merge that a `git commit` concludes', () => {
 })
 
 describe('a merge that brings in many commits', () => {
+  // Each test builds up to 200 real commits, which takes longer than vitest's
+  // 5 s default on a CI runner, so these tests get the 30 s other git-heavy
+  // critique tests use.
   /** Makes branch `feat` off main with `count` low-risk commits, one line of docs each, then goes back to main and moves it on. */
   async function longBranch(h: Harness, count: number, last: Readonly<Record<string, string>> = {}): Promise<void> {
     await h.git.checkout('feat', 'HEAD')
@@ -378,7 +381,7 @@ describe('a merge that brings in many commits', () => {
 
     expect(await gate(h, 'git merge feat')).toEqual({ gate: 'commit', line: null, reason: 'low-risk', status: 'allowed' })
     expect(h.git.treeEntryReads).toBe(reads)
-  })
+  }, 30_000)
 
   it('blocks such a merge when its whole change is risky, saying how many commits it brings in', async () => {
     const h = await optedIn()
@@ -387,14 +390,14 @@ describe('a merge that brings in many commits', () => {
     expect((await gate(h, 'git merge feat')).line).toBe(
       'Merge blocked: merging feat is risky (src/auth/session.ts is a risk path) and it brings in 61 commits, more than the 50 the gate checks one by one. Stage the merge with git merge --no-commit feat, run /review-ticket, then commit.',
     )
-  })
+  }, 30_000)
 
   it('checks commit by commit up to the limit routing sets', async () => {
     const h = await optedIn({ routingOverride: { gate: { merge_commits: 500 } } })
     await longBranch(h, 200)
 
     expect(await gate(h, 'git merge feat')).toMatchObject({ reason: 'merge-vouched' })
-  })
+  }, 30_000)
 })
 
 describe('a merge on the branch it brings in', () => {
