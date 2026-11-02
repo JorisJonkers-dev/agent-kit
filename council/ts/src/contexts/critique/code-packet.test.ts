@@ -376,6 +376,18 @@ describe('a critic of a code packet', () => {
     expect(prompt).toContain('`tree/<repository path>:<line>`')
   })
 
+  it('is told which files the facts index names one by one, the files holding a slice among them', async () => {
+    const h = await codeRepository()
+    const run = await prepareCode(h)
+
+    await fanOut(h, run, critic([]))
+
+    const prompt = await h.readText(join(run.run_dir, 'critics', 'c1-vibe-mistral-large', 'prompt.md'))
+    expect(prompt).toContain(
+      'by name for the files the change touched, their importers, the files holding a slice and any file the diff, a ticket or the spec names, and counted per directory for the rest.',
+    )
+  })
+
   it('works in its own copy of the whole packet, tree included', async () => {
     const h = await codeRepository()
     const run = await prepareCode(h)

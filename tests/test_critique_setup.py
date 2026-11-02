@@ -251,6 +251,13 @@ def test_shipped_routing_caps_a_code_packets_repo_map_inside_the_packet_cap() ->
     assert packet["repo_map_cap_bytes"] < packet["cap_bytes"]
 
 
+def test_shipped_routing_caps_a_repository_packets_manifest_inside_the_packet_cap() -> None:
+    """#256: past its own cap, tree/MANIFEST.tsv counts its least-ranked paths per directory."""
+    packet = json.loads(ROUTING.read_text())["packet"]
+    assert packet["manifest_cap_bytes"] == 30 * 1024
+    assert packet["manifest_cap_bytes"] < packet["cap_bytes"]
+
+
 def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
     flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
     assert "| `/flow reviews` |" in flow

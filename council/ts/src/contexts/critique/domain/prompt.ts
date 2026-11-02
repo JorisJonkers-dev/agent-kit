@@ -53,7 +53,7 @@ const REPOSITORY_DESCRIPTIONS: Readonly<Partial<Record<PacketFileKind, string>>>
  * cut short keeps its line numbers, and that a fact is never a decision.
  */
 const REPOSITORY_PACKET_NOTE = [
-  '`tree/` holds a sample of the repository, at each file\'s repository path. `tree/MANIFEST.tsv` lists every tracked path with its line count, and `facts/INDEX.md` says why each file was sampled, which files were cut short and what the packet cap left out. You cannot read a file the packet does not hold; say what you would need from it instead.',
+  '`tree/` holds a sample of the repository, at each file\'s repository path. `tree/MANIFEST.tsv` lists every tracked path with its line count (past its own cap, it counts its least-ranked paths per directory instead), and `facts/INDEX.md` says why each file was sampled, which files were cut short and what the packet cap left out, counting per directory the ones nobody named. You cannot read a file the packet does not hold; say what you would need from it instead.',
   '',
   'A file cut short holds its first lines at their own numbers. Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding\'s `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.',
   '',
@@ -74,7 +74,7 @@ const CODE_FACT_DESCRIPTIONS: Readonly<Record<string, string>> = {
  * which fan-out then checks.
  */
 const CODE_PACKET_NOTE = [
-  '`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` lists every file the cap left out or cut short. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.',
+  '`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` records every file the cap left out or cut short: by name for the files the change touched, their importers, the files holding a slice and any file the diff, a ticket or the spec names, and counted per directory for the rest. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.',
   '',
   'Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding\'s `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.',
   '',

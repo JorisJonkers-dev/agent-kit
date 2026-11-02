@@ -121,6 +121,7 @@ export class CodePacketReader {
       importers: [...new Set(changed.flatMap((path) => graph.importers(path)))].filter((path) => !changed.includes(path)).sort(),
       leftOut: read.left_out,
       limits,
+      namedText: documents.map((file) => file.text).join('\n'),
       repoMap,
       slices: contextSlices(graph, changedFiles),
       tracked,
