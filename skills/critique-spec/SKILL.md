@@ -14,7 +14,7 @@ skill directory installed beside this one (`../critique/critique.mjs` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|record|allow> --json '<object>'
+node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow> --json '<object>'
 node <critique dir>/critique.mjs <command> --input <file.json>
 ```
 
@@ -121,7 +121,29 @@ Then give one verdict:
 Done when every finding without a pre-verdict has a verdict you can justify
 from the packet.
 
-### 4. Fix the spec
+### 4. Refute
+
+Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json` with
+the verdicts of step 3, as step 7 describes them, and run refute with
+`--input <run_dir>/verdicts.json`. It sends each accepted critical finding
+to one critic of a family that neither raised it nor is yours, and returns
+when the slowest ends; give it as long as fan-out. With no accepted critical
+finding it launches nothing. Each of its `results` names a `finding_id` and
+an `outcome`:
+
+- `refute`: the refuter showed, with evidence the runner checked, that the
+  finding does not hold. Change its verdict to `rejected` with
+  `reason_code: "refuted"` and the refuter's `reply.claim` as `reason`. It
+  no longer changes the spec.
+- `downgrade`: the defect holds but is not critical. Keep it `accepted`;
+  record lowers its severity to the result's `severity`, so it no longer
+  counts toward a second round.
+- `no-objection` or `stands`: your verdict stands.
+- `skipped`: no eligible critic could run (`reason_code` and `detail` say
+  why), and your verdict stands. A skipped refute is reported, not retried:
+  the runner refuses a second refute of one run, and step 9 names the skip.
+
+### 5. Fix the spec
 
 Apply every accepted finding to the spec, as the smallest edit that removes the
 defect, in the spec's own words and glossary terms. A suggestion is input to
@@ -138,7 +160,7 @@ your fix, never text to paste.
 
 Keep a list: one line per change, naming the finding id.
 
-### 5. Ask the owner
+### 6. Ask the owner
 
 Ask each `needs-human` question one at a time, critical ones first, and wait
 for the answer before the next. When the owner answers, apply the answer to
@@ -146,22 +168,22 @@ the spec the way they direct (it is their decision now), add it to the change
 list, and mark the verdict `"answered": true`. When they defer, leave it
 unanswered. Change a decision doc only when the owner asks you to.
 
-### 6. Record
+### 7. Record
 
 Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json`, one
-entry per verdict you gave in step 3: `finding_id`, `verdict`, and `reason`,
-`reason_code` and `answered` where they apply. Run record with
-`--input <run_dir>/verdicts.json`. Keep its `summary`, `report_path` and
-`second_round_due`.
+entry per verdict from step 3 as steps 4 to 6 left it: `finding_id`,
+`verdict`, and `reason`, `reason_code` and `answered` where they apply. Run
+record with `--input <run_dir>/verdicts.json`; it applies the refute round.
+Keep its `summary`, `report_path` and `second_round_due`.
 
-### 7. Second round
+### 8. Second round
 
 When record says `second_round_due` (more than three critical findings were
-accepted), the revised spec gets fresh critics: go back to step 1 with the
-same arguments plus `"previous_run_dir": <this run_dir>`, and do steps 1 to 6
-again. The runner allows two rounds at most; record never asks for a third.
+still accepted after the refute round), the revised spec gets fresh critics:
+go back to step 1 with the same arguments plus
+`"previous_run_dir": <this run_dir>`, and do steps 1 to 7 again. The runner allows two rounds at most; record never asks for a third.
 
-### 8. Comment and return
+### 9. Comment and return
 
 After the last round, when the spec changed, post one comment on the spec
 listing every change from the change lists and each round's `report_path`.
@@ -174,4 +196,5 @@ Posting only now keeps one round's results out of the next round's packet.
 Return the last round's `summary` as the runner wrote it. With two rounds,
 put one line before it naming the first round's run id, verdict counts and
 report path, and keep the first summary's `Do not start /to-tickets` line if
-it had one.
+it had one. Above it all, put one line per `skipped` result of each round's
+refute: `Refute skipped: <finding_id> (<reason_code>)`.

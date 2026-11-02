@@ -14,7 +14,7 @@ skill directory installed beside this one (`../critique/critique.mjs` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|record|allow|check-tickets> --json '<object>'
+node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets> --json '<object>'
 node <critique dir>/critique.mjs <command> --input <file.json>
 ```
 
@@ -71,7 +71,7 @@ packet as `check/tickets.json`, beside `spec/` and `tickets/`.
   depth). If the owner chooses families, run allow with `repo` and
   `families`, then prepare again. If they decline, run `check-tickets` with
   `repo` and `spec` instead (it sends nothing anywhere), act on its report
-  as in steps 3 and 5, and skip the critic's steps.
+  as in steps 3 and 6, and skip the critic's steps.
 - **Any other refusal** (a `nedap` or remote-less repository, an unreadable
   tracker): give the runner's line and stop.
 - **Ready**: keep `run_dir`, `packet_dir`, `artifact` and `critics`. For each
@@ -97,9 +97,9 @@ each kind:
 - **`cycles`**: each cycle lists tickets where each is blocked by the next
   and the last by the first. For each, read every ticket in it and find the
   blocker link that is wrong: the blocked ticket does not need what the
-  blocker delivers. That link's removal is a structural fix (step 5). When
+  blocker delivers. That link's removal is a structural fix (step 6). When
   every link in the cycle looks needed, the tickets are cut wrong: ask the
-  owner how to split them (step 6).
+  owner how to split them (step 7).
 - **`dangling_blockers`**: a blocker that is no ticket of this spec. Most are
   tickets of another spec, which is fine: check each one exists. One that
   names nothing (a typo, a deleted ticket) is a dependency edit.
@@ -145,7 +145,31 @@ Then give one verdict:
 Done when every finding without a pre-verdict has a verdict whose rule you
 re-checked on the named ticket.
 
-### 5. Fix the tickets
+### 5. Refute
+
+Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json` with
+the verdicts of step 4, as step 8 describes them, and run refute with
+`--input <run_dir>/verdicts.json`. It sends each accepted critical finding
+to one critic of a family that neither raised it nor is yours, and returns
+when the slowest ends; give it as long as fan-out. With no accepted critical
+finding it launches nothing. Each of its `results` names a `finding_id` and
+an `outcome`:
+
+- `refute`: the refuter showed, with evidence the runner checked, that the
+  finding does not hold. Change its verdict to `rejected` with
+  `reason_code: "refuted"` and the refuter's `reply.claim` as `reason`. No
+  ticket changes for it.
+- `downgrade`: the finding holds but is not critical. Keep it `accepted`
+  and fix it in step 6; record lowers its severity to the result's
+  `severity`.
+- `no-objection` or `stands`: your verdict stands.
+- `skipped`: no eligible critic could run (`reason_code` and `detail` say
+  why), and your verdict stands. A skipped refute is reported, not retried:
+  the runner refuses a second refute of one run, and step 10 names the skip.
+
+The checker's results from step 3 are mechanical and never refuted.
+
+### 6. Fix the tickets
 
 Apply every structural fix, from step 3 and from accepted findings, as the
 smallest change, in the ticket's own words. A suggestion is input to your
@@ -179,29 +203,29 @@ in the `issues/` folder beside it. Blocker links are each file's
 moves the content into the file that stays and deletes the other, and every
 `Blocked by` that named it names the one that stays.
 
-### 6. Ask the owner
+### 7. Ask the owner
 
 Ask each `needs-human` question one at a time, critical ones first, and wait
 for the answer before the next. Apply each answer to the tickets the way the
 owner directs (it is their decision now), add it to the change list, and
 mark the verdict `"answered": true`. When they defer, leave it unanswered.
 
-### 7. Record
+### 8. Record
 
 Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json`, one
-entry per verdict from step 4: `finding_id`, `verdict`, and `reason`,
-`reason_code` and `answered` where they apply. Run record with
-`--input <run_dir>/verdicts.json`. Keep its `summary`, `report_path` and
-`ticket_check`.
+entry per verdict from step 4 as steps 5 to 7 left it: `finding_id`,
+`verdict`, and `reason`, `reason_code` and `answered` where they apply. Run
+record with `--input <run_dir>/verdicts.json`; it applies the refute round.
+Keep its `summary`, `report_path` and `ticket_check`.
 
-### 8. Check again
+### 9. Check again
 
 When you changed any ticket, run `check-tickets` with `repo` and `spec`: it
 reads the tickets as they are now. Exit 3 means a cycle is still there: the
 stage stays failed. Exit 0 after a `ticket_check` of `failed` means your
 fixes broke every cycle.
 
-### 9. Comment and return
+### 10. Comment and return
 
 When any ticket changed, post one comment on the spec listing every change
 and the `report_path`.
@@ -210,7 +234,9 @@ and the `report_path`.
 - **Local markdown**: append it to the spec file under its `## Comments`
   heading, adding the heading at the end if the file has none.
 
-Return the `summary` as the runner wrote it. When step 8 found the cycles
+Return the `summary` as the runner wrote it, with one line above it per
+`skipped` result of the refute round,
+`Refute skipped: <finding_id> (<reason_code>)`. When step 9 found the cycles
 broken, put one line before it: `Cycles broken: check-tickets passes after
 the fixes.` While a cycle is left, end with the summary's `Do not start
 /implement` line.

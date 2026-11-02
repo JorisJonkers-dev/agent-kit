@@ -725,7 +725,7 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/critique/README.md
-      sha256: 3fbb813fa5f326cd8ad33433e3098f95adba9f3585998dee415ca0153d5367ba
+      sha256: a8a142839938a5ca899ba6f55757355c37809540d0e058cceb75b408d9022cc9
       mode: "0644"
     - path: skills/critique/routing.json
       sha256: f9042aad5e166f0dd566ca3450dcb31a41646a2b61c4a88016f10e9940906617

@@ -150,6 +150,12 @@ and cost). A refuter's launch is logged like any critic's, so its spend
 counts against the flow's Vibe cap, and agy's against the day's quota. A run
 is refuted once, and only before it is recorded.
 
+The stage skills run refute right after their verdicts, before any fix,
+follow-up or owner question. They record a refuted finding as `rejected`
+with `reason_code: "refuted"` themselves, since an accepted verdict at the
+code stages needs a `follow_up` or `regression_test` that a refuted finding
+never gets, and they name each skipped refute above the summary.
+
 ## Depth
 
 Base runs a stage's base critics; deep adds its deep critics. The runner
