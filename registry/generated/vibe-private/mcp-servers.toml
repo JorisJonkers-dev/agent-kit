@@ -57,6 +57,19 @@ tool_timeout_sec = 60.0
 startup_timeout_sec = 30.0
 
 [[mcp_servers]]
+name = "grimoire"
+transport = "streamable-http"
+url = "https://grimoire.jorisjonkers.dev/mcp"
+tool_timeout_sec = 60.0
+startup_timeout_sec = 30.0
+
+[mcp_servers.auth]
+type = "static"
+api_key_env = "GRIMOIRE_API_TOKEN"
+api_key_header = "Authorization"
+api_key_format = "Bearer {token}"
+
+[[mcp_servers]]
 name = "outline"
 transport = "streamable-http"
 url = "https://notes.jorisjonkers.dev/mcp"

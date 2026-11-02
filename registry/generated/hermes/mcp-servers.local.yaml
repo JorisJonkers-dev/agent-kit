@@ -20,6 +20,12 @@ mcp_servers:
     url: "http://127.0.0.1:18080/mcp"
     timeout: 60
 
+  grimoire:
+    url: "https://grimoire.jorisjonkers.dev/mcp"
+    headers:
+      Authorization: "Bearer ${GRIMOIRE_API_TOKEN}"
+    timeout: 60
+
   outline:
     url: "https://notes.jorisjonkers.dev/mcp"
     headers:

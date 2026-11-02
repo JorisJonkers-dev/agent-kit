@@ -112,6 +112,13 @@ workstation_secrets:
     paste: "Outline → Settings → API & Apps → New API key, signed in as the agent's Outline user"
     check: "https://notes.jorisjonkers.dev/mcp"
     export: true
+  # A Grimoire Access Token (gmt_…), minted on the Grimoire Account page. It
+  # acts as that Account, held to the scopes chosen when it was minted, and
+  # lives at most 365 days.
+  - env: GRIMOIRE_API_TOKEN
+    paste: "Grimoire → Account → Access Tokens, a token with the scopes the agent may use"
+    check: "https://grimoire.jorisjonkers.dev/mcp"
+    export: true
 
 # -------------------------------------------------------------------
 # Claude Code profiles.
@@ -1218,6 +1225,26 @@ mcp_servers:
     note: >-
       The workstation gets this through the `github` PLUGIN rather than a
       registry entry, so it is not registered twice.
+
+  - name: grimoire
+    transport: http
+    purpose: Grimoire, the D&D 5e table companion at grimoire.jorisjonkers.dev, through its MCP server.
+    url_workstation: "https://grimoire.jorisjonkers.dev/mcp"
+    credential: GRIMOIRE_API_TOKEN
+    timeout: 60
+    surfaces: [workstation]
+    # The token lives in the workstation keychain; a cloud session has none.
+    cloud: false
+    trust: estate
+    note: >-
+      Access is limited by Grimoire, not by this entry. GRIMOIRE_API_TOKEN
+      acts as the Account that minted it, held to its scopes: read for every
+      read, build for changing Campaigns and their prep, play for acting in
+      Sessions. A token never manages the Account or holds Admin powers, and
+      a tool that takes a campaignId works only for that Campaign's DM. The
+      edge must let a bearer request to /mcp through to Grimoire; while
+      forward-auth answers it with the login redirect, setup refuses the
+      token and the server stays unregistered.
 
   - name: outline
     transport: http

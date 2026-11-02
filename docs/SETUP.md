@@ -85,6 +85,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `HINDSIGHT_API_TOKEN` | the `memory-api` MCP server, and Hindsight Coding Agents' hooks and `hindsight` tools | required |
 | `HINDSIGHT_API_URL` | anything that reads it; Coding Agents takes its URL from its own config | set by env.sh |
 | `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server (Private Memory), in `vibe-private` only | never exported; sealed behind your passphrase, given to `vibe-private` per launch |
+| `GRIMOIRE_API_TOKEN` | the `grimoire` MCP server (Grimoire at grimoire.jorisjonkers.dev) | required for `grimoire`; without it the server is not registered |
 | `MISTRAL_STUDY_API_KEY` | `vibe-study`: Vibe signed in with the Study account | optional; you get it with `vibe-study --login` (setup never asks); never exported, read only by `vibe-study` |
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OUTLINE_API_KEY` | the `outline` MCP server (Outline at notes.jorisjonkers.dev) | required for `outline`; without it the server is not registered |
@@ -185,6 +186,21 @@ To set it up:
 Setup checks the key against `https://notes.jorisjonkers.dev/mcp` before it
 stores it. Documents the agent writes belong to that user; share them back
 with your own account to edit them there.
+
+`GRIMOIRE_API_TOKEN` is a Grimoire **Access Token** (`gmt_…`). It acts as
+the Account that minted it, held to the scopes chosen then: `read` for every
+read, `build` for changing Campaigns and their prep, `play` for acting in
+Sessions. No token can manage the Account or hold Admin powers, and a tool
+that takes a `campaignId` works only for that Campaign's DM. Give the agent
+only the scopes it needs; `read` alone keeps it read-only. A token lives at
+most 365 days, so mint a new one and run setup again when it expires.
+
+Signed in to `grimoire.jorisjonkers.dev`, mint the token on the Account page
+under Access Tokens, and paste it when setup asks. Setup checks it against
+`https://grimoire.jorisjonkers.dev/mcp` before it stores it, and the check
+fails while the platform's forward-auth answers a bearer request to `/mcp`
+with the login redirect: Grimoire checks the token itself, so the edge has to
+let `/mcp` through to it first.
 
 ### Keeping a directory out of the shared bank
 
