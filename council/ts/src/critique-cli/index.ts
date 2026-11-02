@@ -31,6 +31,7 @@ const COMMANDS = {
   gate: 'gate',
   prepare: 'prepare',
   record: 'record',
+  reviews: 'reviews',
   'session-start': 'sessionStart',
   setup: 'setup',
   state: 'state',
@@ -38,7 +39,7 @@ const COMMANDS = {
   triage: 'triage',
 } as const satisfies Record<string, keyof CritiqueCommands>
 
-export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget|gate|session-start|setup> [--input FILE | --json TEXT]
+export const CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
        critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and

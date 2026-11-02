@@ -560,7 +560,11 @@ var AllowCommand = class {
 };
 
 // src/contexts/critique/domain/stage.ts
-var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review"];
+var CRITIQUE_STAGES = ["decisions", "spec", "tickets", "ticket-review", "feature-review", "adr-review"];
+var REVIEW_STAGES = ["adr-review"];
+function isReviewStage(stage) {
+  return REVIEW_STAGES.includes(stage);
+}
 var CODE_STAGES = ["ticket-review", "feature-review"];
 function isCodeStage(stage) {
   return CODE_STAGES.includes(stage);
@@ -595,7 +599,8 @@ function invocationLines(ledger) {
           flow: line.string("flow"),
           kind: line.oneOf("kind", ["vibe", "agy"]),
           recorded_at: line.string("recorded_at"),
-          repository: line.string("repository")
+          repository: line.string("repository"),
+          run_id: line.optionalString("run_id")
         }
       ];
     } catch {
@@ -635,6 +640,11 @@ function quotaReached(count, quota, stage) {
 
 // src/contexts/critique/domain/stage-table.ts
 var STAGE_TABLE = {
+  // The ADR packet and evidence rule are placeholders until the repository
+  // packet (#221) and /critique-adrs (#249) give the stage its own: for now
+  // the records are the artifact, so a finding quotes one and either a
+  // reference or a scenario, as at the spec stage.
+  "adr-review": { doNotStart: null, evidence: "spec", flowKey: "run", packet: "adrs", removal: "runs", secondRound: true },
   // A decisions run's accepted findings are questions for the owner and change
   // no artifact, so it never calls for a second round.
   decisions: { doNotStart: "/to-tickets", evidence: "decisions", flowKey: "draft", packet: "decisions", removal: "features", secondRound: false },
@@ -647,7 +657,7 @@ var STAGE_TABLE = {
 // src/contexts/critique/domain/budget-view.ts
 function stageOutlooks(routing, draw) {
   return CRITIQUE_STAGES.flatMap((stage) => {
-    const charged = STAGE_TABLE[stage].flowKey === "draft" ? draw.draft : draw.spec;
+    const charged = { draft: draw.draft, run: null, spec: draw.spec }[STAGE_TABLE[stage].flowKey];
     const stageRoutes = routing.stages[stage];
     if (stageRoutes === void 0) return [];
     const held = [
@@ -1175,6 +1185,7 @@ import { createHash } from "node:crypto";
 
 // src/contexts/critique/domain/depth.ts
 var STAGE_MEASURES = {
+  "adr-review": { adrs: ({ adrs = 0 }) => adrs },
   decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   "feature-review": {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
@@ -3848,10 +3859,77 @@ function gateFailLine(what, retry, record, head) {
 }
 
 // src/contexts/critique/application/prepare.ts
-import { join as join14 } from "node:path";
+import { join as join15 } from "node:path";
+
+// src/contexts/critique/application/adr-packet.ts
+import { join as join11 } from "node:path";
+
+// src/contexts/critique/domain/decision-docs.ts
+var DOMAIN_DOC = "docs/agents/domain.md";
+var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
+var ADR_DIRECTORY = "docs/adr";
+var CONTEXT_MAP = "CONTEXT-MAP.md";
+function namedPaths(markdown) {
+  const prose2 = withoutFences(markdown);
+  const candidates = [...prose2.matchAll(/`([^`\n]+)`|\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? match[2] ?? "");
+  const paths = candidates.map((candidate) => candidate.trim().replace(/^\.\//, "").replace(/\/+$/, "")).filter((candidate) => /^[\w.-]+(\/[\w.-]+)*$/.test(candidate) && !candidate.split("/").includes(".."));
+  return [...new Set(paths)];
+}
+var NOT_RECORDS = [...GLOSSARIES, CONTEXT_MAP];
+var NOT_IN_FORCE = ["proposed", "rejected", "superseded", "deprecated"];
+function inForce(record) {
+  const status = recordStatus(record);
+  return status === void 0 || !NOT_IN_FORCE.includes(status);
+}
+function recordStatus(record) {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
+  const prose2 = withoutFences(record);
+  const match = /^status[ \t]*:[ \t]*["']?([A-Za-z]+)/im.exec(frontmatter) ?? /^(?:[-*+][ \t]+)?(?:\*\*|__)?status(?:\*\*|__)?[ \t]*:[ \t]*(?:\*\*|__)?[ \t]*([A-Za-z]+)/im.exec(prose2) ?? /^#{1,6}[ \t]+status[ \t]*\r?\n\s*[^A-Za-z\n]*([A-Za-z]+)/im.exec(prose2);
+  return match?.[1]?.toLowerCase();
+}
+function withoutFences(markdown) {
+  return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
+}
+
+// src/contexts/critique/application/adr-packet.ts
+var ADR_ARTIFACT = "adrs";
+var AdrPacketReader = class {
+  constructor(files) {
+    this.files = files;
+  }
+  files;
+  async read(root, request) {
+    const records = (await this.files.listFiles(join11(root, ADR_DIRECTORY))).filter((name) => name.endsWith(".md")).map((name) => join11(ADR_DIRECTORY, name));
+    const reviewed = request.adrs === void 0 ? records : request.adrs.map((path) => insideRepository(root, path));
+    if (reviewed.length === 0) return refusal("no-adrs", `found no decision records in ${ADR_DIRECTORY}/ to review`);
+    const references = request.references?.map((path) => insideRepository(root, path)) ?? [
+      ...await this.glossary(root),
+      ...records.filter((path) => !reviewed.includes(path))
+    ];
+    const read = async (folder, source) => ({
+      kind: folder,
+      path: join11(folder === "artifact" ? "artifact" : "references", source),
+      source,
+      text: await this.files.readText(join11(root, source))
+    });
+    const artifact = await Promise.all(reviewed.map((source) => read("artifact", source)));
+    return {
+      adrs: artifact.length,
+      artifact: { labels: [], reference: ADR_ARTIFACT, text: artifact.map((file) => file.text).join("\n\n"), tracker: "none" },
+      files: [...artifact, ...await Promise.all(references.map((source) => read("reference", source)))],
+      status: "read"
+    };
+  }
+  /** The first of `GLOSSARY.md` and `CONTEXT.md` the repository has, as decision docs pick it. */
+  async glossary(root) {
+    const present = await this.files.listFiles(root);
+    const found = GLOSSARIES.find((name) => present.includes(name));
+    return found === void 0 ? [] : [found];
+  }
+};
 
 // src/contexts/critique/application/code-packet.ts
-import { join as join11 } from "node:path";
+import { join as join12 } from "node:path";
 
 // src/contexts/critique/application/code-change.ts
 var CodeChangeReader = class {
@@ -3878,7 +3956,7 @@ var CodeChangeReader = class {
 
 // src/contexts/critique/application/code-packet.ts
 var TREE_DIR2 = "tree";
-var DIFF_PATH = join11("diff", "change.diff");
+var DIFF_PATH = join12("diff", "change.diff");
 var READ_CONCURRENCY = 16;
 var CodePacketReader = class {
   constructor(deps) {
@@ -3908,7 +3986,7 @@ var CodePacketReader = class {
     const files = [
       { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
       ...tickets.files,
-      { kind: "spec", path: join11("spec", spec.name), source: spec.reference, text: spec.text },
+      { kind: "spec", path: join12("spec", spec.name), source: spec.reference, text: spec.text },
       ...tree
     ];
     return {
@@ -3917,7 +3995,7 @@ var CodePacketReader = class {
       code: {
         base: request.base,
         base_commit: base,
-        changed_files: changed.map((path) => join11(TREE_DIR2, path)),
+        changed_files: changed.map((path) => join12(TREE_DIR2, path)),
         head: request.head,
         head_commit: head
       },
@@ -3946,58 +4024,29 @@ var CodePacketReader = class {
       const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
       batch.forEach((path, i) => {
         const text = texts[i] ?? "";
-        if (!text.includes("\0")) files.push({ kind: "tree", path: join11(TREE_DIR2, path), source: path, text });
+        if (!text.includes("\0")) files.push({ kind: "tree", path: join12(TREE_DIR2, path), source: path, text });
       });
     }
     return files;
   }
 };
 function ticketFile(name, reference, text) {
-  return { kind: "ticket", path: join11("tickets", name), source: reference, text };
+  return { kind: "ticket", path: join12("tickets", name), source: reference, text };
 }
 
 // src/contexts/critique/application/decision-docs.ts
-import { basename as basename2, dirname as dirname4, join as join12 } from "node:path";
-
-// src/contexts/critique/domain/decision-docs.ts
-var DOMAIN_DOC = "docs/agents/domain.md";
-var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
-var ADR_DIRECTORY = "docs/adr";
-var CONTEXT_MAP = "CONTEXT-MAP.md";
-function namedPaths(markdown) {
-  const prose2 = withoutFences(markdown);
-  const candidates = [...prose2.matchAll(/`([^`\n]+)`|\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? match[2] ?? "");
-  const paths = candidates.map((candidate) => candidate.trim().replace(/^\.\//, "").replace(/\/+$/, "")).filter((candidate) => /^[\w.-]+(\/[\w.-]+)*$/.test(candidate) && !candidate.split("/").includes(".."));
-  return [...new Set(paths)];
-}
-var NOT_RECORDS = [...GLOSSARIES, CONTEXT_MAP];
-var NOT_IN_FORCE = ["proposed", "rejected", "superseded", "deprecated"];
-function inForce(record) {
-  const status = recordStatus(record);
-  return status === void 0 || !NOT_IN_FORCE.includes(status);
-}
-function recordStatus(record) {
-  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
-  const prose2 = withoutFences(record);
-  const match = /^status[ \t]*:[ \t]*["']?([A-Za-z]+)/im.exec(frontmatter) ?? /^(?:[-*+][ \t]+)?(?:\*\*|__)?status(?:\*\*|__)?[ \t]*:[ \t]*(?:\*\*|__)?[ \t]*([A-Za-z]+)/im.exec(prose2) ?? /^#{1,6}[ \t]+status[ \t]*\r?\n\s*[^A-Za-z\n]*([A-Za-z]+)/im.exec(prose2);
-  return match?.[1]?.toLowerCase();
-}
-function withoutFences(markdown) {
-  return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
-}
-
-// src/contexts/critique/application/decision-docs.ts
+import { basename as basename2, dirname as dirname4, join as join13 } from "node:path";
 var DecisionDocs = class {
   constructor(files) {
     this.files = files;
   }
   files;
   async resolve(root) {
-    const domainDoc = join12(root, DOMAIN_DOC);
+    const domainDoc = join13(root, DOMAIN_DOC);
     const found = await this.files.exists(domainDoc) ? await this.fromDomainDoc(root, await this.files.readText(domainDoc)) : await this.fallback(root);
     const inForceDocs = [];
     for (const path of new Set(found)) {
-      if (NOT_RECORDS.includes(basename2(path)) || inForce(await this.files.readText(join12(root, path)))) inForceDocs.push(path);
+      if (NOT_RECORDS.includes(basename2(path)) || inForce(await this.files.readText(join13(root, path)))) inForceDocs.push(path);
     }
     return inForceDocs;
   }
@@ -4006,7 +4055,7 @@ var DecisionDocs = class {
     for (const path of namedPaths(text)) {
       found.push(...await this.expand(root, path));
       if (basename2(path) === CONTEXT_MAP && await this.isFile(root, path)) {
-        found.push(...await this.contexts(root, await this.files.readText(join12(root, path))));
+        found.push(...await this.contexts(root, await this.files.readText(join13(root, path))));
       }
     }
     return found;
@@ -4015,7 +4064,7 @@ var DecisionDocs = class {
   async contexts(root, map) {
     const found = [];
     for (const path of namedPaths(map).filter((named) => basename2(named) === "CONTEXT.md")) {
-      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join12(dirname4(path), ADR_DIRECTORY)));
+      found.push(...await this.expand(root, path), ...await this.markdownIn(root, join13(dirname4(path), ADR_DIRECTORY)));
     }
     return found;
   }
@@ -4036,17 +4085,17 @@ var DecisionDocs = class {
     return await this.isFile(root, path) ? [path] : [];
   }
   async markdownIn(root, directory) {
-    const names = await this.files.listFiles(join12(root, directory));
-    return names.filter((name) => name.endsWith(".md")).map((name) => join12(directory, name));
+    const names = await this.files.listFiles(join13(root, directory));
+    return names.filter((name) => name.endsWith(".md")).map((name) => join13(directory, name));
   }
   /** True only for a plain file, so an empty directory is never read as a doc. */
   async isFile(root, path) {
-    return (await this.files.listFiles(join12(root, dirname4(path)))).includes(basename2(path));
+    return (await this.files.listFiles(join13(root, dirname4(path)))).includes(basename2(path));
   }
 };
 
 // src/contexts/critique/application/decisions-packet.ts
-import { join as join13 } from "node:path";
+import { join as join14 } from "node:path";
 
 // src/contexts/critique/domain/decisions.ts
 var FEATURE_MAX_LINES = 5;
@@ -4087,14 +4136,14 @@ var DecisionsPacketReader = class {
     const docs = request.references === void 0 ? await this.decisionDocs.resolve(root) : request.references.map((path) => insideRepository(root, path));
     const read = async (folder, source) => ({
       kind: folder,
-      path: join13(folder === "artifact" ? "artifact" : "references", source),
+      path: join14(folder === "artifact" ? "artifact" : "references", source),
       source,
-      text: await this.files.readText(join13(root, source))
+      text: await this.files.readText(join14(root, source))
     });
     if (request.summary !== void 0) {
       const summary = {
         kind: "artifact",
-        path: join13("artifact", SUMMARY_NAME),
+        path: join14("artifact", SUMMARY_NAME),
         source: DECISION_ARTIFACTS.summary,
         text: decisionSummary(request.summary)
       };
@@ -4124,6 +4173,7 @@ var PrepareCommand = class {
     this.decisionDocs = new DecisionDocs(deps.files);
     this.codePackets = new CodePacketReader(deps);
     this.decisionsPackets = new DecisionsPacketReader(deps.files);
+    this.adrPackets = new AdrPacketReader(deps.files);
     this.routing = new RoutingSource(deps);
     this.staged = new StagedDiffReader(deps);
   }
@@ -4133,10 +4183,12 @@ var PrepareCommand = class {
   decisionDocs;
   codePackets;
   decisionsPackets;
+  adrPackets;
   routing;
   staged;
   async run(raw) {
     const input = readInput(raw, "prepare", (fields) => ({
+      adrs: fields.has("adrs") ? fields.strings("adrs") : void 0,
       base: fields.optionalString("base"),
       comments: fields.has("comments") ? fields.boolean("comments") : false,
       decisionSummary: fields.optionalString("decision_summary"),
@@ -4154,6 +4206,9 @@ var PrepareCommand = class {
       ticket: fields.optionalString("ticket")
     }));
     const { orchestratorFamily, stage } = input;
+    if (STAGE_TABLE[stage].flowKey === "run" && input.flow !== void 0) {
+      throw new CritiqueError("invalid-input", `${stage} is a review stage: each run is a flow of its own, so it takes no flow`);
+    }
     const repository = await this.repositories.resolve(input.repo);
     if (repository.status === "refused") return repository;
     const entry = (await this.repositories.allowlist()).repositories[repository.key];
@@ -4180,14 +4235,14 @@ var PrepareCommand = class {
     const { choice, depth } = chooseDepth(
       stage,
       stageRoutes.depth_signals,
-      ticketCheck === void 0 ? { labels: artifact.labels, text: artifact.text, ...measured } : { labels: artifact.labels, text: contents.files.map((file) => file.text).join("\n\n"), tickets: ticketCheck.tickets.length },
+      ticketCheck === void 0 ? { labels: artifact.labels, text: artifact.text, ...measured, ...contents.adrs === void 0 ? {} : { adrs: contents.adrs } } : { labels: artifact.labels, text: contents.files.map((file) => file.text).join("\n\n"), tickets: ticketCheck.tickets.length },
       input.depth
     );
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage };
     const roster = resolveRoster(routing, request, await this.readiness(routing, request));
     const runId = await this.freshRunId(repository, stage);
-    const runDir = join14(repository.commonDir, "critique", runId);
-    const packetDir = join14(runDir, "packet");
+    const runDir = join15(repository.commonDir, "critique", runId);
+    const packetDir = join15(runDir, "packet");
     const packetFiles = await this.freezePacket(
       packetDir,
       ticketCheck === void 0 ? contents.files : [...contents.files, checkReportFile(ticketCheck, stageRoutes.ticket_size)]
@@ -4204,8 +4259,9 @@ var PrepareCommand = class {
       depth_choice: choice,
       dropped: roster.dropped,
       // A decisions run belongs to no tracker item, so unless named its flow is its
-      // own; a ticket review's is its spec's, so it counts with the spec's other stages.
-      flow: input.flow ?? previousFlow ?? (STAGE_TABLE[stage].flowKey === "draft" ? runId : contents.specReference ?? artifact.reference),
+      // own, and a review run's is always its own; a ticket review's is its spec's,
+      // so it counts with the spec's other stages.
+      flow: input.flow ?? previousFlow ?? (STAGE_TABLE[stage].flowKey === "spec" ? contents.specReference ?? artifact.reference : runId),
       limits: routing.limits,
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
@@ -4247,6 +4303,7 @@ var PrepareCommand = class {
     const { stage } = input;
     const packet2 = STAGE_TABLE[stage].packet;
     if (packet2 === "decisions") return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary });
+    if (packet2 === "adrs") return this.adrPackets.read(repository.root, input);
     const tracker = await this.trackers.resolve(repository);
     if (tracker.status === "refused") return tracker;
     if (input.spec === void 0) throw new CritiqueError("invalid-input", `${stage} needs spec: the spec, named the way its tracker names it`);
@@ -4295,7 +4352,7 @@ var PrepareCommand = class {
   async freshRunId(repository, stage) {
     const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(manifestPath(join14(repository.commonDir, "critique", candidate))); n += 1) {
+    for (let n = 2; await this.deps.files.exists(manifestPath(join15(repository.commonDir, "critique", candidate))); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
@@ -4311,13 +4368,13 @@ var PrepareCommand = class {
     if (artifact.status === "refused") return artifact;
     const references = input.references === void 0 ? await this.decisionDocs.resolve(repository.root) : input.references.map((path) => insideRepository(repository.root, path));
     const files = [
-      { kind: "artifact", path: join14("artifact", artifact.name), source: artifact.reference, text: artifact.text },
+      { kind: "artifact", path: join15("artifact", artifact.name), source: artifact.reference, text: artifact.text },
       ...await Promise.all(
         references.map(async (source) => ({
           kind: "reference",
-          path: join14("references", source),
+          path: join15("references", source),
           source,
-          text: await this.deps.files.readText(join14(repository.root, source))
+          text: await this.deps.files.readText(join15(repository.root, source))
         }))
       )
     ];
@@ -4337,7 +4394,7 @@ var PrepareCommand = class {
     return {
       artifact: spec,
       files: [
-        { kind: "spec", path: join14("spec", spec.name), source: spec.reference, text: spec.text },
+        { kind: "spec", path: join15("spec", spec.name), source: spec.reference, text: spec.text },
         ...tickets.map((ticket) => ticketFile(ticket.name, ticket.reference, ticket.text))
       ],
       status: "read",
@@ -4347,7 +4404,7 @@ var PrepareCommand = class {
   async freezePacket(packetDir, files) {
     const frozen = [];
     for (const { text, ...file } of files) {
-      await this.deps.files.writeText(join14(packetDir, file.path), text);
+      await this.deps.files.writeText(join15(packetDir, file.path), text);
       frozen.push({ ...file, sha256: sha256(text) });
     }
     return frozen;
@@ -4356,7 +4413,7 @@ var PrepareCommand = class {
 function checkReportFile(check, size) {
   return {
     kind: "check",
-    path: join14("check", "tickets.json"),
+    path: join15("check", "tickets.json"),
     source: `check-tickets ${check.spec.reference}`,
     text: `${JSON.stringify({ ...check, size: sizeReport(check, size) }, null, 2)}
 `
@@ -4372,7 +4429,7 @@ function preparedCode(code, files) {
 }
 
 // src/contexts/critique/application/record.ts
-import { join as join15 } from "node:path";
+import { join as join16 } from "node:path";
 
 // src/contexts/critique/domain/report.ts
 var SUMMARY_MAX_CHARS = 6e3;
@@ -4512,6 +4569,7 @@ function roundLines(run) {
 }
 function doNotStartLines(run) {
   const next = STAGE_TABLE[run.stage].doNotStart;
+  if (next === null) return [];
   const open = openCriticalQuestions(run).map((f) => f.id);
   const which = open.length === 1 ? `critical question ${open.join("")} is` : `critical questions ${open.join(", ")} are`;
   return [
@@ -4682,7 +4740,7 @@ var RecordCommand = class {
     const reviews = new TicketReviewLog(this.deps);
     const ticketReview = manifest.stage === "ticket-review" ? await reviews.compute(manifest, run) : void 0;
     const summary = renderSummary(run, reportPath2);
-    const summaryPath = join15(input.runDir, "summary.md");
+    const summaryPath = join16(input.runDir, "summary.md");
     const ledger = ledgerPath(this.deps.env);
     await this.deps.files.writeText(reportPath2, renderReport(run));
     await this.deps.files.writeText(summaryPath, summary);
@@ -4762,6 +4820,72 @@ function readVerdict(fields) {
 function isReasonCode(value) {
   return REASON_CODE.test(value);
 }
+
+// src/contexts/critique/application/reviews.ts
+import { join as join17 } from "node:path";
+
+// src/contexts/critique/domain/review-runs.ts
+function reviewRuns(sources, limit) {
+  const runs = /* @__PURE__ */ new Map();
+  for (const run of sources.directories) runs.set(run.run_id, run);
+  for (const line of sources.ledgerRuns) runs.set(line.run_id, { ...line, ...runs.get(line.run_id), recorded: true });
+  return [...runs.values()].flatMap((run) => isReviewStage(run.stage) ? [{ ...run, stage: run.stage }] : []).sort((a, b) => b.run_id.localeCompare(a.run_id, "en", { numeric: true })).slice(0, limit).map((run) => ({
+    recorded: run.recorded,
+    round: run.round,
+    run_id: run.run_id,
+    spent_usd: sources.invocations.filter((line) => line.kind === "vibe" && line.run_id === run.run_id).reduce((total, line) => total + line.charged_usd, 0),
+    stage: run.stage,
+    verdicts: verdictCounts(sources.findings.filter((finding) => finding.run_id === run.run_id))
+  }));
+}
+function verdictCounts(findings) {
+  return Object.fromEntries(VERDICTS.map((verdict) => [verdict, findings.filter((finding) => finding.verdict === verdict).length]));
+}
+
+// src/contexts/critique/application/reviews.ts
+var DEFAULT_LIMIT = 10;
+var ReviewsCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.repositories = new RepositoryGate(deps);
+  }
+  deps;
+  repositories;
+  async run(raw) {
+    const input = readInput(raw, "reviews", (fields) => ({
+      limit: fields.has("limit") ? fields.positiveInteger("limit") : DEFAULT_LIMIT,
+      repo: fields.string("repo")
+    }));
+    const repository = await this.repositories.resolve(input.repo);
+    if (repository.status === "refused") return repository;
+    const path = ledgerPath(this.deps.env);
+    const text = await this.deps.files.exists(path) ? await this.deps.files.readText(path) : "";
+    const ledger = decoded("invalid-ledger", path, () => text === "" ? EMPTY_LEDGER : parseLedger(text));
+    const ours = (lines) => lines.filter((line) => line.repository === repository.key);
+    const runs = reviewRuns(
+      {
+        directories: await this.directories(repository),
+        findings: ours(ledger.findings),
+        invocations: ours(invocationLines(text)),
+        ledgerRuns: ours(ledger.runs)
+      },
+      input.limit
+    );
+    return { runs, status: "read" };
+  }
+  /** The runs the repository's run directories hold, recorded or not. */
+  async directories(repository) {
+    const critiqueDir = join17(repository.commonDir, "critique");
+    const runs = [];
+    for (const name of await this.deps.files.listDirectories(critiqueDir)) {
+      const runDir = join17(critiqueDir, name);
+      if (!await this.deps.files.exists(manifestPath(runDir))) continue;
+      const manifest = await readJsonFile(this.deps.files, manifestPath(runDir), "invalid-run", parseManifest);
+      runs.push({ recorded: await this.deps.files.exists(reportPath(runDir)), round: manifest.round, run_id: manifest.run_id, stage: manifest.stage });
+    }
+    return runs;
+  }
+};
 
 // src/contexts/critique/domain/setup.ts
 var SETUP_INPUTS = [
@@ -4967,11 +5091,11 @@ function failedOpen2(failure2, detail) {
 
 // src/contexts/critique/application/setup.ts
 import { createHash as createHash4 } from "node:crypto";
-import { join as join17 } from "node:path";
+import { join as join19 } from "node:path";
 
 // src/contexts/critique/application/agent-hooks.ts
 import { createHash as createHash3 } from "node:crypto";
-import { dirname as dirname5, join as join16 } from "node:path";
+import { dirname as dirname5, join as join18 } from "node:path";
 
 // src/contexts/critique/domain/agent-hooks.ts
 import { createHash as createHash2 } from "node:crypto";
@@ -5091,8 +5215,8 @@ var InstalledHooks = class {
     const claude = claudeHomePath(this.deps.env);
     const codex = codexHomePath(this.deps.env);
     return [
-      { home: claude, hooksFile: join16(claude, "settings.json"), label: "Claude Code" },
-      { home: codex, hooksFile: join16(codex, "hooks.json"), label: "Codex", trustFile: join16(codex, "config.toml") }
+      { home: claude, hooksFile: join18(claude, "settings.json"), label: "Claude Code" },
+      { home: codex, hooksFile: join18(codex, "hooks.json"), label: "Codex", trustFile: join18(codex, "config.toml") }
     ];
   }
   /** What keeps the hooks from running in one agent home, in the order the owner fixes them; none when they run. */
@@ -5341,13 +5465,13 @@ var SetupCommand = class {
   /** Puts the trivial prompt to one critic client, exactly as a critic is launched, and logs the launch to the ledger. */
   async probe(client, config) {
     const dir = setupProbeDir(this.deps.env, client);
-    const packetDir = join17(dir, "packet");
-    const criticDir = join17(dir, "critic");
-    const promptPath = join17(dir, "prompt.md");
-    await this.deps.files.writeText(join17(packetDir, "note.md"), PROBE_NOTE);
+    const packetDir = join19(dir, "packet");
+    const criticDir = join19(dir, "critic");
+    const promptPath = join19(dir, "prompt.md");
+    await this.deps.files.writeText(join19(packetDir, "note.md"), PROBE_NOTE);
     await this.deps.files.writeText(promptPath, PROBE_PROMPT);
-    await this.deps.files.remove(join17(criticDir, "export", "export.json"));
-    await this.deps.files.remove(join17(criticDir, "result.json"));
+    await this.deps.files.remove(join19(criticDir, "export", "export.json"));
+    await this.deps.files.remove(join19(criticDir, "result.json"));
     const critic = {
       client,
       client_config: config,
@@ -5363,7 +5487,7 @@ var SetupCommand = class {
       criticDir,
       packetDir,
       promptPath,
-      schemaPath: join17(this.deps.assetsRoot, "schemas", "finding.schema.json")
+      schemaPath: join19(this.deps.assetsRoot, "schemas", "finding.schema.json")
     });
     await this.logInvocation(client, config, report.outcome.status, report.chargedUsd);
     const charged = config.kind === "vibe" ? ` (charged $${report.chargedUsd.toFixed(4)})` : "";
@@ -5424,7 +5548,7 @@ var SetupCommand = class {
     };
   }
   async agentHash(agent) {
-    const path = join17(this.deps.env.require("HOME"), ".vibe", "agents", `${agent}.toml`);
+    const path = join19(this.deps.env.require("HOME"), ".vibe", "agents", `${agent}.toml`);
     if (!await this.deps.files.exists(path)) return null;
     return createHash4("sha256").update(await this.deps.files.readBytes(path)).digest("hex");
   }
@@ -5603,12 +5727,14 @@ function raiser(byCritic, finding, criticId) {
   return tally;
 }
 var REMOVAL_UNITS = {
-  features: (line) => line.spec
+  features: (line) => line.spec,
+  runs: (line) => line.run_id
 };
 function removalCandidates(runs, uniqueCatches, features) {
   const candidates = [];
   for (const stage of CRITIQUE_STAGES) {
-    const unitOf = REMOVAL_UNITS[STAGE_TABLE[stage].removal];
+    const rule = STAGE_TABLE[stage].removal;
+    const unitOf = REMOVAL_UNITS[rule];
     const latest = /* @__PURE__ */ new Map();
     for (const run of runs) {
       const unit = unitOf(run);
@@ -5620,7 +5746,7 @@ function removalCandidates(runs, uniqueCatches, features) {
     if (!uniqueCatches.some(
       (finding) => finding.stage === stage && looked.includes(unitOf(finding) ?? "")
     )) {
-      candidates.push({ features: looked, stage });
+      candidates.push(rule === "runs" ? { runs: looked, stage } : { features: looked, stage });
     }
   }
   return candidates;
@@ -5692,7 +5818,10 @@ function renderStats(stats, scope) {
   lines.push("", "## Removal candidates", "");
   lines.push(
     ...stats.removal_candidates.length === 0 ? ["none"] : stats.removal_candidates.map(
-      (candidate) => `- ${candidate.stage}: no unique accepted catch across its last ${String(candidate.features.length)} features (${candidate.features.join(", ")})`
+      (candidate) => {
+        const [looked, unit] = "runs" in candidate ? [candidate.runs, "runs"] : [candidate.features, "features"];
+        return `- ${candidate.stage}: no unique accepted catch across its last ${String(looked.length)} ${unit} (${looked.join(", ")})`;
+      }
     )
   );
   lines.push(
@@ -5782,9 +5911,9 @@ function isDay(value) {
 }
 
 // src/contexts/critique/application/triage.ts
-import { join as join18 } from "node:path";
+import { join as join20 } from "node:path";
 var TRIAGE_PROMPT = "prompts/triage.md";
-var DIFF_PATH2 = join18("diff", "change.diff");
+var DIFF_PATH2 = join20("diff", "change.diff");
 var TriageCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -5827,7 +5956,7 @@ var TriageCommand = class {
     const head = snapshot?.commit ?? input.head;
     const read = await this.changes.read(repository.root, input.base, head);
     const runId = await this.freshRunId(repository);
-    const runDir = join18(repository.commonDir, "critique", runId);
+    const runDir = join20(repository.commonDir, "critique", runId);
     const flow = input.flow ?? spec?.reference ?? ticket.reference;
     const signals = riskSignals(read.change, ticket.labels, triage);
     const [first] = signals;
@@ -5850,7 +5979,7 @@ var TriageCommand = class {
       summary: triageSummary(asked.decision, signal, triage.model.client),
       ticket: { labels: ticket.labels, reference: ticket.reference }
     };
-    await this.deps.files.writeText(join18(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
+    await this.deps.files.writeText(join20(runDir, "triage.json"), `${JSON.stringify(result2, null, 2)}
 `);
     const recordedAt = this.deps.clock.now().toISOString();
     const line = triageLedgerLine({
@@ -5897,10 +6026,10 @@ var TriageCommand = class {
     if (spent !== void 0) return unavailable("budget", spent);
     const ready = await this.deps.clients.vibe.readiness(config);
     if (!ready.ready) return unavailable("unavailable", ready.detail);
-    const promptAsset = await this.deps.files.readText(join18(this.deps.assetsRoot, TRIAGE_PROMPT));
-    const workDir = join18(request.runDir, "packet");
-    const promptPath = join18(request.runDir, "prompt.md");
-    await this.deps.files.writeText(join18(workDir, DIFF_PATH2), request.diff);
+    const promptAsset = await this.deps.files.readText(join20(this.deps.assetsRoot, TRIAGE_PROMPT));
+    const workDir = join20(request.runDir, "packet");
+    const promptPath = join20(request.runDir, "prompt.md");
+    await this.deps.files.writeText(join20(workDir, DIFF_PATH2), request.diff);
     await this.deps.files.writeText(
       promptPath,
       `${promptAsset.trim()}
@@ -5914,8 +6043,8 @@ var TriageCommand = class {
       { max_price_usd: triage.model.max_price_usd, outputDir: request.runDir, promptPath, time_limit_s: triage.model.time_limit_s, workDir },
       config
     );
-    await this.deps.files.writeText(join18(request.runDir, "stdout.json"), report.stdout);
-    await this.deps.files.writeText(join18(request.runDir, "stderr.txt"), report.stderr);
+    await this.deps.files.writeText(join20(request.runDir, "stdout.json"), report.stdout);
+    await this.deps.files.writeText(join20(request.runDir, "stderr.txt"), report.stderr);
     const call = { client: triage.model.client, family: config.family, model: config.model };
     await this.budget.logInvocation(
       { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: "ticket-review" },
@@ -5927,7 +6056,7 @@ var TriageCommand = class {
   async freshRunId(repository) {
     const base = `${compactTimestamp(this.deps.clock.now())}-triage`;
     let candidate = base;
-    for (let n = 2; await this.deps.files.exists(join18(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
+    for (let n = 2; await this.deps.files.exists(join20(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
       candidate = `${base}-${String(n)}`;
     }
     return candidate;
@@ -5968,6 +6097,7 @@ function createCritiqueCommands(deps) {
     gate: new GateCommand(deps),
     prepare: new PrepareCommand(deps),
     record: new RecordCommand(deps),
+    reviews: new ReviewsCommand(deps),
     sessionStart: new SessionStartCommand(deps),
     setup: new SetupCommand(deps),
     state: new StateCommand(deps),
@@ -5978,7 +6108,7 @@ function createCritiqueCommands(deps) {
 
 // src/contexts/critique/adapters/fs/index.ts
 import { access, appendFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname as dirname6, join as join19, relative as relative2 } from "node:path";
+import { dirname as dirname6, join as join21, relative as relative2 } from "node:path";
 var NodeCritiqueFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -6011,7 +6141,7 @@ var NodeCritiqueFiles = class {
   async listTree(dir) {
     if (!await this.exists(dir)) return [];
     const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join19(entry.parentPath, entry.name)));
+    return entries.filter((entry) => !entry.isDirectory()).map((entry) => relative2(dir, join21(entry.parentPath, entry.name)));
   }
   async remove(path) {
     await rm(path, { force: true });
@@ -6019,7 +6149,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute3, join as join20 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join22 } from "node:path";
 
 // src/contexts/critique/adapters/cli-version.ts
 var VERSION_TIMEOUT_MS = 1e4;
@@ -6074,7 +6204,7 @@ var AgyCriticClient = class {
     const prompt = await this.files.readText(launch.promptPath);
     const result2 = await this.process.exec(agyLaunch(launch, config, prompt));
     const run = readStream(result2.stdout);
-    const exportPath = join20(launch.criticDir, "result.json");
+    const exportPath = join22(launch.criticDir, "result.json");
     if (run.result !== void 0) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}
 `);
     const outcome = result2.timedOut === true ? timedOut(launch.critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) : classifyAgyRun(result2.exitCode, result2.stdout, run, result2.stderr);
@@ -6083,7 +6213,7 @@ var AgyCriticClient = class {
   async onPath(binary) {
     if (isAbsolute3(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join20(dir, binary))) return true;
+      if (await this.files.exists(join22(dir, binary))) return true;
     }
     return false;
   }
@@ -6190,7 +6320,7 @@ function classifyAgyRun(exitCode, stdout, run, stderr) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { isAbsolute as isAbsolute4, join as join21 } from "node:path";
+import { isAbsolute as isAbsolute4, join as join23 } from "node:path";
 var VibeCriticClient = class {
   constructor(process2, files, env) {
     this.process = process2;
@@ -6211,8 +6341,8 @@ var VibeCriticClient = class {
   async readiness(config) {
     const signIn = await this.signIn(config);
     if (!signIn.ready) return signIn;
-    const home = join21(this.env.require("HOME"), ".vibe");
-    if (!await this.files.exists(join21(home, "agents", `${config.agent}.toml`))) {
+    const home = join23(this.env.require("HOME"), ".vibe");
+    if (!await this.files.exists(join23(home, "agents", `${config.agent}.toml`))) {
       return { detail: `vibe: the critic agent ${config.agent} is not installed in ~/.vibe/agents; re-run setup`, ready: false };
     }
     return { ready: true };
@@ -6220,7 +6350,7 @@ var VibeCriticClient = class {
   /** `vibe` on `PATH` and the personal home signed in, whatever critic agents are installed. */
   async signIn(config) {
     if (!await this.onPath(config.binary)) return { detail: `vibe: ${config.binary} is not on PATH`, ready: false };
-    return await this.signedIn(join21(this.env.require("HOME"), ".vibe")) ? { ready: true } : { detail: SIGN_IN2, ready: false };
+    return await this.signedIn(join23(this.env.require("HOME"), ".vibe")) ? { ready: true } : { detail: SIGN_IN2, ready: false };
   }
   async version(config) {
     return cliVersion(this.process, config.binary);
@@ -6228,20 +6358,20 @@ var VibeCriticClient = class {
   async signedIn(home) {
     const keychain = await this.process.exec({ args: ["find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY"], command: "security" }).catch(() => ({ exitCode: 1 }));
     if (keychain.exitCode === 0) return true;
-    const dotenv = join21(home, ".env");
+    const dotenv = join23(home, ".env");
     if (!await this.files.exists(dotenv)) return false;
     return (await this.files.readText(dotenv)).split("\n").some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line));
   }
   async onPath(binary) {
     if (isAbsolute4(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
-      if (await this.files.exists(join21(dir, binary))) return true;
+      if (await this.files.exists(join23(dir, binary))) return true;
     }
     return false;
   }
   async review(launch, config) {
-    const exportDir = join21(launch.criticDir, "export");
-    const exportPath = join21(exportDir, "export.json");
+    const exportDir = join23(launch.criticDir, "export");
+    const exportPath = join23(exportDir, "export.json");
     const { result: result2, run } = await this.launch(launch.critic, config, { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir });
     return { ...result2, chargedUsd: vibeCharge(run, launch.critic.max_price_usd), exportPath, outcome: classifyVibeRun(run) };
   }
@@ -6251,7 +6381,7 @@ var VibeCriticClient = class {
    * returns its final message as plain text.
    */
   async ask(question, config) {
-    const exportDir = join21(question.outputDir, "export");
+    const exportDir = join23(question.outputDir, "export");
     const { result: result2, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir });
     const message = vibeMessage(run);
     const answer = message.status === "failed" ? message : { cost_usd: message.cost_usd, status: "answered", text: message.text };
@@ -6261,7 +6391,7 @@ var VibeCriticClient = class {
     const result2 = await this.process.exec(vibeLaunch(limits, config, paths));
     const run = {
       exitCode: result2.exitCode,
-      exported: await this.readExport(join21(paths.exportDir, "export.json")),
+      exported: await this.readExport(join23(paths.exportDir, "export.json")),
       stderr: result2.stderr,
       stdout: result2.stdout,
       timedOut: result2.timedOut === true,
@@ -6779,13 +6909,14 @@ var COMMANDS = {
   gate: "gate",
   prepare: "prepare",
   record: "record",
+  reviews: "reviews",
   "session-start": "sessionStart",
   setup: "setup",
   state: "state",
   stats: "stats",
   triage: "triage"
 };
-var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget|gate|session-start|setup> [--input FILE | --json TEXT]
+var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|record|allow|check-tickets|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
        critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>
 
 Each command reads one JSON object (from FILE, from TEXT, or from stdin) and

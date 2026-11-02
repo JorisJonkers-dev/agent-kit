@@ -86,6 +86,25 @@ describe('the stages whose Vibe critics would be skipped now', () => {
       ['tickets', SPEC, SPEC_CAP],
       ['ticket-review', SPEC, SPEC_CAP],
       ['feature-review', SPEC, SPEC_CAP],
+      ['adr-review', null, null],
+    ])
+  })
+
+  it("charges an adr-review run to its own run id, never to the feature's spec or draft", async () => {
+    const h = await repository()
+    await new SyntheticLedger()
+      .raw(draftLink())
+      .invocation({ charged_usd: 5.25, flow: SPEC, kind: 'vibe' })
+      .invocation({ charged_usd: 5.25, flow: DRAFT, kind: 'vibe', stage: 'decisions' })
+      .invocation({ charged_usd: 4, flow: '20261030T110000Z-adr-review', kind: 'vibe', stage: 'adr-review' })
+      .writeTo(h)
+
+    const result = await budgetOf(h)
+
+    expect(result.stages.find((stage) => stage.stage === 'adr-review')).toMatchObject({ flow: null, vibe: null })
+    expect(result.vibe.flows).toEqual([
+      { flow: SPEC, spent_usd: 5.25 },
+      { flow: DRAFT, spent_usd: 5.25 },
     ])
   })
 
@@ -228,6 +247,7 @@ describe('the stages that would fall back now', () => {
       ['tickets', null, []],
       ['ticket-review', null, []],
       ['feature-review', null, []],
+      ['adr-review', null, []],
     ])
   })
 
@@ -243,6 +263,7 @@ describe('the stages that would fall back now', () => {
       ['tickets', null, []],
       ['ticket-review', RESERVE, [{ client: 'agy-gemini-flash-high', to: 'vibe-glm' }]],
       ['feature-review', null, []],
+      ['adr-review', RESERVE, [{ client: 'agy-gemini-flash-high', to: 'vibe-glm' }]],
     ])
   })
 
@@ -259,6 +280,7 @@ describe('the stages that would fall back now', () => {
       ['tickets', null],
       ['ticket-review', cap],
       ['feature-review', cap],
+      ['adr-review', cap],
     ])
   })
 

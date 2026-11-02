@@ -67,8 +67,13 @@ export interface InvocationLine {
   readonly charged_usd: number
 }
 
-/** What the budget reads back from one invocation line. */
-export type LoggedInvocation = Pick<InvocationLine, 'recorded_at' | 'repository' | 'flow' | 'kind' | 'charged_usd'>
+/**
+ * What the budget reads back from one invocation line, and the run it was
+ * launched for; setup's checks launch for no run.
+ */
+export type LoggedInvocation = Pick<InvocationLine, 'recorded_at' | 'repository' | 'flow' | 'kind' | 'charged_usd'> & {
+  readonly run_id: string | undefined
+}
 
 /**
  * The invocation lines of a ledger. Any other line, and a line that is not
@@ -86,6 +91,7 @@ export function invocationLines(ledger: string): readonly LoggedInvocation[] {
           kind: line.oneOf('kind', ['vibe', 'agy']),
           recorded_at: line.string('recorded_at'),
           repository: line.string('repository'),
+          run_id: line.optionalString('run_id'),
         },
       ]
     } catch {

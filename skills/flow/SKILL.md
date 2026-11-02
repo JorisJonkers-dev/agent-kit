@@ -40,6 +40,7 @@ directory per critique run, named by its run id. The **flows folder** is
 | `/flow setup` | Walks this machine's critique checklist one item at a time, then offers this repository's opt-in. |
 | `/flow explain <thing>` | A short explanation of one stage, lens, depth, routing, the gate or the budget, read from the pipeline README. |
 | `/flow budget` | The Vibe spend for this flow against its cap, Antigravity invocations today against the daily cap and the reserve, and which stages would fall back now. |
+| `/flow reviews` | Recent runs of the review stages in this repository, with their verdicts and spend. A review runs only when the owner asks for one. |
 
 ## /flow
 
@@ -356,3 +357,46 @@ skips, say so, and that the caps live in this machine's routing override
 (`~/.config/agent-kit/critique-routing.json`); `/flow explain budget` says
 how to change them. Never edit the override or routing unless the owner
 asks. Otherwise offer to return to `/flow`.
+
+## /flow reviews
+
+The **review stages** (`adr-review` so far) look at a repository's decision
+records or code, not at one feature. They sit outside the feature's flow:
+`/flow` never names one as the next step, and a review is never due. Each
+review run is a flow of its own, keyed by its run id, with its own Vibe cap,
+so a review never draws on a feature's budget. This entry only lists them.
+
+### 1. Run reviews
+
+Run the runner's `reviews` command with the repository root
+(`git rev-parse --show-toplevel`); add `"limit": <n>` when the owner asks
+for more or fewer than the last 10:
+
+```sh
+node <critique dir>/critique.mjs reviews --json '{"repo": "<repository root>"}'
+```
+
+A refusal carries a one-line `message`: give it as it stands and stop.
+
+Done when it returned `"status": "read"`, or you stopped on a refusal or
+an error.
+
+### 2. Show the runs
+
+One line per entry of `runs`, newest first, as the runner ordered them:
+
+```
+<stage> · <run_id>[ · round 2] · <accepted> accepted, <needs-human> questions, <rejected> rejected, <hint> hints · $<spent_usd>
+```
+
+- Take each figure from the entry: `stage`, `run_id`, `round`, the counts in
+  `verdicts` and `spent_usd`, with two decimals. Never work one out
+  yourself.
+- A run with `recorded` false is not recorded yet: write `not recorded` in
+  place of the counts.
+- With no runs, write `No review runs yet.`
+
+End with one line: a review runs only when the owner asks for one. Do not
+offer to start one, and never call one due.
+
+Done when the owner has the lines.

@@ -14,6 +14,8 @@ export interface DepthEvidence {
   readonly change?: ChangeMeasures
   /** At the tickets stage: how many tickets the spec has. */
   readonly tickets?: number
+  /** At an ADR review: how many records are under review. */
+  readonly adrs?: number
 }
 
 /** A code stage's change in numbers: its changed lines, and how many touched paths match a risk path. */
@@ -31,6 +33,7 @@ type Measure = (evidence: DepthEvidence) => number
  * not know is rejected.
  */
 const STAGE_MEASURES: Readonly<Record<CritiqueStage, Readonly<Record<string, Measure>>>> = {
+  'adr-review': { adrs: ({ adrs = 0 }) => adrs },
   decisions: { decisions: ({ text }) => countDecisions(text), words: ({ text }) => countWords(text) },
   'feature-review': {},
   spec: { user_stories: ({ text }) => countUserStories(text), words: ({ text }) => countWords(text) },
