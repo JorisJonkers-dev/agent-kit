@@ -117,6 +117,8 @@ export class FakeGit implements CritiqueGitPort {
   branch = 'main'
   /** What reading the remotes does: answer, never return (a git that hangs), or throw this error (a git that crashes). */
   remotesBehaviour: 'answer' | 'hang' | Error = 'answer'
+  /** How a diff prints a changed file. */
+  hunks: FakeHunks = 'whole-file'
 
   constructor(
     private readonly repoRoot: string,
@@ -196,9 +198,9 @@ export class FakeGit implements CritiqueGitPort {
     return Promise.resolve(text)
   }
 
-  /** Each changed file in full: its old lines removed and its new lines added. */
+  /** Each changed file's hunks, printed the way `hunks` says. */
   async diffCommits(_cwd: string, base: string, head: string): Promise<string> {
-    return Promise.resolve(fileDiff(this.treeOfCommit(base), this.treeOfCommit(head)))
+    return Promise.resolve(fileDiff(this.treeOfCommit(base), this.treeOfCommit(head), this.hunks))
   }
 
   async changedPaths(_cwd: string, base: string, head: string): Promise<readonly string[]> {
@@ -212,7 +214,7 @@ export class FakeGit implements CritiqueGitPort {
 
   /** HEAD against the index, or against the working tree for every path HEAD or the index tracks, in `diffCommits`' form. */
   async diffAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<string> {
-    return Promise.resolve(fileDiff(this.headTree(), await this.against(from)))
+    return Promise.resolve(fileDiff(this.headTree(), await this.against(from), this.hunks))
   }
 
   async pathsAgainstHead(_cwd: string, from: 'index' | 'working-tree'): Promise<readonly string[]> {
@@ -295,14 +297,55 @@ function changedBetween(before: ReadonlyMap<string, string>, after: ReadonlyMap<
   return [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort()
 }
 
-/** Each changed file in full: its old lines removed and its new lines added. */
-function fileDiff(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>): string {
-  const lines = (text: string | undefined, sign: string) =>
-    text === undefined ? [] : text.replace(/\n$/, '').split('\n').map((line) => `${sign}${line}`)
+/**
+ * How the fake prints a changed file: as one hunk that removes every old
+ * line and adds every new one, or, `by-line`, for a file whose line count
+ * did not change, as one hunk per run of changed lines with no context.
+ */
+export type FakeHunks = 'whole-file' | 'by-line'
+
+/** Each changed file's hunks under git's headers; an added file comes from `/dev/null` and a deleted one goes to it. */
+function fileDiff(before: ReadonlyMap<string, string>, after: ReadonlyMap<string, string>, hunks: FakeHunks = 'whole-file'): string {
+  const lines = (text: string | undefined) => (text === undefined || text === '' ? [] : text.replace(/\n$/, '').split('\n'))
   return changedBetween(before, after)
-    .map((path) => [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...lines(before.get(path), '-'), ...lines(after.get(path), '+')].join('\n'))
+    .map((path) => {
+      const old = before.get(path)
+      const now = after.get(path)
+      // git ends a `---` or `+++` path that holds a space with a tab.
+      const tab = path.includes(' ') ? '\t' : ''
+      const header = [
+        `diff --git a/${path} b/${path}`,
+        `--- ${old === undefined ? '/dev/null' : `a/${path}${tab}`}`,
+        `+++ ${now === undefined ? '/dev/null' : `b/${path}${tab}`}`,
+      ]
+      return [...header, ...hunksOf(lines(old), lines(now), hunks)].join('\n')
+    })
     .map((section) => `${section}\n`)
     .join('')
+}
+
+function hunksOf(old: readonly string[], now: readonly string[], mode: FakeHunks): readonly string[] {
+  // git prints no hunk for a file that has no lines on either side.
+  if (old.length === 0 && now.length === 0) return []
+  if (mode === 'whole-file' || old.length !== now.length) {
+    const header = hunkHeader(old.length === 0 ? 0 : 1, old.length, now.length === 0 ? 0 : 1, now.length)
+    return [header, ...old.map((line) => `-${line}`), ...now.map((line) => `+${line}`)]
+  }
+  const out: string[] = []
+  for (let i = 0; i < old.length; i += 1) {
+    if (old[i] === now[i]) continue
+    let end = i
+    while (end < old.length && old[end] !== now[end]) end += 1
+    out.push(hunkHeader(i + 1, end - i, i + 1, end - i), ...old.slice(i, end).map((line) => `-${line}`), ...now.slice(i, end).map((line) => `+${line}`))
+    i = end
+  }
+  return out
+}
+
+/** `@@ -<start>[,<count>] +<start>[,<count>] @@`, a count of one left out the way git leaves it out. */
+function hunkHeader(oldStart: number, oldCount: number, newStart: number, newCount: number): string {
+  const side = (start: number, count: number) => (count === 1 ? String(start) : `${String(start)},${String(count)}`)
+  return `@@ -${side(oldStart, oldCount)} +${side(newStart, newCount)} @@`
 }
 
 function entriesOf(files: ReadonlyMap<string, string>): string {

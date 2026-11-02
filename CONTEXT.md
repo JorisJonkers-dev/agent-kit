@@ -120,7 +120,8 @@ The frozen copy of the artifact and its reference material that every critic
 of one critique run (one pass of a critique stage over one artifact) reads.
 Later edits to the artifact never reach it. At a code stage (ticket review,
 feature review) it is a code packet: the diff against the base without its
-generated, vendored and lock files, the ticket or tickets, the spec, a repo
+generated, vendored and lock files (in windows by file when it does not fit
+the packet cap), the ticket or tickets, the spec, a repo
 map, the context slices around the change, and as much more of the commit
 under review as the packet cap allows.
 _Avoid_: bundle, context, snapshot

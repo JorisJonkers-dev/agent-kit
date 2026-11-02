@@ -22,6 +22,7 @@ function codeSample(request: Partial<CodeSampleRequest> = {}): CodeSample {
   const sample = sampleCodeTree({
     changed: ['src/widget.ts'],
     commit: 'c9',
+    diff: '',
     documentBytes: 0,
     excluded: { generated: 0, lock: 0, vendored: 0 },
     importers: [],
@@ -61,6 +62,13 @@ describe('a code packet that drops a file a critic is likely to look for', () =>
     expect(sample.index).toContain('- `pkg/d3/` (69 files, ')
     expect(sample.index).toContain('- `pkg/d4/` (69 files, ')
     expect(sample.index).toContain('- `pkg/d5/` (70 files, ')
+  })
+
+  it('lists by name a file only the diff names, the diff coming apart from the tickets and the spec', () => {
+    const sample = codeSample({ diff: 'diff --git a/src/widget.ts b/src/widget.ts\n--- a/src/widget.ts\n+++ b/src/widget.ts\n@@ -1 +1 @@\n-// see pkg/d6/f006.ts\n+// see pkg/d6/f006.ts.\n' })
+
+    expect(sample.index).toContain('- `pkg/d6/f006.ts` (rest, 400 lines): the cap dropped it')
+    expect(sample.index).toContain('- `pkg/d6/` (69 files, ')
   })
 })
 

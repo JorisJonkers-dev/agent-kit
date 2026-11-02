@@ -1,6 +1,8 @@
 import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './findings.js'
 import { lineCount, lineReferences, packetCandidates, type LineReference } from './line-references.js'
+import { diffShownLines } from './diff-window.js'
 import { heldRanges, type PacketFile, type PacketWindow } from './manifest.js'
+import { mergeRanges, type LineRange } from './tree-sample.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
 import { STAGE_TABLE, type EvidenceRule } from './stage-table.js'
 import { ticketTarget } from './tickets.js'
@@ -21,6 +23,11 @@ export interface PacketIndex {
   readonly lines: ReadonlyMap<string, number>
   /** The tree files a repository packet cut short, by packet path. */
   readonly windows: ReadonlyMap<string, PacketWindow>
+  /**
+   * The lines at the head the diff's hunks show, by the packet path under
+   * `tree/` they are cited as: a windowed diff shows only the hunks it sent.
+   */
+  readonly shown: ReadonlyMap<string, readonly LineRange[]>
   /** Whether the packet holds a tree, whose file and line citations are then checked at any stage. */
   readonly tree: boolean
   /** At the tickets stage, the ids of the spec's tickets, which a finding's location must name. */
@@ -31,6 +38,9 @@ export function indexPacket(packet: readonly PacketText[], tickets: readonly str
   return {
     files: packet.map((file) => ({ ...file, normalised: normalise(file.text) })),
     lines: new Map(packet.map((file) => [file.path, lineCount(file.text)])),
+    shown: new Map(
+      packet.flatMap((file) => (file.kind === 'diff' ? [...diffShownLines(file.text)].map(([path, ranges]) => [`${TREE_DIR}/${path}`, ranges] as const) : [])),
+    ),
     tickets,
     tree: packet.some((file) => file.kind === 'tree'),
     windows: new Map(packet.flatMap((file) => (file.window === undefined ? [] : [[file.path, file.window] as const]))),
@@ -114,6 +124,8 @@ function fabricated(reason: string): PreVerdict {
 /**
  * Why the first file-and-line citation of the location, or of a trace step,
  * names a file the packet does not hold or a line its file does not have.
+ * A line a hunk of the diff shows is held, whether or not the tree holds it;
+ * a line only a hunk the cap left out of the diff shows is not.
  */
 function missingLine(finding: FindingBody, packet: PacketIndex): string | undefined {
   const sources = [
@@ -124,16 +136,17 @@ function missingLine(finding: FindingBody, packet: PacketIndex): string | undefi
   ]
   for (const { text, where } of sources) {
     for (const reference of lineReferences(text)) {
-      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate))
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet.lines.has(candidate) || packet.shown.has(candidate))
       if (path === undefined) return `${where} cites ${reference.path}, which is not in the packet`
-      const lines = packet.lines.get(path) ?? 0
+      const lines = packet.lines.get(path)
       const window = packet.windows.get(path)
-      const held = window === undefined ? [{ first: 1, last: lines }] : heldRanges(window)
+      const inTree = lines === undefined ? [] : window === undefined ? [{ first: 1, last: lines }] : heldRanges(window)
+      const held = mergeRanges([...inTree, ...(packet.shown.get(path) ?? [])])
       const outside = firstUnheld(reference, held)
       if (outside === undefined) continue
-      return window === undefined
+      return lines !== undefined && window === undefined
         ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`
-        : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(', ')} of ${String(window.lines)})`
+        : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(', ')}${window === undefined ? '' : ` of ${String(window.lines)}`})`
     }
   }
   return undefined

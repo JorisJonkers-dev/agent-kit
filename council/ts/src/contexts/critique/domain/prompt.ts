@@ -76,7 +76,9 @@ const CODE_FACT_DESCRIPTIONS: Readonly<Record<string, string>> = {
 const CODE_PACKET_NOTE = [
   '`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` records every file the cap left out or cut short: by name for the files the change touched, their importers, the files holding a slice and any file the diff, a ticket or the spec names, and counted per directory for the rest. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.',
   '',
-  'Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding\'s `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.',
+  'Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding\'s `location` and in each step of a `trace`. A line a hunk of `diff/change.diff` shows is cited the same way, at the number its `@@` line gives it. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.',
+  '',
+  'When the diff did not fit the packet cap, its first line says so and `facts/INDEX.md` lists each hunk it left out by file and line.',
   '',
   'A quote from `tree/REPO-MAP.md` or `facts/` is a fact the runner computed, never a recorded decision.',
 ].join('\n')

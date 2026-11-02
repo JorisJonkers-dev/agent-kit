@@ -107,15 +107,12 @@ export class CodePacketReader {
     const changedFiles = await Promise.all(
       changed.map(async (path): Promise<ChangedFile> => ({ before: await this.before(root, base, path), path, text: texts.get(path) ?? '' })),
     )
-    const documents: UnfrozenFile[] = [
-      { kind: 'diff', path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
-      ...tickets.files,
-      { kind: 'spec', path: join('spec', spec.name), source: spec.reference, text: spec.text },
-    ]
+    const documents: UnfrozenFile[] = [...tickets.files, { kind: 'spec', path: join('spec', spec.name), source: spec.reference, text: spec.text }]
     const repoMap = renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head })
     const sample = sampleCodeTree({
       changed,
       commit: head,
+      diff: read.diff,
       documentBytes: documents.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
       excluded,
       importers: [...new Set(changed.flatMap((path) => graph.importers(path)))].filter((path) => !changed.includes(path)).sort(),
@@ -128,6 +125,7 @@ export class CodePacketReader {
     })
     if (sample.status === 'refused') return sample
     const files: UnfrozenFile[] = [
+      { kind: 'diff', path: DIFF_PATH, source: `${base}..${head}`, text: sample.diff },
       ...documents,
       { kind: 'fact', path: REPO_MAP_PATH, source: head, text: repoMap.text },
       { kind: 'fact', path: FACTS_INDEX_PATH, source: head, text: sample.index },

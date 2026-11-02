@@ -1504,7 +1504,8 @@ function admitPieces(pieces, budget, describe) {
     if (piece.window && blocked2.has(candidate)) continue;
     const before = held.get(candidate) ?? [];
     const after = mergeRanges([...before, ...piece.ranges]);
-    const cost = bytes(heldText(candidate, after)) - bytes(heldText(candidate, before)) + lineBytes(describe(candidate, after)) - lineBytes(describe(candidate, before)) + lineBytes(piece.note?.(true)) - lineBytes(piece.note?.(false));
+    const index = describe === void 0 ? 0 : lineBytes(describe(candidate, after)) - lineBytes(describe(candidate, before)) + lineBytes(piece.note?.(true)) - lineBytes(piece.note?.(false));
+    const cost = bytes(heldText(candidate, after)) - bytes(heldText(candidate, before)) + index;
     if (cost > remaining) {
       if (piece.window) blocked2.add(candidate);
       continue;
@@ -2212,8 +2213,8 @@ function citedStories(text) {
     for (const part of (match[1] ?? "").split(/,|\band\b|\bor\b|&/)) {
       const [low, high = low] = (part.match(/\d+/g) ?? []).map(Number);
       if (low === void 0 || high === void 0) continue;
-      const span = high >= low && high - low <= MAX_RANGE ? high - low : 0;
-      for (let story = low; story <= low + span; story += 1) cited.add(story);
+      const span2 = high >= low && high - low <= MAX_RANGE ? high - low : 0;
+      for (let story = low; story <= low + span2; story += 1) cited.add(story);
       cited.add(high);
     }
   }
@@ -3533,11 +3534,173 @@ var CheckTicketsCommand = class {
 // src/contexts/critique/application/fan-out.ts
 import { join as join9 } from "node:path";
 
+// src/contexts/critique/domain/diff-filter.ts
+var LEFT_OUT_PREFIX = "Left out of this diff: ";
+var HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+function filterDiff(diff, leftOut) {
+  const kept2 = [];
+  const left = [];
+  for (const section2 of parseDiff(diff)) {
+    const reason = section2.path === void 0 ? void 0 : leftOut(section2.path);
+    if (section2.path === void 0 || reason === void 0) {
+      kept2.push(sectionText(section2));
+      continue;
+    }
+    const changed = countChangedLines(sectionText(section2));
+    left.push({ changed_lines: changed, path: section2.path, reason });
+    kept2.push(`${LEFT_OUT_PREFIX}${section2.path}, ${reason}; its ${String(changed)} changed lines are not shown.
+`);
+  }
+  return { diff: kept2.join(""), left_out: left };
+}
+function parseDiff(diff) {
+  const sections = [];
+  for (const line2 of diff.split(/(?<=\n)/)) {
+    const bare = line2.replace(/\n$/, "");
+    const current = sections.at(-1);
+    const hunk = HUNK_HEADER.exec(bare);
+    if (bare.startsWith("diff --git ") || bare.startsWith(LEFT_OUT_PREFIX) || current === void 0) {
+      sections.push({ header: line2, hunks: [], path: void 0 });
+    } else if (hunk !== null) {
+      current.hunks.push({ new: side(hunk[3], hunk[4]), old: side(hunk[1], hunk[2]), text: line2 });
+    } else {
+      const last = current.hunks.at(-1);
+      if (last === void 0) current.header += line2;
+      else current.hunks[current.hunks.length - 1] = { ...last, text: last.text + line2 };
+    }
+  }
+  return sections.map((section2) => ({ ...section2, path: section2.header.startsWith("diff --git ") ? headerPath(section2.header) : void 0 }));
+}
+function sectionText(section2) {
+  return section2.header + section2.hunks.map((hunk) => hunk.text).join("");
+}
+function side(start, count) {
+  return { count: count === void 0 ? 1 : Number(count), start: Number(start) };
+}
+function headerPath(header) {
+  const lines = header.replace(/\n$/, "").split("\n");
+  const field = (prefix, strip) => {
+    const line2 = lines.find((entry) => entry.startsWith(prefix));
+    if (line2 === void 0) return void 0;
+    const path = unquote(line2.slice(prefix.length).replace(/\t$/, ""));
+    return path === "/dev/null" || !path.startsWith(strip) ? void 0 : path.slice(strip.length);
+  };
+  return field("+++ ", "b/") ?? field("rename to ", "") ?? field("copy to ", "") ?? field("--- ", "a/") ?? gitLinePath(lines[0] ?? "");
+}
+function gitLinePath(line2) {
+  const rest = line2.slice("diff --git ".length);
+  if (rest.startsWith('"')) {
+    const second = rest.slice(quotedLength(rest) + 1);
+    const path2 = unquote(second);
+    return path2.startsWith("b/") ? path2.slice(2) : void 0;
+  }
+  const length = (rest.length - 5) / 2;
+  const path = rest.slice(2, 2 + length);
+  return rest === `a/${path} b/${path}` ? path : void 0;
+}
+function quotedLength(text) {
+  let i = 1;
+  while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+  return i + 1;
+}
+var ESCAPES = { '"': 34, "\\": 92, a: 7, b: 8, f: 12, n: 10, r: 13, t: 9, v: 11 };
+function unquote(text) {
+  if (!text.startsWith('"') || !text.endsWith('"') || text.length < 2) return text;
+  const bytes2 = [];
+  const body = text.slice(1, -1);
+  for (let i = 0; i < body.length; i += 1) {
+    const char = body[i] ?? "";
+    if (char !== "\\") {
+      bytes2.push(...new TextEncoder().encode(char));
+      continue;
+    }
+    const octal = /^[0-7]{3}/.exec(body.slice(i + 1));
+    if (octal !== null) {
+      bytes2.push(parseInt(octal[0], 8));
+      i += 3;
+      continue;
+    }
+    const next = body[i + 1] ?? "";
+    bytes2.push(ESCAPES[next] ?? next.charCodeAt(0));
+    i += 1;
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes2));
+}
+
+// src/contexts/critique/domain/diff-window.ts
+var FILE_KINDS = ["source", "test", "doc"];
+var TEST_PATH = /(^|\/)(tests?|__tests__|specs?)\/|[._-](test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$/;
+var DOC_PATH = /(^|\/)docs?\/|\.(md|mdx|markdown|rst|adoc|txt)$/i;
+function fileKind(path) {
+  if (TEST_PATH.test(path)) return "test";
+  return DOC_PATH.test(path) ? "doc" : "source";
+}
+var DIFF_WINDOW_NOTICE = "The packet cap left hunks out of this diff; facts/INDEX.md lists each one by file and line.\n";
+function windowDiff(diff, budget) {
+  const sections = parseDiff(diff);
+  const files = rankFiles(sections.filter((section2) => section2.path !== void 0));
+  const standing = sections.filter((section2) => section2.path === void 0).map(sectionText);
+  let remaining = budget;
+  const kept2 = [];
+  const dropped = [];
+  for (const file of files) {
+    const pieces = file.hunks.length === 0 ? [void 0] : file.hunks;
+    const sent = [];
+    const left = [];
+    for (const hunk of pieces) {
+      const cost = bytes(hunk?.text ?? "") + (sent.length === 0 ? bytes(file.header) : 0);
+      const fits = cost <= remaining;
+      if (fits) remaining -= cost;
+      if (hunk === void 0) {
+        if (fits) kept2.push(file.header);
+        else dropped.push({ hunks: [], path: file.path });
+        continue;
+      }
+      ;
+      (fits ? sent : left).push(hunk);
+    }
+    if (sent.length > 0) kept2.push(file.header + sent.map((hunk) => hunk.text).join(""));
+    if (left.length > 0) dropped.push({ hunks: left, path: file.path });
+  }
+  return { diff: [DIFF_WINDOW_NOTICE, ...kept2, ...standing].join(""), dropped };
+}
+function rankFiles(files) {
+  const changed = (file) => file.hunks.reduce((sum, hunk) => sum + countChangedLines(hunk.text), 0);
+  return [...files].sort(
+    (a, b) => FILE_KINDS.indexOf(fileKind(a.path)) - FILE_KINDS.indexOf(fileKind(b.path)) || changed(b) - changed(a) || (a.path < b.path ? -1 : 1)
+  );
+}
+function diffDropLine(drop) {
+  if (drop.hunks.length === 0) return `- \`${drop.path}\`: its whole section, which has no hunks`;
+  const head = drop.hunks.filter((hunk) => hunk.new.count > 0).map((hunk) => span(hunk.new.start, hunk.new.count));
+  const base = drop.hunks.filter((hunk) => hunk.new.count === 0).map((hunk) => span(hunk.old.start, hunk.old.count));
+  const parts = [...head.length === 0 ? [] : [`lines ${head.join(", ")}`], ...base.length === 0 ? [] : [`base lines ${base.join(", ")}`]];
+  return `- \`${drop.path}\`: ${parts.join("; ")}`;
+}
+function span(start, count) {
+  return count === 1 ? String(start) : `${String(start)}-${String(start + count - 1)}`;
+}
+function diffShownLines(diff) {
+  const shown = /* @__PURE__ */ new Map();
+  for (const section2 of parseDiff(diff)) {
+    if (section2.path === void 0) continue;
+    const ranges = section2.hunks.flatMap((hunk) => {
+      const side2 = hunk.new.count > 0 ? hunk.new : hunk.new.start === 0 ? hunk.old : void 0;
+      return side2 === void 0 || side2.count === 0 ? [] : [{ first: side2.start, last: side2.start + side2.count - 1 }];
+    });
+    shown.set(section2.path, [...shown.get(section2.path) ?? [], ...ranges]);
+  }
+  return new Map([...shown].map(([path, ranges]) => [path, mergeRanges(ranges)]));
+}
+
 // src/contexts/critique/domain/evidence.ts
 function indexPacket(packet2, tickets = []) {
   return {
     files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
     lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)])),
+    shown: new Map(
+      packet2.flatMap((file) => file.kind === "diff" ? [...diffShownLines(file.text)].map(([path, ranges]) => [`${TREE_DIR}/${path}`, ranges]) : [])
+    ),
     tickets,
     tree: packet2.some((file) => file.kind === "tree"),
     windows: new Map(packet2.flatMap((file) => file.window === void 0 ? [] : [[file.path, file.window]]))
@@ -3589,14 +3752,15 @@ function missingLine(finding, packet2) {
   ];
   for (const { text, where } of sources) {
     for (const reference of lineReferences(text)) {
-      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate));
+      const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate) || packet2.shown.has(candidate));
       if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
-      const lines = packet2.lines.get(path) ?? 0;
+      const lines = packet2.lines.get(path);
       const window = packet2.windows.get(path);
-      const held = window === void 0 ? [{ first: 1, last: lines }] : heldRanges(window);
+      const inTree = lines === void 0 ? [] : window === void 0 ? [{ first: 1, last: lines }] : heldRanges(window);
+      const held = mergeRanges([...inTree, ...packet2.shown.get(path) ?? []]);
       const outside = firstUnheld(reference, held);
       if (outside === void 0) continue;
-      return window === void 0 ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines` : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(", ")} of ${String(window.lines)})`;
+      return lines !== void 0 && window === void 0 ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines` : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(", ")}${window === void 0 ? "" : ` of ${String(window.lines)}`})`;
     }
   }
   return void 0;
@@ -3716,7 +3880,9 @@ var CODE_FACT_DESCRIPTIONS = {
 var CODE_PACKET_NOTE = [
   "`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` records every file the cap left out or cut short: by name for the files the change touched, their importers, the files holding a slice and any file the diff, a ticket or the spec names, and counted per directory for the rest. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.",
   "",
-  "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.",
+  "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A line a hunk of `diff/change.diff` shows is cited the same way, at the number its `@@` line gives it. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.",
+  "",
+  "When the diff did not fit the packet cap, its first line says so and `facts/INDEX.md` lists each hunk it left out by file and line.",
   "",
   "A quote from `tree/REPO-MAP.md` or `facts/` is a fact the runner computed, never a recorded decision."
 ].join("\n");
@@ -4665,14 +4831,19 @@ import { join as join12 } from "node:path";
 
 // src/contexts/critique/domain/code-sample.ts
 var CODE_TIERS = ["changed", "importer", "related", "rest"];
+var DIFF_SHARE = 0.5;
+var INDEX_SHARE = 0.25;
+var DIFF_WINDOW_NOTE = "`diff/change.diff` did not fit beside the rest of the packet, so it holds the hunks that fit, in windows by file: the changed source files, then the tests, then the docs, each group by changed lines, most first. Each hunk keeps its `@@` line, so a line it shows is cited at its own number as `tree/<path>:<line>`. A line only a left-out hunk shows can be read and cited only where `tree/` holds it, as the Tree section says. The cap left out these hunks, at their lines at the commit under review, or as `base lines` for a hunk that only removes lines:";
 function sampleCodeTree(request) {
   const { limits } = request;
   const candidates = codeCandidates(request);
-  const named = new Set(namedPaths(request.namedText));
+  const named = new Set(namedPaths(`${request.diff}
+${request.namedText}`));
   const counted = candidates.filter((candidate) => candidate.tier === "rest" && !named.has(candidate.path));
   const countedSet = new Set(counted);
   const treeLine = (candidate, held) => countedSet.has(candidate) || candidate.tier === "rest" && holdsAll(candidate, held) ? void 0 : fileLine(candidate, held);
   const reserved = dropSummaryBound(counted.flatMap((candidate) => possibleDrops(candidate, limits.window_lines)));
+  const unsent = candidates.flatMap((candidate) => treeLine(candidate, []) ?? []);
   const byPath = new Map(candidates.map((candidate) => [candidate.path, candidate]));
   const sliced = request.slices.flatMap((slice) => {
     const candidate = byPath.get(slice.path);
@@ -4682,26 +4853,44 @@ function sampleCodeTree(request) {
   const slicePieces = sliced.map((entry) => entry.piece);
   const pieces = [...slicePieces, ...windowOrder2(candidates, limits.window_lines)];
   const none = { admitted: /* @__PURE__ */ new Set(), held: /* @__PURE__ */ new Map() };
-  const fixed = request.documentBytes + bytes(request.repoMap.text) + bytes(renderIndex2(request, candidates.flatMap((candidate) => treeLine(candidate, []) ?? []), slicePieces, none)) + reserved;
-  if (fixed > limits.cap_bytes) {
-    return refusal(
-      "packet-over-cap",
-      `the diff, the tickets, the spec, ${REPO_MAP_PATH} and ${FACTS_INDEX_PATH} come to ${String(fixed)} bytes, past the packet cap of ${String(limits.cap_bytes)}; review a smaller change or raise packet.cap_bytes in routing`
-    );
+  const documents = request.documentBytes + bytes(request.repoMap.text);
+  const fixedWith = (diff2) => documents + bytes(diff2.diff) + bytes(renderIndex2(request, unsent, [], slicePieces, none, diff2.dropped)) + reserved;
+  const full = { diff: request.diff, dropped: [] };
+  let diff = full;
+  let indexCap;
+  if (fixedWith(full) > limits.cap_bytes) {
+    const empty = windowDiff(request.diff, 0);
+    const fixedBefore = fixedWith(empty);
+    if (fixedBefore <= limits.cap_bytes) {
+      diff = windowDiff(request.diff, Math.floor((limits.cap_bytes - fixedBefore) * DIFF_SHARE));
+    } else {
+      const collapsed = bytes(renderIndex2(request, unsent, [], slicePieces, none, empty.dropped, limits.cap_bytes, false));
+      const floor = documents + bytes(empty.diff) + collapsed + reserved;
+      if (floor > limits.cap_bytes) {
+        return refusal(
+          "packet-over-cap",
+          `the tickets, the spec, ${REPO_MAP_PATH} and ${FACTS_INDEX_PATH} come to ${String(floor)} bytes before any hunk of the diff, past the packet cap of ${String(limits.cap_bytes)}; review a smaller change or raise packet.cap_bytes in routing`
+        );
+      }
+      const room = limits.cap_bytes - documents - bytes(empty.diff) - reserved;
+      const listsCap = Math.max(collapsed, Math.floor(room * INDEX_SHARE));
+      indexCap = listsCap + reserved;
+      const windowed = windowDiff(request.diff, Math.floor((room - listsCap) * DIFF_SHARE));
+      diff = windowed.dropped.length === 0 ? full : windowed;
+    }
   }
-  const admission = admitPieces(pieces, limits.cap_bytes - fixed, treeLine);
+  const admission = indexCap === void 0 ? admitPieces(pieces, limits.cap_bytes - fixedWith(diff), treeLine) : admitPieces(pieces, limits.cap_bytes - documents - bytes(diff.diff) - indexCap, void 0);
   const heldOf = (candidate) => admission.held.get(candidate) ?? [];
-  const listed = [
-    ...candidates.flatMap((candidate) => treeLine(candidate, heldOf(candidate)) ?? []),
-    ...summariseDrops(counted.flatMap((candidate) => capDrop(candidate, heldOf(candidate), limits.window_lines) ?? []))
-  ];
+  const listed = candidates.flatMap((candidate) => treeLine(candidate, heldOf(candidate)) ?? []);
+  const counts = summariseDrops(counted.flatMap((candidate) => capDrop(candidate, heldOf(candidate), limits.window_lines) ?? []));
   const tree = candidates.flatMap((candidate) => {
     const file = sampledFile(candidate, admission.held.get(candidate) ?? []);
     return file === void 0 ? [] : [file];
   });
   return {
+    diff: diff.diff,
     dropped: candidates.filter((candidate) => !holdsAll(candidate, admission.held.get(candidate) ?? [])).length,
-    index: renderIndex2(request, listed, slicePieces, admission),
+    index: renderIndex2(request, listed, counts, slicePieces, admission, diff.dropped, indexCap),
     slices: sliced.filter((entry) => admission.admitted.has(entry.piece)).map((entry) => entry.slice),
     status: "sampled",
     tree
@@ -4734,12 +4923,35 @@ function sliceCitation(slice) {
 function sliceLine(slice, admitted) {
   return `- \`${sliceCitation(slice)}\`: ${sliceReason(slice)}: ${admitted ? "sent" : "the cap dropped it"}`;
 }
-function renderIndex2(request, tree, slicePieces, admission) {
+function renderIndex2(request, tree, counts, slicePieces, admission, diffDropped, capBytes, fill = true) {
+  const lists = [
+    request.leftOut.map((file) => `- \`${file.path}\`: ${file.reason}; ${String(file.changed_lines)} changed lines`),
+    diffDropped.map(diffDropLine),
+    slicePieces.map((piece) => piece.note?.(admission.admitted.has(piece)) ?? ""),
+    tree
+  ];
+  const render = (shown) => indexText(request, shown, counts);
+  if (capBytes === void 0) return render(lists);
+  const kept2 = lists.map(() => 0);
+  const cut = () => lists.map((list2, i) => collapse(list2, kept2[i] ?? 0, capBytes));
+  let remaining = fill ? capBytes - bytes(render(cut())) : 0;
+  for (const [i, list2] of lists.entries()) {
+    for (const line2 of list2) {
+      if (lineBytes(line2) > remaining) break;
+      remaining -= lineBytes(line2);
+      kept2[i] = (kept2[i] ?? 0) + 1;
+    }
+  }
+  return render(cut());
+}
+function collapse(list2, kept2, capBytes) {
+  if (kept2 >= list2.length) return list2;
+  return [...list2.slice(0, kept2), `- \u2026 and ${String(list2.length - kept2)} more, which this index's cap of ${String(capBytes)} bytes leaves unlisted`];
+}
+function indexText(request, [leftOut = [], diffDropped = [], slices = [], tree = []], counts) {
   const { limits, repoMap } = request;
   const { generated, lock, vendored } = request.excluded;
   const binary = request.tracked.filter((file) => file.text === null).length;
-  const leftOut = request.leftOut.map((file) => `- \`${file.path}\`: ${file.reason}; ${String(file.changed_lines)} changed lines`);
-  const slices = slicePieces.map((piece) => piece.note?.(admission.admitted.has(piece)) ?? "");
   return [
     "# Facts",
     "",
@@ -4757,6 +4969,7 @@ function renderIndex2(request, tree, slicePieces, admission) {
     "",
     `Never sent under \`tree/\`: ${String(vendored)} vendored, ${String(generated)} generated and ${String(lock)} lock files, and ${String(binary)} binary files.`,
     ...leftOut.length === 0 ? [] : ["", "Left out of `diff/change.diff`, each with one line in its place:", "", ...leftOut],
+    ...diffDropped.length === 0 ? [] : ["", "## Diff", "", DIFF_WINDOW_NOTE, "", ...diffDropped],
     "",
     "## Context slices",
     "",
@@ -4769,6 +4982,7 @@ function renderIndex2(request, tree, slicePieces, admission) {
     `Files under \`tree/\`, in the order the cap let them in: the slices above, then the files the change touched, then the files that import them, then the rest of the tree. A file goes in windows of ${String(limits.window_lines)} lines from its first line. A file cut short holds the lines listed here at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. Of the rest of the tree, a file the diff, a ticket or the spec names is listed by name, the cap's other drops are counted per directory with the bytes left out (\`dir/**\` counts every file under it), and a file neither listed nor counted was sent in full.`,
     "",
     ...tree,
+    ...counts,
     ""
   ].join("\n");
 }
@@ -4870,35 +5084,6 @@ function commonLines(a, b) {
   return kept2;
 }
 
-// src/contexts/critique/domain/diff-filter.ts
-var FILE_HEADER = /^diff --git a\/(.+) b\/(.+)$/;
-function filterDiff(diff, leftOut) {
-  const kept2 = [];
-  const left = [];
-  for (const section2 of fileSections(diff)) {
-    const reason = section2.path === void 0 ? void 0 : leftOut(section2.path);
-    if (section2.path === void 0 || reason === void 0) {
-      kept2.push(section2.text);
-      continue;
-    }
-    const changed = countChangedLines(section2.text);
-    left.push({ changed_lines: changed, path: section2.path, reason });
-    kept2.push(`Left out of this diff: ${section2.path}, ${reason}; its ${String(changed)} changed lines are not shown.
-`);
-  }
-  return { diff: kept2.join(""), left_out: left };
-}
-function fileSections(diff) {
-  const sections = [];
-  for (const line2 of diff.split(/(?<=\n)/)) {
-    const header = FILE_HEADER.exec(line2.replace(/\n$/, ""));
-    const current = sections.at(-1);
-    if (header !== null || current === void 0) sections.push({ path: header?.[2], text: line2 });
-    else current.text += line2;
-  }
-  return sections;
-}
-
 // src/contexts/critique/application/code-change.ts
 var CodeChangeReader = class {
   constructor(deps) {
@@ -4992,15 +5177,12 @@ var CodePacketReader = class {
     const changedFiles = await Promise.all(
       changed.map(async (path) => ({ before: await this.before(root, base, path), path, text: texts.get(path) ?? "" }))
     );
-    const documents = [
-      { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
-      ...tickets.files,
-      { kind: "spec", path: join12("spec", spec.name), source: spec.reference, text: spec.text }
-    ];
+    const documents = [...tickets.files, { kind: "spec", path: join12("spec", spec.name), source: spec.reference, text: spec.text }];
     const repoMap = renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head });
     const sample = sampleCodeTree({
       changed,
       commit: head,
+      diff: read.diff,
       documentBytes: documents.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
       excluded,
       importers: [...new Set(changed.flatMap((path) => graph.importers(path)))].filter((path) => !changed.includes(path)).sort(),
@@ -5013,6 +5195,7 @@ var CodePacketReader = class {
     });
     if (sample.status === "refused") return sample;
     const files = [
+      { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: sample.diff },
       ...documents,
       { kind: "fact", path: REPO_MAP_PATH, source: head, text: repoMap.text },
       { kind: "fact", path: FACTS_INDEX_PATH, source: head, text: sample.index },
