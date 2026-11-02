@@ -123,6 +123,12 @@ export interface PrepareResult {
   readonly depth_choice: DepthChoice
   readonly critics: readonly CriticIdentity[]
   readonly dropped: readonly DroppedCritic[]
+  /**
+   * Whether the allowlist entry lets this repository send its history,
+   * commit messages and issue text; a stage that wants history leaves it
+   * out while this is false.
+   */
+  readonly history: boolean
 }
 
 /**
@@ -251,6 +257,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       depth: roster.depth,
       depth_choice: choice,
       dropped: roster.dropped,
+      history: entry.history,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
       packet_files: listedFiles(manifest).map((file) => file.path),

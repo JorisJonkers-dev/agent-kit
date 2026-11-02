@@ -433,6 +433,7 @@ function parseAllowlist(text) {
     repositories: file.entries("repositories", (entry) => ({
       code: entry.has("code") ? entry.boolean("code") : false,
       families: entry.oneOfList("families", MODEL_FAMILIES),
+      history: entry.has("history") ? entry.boolean("history") : false,
       updated_at: entry.string("updated_at")
     })),
     version: file.literal("version", 1)
@@ -443,7 +444,7 @@ function withEntry(allowlist, key2, permission, at) {
     version: 1,
     repositories: {
       ...allowlist.repositories,
-      [key2]: { code: permission.code, families: permission.families, updated_at: at.toISOString() }
+      [key2]: { code: permission.code, families: permission.families, history: permission.history, updated_at: at.toISOString() }
     }
   };
 }
@@ -541,17 +542,20 @@ var AllowCommand = class {
     const input = readInput(raw, "allow", (fields) => ({
       code: fields.has("code") ? fields.boolean("code") : void 0,
       families: fields.oneOfList("families", MODEL_FAMILIES),
+      history: fields.has("history") ? fields.boolean("history") : void 0,
       repo: fields.string("repo")
     }));
     const repository = await this.repositories.resolve(input.repo);
     if (repository.status === "refused") return repository;
     const path = allowlistPath(this.deps.env);
     const allowlist = await this.repositories.allowlist();
-    const code = input.code ?? allowlist.repositories[repository.key]?.code ?? false;
-    const next = withEntry(allowlist, repository.key, { code, families: input.families }, this.deps.clock.now());
+    const current = allowlist.repositories[repository.key];
+    const code = input.code ?? current?.code ?? false;
+    const history = input.history ?? current?.history ?? false;
+    const next = withEntry(allowlist, repository.key, { code, families: input.families, history }, this.deps.clock.now());
     await this.deps.files.writeText(path, `${JSON.stringify(next, null, 2)}
 `);
-    return { allowlist_path: path, code, families: input.families, repository: repository.key, status: "allowed" };
+    return { allowlist_path: path, code, families: input.families, history, repository: repository.key, status: "allowed" };
   }
 };
 
@@ -4188,6 +4192,7 @@ var PrepareCommand = class {
       depth: roster.depth,
       depth_choice: choice,
       dropped: roster.dropped,
+      history: entry.history,
       manifest_path: manifestPath(runDir),
       packet_dir: packetDir,
       packet_files: listedFiles(manifest).map((file) => file.path),
@@ -5372,9 +5377,10 @@ var SetupCommand = class {
     const routed_families = [
       ...new Set(Object.values(routing.clients).map((client) => client.family))
     ];
-    return entry === void 0 ? { code: false, families: [], key: resolved.key, routed_families, status: "not-opted-in" } : {
+    return entry === void 0 ? { code: false, families: [], history: false, key: resolved.key, routed_families, status: "not-opted-in" } : {
       code: entry.code,
       families: entry.families,
+      history: entry.history,
       key: resolved.key,
       routed_families,
       status: "opted-in"

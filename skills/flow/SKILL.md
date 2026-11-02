@@ -239,8 +239,9 @@ By `repository.status`:
 
 - `refused`: give its `message`; the repository sends nothing, so there is
   nothing to offer.
-- `opted-in`: one line with its `families`, and whether `code` is on.
-- `not-opted-in`: two separate offers, each with its own yes, no or skip:
+- `opted-in`: one line with its `families`, and whether `code` and
+  `history` are on.
+- `not-opted-in`: three separate offers, each with its own yes, no or skip:
   1. **Families**: which model families this repository may send documents
      to. Propose `routed_families`; the owner may name fewer. On yes, run
      the runner's `allow` command (`critique.mjs allow --json '<object>'`)
@@ -249,6 +250,11 @@ By `repository.status`:
      (ticket review and feature review) may send this repository's code to
      those families. On yes, run `allow` again with the same families and
      `"code": true`.
+  3. **History**, only once families are allowed: the history permission,
+     off by default, lets a stage send this repository's commit messages
+     and issue text to those families. Without it, a stage leaves history
+     out. On yes, run `allow` again with the same families and
+     `"history": true`.
 
 Without `repository` (outside a repository), skip this step.
 

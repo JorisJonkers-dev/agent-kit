@@ -657,6 +657,7 @@ describe("the repository's opt-in", () => {
     expect((await listed(h, { repo: h.repo })).repository).toEqual({
       code: false,
       families: [],
+      history: false,
       key: 'github.com/jorisjonkers-dev/agent-kit',
       routed_families: ['mistral', 'google', 'zhipu', 'deepseek'],
       status: 'not-opted-in',
@@ -670,6 +671,17 @@ describe("the repository's opt-in", () => {
     expect((await listed(h, { repo: h.repo })).repository).toMatchObject({
       code: false,
       families: ['mistral', 'google'],
+      status: 'opted-in',
+    })
+  })
+
+  it('reports the history permission of an opted-in repository apart from its code permission', async () => {
+    const h = await machine()
+    await h.commands.allow.run({ families: ['mistral'], history: true, repo: h.repo })
+
+    expect((await listed(h, { repo: h.repo })).repository).toMatchObject({
+      code: false,
+      history: true,
       status: 'opted-in',
     })
   })

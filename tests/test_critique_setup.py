@@ -290,6 +290,15 @@ def test_flow_explain_reads_every_section_it_names_from_the_pipeline_readme() ->
     assert named <= headings, named - headings
 
 
+@pytest.mark.parametrize("skill", ["flow", "critique-spec", "critique-decisions"])
+def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(skill: str) -> None:
+    """The allowlist entry's history permission (commit messages, issue text) is off until the owner turns it on."""
+    text = " ".join((KIT_ROOT / "skills" / skill / "SKILL.md").read_text().split())
+    assert "history permission" in text, skill
+    assert "off by default" in text, skill
+    assert '"history": true' in text, skill
+
+
 def test_the_pipeline_readme_names_every_stage_and_lens_it_explains() -> None:
     readme = (KIT_ROOT / "skills" / "critique" / "README.md").read_text()
     for stage in json.loads(ROUTING.read_text())["stages"]:
