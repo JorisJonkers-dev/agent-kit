@@ -87,6 +87,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server (Private Memory), in `vibe-private` only | never exported; sealed behind your passphrase, given to `vibe-private` per launch |
 | `MISTRAL_STUDY_API_KEY` | `vibe-study`: Vibe signed in with the Study account | optional; you get it with `vibe-study --login` (setup never asks); never exported, read only by `vibe-study` |
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
+| `OUTLINE_API_KEY` | the `outline` MCP server (Outline at notes.jorisjonkers.dev) | required for `outline`; without it the server is not registered |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
 
 `HINDSIGHT_API_TOKEN` and `MEMORY_PRIVATE_TOKEN` are **per-host, individually
@@ -165,6 +166,25 @@ optional, because `olcli auth` once stores the session itself; export it as an
 override, or skip it. The self-hosted base URL is baked into the registry, so a
 bare `olcli` with no `OVERLEAF_BASE_URL` talks to overleaf.com and every call
 404s against a project that is not there.
+
+`OUTLINE_API_KEY` is an API key of a **separate Outline user**, not your own
+account. Outline gives the key exactly that user's access, so the `outline`
+server reads and writes only what you share with that user: whole
+collections, or single documents. A collection that every member can view is
+visible to that user too, so keep collections the agent must not see private.
+To set it up:
+
+1. Create the user: sign in to `notes.jorisjonkers.dev` once with a separate
+   auth-api account that has the notes grant.
+2. Signed in as an admin, check that the MCP server is on under Settings →
+   Workspace → AI.
+3. Share what the agent may use with that user.
+4. Signed in as that user, create a key under Settings → API & Apps, and paste
+   it when setup asks.
+
+Setup checks the key against `https://notes.jorisjonkers.dev/mcp` before it
+stores it. Documents the agent writes belong to that user; share them back
+with your own account to edit them there.
 
 ### Keeping a directory out of the shared bank
 

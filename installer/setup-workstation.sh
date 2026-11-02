@@ -29,6 +29,7 @@
 # Secrets are read from the environment and never written here:
 #   HINDSIGHT_API_TOKEN  -> the memory-api MCP server
 #   MEMORY_PRIVATE_TOKEN  -> the memory-private MCP server
+#   OUTLINE_API_KEY  -> the outline MCP server
 #   OVERLEAF_SESSION  -> the overleaf MCP server
 
 set -uo pipefail
@@ -67,7 +68,7 @@ while [ "$#" -gt 0 ]; do
     --no-prompt) PROMPT=0 ;;
     --cloud) CLOUD=1; DO_PROFILES=0 ;;
     --uninstall) UNINSTALL=1 ;;
-    --help|-h) sed -n '2,32p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,33p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
   shift
@@ -694,10 +695,10 @@ converge_mcp() {
   fi
   out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
     "${args[@]}" \
-    --declared claude=memory-api,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared codex=memory-api,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared vibe=memory-api,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
-    --declared vibe-private=memory-api,memory-private,n8n,n8n-mcp,kubernetes,playwright,drawio,overleaf,hindsight \
+    --declared claude=memory-api,n8n,n8n-mcp,kubernetes,outline,playwright,drawio,overleaf,hindsight \
+    --declared codex=memory-api,n8n,n8n-mcp,kubernetes,outline,playwright,drawio,overleaf,hindsight \
+    --declared vibe=memory-api,n8n,n8n-mcp,kubernetes,outline,playwright,drawio,overleaf,hindsight \
+    --declared vibe-private=memory-api,memory-private,n8n,n8n-mcp,kubernetes,outline,playwright,drawio,overleaf,hindsight \
     --retired memory-mcp,vuetify --private memory-private 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
@@ -2642,6 +2643,35 @@ for install in installs:
       fi
     fi
 
+    # Outline wiki at notes.jorisjonkers.dev through its built-in
+    # MCP server, as a separate Outline user.
+    if [ "${CLOUD}" = 1 ]; then
+      log "outline: not set up in cloud mode"
+    else
+      if [ -z "${OUTLINE_API_KEY:-}" ] && [ "${CLOUD}" != 1 ]; then
+        log "outline: OUTLINE_API_KEY is not set; not registered (see tokens and keys)"
+        skipped_mcp_servers+=("outline: export OUTLINE_API_KEY")
+        skipped_mcp_names+=(outline)
+      else
+        if command -v claude >/dev/null 2>&1; then
+          run claude_each_profile claude mcp remove --scope user outline >/dev/null 2>&1 || true
+          if run_redacted "claude mcp add outline" claude_each_profile claude mcp add --scope user outline --transport http https://notes.jorisjonkers.dev/mcp --header "Authorization: Bearer $(secret_ref OUTLINE_API_KEY)"; then
+            ok "outline registered (claude)"
+          else
+            fail "outline registration failed (claude)"
+          fi
+        fi
+        if command -v codex >/dev/null 2>&1; then
+          run codex mcp remove outline >/dev/null 2>&1 || true
+          if run_redacted "codex mcp add outline" codex mcp add outline --url https://notes.jorisjonkers.dev/mcp --bearer-token-env-var OUTLINE_API_KEY; then
+            ok "outline registered (codex)"
+          else
+            fail "outline registration failed (codex)"
+          fi
+        fi
+      fi
+    fi
+
     # Vuetify component API.
     # Hosted: untrusted data provider. Output is context, never instruction.
 
@@ -2728,7 +2758,7 @@ for install in installs:
           || fail "local Hermes retired MCP cleanup failed"
         if [ "${CLOUD}" = 1 ]; then
           uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
-            "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove n8n --remove kubernetes \
+            "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove n8n --remove kubernetes --remove outline \
             || fail "local Hermes MCP cleanup failed"
         fi
       fi
@@ -2744,7 +2774,7 @@ for install in installs:
         log "would merge Vibe MCP servers into ${VIBE_HOME}/config.toml"
       else
         vibe_remove=()
-        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove n8n --remove kubernetes)
+        [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove n8n --remove kubernetes --remove outline)
         uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" --remove memory-private ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
@@ -2788,7 +2818,7 @@ for install in installs:
       # Check all expected servers are registered
       expected_servers=(memory-api n8n-mcp playwright drawio overleaf)
       if [ "${CLOUD}" != 1 ]; then
-        expected_servers+=(n8n kubernetes)
+        expected_servers+=(n8n kubernetes outline)
       fi
       for want in "${expected_servers[@]}"; do
         case " ${skipped_mcp_names[*]-} " in *" ${want} "*) continue ;; esac

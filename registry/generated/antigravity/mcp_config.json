@@ -21,6 +21,14 @@
       "serverUrl": "http://127.0.0.1:18080/mcp",
       "timeoutSeconds": 60
     },
+    "outline": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"$HOME/.local/bin/antigravity-mcp-proxy\" --url 'https://notes.jorisjonkers.dev/mcp' --secret OUTLINE_API_KEY"
+      ],
+      "timeoutSeconds": 60
+    },
     "playwright": {
       "command": "playwright-mcp",
       "args": [
