@@ -28,7 +28,10 @@ HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 # Ways a document has said that a code packet holds the whole tree. The text
 # is matched with its line breaks and runs of spaces folded to one space.
 WHOLE_TREE_CLAIMS = [
-    re.compile(r"every (?:regular |tracked |text )?file (?:of|at|in) (?:the |`head`'s )?(?:staged |whole )?(?:tree|head)\b", re.I),
+    re.compile(
+        r"every (?:regular |tracked |text )?file (?:of|at|in) (?:the |`head`'s )?(?:staged |whole )?(?:tree|head)\b",
+        re.I,
+    ),
     re.compile(r"every tracked file", re.I),
     re.compile(r"every tree file is a packet file", re.I),
     re.compile(r"\b(?:holds|freezes|froze|sends) the whole tree\b", re.I),

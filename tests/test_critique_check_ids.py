@@ -32,11 +32,18 @@ DECLARES_SEVERITY: frozenset[str] = frozenset()
 def bullet_lists(text: str) -> list[list[str]]:
     """The top-level bullets of each list, a list being a blank-line-separated block that opens with a bullet."""
     blocks = [block.splitlines() for block in re.split(r"\n\s*\n", text)]
-    return [[line for line in block if line.startswith("- ")] for block in blocks if block and block[0].startswith("- ")]
+    return [
+        [line for line in block if line.startswith("- ")]
+        for block in blocks
+        if block and block[0].startswith("- ")
+    ]
 
 
 def check_id_problems(text: str, kind: str, may_declare_severity: bool = False) -> list[str]:
-    """What is wrong with a lens's or role's check ids: a check bullet without one, an id used twice, or a severity it may not declare."""
+    """What is wrong with a lens's or role's check ids.
+
+    A check bullet without one, an id used twice, or a severity it may not declare.
+    """
     lists = bullet_lists(text)
     checks = [bullet for group in lists for bullet in group] if kind == "lens" else (lists[0] if lists else [])
     problems = [f"no check id: {bullet}" for bullet in checks if not CHECK_BULLET.match(bullet)]
