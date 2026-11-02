@@ -194,8 +194,8 @@ head it holds for to `<run_dir>/gate.json`, which the PR gate reads.
 
 Return record's `summary` as the runner wrote it; its first line is the gate.
 Under it, list the follow-up tickets you filed, then one line per `skipped`
-result of the refute round, `Refute skipped: <finding_id> (<reason_code>)`. While the gate is FAIL, tell
-the owner the PR waits: fix each critical follow-up through `/implement`,
-close it once its fix is on the feature branch (`gh issue close`, or
-`**Status:** done` in a local ticket), then run `/review-feature` again on the
-new head. Each run's gate belongs to the head it reviewed.
+result of the refute round, `Refute skipped: <finding_id> (<reason_code>)`.
+While the gate is FAIL, tell the owner the PR waits: fix each critical
+follow-up through `/implement`, close it once its fix is on the feature
+branch (`gh issue close`, or `**Status:** done` in a local ticket), then run
+`/review-feature` again on the new head. Each run's gate belongs to the head it reviewed.
