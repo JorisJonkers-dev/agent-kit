@@ -674,25 +674,25 @@ critique:
       sha256: 65becf61d98d40d27a34a997fecfbe4b84263009a62125fdc1939ed61714e907
       mode: "0755"
     - path: skills/critique/lenses/failure-modes.md
-      sha256: 45072c2f787a1df8513d69b146cbdff974150e7cce602107aaf50a39e4079c2c
+      sha256: 065246fe8dc81466f44cc0597358bd26c9c31b5301f6c72780123c2370ca5d62
       mode: "0644"
     - path: skills/critique/lenses/fidelity.md
-      sha256: b9575e6a4a9ed7848a281422caf172491e0261f70506441e3879bbf97c2cd9e1
+      sha256: caeb79a390b5cd773df298e285dbe759a8a29fa9b8a66d45afab82c6d5d713f8
       mode: "0644"
     - path: skills/critique/lenses/integration.md
-      sha256: 4a8805f174c34d5cdc966bdd07cf3e6ab7d6cbce4f3c5577235fec62e7f057c4
+      sha256: 57c7efbe680878eac7b4ca617352f8d71b98044b1c97b94e3c3fbf5e1e1af138
       mode: "0644"
     - path: skills/critique/lenses/operability.md
       sha256: 4321e341a688c22ee44cadd79debdd4f36175582ab981699b14bbc58f69eba4e
       mode: "0644"
     - path: skills/critique/lenses/security.md
-      sha256: 15b4ca4235f0a935547ad8a67280c66de5561e288d753bbf0a200d7ffc4ba62f
+      sha256: b5de59d883f30d436029c6b8c114c99f85d5cc93ccc873db30a66e36c215e7bb
       mode: "0644"
     - path: skills/critique/lenses/simplicity.md
-      sha256: 958620a3fcf1a12b20c7742bf2780dc873d8a2e6ea97bba0e40336a40bc2cfa1
+      sha256: 2cc16d1399cb56cf35ee8129152f0f41db56927e039aeb439af37ffef129c080
       mode: "0644"
     - path: skills/critique/lenses/testability.md
-      sha256: 9d1a21249706bab63b3e0baebb40b72f69dcd357397cf6eb39211bb0e5078412
+      sha256: f9628794c06dc8b21ef2a4fd16cbd662ab89931e608bfe174e95b8a9a217608a
       mode: "0644"
     - path: skills/critique/lenses/unasked-questions.md
       sha256: ff175e0efb61106a561e9bd3b374d0461d8913d3f25d7fe7a797c680a9188a13

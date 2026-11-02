@@ -11,3 +11,6 @@ Check how the artifact fits what already exists.
   nothing enforces.
 - `convention-ignored`: Look for an existing convention the artifact ignores
   without saying why.
+- `unversioned-change`: Look for a public interface (a flag, a format, a
+  schema, an exported name) that changes with no deprecation or version
+  step.

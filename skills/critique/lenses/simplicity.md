@@ -8,6 +8,8 @@ Check whether the artifact asks for more than its problem needs.
   with only one value or one user.
 - `droppable-step`: Look for steps that could be dropped without losing a
   stated outcome.
+- `hypothetical-seam`: Look for a port with one adapter and no test
+  adapter, a seam that nothing yet varies.
 
 A simplicity finding must name the requirement that the simpler version
 still meets.
