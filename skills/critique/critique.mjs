@@ -643,10 +643,10 @@ function quotaReached(count, quota, stage) {
 
 // src/contexts/critique/domain/stage-table.ts
 var STAGE_TABLE = {
-  // The ADR packet and evidence rule are placeholders until the repository
-  // packet (#221) and /critique-adrs (#249) give the stage its own: for now
-  // the records are the artifact, so a finding quotes one and either a
-  // reference or a scenario, as at the spec stage.
+  // The evidence rule is a placeholder until /critique-adrs (#249) gives the
+  // stage its own: for now the records are the artifact, so a finding quotes
+  // one and either a reference or a scenario, as at the spec stage. With the
+  // code permission on, the ADR packet is a repository packet (#221).
   "adr-review": { doNotStart: null, evidence: "spec", flowKey: "run", packet: "adrs", removal: "runs", secondRound: true },
   // A decisions run's accepted findings are questions for the owner and change
   // no artifact, so it never calls for a second round.
@@ -1329,6 +1329,345 @@ function containsTerm(text, term) {
   return new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, "iu").test(text);
 }
 
+// src/contexts/critique/domain/line-references.ts
+var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
+var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
+var LOOKS_LIKE_A_FILE = /\/|\.[A-Za-z]\w*$/;
+function lineReferences(text) {
+  return [...text.replace(URL, " ").matchAll(REFERENCE)].flatMap((match) => {
+    const path = (match[1] ?? "").replace(/^\.\//, "");
+    if (!LOOKS_LIKE_A_FILE.test(path)) return [];
+    const first = Number(match[2]);
+    return [{ first, last: match[3] === void 0 ? first : Number(match[3]), path }];
+  });
+}
+function packetCandidates(path, treeDir) {
+  const diffSide = /^[ab]\/(.+)$/.exec(path);
+  return [path, `${treeDir}/${path}`, ...diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ""}`], `artifact/${path}`, `references/${path}`];
+}
+function lineCount(text) {
+  if (text.length === 0) return 0;
+  return text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+}
+
+// src/contexts/critique/domain/triage.ts
+function readTriageRules(fields) {
+  const model = fields.object("model");
+  return {
+    changed_lines_threshold: fields.number("changed_lines_threshold"),
+    labels: fields.strings("labels"),
+    model: {
+      client: model.string("client"),
+      max_price_usd: model.number("max_price_usd"),
+      time_limit_s: model.number("time_limit_s")
+    },
+    risk_paths: fields.strings("risk_paths")
+  };
+}
+function codeChange(diff, paths) {
+  return { changed_lines: countChangedLines(diff), paths };
+}
+function riskSignals(change, labels, rules) {
+  const carried = new Set(labels.map((label) => label.toLowerCase()));
+  return [
+    ...change.paths.flatMap((path) => {
+      const glob = rules.risk_paths.find((candidate) => matchesGlob(path, candidate));
+      return glob === void 0 ? [] : [{ glob, kind: "risk-path", path }];
+    }),
+    ...change.changed_lines > rules.changed_lines_threshold ? [{ changed_lines: change.changed_lines, kind: "size", threshold: rules.changed_lines_threshold }] : [],
+    ...rules.labels.filter((label) => carried.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
+  ];
+}
+function riskPathHits(change, rules) {
+  return change.paths.filter((path) => rules.risk_paths.some((glob) => matchesGlob(path, glob))).length;
+}
+function matchesGlob(path, glob) {
+  return globPattern(glob).test(path);
+}
+function globPattern(glob) {
+  let pattern = "";
+  let braces = 0;
+  for (let i = 0; i < glob.length; i += 1) {
+    const char = glob.charAt(i);
+    if (glob.startsWith("**/", i)) {
+      pattern += "(?:.*/)?";
+      i += 2;
+    } else if (glob.startsWith("/**", i) && i + 3 === glob.length) {
+      pattern += "(?:/.*)?";
+      i += 2;
+    } else if (glob.startsWith("**", i)) {
+      pattern += ".*";
+      i += 1;
+    } else if (char === "*") pattern += "[^/]*";
+    else if (char === "?") pattern += "[^/]";
+    else if (char === "{") {
+      braces += 1;
+      pattern += "(?:";
+    } else if (char === "}" && braces > 0) {
+      braces -= 1;
+      pattern += ")";
+    } else if (char === "," && braces > 0) pattern += "|";
+    else pattern += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${pattern}$`);
+}
+function countChangedLines(diff) {
+  let header = false;
+  let count = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git ")) header = true;
+    else if (header && (line.startsWith("+++ ") || line.startsWith("@@"))) header = false;
+    else if (!header && (line.startsWith("+") || line.startsWith("-"))) count += 1;
+  }
+  return count;
+}
+function readTriageAnswer(text) {
+  const word = text.trim().toLowerCase().replace(/^[\s*_`"']+|[\s*_`"'.!]+$/g, "");
+  return word === "yes" || word === "no" ? word : void 0;
+}
+function triageSummary(decision, signal, client) {
+  const model = `no risk rule fired, and the triage model (${client})`;
+  switch (signal.kind) {
+    case "risk-path":
+      return `Triage: risky: ${signal.path} matches the risk path ${signal.glob}.`;
+    case "size":
+      return `Triage: risky: ${String(signal.changed_lines)} changed lines, above the threshold of ${String(signal.threshold)}.`;
+    case "label":
+      return `Triage: risky: the ticket carries the label ${signal.label}.`;
+    case "model":
+      return decision === "risky" ? `Triage: risky: ${model} answered yes.` : `Triage: low-risk: ${model} answered no, so the review is skipped.`;
+    case "model-unavailable":
+      return `Triage: risky: ${model} could not answer: ${signal.detail}.`;
+  }
+}
+function triageLedgerLine(record) {
+  return {
+    type: record.status === "low-risk" ? "run" : "triage",
+    recorded_at: record.recorded_at,
+    repository: record.repository,
+    flow: record.flow,
+    run_id: record.run_id,
+    stage: "ticket-review",
+    status: record.status === "low-risk" ? "skipped-low-risk" : "risky",
+    ticket: record.ticket.reference,
+    triage_signal: ledgerSignal(record.signal),
+    risk_signals: record.signals.map(ledgerSignal),
+    changed_files: record.change.changed_files,
+    changed_lines: record.change.changed_lines,
+    changed_lines_threshold: record.change.changed_lines_threshold,
+    client: record.model?.client ?? null,
+    model: record.model?.model ?? null,
+    answer: record.model?.answer ?? null,
+    cost_usd: record.model?.cost_usd ?? null,
+    charged_usd: record.model?.charged_usd ?? 0,
+    prompt_hash: record.prompt_hash
+  };
+}
+function ledgerSignal(signal) {
+  if (signal.kind === "risk-path") return { glob: signal.glob, kind: signal.kind };
+  if (signal.kind === "model-unavailable") return { kind: signal.kind, reason: signal.reason };
+  return signal;
+}
+
+// src/contexts/critique/domain/repository-packet.ts
+var EXCLUSION_KINDS = ["vendored", "generated", "lock"];
+var DEFAULT_PACKET_LIMITS = {
+  cap_bytes: 153600,
+  exclude: { generated: [], lock: [], vendored: [] },
+  facts_cap_bytes: 30720,
+  window_lines: 400
+};
+function readPacketLimits(fields) {
+  const exclude = fields.object("exclude");
+  return {
+    cap_bytes: fields.positiveInteger("cap_bytes"),
+    exclude: { generated: exclude.strings("generated"), lock: exclude.strings("lock"), vendored: exclude.strings("vendored") },
+    facts_cap_bytes: fields.positiveInteger("facts_cap_bytes"),
+    window_lines: fields.positiveInteger("window_lines")
+  };
+}
+function excludedByPath(path, limits) {
+  return EXCLUSION_KINDS.find((kind) => limits.exclude[kind].some((glob) => matchesGlob(path, glob)));
+}
+var MARKER_LINES = 5;
+var GENERATED_MARKER = /@generated|do not edit/i;
+function isGenerated(text) {
+  return GENERATED_MARKER.test(text.split("\n", MARKER_LINES).join("\n"));
+}
+var NO_FACTS = { files: [] };
+var TIERS = ["named", "hotspot", "entry", "cycle"];
+var ENTRY_FILES = /* @__PURE__ */ new Set([
+  "index.ts",
+  "index.tsx",
+  "index.js",
+  "index.jsx",
+  "index.mjs",
+  "index.cjs",
+  "main.ts",
+  "__init__.py",
+  "__main__.py",
+  "main.py",
+  "mod.rs",
+  "lib.rs",
+  "main.rs",
+  "main.go",
+  "Main.kt",
+  "main.kt",
+  "Main.java"
+]);
+var MANIFEST_PATH = "tree/MANIFEST.tsv";
+var FACTS_INDEX_PATH = "facts/INDEX.md";
+var encoder = new TextEncoder();
+function bytes(text) {
+  return encoder.encode(text).length;
+}
+function sampleRepository(request) {
+  const { limits } = request;
+  const manifest = renderManifest(request);
+  const facts = admitFacts(request.facts.files, limits.facts_cap_bytes);
+  const candidates = sampleCandidates(request);
+  const sent = new Map(candidates.map((candidate) => [candidate, 0]));
+  const index = () => renderIndex(request, facts, candidates, sent);
+  const fixed = request.documentBytes + bytes(manifest) + facts.reduce((sum, file) => sum + bytes(file.text), 0) + bytes(index());
+  if (fixed > limits.cap_bytes) {
+    return refusal(
+      "packet-over-cap",
+      `the documents, ${MANIFEST_PATH} and facts/ come to ${String(fixed)} bytes, past the packet cap of ${String(limits.cap_bytes)}; review fewer records or raise packet.cap_bytes in routing`
+    );
+  }
+  let remaining = limits.cap_bytes - fixed;
+  const blocked2 = /* @__PURE__ */ new Set();
+  for (const { candidate, window } of windowOrder(candidates)) {
+    if (blocked2.has(candidate)) continue;
+    const cost = bytes(prefix(candidate, window, limits)) - bytes(prefix(candidate, window - 1, limits)) + bytes(sampleLine(candidate, window, limits)) - bytes(sampleLine(candidate, window - 1, limits));
+    if (cost > remaining) {
+      blocked2.add(candidate);
+      continue;
+    }
+    remaining -= cost;
+    sent.set(candidate, window);
+  }
+  const tree = candidates.flatMap((candidate) => {
+    const windows = sent.get(candidate) ?? 0;
+    if (windows === 0) return [];
+    const text = prefix(candidate, windows, limits);
+    const cut = windows < candidate.windows ? { window: { last: windows * limits.window_lines, lines: candidate.lineCount } } : {};
+    return [{ path: candidate.path, text, ...cut }];
+  });
+  return {
+    dropped: candidates.filter((candidate) => (sent.get(candidate) ?? 0) < candidate.windows).length,
+    facts,
+    index: index(),
+    manifest,
+    status: "sampled",
+    tree
+  };
+}
+function windowOrder(candidates) {
+  const order = candidates.flatMap(
+    (candidate, position) => Array.from({ length: candidate.windows }, (_, i) => ({ candidate, position, window: i + 1 }))
+  );
+  return order.sort(
+    (a, b) => TIERS.indexOf(a.candidate.tier) - TIERS.indexOf(b.candidate.tier) || a.window - b.window || a.position - b.position
+  );
+}
+function prefix(candidate, windows, limits) {
+  if (windows === 0) return "";
+  if (windows === candidate.windows) return candidate.text;
+  return `${candidate.lines.slice(0, windows * limits.window_lines).join("\n")}
+`;
+}
+function admitFacts(files, cap) {
+  let remaining = cap;
+  return files.filter((file) => {
+    const size = bytes(file.text);
+    if (size > remaining) return false;
+    remaining -= size;
+    return true;
+  });
+}
+function sampleCandidates(request) {
+  const documents = new Set(request.documents);
+  const texts = new Map(
+    request.tracked.flatMap(
+      (file) => file.text === null || documents.has(file.path) || file.path === "MANIFEST.tsv" ? [] : [[file.path, file.text]]
+    )
+  );
+  const tiers = {
+    cycle: request.facts.cycles?.flat() ?? [],
+    entry: [...texts.keys()].filter((path) => ENTRY_FILES.has(path.split("/").at(-1) ?? "")),
+    hotspot: request.facts.hotspots ?? [],
+    named: namedPaths(request.artifactText)
+  };
+  const seen = /* @__PURE__ */ new Set();
+  return TIERS.flatMap(
+    (tier) => tiers[tier].flatMap((path) => {
+      const text = texts.get(path);
+      if (text === void 0 || seen.has(path)) return [];
+      seen.add(path);
+      const count = lineCount(text);
+      return [{ lineCount: count, lines: text.split("\n"), path, text, tier, windows: Math.max(1, Math.ceil(count / request.limits.window_lines)) }];
+    })
+  );
+}
+function namedPaths(text) {
+  return (text.match(/[\w@+.\-/]+/g) ?? []).map((word) => word.replace(/^(?:\.\/|tree\/)/, "").replace(/\.+$/, ""));
+}
+function renderManifest(request) {
+  const rank2 = (path) => String(request.facts.churn_ranks?.get(path) ?? "-");
+  const rows = request.tracked.map((file) => `${file.path}	${file.text === null ? "-" : String(lineCount(file.text))}	${rank2(file.path)}`);
+  return `${["path	lines	churn_rank", ...rows].join("\n")}
+`;
+}
+function sampleLine(candidate, windows, limits) {
+  const head = `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): `;
+  if (windows === 0) return `${head}the cap dropped it`;
+  if (windows === candidate.windows) return `${head}sent in full`;
+  const last = windows * limits.window_lines;
+  return `${head}sent lines 1-${String(last)}; the cap dropped lines ${String(last + 1)}-${String(candidate.lineCount)}`;
+}
+function renderIndex(request, facts, candidates, sent) {
+  const { limits } = request;
+  const admitted = new Set(facts);
+  const factLines = request.facts.files.map(
+    (file) => `- \`facts/${file.name}\`: ${file.holds}${admitted.has(file) ? "" : "; the facts cap dropped it"}`
+  );
+  const { generated, lock, vendored } = request.excluded;
+  const skipped = [
+    ...request.facts.hotspots === void 0 ? ["No hotspot facts yet, so no hotspot was sampled."] : [],
+    ...request.facts.cycles === void 0 ? ["No import facts yet, so no import cycle was sampled."] : []
+  ];
+  const samples = candidates.map((candidate) => sampleLine(candidate, sent.get(candidate) ?? 0, limits));
+  return [
+    "# Facts",
+    "",
+    `What the runner computed from the repository at commit \`${request.commit}\`. Facts are settled: cite them, never recompute them. A quote from a fact is a fact, never a recorded decision.`,
+    "",
+    "## Files",
+    "",
+    `- \`${MANIFEST_PATH}\`: every tracked path but the excluded ones, with its line count (\`-\` for a binary file) and its churn rank (\`-\` while no churn facts exist). Columns: \`path\`, \`lines\`, \`churn_rank\`.`,
+    ...factLines,
+    ...factLines.length === 0 ? ["", "No other facts are computed yet."] : [],
+    "",
+    "## Limits",
+    "",
+    `Packet cap ${String(limits.cap_bytes)} bytes; facts cap ${String(limits.facts_cap_bytes)} bytes; windows of ${String(limits.window_lines)} lines.`,
+    "",
+    "## Excluded",
+    "",
+    `Never sent, and not in \`${MANIFEST_PATH}\`: ${String(vendored)} vendored, ${String(generated)} generated and ${String(lock)} lock files.`,
+    "",
+    "## Sample",
+    "",
+    `Files sent under \`tree/\`, in the order they were chosen: the files the artifact names, the top hotspots, each module's entry file, then the files on each import cycle. A longer file is sent in windows of ${String(limits.window_lines)} lines from its first line, at its own line numbers. What the cap left out is listed here.`,
+    "",
+    ...skipped,
+    ...skipped.length === 0 ? [] : [""],
+    ...samples.length === 0 ? ["Nothing was sampled."] : samples,
+    ""
+  ].join("\n");
+}
+
 // src/contexts/critique/domain/tickets.ts
 function dependencyCycles(tickets) {
   const index = new Map(tickets.map((ticket, i) => [ticket.id, i]));
@@ -1561,125 +1900,6 @@ function parseTriageIndexRecord(text) {
   };
 }
 
-// src/contexts/critique/domain/triage.ts
-function readTriageRules(fields) {
-  const model = fields.object("model");
-  return {
-    changed_lines_threshold: fields.number("changed_lines_threshold"),
-    labels: fields.strings("labels"),
-    model: {
-      client: model.string("client"),
-      max_price_usd: model.number("max_price_usd"),
-      time_limit_s: model.number("time_limit_s")
-    },
-    risk_paths: fields.strings("risk_paths")
-  };
-}
-function codeChange(diff, paths) {
-  return { changed_lines: countChangedLines(diff), paths };
-}
-function riskSignals(change, labels, rules) {
-  const carried = new Set(labels.map((label) => label.toLowerCase()));
-  return [
-    ...change.paths.flatMap((path) => {
-      const glob = rules.risk_paths.find((candidate) => matchesGlob(path, candidate));
-      return glob === void 0 ? [] : [{ glob, kind: "risk-path", path }];
-    }),
-    ...change.changed_lines > rules.changed_lines_threshold ? [{ changed_lines: change.changed_lines, kind: "size", threshold: rules.changed_lines_threshold }] : [],
-    ...rules.labels.filter((label) => carried.has(label.toLowerCase())).map((label) => ({ kind: "label", label }))
-  ];
-}
-function riskPathHits(change, rules) {
-  return change.paths.filter((path) => rules.risk_paths.some((glob) => matchesGlob(path, glob))).length;
-}
-function matchesGlob(path, glob) {
-  return globPattern(glob).test(path);
-}
-function globPattern(glob) {
-  let pattern = "";
-  let braces = 0;
-  for (let i = 0; i < glob.length; i += 1) {
-    const char = glob.charAt(i);
-    if (glob.startsWith("**/", i)) {
-      pattern += "(?:.*/)?";
-      i += 2;
-    } else if (glob.startsWith("/**", i) && i + 3 === glob.length) {
-      pattern += "(?:/.*)?";
-      i += 2;
-    } else if (glob.startsWith("**", i)) {
-      pattern += ".*";
-      i += 1;
-    } else if (char === "*") pattern += "[^/]*";
-    else if (char === "?") pattern += "[^/]";
-    else if (char === "{") {
-      braces += 1;
-      pattern += "(?:";
-    } else if (char === "}" && braces > 0) {
-      braces -= 1;
-      pattern += ")";
-    } else if (char === "," && braces > 0) pattern += "|";
-    else pattern += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  }
-  return new RegExp(`^${pattern}$`);
-}
-function countChangedLines(diff) {
-  let header = false;
-  let count = 0;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("diff --git ")) header = true;
-    else if (header && (line.startsWith("+++ ") || line.startsWith("@@"))) header = false;
-    else if (!header && (line.startsWith("+") || line.startsWith("-"))) count += 1;
-  }
-  return count;
-}
-function readTriageAnswer(text) {
-  const word = text.trim().toLowerCase().replace(/^[\s*_`"']+|[\s*_`"'.!]+$/g, "");
-  return word === "yes" || word === "no" ? word : void 0;
-}
-function triageSummary(decision, signal, client) {
-  const model = `no risk rule fired, and the triage model (${client})`;
-  switch (signal.kind) {
-    case "risk-path":
-      return `Triage: risky: ${signal.path} matches the risk path ${signal.glob}.`;
-    case "size":
-      return `Triage: risky: ${String(signal.changed_lines)} changed lines, above the threshold of ${String(signal.threshold)}.`;
-    case "label":
-      return `Triage: risky: the ticket carries the label ${signal.label}.`;
-    case "model":
-      return decision === "risky" ? `Triage: risky: ${model} answered yes.` : `Triage: low-risk: ${model} answered no, so the review is skipped.`;
-    case "model-unavailable":
-      return `Triage: risky: ${model} could not answer: ${signal.detail}.`;
-  }
-}
-function triageLedgerLine(record) {
-  return {
-    type: record.status === "low-risk" ? "run" : "triage",
-    recorded_at: record.recorded_at,
-    repository: record.repository,
-    flow: record.flow,
-    run_id: record.run_id,
-    stage: "ticket-review",
-    status: record.status === "low-risk" ? "skipped-low-risk" : "risky",
-    ticket: record.ticket.reference,
-    triage_signal: ledgerSignal(record.signal),
-    risk_signals: record.signals.map(ledgerSignal),
-    changed_files: record.change.changed_files,
-    changed_lines: record.change.changed_lines,
-    changed_lines_threshold: record.change.changed_lines_threshold,
-    client: record.model?.client ?? null,
-    model: record.model?.model ?? null,
-    answer: record.model?.answer ?? null,
-    cost_usd: record.model?.cost_usd ?? null,
-    charged_usd: record.model?.charged_usd ?? 0,
-    prompt_hash: record.prompt_hash
-  };
-}
-function ledgerSignal(signal) {
-  if (signal.kind === "risk-path") return { glob: signal.glob, kind: signal.kind };
-  if (signal.kind === "model-unavailable") return { kind: signal.kind, reason: signal.reason };
-  return signal;
-}
-
 // src/contexts/critique/domain/routing.ts
 var CLIENT_KINDS = ["vibe", "agy"];
 function readTriageRouting(fields, clients) {
@@ -1701,6 +1921,7 @@ function parseRouting(text) {
     clients,
     fallbacks: file.has("fallbacks") ? file.stringLists("fallbacks") : {},
     limits: readLimits(file),
+    packet: file.has("packet") ? readPacketLimits(file.object("packet")) : DEFAULT_PACKET_LIMITS,
     stages: file.entries("stages", (stage, name) => ({
       base: stage.list("base", readRosterSlot),
       deep: stage.has("deep") ? stage.list("deep", readRosterSlot) : [],
@@ -1887,7 +2108,7 @@ ${comment.body.trim()}`));
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
-var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec", "check", "feature"];
+var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec", "check", "feature", "fact"];
 var ARTIFACT_ORIGINS = [...TRACKER_KINDS, "none"];
 function specReference(manifest) {
   const spec = manifest.stage === "ticket-review" ? manifest.packet_files.find((file) => file.kind === "spec") : void 0;
@@ -1920,7 +2141,8 @@ function parseManifest(text) {
       kind: packetFile.oneOf("kind", PACKET_FILE_KINDS),
       path: packetFile.string("path"),
       sha256: packetFile.string("sha256"),
-      source: packetFile.string("source")
+      source: packetFile.string("source"),
+      ...packetFile.has("window") ? { window: readWindow(packetFile.object("window")) } : {}
     })),
     ...readRound(file),
     ...file.has("ticket_check") ? { ticket_check: readTicketCheck(file.object("ticket_check")) } : {},
@@ -1931,6 +2153,9 @@ function parseManifest(text) {
     stage: file.oneOf("stage", CRITIQUE_STAGES),
     version: file.literal("version", 1)
   };
+}
+function readWindow(window) {
+  return { last: window.positiveInteger("last"), lines: window.positiveInteger("lines") };
 }
 function readRound(file) {
   if (!file.has("round") || file.number("round") !== 2) return { round: file.has("round") ? file.literal("round", 1) : 1 };
@@ -2863,39 +3088,30 @@ var CheckTicketsCommand = class {
 // src/contexts/critique/application/fan-out.ts
 import { join as join9 } from "node:path";
 
-// src/contexts/critique/domain/line-references.ts
-var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
-var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
-var LOOKS_LIKE_A_FILE = /\/|\.[A-Za-z]\w*$/;
-function lineReferences(text) {
-  return [...text.replace(URL, " ").matchAll(REFERENCE)].flatMap((match) => {
-    const path = (match[1] ?? "").replace(/^\.\//, "");
-    if (!LOOKS_LIKE_A_FILE.test(path)) return [];
-    const first = Number(match[2]);
-    return [{ first, last: match[3] === void 0 ? first : Number(match[3]), path }];
-  });
-}
-function packetCandidates(path, treeDir) {
-  const diffSide = /^[ab]\/(.+)$/.exec(path);
-  return [path, `${treeDir}/${path}`, ...diffSide === null ? [] : [`${treeDir}/${diffSide[1] ?? ""}`]];
-}
-function lineCount(text) {
-  if (text.length === 0) return 0;
-  return text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
-}
-
 // src/contexts/critique/domain/evidence.ts
 function indexPacket(packet2, tickets = []) {
   return {
     files: packet2.map((file) => ({ ...file, normalised: normalise(file.text) })),
     lines: new Map(packet2.map((file) => [file.path, lineCount(file.text)])),
-    tickets
+    tickets,
+    tree: packet2.some((file) => file.kind === "tree"),
+    windows: new Map(packet2.flatMap((file) => file.window === void 0 ? [] : [[file.path, file.window]]))
   };
 }
 var TREE_DIR = "tree";
 var DECISION_CATEGORIES = ["omission", "invention"];
 function checkEvidence(finding, stage, packet2) {
-  const found = { decision: false, items: finding.evidence.length, scenario: false, spec: false };
+  const found = evidenceFound(finding, packet2);
+  if (typeof found === "number") return fabricated(`evidence ${String(found + 1)} quotes text that is not in the packet`);
+  if (isCodeStage(stage) || packet2.tree) {
+    const missing = missingLine(finding, packet2);
+    if (missing !== void 0) return fabricated(missing);
+  }
+  const hint = found.items === 0 ? "no-evidence" : EVIDENCE_RULES[STAGE_TABLE[stage].evidence](finding, found, packet2);
+  return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
+}
+function evidenceFound(finding, packet2) {
+  const found = { decision: false, fact: false, items: finding.evidence.length, scenario: false, spec: false };
   for (const [index, evidence] of finding.evidence.entries()) {
     if (evidence.kind !== "quote") {
       found.scenario = true;
@@ -2903,16 +3119,12 @@ function checkEvidence(finding, stage, packet2) {
     }
     const quote = normalise(evidence.value);
     const holders = packet2.files.filter((file) => file.normalised.includes(quote));
-    if (holders.length === 0) return fabricated(`evidence ${String(index + 1)} quotes text that is not in the packet`);
+    if (holders.length === 0) return index;
     found.spec ||= holders.some((file) => file.kind === "artifact");
     found.decision ||= holders.some((file) => file.kind === "reference");
+    found.fact ||= holders.some((file) => file.kind === "fact");
   }
-  if (isCodeStage(stage)) {
-    const missing = missingLine(finding, packet2);
-    if (missing !== void 0) return fabricated(missing);
-  }
-  const hint = found.items === 0 ? "no-evidence" : EVIDENCE_RULES[STAGE_TABLE[stage].evidence](finding, found, packet2);
-  return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
+  return found;
 }
 var EVIDENCE_RULES = {
   code: (finding) => codeRule(finding.evidence),
@@ -2936,7 +3148,9 @@ function missingLine(finding, packet2) {
       if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
       const lines = packet2.lines.get(path) ?? 0;
       const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines);
-      if (outside !== void 0) return `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines`;
+      if (outside === void 0) continue;
+      const window = packet2.windows.get(path);
+      return window === void 0 ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines` : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (1-${String(window.last)} of ${String(window.lines)})`;
     }
   }
   return void 0;
@@ -3023,6 +3237,7 @@ var DESCRIPTIONS = {
   artifact: "the artifact under review",
   check: "the deterministic ticket checker's report on these tickets",
   diff: "the change under review, as a diff against its base",
+  fact: "a fact the runner computed from the repository: settled, so cite it and never recompute it",
   feature: "the feature the decisions are for",
   reference: "reference material",
   spec: "the spec the tickets come from",
@@ -3030,6 +3245,16 @@ var DESCRIPTIONS = {
   tree: "a file the change touched, as it is at the commit under review"
 };
 var TICKETS_STAGE_DESCRIPTIONS = { ticket: "a ticket under review" };
+var REPOSITORY_DESCRIPTIONS = {
+  tree: "a file of the repository, sampled at the commit under review"
+};
+var REPOSITORY_PACKET_NOTE = [
+  "`tree/` holds a sample of the repository, at each file's repository path. `tree/MANIFEST.tsv` lists every tracked path with its line count, and `facts/INDEX.md` says why each file was sampled, which files were cut short and what the packet cap left out. You cannot read a file the packet does not hold; say what you would need from it instead.",
+  "",
+  "A file cut short holds its first lines at their own numbers. Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.",
+  "",
+  "A quote from `facts/` or `tree/MANIFEST.tsv` is a fact the runner computed, never a recorded decision."
+].join("\n");
 var CODE_PACKET_NOTE = [
   "Every other file of the repository at the commit under review is under `tree/`, at its repository path; read one with read_file as `tree/<repository path>`.",
   "",
@@ -3037,7 +3262,8 @@ var CODE_PACKET_NOTE = [
 ].join("\n");
 function assemblePrompt(sources, files, stage) {
   const codePacket = isCodeStage(stage);
-  const describe = (kind) => (stage === "tickets" ? TICKETS_STAGE_DESCRIPTIONS[kind] : void 0) ?? DESCRIPTIONS[kind];
+  const repositoryPacket = files.some((file) => file.kind === "fact");
+  const describe = (kind) => (stage === "tickets" ? TICKETS_STAGE_DESCRIPTIONS[kind] : void 0) ?? (repositoryPacket ? REPOSITORY_DESCRIPTIONS[kind] : void 0) ?? DESCRIPTIONS[kind];
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join("\n\n");
   const contract = `${sources.contract.trim()}
 
@@ -3050,7 +3276,8 @@ ${sources.schema.trim()}
     codePacket ? "Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:" : "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
     "",
     ...files.map((file) => `- \`${file.path}\`: ${describe(file.kind)}`),
-    ...codePacket ? ["", CODE_PACKET_NOTE] : []
+    ...codePacket ? ["", CODE_PACKET_NOTE] : [],
+    ...repositoryPacket ? ["", REPOSITORY_PACKET_NOTE] : []
   ].join("\n");
   return {
     lens_hashes: Object.fromEntries(sources.lenses.map((lens) => [lens.name, sha256(lens.text)])),
@@ -3091,7 +3318,8 @@ async function readFrozenPacket(deps, manifest) {
     manifest.packet_files.map(async (file) => ({
       kind: file.kind,
       path: file.path,
-      text: await deps.files.readText(join7(manifest.packet_dir, file.path))
+      text: await deps.files.readText(join7(manifest.packet_dir, file.path)),
+      ...file.window === void 0 ? {} : { window: file.window }
     }))
   );
 }
@@ -3928,14 +4156,14 @@ function gateFailLine(what, retry, record, head) {
 import { join as join16 } from "node:path";
 
 // src/contexts/critique/application/adr-packet.ts
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 
 // src/contexts/critique/domain/decision-docs.ts
 var DOMAIN_DOC = "docs/agents/domain.md";
 var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
 var ADR_DIRECTORY = "docs/adr";
 var CONTEXT_MAP = "CONTEXT-MAP.md";
-function namedPaths(markdown) {
+function namedPaths2(markdown) {
   const prose2 = withoutFences(markdown);
   const candidates = [...prose2.matchAll(/`([^`\n]+)`|\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? match[2] ?? "");
   const paths = candidates.map((candidate) => candidate.trim().replace(/^\.\//, "").replace(/\/+$/, "")).filter((candidate) => /^[\w.-]+(\/[\w.-]+)*$/.test(candidate) && !candidate.split("/").includes(".."));
@@ -3957,45 +4185,8 @@ function withoutFences(markdown) {
   return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
 }
 
-// src/contexts/critique/application/adr-packet.ts
-var ADR_ARTIFACT = "adrs";
-var AdrPacketReader = class {
-  constructor(files) {
-    this.files = files;
-  }
-  files;
-  async read(root, request) {
-    const records = (await this.files.listFiles(join12(root, ADR_DIRECTORY))).filter((name) => name.endsWith(".md")).map((name) => join12(ADR_DIRECTORY, name));
-    const reviewed = request.adrs === void 0 ? records : request.adrs.map((path) => insideRepository(root, path));
-    if (reviewed.length === 0) return refusal("no-adrs", `found no decision records in ${ADR_DIRECTORY}/ to review`);
-    const references = request.references?.map((path) => insideRepository(root, path)) ?? [
-      ...await this.glossary(root),
-      ...records.filter((path) => !reviewed.includes(path))
-    ];
-    const read = async (folder, source) => ({
-      kind: folder,
-      path: join12(folder === "artifact" ? "artifact" : "references", source),
-      source,
-      text: await this.files.readText(join12(root, source))
-    });
-    const artifact = await Promise.all(reviewed.map((source) => read("artifact", source)));
-    return {
-      adrs: artifact.length,
-      artifact: { labels: [], reference: ADR_ARTIFACT, text: artifact.map((file) => file.text).join("\n\n"), tracker: "none" },
-      files: [...artifact, ...await Promise.all(references.map((source) => read("reference", source)))],
-      status: "read"
-    };
-  }
-  /** The first of `GLOSSARY.md` and `CONTEXT.md` the repository has, as decision docs pick it. */
-  async glossary(root) {
-    const present = await this.files.listFiles(root);
-    const found = GLOSSARIES.find((name) => present.includes(name));
-    return found === void 0 ? [] : [found];
-  }
-};
-
 // src/contexts/critique/application/code-packet.ts
-import { join as join13 } from "node:path";
+import { join as join12 } from "node:path";
 
 // src/contexts/critique/application/code-change.ts
 var CodeChangeReader = class {
@@ -4022,7 +4213,7 @@ var CodeChangeReader = class {
 
 // src/contexts/critique/application/code-packet.ts
 var TREE_DIR2 = "tree";
-var DIFF_PATH = join13("diff", "change.diff");
+var DIFF_PATH = join12("diff", "change.diff");
 var READ_CONCURRENCY = 16;
 var CodePacketReader = class {
   constructor(deps) {
@@ -4052,7 +4243,7 @@ var CodePacketReader = class {
     const files = [
       { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
       ...tickets.files,
-      { kind: "spec", path: join13("spec", spec.name), source: spec.reference, text: spec.text },
+      { kind: "spec", path: join12("spec", spec.name), source: spec.reference, text: spec.text },
       ...tree
     ];
     return {
@@ -4061,7 +4252,7 @@ var CodePacketReader = class {
       code: {
         base: request.base,
         base_commit: base,
-        changed_files: changed.map((path) => join13(TREE_DIR2, path)),
+        changed_files: changed.map((path) => join12(TREE_DIR2, path)),
         head: request.head,
         head_commit: head
       },
@@ -4090,15 +4281,125 @@ var CodePacketReader = class {
       const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
       batch.forEach((path, i) => {
         const text = texts[i] ?? "";
-        if (!text.includes("\0")) files.push({ kind: "tree", path: join13(TREE_DIR2, path), source: path, text });
+        if (!text.includes("\0")) files.push({ kind: "tree", path: join12(TREE_DIR2, path), source: path, text });
       });
     }
     return files;
   }
 };
 function ticketFile(name, reference, text) {
-  return { kind: "ticket", path: join13("tickets", name), source: reference, text };
+  return { kind: "ticket", path: join12("tickets", name), source: reference, text };
 }
+
+// src/contexts/critique/application/adr-packet.ts
+var ADR_ARTIFACT = "adrs";
+var READ_CONCURRENCY2 = 16;
+var AdrPacketReader = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async read(root, request) {
+    const { files } = this.deps;
+    const records = (await files.listFiles(join13(root, ADR_DIRECTORY))).filter((name) => name.endsWith(".md")).map((name) => join13(ADR_DIRECTORY, name));
+    const reviewed = request.adrs === void 0 ? records : request.adrs.map((path) => insideRepository(root, path));
+    if (reviewed.length === 0) return refusal("no-adrs", `found no decision records in ${ADR_DIRECTORY}/ to review`);
+    const references = request.references?.map((path) => insideRepository(root, path)) ?? [
+      ...await this.glossary(root),
+      ...records.filter((path) => !reviewed.includes(path))
+    ];
+    const read = async (folder, source) => ({
+      kind: folder,
+      path: join13(folder === "artifact" ? "artifact" : "references", source),
+      source,
+      text: await files.readText(join13(root, source))
+    });
+    const artifact = await Promise.all(reviewed.map((source) => read("artifact", source)));
+    const documents = [...artifact, ...await Promise.all(references.map((source) => read("reference", source)))];
+    const text = artifact.map((file) => file.text).join("\n\n");
+    const packet2 = {
+      adrs: artifact.length,
+      artifact: { labels: [], reference: ADR_ARTIFACT, text, tracker: "none" },
+      files: documents,
+      status: "read"
+    };
+    return request.code === void 0 ? packet2 : this.withTree(root, packet2, request.code);
+  }
+  /** Adds the sampled tree, its manifest and the facts to a documents-only packet. */
+  async withTree(root, packet2, code) {
+    const commit = await this.deps.git.resolveCommit(root, code.head);
+    const { excluded, tracked } = await this.tracked(root, commit, code.limits);
+    const sample = sampleRepository({
+      artifactText: packet2.artifact.text,
+      commit,
+      documentBytes: packet2.files.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
+      documents: packet2.files.map((file) => file.source),
+      excluded,
+      // No scan computes facts yet: #232 and #233 compute them here, and
+      // freeze each of `sample.facts` as `facts/<name>`, kind `fact`.
+      facts: NO_FACTS,
+      limits: code.limits,
+      tracked
+    });
+    if (sample.status === "refused") return sample;
+    const source = commit;
+    const files = [
+      ...packet2.files,
+      { kind: "fact", path: MANIFEST_PATH, source, text: sample.manifest },
+      { kind: "fact", path: FACTS_INDEX_PATH, source, text: sample.index },
+      ...sample.tree.map(
+        (file) => ({
+          kind: "tree",
+          path: join13(TREE_DIR2, file.path),
+          source: file.path,
+          text: file.text,
+          ...file.window === void 0 ? {} : { window: file.window }
+        })
+      )
+    ];
+    return {
+      ...packet2,
+      files,
+      repository: {
+        cap_bytes: code.limits.cap_bytes,
+        dropped_files: sample.dropped,
+        head_commit: commit,
+        packet_bytes: files.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
+        tree_files: sample.tree.length
+      }
+    };
+  }
+  /**
+   * Every tracked path at the commit, sorted, with its text, or null for a
+   * binary file; an excluded path is counted, never read past its marker.
+   */
+  async tracked(root, commit, limits) {
+    const excluded = { generated: 0, lock: 0, vendored: 0 };
+    const paths = (await this.deps.git.treeFiles(root, commit)).filter((path) => {
+      const kind = excludedByPath(path, limits);
+      if (kind !== void 0) excluded[kind] += 1;
+      return kind === void 0;
+    });
+    const tracked = [];
+    for (let start = 0; start < paths.length; start += READ_CONCURRENCY2) {
+      const batch = paths.slice(start, start + READ_CONCURRENCY2);
+      const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
+      batch.forEach((path, i) => {
+        const text = texts[i] ?? "";
+        if (text.includes("\0")) tracked.push({ path, text: null });
+        else if (isGenerated(text)) excluded.generated += 1;
+        else tracked.push({ path, text });
+      });
+    }
+    return { excluded, tracked };
+  }
+  /** The first of `GLOSSARY.md` and `CONTEXT.md` the repository has, as decision docs pick it. */
+  async glossary(root) {
+    const present = await this.deps.files.listFiles(root);
+    const found = GLOSSARIES.find((name) => present.includes(name));
+    return found === void 0 ? [] : [found];
+  }
+};
 
 // src/contexts/critique/application/decision-docs.ts
 import { basename as basename2, dirname as dirname4, join as join14 } from "node:path";
@@ -4118,7 +4419,7 @@ var DecisionDocs = class {
   }
   async fromDomainDoc(root, text) {
     const found = [];
-    for (const path of namedPaths(text)) {
+    for (const path of namedPaths2(text)) {
       found.push(...await this.expand(root, path));
       if (basename2(path) === CONTEXT_MAP && await this.isFile(root, path)) {
         found.push(...await this.contexts(root, await this.files.readText(join14(root, path))));
@@ -4129,7 +4430,7 @@ var DecisionDocs = class {
   /** Each `CONTEXT.md` a context map names, with the ADRs beside it. */
   async contexts(root, map) {
     const found = [];
-    for (const path of namedPaths(map).filter((named) => basename2(named) === "CONTEXT.md")) {
+    for (const path of namedPaths2(map).filter((named) => basename2(named) === "CONTEXT.md")) {
       found.push(...await this.expand(root, path), ...await this.markdownIn(root, join14(dirname4(path), ADR_DIRECTORY)));
     }
     return found;
@@ -4239,7 +4540,7 @@ var PrepareCommand = class {
     this.decisionDocs = new DecisionDocs(deps.files);
     this.codePackets = new CodePacketReader(deps);
     this.decisionsPackets = new DecisionsPacketReader(deps.files);
-    this.adrPackets = new AdrPacketReader(deps.files);
+    this.adrPackets = new AdrPacketReader(deps);
     this.routing = new RoutingSource(deps);
     this.staged = new StagedDiffReader(deps);
   }
@@ -4288,7 +4589,7 @@ var PrepareCommand = class {
       );
     }
     const snapshot = input.staged ? await this.staged.snapshot(repository.root) : void 0;
-    const contents = await this.contents(repository, snapshot === void 0 ? input : { ...input, head: snapshot.commit });
+    const contents = await this.contents(repository, snapshot === void 0 ? input : { ...input, head: snapshot.commit }, entry.code);
     if (contents.status === "refused") return contents;
     const { artifact, change, ticketCheck } = contents;
     const code = contents.code === void 0 || snapshot === void 0 ? contents.code : { ...contents.code, staged_diff: snapshot.sha256 };
@@ -4346,6 +4647,7 @@ var PrepareCommand = class {
     return {
       artifact: source,
       ...code === void 0 ? {} : { code: preparedCode(code, packetFiles) },
+      ...contents.repository === void 0 ? {} : { repository: contents.repository },
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
       depth_choice: choice,
@@ -4362,14 +4664,18 @@ var PrepareCommand = class {
   }
   /**
    * What the stage freezes. The decisions stage reads no tracker: grilling
-   * comes before any spec. Every other stage reads its spec, or its ticket,
-   * from the repository's tracker.
+   * comes before any spec, and neither does an ADR review, which samples
+   * the tree beside its records only when the repository allows code. Every
+   * other stage reads its spec, or its ticket, from the repository's tracker.
    */
-  async contents(repository, input) {
+  async contents(repository, input, codeAllowed) {
     const { stage } = input;
     const packet2 = STAGE_TABLE[stage].packet;
     if (packet2 === "decisions") return this.decisionsPackets.read(repository.root, { ...input, summary: input.decisionSummary });
-    if (packet2 === "adrs") return this.adrPackets.read(repository.root, input);
+    if (packet2 === "adrs") {
+      const code = codeAllowed ? { code: { head: input.head, limits: (await this.routing.load()).packet } } : {};
+      return this.adrPackets.read(repository.root, { ...input, ...code });
+    }
     const tracker = await this.trackers.resolve(repository);
     if (tracker.status === "refused") return tracker;
     if (input.spec === void 0) throw new CritiqueError("invalid-input", `${stage} needs spec: the spec, named the way its tracker names it`);

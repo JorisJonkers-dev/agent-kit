@@ -39,7 +39,16 @@ records when you ask for one, never as a step of a feature's flow. Each run
 is a flow of its own, keyed by its run id, with its own $5 Vibe cap, so a
 review never draws on a feature's budget. Its packet holds the records under
 review in `artifact/`, and the glossary and the other records in
-`references/`; it sends documents only. `/flow reviews` lists recent review
+`references/`. With the code permission off it sends those documents only.
+With it on, the packet is a **repository packet**: it adds `tree/`, a sample
+of the code chosen by rule (the files the records name, then the top
+hotspots, each module's entry file, then the files on each import cycle),
+`tree/MANIFEST.tsv` listing every tracked path with its line count, and
+`facts/`, whose `INDEX.md` records every file the cap dropped. Vendored,
+generated and lock files are never sent. A long file is sent in windows from
+its first line, so `tree/<path>:<line>` keeps its number, and a citation
+outside what the packet holds is rejected. A quote from `facts/` is a fact,
+never a recorded decision. `/flow reviews` lists recent review
 runs with their verdicts and spend, and never calls a review due.
 
 A ticket review starts with **triage**: the change is risky when a path
@@ -227,8 +236,12 @@ still runs.
 `routing.json` beside this file holds the critic clients (CLI, model,
 family), each stage's base and deep rosters (client, role, lenses, price cap,
 time limit), the `fallbacks`, the budget, the Antigravity quota, triage, the feature
-branch patterns a push may update without a feature review (`gate`) and the
-stats thresholds. Model names live only there and in the
+branch patterns a push may update without a feature review (`gate`), the
+stats thresholds and the repository packet's limits (`packet`: a 150 KB cap
+in `cap_bytes`, 30 KB of fact files in `facts_cap_bytes`, 400-line windows in
+`window_lines`, and the `exclude` globs for vendored, generated and lock
+files; a file whose first lines say `@generated` or "do not edit" counts as
+generated too). Model names live only there and in the
 `critic-<model>` Vibe agent files.
 
 No critic shares the orchestrator's family, and a stage runs one critic per

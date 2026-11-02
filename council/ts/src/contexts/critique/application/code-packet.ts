@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import type { CodeSource, PacketFileKind } from '../domain/manifest.js'
+import type { CodeSource, PacketFileKind, PacketWindow } from '../domain/manifest.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
 import type { CritiqueStage } from '../domain/stage.js'
 import type { CodeChange } from '../domain/triage.js'
@@ -15,6 +15,8 @@ export interface UnfrozenFile {
   readonly path: string
   readonly source: string
   readonly text: string
+  /** Only for a tree file a repository packet cut short. */
+  readonly window?: PacketWindow
 }
 
 export interface CodePacketRequest {

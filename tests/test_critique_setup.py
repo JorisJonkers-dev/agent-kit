@@ -235,6 +235,15 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
     assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]
 
 
+def test_shipped_routing_caps_the_repository_packet_at_adr_0004s_starting_limits() -> None:
+    """#221: the phase-0 live check retunes these in routing, so the runner reads them from there."""
+    packet = json.loads(ROUTING.read_text())["packet"]
+    assert (packet["cap_bytes"], packet["facts_cap_bytes"], packet["window_lines"]) == (150 * 1024, 30 * 1024, 400)
+    assert set(packet["exclude"]) == {"vendored", "generated", "lock"}
+    assert "**/node_modules/**" in packet["exclude"]["vendored"]
+    assert "**/package-lock.json" in packet["exclude"]["lock"]
+
+
 def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
     flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
     assert "| `/flow reviews` |" in flow

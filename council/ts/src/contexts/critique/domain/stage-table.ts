@@ -6,7 +6,8 @@ import type { CodeStage, CritiqueStage, ReviewStage } from './stage.js'
  * references. `tickets`: the spec and every ticket cut from it. `code`: the
  * commit's tree, the diff, the ticket or tickets, and the spec. `adrs`: the
  * repository's decision records under review, with its glossary and any
- * other records as references, and no tracker.
+ * other records as references, and no tracker; when the repository allows
+ * code, also a sample of its tree, the tree's manifest and its facts.
  */
 export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs'
 
@@ -64,10 +65,10 @@ export type StageTable = {
 }
 
 export const STAGE_TABLE: StageTable = {
-  // The ADR packet and evidence rule are placeholders until the repository
-  // packet (#221) and /critique-adrs (#249) give the stage its own: for now
-  // the records are the artifact, so a finding quotes one and either a
-  // reference or a scenario, as at the spec stage.
+  // The evidence rule is a placeholder until /critique-adrs (#249) gives the
+  // stage its own: for now the records are the artifact, so a finding quotes
+  // one and either a reference or a scenario, as at the spec stage. With the
+  // code permission on, the ADR packet is a repository packet (#221).
   'adr-review': { doNotStart: null, evidence: 'spec', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
   // A decisions run's accepted findings are questions for the owner and change
   // no artifact, so it never calls for a second round.

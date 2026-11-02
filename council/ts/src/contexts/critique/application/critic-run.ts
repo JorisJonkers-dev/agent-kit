@@ -25,6 +25,7 @@ export async function readFrozenPacket(deps: Pick<CritiqueDeps, 'files'>, manife
       kind: file.kind,
       path: file.path,
       text: await deps.files.readText(join(manifest.packet_dir, file.path)),
+      ...(file.window === undefined ? {} : { window: file.window }),
     })),
   )
 }
