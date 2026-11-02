@@ -29,8 +29,12 @@ export type FlowStage = (typeof FLOW_STAGES)[number]
 export const STAGE_STATUSES = ['not-run', 'in-progress', 'second-round-due', 'check-failed', 'recorded'] as const
 export type StageStatus = (typeof STAGE_STATUSES)[number]
 
-/** A ticket's review: none yet, skipped by triage as low-risk, passed, or failed with an accepted critical finding unfixed. */
-export const REVIEW_STATUSES = ['not-reviewed', 'skipped-low-risk', 'reviewed', 'findings-open'] as const
+/**
+ * A ticket's review: none yet, skipped by triage as low-risk, passed, failed
+ * with an accepted critical finding unfixed, or degraded because no critic
+ * reported.
+ */
+export const REVIEW_STATUSES = ['not-reviewed', 'skipped-low-risk', 'reviewed', 'findings-open', 'degraded'] as const
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number]
 
 export const GATE_STATUSES = ['none', 'pass', 'fail'] as const
@@ -126,7 +130,7 @@ export interface FlowSources {
   readonly findings: readonly Pick<LedgerFinding, 'run_id' | 'stage' | 'finding_id' | 'severity' | 'verdict' | 'answered'>[]
   /** The spec's tickets in tracker order, and whether the tracker still holds each open. */
   readonly tickets: readonly (Pick<Ticket, 'id' | 'reference' | 'title' | 'blockedBy'> & { readonly open: boolean })[]
-  readonly reviews: readonly Pick<TicketReviewRecord, 'run_id' | 'recorded_at' | 'ticket' | 'review'>[]
+  readonly reviews: readonly Pick<TicketReviewRecord, 'run_id' | 'recorded_at' | 'ticket' | 'review' | 'degraded'>[]
   readonly skipped_reviews: readonly { readonly run_id: string; readonly recorded_at: string; readonly ticket: string }[]
   /** The spec's feature-review gates, oldest first. */
   readonly gates: readonly Pick<GateRecord, 'run_id' | 'head_commit' | 'gate' | 'line'>[]
@@ -205,11 +209,17 @@ function compareRunIds(a: string, b: string): number {
   return a.localeCompare(b, 'en', { numeric: true })
 }
 
+/** A record written before #259 says `pass` with `degraded: true` for a run no critic reported in. */
+function reviewStatus(review: Pick<TicketReviewRecord, 'review' | 'degraded'>): ReviewStatus {
+  if (review.review === 'fail') return 'findings-open'
+  return review.review === 'degraded' || review.degraded ? 'degraded' : 'reviewed'
+}
+
 function flowTicket(sources: FlowSources, ticket: FlowSources['tickets'][number]): FlowTicket {
   const decisions = [
     ...sources.reviews
       .filter((review) => review.ticket === ticket.reference)
-      .map((review) => ({ at: review.recorded_at, review: review.review === 'pass' ? ('reviewed' as const) : ('findings-open' as const), run_id: review.run_id })),
+      .map((review) => ({ at: review.recorded_at, review: reviewStatus(review), run_id: review.run_id })),
     ...sources.skipped_reviews
       .filter((skip) => skip.ticket === ticket.reference)
       .map((skip) => ({ at: skip.recorded_at, review: 'skipped-low-risk' as const, run_id: skip.run_id })),
@@ -371,6 +381,14 @@ function workStep(state: FlowState): NextStep {
     return {
       kind: 'stage',
       reason: `The review of ticket ${ticket.id} accepted a critical finding that is not fixed: fix it, then review the staged change again.`,
+      stage: 'ticket-review',
+      ticket: ticket.id,
+    }
+  }
+  if (ticket.review === 'degraded' && !state.no_critique) {
+    return {
+      kind: 'stage',
+      reason: `No critic reported in the review of ticket ${ticket.id}, so nobody reviewed it: review the staged change again.`,
       stage: 'ticket-review',
       ticket: ticket.id,
     }

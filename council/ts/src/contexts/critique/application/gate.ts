@@ -41,7 +41,7 @@ class UnreadableState extends Error {}
  *
  * - a commit is blocked while its staged change is risky by the
  *   deterministic triage rules and the last ticket review of exactly that
- *   staged change is missing or failed;
+ *   staged change is missing, failed, or degraded (no critic reported);
  * - a `gh pr create`, or a push that updates a branch outside the feature
  *   branch patterns, is blocked unless the latest feature review of the
  *   commit it sends says `GATE: PASS`.
@@ -147,6 +147,8 @@ export class GateCommand implements CritiqueCommand<GateResult> {
       )
     }
     if (review.review === 'fail') return blocked('commit', 'review-failed', reviewFailedLine(review))
+    // A record written before #259 says `pass` with `degraded: true` for the same run.
+    if (review.review === 'degraded' || review.degraded) return blocked('commit', 'review-degraded', reviewDegradedLine(review))
     return allowed('commit', 'reviewed')
   }
 
@@ -258,6 +260,11 @@ function short(commit: string): string {
 function reviewFailedLine(review: TicketReviewRecord): string {
   const findings = review.unfixed_critical.join(', ')
   return `Commit blocked: /review-ticket run ${review.run_id} failed for this staged change, with critical ${findings} accepted and not fixed. Fix and stage ${review.unfixed_critical.length === 1 ? 'it' : 'them'}, then run /review-ticket again.`
+}
+
+function reviewDegradedLine(review: TicketReviewRecord): string {
+  const why = review.critic_failures.map((failure) => `${failure.critic_id}: ${failure.reason}`).join(', ')
+  return `Commit blocked: /review-ticket run ${review.run_id} is degraded: no critic reported on this staged change${why === '' ? '' : ` (${why})`}. Run /review-ticket again; the commit waits for a run in which a critic reports.`
 }
 
 function gateFailLine(what: string, retry: string, record: GateRecord, head: string): string {

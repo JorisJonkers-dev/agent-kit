@@ -202,6 +202,59 @@ describe('a ticket review that failed', () => {
   })
 })
 
+describe('a ticket review no critic reported on', () => {
+  /** Runs `/review-ticket` on the staged change with a critic that fails, so the run is degraded. */
+  async function reviewDegraded(h: Harness): Promise<PrepareResult> {
+    h.process.queue({ exitCode: 1, stdout: '' })
+    const run = await h.commands.prepare.run({
+      base: 'HEAD',
+      orchestrator_family: 'anthropic',
+      repo: h.repo,
+      spec: SPEC,
+      stage: 'ticket-review',
+      staged: true,
+      ticket: TICKET,
+    })
+    if (run.status !== 'ready') throw new Error(`prepare refused: ${run.message}`)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+    return run
+  }
+
+  it('blocks the commit, naming the degraded run and why its critics did not report', async () => {
+    const h = await optedIn()
+    await stageRisky(h)
+    const run = await reviewDegraded(h)
+
+    const line = `Commit blocked: /review-ticket run ${run.run_id} is degraded: no critic reported on this staged change (c1-vibe-glm: config-error). Run /review-ticket again; the commit waits for a run in which a critic reports.`
+    expect(await gate(h, 'git commit -m x')).toEqual({ gate: 'commit', hook_output: deny(line), line, reason: 'review-degraded', status: 'blocked' })
+  })
+
+  it('blocks on a record written before degraded runs had their own verdict', async () => {
+    const h = await optedIn()
+    await stageRisky(h)
+    const run = await reviewStaged(h)
+    const index = join(h.repo, '.git', 'critique', 'ticket-reviews.jsonl')
+    const legacy = JSON.parse(await readFile(index, 'utf8')) as Record<string, unknown>
+    delete legacy.critic_failures
+    await h.writeText(index, `${JSON.stringify({ ...legacy, degraded: true, review: 'pass' })}\n`)
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({
+      line: `Commit blocked: /review-ticket run ${run.run_id} is degraded: no critic reported on this staged change. Run /review-ticket again; the commit waits for a run in which a critic reports.`,
+      reason: 'review-degraded',
+    })
+  })
+
+  it('opens the gate once a later run of the same change has a critic that reported', async () => {
+    const h = await optedIn()
+    await stageRisky(h)
+    await reviewDegraded(h)
+    await reviewStaged(h)
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'reviewed', status: 'allowed' })
+  })
+})
+
 describe("the ticket's risk label", () => {
   const triageLine = (stagedOn: string) =>
     `${JSON.stringify({

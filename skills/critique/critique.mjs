@@ -968,6 +968,9 @@ function ticketVerdictProblem(stage, verdict) {
   if (reason !== "test-fails" && verdict.regression_test !== void 0) return `${id}: regression_test belongs to a finding accepted by test-fails`;
   return void 0;
 }
+function degradedTicketReview(run) {
+  return run.stage === "ticket-review" && run.degraded;
+}
 function unfixedCritical(run) {
   if (run.stage !== "ticket-review") return [];
   return run.findings.filter((f) => f.severity === "critical" && f.verdict.verdict === "accepted" && f.verdict.fixed !== true);
@@ -2507,7 +2510,7 @@ function compactTimestamp(at) {
 // src/contexts/critique/domain/flow.ts
 var FLOW_PHASES = ["planning", "implementation", "finishing"];
 var STAGE_STATUSES = ["not-run", "in-progress", "second-round-due", "check-failed", "recorded"];
-var REVIEW_STATUSES = ["not-reviewed", "skipped-low-risk", "reviewed", "findings-open"];
+var REVIEW_STATUSES = ["not-reviewed", "skipped-low-risk", "reviewed", "findings-open", "degraded"];
 var GATE_STATUSES = ["none", "pass", "fail"];
 function draftFlow(name) {
   return `draft:${name}`;
@@ -2563,9 +2566,13 @@ function stageProgress(sources, stage) {
 function compareRunIds(a, b) {
   return a.localeCompare(b, "en", { numeric: true });
 }
+function reviewStatus(review) {
+  if (review.review === "fail") return "findings-open";
+  return review.review === "degraded" || review.degraded ? "degraded" : "reviewed";
+}
 function flowTicket(sources, ticket) {
   const decisions = [
-    ...sources.reviews.filter((review2) => review2.ticket === ticket.reference).map((review2) => ({ at: review2.recorded_at, review: review2.review === "pass" ? "reviewed" : "findings-open", run_id: review2.run_id })),
+    ...sources.reviews.filter((review2) => review2.ticket === ticket.reference).map((review2) => ({ at: review2.recorded_at, review: reviewStatus(review2), run_id: review2.run_id })),
     ...sources.skipped_reviews.filter((skip) => skip.ticket === ticket.reference).map((skip) => ({ at: skip.recorded_at, review: "skipped-low-risk", run_id: skip.run_id }))
   ].sort((a, b) => a.at.localeCompare(b.at) || compareRunIds(a.run_id, b.run_id));
   const review = decisions.at(-1)?.review ?? "not-reviewed";
@@ -2670,6 +2677,14 @@ function workStep(state) {
       ticket: ticket.id
     };
   }
+  if (ticket.review === "degraded" && !state.no_critique) {
+    return {
+      kind: "stage",
+      reason: `No critic reported in the review of ticket ${ticket.id}, so nobody reviewed it: review the staged change again.`,
+      stage: "ticket-review",
+      ticket: ticket.id
+    };
+  }
   const left = waiting.length === 1 ? "it is the last ticket left" : `it is the next of ${String(waiting.length)} tickets left in dependency order`;
   return command("/implement", `Ticket ${ticket.id} has not landed and ${left}; start it in a fresh session.`, implementArgument(ticket));
 }
@@ -2740,15 +2755,18 @@ function parseFlowState(text) {
 function stagedDiffHash(headTree, stagedEntries) {
   return sha256(`staged-diff v1\0${headTree}\0${stagedEntries}`);
 }
+var TICKET_REVIEWS = ["pass", "fail", "degraded"];
 function parseTicketReviewRecord(text) {
   const file = JsonFields.parse(text);
   return {
     base_commit: file.string("base_commit"),
+    // Records written before #259 carry no critic failures.
+    critic_failures: file.has("critic_failures") ? file.list("critic_failures", readCriticFailure) : [],
     degraded: file.boolean("degraded"),
     head_commit: file.string("head_commit"),
     recorded_at: file.string("recorded_at"),
     repository: file.string("repository"),
-    review: file.oneOf("review", ["pass", "fail"]),
+    review: file.oneOf("review", TICKET_REVIEWS),
     reviewed_staged_diff: file.nullableString("reviewed_staged_diff"),
     run_id: file.string("run_id"),
     spec: file.string("spec"),
@@ -2758,6 +2776,9 @@ function parseTicketReviewRecord(text) {
     unfixed_critical: file.strings("unfixed_critical"),
     version: file.literal("version", 1)
   };
+}
+function readCriticFailure(fields) {
+  return { critic_id: fields.string("critic_id"), reason: fields.string("reason") };
 }
 
 // src/contexts/critique/application/feature-gate.ts
@@ -3055,11 +3076,12 @@ var TicketReviewLog = class {
     const unfixed = unfixedCritical(run).map((finding) => finding.id);
     return {
       base_commit: code.base_commit,
+      critic_failures: run.critics.filter((critic) => critic.status !== "ok").map((critic) => ({ critic_id: critic.critic_id, reason: critic.failure ?? critic.status })),
       degraded: run.degraded,
       head_commit: code.head_commit,
       recorded_at: this.deps.clock.now().toISOString(),
       repository: manifest.repository,
-      review: unfixed.length === 0 ? "pass" : "fail",
+      review: unfixed.length > 0 ? "fail" : run.degraded ? "degraded" : "pass",
       reviewed_staged_diff: reviewed,
       run_id: manifest.run_id,
       spec: specReference(manifest),
@@ -4391,6 +4413,7 @@ var GateCommand = class {
       );
     }
     if (review.review === "fail") return blocked("commit", "review-failed", reviewFailedLine(review));
+    if (review.review === "degraded" || review.degraded) return blocked("commit", "review-degraded", reviewDegradedLine(review));
     return allowed("commit", "reviewed");
   }
   async prGate(repository, invocation) {
@@ -4483,6 +4506,10 @@ function short(commit) {
 function reviewFailedLine(review) {
   const findings = review.unfixed_critical.join(", ");
   return `Commit blocked: /review-ticket run ${review.run_id} failed for this staged change, with critical ${findings} accepted and not fixed. Fix and stage ${review.unfixed_critical.length === 1 ? "it" : "them"}, then run /review-ticket again.`;
+}
+function reviewDegradedLine(review) {
+  const why = review.critic_failures.map((failure2) => `${failure2.critic_id}: ${failure2.reason}`).join(", ");
+  return `Commit blocked: /review-ticket run ${review.run_id} is degraded: no critic reported on this staged change${why === "" ? "" : ` (${why})`}. Run /review-ticket again; the commit waits for a run in which a critic reports.`;
 }
 function gateFailLine(what, retry, record, head) {
   return `${what} blocked: /review-feature says ${record.line} for ${short(head)}. Fix and close the critical follow-ups, run /review-feature on the new head, then ${retry}.`;
@@ -5730,6 +5757,9 @@ function doNotStartLines(run) {
   ];
 }
 function doNotCommitLines(run) {
+  if (degradedTicketReview(run)) {
+    return ["", "No critic reported, so this review is degraded and the commit stays blocked: do not commit."];
+  }
   const ids = unfixedCritical(run).map((f) => f.id);
   if (ids.length === 0) return [];
   const which = ids.length === 1 ? `Critical finding ${ids.join("")} is` : `Critical findings ${ids.join(", ")} are`;

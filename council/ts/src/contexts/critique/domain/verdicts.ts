@@ -209,6 +209,11 @@ function ticketVerdictProblem(stage: CritiqueStage, verdict: Verdict): string | 
   return undefined
 }
 
+/** A ticket review in which no critic reported: it vouches for no change, so its commit stays blocked (#259). */
+export function degradedTicketReview(run: Pick<AdjudicatedRun, 'stage' | 'degraded'>): boolean {
+  return run.stage === 'ticket-review' && run.degraded
+}
+
 /** #181 US53: accepted critical findings of a ticket review not yet fixed; while any is, the change must not be committed. */
 export function unfixedCritical(run: Pick<AdjudicatedRun, 'stage' | 'findings'>): readonly AdjudicatedFinding[] {
   if (run.stage !== 'ticket-review') return []

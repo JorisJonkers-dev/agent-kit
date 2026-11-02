@@ -78,6 +78,7 @@ describe('the critique stage table', () => {
       "domain/verdicts.ts: stage !== 'ticket-review'",
       "domain/verdicts.ts: stage !== 'ticket-review'",
       "domain/verdicts.ts: stage === 'decisions'",
+      "domain/verdicts.ts: stage === 'ticket-review'",
     ])
   })
 })
