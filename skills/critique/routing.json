@@ -101,6 +101,7 @@
   "packet": {
     "cap_bytes": 153600,
     "facts_cap_bytes": 30720,
+    "repo_map_cap_bytes": 20480,
     "window_lines": 400,
     "exclude": {
       "vendored": ["**/node_modules/**", "**/vendor/**", "**/third_party/**", "**/bower_components/**", "**/.venv/**"],

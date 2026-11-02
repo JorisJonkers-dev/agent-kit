@@ -1329,6 +1329,131 @@ function containsTerm(text, term) {
   return new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, "iu").test(text);
 }
 
+// src/contexts/critique/domain/source-scan.ts
+import { posix } from "node:path";
+var HEADER_LINES = 6;
+var SIGNATURE_CHARS = 200;
+var TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+var TS_DECLARATION = /^(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(function\*?|class|interface|type|enum|const\s+enum|const|let|var|namespace)\s+([A-Za-z_$][\w$]*)/;
+var TS_IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"\n]+)['"]/g;
+var typescript = {
+  declaration: (line) => {
+    const match = TS_DECLARATION.exec(line);
+    return match === null ? void 0 : { kind: (match[1] ?? "").replace(/\s+/g, " "), name: match[2] ?? "" };
+  },
+  extensions: TS_EXTENSIONS,
+  imports: (text) => [...text.matchAll(TS_IMPORT)].map((match) => match[1] ?? ""),
+  language: "typescript",
+  resolve: (from, specifier, tracked) => {
+    if (!specifier.startsWith(".")) return void 0;
+    const target = posix.join(posix.dirname(from), specifier);
+    const stem = target.replace(/\.(?:[mc]?js|jsx)$/, "");
+    const candidates = [target, ...TS_EXTENSIONS.map((ext) => `${stem}${ext}`), ...TS_EXTENSIONS.map((ext) => `${target}/index${ext}`)];
+    return candidates.find((candidate) => tracked.has(candidate));
+  },
+  signature: (header, kind) => {
+    if (kind === "type") return firstLine2(header);
+    if (kind === "const" || kind === "let" || kind === "var") return valueSignature(header);
+    return cutAt(header, "{");
+  }
+};
+var PY_DECLARATION = /^(?:(async\s+def|def|class)\s+([A-Za-z_]\w*)|([A-Za-z_]\w*)\s*(?::[^=]*)?=(?!=))/;
+var PY_FROM = /^\s*from\s+(\.*[\w.]*)\s+import\s+(?:\(([^)]*)\)|([^#\n]*))/gm;
+var PY_IMPORT = /^\s*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)/gm;
+var python = {
+  declaration: (line) => {
+    const match = PY_DECLARATION.exec(line);
+    if (match === null) return void 0;
+    return match[3] === void 0 ? { kind: (match[1] ?? "").replace(/\s+/g, " "), name: match[2] ?? "" } : { kind: "assignment", name: match[3] };
+  },
+  extensions: [".py"],
+  imports: (text) => [
+    ...[...text.matchAll(PY_FROM)].flatMap((match) => {
+      const module = match[1] ?? "";
+      const names = (match[2] ?? match[3] ?? "").split(",").map((name) => name.trim().split(/\s+/)[0] ?? "").filter((name) => /^\w+$/.test(name));
+      return [module, ...names.map((name) => `${module}${module.endsWith(".") ? "" : "."}${name}`)];
+    }),
+    ...[...text.matchAll(PY_IMPORT)].flatMap((match) => (match[1] ?? "").split(",").map((name) => name.trim()))
+  ],
+  language: "python",
+  resolve: (from, specifier, tracked) => {
+    const dots = /^\.*/.exec(specifier)?.[0].length ?? 0;
+    const module = specifier.slice(dots).split(".").filter((part) => part !== "").join("/");
+    const files = (base) => base === "" ? [] : [`${base}.py`, `${base}/__init__.py`];
+    if (dots > 0) {
+      const dir = Array.from({ length: dots - 1 }).reduce((path) => posix.dirname(path), posix.dirname(from));
+      const base = module === "" ? dir : posix.join(dir, module);
+      return files(base === "." ? "" : base).find((candidate) => tracked.has(candidate));
+    }
+    const exact = files(module).find((candidate) => tracked.has(candidate));
+    if (exact !== void 0) return exact;
+    const nested = [...tracked].filter((path) => files(module).some((candidate) => path.endsWith(`/${candidate}`)));
+    return nested.length === 1 ? nested[0] : void 0;
+  },
+  signature: (header, kind) => kind === "assignment" ? cutAt(header, "=") : cutAt(header, ":")
+};
+var SCANNERS = [typescript, python];
+function scannerFor(path) {
+  const extension = posix.extname(path);
+  return SCANNERS.find((scanner) => scanner.extensions.includes(extension));
+}
+function resolveImport(from, specifier, tracked) {
+  return scannerFor(from)?.resolve(from, specifier, tracked);
+}
+function scanSource(path, text) {
+  const scanner = scannerFor(path);
+  if (scanner === void 0) return void 0;
+  const lines = text.split("\n");
+  const starts = lines.flatMap((line, index) => startsStatement(line) ? [index] : []);
+  const symbols = starts.flatMap((start, i) => {
+    const line = lines[start] ?? "";
+    const declared = scanner.declaration(line);
+    if (declared === void 0) return [];
+    let end = (starts[i + 1] ?? lines.length) - 1;
+    while (end > start && (lines[end] ?? "").trim() === "") end -= 1;
+    const header = lines.slice(start, Math.min(end, start + HEADER_LINES - 1) + 1).join("\n");
+    return [{ first: start + 1, kind: declared.kind, last: end + 1, name: declared.name, signature: shorten(scanner.signature(header, declared.kind)) }];
+  });
+  return { imports: scanner.imports(text), language: scanner.language, symbols };
+}
+function startsStatement(line) {
+  return /^[^\s)\]}]/.test(line);
+}
+function mentions(text, name) {
+  return wordPattern(name).test(text);
+}
+function mentionLines(text, name) {
+  const pattern = wordPattern(name);
+  return text.split("\n").flatMap((line, index) => pattern.test(line) ? [index + 1] : []);
+}
+function wordPattern(name) {
+  return new RegExp(`(?<![\\w$])${name.replace(/\$/g, "\\$")}(?![\\w$])`);
+}
+function firstLine2(header) {
+  return header.split("\n")[0] ?? "";
+}
+function cutAt(header, stop) {
+  let depth = 0;
+  for (let i = 0; i < header.length; i += 1) {
+    const char = header.charAt(i);
+    if ("([<".includes(char)) depth += 1;
+    else if (")]>".includes(char) && header.charAt(i - 1) !== "=") depth = Math.max(0, depth - 1);
+    else if (char === stop && depth === 0 && !(stop === "=" && "=>".includes(header.charAt(i + 1)))) return header.slice(0, i);
+  }
+  return header;
+}
+function valueSignature(header) {
+  const name = cutAt(header, "=");
+  const value = header.slice(name.length + 1).trimStart();
+  if (!/^(?:async\s+)?(?:\(|<|[A-Za-z_$][\w$]*\s*=>)/.test(value)) return name;
+  const arrow = value.indexOf("=>");
+  return arrow === -1 ? name : `${name.trimEnd()} = ${value.slice(0, arrow + 2)}`;
+}
+function shorten(signature) {
+  const flat = signature.replace(/\s+/g, " ").trim();
+  return flat.length <= SIGNATURE_CHARS ? flat : `${flat.slice(0, SIGNATURE_CHARS - 1)}\u2026`;
+}
+
 // src/contexts/critique/domain/line-references.ts
 var URL = /\b[a-z][a-z0-9+.-]*:\/\/\S*/gi;
 var REFERENCE = /(?<![\w./@+-])((?:\.\/)?(?:[\w@+.-]+\/)*[\w@+.-]+):(\d+)(?:\s*[-–]\s*(\d+))?/g;
@@ -1348,6 +1473,202 @@ function packetCandidates(path, treeDir) {
 function lineCount(text) {
   if (text.length === 0) return 0;
   return text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+}
+
+// src/contexts/critique/domain/tree-sample.ts
+var encoder = new TextEncoder();
+function bytes(text) {
+  return encoder.encode(text).length;
+}
+function candidateOf(path, tier, text) {
+  return { lineCount: lineCount(text), path, text, tier };
+}
+function windowsOf(candidate, size) {
+  const count = Math.max(1, Math.ceil(candidate.lineCount / size));
+  return Array.from({ length: count }, (_, i) => ({
+    candidate,
+    ranges: [{ first: i * size + 1, last: Math.max(i * size + 1, Math.min(candidate.lineCount, (i + 1) * size)) }],
+    window: true
+  }));
+}
+function admitPieces(pieces, budget, describe) {
+  const held = /* @__PURE__ */ new Map();
+  const admitted = /* @__PURE__ */ new Set();
+  const blocked2 = /* @__PURE__ */ new Set();
+  let remaining = budget;
+  for (const piece of pieces) {
+    const { candidate } = piece;
+    if (piece.window && blocked2.has(candidate)) continue;
+    const before = held.get(candidate) ?? [];
+    const after = mergeRanges([...before, ...piece.ranges]);
+    const cost = bytes(heldText(candidate, after)) - bytes(heldText(candidate, before)) + lineBytes(describe(candidate, after)) - lineBytes(describe(candidate, before)) + lineBytes(piece.note?.(true)) - lineBytes(piece.note?.(false));
+    if (cost > remaining) {
+      if (piece.window) blocked2.add(candidate);
+      continue;
+    }
+    remaining -= cost;
+    held.set(candidate, after);
+    admitted.add(piece);
+  }
+  return { admitted, held };
+}
+function lineBytes(line) {
+  return line === void 0 ? 0 : bytes(line) + 1;
+}
+function mergeRanges(ranges) {
+  const sorted = [...ranges].sort((a, b) => a.first - b.first || a.last - b.last);
+  const merged = [];
+  for (const range of sorted) {
+    const last = merged.at(-1);
+    if (last !== void 0 && range.first <= last.last + 1) merged[merged.length - 1] = { first: last.first, last: Math.max(last.last, range.last) };
+    else merged.push(range);
+  }
+  return merged;
+}
+function holdsAll(candidate, held) {
+  const [only] = held;
+  return held.length === 1 && only?.first === 1 && only.last >= candidate.lineCount;
+}
+function gapMarker(range) {
+  return `\u2026 lines ${String(range.first)}-${String(range.last)} are not in the packet; facts/INDEX.md says why`;
+}
+function heldText(candidate, held) {
+  if (held.length === 0) return "";
+  if (holdsAll(candidate, held)) return candidate.text;
+  const lines = candidate.text.split("\n");
+  const out = [];
+  let next = 1;
+  for (const range of held) {
+    if (range.first > next) out.push(gapMarker({ first: next, last: range.first - 1 }), ...Array.from({ length: range.first - next - 1 }, () => ""));
+    out.push(...lines.slice(range.first - 1, range.last));
+    next = range.last + 1;
+  }
+  return `${out.join("\n")}
+`;
+}
+function sampledFile(candidate, held) {
+  if (held.length === 0) return void 0;
+  const text = heldText(candidate, held);
+  if (holdsAll(candidate, held)) return { path: candidate.path, text };
+  const last = held.at(-1)?.last ?? 0;
+  const prefix = held.length === 1 && held[0]?.first === 1;
+  return { path: candidate.path, text, window: { last, lines: candidate.lineCount, ...prefix ? {} : { ranges: held } } };
+}
+function formatRanges(ranges) {
+  return ranges.map((range) => `${String(range.first)}-${String(range.last)}`).join(", ");
+}
+function missingRanges(candidate, held) {
+  const missing = [];
+  let next = 1;
+  for (const range of held) {
+    if (range.first > next) missing.push({ first: next, last: range.first - 1 });
+    next = range.last + 1;
+  }
+  if (next <= candidate.lineCount) missing.push({ first: next, last: candidate.lineCount });
+  return missing;
+}
+function sentStatus(candidate, held) {
+  if (held.length === 0) return "the cap dropped it";
+  if (holdsAll(candidate, held)) return "sent in full";
+  return `sent lines ${formatRanges(held)}; the cap dropped lines ${formatRanges(missingRanges(candidate, held))}`;
+}
+
+// src/contexts/critique/domain/repo-map.ts
+var SourceGraph = class _SourceGraph {
+  constructor(files) {
+    this.files = files;
+    for (const file of files.values()) {
+      for (const target of file.imports) this.importersOf.set(target, [...this.importersOf.get(target) ?? [], file.path]);
+    }
+  }
+  files;
+  importersOf = /* @__PURE__ */ new Map();
+  /** Scans every file in a language the scan knows; other files are not in the graph. */
+  static build(texts) {
+    const tracked = new Set(texts.map((file) => file.path));
+    const files = /* @__PURE__ */ new Map();
+    for (const { path, text } of texts) {
+      const scan = scanSource(path, text);
+      if (scan === void 0) continue;
+      const resolved = scan.imports.flatMap((specifier) => resolveImport(path, specifier, tracked) ?? []);
+      const imports = [...new Set(resolved)].filter((target) => target !== path).sort();
+      files.set(path, { imports, path, scan, text });
+    }
+    return new _SourceGraph(files);
+  }
+  /** The files that import a file, sorted. */
+  importers(path) {
+    return [...this.importersOf.get(path) ?? []].sort();
+  }
+  /** The other files that import a file and name one of its symbols. */
+  references(path, name) {
+    return this.importers(path).filter((importer) => mentions(this.files.get(importer)?.text ?? "", name));
+  }
+  /** The top-level symbol whose lines hold a line of a file. */
+  enclosing(path, line) {
+    return this.files.get(path)?.scan.symbols.find((symbol) => symbol.first <= line && line <= symbol.last);
+  }
+  /** Where a name a file uses is declared: in the file itself, else in the first file it imports that declares it. */
+  definition(path, name) {
+    const file = this.files.get(path);
+    for (const candidate of [path, ...file?.imports ?? []]) {
+      const symbol = this.files.get(candidate)?.scan.symbols.find((declared) => declared.name === name);
+      if (symbol !== void 0) return { path: candidate, symbol };
+    }
+    return void 0;
+  }
+};
+function buildRepoMap(graph) {
+  const entries = [...graph.files.values()].map((file) => {
+    const referencing = /* @__PURE__ */ new Set();
+    const symbols = file.scan.symbols.map((symbol) => {
+      const references = graph.references(file.path, symbol.name);
+      for (const reference of references) referencing.add(reference);
+      return { kind: symbol.kind, line: symbol.first, name: symbol.name, references: references.length, signature: symbol.signature };
+    });
+    return {
+      path: file.path,
+      references: referencing.size,
+      symbols: symbols.sort((a, b) => b.references - a.references || a.line - b.line)
+    };
+  });
+  return entries.sort((a, b) => b.references - a.references || (a.path < b.path ? -1 : 1));
+}
+var REPO_MAP_PATH = "tree/REPO-MAP.md";
+function renderRepoMap(entries, options) {
+  const head = [
+    "# Repo map",
+    "",
+    `Every source file the runner's symbol scan reads at commit \`${options.commit}\`, with its top-level symbols and their signatures. Files are ranked by how many other files reference their symbols, most first; a file references a symbol when it imports the symbol's file and names it. Each symbol's line is its line in \`tree/<path>\`, which holds the file when the packet cap let it in. This map is a fact the runner computed.`,
+    ""
+  ].join("\n");
+  const blocks = entries.map(renderEntry);
+  let size = bytes(head);
+  let listed = 0;
+  for (const block of blocks) {
+    const footer = listed + 1 === blocks.length ? "" : droppedLine(blocks.length, options.capBytes);
+    if (size + bytes(block) + bytes(footer) > options.capBytes) break;
+    size += bytes(block);
+    listed += 1;
+  }
+  const dropped = blocks.length - listed;
+  const tail = dropped === 0 ? blocks.length === 0 ? "No source file in a language the scan reads.\n" : "" : droppedLine(dropped, options.capBytes);
+  return { dropped, listed, text: `${head}${blocks.slice(0, listed).join("")}${tail}` };
+}
+function renderEntry(entry) {
+  const symbols = entry.symbols.map(
+    (symbol) => `- \`${symbol.name}\` (${symbol.kind}, line ${String(symbol.line)}, ${String(symbol.references)} refs): \`${symbol.signature}\``
+  );
+  return `
+## \`${entry.path}\` (referenced by ${String(entry.references)} files)
+
+${symbols.length === 0 ? "No top-level symbols." : symbols.join("\n")}
+`;
+}
+function droppedLine(count, cap) {
+  return `
+The map's cap of ${String(cap)} bytes left out the ${String(count)} least referenced files.
+`;
 }
 
 // src/contexts/critique/domain/triage.ts
@@ -1471,10 +1792,12 @@ function ledgerSignal(signal) {
 
 // src/contexts/critique/domain/repository-packet.ts
 var EXCLUSION_KINDS = ["vendored", "generated", "lock"];
+var DEFAULT_REPO_MAP_CAP_BYTES = 20480;
 var DEFAULT_PACKET_LIMITS = {
   cap_bytes: 153600,
   exclude: { generated: [], lock: [], vendored: [] },
   facts_cap_bytes: 30720,
+  repo_map_cap_bytes: DEFAULT_REPO_MAP_CAP_BYTES,
   window_lines: 400
 };
 function readPacketLimits(fields) {
@@ -1483,11 +1806,22 @@ function readPacketLimits(fields) {
     cap_bytes: fields.positiveInteger("cap_bytes"),
     exclude: { generated: exclude.strings("generated"), lock: exclude.strings("lock"), vendored: exclude.strings("vendored") },
     facts_cap_bytes: fields.positiveInteger("facts_cap_bytes"),
+    repo_map_cap_bytes: fields.has("repo_map_cap_bytes") ? fields.positiveInteger("repo_map_cap_bytes") : DEFAULT_REPO_MAP_CAP_BYTES,
     window_lines: fields.positiveInteger("window_lines")
   };
 }
 function excludedByPath(path, limits) {
-  return EXCLUSION_KINDS.find((kind) => limits.exclude[kind].some((glob) => matchesGlob(path, glob)));
+  return exclusionOf(path, void 0, limits)?.kind;
+}
+function exclusionOf(path, text, limits) {
+  for (const kind of EXCLUSION_KINDS) {
+    const glob = limits.exclude[kind].find((candidate) => matchesGlob(path, candidate));
+    if (glob !== void 0) return { kind, rule: glob };
+  }
+  return text !== void 0 && isGenerated(text) ? { kind: "generated", rule: "marker" } : void 0;
+}
+function exclusionReason(exclusion) {
+  return exclusion.rule === "marker" ? "a generated file: its first lines say a tool generated it" : `a ${exclusion.kind} file: it matches the routing glob \`${exclusion.rule}\``;
 }
 var MARKER_LINES = 5;
 var GENERATED_MARKER = /@generated|do not edit/i;
@@ -1517,65 +1851,36 @@ var ENTRY_FILES = /* @__PURE__ */ new Set([
 ]);
 var MANIFEST_PATH = "tree/MANIFEST.tsv";
 var FACTS_INDEX_PATH = "facts/INDEX.md";
-var encoder = new TextEncoder();
-function bytes(text) {
-  return encoder.encode(text).length;
-}
 function sampleRepository(request) {
   const { limits } = request;
   const manifest = renderManifest(request);
   const facts = admitFacts(request.facts.files, limits.facts_cap_bytes);
   const candidates = sampleCandidates(request);
-  const sent = new Map(candidates.map((candidate) => [candidate, 0]));
-  const index = () => renderIndex(request, facts, candidates, sent);
-  const fixed = request.documentBytes + bytes(manifest) + facts.reduce((sum, file) => sum + bytes(file.text), 0) + bytes(index());
+  const none = /* @__PURE__ */ new Map();
+  const fixed = request.documentBytes + bytes(manifest) + facts.reduce((sum, file) => sum + bytes(file.text), 0) + bytes(renderIndex(request, facts, candidates, none));
   if (fixed > limits.cap_bytes) {
     return refusal(
       "packet-over-cap",
       `the documents, ${MANIFEST_PATH} and facts/ come to ${String(fixed)} bytes, past the packet cap of ${String(limits.cap_bytes)}; review fewer records or raise packet.cap_bytes in routing`
     );
   }
-  let remaining = limits.cap_bytes - fixed;
-  const blocked2 = /* @__PURE__ */ new Set();
-  for (const { candidate, window } of windowOrder(candidates)) {
-    if (blocked2.has(candidate)) continue;
-    const cost = bytes(prefix(candidate, window, limits)) - bytes(prefix(candidate, window - 1, limits)) + bytes(sampleLine(candidate, window, limits)) - bytes(sampleLine(candidate, window - 1, limits));
-    if (cost > remaining) {
-      blocked2.add(candidate);
-      continue;
-    }
-    remaining -= cost;
-    sent.set(candidate, window);
-  }
+  const { held } = admitPieces(windowOrder(candidates, limits.window_lines), limits.cap_bytes - fixed, sampleLine);
   const tree = candidates.flatMap((candidate) => {
-    const windows = sent.get(candidate) ?? 0;
-    if (windows === 0) return [];
-    const text = prefix(candidate, windows, limits);
-    const cut = windows < candidate.windows ? { window: { last: windows * limits.window_lines, lines: candidate.lineCount } } : {};
-    return [{ path: candidate.path, text, ...cut }];
+    const file = sampledFile(candidate, held.get(candidate) ?? []);
+    return file === void 0 ? [] : [file];
   });
   return {
-    dropped: candidates.filter((candidate) => (sent.get(candidate) ?? 0) < candidate.windows).length,
+    dropped: candidates.filter((candidate) => !holdsAll(candidate, held.get(candidate) ?? [])).length,
     facts,
-    index: index(),
+    index: renderIndex(request, facts, candidates, held),
     manifest,
     status: "sampled",
     tree
   };
 }
-function windowOrder(candidates) {
-  const order = candidates.flatMap(
-    (candidate, position) => Array.from({ length: candidate.windows }, (_, i) => ({ candidate, position, window: i + 1 }))
-  );
-  return order.sort(
-    (a, b) => TIERS.indexOf(a.candidate.tier) - TIERS.indexOf(b.candidate.tier) || a.window - b.window || a.position - b.position
-  );
-}
-function prefix(candidate, windows, limits) {
-  if (windows === 0) return "";
-  if (windows === candidate.windows) return candidate.text;
-  return `${candidate.lines.slice(0, windows * limits.window_lines).join("\n")}
-`;
+function windowOrder(candidates, size) {
+  const order = candidates.flatMap((candidate, position) => windowsOf(candidate, size).map((piece, window) => ({ piece, position, window })));
+  return order.sort((a, b) => TIERS.indexOf(a.piece.candidate.tier) - TIERS.indexOf(b.piece.candidate.tier) || a.window - b.window || a.position - b.position).map((entry) => entry.piece);
 }
 function admitFacts(files, cap) {
   let remaining = cap;
@@ -1605,8 +1910,7 @@ function sampleCandidates(request) {
       const text = texts.get(path);
       if (text === void 0 || seen.has(path)) return [];
       seen.add(path);
-      const count = lineCount(text);
-      return [{ lineCount: count, lines: text.split("\n"), path, text, tier, windows: Math.max(1, Math.ceil(count / request.limits.window_lines)) }];
+      return [candidateOf(path, tier, text)];
     })
   );
 }
@@ -1619,14 +1923,10 @@ function renderManifest(request) {
   return `${["path	lines	churn_rank", ...rows].join("\n")}
 `;
 }
-function sampleLine(candidate, windows, limits) {
-  const head = `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): `;
-  if (windows === 0) return `${head}the cap dropped it`;
-  if (windows === candidate.windows) return `${head}sent in full`;
-  const last = windows * limits.window_lines;
-  return `${head}sent lines 1-${String(last)}; the cap dropped lines ${String(last + 1)}-${String(candidate.lineCount)}`;
+function sampleLine(candidate, held) {
+  return `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): ${sentStatus(candidate, held)}`;
 }
-function renderIndex(request, facts, candidates, sent) {
+function renderIndex(request, facts, candidates, held) {
   const { limits } = request;
   const admitted = new Set(facts);
   const factLines = request.facts.files.map(
@@ -1637,7 +1937,7 @@ function renderIndex(request, facts, candidates, sent) {
     ...request.facts.hotspots === void 0 ? ["No hotspot facts yet, so no hotspot was sampled."] : [],
     ...request.facts.cycles === void 0 ? ["No import facts yet, so no import cycle was sampled."] : []
   ];
-  const samples = candidates.map((candidate) => sampleLine(candidate, sent.get(candidate) ?? 0, limits));
+  const samples = candidates.map((candidate) => sampleLine(candidate, held.get(candidate) ?? []));
   return [
     "# Facts",
     "",
@@ -2109,6 +2409,9 @@ function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec", "check", "feature", "fact"];
+function heldRanges(window) {
+  return window.ranges ?? [{ first: 1, last: window.last }];
+}
 var ARTIFACT_ORIGINS = [...TRACKER_KINDS, "none"];
 function specReference(manifest) {
   const spec = manifest.stage === "ticket-review" ? manifest.packet_files.find((file) => file.kind === "spec") : void 0;
@@ -2117,9 +2420,9 @@ function specReference(manifest) {
 function listedFiles(manifest) {
   const { code, packet_files: files } = manifest;
   if (code === void 0) return files;
-  const changed = new Set(code.changed_files);
   const ofKind = (kind) => files.filter((file) => file.kind === kind);
-  return [...ofKind("diff"), ...ofKind("tree").filter((file) => changed.has(file.path)), ...ofKind("ticket"), ...ofKind("spec")];
+  const fact = (path) => ofKind("fact").filter((file) => file.path === path);
+  return [...fact(REPO_MAP_PATH), ...ofKind("diff"), ...ofKind("ticket"), ...ofKind("spec"), ...fact(FACTS_INDEX_PATH)];
 }
 function parseManifest(text) {
   const file = JsonFields.parse(text);
@@ -2155,7 +2458,14 @@ function parseManifest(text) {
   };
 }
 function readWindow(window) {
-  return { last: window.positiveInteger("last"), lines: window.positiveInteger("lines") };
+  return {
+    last: window.positiveInteger("last"),
+    lines: window.positiveInteger("lines"),
+    ...window.has("ranges") ? { ranges: window.list("ranges", readRange) } : {}
+  };
+}
+function readRange(range) {
+  return { first: range.positiveInteger("first"), last: range.positiveInteger("last") };
 }
 function readRound(file) {
   if (!file.has("round") || file.number("round") !== 2) return { round: file.has("round") ? file.literal("round", 1) : 1 };
@@ -2179,6 +2489,7 @@ function readCodeSource(code) {
     changed_files: code.strings("changed_files"),
     head: code.string("head"),
     head_commit: code.string("head_commit"),
+    ...code.has("slices") ? { slices: code.list("slices", (slice) => ({ ...readRange(slice), path: slice.string("path"), reason: slice.string("reason") })) } : {},
     ...code.has("staged_diff") ? { staged_diff: code.string("staged_diff") } : {}
   };
 }
@@ -2504,7 +2815,7 @@ var GithubTracker = class {
         tracker: this.kind
       };
     } catch (error) {
-      return refusal("tracker-unreachable", `cannot read issue ${reference} through gh: ${firstLine2(error)}`);
+      return refusal("tracker-unreachable", `cannot read issue ${reference} through gh: ${firstLine3(error)}`);
     }
   }
   /** The spec issue's sub-issues, each with its native blocked-by links. */
@@ -2529,7 +2840,7 @@ var GithubTracker = class {
       );
       return { status: "read", tickets };
     } catch (error) {
-      return refusal("tracker-unreachable", `cannot read the tickets of ${this.reference(issue)} through gh: ${firstLine2(error)}`);
+      return refusal("tracker-unreachable", `cannot read the tickets of ${this.reference(issue)} through gh: ${firstLine3(error)}`);
     }
   }
   /** The issue a spec reference names, which must be one of this repository's. */
@@ -2605,7 +2916,7 @@ var LocalMarkdownTracker = class {
     })) };
   }
 };
-function firstLine2(error) {
+function firstLine3(error) {
   const message = error instanceof Error ? error.message : String(error);
   return message.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "gh failed";
 }
@@ -3147,13 +3458,22 @@ function missingLine(finding, packet2) {
       const path = packetCandidates(reference.path, TREE_DIR).find((candidate) => packet2.lines.has(candidate));
       if (path === void 0) return `${where} cites ${reference.path}, which is not in the packet`;
       const lines = packet2.lines.get(path) ?? 0;
-      const outside = [reference.first, reference.last].find((line) => line < 1 || line > lines);
-      if (outside === void 0) continue;
       const window = packet2.windows.get(path);
-      return window === void 0 ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines` : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (1-${String(window.last)} of ${String(window.lines)})`;
+      const held = window === void 0 ? [{ first: 1, last: lines }] : heldRanges(window);
+      const outside = firstUnheld(reference, held);
+      if (outside === void 0) continue;
+      return window === void 0 ? `${where} cites line ${String(outside)} of ${path}, which has ${String(lines)} lines` : `${where} cites line ${String(outside)} of ${path}, outside the lines the packet holds (${held.map((range) => `${String(range.first)}-${String(range.last)}`).join(", ")} of ${String(window.lines)})`;
     }
   }
   return void 0;
+}
+function firstUnheld(reference, held) {
+  const holding = (line) => held.find((range) => range.first <= line && line <= range.last);
+  const first = holding(reference.first);
+  if (first === void 0) return reference.first;
+  const last = holding(reference.last);
+  if (last === void 0) return reference.last;
+  return first === last ? void 0 : first.last + 1;
 }
 function codeRule(evidence) {
   const checkable = evidence.some(
@@ -3255,15 +3575,30 @@ var REPOSITORY_PACKET_NOTE = [
   "",
   "A quote from `facts/` or `tree/MANIFEST.tsv` is a fact the runner computed, never a recorded decision."
 ].join("\n");
+var CODE_FACT_DESCRIPTIONS = {
+  [FACTS_INDEX_PATH]: "what the packet holds: the files left out of the diff and of `tree/`, each context slice, and what the packet cap dropped or cut short",
+  [REPO_MAP_PATH]: "the repository's shape: every source file's top-level symbols and their signatures, ranked by how many other files reference them. Read it first"
+};
 var CODE_PACKET_NOTE = [
-  "Every other file of the repository at the commit under review is under `tree/`, at its repository path; read one with read_file as `tree/<repository path>`.",
+  "`tree/` holds the files the change touched, the files that import them and as much of the rest of the repository at the commit under review as the packet cap let in, each at its repository path; read one with read_file as `tree/<repository path>`. `facts/INDEX.md` lists every file the cap left out or cut short. A file cut short holds some of its lines at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. You cannot read what the packet does not hold; say what you would need from it instead.",
   "",
-  "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line past the end of its file, is rejected as fabricated evidence."
+  "Cite code as `tree/<repository path>:<line>`, or `tree/<repository path>:<first line>-<last line>` for a range, in a finding's `location` and in each step of a `trace`. A finding that cites a file the packet does not hold, or a line outside the lines it holds, is rejected as fabricated evidence.",
+  "",
+  "A quote from `tree/REPO-MAP.md` or `facts/` is a fact the runner computed, never a recorded decision."
 ].join("\n");
-function assemblePrompt(sources, files, stage) {
+function sliceList(slices) {
+  return [
+    "## Context slices",
+    "",
+    "The code around the change, at its own line numbers: each changed function or block, the symbols it calls and the functions that call it. Read these lines of these files:",
+    "",
+    ...slices.length === 0 ? ["None: the change touches no text file the packet holds."] : slices.map((slice) => `- \`${slice.path}:${String(slice.first)}-${String(slice.last)}\`: ${slice.reason}`)
+  ].join("\n");
+}
+function assemblePrompt(sources, files, stage, slices = []) {
   const codePacket = isCodeStage(stage);
-  const repositoryPacket = files.some((file) => file.kind === "fact");
-  const describe = (kind) => (stage === "tickets" ? TICKETS_STAGE_DESCRIPTIONS[kind] : void 0) ?? (repositoryPacket ? REPOSITORY_DESCRIPTIONS[kind] : void 0) ?? DESCRIPTIONS[kind];
+  const repositoryPacket = !codePacket && files.some((file) => file.kind === "fact");
+  const describe = ({ kind, path }) => (stage === "tickets" ? TICKETS_STAGE_DESCRIPTIONS[kind] : void 0) ?? (repositoryPacket ? REPOSITORY_DESCRIPTIONS[kind] : void 0) ?? (codePacket ? CODE_FACT_DESCRIPTIONS[path] : void 0) ?? DESCRIPTIONS[kind];
   const lenses = sources.lenses.map((lens) => lens.text.trim()).join("\n\n");
   const contract = `${sources.contract.trim()}
 
@@ -3275,8 +3610,8 @@ ${sources.schema.trim()}
     "",
     codePacket ? "Your working directory holds the change under review. Read each of these files with read_file, using the path exactly as written here:" : "Your working directory holds these files and no others. Read each one with read_file, using the path exactly as written here:",
     "",
-    ...files.map((file) => `- \`${file.path}\`: ${describe(file.kind)}`),
-    ...codePacket ? ["", CODE_PACKET_NOTE] : [],
+    ...files.map((file) => `- \`${file.path}\`: ${describe(file)}`),
+    ...codePacket ? ["", sliceList(slices), "", CODE_PACKET_NOTE] : [],
     ...repositoryPacket ? ["", REPOSITORY_PACKET_NOTE] : []
   ].join("\n");
   return {
@@ -3572,7 +3907,8 @@ var FanOutCommand = class {
         schema: await asset(FINDING_SCHEMA)
       },
       listedFiles(manifest),
-      manifest.stage
+      manifest.stage,
+      manifest.code?.slices
     );
     await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text);
     return { checks: declaredChecks([role, ...lenses.map((lens) => lens.text)]), prompt };
@@ -4188,18 +4524,261 @@ function withoutFences(markdown) {
 // src/contexts/critique/application/code-packet.ts
 import { join as join12 } from "node:path";
 
+// src/contexts/critique/domain/code-sample.ts
+var CODE_TIERS = ["changed", "importer", "related", "rest"];
+function sampleCodeTree(request) {
+  const { limits } = request;
+  const candidates = codeCandidates(request);
+  const byPath = new Map(candidates.map((candidate) => [candidate.path, candidate]));
+  const sliced = request.slices.flatMap((slice) => {
+    const candidate = byPath.get(slice.path);
+    const piece = candidate === void 0 ? void 0 : { candidate, note: (admitted) => sliceLine(slice, admitted), ranges: [slice], window: false };
+    return piece === void 0 ? [] : [{ piece, slice }];
+  });
+  const slicePieces = sliced.map((entry) => entry.piece);
+  const pieces = [...slicePieces, ...windowOrder2(candidates, limits.window_lines)];
+  const none = { admitted: /* @__PURE__ */ new Set(), held: /* @__PURE__ */ new Map() };
+  const fixed = request.documentBytes + bytes(request.repoMap.text) + bytes(renderIndex2(request, candidates, slicePieces, none));
+  if (fixed > limits.cap_bytes) {
+    return refusal(
+      "packet-over-cap",
+      `the diff, the tickets, the spec, ${REPO_MAP_PATH} and ${FACTS_INDEX_PATH} come to ${String(fixed)} bytes, past the packet cap of ${String(limits.cap_bytes)}; review a smaller change or raise packet.cap_bytes in routing`
+    );
+  }
+  const admission = admitPieces(pieces, limits.cap_bytes - fixed, treeLine);
+  const tree = candidates.flatMap((candidate) => {
+    const file = sampledFile(candidate, admission.held.get(candidate) ?? []);
+    return file === void 0 ? [] : [file];
+  });
+  return {
+    dropped: candidates.filter((candidate) => !holdsAll(candidate, admission.held.get(candidate) ?? [])).length,
+    index: renderIndex2(request, candidates, slicePieces, admission),
+    slices: sliced.filter((entry) => admission.admitted.has(entry.piece)).map((entry) => entry.slice),
+    status: "sampled",
+    tree
+  };
+}
+function codeCandidates(request) {
+  const changed = new Set(request.changed);
+  const importers = new Set(request.importers);
+  const related = new Set(request.slices.map((slice) => slice.path));
+  const tierOf = (path) => changed.has(path) ? "changed" : importers.has(path) ? "importer" : related.has(path) ? "related" : "rest";
+  return request.tracked.flatMap((file) => file.text === null || `tree/${file.path}` === REPO_MAP_PATH ? [] : [candidateOf(file.path, tierOf(file.path), file.text)]).sort((a, b) => CODE_TIERS.indexOf(a.tier) - CODE_TIERS.indexOf(b.tier) || (a.path < b.path ? -1 : 1));
+}
+function windowOrder2(candidates, size) {
+  const rank2 = (tier) => Math.min(CODE_TIERS.indexOf(tier), CODE_TIERS.indexOf("related"));
+  return candidates.flatMap((candidate, position) => windowsOf(candidate, size).map((piece, window) => ({ piece, position, window }))).sort((a, b) => rank2(a.piece.candidate.tier) - rank2(b.piece.candidate.tier) || a.window - b.window || a.position - b.position).map((entry) => entry.piece);
+}
+function treeLine(candidate, held) {
+  if (candidate.tier === "rest" && holdsAll(candidate, held)) return void 0;
+  return `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): ${sentStatus(candidate, held)}`;
+}
+function sliceReason(slice) {
+  const symbol = slice.symbol === void 0 ? void 0 : `\`${slice.symbol}\``;
+  const of = `\`${slice.of ?? ""}\``;
+  if (slice.reason === "callee") return `${symbol ?? ""}, which ${of} calls`;
+  if (slice.reason === "caller") return `${symbol ?? ""}, which calls ${of}`;
+  return symbol === void 0 ? "lines the change touches" : `${symbol}, which the change touches`;
+}
+function sliceCitation(slice) {
+  return `tree/${slice.path}:${String(slice.first)}-${String(slice.last)}`;
+}
+function sliceLine(slice, admitted) {
+  return `- \`${sliceCitation(slice)}\`: ${sliceReason(slice)}: ${admitted ? "sent" : "the cap dropped it"}`;
+}
+function renderIndex2(request, candidates, slicePieces, admission) {
+  const { limits, repoMap } = request;
+  const { generated, lock, vendored } = request.excluded;
+  const binary = request.tracked.filter((file) => file.text === null).length;
+  const leftOut = request.leftOut.map((file) => `- \`${file.path}\`: ${file.reason}; ${String(file.changed_lines)} changed lines`);
+  const slices = slicePieces.map((piece) => piece.note?.(admission.admitted.has(piece)) ?? "");
+  const tree = candidates.flatMap((candidate) => treeLine(candidate, admission.held.get(candidate) ?? []) ?? []);
+  return [
+    "# Facts",
+    "",
+    `What the runner computed from the repository at commit \`${request.commit}\`. Facts are settled: cite them, never recompute them. A quote from a fact is a fact, never a recorded decision.`,
+    "",
+    "## Files",
+    "",
+    `- \`${REPO_MAP_PATH}\`: every source file's top-level symbols and their signatures, ranked by how many other files reference them${repoMap.dropped === 0 ? "" : `; its cap left out the ${String(repoMap.dropped)} least referenced files`}.`,
+    "",
+    "## Limits",
+    "",
+    `Packet cap ${String(limits.cap_bytes)} bytes; repo map cap ${String(limits.repo_map_cap_bytes)} bytes; windows of ${String(limits.window_lines)} lines.`,
+    "",
+    "## Excluded",
+    "",
+    `Never sent under \`tree/\`: ${String(vendored)} vendored, ${String(generated)} generated and ${String(lock)} lock files, and ${String(binary)} binary files.`,
+    ...leftOut.length === 0 ? [] : ["", "Left out of `diff/change.diff`, each with one line in its place:", "", ...leftOut],
+    "",
+    "## Context slices",
+    "",
+    "The code around the change, at its own line numbers: each changed function or block, then the symbols it calls, then the functions that call it.",
+    "",
+    ...slices.length === 0 ? ["The change touches no text file the tree holds."] : slices,
+    "",
+    "## Tree",
+    "",
+    `Files under \`tree/\`, in the order the cap let them in: the slices above, then the files the change touched, then the files that import them, then the rest of the tree. A file goes in windows of ${String(limits.window_lines)} lines from its first line. A file cut short holds the lines listed here at their own numbers; a run of lines it does not hold is blank but for a marker on its first line. A file of the rest of the tree not listed here was sent in full.`,
+    "",
+    ...tree,
+    ""
+  ].join("\n");
+}
+
+// src/contexts/critique/domain/context-slices.ts
+var CONTEXT_LINES = 10;
+var STATEMENT_CONTEXT_LINES = 3;
+var RELATED_PER_SYMBOL = 8;
+var DIFF_CELLS = 4e6;
+function contextSlices(graph, changed) {
+  const own = [];
+  const symbols = [];
+  for (const file of changed) {
+    const lines = changedLines(file.before, file.text);
+    const scanned = graph.files.has(file.path);
+    const loose = [];
+    const enclosing = /* @__PURE__ */ new Map();
+    for (const line of lines) {
+      const symbol = graph.enclosing(file.path, line);
+      if (symbol !== void 0) enclosing.set(symbol.first, symbol);
+      else loose.push(around(line, scanned ? STATEMENT_CONTEXT_LINES : CONTEXT_LINES, lineCount(file.text)));
+    }
+    const found = [...enclosing.values()];
+    symbols.push(...found.map((symbol) => ({ path: file.path, symbol })));
+    own.push(
+      ...[...found.map((symbol) => ({ first: symbol.first, last: symbol.last, symbol: symbol.name })), ...mergeRanges(loose)].sort((a, b) => a.first - b.first).map((range) => ({ ...range, path: file.path, reason: "changed" }))
+    );
+  }
+  const callees = symbols.flatMap(({ path, symbol }) => calleesOf(graph, path, symbol));
+  const callers = symbols.flatMap(({ path, symbol }) => callersOf(graph, path, symbol));
+  const seen = /* @__PURE__ */ new Set();
+  return [...own, ...callees, ...callers].filter((slice) => {
+    const key2 = `${slice.path}:${String(slice.first)}-${String(slice.last)}`;
+    if (seen.has(key2)) return false;
+    seen.add(key2);
+    return true;
+  });
+}
+function calleesOf(graph, path, symbol) {
+  const text = graph.files.get(path)?.text ?? "";
+  const body = text.split("\n").slice(symbol.first - 1, symbol.last).join("\n");
+  const names = [...new Set(body.match(/[A-Za-z_$][\w$]*/g) ?? [])];
+  return names.flatMap((name) => {
+    const found = graph.definition(path, name);
+    if (found === void 0 || found.path === path && found.symbol.first === symbol.first) return [];
+    return [{ first: found.symbol.first, last: found.symbol.last, of: symbol.name, path: found.path, reason: "callee", symbol: name }];
+  }).slice(0, RELATED_PER_SYMBOL);
+}
+function callersOf(graph, path, symbol) {
+  return [path, ...graph.references(path, symbol.name)].flatMap(
+    (caller) => mentionLines(graph.files.get(caller)?.text ?? "", symbol.name).flatMap((line) => {
+      const enclosing = graph.enclosing(caller, line);
+      if (enclosing === void 0 || caller === path && enclosing.first === symbol.first) return [];
+      return [{ first: enclosing.first, last: enclosing.last, of: symbol.name, path: caller, reason: "caller", symbol: enclosing.name }];
+    })
+  ).filter((slice, index, all) => all.findIndex((other) => other.path === slice.path && other.first === slice.first) === index).slice(0, RELATED_PER_SYMBOL);
+}
+function around(line, context, lines) {
+  return { first: Math.max(1, line - context), last: Math.max(1, Math.min(lines, line + context)) };
+}
+function changedLines(before, after) {
+  const next = linesOf(after);
+  if (before === void 0) return next.map((_, i) => i + 1);
+  const old = linesOf(before);
+  let start = 0;
+  while (start < old.length && start < next.length && old[start] === next[start]) start += 1;
+  let end = 0;
+  while (end < old.length - start && end < next.length - start && old[old.length - 1 - end] === next[next.length - 1 - end]) end += 1;
+  const oldMiddle = old.slice(start, old.length - end);
+  const newMiddle = next.slice(start, next.length - end);
+  if (newMiddle.length === 0) return oldMiddle.length === 0 || next.length === 0 ? [] : [Math.min(start + 1, next.length)];
+  if (oldMiddle.length * newMiddle.length > DIFF_CELLS) return newMiddle.map((_, i) => start + i + 1);
+  const kept2 = commonLines(oldMiddle, newMiddle);
+  const added = newMiddle.flatMap((_, i) => kept2.has(i) ? [] : [start + i + 1]);
+  return added.length === 0 ? [Math.min(start + 1, next.length)] : added;
+}
+function linesOf(text) {
+  return text === "" ? [] : text.replace(/\n$/, "").split("\n");
+}
+function commonLines(a, b) {
+  const width = b.length + 1;
+  const table = new Uint32Array((a.length + 1) * width);
+  for (let i2 = a.length - 1; i2 >= 0; i2 -= 1) {
+    for (let j2 = b.length - 1; j2 >= 0; j2 -= 1) {
+      table[i2 * width + j2] = a[i2] === b[j2] ? (table[(i2 + 1) * width + j2 + 1] ?? 0) + 1 : Math.max(table[(i2 + 1) * width + j2] ?? 0, table[i2 * width + j2 + 1] ?? 0);
+    }
+  }
+  const kept2 = /* @__PURE__ */ new Set();
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      kept2.add(j);
+      i += 1;
+      j += 1;
+    } else if ((table[(i + 1) * width + j] ?? 0) >= (table[i * width + j + 1] ?? 0)) i += 1;
+    else j += 1;
+  }
+  return kept2;
+}
+
+// src/contexts/critique/domain/diff-filter.ts
+var FILE_HEADER = /^diff --git a\/(.+) b\/(.+)$/;
+function filterDiff(diff, leftOut) {
+  const kept2 = [];
+  const left = [];
+  for (const section2 of fileSections(diff)) {
+    const reason = section2.path === void 0 ? void 0 : leftOut(section2.path);
+    if (section2.path === void 0 || reason === void 0) {
+      kept2.push(section2.text);
+      continue;
+    }
+    const changed = countChangedLines(section2.text);
+    left.push({ changed_lines: changed, path: section2.path, reason });
+    kept2.push(`Left out of this diff: ${section2.path}, ${reason}; its ${String(changed)} changed lines are not shown.
+`);
+  }
+  return { diff: kept2.join(""), left_out: left };
+}
+function fileSections(diff) {
+  const sections = [];
+  for (const line of diff.split(/(?<=\n)/)) {
+    const header = FILE_HEADER.exec(line.replace(/\n$/, ""));
+    const current = sections.at(-1);
+    if (header !== null || current === void 0) sections.push({ path: header?.[2], text: line });
+    else current.text += line;
+  }
+  return sections;
+}
+
 // src/contexts/critique/application/code-change.ts
 var CodeChangeReader = class {
   constructor(deps) {
     this.deps = deps;
   }
   deps;
-  async read(root, base, head) {
+  async read(root, base, head, limits) {
     const headCommit = await this.commit(root, "head", head);
     const baseCommit = await this.deps.git.mergeBase(root, await this.commit(root, "base", base), headCommit);
-    const diff = await this.deps.git.diffCommits(root, baseCommit, headCommit);
+    const raw = await this.deps.git.diffCommits(root, baseCommit, headCommit);
     const paths = await this.deps.git.changedPaths(root, baseCommit, headCommit);
-    return { base_commit: baseCommit, change: codeChange(diff, paths), diff, head_commit: headCommit };
+    const reasons = /* @__PURE__ */ new Map();
+    for (const path of paths) {
+      const text = exclusionOf(path, void 0, limits) === void 0 ? await this.textOf(root, headCommit, baseCommit, path) : void 0;
+      const exclusion = exclusionOf(path, text, limits);
+      if (exclusion !== void 0) reasons.set(path, exclusionReason(exclusion));
+    }
+    const { diff, left_out: leftOut } = filterDiff(raw, (path) => reasons.get(path));
+    return { base_commit: baseCommit, change: codeChange(diff, paths), diff, head_commit: headCommit, left_out: leftOut };
+  }
+  /** The path's text at the head, or at the base when the change deleted it. */
+  async textOf(root, head, base, path) {
+    try {
+      return await this.deps.git.fileAt(root, head, path);
+    } catch {
+      return this.deps.git.fileAt(root, base, path);
+    }
   }
   async commit(root, field, revision) {
     try {
@@ -4211,10 +4790,32 @@ var CodeChangeReader = class {
   }
 };
 
+// src/contexts/critique/application/tracked-tree.ts
+var READ_CONCURRENCY = 16;
+async function readTrackedTree(deps, root, commit, limits) {
+  const excluded = { generated: 0, lock: 0, vendored: 0 };
+  const paths = (await deps.git.treeFiles(root, commit)).filter((path) => {
+    const kind = excludedByPath(path, limits);
+    if (kind !== void 0) excluded[kind] += 1;
+    return kind === void 0;
+  });
+  const tracked = [];
+  for (let start = 0; start < paths.length; start += READ_CONCURRENCY) {
+    const batch = paths.slice(start, start + READ_CONCURRENCY);
+    const texts = await Promise.all(batch.map((path) => deps.git.fileAt(root, commit, path)));
+    batch.forEach((path, i) => {
+      const text = texts[i] ?? "";
+      if (text.includes("\0")) tracked.push({ path, text: null });
+      else if (isGenerated(text)) excluded.generated += 1;
+      else tracked.push({ path, text });
+    });
+  }
+  return { excluded, tracked };
+}
+
 // src/contexts/critique/application/code-packet.ts
 var TREE_DIR2 = "tree";
 var DIFF_PATH = join12("diff", "change.diff");
-var READ_CONCURRENCY = 16;
 var CodePacketReader = class {
   constructor(deps) {
     this.deps = deps;
@@ -4223,7 +4824,7 @@ var CodePacketReader = class {
   deps;
   changes;
   async read(repository, tracker, request) {
-    const { stage } = request;
+    const { limits, stage } = request;
     if (request.base === void 0) {
       throw new CritiqueError("invalid-input", `${stage} needs base: the commit or branch the change is diffed against`);
     }
@@ -4231,20 +4832,51 @@ var CodePacketReader = class {
       throw new CritiqueError("invalid-input", "ticket-review needs ticket: the ticket the change delivers");
     }
     const root = repository.root;
-    const read = await this.changes.read(root, request.base, request.head);
+    const read = await this.changes.read(root, request.base, request.head, limits);
     const { base_commit: base, head_commit: head } = read;
     const spec = await tracker.artifact({ comments: request.comments, reference: request.spec });
     if (spec.status === "refused") return spec;
     const tickets = await this.tickets(tracker, request, stage === "ticket-review" ? request.ticket : void 0);
     if (tickets.status === "refused") return tickets;
-    const tree = await this.tree(root, head);
-    const inTree = new Set(tree.map((file) => file.source));
-    const changed = read.change.paths.filter((path) => inTree.has(path));
-    const files = [
+    const { excluded, tracked } = await readTrackedTree(this.deps, root, head, limits);
+    const texts = new Map(tracked.flatMap((file) => file.text === null ? [] : [[file.path, file.text]]));
+    const graph = SourceGraph.build([...texts].map(([path, text]) => ({ path, text })));
+    const changed = read.change.paths.filter((path) => texts.has(path));
+    const changedFiles = await Promise.all(
+      changed.map(async (path) => ({ before: await this.before(root, base, path), path, text: texts.get(path) ?? "" }))
+    );
+    const documents = [
       { kind: "diff", path: DIFF_PATH, source: `${base}..${head}`, text: read.diff },
       ...tickets.files,
-      { kind: "spec", path: join12("spec", spec.name), source: spec.reference, text: spec.text },
-      ...tree
+      { kind: "spec", path: join12("spec", spec.name), source: spec.reference, text: spec.text }
+    ];
+    const repoMap = renderRepoMap(buildRepoMap(graph), { capBytes: limits.repo_map_cap_bytes, commit: head });
+    const sample = sampleCodeTree({
+      changed,
+      commit: head,
+      documentBytes: documents.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
+      excluded,
+      importers: [...new Set(changed.flatMap((path) => graph.importers(path)))].filter((path) => !changed.includes(path)).sort(),
+      leftOut: read.left_out,
+      limits,
+      repoMap,
+      slices: contextSlices(graph, changedFiles),
+      tracked
+    });
+    if (sample.status === "refused") return sample;
+    const files = [
+      ...documents,
+      { kind: "fact", path: REPO_MAP_PATH, source: head, text: repoMap.text },
+      { kind: "fact", path: FACTS_INDEX_PATH, source: head, text: sample.index },
+      ...sample.tree.map(
+        (file) => ({
+          kind: "tree",
+          path: join12(TREE_DIR2, file.path),
+          source: file.path,
+          text: file.text,
+          ...file.window === void 0 ? {} : { window: file.window }
+        })
+      )
     ];
     return {
       artifact: tickets.ticket ?? spec,
@@ -4254,12 +4886,22 @@ var CodePacketReader = class {
         base_commit: base,
         changed_files: changed.map((path) => join12(TREE_DIR2, path)),
         head: request.head,
-        head_commit: head
+        head_commit: head,
+        slices: sample.slices.map((slice) => ({ first: slice.first, last: slice.last, path: join12(TREE_DIR2, slice.path), reason: sliceReason(slice) }))
       },
       files,
+      sample: { cap_bytes: limits.cap_bytes, dropped_files: sample.dropped },
       specReference: spec.reference,
       status: "read"
     };
+  }
+  /** A file's text at the base, or nothing when the change added it. */
+  async before(root, base, path) {
+    try {
+      return await this.deps.git.fileAt(root, base, path);
+    } catch {
+      return void 0;
+    }
   }
   /** The one ticket a ticket review names, or else every ticket of the spec. */
   async tickets(tracker, request, reference) {
@@ -4272,20 +4914,6 @@ var CodePacketReader = class {
     if (read.status === "refused") return read;
     return { files: read.tickets.map((ticket) => ticketFile(ticket.name, ticket.reference, ticket.text)), status: "read" };
   }
-  /** Every text file of the commit's tree; a file holding a NUL byte is binary and left out. */
-  async tree(root, commit) {
-    const paths = await this.deps.git.treeFiles(root, commit);
-    const files = [];
-    for (let start = 0; start < paths.length; start += READ_CONCURRENCY) {
-      const batch = paths.slice(start, start + READ_CONCURRENCY);
-      const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
-      batch.forEach((path, i) => {
-        const text = texts[i] ?? "";
-        if (!text.includes("\0")) files.push({ kind: "tree", path: join12(TREE_DIR2, path), source: path, text });
-      });
-    }
-    return files;
-  }
 };
 function ticketFile(name, reference, text) {
   return { kind: "ticket", path: join12("tickets", name), source: reference, text };
@@ -4293,7 +4921,6 @@ function ticketFile(name, reference, text) {
 
 // src/contexts/critique/application/adr-packet.ts
 var ADR_ARTIFACT = "adrs";
-var READ_CONCURRENCY2 = 16;
 var AdrPacketReader = class {
   constructor(deps) {
     this.deps = deps;
@@ -4328,7 +4955,7 @@ var AdrPacketReader = class {
   /** Adds the sampled tree, its manifest and the facts to a documents-only packet. */
   async withTree(root, packet2, code) {
     const commit = await this.deps.git.resolveCommit(root, code.head);
-    const { excluded, tracked } = await this.tracked(root, commit, code.limits);
+    const { excluded, tracked } = await readTrackedTree(this.deps, root, commit, code.limits);
     const sample = sampleRepository({
       artifactText: packet2.artifact.text,
       commit,
@@ -4368,30 +4995,6 @@ var AdrPacketReader = class {
         tree_files: sample.tree.length
       }
     };
-  }
-  /**
-   * Every tracked path at the commit, sorted, with its text, or null for a
-   * binary file; an excluded path is counted, never read past its marker.
-   */
-  async tracked(root, commit, limits) {
-    const excluded = { generated: 0, lock: 0, vendored: 0 };
-    const paths = (await this.deps.git.treeFiles(root, commit)).filter((path) => {
-      const kind = excludedByPath(path, limits);
-      if (kind !== void 0) excluded[kind] += 1;
-      return kind === void 0;
-    });
-    const tracked = [];
-    for (let start = 0; start < paths.length; start += READ_CONCURRENCY2) {
-      const batch = paths.slice(start, start + READ_CONCURRENCY2);
-      const texts = await Promise.all(batch.map((path) => this.deps.git.fileAt(root, commit, path)));
-      batch.forEach((path, i) => {
-        const text = texts[i] ?? "";
-        if (text.includes("\0")) tracked.push({ path, text: null });
-        else if (isGenerated(text)) excluded.generated += 1;
-        else tracked.push({ path, text });
-      });
-    }
-    return { excluded, tracked };
   }
   /** The first of `GLOSSARY.md` and `CONTEXT.md` the repository has, as decision docs pick it. */
   async glossary(root) {
@@ -4646,7 +5249,7 @@ var PrepareCommand = class {
 `);
     return {
       artifact: source,
-      ...code === void 0 ? {} : { code: preparedCode(code, packetFiles) },
+      ...code === void 0 || contents.sample === void 0 ? {} : { code: preparedCode(code, contents.files, packetFiles, contents.sample) },
       ...contents.repository === void 0 ? {} : { repository: contents.repository },
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
@@ -4680,7 +5283,7 @@ var PrepareCommand = class {
     if (tracker.status === "refused") return tracker;
     if (input.spec === void 0) throw new CritiqueError("invalid-input", `${stage} needs spec: the spec, named the way its tracker names it`);
     const request = { ...input, spec: input.spec };
-    if (packet2 === "code") return this.codePackets.read(repository, tracker, request);
+    if (packet2 === "code") return this.codePackets.read(repository, tracker, { ...request, limits: (await this.routing.load()).packet });
     return packet2 === "tickets" ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request);
   }
   /**
@@ -4791,11 +5394,14 @@ function checkReportFile(check, size) {
 `
   };
 }
-function preparedCode(code, files) {
+function preparedCode(code, texts, files, sample) {
   return {
     base_commit: code.base_commit,
+    cap_bytes: sample.cap_bytes,
     changed_files: code.changed_files,
+    dropped_files: sample.dropped_files,
     head_commit: code.head_commit,
+    packet_bytes: texts.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
     tree_files: files.filter((file) => file.kind === "tree").length
   };
 }
@@ -4991,7 +5597,7 @@ function renderSummary(run, reportPath2) {
     "## Critics",
     "",
     ...run.critics.map((critic) => `- ${criticLine(run, critic, CHECKED_MAX_CHARS)}`),
-    ...run.dropped.map(droppedLine),
+    ...run.dropped.map(droppedLine2),
     "",
     "## Accepted",
     "",
@@ -5052,7 +5658,7 @@ function renderReport(run) {
       `- Lens hashes: ${hashList(critic.lens_hashes)}`,
       ""
     ]),
-    ...run.dropped.map(droppedLine),
+    ...run.dropped.map(droppedLine2),
     "## Findings",
     "",
     ...run.findings.length === 0 ? ["none", ""] : run.findings.flatMap((f) => findingSection(run, f)),
@@ -5165,7 +5771,7 @@ function signalText(signal) {
   if (signal.kind === "threshold") return `${signal.measure} ${String(signal.value)} > ${String(signal.threshold)}`;
   return signal.kind === "risk-term" ? `risk term "${signal.term}"` : `label ${signal.label}`;
 }
-function droppedLine(dropped) {
+function droppedLine2(dropped) {
   const detail = dropped.detail === void 0 ? "" : ` (${dropped.detail})`;
   const slot = dropped.replaced_by !== void 0 ? `replaced by ${dropped.replaced_by}` : dropped.deep === true ? "deep critic left out" : "no fallback left, so the stage runs with fewer critics";
   return `- Not run: ${dropped.client} (${dropped.family}): ${dropped.reason}${detail}; ${slot}`;
@@ -5486,7 +6092,8 @@ var RefuteCommand = class {
         schema: await asset(FINDING_SCHEMA)
       },
       listedFiles(manifest),
-      manifest.stage
+      manifest.stage,
+      manifest.code?.slices
     );
     const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage);
     const round = {
@@ -6676,7 +7283,7 @@ var TriageCommand = class {
     if (spec?.status === "refused") return spec;
     const snapshot = input.staged ? await this.staged.snapshot(repository.root) : void 0;
     const head = snapshot?.commit ?? input.head;
-    const read = await this.changes.read(repository.root, input.base, head);
+    const read = await this.changes.read(repository.root, input.base, head, routing.packet);
     const runId = await this.freshRunId(repository);
     const runDir = join22(repository.commonDir, "critique", runId);
     const flow = input.flow ?? spec?.reference ?? ticket.reference;

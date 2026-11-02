@@ -31,7 +31,7 @@ import { riskPathHits, type CodeChange } from '../domain/triage.js'
 import { FlowBudget } from './budget.js'
 import { AdrPacketReader, type PreparedRepository } from './adr-packet.js'
 import { readCheckedTickets, type CheckTicketsResult } from './check-tickets.js'
-import { CodePacketReader, ticketFile, type UnfrozenFile } from './code-packet.js'
+import { CodePacketReader, ticketFile, type CodeTreeSample, type UnfrozenFile } from './code-packet.js'
 import { readInput, readJsonFile } from './decode.js'
 import { DecisionDocs } from './decision-docs.js'
 import { DecisionsPacketReader } from './decisions-packet.js'
@@ -89,8 +89,13 @@ export interface PreparedCode {
   readonly base_commit: string
   readonly head_commit: string
   readonly changed_files: readonly string[]
-  /** How many files of the tree at the head were frozen. */
+  /** How many files of the tree at the head were frozen, in whole or in part. */
   readonly tree_files: number
+  /** How many files of the tree the packet cap left out, in whole or in part. */
+  readonly dropped_files: number
+  /** The bytes of every packet file. */
+  readonly packet_bytes: number
+  readonly cap_bytes: number
 }
 
 /** What a stage freezes, before the routing decides who reads it. */
@@ -111,6 +116,8 @@ interface PacketContents {
   readonly adrs?: number
   /** Only for a repository packet: what of the tree it sent. */
   readonly repository?: PreparedRepository
+  /** Only for a code stage: what of the tree the cap let in. */
+  readonly sample?: CodeTreeSample
 }
 
 type RoundOf = Pick<RunManifest, 'round' | 'previous_run_id'> & {
@@ -272,7 +279,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     await this.deps.files.writeText(manifestPath(runDir), `${JSON.stringify(manifest, null, 2)}\n`)
     return {
       artifact: source,
-      ...(code === undefined ? {} : { code: preparedCode(code, packetFiles) }),
+      ...(code === undefined || contents.sample === undefined ? {} : { code: preparedCode(code, contents.files, packetFiles, contents.sample) }),
       ...(contents.repository === undefined ? {} : { repository: contents.repository }),
       critics: roster.critics.map(criticIdentity),
       depth: roster.depth,
@@ -311,7 +318,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     if (tracker.status === 'refused') return tracker
     if (input.spec === undefined) throw new CritiqueError('invalid-input', `${stage} needs spec: the spec, named the way its tracker names it`)
     const request = { ...input, spec: input.spec }
-    if (packet === 'code') return this.codePackets.read(repository, tracker, request)
+    if (packet === 'code') return this.codePackets.read(repository, tracker, { ...request, limits: (await this.routing.load()).packet })
     return packet === 'tickets' ? this.ticketsPacket(tracker, request) : this.documentPacket(repository, tracker, request)
   }
 
@@ -440,11 +447,14 @@ function checkReportFile(check: CheckTicketsResult, size: TicketSize): UnfrozenF
   }
 }
 
-function preparedCode(code: CodeSource, files: readonly PacketFile[]): PreparedCode {
+function preparedCode(code: CodeSource, texts: readonly UnfrozenFile[], files: readonly PacketFile[], sample: CodeTreeSample): PreparedCode {
   return {
     base_commit: code.base_commit,
+    cap_bytes: sample.cap_bytes,
     changed_files: code.changed_files,
+    dropped_files: sample.dropped_files,
     head_commit: code.head_commit,
+    packet_bytes: texts.reduce((sum, file) => sum + Buffer.byteLength(file.text), 0),
     tree_files: files.filter((file) => file.kind === 'tree').length,
   }
 }

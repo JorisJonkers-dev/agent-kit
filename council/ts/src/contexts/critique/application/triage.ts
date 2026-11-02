@@ -125,7 +125,7 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     if (spec?.status === 'refused') return spec
     const snapshot = input.staged ? await this.staged.snapshot(repository.root) : undefined
     const head = snapshot?.commit ?? input.head
-    const read = await this.changes.read(repository.root, input.base, head)
+    const read = await this.changes.read(repository.root, input.base, head, routing.packet)
     const runId = await this.freshRunId(repository)
     const runDir = join(repository.commonDir, 'critique', runId)
     const flow = input.flow ?? spec?.reference ?? ticket.reference

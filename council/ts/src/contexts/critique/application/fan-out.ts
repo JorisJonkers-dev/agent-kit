@@ -160,6 +160,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
       },
       listedFiles(manifest),
       manifest.stage,
+      manifest.code?.slices,
     )
     await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
     return { checks: declaredChecks([role, ...lenses.map((lens) => lens.text)]), prompt }

@@ -130,6 +130,7 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
       },
       listedFiles(manifest),
       manifest.stage,
+      manifest.code?.slices,
     )
     const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage)
     const round: Round = {

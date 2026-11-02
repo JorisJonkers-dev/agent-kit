@@ -1,6 +1,19 @@
 import { JsonFields } from './json.js'
 import { lineCount } from './line-references.js'
 import { refusal, type Refusal } from './outcomes.js'
+import {
+  admitPieces,
+  bytes,
+  candidateOf,
+  holdsAll,
+  sampledFile,
+  sentStatus,
+  windowsOf,
+  type LineRange,
+  type SampledFile,
+  type TreeCandidate,
+  type TreePiece,
+} from './tree-sample.js'
 import { matchesGlob } from './triage.js'
 
 /** Why a tracked path is never sent: it is vendored, generated, or a lock file. */
@@ -16,15 +29,21 @@ export type ExclusionKind = (typeof EXCLUSION_KINDS)[number]
 export interface PacketLimits {
   readonly cap_bytes: number
   readonly facts_cap_bytes: number
+  /** How big a code packet's `tree/REPO-MAP.md` may be, inside the cap. */
+  readonly repo_map_cap_bytes: number
   readonly window_lines: number
   readonly exclude: Readonly<Record<ExclusionKind, readonly string[]>>
 }
+
+/** The repo map's cap for a routing file that states none. */
+const DEFAULT_REPO_MAP_CAP_BYTES = 20_480
 
 /** ADR-0004's starting limits, for a routing file that states none; the phase-0 live check sets the final ones in routing. */
 export const DEFAULT_PACKET_LIMITS: PacketLimits = {
   cap_bytes: 153_600,
   exclude: { generated: [], lock: [], vendored: [] },
   facts_cap_bytes: 30_720,
+  repo_map_cap_bytes: DEFAULT_REPO_MAP_CAP_BYTES,
   window_lines: 400,
 }
 
@@ -34,13 +53,40 @@ export function readPacketLimits(fields: JsonFields): PacketLimits {
     cap_bytes: fields.positiveInteger('cap_bytes'),
     exclude: { generated: exclude.strings('generated'), lock: exclude.strings('lock'), vendored: exclude.strings('vendored') },
     facts_cap_bytes: fields.positiveInteger('facts_cap_bytes'),
+    repo_map_cap_bytes: fields.has('repo_map_cap_bytes') ? fields.positiveInteger('repo_map_cap_bytes') : DEFAULT_REPO_MAP_CAP_BYTES,
     window_lines: fields.positiveInteger('window_lines'),
   }
 }
 
+/** Why a path is never sent: its kind, and the rule that says so. */
+export interface Exclusion {
+  readonly kind: ExclusionKind
+  /** The routing glob it matches, or `marker` when its first lines say a tool generated it. */
+  readonly rule: string
+}
+
 /** The kind of the first exclusion glob a path matches, or nothing when it may be sent. */
 export function excludedByPath(path: string, limits: PacketLimits): ExclusionKind | undefined {
-  return EXCLUSION_KINDS.find((kind) => limits.exclude[kind].some((glob) => matchesGlob(path, glob)))
+  return exclusionOf(path, undefined, limits)?.kind
+}
+
+/**
+ * Why a path, with its text when it is known, is never sent: the first
+ * exclusion glob it matches, else a generated-file marker in its first lines.
+ */
+export function exclusionOf(path: string, text: string | undefined, limits: PacketLimits): Exclusion | undefined {
+  for (const kind of EXCLUSION_KINDS) {
+    const glob = limits.exclude[kind].find((candidate) => matchesGlob(path, candidate))
+    if (glob !== undefined) return { kind, rule: glob }
+  }
+  return text !== undefined && isGenerated(text) ? { kind: 'generated', rule: 'marker' } : undefined
+}
+
+/** What an exclusion says about its file, for a line of the diff or the facts index. */
+export function exclusionReason(exclusion: Exclusion): string {
+  return exclusion.rule === 'marker'
+    ? 'a generated file: its first lines say a tool generated it'
+    : `a ${exclusion.kind} file: it matches the routing glob \`${exclusion.rule}\``
 }
 
 /** How many leading lines may carry a generated-file marker. */
@@ -98,13 +144,8 @@ export interface SampleRequest {
   readonly facts: RepositoryFacts
 }
 
-/** A tree file, as frozen: all of it, or its first lines when the cap cut it short. */
-export interface SampledFile {
-  readonly path: string
-  readonly text: string
-  /** Only when the file was cut short: it holds lines 1 to `last` of its `lines`. */
-  readonly window?: { readonly last: number; readonly lines: number }
-}
+
+export type { SampledFile } from './tree-sample.js'
 
 export interface RepositorySample {
   readonly status: 'sampled'
@@ -145,22 +186,6 @@ const ENTRY_FILES = new Set([
 export const MANIFEST_PATH = 'tree/MANIFEST.tsv'
 export const FACTS_INDEX_PATH = 'facts/INDEX.md'
 
-interface Candidate {
-  readonly path: string
-  readonly tier: Tier
-  readonly lines: readonly string[]
-  readonly lineCount: number
-  readonly text: string
-  /** How many windows the file is cut into; an empty file is one empty window. */
-  readonly windows: number
-}
-
-const encoder = new TextEncoder()
-
-function bytes(text: string): number {
-  return encoder.encode(text).length
-}
-
 /**
  * Chooses what of the repository's tree a packet sends, by rule and never by
  * a model: the files the artifact names, then the top hotspots, then each
@@ -178,42 +203,24 @@ export function sampleRepository(request: SampleRequest): RepositorySample | Ref
   const manifest = renderManifest(request)
   const facts = admitFacts(request.facts.files, limits.facts_cap_bytes)
   const candidates = sampleCandidates(request)
-  const sent = new Map<Candidate, number>(candidates.map((candidate) => [candidate, 0]))
-  const index = (): string => renderIndex(request, facts, candidates, sent)
-  const fixed = request.documentBytes + bytes(manifest) + facts.reduce((sum, file) => sum + bytes(file.text), 0) + bytes(index())
+  const none = new Map<TreeCandidate<Tier>, readonly LineRange[]>()
+  const fixed =
+    request.documentBytes + bytes(manifest) + facts.reduce((sum, file) => sum + bytes(file.text), 0) + bytes(renderIndex(request, facts, candidates, none))
   if (fixed > limits.cap_bytes) {
     return refusal(
       'packet-over-cap',
       `the documents, ${MANIFEST_PATH} and facts/ come to ${String(fixed)} bytes, past the packet cap of ${String(limits.cap_bytes)}; review fewer records or raise packet.cap_bytes in routing`,
     )
   }
-  let remaining = limits.cap_bytes - fixed
-  const blocked = new Set<Candidate>()
-  for (const { candidate, window } of windowOrder(candidates)) {
-    if (blocked.has(candidate)) continue
-    const cost =
-      bytes(prefix(candidate, window, limits)) -
-      bytes(prefix(candidate, window - 1, limits)) +
-      bytes(sampleLine(candidate, window, limits)) -
-      bytes(sampleLine(candidate, window - 1, limits))
-    if (cost > remaining) {
-      blocked.add(candidate)
-      continue
-    }
-    remaining -= cost
-    sent.set(candidate, window)
-  }
-  const tree = candidates.flatMap((candidate): SampledFile[] => {
-    const windows = sent.get(candidate) ?? 0
-    if (windows === 0) return []
-    const text = prefix(candidate, windows, limits)
-    const cut = windows < candidate.windows ? { window: { last: windows * limits.window_lines, lines: candidate.lineCount } } : {}
-    return [{ path: candidate.path, text, ...cut }]
+  const { held } = admitPieces(windowOrder(candidates, limits.window_lines), limits.cap_bytes - fixed, sampleLine)
+  const tree = candidates.flatMap((candidate) => {
+    const file = sampledFile(candidate, held.get(candidate) ?? [])
+    return file === undefined ? [] : [file]
   })
   return {
-    dropped: candidates.filter((candidate) => (sent.get(candidate) ?? 0) < candidate.windows).length,
+    dropped: candidates.filter((candidate) => !holdsAll(candidate, held.get(candidate) ?? [])).length,
     facts,
-    index: index(),
+    index: renderIndex(request, facts, candidates, held),
     manifest,
     status: 'sampled',
     tree,
@@ -221,20 +228,11 @@ export function sampleRepository(request: SampleRequest): RepositorySample | Ref
 }
 
 /** Every candidate's windows, tier by tier, each tier's first windows before its second. */
-function windowOrder(candidates: readonly Candidate[]): readonly { readonly candidate: Candidate; readonly window: number }[] {
-  const order = candidates.flatMap((candidate, position) =>
-    Array.from({ length: candidate.windows }, (_, i) => ({ candidate, position, window: i + 1 })),
-  )
-  return order.sort(
-    (a, b) => TIERS.indexOf(a.candidate.tier) - TIERS.indexOf(b.candidate.tier) || a.window - b.window || a.position - b.position,
-  )
-}
-
-/** The file's first `windows` windows, as frozen: the whole text once every window is in. */
-function prefix(candidate: Candidate, windows: number, limits: PacketLimits): string {
-  if (windows === 0) return ''
-  if (windows === candidate.windows) return candidate.text
-  return `${candidate.lines.slice(0, windows * limits.window_lines).join('\n')}\n`
+function windowOrder(candidates: readonly TreeCandidate<Tier>[], size: number): readonly TreePiece<Tier>[] {
+  const order = candidates.flatMap((candidate, position) => windowsOf(candidate, size).map((piece, window) => ({ piece, position, window })))
+  return order
+    .sort((a, b) => TIERS.indexOf(a.piece.candidate.tier) - TIERS.indexOf(b.piece.candidate.tier) || a.window - b.window || a.position - b.position)
+    .map((entry) => entry.piece)
 }
 
 /** The fact files, in order, that fit under the facts cap. */
@@ -249,7 +247,7 @@ function admitFacts(files: readonly FactFile[], cap: number): readonly FactFile[
 }
 
 /** The files each tier samples, each file once, in its first tier. */
-function sampleCandidates(request: SampleRequest): readonly Candidate[] {
+function sampleCandidates(request: SampleRequest): readonly TreeCandidate<Tier>[] {
   const documents = new Set(request.documents)
   const texts = new Map(
     request.tracked.flatMap((file) =>
@@ -264,12 +262,11 @@ function sampleCandidates(request: SampleRequest): readonly Candidate[] {
   }
   const seen = new Set<string>()
   return TIERS.flatMap((tier) =>
-    tiers[tier].flatMap((path): Candidate[] => {
+    tiers[tier].flatMap((path): TreeCandidate<Tier>[] => {
       const text = texts.get(path)
       if (text === undefined || seen.has(path)) return []
       seen.add(path)
-      const count = lineCount(text)
-      return [{ lineCount: count, lines: text.split('\n'), path, text, tier, windows: Math.max(1, Math.ceil(count / request.limits.window_lines)) }]
+      return [candidateOf(path, tier, text)]
     }),
   )
 }
@@ -285,20 +282,16 @@ function renderManifest(request: SampleRequest): string {
   return `${['path\tlines\tchurn_rank', ...rows].join('\n')}\n`
 }
 
-/** What became of one sampled file, after `windows` of its windows went in. */
-function sampleLine(candidate: Candidate, windows: number, limits: PacketLimits): string {
-  const head = `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): `
-  if (windows === 0) return `${head}the cap dropped it`
-  if (windows === candidate.windows) return `${head}sent in full`
-  const last = windows * limits.window_lines
-  return `${head}sent lines 1-${String(last)}; the cap dropped lines ${String(last + 1)}-${String(candidate.lineCount)}`
+/** What became of one sampled file, holding these lines. */
+function sampleLine(candidate: TreeCandidate<Tier>, held: readonly LineRange[]): string {
+  return `- \`${candidate.path}\` (${candidate.tier}, ${String(candidate.lineCount)} lines): ${sentStatus(candidate, held)}`
 }
 
 function renderIndex(
   request: SampleRequest,
   facts: readonly FactFile[],
-  candidates: readonly Candidate[],
-  sent: ReadonlyMap<Candidate, number>,
+  candidates: readonly TreeCandidate<Tier>[],
+  held: ReadonlyMap<TreeCandidate<Tier>, readonly LineRange[]>,
 ): string {
   const { limits } = request
   const admitted = new Set(facts)
@@ -310,7 +303,7 @@ function renderIndex(
     ...(request.facts.hotspots === undefined ? ['No hotspot facts yet, so no hotspot was sampled.'] : []),
     ...(request.facts.cycles === undefined ? ['No import facts yet, so no import cycle was sampled.'] : []),
   ]
-  const samples = candidates.map((candidate) => sampleLine(candidate, sent.get(candidate) ?? 0, limits))
+  const samples = candidates.map((candidate) => sampleLine(candidate, held.get(candidate) ?? []))
   return [
     '# Facts',
     '',
