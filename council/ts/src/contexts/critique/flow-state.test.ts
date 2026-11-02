@@ -414,6 +414,26 @@ describe('implementation', () => {
     expect(result.next).toMatchObject({ kind: 'stage', stage: 'ticket-review', ticket: '02' })
   })
 
+  it("runs the ticket review again while a ticket's review was degraded, since no critic reported", async () => {
+    const h = await planned({ families: ['mistral', 'zhipu'] })
+    await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
+    await h.git.commit()
+    const run = await prepared(h, { base: 'HEAD~1', stage: 'ticket-review', ticket: REPORT })
+    h.process.queue({ exitCode: 1, stdout: '' })
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    const result = await stateOf(h)
+
+    expect(result.state.tickets[0]).toMatchObject({ id: '02', landed: false, review: 'degraded', review_run_ids: [run.run_id] })
+    expect(result.next).toEqual({
+      kind: 'stage',
+      reason: 'No critic reported in the review of ticket 02, so nobody reviewed it: review the staged change again.',
+      stage: 'ticket-review',
+      ticket: '02',
+    })
+  })
+
   it('takes the latest review of a ticket: one that passed after its finding was fixed', async () => {
     const h = await planned({ families: ['mistral', 'zhipu'] })
     await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
@@ -447,7 +467,7 @@ describe('implementation', () => {
   })
 
   it('counts a ticket whose review passed as reviewed and landed', async () => {
-    const h = await planned()
+    const h = await planned({ families: ['mistral', 'zhipu'] })
     await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
     await h.git.commit()
     await recorded(h, { base: 'HEAD~1', stage: 'ticket-review', ticket: REPORT })

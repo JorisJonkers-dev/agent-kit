@@ -197,7 +197,8 @@ entry per verdict from step 5 as steps 6 and 7 left it: `finding_id`,
 `--input <run_dir>/verdicts.json`; it applies the refute round.
 
 Record writes `<run_dir>/review.json` and a line of the critique directory's
-`ticket-reviews.jsonl`: whether the review passed, and a hash of the staged
+`ticket-reviews.jsonl`: whether the review passed, failed or was degraded
+(no critic reported), and a hash of the staged
 change as it stands now, fixes and regression tests included. A commit gate
 matches the staged change against that hash, so record last: anything staged
 after it needs another review.
@@ -207,6 +208,12 @@ after it needs another review.
 Return triage's `summary` line, one line per `skipped` result of the refute
 round, `Refute skipped: <finding_id> (<reason_code>)`, then record's
 `summary` as the runner wrote it. When the summary ends with "do not
-commit", an accepted critical finding is unfixed: tell the owner the
-commit waits until it is fixed, staged and reviewed again with
-`/review-ticket`.
+commit", the commit is still blocked, and you say so plainly:
+
+- **An accepted critical finding is unfixed**: the commit waits until it is
+  fixed, staged and reviewed again with `/review-ticket`.
+- **No critic reported, so the review is degraded**: nobody reviewed the
+  change, and the commit gate stays shut. Name each critic and why it did
+  not report (`ticket_review.critic_failures` in record's result). The
+  commit waits for another `/review-ticket` run in which a critic reports;
+  only the owner can turn the gate off with the kill switch.

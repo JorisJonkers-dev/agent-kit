@@ -2427,6 +2427,21 @@ around it.
   before the whole line, so the index it sees is not yet the one committed.
   If the widened change is risky and differs from the index, the result is
   `unstaged`: stage in a command of its own, review, then commit.
+- **A degraded ticket review blocks (#259).** A ticket-review run in which
+  no critic reported (every critic failed, was skipped at the price cap or
+  had its findings discarded) is recorded as `review: "degraded"`, not
+  `pass`, and its record carries `critic_failures`: one
+  `{ critic_id, reason }` per critic that did not report, the reason being
+  its `failure` or, for a skipped or discarded critic, its status. A run
+  with at least one critic that reported (findings or a
+  `no_findings_reason`) records as before, with `critic_failures` naming any
+  that did not. The commit gate blocks a degraded record with
+  `review-degraded`, naming the run and each critic's reason; a record
+  written before #259 with `review: "pass"` and `degraded: true` blocks the
+  same way. Only a later `/review-ticket` run of the same change in which a
+  critic reported, or the kill switch, lets the commit through. Record's
+  summary for such a run ends with "do not commit", and `/flow` gives the
+  ticket review status `degraded` and names `/review-ticket` again.
 - **PR gate.** `gh pr create` (with `--head <branch>`, that branch) and any
   push that updates a branch outside routing's new `gate.feature_branches`
   globs need the last `gates.jsonl` line whose `repository` and

@@ -211,7 +211,9 @@ that fired either way.
   for that exact staged change, matched by a hash taken at record time, fixes
   and kept tests included, so a change restaged or amended after its review
   needs another. A review fails ("do not commit") while an accepted critical
-  finding is unfixed; a degraded review passes, so an outage blocks nothing.
+  finding is unfixed. A degraded review, in which no critic reported, does
+  not pass either: the commit stays blocked until a `/review-ticket` run in
+  which a critic reported, or the kill switch.
 - **PR gate**: the feature review opens with `GATE: PASS` or
   `GATE: FAIL (<n> critical)`. It fails while an accepted critical finding,
   from this or an earlier feature review, has an open follow-up ticket. A

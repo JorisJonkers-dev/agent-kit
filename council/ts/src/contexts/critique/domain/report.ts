@@ -6,6 +6,7 @@ import type { DroppedCritic } from './routing.js'
 import { STAGE_TABLE } from './stage-table.js'
 import {
   countVerdicts,
+  degradedTicketReview,
   familiesOf,
   isDissent,
   openCriticalQuestions,
@@ -221,9 +222,13 @@ function doNotStartLines(run: AdjudicatedRun): readonly string[] {
 
 /**
  * #181 US53: a ticket review whose accepted critical finding is not fixed
- * yet ends its summary with "do not commit", the gate before any hook.
+ * yet ends its summary with "do not commit", the gate before any hook. So
+ * does one no critic reported in (#259): nobody reviewed the change.
  */
 function doNotCommitLines(run: AdjudicatedRun): readonly string[] {
+  if (degradedTicketReview(run)) {
+    return ['', 'No critic reported, so this review is degraded and the commit stays blocked: do not commit.']
+  }
   const ids = unfixedCritical(run).map((f) => f.id)
   if (ids.length === 0) return []
   const which = ids.length === 1 ? `Critical finding ${ids.join('')} is` : `Critical findings ${ids.join(', ')} are`

@@ -281,6 +281,15 @@ def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit()
     assert front["description"].startswith("Use after a ticket's /code-review and before its commit.")
 
 
+def test_review_ticket_says_a_degraded_run_leaves_the_commit_blocked() -> None:
+    """#259: a run in which no critic reported vouches for nothing, so its summary must not read as a pass."""
+    text = (KIT_ROOT / "skills" / "review-ticket" / "SKILL.md").read_text()
+    step = text.split("### 9. Return")[1]
+    assert "**No critic reported, so the review is degraded**" in step
+    assert "the commit gate stays shut" in step
+    assert "another `/review-ticket` run in which a critic reports" in step
+
+
 def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
     """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
     source = KIT_ROOT / "skills" / "review-ticket" / "SKILL.md"

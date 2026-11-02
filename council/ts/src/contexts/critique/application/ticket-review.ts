@@ -24,7 +24,8 @@ export function ticketReviewIndexPath(critiqueDir: string): string {
 
 /**
  * Records what a ticket review decided, for a commit gate to read without a
- * model call. A review fails while an accepted critical finding is unfixed.
+ * model call. A review fails while an accepted critical finding is unfixed,
+ * and is degraded when no critic reported.
  * A review of the staged change also hashes the index as it is at record
  * time, after the fixes and the kept regression tests were staged: that is
  * the change the review vouches for.
@@ -43,11 +44,14 @@ export class TicketReviewLog {
     const unfixed = unfixedCritical(run).map((finding) => finding.id)
     return {
       base_commit: code.base_commit,
+      critic_failures: run.critics
+        .filter((critic) => critic.status !== 'ok')
+        .map((critic) => ({ critic_id: critic.critic_id, reason: critic.failure ?? critic.status })),
       degraded: run.degraded,
       head_commit: code.head_commit,
       recorded_at: this.deps.clock.now().toISOString(),
       repository: manifest.repository,
-      review: unfixed.length === 0 ? 'pass' : 'fail',
+      review: unfixed.length > 0 ? 'fail' : run.degraded ? 'degraded' : 'pass',
       reviewed_staged_diff: reviewed,
       run_id: manifest.run_id,
       spec: specReference(manifest),

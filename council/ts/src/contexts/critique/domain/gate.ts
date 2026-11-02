@@ -19,7 +19,7 @@ export const ALLOW_REASONS = [
   'code-not-allowed',
   /** No deterministic risk rule fired on the staged change. */
   'low-risk',
-  /** The last ticket review of exactly this staged change passed. */
+  /** The last ticket review of exactly this staged change passed, with a critic that reported. */
   'reviewed',
   /** Every branch the push updates is a feature branch. */
   'feature-branch',
@@ -36,6 +36,8 @@ export const BLOCK_REASONS = [
   'unreviewed',
   /** The last ticket review of this staged change failed. */
   'review-failed',
+  /** No critic reported in the last ticket review of this staged change, so nobody reviewed it. */
+  'review-degraded',
   /** A risky commit that records more than is staged, which no ticket review vouches for. */
   'unstaged',
   /** No feature review recorded a gate for the commit being sent. */

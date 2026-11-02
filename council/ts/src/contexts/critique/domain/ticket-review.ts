@@ -12,6 +12,16 @@ export function stagedDiffHash(headTree: string, stagedEntries: string): string 
   return sha256(`staged-diff v1\0${headTree}\0${stagedEntries}`)
 }
 
+/** What a ticket review decided. */
+export const TICKET_REVIEWS = ['pass', 'fail', 'degraded'] as const
+export type TicketReview = (typeof TICKET_REVIEWS)[number]
+
+/** A critic that did not report: its id, and its failure (or its status, for a critic that was skipped or discarded). */
+export interface CriticFailureLine {
+  readonly critic_id: string
+  readonly reason: string
+}
+
 /**
  * A recorded ticket review, written so a commit gate can read it without
  * any model call: `review.json` in the run, and one line of the critique
@@ -39,10 +49,16 @@ export interface TicketReviewRecord {
    * review was of a commit.
    */
   readonly staged_diff: string | null
-  /** `fail` while an accepted critical finding is unfixed. */
-  readonly review: 'pass' | 'fail'
-  /** True when no critic produced a usable review; such a run still passes, so a provider outage blocks nothing. */
+  /**
+   * `fail` while an accepted critical finding is unfixed; `degraded` when no
+   * critic reported, so nobody reviewed the change and the commit gate stays
+   * shut until a run in which a critic reported.
+   */
+  readonly review: TicketReview
+  /** True when no critic produced a usable review. */
   readonly degraded: boolean
+  /** Every critic of the run that did not report, and why; empty when all reported. */
+  readonly critic_failures: readonly CriticFailureLine[]
   /** The accepted critical findings not yet fixed. */
   readonly unfixed_critical: readonly string[]
 }
@@ -52,11 +68,13 @@ export function parseTicketReviewRecord(text: string): TicketReviewRecord {
   const file = JsonFields.parse(text)
   return {
     base_commit: file.string('base_commit'),
+    // Records written before #259 carry no critic failures.
+    critic_failures: file.has('critic_failures') ? file.list('critic_failures', readCriticFailure) : [],
     degraded: file.boolean('degraded'),
     head_commit: file.string('head_commit'),
     recorded_at: file.string('recorded_at'),
     repository: file.string('repository'),
-    review: file.oneOf('review', ['pass', 'fail'] as const),
+    review: file.oneOf('review', TICKET_REVIEWS),
     reviewed_staged_diff: file.nullableString('reviewed_staged_diff'),
     run_id: file.string('run_id'),
     spec: file.string('spec'),
@@ -66,4 +84,8 @@ export function parseTicketReviewRecord(text: string): TicketReviewRecord {
     unfixed_critical: file.strings('unfixed_critical'),
     version: file.literal('version', 1),
   }
+}
+
+function readCriticFailure(fields: JsonFields): CriticFailureLine {
+  return { critic_id: fields.string('critic_id'), reason: fields.string('reason') }
 }
