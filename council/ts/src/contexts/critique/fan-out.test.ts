@@ -357,7 +357,7 @@ describe('fan-out applies the spec-stage evidence rule', () => {
         version: 1,
       },
       // A spec quote from `spec/`, not `artifact/`: the spec rule would make it a no-spec-quote hint.
-      scripts: [ok(fenced({ findings: [finding({ category: 'untestable', evidence: [quote('spec/spec.md', SPEC_CANARY)], location: '01: untestable-criterion' })] }))],
+      scripts: [ok(fenced({ findings: [finding({ category: 'untestable', check: 'untestable-criterion', evidence: [quote('spec/spec.md', SPEC_CANARY)], location: '01: untestable-criterion' })] }))],
     })
     open.push(h)
     await h.writeText(join(h.repo, '.scratch', 'widgets', 'issues', '01-schema.md'), '# 01: Schema\n')

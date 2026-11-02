@@ -671,6 +671,25 @@ function slotFallback(routing, slot, deep) {
   return { client: slot.client, to: to ?? null, ...deep === void 0 ? {} : { deep } };
 }
 
+// src/contexts/critique/domain/checks.ts
+var CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`:/gm;
+var CHECK_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+function isCheckId(check) {
+  return check !== void 0 && CHECK_ID.test(check);
+}
+function declaredChecks(texts) {
+  return [...new Set(texts.flatMap((text) => [...text.matchAll(CHECK_BULLET)].map((match) => match[1] ?? "")))];
+}
+function checkNamed(finding, declared) {
+  if (finding.check === void 0) return { reason: "names no check", reason_code: "no-check", verdict: "hint" };
+  if (declared.includes(finding.check)) return void 0;
+  return {
+    reason: `names the check ${finding.check}, which no lens or role in its critic's prompt declares`,
+    reason_code: "unknown-check",
+    verdict: "hint"
+  };
+}
+
 // src/contexts/critique/domain/findings.ts
 var SEVERITIES = ["critical", "major", "minor"];
 var CATEGORIES = [
@@ -683,7 +702,10 @@ var CATEGORIES = [
   "security",
   "structure",
   "bug",
-  "integration"
+  "integration",
+  "drift",
+  "stale",
+  "undocumented-decision"
 ];
 var EVIDENCE_KINDS = ["quote", "input", "failing-test", "trace"];
 var HINT_CODES = [
@@ -697,6 +719,7 @@ var HINT_CODES = [
   "no-scenario",
   "not-a-decision-gap"
 ];
+var CHECK_HINT_CODES = ["no-check", "unknown-check"];
 var FINDINGS_FAILURES = [
   "no-findings-block",
   "unparseable-findings",
@@ -735,8 +758,10 @@ function readFindings(value) {
 }
 function readFindingBody(fields) {
   const suggestion = fields.optionalText("suggestion");
+  const check = fields.optionalText("check")?.trim() ?? "";
   return {
     category: fields.oneOf("category", CATEGORIES),
+    ...check === "" ? {} : { check },
     claim: fields.string("claim"),
     evidence: fields.list("evidence", readEvidence),
     location: fields.string("location"),
@@ -758,7 +783,7 @@ function readPreVerdict(fields) {
   if (fields.oneOf("verdict", ["rejected", "hint"]) === "rejected") {
     return { reason, reason_code: fields.literal("reason_code", "fabricated-evidence"), verdict: "rejected" };
   }
-  return { reason, reason_code: fields.oneOf("reason_code", HINT_CODES), verdict: "hint" };
+  return { reason, reason_code: fields.oneOf("reason_code", [...HINT_CODES, ...CHECK_HINT_CODES]), verdict: "hint" };
 }
 function readCriticFinding(fields) {
   return { ...readFindingBody(fields), id: fields.string("id") };
@@ -962,6 +987,8 @@ function ledgerLines(run, recordedAt) {
     ...common,
     ...criticFields(finding.raised_by[0] ?? ""),
     category: finding.category,
+    /** The lens check or role rule the finding names, so stats can count precision per check; free text stays out. */
+    check: isCheckId(finding.check) ? finding.check : null,
     evidence_kinds: finding.evidence.map((e) => e.kind),
     finding_id: finding.id,
     /** Fan-out's mechanical pre-verdict, so the ledger shows how often a hint is overruled. */
@@ -3114,8 +3141,8 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
 };
 
 // src/contexts/critique/application/fan-out.ts
-function withPreVerdict(finding, stage, packet2) {
-  const preVerdict = checkEvidence(finding, stage, packet2);
+function withPreVerdict(finding, stage, packet2, checks) {
+  const preVerdict = checkEvidence(finding, stage, packet2) ?? checkNamed(finding, checks.get(finding.raised_by[0] ?? "") ?? []);
   return preVerdict === void 0 ? finding : { ...finding, pre_verdict: preVerdict };
 }
 function parseFanOutResult(text) {
@@ -3146,7 +3173,8 @@ var FanOutCommand = class {
     const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tripwire }, critic)));
     const outcomes = [...first, ...await this.retries({ budget, manifest, tripwire }, first)];
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
-    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet2));
+    const checks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]));
+    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet2, checks));
     const result2 = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== "ok"),
@@ -3193,7 +3221,7 @@ var FanOutCommand = class {
   async attempt(wave, critic, retryOf) {
     const skip = critic.client_config.kind === "vibe" ? budgetReached(wave.spent, wave.manifest.limits) : void 0;
     const criticDir = join8(wave.manifest.run_dir, "critics", critic.critic_id);
-    const prompt = await this.writePrompt(wave.manifest, critic, criticDir);
+    const { checks, prompt } = await this.writePrompt(wave.manifest, critic, criticDir);
     const retry = retryOf === void 0 ? {} : { retry_of: retryOf };
     if (skip !== void 0) {
       const run = {
@@ -3208,27 +3236,30 @@ var FanOutCommand = class {
         finding_count: 0,
         status: "budget-skip"
       };
-      return { findings: [], run };
+      return { checks, findings: [], run };
     }
     const attempt = await this.runCritic(wave.tripwire, critic, criticDir, prompt, retry);
     await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind);
-    return attempt;
+    return { ...attempt, checks };
   }
+  /** Writes the critic's prompt, and returns it with the check ids its role and lenses declare. */
   async writePrompt(manifest, critic, criticDir) {
     const asset = (path) => this.deps.files.readText(join8(this.deps.assetsRoot, path));
+    const role = await asset(`roles/${critic.role}.md`);
+    const lenses = await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) })));
     const prompt = assemblePrompt(
       {
         contract: await asset("prompts/output-contract.md"),
-        lenses: await Promise.all(critic.lenses.map(async (name) => ({ name, text: await asset(`lenses/${name}.md`) }))),
+        lenses,
         preamble: await asset("prompts/preamble.md"),
-        role: await asset(`roles/${critic.role}.md`),
+        role,
         schema: await asset(SCHEMA)
       },
       listedFiles(manifest),
       manifest.stage
     );
     await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text);
-    return prompt;
+    return { checks: declaredChecks([role, ...lenses.map((lens) => lens.text)]), prompt };
   }
   async runCritic(tripwire, critic, criticDir, prompt, retry) {
     const { prompt_path: promptPath } = promptFields(prompt, criticDir);

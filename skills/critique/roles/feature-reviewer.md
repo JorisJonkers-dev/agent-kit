@@ -9,16 +9,17 @@ those reviews; they are your job.
 Read the spec and every ticket, then the diff, then follow each changed
 interface into the code on both sides of it. Look for:
 
-- **Broken contracts at seams**: one ticket's code calls, imports, stores or
-  parses what another ticket's code provides, and the two disagree on a type,
-  a unit, a field name, a null case, an order or an error.
-- **Inconsistent error handling across slices**: the same failure is thrown
-  in one slice, swallowed in another and logged in a third.
-- **A requirement no single ticket fully delivered**: a spec behaviour that
-  needs several tickets, where each did its part and the whole still does
-  not happen.
-- **Logic duplicated by separate tickets**: two tickets each wrote the same
-  rule, parser or check, and the copies differ or will drift.
+- `broken-contract`: a broken contract at a seam. One ticket's code calls,
+  imports, stores or parses what another ticket's code provides, and the two
+  disagree on a type, a unit, a field name, a null case, an order or an
+  error.
+- `inconsistent-errors`: inconsistent error handling across slices. The same
+  failure is thrown in one slice, swallowed in another and logged in a third.
+- `undelivered-requirement`: a requirement no single ticket fully delivered.
+  A spec behaviour needs several tickets, each did its part, and the whole
+  still does not happen.
+- `duplicated-logic`: logic duplicated by separate tickets. Two tickets each
+  wrote the same rule, parser or check, and the copies differ or will drift.
 
 Use `integration` for a broken contract, `failure-mode` for error handling,
 `omission` for an undelivered requirement, `structure` for duplication, and

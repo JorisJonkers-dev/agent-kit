@@ -60,6 +60,33 @@ in `lenses/`.
 - `simplicity`: mechanisms no user story needs, or two for one problem.
 - `unasked-questions`: choices made without saying who decided.
 
+### Check ids
+
+Every lens bullet and every role rule opens with a **check id**: a
+lower-case slug in backticks, then a colon, at the start of a top-level
+bullet.
+
+```markdown
+- `dependency-fails`: For each external dependency (a process, a network
+  call, a file, a service), ask what the artifact does when it fails, ...
+```
+
+The pattern is `^- \`([a-z0-9]+(?:-[a-z0-9]+)*)\`:`. In a lens every bullet
+is a check, and a note that is not one goes in a paragraph after the list.
+In a role the rules are the bullets of its first list; later lists, such as
+evidence kinds and severity levels, carry no id. An id is unique within its
+file and stays stable once shipped: renaming one starts its stats afresh.
+
+Each finding names the check it comes from in its `check` field. Fan-out
+reads the ids from the critic's own role and lenses; a finding that names no
+check, or one its critic's prompt does not declare, becomes a hint
+(`no-check` or `unknown-check`), unless the stage's evidence rule already
+made it one. A merged finding keeps the check, and is judged against the
+prompt, of the critic that raised it first. Each ledger finding line carries
+`check`, or `null` when the finding named none or named something that is
+not an id. `tests/test_critique_check_ids.py` fails on a check bullet without
+an id, or an id used twice in one file.
+
 ## Depth
 
 Base runs a stage's base critics; deep adds its deep critics. The runner
