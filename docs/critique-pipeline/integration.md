@@ -1252,6 +1252,14 @@ Tracker and domain-doc resolution (agent-kit#175) fixed these:
   doc, the references are the first of `GLOSSARY.md` and `CONTEXT.md`, then
   every `.md` in `docs/adr/`. Explicit `references` in the input still win.
   `CritiqueFilesPort` gained `listFiles`.
+- **Status-aware decision docs (#219).** Any resolved doc other than
+  `GLOSSARY.md`, `CONTEXT.md` and `CONTEXT-MAP.md` is read as a record and
+  left out when its status is proposed, rejected, superseded or deprecated.
+  The status is the first word of a frontmatter `status:` key, else of a
+  `Status:` line, else of the line under a `## Status` heading, outside code
+  blocks. A record with no status, as agent-kit's own ADRs, counts as
+  accepted. A critic's quote from a record left out is not in the packet, so
+  it is fabricated evidence and never a decision quote.
 - **For #184.** `application/tracker.ts` holds a `Tracker` per tracker kind,
   chosen by `TrackerResolver`. Reading a spec's tickets (sub-issues with
   native blocked-by links, or `.scratch/<feature>/issues/` files) belongs

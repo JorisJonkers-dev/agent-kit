@@ -3948,10 +3948,25 @@ var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
 var ADR_DIRECTORY = "docs/adr";
 var CONTEXT_MAP = "CONTEXT-MAP.md";
 function namedPaths(markdown) {
-  const prose2 = markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
+  const prose2 = withoutFences(markdown);
   const candidates = [...prose2.matchAll(/`([^`\n]+)`|\]\(([^)\s]+)\)/g)].map((match) => match[1] ?? match[2] ?? "");
   const paths = candidates.map((candidate) => candidate.trim().replace(/^\.\//, "").replace(/\/+$/, "")).filter((candidate) => /^[\w.-]+(\/[\w.-]+)*$/.test(candidate) && !candidate.split("/").includes(".."));
   return [...new Set(paths)];
+}
+var NOT_RECORDS = [...GLOSSARIES, CONTEXT_MAP];
+var NOT_IN_FORCE = ["proposed", "rejected", "superseded", "deprecated"];
+function inForce(record) {
+  const status = recordStatus(record);
+  return status === void 0 || !NOT_IN_FORCE.includes(status);
+}
+function recordStatus(record) {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? "";
+  const prose2 = withoutFences(record);
+  const match = /^status[ \t]*:[ \t]*["']?([A-Za-z]+)/im.exec(frontmatter) ?? /^(?:[-*+][ \t]+)?(?:\*\*|__)?status(?:\*\*|__)?[ \t]*:[ \t]*(?:\*\*|__)?[ \t]*([A-Za-z]+)/im.exec(prose2) ?? /^#{1,6}[ \t]+status[ \t]*\r?\n\s*[^A-Za-z\n]*([A-Za-z]+)/im.exec(prose2);
+  return match?.[1]?.toLowerCase();
+}
+function withoutFences(markdown) {
+  return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
 }
 
 // src/contexts/critique/application/decision-docs.ts
@@ -3963,7 +3978,11 @@ var DecisionDocs = class {
   async resolve(root) {
     const domainDoc = join12(root, DOMAIN_DOC);
     const found = await this.files.exists(domainDoc) ? await this.fromDomainDoc(root, await this.files.readText(domainDoc)) : await this.fallback(root);
-    return [...new Set(found)];
+    const inForceDocs = [];
+    for (const path of new Set(found)) {
+      if (NOT_RECORDS.includes(basename2(path)) || inForce(await this.files.readText(join12(root, path)))) inForceDocs.push(path);
+    }
+    return inForceDocs;
   }
   async fromDomainDoc(root, text) {
     const found = [];
