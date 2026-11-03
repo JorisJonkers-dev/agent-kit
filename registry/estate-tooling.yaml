@@ -768,7 +768,7 @@ language_servers:
 # -------------------------------------------------------------------
 local_skills:
   - name: pr-composer
-    path: skills/pr-composer
+    path: skills/workstation/pr-composer
     purpose: >-
       Compose a pull request in the repository's own house style: reads the
       PR template, mines recent merged PRs, and gates on an explicit
@@ -781,7 +781,7 @@ local_skills:
       gets wrong.
 
   - name: council
-    path: skills/council
+    path: skills/workstation/council
     purpose: >-
       Cross-model orchestrator (Claude + Codex) for large, decomposable work:
       triage, cross-model planning, grill, a design checkpoint, guarded
@@ -794,7 +794,7 @@ local_skills:
       prompts/schemas mirror council/ at the repo root byte-for-byte.
 
   - name: kb-first
-    path: skills/kb-first
+    path: skills/workstation/kb-first
     purpose: >-
       Consult the current memory platform before designing or changing
       behavior that may depend on prior captures, and capture durable
@@ -810,7 +810,7 @@ local_skills:
       `tools/list` instead.
 
   - name: token-economy
-    path: skills/token-economy
+    path: skills/workstation/token-economy
     purpose: >-
       Token-budget discipline: progressive disclosure, bounded recall,
       narrow MCP profiles, and prompt-cache-friendly instruction ordering.
@@ -822,7 +822,7 @@ local_skills:
       memory-api.
 
   - name: agent-session-bootstrap
-    path: skills/agent-session-bootstrap
+    path: skills/workstation/agent-session-bootstrap
     purpose: >-
       Checklist for configuring a Claude Code or Codex session: config
       layers, MCP servers and profiles, memory-file hygiene, and Claude/Codex
@@ -835,7 +835,7 @@ local_skills:
       instead of the retired install-agents.sh.
 
   - name: critique
-    path: skills/critique
+    path: skills/workstation/critique
     purpose: >-
       The critique pipeline's shared files: the bundled runner, the prompt
       preamble, roles, lenses, finding schema and default routing that the
@@ -848,7 +848,7 @@ local_skills:
       council.files.
 
   - name: critique-decisions
-    path: skills/critique-decisions
+    path: skills/workstation/critique-decisions
     purpose: >-
       Critique a feature's decisions after grilling and before /to-spec:
       gap critics from other model families list the questions nobody
@@ -856,34 +856,34 @@ local_skills:
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home.
 
   - name: critique-spec
-    path: skills/critique-spec
+    path: skills/workstation/critique-spec
     purpose: >-
       Critique a spec after /to-spec: critics from other model families
       review it read-only, and the orchestrator rules on their findings.
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home.
 
   - name: critique-stats
-    path: skills/critique-stats
+    path: skills/workstation/critique-stats
     purpose: >-
       Report how each critique critic client performs per stage, from the
       ledger, ending with routing suggestions the owner acts on.
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      Drives the runner's stats command in skills/critique/, so setup
+      Drives the runner's stats command in skills/workstation/critique/, so setup
       installs both side by side in every agent home. It reads the ledger
       and routing and writes nothing.
 
   - name: check-tickets
-    path: skills/check-tickets
+    path: skills/workstation/check-tickets
     purpose: >-
       Check a spec's tickets after /to-tickets and before the first
       /implement: the deterministic ticket checker, then one critic from
@@ -892,12 +892,12 @@ local_skills:
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
       allow, check-tickets), so setup installs both side by side in every
       agent home.
 
   - name: review-ticket
-    path: skills/review-ticket
+    path: skills/workstation/review-ticket
     purpose: >-
       Review a risky ticket's staged change after its /code-review and
       before its commit: risk triage decides, one critic from another model
@@ -907,13 +907,13 @@ local_skills:
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      Drives the runner in skills/critique/ (triage, prepare, fan-out,
+      Drives the runner in skills/workstation/critique/ (triage, prepare, fan-out,
       record, allow), so setup installs both side by side in every agent
       home. Its run's review.json, with the staged change's hash, is what
       the commit gate reads.
 
   - name: review-feature
-    path: skills/review-feature
+    path: skills/workstation/review-feature
     purpose: >-
       Review a whole feature after all tickets of a spec landed and before
       the PR: critics from two other model families read the spec, the
@@ -922,12 +922,12 @@ local_skills:
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      Drives the runner in skills/critique/ (prepare, fan-out, record,
+      Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home. Its
       run's gate.json is what the PR gate reads.
 
   - name: flow
-    path: skills/flow
+    path: skills/workstation/flow
     purpose: >-
       The critique pipeline's stepper: says in a few lines where the
       current feature stands (phase, stage runs, open questions, gate)
@@ -936,12 +936,12 @@ local_skills:
     agents: [claude, codex, vibe, antigravity]
     surfaces: [workstation]
     note: >-
-      Drives the runner's state command in skills/critique/ and invokes
+      Drives the runner's state command in skills/workstation/critique/ and invokes
       the stage skills, so setup installs it beside them in every agent
       home. It never runs one of Pocock's skills.
 
   - name: build-tracker
-    path: skills/build-tracker
+    path: skills/workstation/build-tracker
     purpose: >-
       The build tracker for a spec being implemented: a state file with
       each ticket's status, rendered into one page with a summary strip,

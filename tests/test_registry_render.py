@@ -917,7 +917,7 @@ def test_kb_first_and_token_economy_do_not_reference_the_retired_kb() -> None:
     to actually call one of its dead tools or env vars is not."""
     dead_tool_calls = ("knowledge.recall", "knowledge.relations", "KB_BEARER_TOKEN")
     for name in ("kb-first", "token-economy"):
-        text = (KIT_ROOT / "skills" / name / "SKILL.md").read_text()
+        text = (KIT_ROOT / "skills" / "workstation" / name / "SKILL.md").read_text()
         for token in dead_tool_calls:
             assert token not in text, f"{name} still references retired {token}"
         assert "memory-api" in text

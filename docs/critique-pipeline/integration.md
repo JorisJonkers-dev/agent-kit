@@ -763,12 +763,12 @@ agent-kit. Tickets are the sub-issues of #167.
 | Runner commands `prepare`, `fan-out`, `record`, `allow` | a CLI entry beside `council/ts/src/cli/`, bundled by `council/ts/scripts/build.mjs` into its own runner, pinned in `manifest.yaml` the way `council/council.mjs` is | #169 |
 | `record`'s output: the compact summary, the full report, and Dissent | written by `record` in the critique context; the report goes into the run directory, the summary is returned to the skill | #169 (summary, report), #170 (minor findings batched per critic), #171 (Dissent) |
 | Critic clients (binary, fixed arguments, model, family, cost reading) | the shipped routing configuration and the Vibe agent files; model names appear nowhere else | #169, #171 |
-| The agy client's model | agy has no agent file, so `--model gemini-3.8-flash-high` is one of the client's fixed arguments in the shipped routing configuration in `skills/critique/` | #171 |
+| The agy client's model | agy has no agent file, so `--model gemini-3.8-flash-high` is one of the client's fixed arguments in the shipped routing configuration in `skills/workstation/critique/` | #171 |
 | Read-only Vibe critic agents `critic-<model>` | rendered from `registry/estate-tooling.yaml` into `registry/generated/vibe/`, installed by a new setup step into the personal Vibe home's `agents/` (`~/.vibe/agents/`), not `vibe-private`'s | #176 |
 | Routing (stages, depths, lenses, caps, fallbacks, Antigravity quota, per-flow Vibe cap) | default file in the `critique` skill directory; optional per-machine override under `~/.config/agent-kit/` | #173, #174 |
-| Prompts: shared preamble, `spec-redteam` role, eight lens files, finding schema | the `critique` skill directory (`skills/critique/`), hashed into the ledger | #169, #177 |
-| Shared `critique` skill and user-invocable `critique-spec` skill | `skills/critique/` and `skills/critique-spec/`, as `local_skills` entries in `registry/estate-tooling.yaml` for claude, codex, vibe and antigravity | #176, #177 |
-| `critique-spec`'s frontmatter description (applies after `/to-spec` produced or changed a spec) | the frontmatter of `skills/critique-spec/SKILL.md` | #177 |
+| Prompts: shared preamble, `spec-redteam` role, eight lens files, finding schema | the `critique` skill directory (`skills/workstation/critique/`), hashed into the ledger | #169, #177 |
+| Shared `critique` skill and user-invocable `critique-spec` skill | `skills/workstation/critique/` and `skills/workstation/critique-spec/`, as `local_skills` entries in `registry/estate-tooling.yaml` for claude, codex, vibe and antigravity | #176, #177 |
+| `critique-spec`'s frontmatter description (applies after `/to-spec` produced or changed a spec) | the frontmatter of `skills/workstation/critique-spec/SKILL.md` | #177 |
 | Acting on spec findings (user stories 35 to 40): edits to the spec issue body, the one change comment, the second round, the warning not to start `/to-tickets` | the `critique-spec` skill text, writing through `gh`; a second round is a second prepare and fan-out | #177 |
 | Offering the opt-in when a repository has no family allowlist entry (user story 50) | the `critique-spec` skill, recording the owner's choice through `allow` | #177 |
 | Saying clearly when a critic CLI is missing or not signed in, and offering to continue without it (user story 68) | detection in fan-out, as a critic status of its own; the offer in the `critique-spec` skill | #173 (a stage routed to an unavailable `agy` falls back and the summary names the reason), #177 (the missing or signed-out CLI is reported in setup's wording, with the offer to continue) |
@@ -1312,16 +1312,16 @@ agents. Later tickets build on these:
 - **Retiring an agent.** `surfaces: []` removes its generated file (and
   `--check` fails while it lingers) and makes setup remove the installed
   one. Other files in `~/.vibe/agents/` are the owner's and are left alone.
-- **Skills.** `critique` (`skills/critique/`, with a short `SKILL.md` that
+- **Skills.** `critique` (`skills/workstation/critique/`, with a short `SKILL.md` that
   points at the stage skills) and `critique-spec` are `local_skills` for
   claude, codex, vibe and antigravity, so they reach Antigravity's app and
   `agy` homes through the existing copy, skipped on Linux. `critique-spec`
-  carries `pending: <#177's URL>`: until `skills/critique-spec/SKILL.md`
+  carries `pending: <#177's URL>`: until `skills/workstation/critique-spec/SKILL.md`
   exists, setup logs `critique-spec: not built yet (...); skipped`. **#177
   must delete that `pending:` line** in the change that adds the skill; the
   renderer refuses it once the `SKILL.md` exists.
 - **The runner's pin.** `manifest.yaml` `critique.files` pins every file of
-  `skills/critique/` but `SKILL.md`, with its sha256, the way `council.files`
+  `skills/workstation/critique/` but `SKILL.md`, with its sha256, the way `council.files`
   pins council's runner. `tests/test_critique_setup.py` checks both the set
   and the hashes, so **any ticket that rebuilds `critique.mjs` or edits a
   prompt, lens, schema or `routing.json` updates its sha256 in
@@ -1576,18 +1576,18 @@ these:
   fewer is not judged. It is a candidate when no accepted finding of those
   features was unique. Taken literally from the ticket: a stage whose
   critics agree on every accepted finding is flagged too.
-- **The skill.** `skills/critique-stats/SKILL.md` is user-invoked
+- **The skill.** `skills/workstation/critique-stats/SKILL.md` is user-invoked
   (`disable-model-invocation: true`; the other agents ignore the key) and a
   `local_skills` entry for claude, codex, vibe and antigravity. It prints
   the report, explains each suggestion and candidate, and points the owner
-  at `skills/critique/routing.json`; nothing writes routing. #200's dogfood
+  at `skills/workstation/critique/routing.json`; nothing writes routing. #200's dogfood
   run reads its removal candidates from the same report.
 
 ## What #177 settled
 
 The `/critique-spec` skill (agent-kit#177) fixed these:
 
-- **The skill.** `skills/critique-spec/SKILL.md` is agent-neutral and finds
+- **The skill.** `skills/workstation/critique-spec/SKILL.md` is agent-neutral and finds
   the runner at `../critique/critique.mjs`, so the two skills must always be
   installed side by side (a pytest checks every agent home). It maps the
   orchestrator's own model, not its app, to `orchestrator_family`: Claude
@@ -2086,7 +2086,7 @@ The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
   tickets as prepare froze them; the skill runs `check-tickets` again after
   its fixes and says when the cycles are gone. Record's run status is still
   `recorded`, and the ledger is unchanged.
-- **The skill.** `skills/check-tickets/SKILL.md`, a `local_skills` entry for
+- **The skill.** `skills/workstation/check-tickets/SKILL.md`, a `local_skills` entry for
   every agent beside `critique-spec`. A finding is accepted only after the
   orchestrator re-checks its rule on the named ticket. Structural fixes
   (reworded criteria, a named seam, blocker links, splits and merges that
@@ -2372,7 +2372,7 @@ added no runner behaviour. #193, #194, #195 and #197 build on it:
   fan-out step, or at its ruling step once `findings.json` exists. The
   feature review is reached as `/flow finish`, which runs `/review-feature`.
 - **Seams for the siblings.** `/flow setup`, `/flow explain` and `/flow
-  budget` are stub sections of `skills/flow/SKILL.md`, each one heading that
+  budget` are stub sections of `skills/workstation/flow/SKILL.md`, each one heading that
   says which ticket brings it (#195, #194, #193); replace the section, and
   the matching row of the Arguments table, rather than adding new ones.
 
@@ -2410,14 +2410,14 @@ added no runner behaviour. #193, #194, #195 and #197 build on it:
   and readiness, which prepare also applies, are not considered, so a real
   run may pick a later fallback or leave the slot empty.
 - **For #192.** The subcommand text replaced the `budget` stub section and
-  its Arguments row in `skills/flow/SKILL.md`; it passes the feature `/flow`
+  its Arguments row in `skills/workstation/flow/SKILL.md`; it passes the feature `/flow`
   found as `spec` or `draft`. `/flow explain budget` is the README's job.
 
 ## What #194 settled
 
 The pipeline README and `/flow explain` (agent-kit#194) fixed these:
 
-- **One copy.** The README is `skills/critique/README.md`, so setup copies it
+- **One copy.** The README is `skills/workstation/critique/README.md`, so setup copies it
   into every agent home with the rest of the `critique` skill. The root
   `README.md` and this document link to it and do not repeat it. It is
   pinned in `manifest.yaml` `critique.files` like every other file there but
@@ -2426,7 +2426,7 @@ The pipeline README and `/flow explain` (agent-kit#194) fixed these:
 - **`/flow explain` reads it on every call.** The skill maps the owner's
   `<thing>` to one of six `## ` headings (Stages, Lenses, Depth, Routing,
   Gates and the kill switch, Budget and quota) and answers from that section
-  alone; no explanation lives in `skills/flow/SKILL.md`. A pytest checks that
+  alone; no explanation lives in `skills/workstation/flow/SKILL.md`. A pytest checks that
   each heading the skill names is in the README, that every stage in
   `routing.json` has a row and that every file in `lenses/` has a line, so
   renaming a heading or adding a stage or lens means updating the README.
@@ -2631,7 +2631,7 @@ Setup installs the three hooks of
 [ADR-0002](../adr/0002-exactly-three-critique-hooks.md) (agent-kit#198).
 Later work builds on these:
 
-- **The scripts.** `skills/critique/hooks/<name>.sh`, one per hook, shipped
+- **The scripts.** `skills/workstation/critique/hooks/<name>.sh`, one per hook, shipped
   with the `critique` skill and pinned in `manifest.yaml` `critique.files`.
   Each is one `exec node "${0%/*}/../critique.mjs" hook <name>`. A missing
   `node` or runner exits 127, which both agents treat as a failed hook that
@@ -2803,7 +2803,7 @@ Run on 2026-11-01 on macOS against Vibe 3.0.4 and agy 1.4.12, on a machine
 set up from v5.1.0. The four installed `critic-<model>` agents matched
 `registry/generated/vibe/agents/` byte for byte (the `agent_hash` that setup
 lists equals `shasum -a 256` of each generated file). Every runner command used
-`skills/critique/critique.mjs` from this branch. Nothing in `~/.vibe`,
+`skills/workstation/critique/critique.mjs` from this branch. Nothing in `~/.vibe`,
 `~/.claude`, `~/.codex` or `~/.gemini` was written or changed.
 
 **Where it ran.** A scratch repository under the session scratchpad, with

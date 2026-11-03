@@ -159,12 +159,19 @@ def all_mappings(value: Any) -> Iterable[dict[str, Any]]:
 
 
 def pinned_path_entries(manifest: dict[str, Any]) -> list[dict[str, str]]:
+    """Each pin: the path a file lands at, the file the sha256 is taken of, the digest.
+
+    A file that lands in a gitignored directory names its tracked `source`.
+    """
     entries: list[dict[str, str]] = []
     for item in all_mappings(manifest):
         path = item.get("path")
         digest = item.get("sha256")
         if isinstance(path, str) and isinstance(digest, str):
-            entries.append({"path": path, "sha256": digest})
+            source = item.get("source", path)
+            if not isinstance(source, str):
+                fail(f"pinned path {path} has a source that is not a string")
+            entries.append({"path": path, "file": source, "sha256": digest})
     return entries
 
 
@@ -190,13 +197,18 @@ def validate_renderer(manifest: dict[str, Any]) -> set[str]:
     renderer_manifest = as_mapping(manifest.get("renderer"), "renderer")
     if renderer_manifest.get("script_path") != "render-agent-kit.py":
         fail("renderer.script_path must be render-agent-kit.py")
-    if renderer_manifest.get("template_root") != "templates/repo":
-        fail("renderer.template_root must be templates/repo")
+    if renderer_manifest.get("repo_skill_root") != "skills/repo":
+        fail("renderer.repo_skill_root must be skills/repo")
+    if renderer_manifest.get("agents_root") != "agents":
+        fail("renderer.agents_root must be agents")
+    if "template_root" in renderer_manifest:
+        fail("renderer.template_root is retired: templates/repo moved to skills/repo and agents (agent-kit#277)")
     if renderer_manifest.get("runtime_template_root") != "templates/runner-runtime":
         fail("renderer.runtime_template_root must be templates/runner-runtime")
 
     managed_paths = set(as_list(renderer_manifest.get("managed_paths"), "renderer.managed_paths"))
-    expected = {item.relative_path.as_posix() for item in renderer.template_files(ROOT)}
+    rendered = renderer.template_files(ROOT)
+    expected = {item.relative_path.as_posix() for item in rendered}
     if managed_paths != expected:
         missing = sorted(expected - managed_paths)
         extra = sorted(managed_paths - expected)
@@ -208,6 +220,15 @@ def validate_renderer(manifest: dict[str, Any]) -> set[str]:
         if retired_key in renderer_manifest:
             fail(f"renderer.{retired_key} is retired along with install.sh (agent-kit#40)")
 
+    # Local output is gitignored, so its pin must name the tracked file it is
+    # rendered from.
+    sources = {item.relative_path.as_posix(): item.source.relative_to(ROOT).as_posix() for item in rendered}
+    local = {item.relative_path.as_posix() for item in rendered if not item.committed}
+    for entry in pinned_path_entries(manifest):
+        path = entry["path"]
+        if path in local and entry["file"] != sources[path]:
+            fail(f"pinned path {path} must name its source {sources[path]}, not {entry['file']}")
+
     return managed_paths
 
 
@@ -217,12 +238,12 @@ def validate_checksums(manifest: dict[str, Any], managed_paths: set[str]) -> Non
     for entry in pinned_entries:
         path = entry["path"]
         digest = entry["sha256"]
-        full_path = ROOT / path
+        full_path = ROOT / entry["file"]
         if not full_path.is_file():
-            fail(f"pinned path does not exist: {path}")
+            fail(f"pinned path does not exist: {entry['file']}")
         actual = sha256(full_path)
         if actual != digest:
-            fail(f"sha256 mismatch for {path}: manifest={digest} actual={actual}")
+            fail(f"sha256 mismatch for {entry['file']}: manifest={digest} actual={actual}")
         if path in seen and seen[path] != digest:
             fail(f"pinned path has conflicting sha256 values: {path}")
         seen[path] = digest
@@ -402,7 +423,7 @@ def validate_council(manifest: dict[str, Any]) -> None:
 
 
 def validate_critique(manifest: dict[str, Any]) -> None:
-    """critique.files pins every file of skills/critique but its SKILL.md.
+    """critique.files pins every file of skills/workstation/critique but its SKILL.md.
 
     The sha256 of each entry is checked with every other pin, by
     validate_checksums. This checks the set: a file the skill ships and the
@@ -411,7 +432,7 @@ def validate_critique(manifest: dict[str, Any]) -> None:
     critique = as_mapping(manifest.get("critique"), "critique")
     files = as_list(critique.get("files"), "critique.files")
     manifest_files = {item.get("path") for item in files}
-    root = ROOT / "skills" / "critique"
+    root = ROOT / "skills" / "workstation" / "critique"
     actual_files = {
         path.relative_to(ROOT).as_posix()
         for path in root.rglob("*")
@@ -422,7 +443,7 @@ def validate_critique(manifest: dict[str, Any]) -> None:
 
 
 def validate_build_tracker(manifest: dict[str, Any]) -> None:
-    """build_tracker.files pins every file of skills/build-tracker but its SKILL.md.
+    """build_tracker.files pins every file of skills/workstation/build-tracker but its SKILL.md.
 
     As with critique.files, validate_checksums checks each sha256; this
     checks the set.
@@ -430,7 +451,7 @@ def validate_build_tracker(manifest: dict[str, Any]) -> None:
     section = as_mapping(manifest.get("build_tracker"), "build_tracker")
     files = as_list(section.get("files"), "build_tracker.files")
     manifest_files = {item.get("path") for item in files}
-    root = ROOT / "skills" / "build-tracker"
+    root = ROOT / "skills" / "workstation" / "build-tracker"
     actual_files = {
         path.relative_to(ROOT).as_posix()
         for path in root.rglob("*")

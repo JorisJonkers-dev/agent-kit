@@ -5,9 +5,9 @@ Standalone TypeScript package scaffold for the council orchestrator.
 The build script emits the Node entrypoint to `../council.mjs` as a single-file
 esbuild bundle with a Node shebang. It also bundles the critique runner
 (`src/critique-cli`, the critique context's command line) into
-`../../skills/critique/critique.mjs`, beside the prompts, lenses, schema and
+`../../skills/workstation/critique/critique.mjs`, beside the prompts, lenses, schema and
 routing it reads, and the build tracker's runner (`src/build-tracker-cli`) into
-`../../skills/build-tracker/build-tracker.mjs`. The bundles are committed, so
+`../../skills/workstation/build-tracker/build-tracker.mjs`. The bundles are committed, so
 run the build and commit its output with any change to the code they hold.
 
 ## Native DAG Execution Contract

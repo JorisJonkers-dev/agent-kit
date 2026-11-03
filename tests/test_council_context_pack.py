@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK = ROOT / ".council" / "context" / "pack.json"
+SOURCE = ROOT / "council" / "context"
+PACK = SOURCE / "pack.json"
+# The pack names files where render-agent-kit.py --write puts them.
+RENDERED = ".council/context/"
 
 
 def entries() -> list[dict[str, str]]:
@@ -13,7 +16,10 @@ def entries() -> list[dict[str, str]]:
 
 
 def test_every_pack_entry_points_at_a_file_that_exists() -> None:
-    missing = [entry["path"] for entry in entries() if "path" in entry and not (ROOT / entry["path"]).is_file()]
+    paths = [entry["path"] for entry in entries() if "path" in entry]
+
+    assert all(path.startswith(RENDERED) for path in paths)
+    missing = [path for path in paths if not (SOURCE / path.removeprefix(RENDERED)).is_file()]
 
     assert missing == []
 
