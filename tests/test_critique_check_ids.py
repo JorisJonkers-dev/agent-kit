@@ -25,8 +25,8 @@ CRITIQUE = Path(__file__).resolve().parent.parent / "skills" / "critique"
 CHECK_BULLET = re.compile(r"^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:")
 
 # The lens and role files, by path under skills/critique, whose checks may fix
-# a severity. The tickets that add `adr-record` and `plan-critic` add them here.
-DECLARES_SEVERITY: frozenset[str] = frozenset()
+# a severity: the checklist ones. The ticket that adds `plan-critic` adds it here.
+DECLARES_SEVERITY: frozenset[str] = frozenset({"lenses/adr-record.md"})
 
 
 def bullet_lists(text: str) -> list[list[str]]:
@@ -149,3 +149,11 @@ def test_a_severity_in_a_shipped_file_off_the_list_fails(path: Path, kind: str) 
     assert first is not None
     fixed = text.replace(first.group(0), f"- `{first.group(1)}` (critical):", 1)
     assert f"declares a severity but is not on the list: {first.group(1)}" in check_id_problems(fixed, kind)
+
+
+def test_every_adr_record_check_fixes_its_severity() -> None:
+    """A checklist lens: each of its checks carries the severity its findings take."""
+    text = (CRITIQUE / "lenses" / "adr-record.md").read_text()
+    declared = re.findall(CHECK_BULLET.pattern, text, flags=re.MULTILINE)
+    assert len(declared) == 9
+    assert all(severity for _, severity in declared), declared

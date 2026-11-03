@@ -231,6 +231,10 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
         ("vibe-mistral-large", 0.5), ("agy-gemini-flash-high", 0.5)
     ]
     assert [s["client"] for s in review["deep"]] == ["vibe-glm"]
+    assert [(s["role"], s["lenses"]) for s in review["base"]] == [
+        ("adr-reviewer", ["adr-record"]), ("adr-reviewer", ["decision-log"])
+    ]
+    assert {s["role"] for s in review["deep"]} == {"adr-reviewer"}
     assert review["depth_signals"]["thresholds"] == {"adrs": 10}
     assert review["depth_signals"]["risk_terms"] == routing["stages"]["spec"]["depth_signals"]["risk_terms"]
     assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]

@@ -7,7 +7,10 @@ object that matches the JSON Schema below.
 Each finding has:
 
 - `id`: your own short label, unique within your reply (`F1`, `F2`, ...).
-- `severity`: `critical`, `major` or `minor`.
+- `severity`: `critical`, `major` or `minor`. A check that fixes its
+  findings' severity names it in brackets after its id
+  (`` - `no-cost` (major): ``); for such a check write that severity, which
+  the runner sets whatever you write.
 - `category`: one of `unasked-question`, `contradiction`, `omission`,
   `invention`, `untestable`, `failure-mode`, `security`, `structure`, `bug`,
   `integration`, `drift`, `stale`, `undocumented-decision`.

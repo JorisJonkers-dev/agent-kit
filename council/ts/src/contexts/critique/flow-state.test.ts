@@ -261,6 +261,8 @@ describe('planning, once the spec exists', () => {
     await h.writeText(join(h.repo, 'docs', 'adr', '0001-nightly-job.md'), '# Nightly job\n\nWidgets are frobnicated nightly.\n')
     const before = (await stateOf(h)).state
     const question = finding({
+      category: 'unasked-question',
+      check: 'two-readings',
       evidence: [
         { file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'Widgets are frobnicated nightly.' },
         { file: 'references/CONTEXT.md', kind: 'quote', value: DECISION_CANARY },

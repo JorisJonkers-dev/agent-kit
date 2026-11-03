@@ -442,6 +442,12 @@ critique:
     - path: skills/critique/hooks/critique-session-start.sh
       sha256: 65becf61d98d40d27a34a997fecfbe4b84263009a62125fdc1939ed61714e907
       mode: "0755"
+    - path: skills/critique/lenses/adr-record.md
+      sha256: d38b23a901e190fc6efcf43c95e04741c7c521b6250e066d94cef6bd269d3dd9
+      mode: "0644"
+    - path: skills/critique/lenses/decision-log.md
+      sha256: 65e5388b3c8ed8a2ae3776f37bf113cf075d3ce50e11d65d7ac0c07fe866c4b6
+      mode: "0644"
     - path: skills/critique/lenses/failure-modes.md
       sha256: 065246fe8dc81466f44cc0597358bd26c9c31b5301f6c72780123c2370ca5d62
       mode: "0644"
@@ -467,13 +473,16 @@ critique:
       sha256: ff175e0efb61106a561e9bd3b374d0461d8913d3f25d7fe7a797c680a9188a13
       mode: "0644"
     - path: skills/critique/prompts/output-contract.md
-      sha256: 976364a24eab795bb4d98dd8f22c988c47db699be1631d1cd35ed2bc2542b26b
+      sha256: 83742b2b571d74dd128adfa0f9abe8e22f8194c815f8582457e2bca59f64d5f1
       mode: "0644"
     - path: skills/critique/prompts/preamble.md
       sha256: f7da57e294e7012cb20088f2d18f7dda7398396d55119537bd0e56ca5d81aa19
       mode: "0644"
     - path: skills/critique/prompts/triage.md
       sha256: 07d06a53117140ea2fb70902a7c0ae999748457ae1c62015709ad471d85b9097
+      mode: "0644"
+    - path: skills/critique/roles/adr-reviewer.md
+      sha256: e500083e48c035d2a2f378d589bc2941967b1f3f572f0664c319bb045ef836a1
       mode: "0644"
     - path: skills/critique/roles/diff-reviewer.md
       sha256: 8387486bfca350811c6ae88391a353b49c96a6532e36086e0421c25aa0262f7f
@@ -494,10 +503,10 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/critique/README.md
-      sha256: 89a469b70745a13a72bcf3a03b4e8a6c36f8faea787d9a0bb4f01c62feaeb34d
+      sha256: 169d20125fb324664bffc92f5332facb9bbc9951d6997897b7303350819877d9
       mode: "0644"
     - path: skills/critique/routing.json
-      sha256: d8526af9bd61c58ad2e2baed94aafe09e3495e6c52d477522411dfa73fd06a55
+      sha256: 7dd252c7e1e2c148d105a804fb4c2af4edad4ecb0ca11b4760046d8732c171f3
       mode: "0644"
     - path: skills/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6
