@@ -1,9 +1,9 @@
 # Toolchain
 
-source: README.md; pyproject.toml; PORTABILITY.md; council/README.md; council/council.toml
+source: README.md; pyproject.toml; docs/PORTABILITY.md; council/README.md; council/council.toml
 built-at: 2026-07-02T22:50:34Z
 
-Edit this fragment under `council/context/`. `render-agent-kit.py --write`
+Edit this fragment under `council/context/`. `scripts/render_agent_kit.py --write`
 copies it to `.council/context/` and overwrites any edit made there.
 
 ## Language And Package Tools
@@ -19,17 +19,17 @@ copies it to `.council/context/` and overwrites any edit made there.
 Common checks from `README.md`:
 
 - `uv sync --frozen`
-- `uv run python render-agent-kit.py --check`
-- `uv run python render-agent-kit.py --doctor`
+- `uv run python scripts/render_agent_kit.py --check`
+- `uv run python scripts/render_agent_kit.py --doctor`
 - `uv run ruff check .`
 - `uv run mypy`
 - `uv run pytest`
 - `uv run python scripts/validate_manifest.py`
 
-Run `uv run python render-agent-kit.py --write` after a checkout or a pull. It
+Run `uv run python scripts/render_agent_kit.py --write` after a checkout or a pull. It
 renders the gitignored `.claude/`, `.agents/` and `.council/context/` from
 `skills/repo/`, `agents/` and `council/context/`, and the committed
-`runner-manifests/runtime/` from `templates/runner-runtime/`.
+`runner/manifests/runtime/` from `runner/template/`.
 
 ## Council Runtime Tools
 

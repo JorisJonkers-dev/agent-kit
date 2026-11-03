@@ -1060,7 +1060,7 @@ PURGE
 }
 
 # -----------------------------------------------------------------
-# The runner entrypoint (templates/runner-runtime/entrypoint.sh) once
+# The runner entrypoint (runner/template/entrypoint.sh) once
 # wrote its global git settings wherever it ran. On a workstation they
 # name the credential helper agent-gh-app, which only the runner image
 # ships, so every push printed "git: 'credential-agent-gh-app' is not a

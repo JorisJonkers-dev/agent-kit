@@ -13,8 +13,8 @@ JorisJonkers-dev automation.
 
 ```bash
 uv sync --frozen
-uv run python render-agent-kit.py --check
-uv run python render-agent-kit.py --doctor
+uv run python scripts/render_agent_kit.py --check
+uv run python scripts/render_agent_kit.py --doctor
 uv run ruff check .
 uv run mypy
 uv run pytest
@@ -22,10 +22,10 @@ uv run python scripts/validate_manifest.py
 uv run python scripts/render_registry.py --check
 ```
 
-Run `uv run python render-agent-kit.py --write` after a checkout or a pull. It
+Run `uv run python scripts/render_agent_kit.py --write` after a checkout or a pull. It
 renders the gitignored `.claude/`, `.agents/` and `.council/context/` from
 `skills/repo/`, `agents/` and `council/context/`, and the committed
-`runner-manifests/runtime/` from `templates/runner-runtime/`. Use
+`runner/manifests/runtime/` from `runner/template/`. Use
 `scripts/build-runtime-package.sh v0.0.0-local dist` to build the runtime-home
 bundle locally.
 
@@ -50,7 +50,7 @@ script is generated from `registry/estate-tooling.yaml` -- see
   in-cluster gateway, and verifying it landed.
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
 - [docs/CLOUD.md](docs/CLOUD.md): the same setup in a Claude Code cloud
-  environment, from the two files in `cloud/`.
+  environment, from the two files in `installer/cloud/`.
 - [skills/workstation/critique/README.md](skills/workstation/critique/README.md): the critique
   pipeline for its user: what runs when, depth, budget, the gates, the kill
   switch and how to retune routing.
@@ -70,21 +70,26 @@ knowledge hooks from a machine that still has them, on every run.
 - `registry/estate-tooling.yaml`: the tooling registry (hand-edited).
 - `installer/setup-workstation.sh`, `registry/generated/hermes/`: generated from
   it by `scripts/render_registry.py`. Never hand-edit these.
-- `skills/`: first-party multi-file skills copied onto a surface.
+- `skills/workstation/`: skills setup installs into agent homes.
 - `skills/repo/`: repo skills, one folder per skill with a `claude/` and a
   `codex/` variant, rendered into `.claude/skills/` and `.agents/skills/`.
 - `agents/`: Claude subagent definitions, rendered into `.claude/agents/`.
-- `council/context/`: this repository's council context, rendered into
-  `.council/context/`.
-- `templates/runner-runtime/`: source templates for runner runtime artifacts.
+- `council/`: council driver, prompts, schemas, default config, and this
+  repository's council context (`council/context/`, rendered into
+  `.council/context/`).
+- `runner/template/`: source templates for the runner runtime;
+  `runner/manifests/`: the rendered runtime package, its schema and validation
+  fixtures.
 - `installer/`: `setup-workstation.sh` and `setup-container.sh`, generated as
   above, plus the hand-written `port-forward-agent.sh` and `cloud-session.sh`
-  they source.
-- `cloud/`: the setup script and environment variables pasted into a Claude
-  Code cloud environment.
-- `runner-manifests/`: rendered runtime package artifacts and validation
-  fixtures.
-- `council/`: council driver, prompts, schemas, and default config.
+  they source. `installer/cloud/` holds the setup script and environment
+  variables pasted into a Claude Code cloud environment.
+- `scripts/`: the renderers (`render_agent_kit.py`, `render_registry.py`),
+  validators, release helpers, and the `deploy/` helpers the deploy skills use.
+- `provenance/`: lock files recording the upstream sources adapted here.
+- `docs/`: setup, registry, cloud, portability and critique-pipeline docs, and
+  the ADRs.
+- `.github/`: workflows, the Renovate config and the security policy.
 - `.claude/`, `.agents/`, `.council/`: gitignored local output and agent
   state (worktrees, council runs). Nothing in them is tracked.
 - `manifest.yaml`: managed path, checksum, parity, and artifact ledger.
@@ -108,7 +113,7 @@ curl -fsSL https://github.com/JorisJonkers-dev/agent-kit/releases/latest/downloa
 `install-agents.sh` wrote (base skills, Spec Kit commands/skills, their MCP
 entries), purges the retired knowledge hooks and removes the critique hooks;
 a later run without it installs them again. See
-[PORTABILITY.md](PORTABILITY.md).
+[docs/PORTABILITY.md](docs/PORTABILITY.md).
 
 ## Links
 

@@ -1,9 +1,9 @@
 # Constitution Digest
 
-source: README.md; PORTABILITY.md
+source: README.md; docs/PORTABILITY.md
 built-at: 2026-07-02T22:50:34Z
 
-Edit this fragment under `council/context/`. `render-agent-kit.py --write`
+Edit this fragment under `council/context/`. `scripts/render_agent_kit.py --write`
 copies it to `.council/context/` and overwrites any edit made there.
 
 ## Core Rules

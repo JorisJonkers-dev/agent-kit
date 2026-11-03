@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tools.deploy.github_api import (
+from scripts.deploy.github_api import (
     ForbiddenOperationError,
     _to_template,
     assert_allowed,

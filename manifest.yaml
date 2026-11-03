@@ -1,7 +1,7 @@
 version: 2
 generated: partial
 notes:
-  - "This manifest pins the current repo surfaces: repo skills, agents and the runtime package are rendered by render-agent-kit.py. Every path is where a file lands. Skills and agents land in gitignored directories, so each of their entries also names its `source` under skills/repo/ or agents/, and the sha256 pins that source. installer/setup-workstation.sh is a SEPARATE artifact, rendered from registry/estate-tooling.yaml by scripts/render_registry.py and verified by its own --check; this manifest does not pin it."
+  - "This manifest pins the current repo surfaces: repo skills, agents and the runtime package are rendered by scripts/render_agent_kit.py. Every path is where a file lands. Skills and agents land in gitignored directories, so each of their entries also names its `source` under skills/repo/ or agents/, and the sha256 pins that source. installer/setup-workstation.sh is a SEPARATE artifact, rendered from registry/estate-tooling.yaml by scripts/render_registry.py and verified by its own --check; this manifest does not pin it."
   - "The estate ships exactly three agent hooks, the critique hooks docs/adr/0002-exactly-three-critique-hooks.md allows: critique-commit-gate, critique-pr-gate and critique-session-start. The validator fails on any other name; a new hook needs its own ADR. The knowledge-recall hooks (edit recall, git-commit capture, session digest) stay retired with the knowledge base they wrote into, and setup-workstation.sh still purges them from an existing settings.json (agent-kit#40 moved this off the retired install-agents.sh)."
   - "Repo skill bodies are intentionally agent-specific today; parity means every shared skill has both Claude and Codex targets unless an explicit unsupported reason is present."
 
@@ -19,21 +19,21 @@ provenance:
     # `skills` CLI; agent-kit#40 removed install.sh and did not replace this
     # install path (the workstation gets the same skill family, not this
     # exact skill, through the mattpocock-skills registry plugin instead).
-    # Kept here as a provenance record for skills-source.lock / third-party
+    # Kept here as a provenance record for provenance/skills-source.lock / third-party
     # notices, not as a claim that anything installs it today.
     upstream_repository: https://github.com/mattpocock/skills
     upstream_tag: v1.1.0
     upstream_commit: "d574778f94cf620fcc8ce741584093bc650a61d3"
     skills_cli_version: 1.5.16
     installed_skills: [grill-me]
-    source_lock: skills-source.lock
+    source_lock: provenance/skills-source.lock
     third_party_notices: THIRD_PARTY_NOTICES.md
 
 renderer:
-  script_path: render-agent-kit.py
+  script_path: scripts/render_agent_kit.py
   repo_skill_root: skills/repo
   agents_root: agents
-  runtime_template_root: templates/runner-runtime
+  runtime_template_root: runner/template
   managed_paths:
     - .agents/skills/add-public-service/SKILL.md
     - .agents/skills/agent-session-bootstrap/SKILL.md
@@ -71,24 +71,24 @@ renderer:
     - .claude/skills/prepare-rollback/SKILL.md
     - .claude/skills/run-tests/SKILL.md
     - .claude/skills/token-economy/SKILL.md
-    - runner-manifests/runtime/Containerfile
-    - runner-manifests/runtime/bin/agent-github-token
-    - runner-manifests/runtime/bin/gh-mcp-wrapper
-    - runner-manifests/runtime/bin/gh-wrapper
-    - runner-manifests/runtime/bin/git-credential-agent-gh-app
-    - runner-manifests/runtime/build.env.example
-    - runner-manifests/runtime/entrypoint.sh
-    - runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
-    - runner-manifests/runtime/mcp/claude-mcp-servers.code-intel.json
-    - runner-manifests/runtime/mcp/claude-mcp-servers.frontend.json
-    - runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
-    - runner-manifests/runtime/mcp/claude-mcp-servers.minimal.json
-    - runner-manifests/runtime/mcp/codex-mcp-servers.cluster.toml
-    - runner-manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
-    - runner-manifests/runtime/mcp/codex-mcp-servers.frontend.toml
-    - runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
-    - runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
-    - runner-manifests/runtime/runtime-package.yaml
+    - runner/manifests/runtime/Containerfile
+    - runner/manifests/runtime/bin/agent-github-token
+    - runner/manifests/runtime/bin/gh-mcp-wrapper
+    - runner/manifests/runtime/bin/gh-wrapper
+    - runner/manifests/runtime/bin/git-credential-agent-gh-app
+    - runner/manifests/runtime/build.env.example
+    - runner/manifests/runtime/entrypoint.sh
+    - runner/manifests/runtime/mcp/claude-mcp-servers.cluster.json
+    - runner/manifests/runtime/mcp/claude-mcp-servers.code-intel.json
+    - runner/manifests/runtime/mcp/claude-mcp-servers.frontend.json
+    - runner/manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
+    - runner/manifests/runtime/mcp/claude-mcp-servers.minimal.json
+    - runner/manifests/runtime/mcp/codex-mcp-servers.cluster.toml
+    - runner/manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
+    - runner/manifests/runtime/mcp/codex-mcp-servers.frontend.toml
+    - runner/manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
+    - runner/manifests/runtime/mcp/codex-mcp-servers.minimal.toml
+    - runner/manifests/runtime/runtime-package.yaml
 
 
 skills:
@@ -559,62 +559,62 @@ build_tracker:
       mode: "0755"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
-  schema: runner-manifests/runtime-package.schema.json
-  package: runner-manifests/runtime/runtime-package.yaml
+  schema: runner/manifests/runtime-package.schema.json
+  package: runner/manifests/runtime/runtime-package.yaml
   files:
-    - path: runner-manifests/runtime/Containerfile
+    - path: runner/manifests/runtime/Containerfile
       sha256: b25a3abebfd5dceaf48b64b0a9fd39a6c232f020aa7e97e12888c7583bcfde6a
       mode: "0644"
-    - path: runner-manifests/runtime/bin/agent-github-token
+    - path: runner/manifests/runtime/bin/agent-github-token
       sha256: 66afeb4ee918e9c27bc324a40dca8767e6615663fa16e71b020488b2b3f2c606
       mode: "0755"
-    - path: runner-manifests/runtime/bin/gh-mcp-wrapper
+    - path: runner/manifests/runtime/bin/gh-mcp-wrapper
       sha256: c1dedd9daa26021161a0623c999680286a27cdefdee5f52d63b435fc0a6ab540
       mode: "0755"
-    - path: runner-manifests/runtime/bin/gh-wrapper
+    - path: runner/manifests/runtime/bin/gh-wrapper
       sha256: 7dc2061045f7e4f68293d5398da69a517c128513b00672d6e41ef88df97134be
       mode: "0755"
-    - path: runner-manifests/runtime/bin/git-credential-agent-gh-app
+    - path: runner/manifests/runtime/bin/git-credential-agent-gh-app
       sha256: ddc9b82c6c3ba16c6bf3c1f64f3b5b0f7cc6112f9f3450a2b28b507230e32f6f
       mode: "0755"
-    - path: runner-manifests/runtime/build.env.example
+    - path: runner/manifests/runtime/build.env.example
       sha256: a1257f248ca4a5bf6b2420759914d71f3b2f18e095dda5d3d5c9a8ebcbedbc70
       mode: "0644"
-    - path: runner-manifests/runtime/entrypoint.sh
+    - path: runner/manifests/runtime/entrypoint.sh
       sha256: a8de7b50673ba50c850c77b1e10ac7251eee02aff87a09d916fe3d594988f9e1
       mode: "0755"
-    - path: runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
+    - path: runner/manifests/runtime/mcp/claude-mcp-servers.cluster.json
       sha256: 08ad6f507bbba017272e1737d136eb12b31ef5df5b36d1ca6c2685302af4f317
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/claude-mcp-servers.code-intel.json
+    - path: runner/manifests/runtime/mcp/claude-mcp-servers.code-intel.json
       sha256: 07139123ff993655fc90f582f3b7668914a1174b65a48a156035a1f2b4546430
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/claude-mcp-servers.frontend.json
+    - path: runner/manifests/runtime/mcp/claude-mcp-servers.frontend.json
       sha256: 510e59b1011e06284c0ba7e4462a37c5cb23606d8fa962422f2e92cc31668b01
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
+    - path: runner/manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
       sha256: 38aab55ef9e6e30dade3d5f04e81c5335f454dc9a751c8042b1b206dfcd54f76
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/claude-mcp-servers.minimal.json
+    - path: runner/manifests/runtime/mcp/claude-mcp-servers.minimal.json
       sha256: a44420aae3413a0cce9c161eff5440aaa74b65790ef1d1010d5b199d92150dbe
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/codex-mcp-servers.cluster.toml
+    - path: runner/manifests/runtime/mcp/codex-mcp-servers.cluster.toml
       sha256: b6694abc7bb08d28f7a4599d7e228da87a85d4e7868b96338e89a937819c469b
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
+    - path: runner/manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
       sha256: 2edcb0068d3f88ef44e4efbdecf1a2c4cbb0fd6955ebd6475737beb7e4bcc8c9
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/codex-mcp-servers.frontend.toml
+    - path: runner/manifests/runtime/mcp/codex-mcp-servers.frontend.toml
       sha256: 8f11d67e275a645df3a86efb79cc80570104afdd85fb21ebbe926d3d16450784
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
+    - path: runner/manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
       sha256: 03aca425393406e7a81cc4c87f8a52dbc0bb4df911083350aeb66a1ca0b089e1
       mode: "0644"
-    - path: runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
+    - path: runner/manifests/runtime/mcp/codex-mcp-servers.minimal.toml
       sha256: 4e299f6a333cc016efd99fd904e05aa7672ee7a65159ad3c9627185a50acf0fc
       mode: "0644"
-    - path: runner-manifests/runtime/runtime-package.yaml
-      sha256: d1b48af57a55346d8da8b59fbb6b354403f092b42fd1db322ebb8ca2e2acd45c
+    - path: runner/manifests/runtime/runtime-package.yaml
+      sha256: 3413c64d9e29c9c9e84e49e4fb30b35d1f2b09138d933ac65d4710def0b94680
       mode: "0644"
 
 # The top-level `installer:` block (install.sh/install-agents.sh sha256 pins)

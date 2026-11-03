@@ -18,7 +18,7 @@ import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = KIT_ROOT / "registry" / "estate-tooling.yaml"
-RENOVATE = json.loads((KIT_ROOT / "renovate.json").read_text())
+RENOVATE = json.loads((KIT_ROOT / ".github" / "renovate.json").read_text())
 DEP_TYPE = "marketplace-pin"
 
 

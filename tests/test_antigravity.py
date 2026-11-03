@@ -239,7 +239,7 @@ def test_the_runner_hermes_and_container_outputs_have_no_antigravity() -> None:
         render_registry.render_container_setup_script(data),
     ):
         assert "antigravity" not in rendered.lower()
-    for path in (KIT_ROOT / "runner-manifests").rglob("*"):
+    for path in (KIT_ROOT / "runner/manifests").rglob("*"):
         if path.is_file():
             assert "antigravity" not in path.read_text(errors="ignore").lower(), path
 
