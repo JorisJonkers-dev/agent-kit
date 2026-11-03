@@ -1,10 +1,16 @@
+import { GITHUB_HOST } from './spec.js'
+
 /**
  * The build tracker's state file: the one source the page is rendered from.
  *
- * Version 1 holds the spec reference (`owner/repo#number`), a title and an
- * optional subtitle, optional milestones (a name and the ticket that closes
- * it) and one entry per ticket keyed by its issue number. Keys this version
- * does not name are kept as they are, so a later version can add fields.
+ * Version 1 holds the spec (an issue reference `owner/repo#number`, with the
+ * host in front when it is not github.com, or `{ "path": "<file>" }` for a
+ * local markdown spec under the repository root), a title and an optional
+ * subtitle, optional milestones (a name and the ticket that closes it) and
+ * one entry per ticket keyed by its issue number (a local ticket's file
+ * number). A ticket may name blockers outside the spec in `external`, and a
+ * local ticket its file in `file`. Keys this version does not name are kept
+ * as they are, so a later version can add fields.
  */
 
 export const STATE_VERSION = 1
@@ -13,10 +19,20 @@ export const STATE_VERSION = 1
 export const STATUSES = ['todo', 'running', 'review', 'merged', 'owner'] as const
 export type Status = (typeof STATUSES)[number]
 
+/** A blocker outside the spec: `owner/repo#number`, or a local ticket's name as written. */
+export interface ExternalBlocker {
+  readonly ref: string
+  /** Its issue's state, when the tracker reported one. */
+  readonly state?: 'open' | 'closed'
+}
+
 export interface Ticket {
   readonly number: number
   readonly title: string
   readonly blockedBy: readonly number[]
+  readonly external: readonly ExternalBlocker[]
+  /** A local ticket's file under the repository root; undefined for an issue. */
+  readonly file: string | undefined
   readonly status: Status
   readonly note: string
   readonly live: boolean
@@ -27,11 +43,9 @@ export interface Milestone {
   readonly closes: number
 }
 
-export interface SpecReference {
-  readonly owner: string
-  readonly repo: string
-  readonly number: number
-}
+export type SpecReference =
+  | { readonly kind: 'github'; readonly host: string; readonly owner: string; readonly repo: string; readonly number: number }
+  | { readonly kind: 'local'; readonly path: string }
 
 export interface TrackerState {
   readonly spec: SpecReference
@@ -42,7 +56,19 @@ export interface TrackerState {
   readonly tickets: readonly Ticket[]
 }
 
-export type BuildTrackerErrorCode = 'missing-state' | 'unreadable-state' | 'invalid-assignment' | 'unknown-ticket' | 'unknown-status'
+export type BuildTrackerErrorCode =
+  | 'missing-state'
+  | 'unreadable-state'
+  | 'invalid-assignment'
+  | 'unknown-ticket'
+  | 'unknown-status'
+  | 'state-exists'
+  | 'invalid-spec'
+  | 'invalid-milestone'
+  | 'invalid-ticket-file'
+  | 'tracker-unreachable'
+  | 'unsupported-ticket'
+  | 'no-state-home'
 
 export class BuildTrackerError extends Error {
   constructor(
@@ -60,15 +86,14 @@ export function isStatus(value: unknown): value is Status {
   return typeof value === 'string' && (STATUSES as readonly string[]).includes(value)
 }
 
-const SPEC_PATTERN = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#([1-9][0-9]*)$/
+const SPEC_PATTERN = /^(?:([A-Za-z0-9_.-]+)\/)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#([1-9][0-9]*)$/
 const TICKET_KEY = /^[1-9][0-9]*$/
 
 /** Reads parsed JSON as a version-1 state, or says what is wrong with it. */
 export function parseState(raw: unknown): TrackerState {
   if (!isObject(raw)) throw invalid('the state is not a JSON object')
   if (raw.version !== STATE_VERSION) throw invalid(`version must be ${String(STATE_VERSION)}, not ${raw.version === undefined ? 'missing' : JSON.stringify(raw.version)}`)
-  const spec = SPEC_PATTERN.exec(typeof raw.spec === 'string' ? raw.spec : '')
-  if (spec === null) throw invalid('spec must be a reference like owner/repo#123')
+  const spec = parseSpec(raw.spec)
   const title = requireString(raw.title, 'title')
   const subtitle = raw.subtitle === undefined ? '' : requireString(raw.subtitle, 'subtitle')
   if (!isObject(raw.tickets)) throw invalid('tickets must be an object keyed by issue number')
@@ -81,11 +106,18 @@ export function parseState(raw: unknown): TrackerState {
   const milestones = parseMilestones(raw.milestones, numbers)
   return {
     milestones,
-    spec: { number: Number(spec[3]), owner: String(spec[1]), repo: String(spec[2]) },
+    spec,
     subtitle,
     tickets: tickets.sort((left, right) => left.number - right.number),
     title,
   }
+}
+
+function parseSpec(raw: unknown): SpecReference {
+  if (isObject(raw) && typeof raw.path === 'string' && raw.path !== '') return { kind: 'local', path: raw.path }
+  const spec = SPEC_PATTERN.exec(typeof raw === 'string' ? raw : '')
+  if (spec === null) throw invalid('spec must be a reference like owner/repo#123, or { "path": "<file>" } for a local spec')
+  return { host: spec[1]?.toLowerCase() ?? GITHUB_HOST, kind: 'github', number: Number(spec[4]), owner: String(spec[2]), repo: String(spec[3]) }
 }
 
 function parseTicket(key: string, value: unknown): Ticket {
@@ -98,12 +130,28 @@ function parseTicket(key: string, value: unknown): Ticket {
   if (value.live !== undefined && typeof value.live !== 'boolean') throw invalid(`${where}: live must be true or false`)
   return {
     blockedBy,
+    external: parseExternal(value.external, where),
+    file: value.file === undefined ? undefined : requireString(value.file, `${where}: file`),
     live: value.live === true,
     note: value.note === undefined ? '' : requireString(value.note, `${where}: note`),
     number: Number(key),
     status: value.status,
     title: requireString(value.title, `${where}: title`),
   }
+}
+
+/** Each external blocker is `{ "ref": ..., "state"?: "open" | "closed" }`, or just its ref as a string. */
+function parseExternal(raw: unknown, where: string): readonly ExternalBlocker[] {
+  if (raw === undefined) return []
+  const reason = `${where}: external must be a list of blocker references`
+  if (!Array.isArray(raw)) throw invalid(reason)
+  return raw.map((item: unknown): ExternalBlocker => {
+    if (typeof item === 'string' && item !== '') return { ref: item }
+    if (!isObject(item) || typeof item.ref !== 'string' || item.ref === '') throw invalid(reason)
+    if (item.state === undefined) return { ref: item.ref }
+    if (item.state !== 'open' && item.state !== 'closed') throw invalid(`${where}: an external blocker's state must be open or closed`)
+    return { ref: item.ref, state: item.state }
+  })
 }
 
 function parseMilestones(raw: unknown, numbers: ReadonlySet<number>): readonly Milestone[] {

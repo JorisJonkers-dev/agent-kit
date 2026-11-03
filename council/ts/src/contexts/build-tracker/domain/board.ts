@@ -2,8 +2,9 @@ import type { Status, Ticket, TrackerState } from './state.js'
 
 /**
  * What the page shows for a ticket. A `todo` ticket is Ready once every
- * blocker is merged and Blocked before that; every other status shows as
- * itself.
+ * blocker is merged and no blocker outside the spec is known to be open, and
+ * Blocked before that; every other status shows as itself. An outside
+ * blocker whose state is unknown changes nothing.
  */
 export type Shown = Exclude<Status, 'todo'> | 'ready' | 'blocked'
 
@@ -52,7 +53,8 @@ export function buildBoard(state: TrackerState): Board {
 
 function shownStatus(ticket: Ticket, merged: ReadonlySet<number>): Shown {
   if (ticket.status !== 'todo') return ticket.status
-  return ticket.blockedBy.every((blocker) => merged.has(blocker)) ? 'ready' : 'blocked'
+  const waiting = ticket.blockedBy.some((blocker) => !merged.has(blocker)) || ticket.external.some((blocker) => blocker.state === 'open')
+  return waiting ? 'blocked' : 'ready'
 }
 
 /**

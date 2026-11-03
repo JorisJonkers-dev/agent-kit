@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 import type { BuildTrackerFilesPort } from '../../application/ports.js'
@@ -7,6 +7,11 @@ import type { BuildTrackerFilesPort } from '../../application/ports.js'
 export class NodeBuildTrackerFiles implements BuildTrackerFilesPort {
   async readText(path: string): Promise<string> {
     return readFile(path, 'utf8')
+  }
+
+  async listFiles(dir: string): Promise<readonly string[]> {
+    const entries = await readdir(dir, { withFileTypes: true })
+    return entries.filter((entry) => entry.isFile()).map((entry) => entry.name)
   }
 
   /**

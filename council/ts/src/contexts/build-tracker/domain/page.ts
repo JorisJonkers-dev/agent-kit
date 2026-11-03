@@ -22,6 +22,9 @@ const GRAPH_CLASSES: Readonly<Record<Shown, string>> = {
   blocked: 'fill:#e6e9ee,stroke:#b8c0cc,color:#5b6676',
 }
 
+/** A blocker outside the spec: a dashed outline, no fill. */
+const EXTERNAL_CLASS = 'fill:none,stroke:#8a94a3,stroke-width:1.5px,stroke-dasharray:5 4,color:#5b6676'
+
 const GRAPH_TITLE_LIMIT = 35
 
 /**
@@ -30,7 +33,7 @@ const GRAPH_TITLE_LIMIT = 35
  */
 export function renderPage(state: TrackerState, updated: string): string {
   const board = buildBoard(state)
-  const issueBase = `https://github.com/${state.spec.owner}/${state.spec.repo}/issues/`
+  const link = ticketLink(state)
   const strip = SHOWN_ORDER.flatMap((shown) => {
     const count = board.counts[shown]
     return count === undefined ? [] : [`<span class="pill ${shown}">${SHOWN_LABELS[shown]} ${String(count)}</span>`]
@@ -42,7 +45,7 @@ export function renderPage(state: TrackerState, updated: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="claude:viewport-fit-sides" content="cover">
-<title>Spec #${String(state.spec.number)} build tracker</title>
+<title>${escapeHtml(pageTitle(state))}</title>
 <link rel="stylesheet" href="${FONTS_URL}">
 <style>
 ${STYLE}
@@ -58,7 +61,7 @@ ${strip}
 <div class="graph"><pre class="mermaid">
 ${escapeHtml(graph(board.tickets))}
 </pre></div>
-${board.sections.map((part) => sectionHtml(part, issueBase)).join('\n')}
+${board.sections.map((part) => sectionHtml(part, link)).join('\n')}
 </main>
 <script src="${MERMAID_URL}" integrity="${MERMAID_INTEGRITY}" crossorigin="anonymous"></script>
 <script>
@@ -69,36 +72,73 @@ ${MERMAID_START}
 `
 }
 
-function sectionHtml(part: BoardSection, issueBase: string): string {
-  const items = part.tickets.map((ticket) => ticketHtml(ticket, issueBase)).join('\n')
+/** Where a ticket's link goes: its issue, or a local ticket's file; undefined for no link. */
+type TicketLink = (ticket: BoardTicket) => string | undefined
+
+function ticketLink(state: TrackerState): TicketLink {
+  const spec = state.spec
+  if (spec.kind === 'local') return (ticket) => ticket.file
+  return (ticket) => `https://${spec.host}/${spec.owner}/${spec.repo}/issues/${String(ticket.number)}`
+}
+
+/** Two to four words: `Spec #12 build tracker`, or the local spec's file name in front. */
+function pageTitle(state: TrackerState): string {
+  if (state.spec.kind === 'github') return `Spec #${String(state.spec.number)} build tracker`
+  const stem = (state.spec.path.split('/').at(-1) ?? '').replace(/\.md$/i, '')
+  return `${stem.replace(/\s+/g, '-')} build tracker`
+}
+
+function sectionHtml(part: BoardSection, link: TicketLink): string {
+  const items = part.tickets.map((ticket) => ticketHtml(ticket, link)).join('\n')
   return `<section><h2>${escapeHtml(part.name)} <small>${String(part.merged)}/${String(part.tickets.length)} merged</small></h2>
 <ul>
 ${items}
 </ul></section>`
 }
 
-function ticketHtml(ticket: BoardTicket, issueBase: string): string {
+function ticketHtml(ticket: BoardTicket, link: TicketLink): string {
   const number = String(ticket.number)
-  const blockers = ticket.blockedBy.map((blocker) => `#${String(blocker)}`).join(', ') || 'none'
+  const href = link(ticket)
+  const anchor = href === undefined ? `<span class="n">#${number}</span>` : `<a href="${escapeHtml(href)}">#${number}</a>`
+  const blockers =
+    [
+      ...ticket.blockedBy.map((blocker) => `#${String(blocker)}`),
+      ...ticket.external.map((blocker) => escapeHtml(`${blocker.ref} (other spec${blocker.state === undefined ? '' : `, ${blocker.state}`})`)),
+    ].join(', ') || 'none'
   const live = ticket.live ? ' <span class="live">live check</span>' : ''
   const note = ticket.note === '' ? '' : ` · ${escapeHtml(ticket.note)}`
   return (
     `<li><span class="pill ${ticket.shown}">${SHOWN_LABELS[ticket.shown]}</span>` +
-    `<a href="${issueBase}${number}">#${number}</a> <span class="t">${escapeHtml(ticket.title)}</span>${live}` +
+    `${anchor} <span class="t">${escapeHtml(ticket.title)}</span>${live}` +
     `<span class="meta">blocked by ${blockers}${note}</span></li>`
   )
 }
 
-/** The Mermaid source of the dependency graph: one node per ticket, one edge per blocker. */
+/**
+ * The Mermaid source of the dependency graph: one node per ticket, one edge
+ * per blocker. A blocker outside the spec is one dashed node, however many
+ * tickets wait on it, with a dotted edge to each.
+ */
 function graph(tickets: readonly BoardTicket[]): string {
   const lines = ['flowchart LR']
   for (const ticket of tickets) {
     lines.push(`  t${String(ticket.number)}["#${String(ticket.number)} ${graphLabel(ticket.title)}"]:::${ticket.shown}`)
   }
+  const outside = new Map<string, string>()
+  for (const ticket of tickets) {
+    for (const blocker of ticket.external) {
+      if (outside.has(blocker.ref)) continue
+      const id = `x${String(outside.size + 1)}`
+      outside.set(blocker.ref, id)
+      lines.push(`  ${id}["${graphLabel(blocker.ref)} · other spec"]:::external`)
+    }
+  }
   for (const ticket of tickets) {
     for (const blocker of ticket.blockedBy) lines.push(`  t${String(blocker)} --> t${String(ticket.number)}`)
+    for (const blocker of ticket.external) lines.push(`  ${String(outside.get(blocker.ref))} -.-> t${String(ticket.number)}`)
   }
   for (const shown of SHOWN_ORDER) lines.push(`  classDef ${shown} ${GRAPH_CLASSES[shown]}`)
+  lines.push(`  classDef external ${EXTERNAL_CLASS}`)
   return lines.join('\n')
 }
 
@@ -149,7 +189,7 @@ h2 { font-family:var(--display); font-size:1.15rem; margin:0 0 8px; }
 h2 small { font-family:var(--mono); font-size:.75rem; color:var(--muted); font-weight:400; margin-left:6px; }
 ul { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
 li { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 8px; min-width:0; }
-li a { font-family:var(--mono); color:var(--accent); text-decoration:none; font-variant-numeric:tabular-nums; }
+li a, li .n { font-family:var(--mono); color:var(--accent); text-decoration:none; font-variant-numeric:tabular-nums; }
 li a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .t { min-width:0; }
 .meta { flex-basis:100%; color:var(--muted); font-size:.8rem; padding-left:92px; }

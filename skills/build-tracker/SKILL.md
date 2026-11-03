@@ -141,6 +141,9 @@ node <this folder>/build-tracker.mjs render --state <state file> --out <page fil
 node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[:note] ...
 ```
 
+- `<ref>` is the spec's issue (`#12`, `owner/repo#12` or its URL), whose
+  sub-issues are the tickets, or a local markdown spec file, whose tickets are
+  the numbered files (`01-name.md`) in the `issues/` folder beside it.
 - `init` seeds the state from the spec's tickets on the issue tracker: each
   ticket's title and blockers, `merged` for a closed issue and `todo` for an
   open one, and the milestones in the order given. It refuses when a state
@@ -148,7 +151,9 @@ node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[
 - `sync` re-reads the issue tracker: it adds new tickets, updates titles and
   blockers, marks newly closed tickets `merged`, and keeps every status, note
   and milestone set on open tickets.
-- `path` prints the state file and the page path for the spec.
+- `path` prints the state file and the page path for the spec. Both sit
+  outside the repository, under `$XDG_STATE_HOME/agent-kit/build-tracker`
+  (`~/.local/state/...` when it is unset), one folder per repository and spec.
 - `render` writes the page for the state file.
 - `set` changes the named tickets' statuses. A note after the status replaces
   the ticket's note, an empty note removes it, and no note keeps it. The
