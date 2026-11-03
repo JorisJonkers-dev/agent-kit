@@ -62,6 +62,25 @@ module.exports = {
       to: { path: '^src/contexts/[^/]+/(domain|adapters|application)/.+' },
     },
     {
+      // The build tracker is its own small runner: its context and CLI reach
+      // no other context and none of council's shells, so its bundle stays
+      // self-contained.
+      name: 'build-tracker-stands-alone',
+      severity: 'error',
+      from: { path: '^src/(contexts/build-tracker|build-tracker-cli)/' },
+      to: {
+        path: '^src/(contexts/[^/]+|workflows|composition|app|cli|critique-cli|adapters|ports)/',
+        pathNot: '^src/contexts/build-tracker/',
+      },
+    },
+    {
+      // The build tracker's CLI reaches its context only through the barrel.
+      name: 'build-tracker-cli-uses-context-barrel',
+      severity: 'error',
+      from: { path: '^src/build-tracker-cli/' },
+      to: { path: '^src/contexts/build-tracker/(domain|adapters|application)/.+' },
+    },
+    {
       // The CLI is a thin inbound adapter and reaches contexts only through
       // their public barrels, never their internals.
       name: 'cli-uses-context-barrels',
