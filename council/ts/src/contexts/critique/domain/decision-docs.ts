@@ -48,7 +48,8 @@ export function inForce(record: string): boolean {
   return status === undefined || !NOT_IN_FORCE.includes(status)
 }
 
-function recordStatus(record: string): string | undefined {
+/** The first word of the status a record states, lowercased; undefined when it states none. */
+export function recordStatus(record: string): string | undefined {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(record)?.[1] ?? ''
   const prose = withoutFences(record)
   const match =
@@ -58,6 +59,7 @@ function recordStatus(record: string): string | undefined {
   return match?.[1]?.toLowerCase()
 }
 
-function withoutFences(markdown: string): string {
+/** Markdown with its fenced blocks taken out. */
+export function withoutFences(markdown: string): string {
   return markdown.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, '')
 }

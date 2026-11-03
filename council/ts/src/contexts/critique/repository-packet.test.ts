@@ -69,6 +69,7 @@ describe('an adr-review prepare with the code permission on', () => {
 
     expect(await packetTree(run.packet_dir)).toEqual([
       'artifact/docs/adr/0001-billing.md',
+      'check/adrs.json',
       'facts/INDEX.md',
       'references/CONTEXT.md',
       'tree/MANIFEST.tsv',
@@ -79,6 +80,7 @@ describe('an adr-review prepare with the code permission on', () => {
     expect(run.packet_files).toEqual([
       'artifact/docs/adr/0001-billing.md',
       'references/CONTEXT.md',
+      'check/adrs.json',
       'tree/MANIFEST.tsv',
       'facts/INDEX.md',
       'tree/src/billing/invoice.ts',
@@ -429,12 +431,12 @@ describe('a sample with facts present', () => {
 })
 
 describe('an adr-review prepare with the code permission off', () => {
-  it('sends no tree/ and no facts/, only the documents', async () => {
+  it('sends no tree/ and no facts/, only the documents and their pre-check', async () => {
     const h = await repository({ code: false })
 
     const run = await prepared(h)
 
-    expect(await readdir(run.packet_dir)).toEqual(['artifact', 'references'])
+    expect(await readdir(run.packet_dir)).toEqual(['artifact', 'check', 'references'])
     expect(run.repository).toBeUndefined()
   })
 })
