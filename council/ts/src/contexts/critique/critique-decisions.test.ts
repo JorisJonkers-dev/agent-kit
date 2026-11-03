@@ -575,7 +575,7 @@ describe('the adr-record critic at the decisions stage', () => {
     const { result } = await recordsReviewed([recordFinding({ evidence: [{ file: 'feature/feature.md', kind: 'quote', value: FEATURE }] })])
 
     expect(result.findings[0]?.pre_verdict).toEqual({
-      reason: 'no quote from the decisions under review',
+      reason: 'no quote from a record under review',
       reason_code: 'no-record-quote',
       verdict: 'hint',
     })

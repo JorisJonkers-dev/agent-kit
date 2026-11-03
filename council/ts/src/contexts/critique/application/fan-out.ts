@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 
 import { budgetReached, quotaReached } from '../domain/budget.js'
-import { checkNamed, declaredChecks, withDeclaredSeverity, type DeclaredCheck } from '../domain/checks.js'
+import { checkNamed, checkRunnable, declaredChecks, withDeclaredSeverity, type DeclaredCheck } from '../domain/checks.js'
 import { criticIdentity, readCriticRun, type CriticRun } from '../domain/critic.js'
-import { checkEvidence, indexPacket, type PacketIndex } from '../domain/evidence.js'
+import { checkEvidence, indexPacket, readSkippedCheck, skippedChecks, type PacketIndex, type SkippedCheck } from '../domain/evidence.js'
 import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { listedFiles, parseManifest, type RunManifest } from '../domain/manifest.js'
@@ -29,6 +29,8 @@ export interface FanOutResult {
   readonly findings_path: string
   readonly critics: readonly CriticRun[]
   readonly findings: readonly RunFinding[]
+  /** Only when the packet holds no code under `tree/` and some check needs it: what the critics could not check. */
+  readonly skipped_checks?: readonly SkippedCheck[]
 }
 
 /**
@@ -42,7 +44,7 @@ function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: Packe
   const raiser = critics.get(finding.raised_by[0] ?? '')
   const declared = raiser?.checks ?? []
   const rated = withDeclaredSeverity(finding, declared)
-  const preVerdict = checkEvidence(rated, stage, packet, raiser?.role) ?? checkNamed(rated, declared)
+  const preVerdict = checkEvidence(rated, stage, packet, raiser?.role) ?? checkNamed(rated, declared) ?? checkRunnable(rated, declared, packet.tree)
   return preVerdict === undefined ? rated : { ...rated, pre_verdict: preVerdict }
 }
 
@@ -58,6 +60,7 @@ export function parseFanOutResult(text: string): FanOutResult {
     findings: file.list('findings', readRunFinding),
     findings_path: file.string('findings_path'),
     run_id: file.string('run_id'),
+    ...(file.has('skipped_checks') ? { skipped_checks: file.list('skipped_checks', readSkippedCheck) } : {}),
     stage: file.oneOf('stage', CRITIQUE_STAGES),
     status: file.literal('status', 'reviewed'),
   }
@@ -86,12 +89,14 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
     const critics: RaisingCritics = new Map(outcomes.map(({ checks, run }) => [run.critic_id, { checks, role: run.role }]))
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet, critics))
+    const skipped = skippedChecks(manifest.stage, packet, await this.checkSources(manifest))
     const result: FanOutResult = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== 'ok'),
       findings,
       findings_path: findingsPath(runDir),
       run_id: manifest.run_id,
+      ...(skipped.length === 0 ? {} : { skipped_checks: skipped }),
       stage: manifest.stage,
       status: 'reviewed',
     }
@@ -145,6 +150,21 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const attempt = await runCritic(this.deps, { critic, criticDir, prompt: promptFor, retry, tools: wave.tools, tripwire: wave.tripwire })
     await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind)
     return { ...attempt, checks }
+  }
+
+  /**
+   * The checks each role and lens file of the run's critics declares, by
+   * file, in roster order: the files whose checks the critics' prompts
+   * declare, so the skipped list and the needs-tree hint agree.
+   */
+  private async checkSources(manifest: RunManifest): Promise<readonly { readonly from: string; readonly checks: readonly DeclaredCheck[] }[]> {
+    const files = [
+      ...new Set(manifest.critics.flatMap((critic) => [`roles/${critic.role}`, ...critic.lenses.map((name) => `lenses/${name}`)])),
+    ]
+    const read = (file: string) => this.deps.files.readText(join(this.deps.assetsRoot, `${file}.md`))
+    return Promise.all(
+      files.map(async (file) => ({ checks: declaredChecks([await read(file)]), from: file.replace(/^roles\//, 'role ').replace(/^lenses\//, 'lens ') })),
+    )
   }
 
   /** The critic's prompt for the tools it gets, and the checks its role and lenses declare. */

@@ -71,6 +71,8 @@ export const HINT_CODES = [
   'no-scenario',
   'not-a-decision-gap',
   'no-record-quote',
+  'one-file-contradiction',
+  'needs-tree',
 ] as const
 export type HintCode = (typeof HINT_CODES)[number]
 

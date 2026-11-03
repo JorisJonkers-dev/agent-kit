@@ -28,7 +28,7 @@ offers it.
 | `tickets` | `/check-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
 | `ticket-review` | `/review-ticket` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
-| `adr-review` | none yet (`/critique-adrs`) | on demand, outside any feature | Mistral Large with `adr-record`, Gemini Flash with `decision-log` (`adr-reviewer`) | GLM with both lenses, until `quality-scenarios` and `domain-language` ship | Findings on the decision records; the stage is being built and has no skill yet |
+| `adr-review` | `/critique-adrs` | on demand, outside any feature | Mistral Large with `adr-record`, Gemini Flash with `decision-log` (`adr-reviewer`) | GLM with both lenses, until `quality-scenarios` and `domain-language` ship | Editorial fixes to the records; a question for any fix that would change a decision, and a superseding record drafted from your answer; a second round after more than three accepted critical findings |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
@@ -47,7 +47,10 @@ records when you ask for one, never as a step of a feature's flow. Each run
 is a flow of its own, keyed by its run id, with its own $5 Vibe cap, so a
 review never draws on a feature's budget. Its packet holds the records under
 review in `artifact/`, and the glossary and the other records in
-`references/`. With the code permission off it sends those documents only.
+`references/`. With the code permission off it sends those documents only
+and skips the checks that need the code: `drift`, `stale` (against the
+code) and `adr-record`'s `no-confirmation`. A finding of one is a hint
+(`needs-tree`), and the report and the summary name each skipped check.
 With it on, the packet is a **repository packet**: it adds `tree/`, a sample
 of the code chosen by rule (the files the records name, then the top
 hotspots, each module's entry file, then the files on each import cycle),
@@ -108,7 +111,9 @@ logged.
 
 **Evidence decides.** A quote found in no packet file rejects its finding as
 fabricated. A finding with no checkable evidence is a hint, reported and
-never acted on. At the code stages a finding is accepted only on a failing
+never acted on. At `adr-review` every finding quotes a record under review,
+a contradiction quotes two distinct files (records or references, never a
+fact), and wording with two readings gives both as an input. At the code stages a finding is accepted only on a failing
 test the orchestrator ran or a trace it walked.
 
 ## Lenses
@@ -195,7 +200,7 @@ The `adr-record` checks and their fixed severities:
   source.
 - `no-confirmation` (minor): a decision a test, lint rule or script could
   check, with no such check named. Needs `tree/`: a documents-only run
-  skips it, and the critic names it as skipped.
+  skips it, and the critic and the report name it as skipped.
 - `two-choices` (major): two choices in one record that could be reversed
   separately.
 - `two-readings` (major): wording two readers would build differently, with

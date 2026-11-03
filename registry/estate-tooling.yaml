@@ -896,6 +896,21 @@ local_skills:
       allow, check-tickets), so setup installs both side by side in every
       agent home.
 
+  - name: critique-adrs
+    path: skills/workstation/critique-adrs
+    purpose: >-
+      Review a repository's decision records on the owner's word: critics
+      from other model families review the ADRs read-only, the orchestrator
+      rules on their findings, makes only editorial fixes, and asks the
+      owner about anything that would change a decision.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the runner in skills/workstation/critique/ (prepare, fan-out,
+      refute, record, allow, check-adrs), so setup installs both side by
+      side in every agent home. Its runs are review-stage runs, each a flow
+      of its own.
+
   - name: review-ticket
     path: skills/workstation/review-ticket
     purpose: >-

@@ -1,4 +1,6 @@
+import { NEEDS_TREE, type DeclaredCheck } from './checks.js'
 import type { Category, Evidence, FindingBody, HintCode, PreVerdict } from './findings.js'
+import type { JsonFields } from './json.js'
 import { lineCount, lineReferences, packetCandidates, type LineReference } from './line-references.js'
 import { diffShownLines } from './diff-window.js'
 import { heldRanges, type PacketFile, type PacketWindow } from './manifest.js'
@@ -112,6 +114,7 @@ export function evidenceFound(finding: FindingBody, packet: PacketIndex): Eviden
 
 /** Each evidence rule, as the stage table names it: the hint a finding earns, or nothing when it has something checkable. */
 const EVIDENCE_RULES: Readonly<Record<EvidenceRule, (finding: FindingBody, found: EvidenceFound, packet: PacketIndex) => HintCode | undefined>> = {
+  adrs: adrRule,
   code: (finding) => codeRule(finding.evidence),
   decisions: (finding, found) => decisionsRule(finding.category, found),
   // A record finding quotes the record it is about, which is among the decisions under review.
@@ -215,11 +218,102 @@ function decisionsRule(category: Category, found: EvidenceFound): HintCode | und
   return found.scenario ? undefined : 'no-scenario'
 }
 
+/**
+ * The categories an evidence rule takes only with code under `tree/` to
+ * check them against, and what each checks: a packet with no tree skips
+ * them, and the report says so.
+ */
+const CODE_CATEGORIES: Readonly<Record<EvidenceRule, readonly { readonly category: Category; readonly about: string }[]>> = {
+  adrs: [
+    { about: 'a decision that names code, config or a command, checked against the code', category: 'drift' },
+    { about: 'an assumption, revisit condition or promised consequence, checked against the code', category: 'stale' },
+  ],
+  code: [],
+  decisions: [],
+  records: [],
+  spec: [],
+  tickets: [],
+}
+
+/**
+ * The ADR review's rule (#249): every finding quotes a record under review;
+ * a contradiction quotes two distinct files, each a record or a reference,
+ * since a fact is never a recorded decision; wording with two readings gives
+ * both as an input; and a drift or stale finding needs code under `tree/`,
+ * so a documents-only packet skips it.
+ */
+function adrRule(finding: FindingBody, found: EvidenceFound, packet: PacketIndex): HintCode | undefined {
+  if (!packet.tree && CODE_CATEGORIES.adrs.some((code) => code.category === finding.category)) return 'needs-tree'
+  if (!found.spec) return 'no-record-quote'
+  if (finding.category === 'contradiction' && !quotesTwoFiles(finding.evidence, packet)) return 'one-file-contradiction'
+  return finding.category === 'unasked-question' && !found.scenario ? 'no-scenario' : undefined
+}
+
+/**
+ * Whether two of the quotes can be told apart by file: some record or
+ * reference holds the first and not the second, and another holds the
+ * second and not the first. Two quotes from one record stay one file even
+ * when another file repeats one of them.
+ */
+function quotesTwoFiles(evidence: readonly Evidence[], packet: PacketIndex): boolean {
+  const documents = packet.files.filter((file) => file.kind === 'artifact' || file.kind === 'reference')
+  const holders = evidence.flatMap((item) => {
+    if (item.kind !== 'quote') return []
+    const quote = normalise(item.value)
+    return [documents.filter((file) => file.normalised.includes(quote)).map((file) => file.path)]
+  })
+  const apart = (first: readonly string[], second: readonly string[]) => first.some((path) => !second.includes(path))
+  return holders.some((first, i) => holders.some((second, j) => i !== j && apart(first, second) && apart(second, first)))
+}
+
+/**
+ * A check a run skipped because its packet holds no code under `tree/`: a
+ * category of the stage's evidence rule, or a role rule or lens check marked
+ * as needing `tree/`.
+ */
+export interface SkippedCheck {
+  readonly check: string
+  /** `category`, `role <name>` or `lens <name>`. */
+  readonly from: string
+  readonly about?: string
+}
+
+/**
+ * Every check a run's critics could not run because the packet holds no
+ * code under `tree/`: the categories the stage's evidence rule takes only
+ * with code, then each check marked "Needs `tree/`" in the role and lens
+ * files the critics' prompts declare, by the file that declares it
+ * (`role <name>` or `lens <name>`), once each.
+ */
+export function skippedChecks(
+  stage: CritiqueStage,
+  packet: Pick<PacketIndex, 'tree'>,
+  sources: readonly { readonly from: string; readonly checks: readonly DeclaredCheck[] }[],
+): readonly SkippedCheck[] {
+  if (packet.tree) return []
+  const categories = CODE_CATEGORIES[evidenceRule(stage, undefined)]
+  const skipped: SkippedCheck[] = categories.map(({ about, category }) => ({ about, check: category, from: 'category' }))
+  for (const source of sources) {
+    for (const check of source.checks) {
+      const known = skipped.some((entry) => entry.check === check.id)
+      if (check.needsTree === true && !known) skipped.push({ check: check.id, from: source.from })
+    }
+  }
+  return skipped
+}
+
+export function readSkippedCheck(fields: JsonFields): SkippedCheck {
+  const about = fields.optionalString('about')
+  return { check: fields.string('check'), from: fields.string('from'), ...(about === undefined ? {} : { about }) }
+}
+
 const HINT_REASONS: Readonly<Record<HintCode, string>> = {
+  'needs-tree': NEEDS_TREE.reason,
+  'no-record-quote': 'no quote from a record under review',
+  'one-file-contradiction': 'a contradiction quotes one file; it needs a quote from each of two files',
   'no-decision-or-scenario': 'no quote from a decision source and no concrete scenario',
   'no-decision-quote': 'no quote from a decision source',
   'no-evidence': 'no evidence to check',
-  'no-record-quote': 'no quote from the decisions under review',
   'no-scenario': 'no concrete scenario',
   'no-spec-quote': 'no quote from the spec',
   'no-test-or-trace': 'no failing test and no trace with a file and line',
