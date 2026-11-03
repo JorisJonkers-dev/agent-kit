@@ -20,6 +20,10 @@ council/ts/toolkit-files.json
 # Council run artifacts.
 .council/runs/
 
+# Agent worktrees and saved pages stay local.
+/.claude/worktrees/
+/artifacts/
+
 # Local env and editor files
 .env
 .env.*
