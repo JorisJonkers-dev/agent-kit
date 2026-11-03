@@ -132,3 +132,186 @@ def test_the_shipped_runner_names_init_for_a_missing_state(tmp_path: Path) -> No
     assert result.returncode == 1
     assert json.loads(result.stdout)["code"] == "missing-state"
     assert "init" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# The skill text: what makes any orchestrator keep the page current (#272)
+# ---------------------------------------------------------------------------
+
+GLOSSARY = KIT_ROOT / "CONTEXT.md"
+
+
+def _skill_text() -> str:
+    return (SKILL / "SKILL.md").read_text()
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _front() -> dict:
+    return yaml.safe_load(_skill_text().split("---")[1])
+
+
+def _section(text: str, heading: str) -> str:
+    """From `heading` to the next heading of the same or a higher level."""
+    start = text.index(heading)
+    level = len(heading) - len(heading.lstrip("#"))
+    rest = text[start + len(heading):]
+    end = re.search(rf"\n#{{1,{level}}} ", rest)
+    return text[start:] if end is None else text[start : start + len(heading) + end.start()]
+
+
+def _glossary_entries(section: str) -> dict[str, list[str]]:
+    """Each **Term** of one CONTEXT.md section with its _Avoid_ words."""
+    text = _section(GLOSSARY.read_text(), f"## {section}\n")
+    entries: dict[str, list[str]] = {}
+    for block in text.split("\n\n"):
+        term = re.match(r"\*\*(.+?)\*\*:", block.strip())
+        if not term:
+            continue
+        avoid = re.search(r"_Avoid_: (.+)", block)
+        words = [] if not avoid else [w.strip() for w in re.sub(r"\(.*?\)", "", avoid.group(1)).split(",")]
+        entries[term.group(1)] = [w for w in words if w]
+    return entries
+
+
+def test_the_skill_says_it_applies_at_the_start_of_every_multi_ticket_build() -> None:
+    front = _front()
+    assert set(front) == {"name", "description"}
+    assert front["name"] == "build-tracker"
+    assert front["description"].startswith("Use at the start of any multi-ticket build")
+    for build in ("/implement-spec", "council run", "/flow"):
+        assert build in front["description"], build
+
+
+def test_the_skill_starts_the_build_tracker_with_init_and_the_specs_milestones() -> None:
+    start = _flat(_section(_skill_text(), "### 1. "))
+    for build in ("/implement-spec", "council run", "/flow"):
+        assert build in start, build
+    assert "`init --spec <ref>`" in start
+    assert '`--milestone "<name>=<ticket>"`' in start
+    assert "`sync --spec <ref>`" in start, "a build that already has a state continues with sync"
+    assert "`path --spec <ref>`" in start
+
+
+def test_the_skill_lists_every_command_the_runner_has() -> None:
+    commands = _section(_skill_text(), "## Commands")
+    for command in ("init", "sync", "path", "render", "set"):
+        assert f"build-tracker.mjs {command} " in commands, command
+        assert f"- `{command}`" in commands, command
+
+
+EVENTS = [
+    ("An implementer started", "running", None),
+    ("A merger started", "review", None),
+    ("merged on the integration branch", "merged", "the merge commit"),
+    ("waits on the owner", "owner", "what is needed"),
+    ("paused or stopped", "todo", "why"),
+]
+
+
+@pytest.mark.parametrize(("event", "status", "note"), EVENTS)
+def test_the_skill_maps_each_build_event_to_its_status(event: str, status: str, note: str | None) -> None:
+    table = _section(_skill_text(), "### 3. ")
+    row = next((line for line in table.splitlines() if line.startswith("|") and event in line), None)
+    assert row is not None, event
+    assert f"`{status}`" in row, row
+    if note is not None:
+        assert note in row, row
+
+
+def test_only_the_orchestrator_writes_the_state() -> None:
+    text = _flat(_section(_skill_text(), "## Who writes the state"))
+    assert "Only the orchestrator writes the state file." in text
+    assert "Implementers and mergers report back to it" in text
+    assert "never runs `init`, `sync` or `set`" in text
+
+
+def test_every_status_change_is_set_rendered_and_republished_at_once() -> None:
+    step = _flat(_section(_skill_text(), "### 3. "))
+    assert "run `set`, then `render`, then republish" in step
+    assert "one change at a time" in step
+    assert "Never batch status changes" in step
+    publish = _flat(_section(_skill_text(), "## Republish"))
+    assert "In Claude Code, the republish is the Artifact tool with the same file path every time" in publish
+    assert "give the owner the page path" in publish
+    assert "When a republish fails, tell the owner" in publish
+    assert "the local page is still current" in publish
+
+
+def test_the_worked_example_runs_from_init_to_a_first_render_and_one_status_change() -> None:
+    example = _section(_skill_text(), "## Worked example")
+    block = re.search(r"```sh\n(.*?)```", example, re.S)
+    assert block, "the example is one sh block"
+    commands = re.findall(r"^node \S.*?build-tracker\.mjs (\w+)", block.group(1), re.M)
+    assert commands == ["init", "path", "render", "set", "render"], commands
+    assert "--milestone " in block.group(1)
+    assert "=running" in block.group(1)
+    assert "Artifact tool" in example
+
+
+def test_every_step_ends_on_a_done_when_line() -> None:
+    text = _skill_text()
+    headings = [line for line in text.splitlines() if line.startswith("### ")]
+    numbers = [int(re.match(r"### (\d+)\. ", h).group(1)) for h in headings]
+    assert numbers == list(range(1, len(headings) + 1)), headings
+    for heading in headings:
+        assert re.search(r"^Done when\b", _section(text, heading), re.M), heading
+
+
+def test_the_glossary_defines_the_build_tracker_and_milestone() -> None:
+    entries = _glossary_entries("Build tracker")
+    assert {"Build tracker", "Milestone"} <= set(entries), entries
+
+
+def test_the_skill_uses_the_glossarys_words_and_none_it_avoids() -> None:
+    text = _skill_text()
+    for term, avoided in _glossary_entries("Build tracker").items():
+        assert term.lower() in text.lower(), term
+        for word in avoided:
+            assert not re.search(rf"\b{re.escape(word)}\b", text, re.I), f"{term}: the glossary avoids {word!r}"
+    for term in ("orchestrator", "issue tracker"):
+        assert term in text, term
+
+
+def test_the_skill_never_says_tracker_alone_which_means_the_issue_tracker() -> None:
+    bare = re.findall(r"(?<!build )(?<!issue )(?<!build-)\btracker\b", _skill_text(), re.I)
+    assert bare == []
+
+
+def test_the_skill_carries_no_assistant_attribution() -> None:
+    text = _skill_text().lower()
+    for mark in ("Co-Authored-By", "Generated with", "noreply@anthropic.com", "\U0001f916"):
+        assert mark.lower() not in text, mark
+
+
+POINTER_LINE = (
+    "Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation):"
+    " keep the build tracker current with the build-tracker skill."
+)
+
+
+def test_setup_names_the_build_tracker_in_the_agent_instructions_it_installs(macos_run: Run) -> None:
+    """The AGENTS.md pointer setup writes into both Vibe homes and Antigravity."""
+    for pointer in (".vibe/AGENTS.md", ".vibe-private/AGENTS.md", ".gemini/config/AGENTS.md"):
+        lines = (macos_run.home / pointer).read_text().splitlines()
+        assert POINTER_LINE in lines, pointer
+        assert sum("build tracker" in line for line in lines) == 1, pointer
+
+
+def test_the_running_and_review_rows_clear_the_note_the_table_calls_none() -> None:
+    table = _section(_skill_text(), "### 3. ")
+    for event, status in (("An implementer started", "running"), ("A merger started", "review")):
+        row = next(line for line in table.splitlines() if line.startswith("|") and event in line)
+        assert f"={status}:" in row, f"{event}: {row} keeps the previous note"
+
+
+def test_the_glossary_helper_reads_an_avoid_list_with_a_comma_inside_parentheses() -> None:
+    assert _glossary_entries("Critique pipeline")["Critique stage"] == ["step", "phase"]
+
+
+def test_continuing_an_earlier_build_says_what_happens_to_its_milestones() -> None:
+    step = _section(_skill_text(), "### 1. ")
+    assert "keeps the earlier state's milestones" in step
+    assert "run `init` again" in step
