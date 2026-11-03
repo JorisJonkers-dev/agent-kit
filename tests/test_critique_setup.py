@@ -240,6 +240,37 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
     assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]
 
 
+def test_shipped_routing_adds_an_adr_record_critic_to_the_decisions_stage_of_a_family_it_does_not_route() -> None:
+    """#230: an ADR among the decisions adds one critic, which must not clash with the base or deep roster's families."""
+    routing = json.loads(ROUTING.read_text())
+    decisions = routing["stages"]["decisions"]
+    assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in decisions["adr"]] == [
+        ("vibe-deepseek-flash", "adr-reviewer", ["adr-record"], 0.3, 240)
+    ]
+    family = lambda slot: routing["clients"][slot["client"]]["family"]  # noqa: E731
+    others = {family(s) for s in decisions["base"] + decisions["deep"]}
+    assert family(decisions["adr"][0]) not in others
+    assert decisions["distinct_families"] is True
+    assert "adr" not in {key for name, stage in routing["stages"].items() if name != "decisions" for key in stage}
+
+
+def test_critique_decisions_rules_on_adr_record_findings_and_their_fixed_severity() -> None:
+    """#230 with the #227 carry-over: the skill says how an adr-record finding is ruled on and how its severity is overridden."""
+    text = " ".join((KIT_ROOT / "skills" / "workstation" / "critique-decisions" / "SKILL.md").read_text().split())
+    assert "an `adr-record` critic" in text
+    assert "`no-record-quote`" in text
+    assert "`declared_severity`" in text
+    assert "`severity` and `severity_reason`" in text
+
+
+def test_critique_decisions_reports_an_adr_record_critic_dropped_for_its_family() -> None:
+    """#230 review F2: a family drop of the adr-record critic is told to the owner, not left silent."""
+    text = " ".join((KIT_ROOT / "skills" / "workstation" / "critique-decisions" / "SKILL.md").read_text().split())
+    for reason in ("`orchestrator-family`", "`family-not-allowed`", "`same-family`"):
+        assert reason in text
+    assert "the ADR check does not run" in text
+
+
 def test_shipped_routing_caps_the_repository_packet_at_adr_0004s_starting_limits() -> None:
     """#221: the phase-0 live check retunes these in routing, so the runner reads them from there."""
     packet = json.loads(ROUTING.read_text())["packet"]

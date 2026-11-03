@@ -138,6 +138,15 @@
           "time_limit_s": 240
         }
       ],
+      "adr": [
+        {
+          "client": "vibe-deepseek-flash",
+          "role": "adr-reviewer",
+          "lenses": ["adr-record"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        }
+      ],
       "deep": [
         {
           "client": "vibe-glm",

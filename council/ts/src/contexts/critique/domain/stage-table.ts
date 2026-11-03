@@ -11,8 +11,12 @@ import type { CodeStage, CritiqueStage, ReviewStage } from './stage.js'
  */
 export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs'
 
-/** Which evidence rule fan-out applies to a stage's findings once every quote is found in the packet. */
-export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code'
+/**
+ * Which evidence rule fan-out applies to a stage's findings once every quote
+ * is found in the packet. `records` is no stage's own: it is the rule for
+ * the decision records a role reviews at a stage whose own rule is another.
+ */
+export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'records'
 
 /**
  * The flow key a stage's run charges, unless the caller names one.
@@ -62,6 +66,20 @@ export type StageTable = {
     readonly removal: S extends ReviewStage ? 'runs' : Exclude<RemovalRule, 'runs'>
     readonly doNotStart: S extends ReviewStage ? null : '/to-tickets' | '/implement'
   }
+}
+
+/**
+ * The roles whose findings a stage judges by another evidence rule than its
+ * own. The decisions stage's ADR critic reviews the records among the
+ * decisions, so its findings need a quote of them, not a gap's scenario.
+ */
+const ROLE_EVIDENCE: Readonly<Partial<Record<CritiqueStage, Readonly<Record<string, EvidenceRule>>>>> = {
+  decisions: { 'adr-reviewer': 'records' },
+}
+
+/** The evidence rule for a finding the critic of `role` raised at `stage`: the role's own there, else the stage's. */
+export function evidenceRule(stage: CritiqueStage, role: string | undefined): EvidenceRule {
+  return (role === undefined ? undefined : ROLE_EVIDENCE[stage]?.[role]) ?? STAGE_TABLE[stage].evidence
 }
 
 export const STAGE_TABLE: StageTable = {

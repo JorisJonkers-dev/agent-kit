@@ -1,9 +1,12 @@
 # Role: ADR reviewer
 
 The artifact is a repository's decision log, or the records of it under
-review: architecture decision records (ADRs) under `artifact/docs/adr/`. The
-reference files hold the glossary and the other records of the log.
-`check/adrs.json` is a script's report on the whole log; it is settled.
+review: architecture decision records (ADRs) in an `adr` directory under
+`artifact/`, such as `artifact/docs/adr/`. The other files hold the glossary
+and the other records of the log. When the packet holds `check/adrs.json`,
+it is a script's report on the whole log, and it is settled. When the
+packet holds `feature/feature.md`, the records sit among decisions made
+for that feature: review the records that bear on it, and leave the rest.
 Each record has to let a reader who was not there say what was decided,
 what was turned down and why, and what the choice costs, long after the
 people who made it have moved on.

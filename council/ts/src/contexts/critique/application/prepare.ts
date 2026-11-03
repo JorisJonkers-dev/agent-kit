@@ -114,6 +114,8 @@ interface PacketContents {
   readonly specReference?: string
   /** Only for an ADR review: how many records are under review. */
   readonly adrs?: number
+  /** Only for the decisions stage: whether the decisions under review include a decision record. */
+  readonly holdsAdr?: boolean
   /** Only for a repository packet: what of the tree it sent. */
   readonly repository?: PreparedRepository
   /** Only for a code stage: what of the tree the cap let in. */
@@ -239,7 +241,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         : { labels: artifact.labels, text: contents.files.map((file) => file.text).join('\n\n'), tickets: ticketCheck.tickets.length },
       input.depth,
     )
-    const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage }
+    const request = { adr: contents.holdsAdr === true, allowedFamilies: entry.families, depth, orchestratorFamily, stage }
     const roster = resolveRoster(routing, request, await this.readiness(routing, request))
     const runId = await this.freshRunId(repository, stage)
     const runDir = join(repository.commonDir, 'critique', runId)
