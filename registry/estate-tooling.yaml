@@ -940,6 +940,19 @@ local_skills:
       the stage skills, so setup installs it beside them in every agent
       home. It never runs one of Pocock's skills.
 
+  - name: build-tracker
+    path: skills/build-tracker
+    purpose: >-
+      The build tracker for a spec being implemented: a state file with
+      each ticket's status, rendered into one page with a summary strip,
+      a dependency graph and a list per milestone.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      build-tracker.mjs is built from council/ts by its build and pinned
+      in manifest.yaml's build_tracker.files, the way the critique runner
+      is pinned in critique.files.
+
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,

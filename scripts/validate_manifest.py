@@ -421,6 +421,25 @@ def validate_critique(manifest: dict[str, Any]) -> None:
         fail(f"critique.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
 
 
+def validate_build_tracker(manifest: dict[str, Any]) -> None:
+    """build_tracker.files pins every file of skills/build-tracker but its SKILL.md.
+
+    As with critique.files, validate_checksums checks each sha256; this
+    checks the set.
+    """
+    section = as_mapping(manifest.get("build_tracker"), "build_tracker")
+    files = as_list(section.get("files"), "build_tracker.files")
+    manifest_files = {item.get("path") for item in files}
+    root = ROOT / "skills" / "build-tracker"
+    actual_files = {
+        path.relative_to(ROOT).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path.relative_to(root).as_posix() != "SKILL.md"
+    }
+    if manifest_files != actual_files:
+        fail(f"build_tracker.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
+
+
 # _scan_served_installer/validate_installer scanned install.sh/install-agents.sh; retired with them (agent-kit#40).
 
 
@@ -946,6 +965,7 @@ def main(argv: list[str] | None = None) -> int:
         validate_council_command_surface()
         validate_council(manifest)
         validate_critique(manifest)
+        validate_build_tracker(manifest)
         validate_runtime_package_manifest(manifest)
         validate_runtime_package_artifacts()
         validate_runtime_shell_contracts(runtime_selftest=runtime_selftest)

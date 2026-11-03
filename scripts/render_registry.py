@@ -1434,6 +1434,9 @@ def _agents_pointer_text(w: Any, private: bool) -> None:
     w("")
     w("Read it before doing anything non-trivial in an estate repository.")
     w("")
+    w("Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation):"
+      " keep the build tracker current with the build-tracker skill.")
+    w("")
     w("## Memory")
     w("")
     # Plain names: this is an unquoted heredoc, so a backtick would run a command.

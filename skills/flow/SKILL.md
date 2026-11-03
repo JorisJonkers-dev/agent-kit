@@ -91,7 +91,48 @@ To record, run state again with the same `repo`, `spec` or `draft`, and
 Done when state returned `read` and every question above that applies has
 an answer.
 
-### 3. Report
+### 3. Refresh the build tracker
+
+The **build tracker** is the page that shows the owner where every ticket of
+the spec stands; the `build-tracker` skill installed beside this one says
+how it works. Every feature in implementation or finishing gets one without
+anyone asking. You are the orchestrator that skill names, so you may write
+its state.
+
+When the state has a `spec` and its `phase` is `implementation` or
+`finishing`, run the build tracker's `refresh` from the repository root,
+with one `--landed` per ticket of `state.tickets` whose `landed` is true,
+named by its `id`:
+
+```sh
+node <build-tracker dir>/build-tracker.mjs refresh --spec '<state.spec>' --landed '<id>' ...
+```
+
+The runner is `build-tracker.mjs` in the `build-tracker` skill directory
+(`../build-tracker/build-tracker.mjs` from the folder this file is in).
+Quote every argument: unquoted, an id such as `#183` starts a shell comment.
+`refresh` runs `init` when the spec has no build tracker state yet, and
+`sync` when it has one; it marks each landed ticket `merged`, renders the
+page, and prints the page's path as `page`. Publish `page` as that skill's
+**Republish** says: in Claude Code, the Artifact tool with `page` as its file
+path, so every refresh updates the same address.
+
+Keep a **Build tracker** line for the report: the page's address, or its path
+where nothing publishes it. When `refresh` fails, the line gives its `code`
+and `message`; when the republish fails, the page path and what failed.
+Either way carry on: the build tracker is a view for the owner, and the flow
+never waits on it.
+
+`/flow` only writes the build tracker. It never reads the build tracker's
+state file to rebuild flow state: the flow state and the issue tracker stay
+its only sources.
+
+In planning, or for a draft, skip this step; the report has no Build tracker line.
+
+Done when `refresh` has rendered the page and it is published (or the
+Build tracker line says what failed), or the phase needs no build tracker.
+
+### 4. Report
 
 Reply in at most about eight lines:
 
@@ -99,6 +140,7 @@ Reply in at most about eight lines:
 <spec or draft:name> · <phase>[ · critique skipped on purpose]
 Stages: decisions <status> (<run ids>) · spec … · tickets … · feature review …
 Tickets: #183 reviewed, landed · #184 skipped-low-risk, landed · #185 not-reviewed
+Build tracker: <page address or path>
 Questions: <n> open; critical <finding_id> (<stage>, run <run_id>): <question>
 Gate: none | PASS for <short head> | <gate line>
 Next: <step>. <reason>
@@ -108,6 +150,8 @@ Next: <step>. <reason>
 - **Stages**: each stage's `status` with its `run_ids`; `not-run` needs none.
 - **Tickets**: during implementation and finishing only, in the state's
   order (dependency order), each with its `review` and whether it `landed`.
+- **Build tracker**: during implementation and finishing only, the line step 3
+  kept: the build tracker page's address or path, or what failed.
 - **Questions**: the open needs-human questions, critical first. Take each
   question's text from `## Questions for you` in the run's `report.md` in
   the runs folder; without it, give the finding id alone.
@@ -136,28 +180,32 @@ the stage skill from its fan-out step with that `run_dir`, or, when
 
 Done when the reply ends with the next step, its reason and the offer.
 
-### 4. Act on the answer
+### 5. Act on the answer
 
 - **Yes to a stage**: load the stage skill (by name through your agent's
   skill tool, or by reading `../<skill>/SKILL.md` from this file's folder)
   and follow it with the inputs above. When it returns, go back to step 2
-  for the new state and report again.
-- **The owner reports a step from the table in step 2**: record it and
-  report again.
+  for the new state, then refresh and report again (steps 3 and 4).
+- **The owner reports a step from the table in step 2**: record it, then
+  refresh and report again (steps 3 and 4).
 - **No**: stop. The saved state keeps the place for the next `/flow`, in
   this session or a later one.
 
 ## /flow finish
 
 1. Find the feature and read its state (steps 1 and 2). Unless `next` is the
-   `feature-review` stage, report as `/flow` does and stop: that report
-   names what is still due.
+   `feature-review` stage, refresh and report as `/flow` does (steps 3 and
+   4) and stop: that report names what is still due.
 2. Load the `review-feature` skill and follow it with the spec (and the
    resume inputs when `next` has `resume_run_id`).
-3. Read the state again, then reply with the gate line as the runner wrote
-   it, one line per follow-up ticket the review filed, and the next step:
-   `done` when the gate passes for the current head, else the `/implement`
-   of the first follow-up.
+3. Read the state again, then refresh the build tracker as step 3 of `/flow`
+   says. Once the gate passes, that is the build's last render: the page
+   shows the finished build. When the gate fails, the refresh adds the
+   follow-up tickets.
+4. Reply with the gate line as the runner wrote it, one line per follow-up
+   ticket the review filed, the Build tracker line, and the next step: `done` when
+   the gate passes for the current head, else the `/implement` of the first
+   follow-up.
 
 ## /flow no-critique
 
@@ -165,7 +213,9 @@ Find the feature (step 1), then record `{"no_critique": true}`
 (`/flow critique` records `false`). From then on the next step skips every
 critique stage: grill, `/to-spec`, `/to-tickets`, one `/implement` per
 ticket, then done, with no feature review. The ledger keeps the choice, so
-the flow shows critique was skipped on purpose. Report as `/flow` does.
+the flow shows critique was skipped on purpose. Then refresh the build
+tracker and report as `/flow` does (its steps 3 and 4): a feature built
+without critique gets its build tracker too.
 
 ## /flow setup
 
