@@ -28,7 +28,7 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 import render_registry  # noqa: E402
 from setup_harness import Run, setup_run  # noqa: E402
 
-ROUTING = KIT_ROOT / "skills" / "critique" / "routing.json"
+ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 AGENTS_DIR = render_registry.VIBE_CRITIC_AGENTS_DIR
 EVERY_AGENT = {"claude", "codex", "vibe", "antigravity"}
 CRITIC_AGENT_NAMES = ["critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"]
@@ -87,7 +87,7 @@ def check_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 
 def test_the_shared_critique_skill_is_declared_for_every_agent() -> None:
     skill = _skill(_registry(), "critique")
-    assert skill["path"] == "skills/critique"
+    assert skill["path"] == "skills/workstation/critique"
     assert set(skill["agents"]) == EVERY_AGENT
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
@@ -95,14 +95,14 @@ def test_the_shared_critique_skill_is_declared_for_every_agent() -> None:
 
 def test_critique_spec_is_declared_for_every_agent() -> None:
     skill = _skill(_registry(), "critique-spec")
-    assert skill["path"] == "skills/critique-spec"
+    assert skill["path"] == "skills/workstation/critique-spec"
     assert set(skill["agents"]) == EVERY_AGENT
     assert skill["surfaces"] == ["workstation"]
 
 
 def test_critique_stats_is_declared_for_every_agent_and_built() -> None:
     skill = _skill(_registry(), "critique-stats")
-    assert skill["path"] == "skills/critique-stats"
+    assert skill["path"] == "skills/workstation/critique-stats"
     assert set(skill["agents"]) == EVERY_AGENT
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
@@ -111,7 +111,7 @@ def test_critique_stats_is_declared_for_every_agent_and_built() -> None:
 
 def test_setup_installs_critique_stats_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
     """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
-    source = KIT_ROOT / "skills" / "critique-stats" / "SKILL.md"
+    source = KIT_ROOT / "skills" / "workstation" / "critique-stats" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
@@ -125,14 +125,14 @@ def test_routing_carries_the_stats_thresholds() -> None:
 
 
 def test_the_shared_skill_carries_the_runner_prompts_lenses_schema_and_routing() -> None:
-    root = KIT_ROOT / "skills" / "critique"
+    root = KIT_ROOT / "skills" / "workstation" / "critique"
     for path in ("SKILL.md", "critique.mjs", "routing.json", "prompts/preamble.md", "prompts/triage.md",
                  "roles/spec-redteam.md", "lenses/fidelity.md", "schemas/finding.schema.json"):
         assert (root / path).is_file(), path
 
 
 def test_setup_copies_the_whole_critique_skill_into_every_agent_home(macos_run: Run) -> None:
-    source = KIT_ROOT / "skills" / "critique"
+    source = KIT_ROOT / "skills" / "workstation" / "critique"
     want = sorted(p.relative_to(source).as_posix() for p in source.rglob("*") if p.is_file())
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
@@ -150,7 +150,7 @@ def test_critique_spec_is_built_so_it_is_no_longer_pending() -> None:
 
 def test_setup_installs_critique_spec_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
     """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
-    source = KIT_ROOT / "skills" / "critique-spec" / "SKILL.md"
+    source = KIT_ROOT / "skills" / "workstation" / "critique-spec" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
@@ -161,7 +161,7 @@ def test_setup_installs_critique_spec_beside_the_shared_skill_in_every_agent_hom
 
 def test_check_tickets_is_declared_for_every_agent_and_built() -> None:
     skill = _skill(_registry(), "check-tickets")
-    assert skill["path"] == "skills/check-tickets"
+    assert skill["path"] == "skills/workstation/check-tickets"
     assert set(skill["agents"]) == EVERY_AGENT
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
@@ -169,7 +169,7 @@ def test_check_tickets_is_declared_for_every_agent_and_built() -> None:
 
 
 def test_check_tickets_says_it_applies_after_to_tickets_and_before_the_first_implement() -> None:
-    text = (KIT_ROOT / "skills" / "check-tickets" / "SKILL.md").read_text()
+    text = (KIT_ROOT / "skills" / "workstation" / "check-tickets" / "SKILL.md").read_text()
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "check-tickets"
     assert front["description"].startswith("Use after /to-tickets and before the first /implement.")
@@ -177,7 +177,7 @@ def test_check_tickets_says_it_applies_after_to_tickets_and_before_the_first_imp
 
 def test_setup_installs_check_tickets_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
     """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
-    source = KIT_ROOT / "skills" / "check-tickets" / "SKILL.md"
+    source = KIT_ROOT / "skills" / "workstation" / "check-tickets" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
@@ -194,19 +194,19 @@ def test_shipped_routing_defines_the_tickets_stage() -> None:
         ("vibe-mistral-large", "ticket-linter", ["simplicity"], 1, 600)
     ]
     assert tickets["ticket_size"] == {"max_modules": 5, "max_criteria": 8}
-    assert (KIT_ROOT / "skills" / "critique" / "roles" / "ticket-linter.md").is_file()
+    assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "ticket-linter.md").is_file()
 
 
 def test_review_feature_is_declared_for_every_agent() -> None:
     skill = _skill(_registry(), "review-feature")
-    assert skill["path"] == "skills/review-feature"
+    assert skill["path"] == "skills/workstation/review-feature"
     assert set(skill["agents"]) == EVERY_AGENT
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
 
 
 def test_review_feature_says_it_applies_after_all_tickets_landed_and_before_the_pr() -> None:
-    text = (KIT_ROOT / "skills" / "review-feature" / "SKILL.md").read_text()
+    text = (KIT_ROOT / "skills" / "workstation" / "review-feature" / "SKILL.md").read_text()
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "review-feature"
     assert front["description"].startswith(
@@ -216,7 +216,7 @@ def test_review_feature_says_it_applies_after_all_tickets_landed_and_before_the_
 
 def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
     """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
-    source = KIT_ROOT / "skills" / "review-feature" / "SKILL.md"
+    source = KIT_ROOT / "skills" / "workstation" / "review-feature" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
@@ -260,7 +260,7 @@ def test_shipped_routing_caps_a_repository_packets_manifest_inside_the_packet_ca
 
 
 def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
-    flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    flow = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
     assert "| `/flow reviews` |" in flow
     entry = flow[flow.index("## /flow reviews"):]
     end = entry.find("\n## ", 1)
@@ -278,19 +278,19 @@ def test_shipped_routing_defines_the_ticket_review_stage() -> None:
     ]
     assert [(s["client"], s["role"]) for s in review["deep"]] == [("vibe-mistral-large", "diff-reviewer")]
     assert review["depth_signals"]["thresholds"] == {"changed_lines": 600, "risk_path_hits": 3}
-    assert (KIT_ROOT / "skills" / "critique" / "roles" / "diff-reviewer.md").is_file()
+    assert (KIT_ROOT / "skills" / "workstation" / "critique" / "roles" / "diff-reviewer.md").is_file()
 
 
 def test_review_ticket_is_declared_for_every_agent() -> None:
     skill = _skill(_registry(), "review-ticket")
-    assert skill["path"] == "skills/review-ticket"
+    assert skill["path"] == "skills/workstation/review-ticket"
     assert set(skill["agents"]) == EVERY_AGENT
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
 
 
 def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit() -> None:
-    text = (KIT_ROOT / "skills" / "review-ticket" / "SKILL.md").read_text()
+    text = (KIT_ROOT / "skills" / "workstation" / "review-ticket" / "SKILL.md").read_text()
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "review-ticket"
     assert front["description"].startswith("Use after a ticket's /code-review and before its commit.")
@@ -298,7 +298,7 @@ def test_review_ticket_says_it_applies_after_code_review_and_before_the_commit()
 
 def test_review_ticket_says_a_degraded_run_leaves_the_commit_blocked() -> None:
     """#259: a run in which no critic reported vouches for nothing, so its summary must not read as a pass."""
-    text = (KIT_ROOT / "skills" / "review-ticket" / "SKILL.md").read_text()
+    text = (KIT_ROOT / "skills" / "workstation" / "review-ticket" / "SKILL.md").read_text()
     step = text.split("### 9. Return")[1]
     assert "**No critic reported, so the review is degraded**" in step
     assert "the commit gate stays shut" in step
@@ -307,7 +307,7 @@ def test_review_ticket_says_a_degraded_run_leaves_the_commit_blocked() -> None:
 
 def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
     """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
-    source = KIT_ROOT / "skills" / "review-ticket" / "SKILL.md"
+    source = KIT_ROOT / "skills" / "workstation" / "review-ticket" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
@@ -317,14 +317,14 @@ def test_setup_installs_review_ticket_beside_the_shared_skill_in_every_agent_hom
 
 def test_flow_is_declared_for_every_agent() -> None:
     skill = _skill(_registry(), "flow")
-    assert skill["path"] == "skills/flow"
+    assert skill["path"] == "skills/workstation/flow"
     assert set(skill["agents"]) == EVERY_AGENT
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
 
 
 def test_flow_loads_only_when_the_owner_asks_about_the_critique_pipeline() -> None:
-    text = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    text = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "flow"
     assert front["description"].startswith(
@@ -334,23 +334,23 @@ def test_flow_loads_only_when_the_owner_asks_about_the_critique_pipeline() -> No
 
 
 def test_flow_explain_reads_every_section_it_names_from_the_pipeline_readme() -> None:
-    """/flow explain answers from skills/critique/README.md, so each section it names must be there."""
-    flow = (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    """/flow explain answers from skills/workstation/critique/README.md, so each section it names must be there."""
+    flow = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
     explain = flow[flow.index("## /flow explain"):]
     end = explain.find("\n## ", 1)
     explain = explain if end < 0 else explain[:end]
     assert "../critique/README.md" in explain
     named = set(re.findall(r"`(## [^`]+)`", explain))
     assert len(named) == 6, named
-    headings = {line for line in (KIT_ROOT / "skills" / "critique" / "README.md").read_text().splitlines()
-                if line.startswith("## ")}
+    readme = (KIT_ROOT / "skills" / "workstation" / "critique" / "README.md").read_text()
+    headings = {line for line in readme.splitlines() if line.startswith("## ")}
     assert named <= headings, named - headings
 
 
 @pytest.mark.parametrize("skill", ["flow", "critique-spec", "critique-decisions"])
 def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(skill: str) -> None:
     """The allowlist entry's history permission (commit messages, issue text) is off until the owner turns it on."""
-    text = " ".join((KIT_ROOT / "skills" / skill / "SKILL.md").read_text().split())
+    text = " ".join((KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").read_text().split())
     assert "history permission" in text, skill
     assert "off by default" in text, skill
     assert '"history": true' in text, skill
@@ -362,7 +362,7 @@ REFUTING_SKILLS = ["critique-decisions", "critique-spec", "check-tickets", "revi
 @pytest.mark.parametrize("skill", REFUTING_SKILLS)
 def test_the_stage_skill_runs_the_refute_round_right_after_its_verdicts(skill: str) -> None:
     """#224: refute comes after the ruling and before any fix, follow-up or owner question."""
-    text = (KIT_ROOT / "skills" / skill / "SKILL.md").read_text()
+    text = (KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").read_text()
     headings = [line for line in text.splitlines() if line.startswith("### ")]
     numbers = [int(re.match(r"### (\d+)\. ", h).group(1)) for h in headings]
     assert numbers == list(range(1, len(headings) + 1)), headings
@@ -374,7 +374,7 @@ def test_the_stage_skill_runs_the_refute_round_right_after_its_verdicts(skill: s
 
 @pytest.mark.parametrize("skill", REFUTING_SKILLS)
 def test_the_stage_skill_says_how_the_refute_round_changes_a_verdict(skill: str) -> None:
-    text = " ".join((KIT_ROOT / "skills" / skill / "SKILL.md").read_text().split())
+    text = " ".join((KIT_ROOT / "skills" / "workstation" / skill / "SKILL.md").read_text().split())
     assert '`rejected` with `reason_code: "refuted"`' in text, skill
     assert "- `downgrade`:" in text, skill
     assert "A skipped refute is reported, not retried" in text, skill
@@ -382,16 +382,16 @@ def test_the_stage_skill_says_how_the_refute_round_changes_a_verdict(skill: str)
 
 
 def test_the_pipeline_readme_names_every_stage_and_lens_it_explains() -> None:
-    readme = (KIT_ROOT / "skills" / "critique" / "README.md").read_text()
+    readme = (KIT_ROOT / "skills" / "workstation" / "critique" / "README.md").read_text()
     for stage in json.loads(ROUTING.read_text())["stages"]:
         assert f"| `{stage}` |" in readme, stage
-    for lens in (KIT_ROOT / "skills" / "critique" / "lenses").glob("*.md"):
+    for lens in (KIT_ROOT / "skills" / "workstation" / "critique" / "lenses").glob("*.md"):
         assert f"- `{lens.stem}`:" in readme, lens.stem
 
 
 def test_setup_installs_flow_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
     """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
-    source = KIT_ROOT / "skills" / "flow" / "SKILL.md"
+    source = KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md"
     homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
     for home in homes:
         skills = macos_run.home / home / "skills"
@@ -406,7 +406,7 @@ def test_setup_installs_flow_beside_the_shared_skill_in_every_agent_home(macos_r
 
 
 def _flow_text() -> str:
-    return (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+    return (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
 
 
 def _flow_part(heading: str) -> str:
@@ -517,7 +517,7 @@ def test_a_pending_skill_installs_once_its_directory_exists() -> None:
 def test_a_pending_skill_that_now_exists_must_drop_pending() -> None:
     data = _registry()
     skill = _skill(data, "critique-spec")
-    skill["path"] = "skills/critique"
+    skill["path"] = "skills/workstation/critique"
     skill["pending"] = "https://github.com/JorisJonkers-dev/agent-kit/issues/177"
     with pytest.raises(render_registry.RegistryError, match="drop pending"):
         render_registry.validate(data)
@@ -560,7 +560,7 @@ def _manifest() -> dict:
 
 def test_the_critique_runner_is_pinned_in_the_manifest_like_councils() -> None:
     files = {f["path"]: f for f in _manifest()["critique"]["files"]}
-    runner = files["skills/critique/critique.mjs"]
+    runner = files["skills/workstation/critique/critique.mjs"]
     assert runner["mode"] == "0755"
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()
@@ -574,7 +574,7 @@ def test_the_manifest_pins_every_file_the_skill_ships_but_its_skill_md() -> None
 def test_a_runner_file_missing_from_the_pin_fails_validation() -> None:
     manifest = copy.deepcopy(_manifest())
     manifest["critique"]["files"] = [
-        f for f in manifest["critique"]["files"] if f["path"] != "skills/critique/routing.json"
+        f for f in manifest["critique"]["files"] if f["path"] != "skills/workstation/critique/routing.json"
     ]
     with pytest.raises(AssertionError, match=re.escape("critique.files mismatch")):
         _validator().validate_critique(manifest)

@@ -39,7 +39,7 @@ SCRIPT_NAME=setup-workstation.sh
 # its name because released installers fetch it by that name.
 SKILLS_TARBALL=agent-kit-skills.tar.gz
 KIT_PATHS=(
-  skills
+  skills/workstation
   registry/estate-tooling.yaml
   registry/generated/hermes/mcp-servers.local.yaml
   registry/generated/vibe/mcp-servers.toml

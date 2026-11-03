@@ -32,7 +32,7 @@ import {
   type CritiqueGitPort,
 } from '../../src/contexts/critique/index.js'
 
-export const ASSETS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../skills/critique')
+export const ASSETS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../skills/workstation/critique')
 
 /** The critic agent files agent-kit's generator renders, which setup installs into `~/.vibe/agents/`. */
 export const GENERATED_AGENTS = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../registry/generated/vibe/agents')

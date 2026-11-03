@@ -17,11 +17,15 @@ council/ts-dist/
 council/ts/*.tsbuildinfo
 council/ts/toolkit-files.json
 
-# Council run artifacts.
-.council/runs/
+# Agent directories hold only local output: render-agent-kit.py --write
+# renders the skills, agents and council context from skills/repo/, agents/
+# and council/context/, and agent sessions keep worktrees and council runs
+# here.
+/.claude/
+/.agents/
+/.council/
 
-# Agent worktrees and saved pages stay local.
-/.claude/worktrees/
+# Pages saved by hand stay local.
 /artifacts/
 
 # Local env and editor files

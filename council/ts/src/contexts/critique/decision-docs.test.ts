@@ -197,7 +197,7 @@ describe('prepare reads each ADR status', () => {
 
   it("still loads agent-kit's own ADRs, which carry no status line", async () => {
     const h = await optedIn()
-    const houseAdrs = resolve(ASSETS_ROOT, '../../docs/adr')
+    const houseAdrs = resolve(ASSETS_ROOT, '../../../docs/adr')
     const names = (await readdir(houseAdrs)).filter((name) => name.endsWith('.md')).sort()
     for (const name of names) await write(h, `docs/adr/${name}`, await readFile(join(houseAdrs, name), 'utf8'))
 

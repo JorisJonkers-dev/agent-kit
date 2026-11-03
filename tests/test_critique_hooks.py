@@ -114,7 +114,7 @@ def test_a_fresh_machine_gets_the_three_hooks_in_claude_code_and_codex(fresh: Ru
         }, agent
         for name in HOOKS:
             script = home / "skills" / "critique" / "hooks" / f"{name}.sh"
-            assert script.read_bytes() == (KIT_ROOT / "skills" / "critique" / "hooks" / f"{name}.sh").read_bytes()
+            assert script.read_bytes() == (SCRIPTS / f"{name}.sh").read_bytes()
     assert "critique hooks installed in Claude Code" in fresh.stdout
     assert "critique hooks installed in Codex" in fresh.stdout
 
@@ -270,7 +270,7 @@ def test_setup_fails_rather_than_wiring_a_hook_to_a_missing_script() -> None:
 # The hook scripts themselves, against a real repository and the bundled runner
 # ---------------------------------------------------------------------------
 
-SCRIPTS = KIT_ROOT / "skills" / "critique" / "hooks"
+SCRIPTS = KIT_ROOT / "skills" / "workstation" / "critique" / "hooks"
 NODE = shutil.which("node")
 
 
