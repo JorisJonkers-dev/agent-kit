@@ -1,9 +1,12 @@
 import {
   BuildTrackerError,
   createBuildTrackerCommands,
+  GhCliBuildTrackerIssues,
+  GitBuildTrackerRepositories,
   NodeBuildTrackerFiles,
-  type BuildTrackerClockPort,
+  NodeBuildTrackerProcess,
   type BuildTrackerCommands,
+  type BuildTrackerDependencies,
 } from '../contexts/build-tracker/index.js'
 
 export interface BuildTrackerCliResult {
@@ -16,8 +19,24 @@ export interface BuildTrackerCliRuntime {
   readonly commands: BuildTrackerCommands
 }
 
-export const BUILD_TRACKER_USAGE = `usage: build-tracker render --state FILE --out FILE
+export const BUILD_TRACKER_USAGE = `usage: build-tracker init --spec SPEC [--milestone <name>=<ticket> ...]
+       build-tracker sync --spec SPEC
+       build-tracker path --spec SPEC
+       build-tracker render --state FILE --out FILE
        build-tracker set --state FILE <ticket>=<status>[:note] ...
+
+SPEC is a GitHub issue (#12, owner/repo#12 or its URL) whose sub-issues are
+the tickets, or a local markdown spec file whose tickets are the numbered
+files (01-name.md) in the issues/ folder beside it.
+
+init writes a new state for the spec from its tickets: each open ticket todo,
+each closed one merged, with its blockers. Each --milestone, in order, names a
+milestone and the ticket that closes it. init refuses a spec that already has
+a state; sync brings that state up to date instead. sync adds new tickets,
+updates titles and blockers, marks newly closed tickets merged, and keeps
+every status, note and milestone set on open tickets. path prints where the
+spec's state file and page live, under $XDG_STATE_HOME (else
+~/.local/state)/agent-kit/build-tracker.
 
 render writes the build tracker page for the state file. set changes the
 named tickets' statuses in the state file; a note after the status replaces
@@ -30,24 +49,44 @@ unreadable state file is an error that names init. Bad arguments print this
 usage and exit 2.
 `
 
+/** A required flag is given once; a repeatable one any number of times, none included. */
+type FlagKind = 'required' | 'repeatable'
+
+type Flags = Readonly<Record<string, readonly string[]>>
+
 interface CommandSpec {
-  /** The flags the command takes; every one is required. */
-  readonly flags: readonly string[]
+  /** The flags the command takes. */
+  readonly flags: Readonly<Record<string, FlagKind>>
   /** Whether the command takes one or more positional arguments. */
   readonly positionals: boolean
-  run(commands: BuildTrackerCommands, flags: Readonly<Record<string, string>>, positionals: readonly string[]): Promise<unknown>
+  run(commands: BuildTrackerCommands, flags: Flags, positionals: readonly string[]): Promise<unknown>
 }
 
 const COMMANDS: Readonly<Record<string, CommandSpec>> = {
+  init: {
+    flags: { milestone: 'repeatable', spec: 'required' },
+    positionals: false,
+    run: (commands, flags) => commands.init.run({ milestones: flags.milestone ?? [], spec: flag(flags, 'spec') }),
+  },
+  path: {
+    flags: { spec: 'required' },
+    positionals: false,
+    run: (commands, flags) => commands.path.run({ spec: flag(flags, 'spec') }),
+  },
   render: {
-    flags: ['state', 'out'],
+    flags: { out: 'required', state: 'required' },
     positionals: false,
     run: (commands, flags) => commands.render.run({ out: flag(flags, 'out'), state: flag(flags, 'state') }),
   },
   set: {
-    flags: ['state'],
+    flags: { state: 'required' },
     positionals: true,
     run: (commands, flags, positionals) => commands.set.run({ assignments: positionals, state: flag(flags, 'state') }),
+  },
+  sync: {
+    flags: { spec: 'required' },
+    positionals: false,
+    run: (commands, flags) => commands.sync.run({ spec: flag(flags, 'spec') }),
   },
 }
 
@@ -76,8 +115,8 @@ export async function runBuildTrackerCli(argv: readonly string[], runtime: Build
 function parseArguments(
   args: readonly string[],
   spec: CommandSpec,
-): { flags: Readonly<Record<string, string>>; positionals: readonly string[] } | undefined {
-  const flags: Record<string, string> = {}
+): { flags: Flags; positionals: readonly string[] } | undefined {
+  const flags: Record<string, string[]> = {}
   const positionals: string[] = []
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index] ?? ''
@@ -86,21 +125,33 @@ function parseArguments(
       continue
     }
     const name = arg.slice(2)
+    const kind = Object.hasOwn(spec.flags, name) ? spec.flags[name] : undefined
     const value = args[index + 1]
-    if (!spec.flags.includes(name) || Object.hasOwn(flags, name) || value === undefined) return undefined
-    flags[name] = value
+    if (kind === undefined || (kind === 'required' && Object.hasOwn(flags, name)) || value === undefined) return undefined
+    flags[name] = [...(flags[name] ?? []), value]
     index += 1
   }
-  const flagsOk = spec.flags.every((name) => Object.hasOwn(flags, name))
+  const flagsOk = Object.entries(spec.flags).every(([name, kind]) => kind !== 'required' || Object.hasOwn(flags, name))
   const positionalsOk = spec.positionals ? positionals.length > 0 : positionals.length === 0
   return flagsOk && positionalsOk ? { flags, positionals } : undefined
 }
 
-function flag(flags: Readonly<Record<string, string>>, name: string): string {
-  return flags[name] ?? ''
+function flag(flags: Flags, name: string): string {
+  return flags[name]?.[0] ?? ''
 }
 
-/** Wires the real files and clock. */
-export function defaultBuildTrackerRuntime(clock: BuildTrackerClockPort = { now: () => new Date() }): BuildTrackerCliRuntime {
-  return { commands: createBuildTrackerCommands({ clock, files: new NodeBuildTrackerFiles() }) }
+/** Wires the real files, clock, gh, git, working directory and environment; tests replace any of them. */
+export function defaultBuildTrackerRuntime(overrides: Partial<BuildTrackerDependencies> = {}): BuildTrackerCliRuntime {
+  const process = new NodeBuildTrackerProcess()
+  return {
+    commands: createBuildTrackerCommands({
+      clock: { now: () => new Date() },
+      cwd: globalThis.process.cwd(),
+      env: globalThis.process.env,
+      files: new NodeBuildTrackerFiles(),
+      issues: new GhCliBuildTrackerIssues(process),
+      repositories: new GitBuildTrackerRepositories(process),
+      ...overrides,
+    }),
+  }
 }

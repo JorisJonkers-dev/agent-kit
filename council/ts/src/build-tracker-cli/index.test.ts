@@ -28,7 +28,7 @@ async function workspace(now: () => Date = () => NOON): Promise<Workspace> {
   cleanups.push(() => rm(dir, { force: true, recursive: true }))
   const state = join(dir, 'state.json')
   const out = join(dir, 'tracker.html')
-  const runtime = defaultBuildTrackerRuntime({ now })
+  const runtime = defaultBuildTrackerRuntime({ clock: { now } })
   return {
     dir,
     out,
@@ -411,7 +411,8 @@ describe('build-tracker state file errors', () => {
     ['not an object', [1, 2], 'the state is not a JSON object'],
     ['missing its version', { ...smallState(), version: undefined }, 'version must be 1, not missing'],
     ['of another version', { ...smallState(), version: 2 }, 'version must be 1, not 2'],
-    ['with a bad spec reference', { ...smallState(), spec: '#10' }, 'spec must be a reference like owner/repo#123'],
+    ['with a bad spec reference', { ...smallState(), spec: '#10' }, 'spec must be a reference like owner/repo#123, or { "path": "<file>" } for a local spec'],
+    ['with an empty local spec path', { ...smallState(), spec: { path: '' } }, 'spec must be a reference like owner/repo#123, or { "path": "<file>" } for a local spec'],
     ['without a title', { ...smallState(), title: 3 }, 'title must be a string'],
     ['with a bad subtitle', { ...smallState(), subtitle: [] }, 'subtitle must be a string'],
     ['without tickets', { ...smallState(), tickets: [] }, 'tickets must be an object keyed by issue number'],
@@ -498,9 +499,18 @@ describe('build-tracker command line', () => {
     expect(result).toEqual({ exitCode: 0, stderr: '', stdout: BUILD_TRACKER_USAGE })
     expect(BUILD_TRACKER_USAGE).toContain('build-tracker render --state FILE --out FILE')
     expect(BUILD_TRACKER_USAGE).toContain('build-tracker set --state FILE <ticket>=<status>[:note] ...')
+    expect(BUILD_TRACKER_USAGE).toContain('build-tracker init --spec SPEC [--milestone <name>=<ticket> ...]')
+    expect(BUILD_TRACKER_USAGE).toContain('build-tracker sync --spec SPEC')
+    expect(BUILD_TRACKER_USAGE).toContain('build-tracker path --spec SPEC')
   })
 
   it.each([
+    ['init without --spec', ['init', '--milestone', 'A=1']],
+    ['init with --spec twice', ['init', '--spec', '#1', '--spec', '#2']],
+    ['init with a milestone and no value', ['init', '--spec', '#1', '--milestone']],
+    ['init with a stray argument', ['init', '--spec', '#1', 'extra']],
+    ['sync with a milestone', ['sync', '--spec', '#1', '--milestone', 'A=1']],
+    ['path without --spec', ['path']],
     ['no command', []],
     ['an unknown command', ['publish', '--state', 's']],
     ['render without --out', ['render', '--state', 's']],
