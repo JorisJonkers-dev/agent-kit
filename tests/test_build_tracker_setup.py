@@ -338,6 +338,12 @@ def test_the_running_and_review_rows_clear_the_note_the_table_calls_none() -> No
         assert f"={status}:" in row, f"{event}: {row} keeps the previous note"
 
 
+def test_every_running_and_review_example_in_the_skill_clears_the_note() -> None:
+    """A `set` without a note keeps the old one, so a ticket that starts again would show a stale note."""
+    kept = [m.group(0) for m in re.finditer(r"\b\S+=(?:running|review)(?!:)\S*", _skill_text())]
+    assert kept == [], kept
+
+
 def test_the_glossary_helper_reads_an_avoid_list_with_a_comma_inside_parentheses() -> None:
     assert _glossary_entries("Critique pipeline")["Critique stage"] == ["step", "phase"]
 

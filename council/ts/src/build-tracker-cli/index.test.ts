@@ -27,7 +27,7 @@ async function workspace(now: () => Date = () => NOON): Promise<Workspace> {
   const dir = await mkdtemp(join(tmpdir(), 'build-tracker-'))
   cleanups.push(() => rm(dir, { force: true, recursive: true }))
   const state = join(dir, 'state.json')
-  const out = join(dir, 'tracker.html')
+  const out = join(dir, 'page.html')
   const runtime = defaultBuildTrackerRuntime({ clock: { now } })
   return {
     dir,
@@ -307,15 +307,30 @@ describe('build-tracker set', () => {
     expect(tickets['4']).toEqual({ blocked_by: [3], live: true, status: 'todo', title: 'live check on widgets' })
   })
 
-  it('keeps a note when none is given, removes it when the note is empty, and keeps colons inside a note', async () => {
+  it('keeps a note when none is given', async () => {
     const w = await workspace()
     await w.writeState(smallState())
 
     await w.run('set', '--state', w.state, '1=review')
+
     expect((await stateOf(w))['1']?.note).toBe('abc1234')
+  })
+
+  it('removes a note when the note given is empty', async () => {
+    const w = await workspace()
+    await w.writeState(smallState())
+
     await w.run('set', '--state', w.state, '#1=merged:')
+
     expect((await stateOf(w))['1']).not.toHaveProperty('note')
+  })
+
+  it('keeps colons inside a note', async () => {
+    const w = await workspace()
+    await w.writeState(smallState())
+
     await w.run('set', '--state', w.state, '1=merged:see https://example.test/a:b')
+
     expect((await stateOf(w))['1']?.note).toBe('see https://example.test/a:b')
   })
 
@@ -367,14 +382,14 @@ describe('build-tracker writes', () => {
   it('writes the page through a rename too, creating its directory', async () => {
     const w = await workspace()
     await w.writeState(smallState())
-    const out = join(w.dir, 'site', 'tracker.html')
+    const out = join(w.dir, 'site', 'page.html')
     await w.run('render', '--state', w.state, '--out', out)
     const before = await stat(out)
 
     await w.run('render', '--state', w.state, '--out', out)
 
     expect((await stat(out)).ino).not.toBe(before.ino)
-    expect(await readdir(join(w.dir, 'site'))).toEqual(['tracker.html'])
+    expect(await readdir(join(w.dir, 'site'))).toEqual(['page.html'])
   })
 
   it('reports a page it cannot write and removes its temporary file', async () => {
@@ -387,7 +402,7 @@ describe('build-tracker writes', () => {
 
     expect(result.exitCode).toBe(1)
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unexpected', status: 'error' })
-    expect((await readdir(w.dir)).sort()).toEqual(['state.json', 'tracker.html'])
+    expect((await readdir(w.dir)).sort()).toEqual(['page.html', 'state.json'])
   })
 })
 
@@ -449,25 +464,26 @@ describe('build-tracker state file errors', () => {
     ],
   ]
 
-  it.each(unreadable)('render and set refuse a state %s, naming init', async (_name, state, reason) => {
+  const commandsOnUnreadable = ['render', 'set'].flatMap((command) => unreadable.map(([name, state, reason]) => [command, name, state, reason] as const))
+
+  it.each(commandsOnUnreadable)('%s refuses a state %s, saying to delete it and run init again', async (command, _name, state, reason) => {
     const w = await workspace()
     await w.writeState(state)
     const before = await readFile(w.state)
 
-    for (const args of [['render', '--state', w.state, '--out', w.out], ['set', '--state', w.state, '1=merged']]) {
-      const result = await w.run(...args)
-      expect(result.exitCode).toBe(1)
-      expect(JSON.parse(result.stdout)).toEqual({
-        code: 'unreadable-state',
-        message: `the state file at ${w.state} is unreadable: ${reason}; fix it or create it again with init`,
-        status: 'error',
-      })
-    }
+    const result = await w.run(command, '--state', w.state, ...(command === 'render' ? ['--out', w.out] : ['1=merged']))
+
+    expect(result.exitCode).toBe(1)
+    expect(JSON.parse(result.stdout)).toEqual({
+      code: 'unreadable-state',
+      message: `the state file at ${w.state} is unreadable: ${reason}; delete it and run init again`,
+      status: 'error',
+    })
     expect(await readFile(w.state)).toEqual(before)
     expect(await readdir(w.dir)).toEqual(['state.json'])
   })
 
-  it('refuses a state file that is not JSON, naming init', async () => {
+  it('refuses a state file that is not JSON, saying to delete it and run init again', async () => {
     const w = await workspace()
     await writeFile(w.state, '{"version": 1,')
 
@@ -476,11 +492,11 @@ describe('build-tracker state file errors', () => {
     expect(result.exitCode).toBe(1)
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unreadable-state', status: 'error' })
     expect(result.stderr).toMatch(
-      /^build-tracker render: the state file at .* is unreadable: it is not JSON \(SyntaxError: .*\); fix it or create it again with init\n$/,
+      /^build-tracker render: the state file at .* is unreadable: it is not JSON \(SyntaxError: .*\); delete it and run init again\n$/,
     )
   })
 
-  it('refuses a state path it cannot read as a file, naming init', async () => {
+  it('refuses a state path it cannot read as a file, saying to delete it and run init again', async () => {
     const w = await workspace()
     await mkdir(w.state)
 
@@ -488,7 +504,7 @@ describe('build-tracker state file errors', () => {
 
     expect(result.exitCode).toBe(1)
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unreadable-state', status: 'error' })
-    expect(result.stderr).toMatch(/EISDIR.*; fix it or create it again with init\n$/)
+    expect(result.stderr).toMatch(/EISDIR.*; delete it and run init again\n$/)
   })
 })
 

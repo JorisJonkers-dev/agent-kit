@@ -232,7 +232,7 @@ describe('build-tracker init spec references', () => {
     })
   })
 
-  it('reports a tracker it cannot read, naming the spec', async () => {
+  it('reports an issue tracker it cannot read, naming the spec', async () => {
     const s = await seeded()
     s.tracker.failure = 'gh api repos/acme/widgets/issues/10 exited 1: HTTP 404\nmore'
 
@@ -249,7 +249,7 @@ describe('build-tracker init spec references', () => {
   it.each([
     ['a ticket blockers', 'blocked-by', 'rate limited'],
     ['a failure with no message', 'sub-issues', ''],
-  ])('reports a tracker that fails reading %s, and writes no state', async (_name, failOn, failure) => {
+  ])('reports an issue tracker that fails reading %s, and writes no state', async (_name, failOn, failure) => {
     const s = await seeded()
     s.tracker.failure = failure
     s.tracker.failOn = failOn
@@ -332,21 +332,34 @@ describe('build-tracker init on an existing state', () => {
     expect(await s.state()).toEqual(before)
   })
 
-  it('refuses a state path it cannot read, naming init', async () => {
+  it('refuses a state path it cannot read, saying to delete it and run init again', async () => {
     const s = await seeded()
     await mkdir(join(s.home, ...WIDGETS_DIR, 'state.json'), { recursive: true })
 
     const result = await s.run('init', '--spec', '#10')
 
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unreadable-state', status: 'error' })
-    expect(result.stderr).toMatch(/EISDIR.*; fix it or create it again with init\n$/)
+    expect(result.stderr).toMatch(/EISDIR.*; delete it and run init again\n$/)
+  })
+
+  it('refuses a state file it cannot read as a state with the way out, not with sync', async () => {
+    const s = await seeded()
+    const state = join(s.home, ...WIDGETS_DIR, 'state.json')
+    await mkdir(join(s.home, ...WIDGETS_DIR), { recursive: true })
+    await writeFile(state, '{ not json')
+
+    const result = await s.run('init', '--spec', '#10')
+
+    expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unreadable-state', status: 'error' })
+    expect(result.stderr).toMatch(new RegExp(`^build-tracker init: the state file at ${state} is unreadable: it is not JSON \\(.*\\); delete it and run init again\\n$`))
+    expect(await readFile(state, 'utf8')).toBe('{ not json')
   })
 })
 
 describe('build-tracker sync', () => {
   const statePath = (s: Seeded): string => join(s.home, ...WIDGETS_DIR, 'state.json')
 
-  it('adds new tickets, updates titles and blockers, marks newly closed tickets merged, and keeps what the agent set', async () => {
+  it('leaves the state matching the issue tracker, with every status, note and key the agent set on an open ticket', async () => {
     const s = await seeded()
     await s.run('init', '--spec', '#10', '--milestone', 'Live=4')
     await s.run('set', '--state', statePath(s), '2=review:merging now', '3=owner:needs a key', '4=running')
@@ -389,7 +402,7 @@ describe('build-tracker sync', () => {
     })
   })
 
-  it('keeps a ticket the tracker no longer lists', async () => {
+  it('keeps a ticket the issue tracker no longer lists', async () => {
     const s = await seeded()
     await s.run('init', '--spec', '#10')
     s.tracker.issues = { ...s.tracker.issues, '#10': { subIssues: [1, 2], title: 'Spec' } }
@@ -505,7 +518,7 @@ describe('build-tracker on a local markdown spec', () => {
     expect(absolute).toEqual(relativeSpec)
   })
 
-  it('links each ticket on the page to its file', async () => {
+  it('names the page after the spec file and lists each ticket with its blockers', async () => {
     const s = await seeded()
     await localSpec(s)
     await s.run('init', '--spec', SPEC)
@@ -515,8 +528,58 @@ describe('build-tracker on a local markdown spec', () => {
     const html = await readFile(page, 'utf8')
 
     expect(html).toContain('<title>spec build tracker</title>')
-    expect(html).toContain('<a href="docs/specs/widgets/issues/02-list.md">#2</a> <span class="t">Widget list</span>')
+    expect(html).toContain('#2</a> <span class="t">Widget list</span>')
     expect(html).toContain('blocked by #3, acme/gadgets#5 (other spec), 9 (other spec)</span>')
+  })
+
+  it("links each ticket to its file on the remote's file view", async () => {
+    const s = await seeded()
+    await localSpec(s)
+    await s.run('init', '--spec', SPEC)
+    const page = join(s.home, ...LOCAL_DIR, 'page.html')
+
+    await s.run('render', '--state', localState(s), '--out', page)
+
+    expect(await readFile(page, 'utf8')).toContain(
+      '<a href="https://github.com/acme/widgets/blob/HEAD/docs/specs/widgets/issues/02-list.md">#2</a>',
+    )
+  })
+
+  it('leaves the tickets unlinked, with no local path in the page, when the repository has no remote', async () => {
+    const s = await seeded()
+    await localSpec(s)
+    s.repositories.roots[0] = { remote: undefined, root: s.root }
+    const init = JSON.parse((await s.run('init', '--spec', SPEC)).stdout) as Record<string, string>
+
+    await s.run('render', '--state', String(init.state), '--out', String(init.page))
+
+    const page = await readFile(String(init.page), 'utf8')
+    expect(page).toContain('<span class="n">#2</span> <span class="t">Widget list</span>')
+    expect(page).not.toContain(s.root)
+  })
+
+  it('leaves the tickets unlinked, with no local path in the page, when the remote is on a host whose file view it does not know', async () => {
+    const s = await seeded()
+    await localSpec(s)
+    s.repositories.roots[0] = { remote: { host: 'git.example.com', owner: 'acme', repo: 'widgets' }, root: s.root }
+
+    const result = JSON.parse((await s.run('refresh', '--spec', SPEC)).stdout) as Record<string, string>
+
+    const page = await readFile(String(result.page), 'utf8')
+    expect(page).toContain('<span class="n">#2</span> <span class="t">Widget list</span>')
+    expect(page).not.toContain(s.root)
+  })
+
+  it("leaves the tickets unlinked when rendered outside the spec's repository", async () => {
+    const s = await seeded()
+    await localSpec(s)
+    await s.run('init', '--spec', SPEC)
+    const elsewhere = defaultBuildTrackerRuntime({ cwd: s.home, env: { XDG_STATE_HOME: s.home }, issues: s.tracker, repositories: s.repositories })
+    const page = join(s.home, 'p.html')
+
+    await runBuildTrackerCli(['render', '--state', localState(s), '--out', page], elsewhere)
+
+    expect(await readFile(page, 'utf8')).toContain('<span class="n">#2</span> <span class="t">Widget list</span>')
   })
 
   it('shows a local ticket with no file as its number without a link', async () => {
@@ -752,10 +815,10 @@ describe('build-tracker blockers outside the spec', () => {
     const result = await s.run('render', '--state', String(init.state), '--out', String(init.page))
 
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unreadable-state' })
-    expect(result.stderr).toContain(`unreadable: ${reason}; fix it`)
+    expect(result.stderr).toContain(`unreadable: ${reason}; delete it and run init again`)
   })
 
-  it('sync updates external blockers and drops them when the tracker no longer lists them', async () => {
+  it('sync updates external blockers and drops them when the issue tracker no longer lists them', async () => {
     const s = await seeded(crossSpec('open'))
     await s.run('init', '--spec', '#10')
     s.tracker.issues = { ...s.tracker.issues, 'acme/gadgets#5': { state: 'closed' } }
@@ -980,7 +1043,7 @@ describe('build-tracker refresh', () => {
     expect(await readFile(pagePath(s), 'utf8')).toBe(page)
   })
 
-  it('reports a tracker it cannot read and writes nothing', async () => {
+  it('reports an issue tracker it cannot read and writes nothing', async () => {
     const s = await seeded()
     s.tracker.failure = 'HTTP 502'
 
@@ -994,7 +1057,7 @@ describe('build-tracker refresh', () => {
     await expect(s.state()).rejects.toThrow(/ENOENT/)
   })
 
-  it('refuses an unreadable state, naming init, and reads no tickets', async () => {
+  it('refuses an unreadable state, saying to delete it and run init again, and reads no tickets', async () => {
     const s = await seeded()
     await mkdir(join(s.home, ...WIDGETS_DIR), { recursive: true })
     await writeFile(statePath(s), '{ not json')
@@ -1002,17 +1065,24 @@ describe('build-tracker refresh', () => {
     const result = await s.run('refresh', '--spec', '#10')
 
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unreadable-state', status: 'error' })
-    expect(result.stderr).toMatch(/create it again with init\n$/)
+    expect(result.stderr).toMatch(new RegExp(`^build-tracker refresh: the state file at ${statePath(s)} is unreadable: .*; delete it and run init again\n$`))
     expect(s.tracker.calls).toEqual([])
   })
 
-  it('takes --spec once and --landed any number of times', async () => {
+  it.each([
+    ['--spec twice', ['--spec', '#10', '--spec', '#10']],
+    ['no --spec', ['--landed', '2']],
+    ['a --landed without a value', ['--spec', '#10', '--landed']],
+    ['a stray argument', ['--spec', '#10', '2']],
+  ])('prints its usage and exits 2 for %s', async (_name, args) => {
     const s = await seeded()
 
-    expect((await s.run('refresh', '--spec', '#10', '--spec', '#10')).exitCode).toBe(2)
-    expect((await s.run('refresh', '--landed', '2')).exitCode).toBe(2)
-    expect((await s.run('refresh', '--spec', '#10', '--landed')).exitCode).toBe(2)
-    expect((await s.run('refresh', '--spec', '#10', '2')).exitCode).toBe(2)
+    expect((await s.run('refresh', ...args)).exitCode).toBe(2)
+  })
+
+  it('names refresh in its usage', async () => {
+    const s = await seeded()
+
     expect((await s.run('--help')).stdout).toContain('build-tracker refresh --spec SPEC [--landed <ticket> ...]')
   })
 })

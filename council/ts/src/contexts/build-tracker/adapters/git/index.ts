@@ -1,7 +1,7 @@
 import { basename, dirname } from 'node:path'
 
 import type { BuildTrackerRepositoryPort, RepositoryLocation } from '../../application/ports.js'
-import type { RepositoryName } from '../../domain/spec.js'
+import { repositoryName, type RepositoryName } from '../../domain/spec.js'
 import type { BuildTrackerProcess } from '../process/index.js'
 
 /** Finds a directory's repository with git: its root, the directory's place under it, and its remote. */
@@ -50,5 +50,5 @@ export function parseRemote(url: string): RepositoryName | undefined {
   const repo = segments.pop()
   const owner = segments.join('/')
   if (repo === undefined || owner.length === 0) return undefined
-  return { host: String(match[1]).toLowerCase(), owner, repo }
+  return repositoryName(String(match[1]), owner, repo)
 }

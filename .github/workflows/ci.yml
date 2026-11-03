@@ -64,10 +64,13 @@
           'cache-dependency-path': 'council/ts/package-lock.json'
       # The build tracker's online checks: the pinned Mermaid hash against
       # the CDN file, and the graph rendered from a local file in headless
-      # Chrome (skipped where no Chrome is found). Opt-in on a workstation.
+      # Chrome. Opt-in on a workstation. The ubuntu runner image ships
+      # google-chrome on PATH; BUILD_TRACKER_REQUIRE_CHROME makes the browser
+      # tests fail rather than skip if it ever stops shipping one.
       - 'run': 'cd council/ts && npm ci && npm run build && npm test'
         'env':
           'BUILD_TRACKER_ONLINE': '1'
+          'BUILD_TRACKER_REQUIRE_CHROME': '1'
 
   'workflow-lint':
     'name': 'Workflow Lint'

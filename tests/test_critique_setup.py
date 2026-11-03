@@ -449,26 +449,31 @@ def test_flow_never_reads_the_build_trackers_state_to_rebuild_flow_state() -> No
     assert "the flow state and the issue tracker stay its only sources" in step
 
 
-def test_flow_reports_the_build_tracker_on_a_tracker_line() -> None:
+def test_flow_reports_the_build_tracker_on_a_build_tracker_line() -> None:
     report = _flow_text().split("### 4. Report", 1)[1].split("### 5.", 1)[0]
     template = re.search(r"```\n(.*?)```", report, re.S)
     assert template, "the report is one fenced block"
     lines = template.group(1).splitlines()
     assert lines[lines.index(next(line for line in lines if line.startswith("Tickets:"))) + 1] == (
-        "Tracker: <page address or path>"
+        "Build tracker: <page address or path>"
     ), lines
     assert len(lines) <= 8, "the report stays within about eight lines"
-    assert "- **Tracker**: during implementation and finishing only" in " ".join(report.split())
+    assert "- **Build tracker**: during implementation and finishing only" in " ".join(report.split())
     step = _flow_part("### 3. Refresh the build tracker")
     assert "When `refresh` fails, the line gives its `code` and `message`" in step
     assert "when the republish fails, the page path and what failed" in step
+
+
+def test_flow_never_calls_the_build_tracker_tracker_alone() -> None:
+    """"Tracker" alone means the issue tracker (CONTEXT.md)."""
+    assert re.findall(r"(?<!Build )(?<!build )\bTracker\b", _flow_text()) == []
 
 
 def test_flow_finish_renders_the_build_tracker_once_the_gate_passes() -> None:
     finish = _flow_part("## /flow finish")
     assert "refresh the build tracker as step 3 of `/flow` says" in finish
     assert "Once the gate passes, that is the build's last render" in finish
-    assert "the Tracker line" in finish
+    assert "the Build tracker line" in finish
 
 
 def test_a_no_critique_build_gets_the_build_tracker_too() -> None:

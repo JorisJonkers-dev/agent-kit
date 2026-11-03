@@ -1,4 +1,4 @@
-import { BuildTrackerError, isStatus, STATUSES, type JsonObject, type Status, type TrackerState } from './state.js'
+import { BuildTrackerError, isStatus, STATUSES, type JsonObject, type Status, type BuildTrackerState } from './state.js'
 
 /** One `<ticket>=<status>[:note]` argument of `set`. */
 export interface Assignment {
@@ -14,7 +14,7 @@ const ASSIGNMENT = /^#?([1-9][0-9]*)=([^:]*)(?::(.*))?$/s
  * Reads every assignment against the state, so one bad ticket or status
  * refuses them all before anything is written.
  */
-export function parseAssignments(texts: readonly string[], state: TrackerState): readonly Assignment[] {
+export function parseAssignments(texts: readonly string[], state: BuildTrackerState): readonly Assignment[] {
   const known = new Set(state.tickets.map((ticket) => ticket.number))
   return texts.map((text) => {
     const match = ASSIGNMENT.exec(text)
@@ -37,7 +37,7 @@ const LANDED = /^#?0*([1-9][0-9]*)$/
  * `merged` assignment that keeps its note. Every name is read against the
  * state first, so one bad ticket refuses them all.
  */
-export function landedAssignments(texts: readonly string[], state: TrackerState): readonly Assignment[] {
+export function landedAssignments(texts: readonly string[], state: BuildTrackerState): readonly Assignment[] {
   const known = new Set(state.tickets.map((ticket) => ticket.number))
   return texts.map((text) => {
     const match = LANDED.exec(text.trim())

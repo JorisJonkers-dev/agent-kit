@@ -122,7 +122,7 @@ closes the milestone "Widgets live". In the spec's repository:
 node <this folder>/build-tracker.mjs init --spec 10 --milestone "Widgets live=14"
 node <this folder>/build-tracker.mjs path --spec 10
 node <this folder>/build-tracker.mjs render --state <state> --out <page>
-node <this folder>/build-tracker.mjs set --state <state> 11=running
+node <this folder>/build-tracker.mjs set --state <state> 11=running:
 node <this folder>/build-tracker.mjs render --state <state> --out <page>
 ```
 
@@ -152,7 +152,8 @@ node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[
 - `init` seeds the state from the spec's tickets on the issue tracker: each
   ticket's title and blockers, `merged` for a closed issue and `todo` for an
   open one, and the milestones in the order given. It refuses when a state
-  for the spec exists, and names `sync`.
+  for the spec exists, and names `sync`; when that state file is unreadable,
+  it says to delete it and run `init` again instead.
 - `sync` re-reads the issue tracker: it adds new tickets, updates titles and
   blockers, marks newly closed tickets `merged`, and keeps every status, note
   and milestone set on open tickets.
@@ -165,11 +166,15 @@ node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[
   local ticket's `01`) turns `merged`, keeping its note; then it renders the
   page at the path `path` prints, and prints that path as `page`. A landed
   ticket that is not one of the spec's refuses the whole refresh.
-- `render` writes the page for the state file.
+- `render` writes the page for the state file. Run it in the spec's
+  repository: a local spec's tickets then link to their files on the
+  remote's file view on github.com. Elsewhere they show without a link, so
+  the page never carries a local path.
 - `set` changes the named tickets' statuses. A note after the status replaces
   the ticket's note, an empty note removes it, and no note keeps it. The
   statuses are `todo`, `running`, `review`, `merged` and `owner`.
 
 Each command prints one JSON object. An error prints `"status": "error"` with
 a `code` and a `message`, exits 1 and leaves every file as it was. A missing
-or unreadable state file is such an error and names `init`: run step 1.
+state file is such an error and names `init`: run step 1. An unreadable one
+(`unreadable-state`) names its path: delete that file and run `init` again.

@@ -740,7 +740,7 @@ critique:
 build_tracker:
   files:
     - path: skills/build-tracker/build-tracker.mjs
-      sha256: a7008a6b328ea12103b421756800f29a0edcd39c5f71b874a79402662045cec4
+      sha256: 0b6a7c87b93005f8b39f22596a9895766b8f8d38b8c8d9108a7e3660d022ab77
       mode: "0755"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]

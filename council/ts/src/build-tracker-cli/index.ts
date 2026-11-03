@@ -50,9 +50,9 @@ the ticket's note, an empty one removes it, and none keeps it. The statuses
 are todo, running, review, merged and owner.
 
 Each command prints one JSON object. An error prints "status": "error" with
-its "code" and exits 1, and leaves every file as it was. A missing or
-unreadable state file is an error that names init. Bad arguments print this
-usage and exit 2.
+its "code" and exits 1, and leaves every file as it was. A missing state file
+is an error that names init; an unreadable one names its path and says to
+delete it and run init again. Bad arguments print this usage and exit 2.
 `
 
 /** A required flag is given once; a repeatable one any number of times, none included. */

@@ -1,5 +1,5 @@
 import { specText, type ResolvedSpec } from './spec.js'
-import { BuildTrackerError, STATE_VERSION, type ExternalBlocker, type JsonObject } from './state.js'
+import { BuildTrackerError, isMerged, STATE_VERSION, type ExternalBlocker, type JsonObject, type Milestone } from './state.js'
 
 /** One ticket of a spec as its issue tracker holds it. */
 export interface SpecTicket {
@@ -14,22 +14,17 @@ export interface SpecTicket {
   readonly file?: string
 }
 
-/** A spec's title and tickets, read once from its issue tracker. */
-export interface SpecRead {
+/** A spec's title and tickets as its issue tracker holds them now, read once. */
+export interface IssueTrackerSnapshot {
   readonly title: string
   readonly tickets: readonly SpecTicket[]
 }
 
-export interface MilestoneArgument {
-  readonly name: string
-  readonly closes: number
-}
-
 const MILESTONE = /^(.*\S)\s*=\s*#?([1-9]\d*)$/s
 
-/** Reads each `<name>=<ticket>` in order; every ticket must be one of the spec's. */
-export function parseMilestones(texts: readonly string[], read: SpecRead): readonly MilestoneArgument[] {
-  const known = new Set(read.tickets.map((ticket) => ticket.number))
+/** Reads each `<name>=<ticket>` argument of `init` in order; every ticket must be one of the spec's. */
+export function parseMilestones(texts: readonly string[], snapshot: IssueTrackerSnapshot): readonly Milestone[] {
+  const known = new Set(snapshot.tickets.map((ticket) => ticket.number))
   return texts.map((text) => {
     const match = MILESTONE.exec(text.trim())
     if (match === null) throw new BuildTrackerError('invalid-milestone', `${text} is not <name>=<ticket>`)
@@ -42,14 +37,14 @@ export function parseMilestones(texts: readonly string[], read: SpecRead): reado
 }
 
 /** A new state for the spec: every open ticket `todo`, every closed one `merged`. */
-export function seedState(spec: ResolvedSpec, read: SpecRead, milestones: readonly MilestoneArgument[]): JsonObject {
+export function seedState(spec: ResolvedSpec, snapshot: IssueTrackerSnapshot, milestones: readonly Milestone[]): JsonObject {
   const tickets: JsonObject = {}
-  for (const ticket of read.tickets) tickets[String(ticket.number)] = trackerFields({ status: ticket.closed ? 'merged' : 'todo' }, ticket)
+  for (const ticket of snapshot.tickets) tickets[String(ticket.number)] = issueTrackerFields({ status: ticket.closed ? 'merged' : 'todo' }, ticket)
   return {
     ...(milestones.length > 0 ? { milestones: milestones.map((milestone) => ({ closes: milestone.closes, name: milestone.name })) } : {}),
     spec: spec.kind === 'github' ? specText(spec) : { path: spec.path },
     tickets,
-    title: read.title,
+    title: snapshot.title,
     version: STATE_VERSION,
   }
 }
@@ -63,29 +58,29 @@ export interface SyncOutcome {
 }
 
 /**
- * The state brought up to date with the tracker. New tickets are added; a
- * known ticket gets its title, blockers and file from the tracker, and turns
- * `merged` once its issue is closed. Every status, note and other key the
- * agent set on an open ticket stays, and so do the milestones, the title and
- * tickets the tracker no longer lists.
+ * The state brought up to date with the issue tracker. New tickets are
+ * added; a known ticket gets its title, blockers and file from the issue
+ * tracker, and turns `merged` once its issue is closed. Every status, note
+ * and other key the agent set on an open ticket stays, and so do the
+ * milestones, the title and tickets the issue tracker no longer lists.
  */
-export function syncState(raw: JsonObject, read: SpecRead): SyncOutcome {
+export function syncState(raw: JsonObject, snapshot: IssueTrackerSnapshot): SyncOutcome {
   const tickets: JsonObject = { ...(raw.tickets as JsonObject) }
   const added: number[] = []
   const merged: number[] = []
-  for (const ticket of read.tickets) {
+  for (const ticket of snapshot.tickets) {
     const key = String(ticket.number)
     const known = tickets[key] as JsonObject | undefined
     if (known === undefined) added.push(ticket.number)
-    else if (ticket.closed && known.status !== 'merged') merged.push(ticket.number)
+    else if (ticket.closed && !isMerged(known)) merged.push(ticket.number)
     const status = ticket.closed ? 'merged' : (known?.status ?? 'todo')
-    tickets[key] = trackerFields({ ...known, status }, ticket)
+    tickets[key] = issueTrackerFields({ ...known, status }, ticket)
   }
   return { added, merged, raw: { ...raw, tickets } }
 }
 
-/** The entry with the fields the tracker owns replaced; an empty external list or a missing file leaves no key. */
-function trackerFields(entry: JsonObject, ticket: SpecTicket): JsonObject {
+/** The entry with the fields the issue tracker owns replaced; an empty external list or a missing file leaves no key. */
+function issueTrackerFields(entry: JsonObject, ticket: SpecTicket): JsonObject {
   // Title and blockers lead a new entry; a known entry keeps its key order.
   const result: JsonObject = { title: ticket.title, blocked_by: [], ...entry }
   result.title = ticket.title

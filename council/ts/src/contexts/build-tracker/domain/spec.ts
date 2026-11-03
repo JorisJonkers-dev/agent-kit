@@ -1,10 +1,52 @@
-import { isAbsolute, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 
-/** A repository on a git host. */
+/** A repository on a git host. Make one with `repositoryName`, which reads the host in lower case. */
 export interface RepositoryName {
   readonly host: string
   readonly owner: string
   readonly repo: string
+}
+
+export const GITHUB_HOST = 'github.com'
+
+/** A host name ignores case, so the host is kept in lower case; owner and repo keep the case they were written in. */
+export function repositoryName(host: string, owner: string, repo: string): RepositoryName {
+  return { host: host.toLowerCase(), owner, repo }
+}
+
+/** Whether two names are one repository: a git host ignores the case of owner and repo names. */
+export function sameRepository(left: RepositoryName, right: RepositoryName): boolean {
+  return left.host === right.host && left.owner.toLowerCase() === right.owner.toLowerCase() && left.repo.toLowerCase() === right.repo.toLowerCase()
+}
+
+/** An issue in a known repository. */
+export interface IssueReference {
+  readonly repository: RepositoryName
+  readonly number: number
+}
+
+/** `owner/repo#12`, or `host/owner/repo#12` on a host other than github.com. */
+const ISSUE_REFERENCE = /^(?:([\w.-]+)\/)?([\w.-]+)\/([\w.-]+)#([1-9]\d*)$/
+
+/** An issue's or pull request's page: `https://host/owner/repo/issues/12`, or `/pull/12`. */
+const ISSUE_URL = /^https?:\/\/([^/\s]+)\/([^/\s]+)\/([^/\s]+)\/(issues|pull)\/([1-9]\d*)(?:[/?#]\S*)?$/i
+
+/** Reads `owner/repo#12` or `host/owner/repo#12`. */
+export function parseIssueReference(text: string): IssueReference | undefined {
+  const match = ISSUE_REFERENCE.exec(text)
+  if (match === null) return undefined
+  return { number: Number(match[4]), repository: repositoryName(match[1] ?? GITHUB_HOST, String(match[2]), String(match[3])) }
+}
+
+/** Reads an issue's page address or a pull request's, and says which it is. */
+export function parseIssueUrl(url: string): (IssueReference & { readonly pull: boolean }) | undefined {
+  const match = ISSUE_URL.exec(url)
+  if (match === null) return undefined
+  return {
+    number: Number(match[5]),
+    pull: String(match[4]).toLowerCase() === 'pull',
+    repository: repositoryName(String(match[1]), String(match[2]), String(match[3])),
+  }
 }
 
 /** What a `--spec` argument names, before the repository it lives in is known. */
@@ -12,29 +54,18 @@ export type SpecArgument =
   | { readonly kind: 'issue'; readonly number: number; readonly repository: RepositoryName | undefined }
   | { readonly kind: 'path'; readonly path: string }
 
-export const GITHUB_HOST = 'github.com'
-
 /**
  * Reads `12`, `#12`, `owner/repo#12`, `host/owner/repo#12` or an issue URL as
  * an issue; a bare number names an issue of the current repository. Anything
  * else is a path to a local markdown spec.
  */
-export function parseSpecArgument(text: string): SpecArgument {
-  const issue = issueReference(text.trim())
-  return issue ?? { kind: 'path', path: text }
-}
-
-function issueReference(text: string): SpecArgument | undefined {
+export function parseSpecArgument(argument: string): SpecArgument {
+  const text = argument.trim()
   const local = /^#?([1-9]\d*)$/.exec(text)
   if (local !== null) return { kind: 'issue', number: Number(local[1]), repository: undefined }
-  const named = /^(?:([\w.-]+)\/)?([\w.-]+)\/([\w.-]+)#([1-9]\d*)$/.exec(text)
-  if (named !== null) return issue(named[1] ?? GITHUB_HOST, named[2], named[3], named[4])
-  const url = /^https?:\/\/([^/\s]+)\/([^/\s]+)\/([^/\s]+)\/issues\/([1-9]\d*)(?:[/?#]\S*)?$/i.exec(text)
-  return url === null ? undefined : issue(url[1], url[2], url[3], url[4])
-}
-
-function issue(host = '', owner = '', repo = '', number = ''): SpecArgument {
-  return { kind: 'issue', number: Number(number), repository: { host: host.toLowerCase(), owner, repo } }
+  const url = parseIssueUrl(text)
+  const issue = parseIssueReference(text) ?? (url?.pull === false ? url : undefined)
+  return issue === undefined ? { kind: 'path', path: argument } : { kind: 'issue', number: issue.number, repository: issue.repository }
 }
 
 /** `owner/repo#12`, with the host in front when it is not github.com. */
@@ -56,6 +87,33 @@ export type ResolvedSpec =
 /** How the state file and the command output name the spec. */
 export function specText(spec: ResolvedSpec): string {
   return spec.kind === 'github' ? issueReferenceText(spec.repository, spec.number) : spec.path
+}
+
+/** A repository with no remote is named after its main working tree: `local/<parent>/<name>`. */
+export function localRepositoryName(mainRoot: string): RepositoryName {
+  return repositoryName('local', basename(dirname(mainRoot)) || 'local', basename(mainRoot) || 'local')
+}
+
+/** Where the page links a local ticket's file: the remote's file view, or the working tree on disk. */
+export type TicketFiles = { readonly kind: 'remote'; readonly repository: RepositoryName } | { readonly kind: 'disk'; readonly root: string }
+
+/** The hosts whose file view is `https://<host>/<owner>/<repo>/blob/<ref>/<path>`. */
+const FILE_VIEW_HOSTS: readonly string[] = [GITHUB_HOST]
+
+/** The remote's file view when the remote is on a host whose file view is known, else the working tree. */
+export function ticketFiles(root: string, remote: RepositoryName | undefined): TicketFiles {
+  return remote !== undefined && FILE_VIEW_HOSTS.includes(remote.host) ? { kind: 'remote', repository: remote } : { kind: 'disk', root }
+}
+
+/**
+ * The address of a file under the repository root on the remote's file view;
+ * undefined for files only on disk, since a published page must carry no
+ * local path (it would show the machine's user name and folders).
+ */
+export function fileLink(files: TicketFiles, path: string): string | undefined {
+  if (files.kind === 'disk') return undefined
+  const { host, owner, repo } = files.repository
+  return `https://${host}/${owner}/${repo}/blob/HEAD/${path.split('/').map(encodeURIComponent).join('/')}`
 }
 
 /**
@@ -101,10 +159,10 @@ export interface StateLocation {
   readonly page: string
 }
 
-/** `<base>/<host>/<owner>/<repo>/<spec>/state.json`, with `page.html` beside it. */
+/** `<base>/<host>/<owner>/<repo>/<spec>/state.json`, with `page.html` beside it; owner and repo in lower case, as the host ignores their case. */
 export function stateLocation(base: string, spec: ResolvedSpec): StateLocation {
   const { host, owner, repo } = spec.repository
   const name = spec.kind === 'github' ? String(spec.number) : specSlug(spec.path)
-  const dir = join(base, host.toLowerCase(), owner.toLowerCase(), repo.toLowerCase(), name)
+  const dir = join(base, host, owner.toLowerCase(), repo.toLowerCase(), name)
   return { page: join(dir, 'page.html'), state: join(dir, 'state.json') }
 }

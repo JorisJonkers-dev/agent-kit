@@ -1,5 +1,6 @@
-import { buildBoard, SHOWN_LABELS, SHOWN_ORDER, type BoardSection, type BoardTicket, type Shown } from './board.js'
-import type { TrackerState } from './state.js'
+import { buildBoard, SHOWN_LABELS, SHOWN_ORDER, type Board, type BoardSection, type BoardTicket, type Counts, type Shown } from './board.js'
+import { fileLink, type TicketFiles } from './spec.js'
+import type { BuildTrackerState } from './state.js'
 
 /**
  * The pinned Mermaid build the page loads: a version and the sha384 of that
@@ -18,28 +19,76 @@ const MERMAID_URL = `https://cdn.jsdelivr.net/npm/mermaid@${MERMAID_PIN.version}
 const FONTS_URL =
   'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;600&display=swap'
 
+/**
+ * The page's light-mode colours, the one source of both the CSS tokens on
+ * `:root` and the graph's fills, which Mermaid takes as literal colours.
+ */
+const LIGHT = {
+  bg: '#f6f7f9',
+  panel: '#ffffff',
+  fg: '#1d2b3a',
+  muted: '#5b6676',
+  line: '#d9dee5',
+  accent: '#2b6cb0',
+  ok: '#2f7d55',
+  run: '#c8871a',
+  rev: '#7a5cc4',
+  bad: '#c0392b',
+  off: '#e6e9ee',
+  'on-status': '#ffffff',
+} as const
+
+/** The colours dark mode redefines; the status colours stay as they are. */
+const DARK = {
+  bg: '#11161d',
+  panel: '#18202a',
+  fg: '#e3e8ef',
+  muted: '#97a3b3',
+  line: '#2a3542',
+  accent: '#6aa5e8',
+  off: '#25303c',
+} as const
+
+/** Each colour as a CSS custom property: `--bg:#f6f7f9; …`. */
+function tokens(colours: Readonly<Record<string, string>>): string {
+  return Object.entries(colours)
+    .map(([name, value]) => `--${name}:${value};`)
+    .join(' ')
+}
+
 /** One fill per shown status in the graph, the same colours the page's pills use. */
 const GRAPH_CLASSES: Readonly<Record<Shown, string>> = {
-  merged: 'fill:#2f7d55,stroke:#2f7d55,color:#fff',
-  review: 'fill:#7a5cc4,stroke:#7a5cc4,color:#fff',
-  running: 'fill:#c8871a,stroke:#c8871a,color:#fff',
-  ready: 'fill:#fff,stroke:#2b6cb0,stroke-width:2px,color:#1d2b3a',
-  owner: 'fill:#c0392b,stroke:#c0392b,color:#fff',
-  blocked: 'fill:#e6e9ee,stroke:#b8c0cc,color:#5b6676',
+  merged: `fill:${LIGHT.ok},stroke:${LIGHT.ok},color:${LIGHT['on-status']}`,
+  review: `fill:${LIGHT.rev},stroke:${LIGHT.rev},color:${LIGHT['on-status']}`,
+  running: `fill:${LIGHT.run},stroke:${LIGHT.run},color:${LIGHT['on-status']}`,
+  ready: `fill:${LIGHT.panel},stroke:${LIGHT.accent},stroke-width:2px,color:${LIGHT.fg}`,
+  owner: `fill:${LIGHT.bad},stroke:${LIGHT.bad},color:${LIGHT['on-status']}`,
+  blocked: `fill:${LIGHT.off},stroke:#b8c0cc,color:${LIGHT.muted}`,
 }
 
 /** A blocker outside the spec: a dashed outline, no fill. */
-const EXTERNAL_CLASS = 'fill:none,stroke:#8a94a3,stroke-width:1.5px,stroke-dasharray:5 4,color:#5b6676'
+const EXTERNAL_CLASS = `fill:none,stroke:#8a94a3,stroke-width:1.5px,stroke-dasharray:5 4,color:${LIGHT.muted}`
 
 const GRAPH_TITLE_LIMIT = 35
 
+/** A rendered page and the count per shown status it shows. */
+export interface RenderedPage {
+  readonly html: string
+  readonly counts: Counts
+}
+
 /**
- * The tracker page for one state. Everything on it comes from the state but
- * `updated`, so the same state renders the same page apart from that line.
+ * The build tracker page for one state. Everything on it comes from the
+ * state but `updated`, so the same state renders the same page apart from
+ * that line. A local spec's tickets link to their files where `files` says
+ * they are shown, and have no link without it.
  */
-export function renderPage(state: TrackerState, updated: string): string {
+export function renderPage(state: BuildTrackerState, updated: string, files: TicketFiles | undefined): RenderedPage {
   const board = buildBoard(state)
-  const link = ticketLink(state)
+  return { counts: board.counts, html: pageHtml(state, board, updated, ticketLink(state, files)) }
+}
+
+function pageHtml(state: BuildTrackerState, board: Board, updated: string, link: TicketLink): string {
   const strip = SHOWN_ORDER.flatMap((shown) => {
     const count = board.counts[shown]
     return count === undefined ? [] : [`<span class="pill ${shown}">${SHOWN_LABELS[shown]} ${String(count)}</span>`]
@@ -81,14 +130,15 @@ ${MERMAID_START}
 /** Where a ticket's link goes: its issue, or a local ticket's file; undefined for no link. */
 type TicketLink = (ticket: BoardTicket) => string | undefined
 
-function ticketLink(state: TrackerState): TicketLink {
+function ticketLink(state: BuildTrackerState, files: TicketFiles | undefined): TicketLink {
   const spec = state.spec
-  if (spec.kind === 'local') return (ticket) => ticket.file
-  return (ticket) => `https://${spec.host}/${spec.owner}/${spec.repo}/issues/${String(ticket.number)}`
+  if (spec.kind === 'local') return (ticket) => (ticket.file === undefined || files === undefined ? undefined : fileLink(files, ticket.file))
+  const { host, owner, repo } = spec.repository
+  return (ticket) => `https://${host}/${owner}/${repo}/issues/${String(ticket.number)}`
 }
 
 /** Two to four words: `Spec #12 build tracker`, or the local spec's file name in front. */
-function pageTitle(state: TrackerState): string {
+function pageTitle(state: BuildTrackerState): string {
   if (state.spec.kind === 'github') return `Spec #${String(state.spec.number)} build tracker`
   const stem = (state.spec.path.split('/').at(-1) ?? '').replace(/\.md$/i, '')
   return `${stem.replace(/\s+/g, '-')} build tracker`
@@ -176,12 +226,11 @@ const MERMAID_START = `(function () {
 })();`
 
 /* Layout: one column, summary strip, dependency graph, then one section per milestone. */
-const STYLE = `:root { --bg:#f6f7f9; --panel:#ffffff; --fg:#1d2b3a; --muted:#5b6676; --line:#d9dee5; --accent:#2b6cb0;
-  --ok:#2f7d55; --run:#c8871a; --rev:#7a5cc4; --bad:#c0392b; --off:#e6e9ee; --on-status:#ffffff;
+const STYLE = `:root { ${tokens(LIGHT)}
   --display:"IBM Plex Sans Condensed", "Arial Narrow", sans-serif; --body:"IBM Plex Sans", system-ui, sans-serif; --mono:"IBM Plex Mono", ui-monospace, monospace;
   color-scheme:light; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#11161d; --panel:#18202a; --fg:#e3e8ef; --muted:#97a3b3; --line:#2a3542; --accent:#6aa5e8; --off:#25303c; color-scheme:dark; } }
-:root[data-theme="dark"] { --bg:#11161d; --panel:#18202a; --fg:#e3e8ef; --muted:#97a3b3; --line:#2a3542; --accent:#6aa5e8; --off:#25303c; color-scheme:dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ${tokens(DARK)} color-scheme:dark; } }
+:root[data-theme="dark"] { ${tokens(DARK)} color-scheme:dark; }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--body); padding-block:24px 48px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); overflow-wrap:anywhere; }
 main { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:minmax(0, 1fr); gap:20px; }

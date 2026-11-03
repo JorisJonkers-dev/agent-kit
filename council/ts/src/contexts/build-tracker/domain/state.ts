@@ -1,4 +1,4 @@
-import { GITHUB_HOST } from './spec.js'
+import { parseIssueReference, type RepositoryName } from './spec.js'
 
 /**
  * The build tracker's state file: the one source the page is rendered from.
@@ -22,7 +22,7 @@ export type Status = (typeof STATUSES)[number]
 /** A blocker outside the spec: `owner/repo#number`, or a local ticket's name as written. */
 export interface ExternalBlocker {
   readonly ref: string
-  /** Its issue's state, when the tracker reported one. */
+  /** Its issue's state, when the issue tracker reported one. */
   readonly state?: 'open' | 'closed'
 }
 
@@ -43,11 +43,12 @@ export interface Milestone {
   readonly closes: number
 }
 
+/** The spec as the state names it: an issue, or a local spec's path under its repository root. */
 export type SpecReference =
-  | { readonly kind: 'github'; readonly host: string; readonly owner: string; readonly repo: string; readonly number: number }
+  | { readonly kind: 'github'; readonly repository: RepositoryName; readonly number: number }
   | { readonly kind: 'local'; readonly path: string }
 
-export interface TrackerState {
+export interface BuildTrackerState {
   readonly spec: SpecReference
   readonly title: string
   readonly subtitle: string
@@ -87,11 +88,15 @@ export function isStatus(value: unknown): value is Status {
   return typeof value === 'string' && (STATUSES as readonly string[]).includes(value)
 }
 
-const SPEC_PATTERN = /^(?:([A-Za-z0-9_.-]+)\/)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)#([1-9][0-9]*)$/
+/** Whether a ticket, or a raw ticket entry of the state file, is merged. */
+export function isMerged(ticket: { readonly status?: unknown }): boolean {
+  return ticket.status === 'merged'
+}
+
 const TICKET_KEY = /^[1-9][0-9]*$/
 
 /** Reads parsed JSON as a version-1 state, or says what is wrong with it. */
-export function parseState(raw: unknown): TrackerState {
+export function parseState(raw: unknown): BuildTrackerState {
   if (!isObject(raw)) throw invalid('the state is not a JSON object')
   if (raw.version !== STATE_VERSION) throw invalid(`version must be ${String(STATE_VERSION)}, not ${raw.version === undefined ? 'missing' : JSON.stringify(raw.version)}`)
   const spec = parseSpec(raw.spec)
@@ -104,7 +109,7 @@ export function parseState(raw: unknown): TrackerState {
     const stray = ticket.blockedBy.find((blocker) => !numbers.has(blocker))
     if (stray !== undefined) throw invalid(`ticket ${String(ticket.number)} is blocked by ${String(stray)}, which is not in the state`)
   }
-  const milestones = parseMilestones(raw.milestones, numbers)
+  const milestones = readMilestones(raw.milestones, numbers)
   return {
     milestones,
     spec,
@@ -116,9 +121,9 @@ export function parseState(raw: unknown): TrackerState {
 
 function parseSpec(raw: unknown): SpecReference {
   if (isObject(raw) && typeof raw.path === 'string' && raw.path !== '') return { kind: 'local', path: raw.path }
-  const spec = SPEC_PATTERN.exec(typeof raw === 'string' ? raw : '')
-  if (spec === null) throw invalid('spec must be a reference like owner/repo#123, or { "path": "<file>" } for a local spec')
-  return { host: spec[1]?.toLowerCase() ?? GITHUB_HOST, kind: 'github', number: Number(spec[4]), owner: String(spec[2]), repo: String(spec[3]) }
+  const issue = parseIssueReference(typeof raw === 'string' ? raw : '')
+  if (issue === undefined) throw invalid('spec must be a reference like owner/repo#123, or { "path": "<file>" } for a local spec')
+  return { kind: 'github', number: issue.number, repository: issue.repository }
 }
 
 function parseTicket(key: string, value: unknown): Ticket {
@@ -155,7 +160,8 @@ function parseExternal(raw: unknown, where: string): readonly ExternalBlocker[] 
   })
 }
 
-function parseMilestones(raw: unknown, numbers: ReadonlySet<number>): readonly Milestone[] {
+/** The state file's milestones; `parseMilestones` in `seed.ts` reads them from `init`'s arguments instead. */
+function readMilestones(raw: unknown, numbers: ReadonlySet<number>): readonly Milestone[] {
   if (raw === undefined) return []
   if (!Array.isArray(raw)) throw invalid('milestones must be a list')
   return raw.map((item: unknown, index) => {
