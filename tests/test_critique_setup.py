@@ -397,6 +397,90 @@ def test_setup_installs_flow_beside_the_shared_skill_in_every_agent_home(macos_r
         skills = macos_run.home / home / "skills"
         assert (skills / "flow" / "SKILL.md").read_bytes() == source.read_bytes(), home
         assert (skills / "flow" / ".." / "critique" / "critique.mjs").is_file(), home
+        assert (skills / "flow" / ".." / "build-tracker" / "build-tracker.mjs").is_file(), home
+
+
+# ---------------------------------------------------------------------------
+# /flow and the build tracker (#273)
+# ---------------------------------------------------------------------------
+
+
+def _flow_text() -> str:
+    return (KIT_ROOT / "skills" / "flow" / "SKILL.md").read_text()
+
+
+def _flow_part(heading: str) -> str:
+    """From `heading` to the next heading of the same or a higher level, on one line."""
+    text = _flow_text()
+    start = text.index(heading)
+    level = len(heading) - len(heading.lstrip("#"))
+    rest = text[start + len(heading):]
+    end = re.search(rf"\n#{{1,{level}}} ", rest)
+    part = text[start:] if end is None else text[start : start + len(heading) + end.start()]
+    return " ".join(part.split())
+
+
+def test_flow_refreshes_the_build_tracker_before_it_reports() -> None:
+    text = _flow_text()
+    flow = text[text.index("## /flow\n"):text.index("## /flow finish")]
+    headings = re.findall(r"^### (\d+)\. (.+)$", flow, re.M)
+    assert headings == [
+        ("1", "Find the feature"), ("2", "Read the state"), ("3", "Refresh the build tracker"),
+        ("4", "Report"), ("5", "Act on the answer"),
+    ], headings
+
+
+def test_flow_refreshes_the_build_tracker_for_a_feature_in_implementation_or_finishing() -> None:
+    step = _flow_part("### 3. Refresh the build tracker")
+    assert "its `phase` is `implementation` or `finishing`" in step
+    assert "`../build-tracker/build-tracker.mjs`" in step
+    assert "build-tracker.mjs refresh --spec '<state.spec>' --landed '<id>' ..." in step
+    assert "one `--landed` per ticket of `state.tickets` whose `landed` is true" in step
+    assert "`refresh` runs `init` when the spec has no build tracker state yet, and `sync` when it has one" in step
+    assert "it marks each landed ticket `merged`, renders the page" in step
+    assert "the Artifact tool with `page` as its file path" in step
+    assert "In planning, or for a draft, skip this step" in step
+    assert re.search(r"Done when\b", step)
+
+
+def test_flow_never_reads_the_build_trackers_state_to_rebuild_flow_state() -> None:
+    step = _flow_part("### 3. Refresh the build tracker")
+    assert "It never reads the build tracker's state file to rebuild flow state" in step
+    assert "the flow state and the issue tracker stay its only sources" in step
+
+
+def test_flow_reports_the_build_tracker_on_a_tracker_line() -> None:
+    report = _flow_text().split("### 4. Report", 1)[1].split("### 5.", 1)[0]
+    template = re.search(r"```\n(.*?)```", report, re.S)
+    assert template, "the report is one fenced block"
+    lines = template.group(1).splitlines()
+    assert lines[lines.index(next(line for line in lines if line.startswith("Tickets:"))) + 1] == (
+        "Tracker: <page address or path>"
+    ), lines
+    assert len(lines) <= 8, "the report stays within about eight lines"
+    assert "- **Tracker**: during implementation and finishing only" in " ".join(report.split())
+    step = _flow_part("### 3. Refresh the build tracker")
+    assert "When `refresh` fails, the line gives its `code` and `message`" in step
+    assert "when the republish fails, the page path and what failed" in step
+
+
+def test_flow_finish_renders_the_build_tracker_once_the_gate_passes() -> None:
+    finish = _flow_part("## /flow finish")
+    assert "refresh the build tracker as step 3 of `/flow` says" in finish
+    assert "Once the gate passes, that is the build's last render" in finish
+    assert "the Tracker line" in finish
+
+
+def test_a_no_critique_build_gets_the_build_tracker_too() -> None:
+    plain = _flow_part("## /flow no-critique")
+    assert "refresh the build tracker and report as `/flow` does (its steps 3 and 4)" in plain
+    assert "a feature built without critique gets its build tracker too" in plain
+
+
+def test_flow_refreshes_again_whenever_it_reports_again() -> None:
+    act = _flow_part("### 5. Act on the answer")
+    assert act.count("refresh and report again (steps 3 and 4)") == 2
+    assert "refresh and report as `/flow` does (steps 3 and 4)" in _flow_part("## /flow finish")
 
 
 def test_a_pending_skill_is_skipped_with_a_notice_not_a_failure(macos_run: Run) -> None:

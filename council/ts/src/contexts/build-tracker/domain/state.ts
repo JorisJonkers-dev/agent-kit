@@ -60,6 +60,7 @@ export type BuildTrackerErrorCode =
   | 'missing-state'
   | 'unreadable-state'
   | 'invalid-assignment'
+  | 'invalid-ticket'
   | 'unknown-ticket'
   | 'unknown-status'
   | 'state-exists'

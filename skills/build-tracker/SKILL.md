@@ -41,6 +41,10 @@ delete the state file that `path --spec <ref>` prints and run `init` again.
 Then run `path --spec <ref>`. It prints the state file and the page path;
 use exactly those two in every later command.
 
+A `/flow` feature in implementation gets this step and step 2 from `/flow`
+itself, through `refresh`. To give it milestones, run `init` with them
+before the first `/flow` call in implementation; `refresh` keeps them.
+
 Done when `path` has printed both paths and the state holds one entry per
 ticket of the spec.
 
@@ -137,6 +141,7 @@ Run the runner with `node`:
 node <this folder>/build-tracker.mjs init --spec <ref> [--milestone "<name>=<ticket>"] ...
 node <this folder>/build-tracker.mjs sync --spec <ref>
 node <this folder>/build-tracker.mjs path --spec <ref>
+node <this folder>/build-tracker.mjs refresh --spec <ref> [--landed <ticket>] ...
 node <this folder>/build-tracker.mjs render --state <state file> --out <page file>
 node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[:note] ...
 ```
@@ -154,6 +159,12 @@ node <this folder>/build-tracker.mjs set --state <state file> <ticket>=<status>[
 - `path` prints the state file and the page path for the spec. Both sit
   outside the repository, under `$XDG_STATE_HOME/agent-kit/build-tracker`
   (`~/.local/state/...` when it is unset), one folder per repository and spec.
+- `refresh` is what `/flow` runs on every call for a feature in
+  implementation or finishing: `init` (with no milestones) when the spec has
+  no state, otherwise `sync`; then each `--landed` ticket (`12`, `#12`, or a
+  local ticket's `01`) turns `merged`, keeping its note; then it renders the
+  page at the path `path` prints, and prints that path as `page`. A landed
+  ticket that is not one of the spec's refuses the whole refresh.
 - `render` writes the page for the state file.
 - `set` changes the named tickets' statuses. A note after the status replaces
   the ticket's note, an empty note removes it, and no note keeps it. The
