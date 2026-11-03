@@ -21,10 +21,10 @@ from pathlib import Path
 
 import pytest
 
-CRITIQUE = Path(__file__).resolve().parent.parent / "skills" / "critique"
+CRITIQUE = Path(__file__).resolve().parent.parent / "skills" / "workstation" / "critique"
 CHECK_BULLET = re.compile(r"^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:")
 
-# The lens and role files, by path under skills/critique, whose checks may fix
+# The lens and role files, by path under skills/workstation/critique, whose checks may fix
 # a severity. The tickets that add `adr-record` and `plan-critic` add them here.
 DECLARES_SEVERITY: frozenset[str] = frozenset()
 

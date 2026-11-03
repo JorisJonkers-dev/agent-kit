@@ -2880,7 +2880,7 @@ log "first-party skills"
 # Compose a pull request in the repository's own house style:
 # reads the PR template, mines recent merged PRs, and gates on an
 # explicit confirmation before anything is pushed or created.
-src="${KIT_ROOT}/skills/pr-composer"
+src="${KIT_ROOT}/skills/workstation/pr-composer"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "pr-composer: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -2994,7 +2994,7 @@ fi
 # decomposable work: triage, cross-model planning, grill, a design
 # checkpoint, guarded fan-out, a review council, and resumable
 # status/tail.
-src="${KIT_ROOT}/skills/council"
+src="${KIT_ROOT}/skills/workstation/council"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "council: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3107,7 +3107,7 @@ fi
 # Consult the current memory platform before designing or changing
 # behavior that may depend on prior captures, and capture durable
 # lessons near task completion.
-src="${KIT_ROOT}/skills/kb-first"
+src="${KIT_ROOT}/skills/workstation/kb-first"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "kb-first: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3220,7 +3220,7 @@ fi
 # Token-budget discipline: progressive disclosure, bounded recall,
 # narrow MCP profiles, and prompt-cache-friendly instruction
 # ordering.
-src="${KIT_ROOT}/skills/token-economy"
+src="${KIT_ROOT}/skills/workstation/token-economy"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "token-economy: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3333,7 +3333,7 @@ fi
 # Checklist for configuring a Claude Code or Codex session: config
 # layers, MCP servers and profiles, memory-file hygiene, and
 # Claude/Codex parity.
-src="${KIT_ROOT}/skills/agent-session-bootstrap"
+src="${KIT_ROOT}/skills/workstation/agent-session-bootstrap"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "agent-session-bootstrap: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3446,7 +3446,7 @@ fi
 # The critique pipeline's shared files: the bundled runner, the
 # prompt preamble, roles, lenses, finding schema and default
 # routing that the critique skills drive.
-src="${KIT_ROOT}/skills/critique"
+src="${KIT_ROOT}/skills/workstation/critique"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "critique: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3560,7 +3560,7 @@ fi
 # /to-spec: gap critics from other model families list the
 # questions nobody asked, and the orchestrator asks the owner the
 # real ones.
-src="${KIT_ROOT}/skills/critique-decisions"
+src="${KIT_ROOT}/skills/workstation/critique-decisions"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "critique-decisions: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3673,7 +3673,7 @@ fi
 # Critique a spec after /to-spec: critics from other model
 # families review it read-only, and the orchestrator rules on
 # their findings.
-src="${KIT_ROOT}/skills/critique-spec"
+src="${KIT_ROOT}/skills/workstation/critique-spec"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "critique-spec: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3785,7 +3785,7 @@ fi
 
 # Report how each critique critic client performs per stage, from
 # the ledger, ending with routing suggestions the owner acts on.
-src="${KIT_ROOT}/skills/critique-stats"
+src="${KIT_ROOT}/skills/workstation/critique-stats"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "critique-stats: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -3900,7 +3900,7 @@ fi
 # from another model family lints their structure read-only, and
 # the orchestrator fixes the tickets and asks before changing
 # scope.
-src="${KIT_ROOT}/skills/check-tickets"
+src="${KIT_ROOT}/skills/workstation/check-tickets"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "check-tickets: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -4015,7 +4015,7 @@ fi
 # model family reviews the diff, each bug finding is decided by
 # running its failing test, and the summary says "do not commit"
 # while an accepted critical finding is unfixed.
-src="${KIT_ROOT}/skills/review-ticket"
+src="${KIT_ROOT}/skills/workstation/review-ticket"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "review-ticket: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -4130,7 +4130,7 @@ fi
 # spec, the tickets and the feature diff, each accepted finding
 # becomes a follow-up ticket, and the report opens with the gate
 # line.
-src="${KIT_ROOT}/skills/review-feature"
+src="${KIT_ROOT}/skills/workstation/review-feature"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "review-feature: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -4244,7 +4244,7 @@ fi
 # current feature stands (phase, stage runs, open questions, gate)
 # and names the single next step, running a critique stage on the
 # owner's word and naming the Pocock command otherwise.
-src="${KIT_ROOT}/skills/flow"
+src="${KIT_ROOT}/skills/workstation/flow"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "flow: ${src}/SKILL.md is missing; nothing to install"
 else
@@ -4357,7 +4357,7 @@ fi
 # The build tracker for a spec being implemented: a state file
 # with each ticket's status, rendered into one page with a summary
 # strip, a dependency graph and a list per milestone.
-src="${KIT_ROOT}/skills/build-tracker"
+src="${KIT_ROOT}/skills/workstation/build-tracker"
 if [ ! -f "${src}/SKILL.md" ]; then
   fail "build-tracker: ${src}/SKILL.md is missing; nothing to install"
 else

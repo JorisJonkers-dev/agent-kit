@@ -22,8 +22,10 @@ uv run python scripts/validate_manifest.py
 uv run python scripts/render_registry.py --check
 ```
 
-Use `uv run python render-agent-kit.py --write` only when intentionally updating
-checked-in generated surfaces from `templates/` or `council/`. Use
+Run `uv run python render-agent-kit.py --write` after a checkout or a pull. It
+renders the gitignored `.claude/`, `.agents/` and `.council/context/` from
+`skills/repo/`, `agents/` and `council/context/`, and the committed
+`runner-manifests/runtime/` from `templates/runner-runtime/`. Use
 `scripts/build-runtime-package.sh v0.0.0-local dist` to build the runtime-home
 bundle locally.
 
@@ -49,7 +51,7 @@ script is generated from `registry/estate-tooling.yaml` -- see
 - [docs/MEMORY.md](docs/MEMORY.md): what replaces the retired knowledge base.
 - [docs/CLOUD.md](docs/CLOUD.md): the same setup in a Claude Code cloud
   environment, from the two files in `cloud/`.
-- [skills/critique/README.md](skills/critique/README.md): the critique
+- [skills/workstation/critique/README.md](skills/workstation/critique/README.md): the critique
   pipeline for its user: what runs when, depth, budget, the gates, the kill
   switch and how to retune routing.
 - [docs/critique-pipeline/integration.md](docs/critique-pipeline/integration.md):
@@ -69,7 +71,11 @@ knowledge hooks from a machine that still has them, on every run.
 - `installer/setup-workstation.sh`, `registry/generated/hermes/`: generated from
   it by `scripts/render_registry.py`. Never hand-edit these.
 - `skills/`: first-party multi-file skills copied onto a surface.
-- `templates/repo/`: source templates for `.claude`, `.codex` and `.agents`.
+- `skills/repo/`: repo skills, one folder per skill with a `claude/` and a
+  `codex/` variant, rendered into `.claude/skills/` and `.agents/skills/`.
+- `agents/`: Claude subagent definitions, rendered into `.claude/agents/`.
+- `council/context/`: this repository's council context, rendered into
+  `.council/context/`.
 - `templates/runner-runtime/`: source templates for runner runtime artifacts.
 - `installer/`: `setup-workstation.sh` and `setup-container.sh`, generated as
   above, plus the hand-written `port-forward-agent.sh` and `cloud-session.sh`
@@ -79,6 +85,8 @@ knowledge hooks from a machine that still has them, on every run.
 - `runner-manifests/`: rendered runtime package artifacts and validation
   fixtures.
 - `council/`: council driver, prompts, schemas, and default config.
+- `.claude/`, `.agents/`, `.council/`: gitignored local output and agent
+  state (worktrees, council runs). Nothing in them is tracked.
 - `manifest.yaml`: managed path, checksum, parity, and artifact ledger.
 
 ## Install

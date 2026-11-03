@@ -17,7 +17,7 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 from setup_harness import Run, setup_run  # noqa: E402
 
-SKILL = KIT_ROOT / "skills" / "critique-decisions" / "SKILL.md"
+SKILL = KIT_ROOT / "skills" / "workstation" / "critique-decisions" / "SKILL.md"
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
 
 
@@ -38,7 +38,7 @@ def macos_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 
 def test_critique_decisions_is_a_built_local_skill_for_every_agent() -> None:
     entry = _entry()
-    assert entry["path"] == "skills/critique-decisions"
+    assert entry["path"] == "skills/workstation/critique-decisions"
     assert set(entry["agents"]) == {"claude", "codex", "vibe", "antigravity"}
     assert entry["surfaces"] == ["workstation"]
     assert "pending" not in entry

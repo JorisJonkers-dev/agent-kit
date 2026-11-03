@@ -1,7 +1,7 @@
 version: 2
 generated: partial
 notes:
-  - "This manifest pins the current repo surfaces: repo skills, commands, and the runtime package are rendered from agent-kit templates by render-agent-kit.py. installer/setup-workstation.sh is a SEPARATE artifact, rendered from registry/estate-tooling.yaml by scripts/render_registry.py and verified by its own --check; this manifest does not pin it."
+  - "This manifest pins the current repo surfaces: repo skills, agents and the runtime package are rendered by render-agent-kit.py. Every path is where a file lands. Skills and agents land in gitignored directories, so each of their entries also names its `source` under skills/repo/ or agents/, and the sha256 pins that source. installer/setup-workstation.sh is a SEPARATE artifact, rendered from registry/estate-tooling.yaml by scripts/render_registry.py and verified by its own --check; this manifest does not pin it."
   - "The estate ships exactly three agent hooks, the critique hooks docs/adr/0002-exactly-three-critique-hooks.md allows: critique-commit-gate, critique-pr-gate and critique-session-start. The validator fails on any other name; a new hook needs its own ADR. The knowledge-recall hooks (edit recall, git-commit capture, session digest) stay retired with the knowledge base they wrote into, and setup-workstation.sh still purges them from an existing settings.json (agent-kit#40 moved this off the retired install-agents.sh)."
   - "Repo skill bodies are intentionally agent-specific today; parity means every shared skill has both Claude and Codex targets unless an explicit unsupported reason is present."
 
@@ -31,7 +31,8 @@ provenance:
 
 renderer:
   script_path: render-agent-kit.py
-  template_root: templates/repo
+  repo_skill_root: skills/repo
+  agents_root: agents
   runtime_template_root: templates/runner-runtime
   managed_paths:
     - .agents/skills/add-public-service/SKILL.md
@@ -96,120 +97,146 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/add-public-service/SKILL.md
+        source: skills/repo/add-public-service/codex/SKILL.md
         sha256: 980e0d3014e1fc1055eae090be32689f0d2acf93d18b66e88fb5278b5c311521
       - agent: claude
         path: .claude/skills/add-public-service/SKILL.md
+        source: skills/repo/add-public-service/claude/SKILL.md
         sha256: 7f48561cc99bc1599a5e0bb75fddd659224e96c141ecb4bdff200e4e939c09ac
   - name: agent-session-bootstrap
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/agent-session-bootstrap/SKILL.md
+        source: skills/repo/agent-session-bootstrap/codex/SKILL.md
         sha256: 0895211baab32e91ca10b8d6fa9f3154887c4260da800a51ae25daf0ace2867d
       - agent: claude
         path: .claude/skills/agent-session-bootstrap/SKILL.md
+        source: skills/repo/agent-session-bootstrap/claude/SKILL.md
         sha256: 0895211baab32e91ca10b8d6fa9f3154887c4260da800a51ae25daf0ace2867d
   - name: council-amend
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-amend/SKILL.md
+        source: skills/repo/council-amend/codex/SKILL.md
         sha256: e1ddd5dc2744e6fd30c0a750d0a13945cc75da3c1a918f374d5c500c36793a14
       - agent: claude
         path: .claude/skills/council-amend/SKILL.md
+        source: skills/repo/council-amend/claude/SKILL.md
         sha256: 6aa6b39b8a54be030b2d26cb1db3554a55078d7d2dfbcd594893e5230d2d76e4
   - name: council-design
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-design/SKILL.md
+        source: skills/repo/council-design/codex/SKILL.md
         sha256: 3a535ec04112a0d04f19b15374371173c41c0cae714ff25397938c58b4c0f0ec
       - agent: claude
         path: .claude/skills/council-design/SKILL.md
+        source: skills/repo/council-design/claude/SKILL.md
         sha256: a79f7609469170f39ba54d109f39f5fe2cda040d4f5f416356c4192bb4cc42f5
   - name: council-grill
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-grill/SKILL.md
+        source: skills/repo/council-grill/codex/SKILL.md
         sha256: 543a05555e742c2b6f9e72707a11e23a12b35599bd6e7ce46f03a75e2d6244cd
       - agent: claude
         path: .claude/skills/council-grill/SKILL.md
+        source: skills/repo/council-grill/claude/SKILL.md
         sha256: 86bae122f746c33ddb6d5ef09f869819b70ac00fa9a4ae0e62afa6c2c94383af
   - name: council-inject
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-inject/SKILL.md
+        source: skills/repo/council-inject/codex/SKILL.md
         sha256: a48edc0bd8dca93cea13dfac7d39c6a763ecf555419fee306eafc84bf22d7e1e
       - agent: claude
         path: .claude/skills/council-inject/SKILL.md
+        source: skills/repo/council-inject/claude/SKILL.md
         sha256: f266cf7422737f873b4f2a5e605a83d49a5292ca2a05f4f3fe243ba38222740b
   - name: council-run
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-run/SKILL.md
+        source: skills/repo/council-run/codex/SKILL.md
         sha256: da81edbafa63d25cf100c6436e4ded3ceacfc9968dcc7f14f9121365f2687d27
       - agent: claude
         path: .claude/skills/council-run/SKILL.md
+        source: skills/repo/council-run/claude/SKILL.md
         sha256: 032e6a56d610e51cc45c01cc37524065a523e1497a4dc5ce02a7ee6d4f829b2d
   - name: council-supervise
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-supervise/SKILL.md
+        source: skills/repo/council-supervise/codex/SKILL.md
         sha256: 970954f7a0194a5bc47da3409c004be68c22f4ab95ffb47944728fde9c0192f2
       - agent: claude
         path: .claude/skills/council-supervise/SKILL.md
+        source: skills/repo/council-supervise/claude/SKILL.md
         sha256: c1e945e4a3296ae5c40cc95af9b09ad511594534963d65473b4ffc883e66a3f0
   - name: council-triage
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-triage/SKILL.md
+        source: skills/repo/council-triage/codex/SKILL.md
         sha256: 940b8ff8d5c8df31695365dd1f475c93bf765259895a0e1f480bfccb8aee7329
       - agent: claude
         path: .claude/skills/council-triage/SKILL.md
+        source: skills/repo/council-triage/claude/SKILL.md
         sha256: ab6c4503e24a5aadf4d52ceadfd7d72dabd23a0de1916cd6f4f404c04e15b368
   - name: agent-codex-med
     supported_agents: [claude]
     targets:
       - agent: claude
         path: .claude/agents/codex-med.md
+        source: agents/codex-med.md
         sha256: 8baecdbe41412b666a6c35d1fdd87ca934cc64665d2ba1ff63262347b8f6519c
   - name: agent-codex-xhigh
     supported_agents: [claude]
     targets:
       - agent: claude
         path: .claude/agents/codex-xhigh.md
+        source: agents/codex-xhigh.md
         sha256: ada0b5f8876071b01df1907137d4e9ebe4f41396c72360c3fab8337c396cd8f0
   - name: council
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council/SKILL.md
+        source: skills/repo/council/codex/SKILL.md
         sha256: 6c896bc1bfc06e7be82879e759c2243a30614b6c9092920edeb440a8912ed068
       - agent: claude
         path: .claude/skills/council/SKILL.md
+        source: skills/repo/council/claude/SKILL.md
         sha256: bde73e754681120c476bee0612f26f2aeb828f731344d7a9f302b562474d5383
   - name: deploy-status
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/deploy-status/SKILL.md
+        source: skills/repo/deploy-status/codex/SKILL.md
         sha256: 9aed5f4be488481a29b7c39b0ebb27f9e6aa718cabb8d9396451914321c0afea
       - agent: claude
         path: .claude/skills/deploy-status/SKILL.md
+        source: skills/repo/deploy-status/claude/SKILL.md
         sha256: 9aed5f4be488481a29b7c39b0ebb27f9e6aa718cabb8d9396451914321c0afea
   - name: fleet-change
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/fleet-change/SKILL.md
+        source: skills/repo/fleet-change/codex/SKILL.md
         sha256: 33197dd628ed943598578d8abb05e84b35d7985802292ba66565e9814a028c42
       - agent: claude
         path: .claude/skills/fleet-change/SKILL.md
+        source: skills/repo/fleet-change/claude/SKILL.md
         sha256: da427baa764c7d17667f9faa0b2bdbb467c9a34acaeb1a4df2523d16bdb4e0c5
   # grill-me was an installer-only skill, served solely by the retired
   # install.sh's `npx skills add`. Removed with it (agent-kit#40); the
@@ -219,45 +246,55 @@ skills:
     targets:
       - agent: codex
         path: .agents/skills/kb-first/SKILL.md
+        source: skills/repo/kb-first/codex/SKILL.md
         sha256: 8b72294d7da9e4f8a0fc8a421d669abf3ec769f4fe613e98a1547af2de695e9c
       - agent: claude
         path: .claude/skills/kb-first/SKILL.md
+        source: skills/repo/kb-first/claude/SKILL.md
         sha256: 8b72294d7da9e4f8a0fc8a421d669abf3ec769f4fe613e98a1547af2de695e9c
   - name: open-pr
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/open-pr/SKILL.md
+        source: skills/repo/open-pr/codex/SKILL.md
         sha256: 7bf289f7c8d76688a1af8e7e9eef6dd780e999340843fd045a6e8ff923df01d0
       - agent: claude
         path: .claude/skills/open-pr/SKILL.md
+        source: skills/repo/open-pr/claude/SKILL.md
         sha256: 7e978da6a0555e2f93e30f6de6ad7069c18fa35b003b503bcbe91f8c9ad8b9df
   - name: prepare-rollback
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/prepare-rollback/SKILL.md
+        source: skills/repo/prepare-rollback/codex/SKILL.md
         sha256: 1bd398fe592c58a0c09cba4a5cc806bdb3a5ee8dcd9ac062773ef6634245fa3a
       - agent: claude
         path: .claude/skills/prepare-rollback/SKILL.md
+        source: skills/repo/prepare-rollback/claude/SKILL.md
         sha256: 1bd398fe592c58a0c09cba4a5cc806bdb3a5ee8dcd9ac062773ef6634245fa3a
   - name: run-tests
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/run-tests/SKILL.md
+        source: skills/repo/run-tests/codex/SKILL.md
         sha256: 86d817234ed8fe297acd9827af8fda222aaf792222e18f0e224f632c6e39d1f1
       - agent: claude
         path: .claude/skills/run-tests/SKILL.md
+        source: skills/repo/run-tests/claude/SKILL.md
         sha256: 5a302d89748cff71ed3837463b5b1c114e8cd37ddf168ac6fe66cb6183a0ac70
   - name: token-economy
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/token-economy/SKILL.md
+        source: skills/repo/token-economy/codex/SKILL.md
         sha256: 740b5279021f983c9c1a4c3da3ee179baf8b0f3f568c3e474787c5ac7ba83cfb
       - agent: claude
         path: .claude/skills/token-economy/SKILL.md
+        source: skills/repo/token-economy/claude/SKILL.md
         sha256: 740b5279021f983c9c1a4c3da3ee179baf8b0f3f568c3e474787c5ac7ba83cfb
 
 # topics and audit were installer-only skills (no repo template, served only
@@ -424,91 +461,91 @@ council:
       sha256: 9ea80441aa00cd871a0ce1931779bef2a20d78853dc8e7fa820bdd3927c8643a
       mode: "0644"
 # The critique runner and the files it reads, pinned the way council.files pins
-# council's. skills/critique/ is itself the copy setup installs (there is no
+# council's. skills/workstation/critique/ is itself the copy setup installs (there is no
 # repo copy beside it), so the pin is on it. Its SKILL.md is the skill's text,
 # not the runner's, and is left out. `npm run build` in council/ts rebuilds
 # critique.mjs: update its sha256 here in the same commit.
 critique:
   files:
-    - path: skills/critique/critique.mjs
+    - path: skills/workstation/critique/critique.mjs
       sha256: 29dd338df213da3fa39855b58402e2905d118eabd55500fcb3b6451a68cada9c
       mode: "0755"
-    - path: skills/critique/hooks/critique-commit-gate.sh
+    - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: dbbc98efd6f1ef0e53667cdec6c659d89f6ee6eeea0d5ae42961bd0dbfc119f0
       mode: "0755"
-    - path: skills/critique/hooks/critique-pr-gate.sh
+    - path: skills/workstation/critique/hooks/critique-pr-gate.sh
       sha256: 260cc63345933d028e33e6b356b279b6d1d0afd0c4dac9599193cb3206912ae3
       mode: "0755"
-    - path: skills/critique/hooks/critique-session-start.sh
+    - path: skills/workstation/critique/hooks/critique-session-start.sh
       sha256: 65becf61d98d40d27a34a997fecfbe4b84263009a62125fdc1939ed61714e907
       mode: "0755"
-    - path: skills/critique/lenses/failure-modes.md
+    - path: skills/workstation/critique/lenses/failure-modes.md
       sha256: 065246fe8dc81466f44cc0597358bd26c9c31b5301f6c72780123c2370ca5d62
       mode: "0644"
-    - path: skills/critique/lenses/fidelity.md
+    - path: skills/workstation/critique/lenses/fidelity.md
       sha256: caeb79a390b5cd773df298e285dbe759a8a29fa9b8a66d45afab82c6d5d713f8
       mode: "0644"
-    - path: skills/critique/lenses/integration.md
+    - path: skills/workstation/critique/lenses/integration.md
       sha256: 57c7efbe680878eac7b4ca617352f8d71b98044b1c97b94e3c3fbf5e1e1af138
       mode: "0644"
-    - path: skills/critique/lenses/operability.md
+    - path: skills/workstation/critique/lenses/operability.md
       sha256: 4321e341a688c22ee44cadd79debdd4f36175582ab981699b14bbc58f69eba4e
       mode: "0644"
-    - path: skills/critique/lenses/security.md
+    - path: skills/workstation/critique/lenses/security.md
       sha256: b5de59d883f30d436029c6b8c114c99f85d5cc93ccc873db30a66e36c215e7bb
       mode: "0644"
-    - path: skills/critique/lenses/simplicity.md
+    - path: skills/workstation/critique/lenses/simplicity.md
       sha256: 2cc16d1399cb56cf35ee8129152f0f41db56927e039aeb439af37ffef129c080
       mode: "0644"
-    - path: skills/critique/lenses/testability.md
+    - path: skills/workstation/critique/lenses/testability.md
       sha256: f9628794c06dc8b21ef2a4fd16cbd662ab89931e608bfe174e95b8a9a217608a
       mode: "0644"
-    - path: skills/critique/lenses/unasked-questions.md
+    - path: skills/workstation/critique/lenses/unasked-questions.md
       sha256: ff175e0efb61106a561e9bd3b374d0461d8913d3f25d7fe7a797c680a9188a13
       mode: "0644"
-    - path: skills/critique/prompts/output-contract.md
+    - path: skills/workstation/critique/prompts/output-contract.md
       sha256: 976364a24eab795bb4d98dd8f22c988c47db699be1631d1cd35ed2bc2542b26b
       mode: "0644"
-    - path: skills/critique/prompts/preamble.md
+    - path: skills/workstation/critique/prompts/preamble.md
       sha256: f7da57e294e7012cb20088f2d18f7dda7398396d55119537bd0e56ca5d81aa19
       mode: "0644"
-    - path: skills/critique/prompts/triage.md
+    - path: skills/workstation/critique/prompts/triage.md
       sha256: 07d06a53117140ea2fb70902a7c0ae999748457ae1c62015709ad471d85b9097
       mode: "0644"
-    - path: skills/critique/roles/diff-reviewer.md
+    - path: skills/workstation/critique/roles/diff-reviewer.md
       sha256: 8387486bfca350811c6ae88391a353b49c96a6532e36086e0421c25aa0262f7f
       mode: "0644"
-    - path: skills/critique/roles/feature-reviewer.md
+    - path: skills/workstation/critique/roles/feature-reviewer.md
       sha256: bc122179538ec40bf62d92d62d1ae8dd3df1506356c5055eb08d33df33bde8cf
       mode: "0644"
-    - path: skills/critique/roles/gap-critic.md
+    - path: skills/workstation/critique/roles/gap-critic.md
       sha256: 5dc713f70151c4aceec0b43b8a20e53c0085eb20915a8d1fb0ff5b5795410f65
       mode: "0644"
-    - path: skills/critique/roles/refuter.md
+    - path: skills/workstation/critique/roles/refuter.md
       sha256: 0bf5a6e49786e92e5119fe081ee911bdb520a734edc81da99ccf34ace8ee5336
       mode: "0644"
-    - path: skills/critique/roles/spec-redteam.md
+    - path: skills/workstation/critique/roles/spec-redteam.md
       sha256: 73c26e9862d4fc72fb066e4228bb174596733fe43a08fbd0cc62d42437e37a14
       mode: "0644"
-    - path: skills/critique/roles/ticket-linter.md
+    - path: skills/workstation/critique/roles/ticket-linter.md
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
-    - path: skills/critique/README.md
-      sha256: 89a469b70745a13a72bcf3a03b4e8a6c36f8faea787d9a0bb4f01c62feaeb34d
+    - path: skills/workstation/critique/README.md
+      sha256: a2f49c8a492e44abeb13555fab64f1f8038b9cbb70c74fdccc6ce5f8be38f81c
       mode: "0644"
-    - path: skills/critique/routing.json
+    - path: skills/workstation/critique/routing.json
       sha256: d8526af9bd61c58ad2e2baed94aafe09e3495e6c52d477522411dfa73fd06a55
       mode: "0644"
-    - path: skills/critique/schemas/finding.schema.json
+    - path: skills/workstation/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6
       mode: "0644"
 # The build tracker's runner, pinned the way critique.files pins the critique
-# runner. skills/build-tracker/ is the copy setup installs; its SKILL.md is the
+# runner. skills/workstation/build-tracker/ is the copy setup installs; its SKILL.md is the
 # skill's text and is left out. `npm run build` in council/ts rebuilds
 # build-tracker.mjs: update its sha256 here in the same commit.
 build_tracker:
   files:
-    - path: skills/build-tracker/build-tracker.mjs
+    - path: skills/workstation/build-tracker/build-tracker.mjs
       sha256: 0b6a7c87b93005f8b39f22596a9895766b8f8d38b8c8d9108a7e3660d022ab77
       mode: "0755"
 agent_runner_runtime:

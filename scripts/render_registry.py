@@ -2566,7 +2566,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     _critique_hooks_fn(w)
 
     # --- --uninstall: remove what a PREVIOUS install.sh/install-agents.sh wrote ---
-    council_dir = KIT_ROOT / "skills" / "council"
+    council_dir = KIT_ROOT / "skills" / "workstation" / "council"
     council_relative = sorted(
         str(p.relative_to(council_dir)) for p in council_dir.rglob("*") if p.is_file()
     )

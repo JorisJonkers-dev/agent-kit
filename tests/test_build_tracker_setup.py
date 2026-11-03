@@ -27,7 +27,7 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 from setup_harness import Run, setup_run  # noqa: E402
 
-SKILL = KIT_ROOT / "skills" / "build-tracker"
+SKILL = KIT_ROOT / "skills" / "workstation" / "build-tracker"
 RUNNER = SKILL / "build-tracker.mjs"
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
 
@@ -55,7 +55,7 @@ def macos_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 
 def test_the_build_tracker_skill_is_declared_for_claude_codex_and_the_other_agents() -> None:
     skill = next(s for s in _registry()["local_skills"] if s["name"] == "build-tracker")
-    assert skill["path"] == "skills/build-tracker"
+    assert skill["path"] == "skills/workstation/build-tracker"
     assert {"claude", "codex"} <= set(skill["agents"])
     assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity"}
     assert skill["surfaces"] == ["workstation"]
@@ -74,7 +74,7 @@ def test_setup_installs_the_whole_skill_into_every_agent_home(macos_run: Run) ->
 
 def test_the_runner_is_pinned_in_the_manifest_like_the_critique_runner() -> None:
     files = {f["path"]: f for f in _manifest()["build_tracker"]["files"]}
-    assert files["skills/build-tracker/build-tracker.mjs"]["mode"] == "0755"
+    assert files["skills/workstation/build-tracker/build-tracker.mjs"]["mode"] == "0755"
     for path, entry in files.items():
         digest = hashlib.sha256((KIT_ROOT / path).read_bytes()).hexdigest()
         assert entry["sha256"] == digest, f"{path}: rebuild council/ts and update manifest.yaml build_tracker.files"

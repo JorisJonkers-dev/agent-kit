@@ -106,8 +106,8 @@ def fake_repo(tmp_path: Path) -> Path:
         "#!/usr/bin/env bash\n# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.\nset -uo pipefail\n"
         "AGENT_KIT_RELEASE_TAG='@AGENT_KIT_RELEASE_TAG@'\n"
     )
-    (repo / "skills" / "pr-composer").mkdir(parents=True)
-    (repo / "skills" / "pr-composer" / "SKILL.md").write_text("---\nname: pr-composer\n---\nbody\n")
+    (repo / "skills" / "workstation" / "pr-composer").mkdir(parents=True)
+    (repo / "skills" / "workstation" / "pr-composer" / "SKILL.md").write_text("---\nname: pr-composer\n---\nbody\n")
     for rel in KIT_FILES:
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
         (repo / rel).write_text("# fixture\n")
@@ -184,7 +184,7 @@ def test_skills_tarball_has_no_dot_slash_prefix_and_no_version_dir(fake_repo: Pa
     for name in names:
         assert not name.startswith("./"), name
         assert not name.startswith("v9.9.9/"), name
-    assert "skills/pr-composer/SKILL.md" in names
+    assert "skills/workstation/pr-composer/SKILL.md" in names
 
 
 def test_the_bundle_carries_what_the_setup_script_reads_beside_itself(
@@ -290,7 +290,8 @@ def test_verify_retired_excluded_fails_if_tarball_contains_retired_file(
 ):
     stage_dir = tmp_path / "stage"
     release_store = tmp_path / "release-store"
-    (fake_repo / "skills" / "pr-composer" / "install-agents.sh").write_text("#!/usr/bin/env bash\necho legacy\n")
+    legacy = fake_repo / "skills" / "workstation" / "pr-composer" / "install-agents.sh"
+    legacy.write_text("#!/usr/bin/env bash\necho legacy\n")
     assert run_step("stage", fake_repo, stage_dir, fake_gh_bin, release_store).returncode == 0
     result = run_step("verify-retired-excluded", fake_repo, stage_dir, fake_gh_bin, release_store)
     assert result.returncode != 0
