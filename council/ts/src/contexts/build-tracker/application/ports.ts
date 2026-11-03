@@ -25,7 +25,7 @@ export interface IssueRecord {
 /** The issue tracker (GitHub), read only. Any failure rejects with an error that says what went wrong. */
 export interface BuildTrackerIssuesPort {
   issue(repository: RepositoryName, number: number): Promise<IssueRecord>
-  /** The issue's sub-issues, in the tracker's order. */
+  /** The issue's sub-issues, in the issue tracker's order. */
   subIssues(repository: RepositoryName, number: number): Promise<readonly IssueRecord[]>
   /** The issues the issue's native blocked-by links name. */
   blockedBy(repository: RepositoryName, number: number): Promise<readonly IssueRecord[]>
@@ -46,4 +46,20 @@ export interface RepositoryLocation {
 export interface BuildTrackerRepositoryPort {
   /** Undefined when the directory is in no git repository. */
   locate(dir: string): Promise<RepositoryLocation | undefined>
+}
+
+/** One build tracker command: its input in, its result out, or a BuildTrackerError that says what went wrong. */
+export interface BuildTrackerCommand<Input, Result> {
+  run(input: Input): Promise<Result>
+}
+
+export interface BuildTrackerDependencies {
+  readonly files: BuildTrackerFilesPort
+  readonly clock: BuildTrackerClockPort
+  readonly issues: BuildTrackerIssuesPort
+  readonly repositories: BuildTrackerRepositoryPort
+  /** The directory a relative spec path and a bare issue number are read against. */
+  readonly cwd: string
+  /** The environment the state home comes from: XDG_STATE_HOME, else HOME. */
+  readonly env: Readonly<Record<string, string | undefined>>
 }

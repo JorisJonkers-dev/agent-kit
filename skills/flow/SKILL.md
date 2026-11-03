@@ -117,7 +117,7 @@ page, and prints the page's path as `page`. Publish `page` as that skill's
 **Republish** says: in Claude Code, the Artifact tool with `page` as its file
 path, so every refresh updates the same address.
 
-Keep a **Tracker** line for the report: the page's address, or its path
+Keep a **Build tracker** line for the report: the page's address, or its path
 where nothing publishes it. When `refresh` fails, the line gives its `code`
 and `message`; when the republish fails, the page path and what failed.
 Either way carry on: the build tracker is a view for the owner, and the flow
@@ -127,10 +127,10 @@ never waits on it.
 state file to rebuild flow state: the flow state and the issue tracker stay
 its only sources.
 
-In planning, or for a draft, skip this step; the report has no Tracker line.
+In planning, or for a draft, skip this step; the report has no Build tracker line.
 
 Done when `refresh` has rendered the page and it is published (or the
-Tracker line says what failed), or the phase needs no build tracker.
+Build tracker line says what failed), or the phase needs no build tracker.
 
 ### 4. Report
 
@@ -140,7 +140,7 @@ Reply in at most about eight lines:
 <spec or draft:name> · <phase>[ · critique skipped on purpose]
 Stages: decisions <status> (<run ids>) · spec … · tickets … · feature review …
 Tickets: #183 reviewed, landed · #184 skipped-low-risk, landed · #185 not-reviewed
-Tracker: <page address or path>
+Build tracker: <page address or path>
 Questions: <n> open; critical <finding_id> (<stage>, run <run_id>): <question>
 Gate: none | PASS for <short head> | <gate line>
 Next: <step>. <reason>
@@ -150,7 +150,7 @@ Next: <step>. <reason>
 - **Stages**: each stage's `status` with its `run_ids`; `not-run` needs none.
 - **Tickets**: during implementation and finishing only, in the state's
   order (dependency order), each with its `review` and whether it `landed`.
-- **Tracker**: during implementation and finishing only, the line step 3
+- **Build tracker**: during implementation and finishing only, the line step 3
   kept: the build tracker page's address or path, or what failed.
 - **Questions**: the open needs-human questions, critical first. Take each
   question's text from `## Questions for you` in the run's `report.md` in
@@ -203,7 +203,7 @@ Done when the reply ends with the next step, its reason and the offer.
    shows the finished build. When the gate fails, the refresh adds the
    follow-up tickets.
 4. Reply with the gate line as the runner wrote it, one line per follow-up
-   ticket the review filed, the Tracker line, and the next step: `done` when
+   ticket the review filed, the Build tracker line, and the next step: `done` when
    the gate passes for the current head, else the `/implement` of the first
    follow-up.
 

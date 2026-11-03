@@ -1,4 +1,4 @@
-import type { Status, Ticket, TrackerState } from './state.js'
+import { isMerged, type BuildTrackerState, type Status, type Ticket } from './state.js'
 
 /**
  * What the page shows for a ticket. A `todo` ticket is Ready once every
@@ -30,18 +30,20 @@ export interface BoardSection {
   readonly merged: number
 }
 
+/** A count per shown status, for the statuses at least one ticket shows. */
+export type Counts = Readonly<Partial<Record<Shown, number>>>
+
 export interface Board {
   readonly tickets: readonly BoardTicket[]
   readonly sections: readonly BoardSection[]
-  /** A count per shown status, for the statuses at least one ticket shows. */
-  readonly counts: Readonly<Partial<Record<Shown, number>>>
+  readonly counts: Counts
 }
 
 export const OTHER_SECTION = 'Other'
 export const SINGLE_SECTION = 'Tickets'
 
-export function buildBoard(state: TrackerState): Board {
-  const merged = new Set(state.tickets.filter((ticket) => ticket.status === 'merged').map((ticket) => ticket.number))
+export function buildBoard(state: BuildTrackerState): Board {
+  const merged = new Set(state.tickets.filter(isMerged).map((ticket) => ticket.number))
   const tickets = state.tickets.map((ticket): BoardTicket => ({ ...ticket, shown: shownStatus(ticket, merged) }))
   const counts: Partial<Record<Shown, number>> = {}
   for (const shown of SHOWN_ORDER) {
@@ -63,7 +65,7 @@ function shownStatus(ticket: Ticket, merged: ReadonlySet<number>): Shown {
  * other tickets; the rest go in Other. A state without milestones has one
  * section.
  */
-function sections(state: TrackerState, tickets: readonly BoardTicket[]): readonly BoardSection[] {
+function sections(state: BuildTrackerState, tickets: readonly BoardTicket[]): readonly BoardSection[] {
   if (state.milestones.length === 0) return [section(SINGLE_SECTION, tickets)]
   const byNumber = new Map(tickets.map((ticket) => [ticket.number, ticket]))
   const milestoneOf = new Map<number, number>()
@@ -98,5 +100,5 @@ function dependencies(number: number, byNumber: ReadonlyMap<number, BoardTicket>
 }
 
 function section(name: string, tickets: readonly BoardTicket[]): BoardSection {
-  return { merged: tickets.filter((ticket) => ticket.status === 'merged').length, name, tickets }
+  return { merged: tickets.filter(isMerged).length, name, tickets }
 }

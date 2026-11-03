@@ -1,5 +1,6 @@
 import type { BuildTrackerIssuesPort, IssueRecord } from '../../application/ports.js'
-import type { RepositoryName } from '../../domain/spec.js'
+import { parseIssueUrl, type RepositoryName } from '../../domain/spec.js'
+import { firstLine } from '../../domain/text.js'
 import type { BuildTrackerProcess } from '../process/index.js'
 
 /**
@@ -61,18 +62,11 @@ function isRestIssue(value: unknown): value is RestIssue {
 
 /** The issue's repository comes from its URL; one with no readable URL is taken to be in the repository asked. */
 function record(issue: RestIssue, asked: RepositoryName): IssueRecord {
-  const url = typeof issue.html_url === 'string' ? /^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/(?:issues|pull)\/\d+/.exec(issue.html_url) : null
+  const url = typeof issue.html_url === 'string' ? parseIssueUrl(issue.html_url) : undefined
   return {
     number: issue.number,
-    repository: url === null ? asked : { host: String(url[1]).toLowerCase(), owner: String(url[2]), repo: String(url[3]) },
+    repository: url?.repository ?? asked,
     state: issue.state === 'closed' ? 'closed' : 'open',
     title: typeof issue.title === 'string' ? issue.title : '',
   }
-}
-
-function firstLine(text: string): string | undefined {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .find((line) => line.length > 0)
 }

@@ -27,7 +27,7 @@ export function localTickets(files: readonly LocalTicketFile[]): readonly SpecTi
         `${file.file} has no ticket number in front of its name; name each ticket file like 01-${stem}.md`,
       )
     }
-    const heading = /^#[ \t]+(.+?)[ \t]*$/m.exec(file.text)?.[1]
+    const heading = firstHeading(file.text)
     const title = heading?.replace(/^#?\d+\s*[:.\-–]\s*/, '') ?? stem
     return { blockers: blockerNames(file.text), closed: isClosed(file.text), file: file.file, number: Number(prefix), title }
   })
@@ -63,7 +63,14 @@ export function localTickets(files: readonly LocalTicketFile[]): readonly SpecTi
 
 /** A local spec's title: its first `#` heading, or its file name. */
 export function localSpecTitle(text: string, path: string): string {
-  return /^#[ \t]+(.+?)[ \t]*$/m.exec(text)?.[1] ?? (path.split('/').at(-1) ?? path)
+  return firstHeading(text) ?? (path.split('/').at(-1) ?? path)
+}
+
+const HEADING = /^#[ \t]+(.+?)[ \t]*$/m
+
+/** The text of the file's first top-level `#` heading. */
+function firstHeading(text: string): string | undefined {
+  return HEADING.exec(text)?.[1]
 }
 
 function isClosed(text: string): boolean {

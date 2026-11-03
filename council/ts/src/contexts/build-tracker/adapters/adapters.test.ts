@@ -147,16 +147,27 @@ describe('GitBuildTrackerRepositories', () => {
       remote: { host: 'github.com', owner: 'Acme', repo: 'Widgets' },
       root,
     })
+  })
+
+  it('gives the root itself an empty place under the root', async () => {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
+
     expect((await repositories.locate(root))?.prefix).toBe('')
   })
 
-  it('takes the first remote when there is no origin, and none when there is no remote', async () => {
+  it('reports no remote for a repository without one', async () => {
     const root = await tempDir()
     await git(root, 'init', '-q')
 
     expect((await repositories.locate(root))?.remote).toBeUndefined()
+  })
 
+  it('takes the first remote when there is no origin', async () => {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
     await git(root, 'remote', 'add', 'fork', 'ssh://git@gitlab.example.com:2222/team/sub/tool.git')
+
     expect((await repositories.locate(root))?.remote).toEqual({ host: 'gitlab.example.com', owner: 'team/sub', repo: 'tool' })
   })
 
@@ -166,21 +177,30 @@ describe('GitBuildTrackerRepositories', () => {
     expect(await repositories.locate(dir)).toBeUndefined()
   })
 
-  it("names a linked worktree's main working tree, and a bare common directory as itself", async () => {
+  it("names a linked worktree's main working tree, asking git for the paths", async () => {
     const process = new ScriptedProcess([
       { exitCode: 0, stderr: '', stdout: '/work/linked\n/work/main/.git\n\n' },
       { exitCode: 1, stderr: '', stdout: '' },
-      { exitCode: 0, stderr: '', stdout: '/work/linked\n/srv/repo.git\nsub/\n' },
-      { exitCode: 0, stderr: '', stdout: 'remote.origin.url not-a-url\n' },
     ])
-    const scripted = new GitBuildTrackerRepositories(process)
 
-    expect(await scripted.locate('/work/linked')).toEqual({ mainRoot: '/work/main', prefix: '', remote: undefined, root: '/work/linked' })
-    expect(await scripted.locate('/work/linked/sub')).toEqual({ mainRoot: '/srv/repo.git', prefix: 'sub/', remote: undefined, root: '/work/linked' })
+    const located = await new GitBuildTrackerRepositories(process).locate('/work/linked')
+
+    expect(located).toEqual({ mainRoot: '/work/main', prefix: '', remote: undefined, root: '/work/linked' })
     expect(process.requests[0]).toEqual({
       args: ['-C', '/work/linked', 'rev-parse', '--path-format=absolute', '--show-toplevel', '--git-common-dir', '--show-prefix'],
       command: 'git',
     })
+  })
+
+  it('names a bare common directory as itself, and ignores a remote it cannot read', async () => {
+    const process = new ScriptedProcess([
+      { exitCode: 0, stderr: '', stdout: '/work/linked\n/srv/repo.git\nsub/\n' },
+      { exitCode: 0, stderr: '', stdout: 'remote.origin.url not-a-url\n' },
+    ])
+
+    const located = await new GitBuildTrackerRepositories(process).locate('/work/linked/sub')
+
+    expect(located).toEqual({ mainRoot: '/srv/repo.git', prefix: 'sub/', remote: undefined, root: '/work/linked' })
   })
 
   it.each([
@@ -197,14 +217,17 @@ describe('GitBuildTrackerRepositories', () => {
 describe('NodeBuildTrackerProcess', () => {
   const process = new NodeBuildTrackerProcess()
 
-  it('reports the output of a program that succeeds and of one that fails', async () => {
-    const script = "process.stdout.write('out'); process.stderr.write('err'); process.exit(Number(process.argv[1]))"
+  const script = "process.stdout.write('out'); process.stderr.write('err'); process.exit(Number(process.argv[1]))"
 
+  it('reports the output of a program that succeeds', async () => {
     expect(await process.exec({ args: ['-e', script, '0'], command: globalThis.process.execPath })).toEqual({
       exitCode: 0,
       stderr: 'err',
       stdout: 'out',
     })
+  })
+
+  it('reports the output and exit code of a program that fails', async () => {
     expect(await process.exec({ args: ['-e', script, '3'], command: globalThis.process.execPath })).toEqual({
       exitCode: 3,
       stderr: 'err',

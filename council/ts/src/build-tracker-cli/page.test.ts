@@ -67,7 +67,7 @@ async function renderedPage(state: Record<string, unknown>): Promise<{ dir: stri
   const dir = await mkdtemp(join(tmpdir(), 'build-tracker-page-'))
   cleanups.push(() => rm(dir, { force: true, recursive: true }))
   await writeFile(join(dir, 'state.json'), JSON.stringify(state))
-  const path = join(dir, 'tracker.html')
+  const path = join(dir, 'page.html')
   const result = await runBuildTrackerCli(['render', '--state', join(dir, 'state.json'), '--out', path], defaultBuildTrackerRuntime())
   expect(result.exitCode).toBe(0)
   return { dir, page: await readFile(path, 'utf8'), path }
@@ -135,26 +135,40 @@ describe('build tracker page contract', () => {
     expect(page.indexOf('mermaid.min.js')).toBeLessThan(page.indexOf('window.mermaid.run('))
   })
 
-  const chrome = findChrome()
+  it.each([
+    ['skips the browser tests when no Chrome is found and none is required', undefined, false, true],
+    ['runs the browser tests when Chrome is found', '/bin/chrome', false, false],
+    ['runs the browser tests, to fail them, when Chrome is required and none is found', undefined, true, false],
+  ])('%s', (_name, found, required, skip) => {
+    expect(browserGate(found, required).skip).toBe(skip)
+  })
 
-  it.skipIf(chrome === undefined)('does not scroll sideways at 375 CSS px wide in a headless browser', { timeout: 60_000 }, async () => {
+  it('fails a browser test that needs Chrome when it is required and none is found', () => {
+    expect(() => browserGate(undefined, true).browser()).toThrow(
+      'BUILD_TRACKER_REQUIRE_CHROME=1, but no Chrome was found: set CHROME_BIN or put google-chrome on PATH',
+    )
+  })
+
+  const gate = browserGate(findChrome(), process.env.BUILD_TRACKER_REQUIRE_CHROME === '1')
+
+  it.skipIf(gate.skip)('does not scroll sideways at 375 CSS px wide in a headless browser', { timeout: 60_000 }, async () => {
     const { dir, path } = await renderedPage(wideState())
 
     // Offline, so the test never reaches the network: the graph stays as its source text.
-    const probe = await measure(String(chrome), dir, path, 375, [])
+    const probe = await measure(gate.browser(), dir, path, 375, [])
 
     expect(probe.clientWidth).toBeGreaterThan(300)
     expect(probe.clientWidth).toBeLessThanOrEqual(375)
     expect(probe.scrollWidth).toBeLessThanOrEqual(probe.clientWidth)
   })
 
-  it.skipIf(chrome === undefined)('sees the sideways scroll of a page whose long words do not wrap', { timeout: 60_000 }, async () => {
+  it.skipIf(gate.skip)('sees the sideways scroll of a page whose long words do not wrap', { timeout: 60_000 }, async () => {
     const { dir, page } = await renderedPage(wideState())
     const unwrapped = join(dir, 'unwrapped.html')
     expect(page).toContain(' overflow-wrap:anywhere;')
     await writeFile(unwrapped, page.replaceAll(' overflow-wrap:anywhere;', ''))
 
-    const probe = await measure(String(chrome), dir, unwrapped, 375, [])
+    const probe = await measure(gate.browser(), dir, unwrapped, 375, [])
 
     expect(probe.scrollWidth).toBeGreaterThan(probe.clientWidth)
   })
@@ -178,21 +192,21 @@ describe('build tracker page contract', () => {
     await writeFile(browser, `#!/bin/sh\necho '<html><body data-probe="${probe}"></body></html>'\nsleep 30\n`, { mode: 0o755 })
 
     const started = Date.now()
-    const measured = await measure(browser, dir, join(dir, 'tracker.html'), 375, [])
+    const measured = await measure(browser, dir, join(dir, 'page.html'), 375, [])
 
     expect(measured).toEqual({ clientWidth: 375, nodes: 0, scrollWidth: 300 })
     expect(Date.now() - started).toBeLessThan(10_000)
   })
 
   // Opt-in, as it fetches Mermaid from the CDN: BUILD_TRACKER_ONLINE=1 npx vitest run src/build-tracker-cli/page.test.ts
-  it.skipIf(chrome === undefined || process.env.BUILD_TRACKER_ONLINE !== '1')(
+  it.skipIf(gate.skip || process.env.BUILD_TRACKER_ONLINE !== '1')(
     'renders its graph from a local file, one node per ticket, still without sideways scroll',
     { timeout: 60_000 },
     async () => {
       const { dir, page, path } = await renderedPage(wideState())
 
       // The Mermaid CDN only; the fonts stay offline.
-      const probe = await measure(String(chrome), dir, path, 375, [new URL(mermaidScript(page).src).host])
+      const probe = await measure(gate.browser(), dir, path, 375, [new URL(mermaidScript(page).src).host])
 
       expect(probe.nodes).toBe(30)
       expect(probe.scrollWidth).toBeLessThanOrEqual(probe.clientWidth)
@@ -308,4 +322,22 @@ function findChrome(): string | undefined {
       .flatMap((dir) => ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].map((name) => join(dir, name))),
   ]
   return candidates.find((candidate) => candidate !== undefined && candidate !== '' && existsSync(candidate))
+}
+
+/**
+ * Whether the browser tests skip, and the browser they run in. Without a
+ * Chrome they skip, unless BUILD_TRACKER_REQUIRE_CHROME=1 (as CI sets it)
+ * requires one: then they run and fail, so a runner that lost its Chrome
+ * cannot pass them by skipping.
+ */
+function browserGate(found: string | undefined, required: boolean): { readonly skip: boolean; browser(): string } {
+  return {
+    browser: () => {
+      if (found === undefined) {
+        throw new Error('BUILD_TRACKER_REQUIRE_CHROME=1, but no Chrome was found: set CHROME_BIN or put google-chrome on PATH')
+      }
+      return found
+    },
+    skip: found === undefined && !required,
+  }
 }
