@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 
 import { quotaReached } from '../domain/budget.js'
-import { checkNamed, declaredChecks, withDeclaredSeverity, type DeclaredCheck } from '../domain/checks.js'
+import { checkNamed, checkRunnable, declaredChecks, withDeclaredSeverity, type DeclaredCheck } from '../domain/checks.js'
 import { readCriticRun, type CriticRun } from '../domain/critic.js'
-import { checkEvidence, indexPacket, type PacketIndex } from '../domain/evidence.js'
+import { checkEvidence, indexPacket, readSkippedCheck, skippedChecks, type PacketIndex, type SkippedCheck } from '../domain/evidence.js'
 import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
 import { listedFiles, parseManifest, specReference, type RunManifest } from '../domain/manifest.js'
@@ -31,6 +31,8 @@ export interface FanOutResult {
   readonly findings: readonly RunFinding[]
   /** Why the gateway's ledger would not take a run, one message per failed append; absent when it took them all. */
   readonly ledger_warnings?: readonly string[]
+  /** Only when the packet holds no code under `tree/` and some check needs it: what the critics could not check. */
+  readonly skipped_checks?: readonly SkippedCheck[]
 }
 
 /**
@@ -43,7 +45,7 @@ export interface FanOutResult {
 function withPreVerdict(finding: RunFinding, stage: CritiqueStage, packet: PacketIndex, checks: CriticChecks): RunFinding {
   const declared = checks.get(finding.raised_by[0] ?? '') ?? []
   const rated = withDeclaredSeverity(finding, declared)
-  const preVerdict = checkEvidence(rated, stage, packet) ?? checkNamed(rated, declared)
+  const preVerdict = checkEvidence(rated, stage, packet) ?? checkNamed(rated, declared) ?? checkRunnable(rated, declared, packet.tree)
   return preVerdict === undefined ? rated : { ...rated, pre_verdict: preVerdict }
 }
 
@@ -60,6 +62,7 @@ export function parseFanOutResult(text: string): FanOutResult {
     findings_path: file.string('findings_path'),
     ...(file.has('ledger_warnings') ? { ledger_warnings: file.strings('ledger_warnings') } : {}),
     run_id: file.string('run_id'),
+    ...(file.has('skipped_checks') ? { skipped_checks: file.list('skipped_checks', readSkippedCheck) } : {}),
     stage: file.oneOf('stage', CRITIQUE_STAGES),
     status: file.literal('status', 'reviewed'),
   }
@@ -88,6 +91,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const checks: CriticChecks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]))
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet, checks))
     const ledgerWarnings = outcomes.flatMap((outcome) => (outcome.ledger_warning === undefined ? [] : [outcome.ledger_warning]))
+    const skipped = skippedChecks(manifest.stage, packet, await this.checkSources(manifest))
     const result: FanOutResult = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== 'ok'),
@@ -95,6 +99,7 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
       findings_path: findingsPath(runDir),
       ...(ledgerWarnings.length === 0 ? {} : { ledger_warnings: ledgerWarnings }),
       run_id: manifest.run_id,
+      ...(skipped.length === 0 ? {} : { skipped_checks: skipped }),
       stage: manifest.stage,
       status: 'reviewed',
     }
@@ -126,6 +131,21 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const attempt = await runCritic(this.deps, { critic, criticDir, prompt: promptFor, retry, tools: wave.tools, tripwire: wave.tripwire })
     const ledgerWarning = await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config, specReference(wave.manifest))
     return { ...attempt, checks, ...(ledgerWarning === undefined ? {} : { ledger_warning: ledgerWarning }) }
+  }
+
+  /**
+   * The checks each role and lens file of the run's critics declares, by
+   * file, in roster order: the files whose checks the critics' prompts
+   * declare, so the skipped list and the needs-tree hint agree.
+   */
+  private async checkSources(manifest: RunManifest): Promise<readonly { readonly from: string; readonly checks: readonly DeclaredCheck[] }[]> {
+    const files = [
+      ...new Set(manifest.critics.flatMap((critic) => [`roles/${critic.role}`, ...critic.lenses.map((name) => `lenses/${name}`)])),
+    ]
+    const read = (file: string) => this.deps.files.readText(join(this.deps.assetsRoot, `${file}.md`))
+    return Promise.all(
+      files.map(async (file) => ({ checks: declaredChecks([await read(file)]), from: file.replace(/^roles\//, 'role ').replace(/^lenses\//, 'lens ') })),
+    )
   }
 
   /** The critic's prompt for the tools it gets, and the checks its role and lenses declare. */

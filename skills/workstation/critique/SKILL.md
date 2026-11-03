@@ -10,7 +10,8 @@ its own: `/flow` says which stage is due and runs it, or start a critique
 with the stage skill (`/review-spec` after
 `/to-spec` produced or changed a spec, `/review-tickets` after `/to-tickets`
 and before the first `/implement`, `/review-implementation` after a ticket's
-`/code-review` and before its commit), which tells you how to drive it.
+`/code-review` and before its commit, `/critique-adrs` when the owner asks
+for a review of the decision records), which tells you how to drive it.
 
 ## What is here
 

@@ -12,7 +12,7 @@ import type { CodeStage, CritiqueStage, ReviewStage } from './stage.js'
 export type PacketBuilder = 'decisions' | 'document' | 'tickets' | 'code' | 'adrs'
 
 /** Which evidence rule fan-out applies to a stage's findings once every quote is found in the packet. */
-export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code'
+export type EvidenceRule = 'decisions' | 'spec' | 'tickets' | 'code' | 'adrs'
 
 /**
  * The flow key a stage's run charges, unless the caller names one.
@@ -65,11 +65,9 @@ export type StageTable = {
 }
 
 export const STAGE_TABLE: StageTable = {
-  // The evidence rule is a placeholder until /critique-adrs (#249) gives the
-  // stage its own: for now the records are the artifact, so a finding quotes
-  // one and either a reference or a scenario, as at the spec stage. With the
-  // code permission on, the ADR packet is a repository packet (#221).
-  'adr-review': { doNotStart: null, evidence: 'spec', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
+  // With the code permission on, the ADR packet is a repository packet (#221);
+  // with it off, the evidence rule skips what needs code (#249).
+  'adr-review': { doNotStart: null, evidence: 'adrs', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
   // A decisions run's accepted findings are questions for the owner and change
   // no artifact, so it never calls for a second round.
   decisions: { doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
