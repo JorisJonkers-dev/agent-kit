@@ -255,8 +255,11 @@ function section(name, tickets) {
 }
 
 // src/contexts/build-tracker/domain/page.ts
-var MERMAID_URL = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js";
-var MERMAID_INTEGRITY = "sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I";
+var MERMAID_PIN = {
+  version: "11.4.1",
+  integrity: "sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I"
+};
+var MERMAID_URL = `https://cdn.jsdelivr.net/npm/mermaid@${MERMAID_PIN.version}/dist/mermaid.min.js`;
 var FONTS_URL = "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;600&display=swap";
 var GRAPH_CLASSES = {
   merged: "fill:#2f7d55,stroke:#2f7d55,color:#fff",
@@ -300,7 +303,7 @@ ${escapeHtml(graph(board.tickets))}
 </pre></div>
 ${board.sections.map((part) => sectionHtml(part, link)).join("\n")}
 </main>
-<script src="${MERMAID_URL}" integrity="${MERMAID_INTEGRITY}" crossorigin="anonymous"></script>
+<script src="${MERMAID_URL}" integrity="${MERMAID_PIN.integrity}" crossorigin="anonymous"></script>
 <script>
 ${MERMAID_START}
 </script>

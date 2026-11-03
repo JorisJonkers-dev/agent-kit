@@ -62,7 +62,12 @@
           'node-version': '22'
           'cache': 'npm'
           'cache-dependency-path': 'council/ts/package-lock.json'
+      # The build tracker's online checks: the pinned Mermaid hash against
+      # the CDN file, and the graph rendered from a local file in headless
+      # Chrome (skipped where no Chrome is found). Opt-in on a workstation.
       - 'run': 'cd council/ts && npm ci && npm run build && npm test'
+        'env':
+          'BUILD_TRACKER_ONLINE': '1'
 
   'workflow-lint':
     'name': 'Workflow Lint'
