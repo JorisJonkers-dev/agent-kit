@@ -3424,3 +3424,42 @@ Run on agent-kit with the integration branch's build of the runner (`feat/critiq
 - **Scratch entry:** `github.com/jorisjonkers-dev/critique-smoke` was added for the refute run and removed afterwards.
 
 **Still open:** a machine override raises Vibe's own `--max-price` for ticket-review critics to $3. The installed critic agent files lack `cached_input_price`, so Vibe stops on its threefold estimate. It is removed once setup installs the files #261 generates.
+
+## What #226 settled
+
+The decision-log pre-check (agent-kit#226), the ADR review's counterpart of
+`check-tickets`:
+
+- **The command.** `critique check-adrs` takes `{ "repo" }`. It resolves the
+  repository as prepare does, so a refused remote is refused the same way,
+  but it needs no family allowlist entry and writes nothing. A repository
+  with no records in `docs/adr/` is refused with `no-adrs`. The result is
+  `{ status, records, numbering, unknown_statuses, unresolved_links,
+  cites_superseded }`; each record lists its path, the number its file name
+  starts with, its title, the status it states (or null) and whether it is
+  in force.
+- **What fails it.** `status` is `failed`, and the command line exits 3,
+  while there is any of: a numbering gap between the lowest and highest
+  number the log uses; two records with one number; a stated status other
+  than proposed, accepted, rejected, deprecated or superseded; a link, or
+  an ADR number such as `ADR-0004`, outside fenced blocks that resolves to
+  no file or record (a link that climbs out of the repository never
+  resolves; URLs, anchors and footnotes such as `[^1]:` are not checked,
+  and an ADR number inside a bare URL is not a reference); and a record in
+  force that cites a superseded one. A file whose name starts with no
+  number, such as a README, or with a date such as `2024-01-15` or
+  `2024-1-5`, is listed under `numbering.unnumbered` and never fails it.
+- **Supersede links.** A target on a line saying Supersedes, Superseded by,
+  Amends, Amended by, Replaces or Replaced by is reported with kind
+  `supersede`; any other with kind `link`. A record is superseded when it
+  says so in its status, or when a record in force names it on a
+  Supersedes or Replaces line; a record replaced that way is also out of
+  force, so what it cites is not reported. Supersede links are not
+  citations, so the record that replaces another never counts as citing
+  it.
+- **In the packet.** Prepare for `adr-review` freezes the report on the
+  whole log, whatever records are under review, as `check/adrs.json`
+  (kind `check`, source `check-adrs docs/adr`), after the references and
+  before any `tree/` or `facts/`. The prompt describes it as settled: build
+  on it, never recompute it. agent-kit's own ADRs, with no status lines,
+  pass.

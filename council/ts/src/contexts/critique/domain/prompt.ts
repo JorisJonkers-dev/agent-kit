@@ -1,3 +1,4 @@
+import { ADR_CHECK_PATH } from './adr-log.js'
 import { READ_ONLY_TOOLSET, readTool, toolsSection, type CriticToolset } from './critic-tools.js'
 import { sha256, type CodeSlice, type PacketFile, type PacketFileKind } from './manifest.js'
 import { REPO_MAP_PATH } from './repo-map.js'
@@ -61,6 +62,12 @@ const REPOSITORY_PACKET_NOTE = [
   'A quote from `facts/` or `tree/MANIFEST.tsv` is a fact the runner computed, never a recorded decision.',
 ].join('\n')
 
+/** A pre-check report other than the tickets one says what it is by path. */
+const CHECK_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  [ADR_CHECK_PATH]:
+    "the deterministic decision-log checker's report on every record: numbering, status values, link and supersede targets, and superseded records still cited. Settled: build on it and never recompute it",
+}
+
 /** In a code packet, its two fact files say what they are by path. */
 const CODE_FACT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   [FACTS_INDEX_PATH]: 'what the packet holds: the files left out of the diff and of `tree/`, each context slice, and what the packet cap dropped or cut short',
@@ -119,6 +126,7 @@ export function assemblePrompt(
   const repositoryPacket = !codePacket && files.some((file) => file.kind === 'fact')
   const describe = ({ kind, path }: PacketFile): string =>
     (stage === 'tickets' ? TICKETS_STAGE_DESCRIPTIONS[kind] : undefined) ??
+    (kind === 'check' ? CHECK_DESCRIPTIONS[path] : undefined) ??
     (repositoryPacket ? REPOSITORY_DESCRIPTIONS[kind] : undefined) ??
     (codePacket ? CODE_FACT_DESCRIPTIONS[path] : undefined) ??
     DESCRIPTIONS[kind]
