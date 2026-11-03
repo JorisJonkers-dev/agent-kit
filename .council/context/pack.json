@@ -8,7 +8,6 @@
     "council/README.md",
     "council/council.toml",
     "council/schemas/context-pack.schema.json",
-    "templates/repo/.specify/memory/constitution.md",
     "runner-manifests/README.md"
   ],
   "files": [
@@ -43,12 +42,12 @@
     {
       "ref": "constitution-digest",
       "path": ".council/context/constitution-digest.md",
-      "text": "Digest of the checked-in project constitution seed and workflow guardrails."
+      "text": "Digest of the project constitution and workflow guardrails; the only copy since the Spec Kit seed was removed."
     },
     {
       "ref": "domain-glossary",
       "path": ".council/context/domain-glossary.md",
-      "text": "Common domain terms for agent-kit, council, Spec Kit, installer, runtime, and KB surfaces."
+      "text": "Common domain terms for agent-kit, council, installer, runtime, and KB surfaces."
     }
   ],
   "profile": "seed-if-absent"

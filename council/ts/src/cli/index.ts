@@ -36,7 +36,6 @@ export type CliCommand =
   | 'status'
   | 'supervise'
   | 'survey'
-  | 'sync-bmad'
   | 'sync-skills'
   | 'tail'
   | 'triage'
@@ -76,7 +75,6 @@ const COMMANDS: readonly CommandSpec[] = [
   { help: 'summarize a run directory', name: 'status' },
   { help: 'supervise a worker process with watchdog controls', name: 'supervise' },
   { help: 'survey repository context', name: 'survey' },
-  { help: 'synchronize BMAD assets', name: 'sync-bmad' },
   { help: 'synchronize council skills', name: 'sync-skills' },
   { help: 'tail one task log', name: 'tail' },
   { help: 'run the triage gate and emit routing payload', name: 'triage' },
@@ -138,7 +136,6 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime = {}):
       case 'inject':
       case 'split':
       case 'survey':
-      case 'sync-bmad':
       case 'sync-skills':
         return okJson({ command, compiled: true })
     }

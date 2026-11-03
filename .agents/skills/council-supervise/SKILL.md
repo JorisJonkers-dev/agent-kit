@@ -28,7 +28,7 @@ Build a delegate lens:
 ## Model Preference Doctrine
 
 - Use the host Codex session for small or tightly-coupled code work.
-- Use `claude-worker` for an independent Claude pass on bounded work.
+- Use a Claude engine (`--engine claude:haiku`) for an independent Claude pass on bounded work.
 - Use stronger engines only when the lens explains why the cheap worker is
   likely insufficient.
 - Prefer cross-family delegation when disagreement or independent synthesis is
@@ -37,7 +37,6 @@ Build a delegate lens:
 ## Interop Surfaces
 
 - Primary command shape: `node ~/.codex/skills/council/council.mjs supervise --engine ...`.
-- Codex-side delegate skill: `claude-worker`.
 - Preserve quoting and newlines when forwarding the prompt.
 - Relay run id, phase transitions, validation output, final result, changed
   files, and caveats to the host session.

@@ -18,7 +18,6 @@ image or entrypoint:
 - Repository input semantics for one primary repo plus optional extra repos.
 - GitHub token helper command and environment contract, without credentials.
 - MCP profile merge semantics using placeholder URLs and bearer-token env names.
-- Spec Kit seed source, marker file, and update policy.
 - Required tools the runtime image must provide for normal agent workflows.
 - Published runtime-home artifact metadata for the versioned agent-kit bundle.
 

@@ -8,8 +8,7 @@ local edits during regeneration.
 
 ## Top-Level Areas
 
-- `templates/repo/`: source templates for `.claude`, `.codex`, `.agents`, and
-  project Spec Kit seed payload.
+- `templates/repo/`: source templates for `.claude`, `.codex` and `.agents`.
 - `templates/installer/`: installer templates and partials.
 - `templates/runner-runtime/`: source templates for runner runtime artifacts.
 - `installer/`: rendered install scripts served by the KB service.
@@ -23,8 +22,6 @@ local edits during regeneration.
 
 - `render-agent-kit.py` renders repo templates, runtime templates, and installer
   templates.
-- `templates/repo/.specify/memory/constitution.md` seeds project-scope
-  constitutions and is preserved when the destination already exists.
 - `runner-manifests/runtime/` is rendered from `templates/runner-runtime/`.
 
 ## Boundaries

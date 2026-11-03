@@ -59,7 +59,6 @@ describe('CLI composition', () => {
       'status',
       'supervise',
       'survey',
-      'sync-bmad',
       'sync-skills',
       'tail',
       'triage',

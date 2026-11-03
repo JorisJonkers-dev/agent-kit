@@ -40,6 +40,6 @@ Build the design lens before drafting tasks:
 
 - Primary command shape: `node ~/.codex/skills/council/council.mjs design ...`.
 - Use `council-grill` to challenge the design before `council-run`.
-- Use `claude-worker` for an independent architecture or product pass.
+- Use `council-supervise` with a Claude engine for an independent architecture or product pass.
 - Return a concise plan, DAG tasks, dependencies, validation commands, and open
   questions.

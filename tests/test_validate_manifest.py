@@ -371,6 +371,12 @@ class ValidateManifestHooks(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "must not declare a `settings` section"):
             self.validator.validate_surface_parity(manifest)
 
+    def test_a_commands_section_fails(self) -> None:
+        manifest = self.validator.load_manifest() | {"commands": []}
+
+        with self.assertRaisesRegex(AssertionError, "must not declare a `commands` section"):
+            self.validator.validate_surface_parity(manifest)
+
 
 class RenderAgentKitDoctor(unittest.TestCase):
     renderer: ClassVar[ModuleType]

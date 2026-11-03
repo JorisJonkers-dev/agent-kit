@@ -1,6 +1,6 @@
 # Constitution Digest
 
-source: templates/repo/.specify/memory/constitution.md; README.md; PORTABILITY.md
+source: README.md; PORTABILITY.md
 built-at: 2026-07-02T22:50:34Z
 
 This fragment is tracked seed content. Treat it as seed-if-absent and preserve
@@ -34,6 +34,6 @@ local edits during regeneration.
 
 ## Governance
 
-The checked-in constitution seed is version `1.0.0`, ratified and last amended
-on `2026-06-08`. It overrides ad-hoc agent behavior and should be amended
-deliberately when governing workflow changes.
+These rules came from the Spec Kit constitution seed (version `1.0.0`, last
+amended `2026-06-08`). That seed is gone, so this digest is now their only
+copy. They override ad-hoc agent behavior; amend them here, deliberately.

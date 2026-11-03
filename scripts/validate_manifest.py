@@ -234,49 +234,22 @@ def validate_checksums(manifest: dict[str, Any], managed_paths: set[str]) -> Non
 
 def validate_surface_parity(manifest: dict[str, Any]) -> None:
     skills = as_list(manifest.get("skills"), "skills")
-    commands = as_list(manifest.get("commands"), "commands")
-
-    command_names = {str(item["name"]).removeprefix("speckit.") for item in commands}
-    speckit_skill_names = {
-        str(item["name"]).removeprefix("speckit-")
-        for item in skills
-        if str(item.get("name", "")).startswith("speckit-")
-    }
-    if command_names != speckit_skill_names:
-        fail(
-            "Spec Kit command/skill parity mismatch: "
-            f"commands={sorted(command_names)} skills={sorted(speckit_skill_names)}",
-        )
-
-    for command in commands:
-        supported = command.get("supported_agents")
-        if supported != ["claude"]:
-            fail(f"command {command.get('name')} must support only claude")
-        if not as_mapping(command.get("unsupported"), f"command {command.get('name')}.unsupported").get("codex"):
-            fail(f"command {command.get('name')} must record a codex unsupported reason")
-
     for skill in skills:
         name = str(skill.get("name"))
         supported = skill.get("supported_agents")
         targets_value = skill.get("targets", [])
         targets = {target.get("agent") for target in as_list(targets_value, f"skill {name}.targets")}
-        if name.startswith("speckit-"):
-            if supported != ["codex"] or targets != {"codex"}:
-                fail(f"skill {name} must support only codex")
-            if not as_mapping(skill.get("unsupported"), f"skill {name}.unsupported").get("claude"):
-                fail(f"skill {name} must record a claude unsupported reason")
-        else:
-            # install.sh's `installer:` sub-block (and the installer-only
-            # skills that had no repo target and relied on it alone) are
-            # retired along with it (agent-kit#40); every remaining skill
-            # must have a real repo-file target.
-            supported_set = set(supported or [])
-            if not supported_set or not supported_set <= {"claude", "codex"}:
-                fail(f"skill {name} must declare supported_agents from claude/codex")
-            if not targets:
-                fail(f"skill {name} must declare repo-file targets")
-            if targets != supported_set:
-                fail(f"skill {name} targets {sorted(targets)} but supports {sorted(supported_set)}")
+        # install.sh's `installer:` sub-block (and the installer-only
+        # skills that had no repo target and relied on it alone) are
+        # retired along with it (agent-kit#40); every remaining skill
+        # must have a real repo-file target.
+        supported_set = set(supported or [])
+        if not supported_set or not supported_set <= {"claude", "codex"}:
+            fail(f"skill {name} must declare supported_agents from claude/codex")
+        if not targets:
+            fail(f"skill {name} must declare repo-file targets")
+        if targets != supported_set:
+            fail(f"skill {name} targets {sorted(targets)} but supports {sorted(supported_set)}")
 
     # The `settings` ledger existed only to wire the retired knowledge hooks;
     # the critique hooks are merged into the operator's files by setup, so it
@@ -291,6 +264,11 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
     # retired along with those files (agent-kit#40); it must stay absent.
     if "installer" in manifest:
         fail("manifest must not declare a top-level `installer` section: install.sh is retired")
+
+    # The `commands:` ledger pinned the Spec Kit slash commands, which are
+    # retired (agent-kit#253); it must stay absent.
+    if "commands" in manifest:
+        fail("manifest must not declare a `commands` section: the Spec Kit commands are retired")
 
 
 HOOKS_ADR = "docs/adr/0002-exactly-three-critique-hooks.md"
@@ -656,7 +634,7 @@ def validate_runtime_package_artifacts() -> None:
     entrypoint_path = ROOT / str(entrypoint.get("path", ""))
     if not entrypoint_path.is_file():
         fail(f"runtime package entrypoint path does not exist: {entrypoint.get('path')}")
-    required_self_tests = {"agent-kit-manifest", "repo-allow", "repo-dir", "speckit-seed"}
+    required_self_tests = {"agent-kit-manifest", "repo-allow", "repo-dir"}
     actual_self_tests = set(as_list(entrypoint.get("selfTests"), "runtime package entrypoint.selfTests"))
     if actual_self_tests != required_self_tests:
         fail(f"runtime package selfTests mismatch: {sorted(actual_self_tests)}")
@@ -665,7 +643,6 @@ def validate_runtime_package_artifacts() -> None:
     expected_home_bundle = {
         "archiveRoot": ".",
         "homeSource": "home",
-        "sddSource": "sdd",
         "mcpSource": "mcp",
         "markerFile": ".agent-kit-home-install.sha256",
         "versionMarkerFile": ".knowledge-system-version",
@@ -891,15 +868,11 @@ def validate_runtime_shell_contracts(*, runtime_selftest: bool = False) -> None:
         tmp_path = Path(tmp)
         home = tmp_path / "home"
         workspace = tmp_path / "workspace"
-        sdd = tmp_path / "sdd"
         repo = workspace / "repo"
         repo_git = repo / ".git"
         (home / ".claude").mkdir(parents=True)
         (home / ".codex").mkdir(parents=True)
         repo_git.mkdir(parents=True)
-        (sdd / "templates").mkdir(parents=True)
-        (sdd / "templates" / "spec-template.md").write_text("spec seed\n")
-        (sdd / "templates" / "constitution-template.md").write_text("constitution seed\n")
 
         env = {
             "PATH": os.environ.get("PATH", ""),
@@ -907,7 +880,6 @@ def validate_runtime_shell_contracts(*, runtime_selftest: bool = False) -> None:
             "CLAUDE_CONFIG_DIR": str(home / ".claude"),
             "CODEX_HOME": str(home / ".codex"),
             "WORKSPACE_ROOT": str(workspace),
-            "AGENT_KIT_SDD_SOURCE": str(sdd),
             "AGENT_GIT_HOST": "git-host",
             "REPO_URL": "git@git-host:owner/repo.git",
             "REPO_URLS": "ssh://git@git-host/owner/extra.git#dev;https://git-host/owner/second.git",
@@ -935,11 +907,6 @@ def validate_runtime_shell_contracts(*, runtime_selftest: bool = False) -> None:
             fail(f"entrypoint repo-allow self-test returned {repo_allow!r}")
 
         run_checked(["sh", str(entrypoint)], env={**env, "AGENT_RUNNER_ENTRYPOINT_SELF_TEST": "agent-kit-manifest"})
-        run_checked(["sh", str(entrypoint)], env={**env, "AGENT_RUNNER_ENTRYPOINT_SELF_TEST": "speckit-seed"})
-        if not (repo / ".specify" / "templates" / "spec-template.md").is_file():
-            fail("entrypoint speckit-seed self-test did not seed templates")
-        if not (repo / ".specify" / "memory" / "constitution.md").is_file():
-            fail("entrypoint speckit-seed self-test did not seed constitution")
 
         helper = runtime_dir / "bin" / "agent-github-token"
         slug = run_checked(["bash", str(helper), "--print-slug", "git@git-host:owner/repo.git"], env=env).strip()

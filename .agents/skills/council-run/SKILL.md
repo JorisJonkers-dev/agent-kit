@@ -37,7 +37,7 @@ Build an execution lens for each wave:
 ## Interop Surfaces
 
 - Primary command shape: `node ~/.codex/skills/council/council.mjs run ...`.
-- Use `claude-worker` for Claude-side supervised tasks from Codex.
+- Use `council-supervise` with a Claude engine for Claude-side supervised tasks from Codex.
 - Relay run ids, active wave, worker status, failures, validation output, and
   final report.
 - If the DAG must change, pause and route to `council-amend`.

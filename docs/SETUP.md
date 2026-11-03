@@ -652,9 +652,11 @@ scripts' basenames, so those survive.
 
 ## Spec Kit is not installed
 
-Neither the `speckit.*` commands nor their skills are in the registry, on any
-surface. The kit still renders the Spec Kit scaffold for repositories that
-already depend on it; nothing new should adopt it.
+The kit no longer carries Spec Kit: no `speckit.*` commands or skills, and no
+`.specify` scaffold. Setup still deletes the `speckit.*` commands and skills
+that older installers left in the Claude Code and Codex homes. A project that
+keeps its own `.specify/memory/constitution.md` still has it read into council
+prompts; only the seeding is gone.
 
 ## Related
 
