@@ -69,8 +69,7 @@ knowledge hooks from a machine that still has them, on every run.
 - `installer/setup-workstation.sh`, `registry/generated/hermes/`: generated from
   it by `scripts/render_registry.py`. Never hand-edit these.
 - `skills/`: first-party multi-file skills copied onto a surface.
-- `templates/repo/`: source templates for `.claude`, `.codex`, `.agents`, and
-  project Spec Kit seed payload.
+- `templates/repo/`: source templates for `.claude`, `.codex` and `.agents`.
 - `templates/runner-runtime/`: source templates for runner runtime artifacts.
 - `installer/`: `setup-workstation.sh` and `setup-container.sh`, generated as
   above, plus the hand-written `port-forward-agent.sh` and `cloud-session.sh`

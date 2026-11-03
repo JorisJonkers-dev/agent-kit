@@ -616,10 +616,8 @@ coding_agents:
       passing task details or progress, never secrets. Update an existing
       memory rather than adding a near-duplicate.
 
-# Spec Kit is deliberately absent. The `speckit.*` commands and skills are
-# not installed by this registry on any surface. The kit still renders its
-# own Spec Kit scaffold for repositories that already depend on it; nothing
-# new should adopt it.
+# Spec Kit is deliberately absent. The kit no longer carries it, and setup
+# deletes the `speckit.*` commands and skills older installers left behind.
 
 # -------------------------------------------------------------------
 # Language servers.

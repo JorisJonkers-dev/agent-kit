@@ -50,7 +50,7 @@ Keep the task count proportional to the work: a handful for a focused change,
 more only when the work genuinely decomposes. Sequential, tightly-coupled work
 should be a single task with a clear ordering, not forced into false parallelism.
 If useful, also include optional `spec_markdown` and
-`implementation_plan_markdown` fields for Spec Kit artifacts; `tasks` remains
+`implementation_plan_markdown` fields for spec and plan documents; `tasks` remains
 the canonical worker input.
 
 {{baseline}}

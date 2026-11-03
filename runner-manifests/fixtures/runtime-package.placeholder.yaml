@@ -35,8 +35,6 @@ runtime:
   paths:
     homeEnv: HOME
     workspaceRootEnv: WORKSPACE_ROOT
-    sddSourceEnv: AGENT_KIT_SDD_SOURCE
-    sddMarkerEnv: AGENT_KIT_SDD_MARKER_FILE
     mcpDirectoryEnv: AGENT_MCP_DIR
   entrypoint:
     path: <runtime-entrypoint-path>
@@ -59,7 +57,6 @@ runtime:
       - agent-kit-manifest
       - repo-allow
       - repo-dir
-      - speckit-seed
   repositories:
     primaryUrlEnv: REPO_URL
     primaryBranchEnv: REPO_BRANCH
@@ -112,10 +109,6 @@ runtime:
               - Validation evidence that the attachment profile shape is accepted.
         fullSkills:
           - placeholder-skill
-  sddSeed:
-    sourcePathEnv: AGENT_KIT_SDD_SOURCE
-    markerFileEnv: AGENT_KIT_SDD_MARKER_FILE
-    updatePolicy: update-if-unmodified
 handoff:
   platformBlueprintResponsibilities:
     - namespace

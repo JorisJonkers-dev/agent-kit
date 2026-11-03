@@ -8,7 +8,7 @@ python_bin="${PYTHON:-python3}"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-mkdir -p "$out_dir" "$stage/rendered" "$stage/package/home" "$stage/package/sdd"
+mkdir -p "$out_dir" "$stage/rendered" "$stage/package/home"
 
 (
   cd "$root/council/ts"
@@ -76,8 +76,6 @@ fi
 cp -a "$stage/rendered/.agents" "$stage/package/home/.agents"
 stage_council_skill "$root/templates/repo/.claude/skills/council/SKILL.md" "$stage/package/home/.claude/skills/council"
 stage_council_skill "$root/templates/repo/.agents/skills/council/SKILL.md" "$stage/package/home/.codex/skills/council"
-cp -a "$root/templates/repo/.specify" "$stage/package/home/.specify"
-cp -a "$root/templates/repo/.specify/." "$stage/package/sdd/"
 cp -a "$root/runner-manifests/runtime/mcp" "$stage/package/mcp"
 cp -a "$root/runner-manifests/runtime/bin" "$stage/package/bin"
 cp "$root/runner-manifests/runtime/runtime-package.yaml" "$stage/package/runtime-package.yaml"

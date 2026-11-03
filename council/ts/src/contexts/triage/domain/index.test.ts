@@ -86,7 +86,7 @@ describe('triage routing', () => {
     })
     expect(routingMatrix.$schema).toBe('./routing-matrix.schema.json')
     expect(routingMatrix.schemaVersion).toBe(1)
-    expect(routingMatrix.useCaseScores).toHaveLength(12)
+    expect(routingMatrix.useCases).toHaveLength(12)
   })
 
   it('rejects an unpinned matrix', () => {

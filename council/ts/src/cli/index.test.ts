@@ -1041,7 +1041,6 @@ badge     task  duration  details
       'inject',
       'split',
       'survey',
-      'sync-bmad',
       'sync-skills',
     ] as const) {
       await expect(runCli([command], injectedRuntime())).resolves.toEqual({

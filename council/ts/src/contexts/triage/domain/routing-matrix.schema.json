@@ -7,9 +7,8 @@
   "required": [
     "$schema",
     "schemaVersion",
-    "source",
     "dimensions",
-    "useCaseScores",
+    "useCases",
     "routeProfiles",
     "routeRules",
     "stageAdjustments"
@@ -17,9 +16,8 @@
   "properties": {
     "$schema": { "const": "./routing-matrix.schema.json" },
     "schemaVersion": { "const": 1 },
-    "source": { "type": "object" },
     "dimensions": { "type": "object" },
-    "useCaseScores": { "type": "array" },
+    "useCases": { "type": "array" },
     "routeProfiles": { "type": "array" },
     "routeRules": { "type": "array" },
     "stageAdjustments": { "type": "array" }

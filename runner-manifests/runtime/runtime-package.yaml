@@ -57,8 +57,6 @@ runtime:
   paths:
     homeEnv: HOME
     workspaceRootEnv: WORKSPACE_ROOT
-    sddSourceEnv: AGENT_KIT_SDD_SOURCE
-    sddMarkerEnv: AGENT_KIT_SDD_MARKER_FILE
     mcpDirectoryEnv: AGENT_MCP_DIR
   entrypoint:
     path: runner-manifests/runtime/entrypoint.sh
@@ -90,7 +88,6 @@ runtime:
       - agent-kit-manifest
       - repo-allow
       - repo-dir
-      - speckit-seed
   repositories:
     primaryUrlEnv: REPO_URL
     primaryBranchEnv: REPO_BRANCH
@@ -244,7 +241,6 @@ runtime:
               - Specific files or barrels that need updates for the implementation.
         fullSkills:
           - council-supervise
-          - claude-worker
       - name: full-diagnostic
         mcpProfile: full-diagnostic
         skillCards:
@@ -264,14 +260,9 @@ runtime:
         fullSkills:
           - council-triage
           - council-grill
-  sddSeed:
-    sourcePathEnv: AGENT_KIT_SDD_SOURCE
-    markerFileEnv: AGENT_KIT_SDD_MARKER_FILE
-    updatePolicy: update-if-unmodified
   homeBundle:
     archiveRoot: "."
     homeSource: "home"
-    sddSource: "sdd"
     mcpSource: "mcp"
     markerFile: ".agent-kit-home-install.sha256"
     versionMarkerFile: ".knowledge-system-version"

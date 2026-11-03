@@ -36,7 +36,7 @@ Build a triage lens with:
 ## Interop Surfaces
 
 - Primary command shape: `node ~/.codex/skills/council/council.mjs triage ...`.
-- Route independent Claude work through `claude-worker`.
+- Route independent Claude work through `council-supervise` with a Claude engine.
 - Route full decomposable work to the base `council` skill or `council-run`.
 - Return one decision: normal session, grill, design, run, amend, inject,
   supervise, or full council.

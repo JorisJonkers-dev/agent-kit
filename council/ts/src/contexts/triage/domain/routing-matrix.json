@@ -1,16 +1,6 @@
 {
   "$schema": "./routing-matrix.schema.json",
   "schemaVersion": 1,
-  "source": {
-    "repository": "https://github.com/cameronsjo/spec-compare",
-    "path": "docs/use-case-scoring.md",
-    "ref": "main",
-    "transcribedAt": "2026-07-03",
-    "notes": [
-      "Decision tree: modification prefers OpenSpec-style deltas; small greenfield prefers Spec-Kit-style full planning; large parallel work prefers Spec Kitty-style orchestration; emergencies and unclear experiments skip SDD.",
-      "Council routes adapt those choices to direct, delta, full, and program orchestration while preserving plan-only behavior."
-    ]
-  },
   "dimensions": {
     "size": ["trivial", "small", "medium", "large", "program"],
     "landscape": ["brownfield", "greenfield"],
@@ -30,96 +20,60 @@
     "clarity": ["clear", "needs-questions", "unclear"],
     "parallelism": ["none", "some", "high"]
   },
-  "useCaseScores": [
+  "useCases": [
     {
       "id": "trivial-modification",
-      "category": "trivial",
-      "best": ["OpenSpec"],
-      "avoid": ["BMad", "Kiro"],
-      "scores": { "OpenSpec": 5, "Spec-Kit": 3, "Spec Kitty": 2, "BMad": 1, "Kiro": 2, "Tessl": 4 }
+      "category": "trivial"
     },
     {
       "id": "greenfield-feature",
-      "category": "large",
-      "best": ["Spec-Kit", "BMad"],
-      "avoid": ["OpenSpec"],
-      "scores": { "OpenSpec": 3, "Spec-Kit": 5, "Spec Kitty": 4, "BMad": 5, "Kiro": 4, "Tessl": 3 }
+      "category": "large"
     },
     {
       "id": "medium-refactor",
-      "category": "medium",
-      "best": ["OpenSpec"],
-      "avoid": ["BMad"],
-      "scores": { "OpenSpec": 5, "Spec-Kit": 4, "Spec Kitty": 3, "BMad": 2, "Kiro": 3, "Tessl": 4 }
+      "category": "medium"
     },
     {
       "id": "production-bug",
-      "category": "emergency",
-      "best": ["OpenSpec", "None"],
-      "avoid": ["BMad", "Kiro"],
-      "scores": { "OpenSpec": 4, "Spec-Kit": 2, "Spec Kitty": 2, "BMad": 1, "Kiro": 1, "Tessl": 3, "None": 4 }
+      "category": "emergency"
     },
     {
       "id": "api-endpoint",
-      "category": "large",
-      "best": ["BMad"],
-      "avoid": ["OpenSpec"],
-      "scores": { "OpenSpec": 3, "Spec-Kit": 4, "Spec Kitty": 3, "BMad": 5, "Kiro": 3, "Tessl": 4 }
+      "category": "large"
     },
     {
       "id": "parallel-features",
-      "category": "parallel",
-      "best": ["Spec Kitty"],
-      "avoid": ["Spec-Kit"],
-      "scores": { "OpenSpec": 3, "Spec-Kit": 2, "Spec Kitty": 5, "BMad": 2, "Kiro": 2, "Tessl": 2 }
+      "category": "parallel"
     },
     {
       "id": "cross-cutting-change",
-      "category": "medium",
-      "best": ["OpenSpec"],
-      "avoid": ["Kiro"],
-      "scores": { "OpenSpec": 5, "Spec-Kit": 3, "Spec Kitty": 3, "BMad": 2, "Kiro": 2, "Tessl": 3 }
+      "category": "medium"
     },
     {
       "id": "emergency-hotfix",
-      "category": "emergency",
-      "best": ["None"],
-      "avoid": ["OpenSpec", "Spec-Kit", "Spec Kitty", "BMad", "Kiro", "Tessl"],
-      "scores": { "OpenSpec": 2, "Spec-Kit": 1, "Spec Kitty": 1, "BMad": 1, "Kiro": 1, "Tessl": 1, "None": 5 }
+      "category": "emergency"
     },
     {
       "id": "design-system",
-      "category": "large",
-      "best": ["Spec-Kit", "BMad"],
-      "avoid": ["Tessl"],
-      "scores": { "OpenSpec": 3, "Spec-Kit": 5, "Spec Kitty": 4, "BMad": 5, "Kiro": 3, "Tessl": 2 }
+      "category": "large"
     },
     {
       "id": "experimental-prototype",
-      "category": "unclear",
-      "best": ["None"],
-      "avoid": ["BMad"],
-      "scores": { "OpenSpec": 3, "Spec-Kit": 2, "Spec Kitty": 2, "BMad": 1, "Kiro": 3, "Tessl": 2, "None": 5 }
+      "category": "unclear"
     },
     {
       "id": "dependency-update",
-      "category": "medium",
-      "best": ["OpenSpec"],
-      "avoid": ["BMad"],
-      "scores": { "OpenSpec": 4, "Spec-Kit": 3, "Spec Kitty": 2, "BMad": 2, "Kiro": 2, "Tessl": 3 }
+      "category": "medium"
     },
     {
       "id": "solo-side-project",
-      "category": "small",
-      "best": ["OpenSpec", "None"],
-      "avoid": ["BMad"],
-      "scores": { "OpenSpec": 4, "Spec-Kit": 3, "Spec Kitty": 2, "BMad": 1, "Kiro": 3, "Tessl": 2, "None": 4 }
+      "category": "small"
     }
   ],
   "routeProfiles": [
     {
       "route": "direct",
-      "basis": "No SDD/direct-code path adapted to council as a single minimal task DAG.",
+      "basis": "Direct-code path as a single minimal task DAG.",
       "dagShape": "single-minimal-task",
       "planExecutesWorkers": false,
       "stageTiers": {
@@ -134,7 +88,7 @@
     },
     {
       "route": "delta",
-      "basis": "OpenSpec-style modification path for brownfield deltas.",
+      "basis": "Delta path for brownfield modifications.",
       "dagShape": "delta-task-dag",
       "planExecutesWorkers": false,
       "stageTiers": {
@@ -149,7 +103,7 @@
     },
     {
       "route": "full",
-      "basis": "Spec-Kit/BMad-style full planning for greenfield or architecture-heavy work.",
+      "basis": "Full planning for greenfield or architecture-heavy work.",
       "dagShape": "full-task-dag",
       "planExecutesWorkers": false,
       "stageTiers": {
@@ -164,7 +118,7 @@
     },
     {
       "route": "program",
-      "basis": "Spec Kitty-style parallel orchestration for large multi-agent programs.",
+      "basis": "Parallel orchestration for large multi-agent programs.",
       "dagShape": "parallel-program-dag",
       "planExecutesWorkers": false,
       "stageTiers": {
@@ -182,7 +136,7 @@
     {
       "id": "critical-hotfix-direct",
       "route": "direct",
-      "reason": "Emergency hotfixes should skip SDD and document after the immediate repair.",
+      "reason": "Emergency hotfixes skip planning and document after the immediate repair.",
       "useCaseRefs": ["emergency-hotfix", "production-bug"],
       "when": { "kind": ["hotfix"], "risk": ["critical"] }
     },
@@ -202,7 +156,7 @@
     {
       "id": "prototype-direct",
       "route": "direct",
-      "reason": "Unclear prototypes should explore cheaply before a heavier SDD route exists.",
+      "reason": "Unclear prototypes explore cheaply before a heavier route exists.",
       "useCaseRefs": ["experimental-prototype"],
       "when": {
         "size": ["trivial", "small"],
@@ -235,7 +189,7 @@
     {
       "id": "brownfield-delta",
       "route": "delta",
-      "reason": "Brownfield modifications fit an OpenSpec-style delta path.",
+      "reason": "Brownfield modifications fit a delta path.",
       "useCaseRefs": [
         "trivial-modification",
         "medium-refactor",

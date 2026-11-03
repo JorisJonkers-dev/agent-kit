@@ -20,8 +20,6 @@ local edits during regeneration.
   `ghcr.io/jorisjonkers-dev/agent-kit/runtime-home`.
 - `platform-blueprints`: named as the future owner for cluster realization
   details in runner-manifest handoff docs.
-- `github/spec-kit`: upstream source for the Spec Kit seed, pinned in
-  `manifest.yaml` and `spec-kit-source.lock`.
 
 ## Council Split Support
 

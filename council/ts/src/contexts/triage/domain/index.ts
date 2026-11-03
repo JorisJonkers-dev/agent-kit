@@ -58,26 +58,16 @@ export type StageTiers = Readonly<Record<TriageStage, TriageTier>>
 export interface RoutingMatrix {
   readonly $schema: './routing-matrix.schema.json'
   readonly schemaVersion: 1
-  readonly source: {
-    readonly repository: string
-    readonly path: string
-    readonly ref: string
-    readonly transcribedAt: string
-    readonly notes: readonly string[]
-  }
   readonly dimensions: Readonly<Record<keyof TriageInput, readonly string[]>>
-  readonly useCaseScores: readonly UseCaseScore[]
+  readonly useCases: readonly UseCase[]
   readonly routeProfiles: readonly RouteProfile[]
   readonly routeRules: readonly RouteRule[]
   readonly stageAdjustments: readonly StageAdjustment[]
 }
 
-export interface UseCaseScore {
+export interface UseCase {
   readonly id: string
   readonly category: string
-  readonly best: readonly string[]
-  readonly avoid: readonly string[]
-  readonly scores: Readonly<Record<string, number>>
 }
 
 export interface RouteProfile {

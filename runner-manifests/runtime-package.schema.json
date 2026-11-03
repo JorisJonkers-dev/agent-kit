@@ -95,8 +95,7 @@
         "repositories",
         "githubTokenHelper",
         "mcpProfiles",
-        "attachmentProfiles",
-        "sddSeed"
+        "attachmentProfiles"
       ],
       "additionalProperties": true,
       "properties": {
@@ -242,22 +241,6 @@
               "items": {
                 "$ref": "#/$defs/attachmentProfile"
               }
-            }
-          }
-        },
-        "sddSeed": {
-          "type": "object",
-          "required": ["sourcePathEnv", "markerFileEnv", "updatePolicy"],
-          "additionalProperties": false,
-          "properties": {
-            "sourcePathEnv": {
-              "type": "string"
-            },
-            "markerFileEnv": {
-              "type": "string"
-            },
-            "updatePolicy": {
-              "enum": ["update-if-unmodified"]
             }
           }
         }

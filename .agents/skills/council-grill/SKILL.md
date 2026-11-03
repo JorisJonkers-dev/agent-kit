@@ -43,7 +43,7 @@ change your mind.
 ## Interop Surfaces
 
 - Primary command shape: `node ~/.codex/skills/council/council.mjs grill ...`.
-- Use `claude-worker` for an independent Claude-side critique.
+- Use `council-supervise` with a Claude engine for an independent Claude-side critique.
 - Hand off only the bounded chunk plus its lens; do not ask a delegate to infer
   hidden context.
 - Return findings ordered by severity with file or artifact references.

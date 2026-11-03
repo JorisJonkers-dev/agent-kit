@@ -9,12 +9,6 @@ runtime by the Hermes gateway's `sync-skills` init container, which verifies
 each pinned commit and refuses the source on a mismatch. The notice is recorded
 here because the material executes inside agent context.
 
-- Project: Spec Kit
-- Repository: https://github.com/github/spec-kit
-- Pinned tag: v0.9.5
-- License: MIT
-- Copyright notice: Copyright (c) GitHub and contributors
-
 - Project: BMAD-METHOD
 - Repository: https://github.com/bmad-code-org/BMAD-METHOD.git
 - Pinned tag: v6.9.0
@@ -23,14 +17,9 @@ here because the material executes inside agent context.
 - Copyright notice: Copyright (c) 2025 BMad Code, LLC
 - Trademark caveat: BMad, BMad Method, BMAD-METHOD, and related names/marks
   are trademarks of BMad Code, LLC and are not licensed under MIT.
-
-- Project: spec-compare
-- Repository: https://github.com/cameronsjo/spec-compare
-- Source ref: main
-- License: MIT
-- Copyright notice: upstream repository authors and contributors
-- Extracted paths: `docs/use-case-scoring.md`, `docs/beads.md`,
-  `cheatsheet-beads-openspec.md`
+- Adapted material: the council prompts under `council/prompts/` (each names
+  its BMAD source in a provenance comment). The adaptation is frozen at the
+  resolved commit; nothing syncs it from upstream.
 
 - Project: Skills
 - Repository: https://github.com/mattpocock/skills

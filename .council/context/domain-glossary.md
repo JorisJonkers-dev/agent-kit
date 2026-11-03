@@ -17,8 +17,6 @@ local edits during regeneration.
   dispatches workers, verifies results, and reconciles onto an integration
   branch.
 - Fleet: ad-hoc council worker pool over an already decomposed `tasks.json`.
-- Spec Kit seed: project `.specify` scaffold, including the hand-edited
-  constitution seed and render-managed templates/scripts.
 - Render-managed file: checked-in output whose source is a template or
   inventory entry; edit the source and rerender the output.
 - Runtime home: published OCI package containing portable agent runner runtime

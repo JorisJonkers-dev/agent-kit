@@ -22,8 +22,6 @@ RUNNER_RUNTIME_DESTINATION = Path("runner-manifests/runtime")
 # rendering they alone needed) were retired in agent-kit#40.
 # setup-workstation.sh is rendered by scripts/render_registry.py instead.
 COUNCIL_SRC = KIT_ROOT / "council"
-SPECKIT_COMMANDS_SRC = REPO_TEMPLATE_ROOT / ".claude" / "commands"
-CODEX_SPECKIT_SKILLS_SRC = REPO_TEMPLATE_ROOT / ".agents" / "skills"
 MANIFEST_PATH = KIT_ROOT / "manifest.yaml"
 
 
@@ -56,8 +54,6 @@ def template_files(destination_root: Path) -> list[RenderedFile]:
         if not source.is_file():
             continue
         relative_path = source.relative_to(REPO_TEMPLATE_ROOT)
-        if relative_path.parts and relative_path.parts[0] == ".specify":
-            continue
         files.append(
             RenderedFile(
                 source=source,
@@ -109,14 +105,6 @@ def council_toolkit_files() -> list[tuple[str, str]]:
             continue
         files.append((rel, "0755" if rel == "council.mjs" else "0644"))
     return files
-
-
-def speckit_command_files() -> list[Path]:
-    return sorted(SPECKIT_COMMANDS_SRC.glob("speckit.*.md"))
-
-
-def codex_speckit_skill_files() -> list[Path]:
-    return sorted(CODEX_SPECKIT_SKILLS_SRC.glob("speckit-*/SKILL.md"))
 
 
 def render_findings(destination_root: Path) -> RenderFindings:
@@ -189,40 +177,18 @@ def skill_names(directory: Path) -> set[str]:
     return {path.parent.name for path in directory.glob("*/SKILL.md")}
 
 
-def speckit_command_names() -> set[str]:
-    return {path.stem.removeprefix("speckit.") for path in speckit_command_files()}
-
-
-def codex_speckit_names() -> set[str]:
-    return {path.parent.name.removeprefix("speckit-") for path in codex_speckit_skill_files()}
-
-
-# Deliberately one-sided surfaces; must match supported_agents in manifest.yaml.
-SINGLE_AGENT_SKILLS = frozenset({"claude-worker"})
-
-
 def parity_check() -> DoctorCheck:
     claude_skills = skill_names(REPO_TEMPLATE_ROOT / ".claude" / "skills")
     codex_skills = skill_names(REPO_TEMPLATE_ROOT / ".agents" / "skills")
-    shared_codex_skills = {name for name in codex_skills if not name.startswith("speckit-")}
-    skill_diff = sorted((claude_skills ^ shared_codex_skills) - SINGLE_AGENT_SKILLS)
+    skill_diff = sorted(claude_skills ^ codex_skills)
 
-    commands = speckit_command_names()
-    codex_speckit = codex_speckit_names()
-    speckit_diff = sorted(commands ^ codex_speckit)
-
-    if skill_diff or speckit_diff:
-        details: list[str] = []
-        if skill_diff:
-            details.append("shared skill mismatch: " + ",".join(skill_diff))
-        if speckit_diff:
-            details.append("Spec Kit command/skill mismatch: " + ",".join(speckit_diff))
-        return DoctorCheck(name="parity", status="fail", detail="; ".join(details))
+    if skill_diff:
+        return DoctorCheck(name="parity", status="fail", detail="shared skill mismatch: " + ",".join(skill_diff))
 
     return DoctorCheck(
         name="parity",
         status="ok",
-        detail=f"{len(claude_skills)} shared skills; {len(commands)} Spec Kit command/skill pairs",
+        detail=f"{len(claude_skills)} shared skills",
     )
 
 
