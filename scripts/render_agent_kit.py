@@ -3,7 +3,7 @@
 
 Two kinds of output:
 
-- committed: the runner runtime under runner-manifests/runtime, checked in
+- committed: the runner runtime under runner/manifests/runtime, checked in
   and compared by --check;
 - local: .claude/skills, .agents/skills and .claude/agents, which are
   gitignored. --write renders them into this checkout and --output into a
@@ -23,7 +23,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-KIT_ROOT = Path(__file__).resolve().parent
+KIT_ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_ROOT = KIT_ROOT
 # skills/repo/<name>/claude/ renders to .claude/skills/<name>/ and
 # skills/repo/<name>/codex/ to .agents/skills/<name>/.
@@ -34,8 +34,8 @@ AGENTS_DESTINATION = Path(".claude/agents")
 # This repository's own council context; rendered by --write only.
 COUNCIL_CONTEXT_ROOT = KIT_ROOT / "council" / "context"
 COUNCIL_CONTEXT_DESTINATION = Path(".council/context")
-RUNNER_RUNTIME_TEMPLATE_ROOT = KIT_ROOT / "templates" / "runner-runtime"
-RUNNER_RUNTIME_DESTINATION = Path("runner-manifests/runtime")
+RUNNER_RUNTIME_TEMPLATE_ROOT = KIT_ROOT / "runner" / "template"
+RUNNER_RUNTIME_DESTINATION = Path("runner/manifests/runtime")
 # installer/install.sh and installer/install-agents.sh (and the heredoc-bundle
 # rendering they alone needed) were retired in agent-kit#40.
 # setup-workstation.sh is rendered by scripts/render_registry.py instead.
@@ -245,10 +245,11 @@ def render_doctor_check(name: str, *, committed: bool, ok: str, problem: str) ->
     # A fresh clone has rendered nothing local yet; that is not a fault.
     local_total = sum(1 for item in template_files(REPOSITORY_ROOT, include_self=True) if not item.committed)
     if not committed and not findings.drifted and len(findings.missing) == local_total:
-        return DoctorCheck(name=name, status="ok", detail="not rendered; run render-agent-kit.py --write to use it")
+        detail = "not rendered; run scripts/render_agent_kit.py --write to use it"
+        return DoctorCheck(name=name, status="ok", detail=detail)
     detail = render_findings_detail(findings)
     if not committed:
-        detail = f"run render-agent-kit.py --write: {detail}"
+        detail = f"run scripts/render_agent_kit.py --write: {detail}"
     return DoctorCheck(name=name, status=problem, detail=detail)
 
 

@@ -176,7 +176,7 @@ def test_convergence_keeps_n8n_mcp_on_every_client() -> None:
 
 
 def test_one_renovate_match_moves_the_n8n_mcp_pin() -> None:
-    renovate = json.loads((KIT_ROOT / "renovate.json").read_text())
+    renovate = json.loads((KIT_ROOT / ".github" / "renovate.json").read_text())
     manager = next(m for m in renovate["customManagers"] if "container tool pins" in m["description"])
     text = (KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()
     matches = [

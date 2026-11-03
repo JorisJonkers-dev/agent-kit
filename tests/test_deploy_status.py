@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tools.deploy.deploy_status import (
+from scripts.deploy.deploy_status import (
     deploy_status,
 )
 
@@ -27,8 +27,8 @@ def check_run(name: str, conclusion: str | None = None) -> dict:
 class TestDeployStatusMergeReadyLogic:
     """T-I1: deploy_status merge_ready logic."""
 
-    @patch("tools.deploy.deploy_status.download_gate_summary")
-    @patch("tools.deploy.deploy_status.github_api_get")
+    @patch("scripts.deploy.deploy_status.download_gate_summary")
+    @patch("scripts.deploy.deploy_status.github_api_get")
     def test_merge_ready_requires_pipeline_complete_pass(
         self, mock_get, mock_download, mock_github_token
     ):
@@ -76,8 +76,8 @@ class TestDeployStatusMergeReadyLogic:
         assert result["merge_ready"] is False
         assert result["blocker"] == "Pipeline Complete"
 
-    @patch("tools.deploy.deploy_status.download_gate_summary")
-    @patch("tools.deploy.deploy_status.github_api_get")
+    @patch("scripts.deploy.deploy_status.download_gate_summary")
+    @patch("scripts.deploy.deploy_status.github_api_get")
     def test_merge_ready_true_when_all_gates_pass(
         self, mock_get, mock_download, mock_github_token
     ):
@@ -118,8 +118,8 @@ class TestDeployStatusMergeReadyLogic:
 class TestDeployStatusMissingArtifactTolerance:
     """T-I2: deploy_status missing-artifact tolerance."""
 
-    @patch("tools.deploy.deploy_status.github_api_get")
-    @patch("tools.deploy.deploy_status.download_gate_summary")
+    @patch("scripts.deploy.deploy_status.github_api_get")
+    @patch("scripts.deploy.deploy_status.download_gate_summary")
     def test_missing_gate_summary_artifact_returns_status_from_check_conclusion(
         self, mock_download, mock_get, mock_github_token
     ):
@@ -150,8 +150,8 @@ class TestDeployStatusMissingArtifactTolerance:
         assert gate["status"] == "pass"
         assert gate["reason"] is None  # no SC-4 to enrich from
 
-    @patch("tools.deploy.deploy_status.download_gate_summary")
-    @patch("tools.deploy.deploy_status.github_api_get")
+    @patch("scripts.deploy.deploy_status.download_gate_summary")
+    @patch("scripts.deploy.deploy_status.github_api_get")
     def test_stale_artifact_uses_latest_by_created_at(
         self, mock_get, mock_download, mock_github_token
     ):
@@ -191,8 +191,8 @@ class TestDeployStatusMissingArtifactTolerance:
 class TestDeployStatusPendingState:
     """Test pending check states."""
 
-    @patch("tools.deploy.deploy_status.github_api_get")
-    @patch("tools.deploy.deploy_status.download_gate_summary")
+    @patch("scripts.deploy.deploy_status.github_api_get")
+    @patch("scripts.deploy.deploy_status.download_gate_summary")
     def test_in_progress_check_shows_pending(
         self, mock_download, mock_get, mock_github_token
     ):
@@ -221,7 +221,7 @@ class TestDeployStatusPendingState:
         assert compose_gate["status"] == "pending"
         assert result["merge_ready"] is False
 
-    @patch("tools.deploy.deploy_status.github_api_get")
+    @patch("scripts.deploy.deploy_status.github_api_get")
     def test_missing_check_run(self, mock_get, mock_github_token):
         """Missing check run shows missing status."""
         mock_get.side_effect = [

@@ -12,13 +12,13 @@ import sys
 from pathlib import Path
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
-DOCS = [KIT_ROOT / "README.md", KIT_ROOT / "PORTABILITY.md", *sorted((KIT_ROOT / "docs").glob("*.md"))]
+DOCS = [KIT_ROOT / "README.md", *sorted((KIT_ROOT / "docs").glob("*.md"))]
 
 
 def _doctor(*flags: str, **env: str) -> subprocess.CompletedProcess:
     clean = {k: v for k, v in os.environ.items() if k not in ("KB_URL", "KB_BEARER_TOKEN")}
     return subprocess.run(
-        [sys.executable, str(KIT_ROOT / "render-agent-kit.py"), "--doctor", *flags],
+        [sys.executable, str(KIT_ROOT / "scripts" / "render_agent_kit.py"), "--doctor", *flags],
         capture_output=True, text=True, check=False, cwd=KIT_ROOT, env={**clean, **env},
     )
 

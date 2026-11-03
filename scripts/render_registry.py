@@ -1319,7 +1319,7 @@ def _leaked_runner_workspace_trust_fn(w: Any) -> None:
 def _leaked_runner_git_config_fn(w: Any) -> None:
     """`purge_leaked_runner_git_config`: the runner's git settings that leaked into a workstation's ~/.gitconfig."""
     w("# -----------------------------------------------------------------")
-    w("# The runner entrypoint (templates/runner-runtime/entrypoint.sh) once")
+    w("# The runner entrypoint (runner/template/entrypoint.sh) once")
     w("# wrote its global git settings wherever it ran. On a workstation they")
     w("# name the credential helper agent-gh-app, which only the runner image")
     w("# ships, so every push printed \"git: 'credential-agent-gh-app' is not a")

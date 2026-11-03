@@ -3,14 +3,14 @@
 A cloud environment on [claude.ai/code](https://claude.ai/code) gets the same
 agent baseline as a laptop: Codex, Hermes, the plugins, the language servers
 the estate uses, the MCP fleet and the memory platform. Two files in
-[`cloud/`](../cloud) are all you paste; everything else is fetched from the
+[`installer/cloud/`](../installer/cloud) are all you paste; everything else is fetched from the
 latest GitHub release at setup time, so the kit keeps changing here without
 editing the environment again.
 
 | File | Goes into the environment's |
 |---|---|
-| [`cloud/setup-script.sh`](../cloud/setup-script.sh) | **Setup script** field |
-| [`cloud/environment.env`](../cloud/environment.env) | **Environment variables** field, values filled in |
+| [`installer/cloud/setup-script.sh`](../installer/cloud/setup-script.sh) | **Setup script** field |
+| [`installer/cloud/environment.env`](../installer/cloud/environment.env) | **Environment variables** field, values filled in |
 
 The setup script downloads the latest release's `setup-workstation.sh` from
 `https://github.com/JorisJonkers-dev/agent-kit/releases/latest/download/setup-workstation.sh` and runs it with `--cloud`. That copy is not in a checkout, so it

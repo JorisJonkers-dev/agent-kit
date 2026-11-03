@@ -231,6 +231,6 @@ def test_vibe_agents_pointer_never_overwrites_the_users_own(tmp_path: Path) -> N
 
 
 def test_cloud_environment_carries_the_mistral_key() -> None:
-    assert "MISTRAL_API_KEY=" in (KIT_ROOT / "cloud" / "environment.env").read_text()
+    assert "MISTRAL_API_KEY=" in (KIT_ROOT / "installer" / "cloud" / "environment.env").read_text()
     helper = (KIT_ROOT / "installer" / "cloud-session.sh").read_text()
     assert "MISTRAL_API_KEY" in helper.split("AK_CLOUD_VARS=(")[1].split(")")[0]

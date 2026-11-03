@@ -16,7 +16,7 @@ mkdir -p "$out_dir" "$stage/rendered" "$stage/package/home"
   npm run build
 )
 
-"$python_bin" "$root/render-agent-kit.py" --output "$stage/rendered"
+"$python_bin" "$root/scripts/render_agent_kit.py" --output "$stage/rendered"
 
 stage_council_skill() {
   local skill_src="$1"
@@ -32,9 +32,9 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 dest = Path(sys.argv[2])
-spec = importlib.util.spec_from_file_location("render_agent_kit", root / "render-agent-kit.py")
+spec = importlib.util.spec_from_file_location("render_agent_kit", root / "scripts" / "render_agent_kit.py")
 if spec is None or spec.loader is None:
-    raise SystemExit("cannot load render-agent-kit.py")
+    raise SystemExit("cannot load scripts/render_agent_kit.py")
 renderer = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = renderer
 spec.loader.exec_module(renderer)
@@ -76,10 +76,10 @@ fi
 cp -a "$stage/rendered/.agents" "$stage/package/home/.agents"
 stage_council_skill "$root/skills/repo/council/claude/SKILL.md" "$stage/package/home/.claude/skills/council"
 stage_council_skill "$root/skills/repo/council/codex/SKILL.md" "$stage/package/home/.codex/skills/council"
-cp -a "$root/runner-manifests/runtime/mcp" "$stage/package/mcp"
-cp -a "$root/runner-manifests/runtime/bin" "$stage/package/bin"
-cp "$root/runner-manifests/runtime/runtime-package.yaml" "$stage/package/runtime-package.yaml"
-cp "$root/runner-manifests/runtime-package.schema.json" "$stage/package/runtime-package.schema.json"
+cp -a "$root/runner/manifests/runtime/mcp" "$stage/package/mcp"
+cp -a "$root/runner/manifests/runtime/bin" "$stage/package/bin"
+cp "$root/runner/manifests/runtime/runtime-package.yaml" "$stage/package/runtime-package.yaml"
+cp "$root/runner/manifests/runtime-package.schema.json" "$stage/package/runtime-package.schema.json"
 cp "$root/manifest.yaml" "$stage/package/manifest.yaml"
 
 (

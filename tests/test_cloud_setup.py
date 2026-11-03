@@ -1,4 +1,4 @@
-"""setup-workstation.sh --cloud, the kit bundle it re-runs, and the cloud/ files."""
+"""setup-workstation.sh --cloud, the kit bundle it re-runs, and the installer/cloud/ files."""
 
 from __future__ import annotations
 
@@ -20,8 +20,8 @@ import render_registry  # noqa: E402
 from verify_release_asset import RELEASE_TAG_PLACEHOLDER, stamp_version  # noqa: E402
 
 CLOUD_HELPER = KIT_ROOT / "installer" / "cloud-session.sh"
-SETUP_SCRIPT = KIT_ROOT / "cloud" / "setup-script.sh"
-ENV_TEMPLATE = KIT_ROOT / "cloud" / "environment.env"
+SETUP_SCRIPT = KIT_ROOT / "installer" / "cloud" / "setup-script.sh"
+ENV_TEMPLATE = KIT_ROOT / "installer" / "cloud" / "environment.env"
 
 STUB_LOGGERS = "\n".join(
     [
@@ -348,7 +348,7 @@ def test_cloud_finish_sets_a_hermes_model_once(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# cloud/setup-script.sh and cloud/environment.env
+# installer/cloud/setup-script.sh and installer/cloud/environment.env
 # ---------------------------------------------------------------------------
 
 

@@ -41,8 +41,8 @@ the retired knowledge hooks:
 Run the local doctor before updating a pinned kit version or debugging drift:
 
 ```bash
-python3 render-agent-kit.py --doctor
-python3 render-agent-kit.py --doctor --strict   # warnings fail too
+python3 scripts/render_agent_kit.py --doctor
+python3 scripts/render_agent_kit.py --doctor --strict   # warnings fail too
 ```
 
 The doctor is read-only. It checks generated file drift, manifest version and
@@ -52,18 +52,18 @@ and nothing on the install path reads `KB_URL` or a bearer token.
 ## Restore Order
 
 1. Check out the desired JorisJonkers-dev/agent-kit release tag.
-2. Run `uv run python render-agent-kit.py --check`,
+2. Run `uv run python scripts/render_agent_kit.py --check`,
    `uv run python scripts/validate_manifest.py`, and
    `uv run python scripts/render_registry.py --check`.
 3. Reinstall client homes with `./installer/setup-workstation.sh`.
-4. Run `render-agent-kit.py --doctor --strict`.
+4. Run `scripts/render_agent_kit.py --doctor --strict`.
 
 ## Compatibility Matrix
 
 | Surface | Current contract | Compatibility signal |
 | --- | --- | --- |
 | Manifest | `manifest.yaml`, version `2` | `scripts/validate_manifest.py` pins managed paths and hashes. |
-| Renderer | `render-agent-kit.py` | Public modes: `--check`, `--write`, `--output`, `--doctor`. Renders repo skills, agents, the council context (`--write` only) and the runtime package; `setup-workstation.sh` is a separate artifact (below). |
+| Renderer | `scripts/render_agent_kit.py` | Public modes: `--check`, `--write`, `--output`, `--doctor`. Renders repo skills, agents, the council context (`--write` only) and the runtime package; `setup-workstation.sh` is a separate artifact (below). |
 | Installer | `installer/setup-workstation.sh`, generated from `registry/estate-tooling.yaml` by `scripts/render_registry.py` | Supports `--check`, `--no-lsp`, `--no-mcp`, `--no-profiles`, `--uninstall`. User scope only; no `--agent`/`--scope project` (those were `install.sh`-only and are retired with it). |
 | Agent surfaces | `.claude`, `.codex`, `.agents`, rendered from `skills/repo/` and `agents/` | Manifest validation must pass on the pinned sources, and `--doctor` warns on a stale local render; manifest parity gaps require explicit unsupported reasons. |
 | Council bundle | `council/` (repo tooling), `skills/workstation/council/` (workstation copy) | Manifest `council.files` pins the repo copy; `registry/estate-tooling.yaml`'s `local_skills` pins the workstation copy. |

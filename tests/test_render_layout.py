@@ -8,7 +8,7 @@ from types import ModuleType
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-RENDERER_PATH = ROOT / "render-agent-kit.py"
+RENDERER_PATH = ROOT / "scripts" / "render_agent_kit.py"
 
 
 def load_renderer() -> ModuleType:
@@ -50,7 +50,7 @@ def test_only_the_runner_runtime_is_committed(tmp_path: Path) -> None:
     committed = {path for path, item in by_destination(tmp_path, include_self=True).items() if item.committed}
 
     assert committed
-    assert all(path.startswith("runner-manifests/runtime/") for path in committed)
+    assert all(path.startswith("runner/manifests/runtime/") for path in committed)
 
 
 def test_the_council_context_renders_only_for_this_checkout(tmp_path: Path) -> None:
@@ -80,7 +80,7 @@ def test_check_ignores_local_output_that_was_never_rendered(tmp_path: Path) -> N
 
 def test_check_fails_when_the_committed_runtime_drifts(tmp_path: Path) -> None:
     renderer.render(tmp_path)
-    (tmp_path / "runner-manifests/runtime/entrypoint.sh").write_text("drifted\n")
+    (tmp_path / "runner/manifests/runtime/entrypoint.sh").write_text("drifted\n")
 
     assert renderer.check(tmp_path) == 1
 
@@ -140,4 +140,4 @@ def test_rendered_council_context_does_not_promise_to_keep_local_edits() -> None
     for fragment in sorted((ROOT / "council/context").glob("*.md")):
         text = " ".join(fragment.read_text().split())
         assert "preserve local edits" not in text, fragment.name
-        assert "render-agent-kit.py --write" in text, fragment.name
+        assert "scripts/render_agent_kit.py --write" in text, fragment.name
