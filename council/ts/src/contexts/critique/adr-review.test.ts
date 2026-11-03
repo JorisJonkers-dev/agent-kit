@@ -68,7 +68,7 @@ describe('an adr-review prepare on a repository with decision records', () => {
 
     const run = await prepared(h)
 
-    expect(run.packet_files).toEqual(['artifact/docs/adr/0001-nightly-job.md', 'artifact/docs/adr/0002-window.md', 'references/CONTEXT.md'])
+    expect(run.packet_files).toEqual(['artifact/docs/adr/0001-nightly-job.md', 'artifact/docs/adr/0002-window.md', 'references/CONTEXT.md', 'check/adrs.json'])
     expect(await readFile(join(run.packet_dir, 'artifact', 'docs', 'adr', '0001-nightly-job.md'), 'utf8')).toBe(ADR_ONE)
     expect(await readFile(join(run.packet_dir, 'references', 'CONTEXT.md'), 'utf8')).toContain(DECISION_CANARY)
     expect(run.artifact).toEqual({ labels: [], reference: 'adrs', tracker: 'none' })
@@ -81,7 +81,7 @@ describe('the records an adr-review prepare freezes', () => {
 
     const run = await prepared(h, { adrs: ['docs/adr/0002-window.md'] })
 
-    expect(run.packet_files).toEqual(['artifact/docs/adr/0002-window.md', 'references/CONTEXT.md', 'references/docs/adr/0001-nightly-job.md'])
+    expect(run.packet_files).toEqual(['artifact/docs/adr/0002-window.md', 'references/CONTEXT.md', 'references/docs/adr/0001-nightly-job.md', 'check/adrs.json'])
   })
 
   it('takes the references the caller names instead', async () => {
@@ -90,7 +90,7 @@ describe('the records an adr-review prepare freezes', () => {
 
     const run = await prepared(h, { references: ['docs/glossary.md'] })
 
-    expect(run.packet_files).toEqual(['artifact/docs/adr/0001-nightly-job.md', 'artifact/docs/adr/0002-window.md', 'references/docs/glossary.md'])
+    expect(run.packet_files).toEqual(['artifact/docs/adr/0001-nightly-job.md', 'artifact/docs/adr/0002-window.md', 'references/docs/glossary.md', 'check/adrs.json'])
   })
 
   it('sends no glossary when the repository has none', async () => {
@@ -99,7 +99,7 @@ describe('the records an adr-review prepare freezes', () => {
 
     const run = await prepared(h)
 
-    expect(run.packet_files).toEqual(['artifact/docs/adr/0001-nightly-job.md', 'artifact/docs/adr/0002-window.md'])
+    expect(run.packet_files).toEqual(['artifact/docs/adr/0001-nightly-job.md', 'artifact/docs/adr/0002-window.md', 'check/adrs.json'])
   })
 
   it('reads no tracker, so a repository whose tracker the critique cannot read still runs', async () => {
@@ -124,7 +124,45 @@ describe('the records an adr-review prepare freezes', () => {
     const run = await prepared(h)
 
     expect(run.code).toBeUndefined()
-    expect(run.packet_files.every((path) => path.startsWith('artifact/') || path.startsWith('references/'))).toBe(true)
+    expect(run.packet_files.every((path) => path.startsWith('artifact/') || path.startsWith('references/') || path.startsWith('check/'))).toBe(true)
+  })
+})
+
+describe("the decision log's pre-check in an adr-review packet", () => {
+  async function report(run: PrepareResult): Promise<unknown> {
+    return JSON.parse(await readFile(join(run.packet_dir, 'check', 'adrs.json'), 'utf8')) as unknown
+  }
+
+  it('freezes what check-adrs reports under check/', async () => {
+    const h = await withAdrs()
+    await h.writeText(join(h.repo, 'docs', 'adr', '0004-retry.md'), '# Retry\n\nStatus: pending\n\nRetries follow ADR-0009.\n')
+    const checked = await h.commands.checkAdrs.run({ repo: h.repo })
+
+    const run = await prepared(h)
+
+    expect(await report(run)).toEqual(checked)
+    expect(await report(run)).toMatchObject({ numbering: { gaps: [3] }, status: 'failed', unknown_statuses: [{ record: 'docs/adr/0004-retry.md', status: 'pending' }] })
+    expect((await manifestOf(run)).packet_files).toContainEqual(expect.objectContaining({ kind: 'check', path: 'check/adrs.json', source: 'check-adrs docs/adr' }))
+  })
+
+  it('checks the whole log when only some records are under review', async () => {
+    const h = await withAdrs()
+
+    const run = await prepared(h, { adrs: ['docs/adr/0002-window.md'] })
+
+    expect(await report(run)).toMatchObject({ records: [{ path: 'docs/adr/0001-nightly-job.md' }, { path: 'docs/adr/0002-window.md' }], status: 'passed' })
+  })
+
+  it("tells each critic the report is settled", async () => {
+    const h = await withAdrs({ scripts: [noFindings()] })
+    const run = await prepared(h)
+
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const prompt = await readFile(join(run.run_dir, 'critics', 'c1-vibe-mistral-large', 'prompt.md'), 'utf8')
+    expect(prompt).toContain(
+      "- `check/adrs.json`: the deterministic decision-log checker's report on every record: numbering, status values, link and supersede targets, and superseded records still cited. Settled: build on it and never recompute it",
+    )
   })
 })
 

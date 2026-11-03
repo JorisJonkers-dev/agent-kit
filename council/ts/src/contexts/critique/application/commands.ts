@@ -2,6 +2,7 @@ import type { GateResult } from '../domain/gate.js'
 import type { Refusal } from '../domain/outcomes.js'
 import { AllowCommand, type AllowResult } from './allow.js'
 import { BudgetCommand, type BudgetResult } from './budget-view.js'
+import { CheckAdrsCommand, type CheckAdrsResult } from './check-adrs.js'
 import { CheckTicketsCommand, type CheckTicketsResult } from './check-tickets.js'
 import { FanOutCommand, type FanOutResult } from './fan-out.js'
 import { GateCommand } from './gate.js'
@@ -24,6 +25,7 @@ export interface CritiqueCommands {
   readonly refute: CritiqueCommand<RefuteResult>
   readonly allow: CritiqueCommand<AllowResult | Refusal>
   readonly budget: CritiqueCommand<BudgetResult | Refusal>
+  readonly checkAdrs: CritiqueCommand<CheckAdrsResult | Refusal>
   readonly checkTickets: CritiqueCommand<CheckTicketsResult | Refusal>
   readonly stats: CritiqueCommand<StatsResult | Refusal>
   readonly state: CritiqueCommand<StateResult | Refusal>
@@ -38,6 +40,7 @@ export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
   return {
     allow: new AllowCommand(deps),
     budget: new BudgetCommand(deps),
+    checkAdrs: new CheckAdrsCommand(deps),
     checkTickets: new CheckTicketsCommand(deps),
     fanOut: new FanOutCommand(deps),
     gate: new GateCommand(deps),
