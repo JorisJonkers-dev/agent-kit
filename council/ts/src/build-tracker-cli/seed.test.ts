@@ -831,3 +831,188 @@ describe('build-tracker state places', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ code: 'no-state-home', status: 'error' })
   })
 })
+
+describe('build-tracker refresh', () => {
+  it('leaves the state as it was when the page cannot be written', async () => {
+    const s = await seeded()
+    await s.run('refresh', '--spec', '#10')
+    const state = await s.state()
+    await rm(pagePath(s))
+    await mkdir(pagePath(s))
+    const result = await s.run('refresh', '--spec', '#10', '--landed', '2')
+    expect(result.exitCode).toBe(1)
+    expect(await s.state()).toEqual(state)
+  })
+
+  const statePath = (s: Seeded): string => join(s.home, ...WIDGETS_DIR, 'state.json')
+  const pagePath = (s: Seeded): string => join(s.home, ...WIDGETS_DIR, 'page.html')
+
+  it('on a spec with no state seeds it like init, marks the landed tickets merged, renders the page and prints its path', async () => {
+    const s = await seeded()
+
+    const result = await s.run('refresh', '--spec', '#10', '--landed', '#2')
+
+    expect(result.stderr).toBe('')
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual({
+      added: [1, 2, 3, 4],
+      counts: { blocked: 1, merged: 2, ready: 1 },
+      merged: [1, 2],
+      page: pagePath(s),
+      ran: 'init',
+      spec: 'acme/widgets#10',
+      state: statePath(s),
+      status: 'refreshed',
+      tickets: 4,
+    })
+    expect(await s.state()).toEqual({
+      spec: 'acme/widgets#10',
+      tickets: {
+        '1': { blocked_by: [], status: 'merged', title: 'widget store' },
+        '2': { blocked_by: [1], status: 'merged', title: 'widget list' },
+        '3': { blocked_by: [1, 2], status: 'todo', title: 'widget search' },
+        '4': { blocked_by: [3], status: 'todo', title: 'live check on widgets' },
+      },
+      title: 'Spec: widgets',
+      version: 1,
+    })
+    const page = await readFile(pagePath(s), 'utf8')
+    expect(page).toContain('<a href="https://github.com/acme/widgets/issues/2">#2</a>')
+    expect(page).toContain('2026-11-03 12:00 UTC')
+  })
+
+  it('on a spec with a state syncs it, marks the landed tickets merged, keeps what the agent set and renders', async () => {
+    const s = await seeded()
+    await s.run('init', '--spec', '#10', '--milestone', 'Live=4')
+    await s.run('set', '--state', statePath(s), '2=review:merging now', '3=owner:needs a key')
+    s.tracker.issues = {
+      ...s.tracker.issues,
+      '#10': { subIssues: [1, 2, 3, 4, 5], title: 'Spec: widgets' },
+      '#4': { blockedBy: [3], state: 'closed', title: 'live check on widgets' },
+      '#5': { blockedBy: [4], title: 'widget docs' },
+    }
+
+    const result = await s.run('refresh', '--spec', 'acme/widgets#10', '--landed', '2', '--landed', '#1')
+
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual({
+      added: [5],
+      counts: { merged: 3, owner: 1, ready: 1 },
+      merged: [2, 4],
+      page: pagePath(s),
+      ran: 'sync',
+      spec: 'acme/widgets#10',
+      state: statePath(s),
+      status: 'refreshed',
+      tickets: 5,
+    })
+    expect(await s.state()).toEqual({
+      milestones: [{ closes: 4, name: 'Live' }],
+      spec: 'acme/widgets#10',
+      tickets: {
+        '1': { blocked_by: [], status: 'merged', title: 'widget store' },
+        '2': { blocked_by: [1], note: 'merging now', status: 'merged', title: 'widget list' },
+        '3': { blocked_by: [1, 2], note: 'needs a key', status: 'owner', title: 'widget search' },
+        '4': { blocked_by: [3], status: 'merged', title: 'live check on widgets' },
+        '5': { blocked_by: [4], status: 'todo', title: 'widget docs' },
+      },
+      title: 'Spec: widgets',
+      version: 1,
+    })
+    const page = await readFile(pagePath(s), 'utf8')
+    expect(page).toContain('<a href="https://github.com/acme/widgets/issues/5">#5</a>')
+    expect(page).toContain('Live')
+  })
+
+  it('gives the same state and page when nothing changed since the last refresh', async () => {
+    const s = await seeded()
+    await s.run('refresh', '--spec', '#10', '--landed', '2')
+    const state = await s.state()
+    const page = await readFile(pagePath(s), 'utf8')
+
+    const again = await s.run('refresh', '--spec', '#10', '--landed', '2')
+
+    expect(JSON.parse(again.stdout)).toMatchObject({ added: [], merged: [], ran: 'sync' })
+    expect(await s.state()).toEqual(state)
+    expect(await readFile(pagePath(s), 'utf8')).toBe(page)
+  })
+
+  it('reads a landed local ticket by the number of its file', async () => {
+    const s = await seeded()
+    await mkdir(join(s.root, 'specs', 'issues'), { recursive: true })
+    await writeFile(join(s.root, 'specs', 'spec.md'), '# Local widgets\n')
+    await writeFile(join(s.root, 'specs', 'issues', '01-store.md'), '# Widget store\n')
+    await writeFile(join(s.root, 'specs', 'issues', '02-list.md'), '# Widget list\n\n## Blocked by\n\n- 01\n')
+
+    const result = await s.run('refresh', '--spec', 'specs/spec.md', '--landed', '01')
+
+    const output = JSON.parse(result.stdout) as { state: string; merged: number[]; counts: object }
+    expect(output).toMatchObject({ counts: { merged: 1, ready: 1 }, merged: [1], ran: 'init', status: 'refreshed' })
+    const tickets = (await s.state(output.state)).tickets as Record<string, { status: string }>
+    expect([tickets['1']?.status, tickets['2']?.status]).toEqual(['merged', 'todo'])
+  })
+
+  it.each([
+    ['a ticket outside the spec', '9', 'unknown-ticket', "ticket 9 is not one of the spec's tickets"],
+    ['a name that is no ticket number', 'widget-list', 'invalid-ticket', 'widget-list is not a ticket number'],
+  ])('refuses %s as landed and writes neither a state nor a page', async (_name, landed, code, message) => {
+    const s = await seeded()
+
+    const result = await s.run('refresh', '--spec', '#10', '--landed', '2', '--landed', landed)
+
+    expect(result.exitCode).toBe(1)
+    expect(JSON.parse(result.stdout)).toEqual({ code, message, status: 'error' })
+    await expect(s.state()).rejects.toThrow(/ENOENT/)
+    await expect(readFile(pagePath(s), 'utf8')).rejects.toThrow(/ENOENT/)
+  })
+
+  it('leaves an existing state and page as they were when it refuses', async () => {
+    const s = await seeded()
+    await s.run('refresh', '--spec', '#10')
+    const state = await s.state()
+    const page = await readFile(pagePath(s), 'utf8')
+    s.tracker.issues = { ...s.tracker.issues, '#2': { blockedBy: [1], state: 'closed', title: 'widget list' } }
+
+    const result = await s.run('refresh', '--spec', '#10', '--landed', '9')
+
+    expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unknown-ticket', status: 'error' })
+    expect(await s.state()).toEqual(state)
+    expect(await readFile(pagePath(s), 'utf8')).toBe(page)
+  })
+
+  it('reports a tracker it cannot read and writes nothing', async () => {
+    const s = await seeded()
+    s.tracker.failure = 'HTTP 502'
+
+    const result = await s.run('refresh', '--spec', '#10')
+
+    expect(JSON.parse(result.stdout)).toEqual({
+      code: 'tracker-unreachable',
+      message: 'cannot read the tickets of acme/widgets#10: HTTP 502',
+      status: 'error',
+    })
+    await expect(s.state()).rejects.toThrow(/ENOENT/)
+  })
+
+  it('refuses an unreadable state, naming init, and reads no tickets', async () => {
+    const s = await seeded()
+    await mkdir(join(s.home, ...WIDGETS_DIR), { recursive: true })
+    await writeFile(statePath(s), '{ not json')
+
+    const result = await s.run('refresh', '--spec', '#10')
+
+    expect(JSON.parse(result.stdout)).toMatchObject({ code: 'unreadable-state', status: 'error' })
+    expect(result.stderr).toMatch(/create it again with init\n$/)
+    expect(s.tracker.calls).toEqual([])
+  })
+
+  it('takes --spec once and --landed any number of times', async () => {
+    const s = await seeded()
+
+    expect((await s.run('refresh', '--spec', '#10', '--spec', '#10')).exitCode).toBe(2)
+    expect((await s.run('refresh', '--landed', '2')).exitCode).toBe(2)
+    expect((await s.run('refresh', '--spec', '#10', '--landed')).exitCode).toBe(2)
+    expect((await s.run('refresh', '--spec', '#10', '2')).exitCode).toBe(2)
+    expect((await s.run('--help')).stdout).toContain('build-tracker refresh --spec SPEC [--landed <ticket> ...]')
+  })
+})

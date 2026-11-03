@@ -169,6 +169,17 @@ function parseAssignments(texts, state) {
     return note === void 0 ? { status, ticket } : { note, status, ticket };
   });
 }
+var LANDED = /^#?0*([1-9][0-9]*)$/;
+function landedAssignments(texts, state) {
+  const known = new Set(state.tickets.map((ticket) => ticket.number));
+  return texts.map((text) => {
+    const match = LANDED.exec(text.trim());
+    if (match === null) throw new BuildTrackerError("invalid-ticket", `${text} is not a ticket number`);
+    const ticket = Number(match[1]);
+    if (!known.has(ticket)) throw new BuildTrackerError("unknown-ticket", `ticket ${String(ticket)} is not one of the spec's tickets`);
+    return { status: "merged", ticket };
+  });
+}
 function applyAssignments(raw, assignments) {
   const tickets = { ...raw.tickets };
   for (const assignment of assignments) {
@@ -649,6 +660,30 @@ function createBuildTrackerCommands(deps) {
         return { page: location.page, spec, state: location.state, status: "path" };
       }
     },
+    refresh: {
+      async run(input) {
+        const { location, source, spec } = await locate(input.spec);
+        const before = await exists(deps.files, location.state) ? await loadState(deps.files, location.state) : void 0;
+        const read = await source.read();
+        const outcome = before === void 0 ? { added: read.tickets.map((ticket) => ticket.number), raw: seedState(source.spec, read, []) } : syncState(before.raw, read);
+        const raw = applyAssignments(outcome.raw, landedAssignments(input.landed, parseState(outcome.raw)));
+        const state = parseState(raw);
+        const wasMerged = new Set(before?.state.tickets.filter((ticket) => ticket.status === "merged").map((ticket) => ticket.number));
+        await deps.files.writeAtomic(location.page, renderPage(state, stamp(deps.clock.now())));
+        await writeState(deps.files, location.state, raw);
+        return {
+          added: outcome.added,
+          counts: buildBoard(state).counts,
+          merged: state.tickets.filter((ticket) => ticket.status === "merged" && !wasMerged.has(ticket.number)).map((ticket) => ticket.number),
+          page: location.page,
+          ran: before === void 0 ? "init" : "sync",
+          spec,
+          state: location.state,
+          status: "refreshed",
+          tickets: state.tickets.length
+        };
+      }
+    },
     render: {
       async run(input) {
         const { state } = await loadState(deps.files, input.state);
@@ -881,6 +916,7 @@ var NodeBuildTrackerProcess = class {
 var BUILD_TRACKER_USAGE = `usage: build-tracker init --spec SPEC [--milestone <name>=<ticket> ...]
        build-tracker sync --spec SPEC
        build-tracker path --spec SPEC
+       build-tracker refresh --spec SPEC [--landed <ticket> ...]
        build-tracker render --state FILE --out FILE
        build-tracker set --state FILE <ticket>=<status>[:note] ...
 
@@ -896,6 +932,11 @@ updates titles and blockers, marks newly closed tickets merged, and keeps
 every status, note and milestone set on open tickets. path prints where the
 spec's state file and page live, under $XDG_STATE_HOME (else
 ~/.local/state)/agent-kit/build-tracker.
+
+refresh brings the spec's page up to date in one step, as /flow runs it: init
+(with no milestones) when the spec has no state, else sync; then each
+--landed ticket (12, #12, or a local ticket's 01) turns merged, keeping its
+note; then the page is rendered at the path path prints.
 
 render writes the build tracker page for the state file. set changes the
 named tickets' statuses in the state file; a note after the status replaces
@@ -917,6 +958,11 @@ var COMMANDS = {
     flags: { spec: "required" },
     positionals: false,
     run: (commands, flags) => commands.path.run({ spec: flag(flags, "spec") })
+  },
+  refresh: {
+    flags: { landed: "repeatable", spec: "required" },
+    positionals: false,
+    run: (commands, flags) => commands.refresh.run({ landed: flags.landed ?? [], spec: flag(flags, "spec") })
   },
   render: {
     flags: { out: "required", state: "required" },

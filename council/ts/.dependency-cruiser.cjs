@@ -74,6 +74,15 @@ module.exports = {
       },
     },
     {
+      // The build tracker is a view for the owner, never a source for the
+      // flow state: the critique runner may not read it. /flow runs the two
+      // runners side by side instead.
+      name: 'critique-never-reads-the-build-tracker',
+      severity: 'error',
+      from: { path: '^src/(contexts/critique|critique-cli)/' },
+      to: { path: '^src/(contexts/build-tracker|build-tracker-cli)/' },
+    },
+    {
       // The build tracker's CLI reaches its context only through the barrel.
       name: 'build-tracker-cli-uses-context-barrel',
       severity: 'error',

@@ -12,6 +12,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -134,6 +135,36 @@ def test_the_shipped_runner_names_init_for_a_missing_state(tmp_path: Path) -> No
     assert "init" in result.stderr
 
 
+@pytest.mark.skipif(shutil.which("node") is None or shutil.which("git") is None, reason="node or git is not installed")
+def test_the_shipped_runner_refreshes_a_local_spec_as_flow_runs_it(tmp_path: Path) -> None:
+    """#273: one refresh seeds the state, marks the landed tickets merged and renders the page."""
+    repo = tmp_path / "widgets"
+    (repo / "specs" / "issues").mkdir(parents=True)
+    (repo / "specs" / "spec.md").write_text("# Local widgets\n")
+    (repo / "specs" / "issues" / "01-store.md").write_text("# Widget store\n")
+    (repo / "specs" / "issues" / "02-list.md").write_text("# Widget list\n\n## Blocked by\n\n- 01\n")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "XDG_STATE_HOME": str(tmp_path / "state")}
+
+    def refresh() -> dict:
+        result = subprocess.run(
+            ["node", str(RUNNER), "refresh", "--spec", "specs/spec.md", "--landed", "01"],
+            capture_output=True, text=True, check=False, cwd=repo, env=env,
+        )
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    first = refresh()
+    assert (first["status"], first["ran"], first["merged"]) == ("refreshed", "init", [1])
+    tickets = json.loads(Path(first["state"]).read_text())["tickets"]
+    assert {n: t["status"] for n, t in tickets.items()} == {"1": "merged", "2": "todo"}
+    assert "Widget list" in Path(first["page"]).read_text()
+    assert first["page"].startswith(str(tmp_path / "state"))
+
+    second = refresh()
+    assert (second["ran"], second["merged"], second["page"]) == ("sync", [], first["page"])
+
+
 # ---------------------------------------------------------------------------
 # The skill text: what makes any orchestrator keep the page current (#272)
 # ---------------------------------------------------------------------------
@@ -197,7 +228,7 @@ def test_the_skill_starts_the_build_tracker_with_init_and_the_specs_milestones()
 
 def test_the_skill_lists_every_command_the_runner_has() -> None:
     commands = _section(_skill_text(), "## Commands")
-    for command in ("init", "sync", "path", "render", "set"):
+    for command in ("init", "sync", "path", "refresh", "render", "set"):
         assert f"build-tracker.mjs {command} " in commands, command
         assert f"- `{command}`" in commands, command
 

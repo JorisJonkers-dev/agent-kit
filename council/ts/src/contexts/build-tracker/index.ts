@@ -5,6 +5,8 @@ export {
   type InitInput,
   type InitResult,
   type PathResult,
+  type RefreshInput,
+  type RefreshResult,
   type RenderInput,
   type RenderResult,
   type SetInput,

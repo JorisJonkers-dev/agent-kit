@@ -22,6 +22,7 @@ export interface BuildTrackerCliRuntime {
 export const BUILD_TRACKER_USAGE = `usage: build-tracker init --spec SPEC [--milestone <name>=<ticket> ...]
        build-tracker sync --spec SPEC
        build-tracker path --spec SPEC
+       build-tracker refresh --spec SPEC [--landed <ticket> ...]
        build-tracker render --state FILE --out FILE
        build-tracker set --state FILE <ticket>=<status>[:note] ...
 
@@ -37,6 +38,11 @@ updates titles and blockers, marks newly closed tickets merged, and keeps
 every status, note and milestone set on open tickets. path prints where the
 spec's state file and page live, under $XDG_STATE_HOME (else
 ~/.local/state)/agent-kit/build-tracker.
+
+refresh brings the spec's page up to date in one step, as /flow runs it: init
+(with no milestones) when the spec has no state, else sync; then each
+--landed ticket (12, #12, or a local ticket's 01) turns merged, keeping its
+note; then the page is rendered at the path path prints.
 
 render writes the build tracker page for the state file. set changes the
 named tickets' statuses in the state file; a note after the status replaces
@@ -72,6 +78,11 @@ const COMMANDS: Readonly<Record<string, CommandSpec>> = {
     flags: { spec: 'required' },
     positionals: false,
     run: (commands, flags) => commands.path.run({ spec: flag(flags, 'spec') }),
+  },
+  refresh: {
+    flags: { landed: 'repeatable', spec: 'required' },
+    positionals: false,
+    run: (commands, flags) => commands.refresh.run({ landed: flags.landed ?? [], spec: flag(flags, 'spec') }),
   },
   render: {
     flags: { out: 'required', state: 'required' },

@@ -1,4 +1,4 @@
-import { applyAssignments, parseAssignments } from '../domain/assignments.js'
+import { applyAssignments, landedAssignments, parseAssignments } from '../domain/assignments.js'
 import { buildBoard, type Shown } from '../domain/board.js'
 import { renderPage } from '../domain/page.js'
 import { parseMilestones, seedState, syncState } from '../domain/seed.js'
@@ -59,12 +59,32 @@ export interface SyncResult extends Omit<PathResult, 'status'> {
   readonly merged: readonly number[]
 }
 
+export interface RefreshInput {
+  /** The spec as typed: an issue reference or a local markdown file. */
+  readonly spec: string
+  /** The tickets the flow records as landed, each `12`, `#12` or a local ticket's `01`. */
+  readonly landed: readonly string[]
+}
+
+export interface RefreshResult extends Omit<PathResult, 'status'> {
+  readonly status: 'refreshed'
+  /** `init` when the spec had no state, `sync` when it had one. */
+  readonly ran: 'init' | 'sync'
+  readonly tickets: number
+  /** Tickets the state did not have before; every ticket on `init`. */
+  readonly added: readonly number[]
+  /** Tickets that are merged now and were not before: newly closed, or named as landed. */
+  readonly merged: readonly number[]
+  readonly counts: RenderResult['counts']
+}
+
 export interface BuildTrackerCommands {
   readonly render: { run(input: RenderInput): Promise<RenderResult> }
   readonly set: { run(input: SetInput): Promise<SetResult> }
   readonly init: { run(input: InitInput): Promise<InitResult> }
   readonly sync: { run(input: { readonly spec: string }): Promise<SyncResult> }
   readonly path: { run(input: { readonly spec: string }): Promise<PathResult> }
+  readonly refresh: { run(input: RefreshInput): Promise<RefreshResult> }
 }
 
 export interface BuildTrackerDependencies {
@@ -111,6 +131,34 @@ export function createBuildTrackerCommands(deps: BuildTrackerDependencies): Buil
       async run(input) {
         const { location, spec } = await locate(input.spec)
         return { page: location.page, spec, state: location.state, status: 'path' }
+      },
+    },
+    refresh: {
+      async run(input) {
+        const { location, source, spec } = await locate(input.spec)
+        const before = (await exists(deps.files, location.state)) ? await loadState(deps.files, location.state) : undefined
+        const read = await source.read()
+        const outcome =
+          before === undefined
+            ? { added: read.tickets.map((ticket) => ticket.number), raw: seedState(source.spec, read, []) }
+            : syncState(before.raw, read)
+        const raw = applyAssignments(outcome.raw, landedAssignments(input.landed, parseState(outcome.raw)))
+        const state = parseState(raw)
+        const wasMerged = new Set(before?.state.tickets.filter((ticket) => ticket.status === 'merged').map((ticket) => ticket.number))
+        // The page first: when it cannot be written, the state stays as it was.
+        await deps.files.writeAtomic(location.page, renderPage(state, stamp(deps.clock.now())))
+        await writeState(deps.files, location.state, raw)
+        return {
+          added: outcome.added,
+          counts: buildBoard(state).counts,
+          merged: state.tickets.filter((ticket) => ticket.status === 'merged' && !wasMerged.has(ticket.number)).map((ticket) => ticket.number),
+          page: location.page,
+          ran: before === undefined ? 'init' : 'sync',
+          spec,
+          state: location.state,
+          status: 'refreshed',
+          tickets: state.tickets.length,
+        }
       },
     },
     render: {
