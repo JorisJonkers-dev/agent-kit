@@ -733,6 +733,15 @@ critique:
     - path: skills/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6
       mode: "0644"
+# The build tracker's runner, pinned the way critique.files pins the critique
+# runner. skills/build-tracker/ is the copy setup installs; its SKILL.md is the
+# skill's text and is left out. `npm run build` in council/ts rebuilds
+# build-tracker.mjs: update its sha256 here in the same commit.
+build_tracker:
+  files:
+    - path: skills/build-tracker/build-tracker.mjs
+      sha256: 0561c699dee7ef445d1ec69e23735c59a64eac19cf0ff1d33ecda12167449ca1
+      mode: "0755"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
   schema: runner-manifests/runtime-package.schema.json
