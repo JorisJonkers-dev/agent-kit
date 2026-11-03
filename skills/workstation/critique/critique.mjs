@@ -1113,11 +1113,9 @@ function quotaReached(count, quota, stage) {
 
 // src/contexts/critique/domain/stage-table.ts
 var STAGE_TABLE = {
-  // The evidence rule is a placeholder until /critique-adrs (#249) gives the
-  // stage its own: for now the records are the artifact, so a finding quotes
-  // one and either a reference or a scenario, as at the spec stage. With the
-  // code permission on, the ADR packet is a repository packet (#221).
-  "adr-review": { doNotStart: null, evidence: "spec", flowKey: "run", packet: "adrs", removal: "runs", secondRound: true },
+  // With the code permission on, the ADR packet is a repository packet (#221);
+  // with it off, the evidence rule skips what needs code (#249).
+  "adr-review": { doNotStart: null, evidence: "adrs", flowKey: "run", packet: "adrs", removal: "runs", secondRound: true },
   // A decisions run's accepted findings are questions for the owner and change
   // no artifact, so it never calls for a second round.
   decisions: { doNotStart: "/to-tickets", evidence: "decisions", flowKey: "draft", packet: "decisions", removal: "features", secondRound: false },
@@ -1181,7 +1179,10 @@ var HINT_CODES = [
   "no-ticket-rule",
   "no-ticket-id",
   "no-scenario",
-  "not-a-decision-gap"
+  "not-a-decision-gap",
+  "no-record-quote",
+  "one-file-contradiction",
+  "needs-tree"
 ];
 var CHECK_HINT_CODES = ["no-check", "unknown-check"];
 var FINDINGS_FAILURES = [
@@ -1263,16 +1264,16 @@ function readEvidence(fields) {
 }
 
 // src/contexts/critique/domain/checks.ts
-var CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:/gm;
+var CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:( Needs `tree\/`\.)?/gm;
 var CHECK_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 function isCheckId(check) {
   return check !== void 0 && CHECK_ID.test(check);
 }
 function declaredChecks(texts) {
   const checks = /* @__PURE__ */ new Map();
-  for (const [, id = "", named] of texts.flatMap((text) => [...text.matchAll(CHECK_BULLET)])) {
+  for (const [, id = "", named, tree] of texts.flatMap((text) => [...text.matchAll(CHECK_BULLET)])) {
     const severity = SEVERITIES.find((level) => level === named);
-    if (!checks.has(id)) checks.set(id, severity === void 0 ? { id } : { id, severity });
+    if (!checks.has(id)) checks.set(id, { id, ...severity === void 0 ? {} : { severity }, ...tree === void 0 ? {} : { needsTree: true } });
   }
   return [...checks.values()];
 }
@@ -1289,6 +1290,15 @@ function checkNamed(finding, declared) {
     verdict: "hint"
   };
 }
+function checkRunnable(finding, declared, tree) {
+  if (tree || declared.find((check) => check.id === finding.check)?.needsTree !== true) return void 0;
+  return NEEDS_TREE;
+}
+var NEEDS_TREE = {
+  reason: "the check needs code under tree/, which this packet does not hold",
+  reason_code: "needs-tree",
+  verdict: "hint"
+};
 
 // src/contexts/critique/domain/critic.ts
 var RUN_FAILURES = [
@@ -4040,6 +4050,7 @@ function evidenceFound(finding, packet2) {
   return found;
 }
 var EVIDENCE_RULES = {
+  adrs: adrRule,
   code: (finding) => codeRule(finding.evidence),
   decisions: (finding, found) => decisionsRule(finding.category, found),
   spec: (finding, found) => specRule(finding.category, found),
@@ -4100,7 +4111,52 @@ function decisionsRule(category, found) {
   if (!found.spec && !found.decision) return "no-decision-quote";
   return found.scenario ? void 0 : "no-scenario";
 }
+var CODE_CATEGORIES = {
+  adrs: [
+    { about: "a decision that names code, config or a command, checked against the code", category: "drift" },
+    { about: "an assumption, revisit condition or promised consequence, checked against the code", category: "stale" }
+  ],
+  code: [],
+  decisions: [],
+  spec: [],
+  tickets: []
+};
+function adrRule(finding, found, packet2) {
+  if (!packet2.tree && CODE_CATEGORIES.adrs.some((code) => code.category === finding.category)) return "needs-tree";
+  if (!found.spec) return "no-record-quote";
+  if (finding.category === "contradiction" && !quotesTwoFiles(finding.evidence, packet2)) return "one-file-contradiction";
+  return finding.category === "unasked-question" && !found.scenario ? "no-scenario" : void 0;
+}
+function quotesTwoFiles(evidence, packet2) {
+  const documents = packet2.files.filter((file) => file.kind === "artifact" || file.kind === "reference");
+  const holders = evidence.flatMap((item) => {
+    if (item.kind !== "quote") return [];
+    const quote = normalise(item.value);
+    return [documents.filter((file) => file.normalised.includes(quote)).map((file) => file.path)];
+  });
+  const apart = (first, second) => first.some((path) => !second.includes(path));
+  return holders.some((first, i) => holders.some((second, j) => i !== j && apart(first, second) && apart(second, first)));
+}
+function skippedChecks(stage, packet2, sources) {
+  if (packet2.tree) return [];
+  const categories = CODE_CATEGORIES[STAGE_TABLE[stage].evidence];
+  const skipped = categories.map(({ about, category }) => ({ about, check: category, from: "category" }));
+  for (const source of sources) {
+    for (const check of source.checks) {
+      const known = skipped.some((entry2) => entry2.check === check.id);
+      if (check.needsTree === true && !known) skipped.push({ check: check.id, from: source.from });
+    }
+  }
+  return skipped;
+}
+function readSkippedCheck(fields) {
+  const about = fields.optionalString("about");
+  return { check: fields.string("check"), from: fields.string("from"), ...about === void 0 ? {} : { about } };
+}
 var HINT_REASONS = {
+  "needs-tree": NEEDS_TREE.reason,
+  "no-record-quote": "no quote from a record under review",
+  "one-file-contradiction": "a contradiction quotes one file; it needs a quote from each of two files",
   "no-decision-or-scenario": "no quote from a decision source and no concrete scenario",
   "no-decision-quote": "no quote from a decision source",
   "no-evidence": "no evidence to check",
@@ -4723,7 +4779,7 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
 function withPreVerdict(finding, stage, packet2, checks) {
   const declared = checks.get(finding.raised_by[0] ?? "") ?? [];
   const rated = withDeclaredSeverity(finding, declared);
-  const preVerdict = checkEvidence(rated, stage, packet2) ?? checkNamed(rated, declared);
+  const preVerdict = checkEvidence(rated, stage, packet2) ?? checkNamed(rated, declared) ?? checkRunnable(rated, declared, packet2.tree);
   return preVerdict === void 0 ? rated : { ...rated, pre_verdict: preVerdict };
 }
 function parseFanOutResult(text) {
@@ -4734,6 +4790,7 @@ function parseFanOutResult(text) {
     findings: file.list("findings", readRunFinding),
     findings_path: file.string("findings_path"),
     run_id: file.string("run_id"),
+    ...file.has("skipped_checks") ? { skipped_checks: file.list("skipped_checks", readSkippedCheck) } : {},
     stage: file.oneOf("stage", CRITIQUE_STAGES),
     status: file.literal("status", "reviewed")
   };
@@ -4756,12 +4813,14 @@ var FanOutCommand = class {
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
     const checks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]));
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet2, checks));
+    const skipped = skippedChecks(manifest.stage, packet2, await this.checkSources(manifest));
     const result = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== "ok"),
       findings,
       findings_path: findingsPath(runDir),
       run_id: manifest.run_id,
+      ...skipped.length === 0 ? {} : { skipped_checks: skipped },
       stage: manifest.stage,
       status: "reviewed"
     };
@@ -4814,6 +4873,20 @@ var FanOutCommand = class {
     const attempt = await runCritic(this.deps, { critic, criticDir, prompt: promptFor, retry, tools: wave.tools, tripwire: wave.tripwire });
     await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind);
     return { ...attempt, checks };
+  }
+  /**
+   * The checks each role and lens file of the run's critics declares, by
+   * file, in roster order: the files whose checks the critics' prompts
+   * declare, so the skipped list and the needs-tree hint agree.
+   */
+  async checkSources(manifest) {
+    const files = [
+      ...new Set(manifest.critics.flatMap((critic) => [`roles/${critic.role}`, ...critic.lenses.map((name) => `lenses/${name}`)]))
+    ];
+    const read = (file) => this.deps.files.readText(join11(this.deps.assetsRoot, `${file}.md`));
+    return Promise.all(
+      files.map(async (file) => ({ checks: declaredChecks([await read(file)]), from: file.replace(/^roles\//, "role ").replace(/^lenses\//, "lens ") }))
+    );
   }
   /** The critic's prompt for the tools it gets, and the checks its role and lenses declare. */
   async promptFor(manifest, critic) {
@@ -6763,6 +6836,7 @@ function renderSummary(run, reportPath2) {
     depthLine(run),
     ...roundLines(run),
     verdictLine(run),
+    ...skippedLine(run),
     ...ticketCheckLines(run),
     ...doNotStartLines(run),
     "",
@@ -6817,6 +6891,7 @@ function renderReport(run) {
     ...ticketCheckLines(run),
     "",
     ...gateSection(run),
+    ...skippedSection(run),
     "## Critics",
     "",
     ...run.critics.flatMap((critic) => [
@@ -6984,6 +7059,24 @@ function verdictText(verdict) {
   const reason = verdict.reason === void 0 ? "" : `: ${verdict.reason}`;
   return `${verdict.verdict}${answered2}${code}${followUp}${crossed}${kept2}${fixed}${reason}`;
 }
+function skippedLine(run) {
+  const skipped = run.skipped_checks ?? [];
+  if (skipped.length === 0) return [];
+  return [`Skipped, documents only: ${skipped.map((check) => `\`${check.check}\``).join(", ")} (the report says why)`];
+}
+function skippedSection(run) {
+  const skipped = run.skipped_checks ?? [];
+  if (skipped.length === 0) return [];
+  const why = STAGE_TABLE[run.stage].packet === "adrs" ? ": an ADR review sends documents only while the code permission is off" : "";
+  return [
+    "## Skipped checks",
+    "",
+    `The packet holds no code under \`tree/\`${why}. These checks need the code, so they did not run:`,
+    "",
+    ...skipped.map((check) => `- \`${check.check}\` (${check.from})${check.about === void 0 ? "" : `: ${check.about}`}`),
+    ""
+  ];
+}
 function verdictLine(run) {
   const counts = countVerdicts(run);
   return `Verdicts: accepted ${String(counts.accepted)}, rejected ${String(counts.rejected)}, needs-human ${String(counts["needs-human"])}, hint ${String(counts.hint)}`;
@@ -7073,6 +7166,7 @@ var RecordCommand = class {
       ...manifest.previous_run_id === void 0 ? {} : { previous_run_id: manifest.previous_run_id },
       ...refutes === void 0 ? {} : { refutes },
       run_id: manifest.run_id,
+      ...merged.skipped_checks === void 0 ? {} : { skipped_checks: merged.skipped_checks },
       spec: specReference(manifest),
       stage: manifest.stage,
       ...manifest.ticket_check === void 0 ? {} : { ticket_check: manifest.ticket_check }

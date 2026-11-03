@@ -6,6 +6,7 @@ import type { RunFinding, Severity } from './findings.js'
 import type { PacketFile } from './manifest.js'
 import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
+import type { SkippedCheck } from './evidence.js'
 import { SECOND_ROUND_AFTER_CRITICAL, type CritiqueStage, type Depth, type Round } from './stage.js'
 import { STAGE_TABLE } from './stage-table.js'
 import type { TicketCheckSummary } from './tickets.js'
@@ -66,6 +67,8 @@ export interface AdjudicatedRun {
   readonly gate?: GateRecord
   /** The refute round's results, when the run had one; already applied to `findings`. */
   readonly refutes?: readonly RefuteRecord[]
+  /** What the critics could not check because the packet holds no code under `tree/`. */
+  readonly skipped_checks?: readonly SkippedCheck[]
 }
 
 export type VerdictCounts = Readonly<Record<VerdictKind, number>>

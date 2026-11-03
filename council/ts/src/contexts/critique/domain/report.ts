@@ -54,6 +54,7 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       depthLine(run),
       ...roundLines(run),
       verdictLine(run),
+      ...skippedLine(run),
       ...ticketCheckLines(run),
       ...doNotStartLines(run),
       '',
@@ -110,6 +111,7 @@ export function renderReport(run: AdjudicatedRun): string {
     ...ticketCheckLines(run),
     '',
     ...gateSection(run),
+    ...skippedSection(run),
     '## Critics',
     '',
     ...run.critics.flatMap((critic) => [
@@ -360,6 +362,28 @@ function verdictText(verdict: Verdict): string {
   const answered = verdict.answered === true ? ', answered' : ''
   const reason = verdict.reason === undefined ? '' : `: ${verdict.reason}`
   return `${verdict.verdict}${answered}${code}${followUp}${crossed}${kept}${fixed}${reason}`
+}
+
+/** The summary's one line naming what a documents-only run skipped. */
+function skippedLine(run: AdjudicatedRun): readonly string[] {
+  const skipped = run.skipped_checks ?? []
+  if (skipped.length === 0) return []
+  return [`Skipped, documents only: ${skipped.map((check) => `\`${check.check}\``).join(', ')} (the report says why)`]
+}
+
+/** Every check the run could not run because its packet holds no code under `tree/`, and what each checks. */
+function skippedSection(run: AdjudicatedRun): readonly string[] {
+  const skipped = run.skipped_checks ?? []
+  if (skipped.length === 0) return []
+  const why = STAGE_TABLE[run.stage].packet === 'adrs' ? ': an ADR review sends documents only while the code permission is off' : ''
+  return [
+    '## Skipped checks',
+    '',
+    `The packet holds no code under \`tree/\`${why}. These checks need the code, so they did not run:`,
+    '',
+    ...skipped.map((check) => `- \`${check.check}\` (${check.from})${check.about === undefined ? '' : `: ${check.about}`}`),
+    '',
+  ]
 }
 
 function verdictLine(run: AdjudicatedRun): string {

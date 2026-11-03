@@ -15,7 +15,7 @@ import {
   type Harness,
   type VibeScript,
 } from '../../../test/critique/harness.js'
-import type { PrepareResult, ReviewsResult } from './index.js'
+import type { FanOutResult, PrepareResult, ReviewsResult } from './index.js'
 
 /**
  * The first review stage, `adr-review` (#220): a run over a repository's
@@ -495,5 +495,283 @@ describe('the adr-reviewer critics an adr-review run routes (#227)', () => {
     expect(result.findings.map((found) => [found.check, found.severity, found.declared_severity])).toEqual(
       FIXED.map(([check, severity]) => [check, severity, severity]),
     )
+  })
+})
+
+describe("the adr-review stage's own evidence rule (#249)", () => {
+  const ONE = { file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'We frobnicate widgets in the nightly job only.' }
+  const TWO = { file: 'artifact/docs/adr/0002-window.md', kind: 'quote', value: 'The window is seven seconds.' }
+  const ONE_TITLE = { file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'The nightly job frobnicates widgets' }
+  const GLOSSARY = { file: 'references/CONTEXT.md', kind: 'quote', value: DECISION_CANARY }
+
+  async function fannedOut(
+    raised: readonly Record<string, unknown>[],
+    agy: readonly Record<string, unknown>[] = [],
+    options: { readonly records?: Readonly<Record<string, string>>; readonly prepare?: Record<string, unknown> } = {},
+  ): Promise<FanOutResult> {
+    const h = await withAdrs({
+      agyScripts: [agyFindings(agy.length === 0 ? { findings: [], no_findings_reason: 'Read every record.' } : { findings: agy })],
+      scripts: [{ exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced({ findings: raised })) }],
+    })
+    for (const [name, text] of Object.entries(options.records ?? {})) await h.writeText(join(h.repo, 'docs', 'adr', name), text)
+    await h.commands.allow.run({ families: ['mistral', 'google'], repo: h.repo })
+    const run = await prepared(h, options.prepare)
+    return h.commands.fanOut.run({ run_dir: run.run_dir })
+  }
+
+  it('returns findings with check ids from adr-record and decision-log, left to the orchestrator', async () => {
+    const noCost = finding({ category: 'omission', check: 'no-cost', evidence: [ONE], id: 'F1', location: 'docs/adr/0001-nightly-job.md: no-cost' })
+    const contradict = finding({
+      category: 'contradiction',
+      check: 'records-contradict',
+      evidence: [ONE, TWO],
+      id: 'F1',
+      location: 'docs/adr/0001-nightly-job.md, docs/adr/0002-window.md: records-contradict',
+    })
+
+    const result = await fannedOut([noCost], [contradict])
+
+    expect(result.findings.map((found) => [found.check, found.raised_by, found.pre_verdict])).toEqual([
+      ['no-cost', ['c1-vibe-mistral-large'], undefined],
+      ['records-contradict', ['c2-agy-gemini-flash-high'], undefined],
+    ])
+  })
+
+  it('gives a contradiction whose quotes come from one file a mechanical pre-verdict', async () => {
+    const oneFile = finding({
+      category: 'contradiction',
+      check: 'records-contradict',
+      evidence: [ONE, ONE_TITLE],
+      location: 'docs/adr/0001-nightly-job.md: records-contradict',
+    })
+
+    const result = await fannedOut([], [oneFile])
+
+    expect(result.findings[0]?.pre_verdict).toEqual({
+      reason: 'a contradiction quotes one file; it needs a quote from each of two files',
+      reason_code: 'one-file-contradiction',
+      verdict: 'hint',
+    })
+  })
+
+  it('takes a record and the glossary as the two files of a contradiction, beside any other evidence', async () => {
+    const withGlossary = finding({
+      category: 'contradiction',
+      check: 'records-contradict',
+      evidence: [ONE, { kind: 'input', value: 'A widget frobnicated at noon.' }, GLOSSARY],
+      location: 'docs/adr/0001-nightly-job.md: records-contradict',
+    })
+
+    const result = await fannedOut([], [withGlossary])
+
+    expect(result.findings[0]?.pre_verdict).toBeUndefined()
+  })
+
+  it('gives a finding that quotes no record under review a mechanical pre-verdict', async () => {
+    const glossaryOnly = finding({ category: 'omission', check: 'no-cost', evidence: [GLOSSARY], location: 'docs/adr/0001-nightly-job.md: no-cost' })
+
+    const result = await fannedOut([glossaryOnly])
+
+    expect(result.findings[0]?.pre_verdict).toEqual({ reason: 'no quote from a record under review', reason_code: 'no-record-quote', verdict: 'hint' })
+  })
+
+  describe('a contradiction whose two quotes come from one record, one of them repeated in another', () => {
+    // 0001 holds both sentences; 0002 repeats the first, so each quote is found in two files, yet only 0001 holds both.
+    const records = {
+      '0001-nightly-job.md': '# The nightly job frobnicates widgets\n\nWe frobnicate widgets in the nightly job only.\n\nThe window is seven seconds.\n',
+      '0002-window.md': '# Widgets keep a window\n\nWe frobnicate widgets in the nightly job only.\n',
+    }
+    const sameRecord = finding({
+      category: 'contradiction',
+      check: 'records-contradict',
+      evidence: [ONE, { file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'The window is seven seconds.' }],
+      location: 'docs/adr/0001-nightly-job.md: records-contradict',
+    })
+    const hint = {
+      reason: 'a contradiction quotes one file; it needs a quote from each of two files',
+      reason_code: 'one-file-contradiction',
+      verdict: 'hint',
+    }
+
+    it('is a one-file contradiction when both records are under review', async () => {
+      const result = await fannedOut([], [sameRecord], { records })
+
+      expect(result.findings[0]?.pre_verdict).toEqual(hint)
+    })
+
+    it('is a one-file contradiction when the other record is a reference', async () => {
+      const result = await fannedOut([], [sameRecord], { prepare: { adrs: ['docs/adr/0001-nightly-job.md'] }, records })
+
+      expect(result.findings[0]?.pre_verdict).toEqual(hint)
+    })
+  })
+
+  it('needs both readings as an input for wording with two readings', async () => {
+    const bare = finding({ category: 'unasked-question', check: 'two-readings', evidence: [TWO], id: 'F1', location: 'docs/adr/0002-window.md: two-readings' })
+    const given = finding({
+      category: 'unasked-question',
+      check: 'two-readings',
+      evidence: [ONE, { kind: 'input', value: 'Reading A: only the nightly job; reading B: the nightly job among others.' }],
+      id: 'F2',
+      location: 'docs/adr/0001-nightly-job.md: two-readings',
+    })
+
+    const result = await fannedOut([bare, given])
+
+    expect(result.findings.map((found) => found.pre_verdict?.reason_code)).toEqual(['no-scenario', undefined])
+  })
+})
+
+describe('a documents-only adr-review run (#249)', () => {
+  const ONE = { file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'We frobnicate widgets in the nightly job only.' }
+
+  async function recordedWith(raised: readonly Record<string, unknown>[], code = false) {
+    const h = await withAdrs({
+      agyScripts: [agyFindings({ findings: [], no_findings_reason: 'Read every record.' })],
+      scripts: [{ exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced({ findings: raised })) }],
+    })
+    await h.commands.allow.run({ code, families: ['mistral', 'google'], repo: h.repo })
+    await h.writeText(join(h.repo, 'src', 'index.ts'), 'export const nightly = true\n')
+    await h.git.commit()
+    const run = await prepared(h)
+    const fanned = await h.commands.fanOut.run({ run_dir: run.run_dir })
+    const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+    return { fanned, recorded, report: await readFile(recorded.report_path, 'utf8'), run }
+  }
+
+  it('makes a finding of a check that needs tree/, or of drift or stale, a hint', async () => {
+    const confirmation = finding({
+      category: 'untestable',
+      check: 'no-confirmation',
+      evidence: [ONE],
+      id: 'F1',
+      location: 'docs/adr/0001-nightly-job.md: no-confirmation',
+    })
+    const drift = finding({ category: 'drift', check: 'no-cost', evidence: [ONE], id: 'F2', location: 'docs/adr/0001-nightly-job.md: drift' })
+    const stale = finding({ category: 'stale', check: 'no-cost', evidence: [ONE], id: 'F3', location: 'docs/adr/0001-nightly-job.md: stale' })
+
+    const { fanned } = await recordedWith([confirmation, drift, stale])
+
+    const hint = { reason: 'the check needs code under tree/, which this packet does not hold', reason_code: 'needs-tree', verdict: 'hint' }
+    expect(fanned.findings.map((found) => found.pre_verdict)).toEqual([hint, hint, hint])
+  })
+
+  it('names the drift, stale-against-code and confirmation checks as skipped in the report and the summary', async () => {
+    const { recorded, report } = await recordedWith([])
+
+    expect(report).toContain(
+      [
+        '## Skipped checks',
+        '',
+        'The packet holds no code under `tree/`: an ADR review sends documents only while the code permission is off. These checks need the code, so they did not run:',
+        '',
+        '- `drift` (category): a decision that names code, config or a command, checked against the code',
+        '- `stale` (category): an assumption, revisit condition or promised consequence, checked against the code',
+        '- `no-confirmation` (lens adr-record)',
+        '',
+      ].join('\n'),
+    )
+    expect(recorded.summary).toContain('Skipped, documents only: `drift`, `stale`, `no-confirmation` (the report says why)')
+  })
+
+  it('names a role rule marked as needing tree/ as skipped, as it gives its findings the needs-tree hint', async () => {
+    const h = await withAdrs({
+      agyScripts: [agyFindings({ findings: [], no_findings_reason: 'Read every record.' })],
+      assets: { 'roles/adr-reviewer.md': (shipped) => shipped.replace('- `not-significant`: ', '- `not-significant`: Needs `tree/`. ') },
+      scripts: [
+        {
+          exitCode: 0,
+          exportJson: isolatedExport(),
+          stdout: vibeStdout(
+            fenced({
+              findings: [finding({ category: 'structure', check: 'not-significant', evidence: [ONE], location: 'docs/adr/0001-nightly-job.md: not-significant' })],
+            }),
+          ),
+        },
+      ],
+    })
+    await h.commands.allow.run({ families: ['mistral', 'google'], repo: h.repo })
+    const run = await prepared(h)
+
+    const fanned = await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    expect(fanned.findings[0]?.pre_verdict?.reason_code).toBe('needs-tree')
+    expect(fanned.skipped_checks).toContainEqual({ check: 'not-significant', from: 'role adr-reviewer' })
+  })
+
+  it('skips nothing once the packet holds code', async () => {
+    const { recorded, report, run } = await recordedWith([], true)
+
+    expect(run.packet_files).toContain('tree/src/index.ts')
+    expect(report).not.toContain('## Skipped checks')
+    expect(recorded.summary).not.toContain('Skipped')
+  })
+})
+
+describe('the second round of an adr-review run (#249)', () => {
+  const RECORDS = ['0001-nightly-job.md', '0002-window.md', '0003-retry.md', '0004-backoff.md'] as const
+  const ACCEPTED = RECORDS.map((_, n) => ({ finding_id: `F${String(n + 1)}`, verdict: 'accepted' }))
+
+  function critic(agent: string, findings: readonly Record<string, unknown>[] = []): VibeScript {
+    return { agent, exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced(findings.length === 0 ? { findings, no_findings_reason: 'Read every record.' } : { findings })) }
+  }
+
+  function undecided(record: string, n: number): Record<string, unknown> {
+    return finding({
+      category: 'omission',
+      check: 'no-decision-sentence',
+      evidence: [{ file: `artifact/docs/adr/${record}`, kind: 'quote', value: `Record ${String(n + 1)} weighs its options.` }],
+      id: `F${String(n + 1)}`,
+      location: `docs/adr/${record}: no-decision-sentence`,
+    })
+  }
+
+  /** A first round in which Mistral Large finds four records with no decision sentence, each critical by its check. */
+  async function fourCriticals(): Promise<{ h: Harness; run: PrepareResult }> {
+    const h = await harness()
+    open.push(h)
+    await h.commands.allow.run({ families: ['mistral', 'zhipu'], repo: h.repo })
+    for (const [n, record] of RECORDS.entries()) {
+      await h.writeText(join(h.repo, 'docs', 'adr', record), `# Record ${String(n + 1)}\n\nRecord ${String(n + 1)} weighs its options.\n`)
+    }
+    const run = await prepared(h)
+    h.process.queue(critic('critic-mistral-large', RECORDS.map(undecided)), critic('critic-glm'))
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+    return { h, run }
+  }
+
+  it('is due after more than three criticals still accepted after the refute round, and runs once more', async () => {
+    const { h, run } = await fourCriticals()
+    h.process.queue(critic('critic-glm'), critic('critic-glm'), critic('critic-glm'), critic('critic-glm'))
+    const refuted = await h.commands.refute.run({ run_dir: run.run_dir, verdicts: ACCEPTED })
+    expect(refuted.counts).toMatchObject({ 'no-objection': 4 })
+
+    const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: ACCEPTED })
+
+    expect(recorded).toMatchObject({ counts: { accepted: 4 }, round: 1, second_round_due: true })
+    h.clock.advance(1)
+    const second = await prepared(h, { previous_run_dir: run.run_dir })
+    expect(second.round).toBe(2)
+    h.process.queue(critic('critic-mistral-large'), critic('critic-glm'))
+    await h.commands.fanOut.run({ run_dir: second.run_dir })
+    expect(await h.commands.record.run({ run_dir: second.run_dir, verdicts: [] })).toMatchObject({ round: 2, second_round_due: false })
+  })
+
+  it('is not due once the refute round rejects one of four criticals', async () => {
+    const { h, run } = await fourCriticals()
+    const refutation = finding({
+      category: 'omission',
+      check: 'refute',
+      claim: 'The record states its decision.',
+      evidence: [{ file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'Record 1 weighs its options.' }],
+      location: 'docs/adr/0001-nightly-job.md: no-decision-sentence',
+    })
+    h.process.queue(critic('critic-glm', [refutation]), critic('critic-glm'), critic('critic-glm'), critic('critic-glm'))
+    const refuted = await h.commands.refute.run({ run_dir: run.run_dir, verdicts: ACCEPTED })
+    expect(refuted.counts).toMatchObject({ 'no-objection': 3, refute: 1 })
+
+    const recorded = await h.commands.record.run({ run_dir: run.run_dir, verdicts: ACCEPTED })
+
+    expect(recorded).toMatchObject({ counts: { accepted: 3, rejected: 1 }, second_round_due: false })
   })
 })

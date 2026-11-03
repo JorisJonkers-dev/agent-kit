@@ -240,7 +240,12 @@ describe('the evidence check on a repository packet', () => {
     const verdict = await preVerdict(
       h,
       run,
-      finding({ check: 'no-confirmation', evidence: [ADR_QUOTE, { kind: 'trace', value: `tree/src/big.ts:${String(sent)}` }], location: 'src/big.ts:812' }),
+      finding({
+        category: 'untestable',
+        check: 'no-confirmation',
+        evidence: [ADR_QUOTE, { kind: 'trace', value: `tree/src/big.ts:${String(sent)}` }],
+        location: 'src/big.ts:812',
+      }),
     )
 
     expect(verdict).toBeUndefined()
@@ -288,10 +293,11 @@ describe('the evidence check on a repository packet', () => {
     const run = await prepared(h)
 
     expect(await preVerdict(h, run, finding({ evidence: [FACT_QUOTE], location: 'docs/adr/0001-billing.md' }))).toMatchObject({
-      reason_code: 'no-spec-quote',
+      reason_code: 'no-record-quote',
     })
+    // A contradiction needs two records or references; a fact is neither.
     expect(await preVerdict(h, run, finding({ evidence: [ADR_QUOTE, FACT_QUOTE], location: 'docs/adr/0001-billing.md' }))).toMatchObject({
-      reason_code: 'no-decision-or-scenario',
+      reason_code: 'one-file-contradiction',
     })
   })
 

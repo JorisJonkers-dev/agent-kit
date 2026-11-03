@@ -266,6 +266,7 @@ describe('planning, once the spec exists', () => {
       evidence: [
         { file: 'artifact/docs/adr/0001-nightly-job.md', kind: 'quote', value: 'Widgets are frobnicated nightly.' },
         { file: 'references/CONTEXT.md', kind: 'quote', value: DECISION_CANARY },
+        { kind: 'input', value: 'Reading A: once a night; reading B: every night run of the job.' },
       ],
       location: 'docs/adr/0001-nightly-job.md',
       severity: 'critical',

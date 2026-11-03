@@ -3447,3 +3447,47 @@ The ADR review's role and its first two lenses (agent-kit#227):
   lenses until `quality-scenarios` and `domain-language` ship.
 - **The output contract** tells every critic that a check's bracketed
   severity is its finding's severity.
+
+## What #249 settled
+
+The `/critique-adrs` skill and the `adr-review` stage's own rules
+(agent-kit#249):
+
+- **The skill.** `skills/workstation/critique-adrs/SKILL.md` drives
+  prepare, fan-out, the pre-check in `check/adrs.json`, the verdicts, the
+  refute round, editorial fixes, owner questions one at a time, record and
+  a second round. With no records named it reviews every record in
+  `docs/adr/`; named records go in `"adrs"`, and the rest of the log goes in
+  as references. Its ruling table follows §5.1 of the architecture report: a
+  status or supersede link the packet proves is accepted; a missing
+  alternative, rejection reason, cost or rationale is needs-human unless
+  another packet file quotes it; two readings and contradicting records are
+  needs-human. A change to a decision is never made in place: it becomes a
+  superseding or amending record drafted from the owner's answer and
+  written once they approve it. The skill documents the `severity` and
+  `severity_reason` verdict fields for checks that fix their severity.
+  Setup installs it beside the shared skill in every agent home
+  (`local_skills` in `registry/estate-tooling.yaml`).
+- **The evidence rule.** `adr-review` has its own rule, `adrs`, in place
+  of the spec stage's: every finding quotes a record under review
+  (`no-record-quote`); a contradiction quotes two distinct files, each a
+  record or a reference, never a fact (`one-file-contradiction`), and the
+  two quotes must be told apart by file: one file holds the first and not
+  the second, another the second and not the first, so two quotes of one
+  record stay one file even when another record repeats one of them; and an
+  `unasked-question`, the category for wording with two readings, gives
+  both readings as an input (`no-scenario`). Each miss is a hint.
+- **Documents only.** With no code under `tree/`, a `drift` or `stale`
+  finding, and a finding of a check marked "Needs `tree/`" (so far
+  `adr-record`'s `no-confirmation`), is a hint, `needs-tree`. A role rule
+  may carry the mark like a lens check. Fan-out lists these checks in
+  `findings.json` as `skipped_checks`, read from the same role and lens
+  files as the hint, each named by its file (`role <name>` or
+  `lens <name>`); the report gives
+  them a `## Skipped checks` section, and the summary one line,
+  `Skipped, documents only: ...`. A packet that holds code skips none. The
+  drift and stale checks themselves, with their `tree/` trace rule, are
+  #234's.
+- **Second round.** `adr-review` calls for one after more than three
+  critical findings are still accepted after the refute round; a refuted
+  critical does not count.
