@@ -23,7 +23,7 @@ offers it.
 
 | Stage | Skill | After / before | Base critics (role) | Deep adds | You get |
 |---|---|---|---|---|---|
-| `decisions` | `/critique-decisions` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`) | GLM | Up to seven questions about decision branches nobody opened |
+| `decisions` | `/critique-decisions` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`); DeepSeek Flash with `adr-record` (`adr-reviewer`) when an ADR is among the decisions | GLM | Up to seven questions about decision branches nobody opened, and about what an ADR leaves out |
 | `spec` | `/critique-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
 | `tickets` | `/check-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
 | `ticket-review` | `/review-ticket` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
@@ -33,6 +33,14 @@ offers it.
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
 `/flow no-critique` skips every stage on purpose, for trivial work.
+
+When an ADR (a record in an `adr` directory, such as `docs/adr/`) is among
+the decision docs a decisions run reviews, prepare adds the stage's `adr`
+critics from routing at either depth, after the base critics and before the
+deep ones, under the same family rules. A `decision_summary` run adds none,
+since its ADRs are only reference. An `adr-reviewer` finding there needs a
+quote from the decisions under review, else it is a hint
+(`no-record-quote`); the gap rule does not apply to it.
 
 `adr-review` is a **review stage**: it runs over a repository's decision
 records when you ask for one, never as a step of a feature's flow. Each run

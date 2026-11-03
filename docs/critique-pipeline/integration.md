@@ -3447,3 +3447,41 @@ The ADR review's role and its first two lenses (agent-kit#227):
   lenses until `quality-scenarios` and `domain-language` ship.
 - **The output contract** tells every critic that a check's bracketed
   severity is its finding's severity.
+
+## What #230 settled
+
+The `adr-record` critic at the decisions stage (agent-kit#230):
+
+- **When it runs.** A decisions run whose artifact holds an ADR, meaning a
+  markdown file directly in an `adr` directory (`docs/adr/`, or a context's
+  own), adds the critics of routing's new `stages.decisions.adr` list. They
+  run at either depth, after the base critics and before the deep ones, so
+  a deep run keeps them. A `decision_summary` run adds none: its ADRs are
+  reference material, not the artifact. Grilling's ADRs are checked without
+  a new skill.
+- **Routing.** One critic: DeepSeek Flash as `adr-reviewer` with
+  `adr-record`, at the stage's $0.30 and 240 s. DeepSeek is the one family
+  the decisions base and deep rosters leave unused, so it never clashes
+  with them under `distinct_families`. It meets the same family rules as
+  any critic: dropped as `orchestrator-family`, `family-not-allowed` or
+  `same-family`, and in the last case replaced by a fallback when one
+  qualifies. A machine override is a merge patch, so one that replaces the
+  decisions `base` keeps the shipped `adr` list. When that `base` already
+  runs DeepSeek, the ADR critic is dropped as `same-family` unless the
+  override sets `adr` as well.
+- **Evidence.** A finding takes the stage's evidence rule unless the role of
+  the critic that raised it has its own at that stage. At `decisions`,
+  `adr-reviewer` takes the new `records` rule: a quote from the artifact,
+  else the hint `no-record-quote`. The gap rule, with its scenario and its
+  two categories, still holds for the gap critics. Fan-out and the refute
+  round both judge by the raiser's role, so a refutation of a record
+  finding needs a quote of the record too.
+- **The role** now says `check/adrs.json` is settled only when the packet
+  holds it. With `feature/feature.md` in the packet, the critic reviews only
+  the records that bear on that feature.
+- **`/critique-decisions`** rules on these findings with its existing
+  verdicts. An accepted one becomes a question for the owner about the part
+  the record lacks, and its answer goes into that record. `already-decided`,
+  `outside-feature` and `second-guesses-decision` reject one. The skill
+  documents the fixed severity (`declared_severity`) and the override
+  fields `severity` and `severity_reason`.

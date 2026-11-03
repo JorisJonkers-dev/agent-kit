@@ -81,6 +81,12 @@ export interface StageRouting {
   readonly base: readonly RosterSlot[]
   /** The critics deep depth adds after the base roster, each subject to the same family rules. */
   readonly deep: readonly RosterSlot[]
+  /**
+   * The critics added at either depth, after the base roster and before the
+   * deep one, when the artifact holds a decision record; each is subject to
+   * the same family rules. Only the decisions stage reads it.
+   */
+  readonly adr: readonly RosterSlot[]
   /** What makes the stage go deep when the caller names no depth. */
   readonly depth_signals: DepthSignalsConfig
   /** When a ticket is likely too big for one `/implement` context; only the tickets stage reads it. */
@@ -163,6 +169,7 @@ export function parseRouting(text: string): Routing {
     limits: readLimits(file),
     packet: file.has('packet') ? readPacketLimits(file.object('packet')) : DEFAULT_PACKET_LIMITS,
     stages: file.entries('stages', (stage, name) => ({
+      adr: stage.has('adr') ? stage.list('adr', readRosterSlot) : [],
       base: stage.list('base', readRosterSlot),
       deep: stage.has('deep') ? stage.list('deep', readRosterSlot) : [],
       depth_signals: stage.has('depth_signals') ? readDepthSignalsConfig(stage.object('depth_signals'), name) : NO_DEPTH_SIGNALS,
@@ -250,6 +257,8 @@ export interface RosterRequest {
   readonly depth: Depth
   readonly allowedFamilies: readonly ModelFamily[]
   readonly orchestratorFamily: OrchestratorFamily
+  /** Whether the artifact holds a decision record, which adds the stage's ADR critics. */
+  readonly adr?: boolean
 }
 
 /**
@@ -258,15 +267,16 @@ export interface RosterRequest {
  * readiness is worth checking.
  */
 export function candidateClients(routing: Routing, request: RosterRequest): readonly (readonly [string, CriticClient])[] {
-  const names = new Set(slotsAt(stageRouting(routing, request), request.depth).flatMap(({ slot }) => slotCandidates(routing, slot.client)))
+  const names = new Set(slotsAt(stageRouting(routing, request), request).flatMap(({ slot }) => slotCandidates(routing, slot.client)))
   return [...names]
     .map((name) => [name, clientNamed(routing, request, name)] as const)
     .filter(([, client]) => familyReason(client.family, request) === undefined)
 }
 
 /**
- * Resolves a stage's roster at the request's depth: the base slots, then at
- * deep depth the deep slots. Each slot runs its routed client, or
+ * Resolves a stage's roster at the request's depth: the base slots, then
+ * the ADR slots when the artifact holds a decision record, then at deep
+ * depth the deep slots. Each slot runs its routed client, or
  * else the first of that client's fallbacks that may run, with the slot's
  * role and lenses. A client may not run when the repository's allowlist does
  * not permit its family, when it shares the orchestrator's family (the
@@ -294,7 +304,7 @@ export function resolveRoster(
     if (ready?.ready !== false) return undefined
     return { detail: ready.detail, reason: 'reason' in ready ? ready.reason : 'unavailable' }
   }
-  for (const { slot, deep } of slotsAt(stage, request.depth)) {
+  for (const { slot, deep } of slotsAt(stage, request)) {
     const primary = clientNamed(routing, request, slot.client)
     const primaryRefusal = refusal(slot.client, primary)
     const name = slotCandidates(routing, slot.client).find((candidate) =>
@@ -331,8 +341,13 @@ export function resolveRoster(
   return { critics, depth: request.depth, distinct_families: stage.distinct_families, dropped }
 }
 
-function slotsAt(stage: StageRouting, depth: Depth): readonly { readonly slot: RosterSlot; readonly deep?: true }[] {
-  return [...stage.base.map((slot) => ({ slot })), ...(depth === 'deep' ? stage.deep.map((slot) => ({ deep: true as const, slot })) : [])]
+/** A stage's slots in the order they fill: base, then the ADR critics when the artifact holds a record, then deep at deep depth. */
+function slotsAt(stage: StageRouting, request: Pick<RosterRequest, 'adr' | 'depth'>): readonly { readonly slot: RosterSlot; readonly deep?: true }[] {
+  return [
+    ...stage.base.map((slot) => ({ slot })),
+    ...(request.adr === true ? stage.adr.map((slot) => ({ slot })) : []),
+    ...(request.depth === 'deep' ? stage.deep.map((slot) => ({ deep: true as const, slot })) : []),
+  ]
 }
 
 /** A stage's routing; a stage routing does not define is an error. */
