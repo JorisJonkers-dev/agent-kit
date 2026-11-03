@@ -1,14 +1,15 @@
 {
-  "summary": "Council context pack for agent-kit. Built at 2026-07-02T22:50:34Z from checked-in repository docs, manifests, schemas, and templates. Its source is council/context/; render-agent-kit.py --write copies it to .council/context/.",
+  "summary": "Council context pack for agent-kit. Built at 2026-07-02T22:50:34Z from checked-in repository docs, manifests, schemas, and templates. Its source is council/context/; scripts/render_agent_kit.py --write copies it to .council/context/.",
   "refs": [
     "README.md",
-    "PORTABILITY.md",
+    "docs/PORTABILITY.md",
     "manifest.yaml",
     "pyproject.toml",
     "council/README.md",
     "council/council.toml",
     "council/schemas/context-pack.schema.json",
-    "runner-manifests/README.md"
+    "runner/manifests/README.md",
+    "scripts/render_agent_kit.py"
   ],
   "files": [
     ".council/context/gh-conventions.md",

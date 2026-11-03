@@ -17,7 +17,7 @@ council/ts-dist/
 council/ts/*.tsbuildinfo
 council/ts/toolkit-files.json
 
-# Agent directories hold only local output: render-agent-kit.py --write
+# Agent directories hold only local output: scripts/render_agent_kit.py --write
 # renders the skills, agents and council context from skills/repo/, agents/
 # and council/context/, and agent sessions keep worktrees and council runs
 # here.

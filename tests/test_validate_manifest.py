@@ -15,7 +15,7 @@ from typing import ClassVar
 
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATOR_PATH = ROOT / "scripts" / "validate_manifest.py"
-RENDERER_PATH = ROOT / "render-agent-kit.py"
+RENDERER_PATH = ROOT / "scripts" / "render_agent_kit.py"
 
 
 def load_validator() -> ModuleType:
@@ -30,7 +30,7 @@ def load_validator() -> ModuleType:
 def load_renderer() -> ModuleType:
     spec = importlib.util.spec_from_file_location("render_agent_kit", RENDERER_PATH)
     if spec is None or spec.loader is None:
-        raise AssertionError("cannot load render-agent-kit.py")
+        raise AssertionError("cannot load scripts/render_agent_kit.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -92,7 +92,7 @@ class ValidateManifestRuntimeSelfTest(unittest.TestCase):
             bin_dir.mkdir(parents=True)
 
             credential = bin_dir / "git-credential-agent-gh-app"
-            credential.write_text((ROOT / "runner-manifests/runtime/bin/git-credential-agent-gh-app").read_text())
+            credential.write_text((ROOT / "runner/manifests/runtime/bin/git-credential-agent-gh-app").read_text())
             credential.chmod(0o755)
 
             token_helper = bin_dir / "mock-token-helper"
@@ -135,10 +135,10 @@ class ValidateEntrypointHomeIsolation(unittest.TestCase):
         # Outside the container a full run must neither create nor change any
         # file under HOME (.gitconfig, .claude.json, .codex/config.toml); inside
         # it (AGENT_RUNNER_CONTAINER=1) the same run still writes all of them.
-        self.validator.validate_entrypoint_home_isolation(ROOT / "runner-manifests" / "runtime" / "entrypoint.sh")
+        self.validator.validate_entrypoint_home_isolation(ROOT / "runner/manifests" / "runtime" / "entrypoint.sh")
 
     def test_the_template_entrypoint_leaves_a_workstation_home_alone(self) -> None:
-        self.validator.validate_entrypoint_home_isolation(ROOT / "templates" / "runner-runtime" / "entrypoint.sh")
+        self.validator.validate_entrypoint_home_isolation(ROOT / "runner" / "template" / "entrypoint.sh")
 
     def test_an_entrypoint_that_writes_the_global_git_config_anywhere_fails(self) -> None:
         self._assert_refused(

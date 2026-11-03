@@ -767,7 +767,7 @@ def test_container_tools_install_after_what_they_require() -> None:
 
 def test_renovate_tracks_every_container_pin() -> None:
     """A pin Renovate cannot see never moves, so prove the manager matches each one."""
-    renovate = json.loads((KIT_ROOT / "renovate.json").read_text())
+    renovate = json.loads((KIT_ROOT / ".github" / "renovate.json").read_text())
     manager = next(
         m for m in renovate["customManagers"]
         if "estate-tooling" in "".join(m["managerFilePatterns"])

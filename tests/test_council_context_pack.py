@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "council" / "context"
 PACK = SOURCE / "pack.json"
-# The pack names files where render-agent-kit.py --write puts them.
+# The pack names files where scripts/render_agent_kit.py --write puts them.
 RENDERED = ".council/context/"
 
 

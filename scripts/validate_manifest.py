@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SELFTEST_ENV = "AGENT_RUNTIME_SELFTEST"
 MANIFEST_PATH = ROOT / "manifest.yaml"
 COUNCIL_CLI_INDEX_PATH = ROOT / "council" / "ts" / "src" / "cli" / "index.ts"
-ROUND3_SKELETON_DIR = ROOT / "runner-manifests"
+ROUND3_SKELETON_DIR = ROOT / "runner/manifests"
 ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR,)
 
 ROUND3_FORBIDDEN_PATTERNS = {
@@ -92,9 +92,9 @@ REQUIRED_COUNCIL_CLI_COMMANDS_LABEL = ", ".join(REQUIRED_COUNCIL_CLI_COMMANDS)
 
 
 def load_renderer() -> Any:
-    spec = importlib.util.spec_from_file_location("render_agent_kit", ROOT / "render-agent-kit.py")
+    spec = importlib.util.spec_from_file_location("render_agent_kit", ROOT / "scripts" / "render_agent_kit.py")
     if spec is None or spec.loader is None:
-        raise AssertionError("cannot load render-agent-kit.py")
+        raise AssertionError("cannot load scripts/render_agent_kit.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -195,16 +195,16 @@ def validate_artifact(manifest: dict[str, Any]) -> None:
 def validate_renderer(manifest: dict[str, Any]) -> set[str]:
     renderer = load_renderer()
     renderer_manifest = as_mapping(manifest.get("renderer"), "renderer")
-    if renderer_manifest.get("script_path") != "render-agent-kit.py":
-        fail("renderer.script_path must be render-agent-kit.py")
+    if renderer_manifest.get("script_path") != "scripts/render_agent_kit.py":
+        fail("renderer.script_path must be scripts/render_agent_kit.py")
     if renderer_manifest.get("repo_skill_root") != "skills/repo":
         fail("renderer.repo_skill_root must be skills/repo")
     if renderer_manifest.get("agents_root") != "agents":
         fail("renderer.agents_root must be agents")
     if "template_root" in renderer_manifest:
         fail("renderer.template_root is retired: templates/repo moved to skills/repo and agents (agent-kit#277)")
-    if renderer_manifest.get("runtime_template_root") != "templates/runner-runtime":
-        fail("renderer.runtime_template_root must be templates/runner-runtime")
+    if renderer_manifest.get("runtime_template_root") != "runner/template":
+        fail("renderer.runtime_template_root must be runner/template")
 
     managed_paths = set(as_list(renderer_manifest.get("managed_paths"), "renderer.managed_paths"))
     rendered = renderer.template_files(ROOT)
@@ -527,7 +527,7 @@ def validate_runtime_package_manifest(manifest: dict[str, Any]) -> None:
     files = as_list(runtime_section.get("files"), "agent_runner_runtime.files")
     expected_files = {
         path.relative_to(ROOT).as_posix()
-        for path in (ROOT / "runner-manifests" / "runtime").rglob("*")
+        for path in (ROOT / "runner/manifests" / "runtime").rglob("*")
         if path.is_file()
     }
     manifest_files = {
@@ -644,7 +644,7 @@ def _validate_runtime_attachment_profiles(runtime: dict[str, Any], mcp_profile_n
 
 
 def validate_runtime_package_artifacts() -> None:
-    package_path = ROOT / "runner-manifests" / "runtime" / "runtime-package.yaml"
+    package_path = ROOT / "runner/manifests" / "runtime" / "runtime-package.yaml"
     package = yaml.safe_load(package_path.read_text())
     package = as_mapping(package, "runtime-package.yaml")
     if package.get("apiVersion") != "agent-kit.runtime/v1alpha1":
@@ -898,7 +898,7 @@ def validate_entrypoint_home_isolation(entrypoint: Path) -> None:
 
 
 def validate_runtime_shell_contracts(*, runtime_selftest: bool = False) -> None:
-    runtime_dir = ROOT / "runner-manifests" / "runtime"
+    runtime_dir = ROOT / "runner/manifests" / "runtime"
     entrypoint = runtime_dir / "entrypoint.sh"
     run_checked(["sh", "-n", str(entrypoint)])
     for path in sorted((runtime_dir / "bin").glob("*")):

@@ -37,7 +37,7 @@
     {
       "customType": "regex",
       "description": "Update imported skill source lock ref pins.",
-      "managerFilePatterns": ["/^skills-source\\.lock$/"],
+      "managerFilePatterns": ["/^provenance/skills-source\\.lock$/"],
       "matchStrings": [
         "- upstream_repository: (?<packageName>https://github\\.com/(?<depName>mattpocock/skills|obra/superpowers)(?:\\.git)?)\\s+(?:  [^\\n]+\\s+)*?  source_ref: (?<currentValue>\\S+)(?:\\s+(?:  [^\\n]+\\s+)*?  resolved_commit_sha: (?<currentDigest>[a-f0-9]{7,40}))?"
       ],
@@ -46,7 +46,7 @@
     {
       "customType": "regex",
       "description": "Update the pinned grill-me skill ref (mattpocock/skills) in the skills source lock.",
-      "managerFilePatterns": ["/^skills-source\\.lock$/"],
+      "managerFilePatterns": ["/^provenance/skills-source\\.lock$/"],
       "matchStrings": [
         "pinned_tag: (?<currentValue>\\S+)\\s+pinned_commit: (?<currentDigest>[a-f0-9]{7,40})"
       ],
@@ -57,7 +57,7 @@
     {
       "customType": "regex",
       "description": "Update the pinned `skills` CLI version used to install grill-me.",
-      "managerFilePatterns": ["/^skills-source\\.lock$/"],
+      "managerFilePatterns": ["/^provenance/skills-source\\.lock$/"],
       "matchStrings": [
         "skills_cli_version: (?<currentValue>\\S+)"
       ],
@@ -100,9 +100,9 @@
       "minimumReleaseAge": null
     },
     {
-      "matchFileNames": ["skills-source.lock"],
+      "matchFileNames": ["provenance/skills-source.lock"],
       "prBodyNotes": [
-        "Run the skills source sync command for `skills-source.lock` before merging so the adapted source stays aligned with this pin."
+        "Run the skills source sync command for `provenance/skills-source.lock` before merging so the adapted source stays aligned with this pin."
       ]
     }
   ]

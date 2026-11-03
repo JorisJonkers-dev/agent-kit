@@ -83,7 +83,7 @@ reserved name is uninstalled once, so its skills do not load twice.
 Renovate moves each pin: to the newest commit on a branch `ref`, or to the
 newest tag for a tag `ref`, and a skill source of the same upstream in the
 same pull request. A new marketplace's repo must be added to the coupled
-list in `renovate.json` when a skill source wraps it too; a test fails until
+list in `.github/renovate.json` when a skill source wraps it too; a test fails until
 it is.
 
 The **Marketplace Pin Review** check reads every plugin installed from the

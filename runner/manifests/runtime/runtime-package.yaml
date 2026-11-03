@@ -10,8 +10,8 @@ artifact:
   releaseAssetPattern: "agent-kit-runtime-home-v{version}.tar.gz"
   digestAlgorithm: sha256
 build:
-  containerfile: runner-manifests/runtime/Containerfile
-  context: runner-manifests/runtime
+  containerfile: runner/manifests/runtime/Containerfile
+  context: runner/manifests/runtime
   args:
     AGENT_RUNNER_BASE_IMAGE: <consumer-runner-base-image>
     AGENT_RUNNER_BIN_DIR: <runtime-bin-dir>
@@ -59,7 +59,7 @@ runtime:
     workspaceRootEnv: WORKSPACE_ROOT
     mcpDirectoryEnv: AGENT_MCP_DIR
   entrypoint:
-    path: runner-manifests/runtime/entrypoint.sh
+    path: runner/manifests/runtime/entrypoint.sh
     command:
       - agent-runner-entrypoint
     environment:
@@ -100,10 +100,10 @@ runtime:
       claudeProjectTrust: true
       codexProjectTrust: true
   githubTokenHelper:
-    helperPath: runner-manifests/runtime/bin/agent-github-token
-    ghWrapperPath: runner-manifests/runtime/bin/gh-wrapper
-    gitCredentialHelperPath: runner-manifests/runtime/bin/git-credential-agent-gh-app
-    mcpWrapperPath: runner-manifests/runtime/bin/gh-mcp-wrapper
+    helperPath: runner/manifests/runtime/bin/agent-github-token
+    ghWrapperPath: runner/manifests/runtime/bin/gh-wrapper
+    gitCredentialHelperPath: runner/manifests/runtime/bin/git-credential-agent-gh-app
+    mcpWrapperPath: runner/manifests/runtime/bin/gh-mcp-wrapper
     targetRepoEnv: AGENT_GITHUB_REPO_URL
     tokenUrlEnv: GITHUB_APP_TOKEN_URL
     tokenBearerEnv: GITHUB_APP_TOKEN_BEARER
@@ -127,20 +127,20 @@ runtime:
         env: AGENT_UI_DOCS_MCP_URL
     profiles:
       - name: minimal
-        claude: runner-manifests/runtime/mcp/claude-mcp-servers.minimal.json
-        codex: runner-manifests/runtime/mcp/codex-mcp-servers.minimal.toml
+        claude: runner/manifests/runtime/mcp/claude-mcp-servers.minimal.json
+        codex: runner/manifests/runtime/mcp/codex-mcp-servers.minimal.toml
       - name: frontend
-        claude: runner-manifests/runtime/mcp/claude-mcp-servers.frontend.json
-        codex: runner-manifests/runtime/mcp/codex-mcp-servers.frontend.toml
+        claude: runner/manifests/runtime/mcp/claude-mcp-servers.frontend.json
+        codex: runner/manifests/runtime/mcp/codex-mcp-servers.frontend.toml
       - name: cluster
-        claude: runner-manifests/runtime/mcp/claude-mcp-servers.cluster.json
-        codex: runner-manifests/runtime/mcp/codex-mcp-servers.cluster.toml
+        claude: runner/manifests/runtime/mcp/claude-mcp-servers.cluster.json
+        codex: runner/manifests/runtime/mcp/codex-mcp-servers.cluster.toml
       - name: code-intel
-        claude: runner-manifests/runtime/mcp/claude-mcp-servers.code-intel.json
-        codex: runner-manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
+        claude: runner/manifests/runtime/mcp/claude-mcp-servers.code-intel.json
+        codex: runner/manifests/runtime/mcp/codex-mcp-servers.code-intel.toml
       - name: full-diagnostic
-        claude: runner-manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
-        codex: runner-manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
+        claude: runner/manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json
+        codex: runner/manifests/runtime/mcp/codex-mcp-servers.full-diagnostic.toml
   attachmentProfiles:
     active:
       profiles:

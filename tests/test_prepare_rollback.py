@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tools.deploy.prepare_rollback import (
+from scripts.deploy.prepare_rollback import (
     AppKeyTooOldError,
     PrivilegedEnvPresentError,
     prepare_rollback,
@@ -68,8 +68,8 @@ class TestPrepareRollbackEnvCheck:
 class TestPrepareRollbackAppKeyAge:
     """T-I4: prepare_rollback fails when App key > 90 days old."""
 
-    @patch("tools.deploy.prepare_rollback.fetch_file_content")
-    @patch("tools.deploy.prepare_rollback.get_branch_sha")
+    @patch("scripts.deploy.prepare_rollback.fetch_file_content")
+    @patch("scripts.deploy.prepare_rollback.get_branch_sha")
     def test_prepare_rollback_refuses_stale_app_key(
         self, mock_get_sha, mock_fetch, mock_github_token
     ):
@@ -90,8 +90,8 @@ class TestPrepareRollbackAppKeyAge:
         assert "rotate" in str(exc.value.reason).lower()
         assert exc.value.age_days > 90
 
-    @patch("tools.deploy.prepare_rollback.fetch_file_content")
-    @patch("tools.deploy.prepare_rollback.get_branch_sha")
+    @patch("scripts.deploy.prepare_rollback.fetch_file_content")
+    @patch("scripts.deploy.prepare_rollback.get_branch_sha")
     def test_prepare_rollback_accepts_fresh_app_key(
         self, mock_get_sha, mock_fetch, mock_github_token
     ):
@@ -118,8 +118,8 @@ class TestPrepareRollbackAppKeyAge:
             # Other exceptions are ok (like missing files in real github)
             pass
 
-    @patch("tools.deploy.prepare_rollback.fetch_file_content")
-    @patch("tools.deploy.prepare_rollback.get_branch_sha")
+    @patch("scripts.deploy.prepare_rollback.fetch_file_content")
+    @patch("scripts.deploy.prepare_rollback.get_branch_sha")
     def test_prepare_rollback_graceful_on_unparseable_key_date(
         self, mock_get_sha, mock_fetch, mock_github_token
     ):
@@ -148,7 +148,7 @@ class TestGithubApiSecurity:
 
     def test_github_api_blocks_merge(self):
         """Merge operation is blocked."""
-        from tools.deploy.github_api import ForbiddenOperationError, github_api_put
+        from scripts.deploy.github_api import ForbiddenOperationError, github_api_put
 
         with pytest.raises(ForbiddenOperationError) as exc:
             github_api_put(
@@ -159,7 +159,7 @@ class TestGithubApiSecurity:
 
     def test_github_api_blocks_approve_review(self):
         """Approve review operation is blocked."""
-        from tools.deploy.github_api import ForbiddenOperationError, github_api_post
+        from scripts.deploy.github_api import ForbiddenOperationError, github_api_post
 
         with pytest.raises(ForbiddenOperationError):
             github_api_post(
@@ -171,7 +171,7 @@ class TestGithubApiSecurity:
     @patch("requests.get")
     def test_github_api_allows_get(self, mock_get):
         """GET requests are never blocked."""
-        from tools.deploy.github_api import github_api_get
+        from scripts.deploy.github_api import github_api_get
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"test": "data"}
@@ -184,11 +184,11 @@ class TestGithubApiSecurity:
 class TestRollbackBranchCreation:
     """Test rollback branch creation."""
 
-    @patch("tools.deploy.prepare_rollback.commit_files")
-    @patch("tools.deploy.prepare_rollback.get_file_contents")
-    @patch("tools.deploy.prepare_rollback.create_branch")
-    @patch("tools.deploy.prepare_rollback.get_branch_sha")
-    @patch("tools.deploy.prepare_rollback.fetch_file_content")
+    @patch("scripts.deploy.prepare_rollback.commit_files")
+    @patch("scripts.deploy.prepare_rollback.get_file_contents")
+    @patch("scripts.deploy.prepare_rollback.create_branch")
+    @patch("scripts.deploy.prepare_rollback.get_branch_sha")
+    @patch("scripts.deploy.prepare_rollback.fetch_file_content")
     def test_prepare_rollback_returns_compare_url(
         self,
         mock_fetch,
