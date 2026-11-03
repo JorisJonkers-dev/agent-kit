@@ -450,6 +450,8 @@ https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md
 
 Read it before doing anything non-trivial in an estate repository.
 
+Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation): keep the build tracker current with the build-tracker skill.
+
 ## Memory
 
 Two Hindsight banks are connected. At the start of a task, recall from both:
@@ -472,6 +474,8 @@ The estate-wide conventions live in one place:
 https://github.com/JorisJonkers-dev/workspace/blob/main/CLAUDE.md
 
 Read it before doing anything non-trivial in an estate repository.
+
+Multi-ticket builds (/implement-spec, a council run, a /flow feature in implementation): keep the build tracker current with the build-tracker skill.
 
 ## Memory
 

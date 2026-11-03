@@ -226,3 +226,19 @@ feature in the git common directory, so every worktree shares it, and it is
 only a cache: it can always be rebuilt from the ledger, the run directories
 and the tracker.
 _Avoid_: session, progress, checkpoint
+
+## Build tracker
+
+**Build tracker**:
+The page that shows the owner where every ticket of a spec stands while it is
+built, rendered from one state file per repository and spec. It is a view for
+the owner, never a source for rebuilding flow state; the issue tracker stays
+that source. "Tracker" alone means the issue tracker.
+_Avoid_: dashboard, progress page, status page
+
+**Milestone**:
+A named group of a spec's tickets that ends in one closing ticket, such as a
+live check. A ticket belongs to the first milestone whose closing ticket
+depends on it, directly or through other tickets; a ticket in no milestone is
+shown under "Other".
+_Avoid_: phase (a phase is a span of the flow), stage
