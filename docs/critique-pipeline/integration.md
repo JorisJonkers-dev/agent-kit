@@ -3413,3 +3413,37 @@ The decision-log pre-check (agent-kit#226), the ADR review's counterpart of
   before any `tree/` or `facts/`. The prompt describes it as settled: build
   on it, never recompute it. agent-kit's own ADRs, with no status lines,
   pass.
+
+## What #227 settled
+
+The ADR review's role and its first two lenses (agent-kit#227):
+
+- **Role `adr-reviewer`.** It reviews the decision log as an official
+  reviewer: it never argues that a chosen option is wrong, never proposes
+  another and never copy-edits, and it judges a record by what its text
+  says, not by its headings. Its one rule of its own is `not-significant`,
+  a record that fails the significance gate, rated at most minor.
+- **The code rule is conditional.** `adr-review` is a code stage only with
+  the code permission on. When no packet file is under `tree/`, the role
+  makes no claim about code, skips every check marked "Needs `tree/`" (so
+  far `no-confirmation`, whose fixed severity stays minor), and names each
+  skipped check by id in its reply and in `no_findings_reason`. With `tree/`
+  in the packet it may cite the code. `decision-log`'s `dangling-reference`
+  reports no glossary terms when the packet holds no glossary, and says so.
+- **Lens `adr-record`.** Nine checks on one record at a time, each with a
+  fixed severity: `no-decision-sentence` (critical), `no-rejected-alternative`
+  (major), `no-cost` (major), `solution-in-context` (minor), `no-because`
+  (major), `undated-claim` (minor), `no-confirmation` (minor), `two-choices`
+  (major) and `two-readings` (major). It is the only file on the validator's
+  `DECLARES_SEVERITY` list so far. Fan-out sets these severities whatever
+  the critic wrote; the verdict may override one with `severity` and a
+  `severity_reason` slug.
+- **Lens `decision-log`, documents only.** `records-contradict`,
+  `replacement-unlinked` and `dangling-reference`, each building on
+  `check/adrs.json` rather than repeating it. Its drift and stale checks
+  wait for `tree/` and facts in phase 2.
+- **Routing.** `adr-review` runs Mistral Large with `adr-record` and Gemini
+  Flash with `decision-log`, both as `adr-reviewer`; deep adds GLM with both
+  lenses until `quality-scenarios` and `domain-language` ship.
+- **The output contract** tells every critic that a check's bracketed
+  severity is its finding's severity.

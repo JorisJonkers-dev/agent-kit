@@ -28,7 +28,7 @@ offers it.
 | `tickets` | `/check-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
 | `ticket-review` | `/review-ticket` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
-| `adr-review` | none yet (`/critique-adrs`) | on demand, outside any feature | Mistral Large, Gemini Flash (`spec-redteam`, until `adr-reviewer` ships) | GLM | Findings on the decision records; the stage is being built and has no skill yet |
+| `adr-review` | none yet (`/critique-adrs`) | on demand, outside any feature | Mistral Large with `adr-record`, Gemini Flash with `decision-log` (`adr-reviewer`) | GLM with both lenses, until `quality-scenarios` and `domain-language` ship | Findings on the decision records; the stage is being built and has no skill yet |
 
 Planning is the first three stages; implementation is one `/implement` per
 ticket, each in a fresh session; finishing is the feature review.
@@ -118,6 +118,15 @@ in `lenses/`.
 - `operability`: how the owner learns it failed, and what state it leaves.
 - `simplicity`: mechanisms no user story needs, or two for one problem.
 - `unasked-questions`: choices made without saying who decided.
+- `adr-record`: one decision record at a time, for its content and never
+  its headings: a sentence that states the decision, a rejected alternative
+  with its reason, a cost, a context that does not presuppose the choice, a
+  "because" tied to a stated force, dated outside claims, a confirmation
+  where one is possible, one choice per record, and wording with only one
+  reading. Each check fixes its severity.
+- `decision-log`: the records as one log: records in force that contradict,
+  a replacement with no status or link, and references nothing resolves,
+  beyond what `check/adrs.json` reports. Documents only for now.
 
 ### Check ids
 
@@ -162,8 +171,31 @@ reason, one equal to the declared severity, and one on a finding whose check
 fixes none. The overridden severity is the one that counts, for a second
 round among others. Each ledger finding line carries `declared_severity`,
 `severity_override` and `severity_reason`, or `null`. Only the files on the
-validator's `DECLARES_SEVERITY` list may declare a severity; the list is
-empty until the `adr-record` lens and the `plan-critic` role ship.
+validator's `DECLARES_SEVERITY` list may declare a severity: today the
+`adr-record` lens, and the `plan-critic` role once it ships.
+
+The `adr-record` checks and their fixed severities:
+
+- `no-decision-sentence` (critical): no sentence states what was decided.
+- `no-rejected-alternative` (major): no alternative turned down, or none
+  with the reason it lost.
+- `no-cost` (major): no cost, risk or negative consequence.
+- `solution-in-context` (minor): a context that already states or argues
+  for the choice.
+- `no-because` (major): a choice with no "because" tied to a stated force.
+- `undated-claim` (minor): a claim about the outside world with no date or
+  source.
+- `no-confirmation` (minor): a decision a test, lint rule or script could
+  check, with no such check named. Needs `tree/`: a documents-only run
+  skips it, and the critic names it as skipped.
+- `two-choices` (major): two choices in one record that could be reversed
+  separately.
+- `two-readings` (major): wording two readers would build differently, with
+  both readings given.
+
+The `adr-reviewer` role never argues that a chosen option is wrong and never
+copy-edits; a record that fails the significance gate (`not-significant`) is
+at most minor.
 
 ## Refute round
 

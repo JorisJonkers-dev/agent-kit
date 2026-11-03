@@ -236,7 +236,12 @@ describe('the evidence check on a repository packet', () => {
     const run = await prepared(h)
     const sent = (await readFile(join(run.packet_dir, 'tree', 'src', 'big.ts'), 'utf8')).trimEnd().split('\n').length
 
-    const verdict = await preVerdict(h, run, finding({ evidence: [ADR_QUOTE, { kind: 'trace', value: `tree/src/big.ts:${String(sent)}` }], location: 'src/big.ts:812' }))
+    // `no-confirmation` is an adr-record check, so the shipped adr-review critic declares it.
+    const verdict = await preVerdict(
+      h,
+      run,
+      finding({ check: 'no-confirmation', evidence: [ADR_QUOTE, { kind: 'trace', value: `tree/src/big.ts:${String(sent)}` }], location: 'src/big.ts:812' }),
+    )
 
     expect(verdict).toBeUndefined()
   })
