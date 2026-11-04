@@ -25,13 +25,11 @@ Build a triage lens with:
 - Risk map: irreversible operations, production impact, or high uncertainty.
 - Budget signal: why the extra model spend is or is not justified.
 
-## Model Preference Doctrine
+## Model Choice
 
-- Use the host session for obvious small work.
-- Use a cheap model for first-pass classification when facts are clear.
-- Escalate to a stronger model only when routing depends on subtle architecture,
-  safety, or product tradeoffs.
-- Prefer mixed-model review when the main value is independent disagreement.
+- Rate each task's difficulty and choose its model with the `delegate` skill
+  (`skills/workstation/delegate/SKILL.md` in agent-kit). This skill carries no
+  rubric of its own.
 
 ## Interop Surfaces
 

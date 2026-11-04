@@ -965,8 +965,21 @@ local_skills:
     note: >-
       model-gateway.mjs is built from council/ts by its build and pinned in
       manifest.yaml's model_gateway.files, the way the critique runner is
-      pinned in critique.files. The delegate skill, which drives it, comes
-      later.
+      pinned in critique.files. The delegate skill drives it.
+
+  - name: delegate
+    path: skills/workstation/delegate
+    purpose: >-
+      Plan work to hand to other model clients through the model gateway:
+      rate each task's difficulty tier, split it, pick the cheapest cost
+      class whose model covers the tier, send one batch and verify what
+      comes back, with few Claude tokens.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      Drives the gateway in skills/workstation/model-gateway/ and links to
+      its SKILL.md for fields and codes. Council's triage and design skills
+      point at it instead of carrying their own difficulty and model rubric.
 
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
