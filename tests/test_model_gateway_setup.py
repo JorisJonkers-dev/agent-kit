@@ -484,7 +484,7 @@ def test_the_skill_documents_the_run_command() -> None:
     for word in (
         "model-gateway.mjs run --json",
         "delegate-readonly",
-        "unproven-read-only",
+        "throwaway worktree",
         "AGENT_KIT_DELEGATION",
         "ledger.jsonl",
         "SUMMARY:",
