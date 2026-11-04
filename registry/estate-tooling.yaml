@@ -953,6 +953,21 @@ local_skills:
       in manifest.yaml's build_tracker.files, the way the critique runner
       is pinned in critique.files.
 
+  - name: model-gateway
+    path: skills/workstation/model-gateway
+    purpose: >-
+      The model gateway's runner and shipped defaults: the clients on this
+      machine, the client models each offers with their family, difficulty
+      tier and capability notes, and the caps and thresholds a delegation
+      is held to.
+    agents: [claude, codex, vibe, antigravity]
+    surfaces: [workstation]
+    note: >-
+      model-gateway.mjs is built from council/ts by its build and pinned in
+      manifest.yaml's model_gateway.files, the way the critique runner is
+      pinned in critique.files. The delegate skill, which drives it, comes
+      later.
+
   # `topics` and `audit` are NOT ported. Both are entirely built around the
   # old knowledge service's curator/tagging admin surface -- closed-
   # vocabulary topic slugs, an unclassified-notes inbox, `rename_tag`,
