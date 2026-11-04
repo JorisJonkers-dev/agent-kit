@@ -45,6 +45,19 @@ export interface ModelEntry {
   readonly family: string
   readonly tier: Tier
   readonly notes: string
+  /**
+   * What the model costs, in USD per million tokens, when the catalogue knows
+   * it: the copy of the client's own prices (critique's routing), from which
+   * a run's dollars are counted when the client's export prices nothing.
+   */
+  readonly prices?: ModelPrices
+}
+
+/** What one model costs, in USD per million tokens; cached input is prompt the provider served from its cache. */
+export interface ModelPrices {
+  readonly input: number
+  readonly cached_input: number
+  readonly output: number
 }
 
 /** The dollar caps a metered-personal client is held to. */
@@ -73,9 +86,22 @@ export interface GatewayConfig {
 export type ModelGatewayErrorCode =
   | 'invalid-config'
   | 'invalid-input'
+  /**
+   * The call came from inside a delegation (the delegate's environment holds
+   * the gateway's mark), and a delegate may never delegate on.
+   */
+  | 'nested-delegation'
+  /** The run asked for a client or a mode a later ticket builds (#299, #297). */
+  | 'not-supported-yet'
+  /** The data policy refuses the run's client model, or what it claims to carry. */
+  | 'policy-refused'
   /** git could not read the path the caller named, so the data policy cannot be decided. */
   | 'repository-unreadable'
+  /** The client model has no read-only proof that passed on this machine (#299 runs such clients in a worktree). */
+  | 'unproven-read-only'
   | 'unknown-command'
+  /** The run named a client model the gateway cannot list now. */
+  | 'unknown-model'
 
 export class ModelGatewayError extends Error {
   constructor(
@@ -203,10 +229,22 @@ function parseModelEntry(raw: unknown, index: number, base: ModelEntry | undefin
   const family = raw.family === undefined ? base?.family : requireString(raw.family, `${where}.family`)
   const tier = raw.tier === undefined ? base?.tier : requireOneOf(raw.tier, TIERS, `${where}.tier`)
   const notes = raw.notes === undefined ? base?.notes : requireString(raw.notes, `${where}.notes`)
+  const prices = raw.prices === undefined ? base?.prices : parseModelPrices(raw.prices, `${where}.prices`)
   if (family === undefined || tier === undefined || notes === undefined) {
     throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`)
   }
-  return { client, family, model, notes, tier }
+  return { client, family, model, notes, tier, ...(prices === undefined ? {} : { prices }) }
+}
+
+/** The catalogue's copy of a model's prices: input and output above 0, cached input at least 0. */
+function parseModelPrices(raw: unknown, where: string): ModelPrices {
+  if (!isObject(raw)) throw invalid(`${where} must be an object`)
+  const input = requireNumber(raw.input, `${where}.input`)
+  const output = requireNumber(raw.output, `${where}.output`)
+  const cachedInput = requireNumber(raw.cached_input, `${where}.cached_input`)
+  if (input <= 0 || output <= 0) throw invalid(`${where}.input and ${where}.output must be above 0`)
+  if (cachedInput < 0) throw invalid(`${where}.cached_input must be at least 0`)
+  return { cached_input: cachedInput, input, output }
 }
 
 function mergeSettings(base: Settings, raw: unknown): Settings {

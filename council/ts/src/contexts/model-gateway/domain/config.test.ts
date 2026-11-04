@@ -112,6 +112,19 @@ describe('parseDefaults', () => {
     expect(parseDefaults(raw).clients.opencode?.provider_cost_classes).toEqual({ 'opencode-go': 'subsidised' })
   })
 
+  it('keeps the prices a model entry carries, and leaves them out when it carries none', () => {
+    const raw = defaults()
+    raw.models = [
+      { client: 'vibe', family: 'zhipu', model: 'zai-glm-5-3', notes: 'review', prices: { cached_input: 0.14, input: 1.4, output: 4.4 }, tier: 'hard' },
+      { client: 'claude', family: 'anthropic', model: 'claude-sonnet-5-5', notes: 'general', tier: 'hard' },
+    ]
+
+    expect(parseDefaults(raw).models.map((entry) => entry.prices)).toEqual([
+      { cached_input: 0.14, input: 1.4, output: 4.4 },
+      undefined,
+    ])
+  })
+
   const broken: [string, (raw: Record<string, unknown>) => unknown][] = [
     ['not an object', () => []],
     ['a version other than 1', (raw) => ({ ...raw, version: 2 })],
@@ -136,6 +149,31 @@ describe('parseDefaults', () => {
     ['a model that is not an object', (raw) => ({ ...raw, models: ['claude'] })],
     ['a model without a family', (raw) => ({ ...raw, models: [{ client: 'claude', model: 'x', notes: 'n', tier: 'hard' }] })],
     ['an unknown tier', (raw) => ({ ...raw, models: [{ client: 'claude', family: 'anthropic', model: 'x', notes: 'n', tier: 'epic' }] })],
+    [
+      'prices that are not an object',
+      (raw) => ({ ...raw, models: [{ client: 'claude', family: 'anthropic', model: 'x', notes: 'n', prices: 1, tier: 'hard' }] }),
+    ],
+    [
+      'a price that is missing',
+      (raw) => ({
+        ...raw,
+        models: [{ client: 'claude', family: 'anthropic', model: 'x', notes: 'n', prices: { input: 1, output: 2 }, tier: 'hard' }],
+      }),
+    ],
+    [
+      'an input price of 0',
+      (raw) => ({
+        ...raw,
+        models: [{ client: 'claude', family: 'anthropic', model: 'x', notes: 'n', prices: { cached_input: 0, input: 0, output: 2 }, tier: 'hard' }],
+      }),
+    ],
+    [
+      'a cached input price below 0',
+      (raw) => ({
+        ...raw,
+        models: [{ client: 'claude', family: 'anthropic', model: 'x', notes: 'n', prices: { cached_input: -1, input: 1, output: 2 }, tier: 'hard' }],
+      }),
+    ],
     ['settings that are not an object', (raw) => ({ ...raw, settings: [] })],
     ['a setting that is not a number', (raw) => ({ ...raw, settings: { ...settings(), plan_warning_ratio: 'high' } })],
     ['caps that are not an object', (raw) => ({ ...raw, settings: { ...settings(), metered_personal_caps: 5 } })],

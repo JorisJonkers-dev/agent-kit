@@ -4,7 +4,16 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { FakeEnv, FakeGit, FakeProcess, type FakeRepository } from '../../../../test/model-gateway/harness.js'
+import {
+  FakeEnv,
+  FakeFiles,
+  FakeGit,
+  FakeLedger,
+  FakeProcess,
+  FakeProof,
+  FixedClock,
+  type FakeRepository,
+} from '../../../../test/model-gateway/harness.js'
 import { decidePolicyFor } from './policy.js'
 import { ModelsCommand } from './models.js'
 import type { ModelGatewayDependencies } from './ports.js'
@@ -35,21 +44,14 @@ async function workspace(repositories: Readonly<Record<string, FakeRepository>> 
   await writeFile(defaultsPath, await readFile(SHIPPED_DEFAULTS, 'utf8'))
   return {
     deps: {
+      clock: new FixedClock(),
       defaultsPath,
       env: new FakeEnv({ HOME: home }),
-      files: {
-        exists: async (path) => {
-          try {
-            await readFile(path)
-            return true
-          } catch {
-            return false
-          }
-        },
-        readText: (path) => readFile(path, 'utf8'),
-      },
+      files: new FakeFiles(),
       git: new FakeGit(repositories),
+      ledger: new FakeLedger(),
       process: new FakeProcess(['claude', 'codex']),
+      proof: new FakeProof(),
       sources: {},
     },
     home,

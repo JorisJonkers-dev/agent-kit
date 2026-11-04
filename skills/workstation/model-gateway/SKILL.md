@@ -7,8 +7,9 @@ description: Holds the model gateway's runner and its shipped defaults; it is no
 
 This folder is what the model gateway runs on. It does nothing on its own: an
 agent calls the runner, and the `delegate` skill (a later ticket) is what
-teaches an orchestrator to plan with it. Until then the runner answers one
-question, `models`: which client models this machine can use right now.
+teaches an orchestrator to plan with it. The runner answers two questions:
+`models`, which client models this machine can use right now, and `run`, one
+read-only delegation to one of them.
 
 ## What is in here
 
@@ -76,6 +77,90 @@ still listed. Hermes lists nothing until its own ticket lands, and is not
 reported missing for that.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
+
+## The `run` command
+
+`run` hands one read-only task to one client model and reports what came of
+it. It prints one JSON object on stdout and exits 0, whether the delegation
+succeeded or failed; only a refusal is an error, and it prints
+`{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
+
+```sh
+node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-4-0","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
+node model-gateway.mjs run --input <file.json>
+```
+
+The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
+`prompt`, and optionally `repo`, `carries` (`{"code":bool,"history":bool}`,
+only for an inline run), `time_limit_s` (default 900) and `max_price_usd`.
+`workflow` is required (`code: "invalid-input"`). This ticket runs `client:
+"vibe"` in `mode: "read-only"` only; any other client or mode is
+`code: "not-supported-yet"`.
+
+Everything that can refuse the run happens before anything is launched:
+
+- `nested-delegation` — the gateway sets `AGENT_KIT_DELEGATION=1` in every
+  delegate's environment and refuses any call made under it, so a delegate
+  cannot delegate on.
+- `policy-refused` — the data policy (above) for `repo`, naming the rule. A run
+  with a `repo` reads that repository, so it counts as carrying code and needs
+  `may_send.code`; `carries.history` needs `may_send.history`. A run without a
+  `repo` is inline-only: it works in a fresh empty temporary directory, never
+  inside a repository, and `carries` may not claim code or history the policy
+  does not allow.
+- `unproven-read-only` — a read-only run goes in place only on a client model
+  with a passing read-only proof. The proof is setup's recorded result for the
+  Vibe critic client whose `model` matches, in critique's routing (the shipped
+  `routing.json`, overridden by `~/.config/agent-kit/critique-routing.json`):
+  `checks["read-only:<client>"].result == "pass"` in
+  `~/.local/share/agent-kit/critique/machine-setup.json`. A model with no
+  passing proof is refused; the throwaway worktree for unproven clients comes
+  in a later ticket.
+- `unknown-model` — a model the catalogue cannot place, or one this machine
+  disabled.
+
+A launched run is Vibe, non-interactively:
+
+```sh
+vibe --prompt-file <run dir>/prompt.md --model <alias> --agent delegate-readonly \
+     --trust --workdir <dir> --output json --time-limit <s> [--max-price <usd>] \
+     --output-dir <run dir>/vibe
+```
+
+`delegate-readonly` is a Vibe agent setup installs beside the critic agents:
+`read_file` and `grep` only (Vibe 3.0.4 has no listing tool), nothing outside
+the working directory, no subagents, no skills, no MCP, no project context. The
+gateway also sets `VIBE_ENABLE_MCP`, `VIBE_ENABLE_SUBAGENTS`,
+`VIBE_INCLUDE_PROJECT_CONTEXT` and `VIBE_OUTSIDE_WORKDIR` for the launch, so
+the isolation holds even if the agent file is missing.
+
+The gateway appends a short instruction to the caller's prompt: end the answer
+with a line `SUMMARY:` followed by at most `summary_max_chars` characters
+summarising the result. The result's `summary` is that text, cut at the limit;
+when the delegate wrote none, it is the last `summary_max_chars` characters of
+its final answer.
+
+The result is `{"status":"ok"|"failed","run_id","workflow","client","model",
+"family","mode","tokens":{"input","output","cached"},"cost_usd","output_path",
+"summary"}`, and a failed run adds a `reason`: `timeout`, `parse-error`,
+`exit-<n>` or `launch-failed` (Vibe could not be started at all). The raw
+output is kept either way.
+
+A run with a `repo` keeps its directory in that repository's git common
+directory, `<git common dir>/model-gateway/runs/<run_id>/`, so a worktree's
+runs sit with the repository's; an inline run keeps it in
+`$XDG_STATE_HOME/agent-kit/model-gateway/runs/<run_id>/`, else
+`~/.local/state/agent-kit/model-gateway/runs/<run_id>/`. It holds `prompt.md`,
+`input.json`, `output.json` (Vibe's full output) and `result.json`. `run_id` is
+a UTC timestamp plus a short random suffix.
+
+Every run also appends one JSON line to the machine-wide ledger,
+`$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl` (else
+`~/.local/state/...`): workflow, client, model, family, mode, repository key,
+tokens, dollars, outcome, duration and run id. Writes take an exclusive lock
+file beside it, so two gateway processes never interleave a line. Dollars come
+from Vibe's own export when it carries them, else from the tokens times the
+catalogue's `prices` for the model.
 
 ## The data policy
 

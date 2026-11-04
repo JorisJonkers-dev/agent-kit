@@ -47,13 +47,21 @@ HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
 ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
-# One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry.
+# One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry,
+# and one read-only `delegate-*` file per vibe_delegate_agents entry, in the
+# same directory: both are agents the kit launches by name.
 VIBE_CRITIC_AGENTS_DIR = Path("registry/generated/vibe/agents")
+VIBE_DELEGATE_AGENTS_DIR = VIBE_CRITIC_AGENTS_DIR
 # The runner's search server goes by `packet` in a critic's launch, so Vibe
 # names its tools `packet_<tool>` (ADR-0006). They exist only while it runs.
 CRITIC_SEARCH_TOOLS = ("packet_grep", "packet_list", "packet_symbol")
 CRITIC_TOOLS = ("read_file", *CRITIC_SEARCH_TOOLS)
 VIBE_CRITIC_AGENT_KEYS = {"name", "model", "input_price", "output_price", "thinking", "surfaces", "note"}
+# A delegate agent pins no model: the gateway passes `--model <alias>`.
+VIBE_DELEGATE_AGENT_KEYS = {"name", "surfaces", "note"}
+# What a read-only delegate may do: read a file and search the working
+# directory. Vibe 3.0.4 has no listing tool, so `grep` is how it finds files.
+DELEGATE_TOOLS = ("read_file", "grep")
 # Mistral bills cached prompt tokens at this share of the input price
 # (docs.mistral.ai/studio/conversations/advanced/prompt-caching). Every critic
 # model runs through Mistral, so its agent file prices cached input this way.
@@ -346,6 +354,7 @@ def validate(data: dict[str, Any]) -> None:
             )
 
     _validate_vibe_critic_agents(data)
+    _validate_vibe_delegate_agents(data)
 
     for key in ("clis", "plugins", "language_servers", "mcp_servers"):
         for item in _entries(data, key):
@@ -544,6 +553,68 @@ def vibe_critic_agents(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 def retired_vibe_critic_agents(data: dict[str, Any]) -> list[str]:
     return [str(a["name"]) for a in _entries(data, "vibe_critic_agents") if not on_surface(a, "workstation")]
+
+
+def _validate_vibe_delegate_agents(data: dict[str, Any]) -> None:
+    seen: set[str] = set()
+    for agent in _entries(data, "vibe_delegate_agents"):
+        name = str(agent.get("name") or "")
+        if not re.fullmatch(r"delegate-[a-z0-9]+(-[a-z0-9]+)*", name):
+            raise RegistryError(f"vibe delegate agent {name!r} must be named delegate-<what it may do>, in lower case")
+        if name in seen:
+            raise RegistryError(f"vibe delegate agent {name} is declared twice")
+        seen.add(name)
+        unknown = set(agent) - VIBE_DELEGATE_AGENT_KEYS
+        if unknown:
+            raise RegistryError(
+                f"vibe delegate agent {name} sets {sorted(unknown)}; an entry names only itself, "
+                "and the read-only settings are the same for every delegate",
+            )
+        if agent.get("surfaces") not in ([], ["workstation"]):
+            raise RegistryError(
+                f"vibe delegate agent {name} surfaces must be [workstation], or [] to retire it",
+            )
+
+
+def vibe_delegate_agents(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The declared delegate agents; a retired one has ``surfaces: []``."""
+    return [a for a in _entries(data, "vibe_delegate_agents") if on_surface(a, "workstation")]
+
+
+def retired_vibe_delegate_agents(data: dict[str, Any]) -> list[str]:
+    return [str(a["name"]) for a in _entries(data, "vibe_delegate_agents") if not on_surface(a, "workstation")]
+
+
+def render_vibe_delegate_agent(agent: dict[str, Any]) -> str:
+    """One read-only delegate agent file, a Vibe config overlay for ``vibe --agent <name>``.
+
+    Every setting is fixed here, so no entry can widen a delegate. Its tool
+    list (``read_file`` and ``grep``) is what keeps writes, shells, skills and
+    subagents from it; ``outside_workdir = "deny"`` keeps it inside the
+    directory the gateway points it at, and ``include_project_context =
+    false`` keeps the home's ``AGENTS.md`` out of its prompt. It pins no model
+    and sets no ``default_agent``: the gateway passes ``--model <alias>``, and
+    a plain ``vibe`` never starts with it.
+    """
+    name = str(agent["name"])
+    lines = [
+        f"# {GENERATED_BANNER}",
+        "# A read-only delegate of the model gateway, launched by it as",
+        f"# `vibe --agent {name} --model <alias>`. Installed into the shared Vibe home only.",
+        "",
+        f"display_name = {_toml_str(name.replace('-', ' ').title())}",
+        'description = "Read-only delegate for the model gateway"',
+        'safety = "safe"',
+        "enabled_tools = [" + ", ".join(_toml_str(tool) for tool in DELEGATE_TOOLS) + "]",
+        'enabled_skills = ["re:^$"]',
+        'outside_workdir = "deny"',
+        "enable_subagents = false",
+        "include_project_context = false",
+        "",
+        "[session_logging]",
+        "enabled = false",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def cached_input_price(agent: dict[str, Any]) -> float:
@@ -1573,6 +1644,46 @@ def _critic_agents_step(data: dict[str, Any], w: Any) -> None:
     w("")
 
 
+def _delegate_agents_step(data: dict[str, Any], w: Any) -> None:
+    """The shell function that converges the delegate agents in one Vibe home.
+
+    Each declared agent's file is replaced, so a hand edit is undone; a retired
+    one's is removed; any other agent in the directory is the owner's and is
+    left alone. One line per file keeps every path setup reads from the kit
+    literal, which is how the bundle test sees it.
+    """
+    w("# The read-only delegate agents the model gateway launches as")
+    w("# `vibe --agent delegate-<what it may do>`. Called for the shared Vibe")
+    w("# home only: vibe-private never delegates. Nothing here touches")
+    w("# config.toml, so no delegate becomes the default agent.")
+    w("_vibe_delegate_agents() {")
+    w('  local home="$1" src dest')
+    for agent in vibe_delegate_agents(data):
+        name = agent["name"]
+        w(f'  src="${{KIT_ROOT}}/{VIBE_DELEGATE_AGENTS_DIR}/{name}.toml"')
+        w(f'  dest="${{home}}/agents/{name}.toml"')
+        w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would write ${dest}"')
+        w('  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then')
+        w(f'    ok "Vibe delegate agent {name} -> ${{dest}}"')
+        w("  else")
+        w(f'    fail "Vibe delegate agent {name}: ${{dest}} does not match ${{src}}"')
+        w("  fi")
+    for name in retired_vibe_delegate_agents(data):
+        w(f'  dest="${{home}}/agents/{name}.toml"')
+        w('  if [ ! -e "${dest}" ]; then')
+        w("    :")
+        w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would remove ${dest}"')
+        w("  else")
+        w('    rm -f "${dest}"')
+        w(f'    ok "removed retired Vibe delegate agent {name}"')
+        w("  fi")
+    w("  return 0")
+    w("}")
+    w("")
+
+
 def claude_allow_rules(data: dict[str, Any]) -> list[str]:
     """Claude permission rules for MCP servers with ``claude_allow_tools: true``.
 
@@ -2193,6 +2304,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("}")
     w("")
     _critic_agents_step(data, w)
+    _delegate_agents_step(data, w)
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
     w("run_sh() {")
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
@@ -3452,6 +3564,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("fi")
         w("")
 
+    # --- the model gateway's Vibe delegate agents ---
+    if _entries(data, "vibe_delegate_agents"):
+        w("# The read-only Vibe delegate agents, into the shared Vibe home only.")
+        w('if [ "${VIBE_HOMES_READY}" = 1 ]; then')
+        w('  log "Vibe delegate agents"')
+        w('  _vibe_delegate_agents "${VIBE_HOME}"')
+        w("fi")
+        w("")
+
     # --- vendored third-party skills (skill_sources on the workstation surface) ---
     w("# -----------------------------------------------------------------")
     w("# 8. Vendored third-party skills.")
@@ -3778,11 +3899,15 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
             for agent in vibe_critic_agents(data)
         },
+        **{
+            VIBE_DELEGATE_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_delegate_agent(agent), 0o644)
+            for agent in vibe_delegate_agents(data)
+        },
     }
 
 
-def _leftover_critic_agents(data: dict[str, Any], root: Path) -> list[Path]:
-    """Files in the critic agents' directory that no declared agent renders."""
+def _leftover_agent_files(data: dict[str, Any], root: Path) -> list[Path]:
+    """Files in the agents' directory that no declared critic or delegate renders."""
     directory = root / VIBE_CRITIC_AGENTS_DIR
     if not directory.is_dir():
         return []
@@ -3800,8 +3925,8 @@ def stale_artifacts(data: dict[str, Any], root: Path = KIT_ROOT) -> list[str]:
         target = root / relative
         if (target.read_text() if target.is_file() else None) != content:
             stale.append(str(relative))
-    # A retired critic agent's file would otherwise linger, and ship.
-    stale.extend(str(path) for path in _leftover_critic_agents(data, root))
+    # A retired critic's or delegate's file would otherwise linger, and ship.
+    stale.extend(str(path) for path in _leftover_agent_files(data, root))
     return stale
 
 
@@ -3837,7 +3962,7 @@ def main(argv: list[str] | None = None) -> int:
         if current != content:
             target.write_text(content)
         target.chmod(mode)
-    for leftover in _leftover_critic_agents(data, KIT_ROOT):
+    for leftover in _leftover_agent_files(data, KIT_ROOT):
         (KIT_ROOT / leftover).unlink()
 
     print(f"rendered {len(artifacts(data))} registry artifacts")

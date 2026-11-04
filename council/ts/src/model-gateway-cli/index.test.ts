@@ -1,12 +1,19 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { ProcessCommand, ProcessResult } from '../ports/index.js'
 import type { GitRemote } from '../shared-kernel/index.js'
-import { FakeEnv, FakeGit, FakeProcess, type FakeRepository } from '../../test/model-gateway/harness.js'
+import {
+  FakeEnv,
+  FakeGit,
+  FakeProcess,
+  FakeVibeProcess,
+  type FakeRepository,
+  type VibeScript,
+} from '../../test/model-gateway/harness.js'
 import { defaultModelGatewayRuntime, MODEL_GATEWAY_USAGE, runModelGatewayCli, type ModelGatewayCliResult } from './index.js'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -584,6 +591,7 @@ describe('the shipped defaults', () => {
           family: 'deepseek',
           model: 'deepseek-v4-1-flash-1017',
           notes: 'Cheap and quick; good at well-specified code changes and lint-like review.',
+          prices: { cached_input: 0.03, input: 0.3, output: 1.2 },
           tier: 'routine',
         },
         {
@@ -591,6 +599,7 @@ describe('the shipped defaults', () => {
           family: 'zhipu',
           model: 'zai-glm-5-3',
           notes: 'Strong code review and integration reasoning.',
+          prices: { cached_input: 0.14, input: 1.4, output: 4.4 },
           tier: 'hard',
         },
         {
@@ -598,6 +607,7 @@ describe('the shipped defaults', () => {
           family: 'mistral',
           model: 'mistral-large-4-0',
           notes: 'Broad general model.',
+          prices: { cached_input: 0.07, input: 0.7, output: 2.1 },
           tier: 'hard',
         },
         {
@@ -605,6 +615,7 @@ describe('the shipped defaults', () => {
           family: 'mistral',
           model: 'mistral-small-latest',
           notes: 'Very cheap; short summaries and classification.',
+          prices: { cached_input: 0.015, input: 0.15, output: 0.6 },
           tier: 'trivial',
         },
         {
@@ -635,7 +646,7 @@ describe('model-gateway command line', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe(
-      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models' })}\n`,
+      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models and run' })}\n`,
     )
   })
 
@@ -1148,5 +1159,580 @@ describe('models: OpenCode, read from its own listing', () => {
 
     expect(printed(result).missing).toContainEqual({ client: 'opencode', reason: 'listing failed: opencode models exited 2' })
     expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+  })
+})
+
+/** A Vibe journal: one assistant message whose text is `text`. */
+function journal(text: string): string {
+  return JSON.stringify([{ content: [{ text }], role: 'assistant', type: 'message' }])
+}
+
+/** What Vibe writes to `export.json`: its token counts, and its own figure when it priced the run. */
+function exported(options: { cost?: number; cached?: number; input?: number; output?: number } = {}): unknown {
+  return {
+    ...(options.cost === undefined ? {} : { cost_usd: options.cost }),
+    usage: {
+      cached_input_tokens: options.cached ?? 0,
+      input_tokens: options.input ?? 0,
+      output_tokens: options.output ?? 0,
+    },
+  }
+}
+
+/** Critique's routing, as the shipped file holds it: the Vibe critic clients and the model each runs. */
+const ROUTING = {
+  clients: {
+    'agy-gemini-flash-high': { kind: 'agy', model: 'gemini-3.8-flash-high' },
+    'vibe-glm': { kind: 'vibe', model: 'zai-glm-5-3' },
+    'vibe-mistral-large': { kind: 'vibe', model: 'mistral-large-4-0' },
+  },
+}
+
+/** Setup's results, with the read-only proof of one critic client recorded as `result`. */
+function setupResults(result: string, client = 'vibe-glm'): unknown {
+  return { checks: { [`read-only:${client}`]: { result } }, version: 1 }
+}
+
+interface RunWorkspace {
+  readonly dir: string
+  readonly home: string
+  readonly state: string
+  /** The repository the run works in: a real directory, so its run directory can be written. */
+  readonly repo: string
+  readonly vibe: FakeVibeProcess
+  readonly ledger: string
+  /** The input a run test sends unless it says otherwise: one read-only task in the test repository. */
+  input(overrides?: Readonly<Record<string, unknown>>): unknown
+  run(input: unknown): Promise<ModelGatewayCliResult>
+  writeAllowlist(value: unknown): Promise<void>
+  writeOverride(value: unknown): Promise<void>
+  writeRoutingOverride(value: unknown): Promise<void>
+  writeSetup(value: unknown): Promise<void>
+}
+
+interface RunWorkspaceOptions {
+  readonly scripts?: readonly VibeScript[]
+  /** The repositories the fake git knows, keyed by path; the test repository by default. */
+  readonly repositories?: (repo: string) => Readonly<Record<string, FakeRepository>>
+  readonly env?: Readonly<Record<string, string>>
+  readonly routing?: unknown
+  readonly setupResults?: unknown
+  readonly allowlist?: unknown
+  readonly override?: unknown
+  /** The shipped defaults the gateway reads, when a test needs a broken catalogue. */
+  readonly defaults?: unknown
+}
+
+/** A gateway wired to a fake Vibe, a temporary home and state directory, and a routing file of its own. */
+async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorkspace> {
+  const dir = await mkdtemp(join(tmpdir(), 'model-gateway-run-'))
+  cleanups.push(() => rm(dir, { force: true, recursive: true }))
+  const home = join(dir, 'home')
+  const state = join(dir, 'state')
+  const repo = join(dir, 'repo')
+  await mkdir(repo, { recursive: true })
+  const defaults = join(dir, 'defaults.json')
+  await writeFile(
+    defaults,
+    options.defaults === undefined ? await readFile(SHIPPED_DEFAULTS, 'utf8') : JSON.stringify(options.defaults),
+  )
+  const routingPath = join(dir, 'routing.json')
+  await writeFile(routingPath, JSON.stringify(options.routing ?? ROUTING))
+  const vibe = new FakeVibeProcess([...(options.scripts ?? [])])
+  const repositories = options.repositories?.(repo) ?? {
+    [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], root: repo },
+  }
+  const runtime = defaultModelGatewayRuntime({
+    defaultsPath: defaults,
+    env: new FakeEnv({ HOME: home, XDG_STATE_HOME: state, ...options.env }),
+    git: new FakeGit(repositories),
+    process: vibe,
+    routingPath,
+  })
+  const write = async (path: string, value: unknown): Promise<void> => {
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, JSON.stringify(value))
+  }
+  const w: RunWorkspace = {
+    dir,
+    home,
+    input: (overrides = {}) => ({
+      client: 'vibe',
+      mode: 'read-only',
+      model: 'zai-glm-5-3',
+      prompt: 'read this',
+      repo,
+      workflow: 'spec-293',
+      ...overrides,
+    }),
+    ledger: join(state, 'agent-kit', 'model-gateway', 'ledger.jsonl'),
+    repo,
+    run: (input) => runModelGatewayCli(['run', '--json', JSON.stringify(input)], runtime),
+    state,
+    vibe,
+    writeAllowlist: (value) => write(join(home, '.config', 'agent-kit', 'critique-allowlist.json'), value),
+    writeOverride: (value) => write(join(home, '.config', 'agent-kit', 'model-gateway.json'), value),
+    writeRoutingOverride: (value) => write(join(home, '.config', 'agent-kit', 'critique-routing.json'), value),
+    writeSetup: (value) => write(join(home, '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json'), value),
+  }
+  if (options.allowlist !== undefined) await w.writeAllowlist(options.allowlist)
+  if (options.override !== undefined) await w.writeOverride(options.override)
+  if (options.setupResults !== undefined) await w.writeSetup(options.setupResults)
+  return w
+}
+
+/** A workspace whose one run is permitted, proven and scripted to answer `text`. */
+async function readyRun(options: RunWorkspaceOptions & { readonly text?: string } = {}): Promise<RunWorkspace> {
+  return runWorkspace({
+    allowlist: allowlist(['zhipu'], true, true),
+    scripts: [{ exportJson: exported({ cost: 0.0123, input: 100 }), stdout: journal(options.text ?? 'the answer\nSUMMARY: it is fine') }],
+    setupResults: setupResults('pass'),
+    ...options,
+  })
+}
+
+/** The run directory of a result, inside the test repository's common directory. */
+function runDirOf(w: RunWorkspace, result: ModelGatewayCliResult): string {
+  return join(w.repo, '.git', 'model-gateway', 'runs', String(printed(result).run_id))
+}
+
+/** The value of one flag of a launch. */
+function flag(command: ProcessCommand | undefined, name: string): string | undefined {
+  const at = command?.args.indexOf(name) ?? -1
+  return at === -1 ? undefined : command?.args[at + 1]
+}
+
+describe('model-gateway run: the input', () => {
+  it('refuses a call that names no workflow, before anything is launched', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input({ workflow: undefined }))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toEqual({ code: 'invalid-input', message: 'a run must name its workflow', status: 'error' })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a client or a mode a later ticket builds', async () => {
+    const w = await readyRun()
+
+    expect(printed(await w.run(w.input({ client: 'codex' }))).code).toBe('not-supported-yet')
+    expect(printed(await w.run(w.input({ mode: 'writing' }))).code).toBe('not-supported-yet')
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a client the configuration does not declare', async () => {
+    const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as { clients: Record<string, unknown> }
+    delete shipped.clients.vibe
+    const w = await readyRun({ defaults: shipped })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'unknown-model',
+      message: 'the gateway knows no client vibe',
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a model the gateway cannot place, and one the machine disabled', async () => {
+    const w = await readyRun({ override: { disabled: ['vibe:mistral-large-4-0'] } })
+
+    expect(printed(await w.run(w.input({ model: 'unknown-model-1' })))).toMatchObject({
+      code: 'unknown-model',
+      message: 'vibe:unknown-model-1 is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override',
+    })
+    expect(printed(await w.run(w.input({ model: 'mistral-large-4-0' })))).toMatchObject({
+      code: 'unknown-model',
+      message: "vibe:mistral-large-4-0 is disabled in this machine's configuration",
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+})
+
+describe('model-gateway run: the data policy, before anything is launched', () => {
+  it('refuses a client model the repository’s entry does not permit, naming the rule', async () => {
+    const w = await readyRun({ allowlist: allowlist(['mistral'], true, true) })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'policy-refused',
+      message: `vibe:zai-glm-5-3 is not permitted: ${KEY}: the entry allows mistral`,
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a run in a repository whose entry does not allow code, whatever the caller marks', async () => {
+    const w = await readyRun({ allowlist: allowlist(['zhipu'], false, true) })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      code: 'policy-refused',
+      message: `vibe:zai-glm-5-3 may not carry code: ${KEY}: the entry allows zhipu`,
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses history the entry does not allow, and runs when it does', async () => {
+    const refused = await readyRun({ allowlist: allowlist(['zhipu'], true, false) })
+
+    expect(printed(await refused.run(refused.input({ carries: { code: true, history: true } })))).toMatchObject({
+      code: 'policy-refused',
+      message: `vibe:zai-glm-5-3 may not carry history: ${KEY}: the entry allows zhipu`,
+    })
+    expect(refused.vibe.commands).toEqual([])
+
+    const allowed = await readyRun({ allowlist: allowlist(['zhipu'], true, true) })
+    expect(printed(await allowed.run(allowed.input({ carries: { code: true, history: true } }))).status).toBe('ok')
+  })
+
+  it('refuses an inline run that claims code, and runs one that claims nothing', async () => {
+    const w = await readyRun()
+
+    expect(printed(await w.run(w.input({ carries: { code: true, history: false }, repo: undefined })))).toMatchObject({
+      code: 'policy-refused',
+      message: 'vibe:zai-glm-5-3 may not carry code: no repository: only inline content, to subsidised and metered-personal clients',
+    })
+    expect(w.vibe.commands).toEqual([])
+
+    expect(printed(await w.run(w.input({ repo: undefined }))).status).toBe('ok')
+  })
+
+  it('refuses a nedap repository, which may reach only Codex and Claude Code', async () => {
+    const w = await readyRun({
+      repositories: (repo) => ({
+        [repo]: { commonDir: join(repo, '.git'), remotes: [{ name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }], root: repo },
+      }),
+    })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      code: 'policy-refused',
+      message: 'vibe:zai-glm-5-3 is not permitted: a nedap repository: only Codex and Claude Code, with code and history',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a path in no repository at all, rather than running inline', async () => {
+    const w = await readyRun({ repositories: () => ({}) })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'repository-unreadable',
+      message: `${w.repo}: not a git repository`,
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a path git cannot read, naming the path and git’s message', async () => {
+    const w = await readyRun({ repositories: (repo) => ({ [repo]: { error: 'fatal: detected dubious ownership' } }) })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'repository-unreadable',
+      message: `${w.repo}: fatal: detected dubious ownership`,
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+})
+
+describe('model-gateway run: the read-only proof', () => {
+  it('refuses a model with no passing proof, and launches nothing', async () => {
+    const w = await readyRun({ setupResults: setupResults('fail') })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'unproven-read-only',
+      message: "vibe:zai-glm-5-3 has no passing read-only proof: setup's read-only proof for vibe-glm is fail",
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses when setup recorded no proof at all', async () => {
+    const w = await readyRun({ setupResults: undefined })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      code: 'unproven-read-only',
+      message: "vibe:zai-glm-5-3 has no passing read-only proof: setup's read-only proof for vibe-glm is not recorded",
+    })
+  })
+
+  it('refuses a model no Vibe critic client runs, even when another model’s proof passed', async () => {
+    const w = await readyRun({
+      allowlist: allowlist(['zhipu', 'mistral'], true, true),
+      routing: { clients: { 'vibe-glm': { kind: 'vibe', model: 'zai-glm-5-3' } } },
+    })
+
+    expect(printed(await w.run(w.input({ model: 'mistral-large-4-0' })))).toMatchObject({
+      code: 'unproven-read-only',
+      message: "vibe:mistral-large-4-0 has no passing read-only proof: no Vibe critic client in critique's routing runs mistral-large-4-0",
+    })
+  })
+
+  it('follows this machine’s routing override, which may move a critic client to another model', async () => {
+    const w = await readyRun()
+    await w.writeRoutingOverride({ clients: { 'vibe-glm': { model: 'zai-glm-6-0' } } })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ code: 'unproven-read-only' })
+  })
+})
+
+describe('model-gateway run: the launch', () => {
+  it('launches Vibe non-interactively, with the model, the read-only agent and its own limits', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input({ max_price_usd: 0.5, time_limit_s: 120 }))
+
+    expect(result.exitCode).toBe(0)
+    const [command] = w.vibe.commands
+    expect(command?.command).toBe('vibe')
+    expect(command?.cwd).toBe(w.repo)
+    expect(command?.args).toEqual([
+      '--prompt-file',
+      join(runDirOf(w, result), 'prompt.md'),
+      '--model',
+      'zai-glm-5-3',
+      '--agent',
+      'delegate-readonly',
+      '--trust',
+      '--workdir',
+      w.repo,
+      '--output',
+      'json',
+      '--time-limit',
+      '120',
+      '--max-price',
+      '0.5',
+      '--output-dir',
+      join(runDirOf(w, result), 'vibe'),
+    ])
+    expect(command?.timeoutMs).toBe(180_000)
+  })
+
+  it('leaves the price cap out when the caller sets none, and defaults the time limit to 900 seconds', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input())
+
+    expect(flag(w.vibe.commands[0], '--max-price')).toBeUndefined()
+    expect(flag(w.vibe.commands[0], '--time-limit')).toBe('900')
+    expect(result.exitCode).toBe(0)
+  })
+
+  it('marks the delegate’s environment, and switches the home’s MCP servers and subagents off', async () => {
+    const w = await readyRun()
+
+    await w.run(w.input())
+
+    expect(w.vibe.commands[0]?.env).toEqual({
+      AGENT_KIT_DELEGATION: '1',
+      VIBE_ENABLE_MCP: 'false',
+      VIBE_ENABLE_SUBAGENTS: 'false',
+      VIBE_INCLUDE_PROJECT_CONTEXT: 'false',
+      VIBE_OUTSIDE_WORKDIR: 'deny',
+    })
+  })
+
+  it('gives an inline run a fresh empty directory outside every repository as its workdir', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input({ repo: undefined }))
+
+    const workDir = flag(w.vibe.commands[0], '--workdir') ?? ''
+    expect(workDir.startsWith(tmpdir())).toBe(true)
+    expect(workDir.startsWith(w.repo)).toBe(false)
+    expect(await readdir(workDir)).toEqual([])
+    expect(printed(result).status).toBe('ok')
+  })
+})
+
+describe('model-gateway run: the result', () => {
+  it('prints the short result: status, run id, client model, tokens, cost, output path and summary', async () => {
+    const w = await readyRun({
+      scripts: [{ exportJson: exported({ cached: 10, cost: 0.0123, input: 100, output: 20 }), stdout: journal('the answer\nSUMMARY: it is fine') }],
+    })
+
+    const result = await w.run(w.input())
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(printed(result)).toEqual({
+      client: 'vibe',
+      cost_usd: 0.0123,
+      family: 'zhipu',
+      mode: 'read-only',
+      model: 'zai-glm-5-3',
+      output_path: join(runDirOf(w, result), 'output.json'),
+      run_id: printed(result).run_id,
+      status: 'ok',
+      summary: 'it is fine',
+      tokens: { cached: 10, input: 100, output: 20 },
+      workflow: 'spec-293',
+    })
+    expect(String(printed(result).run_id)).toMatch(/^\d{8}T\d{6}Z-[0-9a-f]{6}$/)
+  })
+
+  it('cuts the summary at summary_max_chars, and falls back to the last characters of the answer', async () => {
+    const cut = await readyRun({ override: { settings: { summary_max_chars: 5 } }, text: 'SUMMARY: 0123456789' })
+    expect(printed(await cut.run(cut.input())).summary).toBe('01234')
+
+    const fallback = await readyRun({ override: { settings: { summary_max_chars: 5 } }, text: '0123456789' })
+    expect(printed(await fallback.run(fallback.input())).summary).toBe('56789')
+  })
+
+  it('counts the dollars at the catalogue price when the export does not parse', async () => {
+    const w = await readyRun({
+      scripts: [
+        {
+          effect: async (command) => {
+            const dir = String(flag(command, '--output-dir'))
+            await mkdir(dir, { recursive: true })
+            await writeFile(join(dir, 'export.json'), '{"cost_usd":')
+          },
+          stdout: journal('done'),
+        },
+      ],
+    })
+
+    const result = await w.run(w.input())
+
+    expect(printed(result)).toMatchObject({ cost_usd: 0, status: 'ok', tokens: { cached: 0, input: 0, output: 0 } })
+  })
+
+  it('counts the dollars at the catalogue price when Vibe priced nothing', async () => {
+    const w = await readyRun({ scripts: [{ exportJson: exported({ input: 1_000_000, output: 1_000_000 }), stdout: journal('done') }] })
+
+    expect(printed(await w.run(w.input())).cost_usd).toBeCloseTo(1.4 + 4.4, 10)
+  })
+})
+
+describe('model-gateway run: the run directory', () => {
+  it('keeps the prompt, the input, the full output and the result in the repository’s common directory', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input())
+
+    const runDir = runDirOf(w, result)
+    expect(await readFile(join(runDir, 'prompt.md'), 'utf8')).toBe(
+      'read this\n\nEnd your answer with a line "SUMMARY:" followed by at most 1500 characters that summarise the result.',
+    )
+    expect(JSON.parse(await readFile(join(runDir, 'input.json'), 'utf8'))).toEqual({ ...(w.input() as object), time_limit_s: 900 })
+    expect(await readFile(join(runDir, 'output.json'), 'utf8')).toBe(journal('the answer\nSUMMARY: it is fine'))
+    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toEqual(printed(result))
+  })
+
+  it('refuses a repository whose common directory git cannot name', async () => {
+    const w = await readyRun({
+      repositories: (repo) => ({
+        [repo]: { commonDirError: 'fatal: not a git repository', remotes: [AGENT_KIT_REMOTE], root: repo },
+      }),
+    })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'repository-unreadable',
+      message: `${w.repo}: fatal: not a git repository`,
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('keeps them in this machine’s state directory for an inline run', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input({ repo: undefined }))
+
+    const runDir = join(w.state, 'agent-kit', 'model-gateway', 'runs', String(printed(result).run_id))
+    expect(printed(result).output_path).toBe(join(runDir, 'output.json'))
+    expect(await readFile(join(runDir, 'prompt.md'), 'utf8')).toContain('read this')
+  })
+})
+
+describe('model-gateway run: the ledger', () => {
+  it('appends one line per run: what it was, what it cost and how it ended', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input())
+
+    const lines = (await readFile(w.ledger, 'utf8')).trimEnd().split('\n')
+    expect(lines).toHaveLength(1)
+    expect(JSON.parse(String(lines[0]))).toEqual({
+      at: expect.any(String) as unknown,
+      client: 'vibe',
+      cost_usd: 0.0123,
+      duration_s: expect.any(Number) as unknown,
+      family: 'zhipu',
+      mode: 'read-only',
+      model: 'zai-glm-5-3',
+      outcome: 'ok',
+      repository: KEY,
+      run_id: printed(result).run_id,
+      tokens: { cached: 0, input: 100, output: 0 },
+      workflow: 'spec-293',
+    })
+  })
+
+  it('appends a line for a failed run too, with its reason and no repository for an inline one', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 3, stdout: '' }] })
+
+    await w.run(w.input({ repo: undefined }))
+
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({
+      outcome: 'failed',
+      reason: 'exit-3',
+      repository: null,
+    })
+  })
+
+  it('never interleaves a line when two runs append at once', async () => {
+    const w = await readyRun()
+    w.vibe.queue(...Array.from({ length: 7 }, () => ({ exportJson: exported({ cost: 0.01 }), stdout: journal('done') })))
+
+    const results = await Promise.all(Array.from({ length: 8 }, () => w.run(w.input())))
+
+    const lines = (await readFile(w.ledger, 'utf8')).trimEnd().split('\n')
+    expect(lines).toHaveLength(8)
+    const ids = lines.map((line) => (JSON.parse(line) as { run_id: string }).run_id)
+    expect(new Set(ids).size).toBe(8)
+    expect(ids.sort()).toEqual(results.map((result) => String(printed(result).run_id)).sort())
+    expect(await readdir(dirname(w.ledger))).toEqual(['ledger.jsonl'])
+  })
+})
+
+describe('model-gateway run: a failed run', () => {
+  it('reports a timeout', async () => {
+    const w = await readyRun({ scripts: [{ stdout: '', timedOut: true }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'timeout', status: 'failed' })
+  })
+
+  it('reports the exit code Vibe ended with', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 3, stderr: 'stopped early', stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'exit-3', status: 'failed' })
+  })
+
+  it('reports a journal it cannot read, and keeps the raw output', async () => {
+    const w = await readyRun({ scripts: [{ stdout: 'not a journal' }] })
+
+    const result = await w.run(w.input())
+
+    expect(printed(result)).toMatchObject({ reason: 'parse-error', status: 'failed', summary: '' })
+    expect(await readFile(join(runDirOf(w, result), 'output.json'), 'utf8')).toBe('not a journal')
+  })
+
+  it('reports a launch that cannot start at all', async () => {
+    const w = await readyRun({ scripts: [] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'launch-failed', status: 'failed' })
+  })
+})
+
+describe('model-gateway run: the nesting guard', () => {
+  it('refuses a call from inside a delegation', async () => {
+    const w = await readyRun({ env: { AGENT_KIT_DELEGATION: '1' } })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'nested-delegation',
+      message: 'a delegate may not delegate on: AGENT_KIT_DELEGATION is set in this environment',
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
   })
 })

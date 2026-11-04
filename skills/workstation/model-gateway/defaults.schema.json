@@ -85,6 +85,17 @@
           "type": "string",
           "minLength": 1,
           "description": "What the model is good at, in the owner's words."
+        },
+        "prices": {
+          "type": "object",
+          "required": ["input", "cached_input", "output"],
+          "additionalProperties": false,
+          "description": "What the model costs, in USD per million tokens, copied from the client's own prices: a run whose client prices nothing is counted at these.",
+          "properties": {
+            "input": { "type": "number", "exclusiveMinimum": 0 },
+            "cached_input": { "type": "number", "minimum": 0 },
+            "output": { "type": "number", "exclusiveMinimum": 0 }
+          }
         }
       }
     },

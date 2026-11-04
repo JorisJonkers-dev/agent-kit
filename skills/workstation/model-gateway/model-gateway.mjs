@@ -3,9 +3,23 @@
 
 // src/model-gateway-cli/index.ts
 import { readFile as readFile2 } from "node:fs/promises";
-import { join as join3 } from "node:path";
+import { join as join5 } from "node:path";
 
 // src/adapters/clock/index.ts
+import { performance } from "node:perf_hooks";
+var SystemClockAdapter = class {
+  now() {
+    return /* @__PURE__ */ new Date();
+  }
+  monotonicMs() {
+    return performance.now();
+  }
+  async sleep(ms) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  }
+};
 var ProcessEnvAdapter = class {
   source;
   constructor(source = process.env) {
@@ -131,10 +145,20 @@ function parseModelEntry(raw, index, base) {
   const family = raw.family === void 0 ? base?.family : requireString(raw.family, `${where}.family`);
   const tier = raw.tier === void 0 ? base?.tier : requireOneOf(raw.tier, TIERS, `${where}.tier`);
   const notes = raw.notes === void 0 ? base?.notes : requireString(raw.notes, `${where}.notes`);
+  const prices = raw.prices === void 0 ? base?.prices : parseModelPrices(raw.prices, `${where}.prices`);
   if (family === void 0 || tier === void 0 || notes === void 0) {
     throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`);
   }
-  return { client, family, model, notes, tier };
+  return { client, family, model, notes, tier, ...prices === void 0 ? {} : { prices } };
+}
+function parseModelPrices(raw, where) {
+  if (!isObject(raw)) throw invalid(`${where} must be an object`);
+  const input = requireNumber(raw.input, `${where}.input`);
+  const output = requireNumber(raw.output, `${where}.output`);
+  const cachedInput = requireNumber(raw.cached_input, `${where}.cached_input`);
+  if (input <= 0 || output <= 0) throw invalid(`${where}.input and ${where}.output must be above 0`);
+  if (cachedInput < 0) throw invalid(`${where}.cached_input must be at least 0`);
+  return { cached_input: cachedInput, input, output };
 }
 function mergeSettings(base, raw) {
   if (raw === void 0) return base;
@@ -635,6 +659,23 @@ function vibeConfigPath(env) {
   if (home !== void 0 && isAbsolute(home)) return join(home, "config.toml");
   return join(env.require("HOME"), ".vibe", "config.toml");
 }
+function routingOverridePath(env) {
+  return join(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
+}
+function setupResultsPath(env) {
+  return join(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
+}
+function stateDir(env) {
+  const xdg = env.get("XDG_STATE_HOME");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit", "model-gateway");
+  return join(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
+}
+function ledgerPath(env) {
+  return join(stateDir(env), "ledger.jsonl");
+}
+function runsDir(env) {
+  return join(stateDir(env), "runs");
+}
 
 // src/shared-kernel/git-remote.ts
 var DENIED_OWNER = "nedap";
@@ -760,9 +801,376 @@ function readModelsInput(raw) {
   return { repo };
 }
 
+// src/contexts/model-gateway/application/run.ts
+import { randomBytes } from "node:crypto";
+import { join as join2 } from "node:path";
+
+// src/contexts/model-gateway/domain/run.ts
+var RUN_CLIENTS = ["vibe"];
+var DEFAULT_TIME_LIMIT_S = 900;
+function readRunInput(raw) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  if (typeof raw.workflow !== "string" || raw.workflow === "") {
+    throw new ModelGatewayError("invalid-input", "a run must name its workflow");
+  }
+  if (typeof raw.client !== "string" || !RUN_CLIENTS.includes(raw.client)) {
+    throw new ModelGatewayError("not-supported-yet", `only ${RUN_CLIENTS.join(", ")} can run a delegation, not ${shown(raw.client)}`);
+  }
+  if (raw.mode !== "read-only") {
+    throw new ModelGatewayError("not-supported-yet", `only read-only runs are supported, not ${shown(raw.mode)}`);
+  }
+  if (typeof raw.model !== "string" || raw.model === "") {
+    throw new ModelGatewayError("invalid-input", "model must be a non-empty string");
+  }
+  if (typeof raw.prompt !== "string" || raw.prompt === "") {
+    throw new ModelGatewayError("invalid-input", "prompt must be a non-empty string");
+  }
+  const repo = readOptionalString(raw.repo, "repo");
+  const carries = readCarries(raw.carries);
+  const timeLimit = raw.time_limit_s === void 0 ? DEFAULT_TIME_LIMIT_S : requiredWholeNumber(raw.time_limit_s, "time_limit_s");
+  if (timeLimit <= 0) throw new ModelGatewayError("invalid-input", "time_limit_s must be a whole number of seconds above 0");
+  const maxPrice = raw.max_price_usd === void 0 ? void 0 : requiredNumberAbove0(raw.max_price_usd, "max_price_usd");
+  return {
+    client: raw.client,
+    mode: "read-only",
+    model: raw.model,
+    prompt: raw.prompt,
+    time_limit_s: timeLimit,
+    workflow: raw.workflow,
+    ...carries === void 0 ? {} : { carries },
+    ...maxPrice === void 0 ? {} : { max_price_usd: maxPrice },
+    ...repo === void 0 ? {} : { repo }
+  };
+}
+function readOptionalString(value, name) {
+  if (value === void 0) return void 0;
+  if (typeof value !== "string" || value === "") throw new ModelGatewayError("invalid-input", `${name} must be a non-empty string`);
+  return value;
+}
+function readCarries(value) {
+  if (value === void 0) return void 0;
+  if (!isObject(value) || typeof value.code !== "boolean" || typeof value.history !== "boolean") {
+    throw new ModelGatewayError("invalid-input", "carries must name code and history, each true or false");
+  }
+  return { code: value.code, history: value.history };
+}
+function requiredWholeNumber(value, name) {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new ModelGatewayError("invalid-input", `${name} must be a whole number`);
+  }
+  return value;
+}
+function requiredNumberAbove0(value, name) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new ModelGatewayError("invalid-input", `${name} must be a number above 0`);
+  }
+  return value;
+}
+function shown(value) {
+  return value === void 0 ? "missing" : JSON.stringify(value);
+}
+function wrappedPrompt(prompt, summaryMaxChars) {
+  return `${prompt}
+
+End your answer with a line "SUMMARY:" followed by at most ${String(summaryMaxChars)} characters that summarise the result.`;
+}
+function summaryOf(answer, summaryMaxChars) {
+  const at = answer.lastIndexOf("SUMMARY:");
+  if (at === -1) return answer.slice(-summaryMaxChars);
+  return answer.slice(at + "SUMMARY:".length).trimStart().slice(0, summaryMaxChars);
+}
+function finalAnswerOf(stdout) {
+  let journal;
+  try {
+    journal = JSON.parse(stdout);
+  } catch {
+    return void 0;
+  }
+  if (!Array.isArray(journal)) return void 0;
+  const last = journal.findLast(
+    (entry) => isObject(entry) && entry.type === "message" && entry.role === "assistant"
+  );
+  if (last === void 0 || !Array.isArray(last.content)) return void 0;
+  const text = last.content.map((part) => isObject(part) && typeof part.text === "string" ? part.text : "").join("");
+  return text === "" ? void 0 : text;
+}
+var NO_TOKENS = { cached: 0, input: 0, output: 0 };
+function runTokens(exported) {
+  const usage = isObject(exported) && isObject(exported.usage) ? exported.usage : void 0;
+  const count = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+  if (usage === void 0) return NO_TOKENS;
+  return { cached: count(usage.cached_input_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) };
+}
+function runCost(exported, tokens, prices) {
+  const charged = isObject(exported) ? exported.cost_usd : void 0;
+  if (typeof charged === "number" && Number.isFinite(charged) && charged > 0) return charged;
+  if (prices === void 0) return 0;
+  const uncached = Math.max(tokens.input - tokens.cached, 0);
+  return (uncached * prices.input + tokens.cached * prices.cached_input + tokens.output * prices.output) / 1e6;
+}
+function runFailureReason(launch, answer) {
+  if (launch.timedOut === true) return "timeout";
+  if (launch.exitCode !== 0) return `exit-${String(launch.exitCode)}`;
+  if (answer === void 0) return "parse-error";
+  return void 0;
+}
+function compactTimestamp(at) {
+  return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+function runId(at, suffix) {
+  return `${compactTimestamp(at)}-${suffix}`;
+}
+function readOnlyProof(files, model) {
+  const routing = parseJsonObject(files.routing);
+  if (routing === void 0) {
+    return unproven("critique's routing is not installed, so no Vibe critic client proves a model read-only");
+  }
+  const critic = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, model);
+  if (critic === void 0) return unproven(`no Vibe critic client in critique's routing runs ${model}`);
+  const result2 = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${critic}`);
+  if (result2 !== "pass") return unproven(`setup's read-only proof for ${critic} is ${result2 ?? "not recorded"}`);
+  return { critic, status: "proven" };
+}
+function unproven(reason) {
+  return { reason, status: "unproven" };
+}
+function criticFor(routing, override, model) {
+  const clients = /* @__PURE__ */ new Map();
+  for (const source of [routing, override]) {
+    if (!isObject(source)) continue;
+    for (const [name, entry] of Object.entries(source)) {
+      if (isObject(entry)) clients.set(name, { ...clients.get(name), ...entry });
+    }
+  }
+  return [...clients].filter(([, entry]) => entry.kind === "vibe" && entry.model === model).map(([name]) => name).sort()[0];
+}
+function checkResult(checks, id) {
+  if (!isObject(checks)) return void 0;
+  const check = checks[id];
+  return isObject(check) && typeof check.result === "string" ? check.result : void 0;
+}
+function parseJsonObject(text) {
+  if (text === void 0) return void 0;
+  try {
+    const parsed = JSON.parse(text);
+    return isObject(parsed) ? parsed : void 0;
+  } catch {
+    return void 0;
+  }
+}
+
+// src/contexts/model-gateway/application/run.ts
+var DELEGATION_MARK = "AGENT_KIT_DELEGATION";
+var READ_ONLY_AGENT = "delegate-readonly";
+var OUTER_TIMEOUT_GRACE_S = 60;
+var DELEGATE_ENV = {
+  [DELEGATION_MARK]: "1",
+  VIBE_ENABLE_MCP: "false",
+  VIBE_ENABLE_SUBAGENTS: "false",
+  VIBE_INCLUDE_PROJECT_CONTEXT: "false",
+  VIBE_OUTSIDE_WORKDIR: "deny"
+};
+var RunCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async run(raw) {
+    const input = readRunInput(raw);
+    this.refuseNested();
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const client = config.clients[input.client];
+    if (client === void 0) throw new ModelGatewayError("unknown-model", `the gateway knows no client ${input.client}`);
+    const entry = catalogueEntry(config, input.client, input.model);
+    const family = entry?.family ?? familyOf(input.model);
+    if (family === void 0) {
+      throw new ModelGatewayError(
+        "unknown-model",
+        `${input.client}:${input.model} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override`
+      );
+    }
+    const root = input.repo === void 0 ? void 0 : await this.repositoryRoot(input.repo);
+    const allowed = await this.permission(input, config, family);
+    await this.proveReadOnly(input);
+    const startedAt = this.deps.clock.now();
+    const startedMs = this.deps.clock.monotonicMs();
+    const id = runId(startedAt, randomBytes(3).toString("hex"));
+    const workDir = root ?? await this.deps.files.tempDir("model-gateway-run-");
+    const runDir = await this.runDir(input, workDir, id);
+    const paths = { exportDir: join2(runDir, "vibe"), promptPath: join2(runDir, "prompt.md"), workDir };
+    await this.deps.files.writeText(paths.promptPath, wrappedPrompt(input.prompt, config.settings.summary_max_chars));
+    await this.deps.files.writeText(join2(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
+`);
+    const launched = await this.launch(client.binary, input, paths);
+    const exported = await this.readExport(join2(paths.exportDir, "export.json"));
+    const answer = finalAnswerOf(launched.result.stdout);
+    const reason = launched.failure ?? runFailureReason(launched.result, answer);
+    const tokens = runTokens(exported);
+    const cost = runCost(exported, tokens, entry?.prices);
+    const outputPath = join2(runDir, "output.json");
+    await this.deps.files.writeText(outputPath, launched.result.stdout);
+    const result2 = {
+      client: input.client,
+      cost_usd: cost,
+      family,
+      mode: input.mode,
+      model: input.model,
+      output_path: outputPath,
+      run_id: id,
+      status: reason === void 0 ? "ok" : "failed",
+      summary: answer === void 0 ? "" : summaryOf(answer, config.settings.summary_max_chars),
+      tokens,
+      workflow: input.workflow,
+      ...reason === void 0 ? {} : { reason }
+    };
+    await this.deps.files.writeText(join2(runDir, "result.json"), `${JSON.stringify(result2, null, 2)}
+`);
+    await this.deps.ledger.append(this.ledgerRecord(result2, allowed.repository, startedMs));
+    return result2;
+  }
+  /** A delegate may not delegate on: the mark is in its environment, so this call came from inside one. */
+  refuseNested() {
+    if (this.deps.env.get(DELEGATION_MARK) !== void 0) {
+      throw new ModelGatewayError("nested-delegation", `a delegate may not delegate on: ${DELEGATION_MARK} is set in this environment`);
+    }
+  }
+  /**
+   * The data policy's permission for this client model, or a refusal naming
+   * the rule. A run with a repository reads it, so it carries code whatever
+   * the caller marks; an inline run carries only what the caller declares.
+   */
+  async permission(input, config, family) {
+    const scope = await resolveScope(this.deps, input.repo);
+    const decision = decidePolicy(config, scope, [{ client: input.client, family, model: input.model }]);
+    const permission2 = decision.permissions[0];
+    if (!permission2?.permitted) {
+      throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} is not permitted: ${decision.reason}`);
+    }
+    const carries = input.carries ?? { code: false, history: false };
+    const carriesCode = input.repo === void 0 ? carries.code : true;
+    if (carriesCode && !permission2.may_send.code) {
+      throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} may not carry code: ${decision.reason}`);
+    }
+    if (carries.history && !permission2.may_send.history) {
+      throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} may not carry history: ${decision.reason}`);
+    }
+    return { permission: permission2, repository: scope.kind === "repository" ? scope.key : null };
+  }
+  /** A read-only run goes in place only on a client model whose read-only proof passed on this machine. */
+  async proveReadOnly(input) {
+    const proof = readOnlyProof(await this.proofFiles(), input.model);
+    if (proof.status === "unproven") {
+      throw new ModelGatewayError("unproven-read-only", `${input.client}:${input.model} has no passing read-only proof: ${proof.reason}`);
+    }
+  }
+  async proofFiles() {
+    return this.deps.proof.read();
+  }
+  /**
+   * The repository's top level, which is where the delegate works. A path git
+   * cannot read, or one in no repository at all, is an error: a run that names
+   * a repository never falls back to an inline one.
+   */
+  async repositoryRoot(repo) {
+    try {
+      const root = await this.deps.git.root(repo);
+      if (root === void 0) throw new Error("not a git repository");
+      return root;
+    } catch (error) {
+      throw new ModelGatewayError("repository-unreadable", `${repo}: ${messageOf(error)}`);
+    }
+  }
+  /**
+   * Where the run keeps its prompt, its output and its result: in the
+   * repository's common directory when it has one, so a worktree's run is
+   * found with the repository's other runs, and in this machine's state
+   * directory otherwise.
+   */
+  async runDir(input, workDir, id) {
+    if (input.repo === void 0) return join2(runsDir(this.deps.env), id);
+    let commonDir;
+    try {
+      commonDir = await this.deps.git.commonDir(workDir);
+    } catch (error) {
+      throw new ModelGatewayError("repository-unreadable", `${workDir}: ${messageOf(error)}`);
+    }
+    return join2(commonDir, "model-gateway", "runs", id);
+  }
+  /**
+   * Vibe, non-interactively: the wrapped prompt from a file, the client model
+   * by the alias `models` lists, the read-only agent, and Vibe's own time and
+   * price limits. A launch that cannot start at all is a failed run, not an
+   * error: the caller still gets a result and a ledger line.
+   */
+  async launch(binary, input, paths) {
+    const command = {
+      args: [
+        "--prompt-file",
+        paths.promptPath,
+        "--model",
+        input.model,
+        "--agent",
+        READ_ONLY_AGENT,
+        "--trust",
+        "--workdir",
+        paths.workDir,
+        "--output",
+        "json",
+        "--time-limit",
+        String(input.time_limit_s),
+        ...input.max_price_usd === void 0 ? [] : ["--max-price", String(input.max_price_usd)],
+        "--output-dir",
+        paths.exportDir
+      ],
+      command: binary,
+      cwd: paths.workDir,
+      env: DELEGATE_ENV,
+      timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
+    };
+    try {
+      return { result: await this.deps.process.exec(command) };
+    } catch (error) {
+      return { failure: "launch-failed", result: { exitCode: 1, stderr: messageOf(error), stdout: "", timedOut: false } };
+    }
+  }
+  /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
+  async readExport(path) {
+    if (!await this.deps.files.exists(path)) return void 0;
+    try {
+      return JSON.parse(await this.deps.files.readText(path));
+    } catch {
+      return void 0;
+    }
+  }
+  /** The run's one ledger line: what it was, what it cost and how it ended. */
+  ledgerRecord(result2, repository, startedMs) {
+    return {
+      at: this.deps.clock.now().toISOString(),
+      client: result2.client,
+      cost_usd: result2.cost_usd,
+      duration_s: Math.round(this.deps.clock.monotonicMs() - startedMs) / 1e3,
+      family: result2.family,
+      mode: result2.mode,
+      model: result2.model,
+      outcome: result2.status,
+      repository,
+      run_id: result2.run_id,
+      tokens: result2.tokens,
+      workflow: result2.workflow,
+      ...result2.reason === void 0 ? {} : { reason: result2.reason }
+    };
+  }
+};
+function catalogueEntry(config, client, model) {
+  if (config.disabled.includes(modelKey(client, model))) {
+    throw new ModelGatewayError("unknown-model", `${client}:${model} is disabled in this machine's configuration`);
+  }
+  return config.models.find((candidate) => candidate.client === client && candidate.model === model);
+}
+
 // src/contexts/model-gateway/application/commands.ts
 function createModelGatewayCommands(deps) {
-  return { models: new ModelsCommand(deps) };
+  return { models: new ModelsCommand(deps), run: new RunCommand(deps) };
 }
 
 // src/contexts/model-gateway/adapters/clients/index.ts
@@ -835,7 +1243,9 @@ function messageOf2(error) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { access, readFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join as join3 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 var NodeModelGatewayFiles = class {
   async readText(path) {
@@ -850,6 +1260,16 @@ var NodeModelGatewayFiles = class {
       if (ABSENT.has(error.code ?? "")) return false;
       throw error;
     }
+  }
+  async writeText(path, content) {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, content);
+  }
+  async mkdir(path) {
+    await mkdir(path, { recursive: true });
+  }
+  async tempDir(prefix) {
+    return mkdtemp(join3(tmpdir(), prefix));
   }
 };
 
@@ -873,6 +1293,12 @@ var NodeModelGatewayGit = class {
     }
     if (NOT_A_REPOSITORY.test(result2.stderr)) return void 0;
     throw new Error(messageOf3(result2));
+  }
+  async commonDir(path) {
+    const result2 = await this.git(path, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+    const commonDir = result2.stdout.trim();
+    if (result2.exitCode !== 0 || commonDir === "") throw new Error(messageOf3(result2));
+    return commonDir;
   }
   async remotes(path) {
     const result2 = await this.git(path, ["config", "--get-regexp", String.raw`^remote\..*\.url$`]);
@@ -906,10 +1332,84 @@ function messageOf3(result2) {
   return message === "" ? `git exited ${String(result2.exitCode)}` : message;
 }
 
+// src/contexts/model-gateway/adapters/ledger/index.ts
+import { appendFile, mkdir as mkdir2, open, rm, stat } from "node:fs/promises";
+import { dirname as dirname2 } from "node:path";
+
+// src/contexts/model-gateway/domain/ledger.ts
+function ledgerLine(record) {
+  return `${JSON.stringify(record)}
+`;
+}
+
+// src/contexts/model-gateway/adapters/ledger/index.ts
+var RETRY_MS = 10;
+var TIMEOUT_MS2 = 1e4;
+var STALE_MS = 5e3;
+var NodeModelGatewayLedger = class {
+  constructor(env, timings = {}) {
+    this.env = env;
+    this.retryMs = timings.retryMs ?? RETRY_MS;
+    this.staleMs = timings.staleMs ?? STALE_MS;
+    this.timeoutMs = timings.timeoutMs ?? TIMEOUT_MS2;
+  }
+  env;
+  retryMs;
+  staleMs;
+  timeoutMs;
+  async append(record) {
+    const path = ledgerPath(this.env);
+    await mkdir2(dirname2(path), { recursive: true });
+    const lock = `${path}.lock`;
+    await this.acquire(lock);
+    try {
+      await appendFile(path, ledgerLine(record));
+    } finally {
+      await rm(lock, { force: true });
+    }
+  }
+  /** Takes the lock, waiting for whoever holds it; a lock that is too old to be alive is broken. */
+  async acquire(lock) {
+    const deadline = Date.now() + this.timeoutMs;
+    for (; ; ) {
+      if (await this.take(lock)) return;
+      if (await this.stale(lock)) {
+        await rm(lock, { force: true });
+        continue;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`${lock}: another gateway process held the ledger lock for ${String(this.timeoutMs)} ms`);
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, this.retryMs);
+      });
+    }
+  }
+  /** Creates the lock file, or says that someone else has it. */
+  async take(lock) {
+    try {
+      const handle = await open(lock, "wx");
+      await handle.close();
+      return true;
+    } catch (error) {
+      if (error.code === "EEXIST") return false;
+      throw error;
+    }
+  }
+  /** Whether the lock is older than a live writer could be; a lock that vanished meanwhile is not stale. */
+  async stale(lock) {
+    try {
+      return Date.now() - (await stat(lock)).mtimeMs > this.staleMs;
+    } catch {
+      return false;
+    }
+  }
+};
+
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
-import { delimiter, join as join2 } from "node:path";
+import { delimiter, join as join4 } from "node:path";
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
@@ -1000,7 +1500,7 @@ var NodeModelGatewayProcess = class {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
       try {
-        await access2(join2(folder, binary), constants.X_OK);
+        await access2(join4(folder, binary), constants.X_OK);
         return true;
       } catch {
       }
@@ -1012,9 +1512,32 @@ var NodeModelGatewayProcess = class {
   }
 };
 
+// src/contexts/model-gateway/adapters/proof/index.ts
+var NodeModelGatewayProof = class {
+  constructor(paths) {
+    this.paths = paths;
+  }
+  paths;
+  async read() {
+    const [routing, routingOverride, setupResults] = await Promise.all([
+      this.file(this.paths.routingPath),
+      this.file(routingOverridePath(this.paths.env)),
+      this.file(setupResultsPath(this.paths.env))
+    ]);
+    return { routing, routingOverride, setupResults };
+  }
+  /** The file's text, or undefined when it is not there. */
+  async file(path) {
+    return await this.paths.files.exists(path) ? this.paths.files.readText(path) : void 0;
+  }
+};
+
 // src/model-gateway-cli/index.ts
 var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'
-       model-gateway models --input FILE
+       model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
+                                 "model": "zai-glm-5-3", "mode": "read-only",
+                                 "prompt": "read this", "repo": "/path/to/repo"}'
+       model-gateway <command> --input FILE
 
 Each command reads one JSON object, from --json or from FILE, and prints one
 JSON object. models lists every client model this machine can use now for the
@@ -1023,18 +1546,27 @@ difficulty tier, capability notes, where the list came from (live, config or
 declared) and what the data policy lets a delegation to it carry. It names
 each client it knows but cannot use, and says in "policy" why the data policy
 listed what it did. Without "repo", or outside any repository, only inline
-content may be sent. An error prints "status": "error" with its "code" and
-exits 1.
+content may be sent.
+
+run hands one read-only task to one client model and prints a short result:
+its status, run id, workflow, client model, family, mode, tokens, cost, the
+path of its full output and a summary of at most "summary_max_chars"
+characters. It takes "workflow", "client", "model", "mode", "prompt", and
+optionally "repo", "carries" (code and history), "time_limit_s" (900 by
+default) and "max_price_usd". The data policy and the client model's read-only
+proof are checked before anything is launched. An error prints "status":
+"error" with its "code" and exits 1.
 `;
 var COMMANDS = {
-  models: "models"
+  models: "models",
+  run: "run"
 };
 async function runModelGatewayCli(argv, runtime) {
   const [name, ...args] = argv;
   if (name === "--help" || name === "-h") return { exitCode: 0, stderr: "", stdout: MODEL_GATEWAY_USAGE };
   const method = name !== void 0 && Object.hasOwn(COMMANDS, name) ? COMMANDS[name] : void 0;
   if (method === void 0) {
-    return failure("unknown-command", `unknown subcommand ${name === void 0 ? "(none)" : `"${name}"`}; the gateway has models`);
+    return failure("unknown-command", `unknown subcommand ${name === void 0 ? "(none)" : `"${name}"`}; the gateway has models and run`);
   }
   const input = parseArguments(args);
   if (input === void 0) return failure("invalid-input", `${method} takes one of --json '<object>' or --input <file>`, name);
@@ -1086,18 +1618,23 @@ function failure(code, message, name) {
 function messageOf4(error) {
   return error instanceof Error ? error.message : String(error);
 }
-function defaultModelGatewayRuntime(overrides = {}) {
+var DEFAULT_ROUTING_PATH = join5(import.meta.dirname, "..", "critique", "routing.json");
+function defaultModelGatewayRuntime(options = {}) {
+  const { routingPath = DEFAULT_ROUTING_PATH, ...overrides } = options;
   const env = overrides.env ?? new ProcessEnvAdapter();
   const files = overrides.files ?? new NodeModelGatewayFiles();
   const git = overrides.git ?? new NodeModelGatewayGit();
   const process2 = overrides.process ?? new NodeModelGatewayProcess();
   return {
     commands: createModelGatewayCommands({
-      defaultsPath: join3(import.meta.dirname, "defaults.json"),
+      clock: new SystemClockAdapter(),
+      defaultsPath: join5(import.meta.dirname, "defaults.json"),
       env,
       files,
       git,
+      ledger: new NodeModelGatewayLedger(env),
       process: process2,
+      proof: new NodeModelGatewayProof({ env, files, routingPath }),
       sources: modelSources({ env, files, process: process2 }),
       ...overrides
     }),
