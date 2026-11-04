@@ -257,6 +257,11 @@ Take the items in the runner's order, skipping the `current` ones. For each:
 2. **Check.** Run `check` with the item's `id`.
    - `not-available`: give the item's `detail`. The Antigravity read-only
      proof answers this way until agent-kit#178 lands.
+   - Claude Code, Codex, Hermes and OpenCode each have a read-only item
+     with no critic behind it. It is recorded as `unproven` with its reason,
+     at no cost and without launching anything. Report it as unproven, never
+     as a pass: the gateway runs that client's read-only work in a throwaway
+     worktree.
    - A Vibe client's read-only proof first checks, for free, that the
      runner's search server cannot reach past the packet. Then it asks for
      confirmation, like any `vibe` item, and runs one trivial prompt. That
@@ -270,7 +275,7 @@ Take the items in the runner's order, skipping the `current` ones. For each:
      pass `"confirmed": true` for later items of that cost without asking
      again. A no is a skip.
    - `checked`: the result is the item's `last`.
-3. **Report.** One line: `pass` or `fail`, with `last.detail`.
+3. **Report.** One line: `pass`, `fail` or `unproven`, with `last.detail`.
 4. **Offer the fix** on a fail: the item's `fix`. For `agy-quota`, ask for
    the plan's daily request limit and the reserve to keep for the spec and
    feature reviews (propose half the limit), then run `quota` with both.
