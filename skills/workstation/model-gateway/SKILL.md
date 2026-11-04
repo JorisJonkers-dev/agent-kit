@@ -7,9 +7,10 @@ description: Holds the model gateway's runner and its shipped defaults; it is no
 
 This folder is what the model gateway runs on. It does nothing on its own: an
 agent calls the runner, and the `delegate` skill (a later ticket) is what
-teaches an orchestrator to plan with it. The runner answers two questions:
-`models`, which client models this machine can use right now, and `run`, one
-read-only delegation to one of them.
+teaches an orchestrator to plan with it. The runner answers three questions:
+`models`, which client models this machine can use right now; `usage`, what
+each client can do now and what it has spent; and `run`, one read-only
+delegation to one of them.
 
 ## What is in here
 
@@ -77,6 +78,57 @@ still listed. Hermes lists nothing until its own ticket lands, and is not
 reported missing for that.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
+
+## The `usage` command
+
+`usage` reports every client the gateway knows: whether it can run now, what
+it has spent, what its own plan has left, and how close it is to the plan
+limit the owner set for it. It prints one JSON object on stdout and exits 0.
+
+```sh
+node model-gateway.mjs usage --json '{"days": 7, "workflow": "spec-293"}'
+node model-gateway.mjs usage --input <file.json>
+```
+
+The input is optional: `days` (7 by default) is how many UTC days the usage
+covers, ending today, and `workflow` narrows the usage to one workflow. A
+`days` that is not a whole number above 0, or a `workflow` that is not a name,
+is `code: "invalid-input"`.
+
+The result is `{"status":"ok","days","clients":[...]}`, plus `workflow` when
+the caller named one. Each client carries:
+
+- `availability` — `{"status","installed","signed_in","reason"}`, where
+  `status` is `available`, `unavailable` or `unable_to_start`, and `reason` is
+  one line saying what the reading rests on. It is found passively, never by
+  sending a prompt:
+  - `installed` is whether the client's binary is on `PATH`, as `models` asks.
+  - `signed_in` comes from the client's own status command, run read-only
+    through the process port: `codex login status`, `hermes auth list` and
+    `opencode auth list`. Vibe, Antigravity and Claude Code have no status
+    command the gateway can read, so they report `"unknown"` — which does not
+    stop a run, because silence is not a refusal. A status command that cannot
+    be run is `"unknown"` too, never `"no"`.
+  - A client whose last run in the availability window
+    (`availability_window_minutes`, 60 by default) was `rate-limited` or
+    `auth` is `unavailable`, unless a later run of it succeeded. The window is
+    a shipped default the machine file may override.
+  - A client at 100% of any plan window is `unable_to_start`.
+- `quota` — `{"status":"unknown","reason"}`. No client's status command
+  reports what is left of its plan, so the gateway says `unknown` rather than
+  a zero that would read as an exhausted plan.
+- `usage` — `{"runs","tokens":{"input","output","cached"},"cost_usd"}` over
+  the days the report covers, read from the ledger.
+- `by_day` — the same totals per UTC day, oldest first, for the days that have
+  runs.
+- `by_workflow` — the same totals per workflow, in workflow order.
+- `plan_limits` — one entry per window of the client's plan limit, with what
+  the ledger says is spent in it: `{"window","limit_usd","spent_usd","ratio",
+  "state"}` or `{"window","limit_runs","runs","ratio","state"}`, where `state`
+  is `ok`, `warning` (at or above `plan_warning_ratio`, 0.8 by default) or
+  `exhausted` (at 100%).
+- `warnings` — one line per window at or above the warning ratio, for example
+  `opencode has used 93% of its week plan limit ($28.00 of $30.00)`.
 
 ## The `run` command
 
@@ -178,10 +230,16 @@ its final answer.
 
 The result is `{"status":"ok"|"failed","run_id","workflow","client","model",
 "family","mode","tokens":{"input","output","cached"},"cost_usd","output_path",
-"summary"}`, plus the `cleanup_warning` above when it applies, and a failed run adds a `reason`: `timeout`, `parse-error`,
-`exit-<n>`, `launch-failed` (the client could not be started at all),
+"summary"}`, plus the `cleanup_warning` above when it applies, and a failed
+run adds a `reason`: `timeout`, `parse-error`, `exit-<n>`, `rate-limited`,
+`auth`, `launch-failed` (the client could not be started at all),
 `denied-action` (Antigravity was denied an action) or `client-error` (the
-client's own output reports an error). The raw output is kept either way.
+client's own output reports an error). `rate-limited` and `auth` are what the
+client's own error channel — its stderr, the error its structured output
+carries, or its exit code — said, never the delegate's answer, and they are
+what `usage` reads afterwards to report the client unavailable. The raw output
+is kept either way. A client at or above `plan_warning_ratio` of a plan window
+adds `warnings` to the result, the same lines `usage` prints for it.
 
 A run with a `repo` keeps its directory in that repository's git common
 directory, `<git common dir>/model-gateway/runs/<run_id>/`, so a worktree's
@@ -241,6 +299,31 @@ and merges over the shipped defaults:
   `<provider>/<model>`). A provider it does not name takes the client's own
   cost class. `providers` is the list of providers a run may reach through
   OpenCode (`provider-not-allowed` otherwise); it defaults to `["opencode-go"]`.
+- `clients.<id>.plan_limits` is what that client's plan allows, window by
+  window: a list of `{"window": "5h"|"day"|"week"|"month", "limit_usd": n}`,
+  or `{"window": ..., "limit_runs": n}` for a plan that is not billed in
+  dollars. Each window reaches back from now, and its spend comes from the
+  ledger. The list replaces the client's whole plan, so an override that names
+  one window names them all. The shipped defaults carry none: the owner's
+  plans are personal and live here. The owner's OpenCode Go plan, for example:
+
+  ```json
+  {
+    "clients": {
+      "opencode": {
+        "plan_limits": [
+          {"window": "5h", "limit_usd": 12},
+          {"window": "week", "limit_usd": 30},
+          {"window": "month", "limit_usd": 60}
+        ]
+      }
+    }
+  }
+  ```
+
+  At or above `plan_warning_ratio` of any window, `usage` and every `run`
+  result for that client carry a warning; at 100% of any window the client is
+  `unable_to_start` in `usage`.
 - `models`: an entry matching `client` and `model` overrides its `tier`,
   `notes` or `family`; a new entry adds a declared model.
 - `settings.<key>` overrides that setting, deep-merging

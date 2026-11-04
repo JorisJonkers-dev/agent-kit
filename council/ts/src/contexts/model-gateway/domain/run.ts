@@ -187,18 +187,47 @@ export function priceRun(charged: number | undefined, tokens: RunTokens, prices:
 }
 
 /**
+ * The error a client's own structured output carries: the text it printed
+ * about it, and the HTTP status where it names one.
+ */
+export interface ClientError {
+  readonly text: string
+  readonly status?: number
+}
+
+/**
+ * What a client's own output reported about a run's failure: the failure slug
+ * its structured output names, and the error that output carries. Each
+ * client's parser in `outputs.ts` fills it in from that client's own output.
+ */
+export interface ClientReport {
+  readonly failure?: string | undefined
+  readonly error?: ClientError | undefined
+}
+
+/**
  * Why a run failed: a slug the result's `reason` and the ledger's outcome
- * carry. The client's own report of a failure (`timeout`, `denied-action`,
- * `client-error`) counts when it exited 0, and comes before a missing answer.
+ * carry. A client that says it was rate-limited or refused the credentials
+ * gets that slug rather than its exit code or its own failure slug, so
+ * availability can find it in the ledger afterwards. The client's own report
+ * of a failure (`timeout`, `denied-action`, `client-error`) counts when it
+ * exited 0, and comes before a missing answer.
+ *
+ * The slug is read from the client's own error channel only: its stderr, the
+ * error its structured output carries, and its exit code. Never from the
+ * delegate's answer, which is the model's text and may quote any of these
+ * words without meaning them.
  */
 export function runFailureReason(
-  launch: { exitCode: number; timedOut?: boolean },
+  launch: { exitCode: number; timedOut?: boolean; stderr?: string },
   answer: string | undefined,
-  clientFailure?: string,
+  reported?: ClientReport,
 ): string | undefined {
   if (launch.timedOut === true) return 'timeout'
+  const refusal = refusalOf(launch, reported?.error)
+  if (refusal !== undefined) return refusal
   if (launch.exitCode !== 0) return `exit-${String(launch.exitCode)}`
-  if (clientFailure !== undefined) return clientFailure
+  if (reported?.failure !== undefined) return reported.failure
   if (answer === undefined) return 'parse-error'
   return undefined
 }
@@ -239,6 +268,31 @@ export function requireAllowedProvider(model: string, allowed: readonly string[]
     )
   }
 }
+
+/** What a client's own error channel says refused the run, when it says so. */
+function refusalOf(
+  launch: { exitCode: number; stderr?: string },
+  error: ClientError | undefined,
+): 'rate-limited' | 'auth' | undefined {
+  const said = `${launch.stderr ?? ''}\n${error?.text ?? ''}`
+  if (RATE_LIMITED.test(said) || error?.status === 429 || launch.exitCode === 429) return 'rate-limited'
+  if (
+    REFUSED_CREDENTIALS.test(said) ||
+    error?.status === 401 ||
+    error?.status === 403 ||
+    launch.exitCode === 401 ||
+    launch.exitCode === 403
+  ) {
+    return 'auth'
+  }
+  return undefined
+}
+
+/** What a client prints when it is out of allowance for now. */
+const RATE_LIMITED = /rate.?limit|too many requests|quota exceeded/i
+
+/** What a client prints when it will not run without a login or a valid key. */
+const REFUSED_CREDENTIALS = /unauthori[sz]ed|unauthenticated|not logged in|log ?in required|invalid api key|authentication failed|forbidden/i
 
 /** A UTC moment as a run id's first half: `20261104T105215Z`. */
 export function compactTimestamp(at: Date): string {

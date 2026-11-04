@@ -1,10 +1,11 @@
 import { isObject, type JsonObject } from './config.js'
-import { chargedOf, finalAnswerOf, NO_TOKENS, runTokens, type RunTokens } from './run.js'
+import { chargedOf, finalAnswerOf, NO_TOKENS, runTokens, type ClientError, type RunTokens } from './run.js'
 
 /**
  * What one client's own output says about a run: the final answer, the tokens
- * it counted, the dollars it charged when it priced the run, and why it
- * failed when its output says so although it exited 0.
+ * it counted, the dollars it charged when it priced the run, why it failed
+ * when its output says so although it exited 0, and the error its own
+ * structured output carries.
  */
 export interface ClientOutput {
   /** The delegate's final answer; undefined when the output holds none. */
@@ -14,6 +15,8 @@ export interface ClientOutput {
   readonly charged: number | undefined
   /** `timeout`, `denied-action` or `client-error`; undefined when the output reports no failure. */
   readonly failure?: string | undefined
+  /** The error the client's own structured output carries; undefined when it reports none. */
+  readonly error?: ClientError | undefined
 }
 
 /** A count in a client's usage block; anything but a finite number from 0 up is no count. */
@@ -40,11 +43,43 @@ function chargedAmount(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
+/**
+ * The error a client's structured output carries, as text the refusal
+ * patterns can read: its `error` field, its stop reason, and the result of a
+ * run it marks as an error. A client that reports no error has none.
+ */
+function structuredError(exported: unknown): ClientError | undefined {
+  if (!isObject(exported)) return undefined
+  const parts: string[] = []
+  const error = exported.error
+  let status: number | undefined
+  if (typeof error === 'string') parts.push(error)
+  else if (isObject(error)) {
+    parts.push(...[error.message, error.type, error.code, error.name].filter((part): part is string => typeof part === 'string'))
+    status = httpStatus(error)
+  }
+  const stop = exported.stop_reason ?? exported.stopReason
+  if (typeof stop === 'string') parts.push(stop)
+  if ((exported.is_error === true || exported.isError === true) && typeof exported.result === 'string') parts.push(exported.result)
+  status ??= httpStatus(exported)
+  if (parts.length === 0 && status === undefined) return undefined
+  return { text: parts.join(' '), ...(status === undefined ? {} : { status }) }
+}
+
+/** The HTTP status an object names, when it names one as a whole number. */
+function httpStatus(value: JsonObject): number | undefined {
+  for (const key of ['status', 'status_code', 'statusCode', 'code']) {
+    const found = value[key]
+    if (typeof found === 'number' && Number.isInteger(found)) return found
+  }
+  return undefined
+}
+
 const NOTHING: ClientOutput = { answer: undefined, charged: undefined, tokens: NO_TOKENS }
 
-/** Vibe: the journal on stdout holds the answer, and the export it wrote holds the tokens and the dollars. */
+/** Vibe: the journal on stdout holds the answer, and the export it wrote holds the tokens, the dollars and any error. */
 export function vibeOutput(stdout: string, exported: unknown): ClientOutput {
-  return { answer: finalAnswerOf(stdout), charged: chargedOf(exported), tokens: runTokens(exported) }
+  return { answer: finalAnswerOf(stdout), charged: chargedOf(exported), error: structuredError(exported), tokens: runTokens(exported) }
 }
 
 /**
@@ -60,6 +95,7 @@ export function agyOutput(stdout: string): ClientOutput {
   return {
     answer: textOf(result.response),
     charged: undefined,
+    error: structuredError(result),
     failure: agyFailure(result),
     tokens: { cached: count(usage.cache_read_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) },
   }
@@ -88,6 +124,7 @@ export function claudeOutput(stdout: string): ClientOutput {
   return {
     answer: textOf(result.result),
     charged: chargedAmount(result.total_cost_usd),
+    error: structuredError(result),
     failure: result.is_error === true ? 'client-error' : undefined,
     tokens: {
       cached,
@@ -107,6 +144,7 @@ export function openCodeOutput(stdout: string): ClientOutput {
   let answer: string | undefined
   let fresh = true
   let charged = 0
+  let error: ClientError | undefined
   let failure: string | undefined
   const sum = { cached: 0, input: 0, output: 0 }
   for (const line of stdout.split('\n')) {
@@ -124,7 +162,10 @@ export function openCodeOutput(stdout: string): ClientOutput {
       sum.cached += count(cache.read)
       sum.input += count(tokens.input) + count(cache.read) + count(cache.write)
       sum.output += count(tokens.output) + count(tokens.reasoning)
-    } else if (event.type === 'error') failure = 'client-error'
+    } else if (event.type === 'error') {
+      failure = 'client-error'
+      error = structuredError(event)
+    }
   }
-  return { answer, charged: chargedAmount(charged), failure, tokens: sum }
+  return { answer, charged: chargedAmount(charged), error, failure, tokens: sum }
 }

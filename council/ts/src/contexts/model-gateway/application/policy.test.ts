@@ -17,6 +17,7 @@ import {
 import { decidePolicyFor } from './policy.js'
 import { ModelsCommand } from './models.js'
 import type { ModelGatewayDependencies } from './ports.js'
+import { UsageCommand } from './usage.js'
 
 const cleanups: (() => Promise<void>)[] = []
 
@@ -53,6 +54,7 @@ async function workspace(repositories: Readonly<Record<string, FakeRepository>> 
       process: new FakeProcess(['claude', 'codex']),
       proof: new FakeProof(),
       sources: {},
+      statuses: {},
     },
     home,
     writeAllowlist: async (value) => {
@@ -112,5 +114,13 @@ describe('ModelsCommand', () => {
     await expect(new ModelsCommand(w.deps).run([] as unknown as Record<string, never>)).rejects.toThrow(
       'the input must be a JSON object',
     )
+  })
+})
+
+describe('UsageCommand', () => {
+  it('refuses input that is not a JSON object', async () => {
+    const w = await workspace()
+
+    await expect(new UsageCommand(w.deps).run([])).rejects.toThrow('the input must be a JSON object')
   })
 })

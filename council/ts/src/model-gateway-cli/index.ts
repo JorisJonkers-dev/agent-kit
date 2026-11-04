@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { ProcessEnvAdapter, SystemClockAdapter } from '../adapters/clock/index.js'
 import {
+  clientStatuses,
   createModelGatewayCommands,
   ModelGatewayError,
   modelSources,
@@ -30,6 +31,7 @@ export interface ModelGatewayRuntime {
 }
 
 export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'
+       model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
                                  "model": "zai-glm-5-3", "mode": "read-only",
                                  "prompt": "read this", "repo": "/path/to/repo"}'
@@ -44,6 +46,15 @@ each client it knows but cannot use, and says in "policy" why the data policy
 listed what it did. Without "repo", or outside any repository, only inline
 content may be sent.
 
+usage reports every client it knows: whether it is installed, whether its own
+status command says it is signed in, whether its last run in the availability
+window was rate-limited or refused for its credentials, what it has spent over
+the last "days" days (7 by default) by day and by workflow, what its own plan
+has left ("unknown" where the client reports none), and each window of the
+plan limit the machine file sets for it. A client at or above
+"plan_warning_ratio" of a window carries a warning; one at 100% of a window is
+"unable_to_start". "workflow" narrows the usage to one workflow.
+
 run hands one read-only task to one client model and prints a short result:
 its status, run id, workflow, client model, family, mode, tokens, cost, the
 path of its full output and a summary of at most "summary_max_chars"
@@ -54,14 +65,16 @@ policy and the client model's read-only proof are checked before anything is
 launched; a model without a passing proof (every one but a proven Vibe or
 Antigravity model) works in a throwaway worktree of the repository, removed
 after the run. An OpenCode model is named provider/model and its provider must
-be in clients.opencode.providers (opencode-go by default), never opencode. An
-error prints "status": "error" with its "code" and exits 1.
+be in clients.opencode.providers (opencode-go by default), never opencode. A
+client near its plan limit adds "warnings" to the result. An error prints
+"status": "error" with its "code" and exits 1.
 `
 
-/** The subcommands the gateway has; #294 ships models, #296 adds run, later tickets add the rest. */
+/** The subcommands the gateway has; #294 ships models, #296 adds run, #302 adds usage, later tickets add the rest. */
 const COMMANDS = {
   models: 'models',
   run: 'run',
+  usage: 'usage',
 } as const satisfies Record<string, keyof ModelGatewayCommands>
 
 /** The gateway's command line: one subcommand, one JSON object in, one JSON object out. */
@@ -70,7 +83,7 @@ export async function runModelGatewayCli(argv: readonly string[], runtime: Model
   if (name === '--help' || name === '-h') return { exitCode: 0, stderr: '', stdout: MODEL_GATEWAY_USAGE }
   const method = name !== undefined && Object.hasOwn(COMMANDS, name) ? COMMANDS[name as keyof typeof COMMANDS] : undefined
   if (method === undefined) {
-    return failure('unknown-command', `unknown subcommand ${name === undefined ? '(none)' : `"${name}"`}; the gateway has models and run`)
+    return failure('unknown-command', `unknown subcommand ${name === undefined ? '(none)' : `"${name}"`}; the gateway has models, run and usage`)
   }
   const input = parseArguments(args)
   if (input === undefined) return failure('invalid-input', `${method} takes one of --json '<object>' or --input <file>`, name)
@@ -155,6 +168,7 @@ export function defaultModelGatewayRuntime(options: ModelGatewayRuntimeOptions =
       process,
       proof: new NodeModelGatewayProof({ env, files, routingPath }),
       sources: modelSources({ env, files, process }),
+      statuses: clientStatuses({ process }),
       ...overrides,
     }),
     readFile: (path) => readFile(path, 'utf8'),

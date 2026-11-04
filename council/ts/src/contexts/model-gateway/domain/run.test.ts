@@ -166,17 +166,32 @@ describe('the tokens and the dollars a run used', () => {
 
 describe('runFailureReason', () => {
   it('names a timeout, an exit code, or an answer it could not read', () => {
-    expect(runFailureReason({ exitCode: 124, timedOut: true }, 'text')).toBe('timeout')
-    expect(runFailureReason({ exitCode: 3 }, 'text')).toBe('exit-3')
-    expect(runFailureReason({ exitCode: 0 }, undefined)).toBe('parse-error')
-    expect(runFailureReason({ exitCode: 0 }, 'text')).toBeUndefined()
+    expect(runFailureReason({ exitCode: 124, timedOut: true }, 'text', undefined)).toBe('timeout')
+    expect(runFailureReason({ exitCode: 3 }, 'text', undefined)).toBe('exit-3')
+    expect(runFailureReason({ exitCode: 0 }, undefined, undefined)).toBe('parse-error')
+    expect(runFailureReason({ exitCode: 0 }, 'text', undefined)).toBeUndefined()
   })
 
   it('names what the client itself reported although it exited 0, after a timeout or an exit code, and before a missing answer', () => {
-    expect(runFailureReason({ exitCode: 0 }, 'text', 'denied-action')).toBe('denied-action')
-    expect(runFailureReason({ exitCode: 0 }, undefined, 'client-error')).toBe('client-error')
-    expect(runFailureReason({ exitCode: 3 }, 'text', 'client-error')).toBe('exit-3')
-    expect(runFailureReason({ exitCode: 0, timedOut: true }, 'text', 'client-error')).toBe('timeout')
+    expect(runFailureReason({ exitCode: 0 }, 'text', { failure: 'denied-action' })).toBe('denied-action')
+    expect(runFailureReason({ exitCode: 0 }, undefined, { failure: 'client-error' })).toBe('client-error')
+    expect(runFailureReason({ exitCode: 3 }, 'text', { failure: 'client-error' })).toBe('exit-3')
+    expect(runFailureReason({ exitCode: 0, timedOut: true }, 'text', { failure: 'client-error' })).toBe('timeout')
+  })
+
+  it('names a refusal the client’s own error channel reported, before its exit code', () => {
+    expect(runFailureReason({ exitCode: 1, stderr: '429 Too Many Requests' }, undefined, undefined)).toBe('rate-limited')
+    expect(runFailureReason({ exitCode: 1 }, undefined, { error: { status: 429, text: '' } })).toBe('rate-limited')
+    expect(runFailureReason({ exitCode: 1 }, undefined, { error: { text: 'invalid api key' } })).toBe('auth')
+    expect(runFailureReason({ exitCode: 1, stderr: 'boom' }, undefined, { error: { text: 'boom' } })).toBe('exit-1')
+  })
+
+  it('names a refusal the client reported although it exited 0, before its own failure slug', () => {
+    expect(
+      runFailureReason({ exitCode: 0 }, undefined, { error: { status: 429, text: 'rate limit exceeded' }, failure: 'client-error' }),
+    ).toBe('rate-limited')
+    expect(runFailureReason({ exitCode: 0 }, 'text', { error: { text: 'invalid api key' }, failure: 'client-error' })).toBe('auth')
+    expect(runFailureReason({ exitCode: 0 }, 'text', undefined)).toBeUndefined()
   })
 })
 

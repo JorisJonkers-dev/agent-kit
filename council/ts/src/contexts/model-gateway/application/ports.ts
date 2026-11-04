@@ -3,6 +3,7 @@ import type { GitRemote } from '../../../shared-kernel/index.js'
 import type { LedgerRecord } from '../domain/ledger.js'
 import type { ClientListing } from '../domain/models.js'
 import type { ProofFiles } from '../domain/run.js'
+import type { ClientStatusReading } from '../domain/usage.js'
 
 /**
  * The files the gateway reads and writes: the shipped defaults, this machine's
@@ -55,6 +56,16 @@ export interface ModelGatewayGitPort {
  */
 export interface ModelGatewayLedgerPort {
   append(record: LedgerRecord): Promise<void>
+  /** Every record the ledger holds, oldest first; a line that does not parse is skipped. */
+  read(): Promise<readonly LedgerRecord[]>
+}
+
+/**
+ * A client's own status command, run read-only: it says whether the client is
+ * signed in, and never sends a prompt. A client without one has no entry.
+ */
+export interface ClientStatusPort {
+  read(): Promise<ClientStatusReading>
 }
 
 /**
@@ -77,7 +88,9 @@ export interface ModelGatewayDependencies {
   readonly defaultsPath: string
   /** The clients whose models come from the client itself or its configuration, by client id. */
   readonly sources: Readonly<Record<string, ModelSourcePort>>
-  /** The machine-wide ledger every run appends to. */
+  /** The clients whose own status command says whether they are signed in, by client id. */
+  readonly statuses: Readonly<Record<string, ClientStatusPort>>
+  /** The machine-wide ledger every run appends to, and usage reads. */
   readonly ledger: ModelGatewayLedgerPort
   /** The read-only proofs a run in place needs. */
   readonly proof: ModelGatewayProofPort

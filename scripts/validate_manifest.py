@@ -527,12 +527,27 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], path: str, root:
 
     $ref (local), type, const, enum, required, properties,
     additionalProperties (false, or a schema every other key must fit), items,
-    minItems, uniqueItems, minLength, minimum, exclusiveMinimum and maximum.
+    minItems, uniqueItems, minLength, minimum, exclusiveMinimum, maximum and
+    oneOf (exactly one alternative must fit).
     Any other keyword is an annotation here, as it is for a real validator.
     """
     if "$ref" in schema:
         validate_json_schema(instance, resolve_schema_ref(str(schema["$ref"]), root, path), path, root)
         return
+    if "oneOf" in schema:
+        alternatives = as_list(schema["oneOf"], f"{path}: oneOf")
+        matched = 0
+        complaints: list[str] = []
+        for alternative in alternatives:
+            try:
+                validate_json_schema(instance, as_mapping(alternative, f"{path}: oneOf"), path, root)
+            except AssertionError as exc:
+                complaints.append(str(exc))
+                continue
+            matched += 1
+        if matched != 1:
+            detail = "" if not complaints else f" ({complaints[0]})"
+            fail(f"{path} must match exactly one of the {len(alternatives)} alternatives, not {matched}{detail}")
     if "const" in schema and instance != schema["const"]:
         fail(f"{path} must be {schema['const']!r}")
     if "enum" in schema:

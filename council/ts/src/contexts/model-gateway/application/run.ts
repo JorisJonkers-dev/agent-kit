@@ -21,6 +21,7 @@ import {
   type RunMode,
   type RunTokens,
 } from '../domain/run.js'
+import { planWindows, warningsOf } from '../domain/usage.js'
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
@@ -45,10 +46,15 @@ export interface RunResult {
   readonly output_path: string
   /** The delegate's own summary, cut at `summary_max_chars`. */
   readonly summary: string
-  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`, `launch-failed`, `denied-action` or `client-error`. */
+  /**
+   * Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`,
+   * `rate-limited`, `auth`, `launch-failed`, `denied-action` or `client-error`.
+   */
   readonly reason?: string
   /** Set when the run's throwaway worktree could not be removed: what git said, and which directory is left behind. */
   readonly cleanup_warning?: string
+  /** One line per plan window of this client at or above the warning ratio. */
+  readonly warnings?: readonly string[]
 }
 
 /**
@@ -63,7 +69,6 @@ interface Workplace {
 
 /** Everything one launched run needs beyond its input, settled before anything starts. */
 interface Delegation {
-  readonly allowed: RunPermission
   readonly binary: string
   readonly config: GatewayConfig
   readonly entry: ModelEntry | undefined
@@ -71,7 +76,6 @@ interface Delegation {
   readonly id: string
   readonly input: RunInput
   readonly runDir: string
-  readonly startedMs: number
   readonly workDir: string
 }
 
@@ -117,15 +121,20 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const workplace = await this.workplace(root, throwaway)
     let result: RunResult
     try {
-      result = await this.delegate({ allowed, binary: client.binary, config, entry, family, id, input, runDir, startedMs, workDir: workplace.dir })
+      result = await this.delegate({ binary: client.binary, config, entry, family, id, input, runDir, workDir: workplace.dir })
     } catch (error) {
       await this.release(workplace)
       throw error
     }
     const warning = await this.release(workplace)
-    const recorded: RunResult = warning === undefined ? result : { ...result, cleanup_warning: warning }
+    const released: RunResult = warning === undefined ? result : { ...result, cleanup_warning: warning }
+    await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs))
+    const warnings = warningsOf(
+      input.client,
+      planWindows(input.client, client.plan_limits ?? [], await this.deps.ledger.read(), this.deps.clock.now(), config.settings.plan_warning_ratio),
+    )
+    const recorded: RunResult = warnings.length === 0 ? released : { ...released, warnings }
     await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(recorded, null, 2)}\n`)
-    await this.deps.ledger.append(this.ledgerRecord(recorded, allowed.repository, startedMs))
     return recorded
   }
 
@@ -154,7 +163,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const launched = await this.launch(launcher, run.binary, input, paths, prompt)
     const exported = launcher.writesExport ? await this.readExport(join(paths.exportDir, 'export.json')) : undefined
     const output = launcher.read(launched.result.stdout, exported)
-    const reason = launched.failure ?? runFailureReason(launched.result, output.answer, output.failure)
+    const reason = launched.failure ?? runFailureReason(launched.result, output.answer, output)
     const cost = priceRun(output.charged, output.tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
     await this.deps.files.writeText(outputPath, launched.result.stdout)

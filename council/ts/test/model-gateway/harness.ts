@@ -173,6 +173,10 @@ export class FakeLedger implements ModelGatewayLedgerPort {
     this.records.push(record)
     return Promise.resolve()
   }
+
+  read(): Promise<readonly LedgerRecord[]> {
+    return Promise.resolve([...this.records])
+  }
 }
 
 /** The proof files a test names; the ones it leaves out are missing, as they are on a machine without setup. */

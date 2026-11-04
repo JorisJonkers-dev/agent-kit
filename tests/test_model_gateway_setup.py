@@ -286,6 +286,44 @@ def test_a_defaults_file_missing_a_required_key_fails_validation(tmp_path: Path)
         _validator().validate_model_gateway_defaults(missing, SCHEMA)
 
 
+def test_a_plan_limit_with_neither_dollars_nor_runs_fails_validation(tmp_path: Path) -> None:
+    broken = tmp_path / "defaults.json"
+    defaults = json.loads(DEFAULTS.read_text())
+    defaults["clients"]["opencode"]["plan_limits"] = [{"window": "5h"}]
+    broken.write_text(json.dumps(defaults))
+    with pytest.raises(AssertionError, match=re.escape("clients.opencode.plan_limits[0] must match exactly one")):
+        _validator().validate_model_gateway_defaults(broken, SCHEMA)
+
+
+def test_a_plan_limit_with_both_dollars_and_runs_fails_validation(tmp_path: Path) -> None:
+    broken = tmp_path / "defaults.json"
+    defaults = json.loads(DEFAULTS.read_text())
+    defaults["clients"]["opencode"]["plan_limits"] = [{"limit_runs": 5, "limit_usd": 12, "window": "5h"}]
+    broken.write_text(json.dumps(defaults))
+    with pytest.raises(AssertionError, match=re.escape("clients.opencode.plan_limits[0] must match exactly one")):
+        _validator().validate_model_gateway_defaults(broken, SCHEMA)
+
+
+def test_a_plan_limit_with_one_limit_passes_validation(tmp_path: Path) -> None:
+    good = tmp_path / "defaults.json"
+    defaults = json.loads(DEFAULTS.read_text())
+    defaults["clients"]["opencode"]["plan_limits"] = [
+        {"limit_usd": 12, "window": "5h"},
+        {"limit_runs": 10, "window": "day"},
+    ]
+    good.write_text(json.dumps(defaults))
+    _validator().validate_model_gateway_defaults(good, SCHEMA)
+
+
+def test_a_plan_limit_with_a_window_the_schema_does_not_know_fails_validation(tmp_path: Path) -> None:
+    broken = tmp_path / "defaults.json"
+    defaults = json.loads(DEFAULTS.read_text())
+    defaults["clients"]["opencode"]["plan_limits"] = [{"limit_usd": 12, "window": "fortnight"}]
+    broken.write_text(json.dumps(defaults))
+    with pytest.raises(AssertionError, match=re.escape("clients.opencode.plan_limits[0].window")):
+        _validator().validate_model_gateway_defaults(broken, SCHEMA)
+
+
 # ---------------------------------------------------------------------------
 # Setup installs the skill folder in every agent home
 # ---------------------------------------------------------------------------
