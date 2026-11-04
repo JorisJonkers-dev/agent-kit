@@ -1,5 +1,17 @@
-import type { ModelGatewayGitPort, ModelGatewayProcessPort } from '../../src/contexts/model-gateway/index.js'
-import type { EnvPort, ProcessCommand, ProcessResult } from '../../src/ports/index.js'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+
+import type {
+  LedgerRecord,
+  ModelGatewayFilesPort,
+  ModelGatewayGitPort,
+  ModelGatewayLedgerPort,
+  ModelGatewayProcessPort,
+  ModelGatewayProofPort,
+  ProofFiles,
+} from '../../src/contexts/model-gateway/index.js'
+import type { ClockPort, EnvPort, ProcessCommand, ProcessResult } from '../../src/ports/index.js'
 import type { GitRemote } from '../../src/shared-kernel/index.js'
 
 /** The environment a gateway test gives it: exactly the variables it names. */
@@ -45,11 +57,18 @@ export class FakeProcess implements ModelGatewayProcessPort {
 }
 
 /**
- * One path the fake git knows: a repository with its root and its remotes, or
- * a path git cannot read, with the message it fails with.
+ * One path the fake git knows: a repository with its root, its common
+ * directory and its remotes, or a path git cannot read, with the message it
+ * fails with.
  */
 export type FakeRepository =
-  | { readonly root: string; readonly remotes: readonly GitRemote[] }
+  | {
+      readonly root: string
+      readonly remotes: readonly GitRemote[]
+      readonly commonDir?: string
+      /** What git says when it cannot name the common directory, as a worktree git refuses. */
+      readonly commonDirError?: string
+    }
   | { readonly error: string }
 
 /** A git that knows exactly the paths the test names; any other path is in no repository. */
@@ -63,10 +82,139 @@ export class FakeGit implements ModelGatewayGitPort {
     return Promise.resolve(entry.root)
   }
 
+  commonDir(path: string): Promise<string> {
+    const entry = this.repositories[path]
+    if (entry === undefined) return Promise.reject(new Error(`${path}: not a git repository`))
+    if ('error' in entry) return Promise.reject(new Error(entry.error))
+    if (entry.commonDirError !== undefined) return Promise.reject(new Error(entry.commonDirError))
+    return Promise.resolve(entry.commonDir ?? join(entry.root, '.git'))
+  }
+
   remotes(path: string): Promise<readonly GitRemote[]> {
     const entry = this.repositories[path]
     if (entry === undefined) return Promise.resolve([])
     if ('error' in entry) return Promise.reject(new Error(entry.error))
     return Promise.resolve(entry.remotes)
+  }
+}
+
+/** The real file system, which a test points at its own temporary directories. */
+export class FakeFiles implements ModelGatewayFilesPort {
+  async readText(path: string): Promise<string> {
+    return readFile(path, 'utf8')
+  }
+
+  async exists(path: string): Promise<boolean> {
+    try {
+      await readFile(path)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async writeText(path: string, content: string): Promise<void> {
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, content)
+  }
+
+  async mkdir(path: string): Promise<void> {
+    await mkdir(path, { recursive: true })
+  }
+
+  async tempDir(prefix: string): Promise<string> {
+    return mkdtemp(join(tmpdir(), prefix))
+  }
+}
+
+/** A ledger that keeps every record in memory, so a test can read what a run appended. */
+export class FakeLedger implements ModelGatewayLedgerPort {
+  readonly records: LedgerRecord[] = []
+
+  append(record: LedgerRecord): Promise<void> {
+    this.records.push(record)
+    return Promise.resolve()
+  }
+}
+
+/** The proof files a test names; the ones it leaves out are missing, as they are on a machine without setup. */
+export class FakeProof implements ModelGatewayProofPort {
+  constructor(private files: Partial<ProofFiles> = {}) {}
+
+  read(): Promise<ProofFiles> {
+    return Promise.resolve({ routing: undefined, routingOverride: undefined, setupResults: undefined, ...this.files })
+  }
+}
+
+/** A clock that stands still unless a test moves it, so a run's id and duration are predictable. */
+export class FixedClock implements ClockPort {
+  constructor(
+    private at: Date = new Date('2026-11-04T10:52:15.000Z'),
+    private elapsedMs = 0,
+  ) {}
+
+  now(): Date {
+    return this.at
+  }
+
+  monotonicMs(): number {
+    return this.elapsedMs
+  }
+
+  sleep(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  /** Moves the clock on, as a run that took `ms` would. */
+  advance(ms: number): void {
+    this.elapsedMs += ms
+    this.at = new Date(this.at.getTime() + ms)
+  }
+}
+
+/** What one fake Vibe launch answers: its journal, its exit, and the export it writes where it was told to. */
+export interface VibeScript {
+  /** What Vibe prints on stdout: its journal, as `--output json` writes it. */
+  readonly stdout: string
+  readonly stderr?: string
+  readonly exitCode?: number
+  readonly timedOut?: boolean
+  /** What Vibe writes to `export.json` in its output directory; nothing when it writes none. */
+  readonly exportJson?: unknown
+  /** Runs before the launch returns, as a client that writes into its workdir would. */
+  readonly effect?: (command: ProcessCommand) => Promise<void>
+}
+
+/**
+ * A Vibe that plays the scripts a test queues, one per launch, and writes each
+ * launch's export where `--output-dir` points. It starts nothing and spends
+ * nothing.
+ */
+export class FakeVibeProcess implements ModelGatewayProcessPort {
+  readonly commands: ProcessCommand[] = []
+
+  constructor(private readonly scripts: VibeScript[] = []) {}
+
+  /** Adds launches to play, for a test that needs the run's paths before it writes them. */
+  queue(...scripts: VibeScript[]): void {
+    this.scripts.push(...scripts)
+  }
+
+  which(): Promise<boolean> {
+    return Promise.resolve(true)
+  }
+
+  async exec(command: ProcessCommand): Promise<ProcessResult> {
+    this.commands.push(command)
+    const script = this.scripts.shift()
+    if (script === undefined) throw new Error('unexpected process launch')
+    const outputDir = command.args[command.args.indexOf('--output-dir') + 1]
+    if (script.exportJson !== undefined && outputDir !== undefined) {
+      await mkdir(outputDir, { recursive: true })
+      await writeFile(join(outputDir, 'export.json'), JSON.stringify(script.exportJson))
+    }
+    await script.effect?.(command)
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
+    return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
   }
 }

@@ -36,3 +36,39 @@ export function vibeConfigPath(env: EnvPort): string {
   if (home !== undefined && isAbsolute(home)) return join(home, 'config.toml')
   return join(env.require('HOME'), '.vibe', 'config.toml')
 }
+
+/**
+ * This machine's routing override, applied client by client over the routing
+ * critique ships. It is resolved the way critique resolves it, so the gateway
+ * reads the routing critique really runs.
+ */
+export function routingOverridePath(env: EnvPort): string {
+  return join(env.require('HOME'), '.config', 'agent-kit', 'critique-routing.json')
+}
+
+/** Setup's recorded results, where critique's setup writes them: one result per check id. */
+export function setupResultsPath(env: EnvPort): string {
+  return join(env.require('HOME'), '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json')
+}
+
+/**
+ * The gateway's own state, outside every repository:
+ * `$XDG_STATE_HOME/agent-kit/model-gateway`, or
+ * `~/.local/state/agent-kit/model-gateway` when XDG_STATE_HOME is unset or
+ * not an absolute path.
+ */
+export function stateDir(env: EnvPort): string {
+  const xdg = env.get('XDG_STATE_HOME')
+  if (xdg !== undefined && isAbsolute(xdg)) return join(xdg, 'agent-kit', 'model-gateway')
+  return join(env.require('HOME'), '.local', 'state', 'agent-kit', 'model-gateway')
+}
+
+/** The machine-wide ledger: one JSON line per run, whichever repository it ran in. */
+export function ledgerPath(env: EnvPort): string {
+  return join(stateDir(env), 'ledger.jsonl')
+}
+
+/** Where a run outside any repository keeps its directory. */
+export function runsDir(env: EnvPort): string {
+  return join(stateDir(env), 'runs')
+}

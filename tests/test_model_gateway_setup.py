@@ -14,6 +14,7 @@ import importlib.util
 import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ import yaml
 KIT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
+import render_registry  # noqa: E402
 from setup_harness import Run, setup_run  # noqa: E402
 
 SKILL = KIT_ROOT / "skills" / "workstation" / "model-gateway"
@@ -29,6 +31,25 @@ RUNNER = SKILL / "model-gateway.mjs"
 DEFAULTS = SKILL / "defaults.json"
 SCHEMA = SKILL / "defaults.schema.json"
 HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
+DELEGATE_AGENTS_DIR = render_registry.VIBE_DELEGATE_AGENTS_DIR
+DELEGATE_AGENT = "delegate-readonly"
+# Every key a rendered delegate agent file may hold: Vibe's own settings, the
+# same set the critic agent files are held to (#168 loaded them under
+# VIBE_STRICT_CONFIG=1, which refuses any setting Vibe does not use).
+DELEGATE_PROFILE_KEYS = {"display_name", "description", "safety"}
+DELEGATE_SETTING_KEYS = {
+    "active_model",
+    "enabled_tools",
+    "enabled_skills",
+    "outside_workdir",
+    "enable_mcp",
+    "enable_subagents",
+    "include_project_context",
+    "session_logging",
+    "tools",
+    "models",
+}
 
 
 def _registry() -> dict:
@@ -95,6 +116,30 @@ def test_the_shipped_defaults_carry_the_settings_a_delegation_is_held_to() -> No
         "availability_window_minutes": 60,
         "metered_personal_caps": {"per_workflow_usd": 2, "per_day_usd": 5},
     }
+
+
+def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() -> None:
+    """A run whose client prices nothing is counted at these, so they are the
+    prices critique already pays for the same models (routing.json)."""
+    routing = json.loads(ROUTING.read_text())["clients"]
+    priced = {
+        client["model"]: client["prices"]
+        for client in routing.values()
+        if client["kind"] == "vibe"
+    }
+    models = json.loads(DEFAULTS.read_text())["models"]
+    assert {m["model"]: m["prices"] for m in models if m["client"] == "vibe"} == priced
+    assert all(p["input"] > 0 and p["output"] > 0 and p["cached_input"] >= 0 for p in priced.values())
+
+
+def test_the_schema_prices_a_model_above_zero() -> None:
+    """0 turns every price cap off, so the schema refuses it."""
+    prices = json.loads(SCHEMA.read_text())["$defs"]["model"]["properties"]["prices"]
+    assert prices["required"] == ["input", "cached_input", "output"]
+    assert prices["additionalProperties"] is False
+    assert prices["properties"]["input"]["exclusiveMinimum"] == 0
+    assert prices["properties"]["output"]["exclusiveMinimum"] == 0
+    assert prices["properties"]["cached_input"]["minimum"] == 0
 
 
 def test_the_schema_allows_exactly_the_contracts_enums() -> None:
@@ -197,6 +242,15 @@ def test_a_defaults_file_with_a_provider_cost_class_the_schema_forbids_fails_val
         _validator().validate_model_gateway_defaults(broken, SCHEMA)
 
 
+def test_a_defaults_file_with_a_zero_input_price_fails_validation(tmp_path: Path) -> None:
+    broken = tmp_path / "defaults.json"
+    defaults = json.loads(DEFAULTS.read_text())
+    defaults["models"][0]["prices"] = {"input": 0, "cached_input": 0, "output": 1.2}
+    broken.write_text(json.dumps(defaults))
+    with pytest.raises(AssertionError, match=re.escape("models[0].prices.input")):
+        _validator().validate_model_gateway_defaults(broken, SCHEMA)
+
+
 def test_a_defaults_file_missing_a_required_key_fails_validation(tmp_path: Path) -> None:
     missing = tmp_path / "defaults.json"
     defaults = json.loads(DEFAULTS.read_text())
@@ -253,6 +307,86 @@ def test_the_shipped_runner_is_executable_and_starts_with_a_node_shebang() -> No
 
 
 # ---------------------------------------------------------------------------
+# The read-only delegate agent (#296)
+# ---------------------------------------------------------------------------
+
+
+def _delegate_file() -> dict:
+    return tomllib.loads((KIT_ROOT / DELEGATE_AGENTS_DIR / f"{DELEGATE_AGENT}.toml").read_text())
+
+
+def test_the_delegate_agent_is_declared_for_the_workstation() -> None:
+    agents = _registry()["vibe_delegate_agents"]
+    assert [(a["name"], a["surfaces"]) for a in agents] == [(DELEGATE_AGENT, ["workstation"])]
+
+
+def test_the_delegate_agent_can_only_read_and_search_inside_its_working_directory() -> None:
+    """Vibe 3.0.4 has no listing tool, so `grep` is how a delegate finds files.
+
+    No bash, no writes, no skills, no subagents, no MCP: the gateway's
+    read-only proof rests on this file, so it is the renderer's and no
+    registry entry can widen it.
+    """
+    doc = _delegate_file()
+    assert doc["enabled_tools"] == ["read_file", "grep"]
+    assert "tools" not in doc
+    assert doc["outside_workdir"] == "deny"
+    assert "enable_mcp" not in doc
+    assert "mcp_servers" not in doc
+    assert doc["enable_subagents"] is False
+    assert doc["include_project_context"] is False
+    assert doc["enabled_skills"] == ["re:^$"]
+    assert doc["session_logging"] == {"enabled": False}
+    assert doc["safety"] == "safe"
+
+
+def test_the_delegate_agent_pins_no_model_and_is_nobody_s_default() -> None:
+    """The gateway passes `--model <alias>`; the file must not override it."""
+    doc = _delegate_file()
+    assert "active_model" not in doc
+    assert "models" not in doc
+    assert "default_agent" not in doc
+    assert "default_agent" not in render_registry.render_setup_script(_registry())
+
+
+def test_every_key_in_the_delegate_agent_file_is_a_vibe_setting() -> None:
+    doc = _delegate_file()
+    unknown = set(doc) - DELEGATE_PROFILE_KEYS - DELEGATE_SETTING_KEYS
+    assert not unknown, unknown
+
+
+def test_a_delegate_agent_entry_may_not_widen_the_file() -> None:
+    data = copy.deepcopy(_registry())
+    data["vibe_delegate_agents"][0]["enabled_tools"] = ["read_file", "bash"]
+    with pytest.raises(render_registry.RegistryError, match="read-only settings are the same"):
+        render_registry.validate(data)
+
+
+def test_a_delegate_agent_must_be_named_delegate_something() -> None:
+    data = copy.deepcopy(_registry())
+    data["vibe_delegate_agents"][0]["name"] = "helper"
+    with pytest.raises(render_registry.RegistryError, match="must be named delegate-"):
+        render_registry.validate(data)
+
+
+def test_a_file_left_over_from_a_retired_delegate_is_a_stale_artifact(tmp_path: Path) -> None:
+    data = _registry()
+    for relative, (content, _mode) in render_registry.artifacts(data).items():
+        (tmp_path / relative).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / relative).write_text(content)
+    assert render_registry.stale_artifacts(data, tmp_path) == []
+    (tmp_path / DELEGATE_AGENTS_DIR / "delegate-gone.toml").write_text("safety = 'safe'\n")
+    assert render_registry.stale_artifacts(data, tmp_path) == [str(DELEGATE_AGENTS_DIR / "delegate-gone.toml")]
+
+
+def test_setup_installs_the_delegate_agent_into_the_shared_vibe_home(macos_run: Run) -> None:
+    installed = macos_run.home / ".vibe" / "agents" / f"{DELEGATE_AGENT}.toml"
+    assert installed.read_text() == (KIT_ROOT / DELEGATE_AGENTS_DIR / f"{DELEGATE_AGENT}.toml").read_text()
+    assert f"Vibe delegate agent {DELEGATE_AGENT} -> " in macos_run.stdout
+    assert not (macos_run.home / ".vibe-private" / "agents" / f"{DELEGATE_AGENT}.toml").exists()
+
+
+# ---------------------------------------------------------------------------
 # The skill text
 # ---------------------------------------------------------------------------
 
@@ -279,6 +413,20 @@ def test_the_skill_names_its_files_and_the_models_command() -> None:
         assert name in text, name
     assert """model-gateway.mjs models --json '{"repo": "/path/to/repo"}'""" in text
     assert "model-gateway.mjs models --input <file.json>" in text
+
+
+def test_the_skill_documents_the_run_command() -> None:
+    text = _skill_text()
+    for word in (
+        "model-gateway.mjs run --json",
+        "delegate-readonly",
+        "unproven-read-only",
+        "AGENT_KIT_DELEGATION",
+        "ledger.jsonl",
+        "SUMMARY:",
+        "not-supported-yet",
+    ):
+        assert word in text, word
 
 
 def test_the_skill_says_the_data_policy_filters_what_models_offers() -> None:

@@ -39,6 +39,13 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
     throw new Error(messageOf(result))
   }
 
+  async commonDir(path: string): Promise<string> {
+    const result = await this.git(path, ['rev-parse', '--path-format=absolute', '--git-common-dir'])
+    const commonDir = result.stdout.trim()
+    if (result.exitCode !== 0 || commonDir === '') throw new Error(messageOf(result))
+    return commonDir
+  }
+
   async remotes(path: string): Promise<readonly GitRemote[]> {
     const result = await this.git(path, ['config', '--get-regexp', String.raw`^remote\..*\.url$`])
     if (result.exitCode === 1) return []

@@ -1032,6 +1032,27 @@ vibe_critic_agents:
     surfaces: [workstation]
 
 # -------------------------------------------------------------------
+# Read-only Vibe delegate agents.
+#
+# The model gateway's `run` launches a read-only delegation as
+# `vibe --agent delegate-readonly --model <alias>`, so the agent file
+# pins no model: the alias comes from the gateway's own catalogue and
+# `--model` overrides `active_model` for that one run. What the file
+# fixes is the read-only part: `read_file` and `grep` and nothing else
+# (no bash, no writes, no skills, no subagents, no MCP), nothing outside
+# the working directory, and no project context, so the delegate sees
+# the repository it was pointed at and nothing of the owner's home.
+#
+# Rendered into registry/generated/vibe/agents/ and installed into the
+# shared Vibe home's agents/ beside the critic agents, never into
+# vibe-private's. `surfaces: []` retires an agent, and setup removes its
+# file.
+# -------------------------------------------------------------------
+vibe_delegate_agents:
+  - name: delegate-readonly
+    surfaces: [workstation]
+
+# -------------------------------------------------------------------
 # Vendored third-party skills.
 #
 # `selector` semantics, as implemented by Hermes' sync-skills init

@@ -1,13 +1,17 @@
 import { execFile } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { FakeEnv } from '../../../../test/model-gateway/harness.js'
+import type { LedgerRecord } from '../domain/ledger.js'
 import { NodeModelGatewayFiles } from './fs/index.js'
 import { NodeModelGatewayGit } from './git/index.js'
+import { NodeModelGatewayLedger, type LedgerLockTimings } from './ledger/index.js'
 import { NodeModelGatewayProcess } from './process/index.js'
+import { NodeModelGatewayProof } from './proof/index.js'
 
 const cleanups: (() => Promise<void>)[] = []
 
@@ -59,6 +63,34 @@ describe('NodeModelGatewayFiles', () => {
     cleanups.unshift(() => chmod(locked, 0o755))
 
     await expect(new NodeModelGatewayFiles().exists(join(locked, 'model-gateway.json'))).rejects.toThrow()
+  })
+
+  it('writes a file, creating the directories above it', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'runs', 'one', 'prompt.md')
+
+    await new NodeModelGatewayFiles().writeText(path, 'read this')
+
+    expect(await readFile(path, 'utf8')).toBe('read this')
+  })
+
+  it('makes a directory, and leaves an existing one as it is', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'runs', 'one')
+    const files = new NodeModelGatewayFiles()
+
+    await files.mkdir(path)
+    await files.mkdir(path)
+
+    expect(await files.exists(path)).toBe(true)
+  })
+
+  it('makes a fresh empty temporary directory named after its prefix', async () => {
+    const dir = await new NodeModelGatewayFiles().tempDir('model-gateway-adapter-')
+    cleanups.push(() => rm(dir, { force: true, recursive: true }))
+
+    expect(dir).toContain('model-gateway-adapter-')
+    expect(await readdir(dir)).toEqual([])
   })
 })
 
@@ -116,6 +148,23 @@ describe('NodeModelGatewayGit', () => {
       { name: 'origin', url: 'git@github.com:Acme/Widgets.git' },
       { name: 'upstream', url: 'https://example.com/other/thing.git' },
     ])
+  })
+
+  it('finds the common directory a worktree shares with its repository', async () => {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
+    await git(root, 'commit', '-q', '--allow-empty', '-m', 'first')
+    const worktree = join(root, '..', `${basename(root)}-worktree`)
+    cleanups.push(() => rm(worktree, { force: true, recursive: true }))
+    await git(root, 'worktree', 'add', '-q', worktree)
+
+    expect(await repositories.commonDir(worktree)).toBe(join(await realpath(root), '.git'))
+  })
+
+  it('fails with git\'s own message when it cannot find a common directory', async () => {
+    const dir = await tempDir()
+
+    await expect(repositories.commonDir(dir)).rejects.toThrow(/not a git repository/)
   })
 
   it('reports no remote for a repository without one', async () => {
@@ -178,6 +227,156 @@ describe('NodeModelGatewayGit', () => {
     } finally {
       process.env.PATH = path
     }
+  })
+})
+
+describe('NodeModelGatewayLedger', () => {
+  /** A record the ledger can hold, with the fields the test cares about filled in. */
+  function record(runId: string): LedgerRecord {
+    return {
+      at: '2026-01-01T00:00:00.000Z',
+      client: 'vibe',
+      cost_usd: 0.5,
+      duration_s: 12,
+      family: 'mistral',
+      mode: 'read-only',
+      model: 'mistral-medium-3.5',
+      outcome: 'ok',
+      repository: 'github.com/jorisjonkers-dev/agent-kit',
+      run_id: runId,
+      tokens: { cached: 0, input: 10, output: 20 },
+      workflow: 'review',
+    }
+  }
+
+  /** The ledger a test writes to, in a home of its own. */
+  async function ledger(timings: LedgerLockTimings = {}): Promise<{ ledger: NodeModelGatewayLedger; path: string }> {
+    const home = await tempDir()
+    const env = new FakeEnv({ HOME: home })
+    return { ledger: new NodeModelGatewayLedger(env, timings), path: join(home, '.local', 'state', 'agent-kit', 'model-gateway', 'ledger.jsonl') }
+  }
+
+  it('appends one JSON line per run, creating the state directory', async () => {
+    const { ledger: writer, path } = await ledger()
+
+    await writer.append(record('one'))
+    await writer.append(record('two'))
+
+    const lines = (await readFile(path, 'utf8')).split('\n').filter((line) => line !== '')
+    expect(lines.map((line) => (JSON.parse(line) as LedgerRecord).run_id)).toEqual(['one', 'two'])
+  })
+
+  it('waits for a lock another process holds, then writes', async () => {
+    const { ledger: writer, path } = await ledger({ retryMs: 5 })
+    const lock = `${path}.lock`
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(lock, '')
+    const release = setTimeout(() => {
+      void rm(lock, { force: true })
+    }, 50)
+    try {
+      await writer.append(record('one'))
+    } finally {
+      clearTimeout(release)
+    }
+
+    expect(await readFile(path, 'utf8')).toContain('"run_id":"one"')
+  })
+
+  it('breaks a lock left behind by a process that died holding it', async () => {
+    const { ledger: writer, path } = await ledger({ retryMs: 5, staleMs: 20 })
+    const lock = `${path}.lock`
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(lock, '')
+    const old = new Date(Date.now() - 60_000)
+    await utimes(lock, old, old)
+
+    await writer.append(record('one'))
+
+    expect(await readFile(path, 'utf8')).toContain('"run_id":"one"')
+    await expect(stat(lock)).rejects.toThrow()
+  })
+
+  it('breaks, with its shipped timings, a lock left behind a few seconds ago, instead of giving up first', async () => {
+    const { ledger: writer, path } = await ledger()
+    const lock = `${path}.lock`
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(lock, '')
+    const old = new Date(Date.now() - 6_000)
+    await utimes(lock, old, old)
+
+    await writer.append(record('one'))
+
+    expect(await readFile(path, 'utf8')).toContain('"run_id":"one"')
+  }, 15_000)
+
+  it('gives up when another process holds the lock past its timeout', async () => {
+    const { ledger: writer, path } = await ledger({ retryMs: 5, timeoutMs: 30 })
+    const lock = `${path}.lock`
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(lock, '')
+
+    await expect(writer.append(record('one'))).rejects.toThrow(/held the ledger lock/)
+    await expect(readFile(path, 'utf8')).rejects.toThrow()
+  })
+
+  it('fails with the file system\'s own error when the lock cannot be created at all', async () => {
+    const { ledger: writer, path } = await ledger({ retryMs: 5 })
+    const dir = join(path, '..')
+    await mkdir(dir, { recursive: true })
+    await chmod(dir, 0o500)
+    cleanups.push(() => chmod(dir, 0o700))
+
+    await expect(writer.append(record('one'))).rejects.toThrow(/EACCES|permission denied/i)
+  })
+
+  it('treats a lock that vanished before it could be read as held, and waits for it', async () => {
+    const { ledger: writer, path } = await ledger({ retryMs: 5, timeoutMs: 30 })
+    await mkdir(join(path, '..'), { recursive: true })
+    await symlink(join(path, '..', 'gone'), `${path}.lock`)
+
+    await expect(writer.append(record('one'))).rejects.toThrow(/held the ledger lock/)
+  })
+
+  it('never interleaves two concurrent appends', async () => {
+    const { ledger: writer, path } = await ledger({ retryMs: 1 })
+    const ids = Array.from({ length: 8 }, (_, index) => `run-${String(index)}`)
+
+    await Promise.all(ids.map((id) => writer.append(record(id))))
+
+    const lines = (await readFile(path, 'utf8')).split('\n').filter((line) => line !== '')
+    expect(lines).toHaveLength(ids.length)
+    expect(lines.map((line) => (JSON.parse(line) as LedgerRecord).run_id).sort()).toEqual(ids)
+  })
+})
+
+describe('NodeModelGatewayProof', () => {
+  it('reads the shipped routing, this machine\'s override and setup\'s results', async () => {
+    const home = await tempDir()
+    const routing = join(home, 'routing.json')
+    await writeFile(routing, '{"clients":{}}')
+    await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
+    await writeFile(join(home, '.config', 'agent-kit', 'critique-routing.json'), '{"vibe":{}}')
+    await mkdir(join(home, '.local', 'share', 'agent-kit', 'critique'), { recursive: true })
+    await writeFile(join(home, '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json'), '{"checks":{}}')
+    const proof = new NodeModelGatewayProof({ env: new FakeEnv({ HOME: home }), files: new NodeModelGatewayFiles(), routingPath: routing })
+
+    expect(await proof.read()).toEqual({
+      routing: '{"clients":{}}',
+      routingOverride: '{"vibe":{}}',
+      setupResults: '{"checks":{}}',
+    })
+  })
+
+  it('reports a file that is not there as undefined', async () => {
+    const home = await tempDir()
+    const proof = new NodeModelGatewayProof({
+      env: new FakeEnv({ HOME: home }),
+      files: new NodeModelGatewayFiles(),
+      routingPath: join(home, 'routing.json'),
+    })
+
+    expect(await proof.read()).toEqual({ routing: undefined, routingOverride: undefined, setupResults: undefined })
   })
 })
 

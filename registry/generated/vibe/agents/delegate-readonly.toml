@@ -1,0 +1,15 @@
+# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
+# A read-only delegate of the model gateway, launched by it as
+# `vibe --agent delegate-readonly --model <alias>`. Installed into the shared Vibe home only.
+
+display_name = "Delegate Readonly"
+description = "Read-only delegate for the model gateway"
+safety = "safe"
+enabled_tools = ["read_file", "grep"]
+enabled_skills = ["re:^$"]
+outside_workdir = "deny"
+enable_subagents = false
+include_project_context = false
+
+[session_logging]
+enabled = false

@@ -527,8 +527,8 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], path: str, root:
 
     $ref (local), type, const, enum, required, properties,
     additionalProperties (false, or a schema every other key must fit), items,
-    minItems, uniqueItems, minLength, minimum and maximum. Any other keyword is
-    an annotation here, as it is for a real validator.
+    minItems, uniqueItems, minLength, minimum, exclusiveMinimum and maximum.
+    Any other keyword is an annotation here, as it is for a real validator.
     """
     if "$ref" in schema:
         validate_json_schema(instance, resolve_schema_ref(str(schema["$ref"]), root, path), path, root)
@@ -557,6 +557,9 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], path: str, root:
         minimum = schema.get("minimum")
         if isinstance(minimum, (int, float)) and instance < minimum:
             fail(f"{path} must be at least {minimum}")
+        exclusive_minimum = schema.get("exclusiveMinimum")
+        if isinstance(exclusive_minimum, (int, float)) and instance <= exclusive_minimum:
+            fail(f"{path} must be above {exclusive_minimum}")
         maximum = schema.get("maximum")
         if isinstance(maximum, (int, float)) and instance > maximum:
             fail(f"{path} must be at most {maximum}")
