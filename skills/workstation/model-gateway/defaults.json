@@ -12,7 +12,7 @@
     {"client": "claude", "model": "claude-opus-5-5",   "family": "anthropic", "tier": "frontier", "notes": "Strongest Claude; design, hard debugging, review of risky changes."},
     {"client": "claude", "model": "claude-sonnet-5-5", "family": "anthropic", "tier": "hard",     "notes": "Strong general coding and refactoring."},
     {"client": "claude", "model": "claude-haiku-5-5",  "family": "anthropic", "tier": "routine",  "notes": "Fast and cheap; mechanical edits, summaries, lookups."},
-    {"client": "codex",  "model": "gpt-5.5",           "family": "openai",    "tier": "frontier", "notes": "Strong implementation and review; metered on the nedap account, grant needed."},
+    {"client": "codex",  "model": "gpt-5.5",           "family": "openai",    "tier": "frontier", "notes": "Strong implementation and review; metered on the nedap account, grant needed.", "prices": {"input": 1.25, "cached_input": 0.125, "output": 10}},
     {"client": "vibe",   "model": "deepseek-v4-1-flash-1017", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; good at well-specified code changes and lint-like review.", "prices": {"input": 0.3, "cached_input": 0.03, "output": 1.2}},
     {"client": "vibe",   "model": "glm-5-3",           "names": ["zai-glm-5-3"],         "family": "zhipu",     "tier": "hard",     "notes": "Strong code review and integration reasoning.", "prices": {"input": 1.4, "cached_input": 0.14, "output": 4.4}},
     {"client": "vibe",   "model": "mistral-large-latest", "names": ["mistral-large-4-0"], "family": "mistral",   "tier": "hard",     "notes": "Broad general model.", "prices": {"input": 0.7, "cached_input": 0.07, "output": 2.1}},

@@ -1,4 +1,5 @@
 import { isObject, ModelGatewayError } from '../domain/config.js'
+import { requireWorkflowName } from '../domain/workflows.js'
 import { messageOf } from './json-file.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
@@ -41,10 +42,7 @@ function readSelection(raw: unknown): CleanSelection {
   const all = raw.all !== undefined
   if (named && all) throw new ModelGatewayError('invalid-input', 'worktrees clean takes the workflow that ended, or all, not both')
   if (named) {
-    if (typeof raw.workflow !== 'string' || raw.workflow === '') {
-      throw new ModelGatewayError('invalid-input', 'workflow must be the non-empty name of the workflow that ended')
-    }
-    return { workflow: raw.workflow }
+    return { workflow: requireWorkflowName(raw.workflow, 'workflow must be the non-empty name of the workflow that ended') }
   }
   if (raw.all !== true) {
     throw new ModelGatewayError('invalid-input', 'worktrees clean needs "workflow", the workflow that ended, or "all": true')

@@ -8,6 +8,7 @@ import {
   FakeEnv,
   FakeFiles,
   FakeGit,
+  FakeGrants,
   FakeKept,
   FakeLedger,
   FakeProcess,
@@ -16,6 +17,7 @@ import {
   FixedClock,
   type FakeRepository,
 } from '../../../../test/model-gateway/harness.js'
+import { GrantListCommand, GrantWriteCommand } from './grants.js'
 import { decidePolicyFor } from './policy.js'
 import { ModelsCommand } from './models.js'
 import type { ModelGatewayDependencies } from './ports.js'
@@ -52,6 +54,7 @@ async function workspace(repositories: Readonly<Record<string, FakeRepository>> 
       env: new FakeEnv({ HOME: home }),
       files: new FakeFiles(),
       git: new FakeGit(repositories),
+      grants: new FakeGrants(),
       kept: new FakeKept(),
       ledger: new FakeLedger(),
       process: new FakeProcess(['claude', 'codex']),
@@ -126,5 +129,21 @@ describe('UsageCommand', () => {
     const w = await workspace()
 
     await expect(new UsageCommand(w.deps).run([])).rejects.toThrow('the input must be a JSON object')
+  })
+})
+
+describe('GrantWriteCommand', () => {
+  it('refuses input that is not a JSON object', async () => {
+    const w = await workspace()
+
+    await expect(new GrantWriteCommand(w.deps).run([])).rejects.toThrow('the input must be a JSON object')
+  })
+})
+
+describe('GrantListCommand', () => {
+  it('refuses input that is not a JSON object', async () => {
+    const w = await workspace()
+
+    await expect(new GrantListCommand(w.deps).run([])).rejects.toThrow('the input must be a JSON object')
   })
 })

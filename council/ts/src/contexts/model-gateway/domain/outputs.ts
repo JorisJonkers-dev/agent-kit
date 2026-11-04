@@ -164,6 +164,44 @@ export function hermesOutput(stdout: string, usage: unknown): ClientOutput {
 }
 
 /**
+ * Codex, `exec --json`: one event per line. The answer is the text of the last
+ * `agent_message` item; every `turn.completed` adds the tokens its turn
+ * reported, its cached prompt counted apart from its input as Vibe's export
+ * counts it, and its reasoning tokens already inside its output; an `error` or
+ * a `turn.failed` event fails the run. Codex prices nothing, so its dollars
+ * come from the catalogue's prices.
+ */
+export function codexOutput(stdout: string): ClientOutput {
+  let answer: string | undefined
+  let error: ClientError | undefined
+  let failure: string | undefined
+  const sum = { cached: 0, input: 0, output: 0 }
+  for (const line of stdout.split('\n')) {
+    const event = parseJson(line)
+    if (!isObject(event)) continue
+    const item = isObject(event.item) ? event.item : {}
+    if (event.type === 'item.completed' && item.type === 'agent_message' && textOf(item.text) !== undefined) {
+      answer = String(item.text)
+    } else if (event.type === 'turn.completed') {
+      const usage = isObject(event.usage) ? event.usage : {}
+      sum.cached += count(usage.cached_input_tokens)
+      sum.input += count(usage.input_tokens)
+      sum.output += count(usage.output_tokens)
+    } else if (event.type === 'error' || event.type === 'turn.failed') {
+      failure = 'client-error'
+      error = structuredError(event) ?? saidOf(event)
+    }
+  }
+  return { answer, charged: undefined, error, failure, tokens: sum }
+}
+
+/** What an event says in its own `message`, as the error the refusal patterns read. */
+function saidOf(event: JsonObject): ClientError | undefined {
+  const said = textOf(event.message)
+  return said === undefined ? undefined : { text: said }
+}
+
+/**
  * OpenCode, `--format json`: one event per line. The answer is the text of the
  * last step that wrote any; every `step_finish` adds its dollars and tokens
  * (its cache is counted apart from its input, as Anthropic's is, and its

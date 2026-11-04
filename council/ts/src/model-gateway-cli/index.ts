@@ -9,6 +9,7 @@ import {
   modelSources,
   NodeModelGatewayFiles,
   NodeModelGatewayGit,
+  NodeModelGatewayGrants,
   NodeModelGatewayKept,
   NodeModelGatewayLedger,
   NodeModelGatewayProcess,
@@ -41,6 +42,10 @@ export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo":
                                  "model": "claude-sonnet-5-5", "mode": "write",
                                  "prompt": "add the flag", "repo": "/path/to/repo",
                                  "base": "main", "check": "npm test"}'
+       model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
+                                 "cap_usd": 5, "question": "may I spend $5 of nedap money?",
+                                 "answer": "yes, up to five"}'
+       model-gateway grant list --json '{}'
        model-gateway workflow start --json '{"name": "spec-293"}'
        model-gateway workflow end --json '{"name": "spec-293"}'
        model-gateway workflow list --json '{}'
@@ -132,8 +137,10 @@ hours counts as ended, and a run may not join one that ended.
 An error prints "status": "error" with its "code" and exits 1.
 `
 
-/** The subcommands the gateway has; #294 ships models, #296 adds run, #297 the workflow commands, #300 worktrees clean, #302 usage. */
+/** The subcommands the gateway has; #294 ships models, #296 adds run, #297 the workflow commands, #298 the grant commands, #300 worktrees clean, #302 usage. */
 const COMMANDS = {
+  'grant list': 'grantList',
+  'grant write': 'grantWrite',
   models: 'models',
   run: 'run',
   usage: 'usage',
@@ -144,7 +151,8 @@ const COMMANDS = {
 } as const satisfies Record<string, keyof ModelGatewayCommands>
 
 /** The subcommands, as an error names them. */
-const COMMAND_NAMES = 'models, run, usage, workflow start, workflow end, workflow list and worktrees clean'
+const COMMAND_NAMES =
+  'models, run, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean'
 
 /** The gateway's command line: one subcommand, one JSON object in, one JSON object out. */
 export async function runModelGatewayCli(argv: readonly string[], runtime: ModelGatewayRuntime): Promise<ModelGatewayCliResult> {
@@ -253,6 +261,7 @@ export function defaultModelGatewayRuntime(options: ModelGatewayRuntimeOptions =
       env,
       files,
       git,
+      grants: new NodeModelGatewayGrants(env, git),
       kept: new NodeModelGatewayKept(env),
       ledger: new NodeModelGatewayLedger(env),
       process,

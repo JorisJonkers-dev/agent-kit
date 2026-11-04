@@ -1,7 +1,15 @@
-export { CapGuard, isMetered, runCostClass, type Reservation } from './application/caps.js'
+export { CapGuard, heldCostClass, runCostClass, type CapSource, type Reservation } from './application/caps.js'
 export { ClientRun, requireSupportedExtras, type ClientRunOutcome, type ClientRunPorts, type ClientRunRequest } from './application/client-run.js'
 export { createModelGatewayCommands, type ModelGatewayCommands } from './application/commands.js'
-export { ledgerPath, runsDir, stateDir, workflowsPath } from './application/locations.js'
+export {
+  GrantGuard,
+  GrantListCommand,
+  GrantWriteCommand,
+  type GrantListResult,
+  type GrantWriteInput,
+  type GrantWriteResult,
+} from './application/grants.js'
+export { grantsPath, ledgerPath, runsDir, stateDir, workflowsPath } from './application/locations.js'
 export { decidePolicyFor, resolveScope } from './application/policy.js'
 export { DELEGATION_MARK, READ_ONLY_AGENT, RunCommand, type RunOutcome, type RunResult } from './application/run.js'
 export { EscalatedRun, type AttemptOptions, type AttemptRunner, type AttemptedRun, type Escalated } from './application/escalation.js'
@@ -10,6 +18,7 @@ export { UsageCommand } from './application/usage.js'
 export type {
   ClientStatusPort,
   LedgerChange,
+  ModelGatewayGrantsPort,
   ModelGatewayDependencies,
   ModelGatewayFilesPort,
   ModelGatewayGitPort,
@@ -41,6 +50,14 @@ export {
 } from './domain/config.js'
 export { EXTRA_NAMES, type AttachedServer, type ExtraName, type RunExtras, type SandboxProfile } from './domain/extras.js'
 export type { AttemptLink, AttemptSummary, EscalationReport, UnavailableResult, Unstartable } from './domain/escalation.js'
+export type {
+  Grant,
+  GrantChange,
+  GrantLapse,
+  GrantRoom,
+  GrantView,
+  LapsedGrant,
+} from './domain/grants.js'
 export type { LedgerEntry, LedgerRecord, ReservationRecord, SettledRecord } from './domain/ledger.js'
 export type { ClientListing, ClientModel, ListedModel, MissingClient, ModelListing, SkippedModel } from './domain/models.js'
 export type {
@@ -72,6 +89,7 @@ export { modelSources } from './adapters/clients/index.js'
 export { clientStatuses } from './adapters/clients/status.js'
 export { NodeModelGatewayFiles } from './adapters/fs/index.js'
 export { NodeModelGatewayGit } from './adapters/git/index.js'
+export { NodeModelGatewayGrants } from './adapters/grants/index.js'
 export { NodeModelGatewayKept } from './adapters/kept/index.js'
 export { NodeModelGatewayLedger } from './adapters/ledger/index.js'
 export { NodeModelGatewayProcess } from './adapters/process/index.js'

@@ -3,11 +3,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import type {
+  Grant,
+  GrantChange,
   LedgerChange,
   LedgerEntry,
   ModelGatewayFilesPort,
   KeptWorktree,
   ModelGatewayGitPort,
+  ModelGatewayGrantsPort,
   ModelGatewayKeptPort,
   ModelGatewayLedgerPort,
   ModelGatewayProcessPort,
@@ -303,6 +306,21 @@ export class FakeWorkflows implements ModelGatewayWorkflowsPort {
   }
 }
 
+/** A grants file that keeps its records in memory, so a test can read what a command wrote. */
+export class FakeGrants implements ModelGatewayGrantsPort {
+  constructor(private records: readonly Grant[] = []) {}
+
+  read(): Promise<readonly Grant[]> {
+    return Promise.resolve(this.records)
+  }
+
+  update(change: (grants: readonly Grant[]) => GrantChange): Promise<Grant> {
+    const changed = change(this.records)
+    this.records = changed.grants
+    return Promise.resolve(changed.grant)
+  }
+}
+
 /** A clock that stands still unless a test moves it, so a run's id and duration are predictable. */
 export class FixedClock implements ClockPort {
   constructor(
@@ -368,7 +386,9 @@ export interface VibeScript {
 function statusAnswer(command: ProcessCommand): ProcessResult | undefined {
   const [first, second] = command.args
   const credentials = ['hermes', 'opencode'].includes(command.command) && first === 'auth' && second === 'list'
-  return credentials ? { exitCode: 0, stderr: '', stdout: 'signed in\n' } : undefined
+  if (credentials) return { exitCode: 0, stderr: '', stdout: 'signed in\n' }
+  const codex = command.command === 'codex' && first === 'login' && second === 'status'
+  return codex ? { exitCode: 0, stderr: '', stdout: 'Logged in using ChatGPT\n' } : undefined
 }
 
 /** What one fake Hermes launch answers: its one-shot text, its exit, and the usage report it writes. */

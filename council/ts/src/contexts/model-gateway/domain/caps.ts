@@ -81,9 +81,12 @@ export interface CapDecision {
   readonly refused?: CapRoom
 }
 
-/** One settled charge against the caps: what a run cost, under which workflow, on which UTC day. */
-interface Charge {
-  readonly day: string
+/** One settled charge against a cap: what a run cost, for which client, under which workflow, at which moment. */
+export interface Charge {
+  /** The moment the spend counts at: the run's own line, or the reservation it settled. */
+  readonly at: string
+  /** The client the run went to, which a grant is given for. */
+  readonly client: string
   readonly usd: number
   readonly workflow: string
 }
@@ -105,7 +108,7 @@ export function checkCaps(
   now: Date,
 ): CapDecision {
   const day = utcDay(now.toISOString())
-  const charges = chargesOf(entries)
+  const charges = meteredCharges(entries, 'metered-personal')
   const held = liveReservations(entries).filter((reservation) => reservation.cost_class === 'metered-personal')
   const workflowRoom = room(
     'per_workflow_usd',
@@ -117,7 +120,7 @@ export function checkCaps(
   const dayRoom = room(
     'per_day_usd',
     caps.per_day_usd,
-    sum(charges.filter((charge) => charge.day === day).map((charge) => charge.usd)),
+    sum(charges.filter((charge) => utcDay(charge.at) === day).map((charge) => charge.usd)),
     sum(held.filter((reservation) => utcDay(reservation.reserved_at) === day).map((reservation) => reservation.estimate_usd)),
   )
   return fits(dayRoom, estimateUsd) ? {} : { refused: dayRoom }
@@ -214,24 +217,25 @@ export function settleExpired(
 }
 
 /**
- * What the ledger says metered runs have cost, by workflow and by UTC day. A
- * run's own line carries its spend; a settlement counts only for a run that
- * has no line, which is a reservation whose run left nothing but its result.
- * Both count by the cost class they were charged under, so a metered provider
- * of a subsidised client is held too.
+ * What the ledger says runs of one cost class have cost, by workflow and by
+ * moment. A run's own line carries its spend; a settlement counts only for a
+ * run that has no line, which is a reservation whose run left nothing but its
+ * result. Both count by the cost class they were charged under, so a metered
+ * provider of a subsidised client is held too.
  */
-function chargesOf(entries: readonly LedgerEntry[]): readonly Charge[] {
-  const runs = entries.filter(isRunRecord).filter((run) => run.cost_class === 'metered-personal')
+export function meteredCharges(entries: readonly LedgerEntry[], costClass: CostClass): readonly Charge[] {
+  const runs = entries.filter(isRunRecord).filter((run) => run.cost_class === costClass)
   const settled = new Map(entries.filter(isSettled).map((entry) => [entry.run_id, entry]))
   const charges: Charge[] = runs.map((run) => ({
-    day: utcDay(settled.get(run.run_id)?.reserved_at ?? run.at),
+    at: settled.get(run.run_id)?.reserved_at ?? run.at,
+    client: run.client,
     usd: run.cost_usd,
     workflow: run.workflow,
   }))
   for (const settle of settled.values()) {
-    if (settle.reason !== 'expired' || settle.cost_class !== 'metered-personal') continue
+    if (settle.reason !== 'expired' || settle.cost_class !== costClass) continue
     if (runs.some((run) => run.run_id === settle.run_id)) continue
-    charges.push({ day: utcDay(settle.reserved_at), usd: settle.cost_usd, workflow: settle.workflow })
+    charges.push({ at: settle.reserved_at, client: settle.client, usd: settle.cost_usd, workflow: settle.workflow })
   }
   return charges
 }
@@ -241,7 +245,10 @@ function room(cap: CapName, limit_usd: number, spent_usd: number, reserved_usd: 
 }
 
 /** Whether the estimate still fits what a cap has left, to the cent the ledger counts in. */
-function fits(room: CapRoom, estimateUsd: number): boolean {
+export function fits(
+  room: { readonly limit_usd: number; readonly reserved_usd: number; readonly spent_usd: number },
+  estimateUsd: number,
+): boolean {
   return round(room.spent_usd + room.reserved_usd + estimateUsd, 6) <= room.limit_usd
 }
 
@@ -255,12 +262,12 @@ function sum(values: readonly number[]): number {
 }
 
 /** Dollars as a message names them. */
-function usd(value: number): string {
+export function usd(value: number): string {
   return `$${value.toFixed(2)}`
 }
 
 /** A sum of dollars, rounded so the JSON does not carry float noise. */
-function round(value: number, places: number): number {
+export function round(value: number, places: number): number {
   const factor = 10 ** places
   return Math.round(value * factor) / factor
 }

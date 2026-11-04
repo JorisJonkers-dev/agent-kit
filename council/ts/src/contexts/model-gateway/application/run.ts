@@ -27,10 +27,11 @@ import {
 } from '../domain/run.js'
 import { planWindows, warningsOf } from '../domain/usage.js'
 import { requireWorkflowOpen, startWorkflow } from '../domain/workflows.js'
-import { CapGuard, runCostClass, type Reservation } from './caps.js'
+import { CapGuard, runCostClass, type CapSource, type Reservation } from './caps.js'
 import { ClientRun, type ClientRunOutcome } from './client-run.js'
 import { loadConfig } from './config.js'
 import { EscalatedRun, type AttemptOptions } from './escalation.js'
+import { GrantGuard } from './grants.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
 import { DELEGATION_MARK, READ_ONLY_AGENT, type LaunchPaths } from './launchers.js'
@@ -153,11 +154,13 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   private readonly caps: CapGuard
   private readonly clientRun: ClientRun
   private readonly escalation: EscalatedRun
+  private readonly grants: GrantGuard
 
   constructor(private readonly deps: ModelGatewayDependencies) {
     this.caps = new CapGuard(deps)
     this.clientRun = new ClientRun(deps)
     this.escalation = new EscalatedRun(deps)
+    this.grants = new GrantGuard(deps)
   }
 
   /** One delegation: a run, retried, climbed and swapped as the escalation decides. */
@@ -189,11 +192,13 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const costClass = runCostClass(client, input)
     const estimate = this.caps.estimate(input, entry, config)
     await this.requireWorkflowOpen(input.workflow)
+    const cap = await this.capSource(costClass, input)
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
     const id = runId(startedAt, randomBytes(3).toString('hex'))
     const runDir = await this.runDir(root, id)
     const reservation = await this.caps.reserve({
+      cap,
       config,
       costClass,
       estimate,
@@ -370,6 +375,18 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     } catch (error) {
       return { outputError: messageOf(error), report }
     }
+  }
+
+  /**
+   * What the run's estimate is held against: the grant that covers a
+   * metered-employer run, which it is refused without, or the metered-personal
+   * caps. It runs after the workflow is found open and before the estimate is
+   * reserved, so a run without a grant reserves nothing and starts no
+   * workflow.
+   */
+  private async capSource(costClass: CostClass, input: RunInput): Promise<CapSource> {
+    if (costClass !== 'metered-employer') return { kind: 'metered-personal' }
+    return { grant: await this.grants.require(input.workflow, input.client, this.deps.clock.now()), kind: 'grant' }
   }
 
   /**

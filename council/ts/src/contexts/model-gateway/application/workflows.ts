@@ -1,5 +1,12 @@
 import { isObject, ModelGatewayError } from '../domain/config.js'
-import { endWorkflow, startWorkflow, workflowView, workflowViews, type WorkflowView } from '../domain/workflows.js'
+import {
+  endWorkflow,
+  requireWorkflowName,
+  startWorkflow,
+  workflowView,
+  workflowViews,
+  type WorkflowView,
+} from '../domain/workflows.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
 /** `workflow start` and `workflow end` take the name of the workflow they act on. */
@@ -62,10 +69,7 @@ export class WorkflowListCommand implements ModelGatewayCommand<unknown, Workflo
 
 function readWorkflowInput(raw: unknown): WorkflowInput {
   if (!isObject(raw)) throw new ModelGatewayError('invalid-input', 'the input must be a JSON object')
-  if (typeof raw.name !== 'string' || raw.name === '') {
-    throw new ModelGatewayError('invalid-input', 'a workflow command must name its workflow')
-  }
-  return { name: raw.name }
+  return { name: requireWorkflowName(raw.name, 'a workflow command must name its workflow') }
 }
 
 /** `workflow list` takes no field: it lists every workflow this machine has started. */

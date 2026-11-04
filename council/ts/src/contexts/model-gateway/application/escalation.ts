@@ -24,6 +24,7 @@ import { familyOfModelId } from '../domain/models.js'
 import { decidePolicy } from '../domain/policy.js'
 import type { RunInput } from '../domain/run.js'
 import { loadConfig } from './config.js'
+import { GrantGuard } from './grants.js'
 import { messageOf } from './json-file.js'
 import { overridePath } from './locations.js'
 import { resolveScope } from './policy.js'
@@ -78,7 +79,11 @@ interface Plan {
  * function, so it knows nothing of how a run is launched.
  */
 export class EscalatedRun {
-  constructor(private readonly deps: ModelGatewayDependencies) {}
+  private readonly grants: GrantGuard
+
+  constructor(private readonly deps: ModelGatewayDependencies) {
+    this.grants = new GrantGuard(deps)
+  }
 
   async run<R extends AttemptedRun>(input: RunInput, attempt: AttemptRunner<R>): Promise<Escalated<R> | UnavailableResult> {
     if (input.escalate === false) {
@@ -186,14 +191,20 @@ export class EscalatedRun {
     }
   }
 
-  /** The catalogue the delegation may move through: the model asked for, and every permitted model it may be moved to. */
+  /**
+   * The catalogue the delegation may move through: the model asked for, and
+   * every permitted model it may be moved to. A metered-employer model is in
+   * that pool only while a live grant covers the workflow, so a client that
+   * cannot start is swapped for one of them only when the owner allowed it.
+   */
   private async plan(input: RunInput): Promise<Plan> {
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
     const entry = config.models.find((candidate) => candidate.client === input.client && candidate.model === input.model)
     const family = entry?.family ?? familyOfModelId(input.model) ?? ''
     const requested = requestedCandidate(config, input, entry, family)
     const scope = await resolveScope(this.deps, input.repo)
-    const pool = candidatePool(config, input, decidePolicy(config, scope, config.models).permissions)
+    const granted = await this.grants.liveClients(input.workflow, this.deps.clock.now())
+    const pool = candidatePool(config, input, decidePolicy(config, scope, config.models).permissions, granted)
     return { pool, requested }
   }
 

@@ -21,6 +21,16 @@ export function allowlistPath(env: EnvPort): string {
   return join(configDir(env), 'critique-allowlist.json')
 }
 
+/**
+ * The grants the owner gave, in the machine configuration beside the override:
+ * `$XDG_CONFIG_HOME/agent-kit/model-gateway-grants.json`, else
+ * `~/.config/agent-kit/model-gateway-grants.json`. A grant is never written
+ * inside a repository, so the gateway refuses a path that lies in one.
+ */
+export function grantsPath(env: EnvPort): string {
+  return join(configDir(env), 'model-gateway-grants.json')
+}
+
 function configDir(env: EnvPort): string {
   const xdg = env.get('XDG_CONFIG_HOME')
   if (xdg !== undefined && isAbsolute(xdg)) return join(xdg, 'agent-kit')

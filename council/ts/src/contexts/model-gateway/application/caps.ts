@@ -16,16 +16,18 @@ import {
   type ClientConfig,
   type CostClass,
   type GatewayConfig,
+  type MeteredPersonalCaps,
   type ModelEntry,
 } from '../domain/config.js'
-import type { ReservationRecord } from '../domain/ledger.js'
+import { grantRefusal, type Grant } from '../domain/grants.js'
+import type { LedgerEntry, ReservationRecord } from '../domain/ledger.js'
 import { costClassFor } from '../domain/models.js'
 import { openCodeProvider, type RunInput } from '../domain/run.js'
 import type { ModelGatewayDependencies } from './ports.js'
 
 /**
- * What a metered-personal run holds against the caps while it runs: the
- * estimate it reserved, and the ledger line that holds it.
+ * What a metered run holds while it runs: the estimate it reserved, and the
+ * ledger line that holds it.
  */
 export interface Reservation {
   readonly estimate: Estimate
@@ -33,15 +35,22 @@ export interface Reservation {
 }
 
 /**
- * The metered-personal caps: what a run is estimated to cost, the reservation
- * it holds before it starts, and the settlement that replaces it with what the
- * run really cost.
+ * What a metered run's estimate is held against: the metered-personal caps, or
+ * the grant that covers a metered-employer run. A subsidised run is held to
+ * neither, and its plan limit watches it instead.
+ */
+export type CapSource = { readonly kind: 'metered-personal' } | { readonly kind: 'grant'; readonly grant: Grant }
+
+/**
+ * The caps a metered run is held to: what it is estimated to cost, the
+ * reservation it holds before it starts, and the settlement that replaces it
+ * with what the run really cost.
  *
- * Only a run whose cost class is metered-personal is held to the caps: a
- * subsidised run is watched by its plan limit, and a metered-employer run by
- * its grant (#298). A reservation is decided and written in one locked
- * critical section that also settles the reservations whose runs died, so two
- * gateway processes cannot together overshoot a cap.
+ * A metered-personal run is held to the per-workflow and per-day caps; a
+ * metered-employer run to the grant that covers its workflow. A reservation is
+ * decided and written in one locked critical section that also settles the
+ * reservations whose runs died, so two gateway processes cannot together
+ * overshoot a cap.
  */
 export class CapGuard {
   constructor(private readonly deps: ModelGatewayDependencies) {}
@@ -49,10 +58,11 @@ export class CapGuard {
   /**
    * What a metered run is estimated to cost, or a `no-estimate` refusal for a
    * client model the catalogue prices nowhere or gives no tier: a run the
-   * gateway cannot estimate is never run uncapped.
+   * gateway cannot estimate is never run uncapped. A subsidised run is held to
+   * nothing, so it has no estimate.
    */
   estimate(input: RunInput, entry: ModelEntry | undefined, config: GatewayConfig): Estimate | undefined {
-    if (!isMetered(input, config)) return undefined
+    if (heldCostClass(input, config) === undefined) return undefined
     const estimate = estimateRun(input.prompt, entry?.tier, entry?.prices, config.settings.output_allowance_tokens)
     if (estimate === undefined) {
       throw new ModelGatewayError(
@@ -64,12 +74,13 @@ export class CapGuard {
   }
 
   /**
-   * Reserves the run's estimate against both caps, or refuses it with the cap
-   * it does not fit. The decision and the reservation are one locked critical
-   * section over the ledger, which also settles every reservation whose run
-   * left no settlement and whose expiry has passed.
+   * Reserves the run's estimate against the caps or the grant that holds it, or
+   * refuses it with the cap it does not fit. The decision and the reservation
+   * are one locked critical section over the ledger, which also settles every
+   * reservation whose run left no settlement and whose expiry has passed.
    */
   async reserve(args: {
+    readonly cap: CapSource
     readonly config: GatewayConfig
     readonly costClass: CostClass
     readonly estimate: Estimate | undefined
@@ -78,7 +89,7 @@ export class CapGuard {
     readonly runDir: string
     readonly runId: string
   }): Promise<Reservation | undefined> {
-    const { config, costClass, estimate, input, now, runDir, runId } = args
+    const { cap, config, costClass, estimate, input, now, runDir, runId } = args
     if (estimate === undefined) return undefined
     const costs = await this.finishedCosts()
     const record = reservationRecord({
@@ -92,17 +103,16 @@ export class CapGuard {
       time_limit_s: input.time_limit_s,
       workflow: input.workflow,
     })
-    const decision = await this.deps.ledger.update((entries) => {
+    const refusal = await this.deps.ledger.update((entries) => {
       const settled = settleExpired(entries, now, costs)
-      const check = checkCaps([...entries, ...settled], input.workflow, estimate.usd, config.settings.metered_personal_caps, now)
-      return { append: check.refused === undefined ? [...settled, record] : settled, result: check }
+      const all = [...entries, ...settled]
+      const message =
+        cap.kind === 'grant'
+          ? grantRefusal(all, cap.grant, estimate.usd, input)
+          : capRefusal(all, input, estimate.usd, config.settings.metered_personal_caps, now)
+      return { append: message === undefined ? [...settled, record] : settled, result: message }
     })
-    if (decision.refused !== undefined) {
-      throw new ModelGatewayError(
-        'cap-exceeded',
-        `${input.client}:${input.model} ${capRefusalMessage(decision.refused, estimate.usd, input.workflow, now)}`,
-      )
-    }
+    if (refusal !== undefined) throw new ModelGatewayError('cap-exceeded', refusal)
     return { estimate, record }
   }
 
@@ -169,10 +179,29 @@ export class CapGuard {
   }
 }
 
-/** Whether a run is held to the metered-personal caps: its cost class, which is its provider's where it names one. */
-export function isMetered(input: RunInput, config: GatewayConfig): boolean {
+/**
+ * The cost class a run is held to a cap by, or undefined for a subsidised run,
+ * which its plan limit watches instead: metered-personal against the caps, and
+ * metered-employer against its grant.
+ */
+export function heldCostClass(input: RunInput, config: GatewayConfig): CostClass | undefined {
   const client = config.clients[input.client]
-  return client !== undefined && runCostClass(client, input) === 'metered-personal'
+  // A client the configuration does not declare is refused before it gets this far, and is held to nothing here.
+  const costClass = client === undefined ? 'subsidised' : runCostClass(client, input)
+  return costClass === 'subsidised' ? undefined : costClass
+}
+
+/** Why a run does not fit the metered-personal caps, naming the cap, its limit, what is spent and reserved, and the estimate. */
+function capRefusal(
+  entries: readonly LedgerEntry[],
+  input: RunInput,
+  estimateUsd: number,
+  caps: MeteredPersonalCaps,
+  now: Date,
+): string | undefined {
+  const decision = checkCaps(entries, input.workflow, estimateUsd, caps, now)
+  if (decision.refused === undefined) return undefined
+  return `${input.client}:${input.model} ${capRefusalMessage(decision.refused, estimateUsd, input.workflow, now)}`
 }
 
 /** The cost class of one run: the class of the provider it runs on, else its client's own. */
