@@ -6,7 +6,7 @@ import type { JsonFields } from '../domain/json.js'
 import { ledgerLines } from '../domain/ledger.js'
 import { parseManifest, specReference } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
-import { parseRefuteFile, type RefuteRecord } from '../domain/refute.js'
+import { parseRefuteFile, type RefuteFile, type RefuteRecord } from '../domain/refute.js'
 import { renderReport, renderSummary } from '../domain/report.js'
 import type { Round } from '../domain/stage.js'
 import type { TicketReviewRecord } from '../domain/ticket-review.js'
@@ -81,7 +81,9 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     const reportPath = reportPathOf(input.runDir)
     if (await this.deps.files.exists(reportPath)) throw new CritiqueError('already-recorded', `run ${manifest.run_id} is already recorded`)
 
-    const refutes = await this.refutes(input.runDir, merged.findings)
+    const refuted = await this.refutes(input.runDir, merged.findings)
+    const refutes = refuted?.results
+    const ledgerWarnings = [...(merged.ledger_warnings ?? []), ...(refuted?.ledger_warnings ?? [])]
     const adjudicated = applyRefutes(
       merged.findings.map((finding) => adjudicate(verdicts, finding)),
       refutes ?? [],
@@ -97,9 +99,11 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       findings: adjudicated,
       flow: manifest.flow,
       ...(gate === undefined ? {} : { gate }),
+      ...(ledgerWarnings.length === 0 ? {} : { ledger_warnings: ledgerWarnings }),
       repository: manifest.repository,
       round: manifest.round,
       ...(manifest.previous_run_id === undefined ? {} : { previous_run_id: manifest.previous_run_id }),
+      ...(manifest.plan_warnings === undefined ? {} : { plan_warnings: manifest.plan_warnings }),
       ...(refutes === undefined ? {} : { refutes }),
       run_id: manifest.run_id,
       spec: specReference(manifest),
@@ -133,14 +137,14 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
     }
   }
 
-  /** The refute round's results, when the run had one; each must name a finding of the run. */
-  private async refutes(runDir: string, findings: readonly RunFinding[]): Promise<readonly RefuteRecord[] | undefined> {
+  /** The refute round's file, when the run had one; each result must name a finding of the run. */
+  private async refutes(runDir: string, findings: readonly RunFinding[]): Promise<RefuteFile | undefined> {
     const path = refutePath(runDir)
     if (!(await this.deps.files.exists(path))) return undefined
-    const { results } = await readJsonFile(this.deps.files, path, 'invalid-run', parseRefuteFile)
-    const unknown = results.find((result) => !findings.some((finding) => finding.id === result.finding_id))
+    const file = await readJsonFile(this.deps.files, path, 'invalid-run', parseRefuteFile)
+    const unknown = file.results.find((result) => !findings.some((finding) => finding.id === result.finding_id))
     if (unknown !== undefined) throw new CritiqueError('invalid-run', `${path} refutes ${unknown.finding_id}, which the run does not have`)
-    return results
+    return file
   }
 }
 

@@ -66,6 +66,10 @@ export interface AdjudicatedRun {
   readonly gate?: GateRecord
   /** The refute round's results, when the run had one; already applied to `findings`. */
   readonly refutes?: readonly RefuteRecord[]
+  /** The model gateway's warning for each Vibe plan window at or above its warning ratio. */
+  readonly plan_warnings?: readonly string[]
+  /** Why the gateway's ledger would not take a run, one message per failed append. */
+  readonly ledger_warnings?: readonly string[]
 }
 
 export type VerdictCounts = Readonly<Record<VerdictKind, number>>

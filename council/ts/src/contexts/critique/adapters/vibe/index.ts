@@ -13,7 +13,7 @@ import type {
   QuestionClientPort,
   SearchingClientPort,
 } from '../../application/ports.js'
-import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
+import type { CriticFailure, CriticOutcome, CriticTokens } from '../../domain/critic.js'
 import { READ_ONLY_TOOLSET, VIBE_SEARCH_SERVER, type CriticToolset, type ToolCall } from '../../domain/critic-tools.js'
 import { SEARCH_TOOLS } from '../../domain/packet-search.js'
 import { parseFindings } from '../../domain/findings.js'
@@ -119,6 +119,7 @@ export class VibeCriticClient
     const paths = { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir }
     const { result, run } = await this.launch(launch.critic, config, paths, search)
     const failure = search === undefined ? undefined : searchFailure(run.stdout)
+    const tokens = tokensOf(run.exported)
     return {
       ...result,
       chargedUsd: vibeCharge(run, launch.critic.max_price_usd),
@@ -126,6 +127,7 @@ export class VibeCriticClient
       outcome: classifyVibeRun(run),
       ...(failure === undefined ? {} : { searchFailure: failure }),
       toolCalls: toolCalls(run.stdout),
+      ...(tokens === undefined ? {} : { tokens }),
       vibeCostUsd: run.vibeCostUsd,
     }
   }
@@ -140,7 +142,14 @@ export class VibeCriticClient
     const { result, run } = await this.launch(question, config, { exportDir, promptPath: question.promptPath, workDir: question.workDir })
     const message = vibeMessage(run)
     const answer: ModelAnswer = message.status === 'failed' ? message : { cost_usd: message.cost_usd, status: 'answered', text: message.text }
-    return { ...result, answer, chargedUsd: vibeCharge(run, question.max_price_usd), vibeCostUsd: run.vibeCostUsd }
+    const tokens = tokensOf(run.exported)
+    return {
+      ...result,
+      answer,
+      chargedUsd: vibeCharge(run, question.max_price_usd),
+      ...(tokens === undefined ? {} : { tokens }),
+      vibeCostUsd: run.vibeCostUsd,
+    }
   }
 
   /**
@@ -259,6 +268,20 @@ function computedCost(exported: JsonObject | undefined, prices: TokenPrices | un
   const output = count(usage?.output_tokens)
   if (prices === undefined || input === undefined || output === undefined) return undefined
   return tokenCost({ cached_input: count(usage?.cached_input_tokens) ?? 0, input, output }, prices)
+}
+
+/**
+ * What the run used, from the export's token counts; undefined when the
+ * export counts none. The gateway's ledger carries them beside the dollars,
+ * so a critic run is counted the way a delegation is.
+ */
+function tokensOf(exported: unknown): CriticTokens | undefined {
+  const usage = jsonObjectOrUndefined(jsonObjectOrUndefined(exported)?.usage)
+  const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
+  const input = count(usage?.input_tokens)
+  const output = count(usage?.output_tokens)
+  if (input === undefined || output === undefined) return undefined
+  return { cached: count(usage?.cached_input_tokens) ?? 0, input, output }
 }
 
 const EXIT_FAILURES: Readonly<Record<number, CriticFailure>> = {

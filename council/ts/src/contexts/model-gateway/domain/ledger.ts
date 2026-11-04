@@ -32,7 +32,12 @@ export interface LedgerRecord {
   readonly attempt?: number
   /** The run id of the delegation's first attempt, on every later one. */
   readonly attempt_of?: string
-  readonly tokens: RunTokens
+  /**
+   * What the client reported the run used; absent when it reported none, which
+   * a timed-out or failed run does. A reading the gateway cannot get is
+   * unknown, never zero, so a reader counts it as unknown.
+   */
+  readonly tokens?: RunTokens
   readonly workflow: string
 }
 
@@ -89,9 +94,13 @@ export interface SettledRecord {
 /** One line of the ledger: a run (the older lines carry no `kind`), a reservation, or a settlement. */
 export type LedgerEntry = LedgerRecord | ReservationRecord | SettledRecord
 
-/** Whether a line is a run's own record, which is every line that names no kind. */
+/**
+ * Whether a line is a run's own record: every line that is not a reservation
+ * or a settlement. A run line may carry a `kind` of its own (critique's
+ * records name the client kind), so only the two bookkeeping kinds are told apart.
+ */
 export function isRunRecord(entry: LedgerEntry): entry is LedgerRecord {
-  return !('kind' in entry)
+  return !isReservation(entry) && !isSettled(entry)
 }
 
 export function isReservation(entry: LedgerEntry): entry is ReservationRecord {

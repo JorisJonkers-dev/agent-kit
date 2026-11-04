@@ -48,7 +48,7 @@ import { join } from "node:path";
 
 // src/contexts/model-gateway/domain/ledger.ts
 function isRunRecord(entry) {
-  return !("kind" in entry);
+  return !isReservation(entry) && !isSettled(entry);
 }
 function isReservation(entry) {
   return "kind" in entry && entry.kind === "reservation";
@@ -2083,13 +2083,18 @@ function quotaOf(client, status) {
 function totalsOf(records) {
   const tokens = { cached: 0, input: 0, output: 0 };
   let cost = 0;
+  let known = true;
   for (const record of records) {
     cost += record.cost_usd;
+    if (record.tokens === void 0) {
+      known = false;
+      continue;
+    }
     tokens.cached += record.tokens.cached;
     tokens.input += record.tokens.input;
     tokens.output += record.tokens.output;
   }
-  return { cost_usd: round2(cost, 6), runs: records.length, tokens };
+  return { cost_usd: round2(cost, 6), runs: records.length, ...known ? { tokens } : {} };
 }
 function byDay(records) {
   const days = /* @__PURE__ */ new Map();
@@ -3628,7 +3633,9 @@ has left ("unknown" where the client reports none), each window of the plan
 limit the machine file sets for it, and what its live reservations hold
 ("reserved_usd" and "reserved_runs"). A client at or above
 "plan_warning_ratio" of a window carries a warning; one at 100% of a window is
-"unable_to_start". "workflow" narrows the usage to one workflow. It settles
+"unable_to_start". "workflow" narrows the usage to one workflow. A run that
+reported no token counts leaves the totals' "tokens" out rather than counting
+it as zero, and still counts in "runs". It settles
 every reservation whose run left a result first, at what that result says the
 run cost, and every one whose expiry has passed at its full estimate.
 

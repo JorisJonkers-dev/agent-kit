@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ledgerLine, type LedgerRecord } from './ledger.js'
+import { isRunRecord, ledgerLine, type LedgerEntry, type LedgerRecord } from './ledger.js'
 
 const RECORD: LedgerRecord = {
   at: '2026-11-04T10:52:15.123Z',
@@ -30,5 +30,20 @@ describe('ledgerLine', () => {
     const line = ledgerLine({ ...RECORD, outcome: 'failed', reason: 'timeout', repository: null })
 
     expect(JSON.parse(line)).toMatchObject({ outcome: 'failed', reason: 'timeout', repository: null })
+  })
+})
+
+describe('isRunRecord', () => {
+  it('counts a run line that carries a kind of its own, as critique records name the client kind', () => {
+    const critic = { client: 'vibe', cost_usd: 1, kind: 'vibe' } as unknown as LedgerEntry
+
+    expect(isRunRecord(critic)).toBe(true)
+  })
+
+  it('tells a reservation and a settlement from a run', () => {
+    const reservation = { kind: 'reservation', run_id: 'a' } as unknown as LedgerEntry
+    const settled = { kind: 'settled', run_id: 'a' } as unknown as LedgerEntry
+
+    expect([isRunRecord(reservation), isRunRecord(settled)]).toEqual([false, false])
   })
 })

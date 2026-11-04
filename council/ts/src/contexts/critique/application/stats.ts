@@ -1,5 +1,4 @@
 import type { JsonFields } from '../domain/json.js'
-import { EMPTY_LEDGER, parseLedger, type Ledger } from '../domain/ledger.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
 import type { StatsThresholds } from '../domain/routing.js'
 import {
@@ -8,7 +7,8 @@ import {
   type CritiqueStats,
   type StatsFilter,
 } from '../domain/stats.js'
-import { readInput, readJsonFile } from './decode.js'
+import { readInput } from './decode.js'
+import { LedgerSource } from './ledger-source.js'
 import { ledgerPath } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { RepositoryGate } from './repository.js'
@@ -33,18 +33,23 @@ interface StatsInput {
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
 /**
- * Reads the user's ledger, and the thresholds and routed clients from
- * routing (the shipped file with this machine's override), and reports how each critic client does per stage. It
- * writes nothing: the suggestions are sentences for the owner, and routing
- * changes only when the owner edits it. A missing ledger is an empty one.
+ * Reads the ledgers — the model gateway's, where every critic run is recorded
+ * from now on, and critique's own, which holds the runs recorded before the
+ * move — and the thresholds and routed clients from routing (the shipped
+ * file with this machine's override), and reports how each critic client
+ * does per stage. It writes nothing: the suggestions are sentences for the
+ * owner, and routing changes only when the owner edits it. A missing ledger
+ * is an empty one.
  */
 export class StatsCommand implements CritiqueCommand<StatsResult | Refusal> {
   private readonly repositories: RepositoryGate
   private readonly routing: RoutingSource
+  private readonly source: LedgerSource
 
   constructor(private readonly deps: CritiqueDeps) {
     this.repositories = new RepositoryGate(deps)
     this.routing = new RoutingSource(deps)
+    this.source = new LedgerSource(deps)
   }
 
   async run(raw: unknown): Promise<StatsResult | Refusal> {
@@ -60,7 +65,7 @@ export class StatsCommand implements CritiqueCommand<StatsResult | Refusal> {
     if (thresholds === undefined)
       throw new CritiqueError('invalid-routing', 'routing has no stats thresholds')
     const path = ledgerPath(this.deps.env)
-    const ledger = await this.readLedger(path)
+    const ledger = (await this.source.read()).ledger
     const stats = critiqueStats(
       ledger,
       filter,
@@ -75,11 +80,6 @@ export class StatsCommand implements CritiqueCommand<StatsResult | Refusal> {
       status: 'reported',
       thresholds,
     }
-  }
-
-  private async readLedger(path: string): Promise<Ledger> {
-    if (!(await this.deps.files.exists(path))) return EMPTY_LEDGER
-    return readJsonFile(this.deps.files, path, 'invalid-ledger', parseLedger)
   }
 }
 

@@ -2555,6 +2555,13 @@ function ledgerRecord(at: string, client: string, overrides: Partial<LedgerRecor
   }
 }
 
+/** A run's line as a client that reported no token counts leaves it: the gateway cannot read them, so the line carries none. */
+function ledgerRecordWithoutTokens(at: string, client: string, overrides: Partial<LedgerRecord> = {}): LedgerRecord {
+  const record = { ...ledgerRecord(at, client, overrides) }
+  delete record.tokens
+  return record
+}
+
 /** One client's entry in a usage report. */
 function usageClient(result: ModelGatewayCliResult, id: string): Record<string, unknown> {
   const clients = printed(result).clients as Record<string, unknown>[]
@@ -2798,6 +2805,16 @@ describe('model-gateway usage: the ledger', () => {
       { cost_usd: 0.75, runs: 2, tokens: { cached: 5, input: 300, output: 30 }, workflow: 'spec-293' },
     ])
     expect(usageClient(result, 'codex').usage).toEqual({ cost_usd: 9, runs: 1, tokens: { cached: 0, input: 1, output: 1 } })
+  })
+
+  it('leaves the token totals unknown for a run that reported none, and still counts the run', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeLedger([ledgerRecordWithoutTokens('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.5 })])
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'vibe').usage).toEqual({ cost_usd: 0.5, runs: 1 })
+    expect(usageClient(result, 'vibe').by_day).toEqual([{ cost_usd: 0.5, day: '2026-11-04', runs: 1 }])
   })
 
   it('narrows the usage to one workflow when the caller names one', async () => {

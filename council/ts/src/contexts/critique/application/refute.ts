@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { budgetReached, quotaReached } from '../domain/budget.js'
+import { quotaReached } from '../domain/budget.js'
 import { declaredChecks } from '../domain/checks.js'
 import { indexPacket, type PacketIndex } from '../domain/evidence.js'
 import type { ModelFamily } from '../domain/family.js'
@@ -42,6 +42,8 @@ interface Round {
   readonly tripwire: ReadOnlyTripwire
   readonly packet: PacketIndex
   readonly candidates: readonly RefuterCandidate[]
+  /** The round's ledger, which records each refuter's launch in both ledgers. */
+  readonly budget: FlowBudget
   /** Why each candidate client may not run now, by client name; absent while it may. */
   readonly blocked: ReadonlyMap<string, string>
   /** The refuter role's prompt, for the tools a refuter gets. */
@@ -49,6 +51,8 @@ interface Round {
   readonly tools: CriticTools
   /** The check ids the refuter role declares: the answers that object. */
   readonly declared: readonly string[]
+  /** Why the gateway's ledger would not take a refuter's run, collected as the round goes. */
+  readonly ledgerWarnings: string[]
 }
 
 /**
@@ -92,9 +96,10 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
       const severity = given?.severity ?? finding.severity
       return accepted && severity === 'critical' ? [{ ...finding, severity }] : []
     })
-    const results = targets.length === 0 ? [] : await this.round(manifest, merged, targets)
+    const { ledgerWarnings, results } = targets.length === 0 ? { ledgerWarnings: [], results: [] } : await this.round(manifest, merged, targets)
     const file: RefuteFile = {
       counts: countOutcomes(results),
+      ...(ledgerWarnings.length === 0 ? {} : { ledger_warnings: ledgerWarnings }),
       refute_path: path,
       results,
       run_id: manifest.run_id,
@@ -121,7 +126,11 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
   }
 
   /** Refutes every target at once, so the round takes as long as its slowest refuter. */
-  private async round(manifest: RunManifest, merged: FanOutResult, targets: readonly RunFinding[]): Promise<readonly RefuteRecord[]> {
+  private async round(
+    manifest: RunManifest,
+    merged: FanOutResult,
+    targets: readonly RunFinding[],
+  ): Promise<{ readonly results: readonly RefuteRecord[]; readonly ledgerWarnings: readonly string[] }> {
     const asset = (path: string) => this.deps.files.readText(join(this.deps.assetsRoot, path))
     const role = await asset('roles/refuter.md')
     const sources = {
@@ -136,8 +145,10 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
     const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage)
     const round: Round = {
       blocked: await this.blocked(manifest, candidates),
+      budget: new FlowBudget(this.deps),
       candidates,
       declared: declaredChecks([role]).map((check) => check.id),
+      ledgerWarnings: [],
       manifest,
       merged,
       packet: indexPacket(await readFrozenPacket(this.deps, manifest), manifest.ticket_check?.ticket_ids),
@@ -145,7 +156,8 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
       tools: new CriticTools(this.deps, manifest.limits.search, join(manifest.run_dir, 'search-proof')),
       tripwire: await ReadOnlyTripwire.load(this.deps, manifest),
     }
-    return Promise.all(targets.map((finding) => this.refute(round, finding)))
+    const results = await Promise.all(targets.map((finding) => this.refute(round, finding)))
+    return { ledgerWarnings: round.ledgerWarnings, results }
   }
 
   private async refute(round: Round, finding: RunFinding): Promise<RefuteRecord> {
@@ -161,26 +173,27 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
     const criticDir = join(manifest.run_dir, 'refute', finding.id)
     const prompt = (toolset: CriticToolset): CriticPrompt => withFinding(round.prompt(toolset), finding)
     const reply = await runCritic(this.deps, { critic: refuter, criticDir, prompt, tools: round.tools, tripwire: round.tripwire })
-    await new FlowBudget(this.deps).logInvocation(manifest, reply.run, refuter.client_config.kind)
+    const ledgerWarning = await round.budget.logInvocation(manifest, reply.run, refuter.client_config, specReference(manifest))
+    if (ledgerWarning !== undefined) round.ledgerWarnings.push(ledgerWarning)
     const judged = judgeReply(finding, reply, { declared: round.declared, packet: round.packet, stage: manifest.stage })
     return { finding_id: finding.id, ...judged, refuter: reply.run }
   }
 
   /**
    * Why each candidate may not run now: not ready on this machine, an agy
-   * client past today's quota, or a Vibe client of a flow that has spent its
-   * cap. The spend and the count are read once, before the round.
+   * client past today's quota, or a Vibe client at 100% of its plan limit.
+   * The plan and the count are read once, before the round.
    */
   private async blocked(manifest: RunManifest, candidates: readonly RefuterCandidate[]): Promise<ReadonlyMap<string, string>> {
     const budget = new FlowBudget(this.deps)
-    const spent = budgetReached(await budget.vibeSpend(manifest), manifest.limits)
+    const plan = (await this.deps.plan.read('vibe')).unable_to_start
     const quota = quotaReached(await budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage)
     const eligible = candidates.filter(
       ({ client_config: config }) => manifest.allowed_families.includes(config.family) && config.family !== manifest.orchestrator_family,
     )
     const reasons = await Promise.all(
       eligible.map(async ({ client, client_config: config }) => {
-        const limit = config.kind === 'vibe' ? spent : quota
+        const limit = config.kind === 'vibe' ? plan : quota
         if (limit !== undefined) return [client, limit] as const
         const ready = await clientReadiness(this.deps.clients, config)
         return [client, ready.ready ? undefined : ready.detail] as const

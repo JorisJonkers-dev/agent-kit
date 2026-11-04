@@ -64,7 +64,9 @@ has left ("unknown" where the client reports none), each window of the plan
 limit the machine file sets for it, and what its live reservations hold
 ("reserved_usd" and "reserved_runs"). A client at or above
 "plan_warning_ratio" of a window carries a warning; one at 100% of a window is
-"unable_to_start". "workflow" narrows the usage to one workflow. It settles
+"unable_to_start". "workflow" narrows the usage to one workflow. A run that
+reported no token counts leaves the totals' "tokens" out rather than counting
+it as zero, and still counts in "runs". It settles
 every reservation whose run left a result first, at what that result says the
 run cost, and every one whose expiry has passed at its full estimate.
 

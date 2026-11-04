@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { invocationLines, spendByFlow, totalSpend } from '../domain/budget.js'
+import { spendByFlow, totalSpend, type LoggedInvocation } from '../domain/budget.js'
 import { parseGateRecord, type GateRecord } from '../domain/feature-review.js'
 import {
   draftFlow,
@@ -14,12 +14,13 @@ import {
   type NextStep,
 } from '../domain/flow.js'
 import type { JsonFields } from '../domain/json.js'
-import { EMPTY_LEDGER, flowEventLine, parseLedger, type FlowEvent, type Ledger } from '../domain/ledger.js'
+import { flowEventLine, type FlowEvent, type Ledger } from '../domain/ledger.js'
 import { parseManifest, specReference } from '../domain/manifest.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
 import { parseTicketReviewRecord, type TicketReviewRecord } from '../domain/ticket-review.js'
 import { decoded, readInput, readJsonFile } from './decode.js'
 import { gateIndexPath } from './feature-gate.js'
+import { LedgerSource } from './ledger-source.js'
 import { ledgerPath, manifestPath, reportPath } from './locations.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
 import { RepositoryGate, type ResolvedRepository } from './repository.js'
@@ -69,9 +70,11 @@ const DRAFT_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/
  */
 export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
   private readonly flows: FlowLocator
+  private readonly source: LedgerSource
 
   constructor(private readonly deps: CritiqueDeps) {
     this.flows = new FlowLocator(deps)
+    this.source = new LedgerSource(deps)
   }
 
   async run(raw: unknown): Promise<StateResult | Refusal> {
@@ -88,16 +91,15 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
     }
     const tickets = spec === undefined ? [] : await this.tickets(tracker, input.spec ?? '')
     if (!Array.isArray(tickets)) return tickets as Refusal
-    const ledgerText = await this.ledgerText()
-    const ledger = decoded('invalid-ledger', ledgerPath(this.deps.env), () => (ledgerText === '' ? EMPTY_LEDGER : parseLedger(ledgerText)))
+    const { invocations, ledger } = await this.source.read()
     const { draft, keys } = flowKeys(ledger, located, input.draft)
     const gather = {
       critiqueDir,
       draft: spec === undefined ? null : (draft ?? null),
       flow,
+      invocations,
       keys,
       ledger,
-      ledgerText,
       repository,
       spec: spec?.reference ?? null,
       tickets: tickets as readonly TrackedTicket[],
@@ -124,11 +126,6 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
     return read.status === 'refused' ? read : read.tickets
   }
 
-  private async ledgerText(): Promise<string> {
-    const path = ledgerPath(this.deps.env)
-    return (await this.deps.files.exists(path)) ? this.deps.files.readText(path) : ''
-  }
-
   private async recordEvents(events: readonly FlowEvent[], repository: string, flow: string): Promise<void> {
     if (events.length === 0) return
     const context = { flow, recorded_at: this.deps.clock.now().toISOString(), repository }
@@ -147,7 +144,6 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
     const gates = (await this.index(gateIndexPath(gather.critiqueDir), parseGateRecord)).filter(
       (gate: GateRecord) => gate.repository === repository.key && gate.spec === spec,
     )
-    const invocations = invocationLines(gather.ledgerText)
     return {
       draft: gather.draft,
       events: ledger.flow_events.filter((event) => event.repository === repository.key && keys.includes(event.flow)),
@@ -163,7 +159,7 @@ export class StateCommand implements CritiqueCommand<StateResult | Refusal> {
       skipped_reviews: ledger.skipped_reviews.filter((skip) => skip.repository === repository.key),
       spec,
       tickets: gather.tickets,
-      vibe_spend_usd: totalSpend(spendByFlow(invocations, repository.key, keys)),
+      vibe_spend_usd: totalSpend(spendByFlow(gather.invocations, repository.key, keys)),
     }
   }
 
@@ -212,7 +208,7 @@ interface Gather {
   readonly spec: string | null
   readonly draft: string | null
   readonly ledger: Ledger
-  readonly ledgerText: string
+  readonly invocations: readonly LoggedInvocation[]
   readonly repository: ResolvedRepository
   readonly tickets: readonly TrackedTicket[]
 }

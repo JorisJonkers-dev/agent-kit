@@ -2,6 +2,7 @@ export { CapGuard, isMetered, runCostClass, type Reservation } from './applicati
 export { ClientRun, requireSupportedExtras, type ClientRunOutcome, type ClientRunPorts, type ClientRunRequest } from './application/client-run.js'
 export { createModelGatewayCommands, type ModelGatewayCommands } from './application/commands.js'
 export { ledgerPath, runsDir, stateDir, workflowsPath } from './application/locations.js'
+export { readPlanLimit, type PlanLimitReading } from './application/plan.js'
 export { decidePolicyFor, resolveScope } from './application/policy.js'
 export { DELEGATION_MARK, READ_ONLY_AGENT, RunCommand, type RunOutcome, type RunResult } from './application/run.js'
 export { EscalatedRun, type AttemptOptions, type AttemptRunner, type AttemptedRun, type Escalated } from './application/escalation.js'

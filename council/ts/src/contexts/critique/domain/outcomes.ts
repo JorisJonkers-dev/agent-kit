@@ -27,6 +27,8 @@ export type RefusalReason =
   | 'no-adrs'
   /** A repository packet whose documents, manifest and facts alone pass routing's packet cap. */
   | 'packet-over-cap'
+  /** This machine's model gateway configuration, which the plan limit is read through. */
+  | 'invalid-gateway-config'
 
 export interface Refusal {
   readonly status: 'refused'

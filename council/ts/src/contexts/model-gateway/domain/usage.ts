@@ -85,7 +85,12 @@ export interface Quota {
 /** What a set of runs came to. */
 export interface UsageTotals {
   readonly runs: number
-  readonly tokens: RunTokens
+  /**
+   * The tokens the runs reported; absent when one of them reported none, since
+   * the gateway cannot know the total. A run whose count is unknown is still
+   * counted in `runs` and in `cost_usd`.
+   */
+  readonly tokens?: RunTokens
   readonly cost_usd: number
 }
 
@@ -224,7 +229,7 @@ export function warningsOf(client: string, windows: readonly PlanWindowUsage[]):
 }
 
 /** A plan window as a sentence names it: its span, and what is spent of what it allows. */
-function describeWindow(window: PlanWindowUsage): string {
+export function describeWindow(window: PlanWindowUsage): string {
   return 'limit_usd' in window
     ? `its ${window.window} plan limit ($${window.spent_usd.toFixed(2)} of $${window.limit_usd.toFixed(2)})`
     : `its ${window.window} plan limit (${String(window.runs)} of ${String(window.limit_runs)} runs)`
@@ -308,16 +313,26 @@ function quotaOf(client: string, status: ClientStatusReading | undefined): Quota
   }
 }
 
+/**
+ * What a set of runs came to. A run that reported no token count leaves the
+ * total unknown rather than short: the gateway never reports a reading it
+ * could not get as zero, so the tokens are left out and the run still counts.
+ */
 function totalsOf(records: readonly LedgerRecord[]): UsageTotals {
   const tokens = { cached: 0, input: 0, output: 0 }
   let cost = 0
+  let known = true
   for (const record of records) {
     cost += record.cost_usd
+    if (record.tokens === undefined) {
+      known = false
+      continue
+    }
     tokens.cached += record.tokens.cached
     tokens.input += record.tokens.input
     tokens.output += record.tokens.output
   }
-  return { cost_usd: round(cost, 6), runs: records.length, tokens }
+  return { cost_usd: round(cost, 6), runs: records.length, ...(known ? { tokens } : {}) }
 }
 
 function byDay(records: readonly LedgerRecord[]): readonly DayUsage[] {

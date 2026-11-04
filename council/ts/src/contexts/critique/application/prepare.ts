@@ -241,6 +241,9 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     )
     const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage }
     const roster = resolveRoster(routing, request, await this.readiness(routing, request))
+    const planWarnings = roster.critics.some((critic) => critic.client_config.kind === 'vibe')
+      ? (await this.deps.plan.read('vibe')).warnings
+      : []
     const runId = await this.freshRunId(repository, stage)
     const runDir = join(repository.commonDir, 'critique', runId)
     const packetDir = join(runDir, 'packet')
@@ -267,6 +270,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       orchestrator_family: orchestratorFamily,
       packet_dir: packetDir,
       packet_files: packetFiles,
+      ...(planWarnings.length === 0 ? {} : { plan_warnings: planWarnings }),
       repo_root: repository.root,
       repository: repository.key,
       ...roundFields,
@@ -351,16 +355,25 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
 
   /**
    * Asks each client the stage could run, and that the family rules permit,
-   * whether it can run here, and holds an agy client that can to the day's
-   * Antigravity quota. Counting reads the ledger and launches nothing, so an
-   * agy that is not set up falls back without touching the counter.
+   * whether it can run here, holds an agy client that can to the day's
+   * Antigravity quota, and holds a Vibe client that can to Vibe's plan limit:
+   * at 100% of any window it counts as unable to start, so it is dropped the
+   * way an agy past its quota is. Counting reads the ledgers and launches
+   * nothing, so a client that is not set up falls back without touching a
+   * counter.
    */
   private async readiness(routing: Routing, request: RosterRequest): Promise<ReadonlyMap<string, ClientAvailability>> {
     const agyToday = await new FlowBudget(this.deps).agyInvocationsToday()
+    const plan = (await this.deps.plan.read('vibe')).unable_to_start
     const checks = candidateClients(routing, request).map(async ([name, client]): Promise<readonly [string, ClientAvailability]> => {
       const ready = await clientReadiness(this.deps.clients, client)
-      const quota = ready.ready && client.kind === 'agy' ? quotaReached(agyToday, routing.limits.antigravity_quota, request.stage) : undefined
-      return [name, quota === undefined ? ready : { detail: quota, ready: false, reason: 'quota' }]
+      const limit =
+        ready.ready && client.kind === 'agy'
+          ? quotaReached(agyToday, routing.limits.antigravity_quota, request.stage)
+          : ready.ready && client.kind === 'vibe'
+            ? plan
+            : undefined
+      return [name, limit === undefined ? ready : { detail: limit, ready: false, reason: 'quota' }]
     })
     return new Map(await Promise.all(checks))
   }
