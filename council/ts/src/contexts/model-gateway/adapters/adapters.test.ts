@@ -3,15 +3,17 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, 
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { FakeEnv, FakeProcess } from '../../../../test/model-gateway/harness.js'
 import type { KeptWorktree } from '../application/ports.js'
+import { newGrant, type Grant } from '../domain/grants.js'
 import type { LedgerRecord } from '../domain/ledger.js'
 import { endWorkflow, startWorkflow } from '../domain/workflows.js'
 import { CodexStatus } from './clients/status.js'
 import { NodeModelGatewayFiles, writeFileAtomic } from './fs/index.js'
 import { NodeModelGatewayGit } from './git/index.js'
+import { NodeModelGatewayGrants, type GrantLockTimings } from './grants/index.js'
 import { NodeModelGatewayKept } from './kept/index.js'
 import { NodeModelGatewayLedger, type LedgerLockTimings } from './ledger/index.js'
 import { NodeModelGatewayProcess } from './process/index.js'
@@ -306,11 +308,11 @@ describe('NodeModelGatewayGit', () => {
     await expect(new NodeModelGatewayGit(bin, 50).root(dir)).rejects.toThrow(/did not answer within 50 ms/)
   })
 
-  it('says a path has no root when git answers with nothing', async () => {
+  it('fails, rather than calling it no repository, when git answers with nothing', async () => {
     const dir = await tempDir()
     const bin = await fakeGit(dir, '#!/bin/sh\nexit 0\n')
 
-    expect(await new NodeModelGatewayGit(bin).root(dir)).toBeUndefined()
+    await expect(new NodeModelGatewayGit(bin).root(dir)).rejects.toThrow(/git answered with no repository root/)
   })
 
   it('falls back to git\'s exit code when git says nothing at all', async () => {
@@ -795,3 +797,184 @@ async function fakeGit(dir: string, script: string): Promise<string> {
   await chmod(join(bin, 'git'), 0o755)
   return bin
 }
+
+describe('NodeModelGatewayGrants', () => {
+  /** The grants a test writes to, in a machine configuration directory of its own. */
+  async function store(
+    timings: GrantLockTimings = {},
+  ): Promise<{ path: string; grants: NodeModelGatewayGrants; env: FakeEnv }> {
+    const home = await tempDir()
+    const env = new FakeEnv({ HOME: home })
+    return {
+      env,
+      grants: new NodeModelGatewayGrants(env, new NodeModelGatewayGit(), timings),
+      path: join(home, '.config', 'agent-kit', 'model-gateway-grants.json'),
+    }
+  }
+
+  /** A grant the owner gave for `spec-293`, as `grant write` would build it. */
+  function grant(overrides: Partial<Grant> = {}): Grant {
+    return {
+      ...newGrant({
+        answer: 'yes, up to five dollars',
+        cap_usd: 5,
+        client: 'codex',
+        id: 'grant-20261104T105215Z-ebd578',
+        question: 'may I spend up to $5 of nedap money on spec-293?',
+        workflow: 'spec-293',
+        workflowRecord: undefined,
+        written_at: new Date('2026-11-04T10:52:15.000Z'),
+      }),
+      ...overrides,
+    }
+  }
+
+  it('holds no grant before the first one is written', async () => {
+    const { grants } = await store()
+
+    expect(await grants.read()).toEqual([])
+  })
+
+  it('writes a grant into the machine configuration, creating the directory, and reads it back', async () => {
+    const { grants, path } = await store()
+    const written = grant()
+
+    const changed = await grants.update((held) => ({ grant: written, grants: [...held, written] }))
+
+    expect(changed).toEqual(written)
+    expect(await grants.read()).toEqual([written])
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ grants: [written], version: 1 })
+  })
+
+  it('keeps the grants it already held when it writes another', async () => {
+    const { grants } = await store()
+    const first = grant()
+    const second = grant({ id: 'grant-20261104T105215Z-aaaaaa', workflow: 'spec-294' })
+    await grants.update((held) => ({ grant: first, grants: [...held, first] }))
+
+    await grants.update((held) => ({ grant: second, grants: [...held, second] }))
+
+    expect((await grants.read()).map((entry) => entry.workflow)).toEqual(['spec-293', 'spec-294'])
+  })
+
+  it('writes where XDG_CONFIG_HOME points, not under the home directory', async () => {
+    const home = await tempDir()
+    const config = await tempDir()
+    const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: home, XDG_CONFIG_HOME: config }), new NodeModelGatewayGit())
+    const written = grant()
+
+    await grants.update((held) => ({ grant: written, grants: [...held, written] }))
+
+    expect(JSON.parse(await readFile(join(config, 'agent-kit', 'model-gateway-grants.json'), 'utf8'))).toEqual({
+      grants: [written],
+      version: 1,
+    })
+  })
+
+  it('refuses to write a grant inside a git repository, naming the repository', async () => {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
+    const config = join(root, 'config')
+    const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: root, XDG_CONFIG_HOME: config }), new NodeModelGatewayGit())
+    const written = grant()
+
+    await expect(grants.update((held) => ({ grant: written, grants: [...held, written] }))).rejects.toThrow(
+      new RegExp(
+        `${join(config, 'agent-kit', 'model-gateway-grants.json')} is inside the git repository ${await realpath(root)}: a grant lives in the machine configuration, never in a repository`,
+      ),
+    )
+    await expect(readFile(join(config, 'agent-kit', 'model-gateway-grants.json'), 'utf8')).rejects.toThrow()
+  })
+
+  it('refuses, naming the file, when git cannot answer whether the grants file is in a repository', async () => {
+    const dir = await tempDir()
+    const home = join(dir, 'home')
+    const path = join(home, '.config', 'agent-kit', 'model-gateway-grants.json')
+    const dubious = await fakeGit(dir, '#!/bin/sh\necho "fatal: detected dubious ownership in repository" >&2\nexit 128\n')
+    const gits = {
+      'git refuses the directory': new NodeModelGatewayGit(dubious),
+      'git cannot be started': new NodeModelGatewayGit(''),
+    }
+
+    for (const git of Object.values(gits)) {
+      const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: home }), git)
+      const written = grant()
+      const read = grants.read()
+      await expect(read).rejects.toMatchObject({ code: 'invalid-config' })
+      await expect(read).rejects.toThrow(new RegExp(`${path}: cannot tell whether .* is inside a git repository`))
+      await expect(grants.update((held) => ({ grant: written, grants: [...held, written] }))).rejects.toMatchObject({
+        code: 'invalid-config',
+      })
+      await expect(readFile(path, 'utf8')).rejects.toThrow()
+    }
+  })
+
+  it('refuses when git answers with no repository root at all, rather than calling it outside one', async () => {
+    const dir = await tempDir()
+    const home = join(dir, 'home')
+    const silent = await fakeGit(dir, '#!/bin/sh\nexit 0\n')
+    const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: home }), new NodeModelGatewayGit(silent))
+
+    await expect(grants.read()).rejects.toMatchObject({ code: 'invalid-config' })
+  })
+
+  it('wraps what is thrown that is not an Error too', async () => {
+    const throwing = {
+      root: vi.fn().mockRejectedValue('boom'),
+    } as unknown as NodeModelGatewayGit
+    const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: await tempDir() }), throwing)
+
+    await expect(grants.read()).rejects.toThrow(/cannot tell whether .*boom/)
+  })
+
+  it('refuses to read a grants file inside a git repository too', async () => {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
+    const grants = new NodeModelGatewayGrants(new FakeEnv({ HOME: root }), new NodeModelGatewayGit())
+
+    await expect(grants.read()).rejects.toThrow(new RegExp(`is inside the git repository ${await realpath(root)}`))
+  })
+
+  it('names the file when it is not JSON', async () => {
+    const { grants, path } = await store()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, 'not json\n')
+
+    await expect(grants.read()).rejects.toThrow(new RegExp(`${path}: not JSON`))
+  })
+
+  it('names the file when it holds another version', async () => {
+    const { grants, path } = await store()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"version":2,"grants":[]}\n')
+
+    await expect(grants.read()).rejects.toThrow(new RegExp(`${path}: version must be 1`))
+  })
+
+  it('fails with the file system\'s own error when the file cannot be read at all', async () => {
+    const { grants, path } = await store()
+    await mkdir(path, { recursive: true })
+
+    await expect(grants.read()).rejects.toThrow(new RegExp(`${path}: cannot read the grants`))
+  })
+
+  it('never loses a grant when two updates run at once', async () => {
+    const { grants } = await store({ retryMs: 1 })
+    const written = Array.from({ length: 8 }, (_, index) =>
+      grant({ id: `grant-20261104T105215Z-00000${String(index)}`, workflow: `workflow-${String(index)}` }),
+    )
+
+    await Promise.all(written.map((entry) => grants.update((held) => ({ grant: entry, grants: [...held, entry] }))))
+
+    expect((await grants.read()).map((entry) => entry.workflow).sort()).toEqual(written.map((entry) => entry.workflow))
+  })
+
+  it('leaves no temporary file behind', async () => {
+    const { grants, path } = await store()
+    const written = grant()
+
+    await grants.update((held) => ({ grant: written, grants: [...held, written] }))
+
+    expect(await readdir(join(path, '..'))).toEqual(['model-gateway-grants.json'])
+  })
+})

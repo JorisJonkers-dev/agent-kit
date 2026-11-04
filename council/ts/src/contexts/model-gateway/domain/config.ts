@@ -156,6 +156,8 @@ export type ModelGatewayErrorCode =
   /** git could not read the path the caller named, so the data policy cannot be decided. */
   | 'repository-unreadable'
   | 'unknown-command'
+  /** The run names a client the configuration does not declare, so no cap or grant could hold it. */
+  | 'unknown-client'
   /** The run named a client model the gateway cannot list now. */
   | 'unknown-model'
   /** A writing run names no repository, and a change needs one. */
@@ -172,8 +174,22 @@ export type ModelGatewayErrorCode =
    * uncapped.
    */
   | 'no-estimate'
-  /** A metered run's estimate does not fit the per-workflow or the per-day cap. */
+  /** A metered run's estimate does not fit the per-workflow or the per-day cap, or its grant's cap. */
   | 'cap-exceeded'
+  /**
+   * A metered-employer run names a workflow no live grant covers: the owner
+   * has not allowed that workflow to spend nedap money, so the run is refused
+   * rather than run uncapped.
+   */
+  | 'no-grant'
+  /**
+   * `grant write` names a workflow and client a live grant already covers: the
+   * owner re-approves only after that grant lapsed, so a second grant cannot
+   * quietly double the cap.
+   */
+  | 'grant-exists'
+  /** The grants file lies inside a git repository, and a grant is never written into one. */
+  | 'grants-in-repository'
 
 export class ModelGatewayError extends Error {
   constructor(

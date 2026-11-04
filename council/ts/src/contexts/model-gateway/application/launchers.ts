@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import type { ProcessCommand } from '../../../ports/index.js'
 import type { AttachedServer, ExtraName, SandboxProfile } from '../domain/extras.js'
-import { agyOutput, claudeOutput, hermesOutput, openCodeOutput, vibeOutput, type ClientOutput } from '../domain/outputs.js'
+import { agyOutput, claudeOutput, codexOutput, hermesOutput, openCodeOutput, vibeOutput, type ClientOutput } from '../domain/outputs.js'
 import type { RunClient, RunMode } from '../domain/run.js'
 
 /** The mark the gateway puts in every delegate's environment, and refuses to run under. */
@@ -344,5 +344,39 @@ const hermes: ClientLauncher = {
   reportPath: (paths) => join(reportDir(paths), 'usage.json'),
 }
 
+/**
+ * Codex, `exec --json`: non-interactive, the wrapped prompt on stdin, the
+ * client model by `-m`, the reasoning effort its id names, and Codex's own
+ * sandbox: read-only for a read-only run, workspace-write for a writing one.
+ * `--skip-git-repo-check` lets an inline run work in its empty directory. It
+ * has no time limit of its own, so the outer timer is the limit.
+ */
+const codex: ClientLauncher = {
+  command: (binary, input, paths, prompt, extras) => ({
+    args: [
+      'exec',
+      '--json',
+      '--skip-git-repo-check',
+      '-m',
+      input.model,
+      '-c',
+      `model_reasoning_effort="${effortOf(input.model)}"`,
+      '-s',
+      input.mode === 'write' ? 'workspace-write' : 'read-only',
+      '-C',
+      paths.workDir,
+    ],
+    command: binary,
+    cwd: paths.workDir,
+    env: extras?.env ?? {},
+    stdin: prompt,
+    timeoutMs: input.time_limit_s * 1000,
+  }),
+  extras: ['env'],
+  sandboxedExtras: [],
+  protectedEnv: [],
+  read: (stdout) => codexOutput(stdout),
+}
+
 /** The launcher of every client a run can be handed to. */
-export const LAUNCHERS: Readonly<Record<RunClient, ClientLauncher>> = { agy, claude, hermes, opencode, vibe }
+export const LAUNCHERS: Readonly<Record<RunClient, ClientLauncher>> = { agy, claude, codex, hermes, opencode, vibe }

@@ -37,7 +37,8 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
     const result = await this.git(path, ['rev-parse', '--show-toplevel'])
     if (result.exitCode === 0) {
       const root = result.stdout.trim()
-      return root === '' ? undefined : root
+      if (root === '') throw new Error('git answered with no repository root')
+      return root
     }
     if (NOT_A_REPOSITORY.test(result.stderr)) return undefined
     throw new Error(messageOf(result))

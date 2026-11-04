@@ -1,3 +1,4 @@
+import { GrantListCommand, GrantWriteCommand, type GrantListResult, type GrantWriteResult } from './grants.js'
 import { ModelsCommand, type ModelsInput, type ModelsResult } from './models.js'
 import { RunCommand, type RunOutcome } from './run.js'
 import { UsageCommand } from './usage.js'
@@ -14,6 +15,8 @@ import {
 
 /** The gateway's commands. */
 export interface ModelGatewayCommands {
+  readonly grantList: ModelGatewayCommand<unknown, GrantListResult>
+  readonly grantWrite: ModelGatewayCommand<unknown, GrantWriteResult>
   readonly models: ModelGatewayCommand<ModelsInput, ModelsResult>
   readonly run: ModelGatewayCommand<unknown, RunOutcome>
   readonly usage: ModelGatewayCommand<unknown, UsageResult>
@@ -25,6 +28,8 @@ export interface ModelGatewayCommands {
 
 export function createModelGatewayCommands(deps: ModelGatewayDependencies): ModelGatewayCommands {
   return {
+    grantList: new GrantListCommand(deps),
+    grantWrite: new GrantWriteCommand(deps),
     models: new ModelsCommand(deps),
     run: new RunCommand(deps),
     usage: new UsageCommand(deps),

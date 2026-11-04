@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { agyOutput, claudeOutput, openCodeOutput, vibeOutput } from './outputs.js'
+import { agyOutput, claudeOutput, codexOutput, openCodeOutput, vibeOutput } from './outputs.js'
 
 const NO_TOKENS = { cached: 0, input: 0, output: 0 }
 
@@ -128,5 +128,62 @@ describe('openCodeOutput', () => {
 
   it('has no answer for an empty output', () => {
     expect(openCodeOutput('')).toEqual({ answer: undefined, charged: undefined, tokens: NO_TOKENS })
+  })
+})
+
+describe('codexOutput', () => {
+  const lines = (...events: unknown[]): string => events.map((event) => JSON.stringify(event)).join('\n')
+  const message = (text: string): unknown => ({ item: { id: 'item_0', text, type: 'agent_message' }, type: 'item.completed' })
+  const turn = (usage: Record<string, unknown>): unknown => ({ type: 'turn.completed', usage })
+
+  it('answers with the last agent message, and counts the tokens the turn reported', () => {
+    const output = codexOutput(
+      lines(
+        { thread_id: 't-1', type: 'thread.started' },
+        { type: 'turn.started' },
+        message('first'),
+        message('the answer\nSUMMARY: it is fine'),
+        turn({ cached_input_tokens: 100, input_tokens: 1000, output_tokens: 200, reasoning_output_tokens: 50 }),
+      ),
+    )
+
+    expect(output).toEqual({
+      answer: 'the answer\nSUMMARY: it is fine',
+      charged: undefined,
+      failure: undefined,
+      tokens: { cached: 100, input: 1000, output: 200 },
+    })
+  })
+
+  it('adds up every turn of a run, and prices nothing itself', () => {
+    const output = codexOutput(
+      lines(
+        turn({ cached_input_tokens: 0, input_tokens: 10, output_tokens: 2 }),
+        turn({ cached_input_tokens: 5, input_tokens: 20, output_tokens: 4 }),
+      ),
+    )
+
+    expect(output).toEqual({ answer: undefined, charged: undefined, failure: undefined, tokens: { cached: 5, input: 30, output: 6 } })
+  })
+
+  it('fails on an error event, keeping what it said for the refusal patterns', () => {
+    expect(codexOutput(lines({ message: '429 Too Many Requests', type: 'error' }))).toEqual({
+      answer: undefined,
+      charged: undefined,
+      error: { text: '429 Too Many Requests' },
+      failure: 'client-error',
+      tokens: NO_TOKENS,
+    })
+    expect(codexOutput(lines({ error: { message: 'stream disconnected' }, type: 'turn.failed' }))).toMatchObject({
+      error: { text: 'stream disconnected' },
+      failure: 'client-error',
+    })
+    expect(codexOutput(lines({ type: 'error' }))).toMatchObject({ error: undefined, failure: 'client-error' })
+  })
+
+  it('has no answer for an empty output, a blank message, or text that is not JSON', () => {
+    expect(codexOutput('')).toEqual({ answer: undefined, charged: undefined, failure: undefined, tokens: NO_TOKENS })
+    expect(codexOutput(lines(message('  '))).answer).toBeUndefined()
+    expect(codexOutput('oops').answer).toBeUndefined()
   })
 })

@@ -1756,6 +1756,57 @@ function invalid(message) {
   return new ModelGatewayError("invalid-config", message);
 }
 
+// src/contexts/model-gateway/domain/workflows.ts
+var WORKFLOW_TTL_MS = 24 * 60 * 60 * 1e3;
+
+// src/contexts/model-gateway/domain/run.ts
+function finalAnswerOf(stdout) {
+  let journal;
+  try {
+    journal = JSON.parse(stdout);
+  } catch {
+    return void 0;
+  }
+  if (!Array.isArray(journal)) return void 0;
+  const last = journal.findLast(
+    (entry) => isObject(entry) && entry.type === "message" && entry.role === "assistant"
+  );
+  if (last === void 0 || !Array.isArray(last.content)) return void 0;
+  const text = last.content.map((part) => isObject(part) && typeof part.text === "string" ? part.text : "").join("");
+  return text === "" ? void 0 : text;
+}
+function oneShotAnswer(stdout) {
+  const answer2 = stdout.trim();
+  return answer2 === "" ? void 0 : answer2;
+}
+function hermesUsage(report) {
+  const count2 = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+  const priced = isObject(report) ? report.estimated_cost_usd : void 0;
+  const cost = typeof priced === "number" && Number.isFinite(priced) && priced >= 0 ? priced : void 0;
+  const failed = isObject(report) && report.failed === true;
+  if (!isObject(report)) return { cost, failed, tokens: NO_TOKENS };
+  return {
+    cost,
+    failed,
+    tokens: {
+      cached: count2(report.cache_read_tokens),
+      input: count2(report.input_tokens),
+      output: count2(report.output_tokens)
+    }
+  };
+}
+var NO_TOKENS = { cached: 0, input: 0, output: 0 };
+function runTokens(exported) {
+  const usage = isObject(exported) && isObject(exported.usage) ? exported.usage : void 0;
+  const count2 = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+  if (usage === void 0) return NO_TOKENS;
+  return { cached: count2(usage.cached_input_tokens), input: count2(usage.input_tokens), output: count2(usage.output_tokens) };
+}
+function chargedOf(exported) {
+  const charged = isObject(exported) ? exported.cost_usd : void 0;
+  return typeof charged === "number" && Number.isFinite(charged) && charged > 0 ? charged : void 0;
+}
+
 // src/shared-kernel/toml.ts
 var TomlError = class extends Error {
 };
@@ -1945,54 +1996,6 @@ var TomlReader = class {
   }
 };
 
-// src/contexts/model-gateway/domain/run.ts
-function finalAnswerOf(stdout) {
-  let journal;
-  try {
-    journal = JSON.parse(stdout);
-  } catch {
-    return void 0;
-  }
-  if (!Array.isArray(journal)) return void 0;
-  const last = journal.findLast(
-    (entry) => isObject(entry) && entry.type === "message" && entry.role === "assistant"
-  );
-  if (last === void 0 || !Array.isArray(last.content)) return void 0;
-  const text = last.content.map((part) => isObject(part) && typeof part.text === "string" ? part.text : "").join("");
-  return text === "" ? void 0 : text;
-}
-function oneShotAnswer(stdout) {
-  const answer2 = stdout.trim();
-  return answer2 === "" ? void 0 : answer2;
-}
-function hermesUsage(report) {
-  const count2 = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-  const priced = isObject(report) ? report.estimated_cost_usd : void 0;
-  const cost = typeof priced === "number" && Number.isFinite(priced) && priced >= 0 ? priced : void 0;
-  const failed = isObject(report) && report.failed === true;
-  if (!isObject(report)) return { cost, failed, tokens: NO_TOKENS };
-  return {
-    cost,
-    failed,
-    tokens: {
-      cached: count2(report.cache_read_tokens),
-      input: count2(report.input_tokens),
-      output: count2(report.output_tokens)
-    }
-  };
-}
-var NO_TOKENS = { cached: 0, input: 0, output: 0 };
-function runTokens(exported) {
-  const usage = isObject(exported) && isObject(exported.usage) ? exported.usage : void 0;
-  const count2 = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-  if (usage === void 0) return NO_TOKENS;
-  return { cached: count2(usage.cached_input_tokens), input: count2(usage.input_tokens), output: count2(usage.output_tokens) };
-}
-function chargedOf(exported) {
-  const charged = isObject(exported) ? exported.cost_usd : void 0;
-  return typeof charged === "number" && Number.isFinite(charged) && charged > 0 ? charged : void 0;
-}
-
 // src/contexts/model-gateway/domain/extras.ts
 var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
 
@@ -2146,6 +2149,33 @@ function hermesOutput(stdout, usage) {
     failure: report.failed ? "failed" : void 0,
     tokens: report.tokens
   };
+}
+function codexOutput(stdout) {
+  let answer2;
+  let error;
+  let failure3;
+  const sum = { cached: 0, input: 0, output: 0 };
+  for (const line2 of stdout.split("\n")) {
+    const event = parseJson2(line2);
+    if (!isObject(event)) continue;
+    const item = isObject(event.item) ? event.item : {};
+    if (event.type === "item.completed" && item.type === "agent_message" && textOf(item.text) !== void 0) {
+      answer2 = String(item.text);
+    } else if (event.type === "turn.completed") {
+      const usage = isObject(event.usage) ? event.usage : {};
+      sum.cached += count(usage.cached_input_tokens);
+      sum.input += count(usage.input_tokens);
+      sum.output += count(usage.output_tokens);
+    } else if (event.type === "error" || event.type === "turn.failed") {
+      failure3 = "client-error";
+      error = structuredError(event) ?? saidOf(event);
+    }
+  }
+  return { answer: answer2, charged: void 0, error, failure: failure3, tokens: sum };
+}
+function saidOf(event) {
+  const said = textOf(event.message);
+  return said === void 0 ? void 0 : { text: said };
 }
 function openCodeOutput(stdout) {
   let answer2;
@@ -2357,7 +2387,33 @@ var hermes = {
   read: (stdout, usage) => hermesOutput(stdout, usage),
   reportPath: (paths) => join3(reportDir(paths), "usage.json")
 };
-var LAUNCHERS = { agy, claude, hermes, opencode, vibe };
+var codex = {
+  command: (binary, input, paths, prompt, extras) => ({
+    args: [
+      "exec",
+      "--json",
+      "--skip-git-repo-check",
+      "-m",
+      input.model,
+      "-c",
+      `model_reasoning_effort="${effortOf(input.model)}"`,
+      "-s",
+      input.mode === "write" ? "workspace-write" : "read-only",
+      "-C",
+      paths.workDir
+    ],
+    command: binary,
+    cwd: paths.workDir,
+    env: extras?.env ?? {},
+    stdin: prompt,
+    timeoutMs: input.time_limit_s * 1e3
+  }),
+  extras: ["env"],
+  sandboxedExtras: [],
+  protectedEnv: [],
+  read: (stdout) => codexOutput(stdout)
+};
+var LAUNCHERS = { agy, claude, codex, hermes, opencode, vibe };
 
 // src/contexts/model-gateway/application/client-run.ts
 function requireSupportedExtras(client, extras) {
@@ -2455,11 +2511,11 @@ function planWindows(client, limits, records, now, warningRatio) {
     const since = now.getTime() - WINDOW_MS[limit.window];
     const mine = records.filter((record) => record.client === client && Date.parse(record.at) >= since);
     if ("limit_usd" in limit) {
-      const spent = round(mine.reduce((sum, record) => sum + record.cost_usd, 0), 6);
-      const ratio2 = round(spent / limit.limit_usd, 4);
+      const spent = round2(mine.reduce((sum, record) => sum + record.cost_usd, 0), 6);
+      const ratio2 = round2(spent / limit.limit_usd, 4);
       return { limit_usd: limit.limit_usd, ratio: ratio2, spent_usd: spent, state: stateOf(ratio2, warningRatio), window: limit.window };
     }
-    const ratio = round(mine.length / limit.limit_runs, 4);
+    const ratio = round2(mine.length / limit.limit_runs, 4);
     return { limit_runs: limit.limit_runs, ratio, runs: mine.length, state: stateOf(ratio, warningRatio), window: limit.window };
   });
 }
@@ -2473,13 +2529,10 @@ function stateOf(ratio, warningRatio) {
   if (ratio >= 1) return "exhausted";
   return ratio >= warningRatio ? "warning" : "ok";
 }
-function round(value, places) {
+function round2(value, places) {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;
 }
-
-// src/contexts/model-gateway/domain/workflows.ts
-var WORKFLOW_TTL_MS = 24 * 60 * 60 * 1e3;
 
 // src/contexts/model-gateway/application/plan.ts
 async function readPlanLimit(deps, client) {
@@ -4157,7 +4210,7 @@ function readArtifactSource(artifact) {
     tracker: artifact.oneOf("tracker", ARTIFACT_ORIGINS)
   };
 }
-function compactTimestamp(at) {
+function compactTimestamp2(at) {
   return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
@@ -5201,15 +5254,15 @@ function windowDiff(diff, budget) {
     const left = [];
     for (const hunk of pieces) {
       const cost = bytes(hunk?.text ?? "") + (sent.length === 0 ? bytes(file.header) : 0);
-      const fits = cost <= remaining;
-      if (fits) remaining -= cost;
+      const fits2 = cost <= remaining;
+      if (fits2) remaining -= cost;
       if (hunk === void 0) {
-        if (fits) kept2.push(file.header);
+        if (fits2) kept2.push(file.header);
         else dropped.push({ hunks: [], path: file.path });
         continue;
       }
       ;
-      (fits ? sent : left).push(hunk);
+      (fits2 ? sent : left).push(hunk);
     }
     if (sent.length > 0) kept2.push(file.header + sent.map((hunk) => hunk.text).join(""));
     if (left.length > 0) dropped.push({ hunks: left, path: file.path });
@@ -7645,9 +7698,9 @@ var PrepareCommand = class {
     if (contents.status === "refused") return contents;
     const { artifact, change, ticketCheck } = contents;
     const code = contents.code === void 0 || snapshot === void 0 ? contents.code : { ...contents.code, staged_diff: snapshot.sha256 };
-    const round2 = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage });
-    if ("status" in round2) return round2;
-    const { previousFlow, ...roundFields } = round2;
+    const round3 = await this.round(input.previousRunDir, { reference: artifact.reference, repository: repository.key, stage });
+    if ("status" in round3) return round3;
+    const { previousFlow, ...roundFields } = round3;
     const routing = await this.routing.load();
     const measured = change === void 0 ? {} : { change: { changed_lines: change.changed_lines, risk_path_hits: riskPathHits(change, routing.triage ?? { risk_paths: [] }) } };
     const stageRoutes = stageRouting(routing, { stage });
@@ -7780,7 +7833,7 @@ var PrepareCommand = class {
     return new Map(await Promise.all(checks));
   }
   async freshRunId(repository, stage) {
-    const base = `${compactTimestamp(this.deps.clock.now())}-${stage}`;
+    const base = `${compactTimestamp2(this.deps.clock.now())}-${stage}`;
     let candidate = base;
     for (let n = 2; await this.deps.files.exists(manifestPath(join21(repository.commonDir, "critique", candidate))); n += 1) {
       candidate = `${base}-${String(n)}`;
@@ -8566,7 +8619,7 @@ var RefuteCommand = class {
     };
     const prompt = (toolset) => assemblePrompt(sources, listedFiles(manifest), manifest.stage, manifest.code?.slices, toolset);
     const candidates = refuterCandidates(await new RoutingSource(this.deps).load(), manifest.stage);
-    const round2 = {
+    const round3 = {
       blocked: await this.blocked(manifest, candidates),
       budget: new FlowBudget(this.deps),
       candidates,
@@ -8579,25 +8632,25 @@ var RefuteCommand = class {
       tools: new CriticTools(this.deps, manifest.limits.search, join23(manifest.run_dir, "search-proof")),
       tripwire: await ReadOnlyTripwire.load(this.deps, manifest)
     };
-    const results = await Promise.all(targets.map((finding) => this.refute(round2, finding)));
-    return { ledgerWarnings: round2.ledgerWarnings, results };
+    const results = await Promise.all(targets.map((finding) => this.refute(round3, finding)));
+    return { ledgerWarnings: round3.ledgerWarnings, results };
   }
-  async refute(round2, finding) {
-    const { manifest } = round2;
-    const raisers = round2.merged.critics.filter((c) => finding.raised_by.includes(c.critic_id)).map((c) => c.family);
+  async refute(round3, finding) {
+    const { manifest } = round3;
+    const raisers = round3.merged.critics.filter((c) => finding.raised_by.includes(c.critic_id)).map((c) => c.family);
     const rules = { allowedFamilies: manifest.allowed_families, orchestratorFamily: manifest.orchestrator_family };
-    const choice = chooseRefuter(finding, round2.candidates, {
-      blocked: (client) => round2.blocked.get(client),
+    const choice = chooseRefuter(finding, round3.candidates, {
+      blocked: (client) => round3.blocked.get(client),
       family: (family) => familyBar(family, rules, raisers)
     });
     if ("skipped" in choice) return { detail: choice.skipped, finding_id: finding.id, outcome: "skipped", reason_code: "no-eligible-client" };
     const { refuter } = choice;
     const criticDir = join23(manifest.run_dir, "refute", finding.id);
-    const prompt = (toolset) => withFinding(round2.prompt(toolset), finding);
-    const reply = await runCritic(this.deps, { critic: refuter, criticDir, prompt, tools: round2.tools, tripwire: round2.tripwire });
-    const ledgerWarning = await round2.budget.logInvocation(manifest, reply.run, refuter.client_config, specReference(manifest));
-    if (ledgerWarning !== void 0) round2.ledgerWarnings.push(ledgerWarning);
-    const judged = judgeReply(finding, reply, { declared: round2.declared, packet: round2.packet, stage: manifest.stage });
+    const prompt = (toolset) => withFinding(round3.prompt(toolset), finding);
+    const reply = await runCritic(this.deps, { critic: refuter, criticDir, prompt, tools: round3.tools, tripwire: round3.tripwire });
+    const ledgerWarning = await round3.budget.logInvocation(manifest, reply.run, refuter.client_config, specReference(manifest));
+    if (ledgerWarning !== void 0) round3.ledgerWarnings.push(ledgerWarning);
+    const judged = judgeReply(finding, reply, { declared: round3.declared, packet: round3.packet, stage: manifest.stage });
     return { finding_id: finding.id, ...judged, refuter: reply.run };
   }
   /**
@@ -8875,10 +8928,10 @@ var InstalledHooks = class {
   }
   homes() {
     const claude2 = claudeHomePath(this.deps.env);
-    const codex = codexHomePath(this.deps.env);
+    const codex2 = codexHomePath(this.deps.env);
     return [
       { home: claude2, hooksFile: join25(claude2, "settings.json"), label: "Claude Code" },
-      { home: codex, hooksFile: join25(codex, "hooks.json"), label: "Codex", trustFile: join25(codex, "config.toml") }
+      { home: codex2, hooksFile: join25(codex2, "hooks.json"), label: "Codex", trustFile: join25(codex2, "config.toml") }
     ];
   }
   /** What keeps the hooks from running in one agent home, in the order the owner fixes them; none when they run. */
@@ -9617,9 +9670,9 @@ function renderStats(stats, scope) {
 function wastedLine(cells) {
   const runs = cells.reduce((total, cell) => total + cell.stopped_runs, 0);
   if (runs === 0) return void 0;
-  const usd = cells.reduce((total, cell) => total + cell.wasted_usd, 0);
+  const usd2 = cells.reduce((total, cell) => total + cell.wasted_usd, 0);
   const runsText = runs === 1 ? "1 run a price or time limit stopped before it" : `${String(runs)} runs a price or time limit stopped before they`;
-  return `Wasted: $${usd.toFixed(4)} on ${runsText} found anything.`;
+  return `Wasted: $${usd2.toFixed(4)} on ${runsText} found anything.`;
 }
 function percent(rate) {
   return `${String(Math.round(rate * 100))}%`;
@@ -9854,7 +9907,7 @@ var TriageCommand = class {
     };
   }
   async freshRunId(repository) {
-    const base = `${compactTimestamp(this.deps.clock.now())}-triage`;
+    const base = `${compactTimestamp2(this.deps.clock.now())}-triage`;
     let candidate = base;
     for (let n = 2; await this.deps.files.exists(join27(repository.commonDir, "critique", candidate, "triage.json")); n += 1) {
       candidate = `${base}-${String(n)}`;

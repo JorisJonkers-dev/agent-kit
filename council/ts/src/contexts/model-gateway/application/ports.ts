@@ -1,5 +1,6 @@
 import type { ClockPort, EnvPort, ProcessCommand, ProcessResult } from '../../../ports/index.js'
 import type { GitRemote } from '../../../shared-kernel/index.js'
+import type { Grant, GrantChange } from '../domain/grants.js'
 import type { LedgerEntry } from '../domain/ledger.js'
 import type { ClientListing } from '../domain/models.js'
 import type { ProofFiles } from '../domain/run.js'
@@ -132,6 +133,21 @@ export interface ModelGatewayWorkflowsPort {
 }
 
 /**
+ * The grants the owner gave, in the machine configuration: one file, read and
+ * written under a lock, so two gateway processes never lose each other's
+ * grant. A path inside a git repository is refused, so a grant is never
+ * written into a repository.
+ */
+export interface ModelGatewayGrantsPort {
+  read(): Promise<readonly Grant[]>
+  /**
+   * Reads the grants, applies `change` to them, writes what it returns, and
+   * hands back the grant the change touched — all under the file's lock.
+   */
+  update(change: (grants: readonly Grant[]) => GrantChange): Promise<Grant>
+}
+
+/**
  * What setup and critique left on this machine, as they wrote it: the
  * read-only proofs setup recorded, and the routing that says which critic
  * client runs which model. Any of them may be missing.
@@ -161,6 +177,8 @@ export interface ModelGatewayDependencies {
   readonly kept: ModelGatewayKeptPort
   /** The workflows every run names, and the moments they started and ended. */
   readonly workflows: ModelGatewayWorkflowsPort
+  /** The grants the owner gave, which a metered-employer run needs. */
+  readonly grants: ModelGatewayGrantsPort
   /** The clock a run's id, its duration and its ledger line are taken from. */
   readonly clock: ClockPort
 }

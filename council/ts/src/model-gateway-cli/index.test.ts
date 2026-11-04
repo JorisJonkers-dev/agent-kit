@@ -631,6 +631,7 @@ describe('the shipped defaults', () => {
           family: 'openai',
           model: 'gpt-5.5',
           notes: 'Strong implementation and review; metered on the nedap account, grant needed.',
+          prices: { cached_input: 0.125, input: 1.25, output: 10 },
           tier: 'frontier',
         },
         {
@@ -697,7 +698,7 @@ describe('model-gateway command line', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe(
-      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run, usage, workflow start, workflow end, workflow list and worktrees clean' })}\n`,
+      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean' })}\n`,
     )
   })
 
@@ -1297,7 +1298,7 @@ interface RunWorkspace {
 interface RunWorkspaceOptions {
   readonly scripts?: readonly VibeScript[]
   /** The client the gateway launches, when a test runs something other than Vibe. */
-  readonly process?: FakeHermesProcess
+  readonly process?: ModelGatewayProcessPort
   /** The repositories the fake git knows, keyed by path; the test repository by default. */
   readonly repositories?: (repo: string) => Readonly<Record<string, FakeRepository>>
   readonly env?: Readonly<Record<string, string>>
@@ -1433,7 +1434,7 @@ describe('model-gateway run: the input', () => {
   it('refuses a client or a mode a later ticket builds', async () => {
     const w = await readyRun()
 
-    expect(printed(await w.run(w.input({ client: 'codex' }))).code).toBe('not-supported-yet')
+    expect(printed(await w.run(w.input({ client: 'gemini' }))).code).toBe('not-supported-yet')
     expect(printed(await w.run(w.input({ mode: 'writing' }))).code).toBe('not-supported-yet')
     expect(w.vibe.commands).toEqual([])
   })
@@ -4924,7 +4925,7 @@ function filesWithUnreadableExists(broken: string): ModelGatewayFilesPort {
 
 /** The ledger's lines of one kind: `reservation`, `settled`, or a run's own line for `undefined`. */
 async function ledgerOf(w: RunWorkspace, kind: 'reservation' | 'settled' | undefined): Promise<Record<string, unknown>[]> {
-  return ledgerLines(await readFile(w.ledger, 'utf8')).filter((line) => line.kind === kind)
+  return ledgerLines(await readFile(w.ledger, 'utf8').catch(() => '')).filter((line) => line.kind === kind)
 }
 
 describe('model-gateway run: the metered-personal caps', () => {
@@ -5301,5 +5302,643 @@ describe('model-gateway run: the metered-personal caps', () => {
     expect(printed(await w.run(hermesInput(w)))).toMatchObject({ code: 'workflow-ended' })
     expect(hermes.commands).toEqual([])
     expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0, reason: 'not-started' }])
+  })
+})
+
+/** What `codex exec --json` prints: one event per line, ending in the turn's usage. */
+function codexEvents(...events: readonly unknown[]): string {
+  return events.map((event) => JSON.stringify(event)).join('\n')
+}
+
+/** A Codex run's answer: the last agent message, then the turn's usage. */
+function codexAnswer(text: string, usage: Readonly<Record<string, number>> = {}): string {
+  return codexEvents(
+    { thread_id: 't-1', type: 'thread.started' },
+    { type: 'turn.started' },
+    { item: { id: 'item_0', text, type: 'agent_message' }, type: 'item.completed' },
+    {
+      type: 'turn.completed',
+      usage: { cached_input_tokens: 100, input_tokens: 1000, output_tokens: 200, reasoning_output_tokens: 50, ...usage },
+    },
+  )
+}
+
+/** The grants file the gateway reads and writes, in this workspace's machine configuration. */
+function grantsFile(w: RunWorkspace): string {
+  return join(w.home, '.config', 'agent-kit', 'model-gateway-grants.json')
+}
+
+/** The grants the machine holds, as the file holds them. */
+async function grantsOf(w: RunWorkspace): Promise<Record<string, unknown>[]> {
+  const text = await readFile(grantsFile(w), 'utf8').catch(() => '')
+  return text === '' ? [] : (JSON.parse(text) as { grants: Record<string, unknown>[] }).grants
+}
+
+/** A Codex run's input: the metered-employer client, on the model the catalogue prices. */
+function codexInput(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
+  return w.input({ client: 'codex', model: 'gpt-5.5', ...overrides })
+}
+
+/** What `grant write` takes unless a test says otherwise: the owner's answer for the test workflow. */
+const GRANT_INPUT = {
+  answer: 'yes, up to five dollars',
+  cap_usd: 5,
+  client: 'codex',
+  question: 'may I spend up to $5 of nedap money on spec-293?',
+  workflow: 'spec-293',
+}
+
+/** Writes a grant through the command line, as the agent does after asking the owner, and hands back what the file holds. */
+async function writeGrant(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): Promise<Record<string, unknown>> {
+  const result = await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, ...overrides }))
+  if (result.exitCode !== 0) throw new Error(`grant write failed: ${result.stdout}`)
+  return storedGrant(printed(result).grant as Record<string, unknown>)
+}
+
+/** A grant as the grants file holds it: what `grant write` printed, without what it has left. */
+function storedGrant(view: Record<string, unknown>): Record<string, unknown> {
+  const stored = { ...view }
+  delete stored.remaining_usd
+  delete stored.reserved_usd
+  delete stored.spent_usd
+  return stored
+}
+
+interface CodexWorkspace {
+  readonly w: RunWorkspace
+  readonly codex: FakeVibeProcess
+}
+
+/** A workspace whose Codex run is permitted, and whose client is scripted to answer `text`. */
+async function readyCodex(
+  options: RunWorkspaceOptions & { readonly text?: string; readonly scripts?: readonly VibeScript[] } = {},
+): Promise<CodexWorkspace> {
+  const codex = new FakeVibeProcess([...(options.scripts ?? [{ stdout: codexAnswer(options.text ?? 'the answer\nSUMMARY: it is fine') }])])
+  const w = await runWorkspace({
+    allowlist: allowlist(['openai'], true, true),
+    process: codex,
+    ...options,
+  })
+  return { codex, w }
+}
+
+/**
+ * A workspace whose machine configuration directory lies inside a git
+ * repository, as a session that pointed XDG_CONFIG_HOME at its checkout would
+ * have it: the grants file must be refused there.
+ */
+async function repositoryWorkspace(): Promise<CodexWorkspace & { readonly repo: string }> {
+  const dir = await mkdtemp(join(tmpdir(), 'model-gateway-grants-'))
+  cleanups.push(() => rm(dir, { force: true, recursive: true }))
+  const repo = join(dir, 'repo')
+  await mkdir(repo, { recursive: true })
+  const { w, codex } = await readyCodex({
+    env: { XDG_CONFIG_HOME: join(repo, 'config') },
+    repositories: (own) => ({ [own]: { commonDir: join(own, '.git'), remotes: [AGENT_KIT_REMOTE], root: own }, [repo]: { remotes: [], root: repo } }),
+  })
+  return { codex, repo, w }
+}
+
+describe('model-gateway grant write', () => {
+  it('stores the grant in the machine configuration, with the question the owner answered and when it lapses', async () => {
+    const { w } = await readyCodex()
+
+    const result = await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toEqual({
+      grant: {
+        answer: 'yes, up to five dollars',
+        cap_usd: 5,
+        client: 'codex',
+        expires_at: '2026-11-05T10:52:15.000Z',
+        id: expect.stringMatching(/^grant-20261104T105215Z-[0-9a-f]{6}$/) as unknown,
+        question: 'may I spend up to $5 of nedap money on spec-293?',
+        remaining_usd: 5,
+        reserved_usd: 0,
+        spent_usd: 0,
+        workflow: 'spec-293',
+        written_at: '2026-11-04T10:52:15.000Z',
+      },
+      status: 'ok',
+    })
+    expect(await grantsOf(w)).toEqual([storedGrant(printed(result).grant as Record<string, unknown>)])
+  })
+
+  it('ends earlier when the workflow’s own 24 hours run out first', async () => {
+    const { w } = await readyCodex()
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }] })
+
+    expect((await writeGrant(w)).expires_at).toBe('2026-11-05T10:00:00.000Z')
+  })
+
+  it('refuses a workflow whose 24 hours already ran out, and writes nothing', async () => {
+    const { w } = await readyCodex()
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:00:00.000Z' }] })
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toMatchObject({
+      code: 'workflow-ended',
+      status: 'error',
+    })
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('refuses a second live grant for the same workflow and client, naming the one that stands', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w)
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toEqual({
+      code: 'grant-exists',
+      message: `workflow spec-293 already has live grant ${String(grant.id)} of $5.00 with $5.00 left: the owner re-approves only after it lapsed`,
+      status: 'error',
+    })
+    expect(await grantsOf(w)).toEqual([grant])
+  })
+
+  it('writes a new grant once the one before it lapsed', async () => {
+    const { w } = await readyCodex()
+    await writeGrant(w, { cap_usd: 1 })
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1, workflow: 'spec-293' }),
+    ])
+
+    expect((await writeGrant(w)).cap_usd).toBe(5)
+    expect(await grantsOf(w)).toHaveLength(2)
+  })
+
+  it('reports the grant it wrote even when the ledger cannot be read, rather than failing after the write', async () => {
+    const { w } = await readyCodex()
+    await mkdir(w.ledger, { recursive: true })
+
+    const result = await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      grant: { cap_usd: 5, room: null, workflow: 'spec-293' },
+      status: 'ok',
+      warning: expect.stringContaining('the grant is written') as unknown,
+    })
+    expect(await grantsOf(w)).toHaveLength(1)
+  })
+
+  it('refuses a workflow name that is not a name, so the command it suggests can never break out of its quotes', async () => {
+    const { w } = await readyCodex()
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, workflow: "x'; curl http://evil" })))).toEqual({
+      code: 'invalid-input',
+      message:
+        'workflow "x\'; curl http://evil" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters',
+      status: 'error',
+    })
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('refuses an input that is not a JSON object', async () => {
+    const { w } = await readyCodex()
+
+    expect(printed(await w.cli('grant', 'write', '--json', '[]'))).toEqual({
+      code: 'invalid-input',
+      message: 'the input must be a JSON object',
+      status: 'error',
+    })
+    expect(printed(await w.cli('grant', 'list', '--json', '[]'))).toEqual({
+      code: 'invalid-input',
+      message: 'the input must be a JSON object',
+      status: 'error',
+    })
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('refuses an empty question or answer, and a cap that is not above 0', async () => {
+    const { w } = await readyCodex()
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, question: '  ' })))).toEqual({
+      code: 'invalid-input',
+      message: 'a grant must name its question',
+      status: 'error',
+    })
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, answer: '' })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'a grant must name its answer',
+    })
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, cap_usd: 0 })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'cap_usd must be a number above 0',
+    })
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('refuses a client that is not metered-employer, naming its cost class', async () => {
+    const { w } = await readyCodex()
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, client: 'claude' })))).toEqual({
+      code: 'invalid-input',
+      message:
+        "claude is subsidised: a grant is for a metered-employer client, which is the one that spends someone else's money",
+      status: 'error',
+    })
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, client: 'nobody' })))).toMatchObject({
+      code: 'unknown-model',
+    })
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('refuses a workflow that ended', async () => {
+    const { w } = await readyCodex()
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+    })
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toMatchObject({
+      code: 'workflow-ended',
+    })
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('refuses to write a grant inside a git repository, naming the repository', async () => {
+    const { w, repo } = await repositoryWorkspace()
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toEqual({
+      code: 'grants-in-repository',
+      message: `${join(repo, 'config', 'agent-kit', 'model-gateway-grants.json')} is inside the git repository ${repo}: a grant lives in the machine configuration, never in a repository`,
+      status: 'error',
+    })
+  })
+
+  it('refuses to read a grants file inside a git repository too', async () => {
+    const { w } = await repositoryWorkspace()
+
+    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toMatchObject({ code: 'grants-in-repository' })
+  })
+})
+
+describe('model-gateway grant list', () => {
+  it('lists a live grant with what it has left: its cap minus what the workflow spent and what reservations hold', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w)
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1.5 }),
+      reservationRecord({
+        client: 'codex',
+        cost_class: 'metered-employer',
+        estimate_usd: 0.5,
+        expires_at: '2026-11-04T12:00:00.000Z',
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_id: 'run-live',
+      }),
+    ])
+
+    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toEqual({
+      grants: [{ ...grant, remaining_usd: 3, reserved_usd: 0.5, spent_usd: 1.5 }],
+      lapsed: [],
+      status: 'ok',
+    })
+  })
+
+  it('lists a lapsed grant with why: its workflow ended, its 24 hours ran out, or its cap is spent', async () => {
+    const { w } = await readyCodex()
+    await writeGrant(w, { workflow: 'spec-293' })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [
+        { ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' },
+        { name: 'spec-294', started_at: '2026-11-04T10:00:00.000Z' },
+      ],
+    })
+    await writeGrant(w, { workflow: 'spec-294', cap_usd: 1 })
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1, workflow: 'spec-294' }),
+    ])
+
+    const listed = printed(await w.cli('grant', 'list', '--json', '{}'))
+
+    expect(listed.grants).toEqual([])
+    expect((listed.lapsed as Record<string, unknown>[]).map((entry) => [entry.workflow, entry.reason])).toEqual([
+      ['spec-293', 'workflow-ended'],
+      ['spec-294', 'cap-spent'],
+    ])
+  })
+
+  it('lapses a grant after 24 hours, and never renews it', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w)
+    const late = defaultModelGatewayRuntime({
+      clock: new FixedClock(new Date('2026-11-05T10:52:15.000Z')),
+      defaultsPath: join(w.dir, 'defaults.json'),
+      env: new FakeEnv({ HOME: w.home, XDG_STATE_HOME: w.state }),
+      git: w.git,
+      process: new FakeVibeProcess(),
+      routingPath: join(w.dir, 'routing.json'),
+    })
+
+    expect(printed(await runModelGatewayCli(['grant', 'list', '--json', '{}'], late))).toMatchObject({
+      grants: [],
+      lapsed: [{ id: grant.id, reason: 'expired' }],
+    })
+    expect(await grantsOf(w)).toEqual([grant])
+  })
+})
+
+describe('model-gateway run: Codex, the metered-employer client', () => {
+  it('runs codex exec non-interactively, and reads its tokens and answer from the events', async () => {
+    const { codex, w } = await readyCodex()
+    await writeGrant(w)
+
+    const result = await w.run(codexInput(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      client: 'codex',
+      cost_usd: 0.0031375,
+      family: 'openai',
+      model: 'gpt-5.5',
+      status: 'ok',
+      summary: 'it is fine',
+      tokens: { cached: 100, input: 1000, output: 200 },
+      workflow: 'spec-293',
+    })
+    const command = codex.commands[0]
+    expect(command?.command).toBe('codex')
+    expect(command?.args).toEqual([
+      'exec',
+      '--json',
+      '--skip-git-repo-check',
+      '-m',
+      'gpt-5.5',
+      '-c',
+      'model_reasoning_effort="medium"',
+      '-s',
+      'read-only',
+      '-C',
+      expect.any(String) as unknown,
+    ])
+    expect(command?.stdin).toContain('read this')
+    expect(command?.env).toEqual({ AGENT_KIT_DELEGATION: '1' })
+  })
+
+  it('asks for the reasoning effort the model id names, and a workspace-write sandbox for a writing run', async () => {
+    const { codex, w } = await readyCodex({
+      override: {
+        models: [
+          {
+            client: 'codex',
+            family: 'openai',
+            model: 'gpt-5.5-high',
+            notes: 'the same model, asking for more reasoning',
+            prices: { cached_input: 0.125, input: 1.25, output: 10 },
+            tier: 'frontier',
+          },
+        ],
+      },
+      scripts: [{ effect: edits('src/app.ts'), stdout: codexAnswer('done\nSUMMARY: added it') }, { stdout: '3 passed\n' }],
+    })
+    await writeGrant(w)
+
+    const result = await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', model: 'gpt-5.5-high' }))
+
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+    expect(flag(codex.commands[0], '-c')).toBe('model_reasoning_effort="high"')
+    expect(flag(codex.commands[0], '-s')).toBe('workspace-write')
+  })
+
+  it('refuses a Codex run whose workflow no live grant covers, naming the workflow and the grant write call', async () => {
+    const { codex, w } = await readyCodex()
+
+    expect(printed(await w.run(codexInput(w)))).toEqual({
+      code: 'no-grant',
+      message:
+        'no live grant covers workflow spec-293, so codex may not run: ask the owner, then add one with model-gateway grant write --json \'{"workflow":"spec-293","client":"codex","cap_usd":5,"question":"<what you asked the owner>","answer":"<what the owner answered>"}\'',
+      status: 'error',
+    })
+    expect(codex.commands).toEqual([])
+    expect(await listedWorkflows(w)).toEqual([])
+    expect(ledgerLines(await readFile(w.ledger, 'utf8').catch(() => ''))).toEqual([])
+  })
+
+  it('refuses a headless Codex run without a grant with the same reason, and starts nothing', async () => {
+    const { codex, w } = await readyCodex()
+
+    expect(printed(await w.run(codexInput(w, { headless: true })))).toEqual({
+      code: 'no-grant',
+      message:
+        'no live grant covers workflow spec-293, so codex may not run: ask the owner, then add one with model-gateway grant write --json \'{"workflow":"spec-293","client":"codex","cap_usd":5,"question":"<what you asked the owner>","answer":"<what the owner answered>"}\'',
+      status: 'error',
+    })
+    expect(codex.commands).toEqual([])
+    expect(await listedWorkflows(w)).toEqual([])
+  })
+
+  it('refuses a Codex run whose grant lapsed with its workflow, and one whose grant expired', async () => {
+    const { w } = await readyCodex()
+    await writeGrant(w)
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+    })
+
+    expect(printed(await w.run(codexInput(w)))).toMatchObject({ code: 'workflow-ended' })
+  })
+
+  it('reserves its estimate against the grant before it starts, and settles it with what the run cost', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w)
+
+    const result = await w.run(codexInput(w))
+
+    expect(await ledgerOf(w, 'reservation')).toEqual([
+      {
+        client: 'codex',
+        cost_class: 'metered-employer',
+        estimate_usd: 0.160004,
+        expires_at: '2026-11-04T11:08:15.000Z',
+        kind: 'reservation',
+        model: 'gpt-5.5',
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_dir: runDirOf(w, result),
+        run_id: printed(result).run_id,
+        workflow: 'spec-293',
+      },
+    ])
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.0031375, run_id: printed(result).run_id }])
+    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toMatchObject({
+      grants: [{ id: grant.id, remaining_usd: 4.996862, spent_usd: 0.003138 }],
+    })
+  })
+
+  it('refuses a run that does not fit the grant, naming the grant, and reserves nothing', async () => {
+    const { codex, w } = await readyCodex()
+    const grant = await writeGrant(w, { cap_usd: 0.1 })
+
+    expect(printed(await w.run(codexInput(w)))).toEqual({
+      code: 'cap-exceeded',
+      message: `codex:gpt-5.5 does not fit grant ${String(grant.id)} of $0.10 for workflow spec-293: $0.00 spent and $0.00 reserved, and its estimate is $0.16`,
+      status: 'error',
+    })
+    expect(codex.commands).toEqual([])
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+    expect(await listedWorkflows(w)).toEqual([])
+  })
+
+  it('counts what live reservations hold against the grant, so two runs cannot together overshoot it', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w, { cap_usd: 0.2 })
+    await w.writeLedger([
+      reservationRecord({
+        client: 'codex',
+        cost_class: 'metered-employer',
+        estimate_usd: 0.1,
+        expires_at: '2026-11-04T12:00:00.000Z',
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_id: 'run-live',
+      }),
+    ])
+
+    expect(printed(await w.run(codexInput(w)))).toMatchObject({
+      code: 'cap-exceeded',
+      message: expect.stringContaining(`does not fit grant ${String(grant.id)} of $0.20`) as unknown,
+    })
+  })
+
+  it('runs in a nedap repository under a grant, and is refused there without one', async () => {
+    const nedap: GitRemote = { name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }
+    const { w } = await readyCodex({ repositories: (repo) => ({ [repo]: { remotes: [nedap], root: repo } }) })
+
+    expect(printed(await w.run(codexInput(w)))).toMatchObject({ code: 'no-grant' })
+    await writeGrant(w)
+    expect(printed(await w.run(codexInput(w)))).toMatchObject({ client: 'codex', status: 'ok' })
+  })
+
+  it('never lets a grant of one client cover another client of the same workflow', async () => {
+    const { w } = await readyCodex({
+      allowlist: allowlist(['openai', 'zhipu'], true, true),
+      override: {
+        clients: { opencode: { provider_cost_classes: { 'opencode-go': 'metered-employer' } } },
+        models: [
+          {
+            client: 'opencode',
+            family: 'zhipu',
+            model: 'opencode-go/glm-5-3',
+            notes: 'the same model, on a provider this machine bills to the employer',
+            prices: { cached_input: 0.14, input: 1.4, output: 4.4 },
+            tier: 'hard',
+          },
+        ],
+      },
+    })
+    await writeGrant(w)
+
+    expect(printed(await w.run(w.input({ client: 'opencode', model: 'opencode-go/glm-5-3' })))).toMatchObject({
+      code: 'no-grant',
+      message: expect.stringContaining('no live grant covers workflow spec-293, so opencode may not run') as unknown,
+    })
+  })
+
+  it('keeps a grant whose cap is only reserved live, and refuses a run that does not fit it as cap-exceeded', async () => {
+    const { w } = await readyCodex()
+    const grant = await writeGrant(w, { cap_usd: 0.2 })
+    await w.writeLedger([
+      reservationRecord({
+        client: 'codex',
+        cost_class: 'metered-employer',
+        estimate_usd: 0.2,
+        expires_at: '2026-11-04T12:00:00.000Z',
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_id: 'run-live',
+      }),
+    ])
+
+    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toMatchObject({
+      grants: [{ id: grant.id, remaining_usd: 0, reserved_usd: 0.2 }],
+      lapsed: [],
+    })
+    expect(printed(await w.run(codexInput(w)))).toMatchObject({
+      code: 'cap-exceeded',
+      message: expect.stringContaining(`does not fit grant ${String(grant.id)} of $0.20`) as unknown,
+    })
+  })
+
+  it('settles a dead run’s reservation before it reads the grant, so the next run in the workflow starts', async () => {
+    const { codex, w } = await readyCodex()
+    await writeGrant(w)
+    const deadDir = join(w.state, 'agent-kit', 'model-gateway', 'runs', 'run-dead')
+    await mkdir(deadDir, { recursive: true })
+    await writeFile(join(deadDir, 'result.json'), JSON.stringify({ cost_usd: 0.01 }))
+    await w.writeLedger([
+      reservationRecord({
+        client: 'codex',
+        cost_class: 'metered-employer',
+        estimate_usd: 5,
+        expires_at: '2026-11-04T11:00:00.000Z',
+        reserved_at: '2026-11-04T10:53:00.000Z',
+        run_dir: deadDir,
+        run_id: 'run-dead',
+      }),
+    ])
+    const later = defaultModelGatewayRuntime({
+      clock: new FixedClock(new Date('2026-11-04T12:00:00.000Z')),
+      defaultsPath: join(w.dir, 'defaults.json'),
+      env: new FakeEnv({ HOME: w.home, XDG_STATE_HOME: w.state }),
+      git: w.git,
+      process: codex,
+      routingPath: join(w.dir, 'routing.json'),
+    })
+
+    const result = await runModelGatewayCli(['run', '--json', JSON.stringify(codexInput(w, { escalate: false }))], later)
+
+    expect(printed(result)).toMatchObject({ client: 'codex', status: 'ok' })
+    expect(await ledgerOf(w, 'settled')).toContainEqual(expect.objectContaining({ cost_usd: 0.01, run_id: 'run-dead' }))
+  })
+
+  it('keeps a metered-employer model out of the fall-through pool when its grant is for another workflow or lapsed', async () => {
+    const { w } = await readyCodex({
+      allowlist: allowlist(['anthropic', 'openai'], true, true),
+      scripts: [{ exitCode: 1, stderr: '429 Too Many Requests', stdout: '' }],
+    })
+    await writeGrant(w, { workflow: 'spec-294' })
+    await writeGrant(w, { cap_usd: 1 })
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1, workflow: 'spec-293' }),
+    ])
+
+    const result = await w.run(w.input({ client: 'claude', escalate: true, model: 'claude-sonnet-5-5' }))
+
+    expect(printed(result)).toMatchObject({ status: 'unavailable' })
+    expect(attemptedModels(result)).toEqual(['claude:claude-sonnet-5-5'])
+  })
+
+  it('never retries a no-grant refusal, and never climbs to a metered-employer model', async () => {
+    const { codex, w } = await readyCodex()
+
+    expect(printed(await w.run(codexInput(w, { escalate: true })))).toMatchObject({ code: 'no-grant' })
+    expect(codex.commands).toEqual([])
+  })
+
+  it('falls through to another Codex model under a grant when the first cannot start', async () => {
+    const { codex, w } = await readyCodex({
+      override: {
+        models: [
+          {
+            client: 'codex',
+            family: 'openai',
+            model: 'gpt-5.6',
+            notes: 'newer',
+            prices: { cached_input: 0.125, input: 1.25, output: 10 },
+            tier: 'frontier',
+          },
+        ],
+      },
+      scripts: [
+        { effect: () => Promise.reject(new Error('spawn codex ENOENT')), stdout: '' },
+        { stdout: codexAnswer('the answer\nSUMMARY: it is fine') },
+      ],
+    })
+    await writeGrant(w)
+
+    const result = await w.run(codexInput(w, { escalate: true }))
+
+    expect(printed(result)).toMatchObject({ client: 'codex', model: 'gpt-5.6', status: 'ok' })
+    expect(attemptedModels(result)).toEqual(['codex:gpt-5.5', 'codex:gpt-5.6'])
+    expect(codex.commands).toHaveLength(2)
   })
 })

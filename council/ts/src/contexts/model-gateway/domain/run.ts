@@ -1,10 +1,11 @@
 import { isObject, ModelGatewayError, type ModelPrices } from './config.js'
+import { requireWorkflowName } from './workflows.js'
 
 /** What a run may do: read the repository, or change it in a worktree of its own. */
 export type RunMode = 'read-only' | 'write'
 
-/** The clients a delegation can be handed to: Vibe, Antigravity, Claude Code, OpenCode and Hermes. */
-export const RUN_CLIENTS = ['vibe', 'agy', 'claude', 'opencode', 'hermes'] as const
+/** The clients a delegation can be handed to: Vibe, Antigravity, Claude Code, OpenCode, Hermes and Codex. */
+export const RUN_CLIENTS = ['vibe', 'agy', 'claude', 'opencode', 'hermes', 'codex'] as const
 export type RunClient = (typeof RUN_CLIENTS)[number]
 
 /**
@@ -52,6 +53,12 @@ export interface RunInput {
   readonly provider?: string
   /** `false` turns off the retry, the climb and the fall-through; they are on unless the caller says so. */
   readonly escalate?: boolean
+  /**
+   * Whether nobody is there to answer: a headless run is refused for want of a
+   * grant like any other, and its task is then the orchestrator's to keep or
+   * split. Nothing else about the run changes.
+   */
+  readonly headless?: boolean
   /** How many attempts the delegation gets in all, the first included; 3 unless the caller says otherwise. */
   readonly max_attempts?: number
 }
@@ -60,9 +67,7 @@ export interface RunInput {
 export function readRunInput(raw: unknown): RunInput {
   if (!isObject(raw)) throw new ModelGatewayError('invalid-input', 'the input must be a JSON object')
   if (raw.extras !== undefined) throw new ModelGatewayError('invalid-input', 'extras are for in-process callers only')
-  if (typeof raw.workflow !== 'string' || raw.workflow === '') {
-    throw new ModelGatewayError('invalid-input', 'a run must name its workflow')
-  }
+  const workflow = requireWorkflowName(raw.workflow, 'a run must name its workflow')
   if (typeof raw.client !== 'string' || !(RUN_CLIENTS as readonly string[]).includes(raw.client)) {
     throw new ModelGatewayError('not-supported-yet', `only ${RUN_CLIENTS.join(', ')} can run a delegation, not ${shown(raw.client)}`)
   }
@@ -83,20 +88,29 @@ export function readRunInput(raw: unknown): RunInput {
   const writing = readWriting(raw, repo)
   const provider = readOptionalString(raw.provider, 'provider')
   const escalation = readEscalation(raw)
+  const headless = readHeadless(raw)
   return {
     client: raw.client,
     mode: raw.mode,
     model: raw.model,
     prompt: raw.prompt,
     time_limit_s: timeLimit,
-    workflow: raw.workflow,
+    workflow,
     ...(carries === undefined ? {} : { carries }),
     ...(maxPrice === undefined ? {} : { max_price_usd: maxPrice }),
     ...(provider === undefined ? {} : { provider }),
     ...(repo === undefined ? {} : { repo }),
     ...escalation,
     ...writing,
+    ...(headless === undefined ? {} : { headless }),
   }
+}
+
+/** Whether nobody is there to answer, which changes nothing about the run but what the orchestrator does with a refusal. */
+function readHeadless(raw: Record<string, unknown>): boolean | undefined {
+  if (raw.headless === undefined) return undefined
+  if (typeof raw.headless !== 'boolean') throw new ModelGatewayError('invalid-input', 'headless must be true or false')
+  return raw.headless
 }
 
 /** What a run says about its own escalation: whether it is on, and how many attempts it may take. */

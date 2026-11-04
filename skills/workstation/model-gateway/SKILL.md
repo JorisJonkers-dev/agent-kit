@@ -7,10 +7,12 @@ description: Holds the model gateway's runner and its shipped defaults; it is no
 
 This folder is what the model gateway runs on. It does nothing on its own: an
 agent calls the runner, and the `delegate` skill (a later ticket) is what
-teaches an orchestrator to plan with it. The runner answers three questions:
+teaches an orchestrator to plan with it. The runner answers these questions:
 `models`, which client models this machine can use right now; `usage`, what
 each client can do now and what it has spent; `run`, one delegation to one of
-them; and `workflow`, the life of the piece of work a delegation belongs to.
+them; `workflow`, the life of the piece of work a delegation belongs to; and
+`grant`, the owner's permission to spend their employer's money on one of
+them.
 
 ## What is in here
 
@@ -149,11 +151,16 @@ The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
 `provider` (which a Hermes run must name, and which this machine must allow),
 `escalate` (default `true`; `false` turns off the retry, the climb and the
-fall-through below) and `max_attempts` (default 3).
-`workflow` is required (`code: "invalid-input"`). A run can go to `client:
-"vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code), `"opencode"` or
-`"hermes"`, in `mode: "read-only"` or `"write"` (below); any other client or
-mode is `code: "not-supported-yet"`.
+fall-through below), `max_attempts` (default 3) and `headless` (a boolean that
+changes nothing else: a run marked headless is refused and launched exactly
+like any other).
+`workflow` is required (`code: "invalid-input"`), and is a name: a letter or
+digit, then letters, digits and `. _ : / -` only, at most 80 characters. Every
+command that takes a workflow name holds it to that rule, because the name
+reaches the shell command the gateway suggests. A run can go to `client:
+"vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code), `"opencode"`,
+`"hermes"` or `"codex"`, in `mode: "read-only"` or `"write"` (below); any other
+client or mode is `code: "not-supported-yet"`.
 
 Everything that can refuse the run happens before anything is launched:
 
@@ -178,6 +185,12 @@ Everything that can refuse the run happens before anything is launched:
   when the machine lists it: a run never reaches a pay-per-token model.
 - `workflow-ended` — the run names a workflow that ended, so its caps and
   grants lapsed with it (below).
+- `no-grant` — a Codex run whose workflow no live grant covers. The message
+  names the workflow and the `grant write` call that would add one. It applies
+  to every mode, to every attempt of a delegation, and to a `headless` run.
+- `cap-exceeded` — the run's estimate does not fit what its cap has left: the
+  metered-personal caps for a metered-personal run, the grant for a Codex run
+  (below).
 - `worktree-failed` — git could not add the throwaway worktree, or create a
   writing run's worktree off its base (below). A
   worktree git cannot remove after the run is not an error: the result is
@@ -199,9 +212,9 @@ remove --force` after the run whatever its outcome. A run without a `repo`
 works in a fresh empty temporary directory, deleted the same way. A cleanup
 that fails never fails the run: the result carries a `cleanup_warning` naming
 the directory left behind, and a run that threw keeps its own error. The result
-and the ledger line are the same for every client. Claude Code, OpenCode and
-Hermes have no critic client at all, so every one of their runs is a throwaway
-one.
+and the ledger line are the same for every client. Claude Code, OpenCode,
+Hermes and Codex have no critic client at all, so every one of their runs is a
+throwaway one.
 
 A launched Vibe run is non-interactive:
 
@@ -219,8 +232,8 @@ gateway also sets `VIBE_ENABLE_MCP`, `VIBE_ENABLE_SUBAGENTS`,
 the isolation holds even if the agent file is missing.
 
 The other clients, each in its working directory and with
-`AGENT_KIT_DELEGATION=1` in its environment. Claude Code, OpenCode and Hermes
-have no time limit of their own, so the outer timer stops them at
+`AGENT_KIT_DELEGATION=1` in its environment. Claude Code, OpenCode, Hermes and
+Codex have no time limit of their own, so the outer timer stops them at
 `time_limit_s`; Antigravity's own `--print-timeout` fires first, a minute
 before the outer one:
 
@@ -231,7 +244,20 @@ claude -p --model <id> --output-format json --permission-mode plan \
     --allowedTools Read,Grep,Glob            # the prompt on stdin
 opencode run --model <provider>/<model> --format json <prompt>
 hermes -z <wrapped prompt> --usage-file <run dir>/usage.json -m <model> --provider <provider>
+codex exec --json --skip-git-repo-check -m <model> \
+    -c model_reasoning_effort="<low|medium|high>" \
+    -s <read-only|workspace-write> -C <dir>   # the prompt on stdin
 ```
+
+Codex runs non-interactively with its own sandbox: `-s read-only` for a
+read-only run and `-s workspace-write` for a writing one, so the sandbox is
+Codex's, not the gateway's. Its reasoning effort is the model id's last word
+(`gpt-5.5-high` is `high`), else `medium`. `--json` makes it print one event
+per line: the answer is the last `agent_message` item, and the tokens come from
+the `turn.completed` usage (`input_tokens` counts the cached ones too, which
+are reported separately). Codex prices nothing, so its dollars are the tokens
+times the catalogue's `prices` for the model, like Vibe's and Antigravity's
+when they report none.
 
 Antigravity's effort is the id's last word (`gemini-3.8-flash-high` is
 `high`), else `medium`. Tokens and dollars come from each client's own output
@@ -301,8 +327,8 @@ make in all.
 - **A failed result** is a run whose status is `failed`: a timeout, output the
   adapter cannot parse, a non-zero exit, or a writing run whose check failed.
   Refusals (`policy-refused`, `provider-not-allowed`, `cap-exceeded`,
-  `no-estimate`, `workflow-ended` and the other error codes) are errors before
-  anything is launched and are never retried. The raw or partial output stays in
+  `no-grant`, `no-estimate`, `workflow-ended` and the other error codes) are
+  errors before anything is launched and are never retried. The raw or partial output stays in
   the run directory (`output.json`, and `stderr.txt` when the client printed
   any) beside the `reason` in `result.json`.
 - **Retry.** The first failure is retried once on the same client model. The
@@ -317,8 +343,8 @@ make in all.
   allowlist and the nedap rule, through the data policy above), never a model
   the machine disabled, ordered by tier and then catalogue order. It never
   moves into a metered class (a metered-personal run climbs only to a
-  subsidised model, and `metered-employer` needs a grant that does not exist
-  yet), and never to a model the catalogue gives no tier. A model with no
+  subsidised model, and a metered-employer model is never a climb target at
+  all), and never to a model the catalogue gives no tier. A model with no
   catalogue tier is never climbed to or swapped to, and is retried once and
   then returned, because there is no way to say which model is stronger. A
   climbed model that fails is retried once, then climbed from again. When no
@@ -332,7 +358,10 @@ make in all.
   `unavailable` or `unable_to_start` for the client (not installed, signed out,
   a plan window at 100%, a recent rate-limit or auth error), or a run whose
   `reason` is `launch-failed`, `rate-limited` or `auth`; a swap is not a retry
-  and does not use the retry. The gateway never moves into a costlier cost
+  and does not use the retry. A metered-employer model is in that pool only
+  while a live grant covers the workflow, so a Codex model is swapped in only
+  when the owner allowed it; `no-grant` and `cap-exceeded` are refusals, which
+  no attempt ever retries. The gateway never moves into a costlier cost
   class on its own: when no client model of the cost class can start it
   returns `{"status":"unavailable","workflow","client","model","message",
   "reasons":[{"client","model","reason"}],"attempts":[...]}`, exit 0, and the
@@ -376,7 +405,8 @@ node model-gateway.mjs run --json '{"workflow":"spec-293","client":"claude","mod
    shell, nothing outside the worktree, no subagents; setup installs it beside
    `delegate-readonly`), Claude Code with `--permission-mode acceptEdits` (and
    `--allowedTools Read,Grep,Glob,Edit,Write`), Antigravity with `--mode
-   accept-edits`, OpenCode with its default agent. The prompt adds "Edit only
+   accept-edits`, OpenCode with its default agent, Codex with `-s
+   workspace-write`. The prompt adds "Edit only
    files inside the working directory. Do not commit."
 3. When the delegate has finished, the gateway stages everything in the
    worktree with `git add -A` and lists what that staged, and only then runs
@@ -426,7 +456,8 @@ own) before the workflow ends: cleaning discards it.
 ## The `workflow` commands
 
 `workflow start`, `workflow end` and `workflow list` keep a workflow's life.
-`start` and `end` take `{"name": "<id>"}`; `list` takes `{}`. Each prints one
+`start` and `end` take `{"name": "<id>"}`, held to the workflow-name rule above;
+`list` takes `{}`. Each prints one
 JSON object: `{"status":"ok","workflow":{"name","started_at","ended_at","state"}}`
 for `start` and `end`, and `{"status":"ok","workflows":[...]}` for `list`.
 
@@ -451,6 +482,74 @@ else `~/.local/state/agent-kit/model-gateway/workflows.json`, beside the
 ledger and under the same lock: a change reads the file, applies itself and
 writes the result through a temporary file that is renamed into place, so two
 gateway processes never lose each other's change.
+
+## Grants: spending the owner's employer money
+
+Codex is the one `metered-employer` client: its runs are billed to the owner's
+employer, not to the owner. A Codex run therefore needs a **grant** — the
+owner's permission for one named workflow, with a dollar cap — and the gateway
+never writes one itself and never renews one.
+
+**Ask the owner first.** A grant is written by the agent, after it asked the
+owner and got an answer, and it records both the question and the answer so a
+grant written without asking stands out. Never write one on your own
+initiative, and never widen one: a bigger cap or a longer life is a new
+question to the owner.
+
+```sh
+node model-gateway.mjs grant write --json '{"workflow":"spec-293","client":"codex","cap_usd":5,"question":"may I spend up to $5 of nedap money on spec-293?","answer":"yes, up to five dollars"}'
+node model-gateway.mjs grant list  --json '{}'
+```
+
+`grant write` takes `workflow`, `client` (a metered-employer client, `codex`
+today), `cap_usd`, `question` and `answer`, and prints
+`{"status":"ok","grant":{...}}` with what the grant has left. It refuses an
+empty `question` or `answer`, a `cap_usd` that is not above 0, a client that is
+not metered-employer (`invalid-input`, naming its cost class), a client the
+gateway does not know (`unknown-model`), a workflow that ended
+(`workflow-ended`) and a workflow and client a live grant already covers
+(`grant-exists`, naming that grant, its cap and what it has left): the owner
+re-approves only after it lapsed, so a second grant can never quietly double
+the cap. A grant lapses 24 hours after it was written, or when its workflow's
+own 24 hours run out first, whichever comes first.
+
+The write is the last thing that can fail: when the ledger cannot be read
+afterwards, the result is still `ok`, with the grant it wrote, `"room": null`
+and a `warning` saying what it could not read. Never ask the owner again
+because of that warning — the grant stands.
+
+`grant list` prints `{"status":"ok","grants":[...],"lapsed":[...]}`. Each live
+grant carries its `cap_usd`, `spent_usd` (what its workflow has spent on that
+client's metered-employer runs since the grant was written), `reserved_usd`
+(what live reservations of that client hold) and `remaining_usd`. A lapsed
+grant is in `lapsed` with a `reason`: `workflow-ended`, `expired` or
+`cap-spent`. A grant lapses as `cap-spent` only once settled spend reaches its
+cap: one whose cap is merely reserved by a run in flight is still live, and the
+next run that does not fit it is refused `cap-exceeded`. The gateway never
+renews a lapsed grant; ask the owner again.
+
+The grants live in the machine configuration,
+`$XDG_CONFIG_HOME/agent-kit/model-gateway-grants.json`, else
+`~/.config/agent-kit/model-gateway-grants.json`, under the same lock and
+temporary-file write as the workflows. **Never inside a repository**: a grants
+path that lies inside any git repository is refused, for reading and for
+writing alike (`code: "grants-in-repository"`, naming the repository), because
+a grant is the owner's and not the project's.
+
+A grant covers one workflow **and one client**: a grant for `codex` never
+covers another metered-employer client on the same workflow, and its room
+counts only that client's runs and reservations.
+
+A Codex run is refused `no-grant` when no live grant covers its workflow and
+client, and `cap-exceeded` when its estimate does not fit what the grant has
+left. Before it launches, the run's estimate — the same estimate the
+metered-personal caps use — is reserved against the grant's remaining cap in
+one locked critical section, and the run's actual spend replaces the
+reservation when it ends. The gateway settles the reservations whose runs died
+before it reads a grant, so a dead run's reservation never makes a grant look
+spent for the run that asks next. A refused run reserves nothing and starts no
+workflow. The order is always `requireWorkflowOpen` → reserve →
+`startWorkflow`.
 
 ## The check runs the delegate's code
 

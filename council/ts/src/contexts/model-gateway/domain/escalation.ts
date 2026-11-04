@@ -26,6 +26,7 @@ export const FAILURE_TAIL_CHARS = 1000
  */
 const REFUSAL_REASONS: readonly string[] = [
   'cap-exceeded',
+  'no-grant',
   'invalid-config',
   'invalid-input',
   'nested-delegation',
@@ -34,6 +35,7 @@ const REFUSAL_REASONS: readonly string[] = [
   'policy-refused',
   'provider-not-allowed',
   'repository-unreadable',
+  'unknown-client',
   'unknown-model',
   'unknown-workflow',
   'workflow-ended',
@@ -166,12 +168,19 @@ function providerOf(input: RunInput): string | undefined {
 /**
  * Every catalogue model the delegation may be moved to: one a client that can
  * run a delegation offers, that the data policy permits for what the run
- * carries, that this machine has not disabled, whose provider the machine
- * allows, and never one that is metered-employer, which only a live grant opens.
- * A client that runs on a provider the caller names is open only to the
- * provider the caller named.
+ * carries, that this machine has not disabled, and whose provider the machine
+ * allows. A metered-employer model joins the pool only while a live grant
+ * covers the workflow, so a client that cannot start is swapped for one of
+ * them only when the owner allowed that workflow to spend on it. A client that
+ * runs on a provider the caller names is open only to the provider the caller
+ * named.
  */
-export function candidatePool(config: GatewayConfig, input: RunInput, permissions: readonly ModelPermission[]): readonly Candidate[] {
+export function candidatePool(
+  config: GatewayConfig,
+  input: RunInput,
+  permissions: readonly ModelPermission[],
+  granted: ReadonlySet<string>,
+): readonly Candidate[] {
   const permitted = new Set(permissions.filter((permission) => carries(permission, input)).map((permission) => modelKey(permission.client, permission.model)))
   const pool: Candidate[] = []
   for (const entry of config.models) {
@@ -184,7 +193,7 @@ export function candidatePool(config: GatewayConfig, input: RunInput, permission
     if (entry.client === 'opencode' && !providerAllowed(entry.model, client.providers)) continue
     const provider = named ? input.provider : entry.client === 'opencode' ? openCodeProvider(entry.model) : undefined
     const costClass = costClassFor(client, provider)
-    if (costClass === 'metered-employer') continue
+    if (costClass === 'metered-employer' && !granted.has(entry.client)) continue
     pool.push({
       client: entry.client,
       costClass,

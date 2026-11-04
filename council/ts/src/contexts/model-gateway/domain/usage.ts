@@ -3,6 +3,7 @@ import { isObject, ModelGatewayError, type CostClass, type GatewayConfig, type P
 import { runRecords, type LedgerEntry, type LedgerRecord } from './ledger.js'
 import { sortedClients } from './models.js'
 import type { RunTokens } from './run.js'
+import { requireWorkflowName } from './workflows.js'
 
 /**
  * What the gateway can say about a client before it plans: whether it can run
@@ -43,10 +44,7 @@ export function readUsageInput(raw: unknown): UsageInput {
   }
   const workflow = raw.workflow
   if (workflow === undefined) return { days }
-  if (typeof workflow !== 'string' || workflow === '') {
-    throw new ModelGatewayError('invalid-input', 'workflow must be a non-empty string')
-  }
-  return { days, workflow }
+  return { days, workflow: requireWorkflowName(workflow, 'workflow must be a non-empty string') }
 }
 
 /** What a client's own status command said about it, and which command said it. */
