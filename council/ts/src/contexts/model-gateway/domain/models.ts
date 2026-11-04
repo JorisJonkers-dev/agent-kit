@@ -75,6 +75,15 @@ export function familyOf(model: string): string | undefined {
 }
 
 /**
+ * The family of a model id as a client writes it, which may name its provider
+ * first (`anthropic/claude-sonnet-4.6`): the family is the model part's, never
+ * the provider's.
+ */
+export function familyOfModelId(model: string): string | undefined {
+  return familyOf(modelPart(model))
+}
+
+/**
  * The model ids an `agy models` listing names, in the order it printed them:
  * a `Fetching available models...` line, then one `<id>\t<display name>` per
  * model. A line that names no model is skipped.
@@ -100,6 +109,28 @@ export function parseOpenCodeModels(stdout: string): readonly ClientModel[] {
     models.push({ model: id, provider: id.slice(0, slash) })
   }
   return models
+}
+
+/**
+ * The model Hermes' own configuration names as its default, from
+ * `hermes config get model --json`: an object with `default` and `provider`,
+ * or the model id alone. Hermes has no non-interactive model listing — its
+ * `hermes model` is an interactive picker — so its configuration is the only
+ * reliable source, and it names one model rather than a list.
+ */
+export function hermesDefaultModel(stdout: string): ClientModel | undefined {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(stdout)
+  } catch {
+    return undefined
+  }
+  if (typeof parsed === 'string') return parsed === '' ? undefined : { model: parsed }
+  if (!isObject(parsed)) return undefined
+  const model = typeof parsed.default === 'string' && parsed.default !== '' ? parsed.default : undefined
+  if (model === undefined) return undefined
+  const provider = typeof parsed.provider === 'string' && parsed.provider !== '' ? parsed.provider : undefined
+  return { model, ...(provider === undefined ? {} : { provider }) }
 }
 
 /**

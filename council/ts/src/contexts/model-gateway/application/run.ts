@@ -4,9 +4,11 @@ import { join } from 'node:path'
 import type { ProcessResult } from '../../../ports/index.js'
 import { ModelGatewayError, type GatewayConfig, type ModelEntry } from '../domain/config.js'
 import type { LedgerRecord } from '../domain/ledger.js'
-import { familyOf, modelKey, modelPart } from '../domain/models.js'
+import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
 import {
+  FORBIDDEN_PROVIDERS,
+  PROVIDER_CLIENTS,
   readOnlyProof,
   readRunInput,
   requireAllowedProvider,
@@ -22,11 +24,13 @@ import {
   type RunTokens,
 } from '../domain/run.js'
 import { planWindows, warningsOf } from '../domain/usage.js'
+import { startWorkflow } from '../domain/workflows.js'
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
 import { DELEGATION_MARK, LAUNCHERS, READ_ONLY_AGENT, type ClientLauncher, type LaunchPaths } from './launchers.js'
 import { resolveScope } from './policy.js'
+import type { ClientConfig } from '../domain/config.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
 export { DELEGATION_MARK, READ_ONLY_AGENT }
@@ -78,9 +82,9 @@ export interface RunResult {
   readonly summary: string
   /**
    * Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`,
-   * `rate-limited`, `auth`, `launch-failed`, `denied-action`, `client-error`
-   * or, for a writing run, `check-failed`, `check-output-failed` or
-   * `stage-failed`.
+   * `rate-limited`, `auth`, `launch-failed`, `denied-action`, `client-error`,
+   * `failed` (Hermes' own usage report counts the run as failed) or, for a
+   * writing run, `check-failed`, `check-output-failed` or `stage-failed`.
    */
   readonly reason?: string
   /** Set when the run's throwaway worktree could not be removed: what git said, and which directory is left behind. */
@@ -143,8 +147,9 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const client = config.clients[input.client]
     if (client === undefined) throw new ModelGatewayError('unknown-model', `the gateway knows no client ${input.client}`)
     if (input.client === 'opencode') requireAllowedProvider(input.model, client.providers)
+    this.requireProvider(input, client)
     const entry = catalogueEntry(config, input.client, input.model)
-    const family = entry?.family ?? familyOf(modelPart(input.model))
+    const family = entry?.family ?? familyOfModelId(input.model)
     if (family === undefined) {
       throw new ModelGatewayError(
         'unknown-model',
@@ -154,6 +159,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
     const allowed = await this.permission(input, config, family)
     const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry)
+    await this.joinWorkflow(input.workflow)
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
     const id = runId(startedAt, randomBytes(3).toString('hex'))
@@ -208,16 +214,22 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
   private async delegate(run: Delegation): Promise<RunResult> {
     const { config, entry, input, runDir } = run
     const launcher = LAUNCHERS[input.client as RunClient]
-    const paths: LaunchPaths = { exportDir: join(runDir, 'vibe'), promptPath: join(runDir, 'prompt.md'), workDir: run.workDir }
+    const paths: LaunchPaths = {
+      exportDir: join(runDir, 'vibe'),
+      promptPath: join(runDir, 'prompt.md'),
+      runDir,
+      workDir: run.workDir,
+    }
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode)
     await this.deps.files.writeText(paths.promptPath, prompt)
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
     const launched = await this.launch(launcher, run.binary, input, paths, prompt)
-    const exported = launcher.writesExport ? await this.readExport(join(paths.exportDir, 'export.json')) : undefined
-    const output = launcher.read(launched.result.stdout, exported)
+    const reportPath = launcher.reportPath?.(paths)
+    const written = reportPath === undefined ? undefined : await this.readJson(reportPath)
+    const output = launcher.read(launched.result.stdout, written)
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output)
-    const written = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : undefined
-    const reason = written === undefined ? delegateReason : written.reason
+    const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : undefined
+    const reason = finished === undefined ? delegateReason : finished.reason
     const cost = priceRun(output.charged, output.tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
     await this.deps.files.writeText(outputPath, launched.result.stdout)
@@ -234,7 +246,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
       tokens: output.tokens,
       workflow: input.workflow,
       ...(reason === undefined ? {} : { reason }),
-      ...written?.report,
+      ...finished?.report,
     }
     return result
   }
@@ -321,6 +333,45 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
   }
 
+  /**
+   * A run names its workflow, and the gateway keeps that workflow's life: one
+   * named for the first time starts now, and one that ended is refused, since
+   * its caps and grants lapsed with it. It runs once every refusal has passed,
+   * so a refused run leaves no workflow started behind it.
+   */
+  private async joinWorkflow(name: string): Promise<void> {
+    const now = this.deps.clock.now()
+    await this.deps.workflows.update((workflows) => startWorkflow(workflows, name, now))
+  }
+
+  /**
+   * The provider a run may use. A client that runs on a provider the caller
+   * names must name one this machine lists for it, and no configuration can
+   * turn on a provider the owner forbade.
+   */
+  private requireProvider(input: RunInput, client: ClientConfig): void {
+    const named = (PROVIDER_CLIENTS as readonly string[]).includes(input.client)
+    if (input.provider === undefined) {
+      if (!named) return
+      throw new ModelGatewayError(
+        'provider-not-allowed',
+        `a ${input.client} run must name its provider: this machine allows ${allowed(client)}`,
+      )
+    }
+    const forbidden = (FORBIDDEN_PROVIDERS as readonly string[]).find(
+      (provider) => provider === input.provider || input.model.startsWith(`${provider}/`),
+    )
+    if (forbidden !== undefined) {
+      throw new ModelGatewayError('provider-not-allowed', `${forbidden} is not allowed: the owner forbade OpenRouter`)
+    }
+    if (!(client.providers ?? []).includes(input.provider)) {
+      throw new ModelGatewayError(
+        'provider-not-allowed',
+        `${input.client} may not run on ${input.provider}: this machine allows ${allowed(client)}`,
+      )
+    }
+  }
+
   /** A delegate may not delegate on: the mark is in its environment, so this call came from inside one. */
   private refuseNested(): void {
     if (this.deps.env.get(DELEGATION_MARK) !== undefined) {
@@ -356,7 +407,9 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
    * place only when its read-only proof passed on this machine, whatever the
    * client. The proof is recorded against the model id critique's routing
    * names, which the catalogue keeps among the model's `names` beside the
-   * alias the run names. Every other model runs in a throwaway worktree.
+   * alias the run names. Every other model runs in a throwaway worktree, which
+   * is every Hermes, Claude Code and OpenCode model: only Vibe and Antigravity
+   * have a critic client that proves one.
    */
   private async needsThrowaway(input: RunInput, entry: ModelEntry | undefined): Promise<boolean> {
     const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? [], input.client)
@@ -474,8 +527,8 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
   }
 
-  /** Parsed `export.json`, or undefined when the client wrote none or it does not parse. */
-  private async readExport(path: string): Promise<unknown> {
+  /** Parsed JSON a client wrote beside its output, or undefined when it wrote none or it does not parse. */
+  private async readJson(path: string): Promise<unknown> {
     if (!(await this.deps.files.exists(path))) return undefined
     try {
       return JSON.parse(await this.deps.files.readText(path)) as unknown
@@ -502,6 +555,12 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
       ...(result.reason === undefined ? {} : { reason: result.reason }),
     }
   }
+}
+
+/** The providers a machine lets a client run on, as an error names them. */
+function allowed(client: ClientConfig): string {
+  const providers = client.providers ?? []
+  return providers.length === 0 ? 'no provider' : providers.join(', ')
 }
 
 /** The catalogue entry for a client model, or undefined when the catalogue does not know it; a disabled model is refused. */

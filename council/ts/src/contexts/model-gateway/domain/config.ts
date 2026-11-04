@@ -49,8 +49,9 @@ export interface ClientConfig {
    */
   readonly provider_cost_classes: Readonly<Record<string, CostClass>> | undefined
   /**
-   * The providers a run may reach through the client, where the client serves
-   * several (OpenCode); undefined when the client has no such allowlist.
+   * The providers a run may reach through the client, by name: the ones an
+   * OpenCode model may name, and the ones a Hermes run may name. Undefined
+   * when the client has no such allowlist, which lets a Hermes run on none.
    */
   readonly providers: readonly string[] | undefined
   /**
@@ -59,6 +60,17 @@ export interface ClientConfig {
    */
   readonly plan_limits?: readonly PlanLimit[]
 }
+
+/** The fields a client has; a machine file that names another is refused, not quietly ignored. */
+const CLIENT_FIELDS = [
+  'binary',
+  'cost_class',
+  'model_source',
+  'families',
+  'provider_cost_classes',
+  'providers',
+  'plan_limits',
+] as const
 
 /** One model a client offers, as the declared list describes it. */
 export interface ModelEntry {
@@ -122,7 +134,12 @@ export type ModelGatewayErrorCode =
   | 'not-supported-yet'
   /** The data policy refuses the run's client model, or what it claims to carry. */
   | 'policy-refused'
-  /** The run named an OpenCode provider that `clients.opencode.providers` does not allow, as every pay-per-token one is not. */
+  /**
+   * The run names a provider this machine does not let the client run on, or
+   * one the owner forbade outright (OpenRouter), or an OpenCode model whose
+   * provider `clients.opencode.providers` does not allow, as every
+   * pay-per-token one is not.
+   */
   | 'provider-not-allowed'
   /** git could not read the path the caller named, so the data policy cannot be decided. */
   | 'repository-unreadable'
@@ -133,6 +150,10 @@ export type ModelGatewayErrorCode =
   | 'write-needs-repository'
   /** git could not add the throwaway worktree a run without a read-only proof works in, or create a writing run's worktree off its base. */
   | 'worktree-failed'
+  /** `workflow end` named a workflow this machine never started. */
+  | 'unknown-workflow'
+  /** The run named a workflow that ended, so its caps and grants lapsed with it. */
+  | 'workflow-ended'
 
 export class ModelGatewayError extends Error {
   constructor(
@@ -211,6 +232,7 @@ function mergeClients(base: Readonly<Record<string, ClientConfig>>, raw: unknown
  */
 function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined): ClientConfig {
   const where = `clients.${id}`
+  refuseUnknownFields(raw, where)
   const binary = raw.binary === undefined ? base?.binary : requireString(raw.binary, `${where}.binary`)
   const costClass = raw.cost_class === undefined ? base?.cost_class : requireOneOf(raw.cost_class, COST_CLASSES, `${where}.cost_class`)
   const modelSource =
@@ -260,6 +282,14 @@ function parsePlanLimits(raw: unknown, where: string): readonly PlanLimit[] {
     if (!Number.isInteger(limit) || limit <= 0) throw invalid(`${at}.limit_runs must be a whole number above 0`)
     return { limit_runs: limit, window }
   })
+}
+
+/** Refuses a field a client does not have, so a machine file that names one learns it, rather than losing it. */
+function refuseUnknownFields(raw: JsonObject, where: string): void {
+  const unknown = Object.keys(raw).find((key) => !(CLIENT_FIELDS as readonly string[]).includes(key))
+  if (unknown !== undefined) {
+    throw invalid(`${where}.${unknown} is not a field a client has; choose from ${CLIENT_FIELDS.join(', ')}`)
+  }
 }
 
 /** The cost class of each provider a client's models run on, by provider name. */

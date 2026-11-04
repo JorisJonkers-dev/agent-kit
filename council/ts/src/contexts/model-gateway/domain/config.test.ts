@@ -272,6 +272,40 @@ describe('applyOverride', () => {
     })
   })
 
+  it('reads the providers a machine lets a client run on', () => {
+    const merged = applyOverride(shipped(), {
+      clients: { hermes: { binary: 'hermes', cost_class: 'metered-personal', model_source: 'live', providers: ['anthropic', 'google'] } },
+    })
+
+    expect(merged.clients.hermes).toMatchObject({ providers: ['anthropic', 'google'] })
+  })
+
+  it('keeps the providers a client override does not name', () => {
+    const base = applyOverride(shipped(), {
+      clients: { hermes: { binary: 'hermes', cost_class: 'metered-personal', model_source: 'live', providers: ['anthropic'] } },
+    })
+
+    const merged = applyOverride(base, { clients: { hermes: { cost_class: 'subsidised' } } })
+
+    expect(merged.clients.hermes).toMatchObject({ cost_class: 'subsidised', providers: ['anthropic'] })
+  })
+
+  it('lets no provider when the machine names none', () => {
+    expect(shipped().clients.vibe?.providers).toBeUndefined()
+  })
+
+  it('refuses a provider list that is not one', () => {
+    expect(messageOf(() => applyOverride(shipped(), { clients: { vibe: { providers: 'anthropic' } } }))).toBe(
+      'clients.vibe.providers must be a list of non-empty strings',
+    )
+  })
+
+  it('refuses a client field it does not know, rather than quietly ignoring it', () => {
+    expect(messageOf(() => applyOverride(shipped(), { clients: { vibe: { read_only_proof: 'trusted' } } }))).toBe(
+      'clients.vibe.read_only_proof is not a field a client has; choose from binary, cost_class, model_source, families, provider_cost_classes, providers, plan_limits',
+    )
+  })
+
   it('overrides the tier, notes and family of a model it names', () => {
     const merged = applyOverride(shipped(), {
       models: [{ client: 'codex', family: 'openai-internal', model: 'gpt-5.5', notes: 'grant needed', tier: 'hard' }],

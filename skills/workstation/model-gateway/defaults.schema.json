@@ -59,7 +59,7 @@
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1,
           "uniqueItems": true,
-          "description": "The providers a run may reach through the client, where it serves several (OpenCode); a run on any other is refused with provider-not-allowed. Absent means opencode-go alone for OpenCode. OpenCode's own pay-per-token provider, opencode, is refused whatever this names."
+          "description": "The providers a run may reach through the client, by the name its own command line takes: the ones an OpenCode model may name, and the ones a Hermes run may name. A run on any other is refused with provider-not-allowed. Absent means opencode-go alone for OpenCode, and no provider at all for Hermes. OpenCode's own pay-per-token provider, opencode, and OpenRouter are refused whatever this names."
         },
         "provider_cost_classes": {
           "type": "object",

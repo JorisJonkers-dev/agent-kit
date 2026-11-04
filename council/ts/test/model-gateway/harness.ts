@@ -11,7 +11,10 @@ import type {
   ModelGatewayLedgerPort,
   ModelGatewayProcessPort,
   ModelGatewayProofPort,
+  ModelGatewayWorkflowsPort,
   ProofFiles,
+  WorkflowChange,
+  WorkflowRecord,
 } from '../../src/contexts/model-gateway/index.js'
 import type { ClockPort, EnvPort, ProcessCommand, ProcessResult } from '../../src/ports/index.js'
 import type { GitRemote } from '../../src/shared-kernel/index.js'
@@ -274,6 +277,21 @@ export class FakeProof implements ModelGatewayProofPort {
   }
 }
 
+/** A workflows file that keeps its records in memory, so a test can read what a command wrote. */
+export class FakeWorkflows implements ModelGatewayWorkflowsPort {
+  constructor(private records: readonly WorkflowRecord[] = []) {}
+
+  read(): Promise<readonly WorkflowRecord[]> {
+    return Promise.resolve(this.records)
+  }
+
+  update(change: (workflows: readonly WorkflowRecord[]) => WorkflowChange): Promise<WorkflowRecord> {
+    const changed = change(this.records)
+    this.records = changed.workflows
+    return Promise.resolve(changed.workflow)
+  }
+}
+
 /** A clock that stands still unless a test moves it, so a run's id and duration are predictable. */
 export class FixedClock implements ClockPort {
   constructor(
@@ -311,6 +329,53 @@ export interface VibeScript {
   readonly exportJson?: unknown
   /** Runs before the launch returns, as a client that writes into its workdir would. */
   readonly effect?: (command: ProcessCommand) => Promise<void>
+}
+
+/** What one fake Hermes launch answers: its one-shot text, its exit, and the usage report it writes. */
+export interface HermesScript {
+  /** What `hermes -z` prints: the final response text alone. */
+  readonly stdout: string
+  readonly stderr?: string
+  readonly exitCode?: number
+  readonly timedOut?: boolean
+  /** What Hermes writes to the `--usage-file` it was given; nothing when it writes none. */
+  readonly usage?: unknown
+  /** Runs before the launch returns, as a client that writes into its workdir would. */
+  readonly effect?: (command: ProcessCommand) => Promise<void>
+}
+
+/**
+ * A Hermes that plays the scripts a test queues, one per launch, and writes
+ * each launch's usage report where `--usage-file` points. It starts nothing and
+ * spends nothing.
+ */
+export class FakeHermesProcess implements ModelGatewayProcessPort {
+  readonly commands: ProcessCommand[] = []
+
+  constructor(private readonly scripts: HermesScript[] = []) {}
+
+  /** Adds launches to play, for a test that needs the run's paths before it writes them. */
+  queue(...scripts: HermesScript[]): void {
+    this.scripts.push(...scripts)
+  }
+
+  which(): Promise<boolean> {
+    return Promise.resolve(true)
+  }
+
+  async exec(command: ProcessCommand): Promise<ProcessResult> {
+    this.commands.push(command)
+    const script = this.scripts.shift()
+    if (script === undefined) throw new Error('unexpected process launch')
+    const usagePath = command.args[command.args.indexOf('--usage-file') + 1]
+    if (script.usage !== undefined && usagePath !== undefined) {
+      await mkdir(dirname(usagePath), { recursive: true })
+      await writeFile(usagePath, JSON.stringify(script.usage))
+    }
+    await script.effect?.(command)
+    if (script.timedOut === true) return { exitCode: 124, stderr: script.stderr ?? '', stdout: script.stdout, timedOut: true }
+    return { exitCode: script.exitCode ?? 0, stderr: script.stderr ?? '', stdout: script.stdout }
+  }
 }
 
 /**

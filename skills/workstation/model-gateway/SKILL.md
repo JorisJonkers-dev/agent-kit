@@ -9,8 +9,8 @@ This folder is what the model gateway runs on. It does nothing on its own: an
 agent calls the runner, and the `delegate` skill (a later ticket) is what
 teaches an orchestrator to plan with it. The runner answers three questions:
 `models`, which client models this machine can use right now; `usage`, what
-each client can do now and what it has spent; and `run`, one read-only
-delegation to one of them.
+each client can do now and what it has spent; `run`, one delegation to one of
+them; and `workflow`, the life of the piece of work a delegation belongs to.
 
 ## What is in here
 
@@ -58,9 +58,12 @@ its model source. Models are sorted by client, then model id.
   GPT-OSS models are left out. An OpenCode model takes the cost class of its
   provider: the shipped defaults count OpenCode Go, the owner's subscription,
   as subsidised, and every other provider as metered-personal.
-- `config` — the models Vibe's own configuration declares, listed by the alias
-  `vibe --model` accepts. The gateway reads `$VIBE_HOME/config.toml`, else
-  `~/.vibe/config.toml`.
+- `config` — the models the client's own configuration declares. Vibe's are
+  listed by the alias `vibe --model` accepts, read from `$VIBE_HOME/config.toml`,
+  else `~/.vibe/config.toml`. Hermes has no non-interactive listing — `hermes
+  model` is an interactive picker — so the gateway reads `hermes config get
+  model --json` and offers the one model that names as its default, with the
+  provider it runs on. The other models Hermes could reach are not listed.
 - `declared` — the shipped catalogue, for Codex and Claude Code.
 
 A listed model takes its family, tier and notes from the catalogue entry that
@@ -72,10 +75,9 @@ at all: it is named in `skipped` with the reason, so it never vanishes
 silently, and adding it to the catalogue in `defaults.json` or the machine
 override brings it back.
 
-A listing that fails, or a Vibe configuration that cannot be read, leaves that
+A listing that fails, or a configuration that cannot be read, leaves that
 client out and names it in `missing` with the reason; the other clients are
-still listed. Hermes lists nothing until its own ticket lands, and is not
-reported missing for that.
+still listed. A Hermes configuration that names no model is such a failure.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 
@@ -144,11 +146,12 @@ node model-gateway.mjs run --input <file.json>
 
 The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 `prompt`, and optionally `repo`, `carries` (`{"code":bool,"history":bool}`,
-only for an inline run), `time_limit_s` (default 900) and `max_price_usd`.
+only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
+`provider` (which a Hermes run must name, and which this machine must allow).
 `workflow` is required (`code: "invalid-input"`). A run can go to `client:
-"vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code) or `"opencode"`, in
-`mode: "read-only"` or `"write"` (below); any other client or mode is
-`code: "not-supported-yet"`.
+"vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code), `"opencode"` or
+`"hermes"`, in `mode: "read-only"` or `"write"` (below); any other client or
+mode is `code: "not-supported-yet"`.
 
 Everything that can refuse the run happens before anything is launched:
 
@@ -162,11 +165,17 @@ Everything that can refuse the run happens before anything is launched:
   inside a repository, and `carries` may not claim code or history the policy
   does not allow.
 - `write-needs-repository` — a writing run names no `repo`.
-- `provider-not-allowed` — an OpenCode model is named `<provider>/<model>`, and
-  only the providers `clients.opencode.providers` names (default
-  `["opencode-go"]`) are allowed. Every other provider is refused, and so is
-  `opencode/<model>`, OpenCode's pay-per-token Zen, even when the machine lists
-  it: a run never reaches a pay-per-token model.
+- `provider-not-allowed` — a Hermes run must name a `provider`, and it must be
+  one this machine lists in `clients.hermes.providers` (empty by default, so
+  every Hermes run is refused until the owner names one). `openrouter` is
+  refused whatever the configuration says, and so is a model id that starts
+  with `openrouter/`: the owner forbade OpenRouter. An OpenCode model is named
+  `<provider>/<model>`, and only the providers `clients.opencode.providers`
+  names (default `["opencode-go"]`) are allowed; every other provider is
+  refused, and so is `opencode/<model>`, OpenCode's pay-per-token Zen, even
+  when the machine lists it: a run never reaches a pay-per-token model.
+- `workflow-ended` — the run names a workflow that ended, so its caps and
+  grants lapsed with it (below).
 - `worktree-failed` — git could not add the throwaway worktree, or create a
   writing run's worktree off its base (below). A
   worktree git cannot remove after the run is not an error: the result is
@@ -188,7 +197,9 @@ remove --force` after the run whatever its outcome. A run without a `repo`
 works in a fresh empty temporary directory, deleted the same way. A cleanup
 that fails never fails the run: the result carries a `cleanup_warning` naming
 the directory left behind, and a run that threw keeps its own error. The result
-and the ledger line are the same for every client.
+and the ledger line are the same for every client. Claude Code, OpenCode and
+Hermes have no critic client at all, so every one of their runs is a throwaway
+one.
 
 A launched Vibe run is non-interactive:
 
@@ -206,9 +217,10 @@ gateway also sets `VIBE_ENABLE_MCP`, `VIBE_ENABLE_SUBAGENTS`,
 the isolation holds even if the agent file is missing.
 
 The other clients, each in its working directory and with
-`AGENT_KIT_DELEGATION=1` in its environment. Claude Code and OpenCode have no
-time limit of their own, so the outer timer stops them at `time_limit_s`;
-Antigravity's own `--print-timeout` fires first, a minute before the outer one:
+`AGENT_KIT_DELEGATION=1` in its environment. Claude Code, OpenCode and Hermes
+have no time limit of their own, so the outer timer stops them at
+`time_limit_s`; Antigravity's own `--print-timeout` fires first, a minute
+before the outer one:
 
 ```sh
 agy --print <prompt> --model <id> --output-format json --effort <low|medium|high> \
@@ -216,6 +228,7 @@ agy --print <prompt> --model <id> --output-format json --effort <low|medium|high
 claude -p --model <id> --output-format json --permission-mode plan \
     --allowedTools Read,Grep,Glob            # the prompt on stdin
 opencode run --model <provider>/<model> --format json <prompt>
+hermes -z <wrapped prompt> --usage-file <run dir>/usage.json -m <model> --provider <provider>
 ```
 
 Antigravity's effort is the id's last word (`gemini-3.8-flash-high` is
@@ -223,6 +236,16 @@ Antigravity's effort is the id's last word (`gemini-3.8-flash-high` is
 (agy's `usage`, Claude Code's `usage` and `total_cost_usd`, the sum of
 OpenCode's `step_finish` events); agy prices nothing, as it is quota, not
 money. `max_price_usd` is passed to Vibe only.
+
+Hermes takes the prompt as its argument, so the run directory keeps `prompt.md`
+for the record rather than for the launch. It writes its own usage to
+`usage.json`: `estimated_cost_usd`, the token counts, `model`, `provider`,
+`api_calls` and whether it `completed` or `failed`. The gateway reads that file
+for the run's tokens and dollars, so a Hermes run is metered from what Hermes
+itself priced; a run whose usage file is missing or unreadable counts as zero
+tokens and zero dollars, and one Hermes reports as failed is a failed run with
+`reason: "failed"`. Hermes loads the working directory's own rules and memory,
+so the run carries `AGENT_KIT_DELEGATION=1` and nothing else.
 
 The gateway appends a short instruction to the caller's prompt: end the answer
 with a line `SUMMARY:` followed by at most `summary_max_chars` characters
@@ -236,7 +259,8 @@ The result is `{"status":"ok"|"failed","run_id","workflow","client","model",
 run adds a `reason`: `timeout`, `parse-error`, `exit-<n>`, `rate-limited`,
 `auth`, `launch-failed` (the client could not be started at all),
 `denied-action` (Antigravity was denied an action), `client-error` (the
-client's own output reports an error) or, for a writing run, `check-failed`,
+client's own output reports an error), `failed` (Hermes' own usage report
+counts the run as failed) or, for a writing run, `check-failed`,
 `check-output-failed` or `stage-failed`. `rate-limited` and `auth` are what the
 client's own error channel — its stderr, the error its structured output
 carries, or its exit code — said, never the delegate's answer, and they are
@@ -258,8 +282,9 @@ Every run also appends one JSON line to the machine-wide ledger,
 `~/.local/state/...`): workflow, client, model, family, mode, repository key,
 tokens, dollars, outcome, duration and run id. Writes take an exclusive lock
 file beside it, so two gateway processes never interleave a line. Dollars come
-from the client's own output when it prices the run, else from the tokens times
-the catalogue's `prices` for the model.
+from the client's own report when it prices the run — Vibe's `export.json`, or
+Hermes' `usage.json` — else from the tokens times the catalogue's `prices` for
+the model.
 
 ## Writing runs
 
@@ -312,10 +337,11 @@ than an empty list, which would read as a delegate that changed nothing.
 Every writing worktree is entered in `kept-worktrees.json` in the gateway's
 state directory (`$XDG_STATE_HOME/agent-kit/model-gateway/`, else
 `~/.local/state/...`), whatever the run came to, and stays until the workflow
-that made it ends. Until a workflow store exists, the caller says when it
-ended:
+that made it ends. `workflow end` ends it; `worktrees clean` then removes what
+it kept:
 
 ```sh
+node model-gateway.mjs workflow end --json '{"name":"spec-293"}'
 node model-gateway.mjs worktrees clean --json '{"workflow":"spec-293"}'
 node model-gateway.mjs worktrees clean --json '{"all":true}'
 ```
@@ -328,6 +354,35 @@ delete (checked out elsewhere, or already gone) is named in `branch_kept` with
 git's message.
 Take what you want from a worktree (commit its staged diff on a branch of your
 own) before the workflow ends: cleaning discards it.
+
+## The `workflow` commands
+
+`workflow start`, `workflow end` and `workflow list` keep a workflow's life.
+`start` and `end` take `{"name": "<id>"}`; `list` takes `{}`. Each prints one
+JSON object: `{"status":"ok","workflow":{"name","started_at","ended_at","state"}}`
+for `start` and `end`, and `{"status":"ok","workflows":[...]}` for `list`.
+
+```sh
+node model-gateway.mjs workflow start --json '{"name": "spec-293"}'
+node model-gateway.mjs workflow end   --json '{"name": "spec-293"}'
+node model-gateway.mjs workflow list  --json '{}'
+```
+
+A workflow records when it started and, once someone ends it, when it ended. A
+workflow nobody ends within 24 hours counts as ended, worked out on read from
+the clock, so a forgotten workflow cannot stay open for ever. `run` joins a
+workflow: one named for the first time starts at that moment, and one that
+ended is refused (`code: "workflow-ended"`), because its caps and grants
+lapsed with it — a new piece of work needs a new name. A run joins its
+workflow only once every refusal has passed, so a refused run leaves no
+workflow started behind it. `workflow end` on a workflow this machine never
+started is `code: "unknown-workflow"`.
+
+The workflows live in `$XDG_STATE_HOME/agent-kit/model-gateway/workflows.json`,
+else `~/.local/state/agent-kit/model-gateway/workflows.json`, beside the
+ledger and under the same lock: a change reads the file, applies itself and
+writes the result through a temporary file that is renamed into place, so two
+gateway processes never lose each other's change.
 
 ## The check runs the delegate's code
 
@@ -379,8 +434,12 @@ and merges over the shipped defaults:
   `provider_cost_classes`: the cost class of each provider a client's models
   run on, by provider name (OpenCode's, whose models are listed as
   `<provider>/<model>`). A provider it does not name takes the client's own
-  cost class. `providers` is the list of providers a run may reach through
-  OpenCode (`provider-not-allowed` otherwise); it defaults to `["opencode-go"]`.
+  cost class. `providers` is the list of providers a run may reach through the
+  client, by the name its own command line takes: the ones an OpenCode model
+  may name (`provider-not-allowed` otherwise; `["opencode-go"]` by default) and
+  the ones a Hermes run may name (`hermes --provider`; empty by default, so no
+  Hermes run is allowed until the owner lists one). `openrouter` stays refused
+  whatever it says.
 - `clients.<id>.plan_limits` is what that client's plan allows, window by
   window: a list of `{"window": "5h"|"day"|"week"|"month", "limit_usd": n}`,
   or `{"window": ..., "limit_runs": n}` for a plan that is not billed in
@@ -406,6 +465,10 @@ and merges over the shipped defaults:
   At or above `plan_warning_ratio` of any window, `usage` and every `run`
   result for that client carry a warning; at 100% of any window the client is
   `unable_to_start` in `usage`.
+- A client field the gateway does not know is an error naming it, rather than a
+  setting quietly ignored: a client has `binary`, `cost_class`,
+  `model_source`, `families`, `provider_cost_classes`, `providers` and
+  `plan_limits`, and nothing else.
 - `models`: an entry matching `client` and `model` overrides its `tier`,
   `notes` or `family`; a new entry adds a declared model.
 - `settings.<key>` overrides that setting, deep-merging

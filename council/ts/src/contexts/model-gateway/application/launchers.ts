@@ -1,5 +1,7 @@
+import { join } from 'node:path'
+
 import type { ProcessCommand } from '../../../ports/index.js'
-import { agyOutput, claudeOutput, openCodeOutput, vibeOutput, type ClientOutput } from '../domain/outputs.js'
+import { agyOutput, claudeOutput, hermesOutput, openCodeOutput, vibeOutput, type ClientOutput } from '../domain/outputs.js'
 import type { RunClient, RunInput } from '../domain/run.js'
 
 /** The mark the gateway puts in every delegate's environment, and refuses to run under. */
@@ -30,22 +32,28 @@ const VIBE_ENV: Readonly<Record<string, string>> = {
   VIBE_OUTSIDE_WORKDIR: 'deny',
 }
 
-/** Where one launch reads its prompt and writes what Vibe exports, and the directory the client works in. */
+/** Where one launch reads its prompt and writes what the client exports, and the directory the client works in. */
 export interface LaunchPaths {
   readonly exportDir: string
   readonly promptPath: string
+  /** The run's own directory, where a client that writes a report of its own (Hermes' usage) puts it. */
+  readonly runDir: string
   /** The directory the client runs in: the repository, a throwaway worktree of it, or an empty directory. */
   readonly workDir: string
 }
 
 /** How the gateway starts one client and reads what it printed. */
 export interface ClientLauncher {
-  /** Whether the client writes an `export.json` beside its output, which carries its tokens and dollars. */
-  readonly writesExport: boolean
-  /** The client's non-interactive launch for one read-only run; `prompt` is the wrapped prompt text. */
+  /** The client's non-interactive launch for one run; `prompt` is the wrapped prompt text. */
   command(binary: string, input: RunInput, paths: LaunchPaths, prompt: string): ProcessCommand
-  /** What the client's output (and its export, where it writes one) says about the run. */
-  read(stdout: string, exported: unknown): ClientOutput
+  /** What the client's output (and the report it wrote, where it writes one) says about the run. */
+  read(stdout: string, written: unknown): ClientOutput
+  /**
+   * The file the client writes beside its output that `read` takes as its
+   * second argument: Vibe's `export.json`, Hermes' usage report. Undefined for
+   * a client that writes none.
+   */
+  reportPath?(paths: LaunchPaths): string
 }
 
 /**
@@ -78,7 +86,7 @@ const vibe: ClientLauncher = {
     timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
   }),
   read: (stdout, exported) => vibeOutput(stdout, exported),
-  writesExport: true,
+  reportPath: (paths) => join(paths.exportDir, 'export.json'),
 }
 
 /** The reasoning effort a model id names by its last word (`gemini-3.8-flash-high`); medium for an id that names none. */
@@ -112,7 +120,6 @@ const agy: ClientLauncher = {
     timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
   }),
   read: (stdout) => agyOutput(stdout),
-  writesExport: false,
 }
 
 /**
@@ -141,7 +148,6 @@ const claude: ClientLauncher = {
     timeoutMs: input.time_limit_s * 1000,
   }),
   read: (stdout) => claudeOutput(stdout),
-  writesExport: false,
 }
 
 /**
@@ -158,8 +164,27 @@ const opencode: ClientLauncher = {
     timeoutMs: input.time_limit_s * 1000,
   }),
   read: (stdout) => openCodeOutput(stdout),
-  writesExport: false,
+}
+
+/**
+ * Hermes, one-shot: the wrapped prompt as its argument, the client model and
+ * the provider this machine allows, and the usage file it writes its own
+ * tokens and dollars to. Hermes loads the working directory's rules and memory
+ * as it always does, so the run carries the mark that stops it delegating on
+ * and nothing else. It has no time limit of its own, so the outer timer is the
+ * limit.
+ */
+const hermes: ClientLauncher = {
+  command: (binary, input, paths, prompt) => ({
+    args: ['-z', prompt, '--usage-file', join(paths.runDir, 'usage.json'), '-m', input.model, '--provider', String(input.provider)],
+    command: binary,
+    cwd: paths.workDir,
+    env: MARKED_ENV,
+    timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
+  }),
+  read: (stdout, usage) => hermesOutput(stdout, usage),
+  reportPath: (paths) => join(paths.runDir, 'usage.json'),
 }
 
 /** The launcher of every client a run can be handed to. */
-export const LAUNCHERS: Readonly<Record<RunClient, ClientLauncher>> = { agy, claude, opencode, vibe }
+export const LAUNCHERS: Readonly<Record<RunClient, ClientLauncher>> = { agy, claude, hermes, opencode, vibe }

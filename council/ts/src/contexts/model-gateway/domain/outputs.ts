@@ -1,5 +1,5 @@
 import { isObject, type JsonObject } from './config.js'
-import { chargedOf, finalAnswerOf, NO_TOKENS, runTokens, type ClientError, type RunTokens } from './run.js'
+import { chargedOf, finalAnswerOf, hermesUsage, NO_TOKENS, oneShotAnswer, runTokens, type ClientError, type RunTokens } from './run.js'
 
 /**
  * What one client's own output says about a run: the final answer, the tokens
@@ -131,6 +131,23 @@ export function claudeOutput(stdout: string): ClientOutput {
       input: count(usage.input_tokens) + cached + count(usage.cache_creation_input_tokens),
       output: count(usage.output_tokens),
     },
+  }
+}
+
+/**
+ * Hermes, one-shot: `hermes -z` prints the response text alone, and the usage
+ * report it wrote holds the tokens it counted, the dollars it estimated and
+ * whether it counts the run as failed. A report that is missing or holds
+ * nonsense counts no tokens and no dollars, and a run it does not call failed
+ * is not failed.
+ */
+export function hermesOutput(stdout: string, usage: unknown): ClientOutput {
+  const report = hermesUsage(usage)
+  return {
+    answer: oneShotAnswer(stdout),
+    charged: report.cost,
+    failure: report.failed ? 'failed' : undefined,
+    tokens: report.tokens,
   }
 }
 

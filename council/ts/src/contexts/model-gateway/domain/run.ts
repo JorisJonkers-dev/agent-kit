@@ -3,9 +3,22 @@ import { isObject, ModelGatewayError, type ModelPrices } from './config.js'
 /** What a run may do: read the repository, or change it in a worktree of its own. */
 export type RunMode = 'read-only' | 'write'
 
-/** The clients a delegation can be handed to: Vibe, Antigravity, Claude Code and OpenCode. */
-export const RUN_CLIENTS = ['vibe', 'agy', 'claude', 'opencode'] as const
+/** The clients a delegation can be handed to: Vibe, Antigravity, Claude Code, OpenCode and Hermes. */
+export const RUN_CLIENTS = ['vibe', 'agy', 'claude', 'opencode', 'hermes'] as const
 export type RunClient = (typeof RUN_CLIENTS)[number]
+
+/**
+ * The clients that run on a provider the caller names, and whose provider this
+ * machine must allow: Hermes reaches many providers, and the owner decides
+ * which of them may be spent on.
+ */
+export const PROVIDER_CLIENTS = ['hermes'] as const
+
+/**
+ * The providers the gateway never runs on, whatever a machine file says:
+ * OpenRouter is forbidden by the owner, so no configuration can turn it on.
+ */
+export const FORBIDDEN_PROVIDERS = ['openrouter'] as const
 
 /** A run with no time limit of its own gets this many seconds. */
 export const DEFAULT_TIME_LIMIT_S = 900
@@ -35,6 +48,8 @@ export interface RunInput {
   readonly base?: string
   /** A writing run's check: a command the gateway runs with `sh -c` in the worktree once the delegate ends. */
   readonly check?: string
+  /** The provider a client that runs on one must use; the machine file decides which are allowed. */
+  readonly provider?: string
 }
 
 /** Reads a run's input, or says what is wrong with it. */
@@ -61,6 +76,7 @@ export function readRunInput(raw: unknown): RunInput {
   if (timeLimit <= 0) throw new ModelGatewayError('invalid-input', 'time_limit_s must be a whole number of seconds above 0')
   const maxPrice = raw.max_price_usd === undefined ? undefined : requiredNumberAbove0(raw.max_price_usd, 'max_price_usd')
   const writing = readWriting(raw, repo)
+  const provider = readOptionalString(raw.provider, 'provider')
   return {
     client: raw.client,
     mode: raw.mode,
@@ -70,6 +86,7 @@ export function readRunInput(raw: unknown): RunInput {
     workflow: raw.workflow,
     ...(carries === undefined ? {} : { carries }),
     ...(maxPrice === undefined ? {} : { max_price_usd: maxPrice }),
+    ...(provider === undefined ? {} : { provider }),
     ...(repo === undefined ? {} : { repo }),
     ...writing,
   }
@@ -178,6 +195,47 @@ export function finalAnswerOf(stdout: string): string | undefined {
   return text === '' ? undefined : text
 }
 
+/**
+ * The final answer a one-shot client printed: its whole stdout, trimmed, since
+ * `hermes -z` prints only the response text. Undefined when it printed nothing,
+ * which is a run the gateway cannot read.
+ */
+export function oneShotAnswer(stdout: string): string | undefined {
+  const answer = stdout.trim()
+  return answer === '' ? undefined : answer
+}
+
+/** What a Hermes usage report says the run cost and whether it failed. */
+export interface HermesUsage {
+  readonly tokens: RunTokens
+  /** The dollars Hermes estimated, or undefined when it priced nothing. */
+  readonly cost: number | undefined
+  readonly failed: boolean
+}
+
+/**
+ * The usage report `hermes -z --usage-file` writes: its token counts, the
+ * dollars it estimated, and whether it counts the run as failed. A report that
+ * is missing or holds nonsense counts no tokens and no dollars, and a run that
+ * reported no failure is not failed.
+ */
+export function hermesUsage(report: unknown): HermesUsage {
+  const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
+  const priced = isObject(report) ? report.estimated_cost_usd : undefined
+  const cost = typeof priced === 'number' && Number.isFinite(priced) && priced >= 0 ? priced : undefined
+  const failed = isObject(report) && report.failed === true
+  if (!isObject(report)) return { cost, failed, tokens: NO_TOKENS }
+  return {
+    cost,
+    failed,
+    tokens: {
+      cached: count(report.cache_read_tokens),
+      input: count(report.input_tokens),
+      output: count(report.output_tokens),
+    },
+  }
+}
+
 /** The tokens a run used, as Vibe's export counts them; a run that reported none used none. */
 export interface RunTokens {
   readonly input: number
@@ -202,7 +260,7 @@ export function chargedOf(exported: unknown): number | undefined {
 }
 
 /**
- * The run's dollars: Vibe's own figure when it priced the run, else the
+ * The run's dollars: the client's own figure when it priced the run, else the
  * tokens times the catalogue price, else 0 when nothing prices it.
  */
 export function runCost(exported: unknown, tokens: RunTokens, prices: ModelPrices | undefined): number {

@@ -4,6 +4,7 @@ import type { LedgerRecord } from '../domain/ledger.js'
 import type { ClientListing } from '../domain/models.js'
 import type { ProofFiles } from '../domain/run.js'
 import type { ClientStatusReading } from '../domain/usage.js'
+import type { WorkflowChange, WorkflowRecord } from '../domain/workflows.js'
 
 /**
  * The files the gateway reads and writes: the shipped defaults, this machine's
@@ -105,6 +106,20 @@ export interface ClientStatusPort {
 }
 
 /**
+ * The workflows this machine has started: one file, read and written under a
+ * lock, so two gateway processes never lose each other's start or end.
+ */
+export interface ModelGatewayWorkflowsPort {
+  read(): Promise<readonly WorkflowRecord[]>
+  /**
+   * Reads the workflows, applies `change` to them, writes what it returns, and
+   * hands back the workflow the change touched — all under the file's lock, so
+   * two gateway processes never lose each other's start or end.
+   */
+  update(change: (workflows: readonly WorkflowRecord[]) => WorkflowChange): Promise<WorkflowRecord>
+}
+
+/**
  * What setup and critique left on this machine, as they wrote it: the
  * read-only proofs setup recorded, and the routing that says which critic
  * client runs which model. Any of them may be missing.
@@ -132,6 +147,8 @@ export interface ModelGatewayDependencies {
   readonly proof: ModelGatewayProofPort
   /** The writing worktrees kept until their workflow ends. */
   readonly kept: ModelGatewayKeptPort
+  /** The workflows every run names, and the moments they started and ended. */
+  readonly workflows: ModelGatewayWorkflowsPort
   /** The clock a run's id, its duration and its ledger line are taken from. */
   readonly clock: ClockPort
 }

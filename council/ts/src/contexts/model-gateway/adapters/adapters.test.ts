@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { FakeEnv, FakeProcess } from '../../../../test/model-gateway/harness.js'
 import type { KeptWorktree } from '../application/ports.js'
 import type { LedgerRecord } from '../domain/ledger.js'
+import { endWorkflow, startWorkflow } from '../domain/workflows.js'
 import { CodexStatus } from './clients/status.js'
 import { NodeModelGatewayFiles, writeFileAtomic } from './fs/index.js'
 import { NodeModelGatewayGit } from './git/index.js'
@@ -15,6 +16,7 @@ import { NodeModelGatewayKept } from './kept/index.js'
 import { NodeModelGatewayLedger, type LedgerLockTimings } from './ledger/index.js'
 import { NodeModelGatewayProcess } from './process/index.js'
 import { NodeModelGatewayProof } from './proof/index.js'
+import { NodeModelGatewayWorkflows, type WorkflowLockTimings } from './workflows/index.js'
 
 const cleanups: (() => Promise<void>)[] = []
 
@@ -614,6 +616,144 @@ describe('the clients’ own status commands', () => {
       detail: "could not be read: exited 2: error: unrecognized subcommand 'login'",
       signed_in: 'unknown',
     })
+  })
+})
+
+describe('NodeModelGatewayWorkflows', () => {
+  /** The workflows a test writes to, in a state directory of its own. */
+  async function store(timings: WorkflowLockTimings = {}): Promise<{ path: string; workflows: NodeModelGatewayWorkflows }> {
+    const home = await tempDir()
+    const env = new FakeEnv({ HOME: home })
+    return {
+      path: join(home, '.local', 'state', 'agent-kit', 'model-gateway', 'workflows.json'),
+      workflows: new NodeModelGatewayWorkflows(env, timings),
+    }
+  }
+
+  /** A moment in the test's own clock, as the domain reads it. */
+  function at(minutes: number): Date {
+    return new Date(Date.UTC(2026, 10, 4, 12, minutes))
+  }
+
+  it('holds no workflow before the first one is started', async () => {
+    const { workflows } = await store()
+
+    expect(await workflows.read()).toEqual([])
+  })
+
+  it('writes a started workflow, creating the state directory, and reads it back', async () => {
+    const { path, workflows } = await store()
+
+    const started = await workflows.update((held) => startWorkflow(held, 'spec-293', at(0)))
+
+    expect(started).toEqual({ name: 'spec-293', started_at: '2026-11-04T12:00:00.000Z' })
+    expect(await workflows.read()).toEqual([started])
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-04T12:00:00.000Z' }],
+    })
+  })
+
+  it('keeps the workflows it already held when it writes another', async () => {
+    const { workflows } = await store()
+    await workflows.update((held) => startWorkflow(held, 'spec-293', at(0)))
+
+    await workflows.update((held) => startWorkflow(held, 'review', at(1)))
+
+    expect((await workflows.read()).map((workflow) => workflow.name)).toEqual(['spec-293', 'review'])
+  })
+
+  it('writes an ended workflow with the moment it ended', async () => {
+    const { workflows } = await store()
+    await workflows.update((held) => startWorkflow(held, 'spec-293', at(0)))
+
+    const ended = await workflows.update((held) => endWorkflow(held, 'spec-293', at(5)))
+
+    expect(ended).toEqual({ ended_at: '2026-11-04T12:05:00.000Z', name: 'spec-293', started_at: '2026-11-04T12:00:00.000Z' })
+    expect(await workflows.read()).toEqual([ended])
+  })
+
+  it('names the file when it is not JSON', async () => {
+    const { path, workflows } = await store()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, 'not json\n')
+
+    await expect(workflows.read()).rejects.toThrow(new RegExp(`${path}: not JSON`))
+  })
+
+  it('names the file when it holds another version', async () => {
+    const { path, workflows } = await store()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"version":2,"workflows":[]}\n')
+
+    await expect(workflows.read()).rejects.toThrow(new RegExp(`${path}: version must be 1`))
+  })
+
+  it('fails with the file system\'s own error when the file cannot be read at all', async () => {
+    const { path, workflows } = await store()
+    await mkdir(path, { recursive: true })
+
+    await expect(workflows.read()).rejects.toThrow(new RegExp(`${path}: cannot read the workflows`))
+  })
+
+  it('never loses a change when two updates run at once', async () => {
+    const { workflows } = await store({ retryMs: 1 })
+    const names = Array.from({ length: 8 }, (_, index) => `workflow-${String(index)}`)
+
+    await Promise.all(names.map((name) => workflows.update((held) => startWorkflow(held, name, at(0)))))
+
+    expect((await workflows.read()).map((workflow) => workflow.name).sort()).toEqual(names)
+  })
+
+  it('waits for a lock another process holds, then writes', async () => {
+    const { path, workflows } = await store({ retryMs: 5 })
+    const lock = `${path}.lock`
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(lock, '')
+    const release = setTimeout(() => {
+      void rm(lock, { force: true })
+    }, 50)
+    try {
+      await workflows.update((held) => startWorkflow(held, 'spec-293', at(0)))
+    } finally {
+      clearTimeout(release)
+    }
+
+    expect(await readFile(path, 'utf8')).toContain('"name": "spec-293"')
+  })
+
+  it('breaks a lock left behind by a process that died holding it', async () => {
+    const { path, workflows } = await store({ retryMs: 5, staleMs: 20 })
+    const lock = `${path}.lock`
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(lock, '')
+    const old = new Date(Date.now() - 60_000)
+    await utimes(lock, old, old)
+
+    await workflows.update((held) => startWorkflow(held, 'spec-293', at(0)))
+
+    expect(await readFile(path, 'utf8')).toContain('"name": "spec-293"')
+    await expect(stat(lock)).rejects.toThrow()
+  })
+
+  it('gives up when another process holds the lock past its timeout', async () => {
+    const { path, workflows } = await store({ retryMs: 5, timeoutMs: 30 })
+    const lock = `${path}.lock`
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(lock, '')
+
+    await expect(workflows.update((held) => startWorkflow(held, 'spec-293', at(0)))).rejects.toThrow(
+      /held the workflows lock/,
+    )
+    await expect(readFile(path, 'utf8')).rejects.toThrow()
+  })
+
+  it('leaves no temporary file behind', async () => {
+    const { path, workflows } = await store()
+
+    await workflows.update((held) => startWorkflow(held, 'spec-293', at(0)))
+
+    expect(await readdir(join(path, '..'))).toEqual(['workflows.json'])
   })
 })
 
