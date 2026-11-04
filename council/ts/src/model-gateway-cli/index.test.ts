@@ -54,16 +54,16 @@ const OPENCODE_LISTING: ProcessResult = {
   ].join('\n'),
 }
 
-/** A Vibe configuration: three models, two of them in the shipped catalogue. */
+/** A Vibe configuration: three models, two of them in the shipped catalogue, declared with their aliases and names. */
 const VIBE_CONFIG = `[models.mistral-large-4-0]
 name = "mistral-large-4-0"
 provider = "mistral"
-alias = "mistral-large-4-0"
+alias = "mistral-large-latest"
 
 [models.zai-glm-5-3]
 name = "zai-glm-5-3"
 provider = "mistral"
-alias = "zai-glm-5-3"
+alias = "glm-5-3"
 
 [models.mistral-medium-4-1]
 name = "mistral-medium-4-1"
@@ -597,7 +597,8 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'zhipu',
-          model: 'zai-glm-5-3',
+          model: 'glm-5-3',
+          names: ['zai-glm-5-3'],
           notes: 'Strong code review and integration reasoning.',
           prices: { cached_input: 0.14, input: 1.4, output: 4.4 },
           tier: 'hard',
@@ -605,7 +606,8 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'mistral',
-          model: 'mistral-large-4-0',
+          model: 'mistral-large-latest',
+          names: ['mistral-large-4-0'],
           notes: 'Broad general model.',
           prices: { cached_input: 0.07, input: 0.7, output: 2.1 },
           tier: 'hard',
@@ -614,6 +616,7 @@ describe('the shipped defaults', () => {
           client: 'vibe',
           family: 'mistral',
           model: 'mistral-small-latest',
+          names: ['mistral-small-latest'],
           notes: 'Very cheap; short summaries and classification.',
           prices: { cached_input: 0.015, input: 0.15, output: 0.6 },
           tier: 'trivial',
@@ -1011,19 +1014,43 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:mistral-large-4-0', 'vibe:mistral-medium-4-1', 'vibe:zai-glm-5-3'])
-    expect(model(result, 'vibe:zai-glm-5-3')).toEqual({
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-medium-4-1'])
+    expect(model(result, 'vibe:glm-5-3')).toEqual({
       client: 'vibe',
       cost_class: 'subsidised',
       family: 'zhipu',
       inline_only: true,
       may_send: { code: false, history: false },
-      model: 'zai-glm-5-3',
+      model: 'glm-5-3',
       notes: 'Strong code review and integration reasoning.',
       source: 'config',
       tier: 'hard',
     })
     expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({ family: 'mistral', notes: '', tier: null })
+  })
+
+  it('lists a model once, by its alias, when the catalogue knows it by the name its configuration gives it', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['vibe:glm-5-3'])
+    expect(model(result, 'vibe:glm-5-3')).toMatchObject({
+      family: 'zhipu',
+      notes: 'Strong code review and integration reasoning.',
+      tier: 'hard',
+    })
+  })
+
+  it('lists a model whose alias and name both miss the catalogue with no tier', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeVibeConfig('[models.new]\nname = "mistral-medium-4-1"\nprovider = "mistral"\nalias = "medium"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['vibe:medium'])
+    expect(model(result, 'vibe:medium')).toMatchObject({ family: 'mistral', notes: '', tier: null })
   })
 
   it('reads the configuration from VIBE_HOME when it is set', async () => {
@@ -1035,7 +1062,7 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:mistral-large-4-0', 'vibe:mistral-medium-4-1', 'vibe:zai-glm-5-3'])
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-medium-4-1'])
   })
 
   it('leaves the client out with the reason when it has no configuration, and still lists the others', async () => {
@@ -1259,7 +1286,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     input: (overrides = {}) => ({
       client: 'vibe',
       mode: 'read-only',
-      model: 'zai-glm-5-3',
+      model: 'glm-5-3',
       prompt: 'read this',
       repo,
       workflow: 'spec-293',
@@ -1355,7 +1382,7 @@ describe('model-gateway run: the data policy, before anything is launched', () =
 
     expect(printed(await w.run(w.input()))).toEqual({
       code: 'policy-refused',
-      message: `vibe:zai-glm-5-3 is not permitted: ${KEY}: the entry allows mistral`,
+      message: `vibe:glm-5-3 is not permitted: ${KEY}: the entry allows mistral`,
       status: 'error',
     })
     expect(w.vibe.commands).toEqual([])
@@ -1366,7 +1393,7 @@ describe('model-gateway run: the data policy, before anything is launched', () =
 
     expect(printed(await w.run(w.input()))).toMatchObject({
       code: 'policy-refused',
-      message: `vibe:zai-glm-5-3 may not carry code: ${KEY}: the entry allows zhipu`,
+      message: `vibe:glm-5-3 may not carry code: ${KEY}: the entry allows zhipu`,
     })
     expect(w.vibe.commands).toEqual([])
   })
@@ -1376,7 +1403,7 @@ describe('model-gateway run: the data policy, before anything is launched', () =
 
     expect(printed(await refused.run(refused.input({ carries: { code: true, history: true } })))).toMatchObject({
       code: 'policy-refused',
-      message: `vibe:zai-glm-5-3 may not carry history: ${KEY}: the entry allows zhipu`,
+      message: `vibe:glm-5-3 may not carry history: ${KEY}: the entry allows zhipu`,
     })
     expect(refused.vibe.commands).toEqual([])
 
@@ -1389,7 +1416,7 @@ describe('model-gateway run: the data policy, before anything is launched', () =
 
     expect(printed(await w.run(w.input({ carries: { code: true, history: false }, repo: undefined })))).toMatchObject({
       code: 'policy-refused',
-      message: 'vibe:zai-glm-5-3 may not carry code: no repository: only inline content, to subsidised and metered-personal clients',
+      message: 'vibe:glm-5-3 may not carry code: no repository: only inline content, to subsidised and metered-personal clients',
     })
     expect(w.vibe.commands).toEqual([])
 
@@ -1405,7 +1432,7 @@ describe('model-gateway run: the data policy, before anything is launched', () =
 
     expect(printed(await w.run(w.input()))).toMatchObject({
       code: 'policy-refused',
-      message: 'vibe:zai-glm-5-3 is not permitted: a nedap repository: only Codex and Claude Code, with code and history',
+      message: 'vibe:glm-5-3 is not permitted: a nedap repository: only Codex and Claude Code, with code and history',
     })
     expect(w.vibe.commands).toEqual([])
   })
@@ -1439,7 +1466,7 @@ describe('model-gateway run: the read-only proof', () => {
 
     expect(printed(await w.run(w.input()))).toEqual({
       code: 'unproven-read-only',
-      message: "vibe:zai-glm-5-3 has no passing read-only proof: setup's read-only proof for vibe-glm is fail",
+      message: "vibe:glm-5-3 has no passing read-only proof: setup's read-only proof for vibe-glm is fail",
       status: 'error',
     })
     expect(w.vibe.commands).toEqual([])
@@ -1450,7 +1477,7 @@ describe('model-gateway run: the read-only proof', () => {
 
     expect(printed(await w.run(w.input()))).toMatchObject({
       code: 'unproven-read-only',
-      message: "vibe:zai-glm-5-3 has no passing read-only proof: setup's read-only proof for vibe-glm is not recorded",
+      message: "vibe:glm-5-3 has no passing read-only proof: setup's read-only proof for vibe-glm is not recorded",
     })
   })
 
@@ -1472,6 +1499,26 @@ describe('model-gateway run: the read-only proof', () => {
 
     expect(printed(await w.run(w.input()))).toMatchObject({ code: 'unproven-read-only' })
   })
+
+  it('proves the alias a run names by the model id the routing names, and launches it', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input())
+
+    expect(printed(result).status).toBe('ok')
+    expect(flag(w.vibe.commands[0], '--model')).toBe('glm-5-3')
+  })
+
+  it('refuses the alias when the routing runs no client on any of its names', async () => {
+    const w = await readyRun({ routing: { clients: { 'vibe-glm': { kind: 'vibe', model: 'zai-glm-6-0' } } } })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'unproven-read-only',
+      message: "vibe:glm-5-3 has no passing read-only proof: no Vibe critic client in critique's routing runs glm-5-3",
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
 })
 
 describe('model-gateway run: the launch', () => {
@@ -1488,7 +1535,7 @@ describe('model-gateway run: the launch', () => {
       '--prompt-file',
       join(runDirOf(w, result), 'prompt.md'),
       '--model',
-      'zai-glm-5-3',
+      'glm-5-3',
       '--agent',
       'delegate-readonly',
       '--trust',
@@ -1558,7 +1605,7 @@ describe('model-gateway run: the result', () => {
       cost_usd: 0.0123,
       family: 'zhipu',
       mode: 'read-only',
-      model: 'zai-glm-5-3',
+      model: 'glm-5-3',
       output_path: join(runDirOf(w, result), 'output.json'),
       run_id: printed(result).run_id,
       status: 'ok',
@@ -1659,7 +1706,7 @@ describe('model-gateway run: the ledger', () => {
       duration_s: expect.any(Number) as unknown,
       family: 'zhipu',
       mode: 'read-only',
-      model: 'zai-glm-5-3',
+      model: 'glm-5-3',
       outcome: 'ok',
       repository: KEY,
       run_id: printed(result).run_id,

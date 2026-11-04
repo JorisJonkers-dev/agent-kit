@@ -108,7 +108,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
     const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
     const allowed = await this.permission(input, config, family)
-    await this.proveReadOnly(input)
+    await this.proveReadOnly(input, entry)
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
     const id = runId(startedAt, randomBytes(3).toString('hex'))
@@ -174,9 +174,14 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     return { permission, repository: scope.kind === 'repository' ? scope.key : null }
   }
 
-  /** A read-only run goes in place only on a client model whose read-only proof passed on this machine. */
-  private async proveReadOnly(input: RunInput): Promise<void> {
-    const proof = readOnlyProof(await this.proofFiles(), input.model)
+  /**
+   * A read-only run goes in place only on a client model whose read-only proof
+   * passed on this machine. The proof is recorded against the model id
+   * critique's routing names, which the catalogue keeps among the model's
+   * `names` beside the alias the run names.
+   */
+  private async proveReadOnly(input: RunInput, entry: ModelEntry | undefined): Promise<void> {
+    const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? [])
     if (proof.status === 'unproven') {
       throw new ModelGatewayError('unproven-read-only', `${input.client}:${input.model} has no passing read-only proof: ${proof.reason}`)
     }

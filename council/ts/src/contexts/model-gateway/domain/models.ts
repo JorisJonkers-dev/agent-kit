@@ -34,7 +34,10 @@ export interface ModelListing {
 
 /** One model a client listed, and the provider it runs on where the client names one. */
 export interface ClientModel {
+  /** The id the client accepts, which is what the gateway lists and a delegation names. */
   readonly model: string
+  /** Other names the client's own listing gives the model, which the catalogue may know it by. */
+  readonly names?: readonly string[]
   readonly provider?: string
 }
 
@@ -100,20 +103,23 @@ export function parseOpenCodeModels(stdout: string): readonly ClientModel[] {
 }
 
 /**
- * The model aliases a Vibe `config.toml` declares, in the order it declares
- * them: the alias is what `vibe --model` accepts. An entry that is not a table
- * declares no model. Throws on a file that is not TOML, so the caller never
- * acts on half a file.
+ * The models a Vibe `config.toml` declares, in the order it declares them: the
+ * alias is what `vibe --model` accepts, and the model's own name is kept
+ * beside it when it differs, because the catalogue may know the model by
+ * either. An entry that is not a table declares no model. Throws on a file
+ * that is not TOML, so the caller never acts on half a file.
  */
-export function vibeModelAliases(toml: string): readonly string[] {
+export function vibeModels(toml: string): readonly ClientModel[] {
   const models = readToml(toml).models
   if (!isObject(models)) return []
-  const aliases: string[] = []
+  const declared: ClientModel[] = []
   for (const [key, value] of Object.entries(models)) {
     if (!isObject(value)) continue
-    aliases.push(typeof value.alias === 'string' && value.alias !== '' ? value.alias : key)
+    const alias = typeof value.alias === 'string' && value.alias !== '' ? value.alias : key
+    const name = typeof value.name === 'string' && value.name !== '' && value.name !== alias ? value.name : undefined
+    declared.push({ model: alias, names: name === undefined ? [] : [name] })
   }
-  return aliases
+  return declared
 }
 
 /**
@@ -162,7 +168,7 @@ export function listModels(
 /** The models a declared client offers, as the catalogue describes them. */
 function catalogueModels(config: GatewayConfig, id: string, client: ClientConfig): readonly ListedModel[] {
   return config.models
-    .filter((entry) => entry.client === id && !config.disabled.includes(modelKey(id, entry.model)))
+    .filter((entry) => entry.client === id && ![entry.model, ...(entry.names ?? [])].some((key) => config.disabled.includes(modelKey(id, key))))
     .map((entry) => ({
       client: id,
       cost_class: client.cost_class,
@@ -175,10 +181,12 @@ function catalogueModels(config: GatewayConfig, id: string, client: ClientConfig
 }
 
 /**
- * The models a client listed, joined to the catalogue on the listed id: a
- * model the catalogue knows takes its family, tier and notes from there, and
- * one it does not is still listed, with its family worked out from its id and
- * no tier. A model a listing names twice is listed once. A model of a family
+ * The models a client listed, joined to the catalogue on the listed id or any
+ * name the listing gives it (the catalogue knows a model by its id or by its
+ * `names`): a model the catalogue knows takes its family, tier and notes from
+ * there, and one it does not is still listed, with its family worked out from
+ * its id or names and no tier. A model is listed by the id the client
+ * accepts, never by a name. A model a listing names twice is listed once. A model of a family
  * the client may not reach is left out; one whose family the gateway cannot
  * work out is reported in `skipped`, so it never vanishes silently.
  */
@@ -191,12 +199,15 @@ function listedModels(
   const models: ListedModel[] = []
   const skipped: SkippedModel[] = []
   const seen = new Set<string>()
-  for (const { model, provider } of listed) {
+  for (const { model, names = [], provider } of listed) {
     if (seen.has(model)) continue
     seen.add(model)
-    if (config.disabled.includes(modelKey(id, model))) continue
-    const entry = config.models.find((candidate) => candidate.client === id && candidate.model === model)
-    const family = entry?.family ?? familyOf(modelPart(model))
+    const known = [model, ...names]
+    const entry = config.models.find(
+      (candidate) => candidate.client === id && [candidate.model, ...(candidate.names ?? [])].some((name) => known.includes(name)),
+    )
+    if ([model, entry?.model, ...(entry?.names ?? [])].some((key) => key !== undefined && config.disabled.includes(modelKey(id, key)))) continue
+    const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== undefined)
     if (family === undefined) {
       skipped.push({ client: id, model, reason: FAMILY_UNKNOWN })
       continue

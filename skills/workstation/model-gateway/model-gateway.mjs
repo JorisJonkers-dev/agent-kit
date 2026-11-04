@@ -130,8 +130,9 @@ function mergeModels(base, raw) {
     if (!isObject(value)) throw invalid(`models[${String(index)}] must be an object`);
     const client = requireString(value.client, `models[${String(index)}].client`);
     const model = requireString(value.model, `models[${String(index)}].model`);
-    const at = merged.findIndex((entry2) => entry2.client === client && entry2.model === model);
-    const entry = parseModelEntry(value, index, at === -1 ? void 0 : merged[at]);
+    const at = merged.findIndex((entry2) => entry2.client === client && (entry2.model === model || (entry2.names ?? []).includes(model)));
+    const target = at === -1 ? void 0 : merged[at];
+    const entry = parseModelEntry(target === void 0 ? value : { ...value, model: target.model }, index, target);
     if (at === -1) merged.push(entry);
     else merged[at] = entry;
   }
@@ -149,7 +150,16 @@ function parseModelEntry(raw, index, base) {
   if (family === void 0 || tier === void 0 || notes === void 0) {
     throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`);
   }
-  return { client, family, model, notes, tier, ...prices === void 0 ? {} : { prices } };
+  const names = raw.names === void 0 ? base?.names : requireStrings(raw.names, `${where}.names`);
+  return {
+    client,
+    family,
+    model,
+    ...names === void 0 ? {} : { names },
+    notes,
+    ...prices === void 0 ? {} : { prices },
+    tier
+  };
 }
 function parseModelPrices(raw, where) {
   if (!isObject(raw)) throw invalid(`${where} must be an object`);
@@ -458,15 +468,17 @@ function parseOpenCodeModels(stdout) {
   }
   return models;
 }
-function vibeModelAliases(toml) {
+function vibeModels(toml) {
   const models = readToml(toml).models;
   if (!isObject(models)) return [];
-  const aliases = [];
+  const declared = [];
   for (const [key, value] of Object.entries(models)) {
     if (!isObject(value)) continue;
-    aliases.push(typeof value.alias === "string" && value.alias !== "" ? value.alias : key);
+    const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
+    const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
+    declared.push({ model: alias, names: name === void 0 ? [] : [name] });
   }
-  return aliases;
+  return declared;
 }
 function listModels(config, installed, listings) {
   const models = [];
@@ -497,7 +509,7 @@ function listModels(config, installed, listings) {
   return { models, missing, skipped };
 }
 function catalogueModels(config, id, client) {
-  return config.models.filter((entry) => entry.client === id && !config.disabled.includes(modelKey(id, entry.model))).map((entry) => ({
+  return config.models.filter((entry) => entry.client === id && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))).map((entry) => ({
     client: id,
     cost_class: client.cost_class,
     family: entry.family,
@@ -511,12 +523,15 @@ function listedModels(config, id, client, listed) {
   const models = [];
   const skipped = [];
   const seen = /* @__PURE__ */ new Set();
-  for (const { model, provider } of listed) {
+  for (const { model, names = [], provider } of listed) {
     if (seen.has(model)) continue;
     seen.add(model);
-    if (config.disabled.includes(modelKey(id, model))) continue;
-    const entry = config.models.find((candidate) => candidate.client === id && candidate.model === model);
-    const family = entry?.family ?? familyOf(modelPart(model));
+    const known = [model, ...names];
+    const entry = config.models.find(
+      (candidate) => candidate.client === id && [candidate.model, ...candidate.names ?? []].some((name) => known.includes(name))
+    );
+    if ([model, entry?.model, ...entry?.names ?? []].some((key) => key !== void 0 && config.disabled.includes(modelKey(id, key)))) continue;
+    const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== void 0);
     if (family === void 0) {
       skipped.push({ client: id, model, reason: FAMILY_UNKNOWN });
       continue;
@@ -920,12 +935,12 @@ function compactTimestamp(at) {
 function runId(at, suffix) {
   return `${compactTimestamp(at)}-${suffix}`;
 }
-function readOnlyProof(files, model) {
+function readOnlyProof(files, model, names = []) {
   const routing = parseJsonObject(files.routing);
   if (routing === void 0) {
     return unproven("critique's routing is not installed, so no Vibe critic client proves a model read-only");
   }
-  const critic = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, model);
+  const critic = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, [model, ...names]);
   if (critic === void 0) return unproven(`no Vibe critic client in critique's routing runs ${model}`);
   const result2 = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${critic}`);
   if (result2 !== "pass") return unproven(`setup's read-only proof for ${critic} is ${result2 ?? "not recorded"}`);
@@ -934,7 +949,7 @@ function readOnlyProof(files, model) {
 function unproven(reason) {
   return { reason, status: "unproven" };
 }
-function criticFor(routing, override, model) {
+function criticFor(routing, override, models) {
   const clients = /* @__PURE__ */ new Map();
   for (const source of [routing, override]) {
     if (!isObject(source)) continue;
@@ -942,7 +957,7 @@ function criticFor(routing, override, model) {
       if (isObject(entry)) clients.set(name, { ...clients.get(name), ...entry });
     }
   }
-  return [...clients].filter(([, entry]) => entry.kind === "vibe" && entry.model === model).map(([name]) => name).sort()[0];
+  return [...clients].filter(([, entry]) => entry.kind === "vibe" && typeof entry.model === "string" && models.includes(entry.model)).map(([name]) => name).sort()[0];
 }
 function checkResult(checks, id) {
   if (!isObject(checks)) return void 0;
@@ -991,7 +1006,7 @@ var RunCommand = class {
     }
     const root = input.repo === void 0 ? void 0 : await this.repositoryRoot(input.repo);
     const allowed = await this.permission(input, config, family);
-    await this.proveReadOnly(input);
+    await this.proveReadOnly(input, entry);
     const startedAt = this.deps.clock.now();
     const startedMs = this.deps.clock.monotonicMs();
     const id = runId(startedAt, randomBytes(3).toString("hex"));
@@ -1056,9 +1071,14 @@ var RunCommand = class {
     }
     return { permission: permission2, repository: scope.kind === "repository" ? scope.key : null };
   }
-  /** A read-only run goes in place only on a client model whose read-only proof passed on this machine. */
-  async proveReadOnly(input) {
-    const proof = readOnlyProof(await this.proofFiles(), input.model);
+  /**
+   * A read-only run goes in place only on a client model whose read-only proof
+   * passed on this machine. The proof is recorded against the model id
+   * critique's routing names, which the catalogue keeps among the model's
+   * `names` beside the alias the run names.
+   */
+  async proveReadOnly(input, entry) {
+    const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? []);
     if (proof.status === "unproven") {
       throw new ModelGatewayError("unproven-read-only", `${input.client}:${input.model} has no passing read-only proof: ${proof.reason}`);
     }
@@ -1220,7 +1240,7 @@ var VibeModelSource = class {
     try {
       path = vibeConfigPath(this.env);
       if (!await this.files.exists(path)) return { reason: `no configuration: ${path} is not there` };
-      return { models: vibeModelAliases(await this.files.readText(path)).map((model) => ({ model })) };
+      return { models: vibeModels(await this.files.readText(path)) };
     } catch (error) {
       return { reason: `configuration unreadable: ${path}: ${messageOf2(error)}` };
     }

@@ -204,6 +204,14 @@ describe('readOnlyProof', () => {
     })
   })
 
+  it('finds the proof of an alias by the model id the routing names among its names', () => {
+    expect(readOnlyProof(proofFiles({ routing: ROUTING, setupResults: setupResults('pass') }), 'glm-5-3', ['zai-glm-5-3'])).toEqual({
+      critic: 'vibe-glm',
+      status: 'proven',
+    })
+    expect(readOnlyProof(proofFiles({ routing: ROUTING, setupResults: setupResults('pass') }), 'glm-5-3').status).toBe('unproven')
+  })
+
   it('is unproven when critique’s routing is not installed, or is not JSON', () => {
     expect(readOnlyProof(proofFiles({}), 'zai-glm-5-3')).toEqual({
       reason: "critique's routing is not installed, so no Vibe critic client proves a model read-only",

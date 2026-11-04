@@ -208,16 +208,18 @@ export interface ProofFiles {
 /**
  * The read-only proof of a client model: setup's `read-only:<critic client>`
  * result for the Vibe critic client whose model this is in critique's
- * routing. A model no critic client runs, and a proof that is missing, failed
- * or unproven, are all unproven: a run goes in place only on a proof that
- * passed.
+ * routing. A run names a model by the alias `models` prints, while the
+ * routing names it by the model's own id, so a critic client matches on the
+ * alias or on any name the catalogue keeps for it. A model no critic client
+ * runs, and a proof that is missing, failed or unproven, are all unproven: a
+ * run goes in place only on a proof that passed.
  */
-export function readOnlyProof(files: ProofFiles, model: string): ReadOnlyProof {
+export function readOnlyProof(files: ProofFiles, model: string, names: readonly string[] = []): ReadOnlyProof {
   const routing = parseJsonObject(files.routing)
   if (routing === undefined) {
     return unproven("critique's routing is not installed, so no Vibe critic client proves a model read-only")
   }
-  const critic = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, model)
+  const critic = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, [model, ...names])
   if (critic === undefined) return unproven(`no Vibe critic client in critique's routing runs ${model}`)
   const result = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${critic}`)
   if (result !== 'pass') return unproven(`setup's read-only proof for ${critic} is ${result ?? 'not recorded'}`)
@@ -228,8 +230,8 @@ function unproven(reason: string): ReadOnlyProof {
   return { reason, status: 'unproven' }
 }
 
-/** The first Vibe critic client, in name order, whose model is `model`, with the override applied over the shipped routing. */
-function criticFor(routing: unknown, override: unknown, model: string): string | undefined {
+/** The first Vibe critic client, in name order, whose model is one of `models`, with the override applied over the shipped routing. */
+function criticFor(routing: unknown, override: unknown, models: readonly string[]): string | undefined {
   const clients = new Map<string, Readonly<Record<string, unknown>>>()
   for (const source of [routing, override]) {
     if (!isObject(source)) continue
@@ -238,7 +240,7 @@ function criticFor(routing: unknown, override: unknown, model: string): string |
     }
   }
   return [...clients]
-    .filter(([, entry]) => entry.kind === 'vibe' && entry.model === model)
+    .filter(([, entry]) => entry.kind === 'vibe' && typeof entry.model === 'string' && models.includes(entry.model))
     .map(([name]) => name)
     .sort()[0]
 }

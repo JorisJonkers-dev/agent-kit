@@ -100,12 +100,22 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("claude", "claude-haiku-5-5", "anthropic", "routine"),
         ("codex", "gpt-5.5", "openai", "frontier"),
         ("vibe", "deepseek-v4-1-flash-1017", "deepseek", "routine"),
-        ("vibe", "zai-glm-5-3", "zhipu", "hard"),
-        ("vibe", "mistral-large-4-0", "mistral", "hard"),
+        ("vibe", "glm-5-3", "zhipu", "hard"),
+        ("vibe", "mistral-large-latest", "mistral", "hard"),
         ("vibe", "mistral-small-latest", "mistral", "trivial"),
         ("agy", "gemini-3.8-flash-high", "google", "hard"),
     ]
     assert all(m["notes"].strip() for m in models)
+
+
+def test_the_shipped_vibe_models_are_named_by_alias_and_record_their_config_names() -> None:
+    models = json.loads(DEFAULTS.read_text())["models"]
+    assert {m["model"]: m.get("names") for m in models if m["client"] == "vibe"} == {
+        "deepseek-v4-1-flash-1017": None,
+        "glm-5-3": ["zai-glm-5-3"],
+        "mistral-large-latest": ["mistral-large-4-0"],
+        "mistral-small-latest": ["mistral-small-latest"],
+    }
 
 
 def test_the_shipped_defaults_carry_the_settings_a_delegation_is_held_to() -> None:
@@ -128,7 +138,15 @@ def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() ->
         if client["kind"] == "vibe"
     }
     models = json.loads(DEFAULTS.read_text())["models"]
-    assert {m["model"]: m["prices"] for m in models if m["client"] == "vibe"} == priced
+    # The catalogue names a Vibe model by its alias and records the config's own
+    # names (critique's routing uses those) beside it.
+    by_name = {
+        name: m["prices"]
+        for m in models
+        if m["client"] == "vibe"
+        for name in [m["model"], *m.get("names", [])]
+    }
+    assert {name: by_name[name] for name in priced} == priced
     assert all(p["input"] > 0 and p["output"] > 0 and p["cached_input"] >= 0 for p in priced.values())
 
 
@@ -161,6 +179,14 @@ def test_the_schema_lets_a_client_set_a_cost_class_per_provider() -> None:
     ]
     assert "opencode" in schema["properties"]["clients"]["required"]
     assert "opencode" in schema["$defs"]["model"]["properties"]["client"]["enum"]
+
+
+def test_the_schema_lets_a_model_record_the_names_its_client_configuration_gives_it() -> None:
+    schema = json.loads(SCHEMA.read_text())
+    model = schema["$defs"]["model"]
+    assert "names" not in model["required"]
+    assert model["properties"]["names"]["type"] == "array"
+    assert model["properties"]["names"]["items"] == {"type": "string", "minLength": 1}
 
 
 def test_the_schema_requires_every_key_and_allows_no_others() -> None:
