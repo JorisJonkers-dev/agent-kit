@@ -112,7 +112,9 @@ export type ModelGatewayErrorCode =
   | 'unknown-command'
   /** The run named a client model the gateway cannot list now. */
   | 'unknown-model'
-  /** git could not add the throwaway worktree a run without a read-only proof works in. */
+  /** A writing run names no repository, and a change needs one. */
+  | 'write-needs-repository'
+  /** git could not add the throwaway worktree a run without a read-only proof works in, or create a writing run's worktree off its base. */
   | 'worktree-failed'
 
 export class ModelGatewayError extends Error {

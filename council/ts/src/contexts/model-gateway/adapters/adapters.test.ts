@@ -6,9 +6,11 @@ import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { FakeEnv } from '../../../../test/model-gateway/harness.js'
+import type { KeptWorktree } from '../application/ports.js'
 import type { LedgerRecord } from '../domain/ledger.js'
 import { NodeModelGatewayFiles } from './fs/index.js'
 import { NodeModelGatewayGit } from './git/index.js'
+import { NodeModelGatewayKept } from './kept/index.js'
 import { NodeModelGatewayLedger, type LedgerLockTimings } from './ledger/index.js'
 import { NodeModelGatewayProcess } from './process/index.js'
 import { NodeModelGatewayProof } from './proof/index.js'
@@ -228,6 +230,38 @@ describe('NodeModelGatewayGit', () => {
     expect(await new NodeModelGatewayFiles().exists(target)).toBe(false)
   })
 
+  it('creates a worktree on a new branch off a base, stages everything in it, and lists the staged files', async () => {
+    const root = await committed()
+    const base = await tempDir()
+    const target = join(base, 'worktrees', 'run-1')
+    await repositories.createWorktree(root, target, 'gateway/run-1', 'HEAD')
+
+    expect(await readFile(join(target, 'README.md'), 'utf8')).toBe('hello')
+    await mkdir(join(target, 'src'), { recursive: true })
+    await writeFile(join(target, 'src', 'new file.ts'), 'x')
+    await writeFile(join(target, 'README.md'), 'changed')
+    expect(await repositories.stagedFiles(target)).toEqual([])
+    await repositories.stageAll(target)
+
+    expect([...(await repositories.stagedFiles(target))].sort()).toEqual(['README.md', 'src/new file.ts'])
+    expect(await readFile(join(root, 'README.md'), 'utf8')).toBe('hello')
+    await repositories.removeWorktree(root, target)
+    await repositories.deleteBranch(root, 'gateway/run-1')
+    await expect(repositories.deleteBranch(root, 'gateway/run-1')).rejects.toThrow(/gateway\/run-1/)
+  })
+
+  it('fails with git\'s own message when the base is unknown, the branch exists, or there is nothing to stage in', async () => {
+    const root = await committed()
+    const target = join(await tempDir(), 'wt')
+
+    await expect(repositories.createWorktree(root, target, 'gateway/a', 'no-such-ref')).rejects.toThrow(/no-such-ref/)
+    await repositories.createWorktree(root, target, 'gateway/a', 'HEAD')
+    await expect(repositories.createWorktree(root, join(await tempDir(), 'wt'), 'gateway/a', 'HEAD')).rejects.toThrow(/gateway\/a/)
+    const outside = await tempDir()
+    await expect(repositories.stageAll(outside)).rejects.toThrow(/not a git repository/)
+    await expect(repositories.stagedFiles(outside)).rejects.toThrow()
+  })
+
   it('fails with git\'s own message when it cannot find a common directory', async () => {
     const dir = await tempDir()
 
@@ -294,6 +328,72 @@ describe('NodeModelGatewayGit', () => {
     } finally {
       process.env.PATH = path
     }
+  })
+})
+
+describe('NodeModelGatewayKept', () => {
+  function worktree(runId: string, workflow = 'spec-293'): KeptWorktree {
+    return { at: '2026-01-01T00:00:00.000Z', branch: `gateway/${runId}`, path: `/repo/.git/model-gateway/worktrees/${runId}`, repo: '/repo', run_id: runId, workflow }
+  }
+
+  async function kept(timings = {}): Promise<{ kept: NodeModelGatewayKept; path: string }> {
+    const home = await tempDir()
+    return { kept: new NodeModelGatewayKept(new FakeEnv({ HOME: home }), timings), path: join(home, '.local', 'state', 'agent-kit', 'model-gateway', 'kept-worktrees.json') }
+  }
+
+  it('is empty until a worktree is added, then lists what was added, in order', async () => {
+    const { kept: list, path } = await kept()
+
+    expect(await list.list()).toEqual([])
+    await list.add(worktree('one'))
+    await list.add(worktree('two', 'spec-294'))
+
+    expect((await list.list()).map((entry) => entry.run_id)).toEqual(['one', 'two'])
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ version: 1, worktrees: [worktree('one'), worktree('two', 'spec-294')] })
+  })
+
+  it('forgets the worktrees of the runs it is told to, and leaves the rest', async () => {
+    const { kept: list } = await kept()
+    await list.add(worktree('one'))
+    await list.add(worktree('two'))
+
+    await list.remove(['one', 'unknown'])
+
+    expect((await list.list()).map((entry) => entry.run_id)).toEqual(['two'])
+  })
+
+  it('names a file that is not the layout it writes, and does not overwrite it', async () => {
+    const { kept: list, path } = await kept()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"version":1,"worktrees":{}}')
+
+    await expect(list.add(worktree('one'))).rejects.toThrow(/must be/)
+    await writeFile(path, '[')
+    await expect(list.list()).rejects.toThrow(/not JSON/)
+    expect(await readFile(path, 'utf8')).toBe('[')
+  })
+
+  it('fails with the file system’s own error when the file cannot be read at all', async () => {
+    const { kept: list, path } = await kept()
+    await mkdir(path, { recursive: true })
+
+    await expect(list.list()).rejects.toThrow(/EISDIR/)
+  })
+
+  it('takes turns with another writer: concurrent adds all land', async () => {
+    const { kept: list } = await kept()
+
+    await Promise.all(Array.from({ length: 12 }, (_, index) => list.add(worktree(`run-${String(index)}`))))
+
+    expect(await list.list()).toHaveLength(12)
+  })
+
+  it('gives up, naming what the lock guards, when another process holds it past the timeout', async () => {
+    const { kept: list, path } = await kept({ retryMs: 1, staleMs: 60_000, timeoutMs: 30 })
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(`${path}.lock`, '')
+
+    await expect(list.add(worktree('one'))).rejects.toThrow(/held the kept-worktrees lock/)
   })
 })
 

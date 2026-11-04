@@ -80,8 +80,8 @@ Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 
 ## The `run` command
 
-`run` hands one read-only task to one client model and reports what came of
-it. It prints one JSON object on stdout and exits 0, whether the delegation
+`run` hands one task to one client model, read-only or writing, and reports
+what came of it. It prints one JSON object on stdout and exits 0, whether the delegation
 succeeded or failed; only a refusal is an error, and it prints
 `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
 
@@ -95,7 +95,7 @@ The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 only for an inline run), `time_limit_s` (default 900) and `max_price_usd`.
 `workflow` is required (`code: "invalid-input"`). A run can go to `client:
 "vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code) or `"opencode"`, in
-`mode: "read-only"` only; any other client or mode is
+`mode: "read-only"` or `"write"` (below); any other client or mode is
 `code: "not-supported-yet"`.
 
 Everything that can refuse the run happens before anything is launched:
@@ -109,12 +109,14 @@ Everything that can refuse the run happens before anything is launched:
   `repo` is inline-only: it works in a fresh empty temporary directory, never
   inside a repository, and `carries` may not claim code or history the policy
   does not allow.
+- `write-needs-repository` — a writing run names no `repo`.
 - `provider-not-allowed` — an OpenCode model is named `<provider>/<model>`, and
   only the providers `clients.opencode.providers` names (default
   `["opencode-go"]`) are allowed. Every other provider is refused, and so is
   `opencode/<model>`, OpenCode's pay-per-token Zen, even when the machine lists
   it: a run never reaches a pay-per-token model.
-- `worktree-failed` — git could not add the throwaway worktree (below). A
+- `worktree-failed` — git could not add the throwaway worktree, or create a
+  writing run's worktree off its base (below). A
   worktree git cannot remove after the run is not an error: the result is
   returned with a `cleanup_warning`.
 - `unknown-model` — a model the catalogue cannot place, or one this machine
@@ -178,18 +180,21 @@ its final answer.
 
 The result is `{"status":"ok"|"failed","run_id","workflow","client","model",
 "family","mode","tokens":{"input","output","cached"},"cost_usd","output_path",
-"summary"}`, plus the `cleanup_warning` above when it applies, and a failed run adds a `reason`: `timeout`, `parse-error`,
-`exit-<n>`, `launch-failed` (the client could not be started at all),
-`denied-action` (Antigravity was denied an action) or `client-error` (the
-client's own output reports an error). The raw output is kept either way.
+"summary"}`, plus the `cleanup_warning` above when it applies, and a failed run
+adds a `reason`: `timeout`, `parse-error`, `exit-<n>`, `launch-failed` (the
+client could not be started at all), `denied-action` (Antigravity was denied
+an action), `client-error` (the client's own output reports an error) or, for
+a writing run, `check-failed`, `check-output-failed` or `stage-failed`. The raw
+output is kept either way.
 
 A run with a `repo` keeps its directory in that repository's git common
 directory, `<git common dir>/model-gateway/runs/<run_id>/`, so a worktree's
 runs sit with the repository's; an inline run keeps it in
 `$XDG_STATE_HOME/agent-kit/model-gateway/runs/<run_id>/`, else
 `~/.local/state/agent-kit/model-gateway/runs/<run_id>/`. It holds `prompt.md`,
-`input.json`, `output.json` (the client's full output) and `result.json`. `run_id` is
-a UTC timestamp plus a short random suffix.
+`input.json`, `output.json` (the client's full output) and `result.json`, and
+a writing run's `check-output.txt`. `run_id` is a UTC timestamp plus a short
+random suffix.
 
 Every run also appends one JSON line to the machine-wide ledger,
 `$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl` (else
@@ -198,6 +203,68 @@ tokens, dollars, outcome, duration and run id. Writes take an exclusive lock
 file beside it, so two gateway processes never interleave a line. Dollars come
 from the client's own output when it prices the run, else from the tokens times
 the catalogue's `prices` for the model.
+
+## Writing runs
+
+`"mode": "write"` hands a code change to a client model. It takes `repo`,
+`base` (a ref) and `check` (a command string) besides the usual input; a run
+without `repo` is `write-needs-repository`, and one without `base` or `check`
+is `invalid-input`. `base` and `check` on a read-only run are `invalid-input`
+too. The data policy is the same as for any run that reads a repository: the
+entry must allow the model's family and `code`.
+
+```sh
+node model-gateway.mjs run --json '{"workflow":"spec-293","client":"claude","model":"claude-sonnet-5-5","mode":"write","prompt":"Add the --verbose flag","repo":"/path/to/repo","base":"main","check":"npm test"}'
+```
+
+1. The gateway creates a worktree off `base` at
+   `<git common dir>/model-gateway/worktrees/<run_id>`, on a new branch
+   `gateway/<run_id>` (`git worktree add -b`). Whatever the model's read-only
+   proof, a writing run works there and never in the repository itself.
+2. The delegate runs in the worktree with write permission: Vibe through the
+   `delegate-write` agent (`read_file`, `grep`, `write_file` and `edit`, no
+   shell, nothing outside the worktree, no subagents; setup installs it beside
+   `delegate-readonly`), Claude Code with `--permission-mode acceptEdits` (and
+   `--allowedTools Read,Grep,Glob,Edit,Write`), Antigravity with `--mode
+   accept-edits`, OpenCode with its default agent. The prompt adds "Edit only
+   files inside the working directory. Do not commit."
+3. When the delegate has finished, the gateway runs `check` there with `sh -c`
+   (held to `time_limit_s`; its output, stdout then stderr, goes to
+   `check-output.txt`; a check that cannot start has exit code 127), then
+   stages everything in the worktree with `git add -A`. It never commits,
+   merges or pushes: the worktree and the branch are the caller's to take.
+
+The result is the read-only result and `worktree` (the path), `branch`,
+`staged_files` (relative to the worktree) and `check`
+`{"command","exit_code","output_path"}`. `status` is `ok` only when the
+delegate finished and the check exited 0; a failing check is `failed` with
+`reason: "check-failed"`, and its worktree is kept and staged all the same. A
+run whose delegate did not finish (`timeout`, `exit-<n>`, `parse-error`, ...)
+leaves its worktree unstaged and kept, runs no check and has no `check` in its
+result. If the gateway itself fails after the delegate ran (git cannot stage the
+worktree, or the check's output cannot be written), the run is `failed` with
+`reason: "stage-failed"` or `"check-output-failed"`, the worktree and branch
+in the result and git's or the file system's message in `worktree_error`.
+
+Every writing worktree is entered in `kept-worktrees.json` in the gateway's
+state directory (`$XDG_STATE_HOME/agent-kit/model-gateway/`, else
+`~/.local/state/...`), whatever the run came to, and stays until the workflow
+that made it ends. Until a workflow store exists, the caller says when it
+ended:
+
+```sh
+node model-gateway.mjs worktrees clean --json '{"workflow":"spec-293"}'
+node model-gateway.mjs worktrees clean --json '{"all":true}'
+```
+
+It removes each kept worktree of that workflow (`git worktree remove --force`)
+and its branch, and prints `{"status":"ok","removed":[...],"failed":[...],"branch_kept":[...]}`;
+a worktree it cannot remove stays on the list with the reason, for the next
+call. Once the worktree is removed the entry is gone, and a branch git would not
+delete (checked out elsewhere, or already gone) is named in `branch_kept` with
+git's message.
+Take what you want from a worktree (commit its staged diff on a branch of your
+own) before the workflow ends: cleaning discards it.
 
 ## The data policy
 

@@ -6,6 +6,8 @@ export type {
   ModelGatewayDependencies,
   ModelGatewayFilesPort,
   ModelGatewayGitPort,
+  KeptWorktree,
+  ModelGatewayKeptPort,
   ModelGatewayLedgerPort,
   ModelGatewayProcessPort,
   ModelGatewayProofPort,
@@ -28,6 +30,7 @@ export type { ProofFiles, ReadOnlyProof, RunInput, RunMode, RunTokens } from './
 export { modelSources } from './adapters/clients/index.js'
 export { NodeModelGatewayFiles } from './adapters/fs/index.js'
 export { NodeModelGatewayGit } from './adapters/git/index.js'
+export { NodeModelGatewayKept } from './adapters/kept/index.js'
 export { NodeModelGatewayLedger } from './adapters/ledger/index.js'
 export { NodeModelGatewayProcess } from './adapters/process/index.js'
 export { NodeModelGatewayProof } from './adapters/proof/index.js'

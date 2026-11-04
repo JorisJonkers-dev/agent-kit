@@ -30,6 +30,33 @@ import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
 export { DELEGATION_MARK, READ_ONLY_AGENT }
 
+/** A writing run's input, narrowed: its repository, base and check are all named. */
+type WritingInput = RunInput & { readonly mode: 'write'; readonly repo: string; readonly base: string; readonly check: string }
+
+function isWriting(input: RunInput): input is WritingInput {
+  return input.mode === 'write' && input.repo !== undefined && input.base !== undefined && input.check !== undefined
+}
+
+/** What a writing run adds to its result: the worktree it worked in, what is staged there, and how the check went. */
+export interface WriteReport {
+  readonly worktree: string
+  readonly branch: string
+  /** The files staged in the worktree; none for a run whose delegate did not finish. */
+  readonly staged_files: readonly string[]
+  /** The check the gateway ran after the delegate; absent when the delegate did not finish, so none was run. */
+  readonly check?: CheckReport
+  /** What git or the file system said when the gateway could not stage the worktree or keep the check's output. */
+  readonly worktree_error?: string
+}
+
+/** One check command's outcome. */
+export interface CheckReport {
+  readonly command: string
+  readonly exit_code: number
+  /** The file the check's output (stdout, then stderr) was written to. */
+  readonly output_path: string
+}
+
 /** What one delegation came to: a short result, with the full output left in its run directory. */
 export interface RunResult {
   readonly status: 'ok' | 'failed'
@@ -45,10 +72,15 @@ export interface RunResult {
   readonly output_path: string
   /** The delegate's own summary, cut at `summary_max_chars`. */
   readonly summary: string
-  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`, `launch-failed`, `denied-action` or `client-error`. */
+  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`, `launch-failed`, `denied-action`, `client-error` or, for a writing run, `check-failed`, `check-output-failed` or `stage-failed`. */
   readonly reason?: string
   /** Set when the run's throwaway worktree could not be removed: what git said, and which directory is left behind. */
   readonly cleanup_warning?: string
+  /** The worktree a writing run worked in, the branch it is on, its staged files and its check (writing runs only). */
+  readonly worktree?: string
+  readonly branch?: string
+  readonly staged_files?: readonly string[]
+  readonly check?: CheckReport
 }
 
 /**
@@ -58,6 +90,8 @@ export interface RunResult {
  */
 interface Workplace {
   readonly dir: string
+  /** The branch a writing run's worktree is on. */
+  readonly branch?: string
   release(): Promise<void>
 }
 
@@ -73,6 +107,7 @@ interface Delegation {
   readonly runDir: string
   readonly startedMs: number
   readonly workDir: string
+  readonly branch?: string
 }
 
 /** What the data policy allows this run, and the repository it is keyed by. */
@@ -109,15 +144,29 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
     const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
     const allowed = await this.permission(input, config, family)
-    const throwaway = await this.needsThrowaway(input, entry)
+    const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry)
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
     const id = runId(startedAt, randomBytes(3).toString('hex'))
     const runDir = await this.runDir(root, id)
-    const workplace = await this.workplace(root, throwaway)
+    const workplace = isWriting(input)
+      ? await this.writeWorkplace(input, root ?? input.repo, id, startedAt)
+      : await this.workplace(root, throwaway)
     let result: RunResult
     try {
-      result = await this.delegate({ allowed, binary: client.binary, config, entry, family, id, input, runDir, startedMs, workDir: workplace.dir })
+      result = await this.delegate({
+        allowed,
+        binary: client.binary,
+        config,
+        entry,
+        family,
+        id,
+        input,
+        runDir,
+        startedMs,
+        workDir: workplace.dir,
+        ...(workplace.branch === undefined ? {} : { branch: workplace.branch }),
+      })
     } catch (error) {
       await this.release(workplace)
       throw error
@@ -148,13 +197,15 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const { config, entry, input, runDir } = run
     const launcher = LAUNCHERS[input.client as RunClient]
     const paths: LaunchPaths = { exportDir: join(runDir, 'vibe'), promptPath: join(runDir, 'prompt.md'), workDir: run.workDir }
-    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars)
+    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode)
     await this.deps.files.writeText(paths.promptPath, prompt)
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
     const launched = await this.launch(launcher, run.binary, input, paths, prompt)
     const exported = launcher.writesExport ? await this.readExport(join(paths.exportDir, 'export.json')) : undefined
     const output = launcher.read(launched.result.stdout, exported)
-    const reason = launched.failure ?? runFailureReason(launched.result, output.answer, output.failure)
+    const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output.failure)
+    const written = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : undefined
+    const reason = written === undefined ? delegateReason : written.reason
     const cost = priceRun(output.charged, output.tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
     await this.deps.files.writeText(outputPath, launched.result.stdout)
@@ -171,8 +222,81 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
       tokens: output.tokens,
       workflow: input.workflow,
       ...(reason === undefined ? {} : { reason }),
+      ...written?.report,
     }
     return result
+  }
+
+  /**
+   * What happens to a writing run's worktree once the delegate has ended. A
+   * delegate that finished gets the caller's check run in the worktree, and
+   * then everything in it staged, whatever the check said; a delegate that did
+   * not (a timeout, an exit code, output that cannot be read) leaves its
+   * worktree unstaged, with no check run. The gateway never commits, merges
+   * or pushes: the worktree and its branch are the caller's to take.
+   *
+   * The delegate has run by now, so a failure of the gateway's own (git cannot
+   * stage, the check's output cannot be kept) is a failed run with its
+   * reason, never an error that would lose the result, the output and the
+   * ledger line.
+   */
+  private async finishWrite(
+    run: Delegation,
+    input: WritingInput,
+    delegateReason: string | undefined,
+  ): Promise<{ reason: string | undefined; report: WriteReport }> {
+    const base = { branch: String(run.branch), worktree: run.workDir }
+    if (delegateReason !== undefined) return { reason: delegateReason, report: { ...base, staged_files: [] } }
+    const check = await this.runCheck(run, input)
+    let staged: readonly string[] = []
+    let stageError: string | undefined
+    try {
+      await this.deps.git.stageAll(run.workDir)
+      staged = await this.deps.git.stagedFiles(run.workDir)
+    } catch (error) {
+      stageError = messageOf(error)
+    }
+    const failure = stageError ?? check.outputError
+    const reason =
+      stageError !== undefined
+        ? 'stage-failed'
+        : check.outputError !== undefined
+          ? 'check-output-failed'
+          : check.report.exit_code === 0
+            ? undefined
+            : 'check-failed'
+    return {
+      reason,
+      report: { ...base, check: check.report, staged_files: staged, ...(failure === undefined ? {} : { worktree_error: failure }) },
+    }
+  }
+
+  /**
+   * The caller's check, `sh -c <command>` in the worktree, held to the run's
+   * time limit. Its output is kept in the run directory, and a check whose
+   * output cannot be kept still reports its exit code; a check that cannot
+   * start has exit code 127 and the reason as its output.
+   */
+  private async runCheck(run: Delegation, input: WritingInput): Promise<{ report: CheckReport; outputError?: string }> {
+    let result: ProcessResult
+    try {
+      result = await this.deps.process.exec({
+        args: ['-c', input.check],
+        command: 'sh',
+        cwd: run.workDir,
+        timeoutMs: input.time_limit_s * 1000,
+      })
+    } catch (error) {
+      result = { exitCode: 127, stderr: messageOf(error), stdout: '' }
+    }
+    const outputPath = join(run.runDir, 'check-output.txt')
+    const report: CheckReport = { command: input.check, exit_code: result.exitCode, output_path: outputPath }
+    try {
+      await this.deps.files.writeText(outputPath, `${result.stdout}${result.stderr}`)
+      return { report }
+    } catch (error) {
+      return { outputError: messageOf(error), report }
+    }
   }
 
   /** A delegate may not delegate on: the mark is in its environment, so this call came from inside one. */
@@ -244,13 +368,43 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
    */
   private async runDir(root: string | undefined, id: string): Promise<string> {
     if (root === undefined) return join(runsDir(this.deps.env), id)
-    let commonDir: string
+    return join(await this.commonDir(root), 'model-gateway', 'runs', id)
+  }
+
+  /** The repository's common directory, which every gateway directory of the repository sits in. */
+  private async commonDir(root: string): Promise<string> {
     try {
-      commonDir = await this.deps.git.commonDir(root)
+      return await this.deps.git.commonDir(root)
     } catch (error) {
       throw new ModelGatewayError('repository-unreadable', `${root}: ${messageOf(error)}`)
     }
-    return join(commonDir, 'model-gateway', 'runs', id)
+  }
+
+  /**
+   * A writing run's worktree: created off the caller's base, in the
+   * repository's gateway directory, on a branch of its own named after the
+   * run. It is entered in the kept list at once, so whatever the run comes
+   * to, the workflow's end can remove it; the run itself never does. A list
+   * that cannot take it leaves the worktree nobody would remove, so it and its
+   * branch are removed again, and the list's error is the run's.
+   */
+  private async writeWorkplace(input: WritingInput, root: string, id: string, at: Date): Promise<Workplace> {
+    const dir = join(await this.commonDir(root), 'model-gateway', 'worktrees', id)
+    const branch = `gateway/${id}`
+    try {
+      await this.deps.git.createWorktree(root, dir, branch, input.base)
+    } catch (error) {
+      await this.deps.files.remove(dir)
+      throw new ModelGatewayError('worktree-failed', `${root}: cannot create a worktree off ${input.base}: ${messageOf(error)}`)
+    }
+    try {
+      await this.deps.kept.add({ at: at.toISOString(), branch, path: dir, repo: root, run_id: id, workflow: input.workflow })
+    } catch (error) {
+      await this.deps.git.removeWorktree(root, dir).catch(() => undefined)
+      await this.deps.git.deleteBranch(root, branch).catch(() => undefined)
+      throw error
+    }
+    return { branch, dir, release: () => Promise.resolve() }
   }
 
   /**

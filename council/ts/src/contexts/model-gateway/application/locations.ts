@@ -68,6 +68,11 @@ export function ledgerPath(env: EnvPort): string {
   return join(stateDir(env), 'ledger.jsonl')
 }
 
+/** The writing worktrees the gateway made and has not removed, machine-wide. */
+export function keptWorktreesPath(env: EnvPort): string {
+  return join(stateDir(env), 'kept-worktrees.json')
+}
+
 /** Where a run outside any repository keeps its directory. */
 export function runsDir(env: EnvPort): string {
   return join(stateDir(env), 'runs')

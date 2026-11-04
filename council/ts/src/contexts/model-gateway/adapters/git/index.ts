@@ -65,6 +65,27 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
     if (result.exitCode !== 0) throw new Error(messageOf(result))
   }
 
+  async createWorktree(repo: string, path: string, branch: string, base: string): Promise<void> {
+    const result = await this.git(repo, ['worktree', 'add', '-b', branch, path, base], WORKTREE_TIMEOUT_MS)
+    if (result.exitCode !== 0) throw new Error(messageOf(result))
+  }
+
+  async stageAll(path: string): Promise<void> {
+    const result = await this.git(path, ['add', '-A'], WORKTREE_TIMEOUT_MS)
+    if (result.exitCode !== 0) throw new Error(messageOf(result))
+  }
+
+  async stagedFiles(path: string): Promise<readonly string[]> {
+    const result = await this.git(path, ['diff', '--cached', '--name-only', '-z'])
+    if (result.exitCode !== 0) throw new Error(messageOf(result))
+    return result.stdout.split('\0').filter((name) => name !== '')
+  }
+
+  async deleteBranch(repo: string, branch: string): Promise<void> {
+    const result = await this.git(repo, ['branch', '-D', branch])
+    if (result.exitCode !== 0) throw new Error(messageOf(result))
+  }
+
   /**
    * `git worktree remove --force`, which takes the directory with it. A
    * worktree git no longer knows (its directory moved, or a lock was left) is

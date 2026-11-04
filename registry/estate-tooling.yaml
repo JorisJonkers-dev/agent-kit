@@ -1032,7 +1032,7 @@ vibe_critic_agents:
     surfaces: [workstation]
 
 # -------------------------------------------------------------------
-# Read-only Vibe delegate agents.
+# Vibe delegate agents of the model gateway.
 #
 # The model gateway's `run` launches a read-only delegation as
 # `vibe --agent delegate-readonly --model <alias>`, so the agent file
@@ -1043,6 +1043,12 @@ vibe_critic_agents:
 # the working directory, and no project context, so the delegate sees
 # the repository it was pointed at and nothing of the owner's home.
 #
+# A writing delegation runs as `vibe --agent delegate-write` in a
+# worktree the gateway made. The same file adds `write_file` and `edit`
+# (always allowed: a headless run has nobody to ask) and still has no
+# shell, since the gateway runs the caller's check itself, no subagents,
+# no MCP and nothing outside the worktree.
+#
 # Rendered into registry/generated/vibe/agents/ and installed into the
 # shared Vibe home's agents/ beside the critic agents, never into
 # vibe-private's. `surfaces: []` retires an agent, and setup removes its
@@ -1050,6 +1056,8 @@ vibe_critic_agents:
 # -------------------------------------------------------------------
 vibe_delegate_agents:
   - name: delegate-readonly
+    surfaces: [workstation]
+  - name: delegate-write
     surfaces: [workstation]
 
 # -------------------------------------------------------------------

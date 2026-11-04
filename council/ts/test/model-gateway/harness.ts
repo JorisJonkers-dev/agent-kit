@@ -1,11 +1,13 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import type {
   LedgerRecord,
   ModelGatewayFilesPort,
+  KeptWorktree,
   ModelGatewayGitPort,
+  ModelGatewayKeptPort,
   ModelGatewayLedgerPort,
   ModelGatewayProcessPort,
   ModelGatewayProofPort,
@@ -77,9 +79,18 @@ export type FakeRepository =
 
 /** One worktree call a fake git was asked for. */
 export interface FakeWorktreeCall {
-  readonly action: 'add' | 'remove'
+  /** `create` is a worktree on a new branch off a base; `add` is a detached one. */
+  readonly action: 'add' | 'create' | 'remove'
   readonly repo: string
   readonly path: string
+  readonly branch?: string
+  readonly base?: string
+}
+
+/** What a fake git was asked to delete: a branch of a repository. */
+export interface FakeBranchCall {
+  readonly repo: string
+  readonly branch: string
 }
 
 /** The file a fake worktree holds, as the checkout of HEAD a real one holds. */
@@ -92,10 +103,53 @@ export const FAKE_CHECKOUT_FILE = 'CHECKED-OUT'
  */
 export class FakeGit implements ModelGatewayGitPort {
   readonly worktrees: FakeWorktreeCall[] = []
+  /** Every git operation asked for, by the port's method name: a test asserts which ones a run is allowed to make. */
+  readonly calls: string[] = []
+  readonly stagedIn: string[] = []
+  readonly deletedBranches: FakeBranchCall[] = []
+  /** What `stageAll` fails with, as a worktree whose `.git` file the delegate overwrote does; none by default. */
+  stageError: string | undefined
+  /** What `deleteBranch` fails with, as a branch checked out elsewhere does; none by default. */
+  deleteBranchError: string | undefined
 
   constructor(private readonly repositories: Readonly<Record<string, FakeRepository>>) {}
 
+  async createWorktree(repo: string, path: string, branch: string, base: string): Promise<void> {
+    this.calls.push('createWorktree')
+    this.worktrees.push({ action: 'create', base, branch, path, repo })
+    const entry = this.repositories[repo]
+    if (entry !== undefined && 'root' in entry && entry.worktreeError !== undefined) throw new Error(entry.worktreeError)
+    await mkdir(path, { recursive: true })
+    await writeFile(join(path, FAKE_CHECKOUT_FILE), base)
+  }
+
+  /** Stages everything: the fake worktree's files are what `stagedFiles` then names. */
+  stageAll(path: string): Promise<void> {
+    this.calls.push('stageAll')
+    if (this.stageError !== undefined) return Promise.reject(new Error(this.stageError))
+    this.stagedIn.push(path)
+    return Promise.resolve()
+  }
+
+  /** Every file in the worktree but the checkout marker, relative to it and sorted: what a real `git add -A` would stage. */
+  async stagedFiles(path: string): Promise<readonly string[]> {
+    this.calls.push('stagedFiles')
+    const entries = await readdir(path, { recursive: true, withFileTypes: true })
+    return entries
+      .filter((entry) => entry.isFile() && entry.name !== FAKE_CHECKOUT_FILE)
+      .map((entry) => join(entry.parentPath, entry.name).slice(path.length + 1))
+      .sort()
+  }
+
+  deleteBranch(repo: string, branch: string): Promise<void> {
+    this.calls.push('deleteBranch')
+    if (this.deleteBranchError !== undefined) return Promise.reject(new Error(this.deleteBranchError))
+    this.deletedBranches.push({ branch, repo })
+    return Promise.resolve()
+  }
+
   async addWorktree(repo: string, path: string): Promise<void> {
+    this.calls.push('addWorktree')
     this.worktrees.push({ action: 'add', path, repo })
     const entry = this.repositories[repo]
     if (entry !== undefined && 'root' in entry && entry.worktreeError !== undefined) throw new Error(entry.worktreeError)
@@ -103,6 +157,7 @@ export class FakeGit implements ModelGatewayGitPort {
   }
 
   async removeWorktree(repo: string, path: string): Promise<void> {
+    this.calls.push('removeWorktree')
     this.worktrees.push({ action: 'remove', path, repo })
     const entry = this.repositories[repo]
     if (entry !== undefined && 'root' in entry && entry.removeError !== undefined) throw new Error(entry.removeError)
@@ -110,6 +165,7 @@ export class FakeGit implements ModelGatewayGitPort {
   }
 
   root(path: string): Promise<string | undefined> {
+    this.calls.push('root')
     const entry = this.repositories[path]
     if (entry === undefined) return Promise.resolve(undefined)
     if ('error' in entry) return Promise.reject(new Error(entry.error))
@@ -117,6 +173,7 @@ export class FakeGit implements ModelGatewayGitPort {
   }
 
   commonDir(path: string): Promise<string> {
+    this.calls.push('commonDir')
     const entry = this.repositories[path]
     if (entry === undefined) return Promise.reject(new Error(`${path}: not a git repository`))
     if ('error' in entry) return Promise.reject(new Error(entry.error))
@@ -125,6 +182,7 @@ export class FakeGit implements ModelGatewayGitPort {
   }
 
   remotes(path: string): Promise<readonly GitRemote[]> {
+    this.calls.push('remotes')
     const entry = this.repositories[path]
     if (entry === undefined) return Promise.resolve([])
     if ('error' in entry) return Promise.reject(new Error(entry.error))
@@ -171,6 +229,31 @@ export class FakeLedger implements ModelGatewayLedgerPort {
 
   append(record: LedgerRecord): Promise<void> {
     this.records.push(record)
+    return Promise.resolve()
+  }
+}
+
+/** The kept-worktrees list, held in memory, for a test that does not run a writing delegation. */
+export class FakeKept implements ModelGatewayKeptPort {
+  readonly worktrees: KeptWorktree[] = []
+  /** What `add` rejects with, as a state directory that cannot be written does; none by default. */
+  addError: Error | undefined
+
+  add(worktree: KeptWorktree): Promise<void> {
+    if (this.addError !== undefined) return Promise.reject(this.addError)
+    this.worktrees.push(worktree)
+    return Promise.resolve()
+  }
+
+  list(): Promise<readonly KeptWorktree[]> {
+    return Promise.resolve([...this.worktrees])
+  }
+
+  remove(runIds: readonly string[]): Promise<void> {
+    for (const runId of runIds) {
+      const at = this.worktrees.findIndex((worktree) => worktree.run_id === runId)
+      if (at !== -1) this.worktrees.splice(at, 1)
+    }
     return Promise.resolve()
   }
 }

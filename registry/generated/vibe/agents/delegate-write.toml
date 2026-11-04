@@ -1,0 +1,21 @@
+# GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT.
+# A writing delegate of the model gateway, launched by it as
+# `vibe --agent delegate-write --model <alias>`. Installed into the shared Vibe home only.
+
+display_name = "Delegate Write"
+description = "Write delegate for the model gateway: edits files in its worktree"
+safety = "safe"
+enabled_tools = ["read_file", "grep", "write_file", "edit"]
+enabled_skills = ["re:^$"]
+outside_workdir = "deny"
+enable_subagents = false
+include_project_context = false
+
+[tools.write_file]
+permission = "always"
+
+[tools.edit]
+permission = "always"
+
+[session_logging]
+enabled = false
