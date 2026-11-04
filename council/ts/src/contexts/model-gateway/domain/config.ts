@@ -190,6 +190,10 @@ export type ModelGatewayErrorCode =
   | 'grant-exists'
   /** The grants file lies inside a git repository, and a grant is never written into one. */
   | 'grants-in-repository'
+  /** `grant write` could not read the ledger, so a standing grant cannot be ruled out: it fails closed. */
+  | 'ledger-unreadable'
+  /** A run under a grant was launched with under a minute left before the grant or its workflow lapses. */
+  | 'grant-expiring'
 
 export class ModelGatewayError extends Error {
   constructor(

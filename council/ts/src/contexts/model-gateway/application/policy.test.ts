@@ -138,6 +138,78 @@ describe('GrantWriteCommand', () => {
 
     await expect(new GrantWriteCommand(w.deps).run([])).rejects.toThrow('the input must be a JSON object')
   })
+
+  it('lets only one of two concurrent writes through, because the check runs inside the grants lock', async () => {
+    const w = await workspace()
+    const input = { answer: 'yes', cap_usd: 5, client: 'codex', question: 'may I?', workflow: 'spec-293' }
+    // A read that takes its time: a check made outside the lock sees an empty file in both commands.
+    const slow = new FakeGrants()
+    const read = slow.read.bind(slow)
+    slow.read = async () => {
+      const grants = await read()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      return grants
+    }
+    const deps = { ...w.deps, grants: slow }
+
+    const results = await Promise.allSettled([new GrantWriteCommand(deps).run(input), new GrantWriteCommand(deps).run(input)])
+
+    expect(results.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(results.find((result) => result.status === 'rejected')).toMatchObject({ reason: { code: 'grant-exists' } })
+    expect(await read()).toHaveLength(1)
+  })
+
+  it('still writes the grant when the ledger cannot be settled, which only reads need to be trusted', async () => {
+    const w = await workspace()
+    const ledger = new FakeLedger()
+    ledger.update = () => Promise.reject(new Error('the ledger directory is read-only'))
+
+    const result = await new GrantWriteCommand({ ...w.deps, ledger }).run({
+      answer: 'yes',
+      cap_usd: 5,
+      client: 'codex',
+      question: 'may I?',
+      workflow: 'spec-293',
+    })
+
+    expect(result).toMatchObject({ grant: { workflow: 'spec-293' }, status: 'ok' })
+  })
+
+  it('refuses when the ledger cannot be read, naming the ledger file', async () => {
+    const w = await workspace()
+    const ledger = new FakeLedger()
+    ledger.read = () => Promise.reject(new Error('EACCES'))
+
+    await expect(
+      new GrantWriteCommand({ ...w.deps, ledger }).run({ answer: 'yes', cap_usd: 5, client: 'codex', question: 'may I?', workflow: 'spec-293' }),
+    ).rejects.toMatchObject({ code: 'ledger-unreadable', message: expect.stringContaining('ledger.jsonl') as unknown })
+    expect(await w.deps.grants.read()).toEqual([])
+  })
+
+  it('reports the grant it wrote even when the ledger fails after the write, rather than failing after it', async () => {
+    const w = await workspace()
+    const grants = new FakeGrants()
+    const ledger = new FakeLedger()
+    ledger.read = async () => {
+      if ((await grants.read()).length > 0) throw new Error('the ledger went away')
+      return []
+    }
+
+    const result = await new GrantWriteCommand({ ...w.deps, grants, ledger }).run({
+      answer: 'yes',
+      cap_usd: 5,
+      client: 'codex',
+      question: 'may I?',
+      workflow: 'spec-293',
+    })
+
+    expect(result).toMatchObject({
+      grant: { cap_usd: 5, room: null, workflow: 'spec-293' },
+      status: 'ok',
+      warning: expect.stringContaining('the ledger went away') as unknown,
+    })
+    expect(await grants.read()).toHaveLength(1)
+  })
 })
 
 describe('GrantListCommand', () => {

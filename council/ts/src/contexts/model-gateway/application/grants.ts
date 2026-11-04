@@ -19,7 +19,8 @@ import { requireWorkflowName, requireWorkflowOpen } from '../domain/workflows.js
 import { CapGuard } from './caps.js'
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
-import { overridePath } from './locations.js'
+import { ledgerPath, overridePath } from './locations.js'
+import { DELEGATION_MARK } from './launchers.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
 /** What `grant write` takes: the workflow the owner allowed, the client, the cap, and what was asked and answered. */
@@ -49,18 +50,20 @@ export interface GrantListResult {
 /**
  * Writes the grant the owner gave: the agent asks first, then records the
  * question and the answer here. It refuses an empty question or answer, a cap
- * that is not above 0, a client that is not metered-employer, and a workflow
- * that ended. The grant lapses 24 hours after it was written, or when its
+ * that is not above 0, a client that is not metered-employer, a workflow
+ * that ended, a call from inside a delegation, and a ledger it cannot read.
+ * The grant lapses 24 hours after it was written, or when its
  * workflow's own 24 hours run out first.
  */
 export class GrantWriteCommand implements ModelGatewayCommand<unknown, GrantWriteResult> {
-  private readonly grants: GrantGuard
+  private readonly caps: CapGuard
 
   constructor(private readonly deps: ModelGatewayDependencies) {
-    this.grants = new GrantGuard(deps)
+    this.caps = new CapGuard(deps)
   }
 
   async run(raw: unknown): Promise<GrantWriteResult> {
+    this.refuseNested()
     const input = readGrantInput(raw)
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
     const client = config.clients[input.client]
@@ -73,35 +76,53 @@ export class GrantWriteCommand implements ModelGatewayCommand<unknown, GrantWrit
     }
     const now = this.deps.clock.now()
     const record = requireWorkflowOpen(await this.deps.workflows.read(), input.workflow, now)
-    const standing = await this.standing(input.workflow, input.client, now)
-    if (standing !== undefined) {
-      const room = grantRoom(await this.deps.ledger.read(), standing)
-      throw new ModelGatewayError(
-        'grant-exists',
-        `workflow ${input.workflow} already has live grant ${standing.id} of ${usd(standing.cap_usd)} with ${usd(room.remaining_usd)} left: the owner re-approves only after it lapsed`,
-      )
-    }
+    const entries = await this.readLedger(now)
     const grant = newGrant({
       ...input,
       id: grantId(now, randomBytes(3).toString('hex')),
       workflowRecord: record,
       written_at: now,
     })
-    const written = await this.deps.grants.update((grants) => ({ grant, grants: [...grants, grant] }))
+    // The duplicate check runs inside the grants lock, so two concurrent writes cannot both pass it.
+    const written = await this.deps.grants.update((grants) => {
+      const standing = liveGrant(grants, input.workflow, input.client, entries, record, now)
+      if (standing !== undefined) {
+        const room = grantRoom(entries, standing)
+        throw new ModelGatewayError(
+          'grant-exists',
+          `workflow ${input.workflow} already has live grant ${standing.id} of ${usd(standing.cap_usd)} with ${usd(room.remaining_usd)} left: the owner re-approves only after it lapsed`,
+        )
+      }
+      return { grant, grants: [...grants, grant] }
+    })
     return await this.report(written)
   }
 
+  /** A delegate may not write a grant: the mark is in its environment, so this call came from inside a gateway run. */
+  private refuseNested(): void {
+    if (this.deps.env.get(DELEGATION_MARK) !== undefined) {
+      throw new ModelGatewayError(
+        'nested-delegation',
+        'a delegate may not write a grant: only the agent the owner works in may, after asking the owner',
+      )
+    }
+  }
+
   /**
-   * The live grant that already covers this workflow and client, or undefined
-   * when there is none or the ledger cannot be read: a ledger the gateway
-   * cannot read is no reason to refuse the grant the owner gave.
+   * The ledger, after the reservations whose runs died are settled when the
+   * ledger can be written. A ledger that cannot be read refuses the write: a standing grant cannot be ruled
+   * out, and a second grant carries a fresh full cap of the employer's money.
    */
-  private async standing(workflow: string, client: string, now: Date): Promise<Grant | undefined> {
+  private async readLedger(now: Date): Promise<readonly LedgerEntry[]> {
+    // Settling writes the ledger: a ledger that reads fine but cannot be written is no reason to refuse.
+    await this.caps.settleStale(now).catch(() => undefined)
     try {
-      return await this.grants.live(workflow, client, now)
+      return await this.deps.ledger.read()
     } catch (error) {
-      if (error instanceof ModelGatewayError) throw error
-      return undefined
+      throw new ModelGatewayError(
+        'ledger-unreadable',
+        `${ledgerPath(this.deps.env)}: the ledger cannot be read, so a standing grant cannot be ruled out and no grant is written: ${messageOf(error)}`,
+      )
     }
   }
 

@@ -23,6 +23,7 @@ import { grantRefusal, type Grant } from '../domain/grants.js'
 import type { LedgerEntry, ReservationRecord } from '../domain/ledger.js'
 import { costClassFor } from '../domain/models.js'
 import { openCodeProvider, type RunInput } from '../domain/run.js'
+import { workflowEndsAt } from '../domain/workflows.js'
 import type { ModelGatewayDependencies } from './ports.js'
 
 /**
@@ -32,7 +33,14 @@ import type { ModelGatewayDependencies } from './ports.js'
 export interface Reservation {
   readonly estimate: Estimate
   readonly record: ReservationRecord
+  /** The time limit the run runs under: its own, clamped to what is left of its grant and workflow. */
+  readonly time_limit_s: number
+  /** For a run under a grant, the moment its grant or workflow lapses, whichever comes first; the run's check is held to it too. */
+  readonly ends_at?: Date
 }
+
+/** A run under a grant needs at least this long before the grant or its workflow lapses. */
+export const MIN_GRANT_TIME_LEFT_S = 60
 
 /**
  * What a metered run's estimate is held against: the metered-personal caps, or
@@ -91,6 +99,8 @@ export class CapGuard {
   }): Promise<Reservation | undefined> {
     const { cap, config, costClass, estimate, input, now, runDir, runId } = args
     if (estimate === undefined) return undefined
+    const held = cap.kind === 'grant' ? await this.grantTimeLimit(cap.grant, input, now) : undefined
+    const timeLimitS = held?.time_limit_s ?? input.time_limit_s
     const costs = await this.finishedCosts()
     const record = reservationRecord({
       client: input.client,
@@ -100,7 +110,7 @@ export class CapGuard {
       reserved_at: now,
       run_dir: runDir,
       run_id: runId,
-      time_limit_s: input.time_limit_s,
+      time_limit_s: timeLimitS,
       workflow: input.workflow,
     })
     const refusal = await this.deps.ledger.update((entries) => {
@@ -113,7 +123,27 @@ export class CapGuard {
       return { append: message === undefined ? [...settled, record] : settled, result: message }
     })
     if (refusal !== undefined) throw new ModelGatewayError('cap-exceeded', refusal)
-    return { estimate, record }
+    return { estimate, record, time_limit_s: timeLimitS, ...(held === undefined ? {} : { ends_at: held.ends_at }) }
+  }
+
+  /**
+   * The time limit a run under a grant may have: its own, clamped to the time
+   * left until the grant lapses and until its workflow's 24 hours (or its end)
+   * run out, so a run launched just before either keeps no spend running past
+   * it. With under a minute left the run is refused (`grant-expiring`).
+   */
+  private async grantTimeLimit(grant: Grant, input: RunInput, now: Date): Promise<{ time_limit_s: number; ends_at: Date }> {
+    const record = (await this.deps.workflows.read()).find((candidate) => candidate.name === input.workflow)
+    const ends = [Date.parse(grant.expires_at), ...(record === undefined ? [] : [workflowEndsAt(record).getTime()])]
+    const endsAt = new Date(Math.min(...ends))
+    const leftS = Math.floor((endsAt.getTime() - now.getTime()) / 1000)
+    if (leftS < MIN_GRANT_TIME_LEFT_S) {
+      throw new ModelGatewayError(
+        'grant-expiring',
+        `the grant covering workflow ${input.workflow} has ${String(Math.max(leftS, 0))} seconds left: wait for it to lapse, then ask the owner for a new grant, or start a new workflow`,
+      )
+    }
+    return { ends_at: endsAt, time_limit_s: Math.min(input.time_limit_s, leftS) }
   }
 
   /** Releases a reservation with what the run really cost, so the caps count spend rather than the estimate. */
