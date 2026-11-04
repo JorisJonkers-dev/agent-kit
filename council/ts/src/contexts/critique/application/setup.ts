@@ -57,6 +57,12 @@ export interface SetupListResult {
   readonly status: 'listed'
   readonly results_path: string
   readonly items: readonly SetupItem[]
+  /**
+   * One line per setting this machine's routing override still names that
+   * routing no longer reads, such as the removed per-flow Vibe cap: the
+   * runner ignores it, and the owner should delete it.
+   */
+  readonly notes?: readonly string[]
   /** Present when the input named a repository. */
   readonly repository?: RepositorySetup
 }
@@ -180,12 +186,29 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     const items: SetupItem[] = []
     for (const check of setupChecklist(routing.clients))
       items.push(setupItem(check, await this.inputs(check, routing), results.checks[check.id]))
+    const notes = await this.staleNotes()
     return {
       items,
+      ...(notes.length === 0 ? {} : { notes }),
       results_path: setupResultsPath(this.deps.env),
       status: 'listed',
       ...(repo === undefined ? {} : { repository: await this.repository(repo, routing) }),
     }
+  }
+
+  /**
+   * What this machine's routing override still names that routing no longer
+   * reads. The per-flow Vibe cap is gone: Vibe is counted against its plan
+   * limit, which the model gateway reads, so the runner ignores the key and
+   * the owner should delete it.
+   */
+  private async staleNotes(): Promise<readonly string[]> {
+    const override = await this.override()
+    const budget = override.budget
+    if (!isJsonObject(budget) || !('vibe_flow_cap_usd' in budget)) return []
+    return [
+      `your routing override still names budget.vibe_flow_cap_usd in ${routingOverridePath(this.deps.env)}: it is ignored, since Vibe is counted against its plan limit; delete it`,
+    ]
   }
 
   private async check(id: string, confirmed: boolean, force: boolean): Promise<SetupCheckOutput> {

@@ -212,7 +212,7 @@ export function warningsOf(client: string, windows: readonly PlanWindowUsage[]):
 }
 
 /** A plan window as a sentence names it: its span, and what is spent of what it allows. */
-function describeWindow(window: PlanWindowUsage): string {
+export function describeWindow(window: PlanWindowUsage): string {
   return 'limit_usd' in window
     ? `its ${window.window} plan limit ($${window.spent_usd.toFixed(2)} of $${window.limit_usd.toFixed(2)})`
     : `its ${window.window} plan limit (${String(window.runs)} of ${String(window.limit_runs)} runs)`

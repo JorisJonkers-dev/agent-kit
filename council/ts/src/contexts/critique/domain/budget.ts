@@ -15,11 +15,10 @@ export interface AntigravityQuota {
 
 /**
  * What routing caps beyond each critic's own price cap and time limit, under
- * the keys routing gives them.
+ * the keys routing gives them. Vibe carries no dollar cap of its own: it is
+ * counted against its plan limit, which the model gateway reads.
  */
 export interface CritiqueLimits {
-  /** The most the Vibe critics of one flow may spend, across all its runs. */
-  readonly budget: { readonly vibe_flow_cap_usd: number }
   readonly antigravity_quota: AntigravityQuota
   /** How much one answer of the runner's search server may hold (ADR-0006). */
   readonly search: SearchLimits
@@ -28,7 +27,6 @@ export interface CritiqueLimits {
 /** #167's limits, for a routing file that does not state its own. */
 export const DEFAULT_LIMITS: CritiqueLimits = {
   antigravity_quota: { daily_cap: 20, reserve_threshold: 10, reserved_stages: ['spec', 'feature-review'] },
-  budget: { vibe_flow_cap_usd: 5 },
   search: DEFAULT_SEARCH_LIMITS,
 }
 
@@ -44,7 +42,6 @@ export function readLimits(file: JsonFields): CritiqueLimits {
             reserve_threshold: quota.number('reserve_threshold'),
             reserved_stages: quota.oneOfList('reserved_stages', CRITIQUE_STAGES),
           },
-    budget: file.has('budget') ? { vibe_flow_cap_usd: file.object('budget').number('vibe_flow_cap_usd') } : DEFAULT_LIMITS.budget,
     search: file.has('search') ? readSearchLimits(file.object('search')) : DEFAULT_LIMITS.search,
   }
 }
@@ -78,7 +75,7 @@ export interface InvocationLine {
  * What the budget reads back from one invocation line, and the run it was
  * launched for; setup's checks launch for no run.
  */
-export type LoggedInvocation = Pick<InvocationLine, 'recorded_at' | 'repository' | 'flow' | 'kind' | 'charged_usd'> & {
+export type LoggedInvocation = Pick<InvocationLine, 'recorded_at' | 'repository' | 'flow' | 'kind' | 'charged_usd' | 'critic_id'> & {
   readonly run_id: string | undefined
 }
 
@@ -94,6 +91,7 @@ export function invocationLines(ledger: string): readonly LoggedInvocation[] {
       return [
         {
           charged_usd: line.number('charged_usd'),
+          critic_id: line.string('critic_id'),
           flow: line.string('flow'),
           kind: line.oneOf('kind', ['vibe', 'agy']),
           recorded_at: line.string('recorded_at'),
@@ -138,12 +136,6 @@ export function utcDay(now: Date): string {
 export function agyInvocationsOn(lines: readonly LoggedInvocation[], now: Date): number {
   const day = utcDay(now)
   return lines.filter((line) => line.kind === 'agy' && line.recorded_at.slice(0, 10) === day).length
-}
-
-/** Why the flow may launch no more Vibe critics, or undefined while it may. */
-export function budgetReached(spend: number, limits: CritiqueLimits): string | undefined {
-  const cap = limits.budget.vibe_flow_cap_usd
-  return spend >= cap ? `the flow's Vibe spend $${spend.toFixed(4)} has reached its $${cap.toFixed(2)} cap` : undefined
 }
 
 /** Why this stage may launch no more agy critics today, or undefined while it may. */

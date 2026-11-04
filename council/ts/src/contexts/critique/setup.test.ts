@@ -123,6 +123,22 @@ describe("setup's machine checklist", () => {
     ])
   })
 
+  it('tells the owner to delete a routing override that still names the removed per-flow Vibe cap', async () => {
+    const h = await machine({ routingOverride: { budget: { vibe_flow_cap_usd: 8 } } })
+
+    const result = await listed(h)
+
+    expect(result.notes).toEqual([
+      `your routing override still names budget.vibe_flow_cap_usd in ${join(h.home, '.config', 'agent-kit', 'critique-routing.json')}: it is ignored, since Vibe is counted against its plan limit; delete it`,
+    ])
+  })
+
+  it('says nothing about a routing override that names no removed setting', async () => {
+    const h = await machine({ routingOverride: { antigravity_quota: { daily_cap: 8 } } })
+
+    expect((await listed(h)).notes).toBeUndefined()
+  })
+
   it('says what each item costs: sign-ins and the quota are free, a critic spends on its own CLI', async () => {
     const h = await machine()
 

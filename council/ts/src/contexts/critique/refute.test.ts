@@ -8,6 +8,7 @@ import {
   finding,
   harness,
   isolatedExport,
+  seedGatewayLedger,
   SPEC_CANARY,
   SyntheticLedger,
   vibeStdout,
@@ -21,6 +22,9 @@ const open: Harness[] = []
 afterEach(async () => {
   await Promise.all(open.splice(0).map((h) => h.cleanup()))
 })
+
+/** This machine's gateway file: Vibe's plan allows $5 a day. */
+const VIBE_PLAN = { clients: { vibe: { plan_limits: [{ limit_usd: 5, window: 'day' }] } } }
 
 const slot = (client: string) => ({ client, lenses: ['fidelity'], max_price_usd: 0.5, role: 'spec-redteam', time_limit_s: 60 })
 
@@ -66,9 +70,15 @@ async function reviewed(
     readonly ledger?: SyntheticLedger
     readonly assets?: Readonly<Record<string, (shipped: string) => string>>
     readonly routing?: unknown
+    /** This machine's model gateway file, where Vibe's plan limits are declared. */
+    readonly gatewayOverride?: unknown
   } = {},
 ): Promise<Reviewed> {
-  const h = await harness({ routing: options.routing ?? ROUTING, ...(options.assets === undefined ? {} : { assets: options.assets }) })
+  const h = await harness({
+    routing: options.routing ?? ROUTING,
+    ...(options.assets === undefined ? {} : { assets: options.assets }),
+    ...(options.gatewayOverride === undefined ? {} : { gatewayOverride: options.gatewayOverride }),
+  })
   open.push(h)
   if (options.ledger !== undefined) await options.ledger.writeTo(h)
   await h.commands.allow.run({ families: options.families ?? ['mistral', 'zhipu', 'deepseek'], repo: h.repo })
@@ -385,15 +395,15 @@ describe('refute: choosing the refuter', () => {
     expect(await readFile(recorded.report_path, 'utf8')).toContain('F1: skipped (no-eligible-client)')
   })
 
-  it('skips a Vibe client once the flow has spent its cap', async () => {
-    const flow = '.scratch/widgets/spec.md'
-    const ledger = new SyntheticLedger().invocation({ charged_usd: 4.99, flow, kind: 'vibe' })
-    const r = await reviewed([critical()], { ledger })
+  it("skips a Vibe refuter once Vibe is at 100% of its plan", async () => {
+    const r = await reviewed([critical()], { gatewayOverride: VIBE_PLAN })
+    // The plan is spent after the critics ran, so the refuter is the one held back.
+    await seedGatewayLedger(r.h, [{ cost_usd: 5 }])
 
     const result = await r.h.commands.refute.run({ run_dir: r.run.run_dir, verdicts: accepted('F1') })
 
     expect(result.results[0]).toMatchObject({ outcome: 'skipped', reason_code: 'no-eligible-client' })
-    expect(result.results[0]?.detail).toContain('cap')
+    expect(result.results[0]?.detail).toContain('at 100% of its day plan limit')
   })
 })
 
@@ -463,10 +473,11 @@ describe('refute: records and spend', () => {
     expect(refuter?.vibe_cost_usd).toBe(0.2)
   })
 
-  it("leaves the flow's next critics unlaunched once the refuter's spend reaches the cap", async () => {
+  it("leaves the next stage's Vibe critics unlaunched once the refuter's spend takes Vibe to 100% of its plan", async () => {
     const flow = '.scratch/widgets/spec.md'
-    const r = await reviewed([critical()], { ledger: new SyntheticLedger().invocation({ charged_usd: 4.9, flow, kind: 'vibe' }) })
-    // Fan-out spent $0.0246; this refuter's $0.08 takes the flow past its $5 cap.
+    const r = await reviewed([critical()], { gatewayOverride: VIBE_PLAN })
+    // Fan-out spent $0.0246; this refuter's $0.08 takes Vibe past its $5 day.
+    await seedGatewayLedger(r.h, [{ cost_usd: 4.9 }])
     await refuted(r, vibe('critic-glm', NOTHING, 0.08))
     r.h.clock.advance(1)
 
@@ -474,7 +485,11 @@ describe('refute: records and spend', () => {
     if (next.status !== 'ready') throw new Error('not ready')
     const fan = await r.h.commands.fanOut.run({ run_dir: next.run_dir })
 
-    expect(fan.critics.map((critic) => critic.status)).toEqual(['budget-skip', 'budget-skip'])
+    expect(next.dropped.map((dropped) => [dropped.client, dropped.reason])).toEqual([
+      ['vibe-mistral-large', 'quota'],
+      ['vibe-glm', 'quota'],
+    ])
+    expect(fan.critics).toEqual([])
   })
 
   it('counts only the criticals still accepted after the round toward a second round', async () => {

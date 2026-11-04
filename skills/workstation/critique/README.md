@@ -235,14 +235,18 @@ that fired either way.
   tokens at the client's `prices` in routing: uncached input at the input
   price, cached input at the cached price (10% of the input price, as
   Mistral bills it), output at the output price. That figure is what the
-  ledger, the flow cap, `/flow budget` and the reports use. Vibe's own
+  ledger, Vibe's plan window, `/flow budget` and the reports use. Vibe's own
   `cost_usd` is kept beside it as `vibe_cost_usd`. A client with no prices,
   or an export with no token counts, falls back to Vibe's figure.
-- **Per flow**: Vibe spend capped at $5 (`budget.vibe_flow_cap_usd`),
-  triage included. Each flow key is capped on its own: the decisions stage
-  charges the draft's, every later stage the spec's, and each review run
-  its own run id. Past the cap, Vibe
-  critics don't launch and show as `budget-skip`.
+- **Vibe's plan limit**: Vibe is a subsidised plan, so it is counted against
+  the plan's own windows, not a dollar cap of the runner's. Before a stage
+  plans a Vibe critic it asks the model gateway for Vibe's plan limit — the
+  windows this machine's `clients.vibe.plan_limits` declares, with what the
+  machine-wide ledger says is spent in each. At or above the gateway's
+  warning ratio (80%) the stage's summary carries the gateway's warning and
+  the stage runs. At 100% of any window Vibe counts as unable to start, so a
+  Vibe critic is dropped with the reason `quota` and the stage runs with the
+  critics left. A fallback retry is checked again.
 - **Antigravity per day**: 20 invocations a UTC day
   (`antigravity_quota.daily_cap`). After 10 (`reserve_threshold`), the rest
   are kept for the spec and feature-review stages; other stages drop Gemini
@@ -332,8 +336,13 @@ key, and a list is replaced whole. A bad merge is `invalid-routing`, naming
 both files.
 
 ```json
-{ "budget": { "vibe_flow_cap_usd": 8 }, "antigravity_quota": { "daily_cap": 50 } }
+{ "antigravity_quota": { "daily_cap": 50 } }
 ```
+
+Vibe's plan limit is not routing's: it is the model gateway's, in
+`~/.config/agent-kit/model-gateway.json` under `clients.vibe.plan_limits`. An
+override that still names the removed `budget.vibe_flow_cap_usd` is ignored,
+and `setup` says so.
 
 A default for every machine is a change to agent-kit's
 `skills/workstation/critique/routing.json`.

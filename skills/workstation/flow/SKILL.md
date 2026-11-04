@@ -246,6 +246,11 @@ Run `list`, with `repo` when `git rev-parse --show-toplevel` names one. Keep
 Open with one line: how many items are `current` (they passed, and nothing
 they depend on changed since) and how many are due.
 
+If the result carries `notes`, say each one as it stands before the first
+item: they name a setting this machine's routing override still holds that
+routing no longer reads, such as the removed `budget.vibe_flow_cap_usd`, and
+the owner should delete it.
+
 Done when `list` returned `"status": "listed"`.
 
 ### 2. Walk the machine checklist

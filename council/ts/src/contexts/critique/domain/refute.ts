@@ -79,6 +79,8 @@ export interface RefuteFile {
   readonly refute_path: string
   readonly results: readonly RefuteRecord[]
   readonly counts: Readonly<Record<RefuteOutcome, number>>
+  /** Why the gateway's ledger would not take a refuter's run, one message per failed append. */
+  readonly ledger_warnings?: readonly string[]
 }
 
 /** One client a stage routes, with the slot whose caps a refuter through it takes. */
@@ -276,6 +278,7 @@ export function parseRefuteFile(text: string): RefuteFile {
   const file = JsonFields.parse(text)
   return {
     counts: countOutcomes(file.list('results', readRefuteRecord)),
+    ...(file.has('ledger_warnings') ? { ledger_warnings: file.strings('ledger_warnings') } : {}),
     refute_path: file.string('refute_path'),
     results: file.list('results', readRefuteRecord),
     run_id: file.string('run_id'),

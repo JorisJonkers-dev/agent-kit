@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { budgetReached } from '../domain/budget.js'
+import { gatewayLedgerWarning } from '../domain/gateway-ledger.js'
 import { compactTimestamp, sha256 } from '../domain/manifest.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
 import type { Routing, TriageRouting } from '../domain/routing.js'
@@ -68,7 +68,10 @@ export interface TriageResult {
   }
   /** Only when the model was launched. */
   readonly model?: TriageModelCall
-  /** One line for the stage's summary, naming the decision and why. */
+  /**
+   * One line for the stage's summary, naming the decision and why; a second
+   * when the gateway's ledger would not take the model's run.
+   */
   readonly summary: string
 }
 
@@ -133,7 +136,7 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     const [first] = signals
     const asked: Decided =
       first === undefined
-        ? await this.ask({ diff: read.diff, flow, repository, routing, runDir, runId, triage })
+        ? await this.ask({ diff: read.diff, flow, repository, routing, runDir, runId, spec: input.spec, triage })
         : { decision: 'risky', signal: first }
     const signal = asked.signal
     const result: TriageResult = {
@@ -150,7 +153,7 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
       signal,
       signals,
       status: asked.decision,
-      summary: triageSummary(asked.decision, signal, triage.model.client),
+      summary: [triageSummary(asked.decision, signal, triage.model.client), ...(asked.ledger_warning === undefined ? [] : [gatewayLedgerWarning(asked.ledger_warning)])].join('\n'),
       ticket: { labels: ticket.labels, reference: ticket.reference },
     }
     await this.deps.files.writeText(join(runDir, 'triage.json'), `${JSON.stringify(result, null, 2)}\n`)
@@ -183,7 +186,7 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
    * second review. Each reason it may not run leaves the change risky.
    */
   private async ask(request: TriageAsk): Promise<Decided> {
-    const { repository, routing, triage } = request
+    const { repository, triage } = request
     const config = triage.model.client_config
     const unavailable = (reason: UnavailableReason, detail: string): Decided => ({
       decision: 'risky',
@@ -195,8 +198,8 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     if (!entry.families.includes(config.family)) {
       return unavailable('family-not-allowed', `${repository.key} does not allow the ${config.family} family`)
     }
-    const spent = budgetReached(await this.budget.vibeSpend({ flow: request.flow, repository: repository.key }), routing.limits)
-    if (spent !== undefined) return unavailable('budget', spent)
+    const plan = (await this.deps.plan.read('vibe')).unable_to_start
+    if (plan !== undefined) return unavailable('budget', plan)
     const ready = await this.deps.clients.vibe.readiness(config)
     if (!ready.ready) return unavailable('unavailable', ready.detail)
 
@@ -215,18 +218,26 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
     await this.deps.files.writeText(join(request.runDir, 'stdout.json'), report.stdout)
     await this.deps.files.writeText(join(request.runDir, 'stderr.txt'), report.stderr)
     const call = { client: triage.model.client, family: config.family, model: config.model }
-    await this.budget.logInvocation(
+    const ledgerWarning = await this.budget.logInvocation(
       { flow: request.flow, repository: repository.key, round: 1, run_id: request.runId, stage: 'ticket-review' },
       {
         ...call,
         charged_usd: report.chargedUsd,
+        cost_usd: report.answer.cost_usd,
         critic_id: 'triage',
+        exit_code: report.exitCode,
         status: report.answer.status === 'answered' ? 'ok' : 'failed',
         vibe_cost_usd: report.vibeCostUsd,
       },
-      'vibe',
+      config,
+      request.spec,
     )
-    return { ...answered(report), model: modelCall(call, report), promptHash: sha256(promptAsset) }
+    return {
+      ...answered(report),
+      ...(ledgerWarning === undefined ? {} : { ledger_warning: ledgerWarning }),
+      model: modelCall(call, report),
+      promptHash: sha256(promptAsset),
+    }
   }
 
   private async freshRunId(repository: ResolvedRepository): Promise<string> {
@@ -247,12 +258,16 @@ interface TriageAsk {
   readonly runId: string
   readonly flow: string
   readonly diff: string
+  /** The spec the ticket belongs to, where the input names one. */
+  readonly spec: string | undefined
 }
 
 /** A decision, and when the model was launched, what it was asked and answered. */
 interface Decided {
   readonly decision: TriageDecision
   readonly signal: TriageSignal
+  /** Why the gateway's ledger would not take the model's run, where it would not. */
+  readonly ledger_warning?: string
   readonly model?: TriageModelCall
   /** The triage prompt's hash, when the model was launched. */
   readonly promptHash?: string

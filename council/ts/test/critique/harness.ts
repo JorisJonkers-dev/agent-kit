@@ -23,6 +23,7 @@ import type {
 import {
   AgyCriticClient,
   createCritiqueCommands,
+  GatewayPlanLimit,
   NodeCritiqueFiles,
   ProcessSearchClient,
   runSearchServer,
@@ -31,8 +32,12 @@ import {
   type CritiqueGhPort,
   type CritiqueGitPort,
 } from '../../src/contexts/critique/index.js'
+import { ledgerPath as gatewayLedgerPath, NodeModelGatewayLedger } from '../../src/contexts/model-gateway/index.js'
 
 export const ASSETS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../skills/workstation/critique')
+
+/** The model gateway's shipped defaults, which hold the plan limits critique reads. */
+export const GATEWAY_DEFAULTS = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../skills/workstation/model-gateway/defaults.json')
 
 /** The critic agent files agent-kit's generator renders, which setup installs into `~/.vibe/agents/`. */
 export const GENERATED_AGENTS = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../registry/generated/vibe/agents')
@@ -1017,6 +1022,10 @@ export interface Harness {
   readonly clock: FixedClock
   readonly commands: CritiqueCommands
   readonly cleanup: () => Promise<void>
+  /** The model gateway's ledger, where every critic run is recorded; empty when nothing was. */
+  readonly gatewayLedger: () => Promise<string>
+  /** The path of the model gateway's ledger, for a test that seeds it. */
+  readonly gatewayLedgerFile: string
   readonly readText: (path: string) => Promise<string>
   readonly writeText: (path: string, content: string) => Promise<void>
   readonly removeFile: (path: string) => Promise<void>
@@ -1082,6 +1091,12 @@ export async function harness(
     readonly search?: boolean
     /** The personal Vibe home's `config.toml`. */
     readonly vibeConfig?: string
+    /**
+     * This machine's model gateway override in
+     * `~/.config/agent-kit/model-gateway.json`, where Vibe's plan limits are
+     * declared: a value is written as JSON, a string as it is.
+     */
+    readonly gatewayOverride?: unknown
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -1100,6 +1115,14 @@ export async function harness(
     const override = options.routingOverride
     await writeFile(
       join(home, '.config', 'agent-kit', 'critique-routing.json'),
+      typeof override === 'string' ? override : JSON.stringify(override),
+    )
+  }
+  if (options.gatewayOverride !== undefined) {
+    await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
+    const override = options.gatewayOverride
+    await writeFile(
+      join(home, '.config', 'agent-kit', 'model-gateway.json'),
       typeof override === 'string' ? override : JSON.stringify(override),
     )
   }
@@ -1150,6 +1173,10 @@ export async function harness(
     files,
     gh,
     git,
+    // Every critic run is recorded in the gateway's ledger, and Vibe's plan
+    // limit is read the way the gateway reads it.
+    ledger: new NodeModelGatewayLedger(env),
+    plan: new GatewayPlanLimit(env, clock, GATEWAY_DEFAULTS),
     ...(options.search === true ? { search: new ProcessSearchClient(process, SEARCH_COMMAND) } : {}),
   })
   return {
@@ -1163,6 +1190,8 @@ export async function harness(
     home,
     launches,
     process,
+    gatewayLedger: () => readFile(gatewayLedgerPath(env), 'utf8').catch(() => ''),
+    gatewayLedgerFile: gatewayLedgerPath(env),
     readText: (path) => readFile(path, 'utf8'),
     removeFile: (path) => rm(path),
     repo,
@@ -1171,6 +1200,31 @@ export async function harness(
       await writeFile(path, content)
     },
   }
+}
+
+/**
+ * Earlier runs in the model gateway's ledger, as the gateway writes them: one
+ * JSON line per run, machine-wide, appended to whatever the ledger already
+ * holds. A test seeds the spend a plan window counts, or a delegation's
+ * record beside critique's own.
+ */
+export async function seedGatewayLedger(h: Harness, records: readonly Record<string, unknown>[]): Promise<void> {
+  const record = (line: Record<string, unknown>) => ({
+    at: '2026-10-30T09:00:00.000Z',
+    client: 'vibe',
+    cost_usd: 0,
+    duration_s: 1,
+    family: 'mistral',
+    mode: 'read-only',
+    model: 'mistral-large-latest',
+    outcome: 'ok',
+    repository: null,
+    run_id: '20261030T090000Z-seed',
+    tokens: { cached: 0, input: 0, output: 0 },
+    workflow: 'seed',
+    ...line,
+  })
+  await h.writeText(h.gatewayLedgerFile, `${await h.gatewayLedger()}${records.map((line) => `${JSON.stringify(record(line))}\n`).join('')}`)
 }
 
 /** The model and family of each shipped critic client, as record writes them to the ledger. */
@@ -1206,6 +1260,8 @@ export interface SyntheticRun {
   readonly repository?: string
   /** When record wrote the run; one minute after the previous run by default. */
   readonly recorded_at?: string
+  /** The run's id; `run-<n>` by default, so a test can name a run another ledger holds. */
+  readonly run_id?: string
 }
 
 /** One critic launch as fan-out appends it to the ledger. */
@@ -1235,7 +1291,7 @@ export class SyntheticLedger {
       depth: 'base',
       recorded_at: recordedAt,
       repository: run.repository ?? 'github.com/jorisjonkers-dev/agent-kit',
-      run_id: `run-${String(this.count)}`,
+      run_id: run.run_id ?? `run-${String(this.count)}`,
       stage: run.stage ?? 'spec',
       ...(run.spec === null ? {} : { spec: run.spec ?? 'github.com/jorisjonkers-dev/agent-kit#167' }),
     }

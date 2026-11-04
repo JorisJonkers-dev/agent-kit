@@ -10,6 +10,7 @@ import {
   finding,
   harness,
   isolatedExport,
+  seedGatewayLedger,
   vibeStdout,
   type AgyScript,
   type Harness,
@@ -34,6 +35,8 @@ interface Flow {
   readonly vibeOnPath?: boolean
   readonly vibeSignIn?: VibeSignIn
   readonly vibeAgents?: readonly string[]
+  /** This machine's model gateway file, where Vibe's plan limits are declared. */
+  readonly gatewayOverride?: unknown
 }
 
 async function opened(flow: Flow): Promise<Harness> {
@@ -45,6 +48,7 @@ async function opened(flow: Flow): Promise<Harness> {
     ...(flow.vibeOnPath === undefined ? {} : { vibeOnPath: flow.vibeOnPath }),
     ...(flow.vibeSignIn === undefined ? {} : { vibeSignIn: flow.vibeSignIn }),
     ...(flow.vibeAgents === undefined ? {} : { vibeAgents: flow.vibeAgents }),
+    ...(flow.gatewayOverride === undefined ? {} : { gatewayOverride: flow.gatewayOverride }),
   })
   open.push(h)
   await h.commands.allow.run({ families: flow.families ?? ['mistral', 'google', 'zhipu'], repo: h.repo })
@@ -449,151 +453,96 @@ describe('what a Vibe critic costs, priced by the runner', () => {
   })
 })
 
-describe('the per-flow Vibe cap', () => {
-  it('skips every Vibe critic once the flow has spent its cap, and lets the rest run', async () => {
-    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'] })
-    await seedLedger(h, [{ charged_usd: 3.5 }, { charged_usd: 1.5 }])
+describe("Vibe's plan limit", () => {
+  /** This machine's gateway file: Vibe's plan allows $5 a day. */
+  const VIBE_PLAN = { clients: { vibe: { plan_limits: [{ limit_usd: 5, window: 'day' }] } } }
+  const EXHAUSTED = 'at 100% of its day plan limit ($5.00 of $5.00)'
+
+  it('drops every Vibe critic once Vibe is at 100% of its plan, and lets the rest run', async () => {
+    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'], gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 5 }])
     const run = await prepare(h)
 
     const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
 
     expect(h.process.commands).toEqual([])
-    expect(result.critics.map((critic) => [critic.critic_id, critic.status])).toEqual([
-      [VIBE, 'budget-skip'],
-      [AGY, 'ok'],
-    ])
+    expect(result.critics.map((critic) => [critic.critic_id, critic.status])).toEqual([['c1-agy-gemini-flash-high', 'ok']])
+    expect(run.dropped[0]).toMatchObject({ client: 'vibe-mistral-large', detail: EXHAUSTED, reason: 'quota' })
   })
 
-  it('lists a skipped critic in the summary', async () => {
-    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'] })
-    await seedLedger(h, [{ charged_usd: 5.25 }])
+  it('names the dropped critic in the summary', async () => {
+    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'], gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 5.25 }])
     const run = await prepare(h)
     await h.commands.fanOut.run({ run_dir: run.run_dir })
 
     const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
-    expect(summary).toContain("- vibe-mistral-large (mistral-large-4-0, mistral): budget-skip: the flow's Vibe spend $5.2500 has reached its $5.00 cap")
+    expect(summary).toContain(
+      '- Not run: vibe-mistral-large (mistral): quota (at 100% of its day plan limit ($5.25 of $5.00)); replaced by c1-agy-gemini-flash-high',
+    )
   })
 
-  it('records a skipped critic in the ledger without launching it', async () => {
-    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'] })
-    await seedLedger(h, [{ charged_usd: 5 }])
+  it('records no launch for a dropped critic, in either ledger', async () => {
+    const h = await opened({ agy: [agyOk()], families: ['mistral', 'google'], gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 5 }])
     const run = await prepare(h)
     await h.commands.fanOut.run({ run_dir: run.run_dir })
 
-    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
-
-    const lines = await ledger(h)
-    expect(lines.filter((line) => line.type === 'invocation' && line.run_id === run.run_id).map((line) => line.client)).toEqual([
-      'agy-gemini-flash-high',
-    ])
-    expect(lines.find((line) => line.type === 'run' && line.critic_id === VIBE)).toMatchObject({
-      charged_usd: 0,
-      exit_code: null,
-      status: 'budget-skip',
-    })
+    expect((await invocations(h)).map((line) => line.client)).toEqual(['agy-gemini-flash-high'])
+    const gateway = (await h.gatewayLedger()).split('\n').filter((line) => line.length > 0).map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(gateway.filter((line) => line.type === 'invocation').map((line) => line.critic_client)).toEqual(['agy-gemini-flash-high'])
   })
 
-  it('counts only the spend of this flow and this repository', async () => {
-    const h = await opened({ families: ['mistral'], vibe: [vibeOk('critic-mistral-large')] })
-    await seedLedger(h, [
-      { charged_usd: 4, flow: 'github.com/jorisjonkers-dev/agent-kit#12' },
-      { charged_usd: 4, repository: 'github.com/jorisjonkers-dev/other' },
-      { charged_usd: 4, kind: 'agy' },
-      { charged_usd: 0.9 },
-    ])
+  it("counts a delegation's spend toward Vibe's plan, since the plan is the machine's", async () => {
+    const h = await opened({ families: ['mistral'], gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ client: 'vibe', cost_usd: 5, mode: 'write', workflow: 'delegate' }])
     const run = await prepare(h)
 
-    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
-
-    expect(result.critics.map((critic) => critic.status)).toEqual(['ok'])
+    expect(run.dropped[0]).toMatchObject({ client: 'vibe-mistral-large', reason: 'quota' })
   })
 
-  it('counts a recorded launch once, though record also logs its cost', async () => {
-    const h = await opened({ families: ['mistral'], vibe: [vibeOk('critic-mistral-large', 2.6), vibeOk('critic-mistral-large')] })
+  it('counts a critic run the gateway ledger holds toward the plan', async () => {
+    const h = await opened({ families: ['mistral'], gatewayOverride: VIBE_PLAN, vibe: [vibeOk('critic-mistral-large', 5)] })
     const first = await prepare(h)
     await h.commands.fanOut.run({ run_dir: first.run_dir })
-    await h.commands.record.run({ run_dir: first.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
     const second = await prepare(h)
 
-    const result = await h.commands.fanOut.run({ run_dir: second.run_dir })
-
-    expect(result.critics.map((critic) => critic.status)).toEqual(['ok'])
+    expect(second.dropped[0]).toMatchObject({ client: 'vibe-mistral-large', detail: EXHAUSTED, reason: 'quota' })
   })
 
-  it('skips a ledger line that was cut short', async () => {
-    const h = await opened({ families: ['mistral'] })
-    await seedLedger(h, [{ charged_usd: 5 }])
-    await h.writeText(ledgerFile(h), `${await h.readText(ledgerFile(h))}{"type":"invocation","charged_usd":3,"fl`)
+  it('ignores a gateway ledger line that was cut short', async () => {
+    const h = await opened({ families: ['mistral'], gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 5 }])
+    await h.writeText(h.gatewayLedgerFile, `${await h.readText(h.gatewayLedgerFile)}{"at":"2026-10-30T09:00:00.000Z","client":"vi`)
     const run = await prepare(h)
 
-    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
-
-    expect(result.critics.map((critic) => critic.status)).toEqual(['budget-skip'])
+    expect(run.dropped[0]).toMatchObject({ client: 'vibe-mistral-large', reason: 'quota' })
   })
 
-  it('names the flow from the input when the caller gives one', async () => {
-    const h = await opened({ families: ['mistral'] })
-    await seedLedger(h, [{ charged_usd: 5, flow: 'github.com/jorisjonkers-dev/agent-kit#167' }])
-    const run = await prepare(h, {}, { flow: 'github.com/jorisjonkers-dev/agent-kit#167' })
-
-    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
-
-    expect(result.critics.map((critic) => critic.status)).toEqual(['budget-skip'])
-  })
-
-  it("adds a second round's spend to its first round's flow", async () => {
-    const h = await opened({ families: ['mistral'], vibe: [vibeOk('critic-mistral-large', 5.1)] })
-    const first = await prepare(h, {}, { flow: 'github.com/jorisjonkers-dev/agent-kit#167' })
-    await h.commands.fanOut.run({ run_dir: first.run_dir })
-    await h.commands.record.run({ run_dir: first.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
-    const second = await prepare(h, {}, { previous_run_dir: first.run_dir })
-
-    const result = await h.commands.fanOut.run({ run_dir: second.run_dir })
-
-    expect(result.critics.map((critic) => critic.status)).toEqual(['budget-skip'])
-  })
-
-  it('checks the spend again before a fallback retry, and skips the retry once the cap is reached', async () => {
-    const h = await opened({ agy: [agyOk()], vibe: [timedOutVibe('critic-mistral-large')] })
-    await seedLedger(h, [{ charged_usd: 4.75 }])
+  it('takes the plan limit from the machine gateway file, so this machine can lower it', async () => {
+    const h = await opened({ families: ['mistral'], gatewayOverride: { clients: { vibe: { plan_limits: [{ limit_usd: 1, window: 'day' }] } } } })
+    await seedGatewayLedger(h, [{ cost_usd: 1.2 }])
     const run = await prepare(h)
 
-    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
-
-    expect(result.critics.map((critic) => [critic.critic_id, critic.status])).toEqual([
-      [VIBE, 'failed'],
-      [AGY, 'ok'],
-      [`${VIBE}-retry-vibe-glm`, 'budget-skip'],
-    ])
+    expect(run.dropped[0]).toMatchObject({ client: 'vibe-mistral-large', detail: 'at 100% of its day plan limit ($1.20 of $1.00)', reason: 'quota' })
   })
 
-  it('takes the cap from routing, so this machine can lower it', async () => {
-    const h = await opened({ families: ['mistral'] })
-    await h.writeText(join(h.home, '.config', 'agent-kit', 'critique-routing.json'), JSON.stringify({ budget: { vibe_flow_cap_usd: 1 } }))
-    await seedLedger(h, [{ charged_usd: 1.2 }])
-    const run = await prepare(h)
-
-    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
-
-    expect(result.critics.map((critic) => [critic.status, critic.detail])).toEqual([
-      ['budget-skip', "the flow's Vibe spend $1.2000 has reached its $1.00 cap"],
-    ])
-  })
-
-  it('prefers a fallback that costs no money once the cap is reached', async () => {
+  it('does not retry into Vibe once the plan is exhausted during the run, and prefers a fallback that costs no money', async () => {
     const routing = await shippedRouting()
     const h = await opened({
       agy: [agyOk()],
+      families: ['mistral', 'google', 'deepseek'],
+      gatewayOverride: VIBE_PLAN,
       routing: {
         ...routing,
         fallbacks: { 'vibe-mistral-large': ['vibe-deepseek-flash', 'agy-gemini-flash-high'] },
         stages: { spec: { ...routing.stages.spec, base: [routing.stages.spec.base[0]] } },
       },
-      families: ['mistral', 'google', 'deepseek'],
       vibe: [timedOutVibe('critic-mistral-large')],
     })
-    await seedLedger(h, [{ charged_usd: 4.75 }])
+    // $4.75 spent, and the timed-out critic is charged its $0.50 cap: the plan is spent when the retry is planned.
+    await seedGatewayLedger(h, [{ cost_usd: 4.75 }])
     const run = await prepare(h)
 
     const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
@@ -604,15 +553,26 @@ describe('the per-flow Vibe cap', () => {
     ])
   })
 
-  it('says no critique ran when every critic was skipped', async () => {
-    const h = await opened({ families: ['mistral'] })
-    await seedLedger(h, [{ charged_usd: 6 }])
+  it('says no critique ran when every critic was dropped', async () => {
+    const h = await opened({ families: ['mistral'], gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 6 }])
     const run = await prepare(h)
     await h.commands.fanOut.run({ run_dir: run.run_dir })
 
     const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
 
     expect(summary).toContain('degraded: no critique ran')
+  })
+
+  it('warns in the summary while Vibe is at or above the warning ratio, and still runs', async () => {
+    const h = await opened({ families: ['mistral'], gatewayOverride: VIBE_PLAN, vibe: [vibeOk('critic-mistral-large')] })
+    await seedGatewayLedger(h, [{ cost_usd: 4.2 }])
+    const run = await prepare(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+
+    const { summary } = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+
+    expect(summary).toContain('Vibe plan: vibe has used 84% of its day plan limit ($4.20 of $5.00)')
   })
 })
 

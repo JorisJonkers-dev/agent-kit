@@ -142,6 +142,12 @@ export interface RunManifest {
    */
   readonly flow: string
   readonly limits: CritiqueLimits
+  /**
+   * The model gateway's warning for each Vibe plan window at or above its
+   * warning ratio, read when the run was prepared; absent while Vibe is well
+   * inside its plan. The stage's summary carries them.
+   */
+  readonly plan_warnings?: readonly string[]
   readonly packet_files: readonly PacketFile[]
   /** Only for a code stage. */
   readonly code?: CodeSource
@@ -194,6 +200,7 @@ export function parseManifest(text: string): RunManifest {
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),
     ...(file.has('code') ? { code: readCodeSource(file.object('code')) } : {}),
+    ...(file.has('plan_warnings') ? { plan_warnings: file.strings('plan_warnings') } : {}),
     packet_files: file.list('packet_files', (packetFile) => ({
       kind: packetFile.oneOf('kind', PACKET_FILE_KINDS),
       path: packetFile.string('path'),

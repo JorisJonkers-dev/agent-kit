@@ -54,6 +54,13 @@ export const CRITIC_STATUSES = ['ok', 'failed', 'violated-readonly', 'budget-ski
  */
 export type CriticStatus = (typeof CRITIC_STATUSES)[number]
 
+/** What one run used, as its client reported it; cached input is prompt the provider served from its cache. */
+export interface CriticTokens {
+  readonly cached: number
+  readonly input: number
+  readonly output: number
+}
+
 export interface CriticRun extends CriticIdentity {
   /** The critic id of the failed critic this one is the fallback retry for. */
   readonly retry_of?: string
@@ -70,6 +77,8 @@ export interface CriticRun extends CriticIdentity {
   readonly cost_usd: number | null
   /** What Vibe itself reported, kept for comparison; absent for any other client. */
   readonly vibe_cost_usd?: number | null
+  /** What the run used, as its client reported it; absent when the client reports none. */
+  readonly tokens?: CriticTokens
   /** What the launch counts against the flow's Vibe cap. */
   readonly charged_usd: number
   readonly duration_ms: number
@@ -106,6 +115,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
   const stdoutPath = fields.optionalString('stdout_path')
   const exportPath = fields.optionalString('export_path')
   const vibeCost = fields.has('vibe_cost_usd') ? { vibe_cost_usd: fields.nullableNumber('vibe_cost_usd') } : {}
+  const tokens = fields.has('tokens') ? { tokens: readTokens(fields.object('tokens')) } : {}
   const searchFailure = fields.optionalString('search_failure')
   const hashes = fields.object('prompt_hashes')
   return {
@@ -136,6 +146,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
     ...(stdoutPath === undefined ? {} : { stdout_path: stdoutPath }),
     ...(exportPath === undefined ? {} : { export_path: exportPath }),
     ...vibeCost,
+    ...tokens,
     ...(fields.has('tools') ? { tools: fields.strings('tools') } : {}),
     ...(searchFailure === undefined ? {} : { search_failure: searchFailure }),
   }
@@ -143,4 +154,8 @@ export function readCriticRun(fields: JsonFields): CriticRun {
 
 function isCriticFailure(value: string): value is CriticFailure {
   return isOneOf(RUN_FAILURES, value) || /^exit-\d+$/.test(value)
+}
+
+function readTokens(fields: JsonFields): CriticTokens {
+  return { cached: fields.number('cached'), input: fields.number('input'), output: fields.number('output') }
 }

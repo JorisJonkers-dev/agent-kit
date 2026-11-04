@@ -927,7 +927,16 @@ them:
 - **Paths.** The family allowlist is `~/.config/agent-kit/critique-allowlist.json`,
   keyed by `host/owner/repo` of the `origin` remote (or the first remote when
   there is no `origin`). The ledger is
-  `~/.local/share/agent-kit/critique/ledger.jsonl`. Each run lives in
+  `~/.local/share/agent-kit/critique/ledger.jsonl`, and since #307 every
+  critic run is also appended to the model gateway's ledger
+  (`$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl`) as one record
+  carrying the gateway's fields (`client`, `model`, `family`, `mode`
+  `read-only`, `workflow` = the flow, `tokens`, `cost_usd`, `outcome`) beside
+  critique's (`critic_id`, `critic_client`, `critic_model`, `stage`, `round`,
+  `run_id`, `repository`, `charged_usd`, `status`, `finding_count`, `role`,
+  `lenses`, `prompt_hashes`). Stats, `/flow budget`, `/flow` and the flow
+  state read both ledgers and count a launch both hold once, by run and
+  critic id; nothing was migrated or deleted. Each run lives in
   `critique/<run-id>/` in the git common directory, with `packet/`,
   `manifest.json`, `critics/<critic-id>/` (prompt, stdout, stderr and the
   export directory), `findings.json`, `report.md` and `summary.md`.
@@ -1849,16 +1858,23 @@ Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
   second round (`previous_run_dir`) inherits its first round's flow. The
   manifest carries `flow` and `limits`. Later stages (tickets, ticket
   review, feature review) should pass the spec's reference as `flow`, so the
-  whole spec-to-ticket flow shares one cap. `/flow budget` (#193) can sum
-  `charged_usd` of the `vibe` invocation lines of a repository and flow.
-- **Per-flow cap.** Routing's `budget.vibe_flow_cap_usd` (5). Before each
-  wave, fan-out reads the flow's spend; a Vibe critic is not launched once it
-  has reached the cap, and is recorded with status `budget-skip` (exit code
-  null, no stdout or export path, charged 0) and a `detail` such as `the
-  flow's Vibe spend $5.2500 has reached its $5.00 cap`. The summary lists it
-  as `<client> (...): budget-skip: <detail>`. A wave's critics start
-  together, so one wave can overshoot by its critics' caps (plus a turn each).
-  A budget skip gets no fallback retry.
+  whole spec-to-ticket flow shares one flow key. `/flow budget` (#193) sums
+  `charged_usd` of the `vibe` invocation lines of a repository and flow, from
+  both ledgers.
+- **Vibe's plan limit (#307).** The per-flow dollar cap is gone: routing no
+  longer carries `budget.vibe_flow_cap_usd`, and a machine override that
+  still names it is ignored (critique's `setup` says so). Vibe is counted
+  against its plan instead, read through the model gateway's `usage`
+  computation: the windows this machine's `clients.vibe.plan_limits`
+  declares, with what the machine-wide ledger says is spent in each. At or
+  above the gateway's warning ratio (80%) the manifest carries
+  `plan_warnings` and the summary renders each as `Vibe plan: <warning>`. At
+  100% of any window Vibe counts as unable to start, so prepare drops a Vibe
+  critic with the reason `quota` and a `detail` such as `at 100% of its day
+  plan limit ($5.25 of $5.00)`, and the stage runs with the critics left. A
+  fallback retry re-reads the plan, so a run that spends it does not retry
+  into Vibe. `budget-skip` stays in `CRITIC_STATUSES` only so a run recorded
+  before #307 still renders.
 - **Antigravity quota.** Routing's `antigravity_quota` (`daily_cap` 20,
   `reserve_threshold` 10, `reserved_stages` `spec` and `feature-review`).
   Prepare counts today's `agy` invocation lines (the UTC day of the clock),

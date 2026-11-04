@@ -1,4 +1,4 @@
-import { budgetReached, quotaReached, type FlowSpend } from './budget.js'
+import { quotaReached, type FlowSpend } from './budget.js'
 import type { Routing, RosterSlot } from './routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from './stage.js'
 import { STAGE_TABLE } from './stage-table.js'
@@ -22,25 +22,34 @@ export interface StageOutlook {
    * of its own, keyed by its run id.
    */
   readonly flow: string | null
-  /** Why a Vibe critic of the stage, a fallback included, would be skipped now, as fan-out words it; null while it may launch. */
+  /**
+   * Why a Vibe critic of the stage, a fallback included, would be skipped
+   * now: the gateway's reason Vibe cannot start, at 100% of one of its plan
+   * windows; null while it may launch.
+   */
   readonly vibe: string | null
   /** Why the stage's routed Antigravity critics would not launch now, as prepare words it; null when none is held. */
   readonly antigravity: string | null
   readonly falls_back: readonly SlotFallback[]
 }
 
-/** What one feature has drawn on: the spend under its spec's and its draft's flow keys, and today's agy launches. */
+/**
+ * What one feature has drawn on: the spend under its spec's and its draft's
+ * flow keys, today's agy launches, and why Vibe cannot start at all.
+ */
 export interface FeatureDraw {
   readonly spec: FlowSpend | null
   readonly draft: FlowSpend | null
   readonly agyToday: number
+  /** The gateway's reason Vibe cannot start, at 100% of a plan window; null while it can. */
+  readonly plan: string | null
 }
 
 /**
- * Each stage routing defines, in flow order, with what the flow's Vibe
- * spend and today's Antigravity count would do to it. The cap and quota
- * rules are fan-out's and prepare's own; the fallback named is the routed
- * one, before the repository's allowlist, the orchestrator's family and this
+ * Each stage routing defines, in flow order, with what Vibe's plan limit and
+ * today's Antigravity count would do to it. The plan-limit and quota rules
+ * are fan-out's and prepare's own; the fallback named is the routed one,
+ * before the repository's allowlist, the orchestrator's family and this
  * machine's readiness, which prepare checks too, have had a say.
  */
 export function stageOutlooks(routing: Routing, draw: FeatureDraw): readonly StageOutlook[] {
@@ -59,7 +68,7 @@ export function stageOutlooks(routing: Routing, draw: FeatureDraw): readonly Sta
         falls_back: quota === undefined ? [] : held.map(({ slot, deep }) => slotFallback(routing, slot, deep)),
         flow: charged?.flow ?? null,
         stage,
-        vibe: budgetReached(charged?.spent_usd ?? 0, routing.limits) ?? null,
+        vibe: draw.plan,
       },
     ]
   })

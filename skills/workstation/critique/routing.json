@@ -49,7 +49,6 @@
     "min_adjudicated_findings": 20,
     "removal_features": 3
   },
-  "budget": { "vibe_flow_cap_usd": 5 },
   "search": {
     "max_matches": 50,
     "max_bytes": 8192

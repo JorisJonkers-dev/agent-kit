@@ -1,19 +1,19 @@
 import { join } from 'node:path'
 
-import { budgetReached, quotaReached } from '../domain/budget.js'
+import { quotaReached } from '../domain/budget.js'
 import { checkNamed, declaredChecks, withDeclaredSeverity, type DeclaredCheck } from '../domain/checks.js'
-import { criticIdentity, readCriticRun, type CriticRun } from '../domain/critic.js'
+import { readCriticRun, type CriticRun } from '../domain/critic.js'
 import { checkEvidence, indexPacket, type PacketIndex } from '../domain/evidence.js'
 import { readRunFinding, type CriticFinding, type RunFinding } from '../domain/findings.js'
 import { JsonFields } from '../domain/json.js'
-import { listedFiles, parseManifest, type RunManifest } from '../domain/manifest.js'
+import { listedFiles, parseManifest, specReference, type RunManifest } from '../domain/manifest.js'
 import { mergeFindings } from '../domain/merge.js'
-import { READ_ONLY_TOOLSET, type CriticToolset } from '../domain/critic-tools.js'
+import type { CriticToolset } from '../domain/critic-tools.js'
 import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
 import type { RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { FlowBudget } from './budget.js'
-import { FINDING_SCHEMA, promptFields, readFrozenPacket, runCritic } from './critic-run.js'
+import { FINDING_SCHEMA, readFrozenPacket, runCritic } from './critic-run.js'
 import { CriticTools } from './critic-tools.js'
 import { readInput, readJsonFile } from './decode.js'
 import { findingsPath, manifestPath } from './locations.js'
@@ -29,6 +29,8 @@ export interface FanOutResult {
   readonly findings_path: string
   readonly critics: readonly CriticRun[]
   readonly findings: readonly RunFinding[]
+  /** Why the gateway's ledger would not take a run, one message per failed append; absent when it took them all. */
+  readonly ledger_warnings?: readonly string[]
 }
 
 /**
@@ -56,6 +58,7 @@ export function parseFanOutResult(text: string): FanOutResult {
     degraded: file.boolean('degraded'),
     findings: file.list('findings', readRunFinding),
     findings_path: file.string('findings_path'),
+    ...(file.has('ledger_warnings') ? { ledger_warnings: file.strings('ledger_warnings') } : {}),
     run_id: file.string('run_id'),
     stage: file.oneOf('stage', CRITIQUE_STAGES),
     status: file.literal('status', 'reviewed'),
@@ -78,18 +81,19 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
     const tripwire = await ReadOnlyTripwire.load(this.deps, manifest)
     const packet = indexPacket(await readFrozenPacket(this.deps, manifest), manifest.ticket_check?.ticket_ids)
     const budget = new FlowBudget(this.deps)
-    const spent = await budget.vibeSpend(manifest)
     const tools = new CriticTools(this.deps, manifest.limits.search, join(runDir, 'search-proof'))
-    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, spent, tools, tripwire }, critic)))
+    const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, tools, tripwire }, critic)))
     const outcomes = [...first, ...(await this.retries({ budget, manifest, tools, tripwire }, first))]
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })))
     const checks: CriticChecks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]))
     const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet, checks))
+    const ledgerWarnings = outcomes.flatMap((outcome) => (outcome.ledger_warning === undefined ? [] : [outcome.ledger_warning]))
     const result: FanOutResult = {
       critics: outcomes.map((outcome) => outcome.run),
       degraded: outcomes.every((outcome) => outcome.run.status !== 'ok'),
       findings,
       findings_path: findingsPath(runDir),
+      ...(ledgerWarnings.length === 0 ? {} : { ledger_warnings: ledgerWarnings }),
       run_id: manifest.run_id,
       stage: manifest.stage,
       status: 'reviewed',
@@ -100,50 +104,28 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
 
   /**
    * Once the first wave has ended, retries every failed critic that has a
-   * fallback left, with the flow's spend and today's agy count read again,
-   * since the first wave (and any other session on this machine) has added
-   * to them.
+   * fallback left, with today's agy count and Vibe's plan read again, since
+   * the first wave (and any other session on this machine) has added to
+   * them.
    */
-  private async retries(wave: Omit<Wave, 'spent'>, first: readonly CriticAttempt[]): Promise<readonly CriticAttempt[]> {
+  private async retries(wave: Wave, first: readonly CriticAttempt[]): Promise<readonly CriticAttempt[]> {
     const { manifest } = wave
-    const spent = await wave.budget.vibeSpend(manifest)
     const blocked: Blocked = {
       agy: quotaReached(await wave.budget.agyInvocationsToday(), manifest.limits.antigravity_quota, manifest.stage) !== undefined,
-      vibe: budgetReached(spent, manifest.limits) !== undefined,
+      vibe: (await this.deps.plan.read('vibe')).unable_to_start !== undefined,
     }
     const retries = fallbackRetries(manifest, first, blocked)
-    return Promise.all(retries.map((retry) => this.attempt({ ...wave, spent }, retry.critic, retry.retryOf)))
+    return Promise.all(retries.map((retry) => this.attempt(wave, retry.critic, retry.retryOf)))
   }
 
-  /**
-   * Launches one critic, unless it is a Vibe critic and the flow has spent
-   * its cap: then it is recorded as a budget skip and never launched.
-   */
+  /** Launches one critic in its own copy of the packet, and records the launch in both ledgers. */
   private async attempt(wave: Wave, critic: RosterCritic, retryOf?: string): Promise<CriticAttempt> {
-    const skip = critic.client_config.kind === 'vibe' ? budgetReached(wave.spent, wave.manifest.limits) : undefined
     const criticDir = join(wave.manifest.run_dir, 'critics', critic.critic_id)
     const { checks, prompt: promptFor } = await this.promptFor(wave.manifest, critic)
     const retry = retryOf === undefined ? {} : { retry_of: retryOf }
-    if (skip !== undefined) {
-      const prompt = promptFor(READ_ONLY_TOOLSET)
-      await this.deps.files.writeText(promptFields(prompt, criticDir).prompt_path, prompt.text)
-      const run: CriticRun = {
-        ...criticIdentity(critic),
-        ...promptFields(prompt, criticDir),
-        ...retry,
-        charged_usd: 0,
-        cost_usd: null,
-        detail: skip,
-        duration_ms: 0,
-        exit_code: null,
-        finding_count: 0,
-        status: 'budget-skip',
-      }
-      return { checks, findings: [], run }
-    }
     const attempt = await runCritic(this.deps, { critic, criticDir, prompt: promptFor, retry, tools: wave.tools, tripwire: wave.tripwire })
-    await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config.kind)
-    return { ...attempt, checks }
+    const ledgerWarning = await wave.budget.logInvocation(wave.manifest, attempt.run, critic.client_config, specReference(wave.manifest))
+    return { ...attempt, checks, ...(ledgerWarning === undefined ? {} : { ledger_warning: ledgerWarning }) }
   }
 
   /** The critic's prompt for the tools it gets, and the checks its role and lenses declare. */
@@ -168,12 +150,11 @@ export class FanOutCommand implements CritiqueCommand<FanOutResult> {
   }
 }
 
-/** What one wave of critics shares: the run, its tripwire and budget, and the flow's spend before the wave. */
+/** What one wave of critics shares: the run, its tripwire and budget, and its tools. */
 interface Wave {
   readonly manifest: RunManifest
   readonly tripwire: ReadOnlyTripwire
   readonly budget: FlowBudget
-  readonly spent: number
   readonly tools: CriticTools
 }
 
@@ -182,6 +163,8 @@ interface CriticAttempt {
   readonly run: CriticRun
   /** The checks the critic's prompt declared. */
   readonly checks: readonly DeclaredCheck[]
+  /** Why the gateway's ledger would not take the run, where it would not. */
+  readonly ledger_warning?: string
 }
 
 interface FallbackRetry {
@@ -198,22 +181,19 @@ interface FallbackRetry {
  * so it has its own packet copy and tripwire, and it has no fallbacks of its
  * own.
  */
-/** Which kinds of client may not be launched now: agy past its quota, Vibe past the flow's cap. */
-type Blocked = Readonly<Record<RosterCritic['client_config']['kind'], boolean>>
+/** Which kinds of client may not be launched now: agy past its quota, Vibe at 100% of its plan. */
+type Blocked = Readonly<Record<'agy' | 'vibe', boolean>>
 
 function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[], blocked: Blocked): readonly FallbackRetry[] {
   const taken = new Set(first.filter((attempt) => attempt.run.status === 'ok').map((attempt) => attempt.run.family))
   const retries: FallbackRetry[] = []
   manifest.critics.forEach((critic, index) => {
     if (first[index]?.run.status !== 'failed') return
-    const eligible = critic.fallbacks.filter(
+    const fallback = critic.fallbacks.find(
       (candidate) =>
-        !(candidate.client_config.kind === 'agy' && blocked.agy) &&
+        !blocked[candidate.client_config.kind] &&
         (!manifest.distinct_families || !taken.has(candidate.client_config.family)),
     )
-    // Past the flow's Vibe cap a fallback that costs no money is preferred;
-    // with none, the first fallback is still named, as a budget skip.
-    const fallback = eligible.find((candidate) => !(candidate.client_config.kind === 'vibe' && blocked.vibe)) ?? eligible[0]
     if (fallback === undefined) return
     taken.add(fallback.client_config.family)
     retries.push({
