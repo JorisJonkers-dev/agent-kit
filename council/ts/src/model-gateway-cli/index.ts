@@ -60,10 +60,13 @@ usage reports every client it knows: whether it is installed, whether its own
 status command says it is signed in, whether its last run in the availability
 window was rate-limited or refused for its credentials, what it has spent over
 the last "days" days (7 by default) by day and by workflow, what its own plan
-has left ("unknown" where the client reports none), and each window of the
-plan limit the machine file sets for it. A client at or above
+has left ("unknown" where the client reports none), each window of the plan
+limit the machine file sets for it, and what its live reservations hold
+("reserved_usd" and "reserved_runs"). A client at or above
 "plan_warning_ratio" of a window carries a warning; one at 100% of a window is
-"unable_to_start". "workflow" narrows the usage to one workflow.
+"unable_to_start". "workflow" narrows the usage to one workflow. It settles
+every reservation whose run died first, from the run's result where it left
+one and at its full estimate otherwise.
 
 run hands one read-only task to one client model and prints a short result:
 its status, run id, workflow, client model, family, mode, tokens, cost, the
@@ -79,6 +82,18 @@ repository, removed after the run. An OpenCode model is named provider/model
 and its provider must be in clients.opencode.providers (opencode-go by
 default), never opencode. A client near its plan limit adds "warnings" to the
 result.
+
+A metered-personal run (Hermes today, and any client the machine file gives
+that cost class) is held to the caps in "metered_personal_caps": its estimate,
+its prompt's characters over 3.5 rounded up at the model's input price plus its
+tier's "output_allowance_tokens" at the model's output price, is reserved
+against the per-workflow and per-day caps before it starts, and a run that does
+not fit either is refused with "cap-exceeded". A client model the catalogue
+prices nowhere or gives no tier cannot be estimated, and a metered run on it is
+refused with "no-estimate". The estimate is the run's hard spend limit where
+the client takes one (Vibe's --max-price). When the run ends, its actual spend
+replaces the reservation; a reservation whose run left no settlement lapses at
+the run's time limit plus 60 seconds and counts its full estimate as spent.
 
 A run with "mode": "write" changes a repository: it needs "repo", "base" (a ref)
 and "check" (a command, run with sh -c in the worktree). The gateway creates a

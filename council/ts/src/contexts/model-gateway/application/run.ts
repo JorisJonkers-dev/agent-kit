@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 
 import type { ProcessResult } from '../../../ports/index.js'
-import { ModelGatewayError, type GatewayConfig, type ModelEntry } from '../domain/config.js'
-import type { LedgerRecord } from '../domain/ledger.js'
+import { ModelGatewayError, type CostClass, type GatewayConfig, type ModelEntry } from '../domain/config.js'
+import { runRecords, type LedgerRecord } from '../domain/ledger.js'
 import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
 import {
@@ -24,7 +24,8 @@ import {
   type RunTokens,
 } from '../domain/run.js'
 import { planWindows, warningsOf } from '../domain/usage.js'
-import { startWorkflow } from '../domain/workflows.js'
+import { requireWorkflowOpen, startWorkflow } from '../domain/workflows.js'
+import { CapGuard, runCostClass, type Reservation } from './caps.js'
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
@@ -138,7 +139,11 @@ interface RunPermission {
  * and a ledger line, whether it succeeded or not.
  */
 export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
-  constructor(private readonly deps: ModelGatewayDependencies) {}
+  private readonly caps: CapGuard
+
+  constructor(private readonly deps: ModelGatewayDependencies) {
+    this.caps = new CapGuard(deps)
+  }
 
   async run(raw: unknown): Promise<RunResult> {
     const input = readRunInput(raw)
@@ -159,11 +164,23 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
     const allowed = await this.permission(input, config, family)
     const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry)
-    await this.joinWorkflow(input.workflow)
+    const costClass = runCostClass(client, input)
+    const estimate = this.caps.estimate(input, entry, config)
+    await this.requireWorkflowOpen(input.workflow)
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
     const id = runId(startedAt, randomBytes(3).toString('hex'))
     const runDir = await this.runDir(root, id)
+    const reservation = await this.caps.reserve({
+      config,
+      costClass,
+      estimate,
+      input,
+      now: this.deps.clock.now(),
+      runDir,
+      runId: id,
+    })
+    await this.joinWorkflow(input.workflow, reservation)
     const workplace = isWriting(input)
       ? await this.writeWorkplace(input, root ?? input.repo, id, startedAt)
       : await this.workplace(root, throwaway)
@@ -175,7 +192,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
         entry,
         family,
         id,
-        input,
+        input: reservation === undefined ? input : { ...input, max_price_usd: reservation.estimate.usd },
         runDir,
         workDir: workplace.dir,
         ...(workplace.branch === undefined ? {} : { branch: workplace.branch }),
@@ -186,10 +203,11 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
     const warning = await this.release(workplace)
     const released: RunResult = warning === undefined ? result : { ...result, cleanup_warning: warning }
-    await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs))
+    await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs, costClass))
+    await this.caps.settle(reservation, released.cost_usd, this.deps.clock.now())
     const warnings = warningsOf(
       input.client,
-      planWindows(input.client, client.plan_limits ?? [], await this.deps.ledger.read(), this.deps.clock.now(), config.settings.plan_warning_ratio),
+      planWindows(input.client, client.plan_limits ?? [], runRecords(await this.deps.ledger.read()), this.deps.clock.now(), config.settings.plan_warning_ratio),
     )
     const recorded: RunResult = warnings.length === 0 ? released : { ...released, warnings }
     await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(recorded, null, 2)}\n`)
@@ -334,14 +352,29 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
   }
 
   /**
+   * Whether the run may join its workflow: one that ended is refused, and
+   * nothing is started. It runs before the estimate is reserved, so a run the
+   * caps refuse leaves no workflow started behind it.
+   */
+  private async requireWorkflowOpen(name: string): Promise<void> {
+    requireWorkflowOpen(await this.deps.workflows.read(), name, this.deps.clock.now())
+  }
+
+  /**
    * A run names its workflow, and the gateway keeps that workflow's life: one
    * named for the first time starts now, and one that ended is refused, since
-   * its caps and grants lapsed with it. It runs once every refusal has passed,
-   * so a refused run leaves no workflow started behind it.
+   * its caps and grants lapsed with it. It runs once the estimate is reserved,
+   * so a run that cannot start its workflow releases the reservation rather
+   * than holding it against the caps.
    */
-  private async joinWorkflow(name: string): Promise<void> {
+  private async joinWorkflow(name: string, reservation: Reservation | undefined): Promise<void> {
     const now = this.deps.clock.now()
-    await this.deps.workflows.update((workflows) => startWorkflow(workflows, name, now))
+    try {
+      await this.deps.workflows.update((workflows) => startWorkflow(workflows, name, now))
+    } catch (error) {
+      await this.caps.release(reservation, now)
+      throw error
+    }
   }
 
   /**
@@ -538,10 +571,11 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
   }
 
   /** The run's one ledger line: what it was, what it cost and how it ended. */
-  private ledgerRecord(result: RunResult, repository: string | null, startedMs: number): LedgerRecord {
+  private ledgerRecord(result: RunResult, repository: string | null, startedMs: number, costClass: CostClass): LedgerRecord {
     return {
       at: this.deps.clock.now().toISOString(),
       client: result.client,
+      cost_class: costClass,
       cost_usd: result.cost_usd,
       duration_s: Math.round(this.deps.clock.monotonicMs() - startedMs) / 1000,
       family: result.family,

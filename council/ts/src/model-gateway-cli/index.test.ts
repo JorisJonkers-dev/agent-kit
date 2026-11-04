@@ -4,7 +4,16 @@ import { basename, dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { LedgerRecord, ModelGatewayKeptPort } from '../contexts/model-gateway/index.js'
+import { ModelGatewayError } from '../contexts/model-gateway/index.js'
+import type {
+  LedgerEntry,
+  LedgerRecord,
+  ModelGatewayKeptPort,
+  ModelGatewayProcessPort,
+  ModelGatewayWorkflowsPort,
+  ReservationRecord,
+  SettledRecord,
+} from '../contexts/model-gateway/index.js'
 import type { ProcessCommand, ProcessResult } from '../ports/index.js'
 import type { GitRemote } from '../shared-kernel/index.js'
 import {
@@ -15,11 +24,18 @@ import {
   FakeKept,
   FakeProcess,
   FakeVibeProcess,
+  FakeWorkflows,
   FixedClock,
   type FakeRepository,
   type VibeScript,
 } from '../../test/model-gateway/harness.js'
-import { defaultModelGatewayRuntime, MODEL_GATEWAY_USAGE, runModelGatewayCli, type ModelGatewayCliResult } from './index.js'
+import {
+  defaultModelGatewayRuntime,
+  MODEL_GATEWAY_USAGE,
+  runModelGatewayCli,
+  type ModelGatewayCliResult,
+  type ModelGatewayRuntime,
+} from './index.js'
 
 const cleanups: (() => Promise<void>)[] = []
 
@@ -90,7 +106,7 @@ interface Workspace {
   writeAllowlist(value: unknown): Promise<void>
   writeDefaults(text: string): Promise<void>
   writeInput(name: string, text: string): Promise<string>
-  writeLedger(records: readonly LedgerRecord[]): Promise<void>
+  writeLedger(records: readonly LedgerEntry[]): Promise<void>
   writeOverride(value: unknown): Promise<void>
   writeVibeConfig(text: string): Promise<string>
 }
@@ -159,6 +175,15 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
 /** The one JSON object a run printed. */
 function printed(result: ModelGatewayCliResult): Record<string, unknown> {
   return JSON.parse(result.stdout) as Record<string, unknown>
+}
+
+/** The ledger's lines, as the gateway wrote them: a run, a reservation or a settlement each. */
+function ledgerLines(text: string): Record<string, unknown>[] {
+  return text
+    .trimEnd()
+    .split('\n')
+    .filter((line) => line !== '')
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
 }
 
 /** The models a run listed, as `<client>:<model>` keys in the order it printed them. */
@@ -648,6 +673,7 @@ describe('the shipped defaults', () => {
         availability_window_minutes: 60,
         max_parallel_per_client: 3,
         metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 2 },
+        output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
         plan_warning_ratio: 0.8,
         summary_max_chars: 1500,
       },
@@ -1248,11 +1274,13 @@ interface RunWorkspace {
   readonly workflows: string
   /** Any gateway command, by its words. */
   cli(...argv: string[]): Promise<ModelGatewayCliResult>
+  /** A second gateway process over the same machine: its own runtime and its own fake client, the same ledger. */
+  gateway(process: ModelGatewayProcessPort): ModelGatewayRuntime
   /** The input a run test sends unless it says otherwise: one read-only task in the test repository. */
   input(overrides?: Readonly<Record<string, unknown>>): unknown
   run(input: unknown): Promise<ModelGatewayCliResult>
   writeAllowlist(value: unknown): Promise<void>
-  writeLedger(records: readonly LedgerRecord[]): Promise<void>
+  writeLedger(records: readonly LedgerEntry[]): Promise<void>
   writeOverride(value: unknown): Promise<void>
   writeRoutingOverride(value: unknown): Promise<void>
   writeSetup(value: unknown): Promise<void>
@@ -1274,6 +1302,8 @@ interface RunWorkspaceOptions {
   readonly defaults?: unknown
   /** The kept-worktrees list, when a test needs one that fails; the real file in the state directory by default. */
   readonly kept?: ModelGatewayKeptPort
+  /** The workflows port, when a test needs one that fails to start a workflow; the real file by default. */
+  readonly workflows?: ModelGatewayWorkflowsPort
 }
 
 /** A gateway wired to a fake Vibe, a temporary home and state directory, and a routing file of its own. */
@@ -1304,6 +1334,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     process: options.process ?? vibe,
     routingPath,
     ...(options.kept === undefined ? {} : { kept: options.kept }),
+    ...(options.workflows === undefined ? {} : { workflows: options.workflows }),
   })
   const write = async (path: string, value: unknown): Promise<void> => {
     await mkdir(dirname(path), { recursive: true })
@@ -1323,6 +1354,15 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
       ...overrides,
     }),
     cli: (...argv) => runModelGatewayCli(argv, runtime),
+    gateway: (process) =>
+      defaultModelGatewayRuntime({
+        clock: new FixedClock(),
+        defaultsPath: defaults,
+        env: new FakeEnv({ HOME: home, XDG_STATE_HOME: state, ...options.env }),
+        git,
+        process,
+        routingPath,
+      }),
     kept: join(state, 'agent-kit', 'model-gateway', 'kept-worktrees.json'),
     ledger: join(state, 'agent-kit', 'model-gateway', 'ledger.jsonl'),
     repo,
@@ -1753,6 +1793,7 @@ describe('model-gateway run: the ledger', () => {
     expect(JSON.parse(String(lines[0]))).toEqual({
       at: expect.any(String) as unknown,
       client: 'vibe',
+      cost_class: 'subsidised',
       cost_usd: 0.0123,
       duration_s: expect.any(Number) as unknown,
       family: 'zhipu',
@@ -1970,6 +2011,7 @@ describe('model-gateway run: Antigravity', () => {
     expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toEqual({
       at: expect.any(String) as unknown,
       client: 'agy',
+      cost_class: 'subsidised',
       cost_usd: 0,
       duration_s: expect.any(Number) as unknown,
       family: 'google',
@@ -2275,7 +2317,19 @@ describe('model-gateway run: OpenCode', () => {
 
   it('allows a provider the machine names in clients.opencode.providers, but never the pay-per-token one', async () => {
     const w = await clientRun({
-      override: { clients: { opencode: { providers: ['opencode-go', 'opencode', 'zai'] } } },
+      override: {
+        clients: { opencode: { providers: ['opencode-go', 'opencode', 'zai'] } },
+        models: [
+          {
+            client: 'opencode',
+            family: 'zhipu',
+            model: 'zai/glm-5-3',
+            notes: 'Metered on the provider account.',
+            prices: { cached_input: 0, input: 1, output: 2 },
+            tier: 'hard',
+          },
+        ],
+      },
       scripts: [{ stdout: STEPS }],
     })
 
@@ -2462,11 +2516,12 @@ describe('model-gateway run: a throwaway worktree', () => {
   })
 })
 
-/** One ledger line, as a run of `client` at `at` left it. */
+/** One ledger line, as a run of `client` at `at` left it, charged to the metered-personal caps unless it says otherwise. */
 function ledgerRecord(at: string, client: string, overrides: Partial<LedgerRecord> = {}): LedgerRecord {
   return {
     at,
     client,
+    cost_class: 'metered-personal',
     cost_usd: 0,
     duration_s: 1,
     family: 'mistral',
@@ -2532,6 +2587,8 @@ describe('model-gateway usage: availability', () => {
       cost_class: 'subsidised',
       plan_limits: [],
       quota: { reason: 'vibe has no status command, so the gateway cannot read its quota', status: 'unknown' },
+      reserved_runs: 0,
+      reserved_usd: 0,
       usage: { cost_usd: 0, runs: 0, tokens: { cached: 0, input: 0, output: 0 } },
       warnings: [],
     })
@@ -3780,6 +3837,18 @@ describe('model-gateway run: the workflow', () => {
     expect(await listedWorkflows(w)).toEqual([])
   })
 
+  it('writes no ledger line for a subsidised run whose workflow cannot be started, which reserved nothing', async () => {
+    const workflows = new FakeWorkflows()
+    workflows.updateError = new ModelGatewayError(
+      'workflow-ended',
+      'workflow spec-293 ended at 2026-11-04T11:00:00.000Z: a run may not join it, so start a new workflow',
+    )
+    const w = await readyRun({ workflows })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ code: 'workflow-ended' })
+    expect(ledgerLines(await readFile(w.ledger, 'utf8').catch(() => ''))).toEqual([])
+  })
+
   it('starts the workflow of a run with no passing read-only proof, which is not a refusal', async () => {
     const { w } = await readyHermes({ setupResults: undefined })
 
@@ -3793,9 +3862,19 @@ async function listedWorkflows(w: RunWorkspace): Promise<readonly unknown[]> {
   return (printed(await w.cli('workflow', 'list', '--json', '{}')) as { workflows: readonly unknown[] }).workflows
 }
 
-/** The machine file that lets Hermes run on Anthropic. */
+/** The machine file that lets Hermes run on Anthropic, with the price and tier a metered run is estimated at. */
 const HERMES_MACHINE = {
   clients: { hermes: { providers: ['anthropic'] } },
+  models: [
+    {
+      client: 'hermes',
+      family: 'anthropic',
+      model: 'anthropic/claude-sonnet-4.6',
+      notes: 'Metered on the owner account.',
+      prices: { cached_input: 0.3, input: 3, output: 15 },
+      tier: 'routine',
+    },
+  ],
 }
 
 /** What Hermes writes to its usage file: its own tokens, dollars and outcome. */
@@ -3947,11 +4026,12 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
 
     const result = await w.run(hermesInput(w))
 
-    const lines = (await readFile(w.ledger, 'utf8')).trimEnd().split('\n')
+    const lines = ledgerLines(await readFile(w.ledger, 'utf8')).filter((line) => line.kind === undefined)
     expect(lines).toHaveLength(1)
-    expect(JSON.parse(String(lines[0]))).toEqual({
+    expect(lines[0]).toEqual({
       at: expect.any(String) as unknown,
       client: 'hermes',
+      cost_class: 'metered-personal',
       cost_usd: 0.0234,
       duration_s: expect.any(Number) as unknown,
       family: 'anthropic',
@@ -3971,10 +4051,10 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
     expect(printed(await w.run(hermesInput(w)))).toMatchObject({ cost_usd: 0.5, reason: 'failed', status: 'failed' })
   })
 
-  it('counts no dollars when the usage file prices nothing', async () => {
+  it('counts the run at the catalogue price when the usage file prices nothing', async () => {
     const { w } = await readyHermes({ usage: { failed: false, input_tokens: 10, output_tokens: 5 } })
 
-    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ cost_usd: 0, status: 'ok' })
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ cost_usd: 0.000105, status: 'ok' })
   })
 
   it('reports a hermes run that printed nothing as a parse error', async () => {
@@ -4006,5 +4086,406 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
       message: `hermes:anthropic/claude-sonnet-4.6 is not permitted: ${KEY}: the entry allows google`,
     })
     expect(hermes.commands).toEqual([])
+  })
+})
+
+/** A machine file that holds Vibe to the metered-personal caps, as a client the owner pays per token for. */
+const METERED_VIBE = { clients: { vibe: { cost_class: 'metered-personal' } } }
+
+/**
+ * A machine file whose OpenCode client is subsidised on its own subscription
+ * but metered on the zai provider account, with a cap just above one run's
+ * estimate: 1,000 prompt tokens at $1 and 6,000 output tokens at $2 is $0.013.
+ */
+const METERED_OPENCODE = {
+  clients: {
+    opencode: {
+      cost_class: 'subsidised',
+      provider_cost_classes: { zai: 'metered-personal' },
+      providers: ['opencode-go', 'zai'],
+    },
+  },
+  models: [
+    {
+      client: 'opencode',
+      family: 'zhipu',
+      model: 'zai/glm-5-3',
+      notes: 'Metered on the provider account.',
+      prices: { cached_input: 0, input: 1, output: 2 },
+      tier: 'hard',
+    },
+  ],
+  settings: { metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 0.02 } },
+}
+
+/** A prompt of 3,500 characters, which is 1,000 tokens at 3.5 characters a token. */
+const LONG_PROMPT = 'x'.repeat(3500)
+
+/** One reservation line, as a run that never settled left it. */
+function reservationRecord(overrides: Partial<ReservationRecord> = {}): ReservationRecord {
+  return {
+    client: 'hermes',
+    cost_class: 'metered-personal',
+    estimate_usd: 0.5,
+    expires_at: '2026-11-04T10:00:00.000Z',
+    kind: 'reservation',
+    model: 'anthropic/claude-sonnet-4.6',
+    reserved_at: '2026-11-04T09:00:00.000Z',
+    run_dir: '/nowhere',
+    run_id: 'run-1',
+    workflow: 'spec-293',
+    ...overrides,
+  }
+}
+
+/** One settlement line, as a run that ended, or a reservation that expired, left it. */
+function settledLine(runId: string, costUsd: number, reason?: 'expired' | 'not-started'): SettledRecord {
+  return {
+    client: 'hermes',
+    cost_class: 'metered-personal',
+    cost_usd: costUsd,
+    kind: 'settled',
+    reserved_at: '2026-11-04T09:00:00.000Z',
+    run_id: runId,
+    settled_at: '2026-11-04T09:05:00.000Z',
+    workflow: 'spec-293',
+    ...(reason === undefined ? {} : { reason }),
+  }
+}
+
+/** The ledger's lines of one kind: `reservation`, `settled`, or a run's own line for `undefined`. */
+async function ledgerOf(w: RunWorkspace, kind: 'reservation' | 'settled' | undefined): Promise<Record<string, unknown>[]> {
+  return ledgerLines(await readFile(w.ledger, 'utf8')).filter((line) => line.kind === kind)
+}
+
+describe('model-gateway run: the metered-personal caps', () => {
+  it('reserves the estimate: the prompt at the input price plus the tier’s allowance at the output price', async () => {
+    const w = await readyRun({ override: METERED_VIBE })
+
+    const result = await w.run(w.input({ prompt: LONG_PROMPT }))
+
+    expect(result.exitCode).toBe(0)
+    expect(await ledgerOf(w, 'reservation')).toEqual([
+      {
+        client: 'vibe',
+        cost_class: 'metered-personal',
+        estimate_usd: 0.0278,
+        expires_at: '2026-11-04T11:08:15.000Z',
+        kind: 'reservation',
+        model: 'glm-5-3',
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_dir: runDirOf(w, result),
+        run_id: printed(result).run_id,
+        workflow: 'spec-293',
+      },
+    ])
+  })
+
+  it('takes the output allowance from the machine file where it overrides the shipped one', async () => {
+    const w = await readyRun({
+      override: { ...METERED_VIBE, settings: { output_allowance_tokens: { hard: 1000 } } },
+    })
+
+    await w.run(w.input({ prompt: LONG_PROMPT }))
+
+    expect((await ledgerOf(w, 'reservation'))[0]?.estimate_usd).toBe(0.0058)
+  })
+
+  it('passes the estimate to the client as its hard spend limit, where the client takes one', async () => {
+    const w = await readyRun({ override: METERED_VIBE })
+
+    await w.run(w.input({ prompt: LONG_PROMPT }))
+
+    expect(flag(w.vibe.commands[0], '--max-price')).toBe('0.0278')
+  })
+
+  it('reserves nothing for a subsidised run, which its plan limit watches', async () => {
+    const w = await readyRun()
+
+    await w.run(w.input({ prompt: LONG_PROMPT }))
+
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+    expect(flag(w.vibe.commands[0], '--max-price')).toBeUndefined()
+  })
+
+  it('refuses a metered run the catalogue cannot estimate, before anything is launched', async () => {
+    const { hermes, w } = await readyHermes({ override: { clients: { hermes: { providers: ['anthropic'] } } } })
+
+    expect(printed(await w.run(hermesInput(w)))).toEqual({
+      code: 'no-estimate',
+      message:
+        'hermes:anthropic/claude-sonnet-4.6 cannot be estimated: the catalogue gives it no price or no tier, so a metered run on it cannot be held to the caps',
+      status: 'error',
+    })
+    expect(hermes.commands).toEqual([])
+  })
+
+  it('refuses a run that does not fit the per-workflow cap, naming the cap, its limit, the spend and the estimate', async () => {
+    const { hermes, w } = await readyHermes()
+    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 1.99 })])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toEqual({
+      code: 'cap-exceeded',
+      message:
+        'hermes:anthropic/claude-sonnet-4.6 does not fit the per-workflow cap of $2.00: $1.99 spent and $0.00 reserved in workflow spec-293, and its estimate is $0.03',
+      status: 'error',
+    })
+    expect(hermes.commands).toEqual([])
+    expect(await ledgerOf(w, 'reservation')).toEqual([])
+  })
+
+  it('counts what live reservations hold, not only what is spent', async () => {
+    const { w } = await readyHermes()
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 0.49 }),
+      reservationRecord({ estimate_usd: 1.5, expires_at: '2026-11-04T12:00:00.000Z' }),
+    ])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({
+      code: 'cap-exceeded',
+      message: expect.stringContaining('$0.49 spent and $1.50 reserved in workflow spec-293') as unknown,
+    })
+  })
+
+  it('refuses a run that does not fit the per-day cap, naming the UTC day', async () => {
+    const { w } = await readyHermes()
+    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 4.99, workflow: 'other' })])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toEqual({
+      code: 'cap-exceeded',
+      message:
+        'hermes:anthropic/claude-sonnet-4.6 does not fit the per-day cap of $5.00: $4.99 spent and $0.00 reserved on 2026-11-04, and its estimate is $0.03',
+      status: 'error',
+    })
+  })
+
+  it('counts what live reservations hold against the day cap too', async () => {
+    const { w } = await readyHermes()
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 4.5, workflow: 'other' }),
+      reservationRecord({ estimate_usd: 0.5, expires_at: '2026-11-04T12:00:00.000Z', workflow: 'another' }),
+    ])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({
+      code: 'cap-exceeded',
+      message: expect.stringContaining('$4.50 spent and $0.50 reserved on 2026-11-04') as unknown,
+    })
+  })
+
+  it('counts a settled run once, from its own line rather than its settlement', async () => {
+    const { w } = await readyHermes()
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 1, run_id: 'run-a' }),
+      settledLine('run-a', 1),
+      ledgerRecord('2026-11-04T09:10:00.000Z', 'hermes', { cost_usd: 0.9, run_id: 'run-b' }),
+      settledLine('run-b', 0.9, 'expired'),
+    ])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT }))).status).toBe('ok')
+  })
+
+  it('counts a run of another day against its own day, not today’s', async () => {
+    const { w } = await readyHermes()
+    await w.writeLedger([ledgerRecord('2026-11-03T09:00:00.000Z', 'hermes', { cost_usd: 4.99, workflow: 'other' })])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT }))).status).toBe('ok')
+  })
+
+  it('replaces the reservation with the run’s actual spend when it ends', async () => {
+    const { w } = await readyHermes()
+
+    const result = await w.run(hermesInput(w))
+
+    expect(await ledgerOf(w, 'settled')).toEqual([
+      {
+        client: 'hermes',
+        cost_class: 'metered-personal',
+        cost_usd: 0.0234,
+        kind: 'settled',
+        reserved_at: '2026-11-04T10:52:15.000Z',
+        run_id: printed(result).run_id,
+        settled_at: '2026-11-04T10:52:15.000Z',
+        workflow: 'spec-293',
+      },
+    ])
+    expect(printed(await w.cli('usage', '--json', '{}')).clients).toContainEqual(
+      expect.objectContaining({ client: 'hermes', reserved_runs: 0, reserved_usd: 0 }),
+    )
+  })
+
+  it('settles a reservation whose run died from the result the run left', async () => {
+    const w = await runWorkspace()
+    const runDir = join(w.dir, 'dead-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(join(runDir, 'result.json'), JSON.stringify({ cost_usd: 0.4 }))
+    await w.writeLedger([reservationRecord({ run_dir: runDir })])
+
+    await w.cli('usage', '--json', '{}')
+
+    expect(await ledgerOf(w, 'settled')).toEqual([
+      {
+        client: 'hermes',
+        cost_class: 'metered-personal',
+        cost_usd: 0.4,
+        kind: 'settled',
+        reason: 'expired',
+        reserved_at: '2026-11-04T09:00:00.000Z',
+        run_id: 'run-1',
+        settled_at: '2026-11-04T10:52:15.000Z',
+        workflow: 'spec-293',
+      },
+    ])
+  })
+
+  it('counts a reservation whose run left nothing at its full estimate', async () => {
+    const w = await runWorkspace()
+    await w.writeLedger([reservationRecord({ estimate_usd: 0.5 })])
+
+    await w.cli('usage', '--json', '{}')
+
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.5, reason: 'expired', run_id: 'run-1' }])
+  })
+
+  it('counts a reservation whose run left a result it cannot read at its full estimate', async () => {
+    const w = await runWorkspace()
+    const runDir = join(w.dir, 'torn-run')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(join(runDir, 'result.json'), 'not json')
+    await w.writeLedger([reservationRecord({ estimate_usd: 0.5, run_dir: runDir })])
+
+    await w.cli('usage', '--json', '{}')
+
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.5, reason: 'expired' }])
+  })
+
+  it('counts an expired reservation as spent against the caps', async () => {
+    const { w } = await readyHermes()
+    await w.writeLedger([reservationRecord({ estimate_usd: 1.99 })])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({ code: 'cap-exceeded' })
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 1.99, reason: 'expired' }])
+  })
+
+  it('leaves a reservation that has not expired alone, and reports what it holds', async () => {
+    const w = await runWorkspace()
+    await w.writeLedger([reservationRecord({ estimate_usd: 0.5, expires_at: '2026-11-04T12:00:00.000Z' })])
+
+    const result = await w.cli('usage', '--json', '{}')
+
+    expect(await ledgerOf(w, 'settled')).toEqual([])
+    expect(usageClient(result, 'hermes')).toMatchObject({ reserved_runs: 1, reserved_usd: 0.5 })
+  })
+
+  it('holds the cap when two gateway processes reserve at once', async () => {
+    let launched = (): void => undefined
+    let release = (): void => undefined
+    const started = new Promise<void>((resolve) => {
+      launched = resolve
+    })
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const first = new FakeHermesProcess([
+      {
+        effect: async () => {
+          launched()
+          await blocked
+        },
+        stdout: 'a\nSUMMARY: a',
+        usage: hermesUsageFile({ cost: 0.01 }),
+      },
+    ])
+    const { w } = await readyHermes({ process: first })
+    const other = w.gateway(new FakeHermesProcess([{ stdout: 'b\nSUMMARY: b', usage: hermesUsageFile({ cost: 0.01 }) }]))
+    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 1.95 })])
+    const input = hermesInput(w, { prompt: LONG_PROMPT })
+
+    const one = w.run(input)
+    await started
+    const two = await runModelGatewayCli(['run', '--json', JSON.stringify(input)], other)
+    release()
+
+    expect(printed(await one).status).toBe('ok')
+    expect(printed(two)).toMatchObject({ code: 'cap-exceeded' })
+    expect(await ledgerOf(w, 'reservation')).toHaveLength(1)
+  })
+
+  it('holds the cap for a run whose provider is metered-personal, not only its client', async () => {
+    let launched = (): void => undefined
+    let release = (): void => undefined
+    const started = new Promise<void>((resolve) => {
+      launched = resolve
+    })
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const steps = openCodeEvents(OPENCODE_STEP_START, openCodeText('a\nSUMMARY: a'), openCodeStepFinish(0.01, { input: 100, output: 10 }))
+    const w = await clientRun({
+      override: METERED_OPENCODE,
+      scripts: [
+        {
+          effect: async () => {
+            launched()
+            await blocked
+          },
+          stdout: steps,
+        },
+      ],
+    })
+    const other = w.gateway(new FakeVibeProcess([{ stdout: steps }]))
+    const input = w.input({ client: 'opencode', model: 'zai/glm-5-3', prompt: LONG_PROMPT })
+
+    const one = w.run(input)
+    await started
+    const two = await runModelGatewayCli(['run', '--json', JSON.stringify(input)], other)
+    release()
+
+    expect(printed(await one).status).toBe('ok')
+    expect(printed(two)).toMatchObject({ code: 'cap-exceeded' })
+  })
+
+  it('counts an expired reservation of a metered provider run at its estimate', async () => {
+    const w = await clientRun({ override: METERED_OPENCODE })
+    await w.writeLedger([
+      reservationRecord({ client: 'opencode', cost_class: 'metered-personal', estimate_usd: 0.02, model: 'zai/glm-5-3' }),
+    ])
+
+    expect(printed(await w.run(w.input({ client: 'opencode', model: 'zai/glm-5-3', prompt: LONG_PROMPT })))).toMatchObject({
+      code: 'cap-exceeded',
+    })
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.02, reason: 'expired' }])
+  })
+
+  it('starts no workflow and makes no worktree for a run the caps refuse', async () => {
+    const { w } = await readyHermes()
+    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 1.99 })])
+
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({ code: 'cap-exceeded' })
+    expect(await listedWorkflows(w)).toEqual([])
+    expect(w.git.worktrees).toEqual([])
+  })
+
+  it('takes no reservation for a run whose workflow ended', async () => {
+    const { w } = await readyHermes()
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+    })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ code: 'workflow-ended' })
+    expect(ledgerLines(await readFile(w.ledger, 'utf8').catch(() => ''))).toEqual([])
+  })
+
+  it('releases the reservation when the workflow cannot be started after it', async () => {
+    const workflows = new FakeWorkflows([{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }])
+    workflows.updateError = new ModelGatewayError(
+      'workflow-ended',
+      'workflow spec-293 ended at 2026-11-04T11:00:00.000Z: a run may not join it, so start a new workflow',
+    )
+    const { hermes, w } = await readyHermes({ workflows })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ code: 'workflow-ended' })
+    expect(hermes.commands).toEqual([])
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0, reason: 'not-started' }])
   })
 })

@@ -18,6 +18,7 @@ function defaults(): Record<string, unknown> {
       availability_window_minutes: 60,
       max_parallel_per_client: 3,
       metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 2 },
+      output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
       plan_warning_ratio: 0.8,
       summary_max_chars: 1500,
     },
@@ -84,6 +85,7 @@ describe('parseDefaults', () => {
         availability_window_minutes: 60,
         max_parallel_per_client: 3,
         metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 2 },
+        output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
         plan_warning_ratio: 0.8,
         summary_max_chars: 1500,
       },
@@ -195,6 +197,22 @@ describe('parseDefaults', () => {
     ['a setting that is not a number', (raw) => ({ ...raw, settings: { ...settings(), plan_warning_ratio: 'high' } })],
     ['caps that are not an object', (raw) => ({ ...raw, settings: { ...settings(), metered_personal_caps: 5 } })],
     ['a cap that is missing', (raw) => ({ ...raw, settings: { ...settings(), metered_personal_caps: { per_day_usd: 5 } } })],
+    [
+      'allowances that are not an object',
+      (raw) => ({ ...raw, settings: { ...settings(), output_allowance_tokens: 500 } }),
+    ],
+    [
+      'an allowance that is missing',
+      (raw) => ({ ...raw, settings: { ...settings(), output_allowance_tokens: { trivial: 500 } } }),
+    ],
+    [
+      'an allowance that is not a whole number of tokens',
+      (raw) => ({ ...raw, settings: { ...settings(), output_allowance_tokens: { ...allowances(), hard: 1.5 } } }),
+    ],
+    [
+      'an allowance of 0',
+      (raw) => ({ ...raw, settings: { ...settings(), output_allowance_tokens: { ...allowances(), hard: 0 } } }),
+    ],
     ['a disabled list that is not strings', (raw) => ({ ...raw, disabled: [1] })],
   ]
 
@@ -218,6 +236,11 @@ describe('parseDefaults', () => {
 
 function settings(): Record<string, unknown> {
   return defaults().settings as Record<string, unknown>
+}
+
+/** The output allowances the fixture ships, as a test changes one of them. */
+function allowances(): Record<string, number> {
+  return settings().output_allowance_tokens as Record<string, number>
 }
 
 describe('applyOverride', () => {
@@ -378,9 +401,16 @@ describe('applyOverride', () => {
       availability_window_minutes: 60,
       max_parallel_per_client: 3,
       metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 1 },
+      output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
       plan_warning_ratio: 0.8,
       summary_max_chars: 500,
     })
+  })
+
+  it('overrides the output allowance of one tier and keeps the others', () => {
+    const merged = applyOverride(shipped(), { settings: { output_allowance_tokens: { hard: 1000 } } })
+
+    expect(merged.settings.output_allowance_tokens).toEqual({ frontier: 16000, hard: 1000, routine: 2000, trivial: 500 })
   })
 
   it('replaces the disabled list', () => {
@@ -414,6 +444,8 @@ describe('applyOverride', () => {
     ['a setting that is not a number', { settings: { summary_max_chars: 'long' } }],
     ['caps that are not an object', { settings: { metered_personal_caps: 5 } }],
     ['a cap that is not a number', { settings: { metered_personal_caps: { per_day_usd: 'five' } } }],
+    ['allowances that are not an object', { settings: { output_allowance_tokens: 500 } }],
+    ['an allowance that is not a whole number of tokens', { settings: { output_allowance_tokens: { hard: 1.5 } } }],
     ['a disabled list that is not strings', { disabled: 'codex:gpt-5.5' }],
   ]
 

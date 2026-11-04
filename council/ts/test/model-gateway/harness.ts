@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import type {
-  LedgerRecord,
+  LedgerChange,
+  LedgerEntry,
   ModelGatewayFilesPort,
   KeptWorktree,
   ModelGatewayGitPort,
@@ -231,15 +232,21 @@ export class FakeFiles implements ModelGatewayFilesPort {
 
 /** A ledger that keeps every record in memory, so a test can read what a run appended. */
 export class FakeLedger implements ModelGatewayLedgerPort {
-  readonly records: LedgerRecord[] = []
+  readonly records: LedgerEntry[] = []
 
-  append(record: LedgerRecord): Promise<void> {
+  append(record: LedgerEntry): Promise<void> {
     this.records.push(record)
     return Promise.resolve()
   }
 
-  read(): Promise<readonly LedgerRecord[]> {
+  read(): Promise<readonly LedgerEntry[]> {
     return Promise.resolve([...this.records])
+  }
+
+  update<T>(change: (entries: readonly LedgerEntry[]) => LedgerChange<T>): Promise<T> {
+    const changed = change([...this.records])
+    this.records.push(...changed.append)
+    return Promise.resolve(changed.result)
   }
 }
 
@@ -279,6 +286,9 @@ export class FakeProof implements ModelGatewayProofPort {
 
 /** A workflows file that keeps its records in memory, so a test can read what a command wrote. */
 export class FakeWorkflows implements ModelGatewayWorkflowsPort {
+  /** What `update` rejects with, as a workflow another process ended meanwhile does; none by default. */
+  updateError: Error | undefined
+
   constructor(private records: readonly WorkflowRecord[] = []) {}
 
   read(): Promise<readonly WorkflowRecord[]> {
@@ -286,6 +296,7 @@ export class FakeWorkflows implements ModelGatewayWorkflowsPort {
   }
 
   update(change: (workflows: readonly WorkflowRecord[]) => WorkflowChange): Promise<WorkflowRecord> {
+    if (this.updateError !== undefined) return Promise.reject(this.updateError)
     const changed = change(this.records)
     this.records = changed.workflows
     return Promise.resolve(changed.workflow)

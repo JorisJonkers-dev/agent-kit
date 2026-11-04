@@ -266,7 +266,7 @@ export function modelPart(model: string): string {
 }
 
 /** The cost class of the provider a model runs on, else the client's own. */
-function costClassFor(client: ClientConfig, provider: string | undefined): CostClass {
+export function costClassFor(client: ClientConfig, provider: string | undefined): CostClass {
   if (provider === undefined) return client.cost_class
   return client.provider_cost_classes?.[provider] ?? client.cost_class
 }
