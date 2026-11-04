@@ -238,6 +238,7 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
 
   /** What the check's result depends on, read without launching a model. */
   private async inputs(check: SetupCheck, routing: Routing): Promise<SetupInputs> {
+    if (check.kind === 'read-only' && check.client_config === undefined) return {}
     if (check.kind === 'read-only') {
       const config = check.client_config
       if (config.kind !== 'vibe') return {}
@@ -270,6 +271,8 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
   ): Promise<{ readonly result: SetupOutcome; readonly detail: string } | 'needs-confirmation'> {
     if (isMachineCheck(check)) return (check.kind === 'hooks' ? this.hooks : this.killSwitch).check()
     if (check.kind === 'agy-quota') return this.quotaCheck(routing)
+    if (check.kind === 'read-only' && check.client_config === undefined)
+      return { detail: `${check.reason}.`, result: 'unproven' }
     const config = check.client_config
     if (check.kind === 'read-only') {
       const reach = await this.searchReach(check.client ?? '', routing)

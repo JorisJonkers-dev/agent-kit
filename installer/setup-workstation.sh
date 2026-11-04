@@ -493,6 +493,31 @@ _vibe_agents_pointer() {
   _agents_pointer "${1}/AGENTS.md" "$2"
 }
 
+# The model gateway's pointer: one marked block in a client's global instruction
+# file. Setup owns only that block; the text around it stays the user's.
+gateway_pointer() {
+  local file="$1" action="${2:-write}"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would ${action} the model-gateway pointer in ${file}"
+    return 0
+  fi
+  if [ "${action}" = remove ]; then
+    [ -f "${file}" ] || return 0
+    python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" model-gateway --remove >/dev/null \
+      && ok "model-gateway pointer removed from ${file}" \
+      || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"
+    return 0
+  fi
+  mkdir -p "$(dirname "${file}")"
+  python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" model-gateway <<'BLOCK' \
+    && ok "model-gateway pointer -> ${file}" \
+    || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"
+The model gateway is the `model-gateway` command on PATH. `model-gateway models`
+lists the client models on this machine, each with its cost class and difficulty tier.
+The `delegate` skill, which is coming later, plans delegations with it.
+BLOCK
+}
+
 # Every chat model the Mistral login can use, kept current in one Vibe home.
 _vibe_models() {
   local home="$1"
@@ -545,6 +570,7 @@ _vibe_private_home() {
     _vibe_hooks "${VIBE_PRIVATE_HOME}" --remove agent-kit-retain-private
   fi
   _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private
+  gateway_pointer "${VIBE_PRIVATE_HOME}/AGENTS.md"
 }
 
 # The read-only critic agents the critique runner launches as
@@ -2818,6 +2844,7 @@ for install in installs:
         _vibe_hooks "${VIBE_HOME}" ${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"}
       fi
       _vibe_agents_pointer "${VIBE_HOME}" shared
+      gateway_pointer "${VIBE_HOME}/AGENTS.md"
       [ "${CLOUD}" = 1 ] || _vibe_private_home
     else
       warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"
@@ -2841,6 +2868,7 @@ for install in installs:
     # GEMINI.md: Gemini CLI reads those.
     if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then
       _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared
+      gateway_pointer "${ANTIGRAVITY_HOME}/AGENTS.md"
     fi
     converge_mcp
     # Verify the VALUE, not the exit codes: ask Claude what it
@@ -2866,6 +2894,19 @@ for install in installs:
   else
     log "MCP registration skipped (--no-mcp)"
   fi
+fi
+
+# -----------------------------------------------------------------
+# The model gateway: the `model-gateway` command on PATH, and a pointer to it in
+# each client's global instruction file. A gateway that is not declared on this
+# surface is retired: its command and its pointers are removed, if setup wrote them.
+# -----------------------------------------------------------------
+install_kit_command model-gateway
+gateway_pointer "${CLAUDE_HOME}/CLAUDE.md"
+gateway_pointer "${CODEX_HOME}/AGENTS.md"
+if [ "${CLOUD}" != 1 ]; then
+  gateway_pointer "${HOME}/.hermes/SOUL.md"
+  gateway_pointer "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"
 fi
 
 # -----------------------------------------------------------------

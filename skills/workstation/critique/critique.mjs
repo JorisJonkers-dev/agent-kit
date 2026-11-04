@@ -4279,6 +4279,24 @@ var SETUP_INPUTS = [
   "files_hash"
 ];
 var EMPTY_SETUP_RESULTS = { checks: {}, version: 1 };
+var UNPROVEN_READ_ONLY_CLIENTS = [
+  {
+    client: "claude",
+    reason: "Claude Code's read-only mode is a permission mode, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof"
+  },
+  {
+    client: "codex",
+    reason: "Codex's read-only mode is a sandbox setting, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof"
+  },
+  {
+    client: "hermes",
+    reason: "Hermes has no read-only flag, so only its toolsets limit a run, and showing that they refuse writes needs a live prompt, which setup does not spend on a proof"
+  },
+  {
+    client: "opencode",
+    reason: "OpenCode's read-only use is an agent whose edit permissions are denied in its own configuration, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof"
+  }
+];
 function isMachineCheck(check) {
   return check.kind === "hooks" || check.kind === "kill-switch";
 }
@@ -4301,6 +4319,7 @@ function setupChecklist(clients) {
       { ...AGY_QUOTA, client_config: firstAgy[1] }
     ],
     ...entries.map(([client, config]) => readOnlyCheck(client, config)),
+    ...UNPROVEN_READ_ONLY_CLIENTS.map(unprovenReadOnlyCheck),
     HOOKS_INSTALLED,
     KILL_SWITCH
   ];
@@ -4358,6 +4377,18 @@ function criticCheck(client, config) {
     why: `${config.model} runs through ${through}; a critic that cannot answer a trivial prompt fails every review it is routed to.`
   };
 }
+function unprovenReadOnlyCheck({ client, reason }) {
+  return {
+    client,
+    cost: "free",
+    fix: "Nothing to fix: this client has no critic, and its read-only delegations run in a throwaway worktree until a live proof exists.",
+    id: `read-only:${client}`,
+    kind: "read-only",
+    reason,
+    title: `${client} has no read-only proof yet`,
+    why: `${reason}.`
+  };
+}
 function readOnlyCheck(client, config) {
   const vibe = config.kind === "vibe";
   return {
@@ -4374,7 +4405,7 @@ function readOnlyCheck(client, config) {
 }
 function setupItem(check, inputs, last) {
   const shown = shownCheck(check);
-  if (check.kind === "read-only" && check.client_config.kind === "agy")
+  if (check.kind === "read-only" && check.client_config?.kind === "agy")
     return { ...shown, detail: READ_ONLY_PENDING, status: "not-available" };
   const base = { ...shown, inputs, ...last === void 0 ? {} : { last } };
   if (last === void 0) return { ...base, due_because: "never-checked", status: "due" };
@@ -4408,7 +4439,7 @@ function parseSetupResults(text) {
           ...inputs.has("routing_hash") ? { routing_hash: inputs.string("routing_hash") } : {},
           ...inputs.has("files_hash") ? { files_hash: inputs.string("files_hash") } : {}
         },
-        result: entry.oneOf("result", ["pass", "fail"])
+        result: entry.oneOf("result", ["pass", "fail", "unproven"])
       };
     }),
     version: file.literal("version", 1)
@@ -7660,6 +7691,7 @@ var SetupCommand = class {
   }
   /** What the check's result depends on, read without launching a model. */
   async inputs(check, routing) {
+    if (check.kind === "read-only" && check.client_config === void 0) return {};
     if (check.kind === "read-only") {
       const config2 = check.client_config;
       if (config2.kind !== "vibe") return {};
@@ -7687,6 +7719,8 @@ var SetupCommand = class {
   async runCheck(check, routing, confirmed) {
     if (isMachineCheck(check)) return (check.kind === "hooks" ? this.hooks : this.killSwitch).check();
     if (check.kind === "agy-quota") return this.quotaCheck(routing);
+    if (check.kind === "read-only" && check.client_config === void 0)
+      return { detail: `${check.reason}.`, result: "unproven" };
     const config = check.client_config;
     if (check.kind === "read-only") {
       const reach = await this.searchReach(check.client ?? "", routing);

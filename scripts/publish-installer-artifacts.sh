@@ -52,6 +52,8 @@ KIT_PATHS=(
   installer/memory-private
   installer/agent-kit-private
   installer/antigravity-mcp-proxy
+  installer/model-gateway
+  scripts/instruction-block.py
   installer/vibe-study
   installer/vibe-private
   installer/vibe-hooks.toml

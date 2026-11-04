@@ -39,6 +39,7 @@ def setup_run(
     args: tuple[str, ...] = (),
     prepare_home: Callable[[Path], None] | None = None,
     stubs: dict[str, str] | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> Run:
     """Run the checked-in setup script with HOME in a temp dir and nothing real on PATH.
 
@@ -48,7 +49,8 @@ def setup_run(
     already there. ``prepare_home`` writes anything else the home should hold
     before the run, and ``args`` are passed to the script (``--check``).
     ``stubs`` replaces or adds stub bodies by command name, written after the
-    defaults, for a test that needs one command to do real work.
+    defaults, for a test that needs one command to do real work. ``extra_env``
+    adds variables to the run's environment, such as XDG_CONFIG_HOME.
     """
     bin_dir = root / "bin"
     bin_dir.mkdir(parents=True)
@@ -84,7 +86,7 @@ def setup_run(
         capture_output=True,
         text=True,
         check=False,
-        env={"HOME": str(home), "PATH": f"{bin_dir}:/usr/bin:/bin"},
+        env={"HOME": str(home), "PATH": f"{bin_dir}:/usr/bin:/bin", **(extra_env or {})},
     )
     return Run(
         home=home,

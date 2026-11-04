@@ -1587,9 +1587,81 @@ def claude_allow_rules(data: dict[str, Any]) -> list[str]:
     ]
 
 
+# The model gateway's pointer text, one marked block in each client's global
+# instruction file. Plain words only: it is written through a quoted heredoc.
+GATEWAY_POINTER_TEXT = (
+    "The model gateway is the `model-gateway` command on PATH. `model-gateway models`",
+    "lists the client models on this machine, each with its cost class and difficulty tier.",
+    "The `delegate` skill, which is coming later, plans delegations with it.",
+)
+INSTRUCTION_BLOCK = Path("scripts/instruction-block.py")
+
+
+def _gateway_pointer_fn(w: Any) -> None:
+    """The gateway_pointer function: writes or removes setup's marked block in one instruction file."""
+    w("# The model gateway's pointer: one marked block in a client's global instruction")
+    w("# file. Setup owns only that block; the text around it stays the user's.")
+    w("gateway_pointer() {")
+    w('  local file="$1" action="${2:-write}"')
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would ${action} the model-gateway pointer in ${file}"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${action}" = remove ]; then')
+    w('    [ -f "${file}" ] || return 0')
+    w(f'    python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" model-gateway --remove >/dev/null \\')
+    w('      && ok "model-gateway pointer removed from ${file}" \\')
+    w('      || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"')
+    w("    return 0")
+    w("  fi")
+    w('  mkdir -p "$(dirname "${file}")"')
+    w(f'  python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" model-gateway <<\'BLOCK\' \\')
+    w('    && ok "model-gateway pointer -> ${file}" \\')
+    w('    || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"')
+    for line in GATEWAY_POINTER_TEXT:
+        w(line)
+    w("BLOCK")
+    w("}")
+    w("")
+
+
+def _gateway_step(w: Any, declared: bool) -> None:
+    """The model gateway's command and pointers, or their retirement when it is not declared here."""
+    w("# -----------------------------------------------------------------")
+    w("# The model gateway: the `model-gateway` command on PATH, and a pointer to it in")
+    w("# each client's global instruction file. A gateway that is not declared on this")
+    w("# surface is retired: its command and its pointers are removed, if setup wrote them.")
+    w("# -----------------------------------------------------------------")
+    if declared:
+        w("install_kit_command model-gateway")
+        w('gateway_pointer "${CLAUDE_HOME}/CLAUDE.md"')
+        w('gateway_pointer "${CODEX_HOME}/AGENTS.md"')
+        w('if [ "${CLOUD}" != 1 ]; then')
+        w('  gateway_pointer "${HOME}/.hermes/SOUL.md"')
+        w('  gateway_pointer "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"')
+        w("fi")
+    else:
+        w("retire_kit_command model-gateway")
+        for home_file in (
+            '"${CLAUDE_HOME}/CLAUDE.md"',
+            '"${CODEX_HOME}/AGENTS.md"',
+            '"${VIBE_HOME}/AGENTS.md"',
+            '"${VIBE_PRIVATE_HOME}/AGENTS.md"',
+            '"${ANTIGRAVITY_HOME}/AGENTS.md"',
+            '"${HOME}/.hermes/SOUL.md"',
+            '"${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"',
+        ):
+            w(f"gateway_pointer {home_file} remove")
+    w("")
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
+    gateway_declared = any(
+        skill.get("name") == "model-gateway" and on_surface(skill, "workstation")
+        for skill in _entries(data, "local_skills")
+    )
 
     w("#!/usr/bin/env bash")
     w(f"# {GENERATED_BANNER}")
@@ -2063,6 +2135,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  _agents_pointer "${1}/AGENTS.md" "$2"')
     w("}")
     w("")
+    _gateway_pointer_fn(w)
     w("# Every chat model the Mistral login can use, kept current in one Vibe home.")
     w("_vibe_models() {")
     w('  local home="$1"')
@@ -2116,6 +2189,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f'    _vibe_hooks "${{VIBE_PRIVATE_HOME}}" {_retired_vibe_hooks()}')
     w("  fi")
     w('  _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private')
+    w('  gateway_pointer "${VIBE_PRIVATE_HOME}/AGENTS.md"')
     w("}")
     w("")
     _critic_agents_step(data, w)
@@ -3231,6 +3305,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f'        _vibe_hooks "${{VIBE_HOME}}" {hooks_remove}')
     w("      fi")
     w('      _vibe_agents_pointer "${VIBE_HOME}" shared')
+    w('      gateway_pointer "${VIBE_HOME}/AGENTS.md"')
     w('      [ "${CLOUD}" = 1 ] || _vibe_private_home')
     w("    else")
     w('      warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"')
@@ -3259,6 +3334,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    # GEMINI.md: Gemini CLI reads those.")
     w('    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then')
     w('      _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared')
+    w('      gateway_pointer "${ANTIGRAVITY_HOME}/AGENTS.md"')
     w("    fi")
     w("    converge_mcp")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
@@ -3299,6 +3375,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("fi")
     w("")
 
+    _gateway_step(w, gateway_declared)
     # --- first-party skills ---
     w("# -----------------------------------------------------------------")
     w("# 7. First-party skills that ship in this repository.")

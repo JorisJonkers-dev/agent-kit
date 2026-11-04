@@ -30,7 +30,12 @@ export const SETUP_INPUTS = [
   'files_hash',
 ] as const satisfies readonly (keyof SetupInputs)[]
 
-export type SetupOutcome = 'pass' | 'fail'
+/**
+ * `unproven` is a read-only proof that cannot be shown without a live prompt
+ * this machine does not spend on a proof: it is recorded with its reason, and
+ * it never counts as a pass.
+ */
+export type SetupOutcome = 'pass' | 'fail' | 'unproven'
 
 /** One check's last run on this machine. */
 export interface SetupCheckResult {
@@ -79,8 +84,41 @@ export interface MachineCheck extends SetupCheckBase {
   readonly client?: undefined
 }
 
+/**
+ * The read-only proof of a client that has no critic configuration (Claude
+ * Code, Codex, Hermes, OpenCode). No critic runs there, so the proof is
+ * recorded as unproven with its reason, and nothing is launched.
+ */
+export interface UnprovenReadOnlyCheck extends SetupCheckBase {
+  readonly kind: 'read-only'
+  readonly client: string
+  readonly client_config?: undefined
+  /** Why the client's read-only mode is not proven on this machine, in one sentence. */
+  readonly reason: string
+}
+
 /** One item of the checklist, before anything is checked. */
-export type SetupCheck = ClientCheck | MachineCheck
+export type SetupCheck = ClientCheck | MachineCheck | UnprovenReadOnlyCheck
+
+/** The clients without a critic configuration, in the order setup lists their proofs. */
+export const UNPROVEN_READ_ONLY_CLIENTS: readonly { readonly client: string; readonly reason: string }[] = [
+  {
+    client: 'claude',
+    reason: "Claude Code's read-only mode is a permission mode, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof",
+  },
+  {
+    client: 'codex',
+    reason: "Codex's read-only mode is a sandbox setting, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof",
+  },
+  {
+    client: 'hermes',
+    reason: "Hermes has no read-only flag, so only its toolsets limit a run, and showing that they refuse writes needs a live prompt, which setup does not spend on a proof",
+  },
+  {
+    client: 'opencode',
+    reason: "OpenCode's read-only use is an agent whose edit permissions are denied in its own configuration, and showing that it refuses writes needs a live prompt, which setup does not spend on a proof",
+  },
+]
 
 export function isMachineCheck(check: SetupCheck): check is MachineCheck {
   return check.kind === 'hooks' || check.kind === 'kill-switch'
@@ -152,6 +190,7 @@ export function setupChecklist(
           { ...AGY_QUOTA, client_config: firstAgy[1] },
         ]),
     ...entries.map(([client, config]) => readOnlyCheck(client, config)),
+    ...UNPROVEN_READ_ONLY_CLIENTS.map(unprovenReadOnlyCheck),
     HOOKS_INSTALLED,
     KILL_SWITCH,
   ]
@@ -219,6 +258,19 @@ function criticCheck(client: string, config: CriticClient): ClientCheck {
   }
 }
 
+function unprovenReadOnlyCheck({ client, reason }: { readonly client: string; readonly reason: string }): UnprovenReadOnlyCheck {
+  return {
+    client,
+    cost: 'free',
+    fix: 'Nothing to fix: this client has no critic, and its read-only delegations run in a throwaway worktree until a live proof exists.',
+    id: `read-only:${client}`,
+    kind: 'read-only',
+    reason,
+    title: `${client} has no read-only proof yet`,
+    why: `${reason}.`,
+  }
+}
+
 function readOnlyCheck(client: string, config: CriticClient): ClientCheck {
   const vibe = config.kind === 'vibe'
   return {
@@ -248,7 +300,7 @@ export function setupItem(
   last: SetupCheckResult | undefined,
 ): SetupItem {
   const shown = shownCheck(check)
-  if (check.kind === 'read-only' && check.client_config.kind === 'agy')
+  if (check.kind === 'read-only' && check.client_config?.kind === 'agy')
     return { ...shown, detail: READ_ONLY_PENDING, status: 'not-available' }
   const base = { ...shown, inputs, ...(last === undefined ? {} : { last }) }
   if (last === undefined) return { ...base, due_because: 'never-checked', status: 'due' }
@@ -287,7 +339,7 @@ export function parseSetupResults(text: string): SetupResults {
           ...(inputs.has('routing_hash') ? { routing_hash: inputs.string('routing_hash') } : {}),
           ...(inputs.has('files_hash') ? { files_hash: inputs.string('files_hash') } : {}),
         },
-        result: entry.oneOf('result', ['pass', 'fail'] as const),
+        result: entry.oneOf('result', ['pass', 'fail', 'unproven'] as const),
       }
     }),
     version: file.literal('version', 1),
