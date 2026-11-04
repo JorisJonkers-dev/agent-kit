@@ -126,7 +126,16 @@ def test_the_shipped_defaults_carry_the_settings_a_delegation_is_held_to() -> No
         "max_parallel_per_client": 3,
         "availability_window_minutes": 60,
         "metered_personal_caps": {"per_workflow_usd": 2, "per_day_usd": 5},
+        "output_allowance_tokens": {"trivial": 500, "routine": 2000, "hard": 6000, "frontier": 16000},
     }
+
+
+def test_the_schema_allows_an_output_allowance_per_tier() -> None:
+    """A metered run's estimate counts its tier's allowance, so every tier has one."""
+    allowances = json.loads(SCHEMA.read_text())["$defs"]["settings"]["properties"]["output_allowance_tokens"]
+    assert allowances["required"] == ["trivial", "routine", "hard", "frontier"]
+    assert allowances["additionalProperties"] is False
+    assert all(allowances["properties"][tier]["minimum"] == 1 for tier in allowances["required"])
 
 
 def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() -> None:

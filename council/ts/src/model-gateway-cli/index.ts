@@ -60,10 +60,13 @@ usage reports every client it knows: whether it is installed, whether its own
 status command says it is signed in, whether its last run in the availability
 window was rate-limited or refused for its credentials, what it has spent over
 the last "days" days (7 by default) by day and by workflow, what its own plan
-has left ("unknown" where the client reports none), and each window of the
-plan limit the machine file sets for it. A client at or above
+has left ("unknown" where the client reports none), each window of the plan
+limit the machine file sets for it, and what its live reservations hold
+("reserved_usd" and "reserved_runs"). A client at or above
 "plan_warning_ratio" of a window carries a warning; one at 100% of a window is
-"unable_to_start". "workflow" narrows the usage to one workflow.
+"unable_to_start". "workflow" narrows the usage to one workflow. It settles
+every reservation whose run left a result first, at what that result says the
+run cost, and every one whose expiry has passed at its full estimate.
 
 run hands one read-only task to one client model and prints a short result:
 its status, run id, workflow, client model, family, mode, tokens, cost, the
@@ -92,6 +95,23 @@ is a run of its own, and the result carries "attempts" (run_id, client, model,
 status, reason), "skipped" and, when nothing is left to try, "escalation":
 "exhausted". When no client model of the cost class can start, the result is
 {"status": "unavailable"} with the "reasons" per candidate, and exit 0.
+
+A metered-personal run (Hermes today, and any client the machine file gives
+that cost class) is held to the caps in "metered_personal_caps": its estimate,
+its prompt's characters over 3.5 rounded up at the model's input price plus its
+tier's "output_allowance_tokens" at the model's output price, is reserved
+against the per-workflow and per-day caps before it starts, and a run that does
+not fit either is refused with "cap-exceeded". A client model the catalogue
+prices nowhere or gives no tier cannot be estimated, and a metered run on it is
+refused with "no-estimate". The estimate is the run's hard spend limit where
+the client takes one (Vibe's --max-price). When the run ends, its actual spend
+replaces the reservation; a reservation whose run left a result is settled from
+that result at once, and one whose run left nothing lapses at the run's time
+limit plus 60 seconds and counts its full estimate as spent. A run that wrote
+its own ledger line is counted from that line, so its reservation holds nothing
+more.
+Each attempt of a delegation reserves and settles its own estimate, and only a
+metered-personal attempt reserves at all.
 
 A run with "mode": "write" changes a repository: it needs "repo", "base" (a ref)
 and "check" (a command, run with sh -c in the worktree). The gateway creates a

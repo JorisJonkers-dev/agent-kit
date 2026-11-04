@@ -111,6 +111,11 @@ export interface Settings {
   readonly max_parallel_per_client: number
   readonly availability_window_minutes: number
   readonly metered_personal_caps: MeteredPersonalCaps
+  /**
+   * The output tokens a run of each difficulty tier is allowed, which is what
+   * a metered run's estimate counts at the model's output price.
+   */
+  readonly output_allowance_tokens: Readonly<Record<Tier, number>>
 }
 
 export interface GatewayConfig {
@@ -161,6 +166,14 @@ export type ModelGatewayErrorCode =
   | 'unknown-workflow'
   /** The run named a workflow that ended, so its caps and grants lapsed with it. */
   | 'workflow-ended'
+  /**
+   * A metered run's client model has no catalogue price or no difficulty tier,
+   * so the gateway cannot estimate what it would cost and will not run it
+   * uncapped.
+   */
+  | 'no-estimate'
+  /** A metered run's estimate does not fit the per-workflow or the per-day cap. */
+  | 'cap-exceeded'
 
 export class ModelGatewayError extends Error {
   constructor(
@@ -367,6 +380,7 @@ function mergeSettings(base: Settings, raw: unknown): Settings {
     availability_window_minutes: numberField(raw, 'availability_window_minutes', base.availability_window_minutes),
     max_parallel_per_client: numberField(raw, 'max_parallel_per_client', base.max_parallel_per_client),
     metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
+    output_allowance_tokens: mergeAllowances(base.output_allowance_tokens, raw.output_allowance_tokens),
     plan_warning_ratio: numberField(raw, 'plan_warning_ratio', base.plan_warning_ratio),
     summary_max_chars: numberField(raw, 'summary_max_chars', base.summary_max_chars),
   }
@@ -375,6 +389,8 @@ function mergeSettings(base: Settings, raw: unknown): Settings {
 function parseSettings(raw: JsonObject): Settings {
   const caps = raw.metered_personal_caps
   if (!isObject(caps)) throw invalid('settings.metered_personal_caps must be an object')
+  const allowances = raw.output_allowance_tokens
+  if (!isObject(allowances)) throw invalid('settings.output_allowance_tokens must be an object keyed by tier')
   return {
     availability_window_minutes: requireNumber(raw.availability_window_minutes, 'settings.availability_window_minutes'),
     max_parallel_per_client: requireNumber(raw.max_parallel_per_client, 'settings.max_parallel_per_client'),
@@ -382,8 +398,33 @@ function parseSettings(raw: JsonObject): Settings {
       per_day_usd: requireNumber(caps.per_day_usd, 'settings.metered_personal_caps.per_day_usd'),
       per_workflow_usd: requireNumber(caps.per_workflow_usd, 'settings.metered_personal_caps.per_workflow_usd'),
     },
+    output_allowance_tokens: {
+      frontier: requireAllowance(allowances, 'frontier'),
+      hard: requireAllowance(allowances, 'hard'),
+      routine: requireAllowance(allowances, 'routine'),
+      trivial: requireAllowance(allowances, 'trivial'),
+    },
     plan_warning_ratio: requireNumber(raw.plan_warning_ratio, 'settings.plan_warning_ratio'),
     summary_max_chars: requireNumber(raw.summary_max_chars, 'settings.summary_max_chars'),
+  }
+}
+
+/** The output tokens one tier's run is allowed, which a machine file may override tier by tier. */
+function requireAllowance(raw: JsonObject, tier: Tier): number {
+  const where = `settings.output_allowance_tokens.${tier}`
+  const value = requireNumber(raw[tier], where)
+  if (!Number.isInteger(value) || value <= 0) throw invalid(`${where} must be a whole number of tokens above 0`)
+  return value
+}
+
+function mergeAllowances(base: Readonly<Record<Tier, number>>, raw: unknown): Readonly<Record<Tier, number>> {
+  if (raw === undefined) return base
+  if (!isObject(raw)) throw invalid('settings.output_allowance_tokens must be an object keyed by tier')
+  return {
+    frontier: raw.frontier === undefined ? base.frontier : requireAllowance(raw, 'frontier'),
+    hard: raw.hard === undefined ? base.hard : requireAllowance(raw, 'hard'),
+    routine: raw.routine === undefined ? base.routine : requireAllowance(raw, 'routine'),
+    trivial: raw.trivial === undefined ? base.trivial : requireAllowance(raw, 'trivial'),
   }
 }
 

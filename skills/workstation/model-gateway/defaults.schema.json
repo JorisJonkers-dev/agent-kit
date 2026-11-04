@@ -159,7 +159,8 @@
         "summary_max_chars",
         "max_parallel_per_client",
         "availability_window_minutes",
-        "metered_personal_caps"
+        "metered_personal_caps",
+        "output_allowance_tokens"
       ],
       "additionalProperties": false,
       "properties": {
@@ -190,6 +191,18 @@
           "properties": {
             "per_workflow_usd": { "type": "number", "minimum": 0 },
             "per_day_usd": { "type": "number", "minimum": 0 }
+          }
+        },
+        "output_allowance_tokens": {
+          "type": "object",
+          "description": "The output tokens a run of each difficulty tier is allowed, which is what a metered run's estimate counts at the model's output price. The machine file may override any tier.",
+          "required": ["trivial", "routine", "hard", "frontier"],
+          "additionalProperties": false,
+          "properties": {
+            "trivial": { "type": "integer", "minimum": 1 },
+            "routine": { "type": "integer", "minimum": 1 },
+            "hard": { "type": "integer", "minimum": 1 },
+            "frontier": { "type": "integer", "minimum": 1 }
           }
         }
       }

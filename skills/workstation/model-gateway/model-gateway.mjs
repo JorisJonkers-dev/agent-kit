@@ -3,7 +3,7 @@
 
 // src/model-gateway-cli/index.ts
 import { readFile as readFile5 } from "node:fs/promises";
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -42,6 +42,148 @@ var ProcessEnvAdapter = class {
     return Object.fromEntries(entries);
   }
 };
+
+// src/contexts/model-gateway/application/caps.ts
+import { join } from "node:path";
+
+// src/contexts/model-gateway/domain/ledger.ts
+function isRunRecord(entry) {
+  return !("kind" in entry);
+}
+function isReservation(entry) {
+  return "kind" in entry && entry.kind === "reservation";
+}
+function isSettled(entry) {
+  return "kind" in entry && entry.kind === "settled";
+}
+function runRecords(entries) {
+  return entries.filter(isRunRecord);
+}
+function ledgerLine(entry) {
+  return `${JSON.stringify(entry)}
+`;
+}
+
+// src/contexts/model-gateway/domain/caps.ts
+var CHARS_PER_TOKEN = 3.5;
+var RESERVATION_GRACE_S = 60;
+function promptTokens(prompt) {
+  return Math.ceil(prompt.length / CHARS_PER_TOKEN);
+}
+function estimateRun(prompt, tier, prices, allowances) {
+  if (tier === void 0 || prices === void 0) return void 0;
+  const prompt_tokens = promptTokens(prompt);
+  const output_tokens = allowances[tier];
+  return {
+    output_tokens,
+    prompt_tokens,
+    usd: roundUp((prompt_tokens * prices.input + output_tokens * prices.output) / 1e6)
+  };
+}
+function checkCaps(entries, workflow, estimateUsd, caps, now) {
+  const day = utcDay(now.toISOString());
+  const charges = chargesOf(entries);
+  const held = liveReservations(entries).filter((reservation) => reservation.cost_class === "metered-personal");
+  const workflowRoom = room(
+    "per_workflow_usd",
+    caps.per_workflow_usd,
+    sum(charges.filter((charge) => charge.workflow === workflow).map((charge) => charge.usd)),
+    sum(held.filter((reservation) => reservation.workflow === workflow).map((reservation) => reservation.estimate_usd))
+  );
+  if (!fits(workflowRoom, estimateUsd)) return { refused: workflowRoom };
+  const dayRoom = room(
+    "per_day_usd",
+    caps.per_day_usd,
+    sum(charges.filter((charge) => charge.day === day).map((charge) => charge.usd)),
+    sum(held.filter((reservation) => utcDay(reservation.reserved_at) === day).map((reservation) => reservation.estimate_usd))
+  );
+  return fits(dayRoom, estimateUsd) ? {} : { refused: dayRoom };
+}
+function capRefusalMessage(room2, estimateUsd, workflow, now) {
+  const [name, where] = room2.cap === "per_workflow_usd" ? ["per-workflow", `in workflow ${workflow}`] : ["per-day", `on ${utcDay(now.toISOString())}`];
+  return `does not fit the ${name} cap of ${usd(room2.limit_usd)}: ${usd(room2.spent_usd)} spent and ${usd(room2.reserved_usd)} reserved ${where}, and its estimate is ${usd(estimateUsd)}`;
+}
+function reservationRecord(args) {
+  return {
+    client: args.client,
+    cost_class: args.cost_class,
+    estimate_usd: args.estimate_usd,
+    expires_at: new Date(args.reserved_at.getTime() + (args.time_limit_s + RESERVATION_GRACE_S) * 1e3).toISOString(),
+    kind: "reservation",
+    model: args.model,
+    reserved_at: args.reserved_at.toISOString(),
+    run_dir: args.run_dir,
+    run_id: args.run_id,
+    workflow: args.workflow
+  };
+}
+function settledRecord(reservation, costUsd, at) {
+  return {
+    client: reservation.client,
+    cost_class: reservation.cost_class,
+    cost_usd: costUsd,
+    kind: "settled",
+    reserved_at: reservation.reserved_at,
+    run_id: reservation.run_id,
+    settled_at: at.toISOString(),
+    workflow: reservation.workflow
+  };
+}
+function liveReservations(entries) {
+  const settled = new Set(entries.filter(isSettled).map((entry) => entry.run_id));
+  const ran = new Set(entries.filter(isRunRecord).map((entry) => entry.run_id));
+  return entries.filter(isReservation).filter((reservation) => !settled.has(reservation.run_id) && !ran.has(reservation.run_id));
+}
+function settleExpired(entries, now, costs) {
+  return liveReservations(entries).filter((reservation) => costs.has(reservation.run_id) || Date.parse(reservation.expires_at) <= now.getTime()).map((reservation) => ({
+    client: reservation.client,
+    cost_class: reservation.cost_class,
+    cost_usd: costs.get(reservation.run_id) ?? reservation.estimate_usd,
+    kind: "settled",
+    reason: "expired",
+    reserved_at: reservation.reserved_at,
+    run_id: reservation.run_id,
+    settled_at: now.toISOString(),
+    workflow: reservation.workflow
+  }));
+}
+function chargesOf(entries) {
+  const runs = entries.filter(isRunRecord).filter((run) => run.cost_class === "metered-personal");
+  const settled = new Map(entries.filter(isSettled).map((entry) => [entry.run_id, entry]));
+  const charges = runs.map((run) => ({
+    day: utcDay(settled.get(run.run_id)?.reserved_at ?? run.at),
+    usd: run.cost_usd,
+    workflow: run.workflow
+  }));
+  for (const settle of settled.values()) {
+    if (settle.reason !== "expired" || settle.cost_class !== "metered-personal") continue;
+    if (runs.some((run) => run.run_id === settle.run_id)) continue;
+    charges.push({ day: utcDay(settle.reserved_at), usd: settle.cost_usd, workflow: settle.workflow });
+  }
+  return charges;
+}
+function room(cap, limit_usd, spent_usd, reserved_usd) {
+  return { cap, limit_usd, reserved_usd: round(reserved_usd, 6), spent_usd: round(spent_usd, 6) };
+}
+function fits(room2, estimateUsd) {
+  return round(room2.spent_usd + room2.reserved_usd + estimateUsd, 6) <= room2.limit_usd;
+}
+function utcDay(at) {
+  return at.slice(0, 10);
+}
+function sum(values) {
+  return values.reduce((total, value) => total + value, 0);
+}
+function usd(value) {
+  return `$${value.toFixed(2)}`;
+}
+function round(value, places) {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+function roundUp(value) {
+  return Math.ceil(value * 1e6 - 1e-6) / 1e6;
+}
 
 // src/contexts/model-gateway/domain/config.ts
 var CONFIG_VERSION = 1;
@@ -225,6 +367,7 @@ function mergeSettings(base, raw) {
     availability_window_minutes: numberField(raw, "availability_window_minutes", base.availability_window_minutes),
     max_parallel_per_client: numberField(raw, "max_parallel_per_client", base.max_parallel_per_client),
     metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
+    output_allowance_tokens: mergeAllowances(base.output_allowance_tokens, raw.output_allowance_tokens),
     plan_warning_ratio: numberField(raw, "plan_warning_ratio", base.plan_warning_ratio),
     summary_max_chars: numberField(raw, "summary_max_chars", base.summary_max_chars)
   };
@@ -232,6 +375,8 @@ function mergeSettings(base, raw) {
 function parseSettings(raw) {
   const caps = raw.metered_personal_caps;
   if (!isObject(caps)) throw invalid("settings.metered_personal_caps must be an object");
+  const allowances = raw.output_allowance_tokens;
+  if (!isObject(allowances)) throw invalid("settings.output_allowance_tokens must be an object keyed by tier");
   return {
     availability_window_minutes: requireNumber(raw.availability_window_minutes, "settings.availability_window_minutes"),
     max_parallel_per_client: requireNumber(raw.max_parallel_per_client, "settings.max_parallel_per_client"),
@@ -239,8 +384,30 @@ function parseSettings(raw) {
       per_day_usd: requireNumber(caps.per_day_usd, "settings.metered_personal_caps.per_day_usd"),
       per_workflow_usd: requireNumber(caps.per_workflow_usd, "settings.metered_personal_caps.per_workflow_usd")
     },
+    output_allowance_tokens: {
+      frontier: requireAllowance(allowances, "frontier"),
+      hard: requireAllowance(allowances, "hard"),
+      routine: requireAllowance(allowances, "routine"),
+      trivial: requireAllowance(allowances, "trivial")
+    },
     plan_warning_ratio: requireNumber(raw.plan_warning_ratio, "settings.plan_warning_ratio"),
     summary_max_chars: requireNumber(raw.summary_max_chars, "settings.summary_max_chars")
+  };
+}
+function requireAllowance(raw, tier) {
+  const where = `settings.output_allowance_tokens.${tier}`;
+  const value = requireNumber(raw[tier], where);
+  if (!Number.isInteger(value) || value <= 0) throw invalid(`${where} must be a whole number of tokens above 0`);
+  return value;
+}
+function mergeAllowances(base, raw) {
+  if (raw === void 0) return base;
+  if (!isObject(raw)) throw invalid("settings.output_allowance_tokens must be an object keyed by tier");
+  return {
+    frontier: raw.frontier === void 0 ? base.frontier : requireAllowance(raw, "frontier"),
+    hard: raw.hard === void 0 ? base.hard : requireAllowance(raw, "hard"),
+    routine: raw.routine === void 0 ? base.routine : requireAllowance(raw, "routine"),
+    trivial: raw.trivial === void 0 ? base.trivial : requireAllowance(raw, "trivial")
   };
 }
 function mergeCaps(base, raw) {
@@ -285,12 +452,6 @@ function requireOneOf(value, allowed2, where) {
 function invalid(message) {
   return new ModelGatewayError("invalid-config", message);
 }
-
-// src/contexts/model-gateway/domain/extras.ts
-var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
-
-// src/contexts/model-gateway/application/home-mcp.ts
-import { join } from "node:path";
 
 // src/shared-kernel/toml.ts
 var TomlError = class extends Error {
@@ -481,58 +642,159 @@ var TomlReader = class {
   }
 };
 
-// src/contexts/model-gateway/application/json-file.ts
-async function fileExists(files, path, what) {
-  try {
-    return await files.exists(path);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+// src/contexts/model-gateway/domain/models.ts
+function modelKey(client, model) {
+  return `${client}:${model}`;
+}
+var FAMILY_PREFIXES = [
+  ["gemini", "google"],
+  ["claude", "anthropic"],
+  ["gpt", "openai"],
+  ["deepseek", "deepseek"],
+  ["glm", "zhipu"],
+  ["zai", "zhipu"],
+  ["kimi", "moonshot"],
+  ["minimax", "minimax"],
+  ["grok", "xai"],
+  ["qwen", "alibaba"],
+  ["mistral", "mistral"],
+  ["codestral", "mistral"]
+];
+function familyOf(model) {
+  return FAMILY_PREFIXES.find(([prefix]) => model.startsWith(prefix))?.[1];
+}
+function familyOfModelId(model) {
+  return familyOf(modelPart(model));
+}
+function parseAntigravityModels(stdout) {
+  const ids = [];
+  for (const line of stdout.split("\n")) {
+    const [id = "", display] = line.split("	");
+    if (display === void 0) continue;
+    const trimmed = id.trim();
+    if (trimmed !== "") ids.push(trimmed);
   }
+  return ids;
 }
-async function readJsonFile(files, path, what, parse) {
-  let text;
-  try {
-    text = await files.readText(path);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+function parseOpenCodeModels(stdout) {
+  const models = [];
+  for (const line of stdout.split("\n")) {
+    const id = line.trim();
+    const slash = id.indexOf("/");
+    if (slash <= 0 || slash === id.length - 1) continue;
+    models.push({ model: id, provider: id.slice(0, slash) });
   }
+  return models;
+}
+function hermesDefaultModel(stdout) {
+  let parsed;
   try {
-    return parse(parseJson(text));
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: ${messageOf(error)}`);
+    parsed = JSON.parse(stdout);
+  } catch {
+    return void 0;
   }
+  if (typeof parsed === "string") return parsed === "" ? void 0 : { model: parsed };
+  if (!isObject(parsed)) return void 0;
+  const model = typeof parsed.default === "string" && parsed.default !== "" ? parsed.default : void 0;
+  if (model === void 0) return void 0;
+  const provider = typeof parsed.provider === "string" && parsed.provider !== "" ? parsed.provider : void 0;
+  return { model, ...provider === void 0 ? {} : { provider } };
 }
-function parseJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `not JSON: ${messageOf(error)}`);
+function vibeModels(toml) {
+  const models = readToml(toml).models;
+  if (!isObject(models)) return [];
+  const declared = [];
+  for (const [key, value] of Object.entries(models)) {
+    if (!isObject(value)) continue;
+    const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
+    const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
+    declared.push({ model: alias, names: name === void 0 ? [] : [name] });
   }
+  return declared;
 }
-function messageOf(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// src/contexts/model-gateway/application/home-mcp.ts
-async function homeMcpServers(ports) {
-  const path = join(ports.env.require("HOME"), ".vibe", "config.toml");
-  if (!await ports.files.exists(path)) return [];
-  try {
-    return serverNames(await ports.files.readText(path));
-  } catch (error) {
-    throw new ModelGatewayError("home-config-unreadable", `${path}: cannot read the home's MCP servers: ${messageOf(error)}`);
+function listModels(config, installed, listings) {
+  const models = [];
+  const missing = [];
+  const skipped = [];
+  for (const [id, client] of sortedClients(config)) {
+    if (!installed.has(id)) {
+      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
+      continue;
+    }
+    if (client.model_source === "declared") {
+      models.push(...catalogueModels(config, id, client));
+      continue;
+    }
+    const listing = listings.get(id);
+    if (listing === void 0) continue;
+    if ("reason" in listing) {
+      missing.push({ client: id, reason: listing.reason });
+      continue;
+    }
+    const listed = listedModels(config, id, client, listing.models);
+    models.push(...listed.models);
+    skipped.push(...listed.skipped);
   }
+  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
+  missing.sort((left, right) => compare(left.client, right.client));
+  skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
+  return { models, missing, skipped };
 }
-function serverNames(toml) {
-  const servers = readToml(toml).mcp_servers;
-  return servers === void 0 ? [] : namesOf(servers);
+function catalogueModels(config, id, client) {
+  return config.models.filter((entry) => entry.client === id && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))).map((entry) => ({
+    client: id,
+    cost_class: client.cost_class,
+    family: entry.family,
+    model: entry.model,
+    notes: entry.notes,
+    source: client.model_source,
+    tier: entry.tier
+  }));
 }
-function namesOf(servers) {
-  return (Array.isArray(servers) ? servers : [servers]).map((server) => typeof server === "object" && server !== null ? server.name : void 0).filter((name) => typeof name === "string");
+function listedModels(config, id, client, listed) {
+  const models = [];
+  const skipped = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const { model, names = [], provider } of listed) {
+    if (seen.has(model)) continue;
+    seen.add(model);
+    const known = [model, ...names];
+    const entry = config.models.find(
+      (candidate) => candidate.client === id && [candidate.model, ...candidate.names ?? []].some((name) => known.includes(name))
+    );
+    if ([model, entry?.model, ...entry?.names ?? []].some((key) => key !== void 0 && config.disabled.includes(modelKey(id, key)))) continue;
+    const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== void 0);
+    if (family === void 0) {
+      skipped.push({ client: id, model, reason: FAMILY_UNKNOWN });
+      continue;
+    }
+    if (client.families !== void 0 && !client.families.includes(family)) continue;
+    models.push({
+      client: id,
+      cost_class: costClassFor(client, provider),
+      family,
+      model,
+      notes: entry?.notes ?? "",
+      source: client.model_source,
+      tier: entry?.tier ?? null
+    });
+  }
+  return { models, skipped };
 }
-
-// src/contexts/model-gateway/application/launchers.ts
-import { join as join2 } from "node:path";
+var FAMILY_UNKNOWN = "family unknown: add it to the catalogue in defaults.json or the machine override";
+function modelPart(model) {
+  return model.slice(model.lastIndexOf("/") + 1);
+}
+function costClassFor(client, provider) {
+  if (provider === void 0) return client.cost_class;
+  return client.provider_cost_classes?.[provider] ?? client.cost_class;
+}
+function sortedClients(config) {
+  return Object.entries(config.clients).sort(([left], [right]) => compare(left, right));
+}
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
 
 // src/contexts/model-gateway/domain/run.ts
 var RUN_CLIENTS = ["vibe", "agy", "claude", "opencode", "hermes"];
@@ -795,6 +1057,187 @@ function parseJsonObject(text) {
   }
 }
 
+// src/contexts/model-gateway/application/caps.ts
+var CapGuard = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  /**
+   * What a metered run is estimated to cost, or a `no-estimate` refusal for a
+   * client model the catalogue prices nowhere or gives no tier: a run the
+   * gateway cannot estimate is never run uncapped.
+   */
+  estimate(input, entry, config) {
+    if (!isMetered(input, config)) return void 0;
+    const estimate = estimateRun(input.prompt, entry?.tier, entry?.prices, config.settings.output_allowance_tokens);
+    if (estimate === void 0) {
+      throw new ModelGatewayError(
+        "no-estimate",
+        `${input.client}:${input.model} cannot be estimated: the catalogue gives it no price or no tier, so a metered run on it cannot be held to the caps`
+      );
+    }
+    return estimate;
+  }
+  /**
+   * Reserves the run's estimate against both caps, or refuses it with the cap
+   * it does not fit. The decision and the reservation are one locked critical
+   * section over the ledger, which also settles every reservation whose run
+   * left no settlement and whose expiry has passed.
+   */
+  async reserve(args) {
+    const { config, costClass, estimate, input, now, runDir, runId: runId2 } = args;
+    if (estimate === void 0) return void 0;
+    const costs = await this.finishedCosts();
+    const record = reservationRecord({
+      client: input.client,
+      cost_class: costClass,
+      estimate_usd: estimate.usd,
+      model: input.model,
+      reserved_at: now,
+      run_dir: runDir,
+      run_id: runId2,
+      time_limit_s: input.time_limit_s,
+      workflow: input.workflow
+    });
+    const decision = await this.deps.ledger.update((entries) => {
+      const settled = settleExpired(entries, now, costs);
+      const check = checkCaps([...entries, ...settled], input.workflow, estimate.usd, config.settings.metered_personal_caps, now);
+      return { append: check.refused === void 0 ? [...settled, record] : settled, result: check };
+    });
+    if (decision.refused !== void 0) {
+      throw new ModelGatewayError(
+        "cap-exceeded",
+        `${input.client}:${input.model} ${capRefusalMessage(decision.refused, estimate.usd, input.workflow, now)}`
+      );
+    }
+    return { estimate, record };
+  }
+  /** Releases a reservation with what the run really cost, so the caps count spend rather than the estimate. */
+  async settle(reservation, costUsd, now) {
+    if (reservation === void 0) return;
+    await this.deps.ledger.append(settledRecord(reservation.record, costUsd, now));
+  }
+  /**
+   * Releases a reservation the run never used, at no cost: the workflow could
+   * not be started after the estimate was held, so the caps must not keep
+   * holding it.
+   */
+  async release(reservation, now) {
+    if (reservation === void 0) return;
+    await this.deps.ledger.append({ ...settledRecord(reservation.record, 0, now), reason: "not-started" });
+  }
+  /**
+   * Settles every reservation whose run left a result behind, at once and
+   * whatever its expiry, and every one whose expiry has passed, from the run
+   * directory's result where it left one and at its full estimate otherwise.
+   * Every gateway call that reads the ledger for the caps runs this first, so a
+   * run whose process died still counts, and one that finished counts what it
+   * really cost rather than its estimate.
+   */
+  async settleStale(now) {
+    const costs = await this.finishedCosts();
+    await this.deps.ledger.update((entries) => ({ append: settleExpired(entries, now, costs), result: void 0 }));
+  }
+  /**
+   * What each live reservation's run directory says the run cost, by run id: a
+   * run that left a result is finished, whatever its expiry says. It is read
+   * before the ledger's lock is taken, so the lock is held for the decision
+   * alone; a reservation that settles meanwhile is skipped there.
+   */
+  async finishedCosts() {
+    const costs = /* @__PURE__ */ new Map();
+    for (const reservation of liveReservations(await this.deps.ledger.read())) {
+      const cost = await this.resultCost(reservation.run_dir);
+      if (cost !== void 0) costs.set(reservation.run_id, cost);
+    }
+    return costs;
+  }
+  /**
+   * What a run directory's result says the run cost, or undefined when it left
+   * none the gateway can read: a directory it cannot look at, a file it cannot
+   * read or parse, or a result without a cost all leave the reservation to its
+   * expiry, which counts its full estimate.
+   */
+  async resultCost(runDir) {
+    const path = join(runDir, "result.json");
+    try {
+      if (!await this.deps.files.exists(path)) return void 0;
+      const parsed = JSON.parse(await this.deps.files.readText(path));
+      const cost = isObject(parsed) ? parsed.cost_usd : void 0;
+      return typeof cost === "number" && Number.isFinite(cost) && cost >= 0 ? cost : void 0;
+    } catch {
+      return void 0;
+    }
+  }
+};
+function isMetered(input, config) {
+  const client = config.clients[input.client];
+  return client !== void 0 && runCostClass(client, input) === "metered-personal";
+}
+function runCostClass(client, input) {
+  return costClassFor(client, input.client === "opencode" ? openCodeProvider(input.model) : input.provider);
+}
+
+// src/contexts/model-gateway/domain/extras.ts
+var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
+
+// src/contexts/model-gateway/application/home-mcp.ts
+import { join as join2 } from "node:path";
+
+// src/contexts/model-gateway/application/json-file.ts
+async function fileExists(files, path, what) {
+  try {
+    return await files.exists(path);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+  }
+}
+async function readJsonFile(files, path, what, parse) {
+  let text;
+  try {
+    text = await files.readText(path);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+  }
+  try {
+    return parse(parseJson(text));
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: ${messageOf(error)}`);
+  }
+}
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `not JSON: ${messageOf(error)}`);
+  }
+}
+function messageOf(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// src/contexts/model-gateway/application/home-mcp.ts
+async function homeMcpServers(ports) {
+  const path = join2(ports.env.require("HOME"), ".vibe", "config.toml");
+  if (!await ports.files.exists(path)) return [];
+  try {
+    return serverNames(await ports.files.readText(path));
+  } catch (error) {
+    throw new ModelGatewayError("home-config-unreadable", `${path}: cannot read the home's MCP servers: ${messageOf(error)}`);
+  }
+}
+function serverNames(toml) {
+  const servers = readToml(toml).mcp_servers;
+  return servers === void 0 ? [] : namesOf(servers);
+}
+function namesOf(servers) {
+  return (Array.isArray(servers) ? servers : [servers]).map((server) => typeof server === "object" && server !== null ? server.name : void 0).filter((name) => typeof name === "string");
+}
+
+// src/contexts/model-gateway/application/launchers.ts
+import { join as join3 } from "node:path";
+
 // src/contexts/model-gateway/domain/outputs.ts
 function count(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
@@ -896,7 +1339,7 @@ function openCodeOutput(stdout) {
   let charged = 0;
   let error;
   let failure2;
-  const sum = { cached: 0, input: 0, output: 0 };
+  const sum2 = { cached: 0, input: 0, output: 0 };
   for (const line of stdout.split("\n")) {
     const event = parseJson2(line);
     if (!isObject(event)) continue;
@@ -909,15 +1352,15 @@ function openCodeOutput(stdout) {
       const tokens = isObject(part.tokens) ? part.tokens : {};
       const cache = isObject(tokens.cache) ? tokens.cache : {};
       charged += count(part.cost);
-      sum.cached += count(cache.read);
-      sum.input += count(tokens.input) + count(cache.read) + count(cache.write);
-      sum.output += count(tokens.output) + count(tokens.reasoning);
+      sum2.cached += count(cache.read);
+      sum2.input += count(tokens.input) + count(cache.read) + count(cache.write);
+      sum2.output += count(tokens.output) + count(tokens.reasoning);
     } else if (event.type === "error") {
       failure2 = "client-error";
       error = structuredError(event);
     }
   }
-  return { answer, charged: chargedAmount(charged), error, failure: failure2, tokens: sum };
+  return { answer, charged: chargedAmount(charged), error, failure: failure2, tokens: sum2 };
 }
 
 // src/contexts/model-gateway/application/launchers.ts
@@ -997,7 +1440,7 @@ var vibe = {
   sandboxedExtras: [],
   protectedEnv: VIBE_PROTECTED_ENV,
   read: (stdout, exported) => vibeOutput(stdout, exported),
-  reportPath: (paths) => join2(paths.exportDir, "export.json")
+  reportPath: (paths) => join3(paths.exportDir, "export.json")
 };
 function effortOf(model) {
   return /-(low|medium|high)$/.exec(model)?.[1] ?? "medium";
@@ -1089,7 +1532,7 @@ function reportDir(paths) {
 }
 var hermes = {
   command: (binary, input, paths, prompt, extras) => ({
-    args: ["-z", prompt, "--usage-file", join2(reportDir(paths), "usage.json"), "-m", input.model, "--provider", String(input.provider)],
+    args: ["-z", prompt, "--usage-file", join3(reportDir(paths), "usage.json"), "-m", input.model, "--provider", String(input.provider)],
     command: binary,
     cwd: paths.workDir,
     env: extras?.env ?? {},
@@ -1099,7 +1542,7 @@ var hermes = {
   sandboxedExtras: [],
   protectedEnv: [],
   read: (stdout, usage) => hermesOutput(stdout, usage),
-  reportPath: (paths) => join2(reportDir(paths), "usage.json")
+  reportPath: (paths) => join3(reportDir(paths), "usage.json")
 };
 var LAUNCHERS = { agy, claude, hermes, opencode, vibe };
 
@@ -1159,160 +1602,6 @@ var ClientRun = class {
     }
   }
 };
-
-// src/contexts/model-gateway/domain/models.ts
-function modelKey(client, model) {
-  return `${client}:${model}`;
-}
-var FAMILY_PREFIXES = [
-  ["gemini", "google"],
-  ["claude", "anthropic"],
-  ["gpt", "openai"],
-  ["deepseek", "deepseek"],
-  ["glm", "zhipu"],
-  ["zai", "zhipu"],
-  ["kimi", "moonshot"],
-  ["minimax", "minimax"],
-  ["grok", "xai"],
-  ["qwen", "alibaba"],
-  ["mistral", "mistral"],
-  ["codestral", "mistral"]
-];
-function familyOf(model) {
-  return FAMILY_PREFIXES.find(([prefix]) => model.startsWith(prefix))?.[1];
-}
-function familyOfModelId(model) {
-  return familyOf(modelPart(model));
-}
-function parseAntigravityModels(stdout) {
-  const ids = [];
-  for (const line of stdout.split("\n")) {
-    const [id = "", display] = line.split("	");
-    if (display === void 0) continue;
-    const trimmed = id.trim();
-    if (trimmed !== "") ids.push(trimmed);
-  }
-  return ids;
-}
-function parseOpenCodeModels(stdout) {
-  const models = [];
-  for (const line of stdout.split("\n")) {
-    const id = line.trim();
-    const slash = id.indexOf("/");
-    if (slash <= 0 || slash === id.length - 1) continue;
-    models.push({ model: id, provider: id.slice(0, slash) });
-  }
-  return models;
-}
-function hermesDefaultModel(stdout) {
-  let parsed;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch {
-    return void 0;
-  }
-  if (typeof parsed === "string") return parsed === "" ? void 0 : { model: parsed };
-  if (!isObject(parsed)) return void 0;
-  const model = typeof parsed.default === "string" && parsed.default !== "" ? parsed.default : void 0;
-  if (model === void 0) return void 0;
-  const provider = typeof parsed.provider === "string" && parsed.provider !== "" ? parsed.provider : void 0;
-  return { model, ...provider === void 0 ? {} : { provider } };
-}
-function vibeModels(toml) {
-  const models = readToml(toml).models;
-  if (!isObject(models)) return [];
-  const declared = [];
-  for (const [key, value] of Object.entries(models)) {
-    if (!isObject(value)) continue;
-    const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
-    const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
-    declared.push({ model: alias, names: name === void 0 ? [] : [name] });
-  }
-  return declared;
-}
-function listModels(config, installed, listings) {
-  const models = [];
-  const missing = [];
-  const skipped = [];
-  for (const [id, client] of sortedClients(config)) {
-    if (!installed.has(id)) {
-      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
-      continue;
-    }
-    if (client.model_source === "declared") {
-      models.push(...catalogueModels(config, id, client));
-      continue;
-    }
-    const listing = listings.get(id);
-    if (listing === void 0) continue;
-    if ("reason" in listing) {
-      missing.push({ client: id, reason: listing.reason });
-      continue;
-    }
-    const listed = listedModels(config, id, client, listing.models);
-    models.push(...listed.models);
-    skipped.push(...listed.skipped);
-  }
-  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
-  missing.sort((left, right) => compare(left.client, right.client));
-  skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
-  return { models, missing, skipped };
-}
-function catalogueModels(config, id, client) {
-  return config.models.filter((entry) => entry.client === id && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))).map((entry) => ({
-    client: id,
-    cost_class: client.cost_class,
-    family: entry.family,
-    model: entry.model,
-    notes: entry.notes,
-    source: client.model_source,
-    tier: entry.tier
-  }));
-}
-function listedModels(config, id, client, listed) {
-  const models = [];
-  const skipped = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const { model, names = [], provider } of listed) {
-    if (seen.has(model)) continue;
-    seen.add(model);
-    const known = [model, ...names];
-    const entry = config.models.find(
-      (candidate) => candidate.client === id && [candidate.model, ...candidate.names ?? []].some((name) => known.includes(name))
-    );
-    if ([model, entry?.model, ...entry?.names ?? []].some((key) => key !== void 0 && config.disabled.includes(modelKey(id, key)))) continue;
-    const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== void 0);
-    if (family === void 0) {
-      skipped.push({ client: id, model, reason: FAMILY_UNKNOWN });
-      continue;
-    }
-    if (client.families !== void 0 && !client.families.includes(family)) continue;
-    models.push({
-      client: id,
-      cost_class: costClassFor(client, provider),
-      family,
-      model,
-      notes: entry?.notes ?? "",
-      source: client.model_source,
-      tier: entry?.tier ?? null
-    });
-  }
-  return { models, skipped };
-}
-var FAMILY_UNKNOWN = "family unknown: add it to the catalogue in defaults.json or the machine override";
-function modelPart(model) {
-  return model.slice(model.lastIndexOf("/") + 1);
-}
-function costClassFor(client, provider) {
-  if (provider === void 0) return client.cost_class;
-  return client.provider_cost_classes?.[provider] ?? client.cost_class;
-}
-function sortedClients(config) {
-  return Object.entries(config.clients).sort(([left], [right]) => compare(left, right));
-}
-function compare(left, right) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
 
 // src/contexts/model-gateway/domain/policy.ts
 var NEDAP_CLIENTS = ["claude", "codex"];
@@ -1375,45 +1664,45 @@ async function loadConfig(files, defaultsPath, override) {
 }
 
 // src/contexts/model-gateway/application/locations.ts
-import { isAbsolute, join as join3 } from "node:path";
+import { isAbsolute, join as join4 } from "node:path";
 function overridePath(env) {
-  return join3(configDir(env), "model-gateway.json");
+  return join4(configDir(env), "model-gateway.json");
 }
 function allowlistPath(env) {
-  return join3(configDir(env), "critique-allowlist.json");
+  return join4(configDir(env), "critique-allowlist.json");
 }
 function configDir(env) {
   const xdg = env.get("XDG_CONFIG_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join3(xdg, "agent-kit");
-  return join3(env.require("HOME"), ".config", "agent-kit");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join4(xdg, "agent-kit");
+  return join4(env.require("HOME"), ".config", "agent-kit");
 }
 function vibeConfigPath(env) {
   const home = env.get("VIBE_HOME");
-  if (home !== void 0 && isAbsolute(home)) return join3(home, "config.toml");
-  return join3(env.require("HOME"), ".vibe", "config.toml");
+  if (home !== void 0 && isAbsolute(home)) return join4(home, "config.toml");
+  return join4(env.require("HOME"), ".vibe", "config.toml");
 }
 function routingOverridePath(env) {
-  return join3(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
+  return join4(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
 }
 function setupResultsPath(env) {
-  return join3(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
+  return join4(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
 }
 function stateDir(env) {
   const xdg = env.get("XDG_STATE_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join3(xdg, "agent-kit", "model-gateway");
-  return join3(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join4(xdg, "agent-kit", "model-gateway");
+  return join4(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
 }
 function ledgerPath(env) {
-  return join3(stateDir(env), "ledger.jsonl");
+  return join4(stateDir(env), "ledger.jsonl");
 }
 function keptWorktreesPath(env) {
-  return join3(stateDir(env), "kept-worktrees.json");
+  return join4(stateDir(env), "kept-worktrees.json");
 }
 function runsDir(env) {
-  return join3(stateDir(env), "runs");
+  return join4(stateDir(env), "runs");
 }
 function workflowsPath(env) {
-  return join3(stateDir(env), "workflows.json");
+  return join4(stateDir(env), "workflows.json");
 }
 
 // src/shared-kernel/git-remote.ts
@@ -1542,7 +1831,7 @@ function readModelsInput(raw) {
 
 // src/contexts/model-gateway/application/run.ts
 import { randomBytes } from "node:crypto";
-import { join as join5 } from "node:path";
+import { join as join6 } from "node:path";
 
 // src/contexts/model-gateway/domain/escalation.ts
 var DEFAULT_MAX_ATTEMPTS = 3;
@@ -1689,7 +1978,9 @@ function readUsageInput(raw) {
   }
   return { days, workflow };
 }
-function usageReport(input, config, readings, records, now) {
+function usageReport(input, config, readings, entries, now) {
+  const records = runRecords(entries);
+  const held = liveReservations(entries);
   const since = startOfDay(now) - (input.days - 1) * DAY_MS;
   const counted = records.filter(
     (record) => Date.parse(record.at) >= since && (input.workflow === void 0 || record.workflow === input.workflow)
@@ -1698,6 +1989,7 @@ function usageReport(input, config, readings, records, now) {
   const clients = sortedClients(config).map(([id, client]) => {
     const reading = byClient.get(id) ?? { client: id, installed: false, status: void 0 };
     const mine = counted.filter((record) => record.client === id);
+    const reservations = held.filter((reservation) => reservation.client === id);
     const windows = planWindows(id, client.plan_limits ?? [], records, now, config.settings.plan_warning_ratio);
     return {
       availability: availabilityOf(id, client.binary, reading, records, now, config.settings.availability_window_minutes, windows),
@@ -1707,6 +1999,11 @@ function usageReport(input, config, readings, records, now) {
       cost_class: client.cost_class,
       plan_limits: windows,
       quota: quotaOf(id, reading.status),
+      reserved_runs: reservations.length,
+      reserved_usd: round2(
+        reservations.reduce((total, reservation) => total + reservation.estimate_usd, 0),
+        6
+      ),
       usage: totalsOf(mine),
       warnings: warningsOf(id, windows)
     };
@@ -1723,11 +2020,11 @@ function planWindows(client, limits, records, now, warningRatio) {
     const since = now.getTime() - WINDOW_MS[limit.window];
     const mine = records.filter((record) => record.client === client && Date.parse(record.at) >= since);
     if ("limit_usd" in limit) {
-      const spent = round(mine.reduce((sum, record) => sum + record.cost_usd, 0), 6);
-      const ratio2 = round(spent / limit.limit_usd, 4);
+      const spent = round2(mine.reduce((sum2, record) => sum2 + record.cost_usd, 0), 6);
+      const ratio2 = round2(spent / limit.limit_usd, 4);
       return { limit_usd: limit.limit_usd, ratio: ratio2, spent_usd: spent, state: stateOf(ratio2, warningRatio), window: limit.window };
     }
-    const ratio = round(mine.length / limit.limit_runs, 4);
+    const ratio = round2(mine.length / limit.limit_runs, 4);
     return { limit_runs: limit.limit_runs, ratio, runs: mine.length, state: stateOf(ratio, warningRatio), window: limit.window };
   });
 }
@@ -1792,7 +2089,7 @@ function totalsOf(records) {
     tokens.input += record.tokens.input;
     tokens.output += record.tokens.output;
   }
-  return { cost_usd: round(cost, 6), runs: records.length, tokens };
+  return { cost_usd: round2(cost, 6), runs: records.length, tokens };
 }
 function byDay(records) {
   const days = /* @__PURE__ */ new Map();
@@ -1812,7 +2109,7 @@ function byWorkflow(records) {
 function startOfDay(now) {
   return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 }
-function round(value, places) {
+function round2(value, places) {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;
 }
@@ -1874,18 +2171,17 @@ function workflowView(record, now) {
 function workflowViews(records, now) {
   return records.map((record) => workflowView(record, now));
 }
-function startWorkflow(records, name, now) {
+function requireWorkflowOpen(records, name, now) {
   const existing = records.find((record) => record.name === name);
+  if (existing === void 0 || !workflowEnded(existing, now)) return existing;
+  const endedAt = existing.ended_at ?? expiryOf(existing);
+  throw new ModelGatewayError("workflow-ended", `workflow ${name} ended at ${endedAt}: a run may not join it, so start a new workflow`);
+}
+function startWorkflow(records, name, now) {
+  const existing = requireWorkflowOpen(records, name, now);
   if (existing === void 0) {
     const started = { name, started_at: now.toISOString() };
     return { workflow: started, workflows: [...records, started] };
-  }
-  if (workflowEnded(existing, now)) {
-    const endedAt = existing.ended_at ?? expiryOf(existing);
-    throw new ModelGatewayError(
-      "workflow-ended",
-      `workflow ${name} ended at ${endedAt}: a run may not join it, so start a new workflow`
-    );
   }
   return { workflow: existing, workflows: records };
 }
@@ -1900,19 +2196,23 @@ function endWorkflow(records, name, now) {
 }
 
 // src/contexts/model-gateway/application/escalation.ts
-import { dirname, join as join4 } from "node:path";
+import { dirname, join as join5 } from "node:path";
 
 // src/contexts/model-gateway/application/usage.ts
 var UsageCommand = class {
   constructor(deps) {
     this.deps = deps;
+    this.caps = new CapGuard(deps);
   }
   deps;
+  caps;
   async run(raw) {
     const input = readUsageInput(raw);
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const now = this.deps.clock.now();
+    await this.caps.settleStale(now);
     const readings = await readClients(this.deps, sortedClients(config));
-    return usageReport(input, config, readings, await this.deps.ledger.read(), this.deps.clock.now());
+    return usageReport(input, config, readings, await this.deps.ledger.read(), now);
   }
 };
 async function clientAvailability(deps, config, client) {
@@ -2058,7 +2358,7 @@ var EscalatedRun = class {
    */
   async failureDetail(run) {
     const check = run.reason?.startsWith("check-") === true ? run.check?.output_path : void 0;
-    for (const path of [check, join4(dirname(run.output_path), "stderr.txt"), run.output_path]) {
+    for (const path of [check, join5(dirname(run.output_path), "stderr.txt"), run.output_path]) {
       const text = path === void 0 ? "" : await this.readQuietly(path);
       if (text.trim() !== "") return text;
     }
@@ -2090,10 +2390,12 @@ function isWriting(input) {
 var RunCommand = class {
   constructor(deps) {
     this.deps = deps;
+    this.caps = new CapGuard(deps);
     this.clientRun = new ClientRun(deps);
     this.escalation = new EscalatedRun(deps);
   }
   deps;
+  caps;
   clientRun;
   escalation;
   /** One delegation: a run, retried, climbed and swapped as the escalation decides. */
@@ -2121,11 +2423,23 @@ var RunCommand = class {
     const blocked = await options.startCheck?.(input);
     if (blocked !== void 0) throw new CannotStartError(blocked);
     const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry);
-    await this.joinWorkflow(input.workflow);
+    const costClass = runCostClass(client, input);
+    const estimate = this.caps.estimate(input, entry, config);
+    await this.requireWorkflowOpen(input.workflow);
     const startedAt = this.deps.clock.now();
     const startedMs = this.deps.clock.monotonicMs();
     const id = runId(startedAt, randomBytes(3).toString("hex"));
     const runDir = await this.runDir(root, id);
+    const reservation = await this.caps.reserve({
+      config,
+      costClass,
+      estimate,
+      input,
+      now: this.deps.clock.now(),
+      runDir,
+      runId: id
+    });
+    await this.joinWorkflow(input.workflow, reservation);
     const workplace = isWriting(input) ? await this.writeWorkplace(input, root ?? input.repo, id, startedAt) : await this.workplace(root, throwaway);
     let result2;
     try {
@@ -2135,7 +2449,7 @@ var RunCommand = class {
         entry,
         family,
         id,
-        input,
+        input: reservation === void 0 ? input : { ...input, max_price_usd: reservation.estimate.usd },
         runDir,
         workDir: workplace.dir,
         ...workplace.branch === void 0 ? {} : { branch: workplace.branch }
@@ -2147,13 +2461,14 @@ var RunCommand = class {
     const warning = await this.release(workplace);
     const linked = options.link === void 0 ? result2 : { ...result2, ...options.link };
     const released = warning === void 0 ? linked : { ...linked, cleanup_warning: warning };
-    await this.deps.ledger.append(this.ledgerRecord(released, allowed2.repository, startedMs));
+    await this.deps.ledger.append(this.ledgerRecord(released, allowed2.repository, startedMs, costClass));
+    await this.caps.settle(reservation, released.cost_usd, this.deps.clock.now());
     const warnings = warningsOf(
       input.client,
-      planWindows(input.client, client.plan_limits ?? [], await this.deps.ledger.read(), this.deps.clock.now(), config.settings.plan_warning_ratio)
+      planWindows(input.client, client.plan_limits ?? [], runRecords(await this.deps.ledger.read()), this.deps.clock.now(), config.settings.plan_warning_ratio)
     );
     const recorded = warnings.length === 0 ? released : { ...released, warnings };
-    await this.deps.files.writeText(join5(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
+    await this.deps.files.writeText(join6(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
 `);
     return recorded;
   }
@@ -2174,14 +2489,14 @@ var RunCommand = class {
   async delegate(run) {
     const { config, entry, input, runDir } = run;
     const paths = {
-      exportDir: join5(runDir, "vibe"),
-      promptPath: join5(runDir, "prompt.md"),
+      exportDir: join6(runDir, "vibe"),
+      promptPath: join6(runDir, "prompt.md"),
       runDir,
       workDir: run.workDir
     };
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode);
     await this.deps.files.writeText(paths.promptPath, prompt);
-    await this.deps.files.writeText(join5(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
+    await this.deps.files.writeText(join6(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
     const launched = await this.launch(run.binary, input, paths, prompt);
     const output = launched.output;
@@ -2189,9 +2504,9 @@ var RunCommand = class {
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : void 0;
     const reason = finished === void 0 ? delegateReason : finished.reason;
     const cost = priceRun(output.charged, output.tokens, entry?.prices);
-    const outputPath = join5(runDir, "output.json");
+    const outputPath = join6(runDir, "output.json");
     await this.deps.files.writeText(outputPath, launched.result.stdout);
-    if (launched.result.stderr !== "") await this.deps.files.writeText(join5(runDir, "stderr.txt"), launched.result.stderr);
+    if (launched.result.stderr !== "") await this.deps.files.writeText(join6(runDir, "stderr.txt"), launched.result.stderr);
     const result2 = {
       client: input.client,
       cost_usd: cost,
@@ -2273,7 +2588,7 @@ var RunCommand = class {
     } catch (error) {
       result2 = { exitCode: 127, stderr: messageOf(error), stdout: "" };
     }
-    const outputPath = join5(run.runDir, "check-output.txt");
+    const outputPath = join6(run.runDir, "check-output.txt");
     const report = { command: input.check, exit_code: result2.exitCode, output_path: outputPath };
     try {
       await this.deps.files.writeText(outputPath, `${result2.stdout}${result2.stderr}`);
@@ -2283,14 +2598,28 @@ var RunCommand = class {
     }
   }
   /**
+   * Whether the run may join its workflow: one that ended is refused, and
+   * nothing is started. It runs before the estimate is reserved, so a run the
+   * caps refuse leaves no workflow started behind it.
+   */
+  async requireWorkflowOpen(name) {
+    requireWorkflowOpen(await this.deps.workflows.read(), name, this.deps.clock.now());
+  }
+  /**
    * A run names its workflow, and the gateway keeps that workflow's life: one
    * named for the first time starts now, and one that ended is refused, since
-   * its caps and grants lapsed with it. It runs once every refusal has passed,
-   * so a refused run leaves no workflow started behind it.
+   * its caps and grants lapsed with it. It runs once the estimate is reserved,
+   * so a run that cannot start its workflow releases the reservation rather
+   * than holding it against the caps.
    */
-  async joinWorkflow(name) {
+  async joinWorkflow(name, reservation) {
     const now = this.deps.clock.now();
-    await this.deps.workflows.update((workflows) => startWorkflow(workflows, name, now));
+    try {
+      await this.deps.workflows.update((workflows) => startWorkflow(workflows, name, now));
+    } catch (error) {
+      await this.caps.release(reservation, now);
+      throw error;
+    }
   }
   /**
    * The provider a run may use. A client that runs on a provider the caller
@@ -2384,8 +2713,8 @@ var RunCommand = class {
    * directory otherwise.
    */
   async runDir(root, id) {
-    if (root === void 0) return join5(runsDir(this.deps.env), id);
-    return join5(await this.commonDir(root), "model-gateway", "runs", id);
+    if (root === void 0) return join6(runsDir(this.deps.env), id);
+    return join6(await this.commonDir(root), "model-gateway", "runs", id);
   }
   /** The repository's common directory, which every gateway directory of the repository sits in. */
   async commonDir(root) {
@@ -2404,7 +2733,7 @@ var RunCommand = class {
    * branch are removed again, and the list's error is the run's.
    */
   async writeWorkplace(input, root, id, at) {
-    const dir = join5(await this.commonDir(root), "model-gateway", "worktrees", id);
+    const dir = join6(await this.commonDir(root), "model-gateway", "worktrees", id);
     const branch = `gateway/${id}`;
     try {
       await this.deps.git.createWorktree(root, dir, branch, input.base);
@@ -2476,10 +2805,11 @@ var RunCommand = class {
     }
   }
   /** The run's one ledger line: what it was, what it cost and how it ended. */
-  ledgerRecord(result2, repository, startedMs) {
+  ledgerRecord(result2, repository, startedMs, costClass) {
     return {
       at: this.deps.clock.now().toISOString(),
       client: result2.client,
+      cost_class: costClass,
       cost_usd: result2.cost_usd,
       duration_s: Math.round(this.deps.clock.monotonicMs() - startedMs) / 1e3,
       family: result2.family,
@@ -2789,7 +3119,7 @@ function clientStatuses(deps) {
 import { randomBytes as randomBytes2 } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname as dirname2, join as join6 } from "node:path";
+import { dirname as dirname2, join as join7 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 async function writeFileAtomic(path, content) {
   const temp = `${path}.${randomBytes2(6).toString("hex")}.tmp`;
@@ -2823,7 +3153,7 @@ var NodeModelGatewayFiles = class {
     await mkdir(path, { recursive: true });
   }
   async tempDir(prefix) {
-    return mkdtemp(join6(tmpdir(), prefix));
+    return mkdtemp(join7(tmpdir(), prefix));
   }
   async remove(path) {
     await rm(path, { force: true, recursive: true });
@@ -3045,14 +3375,6 @@ var NodeModelGatewayKept = class {
 // src/contexts/model-gateway/adapters/ledger/index.ts
 import { appendFile, mkdir as mkdir3, readFile as readFile3 } from "node:fs/promises";
 import { dirname as dirname4 } from "node:path";
-
-// src/contexts/model-gateway/domain/ledger.ts
-function ledgerLine(record) {
-  return `${JSON.stringify(record)}
-`;
-}
-
-// src/contexts/model-gateway/adapters/ledger/index.ts
 var NodeModelGatewayLedger = class {
   constructor(env, timings = {}) {
     this.env = env;
@@ -3065,12 +3387,24 @@ var NodeModelGatewayLedger = class {
     await mkdir3(dirname4(path), { recursive: true });
     await this.lock.run(`${path}.lock`, () => appendFile(path, ledgerLine(record)));
   }
+  async read() {
+    return this.load();
+  }
+  async update(change) {
+    const path = ledgerPath(this.env);
+    await mkdir3(dirname4(path), { recursive: true });
+    return this.lock.run(`${path}.lock`, async () => {
+      const changed = change(await this.load());
+      if (changed.append.length > 0) await appendFile(path, changed.append.map(ledgerLine).join(""));
+      return changed.result;
+    });
+  }
   /**
    * Every record the ledger holds, oldest first. A ledger that is not there
    * yet holds none; a line a writer left half-written is skipped, so one
    * crashed run never hides the rest of the history.
    */
-  async read() {
+  async load() {
     const path = ledgerPath(this.env);
     let text;
     try {
@@ -3094,7 +3428,7 @@ var NodeModelGatewayLedger = class {
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
-import { delimiter, join as join7 } from "node:path";
+import { delimiter, join as join8 } from "node:path";
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
@@ -3185,7 +3519,7 @@ var NodeModelGatewayProcess = class {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
       try {
-        await access2(join7(folder, binary), constants.X_OK);
+        await access2(join8(folder, binary), constants.X_OK);
         return true;
       } catch {
       }
@@ -3290,10 +3624,13 @@ usage reports every client it knows: whether it is installed, whether its own
 status command says it is signed in, whether its last run in the availability
 window was rate-limited or refused for its credentials, what it has spent over
 the last "days" days (7 by default) by day and by workflow, what its own plan
-has left ("unknown" where the client reports none), and each window of the
-plan limit the machine file sets for it. A client at or above
+has left ("unknown" where the client reports none), each window of the plan
+limit the machine file sets for it, and what its live reservations hold
+("reserved_usd" and "reserved_runs"). A client at or above
 "plan_warning_ratio" of a window carries a warning; one at 100% of a window is
-"unable_to_start". "workflow" narrows the usage to one workflow.
+"unable_to_start". "workflow" narrows the usage to one workflow. It settles
+every reservation whose run left a result first, at what that result says the
+run cost, and every one whose expiry has passed at its full estimate.
 
 run hands one read-only task to one client model and prints a short result:
 its status, run id, workflow, client model, family, mode, tokens, cost, the
@@ -3322,6 +3659,23 @@ is a run of its own, and the result carries "attempts" (run_id, client, model,
 status, reason), "skipped" and, when nothing is left to try, "escalation":
 "exhausted". When no client model of the cost class can start, the result is
 {"status": "unavailable"} with the "reasons" per candidate, and exit 0.
+
+A metered-personal run (Hermes today, and any client the machine file gives
+that cost class) is held to the caps in "metered_personal_caps": its estimate,
+its prompt's characters over 3.5 rounded up at the model's input price plus its
+tier's "output_allowance_tokens" at the model's output price, is reserved
+against the per-workflow and per-day caps before it starts, and a run that does
+not fit either is refused with "cap-exceeded". A client model the catalogue
+prices nowhere or gives no tier cannot be estimated, and a metered run on it is
+refused with "no-estimate". The estimate is the run's hard spend limit where
+the client takes one (Vibe's --max-price). When the run ends, its actual spend
+replaces the reservation; a reservation whose run left a result is settled from
+that result at once, and one whose run left nothing lapses at the run's time
+limit plus 60 seconds and counts its full estimate as spent. A run that wrote
+its own ledger line is counted from that line, so its reservation holds nothing
+more.
+Each attempt of a delegation reserves and settles its own estimate, and only a
+metered-personal attempt reserves at all.
 
 A run with "mode": "write" changes a repository: it needs "repo", "base" (a ref)
 and "check" (a command, run with sh -c in the worktree). The gateway creates a
@@ -3424,7 +3778,7 @@ function failure(code, message, name) {
 function messageOf6(error) {
   return error instanceof Error ? error.message : String(error);
 }
-var DEFAULT_ROUTING_PATH = join8(import.meta.dirname, "..", "critique", "routing.json");
+var DEFAULT_ROUTING_PATH = join9(import.meta.dirname, "..", "critique", "routing.json");
 function defaultModelGatewayRuntime(options = {}) {
   const { routingPath = DEFAULT_ROUTING_PATH, ...overrides } = options;
   const env = overrides.env ?? new ProcessEnvAdapter();
@@ -3434,7 +3788,7 @@ function defaultModelGatewayRuntime(options = {}) {
   return {
     commands: createModelGatewayCommands({
       clock: new SystemClockAdapter(),
-      defaultsPath: join8(import.meta.dirname, "defaults.json"),
+      defaultsPath: join9(import.meta.dirname, "defaults.json"),
       env,
       files,
       git,

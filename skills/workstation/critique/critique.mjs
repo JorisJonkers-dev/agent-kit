@@ -8574,12 +8574,6 @@ function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// src/contexts/model-gateway/domain/extras.ts
-var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
-
-// src/contexts/model-gateway/application/home-mcp.ts
-import { join as join25 } from "node:path";
-
 // src/shared-kernel/toml.ts
 var TomlError = class extends Error {
 };
@@ -8769,32 +8763,6 @@ var TomlReader = class {
   }
 };
 
-// src/contexts/model-gateway/application/json-file.ts
-function messageOf(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// src/contexts/model-gateway/application/home-mcp.ts
-async function homeMcpServers(ports) {
-  const path = join25(ports.env.require("HOME"), ".vibe", "config.toml");
-  if (!await ports.files.exists(path)) return [];
-  try {
-    return serverNames(await ports.files.readText(path));
-  } catch (error) {
-    throw new ModelGatewayError("home-config-unreadable", `${path}: cannot read the home's MCP servers: ${messageOf(error)}`);
-  }
-}
-function serverNames(toml) {
-  const servers = readToml(toml).mcp_servers;
-  return servers === void 0 ? [] : namesOf(servers);
-}
-function namesOf(servers) {
-  return (Array.isArray(servers) ? servers : [servers]).map((server) => typeof server === "object" && server !== null ? server.name : void 0).filter((name) => typeof name === "string");
-}
-
-// src/contexts/model-gateway/application/launchers.ts
-import { join as join26 } from "node:path";
-
 // src/contexts/model-gateway/domain/run.ts
 function finalAnswerOf(stdout) {
   let journal;
@@ -8842,6 +8810,38 @@ function chargedOf(exported) {
   const charged = isObject(exported) ? exported.cost_usd : void 0;
   return typeof charged === "number" && Number.isFinite(charged) && charged > 0 ? charged : void 0;
 }
+
+// src/contexts/model-gateway/domain/extras.ts
+var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
+
+// src/contexts/model-gateway/application/home-mcp.ts
+import { join as join25 } from "node:path";
+
+// src/contexts/model-gateway/application/json-file.ts
+function messageOf(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// src/contexts/model-gateway/application/home-mcp.ts
+async function homeMcpServers(ports) {
+  const path = join25(ports.env.require("HOME"), ".vibe", "config.toml");
+  if (!await ports.files.exists(path)) return [];
+  try {
+    return serverNames(await ports.files.readText(path));
+  } catch (error) {
+    throw new ModelGatewayError("home-config-unreadable", `${path}: cannot read the home's MCP servers: ${messageOf(error)}`);
+  }
+}
+function serverNames(toml) {
+  const servers = readToml(toml).mcp_servers;
+  return servers === void 0 ? [] : namesOf(servers);
+}
+function namesOf(servers) {
+  return (Array.isArray(servers) ? servers : [servers]).map((server) => typeof server === "object" && server !== null ? server.name : void 0).filter((name) => typeof name === "string");
+}
+
+// src/contexts/model-gateway/application/launchers.ts
+import { join as join26 } from "node:path";
 
 // src/contexts/model-gateway/domain/outputs.ts
 function count(value) {

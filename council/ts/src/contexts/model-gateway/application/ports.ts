@@ -1,6 +1,6 @@
 import type { ClockPort, EnvPort, ProcessCommand, ProcessResult } from '../../../ports/index.js'
 import type { GitRemote } from '../../../shared-kernel/index.js'
-import type { LedgerRecord } from '../domain/ledger.js'
+import type { LedgerEntry } from '../domain/ledger.js'
 import type { ClientListing } from '../domain/models.js'
 import type { ProofFiles } from '../domain/run.js'
 import type { ClientStatusReading } from '../domain/usage.js'
@@ -87,14 +87,26 @@ export interface ModelGatewayKeptPort {
 }
 
 /**
- * The gateway's ledger: one line per run, machine-wide. Appending takes an
- * exclusive lock beside the file, so two gateway processes never interleave a
- * line.
+ * The gateway's ledger: one line per run, reservation and settlement,
+ * machine-wide. Appending takes an exclusive lock beside the file, so two
+ * gateway processes never interleave a line.
  */
 export interface ModelGatewayLedgerPort {
-  append(record: LedgerRecord): Promise<void>
+  append(record: LedgerEntry): Promise<void>
   /** Every record the ledger holds, oldest first; a line that does not parse is skipped. */
-  read(): Promise<readonly LedgerRecord[]>
+  read(): Promise<readonly LedgerEntry[]>
+  /**
+   * Reads the ledger, applies `change` to it and appends the records it
+   * returns — all under the ledger's lock, so two gateway processes never both
+   * fit a reservation the other would have refused.
+   */
+  update<T>(change: (entries: readonly LedgerEntry[]) => LedgerChange<T>): Promise<T>
+}
+
+/** What a change to the ledger appends, and what it hands back to its caller. */
+export interface LedgerChange<T> {
+  readonly append: readonly LedgerEntry[]
+  readonly result: T
 }
 
 /**

@@ -113,22 +113,31 @@ export function workflowViews(records: readonly WorkflowRecord[], now: Date): re
 }
 
 /**
+ * The workflow `name` names, refused when it ended: its caps and grants lapsed
+ * with it, so a run may not quietly revive it. It starts nothing, so a run can
+ * be refused before it reserves anything.
+ */
+export function requireWorkflowOpen(
+  records: readonly WorkflowRecord[],
+  name: string,
+  now: Date,
+): WorkflowRecord | undefined {
+  const existing = records.find((record) => record.name === name)
+  if (existing === undefined || !workflowEnded(existing, now)) return existing
+  const endedAt = existing.ended_at ?? expiryOf(existing)
+  throw new ModelGatewayError('workflow-ended', `workflow ${name} ended at ${endedAt}: a run may not join it, so start a new workflow`)
+}
+
+/**
  * The workflows with `name` started at `now` if it is new, or as they are when
  * it is already running. A workflow that ended is refused: its caps and grants
  * lapsed with it, so a run may not quietly revive it.
  */
 export function startWorkflow(records: readonly WorkflowRecord[], name: string, now: Date): WorkflowChange {
-  const existing = records.find((record) => record.name === name)
+  const existing = requireWorkflowOpen(records, name, now)
   if (existing === undefined) {
     const started: WorkflowRecord = { name, started_at: now.toISOString() }
     return { workflow: started, workflows: [...records, started] }
-  }
-  if (workflowEnded(existing, now)) {
-    const endedAt = existing.ended_at ?? expiryOf(existing)
-    throw new ModelGatewayError(
-      'workflow-ended',
-      `workflow ${name} ended at ${endedAt}: a run may not join it, so start a new workflow`,
-    )
   }
   return { workflow: existing, workflows: records }
 }

@@ -1,5 +1,6 @@
+import { liveReservations } from './caps.js'
 import { isObject, ModelGatewayError, type CostClass, type GatewayConfig, type PlanLimit, type PlanWindow } from './config.js'
-import type { LedgerRecord } from './ledger.js'
+import { runRecords, type LedgerEntry, type LedgerRecord } from './ledger.js'
 import { sortedClients } from './models.js'
 import type { RunTokens } from './run.js'
 
@@ -126,6 +127,9 @@ export interface ClientUsage {
   readonly by_day: readonly DayUsage[]
   readonly by_workflow: readonly WorkflowUsage[]
   readonly plan_limits: readonly PlanWindowUsage[]
+  /** What this client's live reservations hold against the caps now, and how many there are. */
+  readonly reserved_usd: number
+  readonly reserved_runs: number
   /** One line per plan window at or above the warning ratio. */
   readonly warnings: readonly string[]
 }
@@ -147,9 +151,11 @@ export function usageReport(
   input: UsageInput,
   config: GatewayConfig,
   readings: readonly ClientReading[],
-  records: readonly LedgerRecord[],
+  entries: readonly LedgerEntry[],
   now: Date,
 ): UsageResult {
+  const records = runRecords(entries)
+  const held = liveReservations(entries)
   const since = startOfDay(now) - (input.days - 1) * DAY_MS
   const counted = records.filter(
     (record) => Date.parse(record.at) >= since && (input.workflow === undefined || record.workflow === input.workflow),
@@ -158,6 +164,7 @@ export function usageReport(
   const clients = sortedClients(config).map(([id, client]) => {
     const reading = byClient.get(id) ?? { client: id, installed: false, status: undefined }
     const mine = counted.filter((record) => record.client === id)
+    const reservations = held.filter((reservation) => reservation.client === id)
     const windows = planWindows(id, client.plan_limits ?? [], records, now, config.settings.plan_warning_ratio)
     return {
       availability: availabilityOf(id, client.binary, reading, records, now, config.settings.availability_window_minutes, windows),
@@ -167,6 +174,11 @@ export function usageReport(
       cost_class: client.cost_class,
       plan_limits: windows,
       quota: quotaOf(id, reading.status),
+      reserved_runs: reservations.length,
+      reserved_usd: round(
+        reservations.reduce((total, reservation) => total + reservation.estimate_usd, 0),
+        6,
+      ),
       usage: totalsOf(mine),
       warnings: warningsOf(id, windows),
     }
