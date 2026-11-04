@@ -124,6 +124,7 @@ def test_the_shipped_defaults_carry_the_settings_a_delegation_is_held_to() -> No
         "plan_warning_ratio": 0.8,
         "summary_max_chars": 1500,
         "max_parallel_per_client": 3,
+        "max_batch_delegations": 50,
         "availability_window_minutes": 60,
         "metered_personal_caps": {"per_workflow_usd": 2, "per_day_usd": 5},
         "output_allowance_tokens": {"trivial": 500, "routine": 2000, "hard": 6000, "frontier": 16000},
@@ -564,6 +565,29 @@ def test_the_skill_documents_the_run_command() -> None:
         "ledger.jsonl",
         "SUMMARY:",
         "not-supported-yet",
+    ):
+        assert word in text, word
+
+
+def test_the_skill_documents_the_batch_command() -> None:
+    text = _skill_text()
+    for word in (
+        "model-gateway.mjs batch --json",
+        "depends_on",
+        "plan-refused",
+        "cycle",
+        "unknown-dependency",
+        "reserved up front",
+        "not-run",
+        "reservations_released_usd",
+        "max_parallel_per_client",
+        "max_batch_delegations",
+        "could-not-start",
+        "not-started",
+        "grant-expiring",
+        "Outputs of the delegations this one depends on:",
+        "skipped_because",
+        "a batch never nests",
     ):
         assert word in text, word
 

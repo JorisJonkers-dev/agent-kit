@@ -37,9 +37,18 @@ export interface Estimate {
   readonly usd: number
 }
 
-/** The prompt's tokens: its characters over 3.5, rounded up. */
+/**
+ * The prompt's tokens: its ASCII characters over 3.5, plus one token for each
+ * character that is not ASCII (CJK text costs about a token a character), rounded up.
+ */
 export function promptTokens(prompt: string): number {
-  return Math.ceil(prompt.length / CHARS_PER_TOKEN)
+  let ascii = 0
+  let other = 0
+  for (const character of prompt) {
+    if (character.charCodeAt(0) < 128) ascii += 1
+    else other += 1
+  }
+  return Math.ceil(ascii / CHARS_PER_TOKEN + other)
 }
 
 /**

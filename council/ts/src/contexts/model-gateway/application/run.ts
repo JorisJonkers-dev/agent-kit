@@ -28,6 +28,7 @@ import {
 import { planWindows, warningsOf } from '../domain/usage.js'
 import { requireWorkflowOpen, startWorkflow } from '../domain/workflows.js'
 import { CapGuard, runCostClass, type CapSource, type Reservation } from './caps.js'
+import type { Estimate } from '../domain/caps.js'
 import { ClientRun, type ClientRunOutcome } from './client-run.js'
 import { loadConfig } from './config.js'
 import { EscalatedRun, type AttemptOptions } from './escalation.js'
@@ -40,6 +41,9 @@ import type { ClientConfig } from '../domain/config.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
 export { DELEGATION_MARK, READ_ONLY_AGENT }
+
+/** The least time a grant must have left for a delegation to start under it. */
+const MIN_GRANT_TIME_S = 60
 
 /** A writing run's input, narrowed: its repository, base and check are all named. */
 type WritingInput = RunInput & { readonly mode: 'write'; readonly repo: string; readonly base: string; readonly check: string }
@@ -136,6 +140,45 @@ interface Delegation {
   readonly branch?: string
 }
 
+/** What one attempt is launched with: the escalation's own options, and the reservation a batch already took for it. */
+export interface RunOptions extends AttemptOptions {
+  /** A reservation taken up front for this attempt, which it uses and settles instead of reserving its own. */
+  readonly reservation?: Reservation
+  /** The batch plan and delegation this attempt belongs to, written on its ledger line. */
+  readonly tag?: BatchTag
+}
+
+/** What a batch writes on the ledger line of each attempt of one of its delegations. */
+export interface BatchTag {
+  readonly batch_id: string
+  readonly delegation: string
+}
+
+/** What a batch hands one delegation: its pre-taken reservation, its tag, and the slot it must hold on the client each attempt runs on. */
+export interface DelegationOptions {
+  readonly reservation?: Reservation
+  readonly tag?: BatchTag
+  /** Takes a slot of the client an attempt is about to run on; the attempt gives it back when it ends. */
+  readonly slot?: (client: string) => Promise<() => void>
+}
+
+/** Where a client model stands for one delegation: the same facts a run settles before it launches anything. */
+interface Placed {
+  readonly allowed: RunPermission
+  readonly client: ClientConfig
+  readonly config: GatewayConfig
+  readonly entry: ModelEntry | undefined
+  readonly family: string
+  readonly root: string | undefined
+}
+
+/** What a delegation needs before it can run, as a batch plan checks it: where it stands, what it costs and what holds that cost. */
+export interface Checked extends Placed {
+  readonly cap: CapSource
+  readonly costClass: CostClass
+  readonly estimate: Estimate | undefined
+}
+
 /** What the data policy allows this run, and the repository it is keyed by. */
 interface RunPermission {
   readonly permission: ModelPermission
@@ -165,48 +208,84 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
 
   /** One delegation: a run, retried, climbed and swapped as the escalation decides. */
   run(raw: unknown): Promise<RunOutcome> {
-    return this.escalation.run(readRunInput(raw), (input, options) => this.runOnce(input, options))
+    return this.delegation(readRunInput(raw))
+  }
+
+  /**
+   * One delegation whose input is already read, with the reservation a batch
+   * took for it. Only its first attempt holds that reservation: a retry, a
+   * climb or a swap reserves its own, as any attempt does.
+   */
+  delegation(input: RunInput, given: DelegationOptions = {}): Promise<RunOutcome> {
+    let held = given.reservation
+    return this.escalation.run(input, async (attempt, options) => {
+      const taken = held
+      held = undefined
+      const give = await given.slot?.(attempt.client)
+      try {
+        return await this.runOnce(attempt, {
+          ...options,
+          ...(taken === undefined ? {} : { reservation: taken }),
+          ...(given.tag === undefined ? {} : { tag: given.tag }),
+        })
+      } finally {
+        give?.()
+      }
+    })
+  }
+
+  /**
+   * What a delegation needs before it can run, as a batch plan checks it
+   * without launching or reserving anything: its client model, the data
+   * policy, its workflow, its estimate, and the grant that covers it. The
+   * first thing wrong is the refusal it throws.
+   */
+  async check(input: RunInput): Promise<Checked> {
+    const placed = await this.place(input)
+    const costClass = runCostClass(placed.client, input)
+    const estimate = this.caps.estimate(input, placed.entry, placed.config)
+    await this.requireWorkflowOpen(input.workflow)
+    return { ...placed, cap: await this.capSource(costClass, input), costClass, estimate }
+  }
+
+  /** A fresh run id, and the run directory that run keeps its prompt, output and result in. */
+  async allot(root: string | undefined, at: Date): Promise<{ readonly runDir: string; readonly runId: string }> {
+    const id = runId(at, randomBytes(3).toString('hex'))
+    return { runDir: await this.runDir(root, id), runId: id }
   }
 
   /** One attempt: a single run of one client model, which the escalation wraps. */
-  async runOnce(input: RunInput, options: AttemptOptions = {}): Promise<RunResult> {
+  async runOnce(given: RunInput, options: RunOptions = {}): Promise<RunResult> {
     this.refuseNested()
-    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
-    const client = config.clients[input.client]
-    if (client === undefined) throw new ModelGatewayError('unknown-model', `the gateway knows no client ${input.client}`)
-    if (input.client === 'opencode') requireAllowedProvider(input.model, client.providers)
-    this.requireProvider(input, client)
-    const entry = catalogueEntry(config, input.client, input.model)
-    const family = entry?.family ?? familyOfModelId(input.model)
-    if (family === undefined) {
-      throw new ModelGatewayError(
-        'unknown-model',
-        `${input.client}:${input.model} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override`,
-      )
-    }
-    const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
-    const allowed = await this.permission(input, config, family)
+    const { allowed, client, config, entry, family, root } = await this.place(given)
+    const held = options.reservation
+    const costClass = runCostClass(client, given)
+    const input = held !== undefined && costClass === 'metered-employer' ? await this.withinGrant(given) : given
     const blocked = await options.startCheck?.(input)
-    if (blocked !== undefined) throw new CannotStartError(blocked)
+    if (blocked !== undefined) {
+      await this.caps.release(held, this.deps.clock.now())
+      throw new CannotStartError(blocked)
+    }
     const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry)
-    const costClass = runCostClass(client, input)
-    const estimate = this.caps.estimate(input, entry, config)
+    const estimate = held?.estimate ?? this.caps.estimate(input, entry, config)
     await this.requireWorkflowOpen(input.workflow)
-    const cap = await this.capSource(costClass, input)
+    const cap: CapSource = held === undefined ? await this.capSource(costClass, input) : { kind: 'metered-personal' }
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
-    const id = runId(startedAt, randomBytes(3).toString('hex'))
-    const runDir = await this.runDir(root, id)
-    const reservation = await this.caps.reserve({
-      cap,
-      config,
-      costClass,
-      estimate,
-      input,
-      now: this.deps.clock.now(),
-      runDir,
-      runId: id,
-    })
+    const { runDir, runId: id } =
+      held === undefined ? await this.allot(root, startedAt) : { runDir: held.record.run_dir, runId: held.record.run_id }
+    const reservation =
+      held ??
+      (await this.caps.reserve({
+        cap,
+        config,
+        costClass,
+        estimate,
+        input,
+        now: this.deps.clock.now(),
+        runDir,
+        runId: id,
+      }))
     await this.joinWorkflow(input.workflow, reservation)
     const workplace = isWriting(input)
       ? await this.writeWorkplace(input, root ?? input.repo, id, startedAt)
@@ -231,7 +310,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const warning = await this.release(workplace)
     const linked: RunResult = options.link === undefined ? result : { ...result, ...options.link }
     const released: RunResult = warning === undefined ? linked : { ...linked, cleanup_warning: warning }
-    await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs, costClass))
+    await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs, costClass, options.tag))
     await this.caps.settle(reservation, released.cost_usd, this.deps.clock.now())
     const warnings = warningsOf(
       input.client,
@@ -240,6 +319,47 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const recorded: RunResult = warnings.length === 0 ? released : { ...released, warnings }
     await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(recorded, null, 2)}\n`)
     return recorded
+  }
+
+  /**
+   * A metered-employer delegation that starts later than its plan was checked
+   * (a batch's dependent) needs its grant to still stand: it is refused
+   * `no-grant` when every grant lapsed, and `grant-expiring` when under a
+   * minute is left on it, and a run with more time than that is held to what
+   * is left.
+   */
+  private async withinGrant(input: RunInput): Promise<RunInput> {
+    const now = this.deps.clock.now()
+    const grant = await this.grants.require(input.workflow, input.client, now)
+    const leftS = Math.floor((Date.parse(grant.expires_at) - now.getTime()) / 1000)
+    if (leftS < MIN_GRANT_TIME_S) {
+      throw new ModelGatewayError('grant-expiring', `grant ${grant.id} for workflow ${input.workflow} has ${String(Math.max(leftS, 0))} seconds left, under the ${String(MIN_GRANT_TIME_S)} a run needs`)
+    }
+    return leftS >= input.time_limit_s ? input : { ...input, time_limit_s: leftS }
+  }
+
+  /**
+   * Where a client model stands for one delegation, or the refusal that says
+   * why it cannot run: the client and its provider, the model the catalogue
+   * places, the repository it works in and the data policy for it.
+   */
+  private async place(input: RunInput): Promise<Placed> {
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
+    const client = config.clients[input.client]
+    if (client === undefined) throw new ModelGatewayError('unknown-model', `the gateway knows no client ${input.client}`)
+    if (input.client === 'opencode') requireAllowedProvider(input.model, client.providers)
+    this.requireProvider(input, client)
+    const entry = catalogueEntry(config, input.client, input.model)
+    const family = entry?.family ?? familyOfModelId(input.model)
+    if (family === undefined) {
+      throw new ModelGatewayError(
+        'unknown-model',
+        `${input.client}:${input.model} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override`,
+      )
+    }
+    const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
+    const allowed = await this.permission(input, config, family)
+    return { allowed, client, config, entry, family, root }
   }
 
   /**
@@ -444,7 +564,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   }
 
   /** A delegate may not delegate on: the mark is in its environment, so this call came from inside one. */
-  private refuseNested(): void {
+  refuseNested(): void {
     if (this.deps.env.get(DELEGATION_MARK) !== undefined) {
       throw new ModelGatewayError('nested-delegation', `a delegate may not delegate on: ${DELEGATION_MARK} is set in this environment`)
     }
@@ -610,7 +730,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   }
 
   /** The run's one ledger line: what it was, what it cost and how it ended. */
-  private ledgerRecord(result: RunResult, repository: string | null, startedMs: number, costClass: CostClass): LedgerRecord {
+  private ledgerRecord(result: RunResult, repository: string | null, startedMs: number, costClass: CostClass, tag?: BatchTag): LedgerRecord {
     return {
       at: this.deps.clock.now().toISOString(),
       client: result.client,
@@ -628,6 +748,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       ...(result.reason === undefined ? {} : { reason: result.reason }),
       ...(result.attempt === undefined ? {} : { attempt: result.attempt }),
       ...(result.attempt_of === undefined ? {} : { attempt_of: result.attempt_of }),
+      ...tag,
     }
   }
 }

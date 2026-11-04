@@ -43,148 +43,8 @@ var ProcessEnvAdapter = class {
   }
 };
 
-// src/contexts/model-gateway/application/caps.ts
-import { join } from "node:path";
-
-// src/contexts/model-gateway/domain/ledger.ts
-function isRunRecord(entry) {
-  return !isReservation(entry) && !isSettled(entry);
-}
-function isReservation(entry) {
-  return "kind" in entry && entry.kind === "reservation";
-}
-function isSettled(entry) {
-  return "kind" in entry && entry.kind === "settled";
-}
-function runRecords(entries) {
-  return entries.filter(isRunRecord);
-}
-function ledgerLine(entry) {
-  return `${JSON.stringify(entry)}
-`;
-}
-
-// src/contexts/model-gateway/domain/caps.ts
-var CHARS_PER_TOKEN = 3.5;
-var RESERVATION_GRACE_S = 60;
-function promptTokens(prompt) {
-  return Math.ceil(prompt.length / CHARS_PER_TOKEN);
-}
-function estimateRun(prompt, tier, prices, allowances) {
-  if (tier === void 0 || prices === void 0) return void 0;
-  const prompt_tokens = promptTokens(prompt);
-  const output_tokens = allowances[tier];
-  return {
-    output_tokens,
-    prompt_tokens,
-    usd: roundUp((prompt_tokens * prices.input + output_tokens * prices.output) / 1e6)
-  };
-}
-function checkCaps(entries, workflow, estimateUsd, caps, now) {
-  const day = utcDay(now.toISOString());
-  const charges = meteredCharges(entries, "metered-personal");
-  const held = liveReservations(entries).filter((reservation) => reservation.cost_class === "metered-personal");
-  const workflowRoom = room(
-    "per_workflow_usd",
-    caps.per_workflow_usd,
-    sum(charges.filter((charge) => charge.workflow === workflow).map((charge) => charge.usd)),
-    sum(held.filter((reservation) => reservation.workflow === workflow).map((reservation) => reservation.estimate_usd))
-  );
-  if (!fits(workflowRoom, estimateUsd)) return { refused: workflowRoom };
-  const dayRoom = room(
-    "per_day_usd",
-    caps.per_day_usd,
-    sum(charges.filter((charge) => utcDay(charge.at) === day).map((charge) => charge.usd)),
-    sum(held.filter((reservation) => utcDay(reservation.reserved_at) === day).map((reservation) => reservation.estimate_usd))
-  );
-  return fits(dayRoom, estimateUsd) ? {} : { refused: dayRoom };
-}
-function capRefusalMessage(room2, estimateUsd, workflow, now) {
-  const [name, where] = room2.cap === "per_workflow_usd" ? ["per-workflow", `in workflow ${workflow}`] : ["per-day", `on ${utcDay(now.toISOString())}`];
-  return `does not fit the ${name} cap of ${usd(room2.limit_usd)}: ${usd(room2.spent_usd)} spent and ${usd(room2.reserved_usd)} reserved ${where}, and its estimate is ${usd(estimateUsd)}`;
-}
-function reservationRecord(args) {
-  return {
-    client: args.client,
-    cost_class: args.cost_class,
-    estimate_usd: args.estimate_usd,
-    expires_at: new Date(args.reserved_at.getTime() + (args.time_limit_s + RESERVATION_GRACE_S) * 1e3).toISOString(),
-    kind: "reservation",
-    model: args.model,
-    reserved_at: args.reserved_at.toISOString(),
-    run_dir: args.run_dir,
-    run_id: args.run_id,
-    workflow: args.workflow
-  };
-}
-function settledRecord(reservation, costUsd, at) {
-  return {
-    client: reservation.client,
-    cost_class: reservation.cost_class,
-    cost_usd: costUsd,
-    kind: "settled",
-    reserved_at: reservation.reserved_at,
-    run_id: reservation.run_id,
-    settled_at: at.toISOString(),
-    workflow: reservation.workflow
-  };
-}
-function liveReservations(entries) {
-  const settled = new Set(entries.filter(isSettled).map((entry) => entry.run_id));
-  const ran = new Set(entries.filter(isRunRecord).map((entry) => entry.run_id));
-  return entries.filter(isReservation).filter((reservation) => !settled.has(reservation.run_id) && !ran.has(reservation.run_id));
-}
-function settleExpired(entries, now, costs) {
-  return liveReservations(entries).filter((reservation) => costs.has(reservation.run_id) || Date.parse(reservation.expires_at) <= now.getTime()).map((reservation) => ({
-    client: reservation.client,
-    cost_class: reservation.cost_class,
-    cost_usd: costs.get(reservation.run_id) ?? reservation.estimate_usd,
-    kind: "settled",
-    reason: "expired",
-    reserved_at: reservation.reserved_at,
-    run_id: reservation.run_id,
-    settled_at: now.toISOString(),
-    workflow: reservation.workflow
-  }));
-}
-function meteredCharges(entries, costClass) {
-  const runs = entries.filter(isRunRecord).filter((run) => run.cost_class === costClass);
-  const settled = new Map(entries.filter(isSettled).map((entry) => [entry.run_id, entry]));
-  const charges = runs.map((run) => ({
-    at: settled.get(run.run_id)?.reserved_at ?? run.at,
-    client: run.client,
-    usd: run.cost_usd,
-    workflow: run.workflow
-  }));
-  for (const settle of settled.values()) {
-    if (settle.reason !== "expired" || settle.cost_class !== costClass) continue;
-    if (runs.some((run) => run.run_id === settle.run_id)) continue;
-    charges.push({ at: settle.reserved_at, client: settle.client, usd: settle.cost_usd, workflow: settle.workflow });
-  }
-  return charges;
-}
-function room(cap, limit_usd, spent_usd, reserved_usd) {
-  return { cap, limit_usd, reserved_usd: round(reserved_usd, 6), spent_usd: round(spent_usd, 6) };
-}
-function fits(room2, estimateUsd) {
-  return round(room2.spent_usd + room2.reserved_usd + estimateUsd, 6) <= room2.limit_usd;
-}
-function utcDay(at) {
-  return at.slice(0, 10);
-}
-function sum(values) {
-  return values.reduce((total, value) => total + value, 0);
-}
-function usd(value) {
-  return `$${value.toFixed(2)}`;
-}
-function round(value, places) {
-  const factor = 10 ** places;
-  return Math.round(value * factor) / factor;
-}
-function roundUp(value) {
-  return Math.ceil(value * 1e6 - 1e-6) / 1e6;
-}
+// src/contexts/model-gateway/application/batch.ts
+import { randomBytes } from "node:crypto";
 
 // src/contexts/model-gateway/domain/config.ts
 var CONFIG_VERSION = 1;
@@ -366,7 +226,8 @@ function mergeSettings(base, raw) {
   if (!isObject(raw)) throw invalid("settings must be an object");
   return {
     availability_window_minutes: numberField(raw, "availability_window_minutes", base.availability_window_minutes),
-    max_parallel_per_client: numberField(raw, "max_parallel_per_client", base.max_parallel_per_client),
+    max_batch_delegations: countField(raw, "max_batch_delegations", base.max_batch_delegations),
+    max_parallel_per_client: countField(raw, "max_parallel_per_client", base.max_parallel_per_client),
     metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
     output_allowance_tokens: mergeAllowances(base.output_allowance_tokens, raw.output_allowance_tokens),
     plan_warning_ratio: numberField(raw, "plan_warning_ratio", base.plan_warning_ratio),
@@ -380,7 +241,8 @@ function parseSettings(raw) {
   if (!isObject(allowances)) throw invalid("settings.output_allowance_tokens must be an object keyed by tier");
   return {
     availability_window_minutes: requireNumber(raw.availability_window_minutes, "settings.availability_window_minutes"),
-    max_parallel_per_client: requireNumber(raw.max_parallel_per_client, "settings.max_parallel_per_client"),
+    max_batch_delegations: requireCount(raw.max_batch_delegations, "settings.max_batch_delegations"),
+    max_parallel_per_client: requireCount(raw.max_parallel_per_client, "settings.max_parallel_per_client"),
     metered_personal_caps: {
       per_day_usd: requireNumber(caps.per_day_usd, "settings.metered_personal_caps.per_day_usd"),
       per_workflow_usd: requireNumber(caps.per_workflow_usd, "settings.metered_personal_caps.per_workflow_usd")
@@ -421,6 +283,14 @@ function mergeCaps(base, raw) {
 }
 function numberField(raw, name, base, prefix = "settings.") {
   return raw[name] === void 0 ? base : requireNumber(raw[name], `${prefix}${name}`);
+}
+function countField(raw, name, base) {
+  return raw[name] === void 0 ? base : requireCount(raw[name], `settings.${name}`);
+}
+function requireCount(value, where) {
+  const count2 = requireNumber(value, where);
+  if (!Number.isInteger(count2) || count2 < 1) throw invalid(`${where} must be a whole number of at least 1`);
+  return count2;
 }
 function parseDisabled(raw) {
   if (raw === void 0) return [];
@@ -812,148 +682,128 @@ function parseJsonObject(text) {
   }
 }
 
-// src/contexts/model-gateway/domain/grants.ts
-var GRANTS_VERSION = 1;
-var GRANT_TTL_MS = WORKFLOW_TTL_MS;
-function parseGrantsFile(text) {
-  let raw;
-  try {
-    raw = JSON.parse(text);
-  } catch (error) {
-    throw invalid3(`not JSON: ${messageOf2(error)}`);
+// src/contexts/model-gateway/domain/batch.ts
+var DELEGATION_ID = /^[A-Za-z0-9._-]{1,40}$/;
+var BATCH_ONLY_KEYS = ["workflow", "delegations", "batch"];
+var PlanRefusedError = class extends ModelGatewayError {
+  constructor(problems) {
+    super(
+      "plan-refused",
+      `the plan is refused, and nothing was launched: ${problems.map((problem) => `${problem.id}: ${problem.message}`).join("; ")}`
+    );
+    this.problems = problems;
+    this.name = "PlanRefusedError";
   }
-  if (!isObject(raw)) throw invalid3("the grants file must be a JSON object");
-  if (raw.version !== GRANTS_VERSION) throw invalid3(`version must be ${String(GRANTS_VERSION)}`);
-  if (!Array.isArray(raw.grants)) throw invalid3("grants must be a list");
-  const grants = raw.grants;
-  return grants.map((value, index) => parseGrant(value, index));
+  problems;
+};
+function readBatchInput(raw, maxDelegations) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  const workflow = requireWorkflowName(raw.workflow, "a batch must name its workflow");
+  if (!Array.isArray(raw.delegations) || raw.delegations.length === 0) {
+    throw new ModelGatewayError("invalid-input", "a batch must list its delegations: a non-empty list");
+  }
+  const items = raw.delegations;
+  if (items.length > maxDelegations) {
+    throw new PlanRefusedError([
+      {
+        code: "too-many-delegations",
+        id: "(plan)",
+        message: `the plan holds ${String(items.length)} delegations and this machine allows at most ${String(maxDelegations)} (settings.max_batch_delegations)`
+      }
+    ]);
+  }
+  const delegations = [];
+  for (const [index, item] of items.entries()) {
+    const delegation = readDelegation(item, index, workflow);
+    if (delegations.some((earlier) => earlier.id === delegation.id)) {
+      throw new ModelGatewayError("invalid-input", `delegation id ${delegation.id} is used twice: ids are unique in a plan`);
+    }
+    delegations.push(delegation);
+  }
+  return { delegations, workflow };
 }
-function parseGrant(raw, index) {
-  const where = `grants[${String(index)}]`;
-  if (!isObject(raw)) throw invalid3(`${where} must be an object`);
-  const cap = raw.cap_usd;
-  if (typeof cap !== "number" || !Number.isFinite(cap) || cap <= 0) throw invalid3(`${where}.cap_usd must be a number above 0`);
-  const grant = {
-    answer: requireString3(raw.answer, `${where}.answer`),
-    cap_usd: cap,
-    client: requireString3(raw.client, `${where}.client`),
-    expires_at: requireTimestamp2(raw.expires_at, `${where}.expires_at`),
-    id: requireString3(raw.id, `${where}.id`),
-    question: requireString3(raw.question, `${where}.question`),
-    workflow: requireString3(raw.workflow, `${where}.workflow`),
-    written_at: requireTimestamp2(raw.written_at, `${where}.written_at`)
-  };
-  if (raw.ended_at === void 0) return grant;
-  return { ...grant, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
-}
-function requireString3(value, where) {
-  if (typeof value !== "string" || value === "") throw invalid3(`${where} must be a non-empty string`);
-  return value;
-}
-var UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?Z$/;
-function requireTimestamp2(value, where) {
-  const fail = () => invalid3(`${where} must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z`);
-  if (typeof value !== "string") throw fail();
-  const match = UTC_TIMESTAMP.exec(value);
-  if (match === null) throw fail();
-  const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
-  const moment = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-  const real = moment.getUTCFullYear() === year && moment.getUTCMonth() === month - 1 && moment.getUTCDate() === day && moment.getUTCHours() === hour && moment.getUTCMinutes() === minute && moment.getUTCSeconds() === second;
-  if (!real) throw fail();
-  return value;
-}
-function invalid3(message) {
-  return new ModelGatewayError("invalid-config", message);
-}
-function messageOf2(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-function grantId(at, suffix) {
-  return `grant-${compactTimestamp(at)}-${suffix}`;
-}
-function newGrant(args) {
-  return {
-    answer: args.answer,
-    cap_usd: args.cap_usd,
-    client: args.client,
-    expires_at: expiryOf2(args.written_at, args.workflowRecord),
-    id: args.id,
-    question: args.question,
-    workflow: args.workflow,
-    written_at: args.written_at.toISOString()
-  };
-}
-function expiryOf2(writtenAt, record) {
-  if (record !== void 0 && workflowEnded(record, writtenAt)) {
+function readDelegation(raw, index, workflow) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", `delegations[${String(index)}] must be an object`);
+  const { id, depends_on: dependsOn, ...rest } = raw;
+  if (typeof id !== "string" || !DELEGATION_ID.test(id)) {
     throw new ModelGatewayError(
-      "workflow-ended",
-      `workflow ${record.name} ended at ${record.ended_at ?? new Date(Date.parse(record.started_at) + WORKFLOW_TTL_MS).toISOString()}: a grant for it would lapse on arrival, so start a new workflow`
+      "invalid-input",
+      `delegations[${String(index)}].id must be 1 to 40 characters of letters, digits and . _ - only`
     );
   }
-  const own = writtenAt.getTime() + GRANT_TTL_MS;
-  const workflow = record === void 0 ? own : Date.parse(record.started_at) + WORKFLOW_TTL_MS;
-  return new Date(Math.min(own, workflow)).toISOString();
-}
-function grantRoom(entries, grant) {
-  const since = Date.parse(grant.written_at);
-  const spent = meteredCharges(entries, "metered-employer").filter(
-    (charge) => charge.client === grant.client && charge.workflow === grant.workflow && Date.parse(charge.at) >= since
-  ).map((charge) => charge.usd);
-  const reserved = liveReservations(entries).filter(
-    (reservation) => reservation.cost_class === "metered-employer" && reservation.client === grant.client && reservation.workflow === grant.workflow && Date.parse(reservation.reserved_at) >= since
-  ).map((reservation) => reservation.estimate_usd);
-  const spent_usd = round(sum2(spent), 6);
-  const reserved_usd = round(sum2(reserved), 6);
-  return { grant, remaining_usd: round(grant.cap_usd - spent_usd - reserved_usd, 6), reserved_usd, spent_usd };
-}
-function grantLapse(grant, room2, record, now) {
-  if (grant.ended_at !== void 0 || record !== void 0 && workflowEnded(record, now)) return "workflow-ended";
-  if (now.getTime() >= Date.parse(grant.expires_at)) return "expired";
-  if (room2.spent_usd >= grant.cap_usd) return "cap-spent";
-  return void 0;
-}
-function liveGrant(grants, workflow, client, entries, record, now) {
-  let newest;
-  for (const grant of grants) {
-    if (grant.workflow !== workflow || grant.client !== client) continue;
-    if (grantLapse(grant, grantRoom(entries, grant), record, now) !== void 0) continue;
-    if (newest === void 0 || Date.parse(grant.written_at) >= Date.parse(newest.written_at)) newest = grant;
+  const forbidden = BATCH_ONLY_KEYS.find((key) => rest[key] !== void 0);
+  if (forbidden !== void 0) {
+    throw new ModelGatewayError(
+      "invalid-input",
+      `delegation ${id} names ${forbidden}: the workflow is the batch's, and a delegation inside a batch cannot be a batch`
+    );
   }
-  return newest;
-}
-function grantViews(grants, entries, records, now) {
-  const live = [];
-  const lapsed = [];
-  for (const grant of grants) {
-    const room2 = grantRoom(entries, grant);
-    const view = {
-      ...grant,
-      remaining_usd: room2.remaining_usd,
-      reserved_usd: room2.reserved_usd,
-      spent_usd: room2.spent_usd
-    };
-    const reason = grantLapse(grant, room2, records.find((record) => record.name === grant.workflow), now);
-    if (reason === void 0) live.push(view);
-    else lapsed.push({ ...view, reason });
+  try {
+    return { depends_on: readDependsOn(dependsOn), id, input: readRunInput({ ...rest, workflow }) };
+  } catch (error) {
+    throw error instanceof ModelGatewayError ? new ModelGatewayError(error.code, `delegation ${id}: ${error.message}`) : error;
   }
-  return { grants: live, lapsed };
 }
-function noGrantMessage(workflow, client) {
-  const call = `{"workflow":${JSON.stringify(workflow)},"client":${JSON.stringify(client)},"cap_usd":5,"question":"<what you asked the owner>","answer":"<what the owner answered>"}`;
-  return `no live grant covers workflow ${workflow}, so ${client} may not run: ask the owner, then add one with model-gateway grant write --json ${shellQuoted(call)}`;
-}
-function shellQuoted(value) {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-function grantRefusal(entries, grant, estimateUsd, run) {
-  const room2 = grantRoom(entries, grant);
-  if (fits({ limit_usd: grant.cap_usd, reserved_usd: room2.reserved_usd, spent_usd: room2.spent_usd }, estimateUsd)) {
-    return void 0;
+function readDependsOn(value) {
+  if (value === void 0) return [];
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    throw new ModelGatewayError("invalid-input", "depends_on must be a list of delegation ids");
   }
-  return `${run.client}:${run.model} does not fit grant ${grant.id} of ${usd(grant.cap_usd)} for workflow ${grant.workflow}: ${usd(room2.spent_usd)} spent and ${usd(room2.reserved_usd)} reserved, and its estimate is ${usd(estimateUsd)}`;
+  return [...new Set(value)];
 }
-function sum2(values) {
-  return values.reduce((total, value) => total + value, 0);
+function dependencyProblems(delegations) {
+  const ids = new Set(delegations.map((delegation) => delegation.id));
+  const problems = [];
+  for (const delegation of delegations) {
+    for (const dependency of delegation.depends_on) {
+      if (!ids.has(dependency)) {
+        problems.push({ code: "unknown-dependency", id: delegation.id, message: `depends_on names ${dependency}, which is not in the plan` });
+      }
+    }
+  }
+  for (const delegation of delegations) {
+    if (reachableFrom(delegation.id, delegations).has(delegation.id)) {
+      problems.push({ code: "cycle", id: delegation.id, message: "is part of a dependency cycle, so it could never start" });
+    }
+  }
+  return problems;
+}
+function reachableFrom(start, delegations) {
+  const reached = /* @__PURE__ */ new Set();
+  const queue = [start];
+  while (queue.length > 0) {
+    const current = queue.pop();
+    for (const dependency of delegations.find((delegation) => delegation.id === current)?.depends_on ?? []) {
+      if (reached.has(dependency)) continue;
+      reached.add(dependency);
+      queue.push(dependency);
+    }
+  }
+  return reached;
+}
+var OUTPUTS_HEADING = "Outputs of the delegations this one depends on:";
+function promptWithOutputs(prompt, outputs) {
+  if (outputs.length === 0) return prompt;
+  const lines = outputs.map(
+    (output) => `- ${output.id}: ${output.output_path === null ? "no output file" : `output at ${output.output_path}`}
+  summary: ${output.summary}`
+  );
+  return `${prompt}
+
+${OUTPUTS_HEADING}
+${lines.join("\n")}`;
+}
+var ESTIMATED_PATH_CHARS = 300;
+function estimatedPrompt(prompt, dependsOn, summaryMaxChars) {
+  return promptWithOutputs(
+    prompt,
+    dependsOn.map((id) => ({ id, output_path: "p".repeat(ESTIMATED_PATH_CHARS), summary: "s".repeat(summaryMaxChars) }))
+  );
+}
+function batchStatus(statuses) {
+  const done = statuses.filter((status) => status === "done").length;
+  if (done === statuses.length) return "ok";
+  return done === 0 ? "failed" : "partial";
 }
 
 // src/shared-kernel/toml.ts
@@ -1299,6 +1149,425 @@ function compare(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+// src/contexts/model-gateway/domain/escalation.ts
+var DEFAULT_MAX_ATTEMPTS = 3;
+var FAILURE_TAIL_CHARS = 1e3;
+var REFUSAL_REASONS = [
+  "cap-exceeded",
+  "grant-expiring",
+  "no-grant",
+  "invalid-config",
+  "invalid-input",
+  "nested-delegation",
+  "no-estimate",
+  "not-supported-yet",
+  "policy-refused",
+  "provider-not-allowed",
+  "repository-unreadable",
+  "unknown-client",
+  "unknown-model",
+  "unknown-workflow",
+  "workflow-ended",
+  "write-needs-repository",
+  "worktree-failed"
+];
+var CANNOT_START_REASONS = ["auth", "launch-failed", "rate-limited"];
+function isRefusal(reason) {
+  return reason !== void 0 && REFUSAL_REASONS.includes(reason);
+}
+function isCannotStart(reason) {
+  return reason !== void 0 && CANNOT_START_REASONS.includes(reason);
+}
+var CannotStartError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CannotStartError";
+  }
+};
+function retryPrompt(original, reason, detail) {
+  const tail = detail.trim().slice(-FAILURE_TAIL_CHARS);
+  return `${original}
+
+A previous attempt failed: ${reason}${tail === "" ? "" : `; ${tail}`}`;
+}
+function candidateKey(candidate) {
+  return modelKey(candidate.client, candidate.model);
+}
+function tierRank(tier) {
+  return TIERS.indexOf(tier);
+}
+function requestedCandidate(config, input, entry, family) {
+  const client = config.clients[input.client];
+  const provider = providerOf(input);
+  return {
+    client: input.client,
+    costClass: client === void 0 ? "subsidised" : costClassFor(client, provider),
+    family,
+    model: input.model,
+    tier: entry?.tier ?? null,
+    ...input.provider === void 0 ? {} : { provider: input.provider }
+  };
+}
+function providerOf(input) {
+  return input.provider ?? (input.client === "opencode" ? openCodeProvider(input.model) : void 0);
+}
+function candidatePool(config, input, permissions, granted) {
+  const permitted = new Set(permissions.filter((permission2) => carries(permission2, input)).map((permission2) => modelKey(permission2.client, permission2.model)));
+  const pool = [];
+  for (const entry of config.models) {
+    const client = config.clients[entry.client];
+    if (client === void 0 || !RUN_CLIENTS.includes(entry.client)) continue;
+    if (!permitted.has(modelKey(entry.client, entry.model))) continue;
+    if ([entry.model, ...entry.names ?? []].some((name) => config.disabled.includes(modelKey(entry.client, name)))) continue;
+    const named = PROVIDER_CLIENTS.includes(entry.client);
+    if (named && (entry.client !== input.client || input.provider === void 0)) continue;
+    if (entry.client === "opencode" && !providerAllowed(entry.model, client.providers)) continue;
+    const provider = named ? input.provider : entry.client === "opencode" ? openCodeProvider(entry.model) : void 0;
+    const costClass = costClassFor(client, provider);
+    if (costClass === "metered-employer" && !granted.has(entry.client)) continue;
+    pool.push({
+      client: entry.client,
+      costClass,
+      family: entry.family,
+      model: entry.model,
+      tier: entry.tier,
+      ...named && provider !== void 0 ? { provider } : {}
+    });
+  }
+  return pool;
+}
+function providerAllowed(model, allowed2) {
+  try {
+    requireAllowedProvider(model, allowed2);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function carries(permission2, input) {
+  if (!permission2.permitted) return false;
+  const marks = input.carries ?? { code: false, history: false };
+  const code = input.repo === void 0 ? marks.code : true;
+  return !(code && !permission2.may_send.code) && !(marks.history && !permission2.may_send.history);
+}
+function climbOrder(from, pool) {
+  if (from.tier === null) return [];
+  const above = tierRank(from.tier);
+  return pool.filter(
+    (candidate) => candidateKey(candidate) !== candidateKey(from) && candidate.costClass === "subsidised" && candidate.tier !== null && tierRank(candidate.tier) > above
+  ).map((candidate, index) => ({ candidate, index })).sort((left, right) => tierRank(left.candidate.tier ?? "trivial") - tierRank(right.candidate.tier ?? "trivial") || left.index - right.index).map((entry) => entry.candidate);
+}
+function fallThroughOrder(wanted, pool) {
+  if (wanted.tier === null) return [];
+  const floor = tierRank(wanted.tier);
+  return pool.filter(
+    (candidate) => candidateKey(candidate) !== candidateKey(wanted) && candidate.costClass === wanted.costClass && candidate.tier !== null && tierRank(candidate.tier) >= floor
+  ).map((candidate, index) => ({ candidate, index })).sort((left, right) => tierRank(left.candidate.tier ?? "trivial") - tierRank(right.candidate.tier ?? "trivial") || left.index - right.index).map((entry) => entry.candidate);
+}
+function attemptInput(input, candidate, prompt) {
+  const rest = Object.fromEntries(Object.entries(input).filter(([key]) => key !== "provider"));
+  return {
+    ...rest,
+    client: candidate.client,
+    model: candidate.model,
+    prompt,
+    ...candidate.provider === void 0 ? {} : { provider: candidate.provider }
+  };
+}
+
+// src/contexts/model-gateway/domain/ledger.ts
+function isRunRecord(entry) {
+  return !isReservation(entry) && !isSettled(entry);
+}
+function isReservation(entry) {
+  return "kind" in entry && entry.kind === "reservation";
+}
+function isSettled(entry) {
+  return "kind" in entry && entry.kind === "settled";
+}
+function runRecords(entries) {
+  return entries.filter(isRunRecord);
+}
+function ledgerLine(entry) {
+  return `${JSON.stringify(entry)}
+`;
+}
+
+// src/contexts/model-gateway/domain/caps.ts
+var CHARS_PER_TOKEN = 3.5;
+var RESERVATION_GRACE_S = 60;
+function promptTokens(prompt) {
+  let ascii = 0;
+  let other = 0;
+  for (const character of prompt) {
+    if (character.charCodeAt(0) < 128) ascii += 1;
+    else other += 1;
+  }
+  return Math.ceil(ascii / CHARS_PER_TOKEN + other);
+}
+function estimateRun(prompt, tier, prices, allowances) {
+  if (tier === void 0 || prices === void 0) return void 0;
+  const prompt_tokens = promptTokens(prompt);
+  const output_tokens = allowances[tier];
+  return {
+    output_tokens,
+    prompt_tokens,
+    usd: roundUp((prompt_tokens * prices.input + output_tokens * prices.output) / 1e6)
+  };
+}
+function checkCaps(entries, workflow, estimateUsd, caps, now) {
+  const day = utcDay(now.toISOString());
+  const charges = meteredCharges(entries, "metered-personal");
+  const held = liveReservations(entries).filter((reservation) => reservation.cost_class === "metered-personal");
+  const workflowRoom = room(
+    "per_workflow_usd",
+    caps.per_workflow_usd,
+    sum(charges.filter((charge) => charge.workflow === workflow).map((charge) => charge.usd)),
+    sum(held.filter((reservation) => reservation.workflow === workflow).map((reservation) => reservation.estimate_usd))
+  );
+  if (!fits(workflowRoom, estimateUsd)) return { refused: workflowRoom };
+  const dayRoom = room(
+    "per_day_usd",
+    caps.per_day_usd,
+    sum(charges.filter((charge) => utcDay(charge.at) === day).map((charge) => charge.usd)),
+    sum(held.filter((reservation) => utcDay(reservation.reserved_at) === day).map((reservation) => reservation.estimate_usd))
+  );
+  return fits(dayRoom, estimateUsd) ? {} : { refused: dayRoom };
+}
+function capRefusalMessage(room2, estimateUsd, workflow, now) {
+  const [name, where] = room2.cap === "per_workflow_usd" ? ["per-workflow", `in workflow ${workflow}`] : ["per-day", `on ${utcDay(now.toISOString())}`];
+  return `does not fit the ${name} cap of ${usd(room2.limit_usd)}: ${usd(room2.spent_usd)} spent and ${usd(room2.reserved_usd)} reserved ${where}, and its estimate is ${usd(estimateUsd)}`;
+}
+function reservationRecord(args) {
+  return {
+    client: args.client,
+    cost_class: args.cost_class,
+    estimate_usd: args.estimate_usd,
+    expires_at: new Date(args.reserved_at.getTime() + (args.time_limit_s + RESERVATION_GRACE_S) * 1e3).toISOString(),
+    kind: "reservation",
+    model: args.model,
+    reserved_at: args.reserved_at.toISOString(),
+    run_dir: args.run_dir,
+    run_id: args.run_id,
+    workflow: args.workflow
+  };
+}
+function settledRecord(reservation, costUsd, at) {
+  return {
+    client: reservation.client,
+    cost_class: reservation.cost_class,
+    cost_usd: costUsd,
+    kind: "settled",
+    reserved_at: reservation.reserved_at,
+    run_id: reservation.run_id,
+    settled_at: at.toISOString(),
+    workflow: reservation.workflow
+  };
+}
+function liveReservations(entries) {
+  const settled = new Set(entries.filter(isSettled).map((entry) => entry.run_id));
+  const ran = new Set(entries.filter(isRunRecord).map((entry) => entry.run_id));
+  return entries.filter(isReservation).filter((reservation) => !settled.has(reservation.run_id) && !ran.has(reservation.run_id));
+}
+function settleExpired(entries, now, costs) {
+  return liveReservations(entries).filter((reservation) => costs.has(reservation.run_id) || Date.parse(reservation.expires_at) <= now.getTime()).map((reservation) => ({
+    client: reservation.client,
+    cost_class: reservation.cost_class,
+    cost_usd: costs.get(reservation.run_id) ?? reservation.estimate_usd,
+    kind: "settled",
+    reason: "expired",
+    reserved_at: reservation.reserved_at,
+    run_id: reservation.run_id,
+    settled_at: now.toISOString(),
+    workflow: reservation.workflow
+  }));
+}
+function meteredCharges(entries, costClass) {
+  const runs = entries.filter(isRunRecord).filter((run) => run.cost_class === costClass);
+  const settled = new Map(entries.filter(isSettled).map((entry) => [entry.run_id, entry]));
+  const charges = runs.map((run) => ({
+    at: settled.get(run.run_id)?.reserved_at ?? run.at,
+    client: run.client,
+    usd: run.cost_usd,
+    workflow: run.workflow
+  }));
+  for (const settle of settled.values()) {
+    if (settle.reason !== "expired" || settle.cost_class !== costClass) continue;
+    if (runs.some((run) => run.run_id === settle.run_id)) continue;
+    charges.push({ at: settle.reserved_at, client: settle.client, usd: settle.cost_usd, workflow: settle.workflow });
+  }
+  return charges;
+}
+function room(cap, limit_usd, spent_usd, reserved_usd) {
+  return { cap, limit_usd, reserved_usd: round(reserved_usd, 6), spent_usd: round(spent_usd, 6) };
+}
+function fits(room2, estimateUsd) {
+  return round(room2.spent_usd + room2.reserved_usd + estimateUsd, 6) <= room2.limit_usd;
+}
+function utcDay(at) {
+  return at.slice(0, 10);
+}
+function sum(values) {
+  return values.reduce((total, value) => total + value, 0);
+}
+function usd(value) {
+  return `$${value.toFixed(2)}`;
+}
+function round(value, places) {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+function roundUp(value) {
+  return Math.ceil(value * 1e6 - 1e-6) / 1e6;
+}
+
+// src/contexts/model-gateway/application/caps.ts
+import { join } from "node:path";
+
+// src/contexts/model-gateway/domain/grants.ts
+var GRANTS_VERSION = 1;
+var GRANT_TTL_MS = WORKFLOW_TTL_MS;
+function parseGrantsFile(text) {
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    throw invalid3(`not JSON: ${messageOf2(error)}`);
+  }
+  if (!isObject(raw)) throw invalid3("the grants file must be a JSON object");
+  if (raw.version !== GRANTS_VERSION) throw invalid3(`version must be ${String(GRANTS_VERSION)}`);
+  if (!Array.isArray(raw.grants)) throw invalid3("grants must be a list");
+  const grants = raw.grants;
+  return grants.map((value, index) => parseGrant(value, index));
+}
+function parseGrant(raw, index) {
+  const where = `grants[${String(index)}]`;
+  if (!isObject(raw)) throw invalid3(`${where} must be an object`);
+  const cap = raw.cap_usd;
+  if (typeof cap !== "number" || !Number.isFinite(cap) || cap <= 0) throw invalid3(`${where}.cap_usd must be a number above 0`);
+  const grant = {
+    answer: requireString3(raw.answer, `${where}.answer`),
+    cap_usd: cap,
+    client: requireString3(raw.client, `${where}.client`),
+    expires_at: requireTimestamp2(raw.expires_at, `${where}.expires_at`),
+    id: requireString3(raw.id, `${where}.id`),
+    question: requireString3(raw.question, `${where}.question`),
+    workflow: requireString3(raw.workflow, `${where}.workflow`),
+    written_at: requireTimestamp2(raw.written_at, `${where}.written_at`)
+  };
+  if (raw.ended_at === void 0) return grant;
+  return { ...grant, ended_at: requireTimestamp2(raw.ended_at, `${where}.ended_at`) };
+}
+function requireString3(value, where) {
+  if (typeof value !== "string" || value === "") throw invalid3(`${where} must be a non-empty string`);
+  return value;
+}
+var UTC_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?Z$/;
+function requireTimestamp2(value, where) {
+  const fail = () => invalid3(`${where} must be an ISO-8601 UTC timestamp like 2026-11-04T10:52:15Z`);
+  if (typeof value !== "string") throw fail();
+  const match = UTC_TIMESTAMP.exec(value);
+  if (match === null) throw fail();
+  const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
+  const moment = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  const real = moment.getUTCFullYear() === year && moment.getUTCMonth() === month - 1 && moment.getUTCDate() === day && moment.getUTCHours() === hour && moment.getUTCMinutes() === minute && moment.getUTCSeconds() === second;
+  if (!real) throw fail();
+  return value;
+}
+function invalid3(message) {
+  return new ModelGatewayError("invalid-config", message);
+}
+function messageOf2(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+function grantId(at, suffix) {
+  return `grant-${compactTimestamp(at)}-${suffix}`;
+}
+function newGrant(args) {
+  return {
+    answer: args.answer,
+    cap_usd: args.cap_usd,
+    client: args.client,
+    expires_at: expiryOf2(args.written_at, args.workflowRecord),
+    id: args.id,
+    question: args.question,
+    workflow: args.workflow,
+    written_at: args.written_at.toISOString()
+  };
+}
+function expiryOf2(writtenAt, record) {
+  if (record !== void 0 && workflowEnded(record, writtenAt)) {
+    throw new ModelGatewayError(
+      "workflow-ended",
+      `workflow ${record.name} ended at ${record.ended_at ?? new Date(Date.parse(record.started_at) + WORKFLOW_TTL_MS).toISOString()}: a grant for it would lapse on arrival, so start a new workflow`
+    );
+  }
+  const own = writtenAt.getTime() + GRANT_TTL_MS;
+  const workflow = record === void 0 ? own : Date.parse(record.started_at) + WORKFLOW_TTL_MS;
+  return new Date(Math.min(own, workflow)).toISOString();
+}
+function grantRoom(entries, grant) {
+  const since = Date.parse(grant.written_at);
+  const spent = meteredCharges(entries, "metered-employer").filter(
+    (charge) => charge.client === grant.client && charge.workflow === grant.workflow && Date.parse(charge.at) >= since
+  ).map((charge) => charge.usd);
+  const reserved = liveReservations(entries).filter(
+    (reservation) => reservation.cost_class === "metered-employer" && reservation.client === grant.client && reservation.workflow === grant.workflow && Date.parse(reservation.reserved_at) >= since
+  ).map((reservation) => reservation.estimate_usd);
+  const spent_usd = round(sum2(spent), 6);
+  const reserved_usd = round(sum2(reserved), 6);
+  return { grant, remaining_usd: round(grant.cap_usd - spent_usd - reserved_usd, 6), reserved_usd, spent_usd };
+}
+function grantLapse(grant, room2, record, now) {
+  if (grant.ended_at !== void 0 || record !== void 0 && workflowEnded(record, now)) return "workflow-ended";
+  if (now.getTime() >= Date.parse(grant.expires_at)) return "expired";
+  if (room2.spent_usd >= grant.cap_usd) return "cap-spent";
+  return void 0;
+}
+function liveGrant(grants, workflow, client, entries, record, now) {
+  let newest;
+  for (const grant of grants) {
+    if (grant.workflow !== workflow || grant.client !== client) continue;
+    if (grantLapse(grant, grantRoom(entries, grant), record, now) !== void 0) continue;
+    if (newest === void 0 || Date.parse(grant.written_at) >= Date.parse(newest.written_at)) newest = grant;
+  }
+  return newest;
+}
+function grantViews(grants, entries, records, now) {
+  const live = [];
+  const lapsed = [];
+  for (const grant of grants) {
+    const room2 = grantRoom(entries, grant);
+    const view = {
+      ...grant,
+      remaining_usd: room2.remaining_usd,
+      reserved_usd: room2.reserved_usd,
+      spent_usd: room2.spent_usd
+    };
+    const reason = grantLapse(grant, room2, records.find((record) => record.name === grant.workflow), now);
+    if (reason === void 0) live.push(view);
+    else lapsed.push({ ...view, reason });
+  }
+  return { grants: live, lapsed };
+}
+function noGrantMessage(workflow, client) {
+  const call = `{"workflow":${JSON.stringify(workflow)},"client":${JSON.stringify(client)},"cap_usd":5,"question":"<what you asked the owner>","answer":"<what the owner answered>"}`;
+  return `no live grant covers workflow ${workflow}, so ${client} may not run: ask the owner, then add one with model-gateway grant write --json ${shellQuoted(call)}`;
+}
+function shellQuoted(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+function grantRefusal(entries, grant, estimateUsd, run) {
+  const room2 = grantRoom(entries, grant);
+  if (fits({ limit_usd: grant.cap_usd, reserved_usd: room2.reserved_usd, spent_usd: room2.spent_usd }, estimateUsd)) {
+    return void 0;
+  }
+  return `${run.client}:${run.model} does not fit grant ${grant.id} of ${usd(grant.cap_usd)} for workflow ${grant.workflow}: ${usd(room2.spent_usd)} spent and ${usd(room2.reserved_usd)} reserved, and its estimate is ${usd(estimateUsd)}`;
+}
+function sum2(values) {
+  return values.reduce((total, value) => total + value, 0);
+}
+
 // src/contexts/model-gateway/application/caps.ts
 var CapGuard = class {
   constructor(deps) {
@@ -1367,6 +1636,69 @@ var CapGuard = class {
     await this.deps.ledger.append({ ...settledRecord(reservation.record, 0, now), reason: "not-started" });
   }
   /**
+   * Reserves a whole batch plan's estimates at once: each is checked, in plan
+   * order, against the caps or its grant with the ones before it already held,
+   * and every record is written in the same locked ledger update that decided
+   * them, so no other process can take room in between. A plan any of whose
+   * estimates does not fit holds nothing: the refusals come back, and no
+   * record is written.
+   */
+  async reservePlan(plan, config, now) {
+    const costs = await this.finishedCosts();
+    return this.deps.ledger.update((entries) => {
+      const settled = settleExpired(entries, now, costs);
+      let all = [...entries, ...settled];
+      const held = /* @__PURE__ */ new Map();
+      const records = [];
+      const refused = [];
+      for (const item of plan) {
+        const message = item.cap.kind === "grant" ? grantRefusal(all, item.cap.grant, item.estimate.usd, item.input) : capRefusal(all, item.input, item.estimate.usd, config.settings.metered_personal_caps, now);
+        if (message !== void 0) {
+          refused.push({ id: item.id, message });
+          continue;
+        }
+        const record = reservationRecord({
+          client: item.input.client,
+          cost_class: item.costClass,
+          estimate_usd: item.estimate.usd,
+          model: item.input.model,
+          reserved_at: now,
+          run_dir: item.runDir,
+          run_id: item.runId,
+          time_limit_s: item.window_s,
+          workflow: item.input.workflow
+        });
+        held.set(item.id, { estimate: item.estimate, record });
+        records.push(record);
+        all = [...all, record];
+      }
+      return { append: refused.length === 0 ? [...settled, ...records] : settled, result: { held, refused } };
+    });
+  }
+  /**
+   * Gives back the reservations of a batch's delegations, whatever of them is
+   * still held. A run that left a result before it was lost counts what that
+   * result says it cost (settled as a lapsed reservation is, which is what
+   * makes the caps and grants count it); only one that left
+   * none never ran, and is settled at no cost. One a run already settled, or
+   * one that has its own line, is left alone, so it can be called again for
+   * the same plan.
+   */
+  async releaseUnrun(records, now) {
+    const costs = await this.finishedCosts();
+    await this.deps.ledger.update((entries) => {
+      const live = new Set(liveReservations(entries).map((reservation) => reservation.run_id));
+      const lost = records.filter((record) => live.has(record.run_id));
+      return {
+        append: lost.map((record) => {
+          const cost = costs.get(record.run_id);
+          return cost === void 0 ? { ...settledRecord(record, 0, now), reason: "not-run" } : { ...settledRecord(record, cost, now), reason: "expired" };
+        }),
+        result: void 0
+      };
+    });
+  }
+  /**
    * Settles every reservation whose run left a result behind, at once and
    * whatever its expiry, and every one whose expiry has passed, from the run
    * directory's result where it left one and at its full estimate otherwise.
@@ -1427,11 +1759,34 @@ function runCostClass(client, input) {
   return costClassFor(client, input.client === "opencode" ? openCodeProvider(input.model) : input.provider);
 }
 
-// src/contexts/model-gateway/domain/extras.ts
-var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
-
-// src/contexts/model-gateway/application/home-mcp.ts
-import { join as join2 } from "node:path";
+// src/contexts/model-gateway/application/slots.ts
+var ClientSlots = class {
+  constructor(limit) {
+    this.limit = limit;
+  }
+  limit;
+  running = /* @__PURE__ */ new Map();
+  waiting = /* @__PURE__ */ new Map();
+  /** Resolves with the function that gives the slot back, once the client has one free. */
+  acquire(client) {
+    return new Promise((resolve) => {
+      const grant = () => {
+        this.running.set(client, (this.running.get(client) ?? 0) + 1);
+        resolve(() => {
+          this.release(client);
+        });
+      };
+      if ((this.running.get(client) ?? 0) < this.limit) grant();
+      else this.waiting.set(client, [...this.waiting.get(client) ?? [], grant]);
+    });
+  }
+  release(client) {
+    this.running.set(client, (this.running.get(client) ?? 1) - 1);
+    const [next, ...rest] = this.waiting.get(client) ?? [];
+    this.waiting.set(client, rest);
+    next?.();
+  }
+};
 
 // src/contexts/model-gateway/application/json-file.ts
 async function fileExists(files, path, what) {
@@ -1465,9 +1820,309 @@ function messageOf3(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// src/contexts/model-gateway/application/config.ts
+async function loadConfig(files, defaultsPath, override) {
+  const defaults = await readJsonFile(files, defaultsPath, "the shipped defaults", parseDefaults);
+  if (!await fileExists(files, override, "the override")) return defaults;
+  return readJsonFile(files, override, "the override", (raw) => applyOverride(defaults, raw));
+}
+
+// src/contexts/model-gateway/application/locations.ts
+import { isAbsolute, join as join2 } from "node:path";
+function overridePath(env) {
+  return join2(configDir(env), "model-gateway.json");
+}
+function allowlistPath(env) {
+  return join2(configDir(env), "critique-allowlist.json");
+}
+function grantsPath(env) {
+  return join2(configDir(env), "model-gateway-grants.json");
+}
+function configDir(env) {
+  const xdg = env.get("XDG_CONFIG_HOME");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join2(xdg, "agent-kit");
+  return join2(env.require("HOME"), ".config", "agent-kit");
+}
+function vibeConfigPath(env) {
+  const home = env.get("VIBE_HOME");
+  if (home !== void 0 && isAbsolute(home)) return join2(home, "config.toml");
+  return join2(env.require("HOME"), ".vibe", "config.toml");
+}
+function routingOverridePath(env) {
+  return join2(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
+}
+function setupResultsPath(env) {
+  return join2(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
+}
+function stateDir(env) {
+  const xdg = env.get("XDG_STATE_HOME");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join2(xdg, "agent-kit", "model-gateway");
+  return join2(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
+}
+function ledgerPath(env) {
+  return join2(stateDir(env), "ledger.jsonl");
+}
+function keptWorktreesPath(env) {
+  return join2(stateDir(env), "kept-worktrees.json");
+}
+function runsDir(env) {
+  return join2(stateDir(env), "runs");
+}
+function workflowsPath(env) {
+  return join2(stateDir(env), "workflows.json");
+}
+
+// src/contexts/model-gateway/application/batch.ts
+var BatchCommand = class {
+  constructor(deps, runs) {
+    this.deps = deps;
+    this.runs = runs;
+    this.caps = new CapGuard(deps);
+  }
+  deps;
+  runs;
+  caps;
+  async run(raw) {
+    this.runs.refuseNested();
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const input = readBatchInput(raw, config.settings.max_batch_delegations);
+    const planned = await this.check(input, config);
+    const held = await this.reserve(input, planned, config);
+    const batchId = this.batchId();
+    const unrun = [...held.values()].map((reservation) => reservation.record);
+    let reports;
+    try {
+      reports = await this.execute(input, config, held, batchId);
+    } finally {
+      await this.caps.releaseUnrun(unrun, this.deps.clock.now());
+    }
+    return this.result(batchId, input, reports, unrun);
+  }
+  /**
+   * Every delegation's problems before anything is launched: the plan's
+   * dependencies, and for each delegation what a run of it would be refused
+   * for. A plan with any is refused with all of them.
+   */
+  async check(input, config) {
+    const problems = [...dependencyProblems(input.delegations)];
+    const planned = [];
+    for (const delegation of input.delegations) {
+      const prompt = estimatedPrompt(delegation.input.prompt, delegation.depends_on, config.settings.summary_max_chars);
+      try {
+        planned.push({ checked: await this.runs.check({ ...delegation.input, prompt }), delegation });
+      } catch (error) {
+        problems.push({ code: error instanceof ModelGatewayError ? error.code : "unexpected", id: delegation.id, message: messageOf3(error) });
+      }
+    }
+    if (problems.length > 0) throw new PlanRefusedError(problems);
+    return planned;
+  }
+  /**
+   * Reserves the estimates of every metered delegation in one locked ledger
+   * update. A plan whose sum does not fit is refused, and holds nothing.
+   */
+  async reserve(input, planned, config) {
+    const now = this.deps.clock.now();
+    const window = planWindow(input);
+    const plan = [];
+    for (const { checked, delegation } of planned) {
+      if (checked.estimate === void 0) continue;
+      const { runDir, runId: id } = await this.runs.allot(checked.root, now);
+      const prompt = estimatedPrompt(delegation.input.prompt, delegation.depends_on, config.settings.summary_max_chars);
+      plan.push({
+        cap: checked.cap,
+        costClass: checked.costClass,
+        estimate: checked.estimate,
+        id: delegation.id,
+        input: { ...delegation.input, prompt },
+        runDir,
+        runId: id,
+        window_s: window
+      });
+    }
+    const reserved = await this.caps.reservePlan(plan, config, now);
+    if (reserved.refused.length > 0) {
+      throw new PlanRefusedError(reserved.refused.map((refusal) => ({ code: "cap-exceeded", id: refusal.id, message: refusal.message })));
+    }
+    return reserved.held;
+  }
+  /**
+   * Runs the plan: a delegation starts when everything it waits for is done
+   * and its client has a free slot, and one whose dependency failed for good
+   * (or was itself skipped) is skipped, its reservation given back at once.
+   * The slots a delegation is scheduled by are those of the client it was
+   * planned for; each attempt then takes a slot of the client it really runs
+   * on. A delegation that can never start is reported skipped, never dropped.
+   */
+  async execute(input, config, held, batchId) {
+    const limit = config.settings.max_parallel_per_client;
+    const reports = /* @__PURE__ */ new Map();
+    const outputs = /* @__PURE__ */ new Map();
+    const pending = [...input.delegations];
+    const running = /* @__PURE__ */ new Set();
+    const planned = /* @__PURE__ */ new Map();
+    const attempts = new ClientSlots(limit);
+    try {
+      for (; ; ) {
+        await this.skipBlocked(pending, reports, held);
+        for (const delegation of [...pending]) {
+          const client = delegation.input.client;
+          const waits = delegation.depends_on.map((id) => outputs.get(id));
+          if ((planned.get(client) ?? 0) >= limit || waits.includes(void 0)) continue;
+          pending.splice(pending.indexOf(delegation), 1);
+          planned.set(client, (planned.get(client) ?? 0) + 1);
+          const options = { slot: (actual) => attempts.acquire(actual), tag: { batch_id: batchId, delegation: delegation.id } };
+          const start = this.delegate(delegation, waits.filter((output) => output !== void 0), { ...options, ...heldBy(held, delegation.id) }).then(
+            (report) => {
+              reports.set(delegation.id, report);
+              if (report.status === "done") {
+                outputs.set(delegation.id, { id: delegation.id, output_path: report.output_path, summary: report.summary });
+              }
+              planned.set(client, (planned.get(client) ?? 1) - 1);
+              running.delete(start);
+            }
+          );
+          running.add(start);
+        }
+        if (running.size === 0) break;
+        await Promise.race(running);
+      }
+    } finally {
+      await Promise.allSettled(running);
+    }
+    for (const delegation of [...pending]) await this.skip(delegation, "could-not-start", pending, reports, held);
+    return reports;
+  }
+  /** Skips every pending delegation that waits for one that failed or was skipped, to the end of the chain. */
+  async skipBlocked(pending, reports, held) {
+    for (; ; ) {
+      const stopped = (id) => {
+        const report = reports.get(id);
+        return report?.status === "done" ? void 0 : report;
+      };
+      const blocked = pending.find((delegation) => delegation.depends_on.some((id) => stopped(id) !== void 0));
+      if (blocked === void 0) return;
+      const cause = blocked.depends_on.map(stopped).find((report) => report !== void 0);
+      await this.skip(blocked, cause?.skipped_because ?? cause?.id ?? "", pending, reports, held);
+    }
+  }
+  /** Takes a delegation off the pending list as skipped, because of the delegation named, and gives its reservation back. */
+  async skip(delegation, because, pending, reports, held) {
+    pending.splice(pending.indexOf(delegation), 1);
+    reports.set(delegation.id, {
+      client: delegation.input.client,
+      cost_usd: 0,
+      id: delegation.id,
+      model: delegation.input.model,
+      output_path: null,
+      skipped_because: because,
+      status: "skipped",
+      summary: ""
+    });
+    const reservation = held.get(delegation.id);
+    if (reservation !== void 0) await this.caps.releaseUnrun([reservation.record], this.deps.clock.now());
+  }
+  /**
+   * One delegation through the single-delegation path, whatever it comes to: a
+   * refusal or a crash is a failed delegation, never a lost batch. One that
+   * threw reports what its attempts cost, from the ledger lines they left,
+   * and gives its reservation back (or settles it at what its run cost).
+   */
+  async delegate(delegation, outputs, options) {
+    const input = { ...delegation.input, prompt: promptWithOutputs(delegation.input.prompt, outputs) };
+    try {
+      return reportOf(delegation, await this.runs.delegation(input, options));
+    } catch (error) {
+      if (options.reservation !== void 0) await this.caps.releaseUnrun([options.reservation.record], this.deps.clock.now());
+      const lines = taggedLines(await this.deps.ledger.read(), options.tag);
+      return {
+        ...lines.length === 0 ? {} : { attempts: lines.map(attemptOf) },
+        client: delegation.input.client,
+        cost_usd: costOf(lines),
+        id: delegation.id,
+        model: delegation.input.model,
+        output_path: null,
+        reason: error instanceof ModelGatewayError ? error.code : "unexpected",
+        status: "failed",
+        summary: messageOf3(error)
+      };
+    }
+  }
+  /** The batch's one result: each delegation in plan order with what its attempts cost, and what the plan gave back. */
+  async result(batchId, input, reports, reservations) {
+    const ledger = await this.deps.ledger.read();
+    const delegations = input.delegations.flatMap((delegation) => {
+      const report = reports.get(delegation.id);
+      return report === void 0 ? [] : [{ ...report, cost_usd: costOf(taggedLines(ledger, { batch_id: batchId, delegation: delegation.id })) }];
+    });
+    const released = reservations.filter((record) => ledger.some((entry) => isSettled(entry) && entry.run_id === record.run_id && entry.reason === "not-run"));
+    return {
+      batch_id: batchId,
+      cost_usd: round(delegations.reduce((total, report) => total + report.cost_usd, 0), 6),
+      delegations,
+      reservations_released_usd: round(released.reduce((total, record) => total + record.estimate_usd, 0), 6),
+      status: batchStatus(delegations.map((report) => report.status)),
+      workflow: input.workflow
+    };
+  }
+  batchId() {
+    return `batch-${runId(this.deps.clock.now(), randomBytes(3).toString("hex"))}`;
+  }
+};
+function reportOf(delegation, outcome) {
+  if (outcome.status === "unavailable") {
+    return {
+      attempts: outcome.attempts,
+      client: outcome.client,
+      cost_usd: 0,
+      id: delegation.id,
+      model: outcome.model,
+      output_path: null,
+      reason: "unavailable",
+      status: "failed",
+      summary: outcome.message
+    };
+  }
+  return {
+    ...outcome.attempts.length > 1 ? { attempts: outcome.attempts } : {},
+    client: outcome.client,
+    cost_usd: outcome.cost_usd,
+    id: delegation.id,
+    model: outcome.model,
+    output_path: outcome.output_path,
+    ...outcome.reason === void 0 ? {} : { reason: outcome.reason },
+    ...outcome.worktree === void 0 ? {} : { branch: outcome.branch, worktree: outcome.worktree },
+    status: outcome.status === "ok" ? "done" : "failed",
+    summary: outcome.summary
+  };
+}
+function taggedLines(ledger, tag) {
+  return ledger.filter(isRunRecord).filter((line) => tag !== void 0 && line.batch_id === tag.batch_id && line.delegation === tag.delegation);
+}
+function costOf(lines) {
+  return round(lines.reduce((total, line) => total + line.cost_usd, 0), 6);
+}
+function attemptOf(line) {
+  return { client: line.client, model: line.model, run_id: line.run_id, status: line.outcome, ...line.reason === void 0 ? {} : { reason: line.reason } };
+}
+function heldBy(held, id) {
+  const reservation = held.get(id);
+  return reservation === void 0 ? {} : { reservation };
+}
+function planWindow(input) {
+  return input.delegations.reduce(
+    (total, delegation) => total + delegation.input.time_limit_s * (delegation.input.escalate === false ? 1 : delegation.input.max_attempts ?? DEFAULT_MAX_ATTEMPTS),
+    0
+  );
+}
+
+// src/contexts/model-gateway/domain/extras.ts
+var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
+
 // src/contexts/model-gateway/application/home-mcp.ts
+import { join as join3 } from "node:path";
 async function homeMcpServers(ports) {
-  const path = join2(ports.env.require("HOME"), ".vibe", "config.toml");
+  const path = join3(ports.env.require("HOME"), ".vibe", "config.toml");
   if (!await ports.files.exists(path)) return [];
   try {
     return serverNames(await ports.files.readText(path));
@@ -1484,7 +2139,7 @@ function namesOf(servers) {
 }
 
 // src/contexts/model-gateway/application/launchers.ts
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
 
 // src/contexts/model-gateway/domain/outputs.ts
 function count(value) {
@@ -1715,7 +2370,7 @@ var vibe = {
   sandboxedExtras: [],
   protectedEnv: VIBE_PROTECTED_ENV,
   read: (stdout, exported) => vibeOutput(stdout, exported),
-  reportPath: (paths) => join3(paths.exportDir, "export.json")
+  reportPath: (paths) => join4(paths.exportDir, "export.json")
 };
 function effortOf(model) {
   return /-(low|medium|high)$/.exec(model)?.[1] ?? "medium";
@@ -1807,7 +2462,7 @@ function reportDir(paths) {
 }
 var hermes = {
   command: (binary, input, paths, prompt, extras) => ({
-    args: ["-z", prompt, "--usage-file", join3(reportDir(paths), "usage.json"), "-m", input.model, "--provider", String(input.provider)],
+    args: ["-z", prompt, "--usage-file", join4(reportDir(paths), "usage.json"), "-m", input.model, "--provider", String(input.provider)],
     command: binary,
     cwd: paths.workDir,
     env: extras?.env ?? {},
@@ -1817,7 +2472,7 @@ var hermes = {
   sandboxedExtras: [],
   protectedEnv: [],
   read: (stdout, usage) => hermesOutput(stdout, usage),
-  reportPath: (paths) => join3(reportDir(paths), "usage.json")
+  reportPath: (paths) => join4(reportDir(paths), "usage.json")
 };
 var codex = {
   command: (binary, input, paths, prompt, extras) => ({
@@ -1905,61 +2560,7 @@ var ClientRun = class {
 };
 
 // src/contexts/model-gateway/application/grants.ts
-import { randomBytes } from "node:crypto";
-
-// src/contexts/model-gateway/application/config.ts
-async function loadConfig(files, defaultsPath, override) {
-  const defaults = await readJsonFile(files, defaultsPath, "the shipped defaults", parseDefaults);
-  if (!await fileExists(files, override, "the override")) return defaults;
-  return readJsonFile(files, override, "the override", (raw) => applyOverride(defaults, raw));
-}
-
-// src/contexts/model-gateway/application/locations.ts
-import { isAbsolute, join as join4 } from "node:path";
-function overridePath(env) {
-  return join4(configDir(env), "model-gateway.json");
-}
-function allowlistPath(env) {
-  return join4(configDir(env), "critique-allowlist.json");
-}
-function grantsPath(env) {
-  return join4(configDir(env), "model-gateway-grants.json");
-}
-function configDir(env) {
-  const xdg = env.get("XDG_CONFIG_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join4(xdg, "agent-kit");
-  return join4(env.require("HOME"), ".config", "agent-kit");
-}
-function vibeConfigPath(env) {
-  const home = env.get("VIBE_HOME");
-  if (home !== void 0 && isAbsolute(home)) return join4(home, "config.toml");
-  return join4(env.require("HOME"), ".vibe", "config.toml");
-}
-function routingOverridePath(env) {
-  return join4(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
-}
-function setupResultsPath(env) {
-  return join4(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
-}
-function stateDir(env) {
-  const xdg = env.get("XDG_STATE_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join4(xdg, "agent-kit", "model-gateway");
-  return join4(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
-}
-function ledgerPath(env) {
-  return join4(stateDir(env), "ledger.jsonl");
-}
-function keptWorktreesPath(env) {
-  return join4(stateDir(env), "kept-worktrees.json");
-}
-function runsDir(env) {
-  return join4(stateDir(env), "runs");
-}
-function workflowsPath(env) {
-  return join4(stateDir(env), "workflows.json");
-}
-
-// src/contexts/model-gateway/application/grants.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
 var GrantWriteCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -1990,7 +2591,7 @@ var GrantWriteCommand = class {
     }
     const grant = newGrant({
       ...input,
-      id: grantId(now, randomBytes(3).toString("hex")),
+      id: grantId(now, randomBytes2(3).toString("hex")),
       workflowRecord: record,
       written_at: now
     });
@@ -2287,133 +2888,8 @@ function readModelsInput(raw) {
 }
 
 // src/contexts/model-gateway/application/run.ts
-import { randomBytes as randomBytes2 } from "node:crypto";
+import { randomBytes as randomBytes3 } from "node:crypto";
 import { join as join6 } from "node:path";
-
-// src/contexts/model-gateway/domain/escalation.ts
-var DEFAULT_MAX_ATTEMPTS = 3;
-var FAILURE_TAIL_CHARS = 1e3;
-var REFUSAL_REASONS = [
-  "cap-exceeded",
-  "no-grant",
-  "invalid-config",
-  "invalid-input",
-  "nested-delegation",
-  "no-estimate",
-  "not-supported-yet",
-  "policy-refused",
-  "provider-not-allowed",
-  "repository-unreadable",
-  "unknown-client",
-  "unknown-model",
-  "unknown-workflow",
-  "workflow-ended",
-  "write-needs-repository",
-  "worktree-failed"
-];
-var CANNOT_START_REASONS = ["auth", "launch-failed", "rate-limited"];
-function isRefusal(reason) {
-  return reason !== void 0 && REFUSAL_REASONS.includes(reason);
-}
-function isCannotStart(reason) {
-  return reason !== void 0 && CANNOT_START_REASONS.includes(reason);
-}
-var CannotStartError = class extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "CannotStartError";
-  }
-};
-function retryPrompt(original, reason, detail) {
-  const tail = detail.trim().slice(-FAILURE_TAIL_CHARS);
-  return `${original}
-
-A previous attempt failed: ${reason}${tail === "" ? "" : `; ${tail}`}`;
-}
-function candidateKey(candidate) {
-  return modelKey(candidate.client, candidate.model);
-}
-function tierRank(tier) {
-  return TIERS.indexOf(tier);
-}
-function requestedCandidate(config, input, entry, family) {
-  const client = config.clients[input.client];
-  const provider = providerOf(input);
-  return {
-    client: input.client,
-    costClass: client === void 0 ? "subsidised" : costClassFor(client, provider),
-    family,
-    model: input.model,
-    tier: entry?.tier ?? null,
-    ...input.provider === void 0 ? {} : { provider: input.provider }
-  };
-}
-function providerOf(input) {
-  return input.provider ?? (input.client === "opencode" ? openCodeProvider(input.model) : void 0);
-}
-function candidatePool(config, input, permissions, granted) {
-  const permitted = new Set(permissions.filter((permission2) => carries(permission2, input)).map((permission2) => modelKey(permission2.client, permission2.model)));
-  const pool = [];
-  for (const entry of config.models) {
-    const client = config.clients[entry.client];
-    if (client === void 0 || !RUN_CLIENTS.includes(entry.client)) continue;
-    if (!permitted.has(modelKey(entry.client, entry.model))) continue;
-    if ([entry.model, ...entry.names ?? []].some((name) => config.disabled.includes(modelKey(entry.client, name)))) continue;
-    const named = PROVIDER_CLIENTS.includes(entry.client);
-    if (named && (entry.client !== input.client || input.provider === void 0)) continue;
-    if (entry.client === "opencode" && !providerAllowed(entry.model, client.providers)) continue;
-    const provider = named ? input.provider : entry.client === "opencode" ? openCodeProvider(entry.model) : void 0;
-    const costClass = costClassFor(client, provider);
-    if (costClass === "metered-employer" && !granted.has(entry.client)) continue;
-    pool.push({
-      client: entry.client,
-      costClass,
-      family: entry.family,
-      model: entry.model,
-      tier: entry.tier,
-      ...named && provider !== void 0 ? { provider } : {}
-    });
-  }
-  return pool;
-}
-function providerAllowed(model, allowed2) {
-  try {
-    requireAllowedProvider(model, allowed2);
-    return true;
-  } catch {
-    return false;
-  }
-}
-function carries(permission2, input) {
-  if (!permission2.permitted) return false;
-  const marks = input.carries ?? { code: false, history: false };
-  const code = input.repo === void 0 ? marks.code : true;
-  return !(code && !permission2.may_send.code) && !(marks.history && !permission2.may_send.history);
-}
-function climbOrder(from, pool) {
-  if (from.tier === null) return [];
-  const above = tierRank(from.tier);
-  return pool.filter(
-    (candidate) => candidateKey(candidate) !== candidateKey(from) && candidate.costClass === "subsidised" && candidate.tier !== null && tierRank(candidate.tier) > above
-  ).map((candidate, index) => ({ candidate, index })).sort((left, right) => tierRank(left.candidate.tier ?? "trivial") - tierRank(right.candidate.tier ?? "trivial") || left.index - right.index).map((entry) => entry.candidate);
-}
-function fallThroughOrder(wanted, pool) {
-  if (wanted.tier === null) return [];
-  const floor = tierRank(wanted.tier);
-  return pool.filter(
-    (candidate) => candidateKey(candidate) !== candidateKey(wanted) && candidate.costClass === wanted.costClass && candidate.tier !== null && tierRank(candidate.tier) >= floor
-  ).map((candidate, index) => ({ candidate, index })).sort((left, right) => tierRank(left.candidate.tier ?? "trivial") - tierRank(right.candidate.tier ?? "trivial") || left.index - right.index).map((entry) => entry.candidate);
-}
-function attemptInput(input, candidate, prompt) {
-  const rest = Object.fromEntries(Object.entries(input).filter(([key]) => key !== "provider"));
-  return {
-    ...rest,
-    client: candidate.client,
-    model: candidate.model,
-    prompt,
-    ...candidate.provider === void 0 ? {} : { provider: candidate.provider }
-  };
-}
 
 // src/contexts/model-gateway/domain/usage.ts
 var DEFAULT_USAGE_DAYS = 7;
@@ -2772,6 +3248,7 @@ function summaryOf2(run) {
 }
 
 // src/contexts/model-gateway/application/run.ts
+var MIN_GRANT_TIME_S = 60;
 function isWriting(input) {
   return input.mode === "write" && input.repo !== void 0 && input.base !== void 0 && input.check !== void 0;
 }
@@ -2790,38 +3267,68 @@ var RunCommand = class {
   grants;
   /** One delegation: a run, retried, climbed and swapped as the escalation decides. */
   run(raw) {
-    return this.escalation.run(readRunInput(raw), (input, options) => this.runOnce(input, options));
+    return this.delegation(readRunInput(raw));
+  }
+  /**
+   * One delegation whose input is already read, with the reservation a batch
+   * took for it. Only its first attempt holds that reservation: a retry, a
+   * climb or a swap reserves its own, as any attempt does.
+   */
+  delegation(input, given = {}) {
+    let held = given.reservation;
+    return this.escalation.run(input, async (attempt, options) => {
+      const taken = held;
+      held = void 0;
+      const give = await given.slot?.(attempt.client);
+      try {
+        return await this.runOnce(attempt, {
+          ...options,
+          ...taken === void 0 ? {} : { reservation: taken },
+          ...given.tag === void 0 ? {} : { tag: given.tag }
+        });
+      } finally {
+        give?.();
+      }
+    });
+  }
+  /**
+   * What a delegation needs before it can run, as a batch plan checks it
+   * without launching or reserving anything: its client model, the data
+   * policy, its workflow, its estimate, and the grant that covers it. The
+   * first thing wrong is the refusal it throws.
+   */
+  async check(input) {
+    const placed = await this.place(input);
+    const costClass = runCostClass(placed.client, input);
+    const estimate = this.caps.estimate(input, placed.entry, placed.config);
+    await this.requireWorkflowOpen(input.workflow);
+    return { ...placed, cap: await this.capSource(costClass, input), costClass, estimate };
+  }
+  /** A fresh run id, and the run directory that run keeps its prompt, output and result in. */
+  async allot(root, at) {
+    const id = runId(at, randomBytes3(3).toString("hex"));
+    return { runDir: await this.runDir(root, id), runId: id };
   }
   /** One attempt: a single run of one client model, which the escalation wraps. */
-  async runOnce(input, options = {}) {
+  async runOnce(given, options = {}) {
     this.refuseNested();
-    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
-    const client = config.clients[input.client];
-    if (client === void 0) throw new ModelGatewayError("unknown-model", `the gateway knows no client ${input.client}`);
-    if (input.client === "opencode") requireAllowedProvider(input.model, client.providers);
-    this.requireProvider(input, client);
-    const entry = catalogueEntry(config, input.client, input.model);
-    const family = entry?.family ?? familyOfModelId(input.model);
-    if (family === void 0) {
-      throw new ModelGatewayError(
-        "unknown-model",
-        `${input.client}:${input.model} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override`
-      );
-    }
-    const root = input.repo === void 0 ? void 0 : await this.repositoryRoot(input.repo);
-    const allowed2 = await this.permission(input, config, family);
+    const { allowed: allowed2, client, config, entry, family, root } = await this.place(given);
+    const held = options.reservation;
+    const costClass = runCostClass(client, given);
+    const input = held !== void 0 && costClass === "metered-employer" ? await this.withinGrant(given) : given;
     const blocked = await options.startCheck?.(input);
-    if (blocked !== void 0) throw new CannotStartError(blocked);
+    if (blocked !== void 0) {
+      await this.caps.release(held, this.deps.clock.now());
+      throw new CannotStartError(blocked);
+    }
     const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry);
-    const costClass = runCostClass(client, input);
-    const estimate = this.caps.estimate(input, entry, config);
+    const estimate = held?.estimate ?? this.caps.estimate(input, entry, config);
     await this.requireWorkflowOpen(input.workflow);
-    const cap = await this.capSource(costClass, input);
+    const cap = held === void 0 ? await this.capSource(costClass, input) : { kind: "metered-personal" };
     const startedAt = this.deps.clock.now();
     const startedMs = this.deps.clock.monotonicMs();
-    const id = runId(startedAt, randomBytes2(3).toString("hex"));
-    const runDir = await this.runDir(root, id);
-    const reservation = await this.caps.reserve({
+    const { runDir, runId: id } = held === void 0 ? await this.allot(root, startedAt) : { runDir: held.record.run_dir, runId: held.record.run_id };
+    const reservation = held ?? await this.caps.reserve({
       cap,
       config,
       costClass,
@@ -2853,7 +3360,7 @@ var RunCommand = class {
     const warning = await this.release(workplace);
     const linked = options.link === void 0 ? result2 : { ...result2, ...options.link };
     const released = warning === void 0 ? linked : { ...linked, cleanup_warning: warning };
-    await this.deps.ledger.append(this.ledgerRecord(released, allowed2.repository, startedMs, costClass));
+    await this.deps.ledger.append(this.ledgerRecord(released, allowed2.repository, startedMs, costClass, options.tag));
     await this.caps.settle(reservation, released.cost_usd, this.deps.clock.now());
     const warnings = warningsOf(
       input.client,
@@ -2863,6 +3370,45 @@ var RunCommand = class {
     await this.deps.files.writeText(join6(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
 `);
     return recorded;
+  }
+  /**
+   * A metered-employer delegation that starts later than its plan was checked
+   * (a batch's dependent) needs its grant to still stand: it is refused
+   * `no-grant` when every grant lapsed, and `grant-expiring` when under a
+   * minute is left on it, and a run with more time than that is held to what
+   * is left.
+   */
+  async withinGrant(input) {
+    const now = this.deps.clock.now();
+    const grant = await this.grants.require(input.workflow, input.client, now);
+    const leftS = Math.floor((Date.parse(grant.expires_at) - now.getTime()) / 1e3);
+    if (leftS < MIN_GRANT_TIME_S) {
+      throw new ModelGatewayError("grant-expiring", `grant ${grant.id} for workflow ${input.workflow} has ${String(Math.max(leftS, 0))} seconds left, under the ${String(MIN_GRANT_TIME_S)} a run needs`);
+    }
+    return leftS >= input.time_limit_s ? input : { ...input, time_limit_s: leftS };
+  }
+  /**
+   * Where a client model stands for one delegation, or the refusal that says
+   * why it cannot run: the client and its provider, the model the catalogue
+   * places, the repository it works in and the data policy for it.
+   */
+  async place(input) {
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const client = config.clients[input.client];
+    if (client === void 0) throw new ModelGatewayError("unknown-model", `the gateway knows no client ${input.client}`);
+    if (input.client === "opencode") requireAllowedProvider(input.model, client.providers);
+    this.requireProvider(input, client);
+    const entry = catalogueEntry(config, input.client, input.model);
+    const family = entry?.family ?? familyOfModelId(input.model);
+    if (family === void 0) {
+      throw new ModelGatewayError(
+        "unknown-model",
+        `${input.client}:${input.model} is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override`
+      );
+    }
+    const root = input.repo === void 0 ? void 0 : await this.repositoryRoot(input.repo);
+    const allowed2 = await this.permission(input, config, family);
+    return { allowed: allowed2, client, config, entry, family, root };
   }
   /**
    * Deletes the run's throwaway directory. A cleanup that fails never fails
@@ -3208,7 +3754,7 @@ var RunCommand = class {
     }
   }
   /** The run's one ledger line: what it was, what it cost and how it ended. */
-  ledgerRecord(result2, repository, startedMs, costClass) {
+  ledgerRecord(result2, repository, startedMs, costClass, tag) {
     return {
       at: this.deps.clock.now().toISOString(),
       client: result2.client,
@@ -3225,7 +3771,8 @@ var RunCommand = class {
       workflow: result2.workflow,
       ...result2.reason === void 0 ? {} : { reason: result2.reason },
       ...result2.attempt === void 0 ? {} : { attempt: result2.attempt },
-      ...result2.attempt_of === void 0 ? {} : { attempt_of: result2.attempt_of }
+      ...result2.attempt_of === void 0 ? {} : { attempt_of: result2.attempt_of },
+      ...tag
     };
   }
 };
@@ -3329,11 +3876,13 @@ function readListInput2(raw) {
 
 // src/contexts/model-gateway/application/commands.ts
 function createModelGatewayCommands(deps) {
+  const run = new RunCommand(deps);
   return {
+    batch: new BatchCommand(deps, run),
     grantList: new GrantListCommand(deps),
     grantWrite: new GrantWriteCommand(deps),
     models: new ModelsCommand(deps),
-    run: new RunCommand(deps),
+    run,
     usage: new UsageCommand(deps),
     worktreesClean: new WorktreesCleanCommand(deps),
     workflowEnd: new WorkflowEndCommand(deps),
@@ -3515,13 +4064,13 @@ function clientStatuses(deps) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { randomBytes as randomBytes3 } from "node:crypto";
+import { randomBytes as randomBytes4 } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname as dirname2, join as join7 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 async function writeFileAtomic(path, content) {
-  const temp = `${path}.${randomBytes3(6).toString("hex")}.tmp`;
+  const temp = `${path}.${randomBytes4(6).toString("hex")}.tmp`;
   try {
     await writeFile(temp, content);
     await rename(temp, path);
@@ -4078,6 +4627,12 @@ var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/t
                                  "model": "claude-sonnet-5-5", "mode": "write",
                                  "prompt": "add the flag", "repo": "/path/to/repo",
                                  "base": "main", "check": "npm test"}'
+       model-gateway batch --json '{"workflow": "spec-293", "delegations": [
+                                 {"id": "a", "client": "vibe", "model": "glm-5-3",
+                                  "mode": "read-only", "prompt": "read this", "repo": "/path/to/repo"},
+                                 {"id": "b", "depends_on": ["a"], "client": "claude",
+                                  "model": "claude-sonnet-5-5", "mode": "read-only",
+                                  "prompt": "review a's finding", "repo": "/path/to/repo"}]}'
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
                                  "answer": "yes, up to five"}'
@@ -4168,6 +4723,38 @@ run that times out leaves its worktree unstaged. Every writing worktree is kept
 until worktrees clean removes it, with its branch, for the workflow that ended
 ("workflow") or for all of them ("all": true).
 
+batch hands a whole plan of delegations over in one call and prints one short
+result. It takes "workflow" and "delegations": each delegation has a unique
+"id" (letters, digits and . _ - only, at most 40), optionally "depends_on" (ids
+it waits for), and the fields of a run (client, model, mode, prompt, repo,
+base, check, carries, time_limit_s, escalate and so on, but not workflow): the
+caller names each delegation's client model, the gateway chooses no tier. The
+whole plan is checked before anything runs, and a plan with a cycle, a
+"depends_on" naming no delegation, an unknown client model or one the data
+policy forbids for its repository, a metered-employer delegation no live grant
+covers, metered estimates that together do not fit the caps and grants, or
+more delegations than "max_batch_delegations" (50) is refused with "code": "plan-refused" and "problems", one {id, code, message}
+for everything found; a refused plan launches nothing, creates no worktree and
+starts no workflow. The estimates of every metered delegation are reserved
+together, in one locked ledger update, before the first one launches (the
+first attempt of each delegation uses its reservation; a retry or a climb
+reserves its own), and the reservations of delegations that never run are given
+back with reason "not-run". Independent delegations run in parallel, at most
+"max_parallel_per_client" (3) at once per client, each through the same path as
+run (retry, climb, fall-through, policy, caps and grants all apply). A
+delegation that depends on others is launched with a block appended to its
+prompt, "Outputs of the delegations this one depends on:", naming each one's
+id, output_path and capped summary, never its full output. A delegation that
+fails for good (failed, exhausted or unavailable) makes the gateway skip only
+the delegations that depend on it, transitively; every staged change already
+made is kept, and the independent ones keep running. The result is "status"
+("ok" when every delegation is done, "failed" when none is, else "partial"),
+"batch_id", "workflow", "delegations" (id, status done, failed or skipped,
+client, model, cost_usd, output_path, summary, and "reason", "attempts" or
+"skipped_because" where they apply), "cost_usd" and "reservations_released_usd".
+A batch never nests: it is refused inside a delegation, and a delegation of a
+batch cannot be a batch.
+
 workflow start, workflow end and workflow list keep a workflow's life: start
 and end take "name", and list takes nothing. A workflow nobody ends within 24
 hours counts as ended, and a run may not join one that ended.
@@ -4175,6 +4762,7 @@ hours counts as ended, and a run may not join one that ended.
 An error prints "status": "error" with its "code" and exits 1.
 `;
 var COMMANDS = {
+  batch: "batch",
   "grant list": "grantList",
   "grant write": "grantWrite",
   models: "models",
@@ -4185,7 +4773,7 @@ var COMMANDS = {
   "workflow start": "workflowStart",
   "worktrees clean": "worktreesClean"
 };
-var COMMAND_NAMES = "models, run, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean";
+var COMMAND_NAMES = "models, run, batch, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean";
 async function runModelGatewayCli(argv, runtime) {
   const [first] = argv;
   if (first === "--help" || first === "-h") return { exitCode: 0, stderr: "", stdout: MODEL_GATEWAY_USAGE };
@@ -4203,7 +4791,7 @@ async function runModelGatewayCli(argv, runtime) {
 ` };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return failure(error instanceof ModelGatewayError ? error.code : "unexpected", message, name);
+    return failure(error instanceof ModelGatewayError ? error.code : "unexpected", message, name, error instanceof PlanRefusedError ? error.problems : void 0);
   }
 }
 function subcommand(argv) {
@@ -4247,12 +4835,12 @@ function parseInput(text) {
   }
   return raw;
 }
-function failure(code, message, name) {
+function failure(code, message, name, problems) {
   return {
     exitCode: 1,
     stderr: `model-gateway${name === void 0 ? "" : ` ${name}`}: ${message}
 `,
-    stdout: `${JSON.stringify({ status: "error", code, message })}
+    stdout: `${JSON.stringify({ status: "error", code, message, ...problems === void 0 ? {} : { problems } })}
 `
   };
 }

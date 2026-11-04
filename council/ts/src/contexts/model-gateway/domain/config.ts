@@ -109,6 +109,8 @@ export interface Settings {
   readonly plan_warning_ratio: number
   readonly summary_max_chars: number
   readonly max_parallel_per_client: number
+  /** The most delegations one batch plan may hold; a bigger plan is refused before any work. */
+  readonly max_batch_delegations: number
   readonly availability_window_minutes: number
   readonly metered_personal_caps: MeteredPersonalCaps
   /**
@@ -142,6 +144,17 @@ export type ModelGatewayErrorCode =
    * the gateway's mark), and a delegate may never delegate on.
    */
   | 'nested-delegation'
+  /**
+   * A batch plan has a problem (a cycle, a dependency on nothing, a model the
+   * gateway cannot place or the policy forbids, no grant, or estimates that
+   * together do not fit the caps and grants), so nothing was launched.
+   */
+  | 'plan-refused'
+  /**
+   * A metered-employer delegation that starts later than its plan was
+   * checked has under a minute left on its grant, so it may not start.
+   */
+  | 'grant-expiring'
   /** The run asked for a client or a mode a later ticket builds (#297). */
   | 'not-supported-yet'
   /** The data policy refuses the run's client model, or what it claims to carry. */
@@ -394,7 +407,8 @@ function mergeSettings(base: Settings, raw: unknown): Settings {
   if (!isObject(raw)) throw invalid('settings must be an object')
   return {
     availability_window_minutes: numberField(raw, 'availability_window_minutes', base.availability_window_minutes),
-    max_parallel_per_client: numberField(raw, 'max_parallel_per_client', base.max_parallel_per_client),
+    max_batch_delegations: countField(raw, 'max_batch_delegations', base.max_batch_delegations),
+    max_parallel_per_client: countField(raw, 'max_parallel_per_client', base.max_parallel_per_client),
     metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
     output_allowance_tokens: mergeAllowances(base.output_allowance_tokens, raw.output_allowance_tokens),
     plan_warning_ratio: numberField(raw, 'plan_warning_ratio', base.plan_warning_ratio),
@@ -409,7 +423,8 @@ function parseSettings(raw: JsonObject): Settings {
   if (!isObject(allowances)) throw invalid('settings.output_allowance_tokens must be an object keyed by tier')
   return {
     availability_window_minutes: requireNumber(raw.availability_window_minutes, 'settings.availability_window_minutes'),
-    max_parallel_per_client: requireNumber(raw.max_parallel_per_client, 'settings.max_parallel_per_client'),
+    max_batch_delegations: requireCount(raw.max_batch_delegations, 'settings.max_batch_delegations'),
+    max_parallel_per_client: requireCount(raw.max_parallel_per_client, 'settings.max_parallel_per_client'),
     metered_personal_caps: {
       per_day_usd: requireNumber(caps.per_day_usd, 'settings.metered_personal_caps.per_day_usd'),
       per_workflow_usd: requireNumber(caps.per_workflow_usd, 'settings.metered_personal_caps.per_workflow_usd'),
@@ -455,6 +470,17 @@ function mergeCaps(base: MeteredPersonalCaps, raw: unknown): MeteredPersonalCaps
 
 function numberField(raw: JsonObject, name: string, base: number, prefix = 'settings.'): number {
   return raw[name] === undefined ? base : requireNumber(raw[name], `${prefix}${name}`)
+}
+
+/** A setting that counts things: a whole number of at least 1. */
+function countField(raw: JsonObject, name: string, base: number): number {
+  return raw[name] === undefined ? base : requireCount(raw[name], `settings.${name}`)
+}
+
+function requireCount(value: unknown, where: string): number {
+  const count = requireNumber(value, where)
+  if (!Number.isInteger(count) || count < 1) throw invalid(`${where} must be a whole number of at least 1`)
+  return count
 }
 
 function parseDisabled(raw: unknown): readonly string[] {

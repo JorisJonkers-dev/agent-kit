@@ -1470,24 +1470,6 @@ function readRecord(line2) {
   };
 }
 
-// src/contexts/model-gateway/domain/ledger.ts
-function isRunRecord(entry) {
-  return !isReservation(entry) && !isSettled(entry);
-}
-function isReservation(entry) {
-  return "kind" in entry && entry.kind === "reservation";
-}
-function isSettled(entry) {
-  return "kind" in entry && entry.kind === "settled";
-}
-function runRecords(entries) {
-  return entries.filter(isRunRecord);
-}
-function ledgerLine(entry) {
-  return `${JSON.stringify(entry)}
-`;
-}
-
 // src/contexts/model-gateway/domain/config.ts
 var CONFIG_VERSION = 1;
 var COST_CLASSES = ["subsidised", "metered-personal", "metered-employer"];
@@ -1668,7 +1650,8 @@ function mergeSettings(base, raw) {
   if (!isObject(raw)) throw invalid("settings must be an object");
   return {
     availability_window_minutes: numberField(raw, "availability_window_minutes", base.availability_window_minutes),
-    max_parallel_per_client: numberField(raw, "max_parallel_per_client", base.max_parallel_per_client),
+    max_batch_delegations: countField(raw, "max_batch_delegations", base.max_batch_delegations),
+    max_parallel_per_client: countField(raw, "max_parallel_per_client", base.max_parallel_per_client),
     metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
     output_allowance_tokens: mergeAllowances(base.output_allowance_tokens, raw.output_allowance_tokens),
     plan_warning_ratio: numberField(raw, "plan_warning_ratio", base.plan_warning_ratio),
@@ -1682,7 +1665,8 @@ function parseSettings(raw) {
   if (!isObject(allowances)) throw invalid("settings.output_allowance_tokens must be an object keyed by tier");
   return {
     availability_window_minutes: requireNumber(raw.availability_window_minutes, "settings.availability_window_minutes"),
-    max_parallel_per_client: requireNumber(raw.max_parallel_per_client, "settings.max_parallel_per_client"),
+    max_batch_delegations: requireCount(raw.max_batch_delegations, "settings.max_batch_delegations"),
+    max_parallel_per_client: requireCount(raw.max_parallel_per_client, "settings.max_parallel_per_client"),
     metered_personal_caps: {
       per_day_usd: requireNumber(caps.per_day_usd, "settings.metered_personal_caps.per_day_usd"),
       per_workflow_usd: requireNumber(caps.per_workflow_usd, "settings.metered_personal_caps.per_workflow_usd")
@@ -1723,6 +1707,14 @@ function mergeCaps(base, raw) {
 }
 function numberField(raw, name, base, prefix = "settings.") {
   return raw[name] === void 0 ? base : requireNumber(raw[name], `${prefix}${name}`);
+}
+function countField(raw, name, base) {
+  return raw[name] === void 0 ? base : requireCount(raw[name], `settings.${name}`);
+}
+function requireCount(value, where) {
+  const count2 = requireNumber(value, where);
+  if (!Number.isInteger(count2) || count2 < 1) throw invalid(`${where} must be a whole number of at least 1`);
+  return count2;
 }
 function parseDisabled(raw) {
   if (raw === void 0) return [];
@@ -1996,11 +1988,23 @@ var TomlReader = class {
   }
 };
 
-// src/contexts/model-gateway/domain/extras.ts
-var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
-
-// src/contexts/model-gateway/application/home-mcp.ts
-import { join as join2 } from "node:path";
+// src/contexts/model-gateway/domain/ledger.ts
+function isRunRecord(entry) {
+  return !isReservation(entry) && !isSettled(entry);
+}
+function isReservation(entry) {
+  return "kind" in entry && entry.kind === "reservation";
+}
+function isSettled(entry) {
+  return "kind" in entry && entry.kind === "settled";
+}
+function runRecords(entries) {
+  return entries.filter(isRunRecord);
+}
+function ledgerLine(entry) {
+  return `${JSON.stringify(entry)}
+`;
+}
 
 // src/contexts/model-gateway/application/json-file.ts
 async function fileExists(files, path, what) {
@@ -2034,9 +2038,39 @@ function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// src/contexts/model-gateway/application/config.ts
+async function loadConfig(files, defaultsPath, override) {
+  const defaults = await readJsonFile2(files, defaultsPath, "the shipped defaults", parseDefaults);
+  if (!await fileExists(files, override, "the override")) return defaults;
+  return readJsonFile2(files, override, "the override", (raw) => applyOverride(defaults, raw));
+}
+
+// src/contexts/model-gateway/application/locations.ts
+import { isAbsolute as isAbsolute2, join as join2 } from "node:path";
+function overridePath(env) {
+  return join2(configDir2(env), "model-gateway.json");
+}
+function configDir2(env) {
+  const xdg = env.get("XDG_CONFIG_HOME");
+  if (xdg !== void 0 && isAbsolute2(xdg)) return join2(xdg, "agent-kit");
+  return join2(env.require("HOME"), ".config", "agent-kit");
+}
+function stateDir(env) {
+  const xdg = env.get("XDG_STATE_HOME");
+  if (xdg !== void 0 && isAbsolute2(xdg)) return join2(xdg, "agent-kit", "model-gateway");
+  return join2(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
+}
+function ledgerPath2(env) {
+  return join2(stateDir(env), "ledger.jsonl");
+}
+
+// src/contexts/model-gateway/domain/extras.ts
+var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
+
 // src/contexts/model-gateway/application/home-mcp.ts
+import { join as join3 } from "node:path";
 async function homeMcpServers(ports) {
-  const path = join2(ports.env.require("HOME"), ".vibe", "config.toml");
+  const path = join3(ports.env.require("HOME"), ".vibe", "config.toml");
   if (!await ports.files.exists(path)) return [];
   try {
     return serverNames(await ports.files.readText(path));
@@ -2053,7 +2087,7 @@ function namesOf(servers) {
 }
 
 // src/contexts/model-gateway/application/launchers.ts
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
 
 // src/contexts/model-gateway/domain/outputs.ts
 function count(value) {
@@ -2283,7 +2317,7 @@ var vibe = {
   sandboxedExtras: [],
   protectedEnv: VIBE_PROTECTED_ENV,
   read: (stdout, exported) => vibeOutput(stdout, exported),
-  reportPath: (paths) => join3(paths.exportDir, "export.json")
+  reportPath: (paths) => join4(paths.exportDir, "export.json")
 };
 function effortOf(model) {
   return /-(low|medium|high)$/.exec(model)?.[1] ?? "medium";
@@ -2375,7 +2409,7 @@ function reportDir(paths) {
 }
 var hermes = {
   command: (binary, input, paths, prompt, extras) => ({
-    args: ["-z", prompt, "--usage-file", join3(reportDir(paths), "usage.json"), "-m", input.model, "--provider", String(input.provider)],
+    args: ["-z", prompt, "--usage-file", join4(reportDir(paths), "usage.json"), "-m", input.model, "--provider", String(input.provider)],
     command: binary,
     cwd: paths.workDir,
     env: extras?.env ?? {},
@@ -2385,7 +2419,7 @@ var hermes = {
   sandboxedExtras: [],
   protectedEnv: [],
   read: (stdout, usage) => hermesOutput(stdout, usage),
-  reportPath: (paths) => join3(reportDir(paths), "usage.json")
+  reportPath: (paths) => join4(reportDir(paths), "usage.json")
 };
 var codex = {
   command: (binary, input, paths, prompt, extras) => ({
@@ -2471,32 +2505,6 @@ var ClientRun = class {
     }
   }
 };
-
-// src/contexts/model-gateway/application/config.ts
-async function loadConfig(files, defaultsPath, override) {
-  const defaults = await readJsonFile2(files, defaultsPath, "the shipped defaults", parseDefaults);
-  if (!await fileExists(files, override, "the override")) return defaults;
-  return readJsonFile2(files, override, "the override", (raw) => applyOverride(defaults, raw));
-}
-
-// src/contexts/model-gateway/application/locations.ts
-import { isAbsolute as isAbsolute2, join as join4 } from "node:path";
-function overridePath(env) {
-  return join4(configDir2(env), "model-gateway.json");
-}
-function configDir2(env) {
-  const xdg = env.get("XDG_CONFIG_HOME");
-  if (xdg !== void 0 && isAbsolute2(xdg)) return join4(xdg, "agent-kit");
-  return join4(env.require("HOME"), ".config", "agent-kit");
-}
-function stateDir(env) {
-  const xdg = env.get("XDG_STATE_HOME");
-  if (xdg !== void 0 && isAbsolute2(xdg)) return join4(xdg, "agent-kit", "model-gateway");
-  return join4(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
-}
-function ledgerPath2(env) {
-  return join4(stateDir(env), "ledger.jsonl");
-}
 
 // src/contexts/model-gateway/domain/usage.ts
 var DAY_MS = 24 * 60 * 60 * 1e3;

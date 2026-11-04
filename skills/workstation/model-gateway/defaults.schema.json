@@ -158,6 +158,7 @@
         "plan_warning_ratio",
         "summary_max_chars",
         "max_parallel_per_client",
+        "max_batch_delegations",
         "availability_window_minutes",
         "metered_personal_caps",
         "output_allowance_tokens"
@@ -178,6 +179,11 @@
         "max_parallel_per_client": {
           "type": "integer",
           "minimum": 1
+        },
+        "max_batch_delegations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The most delegations one batch plan may hold; a bigger plan is refused before any work."
         },
         "availability_window_minutes": {
           "type": "integer",

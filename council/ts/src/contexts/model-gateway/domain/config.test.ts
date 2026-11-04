@@ -16,6 +16,7 @@ function defaults(): Record<string, unknown> {
     ],
     settings: {
       availability_window_minutes: 60,
+      max_batch_delegations: 50,
       max_parallel_per_client: 3,
       metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 2 },
       output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
@@ -83,6 +84,7 @@ describe('parseDefaults', () => {
       ],
       settings: {
         availability_window_minutes: 60,
+        max_batch_delegations: 50,
         max_parallel_per_client: 3,
         metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 2 },
         output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
@@ -195,6 +197,11 @@ describe('parseDefaults', () => {
     ],
     ['settings that are not an object', (raw) => ({ ...raw, settings: [] })],
     ['a setting that is not a number', (raw) => ({ ...raw, settings: { ...settings(), plan_warning_ratio: 'high' } })],
+    ['a parallel limit of 0', (raw) => ({ ...raw, settings: { ...settings(), max_parallel_per_client: 0 } })],
+    ['a parallel limit that is not whole', (raw) => ({ ...raw, settings: { ...settings(), max_parallel_per_client: 1.5 } })],
+    ['a batch size limit of 0', (raw) => ({ ...raw, settings: { ...settings(), max_batch_delegations: 0 } })],
+    ['a batch size limit that is not whole', (raw) => ({ ...raw, settings: { ...settings(), max_batch_delegations: 2.5 } })],
+    ['no batch size limit', (raw) => ({ ...raw, settings: { ...settings(), max_batch_delegations: undefined } })],
     ['caps that are not an object', (raw) => ({ ...raw, settings: { ...settings(), metered_personal_caps: 5 } })],
     ['a cap that is missing', (raw) => ({ ...raw, settings: { ...settings(), metered_personal_caps: { per_day_usd: 5 } } })],
     [
@@ -399,12 +406,19 @@ describe('applyOverride', () => {
 
     expect(merged.settings).toEqual({
       availability_window_minutes: 60,
+      max_batch_delegations: 50,
       max_parallel_per_client: 3,
       metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 1 },
       output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
       plan_warning_ratio: 0.8,
       summary_max_chars: 500,
     })
+  })
+
+  it('overrides the batch size limit and the parallel limit', () => {
+    const merged = applyOverride(shipped(), { settings: { max_batch_delegations: 10, max_parallel_per_client: 2 } })
+
+    expect(merged.settings).toMatchObject({ max_batch_delegations: 10, max_parallel_per_client: 2 })
   })
 
   it('overrides the output allowance of one tier and keeps the others', () => {
@@ -442,6 +456,10 @@ describe('applyOverride', () => {
     ['an unknown tier', { models: [{ client: 'codex', model: 'gpt-5.5', tier: 'epic' }] }],
     ['settings that are not an object', { settings: [] }],
     ['a setting that is not a number', { settings: { summary_max_chars: 'long' } }],
+    ['a parallel limit of 0', { settings: { max_parallel_per_client: 0 } }],
+    ['a parallel limit that is not whole', { settings: { max_parallel_per_client: 1.5 } }],
+    ['a batch size limit of 0', { settings: { max_batch_delegations: 0 } }],
+    ['a batch size limit that is not whole', { settings: { max_batch_delegations: 2.5 } }],
     ['caps that are not an object', { settings: { metered_personal_caps: 5 } }],
     ['a cap that is not a number', { settings: { metered_personal_caps: { per_day_usd: 'five' } } }],
     ['allowances that are not an object', { settings: { output_allowance_tokens: 500 } }],

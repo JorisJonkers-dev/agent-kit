@@ -26,6 +26,7 @@ export const FAILURE_TAIL_CHARS = 1000
  */
 const REFUSAL_REASONS: readonly string[] = [
   'cap-exceeded',
+  'grant-expiring',
   'no-grant',
   'invalid-config',
   'invalid-input',

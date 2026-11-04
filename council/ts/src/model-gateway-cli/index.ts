@@ -15,8 +15,10 @@ import {
   NodeModelGatewayProcess,
   NodeModelGatewayProof,
   NodeModelGatewayWorkflows,
+  PlanRefusedError,
   type ModelGatewayCommands,
   type ModelGatewayDependencies,
+  type PlanProblem,
 } from '../contexts/model-gateway/index.js'
 
 export interface ModelGatewayCliResult {
@@ -42,6 +44,12 @@ export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo":
                                  "model": "claude-sonnet-5-5", "mode": "write",
                                  "prompt": "add the flag", "repo": "/path/to/repo",
                                  "base": "main", "check": "npm test"}'
+       model-gateway batch --json '{"workflow": "spec-293", "delegations": [
+                                 {"id": "a", "client": "vibe", "model": "glm-5-3",
+                                  "mode": "read-only", "prompt": "read this", "repo": "/path/to/repo"},
+                                 {"id": "b", "depends_on": ["a"], "client": "claude",
+                                  "model": "claude-sonnet-5-5", "mode": "read-only",
+                                  "prompt": "review a's finding", "repo": "/path/to/repo"}]}'
        model-gateway grant write --json '{"workflow": "spec-293", "client": "codex",
                                  "cap_usd": 5, "question": "may I spend $5 of nedap money?",
                                  "answer": "yes, up to five"}'
@@ -132,6 +140,38 @@ run that times out leaves its worktree unstaged. Every writing worktree is kept
 until worktrees clean removes it, with its branch, for the workflow that ended
 ("workflow") or for all of them ("all": true).
 
+batch hands a whole plan of delegations over in one call and prints one short
+result. It takes "workflow" and "delegations": each delegation has a unique
+"id" (letters, digits and . _ - only, at most 40), optionally "depends_on" (ids
+it waits for), and the fields of a run (client, model, mode, prompt, repo,
+base, check, carries, time_limit_s, escalate and so on, but not workflow): the
+caller names each delegation's client model, the gateway chooses no tier. The
+whole plan is checked before anything runs, and a plan with a cycle, a
+"depends_on" naming no delegation, an unknown client model or one the data
+policy forbids for its repository, a metered-employer delegation no live grant
+covers, metered estimates that together do not fit the caps and grants, or
+more delegations than "max_batch_delegations" (50) is refused with "code": "plan-refused" and "problems", one {id, code, message}
+for everything found; a refused plan launches nothing, creates no worktree and
+starts no workflow. The estimates of every metered delegation are reserved
+together, in one locked ledger update, before the first one launches (the
+first attempt of each delegation uses its reservation; a retry or a climb
+reserves its own), and the reservations of delegations that never run are given
+back with reason "not-run". Independent delegations run in parallel, at most
+"max_parallel_per_client" (3) at once per client, each through the same path as
+run (retry, climb, fall-through, policy, caps and grants all apply). A
+delegation that depends on others is launched with a block appended to its
+prompt, "Outputs of the delegations this one depends on:", naming each one's
+id, output_path and capped summary, never its full output. A delegation that
+fails for good (failed, exhausted or unavailable) makes the gateway skip only
+the delegations that depend on it, transitively; every staged change already
+made is kept, and the independent ones keep running. The result is "status"
+("ok" when every delegation is done, "failed" when none is, else "partial"),
+"batch_id", "workflow", "delegations" (id, status done, failed or skipped,
+client, model, cost_usd, output_path, summary, and "reason", "attempts" or
+"skipped_because" where they apply), "cost_usd" and "reservations_released_usd".
+A batch never nests: it is refused inside a delegation, and a delegation of a
+batch cannot be a batch.
+
 workflow start, workflow end and workflow list keep a workflow's life: start
 and end take "name", and list takes nothing. A workflow nobody ends within 24
 hours counts as ended, and a run may not join one that ended.
@@ -141,6 +181,7 @@ An error prints "status": "error" with its "code" and exits 1.
 
 /** The subcommands the gateway has; #294 ships models, #296 adds run, #297 the workflow commands, #298 the grant commands, #300 worktrees clean, #302 usage. */
 const COMMANDS = {
+  batch: 'batch',
   'grant list': 'grantList',
   'grant write': 'grantWrite',
   models: 'models',
@@ -154,7 +195,7 @@ const COMMANDS = {
 
 /** The subcommands, as an error names them. */
 const COMMAND_NAMES =
-  'models, run, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean'
+  'models, run, batch, usage, grant write, grant list, workflow start, workflow end, workflow list and worktrees clean'
 
 /** The gateway's command line: one subcommand, one JSON object in, one JSON object out. */
 export async function runModelGatewayCli(argv: readonly string[], runtime: ModelGatewayRuntime): Promise<ModelGatewayCliResult> {
@@ -173,7 +214,7 @@ export async function runModelGatewayCli(argv: readonly string[], runtime: Model
     return { exitCode: 0, stderr: '', stdout: `${JSON.stringify(result, null, 2)}\n` }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return failure(error instanceof ModelGatewayError ? error.code : 'unexpected', message, name)
+    return failure(error instanceof ModelGatewayError ? error.code : 'unexpected', message, name, error instanceof PlanRefusedError ? error.problems : undefined)
   }
 }
 
@@ -229,11 +270,11 @@ function parseInput(text: string): Readonly<Record<string, unknown>> {
 }
 
 /** One error, as the contract prints it: one JSON object on stdout, and a line for the owner on stderr. */
-function failure(code: string, message: string, name?: string): ModelGatewayCliResult {
+function failure(code: string, message: string, name?: string, problems?: readonly PlanProblem[]): ModelGatewayCliResult {
   return {
     exitCode: 1,
     stderr: `model-gateway${name === undefined ? '' : ` ${name}`}: ${message}\n`,
-    stdout: `${JSON.stringify({ status: 'error', code, message })}\n`,
+    stdout: `${JSON.stringify({ status: 'error', code, message, ...(problems === undefined ? {} : { problems }) })}\n`,
   }
 }
 
