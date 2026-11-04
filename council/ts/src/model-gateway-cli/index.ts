@@ -70,8 +70,9 @@ its status, run id, workflow, client model, family, mode, tokens, cost, the
 path of its full output and a summary of at most "summary_max_chars"
 characters. It takes "workflow", "client" (vibe, agy, claude, opencode or
 hermes), "model", "mode", "prompt", and optionally "repo", "carries" (code and
-history), "time_limit_s" (900 by default), "max_price_usd" (Vibe only) and
-"provider" (which a hermes run must name, and which this machine must allow).
+history), "time_limit_s" (900 by default), "max_price_usd" (Vibe only),
+"provider" (which a hermes run must name, and which this machine must allow),
+"escalate" and "max_attempts".
 The workflow's life, the data policy and the client model's read-only proof are
 checked before anything is launched; a model without a passing proof (every one
 but a proven Vibe or Antigravity model) works in a throwaway worktree of the
@@ -79,6 +80,18 @@ repository, removed after the run. An OpenCode model is named provider/model
 and its provider must be in clients.opencode.providers (opencode-go by
 default), never opencode. A client near its plan limit adds "warnings" to the
 result.
+
+A delegation that fails does not come straight back: "escalate" (true by
+default; false turns it all off) and "max_attempts" (3 by default) govern it. A
+failed result (a timeout, output that cannot be parsed, a failed check, a
+non-zero exit) is retried once on the same client model with the failure in the
+prompt; a second failure climbs to the next stronger permitted subsidised
+model; and a client that cannot start is
+swapped for another of its cost class at the same tier or above. Each attempt
+is a run of its own, and the result carries "attempts" (run_id, client, model,
+status, reason), "skipped" and, when nothing is left to try, "escalation":
+"exhausted". When no client model of the cost class can start, the result is
+{"status": "unavailable"} with the "reasons" per candidate, and exit 0.
 
 A run with "mode": "write" changes a repository: it needs "repo", "base" (a ref)
 and "check" (a command, run with sh -c in the worktree). The gateway creates a

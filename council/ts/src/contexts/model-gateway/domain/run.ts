@@ -50,6 +50,10 @@ export interface RunInput {
   readonly check?: string
   /** The provider a client that runs on one must use; the machine file decides which are allowed. */
   readonly provider?: string
+  /** `false` turns off the retry, the climb and the fall-through; they are on unless the caller says so. */
+  readonly escalate?: boolean
+  /** How many attempts the delegation gets in all, the first included; 3 unless the caller says otherwise. */
+  readonly max_attempts?: number
 }
 
 /** Reads a run's input, or says what is wrong with it. */
@@ -77,6 +81,7 @@ export function readRunInput(raw: unknown): RunInput {
   const maxPrice = raw.max_price_usd === undefined ? undefined : requiredNumberAbove0(raw.max_price_usd, 'max_price_usd')
   const writing = readWriting(raw, repo)
   const provider = readOptionalString(raw.provider, 'provider')
+  const escalation = readEscalation(raw)
   return {
     client: raw.client,
     mode: raw.mode,
@@ -88,7 +93,21 @@ export function readRunInput(raw: unknown): RunInput {
     ...(maxPrice === undefined ? {} : { max_price_usd: maxPrice }),
     ...(provider === undefined ? {} : { provider }),
     ...(repo === undefined ? {} : { repo }),
+    ...escalation,
     ...writing,
+  }
+}
+
+/** What a run says about its own escalation: whether it is on, and how many attempts it may take. */
+function readEscalation(raw: Record<string, unknown>): { escalate?: boolean; max_attempts?: number } {
+  if (raw.escalate !== undefined && typeof raw.escalate !== 'boolean') {
+    throw new ModelGatewayError('invalid-input', 'escalate must be true or false')
+  }
+  const attempts = raw.max_attempts === undefined ? undefined : requiredWholeNumber(raw.max_attempts, 'max_attempts')
+  if (attempts !== undefined && attempts < 1) throw new ModelGatewayError('invalid-input', 'max_attempts must be a whole number above 0')
+  return {
+    ...(raw.escalate === undefined ? {} : { escalate: raw.escalate }),
+    ...(attempts === undefined ? {} : { max_attempts: attempts }),
   }
 }
 

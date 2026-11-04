@@ -147,7 +147,9 @@ node model-gateway.mjs run --input <file.json>
 The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 `prompt`, and optionally `repo`, `carries` (`{"code":bool,"history":bool}`,
 only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
-`provider` (which a Hermes run must name, and which this machine must allow).
+`provider` (which a Hermes run must name, and which this machine must allow),
+`escalate` (default `true`; `false` turns off the retry, the climb and the
+fall-through below) and `max_attempts` (default 3).
 `workflow` is required (`code: "invalid-input"`). A run can go to `client:
 "vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code), `"opencode"` or
 `"hermes"`, in `mode: "read-only"` or `"write"` (below); any other client or
@@ -273,8 +275,9 @@ directory, `<git common dir>/model-gateway/runs/<run_id>/`, so a worktree's
 runs sit with the repository's; an inline run keeps it in
 `$XDG_STATE_HOME/agent-kit/model-gateway/runs/<run_id>/`, else
 `~/.local/state/agent-kit/model-gateway/runs/<run_id>/`. It holds `prompt.md`,
-`input.json`, `output.json` (the client's full output) and `result.json`, and
-a writing run's `check-output.txt`. `run_id` is a UTC timestamp plus a short
+`input.json`, `output.json` (the client's full output), `stderr.txt` (what the
+client printed on stderr, when anything) and `result.json`, and a writing run's
+`check-output.txt`. `run_id` is a UTC timestamp plus a short
 random suffix.
 
 Every run also appends one JSON line to the machine-wide ledger,
@@ -285,6 +288,63 @@ file beside it, so two gateway processes never interleave a line. Dollars come
 from the client's own report when it prices the run — Vibe's `export.json`, or
 Hermes' `usage.json` — else from the tokens times the catalogue's `prices` for
 the model.
+
+## When a delegation fails or cannot start
+
+A delegation does not come straight back when it fails. It is retried, climbs
+to a stronger model, and swaps a client that cannot start, all inside one `run`
+call, and every step is a run of its own with its own run id, run directory and
+ledger line. `"escalate": false` turns all of it off; `max_attempts` (default
+3: the first attempt, the retry, one climb) is how many runs a delegation may
+make in all.
+
+- **A failed result** is a run whose status is `failed`: a timeout, output the
+  adapter cannot parse, a non-zero exit, or a writing run whose check failed.
+  Refusals (`policy-refused`, `provider-not-allowed`, `cap-exceeded`,
+  `no-estimate`, `workflow-ended` and the other error codes) are errors before
+  anything is launched and are never retried. The raw or partial output stays in
+  the run directory (`output.json`, and `stderr.txt` when the client printed
+  any) beside the `reason` in `result.json`.
+- **Retry.** The first failure is retried once on the same client model. The
+  retry's prompt is the caller's prompt plus `A previous attempt failed:
+  <reason>; <the last 1,000 characters of the check's output for a failed
+  check, else of the client's stderr, else of its output>`. A writing run's
+  retry gets a fresh worktree; the failed one is kept like any other until the
+  workflow ends.
+- **Climb.** A second failure moves to the next stronger subsidised model: a
+  catalogue `tier` higher than the failing model's, whatever the failing
+  model's own cost class, in the repository's permitted list (the family
+  allowlist and the nedap rule, through the data policy above), never a model
+  the machine disabled, ordered by tier and then catalogue order. It never
+  moves into a metered class (a metered-personal run climbs only to a
+  subsidised model, and `metered-employer` needs a grant that does not exist
+  yet), and never to a model the catalogue gives no tier. A climbed model that
+  fails is retried once, then climbed from again. When no stronger model is
+  left, or `max_attempts` is spent, the last result comes back with
+  `"escalation": "exhausted"`. An attempt whose client could not start does not
+  count toward `max_attempts`, though it is listed in `attempts`.
+- **Fall-through.** A client that cannot start is swapped for another
+  permitted client model of the same cost class whose tier is at least the
+  requested model's. Cannot start means what `usage` reports as
+  `unavailable` or `unable_to_start` for the client (not installed, signed out,
+  a plan window at 100%, a recent rate-limit or auth error), or a run whose
+  `reason` is `launch-failed`, `rate-limited` or `auth`; a swap is not a retry
+  and does not use the retry. The gateway never moves into a costlier cost
+  class on its own: when no client model of the cost class can start it
+  returns `{"status":"unavailable","workflow","client","model","message",
+  "reasons":[{"client","model","reason"}],"attempts":[...]}`, exit 0, and the
+  orchestrator decides. In a `nedap` repository only Claude Code and Codex are
+  permitted, so Claude Code never falls through to Vibe or Antigravity.
+
+The result of a delegation is the last run's result plus `attempts`, a short
+list of `{run_id, client, model, status, reason?}` in order (one entry when
+nothing went wrong, or with `escalate: false`); `skipped`, the client models
+passed over because they could not start; `escalation: "exhausted"` as above;
+and, on a retry or a climb, `attempt` (its place, 2 and up) and `attempt_of`
+(the first run's id), which each such run's ledger line carries too. A later
+attempt the gateway refuses (the workflow ended meanwhile) ends the delegation
+with the last result, `escalation: "exhausted"` and `stopped` naming the
+refusal. The first attempt's refusals are errors as always.
 
 ## Writing runs
 

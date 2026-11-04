@@ -161,6 +161,11 @@ function printed(result: ModelGatewayCliResult): Record<string, unknown> {
   return JSON.parse(result.stdout) as Record<string, unknown>
 }
 
+/** What a run printed less the attempts of its delegation, which is what the run's own `result.json` holds. */
+function withoutAttempts(result: ModelGatewayCliResult): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(printed(result)).filter(([key]) => key !== 'attempts'))
+}
+
 /** The models a run listed, as `<client>:<model>` keys in the order it printed them. */
 function listed(result: ModelGatewayCliResult): string[] {
   const models = printed(result).models as { client: string; model: string }[]
@@ -1248,7 +1253,7 @@ interface RunWorkspace {
   readonly workflows: string
   /** Any gateway command, by its words. */
   cli(...argv: string[]): Promise<ModelGatewayCliResult>
-  /** The input a run test sends unless it says otherwise: one read-only task in the test repository. */
+  /** The input a run test sends unless it says otherwise: one read-only task in the test repository, with no escalation (a test of the escalation turns it on). */
   input(overrides?: Readonly<Record<string, unknown>>): unknown
   run(input: unknown): Promise<ModelGatewayCliResult>
   writeAllowlist(value: unknown): Promise<void>
@@ -1315,6 +1320,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     home,
     input: (overrides = {}) => ({
       client: 'vibe',
+      escalate: false,
       mode: 'read-only',
       model: 'glm-5-3',
       prompt: 'read this',
@@ -1652,6 +1658,7 @@ describe('model-gateway run: the result', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stderr).toBe('')
     expect(printed(result)).toEqual({
+      attempts: [{ client: 'vibe', model: 'glm-5-3', run_id: printed(result).run_id, status: 'ok' }],
       client: 'vibe',
       cost_usd: 0.0123,
       family: 'zhipu',
@@ -1713,7 +1720,7 @@ describe('model-gateway run: the run directory', () => {
     )
     expect(JSON.parse(await readFile(join(runDir, 'input.json'), 'utf8'))).toEqual({ ...(w.input() as object), time_limit_s: 900 })
     expect(await readFile(join(runDir, 'output.json'), 'utf8')).toBe(journal('the answer\nSUMMARY: it is fine'))
-    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toEqual(printed(result))
+    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
   })
 
   it('refuses a repository whose common directory git cannot name', async () => {
@@ -1954,6 +1961,7 @@ describe('model-gateway run: Antigravity', () => {
     const result = await w.run(w.input({ client: 'agy', model: MODEL }))
 
     expect(printed(result)).toEqual({
+      attempts: [{ client: 'agy', model: MODEL, run_id: printed(result).run_id, status: 'ok' }],
       client: 'agy',
       cost_usd: 0,
       family: 'google',
@@ -2090,6 +2098,7 @@ describe('model-gateway run: Claude Code', () => {
     const result = await w.run(w.input({ client: 'claude', model: MODEL }))
 
     expect(printed(result)).toEqual({
+      attempts: [{ client: 'claude', model: MODEL, run_id: printed(result).run_id, status: 'ok' }],
       client: 'claude',
       cost_usd: 0.042,
       family: 'anthropic',
@@ -2206,6 +2215,7 @@ describe('model-gateway run: OpenCode', () => {
     const result = await w.run(w.input({ client: 'opencode', model: MODEL }))
 
     expect(printed(result)).toEqual({
+      attempts: [{ client: 'opencode', model: MODEL, run_id: printed(result).run_id, status: 'ok' }],
       client: 'opencode',
       cost_usd: expect.closeTo(0.03, 10) as unknown,
       family: 'zhipu',
@@ -2384,7 +2394,7 @@ describe('model-gateway run: a throwaway worktree', () => {
       cleanup_warning: `cannot remove the throwaway worktree ${workDir}: fatal: cannot lock`,
       status: 'ok',
     })
-    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(printed(result))
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
     const ledger = JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd()) as Record<string, unknown>
     expect(ledger).toMatchObject({ client: 'claude', outcome: 'ok' })
     expect(ledger).not.toHaveProperty('cleanup_warning')
@@ -3075,6 +3085,7 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     const runId = String(out.run_id)
     const worktree = join(w.repo, '.git', 'model-gateway', 'worktrees', runId)
     expect(out).toEqual({
+      attempts: [{ client: 'vibe', model: 'glm-5-3', run_id: runId, status: 'ok' }],
       branch: `gateway/${runId}`,
       check: { command: 'npm test', exit_code: 0, output_path: join(runDirOf(w, result), 'check-output.txt') },
       client: 'vibe',
@@ -3100,7 +3111,7 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     expect(stagedBeforeCheck).toEqual([1])
     expect(w.git.stagedIn).toEqual([worktree])
     expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe('3 passed\n')
-    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(out)
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
     expect(await readdir(worktree)).toContain('src')
   })
 
@@ -3323,7 +3334,7 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     })
     expect(worktreeOf(result)).toContain(join('.git', 'model-gateway', 'worktrees'))
     expect(await readFile(join(runDirOf(w, result), 'output.json'), 'utf8')).toBe(journal('done'))
-    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(printed(result))
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
     expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ mode: 'write', outcome: 'failed', reason: 'stage-failed' })
     expect(await readdir(worktreeOf(result))).toContain('src')
     expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id }] })
@@ -3928,6 +3939,7 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
     const result = await w.run(hermesInput(w))
 
     expect(printed(result)).toEqual({
+      attempts: [{ client: 'hermes', model: 'anthropic/claude-sonnet-4.6', run_id: printed(result).run_id, status: 'ok' }],
       client: 'hermes',
       cost_usd: 0.0234,
       family: 'anthropic',
@@ -4006,5 +4018,643 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
       message: `hermes:anthropic/claude-sonnet-4.6 is not permitted: ${KEY}: the entry allows google`,
     })
     expect(hermes.commands).toEqual([])
+  })
+})
+
+/** One attempt, as a delegation's result lists it. */
+interface AttemptRow {
+  readonly run_id: string
+  readonly client: string
+  readonly model: string
+  readonly status: string
+  readonly reason?: string
+}
+
+function attemptsOf(result: ModelGatewayCliResult): AttemptRow[] {
+  return printed(result).attempts as AttemptRow[]
+}
+
+/** The `<client>:<model>` of each attempt a delegation made, in order. */
+function attemptedModels(result: ModelGatewayCliResult): string[] {
+  return attemptsOf(result).map((attempt) => `${attempt.client}:${attempt.model}`)
+}
+
+/** The prompt file of one run of the test repository. */
+async function promptOf(w: RunWorkspace, runId: string): Promise<string> {
+  return readFile(join(w.repo, '.git', 'model-gateway', 'runs', runId, 'prompt.md'), 'utf8')
+}
+
+/** Every line the ledger holds, parsed. */
+async function ledgerLines(w: RunWorkspace): Promise<Record<string, unknown>[]> {
+  return (await readFile(w.ledger, 'utf8'))
+    .trimEnd()
+    .split('\n')
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+}
+
+/** A delegation the escalation handles: the test input with the escalation left at its default. */
+function delegation(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
+  return w.input({ escalate: undefined, ...overrides })
+}
+
+const FAILS: VibeScript = { exitCode: 3, stderr: 'boom: the tests did not pass', stdout: '' }
+const SUCCEEDS: VibeScript = { exportJson: exported({ cost: 0.01, input: 10 }), stdout: journal('fixed\nSUMMARY: done') }
+const CLAUDE_SUCCEEDS: VibeScript = { stdout: claudeResult('fixed\nSUMMARY: done by claude') }
+const ALL_FAMILIES = ['anthropic', 'deepseek', 'google', 'mistral', 'zhipu']
+
+async function escalating(options: RunWorkspaceOptions = {}): Promise<RunWorkspace> {
+  return runWorkspace({ allowlist: allowlist(ALL_FAMILIES, true, true), setupResults: setupResults('pass'), ...options })
+}
+
+describe('model-gateway run: retry', () => {
+  it('returns a result that is fine at once, with one attempt and no link on its ledger line', async () => {
+    const w = await escalating({ scripts: [SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({ attempts: [{ client: 'vibe', model: 'glm-5-3', status: 'ok' }], status: 'ok' })
+    expect(printed(result)).not.toHaveProperty('escalation')
+    expect(w.vibe.commands).toHaveLength(1)
+    const [line] = await ledgerLines(w)
+    expect(line).not.toHaveProperty('attempt')
+    expect(line).not.toHaveProperty('attempt_of')
+  })
+
+  it('retries a failed result once on the same client model, with the failure attached to the prompt', async () => {
+    const w = await escalating({ scripts: [FAILS, SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ client: 'vibe', model: 'glm-5-3', status: 'ok' })
+    expect(printed(result)).not.toHaveProperty('escalation')
+    const [first, second] = attemptsOf(result)
+    expect(first).toMatchObject({ client: 'vibe', model: 'glm-5-3', reason: 'exit-3', status: 'failed' })
+    expect(second).toMatchObject({ client: 'vibe', model: 'glm-5-3', status: 'ok' })
+    expect(printed(result).run_id).toBe(second?.run_id)
+    expect(first?.run_id).not.toBe(second?.run_id)
+    expect(w.vibe.commands).toHaveLength(2)
+    expect(await promptOf(w, String(first?.run_id))).toBe(WRAPPED_PROMPT)
+    expect(await promptOf(w, String(second?.run_id))).toBe(
+      'read this\n\nA previous attempt failed: exit-3; boom: the tests did not pass\n\nEnd your answer with a line "SUMMARY:" followed by at most 1500 characters that summarise the result.',
+    )
+  })
+
+  it('gives each attempt a ledger line of its own, linked to the first by attempt_of and its attempt number', async () => {
+    const w = await escalating({ scripts: [FAILS, SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    const [first, second] = attemptsOf(result)
+    const lines = await ledgerLines(w)
+    expect(lines.map((line) => line.run_id)).toEqual([first?.run_id, second?.run_id])
+    expect(lines[0]).toMatchObject({ outcome: 'failed', reason: 'exit-3' })
+    expect(lines[0]).not.toHaveProperty('attempt')
+    expect(lines[1]).toMatchObject({ attempt: 2, attempt_of: first?.run_id, outcome: 'ok' })
+    expect(printed(result)).toMatchObject({ attempt: 2, attempt_of: first?.run_id })
+  })
+
+  it('shows the retry the last 1,000 characters of what the failed attempt printed, its stderr first', async () => {
+    const w = await escalating({ scripts: [{ exitCode: 1, stderr: `${'x'.repeat(1500)}THE END`, stdout: 'stdout is not shown' }, SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    const prompt = await promptOf(w, String(attemptsOf(result)[1]?.run_id))
+    const [, block = ''] = prompt.split('A previous attempt failed: exit-1; ')
+    const shown = block.split('\n\nEnd your answer')[0]
+    expect(shown).toHaveLength(1000)
+    expect(shown?.endsWith('xxxTHE END')).toBe(true)
+    expect(prompt).not.toContain('stdout is not shown')
+  })
+
+  it('shows the retry what the failed attempt printed on stdout when it printed nothing on stderr, and nothing when it printed nothing', async () => {
+    const out = await escalating({ scripts: [{ stdout: 'not a journal' }, SUCCEEDS] })
+    const withOutput = await out.run(delegation(out))
+    expect(await promptOf(out, String(attemptsOf(withOutput)[1]?.run_id))).toContain('A previous attempt failed: parse-error; not a journal\n\n')
+
+    const silent = await escalating({ scripts: [{ exitCode: 2, stdout: '' }, SUCCEEDS] })
+    const withNothing = await silent.run(delegation(silent))
+    expect(await promptOf(silent, String(attemptsOf(withNothing)[1]?.run_id))).toContain('A previous attempt failed: exit-2\n\n')
+  })
+
+  it('counts a timeout and output it cannot parse as failed results, and keeps the raw output with the reason', async () => {
+    const w = await escalating({ scripts: [{ stdout: 'partial', timedOut: true }, { stdout: 'not a journal' }, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(attemptsOf(result).map((attempt) => attempt.reason)).toEqual(['timeout', 'parse-error', undefined])
+    const [timedOut] = attemptsOf(result)
+    const runDir = join(w.repo, '.git', 'model-gateway', 'runs', String(timedOut?.run_id))
+    expect(await readFile(join(runDir, 'output.json'), 'utf8')).toBe('partial')
+    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toMatchObject({ reason: 'timeout', status: 'failed' })
+  })
+
+  it('retries a writing run whose check failed in a fresh worktree, showing what the check printed', async () => {
+    const w = await escalating({
+      scripts: [
+        { effect: edits('src/a.ts'), stdout: journal('done') },
+        { exitCode: 1, stdout: '1 failed: a.test.ts' },
+        { effect: edits('src/a.ts'), stdout: journal('fixed\nSUMMARY: fixed it') },
+        { stdout: '3 passed' },
+      ],
+    })
+
+    const result = await w.run(writeInput(w, { escalate: undefined }))
+
+    expect(printed(result)).toMatchObject({ check: { exit_code: 0 }, status: 'ok' })
+    const [first, second] = attemptsOf(result)
+    expect(first).toMatchObject({ reason: 'check-failed', status: 'failed' })
+    const created = w.git.worktrees.filter((call) => call.action === 'create')
+    expect(created).toHaveLength(2)
+    expect(created[0]?.path).not.toBe(created[1]?.path)
+    expect(worktreeOf(result)).toBe(created[1]?.path)
+    expect(await promptOf(w, String(second?.run_id))).toContain('A previous attempt failed: check-failed; 1 failed: a.test.ts')
+  })
+
+  it('does not retry when the caller turns the escalation off, and says so with one attempt', async () => {
+    const w = await escalating({ scripts: [FAILS, SUCCEEDS] })
+
+    const result = await w.run(delegation(w, { escalate: false }))
+
+    expect(printed(result)).toMatchObject({ attempts: [{ reason: 'exit-3', status: 'failed' }], reason: 'exit-3', status: 'failed' })
+    expect(printed(result)).not.toHaveProperty('escalation')
+    expect(w.vibe.commands).toHaveLength(1)
+  })
+
+  it('refuses a malformed escalate or max_attempts before anything is launched', async () => {
+    const w = await escalating({ scripts: [] })
+
+    expect(printed(await w.run(delegation(w, { escalate: 'no' })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'escalate must be true or false',
+    })
+    expect(printed(await w.run(delegation(w, { max_attempts: 0 })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'max_attempts must be a whole number above 0',
+    })
+    expect(printed(await w.run(delegation(w, { max_attempts: 1.5 })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'max_attempts must be a whole number',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('never retries a refusal: a run the gateway refuses is an error that stops the call before anything is launched', async () => {
+    const w = await escalating({ allowlist: allowlist(['mistral'], true, true), scripts: [SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toMatchObject({ code: 'policy-refused', status: 'error' })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('stops with the last result when a later attempt is refused, naming the refusal', async () => {
+    const w = await escalating({ scripts: [] })
+    w.vibe.queue({
+      effect: async () => {
+        await w.cli('workflow', 'end', '--json', JSON.stringify({ name: 'spec-293' }))
+      },
+      exitCode: 3,
+      stdout: '',
+    })
+
+    const result = await w.run(delegation(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      attempts: [{ reason: 'exit-3', status: 'failed' }],
+      escalation: 'exhausted',
+      reason: 'exit-3',
+      status: 'failed',
+    })
+    expect(String(printed(result).stopped)).toMatch(/^workflow-ended: /)
+  })
+
+  it('lets a first attempt that is refused for any other reason propagate as the error it is', async () => {
+    const w = await escalating({ scripts: [SUCCEEDS] })
+
+    const result = await w.run(delegation(w, { model: 'unknown-model-1' }))
+
+    expect(printed(result)).toMatchObject({ code: 'unknown-model', status: 'error' })
+  })
+})
+
+describe('model-gateway run: climb', () => {
+  it('climbs to the next stronger permitted subsidised model after a second failure', async () => {
+    const w = await escalating({ scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-opus-5-5', status: 'ok' })
+    expect(attemptedModels(result)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3', 'claude:claude-opus-5-5'])
+    expect(w.vibe.commands.map((command) => command.command)).toEqual(['vibe', 'vibe', 'claude'])
+    const lines = await ledgerLines(w)
+    expect(lines.map((line) => line.attempt)).toEqual([undefined, 2, 3])
+    expect(lines[2]).toMatchObject({ attempt_of: attemptsOf(result)[0]?.run_id })
+  })
+
+  it('climbs by tier and then by catalogue order, within the same cost class', async () => {
+    const w = await escalating({ scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w, { model: 'deepseek-v4-1-flash-1017' }))
+
+    expect(attemptedModels(result)).toEqual([
+      'vibe:deepseek-v4-1-flash-1017',
+      'vibe:deepseek-v4-1-flash-1017',
+      'claude:claude-sonnet-5-5',
+    ])
+  })
+
+  it('climbs only through the models the repository’s allowlist permits', async () => {
+    const w = await escalating({ allowlist: allowlist(['deepseek', 'mistral'], true, true), scripts: [FAILS, FAILS, SUCCEEDS] })
+
+    const result = await w.run(delegation(w, { model: 'deepseek-v4-1-flash-1017' }))
+
+    expect(attemptedModels(result)).toEqual([
+      'vibe:deepseek-v4-1-flash-1017',
+      'vibe:deepseek-v4-1-flash-1017',
+      'vibe:mistral-large-latest',
+    ])
+  })
+
+  it('returns the last result with escalation exhausted when no stronger model is left', async () => {
+    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), scripts: [FAILS, FAILS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({ escalation: 'exhausted', reason: 'exit-3', status: 'failed' })
+    expect(attemptedModels(result)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3'])
+    expect(w.vibe.commands).toHaveLength(2)
+  })
+
+  it('stops at max_attempts: one attempt is no retry, two are a retry and no climb', async () => {
+    const one = await escalating({ scripts: [FAILS, SUCCEEDS] })
+    const oneResult = await one.run(delegation(one, { max_attempts: 1 }))
+    expect(printed(oneResult)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
+    expect(attemptsOf(oneResult)).toHaveLength(1)
+
+    const two = await escalating({ scripts: [FAILS, FAILS, SUCCEEDS] })
+    const twoResult = await two.run(delegation(two, { max_attempts: 2 }))
+    expect(printed(twoResult)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
+    expect(attemptsOf(twoResult)).toHaveLength(2)
+
+    const five = await escalating({ scripts: [FAILS, FAILS, FAILS, FAILS, SUCCEEDS] })
+    const fiveResult = await five.run(delegation(five, { max_attempts: 5 }))
+    expect(printed(fiveResult)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
+    expect(attemptedModels(fiveResult)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3', 'claude:claude-opus-5-5', 'claude:claude-opus-5-5'])
+  })
+
+  it('never climbs into a costlier cost class, a metered-employer one included', async () => {
+    for (const costClass of ['metered-personal', 'metered-employer']) {
+      const w = await escalating({
+        allowlist: allowlist(['deepseek', 'google'], true, true),
+        override: {
+          clients: { agy: { cost_class: costClass } },
+          models: [{ client: 'hermes', family: 'google', model: 'google/gemini-5', notes: 'x', tier: 'frontier' }],
+        },
+        scripts: [FAILS, FAILS, SUCCEEDS],
+      })
+
+      const result = await w.run(delegation(w, { model: 'deepseek-v4-1-flash-1017' }))
+
+      expect(printed(result)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
+      expect(attemptedModels(result)).toEqual(['vibe:deepseek-v4-1-flash-1017', 'vibe:deepseek-v4-1-flash-1017'])
+      expect(w.vibe.commands.map((command) => command.command)).toEqual(['vibe', 'vibe'])
+    }
+  })
+
+  it('may climb into a cheaper cost class, which is never a costlier one', async () => {
+    const w = await escalating({
+      allowlist: allowlist(['anthropic', 'google'], true, true),
+      override: { clients: { agy: { cost_class: 'metered-personal' } } },
+      scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS],
+      setupResults: AGY_PROVEN,
+    })
+
+    const result = await w.run(delegation(w, { client: 'agy', model: 'gemini-3.8-flash-high' }))
+
+    expect(attemptedModels(result)).toEqual(['agy:gemini-3.8-flash-high', 'agy:gemini-3.8-flash-high', 'claude:claude-opus-5-5'])
+  })
+})
+
+const TODAY = '2026-11-04T09:00:00.000Z'
+
+/** A plan that allows one run a day, which a ledger line of today fills. */
+function oneRunADay(client: string): unknown {
+  return { clients: { [client]: { plan_limits: [{ limit_runs: 1, window: 'day' }] } } }
+}
+
+const RATE_LIMITED: VibeScript = { exitCode: 1, stderr: '429 Too Many Requests', stdout: '' }
+
+describe('model-gateway run: fall-through', () => {
+  it('swaps a client whose plan window is spent for another permitted client model of its cost class that covers the tier', async () => {
+    const w = await escalating({ override: oneRunADay('vibe'), scripts: [CLAUDE_SUCCEEDS] })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(attemptedModels(result)).toEqual(['claude:claude-sonnet-5-5'])
+    expect(w.vibe.commands.map((command) => command.command)).toEqual(['claude'])
+    expect(printed(result).skipped).toEqual([
+      { client: 'vibe', model: 'glm-5-3', reason: 'unable_to_start: at 100% of its day plan limit (1 of 1 runs)' },
+    ])
+    expect(printed(result)).not.toHaveProperty('attempt')
+  })
+
+  it('swaps a client whose last run was refused for its credentials, and runs the swapped model with the caller’s own prompt', async () => {
+    const w = await escalating({ scripts: [CLAUDE_SUCCEEDS] })
+    await w.writeLedger([ledgerRecord('2026-11-04T10:30:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' })])
+
+    const result = await w.run(delegation(w))
+
+    expect(attemptedModels(result)).toEqual(['claude:claude-sonnet-5-5'])
+    expect((printed(result).skipped as { reason: string }[])[0]?.reason).toMatch(/^unavailable: auth at /)
+    expect(w.vibe.commands[0]?.stdin).toBe(WRAPPED_PROMPT)
+  })
+
+  it('swaps a client whose launch failed before the client ran, and does not count the swap as a retry', async () => {
+    const w = await escalating({
+      scripts: [{ effect: () => Promise.reject(new Error('spawn vibe ENOENT')), stdout: '' }, CLAUDE_SUCCEEDS],
+    })
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ attempt: 2, client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(attemptsOf(result)).toMatchObject([
+      { client: 'vibe', reason: 'launch-failed', status: 'failed' },
+      { client: 'claude', status: 'ok' },
+    ])
+    expect(printed(result).skipped).toEqual([{ client: 'vibe', model: 'glm-5-3', reason: 'launch-failed' }])
+    expect(w.vibe.commands.map((command) => command.command)).toEqual(['vibe', 'claude'])
+  })
+
+  it('swaps a client that answers rate-limited rather than retrying it, and keeps the failed run in the attempts', async () => {
+    const w = await escalating({ scripts: [RATE_LIMITED, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(attemptsOf(result)).toMatchObject([
+      { client: 'vibe', reason: 'rate-limited', status: 'failed' },
+      { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
+    ])
+    expect(w.vibe.commands.map((command) => command.command)).toEqual(['vibe', 'claude'])
+  })
+
+  it('reports the delegation unavailable, with the reasons per candidate, when no model of the cost class can start', async () => {
+    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), override: oneRunADay('vibe'), scripts: [SUCCEEDS] })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toEqual({
+      attempts: [],
+      client: 'vibe',
+      message:
+        'vibe:glm-5-3 cannot start, and no other permitted subsidised client model covers its tier; the gateway never moves into a costlier cost class by itself',
+      model: 'glm-5-3',
+      reasons: [{ client: 'vibe', model: 'glm-5-3', reason: 'unable_to_start: at 100% of its day plan limit (1 of 1 runs)' }],
+      status: 'unavailable',
+      workflow: 'spec-293',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('never swaps into a costlier cost class, however strong the model there is', async () => {
+    const w = await escalating({
+      allowlist: allowlist(['anthropic', 'zhipu'], true, true),
+      override: { clients: { claude: { cost_class: 'metered-personal' }, vibe: { plan_limits: [{ limit_runs: 1, window: 'day' }] } } },
+      scripts: [CLAUDE_SUCCEEDS],
+    })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ status: 'unavailable' })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('never swaps into a model below the tier the caller asked for', async () => {
+    const w = await escalating({ allowlist: allowlist(['deepseek', 'zhipu'], true, true), override: oneRunADay('vibe'), scripts: [SUCCEEDS] })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ status: 'unavailable' })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('reports the delegation unavailable, with the failed run in its attempts, when the client that failed has no stand-in', async () => {
+    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), scripts: [RATE_LIMITED, SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({
+      attempts: [{ client: 'vibe', reason: 'rate-limited', status: 'failed' }],
+      reasons: [{ client: 'vibe', model: 'glm-5-3', reason: 'rate-limited' }],
+      status: 'unavailable',
+    })
+    expect(w.vibe.commands).toHaveLength(1)
+  })
+
+  it('in a nedap repository, never swaps from Claude Code to Vibe or Antigravity', async () => {
+    const w = await escalating({
+      override: oneRunADay('claude'),
+      repositories: (repo) => ({
+        [repo]: { commonDir: join(repo, '.git'), remotes: [{ name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }], root: repo },
+      }),
+      scripts: [SUCCEEDS],
+    })
+    await w.writeLedger([ledgerRecord(TODAY, 'claude')])
+
+    const result = await w.run(delegation(w, { client: 'claude', model: 'claude-sonnet-5-5' }))
+
+    expect(printed(result)).toMatchObject({
+      reasons: [
+        { client: 'claude', model: 'claude-sonnet-5-5' },
+        { client: 'claude', model: 'claude-opus-5-5' },
+      ],
+      status: 'unavailable',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('does not look for a client that can start when the caller turns the escalation off', async () => {
+    const w = await escalating({ override: oneRunADay('vibe'), scripts: [SUCCEEDS] })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w, { escalate: false }))
+
+    expect(printed(result)).toMatchObject({ client: 'vibe', status: 'ok' })
+  })
+
+  it('passes over a stronger model that cannot start when it climbs, and says so', async () => {
+    const w = await escalating({ override: oneRunADay('claude'), scripts: [FAILS, FAILS, SUCCEEDS] })
+    await w.writeLedger([ledgerRecord(TODAY, 'claude')])
+
+    const result = await w.run(delegation(w, { model: 'deepseek-v4-1-flash-1017' }))
+
+    expect(attemptedModels(result)).toEqual([
+      'vibe:deepseek-v4-1-flash-1017',
+      'vibe:deepseek-v4-1-flash-1017',
+      'vibe:glm-5-3',
+    ])
+    expect(printed(result).skipped).toMatchObject([{ client: 'claude', model: 'claude-sonnet-5-5' }])
+  })
+
+  it('returns the last result exhausted when every stronger model it could climb to cannot start', async () => {
+    const w = await escalating({
+      allowlist: allowlist(['anthropic', 'zhipu'], true, true),
+      override: oneRunADay('claude'),
+      scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS],
+    })
+    await w.writeLedger([ledgerRecord(TODAY, 'claude')])
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ escalation: 'exhausted', reason: 'exit-3', status: 'failed' })
+    expect(printed(result).skipped).toMatchObject([{ client: 'claude', model: 'claude-opus-5-5' }])
+    expect(attemptsOf(result)).toHaveLength(2)
+  })
+
+  it('swaps into an OpenCode model on a provider the machine allows, and passes over one it does not', async () => {
+    const w = await escalating({
+      allowlist: allowlist(['zhipu'], true, true),
+      override: {
+        clients: { vibe: { plan_limits: [{ limit_runs: 1, window: 'day' }] } },
+        models: [
+          { client: 'opencode', family: 'zhipu', model: 'other/glm-5.3', notes: 'x', tier: 'hard' },
+          { client: 'opencode', family: 'zhipu', model: 'opencode-go/glm-5.3', notes: 'x', tier: 'hard' },
+        ],
+      },
+      scripts: [{ stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('fine\nSUMMARY: ok'), openCodeStepFinish(0.01, { input: 10, output: 5 })) }],
+    })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w))
+
+    expect(attemptedModels(result)).toEqual(['opencode:opencode-go/glm-5.3'])
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+  })
+})
+
+describe('model-gateway run: review fixes', () => {
+  it('never climbs to a model the machine disabled, by its alias or by a name it is known by', async () => {
+    const w = await escalating({ override: { disabled: ['claude:claude-opus-5-5'] }, scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
+    expect(attemptedModels(result)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3'])
+
+    const named = await escalating({
+      allowlist: allowlist(['deepseek', 'mistral'], true, true),
+      override: { disabled: ['vibe:mistral-large-4-0'] },
+      scripts: [FAILS, FAILS, SUCCEEDS],
+    })
+    const byName = await named.run(delegation(named, { model: 'deepseek-v4-1-flash-1017' }))
+    expect(printed(byName)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
+  })
+
+  it('never swaps to a model the machine disabled, by its alias or by a name it is known by', async () => {
+    const w = await escalating({
+      allowlist: allowlist(['anthropic', 'zhipu'], true, true),
+      override: {
+        clients: { vibe: { plan_limits: [{ limit_runs: 1, window: 'day' }] } },
+        disabled: ['claude:claude-sonnet-5-5', 'claude:claude-opus-5-5', 'claude:claude-x-alias'],
+        models: [{ client: 'claude', family: 'anthropic', model: 'claude-x', names: ['claude-x-alias'], notes: 'x', tier: 'hard' }],
+      },
+      scripts: [CLAUDE_SUCCEEDS],
+    })
+    await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
+
+    const result = await w.run(delegation(w))
+
+    expect(printed(result)).toMatchObject({ status: 'unavailable' })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('climbs from a metered-personal model only to a stronger subsidised one, never to a stronger metered-personal one', async () => {
+    const hermes = new FakeHermesProcess([
+      { stdout: 'no', usage: hermesUsageFile({ failed: true }) },
+      { stdout: 'no', usage: hermesUsageFile({ failed: true }) },
+      { stdout: claudeResult('fine\nSUMMARY: ok') },
+    ])
+    const w = await runWorkspace({
+      allowlist: allowlist(['anthropic'], true, true),
+      override: {
+        ...HERMES_MACHINE,
+        models: [
+          { client: 'hermes', family: 'anthropic', model: 'anthropic/claude-sonnet-4.6', notes: 'x', tier: 'hard' },
+          { client: 'hermes', family: 'anthropic', model: 'anthropic/claude-opus-4.8', notes: 'x', tier: 'frontier' },
+        ],
+      },
+      process: hermes,
+      setupResults: setupResults('pass', 'hermes'),
+    })
+
+    const result = await w.run(hermesInput(w, { escalate: undefined }))
+
+    expect(attemptedModels(result)).toEqual([
+      'hermes:anthropic/claude-sonnet-4.6',
+      'hermes:anthropic/claude-sonnet-4.6',
+      'claude:claude-opus-5-5',
+    ])
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+  })
+
+  it('swaps a Hermes run that cannot start only to another Hermes model of the provider it named', async () => {
+    const hermes = new FakeHermesProcess([
+      { effect: () => Promise.reject(new Error('spawn hermes ENOENT')), stdout: '' },
+      { stdout: 'the answer\nSUMMARY: ok', usage: hermesUsageFile() },
+    ])
+    const w = await runWorkspace({
+      allowlist: allowlist(['anthropic'], true, true),
+      override: {
+        ...HERMES_MACHINE,
+        models: [
+          { client: 'hermes', family: 'anthropic', model: 'anthropic/claude-sonnet-4.6', notes: 'x', tier: 'hard' },
+          { client: 'hermes', family: 'anthropic', model: 'anthropic/claude-opus-4.8', notes: 'x', tier: 'frontier' },
+        ],
+      },
+      process: hermes,
+      setupResults: setupResults('pass', 'hermes'),
+    })
+
+    const result = await w.run(hermesInput(w, { escalate: undefined }))
+
+    expect(attemptedModels(result)).toEqual(['hermes:anthropic/claude-sonnet-4.6', 'hermes:anthropic/claude-opus-4.8'])
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+    expect(hermes.commands[1]?.args).toContain('anthropic')
+  })
+
+  it('does not count an attempt whose client could not start toward max_attempts, so the climb still launches', async () => {
+    const w = await escalating({
+      scripts: [
+        { exitCode: 1, stderr: 'Not logged in. Run `vibe login`.', stdout: '' },
+        { stdout: claudeResult('done') },
+        { exitCode: 1, stdout: '1 failed' },
+        { stdout: claudeResult('done again') },
+        { exitCode: 1, stdout: '1 failed' },
+        { stdout: claudeResult('done at last') },
+        { stdout: '3 passed' },
+      ],
+    })
+
+    const result = await w.run(writeInput(w, { escalate: undefined }))
+
+    expect(attemptedModels(result)).toEqual([
+      'vibe:glm-5-3',
+      'claude:claude-sonnet-5-5',
+      'claude:claude-sonnet-5-5',
+      'claude:claude-opus-5-5',
+    ])
+    expect(attemptsOf(result).map((attempt) => attempt.reason)).toEqual(['auth', 'check-failed', 'check-failed', undefined])
+    expect(printed(result)).toMatchObject({ model: 'claude-opus-5-5', status: 'ok' })
+    expect(printed(result)).not.toHaveProperty('escalation')
   })
 })

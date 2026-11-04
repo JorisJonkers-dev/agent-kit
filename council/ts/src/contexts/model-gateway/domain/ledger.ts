@@ -21,6 +21,10 @@ export interface LedgerRecord {
   /** The repository the run worked in, keyed `<host>/<owner>/<repo>`; null for an inline run. */
   readonly repository: string | null
   readonly run_id: string
+  /** A retry's or a climb's place in its delegation (2 and up); the delegation's first run carries none. */
+  readonly attempt?: number
+  /** The run id of the delegation's first attempt, on every later one. */
+  readonly attempt_of?: string
   readonly tokens: RunTokens
   readonly workflow: string
 }

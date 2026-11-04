@@ -1,7 +1,8 @@
 export { createModelGatewayCommands, type ModelGatewayCommands } from './application/commands.js'
 export { ledgerPath, runsDir, stateDir, workflowsPath } from './application/locations.js'
 export { decidePolicyFor, resolveScope } from './application/policy.js'
-export { DELEGATION_MARK, READ_ONLY_AGENT, RunCommand, type RunResult } from './application/run.js'
+export { DELEGATION_MARK, READ_ONLY_AGENT, RunCommand, type RunOutcome, type RunResult } from './application/run.js'
+export { EscalatedRun, type AttemptOptions, type AttemptRunner, type AttemptedRun, type Escalated } from './application/escalation.js'
 export { UsageCommand } from './application/usage.js'
 export type {
   ClientStatusPort,
@@ -26,6 +27,7 @@ export {
 } from './application/workflows.js'
 export type { AllowlistEntry, FamilyAllowlist } from './domain/allowlist.js'
 export { ModelGatewayError, type ModelGatewayErrorCode, type PlanLimit, type PlanWindow } from './domain/config.js'
+export type { AttemptLink, AttemptSummary, EscalationReport, UnavailableResult, Unstartable } from './domain/escalation.js'
 export type { LedgerRecord } from './domain/ledger.js'
 export type { ClientListing, ClientModel, ListedModel, MissingClient, ModelListing, SkippedModel } from './domain/models.js'
 export type {
