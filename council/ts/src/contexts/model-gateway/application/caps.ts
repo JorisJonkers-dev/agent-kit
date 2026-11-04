@@ -26,6 +26,9 @@ import { openCodeProvider, type RunInput } from '../domain/run.js'
 import { workflowEndsAt } from '../domain/workflows.js'
 import type { ModelGatewayDependencies } from './ports.js'
 
+/** What the caps read: the ledger, and the run directories' results. */
+export type CapDependencies = Pick<ModelGatewayDependencies, 'files' | 'ledger' | 'workflows'>
+
 /**
  * What a metered run holds while it runs: the estimate it reserved, and the
  * ledger line that holds it.
@@ -87,7 +90,7 @@ export type CapSource = { readonly kind: 'metered-personal' } | { readonly kind:
  * overshoot a cap.
  */
 export class CapGuard {
-  constructor(private readonly deps: ModelGatewayDependencies) {}
+  constructor(private readonly deps: CapDependencies) {}
 
   /**
    * What a metered run is estimated to cost, or a `no-estimate` refusal for a

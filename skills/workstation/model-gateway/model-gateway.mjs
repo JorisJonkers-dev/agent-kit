@@ -2620,6 +2620,219 @@ var ClientRun = class {
   }
 };
 
+// src/contexts/model-gateway/domain/policy.ts
+var NEDAP_CLIENTS = ["claude", "codex"];
+var INLINE_COST_CLASSES = ["subsidised", "metered-personal"];
+var NOTHING2 = { code: false, history: false };
+var EVERYTHING = { code: true, history: true };
+function decidePolicy(config, scope, subjects = config.models) {
+  const permissions = subjects.filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model))).map((subject) => permission(config, subject, scope));
+  return { permissions, reason: reasonFor(scope) };
+}
+function permission(config, subject, scope) {
+  const base = { client: subject.client, inline_only: false, model: subject.model };
+  switch (scope.kind) {
+    case "outside":
+      return {
+        ...base,
+        inline_only: true,
+        may_send: NOTHING2,
+        permitted: INLINE_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? "")
+      };
+    case "no-remote":
+      return { ...base, may_send: NOTHING2, permitted: false };
+    case "nedap":
+      return { ...base, may_send: EVERYTHING, permitted: NEDAP_CLIENTS.includes(subject.client) };
+    case "repository":
+      return {
+        ...base,
+        may_send: scope.entry === void 0 ? NOTHING2 : { code: scope.entry.code, history: scope.entry.history },
+        permitted: scope.entry?.families.includes(subject.family) === true
+      };
+  }
+}
+function reasonFor(scope) {
+  switch (scope.kind) {
+    case "outside":
+      return "no repository: only inline content, to subsidised and metered-personal clients";
+    case "no-remote":
+      return "the repository has no remote, so nothing is sent";
+    case "nedap":
+      return "a nedap repository: only Codex and Claude Code, with code and history";
+    case "repository":
+      return scope.entry === void 0 ? `${scope.key} has no allowlist entry, so nothing is sent` : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
+  }
+}
+function permittedModels(listing, decision) {
+  const byKey = new Map(decision.permissions.map((permission2) => [modelKey(permission2.client, permission2.model), permission2]));
+  const models = listing.models.flatMap((model) => {
+    const permission2 = byKey.get(modelKey(model.client, model.model));
+    if (permission2?.permitted !== true) return [];
+    return [{ ...model, inline_only: permission2.inline_only, may_send: permission2.may_send }];
+  });
+  return { missing: listing.missing, models, skipped: listing.skipped };
+}
+
+// src/contexts/model-gateway/domain/usage.ts
+var DEFAULT_USAGE_DAYS = 7;
+var DAY_MS = 24 * 60 * 60 * 1e3;
+var WINDOW_MS = {
+  "5h": 5 * 60 * 60 * 1e3,
+  day: DAY_MS,
+  month: 30 * DAY_MS,
+  week: 7 * DAY_MS
+};
+function readUsageInput(raw) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  const days = raw.days === void 0 ? DEFAULT_USAGE_DAYS : raw.days;
+  if (typeof days !== "number" || !Number.isInteger(days) || days <= 0) {
+    throw new ModelGatewayError("invalid-input", "days must be a whole number of days above 0");
+  }
+  const workflow = raw.workflow;
+  if (workflow === void 0) return { days };
+  return { days, workflow: requireWorkflowName(workflow, "workflow must be a non-empty string") };
+}
+function usageReport(input, config, readings, entries, now) {
+  const records = runRecords(entries);
+  const held = liveReservations(entries);
+  const since = startOfDay(now) - (input.days - 1) * DAY_MS;
+  const counted = records.filter(
+    (record) => Date.parse(record.at) >= since && (input.workflow === void 0 || record.workflow === input.workflow)
+  );
+  const byClient = new Map(readings.map((reading) => [reading.client, reading]));
+  const clients = sortedClients(config).map(([id, client]) => {
+    const reading = byClient.get(id) ?? { client: id, installed: false, status: void 0 };
+    const mine = counted.filter((record) => record.client === id);
+    const reservations = held.filter((reservation) => reservation.client === id);
+    const windows = planWindows(id, client.plan_limits ?? [], records, now, config.settings.plan_warning_ratio);
+    return {
+      availability: availabilityOf(id, client.binary, reading, records, now, config.settings.availability_window_minutes, windows),
+      by_day: byDay(mine),
+      by_workflow: byWorkflow(mine),
+      client: id,
+      cost_class: client.cost_class,
+      plan_limits: windows,
+      quota: quotaOf(id, reading.status),
+      reserved_runs: reservations.length,
+      reserved_usd: round2(
+        reservations.reduce((total, reservation) => total + reservation.estimate_usd, 0),
+        6
+      ),
+      usage: totalsOf(mine),
+      warnings: warningsOf(id, windows)
+    };
+  });
+  return {
+    clients,
+    days: input.days,
+    status: "ok",
+    ...input.workflow === void 0 ? {} : { workflow: input.workflow }
+  };
+}
+function planWindows(client, limits, records, now, warningRatio) {
+  return limits.map((limit) => {
+    const since = now.getTime() - WINDOW_MS[limit.window];
+    const mine = records.filter((record) => record.client === client && Date.parse(record.at) >= since);
+    if ("limit_usd" in limit) {
+      const spent = round2(mine.reduce((sum3, record) => sum3 + record.cost_usd, 0), 6);
+      const ratio2 = round2(spent / limit.limit_usd, 4);
+      return { limit_usd: limit.limit_usd, ratio: ratio2, spent_usd: spent, state: stateOf(ratio2, warningRatio), window: limit.window };
+    }
+    const ratio = round2(mine.length / limit.limit_runs, 4);
+    return { limit_runs: limit.limit_runs, ratio, runs: mine.length, state: stateOf(ratio, warningRatio), window: limit.window };
+  });
+}
+function warningsOf(client, windows) {
+  return windows.filter((window) => window.state !== "ok").map((window) => `${client} has used ${String(Math.round(window.ratio * 100))}% of ${describeWindow(window)}`);
+}
+function describeWindow(window) {
+  return "limit_usd" in window ? `its ${window.window} plan limit ($${window.spent_usd.toFixed(2)} of $${window.limit_usd.toFixed(2)})` : `its ${window.window} plan limit (${String(window.runs)} of ${String(window.limit_runs)} runs)`;
+}
+function stateOf(ratio, warningRatio) {
+  if (ratio >= 1) return "exhausted";
+  return ratio >= warningRatio ? "warning" : "ok";
+}
+function availabilityOf(client, binary, reading, records, now, windowMinutes, windows) {
+  if (!reading.installed) {
+    return { installed: false, reason: `not installed: ${binary} is not on PATH`, signed_in: "unknown", status: "unavailable" };
+  }
+  const signedIn = reading.status?.signed_in ?? "unknown";
+  const reason = reading.status === void 0 ? `${client} has no status command, so the gateway cannot tell whether it is signed in` : `${reading.status.command}: ${reading.status.detail}`;
+  if (signedIn === "no") return { installed: true, reason, signed_in: signedIn, status: "unavailable" };
+  const exhausted = windows.find((window) => window.state === "exhausted");
+  if (exhausted !== void 0) {
+    return { installed: true, reason: `at 100% of ${describeWindow(exhausted)}`, signed_in: signedIn, status: "unable_to_start" };
+  }
+  const error = recentError(
+    records.filter((record) => record.client === client),
+    now,
+    windowMinutes
+  );
+  if (error !== void 0) {
+    return {
+      installed: true,
+      reason: `${error.reason ?? "failed"} at ${error.at}, with no later run of it that succeeded`,
+      signed_in: signedIn,
+      status: "unavailable"
+    };
+  }
+  return { installed: true, reason, signed_in: signedIn, status: "available" };
+}
+function recentError(records, now, windowMinutes) {
+  const since = now.getTime() - windowMinutes * 6e4;
+  let error;
+  for (const record of [...records].sort((left, right) => Date.parse(left.at) - Date.parse(right.at))) {
+    if (Date.parse(record.at) < since) continue;
+    if (record.outcome === "ok") error = void 0;
+    else if (record.reason === "rate-limited" || record.reason === "auth") error = record;
+  }
+  return error;
+}
+function quotaOf(client, status) {
+  return {
+    reason: status === void 0 ? `${client} has no status command, so the gateway cannot read its quota` : `${status.command} reports no quota`,
+    status: "unknown"
+  };
+}
+function totalsOf(records) {
+  const tokens = { cached: 0, input: 0, output: 0 };
+  let cost = 0;
+  let known = true;
+  for (const record of records) {
+    cost += record.cost_usd;
+    if (record.tokens === void 0) {
+      known = false;
+      continue;
+    }
+    tokens.cached += record.tokens.cached;
+    tokens.input += record.tokens.input;
+    tokens.output += record.tokens.output;
+  }
+  return { cost_usd: round2(cost, 6), runs: records.length, ...known ? { tokens } : {} };
+}
+function byDay(records) {
+  const days = /* @__PURE__ */ new Map();
+  for (const record of records) {
+    const day = record.at.slice(0, 10);
+    days.set(day, [...days.get(day) ?? [], record]);
+  }
+  return [...days].map(([day, mine]) => ({ day, ...totalsOf(mine) })).sort((left, right) => left.day < right.day ? -1 : left.day > right.day ? 1 : 0);
+}
+function byWorkflow(records) {
+  const workflows = /* @__PURE__ */ new Map();
+  for (const record of records) {
+    workflows.set(record.workflow, [...workflows.get(record.workflow) ?? [], record]);
+  }
+  return [...workflows].map(([workflow, mine]) => ({ workflow, ...totalsOf(mine) })).sort((left, right) => left.workflow < right.workflow ? -1 : left.workflow > right.workflow ? 1 : 0);
+}
+function startOfDay(now) {
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+function round2(value, places) {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+
 // src/contexts/model-gateway/application/grants.ts
 import { randomBytes as randomBytes2 } from "node:crypto";
 var GrantWriteCommand = class {
@@ -2787,59 +3000,6 @@ function readListInput(raw) {
   if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
 }
 
-// src/contexts/model-gateway/domain/policy.ts
-var NEDAP_CLIENTS = ["claude", "codex"];
-var INLINE_COST_CLASSES = ["subsidised", "metered-personal"];
-var NOTHING2 = { code: false, history: false };
-var EVERYTHING = { code: true, history: true };
-function decidePolicy(config, scope, subjects = config.models) {
-  const permissions = subjects.filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model))).map((subject) => permission(config, subject, scope));
-  return { permissions, reason: reasonFor(scope) };
-}
-function permission(config, subject, scope) {
-  const base = { client: subject.client, inline_only: false, model: subject.model };
-  switch (scope.kind) {
-    case "outside":
-      return {
-        ...base,
-        inline_only: true,
-        may_send: NOTHING2,
-        permitted: INLINE_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? "")
-      };
-    case "no-remote":
-      return { ...base, may_send: NOTHING2, permitted: false };
-    case "nedap":
-      return { ...base, may_send: EVERYTHING, permitted: NEDAP_CLIENTS.includes(subject.client) };
-    case "repository":
-      return {
-        ...base,
-        may_send: scope.entry === void 0 ? NOTHING2 : { code: scope.entry.code, history: scope.entry.history },
-        permitted: scope.entry?.families.includes(subject.family) === true
-      };
-  }
-}
-function reasonFor(scope) {
-  switch (scope.kind) {
-    case "outside":
-      return "no repository: only inline content, to subsidised and metered-personal clients";
-    case "no-remote":
-      return "the repository has no remote, so nothing is sent";
-    case "nedap":
-      return "a nedap repository: only Codex and Claude Code, with code and history";
-    case "repository":
-      return scope.entry === void 0 ? `${scope.key} has no allowlist entry, so nothing is sent` : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
-  }
-}
-function permittedModels(listing, decision) {
-  const byKey = new Map(decision.permissions.map((permission2) => [modelKey(permission2.client, permission2.model), permission2]));
-  const models = listing.models.flatMap((model) => {
-    const permission2 = byKey.get(modelKey(model.client, model.model));
-    if (permission2?.permitted !== true) return [];
-    return [{ ...model, inline_only: permission2.inline_only, may_send: permission2.may_send }];
-  });
-  return { missing: listing.missing, models, skipped: listing.skipped };
-}
-
 // src/shared-kernel/git-remote.ts
 var DENIED_OWNER = "nedap";
 function parseRemote(url) {
@@ -2932,6 +3092,9 @@ async function loadAllowlist(files, path) {
   return readJsonFile(files, path, "the family allowlist", parseAllowlist);
 }
 
+// src/contexts/model-gateway/application/engine-guard.ts
+var ENGINE_TIME_LIMIT_S = 4 * 60 * 60;
+
 // src/contexts/model-gateway/application/models.ts
 var ModelsCommand = class {
   constructor(deps) {
@@ -2967,166 +3130,6 @@ function readModelsInput(raw) {
 // src/contexts/model-gateway/application/run.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
 import { join as join6 } from "node:path";
-
-// src/contexts/model-gateway/domain/usage.ts
-var DEFAULT_USAGE_DAYS = 7;
-var DAY_MS = 24 * 60 * 60 * 1e3;
-var WINDOW_MS = {
-  "5h": 5 * 60 * 60 * 1e3,
-  day: DAY_MS,
-  month: 30 * DAY_MS,
-  week: 7 * DAY_MS
-};
-function readUsageInput(raw) {
-  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
-  const days = raw.days === void 0 ? DEFAULT_USAGE_DAYS : raw.days;
-  if (typeof days !== "number" || !Number.isInteger(days) || days <= 0) {
-    throw new ModelGatewayError("invalid-input", "days must be a whole number of days above 0");
-  }
-  const workflow = raw.workflow;
-  if (workflow === void 0) return { days };
-  return { days, workflow: requireWorkflowName(workflow, "workflow must be a non-empty string") };
-}
-function usageReport(input, config, readings, entries, now) {
-  const records = runRecords(entries);
-  const held = liveReservations(entries);
-  const since = startOfDay(now) - (input.days - 1) * DAY_MS;
-  const counted = records.filter(
-    (record) => Date.parse(record.at) >= since && (input.workflow === void 0 || record.workflow === input.workflow)
-  );
-  const byClient = new Map(readings.map((reading) => [reading.client, reading]));
-  const clients = sortedClients(config).map(([id, client]) => {
-    const reading = byClient.get(id) ?? { client: id, installed: false, status: void 0 };
-    const mine = counted.filter((record) => record.client === id);
-    const reservations = held.filter((reservation) => reservation.client === id);
-    const windows = planWindows(id, client.plan_limits ?? [], records, now, config.settings.plan_warning_ratio);
-    return {
-      availability: availabilityOf(id, client.binary, reading, records, now, config.settings.availability_window_minutes, windows),
-      by_day: byDay(mine),
-      by_workflow: byWorkflow(mine),
-      client: id,
-      cost_class: client.cost_class,
-      plan_limits: windows,
-      quota: quotaOf(id, reading.status),
-      reserved_runs: reservations.length,
-      reserved_usd: round2(
-        reservations.reduce((total, reservation) => total + reservation.estimate_usd, 0),
-        6
-      ),
-      usage: totalsOf(mine),
-      warnings: warningsOf(id, windows)
-    };
-  });
-  return {
-    clients,
-    days: input.days,
-    status: "ok",
-    ...input.workflow === void 0 ? {} : { workflow: input.workflow }
-  };
-}
-function planWindows(client, limits, records, now, warningRatio) {
-  return limits.map((limit) => {
-    const since = now.getTime() - WINDOW_MS[limit.window];
-    const mine = records.filter((record) => record.client === client && Date.parse(record.at) >= since);
-    if ("limit_usd" in limit) {
-      const spent = round2(mine.reduce((sum3, record) => sum3 + record.cost_usd, 0), 6);
-      const ratio2 = round2(spent / limit.limit_usd, 4);
-      return { limit_usd: limit.limit_usd, ratio: ratio2, spent_usd: spent, state: stateOf(ratio2, warningRatio), window: limit.window };
-    }
-    const ratio = round2(mine.length / limit.limit_runs, 4);
-    return { limit_runs: limit.limit_runs, ratio, runs: mine.length, state: stateOf(ratio, warningRatio), window: limit.window };
-  });
-}
-function warningsOf(client, windows) {
-  return windows.filter((window) => window.state !== "ok").map((window) => `${client} has used ${String(Math.round(window.ratio * 100))}% of ${describeWindow(window)}`);
-}
-function describeWindow(window) {
-  return "limit_usd" in window ? `its ${window.window} plan limit ($${window.spent_usd.toFixed(2)} of $${window.limit_usd.toFixed(2)})` : `its ${window.window} plan limit (${String(window.runs)} of ${String(window.limit_runs)} runs)`;
-}
-function stateOf(ratio, warningRatio) {
-  if (ratio >= 1) return "exhausted";
-  return ratio >= warningRatio ? "warning" : "ok";
-}
-function availabilityOf(client, binary, reading, records, now, windowMinutes, windows) {
-  if (!reading.installed) {
-    return { installed: false, reason: `not installed: ${binary} is not on PATH`, signed_in: "unknown", status: "unavailable" };
-  }
-  const signedIn = reading.status?.signed_in ?? "unknown";
-  const reason = reading.status === void 0 ? `${client} has no status command, so the gateway cannot tell whether it is signed in` : `${reading.status.command}: ${reading.status.detail}`;
-  if (signedIn === "no") return { installed: true, reason, signed_in: signedIn, status: "unavailable" };
-  const exhausted = windows.find((window) => window.state === "exhausted");
-  if (exhausted !== void 0) {
-    return { installed: true, reason: `at 100% of ${describeWindow(exhausted)}`, signed_in: signedIn, status: "unable_to_start" };
-  }
-  const error = recentError(
-    records.filter((record) => record.client === client),
-    now,
-    windowMinutes
-  );
-  if (error !== void 0) {
-    return {
-      installed: true,
-      reason: `${error.reason ?? "failed"} at ${error.at}, with no later run of it that succeeded`,
-      signed_in: signedIn,
-      status: "unavailable"
-    };
-  }
-  return { installed: true, reason, signed_in: signedIn, status: "available" };
-}
-function recentError(records, now, windowMinutes) {
-  const since = now.getTime() - windowMinutes * 6e4;
-  let error;
-  for (const record of [...records].sort((left, right) => Date.parse(left.at) - Date.parse(right.at))) {
-    if (Date.parse(record.at) < since) continue;
-    if (record.outcome === "ok") error = void 0;
-    else if (record.reason === "rate-limited" || record.reason === "auth") error = record;
-  }
-  return error;
-}
-function quotaOf(client, status) {
-  return {
-    reason: status === void 0 ? `${client} has no status command, so the gateway cannot read its quota` : `${status.command} reports no quota`,
-    status: "unknown"
-  };
-}
-function totalsOf(records) {
-  const tokens = { cached: 0, input: 0, output: 0 };
-  let cost = 0;
-  let known = true;
-  for (const record of records) {
-    cost += record.cost_usd;
-    if (record.tokens === void 0) {
-      known = false;
-      continue;
-    }
-    tokens.cached += record.tokens.cached;
-    tokens.input += record.tokens.input;
-    tokens.output += record.tokens.output;
-  }
-  return { cost_usd: round2(cost, 6), runs: records.length, ...known ? { tokens } : {} };
-}
-function byDay(records) {
-  const days = /* @__PURE__ */ new Map();
-  for (const record of records) {
-    const day = record.at.slice(0, 10);
-    days.set(day, [...days.get(day) ?? [], record]);
-  }
-  return [...days].map(([day, mine]) => ({ day, ...totalsOf(mine) })).sort((left, right) => left.day < right.day ? -1 : left.day > right.day ? 1 : 0);
-}
-function byWorkflow(records) {
-  const workflows = /* @__PURE__ */ new Map();
-  for (const record of records) {
-    workflows.set(record.workflow, [...workflows.get(record.workflow) ?? [], record]);
-  }
-  return [...workflows].map(([workflow, mine]) => ({ workflow, ...totalsOf(mine) })).sort((left, right) => left.workflow < right.workflow ? -1 : left.workflow > right.workflow ? 1 : 0);
-}
-function startOfDay(now) {
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-}
-function round2(value, places) {
-  const factor = 10 ** places;
-  return Math.round(value * factor) / factor;
-}
 
 // src/contexts/model-gateway/application/escalation.ts
 import { dirname, join as join5 } from "node:path";
@@ -3981,178 +3984,6 @@ function createModelGatewayCommands(deps) {
   };
 }
 
-// src/contexts/model-gateway/adapters/clients/index.ts
-var AntigravityModelSource = class {
-  constructor(process2) {
-    this.process = process2;
-  }
-  process;
-  async list() {
-    const command = "agy models";
-    let result2;
-    try {
-      result2 = await this.process.exec({ args: ["models"], command: "agy" });
-    } catch (error) {
-      return { reason: `listing failed: ${command}: ${messageOf4(error)}` };
-    }
-    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
-    return { models: parseAntigravityModels(result2.stdout).map((model) => ({ model })) };
-  }
-};
-var OpenCodeModelSource = class {
-  constructor(process2) {
-    this.process = process2;
-  }
-  process;
-  async list() {
-    const command = "opencode models";
-    let result2;
-    try {
-      result2 = await this.process.exec({ args: ["models"], command: "opencode" });
-    } catch (error) {
-      return { reason: `listing failed: ${command}: ${messageOf4(error)}` };
-    }
-    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
-    return { models: parseOpenCodeModels(result2.stdout) };
-  }
-};
-var HermesModelSource = class {
-  constructor(process2) {
-    this.process = process2;
-  }
-  process;
-  async list() {
-    const command = "hermes config get model --json";
-    let result2;
-    try {
-      result2 = await this.process.exec({ args: ["config", "get", "model", "--json"], command: "hermes" });
-    } catch (error) {
-      return { reason: `listing failed: ${command}: ${messageOf4(error)}` };
-    }
-    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
-    const model = hermesDefaultModel(result2.stdout);
-    if (model === void 0) return { reason: `listing failed: ${command} named no model` };
-    return { models: [model] };
-  }
-};
-var VibeModelSource = class {
-  constructor(files, env) {
-    this.files = files;
-    this.env = env;
-  }
-  files;
-  env;
-  async list() {
-    let path = "~/.vibe/config.toml";
-    try {
-      path = vibeConfigPath(this.env);
-      if (!await this.files.exists(path)) return { reason: `no configuration: ${path} is not there` };
-      return { models: vibeModels(await this.files.readText(path)) };
-    } catch (error) {
-      return { reason: `configuration unreadable: ${path}: ${messageOf4(error)}` };
-    }
-  }
-};
-function modelSources(deps) {
-  return {
-    agy: new AntigravityModelSource(deps.process),
-    hermes: new HermesModelSource(deps.process),
-    opencode: new OpenCodeModelSource(deps.process),
-    vibe: new VibeModelSource(deps.files, deps.env)
-  };
-}
-function failureReason(command, result2) {
-  const detail = result2.stderr.trim().split("\n")[0] ?? "";
-  const exit = `${command} exited ${String(result2.exitCode)}`;
-  return `listing failed: ${detail === "" ? exit : `${exit}: ${detail}`}`;
-}
-function messageOf4(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// src/contexts/model-gateway/adapters/clients/status.ts
-var STATUS_TIMEOUT_MS = 5e3;
-var TIMED_OUT = "status command did not answer in time";
-async function runStatus(process2, command, args, timeoutMs) {
-  try {
-    return { result: await process2.exec({ args: [...args], command, timeoutMs }) };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
-}
-function readingOf(command, run, decide) {
-  if ("error" in run) return { command, detail: `could not be read: ${run.error}`, signed_in: "unknown" };
-  if (run.result.timedOut === true) return { command, detail: TIMED_OUT, signed_in: "unknown" };
-  return { command, ...decide(run.result) };
-}
-function firstLine(text) {
-  return text.split("\n").map((line) => line.trim()).find((line) => line !== "");
-}
-var NOT_LOGGED_IN = /not logged in|logged out|no credentials|log ?in required|unauthenticated/i;
-function loginReading(result2) {
-  const said = firstLine(result2.stdout) ?? firstLine(result2.stderr);
-  if (result2.exitCode === 0) return { detail: said ?? `exited ${String(result2.exitCode)}`, signed_in: "yes" };
-  if (said !== void 0 && NOT_LOGGED_IN.test(said)) return { detail: said, signed_in: "no" };
-  return {
-    detail: `could not be read: exited ${String(result2.exitCode)}${said === void 0 ? "" : `: ${said}`}`,
-    signed_in: "unknown"
-  };
-}
-function listingReading(result2) {
-  if (result2.exitCode !== 0) {
-    const complaint = firstLine(result2.stderr);
-    return {
-      detail: `could not be read: exited ${String(result2.exitCode)}${complaint === void 0 ? "" : `: ${complaint}`}`,
-      signed_in: "unknown"
-    };
-  }
-  const listed = result2.stdout.trim() !== "";
-  return { detail: listed ? "it lists credentials" : "it lists no credentials", signed_in: listed ? "yes" : "no" };
-}
-var CodexStatus = class {
-  constructor(process2, timeoutMs = STATUS_TIMEOUT_MS) {
-    this.process = process2;
-    this.timeoutMs = timeoutMs;
-  }
-  process;
-  timeoutMs;
-  async read() {
-    const run = await runStatus(this.process, "codex", ["login", "status"], this.timeoutMs);
-    return readingOf("codex login status", run, loginReading);
-  }
-};
-var HermesStatus = class {
-  constructor(process2, timeoutMs = STATUS_TIMEOUT_MS) {
-    this.process = process2;
-    this.timeoutMs = timeoutMs;
-  }
-  process;
-  timeoutMs;
-  async read() {
-    const run = await runStatus(this.process, "hermes", ["auth", "list"], this.timeoutMs);
-    return readingOf("hermes auth list", run, listingReading);
-  }
-};
-var OpenCodeStatus = class {
-  constructor(process2, timeoutMs = STATUS_TIMEOUT_MS) {
-    this.process = process2;
-    this.timeoutMs = timeoutMs;
-  }
-  process;
-  timeoutMs;
-  async read() {
-    const run = await runStatus(this.process, "opencode", ["auth", "list"], this.timeoutMs);
-    return readingOf("opencode auth list", run, listingReading);
-  }
-};
-function clientStatuses(deps) {
-  return {
-    codex: new CodexStatus(deps.process),
-    hermes: new HermesStatus(deps.process),
-    opencode: new OpenCodeStatus(deps.process)
-  };
-}
-
 // src/contexts/model-gateway/adapters/fs/index.ts
 import { randomBytes as randomBytes4 } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -4220,18 +4051,18 @@ var NodeModelGatewayGit = class {
       return root;
     }
     if (NOT_A_REPOSITORY.test(result2.stderr)) return void 0;
-    throw new Error(messageOf5(result2));
+    throw new Error(messageOf4(result2));
   }
   async commonDir(path) {
     const result2 = await this.git(path, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
     const commonDir = result2.stdout.trim();
-    if (result2.exitCode !== 0 || commonDir === "") throw new Error(messageOf5(result2));
+    if (result2.exitCode !== 0 || commonDir === "") throw new Error(messageOf4(result2));
     return commonDir;
   }
   async remotes(path) {
     const result2 = await this.git(path, ["config", "--get-regexp", String.raw`^remote\..*\.url$`]);
     if (result2.exitCode === 1) return [];
-    if (result2.exitCode !== 0) throw new Error(messageOf5(result2));
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
     return result2.stdout.split("\n").flatMap((line) => {
       const match = /^remote\.(.+)\.url\s+(.+)$/.exec(line.trim());
       return match === null ? [] : [{ name: String(match[1]), url: String(match[2]) }];
@@ -4239,24 +4070,24 @@ var NodeModelGatewayGit = class {
   }
   async addWorktree(repo, path) {
     const result2 = await this.git(repo, ["worktree", "add", "--detach", path, "HEAD"], WORKTREE_TIMEOUT_MS);
-    if (result2.exitCode !== 0) throw new Error(messageOf5(result2));
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
   }
   async createWorktree(repo, path, branch, base) {
     const result2 = await this.git(repo, ["worktree", "add", "-b", branch, path, base], WORKTREE_TIMEOUT_MS);
-    if (result2.exitCode !== 0) throw new Error(messageOf5(result2));
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
   }
   async stageAll(path) {
     const result2 = await this.git(path, ["add", "-A"], WORKTREE_TIMEOUT_MS);
-    if (result2.exitCode !== 0) throw new Error(messageOf5(result2));
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
   }
   async stagedFiles(path) {
     const result2 = await this.git(path, ["diff", "--cached", "--name-only", "-z"]);
-    if (result2.exitCode !== 0) throw new Error(messageOf5(result2));
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
     return result2.stdout.split("\0").filter((name) => name !== "");
   }
   async deleteBranch(repo, branch) {
     const result2 = await this.git(repo, ["branch", "-D", branch]);
-    if (result2.exitCode !== 0) throw new Error(messageOf5(result2));
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
   }
   /**
    * `git worktree remove --force`, which takes the directory with it. A
@@ -4268,7 +4099,7 @@ var NodeModelGatewayGit = class {
     if (result2.exitCode === 0) return;
     await rm2(path, { force: true, recursive: true });
     const pruned = await this.git(repo, ["worktree", "prune"]);
-    if (pruned.exitCode !== 0) throw new Error(messageOf5(pruned));
+    if (pruned.exitCode !== 0) throw new Error(messageOf4(pruned));
   }
   /** The command's exit code and output; a git that cannot start or does not answer in time rejects. */
   git(path, args, timeoutMs = this.timeoutMs) {
@@ -4288,7 +4119,7 @@ var NodeModelGatewayGit = class {
     });
   }
 };
-function messageOf5(result2) {
+function messageOf4(result2) {
   const message = result2.stderr.trim();
   return message === "" ? `git exited ${String(result2.exitCode)}` : message;
 }
@@ -4397,7 +4228,7 @@ var NodeModelGatewayGrants = class {
     } catch (error) {
       throw new ModelGatewayError(
         "invalid-config",
-        `${path}: cannot tell whether ${directory} is inside a git repository, so no grant is read or written: ${messageOf6(error)}`
+        `${path}: cannot tell whether ${directory} is inside a git repository, so no grant is read or written: ${messageOf5(error)}`
       );
     }
     if (root === void 0) return;
@@ -4414,12 +4245,12 @@ var NodeModelGatewayGrants = class {
       text = await readFile2(path, "utf8");
     } catch (error) {
       if (error.code === "ENOENT") return [];
-      throw new ModelGatewayError("invalid-config", `${path}: cannot read the grants: ${messageOf6(error)}`);
+      throw new ModelGatewayError("invalid-config", `${path}: cannot read the grants: ${messageOf5(error)}`);
     }
     try {
       return parseGrantsFile(text);
     } catch (error) {
-      throw new ModelGatewayError("invalid-config", `${path}: ${messageOf6(error)}`);
+      throw new ModelGatewayError("invalid-config", `${path}: ${messageOf5(error)}`);
     }
   }
 };
@@ -4428,13 +4259,282 @@ function nearestExisting(path) {
   while (!existsSync(current) && dirname3(current) !== current) current = dirname3(current);
   return current;
 }
+function messageOf5(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// src/contexts/model-gateway/adapters/ledger/index.ts
+import { appendFile, mkdir as mkdir3, readFile as readFile3 } from "node:fs/promises";
+import { dirname as dirname4 } from "node:path";
+var NodeModelGatewayLedger = class {
+  constructor(env, timings = {}) {
+    this.env = env;
+    this.lock = new FileLock("ledger", timings);
+  }
+  env;
+  lock;
+  async append(record) {
+    const path = ledgerPath(this.env);
+    await mkdir3(dirname4(path), { recursive: true });
+    await this.lock.run(`${path}.lock`, () => appendFile(path, ledgerLine(record)));
+  }
+  async read() {
+    return this.load();
+  }
+  async update(change) {
+    const path = ledgerPath(this.env);
+    await mkdir3(dirname4(path), { recursive: true });
+    return this.lock.run(`${path}.lock`, async () => {
+      const changed = change(await this.load());
+      if (changed.append.length > 0) await appendFile(path, changed.append.map(ledgerLine).join(""));
+      return changed.result;
+    });
+  }
+  /**
+   * Every record the ledger holds, oldest first. A ledger that is not there
+   * yet holds none; a line a writer left half-written is skipped, so one
+   * crashed run never hides the rest of the history.
+   */
+  async load() {
+    const path = ledgerPath(this.env);
+    let text;
+    try {
+      text = await readFile3(path, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    }
+    const records = [];
+    for (const line of text.split("\n")) {
+      if (line.trim() === "") continue;
+      try {
+        records.push(JSON.parse(line));
+      } catch {
+      }
+    }
+    return records;
+  }
+};
+
+// src/contexts/model-gateway/adapters/workflows/index.ts
+import { mkdir as mkdir4, readFile as readFile4 } from "node:fs/promises";
+import { dirname as dirname5 } from "node:path";
+var NodeModelGatewayWorkflows = class {
+  constructor(env, timings = {}) {
+    this.env = env;
+    this.lock = new FileLock("workflows", timings);
+  }
+  env;
+  lock;
+  async read() {
+    return this.load();
+  }
+  async update(change) {
+    const path = workflowsPath(this.env);
+    await mkdir4(dirname5(path), { recursive: true });
+    return this.lock.run(`${path}.lock`, async () => {
+      const changed = change(await this.load());
+      await writeFileAtomic(path, `${JSON.stringify({ version: WORKFLOWS_VERSION, workflows: changed.workflows }, null, 2)}
+`);
+      return changed.workflow;
+    });
+  }
+  /** The workflows the file holds; a file that is not there yet holds none. */
+  async load() {
+    const path = workflowsPath(this.env);
+    let text;
+    try {
+      text = await readFile4(path, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") return [];
+      throw new ModelGatewayError("invalid-config", `${path}: cannot read the workflows: ${messageOf6(error)}`);
+    }
+    try {
+      return parseWorkflowsFile(text);
+    } catch (error) {
+      throw new ModelGatewayError("invalid-config", `${path}: ${messageOf6(error)}`);
+    }
+  }
+};
 function messageOf6(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// src/contexts/model-gateway/adapters/clients/index.ts
+var AntigravityModelSource = class {
+  constructor(process2) {
+    this.process = process2;
+  }
+  process;
+  async list() {
+    const command = "agy models";
+    let result2;
+    try {
+      result2 = await this.process.exec({ args: ["models"], command: "agy" });
+    } catch (error) {
+      return { reason: `listing failed: ${command}: ${messageOf7(error)}` };
+    }
+    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
+    return { models: parseAntigravityModels(result2.stdout).map((model) => ({ model })) };
+  }
+};
+var OpenCodeModelSource = class {
+  constructor(process2) {
+    this.process = process2;
+  }
+  process;
+  async list() {
+    const command = "opencode models";
+    let result2;
+    try {
+      result2 = await this.process.exec({ args: ["models"], command: "opencode" });
+    } catch (error) {
+      return { reason: `listing failed: ${command}: ${messageOf7(error)}` };
+    }
+    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
+    return { models: parseOpenCodeModels(result2.stdout) };
+  }
+};
+var HermesModelSource = class {
+  constructor(process2) {
+    this.process = process2;
+  }
+  process;
+  async list() {
+    const command = "hermes config get model --json";
+    let result2;
+    try {
+      result2 = await this.process.exec({ args: ["config", "get", "model", "--json"], command: "hermes" });
+    } catch (error) {
+      return { reason: `listing failed: ${command}: ${messageOf7(error)}` };
+    }
+    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
+    const model = hermesDefaultModel(result2.stdout);
+    if (model === void 0) return { reason: `listing failed: ${command} named no model` };
+    return { models: [model] };
+  }
+};
+var VibeModelSource = class {
+  constructor(files, env) {
+    this.files = files;
+    this.env = env;
+  }
+  files;
+  env;
+  async list() {
+    let path = "~/.vibe/config.toml";
+    try {
+      path = vibeConfigPath(this.env);
+      if (!await this.files.exists(path)) return { reason: `no configuration: ${path} is not there` };
+      return { models: vibeModels(await this.files.readText(path)) };
+    } catch (error) {
+      return { reason: `configuration unreadable: ${path}: ${messageOf7(error)}` };
+    }
+  }
+};
+function modelSources(deps) {
+  return {
+    agy: new AntigravityModelSource(deps.process),
+    hermes: new HermesModelSource(deps.process),
+    opencode: new OpenCodeModelSource(deps.process),
+    vibe: new VibeModelSource(deps.files, deps.env)
+  };
+}
+function failureReason(command, result2) {
+  const detail = result2.stderr.trim().split("\n")[0] ?? "";
+  const exit = `${command} exited ${String(result2.exitCode)}`;
+  return `listing failed: ${detail === "" ? exit : `${exit}: ${detail}`}`;
+}
+function messageOf7(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// src/contexts/model-gateway/adapters/clients/status.ts
+var STATUS_TIMEOUT_MS = 5e3;
+var TIMED_OUT = "status command did not answer in time";
+async function runStatus(process2, command, args, timeoutMs) {
+  try {
+    return { result: await process2.exec({ args: [...args], command, timeoutMs }) };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+function readingOf(command, run, decide) {
+  if ("error" in run) return { command, detail: `could not be read: ${run.error}`, signed_in: "unknown" };
+  if (run.result.timedOut === true) return { command, detail: TIMED_OUT, signed_in: "unknown" };
+  return { command, ...decide(run.result) };
+}
+function firstLine(text) {
+  return text.split("\n").map((line) => line.trim()).find((line) => line !== "");
+}
+var NOT_LOGGED_IN = /not logged in|logged out|no credentials|log ?in required|unauthenticated/i;
+function loginReading(result2) {
+  const said = firstLine(result2.stdout) ?? firstLine(result2.stderr);
+  if (result2.exitCode === 0) return { detail: said ?? `exited ${String(result2.exitCode)}`, signed_in: "yes" };
+  if (said !== void 0 && NOT_LOGGED_IN.test(said)) return { detail: said, signed_in: "no" };
+  return {
+    detail: `could not be read: exited ${String(result2.exitCode)}${said === void 0 ? "" : `: ${said}`}`,
+    signed_in: "unknown"
+  };
+}
+function listingReading(result2) {
+  if (result2.exitCode !== 0) {
+    const complaint = firstLine(result2.stderr);
+    return {
+      detail: `could not be read: exited ${String(result2.exitCode)}${complaint === void 0 ? "" : `: ${complaint}`}`,
+      signed_in: "unknown"
+    };
+  }
+  const listed = result2.stdout.trim() !== "";
+  return { detail: listed ? "it lists credentials" : "it lists no credentials", signed_in: listed ? "yes" : "no" };
+}
+var CodexStatus = class {
+  constructor(process2, timeoutMs = STATUS_TIMEOUT_MS) {
+    this.process = process2;
+    this.timeoutMs = timeoutMs;
+  }
+  process;
+  timeoutMs;
+  async read() {
+    const run = await runStatus(this.process, "codex", ["login", "status"], this.timeoutMs);
+    return readingOf("codex login status", run, loginReading);
+  }
+};
+var HermesStatus = class {
+  constructor(process2, timeoutMs = STATUS_TIMEOUT_MS) {
+    this.process = process2;
+    this.timeoutMs = timeoutMs;
+  }
+  process;
+  timeoutMs;
+  async read() {
+    const run = await runStatus(this.process, "hermes", ["auth", "list"], this.timeoutMs);
+    return readingOf("hermes auth list", run, listingReading);
+  }
+};
+var OpenCodeStatus = class {
+  constructor(process2, timeoutMs = STATUS_TIMEOUT_MS) {
+    this.process = process2;
+    this.timeoutMs = timeoutMs;
+  }
+  process;
+  timeoutMs;
+  async read() {
+    const run = await runStatus(this.process, "opencode", ["auth", "list"], this.timeoutMs);
+    return readingOf("opencode auth list", run, listingReading);
+  }
+};
+function clientStatuses(deps) {
+  return {
+    codex: new CodexStatus(deps.process),
+    hermes: new HermesStatus(deps.process),
+    opencode: new OpenCodeStatus(deps.process)
+  };
+}
+
 // src/contexts/model-gateway/adapters/kept/index.ts
-import { mkdir as mkdir3, readFile as readFile3 } from "node:fs/promises";
-import { dirname as dirname4 } from "node:path";
+import { mkdir as mkdir5, readFile as readFile5 } from "node:fs/promises";
+import { dirname as dirname6 } from "node:path";
 var KEPT_VERSION = 1;
 var NodeModelGatewayKept = class {
   constructor(env, timings = {}) {
@@ -4455,7 +4555,7 @@ var NodeModelGatewayKept = class {
   /** Reads the list under the lock, and writes back what `change` makes of it unless the change is only a look. */
   async update(change, write = true) {
     const path = keptWorktreesPath(this.env);
-    await mkdir3(dirname4(path), { recursive: true });
+    await mkdir5(dirname6(path), { recursive: true });
     return this.lock.run(`${path}.lock`, async () => {
       const changed = change(await this.read(path));
       if (write) await writeFileAtomic(path, `${JSON.stringify({ version: KEPT_VERSION, worktrees: changed }, null, 2)}
@@ -4466,7 +4566,7 @@ var NodeModelGatewayKept = class {
   async read(path) {
     let text;
     try {
-      text = await readFile3(path, "utf8");
+      text = await readFile5(path, "utf8");
     } catch (error) {
       if (error.code === "ENOENT") return [];
       throw error;
@@ -4481,59 +4581,6 @@ var NodeModelGatewayKept = class {
       throw new ModelGatewayError("invalid-config", `${path}: must be {"version": ${String(KEPT_VERSION)}, "worktrees": [...]}`);
     }
     return parsed.worktrees;
-  }
-};
-
-// src/contexts/model-gateway/adapters/ledger/index.ts
-import { appendFile, mkdir as mkdir4, readFile as readFile4 } from "node:fs/promises";
-import { dirname as dirname5 } from "node:path";
-var NodeModelGatewayLedger = class {
-  constructor(env, timings = {}) {
-    this.env = env;
-    this.lock = new FileLock("ledger", timings);
-  }
-  env;
-  lock;
-  async append(record) {
-    const path = ledgerPath(this.env);
-    await mkdir4(dirname5(path), { recursive: true });
-    await this.lock.run(`${path}.lock`, () => appendFile(path, ledgerLine(record)));
-  }
-  async read() {
-    return this.load();
-  }
-  async update(change) {
-    const path = ledgerPath(this.env);
-    await mkdir4(dirname5(path), { recursive: true });
-    return this.lock.run(`${path}.lock`, async () => {
-      const changed = change(await this.load());
-      if (changed.append.length > 0) await appendFile(path, changed.append.map(ledgerLine).join(""));
-      return changed.result;
-    });
-  }
-  /**
-   * Every record the ledger holds, oldest first. A ledger that is not there
-   * yet holds none; a line a writer left half-written is skipped, so one
-   * crashed run never hides the rest of the history.
-   */
-  async load() {
-    const path = ledgerPath(this.env);
-    let text;
-    try {
-      text = await readFile4(path, "utf8");
-    } catch (error) {
-      if (error.code === "ENOENT") return [];
-      throw error;
-    }
-    const records = [];
-    for (const line of text.split("\n")) {
-      if (line.trim() === "") continue;
-      try {
-        records.push(JSON.parse(line));
-      } catch {
-      }
-    }
-    return records;
   }
 };
 
@@ -4662,50 +4709,6 @@ var NodeModelGatewayProof = class {
     return await this.paths.files.exists(path) ? this.paths.files.readText(path) : void 0;
   }
 };
-
-// src/contexts/model-gateway/adapters/workflows/index.ts
-import { mkdir as mkdir5, readFile as readFile5 } from "node:fs/promises";
-import { dirname as dirname6 } from "node:path";
-var NodeModelGatewayWorkflows = class {
-  constructor(env, timings = {}) {
-    this.env = env;
-    this.lock = new FileLock("workflows", timings);
-  }
-  env;
-  lock;
-  async read() {
-    return this.load();
-  }
-  async update(change) {
-    const path = workflowsPath(this.env);
-    await mkdir5(dirname6(path), { recursive: true });
-    return this.lock.run(`${path}.lock`, async () => {
-      const changed = change(await this.load());
-      await writeFileAtomic(path, `${JSON.stringify({ version: WORKFLOWS_VERSION, workflows: changed.workflows }, null, 2)}
-`);
-      return changed.workflow;
-    });
-  }
-  /** The workflows the file holds; a file that is not there yet holds none. */
-  async load() {
-    const path = workflowsPath(this.env);
-    let text;
-    try {
-      text = await readFile5(path, "utf8");
-    } catch (error) {
-      if (error.code === "ENOENT") return [];
-      throw new ModelGatewayError("invalid-config", `${path}: cannot read the workflows: ${messageOf7(error)}`);
-    }
-    try {
-      return parseWorkflowsFile(text);
-    } catch (error) {
-      throw new ModelGatewayError("invalid-config", `${path}: ${messageOf7(error)}`);
-    }
-  }
-};
-function messageOf7(error) {
-  return error instanceof Error ? error.message : String(error);
-}
 
 // src/model-gateway-cli/index.ts
 var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'

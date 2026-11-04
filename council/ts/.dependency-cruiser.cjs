@@ -120,6 +120,19 @@ module.exports = {
       to: { path: '^src/contexts/model-gateway/(domain|application|adapters)/.+' },
     },
     {
+      // Council's engines reach the model gateway only through its public
+      // barrel, and reach no other context: an engine process is authorised
+      // and recorded by the gateway's guard, never by its internals. The
+      // gateway reaches nothing in council or critique (model-gateway-stands-alone).
+      name: 'engines-reach-only-the-gateway-barrel',
+      severity: 'error',
+      from: { path: '^src/contexts/engines/' },
+      to: {
+        path: '^src/contexts/(?!engines/)[^/]+/',
+        pathNot: '^src/contexts/model-gateway/index\\.ts$',
+      },
+    },
+    {
       // The model gateway's CLI reaches its context only through the barrel.
       name: 'model-gateway-cli-uses-context-barrel',
       severity: 'error',

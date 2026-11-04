@@ -28,6 +28,14 @@ export interface LedgerRecord {
   /** The repository the run worked in, keyed `<host>/<owner>/<repo>`; null for an inline run. */
   readonly repository: string | null
   readonly run_id: string
+  /**
+   * Who ran it when it was not a gateway delegation: `council` for a run of one
+   * of council's own engine processes, which the gateway guarded and recorded
+   * without launching. A delegation carries none.
+   */
+  readonly source?: string
+  /** Set on a council run whose supervisor died and was re-attached to: its start was not seen, so its duration is of the re-attached part only. */
+  readonly reattached?: boolean
   /** A retry's or a climb's place in its delegation (2 and up); the delegation's first run carries none. */
   readonly attempt?: number
   /** The run id of the delegation's first attempt, on every later one. */

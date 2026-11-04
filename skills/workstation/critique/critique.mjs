@@ -2542,6 +2542,9 @@ function round2(value, places) {
   return Math.round(value * factor) / factor;
 }
 
+// src/contexts/model-gateway/application/engine-guard.ts
+var ENGINE_TIME_LIMIT_S = 4 * 60 * 60;
+
 // src/contexts/model-gateway/application/plan.ts
 async function readPlanLimit(deps, client) {
   const config = await loadConfig(deps.files, deps.defaultsPath, overridePath(deps.env));

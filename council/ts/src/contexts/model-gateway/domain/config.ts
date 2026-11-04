@@ -205,6 +205,11 @@ export type ModelGatewayErrorCode =
   | 'grants-in-repository'
   /** `grant write` could not read the ledger, so a standing grant cannot be ruled out: it fails closed. */
   | 'ledger-unreadable'
+  /**
+   * A subsidised client is at 100% of one of its plan windows, so an engine run
+   * that asks the gateway first is refused rather than started to fail.
+   */
+  | 'unable-to-start'
 
 export class ModelGatewayError extends Error {
   constructor(

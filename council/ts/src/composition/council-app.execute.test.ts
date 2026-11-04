@@ -16,6 +16,7 @@ import type {
   WorktreeDependencyProvisionerPort,
 } from '../adapters/worktree-provisioning/index.js'
 import type { RunStoreEvent, WorkerLifecycleEvent } from '../contexts/runstore/index.js'
+import { FakeEngineGuard } from '../../test/council/fake-engine-guard.js'
 import type { ProcessCommand, ProcessPort, ProcessResult } from '../ports/index.js'
 import type { Task } from '../shared-kernel/index.js'
 import type { RunSummary } from '../workflows/index.js'
@@ -30,6 +31,7 @@ describe('CouncilApp execute contract smoke', () => {
     const statusRequests: { readonly runDir: string }[] = []
     const promptWrites: { readonly path: string; readonly text: string }[] = []
     const app = new CouncilApp({
+      engineGuard: new FakeEngineGuard(),
       createRunStore(root) {
         runStoreRoots.push(root)
         return runStore
@@ -115,7 +117,7 @@ describe('CouncilApp execute contract smoke', () => {
         worktreePath: '/repo/.worktrees/workers/run-execute/T12',
       },
     ])
-    expect(promptWrites).toEqual([
+    expect(promptWrites.filter((write) => write.path.endsWith('prompt.md'))).toEqual([
       {
         path: '/repo/.worktrees/workers/run-execute/T12/.council/workers/T12/prompt.md',
         text: expect.stringContaining('Task T12: Harden execute documentation') as string,

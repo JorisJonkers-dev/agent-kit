@@ -197,14 +197,14 @@ skills:
       - agent: claude
         path: .claude/agents/codex-med.md
         source: agents/codex-med.md
-        sha256: 8baecdbe41412b666a6c35d1fdd87ca934cc64665d2ba1ff63262347b8f6519c
+        sha256: 00b17c97d3be0cd2331628c927f718b0e934d080aef4284f5b725e8786a7024c
   - name: agent-codex-xhigh
     supported_agents: [claude]
     targets:
       - agent: claude
         path: .claude/agents/codex-xhigh.md
         source: agents/codex-xhigh.md
-        sha256: ada0b5f8876071b01df1907137d4e9ebe4f41396c72360c3fab8337c396cd8f0
+        sha256: ca45f12036179e0a94089d5b42a3aa81741639eca227b860107b30d818a8a682
   - name: council
     supported_agents: [codex, claude]
     targets:
@@ -468,7 +468,7 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: 35dd44cbb07d34c2166fadd175b98aed20ec30fb865fff830717238c22099f0c
+      sha256: 7a672a048003c7ef993b8ff9c79019e77d81bfff5ca79146509257b34f76280b
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: dbbc98efd6f1ef0e53667cdec6c659d89f6ee6eeea0d5ae42961bd0dbfc119f0
@@ -557,7 +557,7 @@ build_tracker:
 model_gateway:
   files:
     - path: skills/workstation/model-gateway/model-gateway.mjs
-      sha256: b53dc0287b7afbca8e9d1e22674c162295a8e6fcea3779953605e5d4898d3c95
+      sha256: e64da320f1441bcef350891896c7f3da583e650f04ad9d94c03f4349c25bc593
       mode: "0755"
     - path: skills/workstation/model-gateway/defaults.json
       sha256: f0d3f59c654635fdf45932a83d0adbbad2feb29b08c9d07c1d385213a286cea9

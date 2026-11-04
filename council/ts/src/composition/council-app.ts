@@ -1,7 +1,7 @@
 import { mkdir, open as openFile, readFile, stat as statFile, writeFile } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 
-import { SystemClockAdapter } from '../adapters/clock/index.js'
+import { ProcessEnvAdapter, SystemClockAdapter } from '../adapters/clock/index.js'
 import { NodeProcessAdapter, ProcessVerificationAdapter } from '../adapters/process/index.js'
 import {
   FsLiveRunDirReader,
@@ -14,6 +14,20 @@ import {
   type WorktreeDependencyProvisionerPort,
 } from '../adapters/worktree-provisioning/index.js'
 import { resolveCouncilConfig } from '../contexts/config/index.js'
+import {
+  commandEngine,
+  EngineGate,
+  EngineGuardError,
+  engineLeaseFileText,
+  isGuardedEngine,
+  modelPicks,
+  parseEngineLeaseFile,
+  parseEngineSpec,
+  wrappedEngine,
+  type EngineEnd,
+  type EngineLease,
+  type EngineRunGuard,
+} from '../contexts/engines/index.js'
 import { createMonitorFsAdapter } from '../contexts/monitor/index.js'
 import {
   GitCliAdapter,
@@ -37,6 +51,7 @@ import {
   type RunStoreEvent,
   type WorkerLifecycleEvent,
 } from '../contexts/runstore/index.js'
+import { nodeEngineGuard, type NodeEngineGuardOptions } from '../contexts/model-gateway/index.js'
 import {
   recommendLenses,
   type LensProblemProfile,
@@ -112,6 +127,13 @@ import type {
 
 export interface CouncilAppDeps {
   readonly clock?: ClockPort
+  /**
+   * The model gateway's guard for the `claude` and `codex` engine processes
+   * council launches: it authorises a worker before it starts and records it
+   * when it ends. The CLI wires the real one; an app built without one (as
+   * every test builds it) launches workers unguarded.
+   */
+  readonly engineGuard?: EngineRunGuard
   readonly createRunStore?: (root: string) => SuperviseRunStore
   readonly createWorkerSupervisor?: (dependencies: SuperviseWorkerSupervisorDependencies) => SuperviseWorkerSupervisor
   readonly executeDag?: ExecuteDagDependency
@@ -173,6 +195,17 @@ export interface SuperviseInput {
   readonly command: string
   readonly args?: readonly string[]
   readonly stdin?: string
+  /**
+   * The engine and model the worker runs, as `<engine>:<model>` (for example
+   * `codex:gpt-5.5`). A `claude` or `codex` worker is authorised by the model
+   * gateway before it starts, under this run's workflow, and recorded in the
+   * gateway's ledger when it ends.
+   */
+  readonly engine?: string
+  /** How long the worker's prompt is, in characters, where it is not the stdin or arguments (a prompt file); the gateway's estimate counts it. */
+  readonly promptChars?: number
+  /** The worker's prompt carries no ticket or issue text; without this the gateway holds it to the repository's history permission. */
+  readonly noHistory?: boolean
   readonly restartPreamble?: string
   readonly checkpointPreamble?: string
   readonly supportsStreamingStdin?: boolean
@@ -294,6 +327,7 @@ const DEFAULT_TAIL_INTERVAL_MS = 1000
 export class CouncilApp {
   private readonly clock: ClockPort
   private readonly createRunStore: (root: string) => SuperviseRunStore
+  private readonly engineGate: EngineGate | undefined
   private readonly createWorkerSupervisor: (
     dependencies: SuperviseWorkerSupervisorDependencies,
   ) => SuperviseWorkerSupervisor
@@ -326,6 +360,7 @@ export class CouncilApp {
           nowMs: () => Math.trunc(this.clock.monotonicMs()),
           sleep: (ms) => this.clock.sleep(ms),
         }))
+    this.engineGate = deps.engineGuard === undefined ? undefined : new EngineGate(deps.engineGuard, this.clock)
     this.executeDagOverride = deps.executeDag
     this.gh = deps.gh
     this.integrationWorktreePath = deps.integrationWorktreePath
@@ -434,7 +469,18 @@ export class CouncilApp {
     })
   }
 
-  async supervise(input: SuperviseInput): Promise<WorkerResult> {
+  supervise(input: SuperviseInput): Promise<WorkerResult> {
+    return this.superviseWorker(input, commandEngine(input.command))
+  }
+
+  /**
+   * Supervises one worker. `boundEngine` is the guarded engine the worker's
+   * command really is: the command's own name for a direct call, or the
+   * registry's engine for a native DAG worker, whose command is that engine's
+   * shell line. The `--engine` the caller names must be that engine, so the
+   * gateway always authorises the process that is actually spawned.
+   */
+  private async superviseWorker(input: SuperviseInput, boundEngine: string | undefined, fromRegistry = false): Promise<WorkerResult> {
     const target = runStoreTarget(input.runDir)
     const store = this.createRunStore(target.root)
     const workerId = `worker-${input.taskId}`
@@ -444,33 +490,67 @@ export class CouncilApp {
     }
     const request = workerStartRequest(input)
     const snapshot = await readExistingSnapshot(store, target.runId, input.taskId)
-    const supervisor = this.createWorkerSupervisor({
-      onEvent: (event) => {
-        const lifecycleEvent = workerLifecycleEvent(input, event, workerId, this.nowIso())
-        if (lifecycleEvent !== undefined) {
-          enqueue(() => store.appendWorkerEvent(target.runId, lifecycleEvent))
-        }
-      },
-      onSnapshot: (snapshot) => {
-        enqueue(() => store.writeWorkerSupervisorSnapshot(target.runId, input.taskId, snapshot))
-      },
-    })
-    const session = snapshot === undefined ? supervisor.start(request) : supervisor.reattach(request, snapshot)
-    const supervisorResult = await session.result
-    await writes
-    const result = workerResultFromSupervisor(input, supervisorResult)
-    await store.writeWorkerResult(target.runId, input.taskId, result)
-    await store.appendWorkerEvent(
-      target.runId,
-      workerFinishedEvent({
-        finished_at: this.nowIso(),
-        result_path: `workers/${input.taskId}/result.json`,
-        status: result.status,
-        task_id: input.taskId,
-        worker_id: workerId,
-      }),
-    )
-    return result
+    const leaseFile = join(input.runDir, 'workers', input.taskId, 'engine-lease.json')
+    const lease = await this.leaseFor(input, boundEngine, fromRegistry, target.runId, leaseFile, snapshot !== undefined)
+    let end: EngineEnd = { outcome: 'failed', reason: 'supervise-error' }
+    let failed = false
+    try {
+      const supervisor = this.createWorkerSupervisor({
+        onEvent: (event) => {
+          const lifecycleEvent = workerLifecycleEvent(input, event, workerId, this.nowIso())
+          if (lifecycleEvent !== undefined) {
+            enqueue(() => store.appendWorkerEvent(target.runId, lifecycleEvent))
+          }
+        },
+        onSnapshot: (snapshot) => {
+          enqueue(() => store.writeWorkerSupervisorSnapshot(target.runId, input.taskId, snapshot))
+        },
+      })
+      const session = snapshot === undefined ? supervisor.start(request) : supervisor.reattach(request, snapshot)
+      const supervisorResult = await session.result
+      end = superviseEnd(supervisorResult)
+      try {
+        await writes
+        const result = workerResultFromSupervisor(input, supervisorResult)
+        await store.writeWorkerResult(target.runId, input.taskId, result)
+        await store.appendWorkerEvent(
+          target.runId,
+          workerFinishedEvent({
+            finished_at: this.nowIso(),
+            result_path: `workers/${input.taskId}/result.json`,
+            status: result.status,
+            task_id: input.taskId,
+            worker_id: workerId,
+          }),
+        )
+        return result
+      } catch (error) {
+        // The worker ran, but what it did could not be kept: the gateway is told it failed.
+        end = { outcome: 'failed', reason: 'store-error' }
+        throw error
+      }
+    } catch (error) {
+      failed = true
+      throw error
+    } finally {
+      await this.endLease(lease, end, leaseFile, failed)
+    }
+  }
+
+  /**
+   * Tells the gateway how the worker ended, whatever happened to it, and marks
+   * the lease file so no later re-attach records it again. A ledger that cannot
+   * take the line fails the call loudly, unless the call already failed: the
+   * run's own error is the one that matters then.
+   */
+  private async endLease(lease: EngineLease | undefined, end: EngineEnd, leaseFile: string, failed: boolean): Promise<void> {
+    if (lease === undefined) return
+    try {
+      await lease.end(end)
+      await this.writeText(leaseFile, engineLeaseFileText({ state: 'ended' }))
+    } catch (error) {
+      if (!failed) throw error
+    }
   }
 
   monitor(input: MonitorStartInput): Promise<MonitorStartResult> {
@@ -508,6 +588,125 @@ export class CouncilApp {
 
   roundTripTasksMarkdown(tasksPath: string): Promise<readonly import('../shared-kernel/index.js').JsonRecord[]> {
     return roundTripTasksMarkdownWorkflow(tasksPath, { readText: this.readText })
+  }
+
+  /**
+   * The gateway's lease for a worker, or undefined for a worker the gateway
+   * does not guard. It fails closed:
+   * - a `claude` or `codex` command needs a guard, `--engine <same engine>:<model>`
+   *   and, if its arguments pick a model, that same model;
+   * - a command that is neither names no guarded `--engine`.
+   * A worker that is started gets a new lease, written to its lease file at
+   * once. One that is re-attached to gets the lease its first supervisor left
+   * (or none, if that run was already recorded), or, when no lease was ever
+   * written, a new one marked as re-attached.
+   */
+  private async leaseFor(
+    input: SuperviseInput,
+    boundEngine: string | undefined,
+    fromRegistry: boolean,
+    runId: string,
+    leaseFile: string,
+    reattaching: boolean,
+  ): Promise<EngineLease | undefined> {
+    const named = input.engine?.split(':')[0]
+    if (boundEngine === undefined) {
+      // A command the caller picked may start a guarded engine from inside
+      // itself (`env codex`, `sh -c 'claude ...'`); only a command that came
+      // from the engine registry is trusted to be what its engine says.
+      const wrapped = fromRegistry ? undefined : wrappedEngine(input.command, input.args ?? [])
+      if (wrapped !== undefined) {
+        throw new EngineGuardError('engine-wrapper', `${basename(input.command)} would start ${wrapped} past the model gateway: start ${wrapped} as the command itself, with --engine ${wrapped}:<model>`)
+      }
+      if (named !== undefined && isGuardedEngine(named)) {
+        throw new EngineGuardError('engine-mismatch', `engine ${named} does not match the command ${basename(input.command)}: a guarded engine is named only for its own command`)
+      }
+      return undefined
+    }
+    const gate = this.engineGate
+    if (gate === undefined) {
+      throw new EngineGuardError('no-engine-guard', `${boundEngine} runs through the model gateway, and this council has no model gateway guard, so it is not started`)
+    }
+    if (input.engine === undefined) {
+      throw new EngineGuardError('engine-mismatch', `${boundEngine} runs through the model gateway: name it with --engine ${boundEngine}:<model>`)
+    }
+    if (named !== boundEngine) {
+      throw new EngineGuardError('engine-mismatch', `engine ${named ?? ''} does not match the command ${basename(input.command)}: the gateway authorises the engine that is spawned`)
+    }
+    const spec = parseEngineSpec(input.engine)
+    const picks = modelPicks(spec.name, input.args ?? [])
+    if (picks.overrides.length > 0) {
+      throw new EngineGuardError('engine-model-override', `${basename(input.command)} sets ${picks.overrides.join(', ')}, which can change the model or provider the gateway authorised`)
+    }
+    const other = picks.models.find((model) => model !== spec.model)
+    if (other !== undefined) {
+      throw new EngineGuardError('engine-model-override', `${basename(input.command)} picks ${other} but --engine names ${spec.model}: the gateway holds the run to the model it is told`)
+    }
+    if (reattaching) {
+      const standing = await this.readLeaseFile(leaseFile)
+      if (standing?.state === 'ended') return undefined
+      if (standing !== undefined) {
+        const stored = standing.lease
+        if (stored.council_run !== runId || stored.task_id !== input.taskId || stored.engine !== spec.name || stored.model !== spec.model) {
+          throw new EngineGuardError('engine-lease-mismatch', `the lease in ${leaseFile} was opened for ${stored.engine}:${stored.model} of task ${stored.task_id} in run ${stored.council_run}, not for this worker: it is not resumed`)
+        }
+        try {
+          return await gate.resume(stored, { carriesHistory: input.noHistory !== true, repo: input.worktree })
+        } catch (error) {
+          // The gateway ended the lease as failed; the file must say so, or a later re-attach would end it again.
+          await this.writeText(leaseFile, engineLeaseFileText({ state: 'ended' })).catch(() => undefined)
+          throw error
+        }
+      }
+    }
+    const wallClockCapMs = input.watchdog?.wallClockCapMs
+    const lease = await gate.begin(
+      {
+        carriesHistory: input.noHistory !== true,
+        engine: spec.name,
+        model: spec.model,
+        promptChars: await this.promptChars(input),
+        repo: input.worktree,
+        taskId: input.taskId,
+        workflow: runId,
+        ...(wallClockCapMs === undefined ? {} : { timeLimitS: Math.ceil(wallClockCapMs / 1000) }),
+      },
+      { reattached: reattaching },
+    )
+    try {
+      await this.writeText(leaseFile, engineLeaseFileText({ lease: lease.persisted(), state: 'open' }))
+    } catch (error) {
+      // A lease nobody could find again would hold its reservation for ever.
+      await lease.end({ outcome: 'failed', reason: 'lease-not-persisted' }).catch(() => undefined)
+      throw error
+    }
+    return lease
+  }
+
+  /** The worker's lease file, or undefined when its first supervisor never wrote one; a file that is not a lease is an error. */
+  private async readLeaseFile(path: string): Promise<ReturnType<typeof parseEngineLeaseFile> | undefined> {
+    let text: string
+    try {
+      text = await this.readText(path)
+    } catch (error) {
+      if (isErrno(error, 'ENOENT')) return undefined
+      throw error
+    }
+    return parseEngineLeaseFile(text)
+  }
+
+  /**
+   * How long the worker's prompt is, never less than what the caller names: its
+   * stdin, its arguments, and the prompt file the command is told to read. A
+   * file that cannot be read is an error, since the estimate would not be.
+   */
+  private async promptChars(input: SuperviseInput): Promise<number> {
+    const args = input.args ?? []
+    const flag = args.indexOf('--prompt-file')
+    const file = flag === -1 ? undefined : args[flag + 1]
+    const fileChars = file === undefined ? 0 : (await this.readText(isAbsolute(file) ? file : join(input.worktree, file))).length
+    const counted = (input.stdin?.length ?? 0) + args.reduce((total, arg) => total + arg.length, 0) + fileChars
+    return Math.max(input.promptChars ?? 0, counted)
   }
 
   private async createPullRequest(run: string): Promise<string> {
@@ -571,15 +770,17 @@ export class CouncilApp {
       task: request.task,
     })
     await this.writeText(join(request.worktree_path, resolved.promptFile), resolved.prompt)
-    const result = await this.supervise({
+    const result = await this.superviseWorker({
       args: resolved.command.args,
       command: resolved.command.command,
       runDir,
       taskId: request.task.id,
       worktree: request.worktree_path,
+      ...optional('engine', isGuardedEngine(resolved.engine.name) ? `${resolved.engine.name}:${resolved.engine.model}` : undefined),
       ...optional('mcpProfile', request.task.attachment?.mcpProfile),
       ...optional('modelTier', request.assignment.model),
-    })
+      promptChars: resolved.prompt.length,
+    }, isGuardedEngine(resolved.engine.name) ? resolved.engine.name : undefined, true)
     return {
       result,
       status: dagSuperviseStatus(result),
@@ -598,6 +799,21 @@ export class CouncilApp {
       eval: dagEvalResult(evalConfig, evaluation),
     }
   }
+}
+
+/**
+ * The gateway's guard on this machine, for the CLI to hand the app: the
+ * machine-wide ledger, workflows and grants the gateway keeps, and the shipped
+ * defaults in the model-gateway skill beside the council skill
+ * (`<skills>/model-gateway/defaults.json`; council's own files sit in
+ * `<skills>/council/ts-dist/composition/`).
+ */
+export function defaultEngineGuard(options: Partial<NodeEngineGuardOptions> = {}): EngineRunGuard {
+  return nodeEngineGuard({
+    clock: options.clock ?? new SystemClockAdapter(),
+    defaultsPath: options.defaultsPath ?? join(import.meta.dirname, '..', '..', '..', 'model-gateway', 'defaults.json'),
+    env: options.env ?? new ProcessEnvAdapter(),
+  })
 }
 
 export function extractJson(text: string): unknown {
@@ -843,6 +1059,14 @@ function workerLifecycleEvent(
   }
 
   return undefined
+}
+
+/** What a supervised worker's end tells the gateway: a clean finish is ok, a watchdog limit is a timeout, anything else failed with its exit code or its status. */
+function superviseEnd(result: SuperviseWorkerSupervisorResult): EngineEnd {
+  if (result.status === 'completed') return { outcome: 'ok' }
+  if (result.status === 'stalled' || result.status === 'budget-cap') return { outcome: 'timeout', reason: result.status }
+  const failed = result.exitCode !== null && result.exitCode !== 0
+  return { outcome: 'failed', reason: failed ? `exit-${String(result.exitCode)}` : result.status }
 }
 
 function workerResultFromSupervisor(

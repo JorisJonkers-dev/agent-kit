@@ -1,6 +1,16 @@
 export { BatchCommand, type BatchResult, type DelegationReport } from './application/batch.js'
 export { CapGuard, heldCostClass, runCostClass, type CapSource, type Reservation } from './application/caps.js'
 export { ClientRun, requireSupportedExtras, type ClientRunOutcome, type ClientRunPorts, type ClientRunRequest } from './application/client-run.js'
+export {
+  ENGINE_TIME_LIMIT_S,
+  EngineGuard,
+  type EngineAuthorization,
+  type EngineAuthorizeRequest,
+  type EngineGuardDependencies,
+  type EngineReauthorizeRequest,
+  type EngineRecordInput,
+  type EngineReservation,
+} from './application/engine-guard.js'
 export { createModelGatewayCommands, type ModelGatewayCommands } from './application/commands.js'
 export {
   GrantGuard,
@@ -88,6 +98,7 @@ export type {
   WorkflowUsage,
 } from './domain/usage.js'
 export type { WorkflowChange, WorkflowRecord, WorkflowState, WorkflowView } from './domain/workflows.js'
+export { nodeEngineGuard, type NodeEngineGuardOptions } from './adapters/engine-guard/index.js'
 export { modelSources } from './adapters/clients/index.js'
 export { clientStatuses } from './adapters/clients/status.js'
 export { NodeModelGatewayFiles } from './adapters/fs/index.js'

@@ -168,6 +168,9 @@ export class GrantListCommand implements ModelGatewayCommand<unknown, GrantListR
   }
 }
 
+/** What the grant guard reads: the grants, the workflows they lapse with, and the ledger that says what they spent. */
+export type GrantGuardDependencies = Pick<ModelGatewayDependencies, 'files' | 'grants' | 'ledger' | 'workflows'>
+
 /**
  * The grant a metered-employer run needs. A run whose workflow no live grant
  * covers is refused with `no-grant`, naming the workflow and the `grant write`
@@ -176,7 +179,7 @@ export class GrantListCommand implements ModelGatewayCommand<unknown, GrantListR
 export class GrantGuard {
   private readonly caps: CapGuard
 
-  constructor(private readonly deps: ModelGatewayDependencies) {
+  constructor(private readonly deps: GrantGuardDependencies) {
     this.caps = new CapGuard(deps)
   }
 
