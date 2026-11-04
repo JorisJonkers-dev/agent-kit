@@ -5,6 +5,7 @@
     "agy":    {"binary": "agy",    "cost_class": "subsidised",       "model_source": "live", "families": ["google"]},
     "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
     "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "live"},
+    "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised"}},
     "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"}
   },
   "models": [

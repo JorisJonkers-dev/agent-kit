@@ -13,3 +13,13 @@ export function overridePath(env: EnvPort): string {
   if (xdg !== undefined && isAbsolute(xdg)) return join(xdg, 'agent-kit', 'model-gateway.json')
   return join(env.require('HOME'), '.config', 'agent-kit', 'model-gateway.json')
 }
+
+/**
+ * The configuration Vibe declares its own models in: `$VIBE_HOME/config.toml`,
+ * or `~/.vibe/config.toml` when VIBE_HOME is unset or not an absolute path.
+ */
+export function vibeConfigPath(env: EnvPort): string {
+  const home = env.get('VIBE_HOME')
+  if (home !== undefined && isAbsolute(home)) return join(home, 'config.toml')
+  return join(env.require('HOME'), '.vibe', 'config.toml')
+}

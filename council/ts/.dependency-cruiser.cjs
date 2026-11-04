@@ -92,8 +92,8 @@ module.exports = {
     {
       // The model gateway is its own small runner: its context and CLI reach
       // no other context and none of council's shells, so its bundle stays
-      // self-contained. The shared ports and the environment adapter are all
-      // it may use from outside.
+      // self-contained. The shared ports and the shared process and
+      // environment adapters are all it may use from outside.
       name: 'model-gateway-stands-alone',
       severity: 'error',
       from: { path: '^src/(contexts/model-gateway|model-gateway-cli)/' },

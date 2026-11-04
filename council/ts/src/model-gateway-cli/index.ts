@@ -5,6 +5,7 @@ import { ProcessEnvAdapter } from '../adapters/clock/index.js'
 import {
   createModelGatewayCommands,
   ModelGatewayError,
+  modelSources,
   NodeModelGatewayFiles,
   NodeModelGatewayProcess,
   type ModelGatewayCommands,
@@ -108,12 +109,16 @@ function messageOf(error: unknown): string {
 
 /** Wires the real files, PATH and environment; tests replace any of them. */
 export function defaultModelGatewayRuntime(overrides: Partial<ModelGatewayDependencies> = {}): ModelGatewayRuntime {
+  const env = overrides.env ?? new ProcessEnvAdapter()
+  const files = overrides.files ?? new NodeModelGatewayFiles()
+  const process = overrides.process ?? new NodeModelGatewayProcess()
   return {
     commands: createModelGatewayCommands({
       defaultsPath: join(import.meta.dirname, 'defaults.json'),
-      env: new ProcessEnvAdapter(),
-      files: new NodeModelGatewayFiles(),
-      process: new NodeModelGatewayProcess(),
+      env,
+      files,
+      process,
+      sources: modelSources({ env, files, process }),
       ...overrides,
     }),
     readFile: (path) => readFile(path, 'utf8'),

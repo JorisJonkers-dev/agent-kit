@@ -31,6 +31,11 @@ export interface ClientConfig {
   readonly model_source: ModelSource
   /** The model families this client may reach; undefined when it is not restricted. */
   readonly families: readonly string[] | undefined
+  /**
+   * The cost class of each provider a client's models run on, by provider name;
+   * undefined when the client's own cost class covers every model it lists.
+   */
+  readonly provider_cost_classes: Readonly<Record<string, CostClass>> | undefined
 }
 
 /** One model a client offers, as the declared list describes it. */
@@ -135,7 +140,11 @@ function mergeClients(base: Readonly<Record<string, ClientConfig>>, raw: unknown
   return merged
 }
 
-/** One client, every field it does not name taken from `base`; a new client must name all three. */
+/**
+ * One client, every field it does not name taken from `base`; a new client
+ * must name all three. `provider_cost_classes` merges key by key, so an
+ * override that names one provider keeps the cost class of the others.
+ */
 function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined): ClientConfig {
   const where = `clients.${id}`
   const binary = raw.binary === undefined ? base?.binary : requireString(raw.binary, `${where}.binary`)
@@ -143,10 +152,25 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
   const modelSource =
     raw.model_source === undefined ? base?.model_source : requireOneOf(raw.model_source, MODEL_SOURCES, `${where}.model_source`)
   const families = raw.families === undefined ? base?.families : requireStrings(raw.families, `${where}.families`)
+  const providerCostClasses =
+    raw.provider_cost_classes === undefined
+      ? base?.provider_cost_classes
+      : {
+          ...base?.provider_cost_classes,
+          ...parseProviderCostClasses(raw.provider_cost_classes, `${where}.provider_cost_classes`),
+        }
   if (binary === undefined || costClass === undefined || modelSource === undefined) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`)
   }
-  return { binary, cost_class: costClass, families, model_source: modelSource }
+  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses }
+}
+
+/** The cost class of each provider a client's models run on, by provider name. */
+function parseProviderCostClasses(raw: unknown, where: string): Readonly<Record<string, CostClass>> {
+  if (!isObject(raw)) throw invalid(`${where} must be an object keyed by provider name`)
+  return Object.fromEntries(
+    Object.entries(raw).map(([provider, value]) => [provider, requireOneOf(value, COST_CLASSES, `${where}.${provider}`)]),
+  )
 }
 
 function mergeModels(base: readonly ModelEntry[], raw: unknown): readonly ModelEntry[] {

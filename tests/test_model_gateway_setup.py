@@ -64,9 +64,11 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "agy": ("agy", "subsidised", "live"),
         "claude": ("claude", "subsidised", "declared"),
         "hermes": ("hermes", "metered-personal", "live"),
+        "opencode": ("opencode", "metered-personal", "live"),
         "codex": ("codex", "metered-employer", "declared"),
     }
     assert clients["agy"]["families"] == ["google"]
+    assert clients["opencode"]["provider_cost_classes"] == {"opencode-go": "subsidised"}
 
 
 def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None:
@@ -101,6 +103,19 @@ def test_the_schema_allows_exactly_the_contracts_enums() -> None:
     assert client["cost_class"]["enum"] == ["subsidised", "metered-personal", "metered-employer"]
     assert client["model_source"]["enum"] == ["live", "config", "declared"]
     assert schema["$defs"]["model"]["properties"]["tier"]["enum"] == ["trivial", "routine", "hard", "frontier"]
+
+
+def test_the_schema_lets_a_client_set_a_cost_class_per_provider() -> None:
+    schema = json.loads(SCHEMA.read_text())
+    provider_cost_classes = schema["$defs"]["client"]["properties"]["provider_cost_classes"]
+    assert provider_cost_classes["type"] == "object"
+    assert provider_cost_classes["additionalProperties"]["enum"] == [
+        "subsidised",
+        "metered-personal",
+        "metered-employer",
+    ]
+    assert "opencode" in schema["properties"]["clients"]["required"]
+    assert "opencode" in schema["$defs"]["model"]["properties"]["client"]["enum"]
 
 
 def test_the_schema_requires_every_key_and_allows_no_others() -> None:
@@ -171,6 +186,15 @@ def test_a_defaults_file_with_an_extra_key_fails_validation(tmp_path: Path) -> N
     extra.write_text(json.dumps(defaults))
     with pytest.raises(AssertionError, match=re.escape("settings.vibe_flow_cap_usd")):
         _validator().validate_model_gateway_defaults(extra, SCHEMA)
+
+
+def test_a_defaults_file_with_a_provider_cost_class_the_schema_forbids_fails_validation(tmp_path: Path) -> None:
+    broken = tmp_path / "defaults.json"
+    defaults = json.loads(DEFAULTS.read_text())
+    defaults["clients"]["opencode"]["provider_cost_classes"] = {"opencode-go": "free"}
+    broken.write_text(json.dumps(defaults))
+    with pytest.raises(AssertionError, match=re.escape("clients.opencode.provider_cost_classes.opencode-go")):
+        _validator().validate_model_gateway_defaults(broken, SCHEMA)
 
 
 def test_a_defaults_file_missing_a_required_key_fails_validation(tmp_path: Path) -> None:
