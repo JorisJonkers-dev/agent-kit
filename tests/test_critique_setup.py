@@ -30,7 +30,7 @@ from setup_harness import Run, setup_run  # noqa: E402
 
 ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 AGENTS_DIR = render_registry.VIBE_CRITIC_AGENTS_DIR
-EVERY_AGENT = {"claude", "codex", "vibe", "antigravity"}
+EVERY_AGENT = {"claude", "codex", "vibe", "antigravity", "opencode"}
 CRITIC_AGENT_NAMES = ["critic-mistral-large", "critic-mistral-small", "critic-glm", "critic-deepseek-flash"]
 
 # Every key a rendered agent file may hold. Each is a Vibe setting: the

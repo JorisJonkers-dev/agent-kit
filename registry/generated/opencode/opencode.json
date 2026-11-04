@@ -1,0 +1,80 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "memory-api": {
+        "type": "remote",
+        "url": "https://hindsight-api.jorisjonkers.dev/mcp/default/",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:HINDSIGHT_API_TOKEN}"
+        },
+        "timeout": 60000
+      },
+      "n8n": {
+        "type": "remote",
+        "url": "https://n8n.jorisjonkers.dev/mcp-server/http",
+        "timeout": 60000
+      },
+      "n8n-mcp": {
+        "type": "local",
+        "command": [
+          "n8n-mcp"
+        ],
+        "timeout": 60000
+      },
+      "kubernetes": {
+        "type": "remote",
+        "url": "http://127.0.0.1:18080/mcp",
+        "timeout": 60000
+      },
+      "grimoire": {
+        "type": "remote",
+        "url": "https://grimoire.jorisjonkers.dev/mcp",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:GRIMOIRE_API_TOKEN}"
+        },
+        "timeout": 60000
+      },
+      "outline": {
+        "type": "remote",
+        "url": "https://notes.jorisjonkers.dev/mcp",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:OUTLINE_API_KEY}"
+        },
+        "timeout": 60000
+      },
+      "playwright": {
+        "type": "local",
+        "command": [
+          "playwright-mcp",
+          "--headless",
+          "--browser",
+          "chromium"
+        ],
+        "timeout": 120000
+      },
+      "drawio": {
+        "type": "local",
+        "command": [
+          "drawio-mcp"
+        ],
+        "timeout": 60000
+      },
+      "overleaf": {
+        "type": "local",
+        "command": [
+          "olcli-mcp"
+        ],
+        "environment": {
+          "OVERLEAF_BASE_URL": "https://overleaf.jorisjonkers.dev",
+          "OVERLEAF_COOKIE_NAME": "overleaf.sid",
+          "OLCLI_MCP_UNCONFIRMED_WRITES": "1"
+        },
+        "timeout": 120000
+      }
+    }
+  }
+}

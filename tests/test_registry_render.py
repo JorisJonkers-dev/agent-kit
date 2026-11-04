@@ -899,7 +899,7 @@ def test_estate_skills_are_local_skills_for_every_agent() -> None:
         assert name in by_name, name
         skill = by_name[name]
         assert skill["surfaces"] == ["workstation"]
-        assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity"}
+        assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity", "opencode"}
         assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
 
 

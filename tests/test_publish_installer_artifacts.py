@@ -39,6 +39,9 @@ KIT_FILES = (
     "installer/antigravity-mcp-proxy",
     "scripts/antigravity-merge-mcp.py",
     "registry/generated/antigravity/mcp_config.json",
+    "scripts/opencode-merge-mcp.py",
+    "scripts/opencode-plugin-skills.py",
+    "registry/generated/opencode/opencode.json",
 )
 
 FAKE_GH = """#!/usr/bin/env python3

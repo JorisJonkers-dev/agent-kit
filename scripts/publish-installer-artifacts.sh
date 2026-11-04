@@ -46,6 +46,7 @@ KIT_PATHS=(
   registry/generated/vibe/agents
   registry/generated/vibe-private/mcp-servers.toml
   registry/generated/antigravity/mcp_config.json
+  registry/generated/opencode/opencode.json
   installer/setup-workstation.sh
   installer/port-forward-agent.sh
   installer/cloud-session.sh
@@ -60,6 +61,8 @@ KIT_PATHS=(
   scripts/converge.py
   scripts/vibe-merge-mcp.py
   scripts/antigravity-merge-mcp.py
+  scripts/opencode-merge-mcp.py
+  scripts/opencode-plugin-skills.py
   scripts/vibe-split-homes.py
   scripts/vibe-sync-models.py
   scripts/agent-kit-keys.py
