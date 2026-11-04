@@ -1,6 +1,7 @@
 import { isAbsolute, join } from 'node:path'
 
-import type { EnvPort, ProcessCommand, ProcessPort } from '../../../../ports/index.js'
+import { ClientRun, type RunExtras } from '../../../model-gateway/index.js'
+import type { EnvPort, ProcessPort } from '../../../../ports/index.js'
 import type {
   CriticClientPort,
   CriticLaunch,
@@ -24,18 +25,24 @@ import type { ClientReadiness, RosterSlot, VibeCriticClient as VibeClientConfig 
 
 /**
  * The Vibe critic client: runs one Vibe critic in its packet and reads its
- * review from stdout and the export file. Everything Vibe-specific (the
- * launch, the isolation it needs, its exit codes, its journal and export
- * formats) stays here.
+ * review from stdout and the export file. The launch itself goes through the
+ * model gateway's launch path, with the extras a critic needs: its agent, its
+ * tools, and, when it searches, its own server with the home's switched off.
+ * Everything Vibe-specific about reading the run (its exit codes, its journal
+ * and export formats, its isolation) stays here.
  */
 export class VibeCriticClient
   implements CriticClientPort<VibeClientConfig>, QuestionClientPort<VibeClientConfig>, SearchingClientPort<VibeClientConfig>
 {
+  private readonly gateway: ClientRun
+
   constructor(
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
     private readonly env: EnvPort,
-  ) {}
+  ) {
+    this.gateway = new ClientRun({ env, files, process })
+  }
 
   /**
    * Whether the critic can run on the personal home: `vibe` on `PATH`, the
@@ -108,7 +115,7 @@ export class VibeCriticClient
     const exportDir = join(launch.criticDir, 'export')
     const exportPath = join(exportDir, 'export.json')
     const toolset = launch.toolset ?? READ_ONLY_TOOLSET
-    const search = toolset.kind === 'vibe-search' ? { ...toolset, homeServers: await this.homeServers() } : undefined
+    const search = toolset.kind === 'vibe-search' ? toolset : undefined
     const paths = { exportDir, promptPath: launch.promptPath, workDir: launch.packetDir }
     const { result, run } = await this.launch(launch.critic, config, paths, search)
     const failure = search === undefined ? undefined : searchFailure(run.stdout)
@@ -124,16 +131,6 @@ export class VibeCriticClient
   }
 
   /**
-   * The MCP servers the personal home's `config.toml` declares, by name. Vibe
-   * adds a launch's servers to the home's, keyed by name, so a critic that
-   * searches switches each of these off by name.
-   */
-  private async homeServers(): Promise<readonly string[]> {
-    const path = join(this.env.require('HOME'), '.vibe', 'config.toml')
-    return (await this.files.exists(path)) ? mcpServerNames(await this.files.readText(path)) : []
-  }
-
-  /**
    * Puts one question to the agent's model, launched exactly as a critic is
    * (the same isolation, the same checks of the effective config), and
    * returns its final message as plain text.
@@ -146,38 +143,43 @@ export class VibeCriticClient
     return { ...result, answer, chargedUsd: vibeCharge(run, question.max_price_usd), vibeCostUsd: run.vibeCostUsd }
   }
 
+  /**
+   * One Vibe launch through the gateway's launch path, and what its output and
+   * export say about it. The gateway builds the command, applies the critic's
+   * extras, runs it under its own time and price limits, and reads the export;
+   * the runner prices the run and reads its journal itself.
+   */
   private async launch(
     limits: VibeLimits,
     config: VibeClientConfig,
     paths: VibeLaunchPaths,
     search?: VibeSearch,
   ): Promise<{ readonly result: { exitCode: number; stdout: string; stderr: string }; readonly run: VibeRun }> {
-    const result = await this.process.exec(vibeLaunch(limits, config, paths, search))
-    const exported = await this.readExport(join(paths.exportDir, 'export.json'))
+    const launched = await this.gateway.launch({
+      binary: config.binary,
+      client: config.gateway?.client ?? 'vibe',
+      extras: vibeExtras(config, search),
+      model: config.gateway?.model ?? config.model,
+      paths,
+      prompt: await this.files.readText(paths.promptPath),
+      time_limit_s: limits.time_limit_s,
+      max_price_usd: limits.max_price_usd,
+    })
+    const exported = launched.exported
     const vibeCost = jsonObjectOrUndefined(exported)?.cost_usd
     const vibeCostUsd = typeof vibeCost === 'number' ? vibeCost : null
     const run: VibeRun = {
       costUsd: computedCost(jsonObjectOrUndefined(exported), config.prices) ?? vibeCostUsd,
-      exitCode: result.exitCode,
+      exitCode: launched.result.exitCode,
       expected: search === undefined ? { mcp: false } : { command: search.server.command, cwd: paths.workDir, mcp: true },
       exported,
       vibeCostUsd,
-      stderr: result.stderr,
-      stdout: result.stdout,
-      timedOut: result.timedOut === true,
+      stderr: launched.result.stderr,
+      stdout: launched.result.stdout,
+      timedOut: launched.result.timedOut === true,
       timeoutS: limits.time_limit_s + OUTER_TIMEOUT_GRACE_S,
     }
-    return { result: { exitCode: result.exitCode, stderr: result.stderr, stdout: result.stdout }, run }
-  }
-
-  /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
-  private async readExport(path: string): Promise<unknown> {
-    if (!(await this.files.exists(path))) return undefined
-    try {
-      return JSON.parse(await this.files.readText(path)) as unknown
-    } catch {
-      return undefined
-    }
+    return { result: { exitCode: launched.result.exitCode, stderr: launched.result.stderr, stdout: launched.result.stdout }, run }
   }
 }
 
@@ -187,60 +189,34 @@ const SIGN_IN = 'vibe: not signed in; run vibe and sign in with your Mistral acc
 /** Seconds the outer timer allows beyond Vibe's own `--time-limit`. */
 const OUTER_TIMEOUT_GRACE_S = 60
 
-/**
- * Settings Vibe reads from `VIBE_*` variables. The environment layer sits
- * above the personal home's `config.toml` and below the critic agent file, so
- * these switch off the home's MCP fleet and its `AGENTS.md` pointer even if
- * the agent file forgot to. The agent file leaves MCP to the launch: off for
- * a critic that reads alone, on for one that searches.
- */
-const ISOLATION_ENV: Readonly<Record<string, string>> = {
-  VIBE_ENABLE_MCP: 'false',
-  VIBE_ENABLE_SUBAGENTS: 'false',
-  VIBE_INCLUDE_PROJECT_CONTEXT: 'false',
-  VIBE_OUTSIDE_WORKDIR: 'deny',
-}
-
 /** The tools a critic agent may have enabled: `read_file`, and the search server's, which exist only while it runs. */
 const AGENT_TOOLS: ReadonlySet<string> = new Set(['read_file', ...SEARCH_TOOLS.map((tool) => `${VIBE_SEARCH_SERVER}_${tool}`)])
 
-/** A searching critic's launch: its search server, and the home's servers it switches off. */
-type VibeSearch = Extract<CriticToolset, { kind: 'vibe-search' }> & { readonly homeServers: readonly string[] }
+/** A searching critic's launch: its search server, which the gateway attaches in the critic's packet copy. */
+type VibeSearch = Extract<CriticToolset, { kind: 'vibe-search' }>
 
 /**
- * A critic that searches (ADR-0006) gets MCP and one server, the runner's
- * own, in its packet copy. Vibe 3.0.4 joins the servers of every layer by
- * name, so each server the home declares is replaced with a switched-off one
- * of the same name and never starts. Mistral's hosted connectors stay off.
+ * What a Vibe critic asks the gateway for. Every critic runs its own agent,
+ * which pins the model and its prices, with `read_file` and, when it searches
+ * (ADR-0006), the runner's own server in its packet copy: the gateway
+ * switches the home's servers off by name, so Vibe 3.0.4's joining of every
+ * layer's servers leaves only the runner's live, and Mistral's hosted
+ * connectors stay off. No sandbox profile is asked for: every Vibe launch is
+ * the read-only profile, and the gateway refuses an extra it would not apply.
  */
-function searchEnv(search: VibeSearch, workDir: string): Readonly<Record<string, string>> {
-  const own = {
-    args: search.server.args,
-    command: search.server.command,
-    cwd: workDir,
-    name: VIBE_SEARCH_SERVER,
-    startup_timeout_sec: 10,
-    tool_timeout_sec: 30,
-    transport: 'stdio',
-  }
-  const off = search.homeServers
-    .filter((name) => name !== VIBE_SEARCH_SERVER)
-    .map((name) => ({ command: 'false', disabled: true, name, transport: 'stdio' }))
+function vibeExtras(config: VibeClientConfig, search: VibeSearch | undefined): RunExtras {
+  const tools = ['read_file', ...(search?.search ?? []).map((tool) => `${VIBE_SEARCH_SERVER}_${tool}`)]
+  if (search === undefined) return { agent: config.agent, tools }
   return {
-    ...ISOLATION_ENV,
-    VIBE_ENABLE_CONNECTORS: 'false',
-    VIBE_ENABLE_MCP: 'true',
-    VIBE_MCP_SERVERS: JSON.stringify([own, ...off]),
+    agent: config.agent,
+    disable_home_mcp: true,
+    env: { VIBE_ENABLE_CONNECTORS: 'false' },
+    mcp_servers: [{ args: search.server.args, command: search.server.command, name: VIBE_SEARCH_SERVER }],
+    tools,
   }
 }
 
-/**
- * The plain `vibe` binary on the personal home: `MISTRAL_API_KEY` and
- * `VIBE_HOME` are removed, so a critique started from a `vibe-study` or
- * `vibe-private` session neither spends on the Study account nor runs in the
- * private home. The packet is the working directory and `read_file` the only
- * tool; with no `skill` tool the critic cannot load skills.
- */
+/** Where one launch works: a critic's packet copy, or a question's own directory. */
 interface VibeLaunchPaths {
   /** The working directory: a critic's packet copy, or a question's own directory. */
   readonly workDir: string
@@ -250,37 +226,6 @@ interface VibeLaunchPaths {
 
 /** The price cap and time limit one launch runs under. */
 type VibeLimits = Pick<RosterSlot, 'max_price_usd' | 'time_limit_s'>
-
-function vibeLaunch(critic: VibeLimits, config: VibeClientConfig, paths: VibeLaunchPaths, search?: VibeSearch): ProcessCommand {
-  const tools = ['read_file', ...(search?.search ?? []).map((tool) => `${VIBE_SEARCH_SERVER}_${tool}`)]
-  return {
-    args: [
-      '-u',
-      'MISTRAL_API_KEY',
-      '-u',
-      'VIBE_HOME',
-      config.binary,
-      '--prompt-file',
-      paths.promptPath,
-      '--output',
-      'json',
-      '--trust',
-      '--agent',
-      config.agent,
-      ...tools.flatMap((tool) => ['--enabled-tools', tool]),
-      '--max-price',
-      String(critic.max_price_usd),
-      '--time-limit',
-      String(critic.time_limit_s),
-      '--output-dir',
-      paths.exportDir,
-    ],
-    command: 'env',
-    cwd: paths.workDir,
-    env: search === undefined ? ISOLATION_ENV : searchEnv(search, paths.workDir),
-    timeoutMs: (critic.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
-  }
-}
 
 /** What the effective config must show: MCP off, or on with the runner's search server as its only live server. */
 type ExpectedConfig = { readonly mcp: false } | { readonly mcp: true; readonly command: string; readonly cwd: string }

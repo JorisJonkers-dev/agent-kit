@@ -3,7 +3,7 @@
 
 // src/model-gateway-cli/index.ts
 import { readFile as readFile3 } from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { join as join7 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -42,6 +42,9 @@ var ProcessEnvAdapter = class {
     return Object.fromEntries(entries);
   }
 };
+
+// src/contexts/model-gateway/application/client-run.ts
+import { join as join2 } from "node:path";
 
 // src/contexts/model-gateway/domain/config.ts
 var CONFIG_VERSION = 1;
@@ -270,6 +273,12 @@ function invalid(message) {
   return new ModelGatewayError("invalid-config", message);
 }
 
+// src/contexts/model-gateway/domain/extras.ts
+var EXTRA_NAMES = ["agent", "disable_home_mcp", "env", "mcp_servers", "sandbox", "schema", "tools"];
+
+// src/contexts/model-gateway/application/home-mcp.ts
+import { join } from "node:path";
+
 // src/shared-kernel/toml.ts
 var TomlError = class extends Error {
 };
@@ -459,404 +468,30 @@ var TomlReader = class {
   }
 };
 
-// src/contexts/model-gateway/domain/models.ts
-function modelKey(client, model) {
-  return `${client}:${model}`;
+// src/contexts/model-gateway/application/home-mcp.ts
+async function homeMcpServers(ports) {
+  const path = join(ports.env.require("HOME"), ".vibe", "config.toml");
+  if (!await ports.files.exists(path)) return [];
+  return serverNames(await ports.files.readText(path));
 }
-var FAMILY_PREFIXES = [
-  ["gemini", "google"],
-  ["claude", "anthropic"],
-  ["gpt", "openai"],
-  ["deepseek", "deepseek"],
-  ["glm", "zhipu"],
-  ["zai", "zhipu"],
-  ["kimi", "moonshot"],
-  ["minimax", "minimax"],
-  ["grok", "xai"],
-  ["qwen", "alibaba"],
-  ["mistral", "mistral"],
-  ["codestral", "mistral"]
-];
-function familyOf(model) {
-  return FAMILY_PREFIXES.find(([prefix]) => model.startsWith(prefix))?.[1];
-}
-function parseAntigravityModels(stdout) {
-  const ids = [];
-  for (const line of stdout.split("\n")) {
-    const [id = "", display] = line.split("	");
-    if (display === void 0) continue;
-    const trimmed = id.trim();
-    if (trimmed !== "") ids.push(trimmed);
-  }
-  return ids;
-}
-function parseOpenCodeModels(stdout) {
-  const models = [];
-  for (const line of stdout.split("\n")) {
-    const id = line.trim();
-    const slash = id.indexOf("/");
-    if (slash <= 0 || slash === id.length - 1) continue;
-    models.push({ model: id, provider: id.slice(0, slash) });
-  }
-  return models;
-}
-function vibeModels(toml) {
-  const models = readToml(toml).models;
-  if (!isObject(models)) return [];
-  const declared = [];
-  for (const [key, value] of Object.entries(models)) {
-    if (!isObject(value)) continue;
-    const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
-    const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
-    declared.push({ model: alias, names: name === void 0 ? [] : [name] });
-  }
-  return declared;
-}
-function listModels(config, installed, listings) {
-  const models = [];
-  const missing = [];
-  const skipped = [];
-  for (const [id, client] of sortedClients(config)) {
-    if (!installed.has(id)) {
-      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
-      continue;
-    }
-    if (client.model_source === "declared") {
-      models.push(...catalogueModels(config, id, client));
-      continue;
-    }
-    const listing = listings.get(id);
-    if (listing === void 0) continue;
-    if ("reason" in listing) {
-      missing.push({ client: id, reason: listing.reason });
-      continue;
-    }
-    const listed = listedModels(config, id, client, listing.models);
-    models.push(...listed.models);
-    skipped.push(...listed.skipped);
-  }
-  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
-  missing.sort((left, right) => compare(left.client, right.client));
-  skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
-  return { models, missing, skipped };
-}
-function catalogueModels(config, id, client) {
-  return config.models.filter((entry) => entry.client === id && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))).map((entry) => ({
-    client: id,
-    cost_class: client.cost_class,
-    family: entry.family,
-    model: entry.model,
-    notes: entry.notes,
-    source: client.model_source,
-    tier: entry.tier
-  }));
-}
-function listedModels(config, id, client, listed) {
-  const models = [];
-  const skipped = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const { model, names = [], provider } of listed) {
-    if (seen.has(model)) continue;
-    seen.add(model);
-    const known = [model, ...names];
-    const entry = config.models.find(
-      (candidate) => candidate.client === id && [candidate.model, ...candidate.names ?? []].some((name) => known.includes(name))
-    );
-    if ([model, entry?.model, ...entry?.names ?? []].some((key) => key !== void 0 && config.disabled.includes(modelKey(id, key)))) continue;
-    const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== void 0);
-    if (family === void 0) {
-      skipped.push({ client: id, model, reason: FAMILY_UNKNOWN });
-      continue;
-    }
-    if (client.families !== void 0 && !client.families.includes(family)) continue;
-    models.push({
-      client: id,
-      cost_class: costClassFor(client, provider),
-      family,
-      model,
-      notes: entry?.notes ?? "",
-      source: client.model_source,
-      tier: entry?.tier ?? null
-    });
-  }
-  return { models, skipped };
-}
-var FAMILY_UNKNOWN = "family unknown: add it to the catalogue in defaults.json or the machine override";
-function modelPart(model) {
-  return model.slice(model.lastIndexOf("/") + 1);
-}
-function costClassFor(client, provider) {
-  if (provider === void 0) return client.cost_class;
-  return client.provider_cost_classes?.[provider] ?? client.cost_class;
-}
-function sortedClients(config) {
-  return Object.entries(config.clients).sort(([left], [right]) => compare(left, right));
-}
-function compare(left, right) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-// src/contexts/model-gateway/domain/policy.ts
-var NEDAP_CLIENTS = ["claude", "codex"];
-var INLINE_COST_CLASSES = ["subsidised", "metered-personal"];
-var NOTHING = { code: false, history: false };
-var EVERYTHING = { code: true, history: true };
-function decidePolicy(config, scope, subjects = config.models) {
-  const permissions = subjects.filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model))).map((subject) => permission(config, subject, scope));
-  return { permissions, reason: reasonFor(scope) };
-}
-function permission(config, subject, scope) {
-  const base = { client: subject.client, inline_only: false, model: subject.model };
-  switch (scope.kind) {
-    case "outside":
-      return {
-        ...base,
-        inline_only: true,
-        may_send: NOTHING,
-        permitted: INLINE_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? "")
-      };
-    case "no-remote":
-      return { ...base, may_send: NOTHING, permitted: false };
-    case "nedap":
-      return { ...base, may_send: EVERYTHING, permitted: NEDAP_CLIENTS.includes(subject.client) };
-    case "repository":
-      return {
-        ...base,
-        may_send: scope.entry === void 0 ? NOTHING : { code: scope.entry.code, history: scope.entry.history },
-        permitted: scope.entry?.families.includes(subject.family) === true
-      };
-  }
-}
-function reasonFor(scope) {
-  switch (scope.kind) {
-    case "outside":
-      return "no repository: only inline content, to subsidised and metered-personal clients";
-    case "no-remote":
-      return "the repository has no remote, so nothing is sent";
-    case "nedap":
-      return "a nedap repository: only Codex and Claude Code, with code and history";
-    case "repository":
-      return scope.entry === void 0 ? `${scope.key} has no allowlist entry, so nothing is sent` : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
-  }
-}
-function permittedModels(listing, decision) {
-  const byKey = new Map(decision.permissions.map((permission2) => [modelKey(permission2.client, permission2.model), permission2]));
-  const models = listing.models.flatMap((model) => {
-    const permission2 = byKey.get(modelKey(model.client, model.model));
-    if (permission2?.permitted !== true) return [];
-    return [{ ...model, inline_only: permission2.inline_only, may_send: permission2.may_send }];
-  });
-  return { missing: listing.missing, models, skipped: listing.skipped };
-}
-
-// src/contexts/model-gateway/application/json-file.ts
-async function fileExists(files, path, what) {
+function serverNames(toml) {
   try {
-    return await files.exists(path);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+    const servers = readToml(toml).mcp_servers;
+    return servers === void 0 ? [] : namesOf(servers);
+  } catch {
+    return [];
   }
 }
-async function readJsonFile(files, path, what, parse) {
-  let text;
-  try {
-    text = await files.readText(path);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
-  }
-  try {
-    return parse(parseJson(text));
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: ${messageOf(error)}`);
-  }
+function namesOf(servers) {
+  return (Array.isArray(servers) ? servers : [servers]).map((server) => typeof server === "object" && server !== null ? server.name : void 0).filter((name) => typeof name === "string");
 }
-function parseJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `not JSON: ${messageOf(error)}`);
-  }
-}
-function messageOf(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// src/contexts/model-gateway/application/config.ts
-async function loadConfig(files, defaultsPath, override) {
-  const defaults = await readJsonFile(files, defaultsPath, "the shipped defaults", parseDefaults);
-  if (!await fileExists(files, override, "the override")) return defaults;
-  return readJsonFile(files, override, "the override", (raw) => applyOverride(defaults, raw));
-}
-
-// src/contexts/model-gateway/application/locations.ts
-import { isAbsolute, join } from "node:path";
-function overridePath(env) {
-  return join(configDir(env), "model-gateway.json");
-}
-function allowlistPath(env) {
-  return join(configDir(env), "critique-allowlist.json");
-}
-function configDir(env) {
-  const xdg = env.get("XDG_CONFIG_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit");
-  return join(env.require("HOME"), ".config", "agent-kit");
-}
-function vibeConfigPath(env) {
-  const home = env.get("VIBE_HOME");
-  if (home !== void 0 && isAbsolute(home)) return join(home, "config.toml");
-  return join(env.require("HOME"), ".vibe", "config.toml");
-}
-function routingOverridePath(env) {
-  return join(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
-}
-function setupResultsPath(env) {
-  return join(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
-}
-function stateDir(env) {
-  const xdg = env.get("XDG_STATE_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit", "model-gateway");
-  return join(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
-}
-function ledgerPath(env) {
-  return join(stateDir(env), "ledger.jsonl");
-}
-function runsDir(env) {
-  return join(stateDir(env), "runs");
-}
-
-// src/shared-kernel/git-remote.ts
-var DENIED_OWNER = "nedap";
-function parseRemote(url) {
-  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
-  const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
-  const match = scp ?? standard;
-  if (match === null) return void 0;
-  const host = (match[1] ?? "").toLowerCase();
-  const segments = (match[2] ?? "").replace(/\/+$/, "").replace(/\.git$/, "").split("/").filter((segment) => segment.length > 0);
-  const repo = segments.pop();
-  const owner = segments.join("/");
-  if (repo === void 0 || owner.length === 0) return void 0;
-  return { host, owner: owner.toLowerCase(), repo: repo.toLowerCase() };
-}
-function identifyRepository(remotes) {
-  const located = remotes.flatMap((remote) => {
-    const location = parseRemote(remote.url);
-    return location === void 0 ? [] : [{ name: remote.name, location }];
-  });
-  const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
-  if (denied !== void 0) {
-    return { owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
-  }
-  const primary = located.find((remote) => remote.name === "origin") ?? located[0];
-  if (primary === void 0) return { status: "no-remote" };
-  const { host, owner, repo } = primary.location;
-  return { key: `${host}/${owner}/${repo}`, location: primary.location, status: "identified" };
-}
-
-// src/contexts/model-gateway/domain/allowlist.ts
-var EMPTY_ALLOWLIST = { repositories: {} };
-function parseAllowlist(raw) {
-  if (!isObject(raw)) throw invalid2("the allowlist must be a JSON object");
-  if (raw.version !== 1) throw invalid2("version must be 1");
-  if (!isObject(raw.repositories)) throw invalid2("repositories must be an object keyed by repository");
-  const repositories = Object.fromEntries(
-    Object.entries(raw.repositories).map(([key, value]) => {
-      if (!isObject(value)) throw invalid2(`repositories.${key} must be an object`);
-      return [key, parseEntry(key, value)];
-    })
-  );
-  return { repositories };
-}
-function parseEntry(key, raw) {
-  const where = `repositories.${key}`;
-  return {
-    code: raw.code === void 0 ? false : requireBoolean(raw.code, `${where}.code`),
-    families: requireStrings2(raw.families, `${where}.families`),
-    history: raw.history === void 0 ? false : requireBoolean(raw.history, `${where}.history`)
-  };
-}
-function requireStrings2(value, where) {
-  if (!Array.isArray(value)) throw invalid2(`${where} must be a list of non-empty strings`);
-  const items = value;
-  const strings = [];
-  for (const item of items) {
-    if (typeof item !== "string" || item === "") throw invalid2(`${where} must be a list of non-empty strings`);
-    strings.push(item);
-  }
-  return strings;
-}
-function requireBoolean(value, where) {
-  if (typeof value !== "boolean") throw invalid2(`${where} must be true or false`);
-  return value;
-}
-function invalid2(message) {
-  return new ModelGatewayError("invalid-config", message);
-}
-
-// src/contexts/model-gateway/application/policy.ts
-async function resolveScope(deps, repo) {
-  if (repo === void 0) return { kind: "outside" };
-  const root = await gitOrFail(repo, () => deps.git.root(repo));
-  if (root === void 0) return { kind: "outside" };
-  const identity = identifyRepository(await gitOrFail(repo, () => deps.git.remotes(root)));
-  if (identity.status === "denied-owner") return { kind: "nedap" };
-  if (identity.status === "no-remote") return { kind: "no-remote" };
-  const allowlist = await loadAllowlist(deps.files, allowlistPath(deps.env));
-  return { entry: allowlist.repositories[identity.key], key: identity.key, kind: "repository" };
-}
-async function gitOrFail(repo, call) {
-  try {
-    return await call();
-  } catch (error) {
-    throw new ModelGatewayError("repository-unreadable", `${repo}: ${messageOf(error)}`);
-  }
-}
-async function loadAllowlist(files, path) {
-  if (!await fileExists(files, path, "the family allowlist")) return EMPTY_ALLOWLIST;
-  return readJsonFile(files, path, "the family allowlist", parseAllowlist);
-}
-
-// src/contexts/model-gateway/application/models.ts
-var ModelsCommand = class {
-  constructor(deps) {
-    this.deps = deps;
-  }
-  deps;
-  async run(raw) {
-    const input = readModelsInput(raw);
-    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
-    const installed = /* @__PURE__ */ new Set();
-    for (const [id, client] of sortedClients(config)) {
-      if (await this.deps.process.which(client.binary)) installed.add(id);
-    }
-    const listings = /* @__PURE__ */ new Map();
-    for (const [id, client] of sortedClients(config)) {
-      const source = this.deps.sources[id];
-      if (source === void 0 || !installed.has(id) || client.model_source === "declared") continue;
-      listings.set(id, await source.list());
-    }
-    const listing = listModels(config, installed, listings);
-    const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
-    return { policy: decision.reason, status: "ok", ...permittedModels(listing, decision) };
-  }
-};
-function readModelsInput(raw) {
-  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
-  const repo = raw.repo;
-  if (repo === void 0) return {};
-  if (typeof repo !== "string" || repo === "") throw new ModelGatewayError("invalid-input", "repo must be a non-empty string");
-  return { repo };
-}
-
-// src/contexts/model-gateway/application/run.ts
-import { randomBytes } from "node:crypto";
-import { join as join2 } from "node:path";
 
 // src/contexts/model-gateway/domain/run.ts
 var RUN_CLIENTS = ["vibe", "agy", "claude", "opencode"];
 var DEFAULT_TIME_LIMIT_S = 900;
 function readRunInput(raw) {
   if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  if (raw.extras !== void 0) throw new ModelGatewayError("invalid-input", "extras are for in-process callers only");
   if (typeof raw.workflow !== "string" || raw.workflow === "") {
     throw new ModelGatewayError("invalid-input", "a run must name its workflow");
   }
@@ -1051,6 +686,718 @@ function parseJsonObject(text) {
   }
 }
 
+// src/contexts/model-gateway/domain/outputs.ts
+function count(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+function textOf(value) {
+  return typeof value === "string" && value.trim() !== "" ? value : void 0;
+}
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
+function chargedAmount(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
+}
+function structuredError(exported) {
+  if (!isObject(exported)) return void 0;
+  const parts = [];
+  const error = exported.error;
+  let status;
+  if (typeof error === "string") parts.push(error);
+  else if (isObject(error)) {
+    parts.push(...[error.message, error.type, error.code, error.name].filter((part) => typeof part === "string"));
+    status = httpStatus(error);
+  }
+  const stop = exported.stop_reason ?? exported.stopReason;
+  if (typeof stop === "string") parts.push(stop);
+  if ((exported.is_error === true || exported.isError === true) && typeof exported.result === "string") parts.push(exported.result);
+  status ??= httpStatus(exported);
+  if (parts.length === 0 && status === void 0) return void 0;
+  return { text: parts.join(" "), ...status === void 0 ? {} : { status } };
+}
+function httpStatus(value) {
+  for (const key of ["status", "status_code", "statusCode", "code"]) {
+    const found = value[key];
+    if (typeof found === "number" && Number.isInteger(found)) return found;
+  }
+  return void 0;
+}
+var NOTHING = { answer: void 0, charged: void 0, tokens: NO_TOKENS };
+function vibeOutput(stdout, exported) {
+  return { answer: finalAnswerOf(stdout), charged: chargedOf(exported), error: structuredError(exported), tokens: runTokens(exported) };
+}
+function agyOutput(stdout) {
+  const result2 = agyResultOf(stdout);
+  if (!isObject(result2)) return NOTHING;
+  const usage = isObject(result2.usage) ? result2.usage : {};
+  return {
+    answer: textOf(result2.response),
+    charged: void 0,
+    error: structuredError(result2),
+    failure: agyFailure(result2),
+    tokens: { cached: count(usage.cache_read_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) }
+  };
+}
+function agyResultOf(stdout) {
+  const events = stdout.split("\n").map(parseJson).filter(isObject);
+  const streamed = events.findLast((event) => event.event === "result")?.result;
+  return streamed ?? events.findLast((event) => event.response !== void 0 || event.usage !== void 0);
+}
+function agyFailure(result2) {
+  if (result2.finished_reason === "print_timeout") return "timeout";
+  if (Array.isArray(result2.denied_actions) && result2.denied_actions.length > 0) return "denied-action";
+  if (typeof result2.status === "string" && result2.status !== "SUCCESS") return "client-error";
+  return void 0;
+}
+function claudeOutput(stdout) {
+  const parsed = parseJson(stdout);
+  const result2 = Array.isArray(parsed) ? parsed.findLast((event) => isObject(event) && event.type === "result") : parsed;
+  if (!isObject(result2)) return NOTHING;
+  const usage = isObject(result2.usage) ? result2.usage : {};
+  const cached = count(usage.cache_read_input_tokens);
+  return {
+    answer: textOf(result2.result),
+    charged: chargedAmount(result2.total_cost_usd),
+    error: structuredError(result2),
+    failure: result2.is_error === true ? "client-error" : void 0,
+    tokens: {
+      cached,
+      input: count(usage.input_tokens) + cached + count(usage.cache_creation_input_tokens),
+      output: count(usage.output_tokens)
+    }
+  };
+}
+function openCodeOutput(stdout) {
+  let answer;
+  let fresh = true;
+  let charged = 0;
+  let error;
+  let failure2;
+  const sum = { cached: 0, input: 0, output: 0 };
+  for (const line of stdout.split("\n")) {
+    const event = parseJson(line);
+    if (!isObject(event)) continue;
+    const part = isObject(event.part) ? event.part : {};
+    if (event.type === "step_start") fresh = true;
+    else if (event.type === "text" && textOf(part.text) !== void 0) {
+      answer = fresh ? String(part.text) : `${answer ?? ""}${String(part.text)}`;
+      fresh = false;
+    } else if (event.type === "step_finish") {
+      const tokens = isObject(part.tokens) ? part.tokens : {};
+      const cache = isObject(tokens.cache) ? tokens.cache : {};
+      charged += count(part.cost);
+      sum.cached += count(cache.read);
+      sum.input += count(tokens.input) + count(cache.read) + count(cache.write);
+      sum.output += count(tokens.output) + count(tokens.reasoning);
+    } else if (event.type === "error") {
+      failure2 = "client-error";
+      error = structuredError(event);
+    }
+  }
+  return { answer, charged: chargedAmount(charged), error, failure: failure2, tokens: sum };
+}
+
+// src/contexts/model-gateway/application/launchers.ts
+var DELEGATION_MARK = "AGENT_KIT_DELEGATION";
+var READ_ONLY_AGENT = "delegate-readonly";
+var OUTER_TIMEOUT_GRACE_S = 60;
+var VIBE_ENV = {
+  VIBE_ENABLE_MCP: "false",
+  VIBE_ENABLE_SUBAGENTS: "false",
+  VIBE_INCLUDE_PROJECT_CONTEXT: "false",
+  VIBE_OUTSIDE_WORKDIR: "deny"
+};
+var VIBE_UNSET = ["-u", "MISTRAL_API_KEY", "-u", "VIBE_HOME"];
+var VIBE_PROTECTED_ENV = [
+  "MISTRAL_API_KEY",
+  "VIBE_ENABLE_MCP",
+  "VIBE_ENABLE_SUBAGENTS",
+  "VIBE_HOME",
+  "VIBE_INCLUDE_PROJECT_CONTEXT",
+  "VIBE_MCP_SERVERS",
+  "VIBE_OUTSIDE_WORKDIR"
+];
+var MCP_STARTUP_TIMEOUT_S = 10;
+var MCP_TOOL_TIMEOUT_S = 30;
+var AGY_TOOL_FAMILIES = ["mcp", "read_url", "execute_url", "command", "write_file", "list_dir", "grep_search", "find_by_name"];
+function vibeServers(extras, workDir) {
+  const own = extras.mcp_servers.map((server) => ({
+    args: [...server.args],
+    command: server.command,
+    cwd: workDir,
+    name: server.name,
+    startup_timeout_sec: MCP_STARTUP_TIMEOUT_S,
+    tool_timeout_sec: MCP_TOOL_TIMEOUT_S,
+    transport: "stdio"
+  }));
+  const off = extras.homeServers.filter((name) => !extras.mcp_servers.some((server) => server.name === name)).map((name) => ({ command: "false", disabled: true, name, transport: "stdio" }));
+  return [...own, ...off];
+}
+function vibeEnv(extras, workDir) {
+  const servers = extras === void 0 ? [] : vibeServers(extras, workDir);
+  return {
+    ...extras?.env,
+    ...VIBE_ENV,
+    ...servers.length === 0 ? {} : { VIBE_ENABLE_MCP: "true", VIBE_MCP_SERVERS: JSON.stringify(servers) }
+  };
+}
+var vibe = {
+  command: (binary, input, paths, _prompt, extras) => ({
+    args: [
+      ...VIBE_UNSET,
+      binary,
+      "--prompt-file",
+      paths.promptPath,
+      "--model",
+      input.model,
+      "--agent",
+      extras?.agent ?? READ_ONLY_AGENT,
+      "--trust",
+      "--workdir",
+      paths.workDir,
+      "--output",
+      "json",
+      ...(extras?.tools ?? []).flatMap((tool) => ["--enabled-tools", tool]),
+      "--time-limit",
+      String(input.time_limit_s),
+      ...input.max_price_usd === void 0 ? [] : ["--max-price", String(input.max_price_usd)],
+      "--output-dir",
+      paths.exportDir
+    ],
+    command: "env",
+    cwd: paths.workDir,
+    env: vibeEnv(extras, paths.workDir),
+    timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
+  }),
+  extras: ["agent", "disable_home_mcp", "env", "mcp_servers", "tools"],
+  protectedEnv: VIBE_PROTECTED_ENV,
+  read: (stdout, exported) => vibeOutput(stdout, exported),
+  writesExport: true
+};
+function effortOf(model) {
+  return /-(low|medium|high)$/.exec(model)?.[1] ?? "medium";
+}
+function readOnlySettings(tools) {
+  return {
+    permissions: { deny: AGY_TOOL_FAMILIES.filter((family) => !tools.includes(family)).map((family) => `${family}(*)`) }
+  };
+}
+var agy = {
+  command: (binary, input, paths, prompt, extras) => ({
+    args: extras?.sandbox === "read-only" ? [
+      "-p",
+      prompt,
+      "--output-format",
+      "stream-json",
+      "--model",
+      input.model,
+      "--print-timeout",
+      `${String(input.time_limit_s)}s`,
+      "--disable-slash-commands",
+      "--sandbox",
+      ...extras.schema === void 0 ? [] : ["--json-schema", extras.schema],
+      "--settings",
+      JSON.stringify(readOnlySettings(extras.tools))
+    ] : [
+      "--print",
+      prompt,
+      "--model",
+      input.model,
+      "--output-format",
+      "json",
+      "--effort",
+      effortOf(input.model),
+      "--mode",
+      "plan",
+      "--print-timeout",
+      `${String(input.time_limit_s)}s`
+    ],
+    command: binary,
+    cwd: paths.workDir,
+    env: extras?.env ?? {},
+    timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
+  }),
+  extras: ["env", "sandbox", "schema", "tools"],
+  protectedEnv: [],
+  read: (stdout) => agyOutput(stdout),
+  writesExport: false
+};
+var claude = {
+  command: (binary, input, paths, prompt, extras) => ({
+    args: ["-p", "--model", input.model, "--output-format", "json", "--permission-mode", "plan", "--allowedTools", "Read,Grep,Glob"],
+    command: binary,
+    cwd: paths.workDir,
+    env: extras?.env ?? {},
+    stdin: prompt,
+    timeoutMs: input.time_limit_s * 1e3
+  }),
+  extras: ["env"],
+  protectedEnv: [],
+  read: (stdout) => claudeOutput(stdout),
+  writesExport: false
+};
+var opencode = {
+  command: (binary, input, paths, prompt, extras) => ({
+    args: ["run", "--model", input.model, "--format", "json", prompt],
+    command: binary,
+    cwd: paths.workDir,
+    env: extras?.env ?? {},
+    timeoutMs: input.time_limit_s * 1e3
+  }),
+  extras: ["env"],
+  protectedEnv: [],
+  read: (stdout) => openCodeOutput(stdout),
+  writesExport: false
+};
+var LAUNCHERS = { agy, claude, opencode, vibe };
+
+// src/contexts/model-gateway/application/client-run.ts
+function requireSupportedExtras(client, extras) {
+  const launcher = LAUNCHERS[client];
+  const unsupported = EXTRA_NAMES.find((name) => extras[name] !== void 0 && !launcher.extras.includes(name));
+  if (unsupported !== void 0) {
+    throw new ModelGatewayError("extras-not-supported", `${client} cannot apply the ${unsupported} extra`);
+  }
+  const protectedName = Object.keys(extras.env ?? {}).find((name) => launcher.protectedEnv.includes(name));
+  if (protectedName !== void 0) {
+    throw new ModelGatewayError("extras-not-supported", `${client} sets ${protectedName} itself, so extras.env may not name it`);
+  }
+}
+var ClientRun = class {
+  constructor(ports) {
+    this.ports = ports;
+  }
+  ports;
+  async launch(request) {
+    requireSupportedExtras(request.client, request.extras);
+    const launcher = LAUNCHERS[request.client];
+    const extras = await this.extrasOf(request);
+    const result2 = await this.ports.process.exec(launcher.command(request.binary, request, request.paths, request.prompt, extras));
+    const exported = launcher.writesExport ? await this.readExport(join2(request.paths.exportDir, "export.json")) : void 0;
+    return { exported, output: launcher.read(result2.stdout, exported), result: result2 };
+  }
+  /** The caller's extras as the launcher applies them, with the client's home servers resolved. */
+  async extrasOf(request) {
+    const extras = request.extras;
+    return {
+      env: extras.env ?? {},
+      homeServers: extras.disable_home_mcp === true ? await homeMcpServers(this.ports) : [],
+      mcp_servers: extras.mcp_servers ?? [],
+      tools: extras.tools ?? [],
+      ...extras.agent === void 0 ? {} : { agent: extras.agent },
+      ...extras.sandbox === void 0 ? {} : { sandbox: extras.sandbox },
+      ...extras.schema === void 0 ? {} : { schema: extras.schema }
+    };
+  }
+  /** Parsed `export.json`, or undefined when the client wrote none or it does not parse. */
+  async readExport(path) {
+    if (!await this.ports.files.exists(path)) return void 0;
+    try {
+      return JSON.parse(await this.ports.files.readText(path));
+    } catch {
+      return void 0;
+    }
+  }
+};
+
+// src/contexts/model-gateway/domain/models.ts
+function modelKey(client, model) {
+  return `${client}:${model}`;
+}
+var FAMILY_PREFIXES = [
+  ["gemini", "google"],
+  ["claude", "anthropic"],
+  ["gpt", "openai"],
+  ["deepseek", "deepseek"],
+  ["glm", "zhipu"],
+  ["zai", "zhipu"],
+  ["kimi", "moonshot"],
+  ["minimax", "minimax"],
+  ["grok", "xai"],
+  ["qwen", "alibaba"],
+  ["mistral", "mistral"],
+  ["codestral", "mistral"]
+];
+function familyOf(model) {
+  return FAMILY_PREFIXES.find(([prefix]) => model.startsWith(prefix))?.[1];
+}
+function parseAntigravityModels(stdout) {
+  const ids = [];
+  for (const line of stdout.split("\n")) {
+    const [id = "", display] = line.split("	");
+    if (display === void 0) continue;
+    const trimmed = id.trim();
+    if (trimmed !== "") ids.push(trimmed);
+  }
+  return ids;
+}
+function parseOpenCodeModels(stdout) {
+  const models = [];
+  for (const line of stdout.split("\n")) {
+    const id = line.trim();
+    const slash = id.indexOf("/");
+    if (slash <= 0 || slash === id.length - 1) continue;
+    models.push({ model: id, provider: id.slice(0, slash) });
+  }
+  return models;
+}
+function vibeModels(toml) {
+  const models = readToml(toml).models;
+  if (!isObject(models)) return [];
+  const declared = [];
+  for (const [key, value] of Object.entries(models)) {
+    if (!isObject(value)) continue;
+    const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
+    const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
+    declared.push({ model: alias, names: name === void 0 ? [] : [name] });
+  }
+  return declared;
+}
+function listModels(config, installed, listings) {
+  const models = [];
+  const missing = [];
+  const skipped = [];
+  for (const [id, client] of sortedClients(config)) {
+    if (!installed.has(id)) {
+      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
+      continue;
+    }
+    if (client.model_source === "declared") {
+      models.push(...catalogueModels(config, id, client));
+      continue;
+    }
+    const listing = listings.get(id);
+    if (listing === void 0) continue;
+    if ("reason" in listing) {
+      missing.push({ client: id, reason: listing.reason });
+      continue;
+    }
+    const listed = listedModels(config, id, client, listing.models);
+    models.push(...listed.models);
+    skipped.push(...listed.skipped);
+  }
+  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
+  missing.sort((left, right) => compare(left.client, right.client));
+  skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
+  return { models, missing, skipped };
+}
+function catalogueModels(config, id, client) {
+  return config.models.filter((entry) => entry.client === id && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))).map((entry) => ({
+    client: id,
+    cost_class: client.cost_class,
+    family: entry.family,
+    model: entry.model,
+    notes: entry.notes,
+    source: client.model_source,
+    tier: entry.tier
+  }));
+}
+function listedModels(config, id, client, listed) {
+  const models = [];
+  const skipped = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const { model, names = [], provider } of listed) {
+    if (seen.has(model)) continue;
+    seen.add(model);
+    const known = [model, ...names];
+    const entry = config.models.find(
+      (candidate) => candidate.client === id && [candidate.model, ...candidate.names ?? []].some((name) => known.includes(name))
+    );
+    if ([model, entry?.model, ...entry?.names ?? []].some((key) => key !== void 0 && config.disabled.includes(modelKey(id, key)))) continue;
+    const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== void 0);
+    if (family === void 0) {
+      skipped.push({ client: id, model, reason: FAMILY_UNKNOWN });
+      continue;
+    }
+    if (client.families !== void 0 && !client.families.includes(family)) continue;
+    models.push({
+      client: id,
+      cost_class: costClassFor(client, provider),
+      family,
+      model,
+      notes: entry?.notes ?? "",
+      source: client.model_source,
+      tier: entry?.tier ?? null
+    });
+  }
+  return { models, skipped };
+}
+var FAMILY_UNKNOWN = "family unknown: add it to the catalogue in defaults.json or the machine override";
+function modelPart(model) {
+  return model.slice(model.lastIndexOf("/") + 1);
+}
+function costClassFor(client, provider) {
+  if (provider === void 0) return client.cost_class;
+  return client.provider_cost_classes?.[provider] ?? client.cost_class;
+}
+function sortedClients(config) {
+  return Object.entries(config.clients).sort(([left], [right]) => compare(left, right));
+}
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+// src/contexts/model-gateway/domain/policy.ts
+var NEDAP_CLIENTS = ["claude", "codex"];
+var INLINE_COST_CLASSES = ["subsidised", "metered-personal"];
+var NOTHING2 = { code: false, history: false };
+var EVERYTHING = { code: true, history: true };
+function decidePolicy(config, scope, subjects = config.models) {
+  const permissions = subjects.filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model))).map((subject) => permission(config, subject, scope));
+  return { permissions, reason: reasonFor(scope) };
+}
+function permission(config, subject, scope) {
+  const base = { client: subject.client, inline_only: false, model: subject.model };
+  switch (scope.kind) {
+    case "outside":
+      return {
+        ...base,
+        inline_only: true,
+        may_send: NOTHING2,
+        permitted: INLINE_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? "")
+      };
+    case "no-remote":
+      return { ...base, may_send: NOTHING2, permitted: false };
+    case "nedap":
+      return { ...base, may_send: EVERYTHING, permitted: NEDAP_CLIENTS.includes(subject.client) };
+    case "repository":
+      return {
+        ...base,
+        may_send: scope.entry === void 0 ? NOTHING2 : { code: scope.entry.code, history: scope.entry.history },
+        permitted: scope.entry?.families.includes(subject.family) === true
+      };
+  }
+}
+function reasonFor(scope) {
+  switch (scope.kind) {
+    case "outside":
+      return "no repository: only inline content, to subsidised and metered-personal clients";
+    case "no-remote":
+      return "the repository has no remote, so nothing is sent";
+    case "nedap":
+      return "a nedap repository: only Codex and Claude Code, with code and history";
+    case "repository":
+      return scope.entry === void 0 ? `${scope.key} has no allowlist entry, so nothing is sent` : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
+  }
+}
+function permittedModels(listing, decision) {
+  const byKey = new Map(decision.permissions.map((permission2) => [modelKey(permission2.client, permission2.model), permission2]));
+  const models = listing.models.flatMap((model) => {
+    const permission2 = byKey.get(modelKey(model.client, model.model));
+    if (permission2?.permitted !== true) return [];
+    return [{ ...model, inline_only: permission2.inline_only, may_send: permission2.may_send }];
+  });
+  return { missing: listing.missing, models, skipped: listing.skipped };
+}
+
+// src/contexts/model-gateway/application/json-file.ts
+async function fileExists(files, path, what) {
+  try {
+    return await files.exists(path);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+  }
+}
+async function readJsonFile(files, path, what, parse) {
+  let text;
+  try {
+    text = await files.readText(path);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+  }
+  try {
+    return parse(parseJson2(text));
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: ${messageOf(error)}`);
+  }
+}
+function parseJson2(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `not JSON: ${messageOf(error)}`);
+  }
+}
+function messageOf(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// src/contexts/model-gateway/application/config.ts
+async function loadConfig(files, defaultsPath, override) {
+  const defaults = await readJsonFile(files, defaultsPath, "the shipped defaults", parseDefaults);
+  if (!await fileExists(files, override, "the override")) return defaults;
+  return readJsonFile(files, override, "the override", (raw) => applyOverride(defaults, raw));
+}
+
+// src/contexts/model-gateway/application/locations.ts
+import { isAbsolute, join as join3 } from "node:path";
+function overridePath(env) {
+  return join3(configDir(env), "model-gateway.json");
+}
+function allowlistPath(env) {
+  return join3(configDir(env), "critique-allowlist.json");
+}
+function configDir(env) {
+  const xdg = env.get("XDG_CONFIG_HOME");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join3(xdg, "agent-kit");
+  return join3(env.require("HOME"), ".config", "agent-kit");
+}
+function vibeConfigPath(env) {
+  const home = env.get("VIBE_HOME");
+  if (home !== void 0 && isAbsolute(home)) return join3(home, "config.toml");
+  return join3(env.require("HOME"), ".vibe", "config.toml");
+}
+function routingOverridePath(env) {
+  return join3(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
+}
+function setupResultsPath(env) {
+  return join3(env.require("HOME"), ".local", "share", "agent-kit", "critique", "machine-setup.json");
+}
+function stateDir(env) {
+  const xdg = env.get("XDG_STATE_HOME");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join3(xdg, "agent-kit", "model-gateway");
+  return join3(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
+}
+function ledgerPath(env) {
+  return join3(stateDir(env), "ledger.jsonl");
+}
+function runsDir(env) {
+  return join3(stateDir(env), "runs");
+}
+
+// src/shared-kernel/git-remote.ts
+var DENIED_OWNER = "nedap";
+function parseRemote(url) {
+  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
+  const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
+  const match = scp ?? standard;
+  if (match === null) return void 0;
+  const host = (match[1] ?? "").toLowerCase();
+  const segments = (match[2] ?? "").replace(/\/+$/, "").replace(/\.git$/, "").split("/").filter((segment) => segment.length > 0);
+  const repo = segments.pop();
+  const owner = segments.join("/");
+  if (repo === void 0 || owner.length === 0) return void 0;
+  return { host, owner: owner.toLowerCase(), repo: repo.toLowerCase() };
+}
+function identifyRepository(remotes) {
+  const located = remotes.flatMap((remote) => {
+    const location = parseRemote(remote.url);
+    return location === void 0 ? [] : [{ name: remote.name, location }];
+  });
+  const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
+  if (denied !== void 0) {
+    return { owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
+  }
+  const primary = located.find((remote) => remote.name === "origin") ?? located[0];
+  if (primary === void 0) return { status: "no-remote" };
+  const { host, owner, repo } = primary.location;
+  return { key: `${host}/${owner}/${repo}`, location: primary.location, status: "identified" };
+}
+
+// src/contexts/model-gateway/domain/allowlist.ts
+var EMPTY_ALLOWLIST = { repositories: {} };
+function parseAllowlist(raw) {
+  if (!isObject(raw)) throw invalid2("the allowlist must be a JSON object");
+  if (raw.version !== 1) throw invalid2("version must be 1");
+  if (!isObject(raw.repositories)) throw invalid2("repositories must be an object keyed by repository");
+  const repositories = Object.fromEntries(
+    Object.entries(raw.repositories).map(([key, value]) => {
+      if (!isObject(value)) throw invalid2(`repositories.${key} must be an object`);
+      return [key, parseEntry(key, value)];
+    })
+  );
+  return { repositories };
+}
+function parseEntry(key, raw) {
+  const where = `repositories.${key}`;
+  return {
+    code: raw.code === void 0 ? false : requireBoolean(raw.code, `${where}.code`),
+    families: requireStrings2(raw.families, `${where}.families`),
+    history: raw.history === void 0 ? false : requireBoolean(raw.history, `${where}.history`)
+  };
+}
+function requireStrings2(value, where) {
+  if (!Array.isArray(value)) throw invalid2(`${where} must be a list of non-empty strings`);
+  const items = value;
+  const strings = [];
+  for (const item of items) {
+    if (typeof item !== "string" || item === "") throw invalid2(`${where} must be a list of non-empty strings`);
+    strings.push(item);
+  }
+  return strings;
+}
+function requireBoolean(value, where) {
+  if (typeof value !== "boolean") throw invalid2(`${where} must be true or false`);
+  return value;
+}
+function invalid2(message) {
+  return new ModelGatewayError("invalid-config", message);
+}
+
+// src/contexts/model-gateway/application/policy.ts
+async function resolveScope(deps, repo) {
+  if (repo === void 0) return { kind: "outside" };
+  const root = await gitOrFail(repo, () => deps.git.root(repo));
+  if (root === void 0) return { kind: "outside" };
+  const identity = identifyRepository(await gitOrFail(repo, () => deps.git.remotes(root)));
+  if (identity.status === "denied-owner") return { kind: "nedap" };
+  if (identity.status === "no-remote") return { kind: "no-remote" };
+  const allowlist = await loadAllowlist(deps.files, allowlistPath(deps.env));
+  return { entry: allowlist.repositories[identity.key], key: identity.key, kind: "repository" };
+}
+async function gitOrFail(repo, call) {
+  try {
+    return await call();
+  } catch (error) {
+    throw new ModelGatewayError("repository-unreadable", `${repo}: ${messageOf(error)}`);
+  }
+}
+async function loadAllowlist(files, path) {
+  if (!await fileExists(files, path, "the family allowlist")) return EMPTY_ALLOWLIST;
+  return readJsonFile(files, path, "the family allowlist", parseAllowlist);
+}
+
+// src/contexts/model-gateway/application/models.ts
+var ModelsCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async run(raw) {
+    const input = readModelsInput(raw);
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const installed = /* @__PURE__ */ new Set();
+    for (const [id, client] of sortedClients(config)) {
+      if (await this.deps.process.which(client.binary)) installed.add(id);
+    }
+    const listings = /* @__PURE__ */ new Map();
+    for (const [id, client] of sortedClients(config)) {
+      const source = this.deps.sources[id];
+      if (source === void 0 || !installed.has(id) || client.model_source === "declared") continue;
+      listings.set(id, await source.list());
+    }
+    const listing = listModels(config, installed, listings);
+    const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
+    return { policy: decision.reason, status: "ok", ...permittedModels(listing, decision) };
+  }
+};
+function readModelsInput(raw) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  const repo = raw.repo;
+  if (repo === void 0) return {};
+  if (typeof repo !== "string" || repo === "") throw new ModelGatewayError("invalid-input", "repo must be a non-empty string");
+  return { repo };
+}
+
+// src/contexts/model-gateway/application/run.ts
+import { randomBytes } from "node:crypto";
+import { join as join4 } from "node:path";
+
 // src/contexts/model-gateway/domain/usage.ts
 var DEFAULT_USAGE_DAYS = 7;
 var DAY_MS = 24 * 60 * 60 * 1e3;
@@ -1201,225 +1548,14 @@ function round(value, places) {
   return Math.round(value * factor) / factor;
 }
 
-// src/contexts/model-gateway/domain/outputs.ts
-function count(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-}
-function textOf(value) {
-  return typeof value === "string" && value.trim() !== "" ? value : void 0;
-}
-function parseJson2(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return void 0;
-  }
-}
-function chargedAmount(value) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
-}
-function structuredError(exported) {
-  if (!isObject(exported)) return void 0;
-  const parts = [];
-  const error = exported.error;
-  let status;
-  if (typeof error === "string") parts.push(error);
-  else if (isObject(error)) {
-    parts.push(...[error.message, error.type, error.code, error.name].filter((part) => typeof part === "string"));
-    status = httpStatus(error);
-  }
-  const stop = exported.stop_reason ?? exported.stopReason;
-  if (typeof stop === "string") parts.push(stop);
-  if ((exported.is_error === true || exported.isError === true) && typeof exported.result === "string") parts.push(exported.result);
-  status ??= httpStatus(exported);
-  if (parts.length === 0 && status === void 0) return void 0;
-  return { text: parts.join(" "), ...status === void 0 ? {} : { status } };
-}
-function httpStatus(value) {
-  for (const key of ["status", "status_code", "statusCode", "code"]) {
-    const found = value[key];
-    if (typeof found === "number" && Number.isInteger(found)) return found;
-  }
-  return void 0;
-}
-var NOTHING2 = { answer: void 0, charged: void 0, tokens: NO_TOKENS };
-function vibeOutput(stdout, exported) {
-  return { answer: finalAnswerOf(stdout), charged: chargedOf(exported), error: structuredError(exported), tokens: runTokens(exported) };
-}
-function agyOutput(stdout) {
-  const result2 = parseJson2(stdout);
-  if (!isObject(result2)) return NOTHING2;
-  const usage = isObject(result2.usage) ? result2.usage : {};
-  return {
-    answer: textOf(result2.response),
-    charged: void 0,
-    error: structuredError(result2),
-    failure: agyFailure(result2),
-    tokens: { cached: count(usage.cache_read_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) }
-  };
-}
-function agyFailure(result2) {
-  if (result2.finished_reason === "print_timeout") return "timeout";
-  if (Array.isArray(result2.denied_actions) && result2.denied_actions.length > 0) return "denied-action";
-  if (typeof result2.status === "string" && result2.status !== "SUCCESS") return "client-error";
-  return void 0;
-}
-function claudeOutput(stdout) {
-  const parsed = parseJson2(stdout);
-  const result2 = Array.isArray(parsed) ? parsed.findLast((event) => isObject(event) && event.type === "result") : parsed;
-  if (!isObject(result2)) return NOTHING2;
-  const usage = isObject(result2.usage) ? result2.usage : {};
-  const cached = count(usage.cache_read_input_tokens);
-  return {
-    answer: textOf(result2.result),
-    charged: chargedAmount(result2.total_cost_usd),
-    error: structuredError(result2),
-    failure: result2.is_error === true ? "client-error" : void 0,
-    tokens: {
-      cached,
-      input: count(usage.input_tokens) + cached + count(usage.cache_creation_input_tokens),
-      output: count(usage.output_tokens)
-    }
-  };
-}
-function openCodeOutput(stdout) {
-  let answer;
-  let fresh = true;
-  let charged = 0;
-  let error;
-  let failure2;
-  const sum = { cached: 0, input: 0, output: 0 };
-  for (const line of stdout.split("\n")) {
-    const event = parseJson2(line);
-    if (!isObject(event)) continue;
-    const part = isObject(event.part) ? event.part : {};
-    if (event.type === "step_start") fresh = true;
-    else if (event.type === "text" && textOf(part.text) !== void 0) {
-      answer = fresh ? String(part.text) : `${answer ?? ""}${String(part.text)}`;
-      fresh = false;
-    } else if (event.type === "step_finish") {
-      const tokens = isObject(part.tokens) ? part.tokens : {};
-      const cache = isObject(tokens.cache) ? tokens.cache : {};
-      charged += count(part.cost);
-      sum.cached += count(cache.read);
-      sum.input += count(tokens.input) + count(cache.read) + count(cache.write);
-      sum.output += count(tokens.output) + count(tokens.reasoning);
-    } else if (event.type === "error") {
-      failure2 = "client-error";
-      error = structuredError(event);
-    }
-  }
-  return { answer, charged: chargedAmount(charged), error, failure: failure2, tokens: sum };
-}
-
-// src/contexts/model-gateway/application/launchers.ts
-var DELEGATION_MARK = "AGENT_KIT_DELEGATION";
-var READ_ONLY_AGENT = "delegate-readonly";
-var OUTER_TIMEOUT_GRACE_S = 60;
-var MARKED_ENV = { [DELEGATION_MARK]: "1" };
-var VIBE_ENV = {
-  ...MARKED_ENV,
-  VIBE_ENABLE_MCP: "false",
-  VIBE_ENABLE_SUBAGENTS: "false",
-  VIBE_INCLUDE_PROJECT_CONTEXT: "false",
-  VIBE_OUTSIDE_WORKDIR: "deny"
-};
-var vibe = {
-  command: (binary, input, paths) => ({
-    args: [
-      "--prompt-file",
-      paths.promptPath,
-      "--model",
-      input.model,
-      "--agent",
-      READ_ONLY_AGENT,
-      "--trust",
-      "--workdir",
-      paths.workDir,
-      "--output",
-      "json",
-      "--time-limit",
-      String(input.time_limit_s),
-      ...input.max_price_usd === void 0 ? [] : ["--max-price", String(input.max_price_usd)],
-      "--output-dir",
-      paths.exportDir
-    ],
-    command: binary,
-    cwd: paths.workDir,
-    env: VIBE_ENV,
-    timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
-  }),
-  read: (stdout, exported) => vibeOutput(stdout, exported),
-  writesExport: true
-};
-function effortOf(model) {
-  return /-(low|medium|high)$/.exec(model)?.[1] ?? "medium";
-}
-var agy = {
-  command: (binary, input, paths, prompt) => ({
-    args: [
-      "--print",
-      prompt,
-      "--model",
-      input.model,
-      "--output-format",
-      "json",
-      "--effort",
-      effortOf(input.model),
-      "--mode",
-      "plan",
-      "--print-timeout",
-      `${String(input.time_limit_s)}s`
-    ],
-    command: binary,
-    cwd: paths.workDir,
-    env: MARKED_ENV,
-    timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
-  }),
-  read: (stdout) => agyOutput(stdout),
-  writesExport: false
-};
-var claude = {
-  command: (binary, input, paths, prompt) => ({
-    args: [
-      "-p",
-      "--model",
-      input.model,
-      "--output-format",
-      "json",
-      "--permission-mode",
-      "plan",
-      "--allowedTools",
-      "Read,Grep,Glob"
-    ],
-    command: binary,
-    cwd: paths.workDir,
-    env: MARKED_ENV,
-    stdin: prompt,
-    timeoutMs: input.time_limit_s * 1e3
-  }),
-  read: (stdout) => claudeOutput(stdout),
-  writesExport: false
-};
-var opencode = {
-  command: (binary, input, paths, prompt) => ({
-    args: ["run", "--model", input.model, "--format", "json", prompt],
-    command: binary,
-    cwd: paths.workDir,
-    env: MARKED_ENV,
-    timeoutMs: input.time_limit_s * 1e3
-  }),
-  read: (stdout) => openCodeOutput(stdout),
-  writesExport: false
-};
-var LAUNCHERS = { agy, claude, opencode, vibe };
-
 // src/contexts/model-gateway/application/run.ts
 var RunCommand = class {
   constructor(deps) {
     this.deps = deps;
+    this.clientRun = new ClientRun(deps);
   }
   deps;
+  clientRun;
   async run(raw) {
     const input = readRunInput(raw);
     this.refuseNested();
@@ -1458,7 +1594,7 @@ var RunCommand = class {
       planWindows(input.client, client.plan_limits ?? [], await this.deps.ledger.read(), this.deps.clock.now(), config.settings.plan_warning_ratio)
     );
     const recorded = warnings.length === 0 ? released : { ...released, warnings };
-    await this.deps.files.writeText(join2(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
+    await this.deps.files.writeText(join4(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
 `);
     return recorded;
   }
@@ -1478,18 +1614,16 @@ var RunCommand = class {
   /** One launched run, up to the point where its result is known: its prompt on disk, the launch and the client's full output. */
   async delegate(run) {
     const { config, entry, input, runDir } = run;
-    const launcher = LAUNCHERS[input.client];
-    const paths = { exportDir: join2(runDir, "vibe"), promptPath: join2(runDir, "prompt.md"), workDir: run.workDir };
+    const paths = { exportDir: join4(runDir, "vibe"), promptPath: join4(runDir, "prompt.md"), workDir: run.workDir };
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars);
     await this.deps.files.writeText(paths.promptPath, prompt);
-    await this.deps.files.writeText(join2(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
+    await this.deps.files.writeText(join4(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
-    const launched = await this.launch(launcher, run.binary, input, paths, prompt);
-    const exported = launcher.writesExport ? await this.readExport(join2(paths.exportDir, "export.json")) : void 0;
-    const output = launcher.read(launched.result.stdout, exported);
+    const launched = await this.launch(run.binary, input, paths, prompt);
+    const output = launched.output;
     const reason = launched.failure ?? runFailureReason(launched.result, output.answer, output);
     const cost = priceRun(output.charged, output.tokens, entry?.prices);
-    const outputPath = join2(runDir, "output.json");
+    const outputPath = join4(runDir, "output.json");
     await this.deps.files.writeText(outputPath, launched.result.stdout);
     const result2 = {
       client: input.client,
@@ -1570,14 +1704,14 @@ var RunCommand = class {
    * directory otherwise.
    */
   async runDir(root, id) {
-    if (root === void 0) return join2(runsDir(this.deps.env), id);
+    if (root === void 0) return join4(runsDir(this.deps.env), id);
     let commonDir;
     try {
       commonDir = await this.deps.git.commonDir(root);
     } catch (error) {
       throw new ModelGatewayError("repository-unreadable", `${root}: ${messageOf(error)}`);
     }
-    return join2(commonDir, "model-gateway", "runs", id);
+    return join4(commonDir, "model-gateway", "runs", id);
   }
   /**
    * The directory the client works in. A run with a passing proof works in the
@@ -1605,24 +1739,30 @@ var RunCommand = class {
     };
   }
   /**
-   * The client, non-interactively, through its launcher. A launch that cannot
-   * start at all is a failed run, not an error: the caller still gets a
-   * result and a ledger line.
+   * The client, non-interactively, through the gateway's launch path, with the
+   * mark that stops a delegate delegating on. A launch that cannot start at
+   * all is a failed run, not an error: the caller still gets a result and a
+   * ledger line.
    */
-  async launch(launcher, binary, input, paths, prompt) {
+  async launch(binary, input, paths, prompt) {
     try {
-      return { result: await this.deps.process.exec(launcher.command(binary, input, paths, prompt)) };
+      return await this.clientRun.launch({
+        binary,
+        client: input.client,
+        extras: { env: { [DELEGATION_MARK]: "1" } },
+        model: input.model,
+        paths,
+        prompt,
+        time_limit_s: input.time_limit_s,
+        ...input.max_price_usd === void 0 ? {} : { max_price_usd: input.max_price_usd }
+      });
     } catch (error) {
-      return { failure: "launch-failed", result: { exitCode: 1, stderr: messageOf(error), stdout: "", timedOut: false } };
-    }
-  }
-  /** Parsed `export.json`, or undefined when the client wrote none or it does not parse. */
-  async readExport(path) {
-    if (!await this.deps.files.exists(path)) return void 0;
-    try {
-      return JSON.parse(await this.deps.files.readText(path));
-    } catch {
-      return void 0;
+      return {
+        exported: void 0,
+        failure: "launch-failed",
+        output: { answer: void 0, charged: void 0, tokens: NO_TOKENS },
+        result: { exitCode: 1, stderr: messageOf(error), stdout: "", timedOut: false }
+      };
     }
   }
   /** The run's one ledger line: what it was, what it cost and how it ended. */
@@ -1830,7 +1970,7 @@ function clientStatuses(deps) {
 // src/contexts/model-gateway/adapters/fs/index.ts
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join as join3 } from "node:path";
+import { dirname, join as join5 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 var NodeModelGatewayFiles = class {
   async readText(path) {
@@ -1854,7 +1994,7 @@ var NodeModelGatewayFiles = class {
     await mkdir(path, { recursive: true });
   }
   async tempDir(prefix) {
-    return mkdtemp(join3(tmpdir(), prefix));
+    return mkdtemp(join5(tmpdir(), prefix));
   }
   async remove(path) {
     await rm(path, { force: true, recursive: true });
@@ -2039,7 +2179,7 @@ var NodeModelGatewayLedger = class {
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
-import { delimiter, join as join4 } from "node:path";
+import { delimiter, join as join6 } from "node:path";
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
@@ -2130,7 +2270,7 @@ var NodeModelGatewayProcess = class {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
       try {
-        await access2(join4(folder, binary), constants.X_OK);
+        await access2(join6(folder, binary), constants.X_OK);
         return true;
       } catch {
       }
@@ -2264,7 +2404,7 @@ function failure(code, message, name) {
 function messageOf4(error) {
   return error instanceof Error ? error.message : String(error);
 }
-var DEFAULT_ROUTING_PATH = join5(import.meta.dirname, "..", "critique", "routing.json");
+var DEFAULT_ROUTING_PATH = join7(import.meta.dirname, "..", "critique", "routing.json");
 function defaultModelGatewayRuntime(options = {}) {
   const { routingPath = DEFAULT_ROUTING_PATH, ...overrides } = options;
   const env = overrides.env ?? new ProcessEnvAdapter();
@@ -2274,7 +2414,7 @@ function defaultModelGatewayRuntime(options = {}) {
   return {
     commands: createModelGatewayCommands({
       clock: new SystemClockAdapter(),
-      defaultsPath: join5(import.meta.dirname, "defaults.json"),
+      defaultsPath: join7(import.meta.dirname, "defaults.json"),
       env,
       files,
       git,

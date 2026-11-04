@@ -10,6 +10,17 @@ import { DEFAULT_TICKET_SIZE, type TicketSize } from './tickets.js'
 import { readGateRouting, type GateRouting } from './gate.js'
 import { readTriageRules, type TriageModel, type TriageRules } from './triage.js'
 
+/**
+ * The gateway client model a critic client is pinned to: the client the
+ * gateway runs the critic on, and the alias the gateway lists that model by.
+ * The critic's own `model` stays what its agent file and the read-only proof
+ * name; this is what the gateway is asked for.
+ */
+export interface GatewayModel {
+  readonly client: CriticClient['kind']
+  readonly model: string
+}
+
 /** One CLI pinned to one model. Model names live here and in the critic agent files only. */
 export interface VibeCriticClient {
   readonly kind: 'vibe'
@@ -24,6 +35,8 @@ export interface VibeCriticClient {
    * Vibe's own figure.
    */
   readonly prices?: TokenPrices
+  /** The gateway client model this critic client is pinned to; without it the client runs its own kind and model. */
+  readonly gateway?: GatewayModel
 }
 
 /**
@@ -35,6 +48,8 @@ export interface AgyCriticClient {
   readonly binary: string
   readonly model: string
   readonly family: 'google'
+  /** The gateway client model this critic client is pinned to; without it the client runs its own kind and model. */
+  readonly gateway?: GatewayModel
 }
 
 export type CriticClient = VibeCriticClient | AgyCriticClient
@@ -188,12 +203,14 @@ function readTicketSize(fields: JsonFields): TicketSize {
 }
 
 export function readCriticClient(fields: JsonFields): CriticClient {
+  const gateway = fields.has('gateway') ? { gateway: readGatewayModel(fields.object('gateway')) } : {}
   if (fields.oneOf('kind', CLIENT_KINDS) === 'agy') {
     return {
       binary: fields.string('binary'),
       family: fields.literal('family', 'google'),
       kind: 'agy',
       model: fields.matching('model', isGeminiModel, "a Gemini model: agy's Claude and GPT-OSS models are never critics"),
+      ...gateway,
     }
   }
   return {
@@ -203,7 +220,13 @@ export function readCriticClient(fields: JsonFields): CriticClient {
     kind: 'vibe',
     model: fields.string('model'),
     ...(fields.has('prices') ? { prices: readTokenPrices(fields.object('prices')) } : {}),
+    ...gateway,
   }
+}
+
+/** The gateway client model a critic client names: a client of its own kind, and the alias the gateway lists. */
+function readGatewayModel(fields: JsonFields): GatewayModel {
+  return { client: fields.oneOf('client', CLIENT_KINDS), model: fields.string('model') }
 }
 
 function isGeminiModel(model: string): model is string {

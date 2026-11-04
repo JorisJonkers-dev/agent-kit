@@ -83,13 +83,15 @@ export function vibeOutput(stdout: string, exported: unknown): ClientOutput {
 }
 
 /**
- * Antigravity, `--output-format json`: one object with the `response` and a
- * `usage` of token counts, and no dollars (it is quota, not money). agy
- * reports `SUCCESS` and exits 0 for runs that produced nothing, so the fields
- * decide: a print timeout, a denied action or another status is a failure.
+ * Antigravity: one object with the `response` and a `usage` of token counts,
+ * and no dollars (it is quota, not money), whether it printed that object
+ * alone (`--output-format json`) or as the `result` event of a stream
+ * (`--output-format stream-json`). agy reports `SUCCESS` and exits 0 for runs
+ * that produced nothing, so the fields decide: a print timeout, a denied
+ * action or another status is a failure.
  */
 export function agyOutput(stdout: string): ClientOutput {
-  const result = parseJson(stdout)
+  const result = agyResultOf(stdout)
   if (!isObject(result)) return NOTHING
   const usage = isObject(result.usage) ? result.usage : {}
   return {
@@ -99,6 +101,16 @@ export function agyOutput(stdout: string): ClientOutput {
     failure: agyFailure(result),
     tokens: { cached: count(usage.cache_read_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) },
   }
+}
+
+/**
+ * The result an agy run printed: the `result` of its last result event when it
+ * printed a stream, else the one object it printed, else nothing.
+ */
+function agyResultOf(stdout: string): unknown {
+  const events = stdout.split('\n').map(parseJson).filter(isObject)
+  const streamed = events.findLast((event) => event.event === 'result')?.result
+  return streamed ?? events.findLast((event) => event.response !== undefined || event.usage !== undefined)
 }
 
 function agyFailure(result: JsonObject): string | undefined {

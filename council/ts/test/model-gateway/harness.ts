@@ -214,6 +214,24 @@ export class FixedClock implements ClockPort {
   }
 }
 
+/** What `agy --output-format json` prints: one object, with the response and its usage. */
+export function agyResult(response: string, extra: Readonly<Record<string, unknown>> = {}): string {
+  return JSON.stringify({
+    conversation_id: 'c-1',
+    duration_seconds: 2.5,
+    num_turns: 1,
+    response,
+    status: 'SUCCESS',
+    usage: { cache_read_tokens: 100, input_tokens: 7661, output_tokens: 29, thinking_tokens: 28, total_tokens: 7690 },
+    ...extra,
+  })
+}
+
+/** What `agy --output-format stream-json` prints: an init event, then the result event. */
+export function agyStream(result: string): string {
+  return [JSON.stringify({ conversation_id: 'c-1', event: 'init' }), JSON.stringify({ event: 'result', result: JSON.parse(result) as unknown })].join('\n')
+}
+
 /** What one fake client launch answers: its stdout, its exit, and the export Vibe writes where it was told to. */
 export interface VibeScript {
   /** What the client prints on stdout: Vibe's journal, agy's or Claude Code's JSON object, OpenCode's event lines. */

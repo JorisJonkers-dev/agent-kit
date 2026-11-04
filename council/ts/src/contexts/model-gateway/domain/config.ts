@@ -111,6 +111,8 @@ export interface GatewayConfig {
 }
 
 export type ModelGatewayErrorCode =
+  /** The run named an extra its client cannot apply, such as an MCP server for a client that attaches none. */
+  | 'extras-not-supported'
   | 'invalid-config'
   | 'invalid-input'
   /**
