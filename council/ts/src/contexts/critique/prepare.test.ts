@@ -197,6 +197,19 @@ describe('prepare', () => {
     await expect(ready(h)).rejects.toThrow(/routing\.json: .*family must be one of/)
   })
 
+  it('rejects a Vibe critic pinned to a gateway client of another kind', async () => {
+    const routing = twoMistralCritics(true) as { clients: Record<string, Record<string, unknown>> }
+    routing.clients['vibe-mistral-small'] = {
+      ...routing.clients['vibe-mistral-small'],
+      gateway: { client: 'agy', model: 'gemini-3.8-flash-high' },
+    }
+    const h = await optedIn({ routing })
+
+    await expect(ready(h)).rejects.toThrow(
+      /routing\.json: clients\.vibe-mistral-small\.gateway\.client must be vibe, the kind of the critic client/,
+    )
+  })
+
   it('rejects a stage the routing has no critics for', async () => {
     const h = await optedIn({ routingOverride: { stages: { tickets: null } } })
     await h.writeText(join(h.repo, '.scratch', 'widgets', 'issues', '01-schema.md'), '# 01: Schema\n')

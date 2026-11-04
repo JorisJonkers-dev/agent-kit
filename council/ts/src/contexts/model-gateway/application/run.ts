@@ -8,6 +8,7 @@ import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
 import {
   FORBIDDEN_PROVIDERS,
+  NO_TOKENS,
   PROVIDER_CLIENTS,
   readOnlyProof,
   readRunInput,
@@ -25,10 +26,11 @@ import {
 } from '../domain/run.js'
 import { planWindows, warningsOf } from '../domain/usage.js'
 import { startWorkflow } from '../domain/workflows.js'
+import { ClientRun, type ClientRunOutcome } from './client-run.js'
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
-import { DELEGATION_MARK, LAUNCHERS, READ_ONLY_AGENT, type ClientLauncher, type LaunchPaths } from './launchers.js'
+import { DELEGATION_MARK, READ_ONLY_AGENT, type LaunchPaths } from './launchers.js'
 import { resolveScope } from './policy.js'
 import type { ClientConfig } from '../domain/config.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
@@ -138,7 +140,11 @@ interface RunPermission {
  * and a ledger line, whether it succeeded or not.
  */
 export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
-  constructor(private readonly deps: ModelGatewayDependencies) {}
+  private readonly clientRun: ClientRun
+
+  constructor(private readonly deps: ModelGatewayDependencies) {
+    this.clientRun = new ClientRun(deps)
+  }
 
   async run(raw: unknown): Promise<RunResult> {
     const input = readRunInput(raw)
@@ -213,7 +219,6 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
   /** One launched run, up to the point where its result is known: its prompt on disk, the launch and the client's full output. */
   private async delegate(run: Delegation): Promise<RunResult> {
     const { config, entry, input, runDir } = run
-    const launcher = LAUNCHERS[input.client as RunClient]
     const paths: LaunchPaths = {
       exportDir: join(runDir, 'vibe'),
       promptPath: join(runDir, 'prompt.md'),
@@ -223,10 +228,8 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode)
     await this.deps.files.writeText(paths.promptPath, prompt)
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
-    const launched = await this.launch(launcher, run.binary, input, paths, prompt)
-    const reportPath = launcher.reportPath?.(paths)
-    const written = reportPath === undefined ? undefined : await this.readJson(reportPath)
-    const output = launcher.read(launched.result.stdout, written)
+    const launched = await this.launch(run.binary, input, paths, prompt)
+    const output = launched.output
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output)
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : undefined
     const reason = finished === undefined ? delegateReason : finished.reason
@@ -509,31 +512,32 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
   }
 
   /**
-   * The client, non-interactively, through its launcher. A launch that cannot
-   * start at all is a failed run, not an error: the caller still gets a
-   * result and a ledger line.
+   * The client, non-interactively, through the gateway's launch path, with the
+   * mark that stops a delegate delegating on. A launch that cannot start at
+   * all is a failed run, not an error: the caller still gets a result and a
+   * ledger line.
    */
-  private async launch(
-    launcher: ClientLauncher,
-    binary: string,
-    input: RunInput,
-    paths: LaunchPaths,
-    prompt: string,
-  ): Promise<{ result: ProcessResult; failure?: string }> {
+  private async launch(binary: string, input: RunInput, paths: LaunchPaths, prompt: string): Promise<ClientRunOutcome & { failure?: string }> {
     try {
-      return { result: await this.deps.process.exec(launcher.command(binary, input, paths, prompt)) }
+      return await this.clientRun.launch({
+        binary,
+        client: input.client as RunClient,
+        extras: { env: { [DELEGATION_MARK]: '1' } },
+        mode: input.mode,
+        model: input.model,
+        paths,
+        prompt,
+        time_limit_s: input.time_limit_s,
+        ...(input.max_price_usd === undefined ? {} : { max_price_usd: input.max_price_usd }),
+        ...(input.provider === undefined ? {} : { provider: input.provider }),
+      })
     } catch (error) {
-      return { failure: 'launch-failed', result: { exitCode: 1, stderr: messageOf(error), stdout: '', timedOut: false } }
-    }
-  }
-
-  /** Parsed JSON a client wrote beside its output, or undefined when it wrote none or it does not parse. */
-  private async readJson(path: string): Promise<unknown> {
-    if (!(await this.deps.files.exists(path))) return undefined
-    try {
-      return JSON.parse(await this.deps.files.readText(path)) as unknown
-    } catch {
-      return undefined
+      return {
+        exported: undefined,
+        failure: 'launch-failed',
+        output: { answer: undefined, charged: undefined, tokens: NO_TOKENS },
+        result: { exitCode: 1, stderr: messageOf(error), stdout: '', timedOut: false },
+      }
     }
   }
 

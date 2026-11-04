@@ -372,4 +372,16 @@ describe('agy models in routing', () => {
       h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' }),
     ).rejects.toThrow(/routing\.json: .*family must be "google"/)
   })
+
+  it('rejects an agy critic pinned to a gateway client of another kind', async () => {
+    const routing = agyRouting('gemini-3.8-flash-high') as { clients: Record<string, Record<string, unknown>> }
+    routing.clients['agy-x'] = { ...routing.clients['agy-x'], gateway: { client: 'vibe', model: 'glm-5-3' } }
+    const h = await harness({ routing })
+    open.push(h)
+    await h.commands.allow.run({ families: ['google'], repo: h.repo })
+
+    await expect(
+      h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: '.scratch/widgets/spec.md', stage: 'spec' }),
+    ).rejects.toThrow(/routing\.json: clients\.agy-x\.gateway\.client must be agy, the kind of the critic client/)
+  })
 })

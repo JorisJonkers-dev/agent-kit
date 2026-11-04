@@ -1,7 +1,9 @@
+export { ClientRun, requireSupportedExtras, type ClientRunOutcome, type ClientRunPorts, type ClientRunRequest } from './application/client-run.js'
 export { createModelGatewayCommands, type ModelGatewayCommands } from './application/commands.js'
 export { ledgerPath, runsDir, stateDir, workflowsPath } from './application/locations.js'
 export { decidePolicyFor, resolveScope } from './application/policy.js'
 export { DELEGATION_MARK, READ_ONLY_AGENT, RunCommand, type RunResult } from './application/run.js'
+export type { ClientOutput } from './domain/outputs.js'
 export { UsageCommand } from './application/usage.js'
 export type {
   ClientStatusPort,
@@ -26,6 +28,7 @@ export {
 } from './application/workflows.js'
 export type { AllowlistEntry, FamilyAllowlist } from './domain/allowlist.js'
 export { ModelGatewayError, type ModelGatewayErrorCode, type PlanLimit, type PlanWindow } from './domain/config.js'
+export { EXTRA_NAMES, type AttachedServer, type ExtraName, type RunExtras, type SandboxProfile } from './domain/extras.js'
 export type { LedgerRecord } from './domain/ledger.js'
 export type { ClientListing, ClientModel, ListedModel, MissingClient, ModelListing, SkippedModel } from './domain/models.js'
 export type {
@@ -37,7 +40,7 @@ export type {
   PolicySubject,
   SendPermission,
 } from './domain/policy.js'
-export type { HermesUsage, ProofFiles, ReadOnlyProof, RunInput, RunMode, RunTokens } from './domain/run.js'
+export type { HermesUsage, ProofFiles, ReadOnlyProof, RunClient, RunInput, RunMode, RunTokens } from './domain/run.js'
 export type {
   Availability,
   ClientReading,

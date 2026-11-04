@@ -111,6 +111,15 @@ module.exports = {
       to: { path: '^src/(ports|adapters)/|^src/contexts/model-gateway/(application|adapters)/' },
     },
     {
+      // The critique context reaches the model gateway only through its public
+      // barrel: a critic's launch goes through the gateway's launch path, never
+      // its internals. The gateway reaches nothing in critique.
+      name: 'critique-uses-the-gateway-barrel',
+      severity: 'error',
+      from: { path: '^src/contexts/critique/' },
+      to: { path: '^src/contexts/model-gateway/(domain|application|adapters)/.+' },
+    },
+    {
       // The model gateway's CLI reaches its context only through the barrel.
       name: 'model-gateway-cli-uses-context-barrel',
       severity: 'error',

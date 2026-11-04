@@ -16,6 +16,7 @@ import {
   FakeProcess,
   FakeVibeProcess,
   FixedClock,
+  agyResult,
   type FakeRepository,
   type VibeScript,
 } from '../../test/model-gateway/harness.js'
@@ -1580,9 +1581,14 @@ describe('model-gateway run: the launch', () => {
 
     expect(result.exitCode).toBe(0)
     const [command] = w.vibe.commands
-    expect(command?.command).toBe('vibe')
+    expect(command?.command).toBe('env')
     expect(command?.cwd).toBe(w.repo)
     expect(command?.args).toEqual([
+      '-u',
+      'MISTRAL_API_KEY',
+      '-u',
+      'VIBE_HOME',
+      'vibe',
       '--prompt-file',
       join(runDirOf(w, result), 'prompt.md'),
       '--model',
@@ -1638,6 +1644,18 @@ describe('model-gateway run: the launch', () => {
     expect(workDir.startsWith(w.repo)).toBe(false)
     expect(await readdir(workDir)).toEqual([])
     expect(printed(result).status).toBe('ok')
+  })
+})
+
+describe('model-gateway run: extras', () => {
+  it('refuses an extras field, which only a caller inside this process may send', async () => {
+    const w = await readyRun()
+
+    const result = await w.run(w.input({ extras: { sandbox: 'read-only' } }))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toEqual({ code: 'invalid-input', message: 'extras are for in-process callers only', status: 'error' })
+    expect(w.vibe.commands).toEqual([])
   })
 })
 
@@ -1834,19 +1852,6 @@ describe('model-gateway run: the nesting guard', () => {
     expect(w.vibe.commands).toEqual([])
   })
 })
-
-/** What `agy --output-format json` prints: one object, with the response and its usage. */
-function agyResult(response: string, extra: Readonly<Record<string, unknown>> = {}): string {
-  return JSON.stringify({
-    conversation_id: 'c-1',
-    duration_seconds: 2.5,
-    num_turns: 1,
-    response,
-    status: 'SUCCESS',
-    usage: { cache_read_tokens: 100, input_tokens: 7661, output_tokens: 29, thinking_tokens: 28, total_tokens: 7690 },
-    ...extra,
-  })
-}
 
 /** What `claude -p --output-format json` prints: one result object, with the cost it charged. */
 function claudeResult(result: string, extra: Readonly<Record<string, unknown>> = {}): string {

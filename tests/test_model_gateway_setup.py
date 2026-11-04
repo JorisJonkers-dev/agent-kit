@@ -151,6 +151,26 @@ def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() ->
     assert all(p["input"] > 0 and p["output"] > 0 and p["cached_input"] >= 0 for p in priced.values())
 
 
+def test_every_critic_client_names_a_gateway_client_model() -> None:
+    """#306: a critic client is a client model pinned for critique, so routing
+    names one the gateway lists, by the alias the gateway lists it under."""
+    routing = json.loads(ROUTING.read_text())["clients"]
+    defaults = json.loads(DEFAULTS.read_text())
+    listed = {(m["client"], name) for m in defaults["models"] for name in [m["model"], *m.get("names", [])]}
+    assert routing, "routing has no critic client, so this test proves nothing"
+    for name, client in routing.items():
+        gateway = client["gateway"]
+        assert gateway["client"] == client["kind"], (
+            f"{name} runs on {client['kind']} but names the gateway client {gateway['client']}"
+        )
+        assert gateway["client"] in defaults["clients"], (
+            f"{name} names a client the gateway does not know: {gateway['client']}"
+        )
+        assert (gateway["client"], gateway["model"]) in listed, (
+            f"{name} names a model the gateway does not list: {gateway['client']}:{gateway['model']}"
+        )
+
+
 def test_the_schema_prices_a_model_above_zero() -> None:
     """0 turns every price cap off, so the schema refuses it."""
     prices = json.loads(SCHEMA.read_text())["$defs"]["model"]["properties"]["prices"]

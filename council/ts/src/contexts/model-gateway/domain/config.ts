@@ -123,6 +123,13 @@ export interface GatewayConfig {
 }
 
 export type ModelGatewayErrorCode =
+  /** The run named an extra its client cannot apply, such as an MCP server for a client that attaches none. */
+  | 'extras-not-supported'
+  /**
+   * The run asked to switch the client's home servers off, and the home's
+   * configuration cannot be read or parsed, so the gateway cannot name them.
+   */
+  | 'home-config-unreadable'
   | 'invalid-config'
   | 'invalid-input'
   /**

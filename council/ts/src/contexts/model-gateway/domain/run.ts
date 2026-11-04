@@ -55,6 +55,7 @@ export interface RunInput {
 /** Reads a run's input, or says what is wrong with it. */
 export function readRunInput(raw: unknown): RunInput {
   if (!isObject(raw)) throw new ModelGatewayError('invalid-input', 'the input must be a JSON object')
+  if (raw.extras !== undefined) throw new ModelGatewayError('invalid-input', 'extras are for in-process callers only')
   if (typeof raw.workflow !== 'string' || raw.workflow === '') {
     throw new ModelGatewayError('invalid-input', 'a run must name its workflow')
   }
