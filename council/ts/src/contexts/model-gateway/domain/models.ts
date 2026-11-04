@@ -230,7 +230,7 @@ function listedModels(
 const FAMILY_UNKNOWN = 'family unknown: add it to the catalogue in defaults.json or the machine override'
 
 /** The model part of a `<provider>/<model>` id, which is what names its family. */
-function modelPart(model: string): string {
+export function modelPart(model: string): string {
   return model.slice(model.lastIndexOf('/') + 1)
 }
 

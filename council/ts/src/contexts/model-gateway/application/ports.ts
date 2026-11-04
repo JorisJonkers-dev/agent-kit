@@ -19,6 +19,8 @@ export interface ModelGatewayFilesPort {
   mkdir(path: string): Promise<void>
   /** A fresh, empty directory under the system's temporary directory, named after `prefix`. */
   tempDir(prefix: string): Promise<string>
+  /** Removes a file or a directory with everything in it; a path that is not there is left as it is. */
+  remove(path: string): Promise<void>
 }
 
 /** Whether a client's program is on PATH, and the listing commands it answers. */
@@ -32,7 +34,7 @@ export interface ModelSourcePort {
   list(): Promise<ClientListing>
 }
 
-/** The repository a path sits in. It runs git, never a client. */
+/** The repository a path sits in, and the throwaway worktrees of it. It runs git, never a client. */
 export interface ModelGatewayGitPort {
   /** The working tree's top level, or undefined when the path is in no repository. */
   root(path: string): Promise<string | undefined>
@@ -40,6 +42,10 @@ export interface ModelGatewayGitPort {
   commonDir(path: string): Promise<string>
   /** Every remote with its URL; empty when the repository has none. */
   remotes(path: string): Promise<readonly GitRemote[]>
+  /** Checks out the repository's HEAD, detached, into `path`, which is an existing empty directory. Rejects with git's message. */
+  addWorktree(repo: string, path: string): Promise<void>
+  /** Removes a worktree added with `addWorktree`, whatever it holds now; its directory is gone afterwards. */
+  removeWorktree(repo: string, path: string): Promise<void>
 }
 
 /**

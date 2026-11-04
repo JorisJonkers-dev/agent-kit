@@ -94,6 +94,21 @@ describe('NodeModelGatewayFiles', () => {
   })
 })
 
+describe('NodeModelGatewayFiles.remove', () => {
+  it('removes a directory with everything in it, and leaves a path that is not there as it is', async () => {
+    const dir = await tempDir()
+    const folder = join(dir, 'worktree')
+    await mkdir(join(folder, 'src'), { recursive: true })
+    await writeFile(join(folder, 'src', 'a.ts'), 'a')
+    const files = new NodeModelGatewayFiles()
+
+    await files.remove(folder)
+    await files.remove(folder)
+
+    expect(await files.exists(folder)).toBe(false)
+  })
+})
+
 describe('NodeModelGatewayProcess', () => {
   it('finds a program that is on PATH', async () => {
     expect(await new NodeModelGatewayProcess().which('node')).toBe(true)
@@ -159,6 +174,58 @@ describe('NodeModelGatewayGit', () => {
     await git(root, 'worktree', 'add', '-q', worktree)
 
     expect(await repositories.commonDir(worktree)).toBe(join(await realpath(root), '.git'))
+  })
+
+  /** A repository whose HEAD holds a README. */
+  async function committed(): Promise<string> {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
+    await git(root, '-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-q', '--allow-empty', '-m', 'first')
+    await writeFile(join(root, 'README.md'), 'hello')
+    await git(root, 'add', 'README.md')
+    await git(root, '-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-q', '-m', 'readme')
+    return root
+  }
+
+  it('checks HEAD out detached into an empty directory, and removes it with git, directory and all', async () => {
+    const root = await committed()
+    const target = await tempDir()
+    await writeFile(join(root, 'README.md'), 'edited and not committed')
+
+    await repositories.addWorktree(root, target)
+
+    expect(await readFile(join(target, 'README.md'), 'utf8')).toBe('hello')
+    await repositories.removeWorktree(root, target)
+    expect(await new NodeModelGatewayFiles().exists(target)).toBe(false)
+    expect(await new NodeModelGatewayGit().commonDir(root)).toBe(join(await realpath(root), '.git'))
+    expect(await readdir(join(root, '.git', 'worktrees')).catch(() => [])).toEqual([])
+  })
+
+  it('removes a worktree whose directory git no longer knows, by hand, and prunes it', async () => {
+    const root = await committed()
+    const target = await tempDir()
+    await repositories.addWorktree(root, target)
+    await rm(join(target, '.git'))
+
+    await repositories.removeWorktree(root, target)
+
+    expect(await new NodeModelGatewayFiles().exists(target)).toBe(false)
+    expect(await readdir(join(root, '.git', 'worktrees')).catch(() => [])).toEqual([])
+  })
+
+  it('fails with git\'s own message when it cannot add a worktree', async () => {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
+
+    await expect(repositories.addWorktree(root, await tempDir())).rejects.toThrow(/HEAD/)
+  })
+
+  it('fails when git cannot prune what it could not remove', async () => {
+    const dir = await tempDir()
+    const target = await tempDir()
+
+    await expect(repositories.removeWorktree(dir, target)).rejects.toThrow(/not a git repository/)
+    expect(await new NodeModelGatewayFiles().exists(target)).toBe(false)
   })
 
   it('fails with git\'s own message when it cannot find a common directory', async () => {

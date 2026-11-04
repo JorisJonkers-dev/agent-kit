@@ -1,22 +1,22 @@
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 
-import type { ProcessCommand, ProcessResult } from '../../../ports/index.js'
+import type { ProcessResult } from '../../../ports/index.js'
 import { ModelGatewayError, type GatewayConfig, type ModelEntry } from '../domain/config.js'
 import type { LedgerRecord } from '../domain/ledger.js'
-import { familyOf, modelKey } from '../domain/models.js'
+import { familyOf, modelKey, modelPart } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
 import {
-  finalAnswerOf,
   readOnlyProof,
   readRunInput,
-  runCost,
+  requireAllowedProvider,
+  priceRun,
   runFailureReason,
   runId,
-  runTokens,
   summaryOf,
   wrappedPrompt,
   type ProofFiles,
+  type RunClient,
   type RunInput,
   type RunMode,
   type RunTokens,
@@ -24,30 +24,11 @@ import {
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
+import { DELEGATION_MARK, LAUNCHERS, READ_ONLY_AGENT, type ClientLauncher, type LaunchPaths } from './launchers.js'
 import { resolveScope } from './policy.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
-/** The mark the gateway puts in every delegate's environment, and refuses to run under. */
-export const DELEGATION_MARK = 'AGENT_KIT_DELEGATION'
-
-/** The Vibe agent a read-only delegation runs through: read tools only, no subagents, nothing outside its workdir. */
-export const READ_ONLY_AGENT = 'delegate-readonly'
-
-/** Seconds the outer timer allows beyond Vibe's own `--time-limit`, so Vibe's own stop is the one that reports. */
-const OUTER_TIMEOUT_GRACE_S = 60
-
-/**
- * What a delegate's environment holds: the mark that stops it delegating on,
- * and the isolation Vibe reads from `VIBE_*` variables, which sits above the
- * home's `config.toml` and below the agent file.
- */
-const DELEGATE_ENV: Readonly<Record<string, string>> = {
-  [DELEGATION_MARK]: '1',
-  VIBE_ENABLE_MCP: 'false',
-  VIBE_ENABLE_SUBAGENTS: 'false',
-  VIBE_INCLUDE_PROJECT_CONTEXT: 'false',
-  VIBE_OUTSIDE_WORKDIR: 'deny',
-}
+export { DELEGATION_MARK, READ_ONLY_AGENT }
 
 /** What one delegation came to: a short result, with the full output left in its run directory. */
 export interface RunResult {
@@ -64,14 +45,33 @@ export interface RunResult {
   readonly output_path: string
   /** The delegate's own summary, cut at `summary_max_chars`. */
   readonly summary: string
-  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>` or `launch-failed`. */
+  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`, `launch-failed`, `denied-action` or `client-error`. */
   readonly reason?: string
+  /** Set when the run's throwaway worktree could not be removed: what git said, and which directory is left behind. */
+  readonly cleanup_warning?: string
 }
 
-/** Where one launch reads its prompt and writes what Vibe exports. */
-interface LaunchPaths {
-  readonly exportDir: string
-  readonly promptPath: string
+/**
+ * Where a run works, and how it leaves: in the repository itself when the
+ * client model's read-only proof passed, else in a throwaway directory that
+ * `release` deletes.
+ */
+interface Workplace {
+  readonly dir: string
+  release(): Promise<void>
+}
+
+/** Everything one launched run needs beyond its input, settled before anything starts. */
+interface Delegation {
+  readonly allowed: RunPermission
+  readonly binary: string
+  readonly config: GatewayConfig
+  readonly entry: ModelEntry | undefined
+  readonly family: string
+  readonly id: string
+  readonly input: RunInput
+  readonly runDir: string
+  readonly startedMs: number
   readonly workDir: string
 }
 
@@ -98,8 +98,9 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
     const client = config.clients[input.client]
     if (client === undefined) throw new ModelGatewayError('unknown-model', `the gateway knows no client ${input.client}`)
+    if (input.client === 'opencode') requireAllowedProvider(input.model, client.providers)
     const entry = catalogueEntry(config, input.client, input.model)
-    const family = entry?.family ?? familyOf(input.model)
+    const family = entry?.family ?? familyOf(modelPart(input.model))
     if (family === undefined) {
       throw new ModelGatewayError(
         'unknown-model',
@@ -108,39 +109,69 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
     const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
     const allowed = await this.permission(input, config, family)
-    await this.proveReadOnly(input, entry)
+    const throwaway = await this.needsThrowaway(input, entry)
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
     const id = runId(startedAt, randomBytes(3).toString('hex'))
-    const workDir = root ?? (await this.deps.files.tempDir('model-gateway-run-'))
-    const runDir = await this.runDir(input, workDir, id)
-    const paths: LaunchPaths = { exportDir: join(runDir, 'vibe'), promptPath: join(runDir, 'prompt.md'), workDir }
-    await this.deps.files.writeText(paths.promptPath, wrappedPrompt(input.prompt, config.settings.summary_max_chars))
+    const runDir = await this.runDir(root, id)
+    const workplace = await this.workplace(root, throwaway)
+    let result: RunResult
+    try {
+      result = await this.delegate({ allowed, binary: client.binary, config, entry, family, id, input, runDir, startedMs, workDir: workplace.dir })
+    } catch (error) {
+      await this.release(workplace)
+      throw error
+    }
+    const warning = await this.release(workplace)
+    const recorded: RunResult = warning === undefined ? result : { ...result, cleanup_warning: warning }
+    await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(recorded, null, 2)}\n`)
+    await this.deps.ledger.append(this.ledgerRecord(recorded, allowed.repository, startedMs))
+    return recorded
+  }
+
+  /**
+   * Deletes the run's throwaway directory. A cleanup that fails never fails
+   * the run: it is reported as a warning the result carries, and a run that
+   * threw keeps its own error.
+   */
+  private async release(workplace: Workplace): Promise<string | undefined> {
+    try {
+      await workplace.release()
+      return undefined
+    } catch (error) {
+      return `cannot remove the throwaway worktree ${workplace.dir}: ${messageOf(error)}`
+    }
+  }
+
+  /** One launched run, up to the point where its result is known: its prompt on disk, the launch and the client's full output. */
+  private async delegate(run: Delegation): Promise<RunResult> {
+    const { config, entry, input, runDir } = run
+    const launcher = LAUNCHERS[input.client as RunClient]
+    const paths: LaunchPaths = { exportDir: join(runDir, 'vibe'), promptPath: join(runDir, 'prompt.md'), workDir: run.workDir }
+    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars)
+    await this.deps.files.writeText(paths.promptPath, prompt)
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
-    const launched = await this.launch(client.binary, input, paths)
-    const exported = await this.readExport(join(paths.exportDir, 'export.json'))
-    const answer = finalAnswerOf(launched.result.stdout)
-    const reason = launched.failure ?? runFailureReason(launched.result, answer)
-    const tokens = runTokens(exported)
-    const cost = runCost(exported, tokens, entry?.prices)
+    const launched = await this.launch(launcher, run.binary, input, paths, prompt)
+    const exported = launcher.writesExport ? await this.readExport(join(paths.exportDir, 'export.json')) : undefined
+    const output = launcher.read(launched.result.stdout, exported)
+    const reason = launched.failure ?? runFailureReason(launched.result, output.answer, output.failure)
+    const cost = priceRun(output.charged, output.tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
     await this.deps.files.writeText(outputPath, launched.result.stdout)
     const result: RunResult = {
       client: input.client,
       cost_usd: cost,
-      family,
+      family: run.family,
       mode: input.mode,
       model: input.model,
       output_path: outputPath,
-      run_id: id,
+      run_id: run.id,
       status: reason === undefined ? 'ok' : 'failed',
-      summary: answer === undefined ? '' : summaryOf(answer, config.settings.summary_max_chars),
-      tokens,
+      summary: output.answer === undefined ? '' : summaryOf(output.answer, config.settings.summary_max_chars),
+      tokens: output.tokens,
       workflow: input.workflow,
       ...(reason === undefined ? {} : { reason }),
     }
-    await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`)
-    await this.deps.ledger.append(this.ledgerRecord(result, allowed.repository, startedMs))
     return result
   }
 
@@ -175,16 +206,15 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
   }
 
   /**
-   * A read-only run goes in place only on a client model whose read-only proof
-   * passed on this machine. The proof is recorded against the model id
-   * critique's routing names, which the catalogue keeps among the model's
-   * `names` beside the alias the run names.
+   * Whether the run must work in a throwaway directory: a client model goes in
+   * place only when its read-only proof passed on this machine, whatever the
+   * client. The proof is recorded against the model id critique's routing
+   * names, which the catalogue keeps among the model's `names` beside the
+   * alias the run names. Every other model runs in a throwaway worktree.
    */
-  private async proveReadOnly(input: RunInput, entry: ModelEntry | undefined): Promise<void> {
-    const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? [])
-    if (proof.status === 'unproven') {
-      throw new ModelGatewayError('unproven-read-only', `${input.client}:${input.model} has no passing read-only proof: ${proof.reason}`)
-    }
+  private async needsThrowaway(input: RunInput, entry: ModelEntry | undefined): Promise<boolean> {
+    const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? [], input.client)
+    return proof.status !== 'proven'
   }
 
   private async proofFiles(): Promise<ProofFiles> {
@@ -212,56 +242,63 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
    * found with the repository's other runs, and in this machine's state
    * directory otherwise.
    */
-  private async runDir(input: RunInput, workDir: string, id: string): Promise<string> {
-    if (input.repo === undefined) return join(runsDir(this.deps.env), id)
+  private async runDir(root: string | undefined, id: string): Promise<string> {
+    if (root === undefined) return join(runsDir(this.deps.env), id)
     let commonDir: string
     try {
-      commonDir = await this.deps.git.commonDir(workDir)
+      commonDir = await this.deps.git.commonDir(root)
     } catch (error) {
-      throw new ModelGatewayError('repository-unreadable', `${workDir}: ${messageOf(error)}`)
+      throw new ModelGatewayError('repository-unreadable', `${root}: ${messageOf(error)}`)
     }
     return join(commonDir, 'model-gateway', 'runs', id)
   }
 
   /**
-   * Vibe, non-interactively: the wrapped prompt from a file, the client model
-   * by the alias `models` lists, the read-only agent, and Vibe's own time and
-   * price limits. A launch that cannot start at all is a failed run, not an
-   * error: the caller still gets a result and a ledger line.
+   * The directory the client works in. A run with a passing proof works in the
+   * repository itself, or in a fresh empty directory when it has none (which
+   * stays, as before). A throwaway run works in a worktree of the repository's
+   * HEAD, or in a fresh empty directory when it has none, and `release`
+   * deletes it whatever the run came to.
    */
-  private async launch(binary: string, input: RunInput, paths: LaunchPaths): Promise<{ result: ProcessResult; failure?: string }> {
-    const command: ProcessCommand = {
-      args: [
-        '--prompt-file',
-        paths.promptPath,
-        '--model',
-        input.model,
-        '--agent',
-        READ_ONLY_AGENT,
-        '--trust',
-        '--workdir',
-        paths.workDir,
-        '--output',
-        'json',
-        '--time-limit',
-        String(input.time_limit_s),
-        ...(input.max_price_usd === undefined ? [] : ['--max-price', String(input.max_price_usd)]),
-        '--output-dir',
-        paths.exportDir,
-      ],
-      command: binary,
-      cwd: paths.workDir,
-      env: DELEGATE_ENV,
-      timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
+  private async workplace(root: string | undefined, throwaway: boolean): Promise<Workplace> {
+    if (!throwaway) {
+      const dir = root ?? (await this.deps.files.tempDir('model-gateway-run-'))
+      return { dir, release: () => Promise.resolve() }
     }
+    const dir = await this.deps.files.tempDir('model-gateway-worktree-')
+    if (root === undefined) return { dir, release: () => this.deps.files.remove(dir) }
     try {
-      return { result: await this.deps.process.exec(command) }
+      await this.deps.git.addWorktree(root, dir)
+    } catch (error) {
+      await this.deps.files.remove(dir)
+      throw new ModelGatewayError('worktree-failed', `${root}: cannot add a throwaway worktree: ${messageOf(error)}`)
+    }
+    return {
+      dir,
+      release: () => this.deps.git.removeWorktree(root, dir),
+    }
+  }
+
+  /**
+   * The client, non-interactively, through its launcher. A launch that cannot
+   * start at all is a failed run, not an error: the caller still gets a
+   * result and a ledger line.
+   */
+  private async launch(
+    launcher: ClientLauncher,
+    binary: string,
+    input: RunInput,
+    paths: LaunchPaths,
+    prompt: string,
+  ): Promise<{ result: ProcessResult; failure?: string }> {
+    try {
+      return { result: await this.deps.process.exec(launcher.command(binary, input, paths, prompt)) }
     } catch (error) {
       return { failure: 'launch-failed', result: { exitCode: 1, stderr: messageOf(error), stdout: '', timedOut: false } }
     }
   }
 
-  /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
+  /** Parsed `export.json`, or undefined when the client wrote none or it does not parse. */
   private async readExport(path: string): Promise<unknown> {
     if (!(await this.deps.files.exists(path))) return undefined
     try {

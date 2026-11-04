@@ -111,10 +111,11 @@ function parseClient(id, raw, base) {
     ...base?.provider_cost_classes,
     ...parseProviderCostClasses(raw.provider_cost_classes, `${where}.provider_cost_classes`)
   };
+  const providers = raw.providers === void 0 ? base?.providers : requireStrings(raw.providers, `${where}.providers`);
   if (binary === void 0 || costClass === void 0 || modelSource === void 0) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`);
   }
-  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses };
+  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses, providers };
 }
 function parseProviderCostClasses(raw, where) {
   if (!isObject(raw)) throw invalid(`${where} must be an object keyed by provider name`);
@@ -821,7 +822,7 @@ import { randomBytes } from "node:crypto";
 import { join as join2 } from "node:path";
 
 // src/contexts/model-gateway/domain/run.ts
-var RUN_CLIENTS = ["vibe"];
+var RUN_CLIENTS = ["vibe", "agy", "claude", "opencode"];
 var DEFAULT_TIME_LIMIT_S = 900;
 function readRunInput(raw) {
   if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
@@ -912,22 +913,48 @@ function finalAnswerOf(stdout) {
 var NO_TOKENS = { cached: 0, input: 0, output: 0 };
 function runTokens(exported) {
   const usage = isObject(exported) && isObject(exported.usage) ? exported.usage : void 0;
-  const count = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+  const count2 = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
   if (usage === void 0) return NO_TOKENS;
-  return { cached: count(usage.cached_input_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) };
+  return { cached: count2(usage.cached_input_tokens), input: count2(usage.input_tokens), output: count2(usage.output_tokens) };
 }
-function runCost(exported, tokens, prices) {
+function chargedOf(exported) {
   const charged = isObject(exported) ? exported.cost_usd : void 0;
-  if (typeof charged === "number" && Number.isFinite(charged) && charged > 0) return charged;
+  return typeof charged === "number" && Number.isFinite(charged) && charged > 0 ? charged : void 0;
+}
+function priceRun(charged, tokens, prices) {
+  if (charged !== void 0) return charged;
   if (prices === void 0) return 0;
   const uncached = Math.max(tokens.input - tokens.cached, 0);
   return (uncached * prices.input + tokens.cached * prices.cached_input + tokens.output * prices.output) / 1e6;
 }
-function runFailureReason(launch, answer) {
+function runFailureReason(launch, answer, clientFailure) {
   if (launch.timedOut === true) return "timeout";
   if (launch.exitCode !== 0) return `exit-${String(launch.exitCode)}`;
+  if (clientFailure !== void 0) return clientFailure;
   if (answer === void 0) return "parse-error";
   return void 0;
+}
+var DEFAULT_OPENCODE_PROVIDERS = ["opencode-go"];
+var PAY_PER_TOKEN_PROVIDERS = ["opencode"];
+function openCodeProvider(model) {
+  const slash = model.indexOf("/");
+  return slash <= 0 || slash === model.length - 1 ? void 0 : model.slice(0, slash);
+}
+function requireAllowedProvider(model, allowed) {
+  const providers = allowed ?? DEFAULT_OPENCODE_PROVIDERS;
+  const provider = openCodeProvider(model);
+  if (provider === void 0) {
+    throw new ModelGatewayError(
+      "provider-not-allowed",
+      `${model}: an OpenCode model is named <provider>/<model>, and the allowed providers are ${providers.join(", ")}`
+    );
+  }
+  if (PAY_PER_TOKEN_PROVIDERS.includes(provider) || !providers.includes(provider)) {
+    throw new ModelGatewayError(
+      "provider-not-allowed",
+      `${model}: the provider ${provider} is not allowed (clients.opencode.providers: ${providers.join(", ")}), and OpenCode\u2019s pay-per-token models are never reached`
+    );
+  }
 }
 function compactTimestamp(at) {
   return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -935,21 +962,27 @@ function compactTimestamp(at) {
 function runId(at, suffix) {
   return `${compactTimestamp(at)}-${suffix}`;
 }
-function readOnlyProof(files, model, names = []) {
+var CRITIC_KINDS = {
+  agy: { kind: "agy", label: "Antigravity" },
+  vibe: { kind: "vibe", label: "Vibe" }
+};
+function readOnlyProof(files, model, names = [], client = "vibe") {
+  const critic = CRITIC_KINDS[client];
+  if (critic === void 0) return unproven(`${client} has no critic client in critique's routing, so nothing proves it read-only`);
   const routing = parseJsonObject(files.routing);
   if (routing === void 0) {
-    return unproven("critique's routing is not installed, so no Vibe critic client proves a model read-only");
+    return unproven(`critique's routing is not installed, so no ${critic.label} critic client proves a model read-only`);
   }
-  const critic = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, [model, ...names]);
-  if (critic === void 0) return unproven(`no Vibe critic client in critique's routing runs ${model}`);
-  const result2 = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${critic}`);
-  if (result2 !== "pass") return unproven(`setup's read-only proof for ${critic} is ${result2 ?? "not recorded"}`);
-  return { critic, status: "proven" };
+  const name = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, critic.kind, [model, ...names]);
+  if (name === void 0) return unproven(`no ${critic.label} critic client in critique's routing runs ${model}`);
+  const result2 = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${name}`);
+  if (result2 !== "pass") return unproven(`setup's read-only proof for ${name} is ${result2 ?? "not recorded"}`);
+  return { critic: name, status: "proven" };
 }
 function unproven(reason) {
   return { reason, status: "unproven" };
 }
-function criticFor(routing, override, models) {
+function criticFor(routing, override, kind, models) {
   const clients = /* @__PURE__ */ new Map();
   for (const source of [routing, override]) {
     if (!isObject(source)) continue;
@@ -957,7 +990,7 @@ function criticFor(routing, override, models) {
       if (isObject(entry)) clients.set(name, { ...clients.get(name), ...entry });
     }
   }
-  return [...clients].filter(([, entry]) => entry.kind === "vibe" && typeof entry.model === "string" && models.includes(entry.model)).map(([name]) => name).sort()[0];
+  return [...clients].filter(([, entry]) => entry.kind === kind && typeof entry.model === "string" && models.includes(entry.model)).map(([name]) => name).sort()[0];
 }
 function checkResult(checks, id) {
   if (!isObject(checks)) return void 0;
@@ -974,17 +1007,190 @@ function parseJsonObject(text) {
   }
 }
 
-// src/contexts/model-gateway/application/run.ts
+// src/contexts/model-gateway/domain/outputs.ts
+function count(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+function textOf(value) {
+  return typeof value === "string" && value.trim() !== "" ? value : void 0;
+}
+function parseJson2(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
+function chargedAmount(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
+}
+var NOTHING2 = { answer: void 0, charged: void 0, tokens: NO_TOKENS };
+function vibeOutput(stdout, exported) {
+  return { answer: finalAnswerOf(stdout), charged: chargedOf(exported), tokens: runTokens(exported) };
+}
+function agyOutput(stdout) {
+  const result2 = parseJson2(stdout);
+  if (!isObject(result2)) return NOTHING2;
+  const usage = isObject(result2.usage) ? result2.usage : {};
+  return {
+    answer: textOf(result2.response),
+    charged: void 0,
+    failure: agyFailure(result2),
+    tokens: { cached: count(usage.cache_read_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) }
+  };
+}
+function agyFailure(result2) {
+  if (result2.finished_reason === "print_timeout") return "timeout";
+  if (Array.isArray(result2.denied_actions) && result2.denied_actions.length > 0) return "denied-action";
+  if (typeof result2.status === "string" && result2.status !== "SUCCESS") return "client-error";
+  return void 0;
+}
+function claudeOutput(stdout) {
+  const parsed = parseJson2(stdout);
+  const result2 = Array.isArray(parsed) ? parsed.findLast((event) => isObject(event) && event.type === "result") : parsed;
+  if (!isObject(result2)) return NOTHING2;
+  const usage = isObject(result2.usage) ? result2.usage : {};
+  const cached = count(usage.cache_read_input_tokens);
+  return {
+    answer: textOf(result2.result),
+    charged: chargedAmount(result2.total_cost_usd),
+    failure: result2.is_error === true ? "client-error" : void 0,
+    tokens: {
+      cached,
+      input: count(usage.input_tokens) + cached + count(usage.cache_creation_input_tokens),
+      output: count(usage.output_tokens)
+    }
+  };
+}
+function openCodeOutput(stdout) {
+  let answer;
+  let fresh = true;
+  let charged = 0;
+  let failure2;
+  const sum = { cached: 0, input: 0, output: 0 };
+  for (const line of stdout.split("\n")) {
+    const event = parseJson2(line);
+    if (!isObject(event)) continue;
+    const part = isObject(event.part) ? event.part : {};
+    if (event.type === "step_start") fresh = true;
+    else if (event.type === "text" && textOf(part.text) !== void 0) {
+      answer = fresh ? String(part.text) : `${answer ?? ""}${String(part.text)}`;
+      fresh = false;
+    } else if (event.type === "step_finish") {
+      const tokens = isObject(part.tokens) ? part.tokens : {};
+      const cache = isObject(tokens.cache) ? tokens.cache : {};
+      charged += count(part.cost);
+      sum.cached += count(cache.read);
+      sum.input += count(tokens.input) + count(cache.read) + count(cache.write);
+      sum.output += count(tokens.output) + count(tokens.reasoning);
+    } else if (event.type === "error") failure2 = "client-error";
+  }
+  return { answer, charged: chargedAmount(charged), failure: failure2, tokens: sum };
+}
+
+// src/contexts/model-gateway/application/launchers.ts
 var DELEGATION_MARK = "AGENT_KIT_DELEGATION";
 var READ_ONLY_AGENT = "delegate-readonly";
 var OUTER_TIMEOUT_GRACE_S = 60;
-var DELEGATE_ENV = {
-  [DELEGATION_MARK]: "1",
+var MARKED_ENV = { [DELEGATION_MARK]: "1" };
+var VIBE_ENV = {
+  ...MARKED_ENV,
   VIBE_ENABLE_MCP: "false",
   VIBE_ENABLE_SUBAGENTS: "false",
   VIBE_INCLUDE_PROJECT_CONTEXT: "false",
   VIBE_OUTSIDE_WORKDIR: "deny"
 };
+var vibe = {
+  command: (binary, input, paths) => ({
+    args: [
+      "--prompt-file",
+      paths.promptPath,
+      "--model",
+      input.model,
+      "--agent",
+      READ_ONLY_AGENT,
+      "--trust",
+      "--workdir",
+      paths.workDir,
+      "--output",
+      "json",
+      "--time-limit",
+      String(input.time_limit_s),
+      ...input.max_price_usd === void 0 ? [] : ["--max-price", String(input.max_price_usd)],
+      "--output-dir",
+      paths.exportDir
+    ],
+    command: binary,
+    cwd: paths.workDir,
+    env: VIBE_ENV,
+    timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
+  }),
+  read: (stdout, exported) => vibeOutput(stdout, exported),
+  writesExport: true
+};
+function effortOf(model) {
+  return /-(low|medium|high)$/.exec(model)?.[1] ?? "medium";
+}
+var agy = {
+  command: (binary, input, paths, prompt) => ({
+    args: [
+      "--print",
+      prompt,
+      "--model",
+      input.model,
+      "--output-format",
+      "json",
+      "--effort",
+      effortOf(input.model),
+      "--mode",
+      "plan",
+      "--print-timeout",
+      `${String(input.time_limit_s)}s`
+    ],
+    command: binary,
+    cwd: paths.workDir,
+    env: MARKED_ENV,
+    timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
+  }),
+  read: (stdout) => agyOutput(stdout),
+  writesExport: false
+};
+var claude = {
+  command: (binary, input, paths, prompt) => ({
+    args: [
+      "-p",
+      "--model",
+      input.model,
+      "--output-format",
+      "json",
+      "--permission-mode",
+      "plan",
+      "--allowedTools",
+      "Read,Grep,Glob"
+    ],
+    command: binary,
+    cwd: paths.workDir,
+    env: MARKED_ENV,
+    stdin: prompt,
+    timeoutMs: input.time_limit_s * 1e3
+  }),
+  read: (stdout) => claudeOutput(stdout),
+  writesExport: false
+};
+var opencode = {
+  command: (binary, input, paths, prompt) => ({
+    args: ["run", "--model", input.model, "--format", "json", prompt],
+    command: binary,
+    cwd: paths.workDir,
+    env: MARKED_ENV,
+    timeoutMs: input.time_limit_s * 1e3
+  }),
+  read: (stdout) => openCodeOutput(stdout),
+  writesExport: false
+};
+var LAUNCHERS = { agy, claude, opencode, vibe };
+
+// src/contexts/model-gateway/application/run.ts
 var RunCommand = class {
   constructor(deps) {
     this.deps = deps;
@@ -996,8 +1202,9 @@ var RunCommand = class {
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
     const client = config.clients[input.client];
     if (client === void 0) throw new ModelGatewayError("unknown-model", `the gateway knows no client ${input.client}`);
+    if (input.client === "opencode") requireAllowedProvider(input.model, client.providers);
     const entry = catalogueEntry(config, input.client, input.model);
-    const family = entry?.family ?? familyOf(input.model);
+    const family = entry?.family ?? familyOf(modelPart(input.model));
     if (family === void 0) {
       throw new ModelGatewayError(
         "unknown-model",
@@ -1006,41 +1213,69 @@ var RunCommand = class {
     }
     const root = input.repo === void 0 ? void 0 : await this.repositoryRoot(input.repo);
     const allowed = await this.permission(input, config, family);
-    await this.proveReadOnly(input, entry);
+    const throwaway = await this.needsThrowaway(input, entry);
     const startedAt = this.deps.clock.now();
     const startedMs = this.deps.clock.monotonicMs();
     const id = runId(startedAt, randomBytes(3).toString("hex"));
-    const workDir = root ?? await this.deps.files.tempDir("model-gateway-run-");
-    const runDir = await this.runDir(input, workDir, id);
-    const paths = { exportDir: join2(runDir, "vibe"), promptPath: join2(runDir, "prompt.md"), workDir };
-    await this.deps.files.writeText(paths.promptPath, wrappedPrompt(input.prompt, config.settings.summary_max_chars));
+    const runDir = await this.runDir(root, id);
+    const workplace = await this.workplace(root, throwaway);
+    let result2;
+    try {
+      result2 = await this.delegate({ allowed, binary: client.binary, config, entry, family, id, input, runDir, startedMs, workDir: workplace.dir });
+    } catch (error) {
+      await this.release(workplace);
+      throw error;
+    }
+    const warning = await this.release(workplace);
+    const recorded = warning === void 0 ? result2 : { ...result2, cleanup_warning: warning };
+    await this.deps.files.writeText(join2(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
+`);
+    await this.deps.ledger.append(this.ledgerRecord(recorded, allowed.repository, startedMs));
+    return recorded;
+  }
+  /**
+   * Deletes the run's throwaway directory. A cleanup that fails never fails
+   * the run: it is reported as a warning the result carries, and a run that
+   * threw keeps its own error.
+   */
+  async release(workplace) {
+    try {
+      await workplace.release();
+      return void 0;
+    } catch (error) {
+      return `cannot remove the throwaway worktree ${workplace.dir}: ${messageOf(error)}`;
+    }
+  }
+  /** One launched run, up to the point where its result is known: its prompt on disk, the launch and the client's full output. */
+  async delegate(run) {
+    const { config, entry, input, runDir } = run;
+    const launcher = LAUNCHERS[input.client];
+    const paths = { exportDir: join2(runDir, "vibe"), promptPath: join2(runDir, "prompt.md"), workDir: run.workDir };
+    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars);
+    await this.deps.files.writeText(paths.promptPath, prompt);
     await this.deps.files.writeText(join2(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
-    const launched = await this.launch(client.binary, input, paths);
-    const exported = await this.readExport(join2(paths.exportDir, "export.json"));
-    const answer = finalAnswerOf(launched.result.stdout);
-    const reason = launched.failure ?? runFailureReason(launched.result, answer);
-    const tokens = runTokens(exported);
-    const cost = runCost(exported, tokens, entry?.prices);
+    const launched = await this.launch(launcher, run.binary, input, paths, prompt);
+    const exported = launcher.writesExport ? await this.readExport(join2(paths.exportDir, "export.json")) : void 0;
+    const output = launcher.read(launched.result.stdout, exported);
+    const reason = launched.failure ?? runFailureReason(launched.result, output.answer, output.failure);
+    const cost = priceRun(output.charged, output.tokens, entry?.prices);
     const outputPath = join2(runDir, "output.json");
     await this.deps.files.writeText(outputPath, launched.result.stdout);
     const result2 = {
       client: input.client,
       cost_usd: cost,
-      family,
+      family: run.family,
       mode: input.mode,
       model: input.model,
       output_path: outputPath,
-      run_id: id,
+      run_id: run.id,
       status: reason === void 0 ? "ok" : "failed",
-      summary: answer === void 0 ? "" : summaryOf(answer, config.settings.summary_max_chars),
-      tokens,
+      summary: output.answer === void 0 ? "" : summaryOf(output.answer, config.settings.summary_max_chars),
+      tokens: output.tokens,
       workflow: input.workflow,
       ...reason === void 0 ? {} : { reason }
     };
-    await this.deps.files.writeText(join2(runDir, "result.json"), `${JSON.stringify(result2, null, 2)}
-`);
-    await this.deps.ledger.append(this.ledgerRecord(result2, allowed.repository, startedMs));
     return result2;
   }
   /** A delegate may not delegate on: the mark is in its environment, so this call came from inside one. */
@@ -1072,16 +1307,15 @@ var RunCommand = class {
     return { permission: permission2, repository: scope.kind === "repository" ? scope.key : null };
   }
   /**
-   * A read-only run goes in place only on a client model whose read-only proof
-   * passed on this machine. The proof is recorded against the model id
-   * critique's routing names, which the catalogue keeps among the model's
-   * `names` beside the alias the run names.
+   * Whether the run must work in a throwaway directory: a client model goes in
+   * place only when its read-only proof passed on this machine, whatever the
+   * client. The proof is recorded against the model id critique's routing
+   * names, which the catalogue keeps among the model's `names` beside the
+   * alias the run names. Every other model runs in a throwaway worktree.
    */
-  async proveReadOnly(input, entry) {
-    const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? []);
-    if (proof.status === "unproven") {
-      throw new ModelGatewayError("unproven-read-only", `${input.client}:${input.model} has no passing read-only proof: ${proof.reason}`);
-    }
+  async needsThrowaway(input, entry) {
+    const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? [], input.client);
+    return proof.status !== "proven";
   }
   async proofFiles() {
     return this.deps.proof.read();
@@ -1106,54 +1340,54 @@ var RunCommand = class {
    * found with the repository's other runs, and in this machine's state
    * directory otherwise.
    */
-  async runDir(input, workDir, id) {
-    if (input.repo === void 0) return join2(runsDir(this.deps.env), id);
+  async runDir(root, id) {
+    if (root === void 0) return join2(runsDir(this.deps.env), id);
     let commonDir;
     try {
-      commonDir = await this.deps.git.commonDir(workDir);
+      commonDir = await this.deps.git.commonDir(root);
     } catch (error) {
-      throw new ModelGatewayError("repository-unreadable", `${workDir}: ${messageOf(error)}`);
+      throw new ModelGatewayError("repository-unreadable", `${root}: ${messageOf(error)}`);
     }
     return join2(commonDir, "model-gateway", "runs", id);
   }
   /**
-   * Vibe, non-interactively: the wrapped prompt from a file, the client model
-   * by the alias `models` lists, the read-only agent, and Vibe's own time and
-   * price limits. A launch that cannot start at all is a failed run, not an
-   * error: the caller still gets a result and a ledger line.
+   * The directory the client works in. A run with a passing proof works in the
+   * repository itself, or in a fresh empty directory when it has none (which
+   * stays, as before). A throwaway run works in a worktree of the repository's
+   * HEAD, or in a fresh empty directory when it has none, and `release`
+   * deletes it whatever the run came to.
    */
-  async launch(binary, input, paths) {
-    const command = {
-      args: [
-        "--prompt-file",
-        paths.promptPath,
-        "--model",
-        input.model,
-        "--agent",
-        READ_ONLY_AGENT,
-        "--trust",
-        "--workdir",
-        paths.workDir,
-        "--output",
-        "json",
-        "--time-limit",
-        String(input.time_limit_s),
-        ...input.max_price_usd === void 0 ? [] : ["--max-price", String(input.max_price_usd)],
-        "--output-dir",
-        paths.exportDir
-      ],
-      command: binary,
-      cwd: paths.workDir,
-      env: DELEGATE_ENV,
-      timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1e3
-    };
+  async workplace(root, throwaway) {
+    if (!throwaway) {
+      const dir2 = root ?? await this.deps.files.tempDir("model-gateway-run-");
+      return { dir: dir2, release: () => Promise.resolve() };
+    }
+    const dir = await this.deps.files.tempDir("model-gateway-worktree-");
+    if (root === void 0) return { dir, release: () => this.deps.files.remove(dir) };
     try {
-      return { result: await this.deps.process.exec(command) };
+      await this.deps.git.addWorktree(root, dir);
+    } catch (error) {
+      await this.deps.files.remove(dir);
+      throw new ModelGatewayError("worktree-failed", `${root}: cannot add a throwaway worktree: ${messageOf(error)}`);
+    }
+    return {
+      dir,
+      release: () => this.deps.git.removeWorktree(root, dir)
+    };
+  }
+  /**
+   * The client, non-interactively, through its launcher. A launch that cannot
+   * start at all is a failed run, not an error: the caller still gets a
+   * result and a ledger line.
+   */
+  async launch(launcher, binary, input, paths, prompt) {
+    try {
+      return { result: await this.deps.process.exec(launcher.command(binary, input, paths, prompt)) };
     } catch (error) {
       return { failure: "launch-failed", result: { exitCode: 1, stderr: messageOf(error), stdout: "", timedOut: false } };
     }
   }
-  /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
+  /** Parsed `export.json`, or undefined when the client wrote none or it does not parse. */
   async readExport(path) {
     if (!await this.deps.files.exists(path)) return void 0;
     try {
@@ -1263,7 +1497,7 @@ function messageOf2(error) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join as join3 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
@@ -1291,12 +1525,17 @@ var NodeModelGatewayFiles = class {
   async tempDir(prefix) {
     return mkdtemp(join3(tmpdir(), prefix));
   }
+  async remove(path) {
+    await rm(path, { force: true, recursive: true });
+  }
 };
 
 // src/contexts/model-gateway/adapters/git/index.ts
 import { execFile } from "node:child_process";
+import { rm as rm2 } from "node:fs/promises";
 var OUTPUT_LIMIT = 1024 * 1024;
 var TIMEOUT_MS = 1e4;
+var WORKTREE_TIMEOUT_MS = 12e4;
 var NOT_A_REPOSITORY = /not a git repository/i;
 var NodeModelGatewayGit = class {
   constructor(path = process.env.PATH ?? "", timeoutMs = TIMEOUT_MS) {
@@ -1329,19 +1568,35 @@ var NodeModelGatewayGit = class {
       return match === null ? [] : [{ name: String(match[1]), url: String(match[2]) }];
     });
   }
+  async addWorktree(repo, path) {
+    const result2 = await this.git(repo, ["worktree", "add", "--detach", path, "HEAD"], WORKTREE_TIMEOUT_MS);
+    if (result2.exitCode !== 0) throw new Error(messageOf3(result2));
+  }
+  /**
+   * `git worktree remove --force`, which takes the directory with it. A
+   * worktree git no longer knows (its directory moved, or a lock was left) is
+   * deleted by hand and pruned, so a run never leaves its worktree behind.
+   */
+  async removeWorktree(repo, path) {
+    const result2 = await this.git(repo, ["worktree", "remove", "--force", path], WORKTREE_TIMEOUT_MS);
+    if (result2.exitCode === 0) return;
+    await rm2(path, { force: true, recursive: true });
+    const pruned = await this.git(repo, ["worktree", "prune"]);
+    if (pruned.exitCode !== 0) throw new Error(messageOf3(pruned));
+  }
   /** The command's exit code and output; a git that cannot start or does not answer in time rejects. */
-  git(path, args) {
+  git(path, args, timeoutMs = this.timeoutMs) {
     return new Promise((resolve, reject) => {
       const options = {
         encoding: "utf8",
         env: { ...process.env, PATH: this.path },
         maxBuffer: OUTPUT_LIMIT,
-        timeout: this.timeoutMs
+        timeout: timeoutMs
       };
       execFile("git", ["-C", path, ...args], options, (error, stdout, stderr) => {
         if (error === null) resolve({ exitCode: 0, stderr, stdout });
         else if (typeof error.code === "number") resolve({ exitCode: error.code, stderr, stdout });
-        else if (error.killed === true) reject(new Error(`git did not answer within ${String(this.timeoutMs)} ms`));
+        else if (error.killed === true) reject(new Error(`git did not answer within ${String(timeoutMs)} ms`));
         else reject(new Error(`cannot run git: ${error.message}`));
       });
     });
@@ -1353,7 +1608,7 @@ function messageOf3(result2) {
 }
 
 // src/contexts/model-gateway/adapters/ledger/index.ts
-import { appendFile, mkdir as mkdir2, open, rm, stat } from "node:fs/promises";
+import { appendFile, mkdir as mkdir2, open, rm as rm3, stat } from "node:fs/promises";
 import { dirname as dirname2 } from "node:path";
 
 // src/contexts/model-gateway/domain/ledger.ts
@@ -1385,7 +1640,7 @@ var NodeModelGatewayLedger = class {
     try {
       await appendFile(path, ledgerLine(record));
     } finally {
-      await rm(lock, { force: true });
+      await rm3(lock, { force: true });
     }
   }
   /** Takes the lock, waiting for whoever holds it; a lock that is too old to be alive is broken. */
@@ -1394,7 +1649,7 @@ var NodeModelGatewayLedger = class {
     for (; ; ) {
       if (await this.take(lock)) return;
       if (await this.stale(lock)) {
-        await rm(lock, { force: true });
+        await rm3(lock, { force: true });
         continue;
       }
       if (Date.now() >= deadline) {
@@ -1571,11 +1826,15 @@ content may be sent.
 run hands one read-only task to one client model and prints a short result:
 its status, run id, workflow, client model, family, mode, tokens, cost, the
 path of its full output and a summary of at most "summary_max_chars"
-characters. It takes "workflow", "client", "model", "mode", "prompt", and
-optionally "repo", "carries" (code and history), "time_limit_s" (900 by
-default) and "max_price_usd". The data policy and the client model's read-only
-proof are checked before anything is launched. An error prints "status":
-"error" with its "code" and exits 1.
+characters. It takes "workflow", "client" (vibe, agy, claude or opencode),
+"model", "mode", "prompt", and optionally "repo", "carries" (code and history),
+"time_limit_s" (900 by default) and "max_price_usd" (Vibe only). The data
+policy and the client model's read-only proof are checked before anything is
+launched; a model without a passing proof (every one but a proven Vibe or
+Antigravity model) works in a throwaway worktree of the repository, removed
+after the run. An OpenCode model is named provider/model and its provider must
+be in clients.opencode.providers (opencode-go by default), never opencode. An
+error prints "status": "error" with its "code" and exits 1.
 `;
 var COMMANDS = {
   models: "models",

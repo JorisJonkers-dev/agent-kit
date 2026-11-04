@@ -112,6 +112,19 @@ describe('parseDefaults', () => {
     expect(parseDefaults(raw).clients.opencode?.provider_cost_classes).toEqual({ 'opencode-go': 'subsidised' })
   })
 
+  it('keeps the providers a client may reach, and leaves them out when it names none', () => {
+    const raw = defaults()
+    raw.clients = {
+      claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared' },
+      opencode: { binary: 'opencode', cost_class: 'metered-personal', model_source: 'live', providers: ['opencode-go'] },
+    }
+
+    const { clients } = parseDefaults(raw)
+
+    expect(clients.opencode?.providers).toEqual(['opencode-go'])
+    expect(clients.claude?.providers).toBeUndefined()
+  })
+
   it('keeps the prices a model entry carries, and leaves them out when it carries none', () => {
     const raw = defaults()
     raw.models = [
@@ -144,6 +157,10 @@ describe('parseDefaults', () => {
         ...raw,
         clients: { claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared', provider_cost_classes: { p: 'free' } } },
       }),
+    ],
+    [
+      'providers that are not strings',
+      (raw) => ({ ...raw, clients: { opencode: { binary: 'opencode', cost_class: 'subsidised', model_source: 'live', providers: [1] } } }),
     ],
     ['models that are not a list', (raw) => ({ ...raw, models: {} })],
     ['a model that is not an object', (raw) => ({ ...raw, models: ['claude'] })],
@@ -228,6 +245,17 @@ describe('applyOverride', () => {
     const merged = applyOverride(base, { clients: { opencode: { provider_cost_classes: { b: 'subsidised' } } } })
 
     expect(merged.clients.opencode?.provider_cost_classes).toEqual({ a: 'subsidised', b: 'subsidised' })
+  })
+
+  it('replaces the providers a client may reach', () => {
+    const base = applyOverride(shipped(), {
+      clients: { opencode: { binary: 'opencode', cost_class: 'metered-personal', model_source: 'live', providers: ['a'] } },
+    })
+
+    const merged = applyOverride(base, { clients: { opencode: { providers: ['b', 'c'] } } })
+
+    expect(merged.clients.opencode?.providers).toEqual(['b', 'c'])
+    expect(applyOverride(merged, { clients: { opencode: { cost_class: 'subsidised' } } }).clients.opencode?.providers).toEqual(['b', 'c'])
   })
 
   it('adds a client the defaults do not name', () => {

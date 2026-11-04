@@ -93,8 +93,9 @@ node model-gateway.mjs run --input <file.json>
 The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 `prompt`, and optionally `repo`, `carries` (`{"code":bool,"history":bool}`,
 only for an inline run), `time_limit_s` (default 900) and `max_price_usd`.
-`workflow` is required (`code: "invalid-input"`). This ticket runs `client:
-"vibe"` in `mode: "read-only"` only; any other client or mode is
+`workflow` is required (`code: "invalid-input"`). A run can go to `client:
+"vibe"`, `"agy"` (Antigravity), `"claude"` (Claude Code) or `"opencode"`, in
+`mode: "read-only"` only; any other client or mode is
 `code: "not-supported-yet"`.
 
 Everything that can refuse the run happens before anything is launched:
@@ -108,18 +109,34 @@ Everything that can refuse the run happens before anything is launched:
   `repo` is inline-only: it works in a fresh empty temporary directory, never
   inside a repository, and `carries` may not claim code or history the policy
   does not allow.
-- `unproven-read-only` — a read-only run goes in place only on a client model
-  with a passing read-only proof. The proof is setup's recorded result for the
-  Vibe critic client whose `model` matches, in critique's routing (the shipped
-  `routing.json`, overridden by `~/.config/agent-kit/critique-routing.json`):
-  `checks["read-only:<client>"].result == "pass"` in
-  `~/.local/share/agent-kit/critique/machine-setup.json`. A model with no
-  passing proof is refused; the throwaway worktree for unproven clients comes
-  in a later ticket.
+- `provider-not-allowed` — an OpenCode model is named `<provider>/<model>`, and
+  only the providers `clients.opencode.providers` names (default
+  `["opencode-go"]`) are allowed. Every other provider is refused, and so is
+  `opencode/<model>`, OpenCode's pay-per-token Zen, even when the machine lists
+  it: a run never reaches a pay-per-token model.
+- `worktree-failed` — git could not add the throwaway worktree (below). A
+  worktree git cannot remove after the run is not an error: the result is
+  returned with a `cleanup_warning`.
 - `unknown-model` — a model the catalogue cannot place, or one this machine
   disabled.
 
-A launched run is Vibe, non-interactively:
+A run goes in place only on a client model with a passing read-only proof:
+setup's recorded result for the critic client of the client's own kind (Vibe,
+or Antigravity as the Gemini critic) whose `model` matches, in critique's
+routing (the shipped `routing.json`, overridden by
+`~/.config/agent-kit/critique-routing.json`):
+`checks["read-only:<client>"].result == "pass"` in
+`~/.local/share/agent-kit/critique/machine-setup.json`. Every other model,
+Vibe's included, has none and works in a throwaway worktree: `git worktree add
+--detach <temporary directory> HEAD` of the `repo`, which sees the committed
+files and none of the working copy's edits, and is removed with `git worktree
+remove --force` after the run whatever its outcome. A run without a `repo`
+works in a fresh empty temporary directory, deleted the same way. A cleanup
+that fails never fails the run: the result carries a `cleanup_warning` naming
+the directory left behind, and a run that threw keeps its own error. The result
+and the ledger line are the same for every client.
+
+A launched Vibe run is non-interactive:
 
 ```sh
 vibe --prompt-file <run dir>/prompt.md --model <alias> --agent delegate-readonly \
@@ -134,6 +151,25 @@ gateway also sets `VIBE_ENABLE_MCP`, `VIBE_ENABLE_SUBAGENTS`,
 `VIBE_INCLUDE_PROJECT_CONTEXT` and `VIBE_OUTSIDE_WORKDIR` for the launch, so
 the isolation holds even if the agent file is missing.
 
+The other clients, each in its working directory and with
+`AGENT_KIT_DELEGATION=1` in its environment. Claude Code and OpenCode have no
+time limit of their own, so the outer timer stops them at `time_limit_s`;
+Antigravity's own `--print-timeout` fires first, a minute before the outer one:
+
+```sh
+agy --print <prompt> --model <id> --output-format json --effort <low|medium|high> \
+    --mode plan --print-timeout <s>s
+claude -p --model <id> --output-format json --permission-mode plan \
+    --allowedTools Read,Grep,Glob            # the prompt on stdin
+opencode run --model <provider>/<model> --format json <prompt>
+```
+
+Antigravity's effort is the id's last word (`gemini-3.8-flash-high` is
+`high`), else `medium`. Tokens and dollars come from each client's own output
+(agy's `usage`, Claude Code's `usage` and `total_cost_usd`, the sum of
+OpenCode's `step_finish` events); agy prices nothing, as it is quota, not
+money. `max_price_usd` is passed to Vibe only.
+
 The gateway appends a short instruction to the caller's prompt: end the answer
 with a line `SUMMARY:` followed by at most `summary_max_chars` characters
 summarising the result. The result's `summary` is that text, cut at the limit;
@@ -142,16 +178,17 @@ its final answer.
 
 The result is `{"status":"ok"|"failed","run_id","workflow","client","model",
 "family","mode","tokens":{"input","output","cached"},"cost_usd","output_path",
-"summary"}`, and a failed run adds a `reason`: `timeout`, `parse-error`,
-`exit-<n>` or `launch-failed` (Vibe could not be started at all). The raw
-output is kept either way.
+"summary"}`, plus the `cleanup_warning` above when it applies, and a failed run adds a `reason`: `timeout`, `parse-error`,
+`exit-<n>`, `launch-failed` (the client could not be started at all),
+`denied-action` (Antigravity was denied an action) or `client-error` (the
+client's own output reports an error). The raw output is kept either way.
 
 A run with a `repo` keeps its directory in that repository's git common
 directory, `<git common dir>/model-gateway/runs/<run_id>/`, so a worktree's
 runs sit with the repository's; an inline run keeps it in
 `$XDG_STATE_HOME/agent-kit/model-gateway/runs/<run_id>/`, else
 `~/.local/state/agent-kit/model-gateway/runs/<run_id>/`. It holds `prompt.md`,
-`input.json`, `output.json` (Vibe's full output) and `result.json`. `run_id` is
+`input.json`, `output.json` (the client's full output) and `result.json`. `run_id` is
 a UTC timestamp plus a short random suffix.
 
 Every run also appends one JSON line to the machine-wide ledger,
@@ -159,8 +196,8 @@ Every run also appends one JSON line to the machine-wide ledger,
 `~/.local/state/...`): workflow, client, model, family, mode, repository key,
 tokens, dollars, outcome, duration and run id. Writes take an exclusive lock
 file beside it, so two gateway processes never interleave a line. Dollars come
-from Vibe's own export when it carries them, else from the tokens times the
-catalogue's `prices` for the model.
+from the client's own output when it prices the run, else from the tokens times
+the catalogue's `prices` for the model.
 
 ## The data policy
 
@@ -202,7 +239,8 @@ and merges over the shipped defaults:
   `provider_cost_classes`: the cost class of each provider a client's models
   run on, by provider name (OpenCode's, whose models are listed as
   `<provider>/<model>`). A provider it does not name takes the client's own
-  cost class.
+  cost class. `providers` is the list of providers a run may reach through
+  OpenCode (`provider-not-allowed` otherwise); it defaults to `["opencode-go"]`.
 - `models`: an entry matching `client` and `model` overrides its `tier`,
   `notes` or `family`; a new entry adds a declared model.
 - `settings.<key>` overrides that setting, deep-merging

@@ -36,6 +36,11 @@ export interface ClientConfig {
    * undefined when the client's own cost class covers every model it lists.
    */
   readonly provider_cost_classes: Readonly<Record<string, CostClass>> | undefined
+  /**
+   * The providers a run may reach through the client, where the client serves
+   * several (OpenCode); undefined when the client has no such allowlist.
+   */
+  readonly providers: readonly string[] | undefined
 }
 
 /** One model a client offers, as the declared list describes it. */
@@ -96,17 +101,19 @@ export type ModelGatewayErrorCode =
    * the gateway's mark), and a delegate may never delegate on.
    */
   | 'nested-delegation'
-  /** The run asked for a client or a mode a later ticket builds (#299, #297). */
+  /** The run asked for a client or a mode a later ticket builds (#297). */
   | 'not-supported-yet'
   /** The data policy refuses the run's client model, or what it claims to carry. */
   | 'policy-refused'
+  /** The run named an OpenCode provider that `clients.opencode.providers` does not allow, as every pay-per-token one is not. */
+  | 'provider-not-allowed'
   /** git could not read the path the caller named, so the data policy cannot be decided. */
   | 'repository-unreadable'
-  /** The client model has no read-only proof that passed on this machine (#299 runs such clients in a worktree). */
-  | 'unproven-read-only'
   | 'unknown-command'
   /** The run named a client model the gateway cannot list now. */
   | 'unknown-model'
+  /** git could not add the throwaway worktree a run without a read-only proof works in. */
+  | 'worktree-failed'
 
 export class ModelGatewayError extends Error {
   constructor(
@@ -195,10 +202,11 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
           ...base?.provider_cost_classes,
           ...parseProviderCostClasses(raw.provider_cost_classes, `${where}.provider_cost_classes`),
         }
+  const providers = raw.providers === undefined ? base?.providers : requireStrings(raw.providers, `${where}.providers`)
   if (binary === undefined || costClass === undefined || modelSource === undefined) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`)
   }
-  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses }
+  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses, providers }
 }
 
 /** The cost class of each provider a client's models run on, by provider name. */
