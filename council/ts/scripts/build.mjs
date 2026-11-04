@@ -16,6 +16,7 @@ const inventoryPath = resolve(packageRoot, 'toolkit-files.json')
 const tsc = resolve(packageRoot, 'node_modules/typescript/bin/tsc')
 const critiqueRunnerPath = resolve(councilRoot, '..', 'skills', 'workstation', 'critique', 'critique.mjs')
 const buildTrackerRunnerPath = resolve(councilRoot, '..', 'skills', 'workstation', 'build-tracker', 'build-tracker.mjs')
+const modelGatewayRunnerPath = resolve(councilRoot, '..', 'skills', 'workstation', 'model-gateway', 'model-gateway.mjs')
 
 await rm(distDir, { force: true, recursive: true })
 await run(process.execPath, [tsc, '-p', resolve(packageRoot, 'tsconfig.build.json')])
@@ -25,6 +26,7 @@ await writeLauncher()
 await writeInventory()
 await bundleCritiqueRunner()
 await bundleBuildTrackerRunner()
+await bundleModelGatewayRunner()
 
 // A skill's runner: one self-contained, executable ES module bundled from an
 // entry written here, with no runtime dependencies beyond Node's own modules.
@@ -65,6 +67,23 @@ process.stderr.write(result.stderr, () => {
     entryName: 'build-tracker-runner-entry.ts',
     outfile: buildTrackerRunnerPath,
     source: 'build-tracker-cli',
+  })
+}
+
+// The model gateway's runner ships in the model-gateway skill directory beside
+// the defaults it reads, so the bundle finds them in its own folder.
+async function bundleModelGatewayRunner() {
+  await bundleRunner({
+    entry: `import { defaultModelGatewayRuntime, runModelGatewayCli } from './src/model-gateway-cli/index.ts'
+
+const result = await runModelGatewayCli(process.argv.slice(2), defaultModelGatewayRuntime())
+process.stderr.write(result.stderr, () => {
+  process.stdout.write(result.stdout, () => process.exit(result.exitCode))
+})
+`,
+    entryName: 'model-gateway-runner-entry.ts',
+    outfile: modelGatewayRunnerPath,
+    source: 'model-gateway-cli',
   })
 }
 

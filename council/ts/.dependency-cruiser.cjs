@@ -90,6 +90,34 @@ module.exports = {
       to: { path: '^src/contexts/build-tracker/(domain|adapters|application)/.+' },
     },
     {
+      // The model gateway is its own small runner: its context and CLI reach
+      // no other context and none of council's shells, so its bundle stays
+      // self-contained. The shared ports and the environment adapter are all
+      // it may use from outside.
+      name: 'model-gateway-stands-alone',
+      severity: 'error',
+      from: { path: '^src/(contexts/model-gateway|model-gateway-cli)/' },
+      to: {
+        path: '^src/(contexts/[^/]+|workflows|composition|app|cli|critique-cli|build-tracker-cli)/',
+        pathNot: '^src/contexts/model-gateway/',
+      },
+    },
+    {
+      // The model gateway's domain is pure: no ports, no application layer and
+      // no adapters. Reading a file and asking PATH live in an adapter.
+      name: 'model-gateway-domain-is-pure',
+      severity: 'error',
+      from: { path: '^src/contexts/model-gateway/domain/' },
+      to: { path: '^src/(ports|adapters)/|^src/contexts/model-gateway/(application|adapters)/' },
+    },
+    {
+      // The model gateway's CLI reaches its context only through the barrel.
+      name: 'model-gateway-cli-uses-context-barrel',
+      severity: 'error',
+      from: { path: '^src/model-gateway-cli/' },
+      to: { path: '^src/contexts/model-gateway/(domain|adapters|application)/.+' },
+    },
+    {
       // The CLI is a thin inbound adapter and reaches contexts only through
       // their public barrels, never their internals.
       name: 'cli-uses-context-barrels',
