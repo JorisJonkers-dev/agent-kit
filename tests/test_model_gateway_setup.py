@@ -84,7 +84,7 @@ def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source()
         "vibe": ("vibe", "subsidised", "config"),
         "agy": ("agy", "subsidised", "live"),
         "claude": ("claude", "subsidised", "declared"),
-        "hermes": ("hermes", "metered-personal", "live"),
+        "hermes": ("hermes", "metered-personal", "config"),
         "opencode": ("opencode", "metered-personal", "live"),
         "codex": ("codex", "metered-employer", "declared"),
     }

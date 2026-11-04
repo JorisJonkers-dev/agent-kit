@@ -36,7 +36,16 @@ export interface ClientConfig {
    * undefined when the client's own cost class covers every model it lists.
    */
   readonly provider_cost_classes: Readonly<Record<string, CostClass>> | undefined
+  /**
+   * The providers this machine lets the client run on, by name; undefined when
+   * it lets none, which is the shipped default. A client that runs on a
+   * provider the caller names (Hermes) may only use one of these.
+   */
+  readonly providers?: readonly string[]
 }
+
+/** The fields a client has; a machine file that names another is refused, not quietly ignored. */
+const CLIENT_FIELDS = ['binary', 'cost_class', 'model_source', 'families', 'provider_cost_classes', 'providers'] as const
 
 /** One model a client offers, as the declared list describes it. */
 export interface ModelEntry {
@@ -100,6 +109,11 @@ export type ModelGatewayErrorCode =
   | 'not-supported-yet'
   /** The data policy refuses the run's client model, or what it claims to carry. */
   | 'policy-refused'
+  /**
+   * The run names a provider this machine does not let the client run on, or
+   * one the owner forbade outright (OpenRouter).
+   */
+  | 'provider-not-allowed'
   /** git could not read the path the caller named, so the data policy cannot be decided. */
   | 'repository-unreadable'
   /** The client model has no read-only proof that passed on this machine (#299 runs such clients in a worktree). */
@@ -107,6 +121,10 @@ export type ModelGatewayErrorCode =
   | 'unknown-command'
   /** The run named a client model the gateway cannot list now. */
   | 'unknown-model'
+  /** `workflow end` named a workflow this machine never started. */
+  | 'unknown-workflow'
+  /** The run named a workflow that ended, so its caps and grants lapsed with it. */
+  | 'workflow-ended'
 
 export class ModelGatewayError extends Error {
   constructor(
@@ -183,6 +201,7 @@ function mergeClients(base: Readonly<Record<string, ClientConfig>>, raw: unknown
  */
 function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined): ClientConfig {
   const where = `clients.${id}`
+  refuseUnknownFields(raw, where)
   const binary = raw.binary === undefined ? base?.binary : requireString(raw.binary, `${where}.binary`)
   const costClass = raw.cost_class === undefined ? base?.cost_class : requireOneOf(raw.cost_class, COST_CLASSES, `${where}.cost_class`)
   const modelSource =
@@ -198,7 +217,23 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
   if (binary === undefined || costClass === undefined || modelSource === undefined) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`)
   }
-  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses }
+  const providers = raw.providers === undefined ? base?.providers : requireStrings(raw.providers, `${where}.providers`)
+  return {
+    binary,
+    cost_class: costClass,
+    families,
+    model_source: modelSource,
+    provider_cost_classes: providerCostClasses,
+    ...(providers === undefined ? {} : { providers }),
+  }
+}
+
+/** Refuses a field a client does not have, so a machine file that names one learns it, rather than losing it. */
+function refuseUnknownFields(raw: JsonObject, where: string): void {
+  const unknown = Object.keys(raw).find((key) => !(CLIENT_FIELDS as readonly string[]).includes(key))
+  if (unknown !== undefined) {
+    throw invalid(`${where}.${unknown} is not a field a client has; choose from ${CLIENT_FIELDS.join(', ')}`)
+  }
 }
 
 /** The cost class of each provider a client's models run on, by provider name. */

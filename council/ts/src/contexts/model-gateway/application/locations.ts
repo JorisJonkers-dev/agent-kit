@@ -72,3 +72,8 @@ export function ledgerPath(env: EnvPort): string {
 export function runsDir(env: EnvPort): string {
   return join(stateDir(env), 'runs')
 }
+
+/** The workflows this machine has started, and the moments each one started and ended. */
+export function workflowsPath(env: EnvPort): string {
+  return join(stateDir(env), 'workflows.json')
+}

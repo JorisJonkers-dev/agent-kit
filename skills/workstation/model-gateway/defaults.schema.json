@@ -54,6 +54,12 @@
           "uniqueItems": true,
           "description": "The model families this client serves, where the client itself does not say."
         },
+        "providers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "The providers a client may run on, by the name its own command line takes; a client that names none runs on none."
+        },
         "provider_cost_classes": {
           "type": "object",
           "additionalProperties": { "enum": ["subsidised", "metered-personal", "metered-employer"] },

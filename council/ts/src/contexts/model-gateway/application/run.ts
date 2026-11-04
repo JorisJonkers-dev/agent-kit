@@ -4,10 +4,17 @@ import { join } from 'node:path'
 import type { ProcessCommand, ProcessResult } from '../../../ports/index.js'
 import { ModelGatewayError, type GatewayConfig, type ModelEntry } from '../domain/config.js'
 import type { LedgerRecord } from '../domain/ledger.js'
-import { familyOf, modelKey } from '../domain/models.js'
+import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
 import {
+  clientProof,
+  CRITIC_CLIENT,
+  exportedCost,
   finalAnswerOf,
+  FORBIDDEN_PROVIDERS,
+  hermesUsage,
+  oneShotAnswer,
+  PROVIDER_CLIENTS,
   readOnlyProof,
   readRunInput,
   runCost,
@@ -21,10 +28,12 @@ import {
   type RunMode,
   type RunTokens,
 } from '../domain/run.js'
+import { startWorkflow } from '../domain/workflows.js'
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
 import { resolveScope } from './policy.js'
+import type { ClientConfig } from '../domain/config.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
 
 /** The mark the gateway puts in every delegate's environment, and refuses to run under. */
@@ -68,11 +77,21 @@ export interface RunResult {
   readonly reason?: string
 }
 
-/** Where one launch reads its prompt and writes what Vibe exports. */
+/** Where one launch reads its prompt and writes what the client reports. */
 interface LaunchPaths {
-  readonly exportDir: string
   readonly promptPath: string
+  readonly runDir: string
   readonly workDir: string
+}
+
+/** What a client's own output and usage say about the run it just did. */
+interface RunReport {
+  readonly answer: string | undefined
+  readonly tokens: RunTokens
+  /** The dollars the client itself priced, when it priced the run. */
+  readonly cost: number | undefined
+  /** Why the client's own report says the run failed, when it says so. */
+  readonly failure: string | undefined
 }
 
 /** What the data policy allows this run, and the repository it is keyed by. */
@@ -98,8 +117,9 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
     const client = config.clients[input.client]
     if (client === undefined) throw new ModelGatewayError('unknown-model', `the gateway knows no client ${input.client}`)
+    const provider = this.providerFor(input, client)
     const entry = catalogueEntry(config, input.client, input.model)
-    const family = entry?.family ?? familyOf(input.model)
+    const family = entry?.family ?? familyOfModelId(input.model)
     if (family === undefined) {
       throw new ModelGatewayError(
         'unknown-model',
@@ -112,17 +132,19 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const startedAt = this.deps.clock.now()
     const startedMs = this.deps.clock.monotonicMs()
     const id = runId(startedAt, randomBytes(3).toString('hex'))
+    const runDir = await this.runDir(root, id)
+    await this.joinWorkflow(input.workflow)
     const workDir = root ?? (await this.deps.files.tempDir('model-gateway-run-'))
-    const runDir = await this.runDir(input, workDir, id)
-    const paths: LaunchPaths = { exportDir: join(runDir, 'vibe'), promptPath: join(runDir, 'prompt.md'), workDir }
-    await this.deps.files.writeText(paths.promptPath, wrappedPrompt(input.prompt, config.settings.summary_max_chars))
+    const paths: LaunchPaths = { promptPath: join(runDir, 'prompt.md'), runDir, workDir }
+    const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars)
+    await this.deps.files.writeText(paths.promptPath, prompt)
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
-    const launched = await this.launch(client.binary, input, paths)
-    const exported = await this.readExport(join(paths.exportDir, 'export.json'))
-    const answer = finalAnswerOf(launched.result.stdout)
-    const reason = launched.failure ?? runFailureReason(launched.result, answer)
-    const tokens = runTokens(exported)
-    const cost = runCost(exported, tokens, entry?.prices)
+    const launched = await this.launch(client.binary, input, paths, prompt, provider)
+    const reported = await this.report(input.client, paths, launched.result.stdout)
+    const answer = reported.answer
+    const reason = launched.failure ?? reported.failure ?? runFailureReason(launched.result, answer)
+    const tokens = reported.tokens
+    const cost = reported.cost ?? runCost(undefined, tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
     await this.deps.files.writeText(outputPath, launched.result.stdout)
     const result: RunResult = {
@@ -142,6 +164,46 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`)
     await this.deps.ledger.append(this.ledgerRecord(result, allowed.repository, startedMs))
     return result
+  }
+
+  /**
+   * A run names its workflow, and the gateway keeps that workflow's life: one
+   * named for the first time starts now, and one that ended is refused, since
+   * its caps and grants lapsed with it. It runs once every refusal has passed,
+   * so a refused run leaves no workflow started behind it.
+   */
+  private async joinWorkflow(name: string): Promise<void> {
+    const now = this.deps.clock.now()
+    await this.deps.workflows.update((workflows) => startWorkflow(workflows, name, now))
+  }
+
+  /**
+   * The provider a run may use. A client that runs on a provider the caller
+   * names must name one this machine lists for it, and no configuration can
+   * turn on a provider the owner forbade.
+   */
+  private providerFor(input: RunInput, client: ClientConfig): string | undefined {
+    const named = (PROVIDER_CLIENTS as readonly string[]).includes(input.client)
+    if (input.provider === undefined) {
+      if (!named) return undefined
+      throw new ModelGatewayError(
+        'provider-not-allowed',
+        `a ${input.client} run must name its provider: this machine allows ${allowed(client)}`,
+      )
+    }
+    const forbidden = (FORBIDDEN_PROVIDERS as readonly string[]).find(
+      (provider) => provider === input.provider || input.model.startsWith(`${provider}/`),
+    )
+    if (forbidden !== undefined) {
+      throw new ModelGatewayError('provider-not-allowed', `${forbidden} is not allowed: the owner forbade OpenRouter`)
+    }
+    if (!(client.providers ?? []).includes(input.provider)) {
+      throw new ModelGatewayError(
+        'provider-not-allowed',
+        `${input.client} may not run on ${input.provider}: this machine allows ${allowed(client)}`,
+      )
+    }
+    return input.provider
   }
 
   /** A delegate may not delegate on: the mark is in its environment, so this call came from inside one. */
@@ -176,14 +238,25 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
 
   /**
    * A read-only run goes in place only on a client model whose read-only proof
-   * passed on this machine. The proof is recorded against the model id
-   * critique's routing names, which the catalogue keeps among the model's
-   * `names` beside the alias the run names.
+   * passed on this machine. Vibe's proof is setup's recorded result for the
+   * critic client whose model this is, matched on the model id critique's
+   * routing names, which the catalogue keeps among the model's `names` beside
+   * the alias the run names. Every other client is proven by setup's result for
+   * the client itself, which setup records for none of them yet, so a Hermes
+   * run is refused; the throwaway worktree for unproven clients comes in a
+   * later ticket.
    */
   private async proveReadOnly(input: RunInput, entry: ModelEntry | undefined): Promise<void> {
-    const proof = readOnlyProof(await this.proofFiles(), input.model, entry?.names ?? [])
+    const files = await this.proofFiles()
+    const proof =
+      input.client === CRITIC_CLIENT
+        ? readOnlyProof(files, input.model, entry?.names ?? [])
+        : clientProof(files, input.client)
     if (proof.status === 'unproven') {
-      throw new ModelGatewayError('unproven-read-only', `${input.client}:${input.model} has no passing read-only proof: ${proof.reason}`)
+      throw new ModelGatewayError(
+        'unproven-read-only',
+        `${input.client}:${input.model} has no passing read-only proof: ${proof.reason}`,
+      )
     }
   }
 
@@ -212,46 +285,32 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
    * found with the repository's other runs, and in this machine's state
    * directory otherwise.
    */
-  private async runDir(input: RunInput, workDir: string, id: string): Promise<string> {
-    if (input.repo === undefined) return join(runsDir(this.deps.env), id)
+  private async runDir(root: string | undefined, id: string): Promise<string> {
+    if (root === undefined) return join(runsDir(this.deps.env), id)
     let commonDir: string
     try {
-      commonDir = await this.deps.git.commonDir(workDir)
+      commonDir = await this.deps.git.commonDir(root)
     } catch (error) {
-      throw new ModelGatewayError('repository-unreadable', `${workDir}: ${messageOf(error)}`)
+      throw new ModelGatewayError('repository-unreadable', `${root}: ${messageOf(error)}`)
     }
     return join(commonDir, 'model-gateway', 'runs', id)
   }
 
   /**
-   * Vibe, non-interactively: the wrapped prompt from a file, the client model
-   * by the alias `models` lists, the read-only agent, and Vibe's own time and
-   * price limits. A launch that cannot start at all is a failed run, not an
-   * error: the caller still gets a result and a ledger line.
+   * The client, non-interactively, with the mark that stops it delegating on.
+   * A launch that cannot start at all is a failed run, not an error: the caller
+   * still gets a result and a ledger line.
    */
-  private async launch(binary: string, input: RunInput, paths: LaunchPaths): Promise<{ result: ProcessResult; failure?: string }> {
+  private async launch(
+    binary: string,
+    input: RunInput,
+    paths: LaunchPaths,
+    prompt: string,
+    provider: string | undefined,
+  ): Promise<{ result: ProcessResult; failure?: string }> {
     const command: ProcessCommand = {
-      args: [
-        '--prompt-file',
-        paths.promptPath,
-        '--model',
-        input.model,
-        '--agent',
-        READ_ONLY_AGENT,
-        '--trust',
-        '--workdir',
-        paths.workDir,
-        '--output',
-        'json',
-        '--time-limit',
-        String(input.time_limit_s),
-        ...(input.max_price_usd === undefined ? [] : ['--max-price', String(input.max_price_usd)]),
-        '--output-dir',
-        paths.exportDir,
-      ],
-      command: binary,
+      ...(input.client === 'hermes' ? hermesCommand(binary, input, paths, prompt, provider) : vibeCommand(binary, input, paths)),
       cwd: paths.workDir,
-      env: DELEGATE_ENV,
       timeoutMs: (input.time_limit_s + OUTER_TIMEOUT_GRACE_S) * 1000,
     }
     try {
@@ -261,8 +320,26 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
   }
 
-  /** Parsed `export.json`, or undefined when Vibe wrote none or it does not parse. */
-  private async readExport(path: string): Promise<unknown> {
+  /**
+   * What the client's own output and usage say: Vibe's journal and its
+   * `export.json`, or Hermes' one-shot answer and the usage file it wrote.
+   */
+  private async report(client: string, paths: LaunchPaths, stdout: string): Promise<RunReport> {
+    if (client === 'hermes') {
+      const usage = hermesUsage(await this.readJson(join(paths.runDir, 'usage.json')))
+      return {
+        answer: oneShotAnswer(stdout),
+        cost: usage.cost,
+        failure: usage.failed ? 'failed' : undefined,
+        tokens: usage.tokens,
+      }
+    }
+    const exported = await this.readJson(join(paths.runDir, 'vibe', 'export.json'))
+    return { answer: finalAnswerOf(stdout), cost: exportedCost(exported), failure: undefined, tokens: runTokens(exported) }
+  }
+
+  /** Parsed JSON a client wrote, or undefined when it wrote none or it does not parse. */
+  private async readJson(path: string): Promise<unknown> {
     if (!(await this.deps.files.exists(path))) return undefined
     try {
       return JSON.parse(await this.deps.files.readText(path)) as unknown
@@ -288,6 +365,63 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
       workflow: result.workflow,
       ...(result.reason === undefined ? {} : { reason: result.reason }),
     }
+  }
+}
+
+/** The providers a machine lets a client run on, as an error names them. */
+function allowed(client: ClientConfig): string {
+  const providers = client.providers ?? []
+  return providers.length === 0 ? 'no provider' : providers.join(', ')
+}
+
+/**
+ * Vibe, non-interactively: the wrapped prompt from a file, the client model by
+ * the alias `models` lists, the read-only agent, and Vibe's own time and price
+ * limits.
+ */
+function vibeCommand(binary: string, input: RunInput, paths: LaunchPaths): ProcessCommand {
+  return {
+    args: [
+      '--prompt-file',
+      paths.promptPath,
+      '--model',
+      input.model,
+      '--agent',
+      READ_ONLY_AGENT,
+      '--trust',
+      '--workdir',
+      paths.workDir,
+      '--output',
+      'json',
+      '--time-limit',
+      String(input.time_limit_s),
+      ...(input.max_price_usd === undefined ? [] : ['--max-price', String(input.max_price_usd)]),
+      '--output-dir',
+      join(paths.runDir, 'vibe'),
+    ],
+    command: binary,
+    env: DELEGATE_ENV,
+  }
+}
+
+/**
+ * Hermes, one-shot: the wrapped prompt as its argument, the client model and
+ * the provider this machine allows, and the usage file it writes its own
+ * tokens and dollars to. Hermes loads the working directory's rules and
+ * memory as it always does, so the run carries the mark that stops it
+ * delegating on and nothing else.
+ */
+function hermesCommand(
+  binary: string,
+  input: RunInput,
+  paths: LaunchPaths,
+  prompt: string,
+  provider: string | undefined,
+): ProcessCommand {
+  return {
+    args: ['-z', prompt, '--usage-file', join(paths.runDir, 'usage.json'), '-m', input.model, '--provider', String(provider)],
+    command: binary,
+    env: { [DELEGATION_MARK]: '1' },
   }
 }
 

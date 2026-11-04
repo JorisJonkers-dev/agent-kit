@@ -3,8 +3,29 @@ import { isObject, ModelGatewayError, type ModelPrices } from './config.js'
 /** The one mode this ticket runs; writing runs are #299's. */
 export type RunMode = 'read-only'
 
-/** The clients this ticket can hand a delegation to: Vibe only. */
-export const RUN_CLIENTS = ['vibe'] as const
+/** The clients this ticket can hand a delegation to: Vibe, and Hermes as the metered-personal one. */
+export const RUN_CLIENTS = ['vibe', 'hermes'] as const
+
+/**
+ * The clients that run on a provider the caller names, and whose provider this
+ * machine must allow: Hermes reaches many providers, and the owner decides
+ * which of them may be spent on.
+ */
+export const PROVIDER_CLIENTS = ['hermes'] as const
+
+/**
+ * The client whose read-only proof is a critique critic client's: setup records
+ * `read-only:<critic client>` for the Vibe agents critique routes to, and the
+ * critic whose model a run names is what proves that model. Every other client
+ * is proven by setup's `read-only:<client>` result for the client itself.
+ */
+export const CRITIC_CLIENT = 'vibe'
+
+/**
+ * The providers the gateway never runs on, whatever a machine file says:
+ * OpenRouter is forbidden by the owner, so no configuration can turn it on.
+ */
+export const FORBIDDEN_PROVIDERS = ['openrouter'] as const
 
 /** A run with no time limit of its own gets this many seconds. */
 export const DEFAULT_TIME_LIMIT_S = 900
@@ -30,6 +51,8 @@ export interface RunInput {
   readonly carries?: Carries
   readonly time_limit_s: number
   readonly max_price_usd?: number
+  /** The provider a client that runs on one must use; the machine file decides which are allowed. */
+  readonly provider?: string
 }
 
 /** Reads a run's input, or says what is wrong with it. */
@@ -55,6 +78,7 @@ export function readRunInput(raw: unknown): RunInput {
   const timeLimit = raw.time_limit_s === undefined ? DEFAULT_TIME_LIMIT_S : requiredWholeNumber(raw.time_limit_s, 'time_limit_s')
   if (timeLimit <= 0) throw new ModelGatewayError('invalid-input', 'time_limit_s must be a whole number of seconds above 0')
   const maxPrice = raw.max_price_usd === undefined ? undefined : requiredNumberAbove0(raw.max_price_usd, 'max_price_usd')
+  const provider = readOptionalString(raw.provider, 'provider')
   return {
     client: raw.client,
     mode: 'read-only',
@@ -64,6 +88,7 @@ export function readRunInput(raw: unknown): RunInput {
     workflow: raw.workflow,
     ...(carries === undefined ? {} : { carries }),
     ...(maxPrice === undefined ? {} : { max_price_usd: maxPrice }),
+    ...(provider === undefined ? {} : { provider }),
     ...(repo === undefined ? {} : { repo }),
   }
 }
@@ -143,6 +168,47 @@ export function finalAnswerOf(stdout: string): string | undefined {
   return text === '' ? undefined : text
 }
 
+/**
+ * The final answer a one-shot client printed: its whole stdout, trimmed, since
+ * `hermes -z` prints only the response text. Undefined when it printed nothing,
+ * which is a run the gateway cannot read.
+ */
+export function oneShotAnswer(stdout: string): string | undefined {
+  const answer = stdout.trim()
+  return answer === '' ? undefined : answer
+}
+
+/** What a Hermes usage report says the run cost and whether it failed. */
+export interface HermesUsage {
+  readonly tokens: RunTokens
+  /** The dollars Hermes estimated, or undefined when it priced nothing. */
+  readonly cost: number | undefined
+  readonly failed: boolean
+}
+
+/**
+ * The usage report `hermes -z --usage-file` writes: its token counts, the
+ * dollars it estimated, and whether it counts the run as failed. A report that
+ * is missing or holds nonsense counts no tokens and no dollars, and a run that
+ * reported no failure is not failed.
+ */
+export function hermesUsage(report: unknown): HermesUsage {
+  const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
+  const priced = isObject(report) ? report.estimated_cost_usd : undefined
+  const cost = typeof priced === 'number' && Number.isFinite(priced) && priced >= 0 ? priced : undefined
+  const failed = isObject(report) && report.failed === true
+  if (!isObject(report)) return { cost, failed, tokens: NO_TOKENS }
+  return {
+    cost,
+    failed,
+    tokens: {
+      cached: count(report.cache_read_tokens),
+      input: count(report.input_tokens),
+      output: count(report.output_tokens),
+    },
+  }
+}
+
 /** The tokens a run used, as Vibe's export counts them; a run that reported none used none. */
 export interface RunTokens {
   readonly input: number
@@ -160,13 +226,19 @@ export function runTokens(exported: unknown): RunTokens {
   return { cached: count(usage.cached_input_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) }
 }
 
+/** The dollars a client's own export priced, or undefined when it priced none. */
+export function exportedCost(exported: unknown): number | undefined {
+  const charged = isObject(exported) ? exported.cost_usd : undefined
+  return typeof charged === 'number' && Number.isFinite(charged) && charged > 0 ? charged : undefined
+}
+
 /**
- * The run's dollars: Vibe's own figure when it priced the run, else the
+ * The run's dollars: the client's own figure when it priced the run, else the
  * tokens times the catalogue price, else 0 when nothing prices it.
  */
 export function runCost(exported: unknown, tokens: RunTokens, prices: ModelPrices | undefined): number {
-  const charged = isObject(exported) ? exported.cost_usd : undefined
-  if (typeof charged === 'number' && Number.isFinite(charged) && charged > 0) return charged
+  const charged = exportedCost(exported)
+  if (charged !== undefined) return charged
   if (prices === undefined) return 0
   const uncached = Math.max(tokens.input - tokens.cached, 0)
   return (uncached * prices.input + tokens.cached * prices.cached_input + tokens.output * prices.output) / 1_000_000
@@ -192,7 +264,7 @@ export function runId(at: Date, suffix: string): string {
 
 /** Whether a client model has a read-only proof that passed on this machine. */
 export type ReadOnlyProof =
-  | { readonly status: 'proven'; readonly critic: string }
+  | { readonly status: 'proven'; readonly by: string }
   | { readonly status: 'unproven'; readonly reason: string }
 
 /** The files setup and critique leave on this machine, as they were read; any of them may be missing. */
@@ -223,7 +295,18 @@ export function readOnlyProof(files: ProofFiles, model: string, names: readonly 
   if (critic === undefined) return unproven(`no Vibe critic client in critique's routing runs ${model}`)
   const result = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${critic}`)
   if (result !== 'pass') return unproven(`setup's read-only proof for ${critic} is ${result ?? 'not recorded'}`)
-  return { critic, status: 'proven' }
+  return { by: critic, status: 'proven' }
+}
+
+/**
+ * The read-only proof of a client that is not a Vibe critic client: setup's
+ * `read-only:<client>` result for the client itself. Setup records none for
+ * Hermes yet, so a Hermes run is unproven and refused until it does.
+ */
+export function clientProof(files: ProofFiles, client: string): ReadOnlyProof {
+  const result = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${client}`)
+  if (result !== 'pass') return unproven(`setup's read-only proof for ${client} is ${result ?? 'not recorded'}`)
+  return { by: client, status: 'proven' }
 }
 
 function unproven(reason: string): ReadOnlyProof {

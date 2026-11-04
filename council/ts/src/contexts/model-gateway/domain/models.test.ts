@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { parseDefaults, type GatewayConfig } from './config.js'
 import {
   familyOf,
+  familyOfModelId,
+  hermesDefaultModel,
   listModels,
   modelKey,
   parseAntigravityModels,
@@ -326,6 +328,46 @@ describe('familyOf', () => {
   it('says nothing for a model id it cannot place', () => {
     expect(familyOf('hy3')).toBeUndefined()
     expect(familyOf('longcat-2.0')).toBeUndefined()
+  })
+})
+
+describe('familyOfModelId', () => {
+  it('names the family of a model id a client writes as <provider>/<model>', () => {
+    expect(familyOfModelId('anthropic/claude-sonnet-4.6')).toBe('anthropic')
+    expect(familyOfModelId('google/gemini-3.8-flash-high')).toBe('google')
+  })
+
+  it('names the family of a bare model id, as a client that writes no provider does', () => {
+    expect(familyOfModelId('glm-5-3')).toBe('zhipu')
+  })
+
+  it('says nothing for a model id it cannot place', () => {
+    expect(familyOfModelId('anthropic/hy3')).toBeUndefined()
+  })
+})
+
+describe('hermesDefaultModel', () => {
+  it('reads the model and provider Hermes’ own configuration names as its default', () => {
+    expect(hermesDefaultModel('{"default":"anthropic/claude-sonnet-4.6","provider":"anthropic"}')).toEqual({
+      model: 'anthropic/claude-sonnet-4.6',
+      provider: 'anthropic',
+    })
+  })
+
+  it('reads a default model whose provider the configuration does not name', () => {
+    expect(hermesDefaultModel('{"default":"glm-5.3"}')).toEqual({ model: 'glm-5.3' })
+  })
+
+  it('reads a configuration that answers with the model id alone', () => {
+    expect(hermesDefaultModel('"glm-5.3"')).toEqual({ model: 'glm-5.3' })
+  })
+
+  it('says nothing when the configuration names no model, or answers with something else', () => {
+    expect(hermesDefaultModel('{}')).toBeUndefined()
+    expect(hermesDefaultModel('{"default":""}')).toBeUndefined()
+    expect(hermesDefaultModel('""')).toBeUndefined()
+    expect(hermesDefaultModel('not json')).toBeUndefined()
+    expect(hermesDefaultModel('[]')).toBeUndefined()
   })
 })
 

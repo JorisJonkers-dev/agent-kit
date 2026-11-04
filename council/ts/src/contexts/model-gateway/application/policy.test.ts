@@ -11,6 +11,7 @@ import {
   FakeLedger,
   FakeProcess,
   FakeProof,
+  FakeWorkflows,
   FixedClock,
   type FakeRepository,
 } from '../../../../test/model-gateway/harness.js'
@@ -53,6 +54,7 @@ async function workspace(repositories: Readonly<Record<string, FakeRepository>> 
       process: new FakeProcess(['claude', 'codex']),
       proof: new FakeProof(),
       sources: {},
+      workflows: new FakeWorkflows(),
     },
     home,
     writeAllowlist: async (value) => {

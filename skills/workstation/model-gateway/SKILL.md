@@ -7,9 +7,10 @@ description: Holds the model gateway's runner and its shipped defaults; it is no
 
 This folder is what the model gateway runs on. It does nothing on its own: an
 agent calls the runner, and the `delegate` skill (a later ticket) is what
-teaches an orchestrator to plan with it. The runner answers two questions:
-`models`, which client models this machine can use right now, and `run`, one
-read-only delegation to one of them.
+teaches an orchestrator to plan with it. The runner answers three questions:
+`models`, which client models this machine can use right now; `run`, one
+read-only delegation to one of them; and `workflow`, the life of the piece of
+work a delegation belongs to.
 
 ## What is in here
 
@@ -57,9 +58,12 @@ its model source. Models are sorted by client, then model id.
   GPT-OSS models are left out. An OpenCode model takes the cost class of its
   provider: the shipped defaults count OpenCode Go, the owner's subscription,
   as subsidised, and every other provider as metered-personal.
-- `config` — the models Vibe's own configuration declares, listed by the alias
-  `vibe --model` accepts. The gateway reads `$VIBE_HOME/config.toml`, else
-  `~/.vibe/config.toml`.
+- `config` — the models the client's own configuration declares. Vibe's are
+  listed by the alias `vibe --model` accepts, read from `$VIBE_HOME/config.toml`,
+  else `~/.vibe/config.toml`. Hermes has no non-interactive listing — `hermes
+  model` is an interactive picker — so the gateway reads `hermes config get
+  model --json` and offers the one model that names as its default, with the
+  provider it runs on. The other models Hermes could reach are not listed.
 - `declared` — the shipped catalogue, for Codex and Claude Code.
 
 A listed model takes its family, tier and notes from the catalogue entry that
@@ -71,10 +75,9 @@ at all: it is named in `skipped` with the reason, so it never vanishes
 silently, and adding it to the catalogue in `defaults.json` or the machine
 override brings it back.
 
-A listing that fails, or a Vibe configuration that cannot be read, leaves that
+A listing that fails, or a configuration that cannot be read, leaves that
 client out and names it in `missing` with the reason; the other clients are
-still listed. Hermes lists nothing until its own ticket lands, and is not
-reported missing for that.
+still listed. A Hermes configuration that names no model is such a failure.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 
@@ -92,10 +95,10 @@ node model-gateway.mjs run --input <file.json>
 
 The input is `workflow`, `client`, `model` (an alias `models` listed), `mode`,
 `prompt`, and optionally `repo`, `carries` (`{"code":bool,"history":bool}`,
-only for an inline run), `time_limit_s` (default 900) and `max_price_usd`.
-`workflow` is required (`code: "invalid-input"`). This ticket runs `client:
-"vibe"` in `mode: "read-only"` only; any other client or mode is
-`code: "not-supported-yet"`.
+only for an inline run), `time_limit_s` (default 900), `max_price_usd` and
+`provider`. `workflow` is required (`code: "invalid-input"`). The gateway runs
+`client: "vibe"` and `client: "hermes"` in `mode: "read-only"` only; any other
+client or mode is `code: "not-supported-yet"`.
 
 Everything that can refuse the run happens before anything is launched:
 
@@ -108,18 +111,26 @@ Everything that can refuse the run happens before anything is launched:
   `repo` is inline-only: it works in a fresh empty temporary directory, never
   inside a repository, and `carries` may not claim code or history the policy
   does not allow.
+- `provider-not-allowed` — a Hermes run must name a `provider`, and it must be
+  one this machine lists in `clients.hermes.providers` (empty by default, so
+  every Hermes run is refused until the owner names one). `openrouter` is
+  refused whatever the configuration says, and so is a model id that starts
+  with `openrouter/`: the owner forbade OpenRouter.
 - `unproven-read-only` — a read-only run goes in place only on a client model
-  with a passing read-only proof. The proof is setup's recorded result for the
-  Vibe critic client whose `model` matches, in critique's routing (the shipped
-  `routing.json`, overridden by `~/.config/agent-kit/critique-routing.json`):
+  with a passing read-only proof. For Vibe the proof is setup's recorded result
+  for the critic client whose `model` matches, in critique's routing (the
+  shipped `routing.json`, overridden by
+  `~/.config/agent-kit/critique-routing.json`):
   `checks["read-only:<client>"].result == "pass"` in
-  `~/.local/share/agent-kit/critique/machine-setup.json`. A model with no
-  passing proof is refused; the throwaway worktree for unproven clients comes
-  in a later ticket.
+  `~/.local/share/agent-kit/critique/machine-setup.json`. Every other client
+  is proven by setup's `read-only:<client>` result for the client itself, which
+  setup records for none of them yet, so a Hermes run is refused. A model with
+  no passing proof is refused; the throwaway worktree for unproven clients
+  comes in a later ticket.
 - `unknown-model` — a model the catalogue cannot place, or one this machine
   disabled.
 
-A launched run is Vibe, non-interactively:
+A launched Vibe run is Vibe, non-interactively:
 
 ```sh
 vibe --prompt-file <run dir>/prompt.md --model <alias> --agent delegate-readonly \
@@ -133,6 +144,22 @@ the working directory, no subagents, no skills, no MCP, no project context. The
 gateway also sets `VIBE_ENABLE_MCP`, `VIBE_ENABLE_SUBAGENTS`,
 `VIBE_INCLUDE_PROJECT_CONTEXT` and `VIBE_OUTSIDE_WORKDIR` for the launch, so
 the isolation holds even if the agent file is missing.
+
+A launched Hermes run is Hermes, one-shot:
+
+```sh
+hermes -z <wrapped prompt> --usage-file <run dir>/usage.json -m <model> --provider <provider>
+```
+
+Hermes takes the prompt as its argument, so the run directory keeps `prompt.md`
+for the record rather than for the launch. It writes its own usage to
+`usage.json`: `estimated_cost_usd`, the token counts, `model`, `provider`,
+`api_calls` and whether it `completed` or `failed`. The gateway reads that file
+for the run's tokens and dollars, so a Hermes run is metered from what Hermes
+itself priced; a run whose usage file is missing or unreadable counts as zero
+tokens and zero dollars, and one Hermes reports as failed is a failed run with
+`reason: "failed"`. Hermes loads the working directory's own rules and memory,
+so the run carries `AGENT_KIT_DELEGATION=1` and nothing else.
 
 The gateway appends a short instruction to the caller's prompt: end the answer
 with a line `SUMMARY:` followed by at most `summary_max_chars` characters
@@ -159,8 +186,36 @@ Every run also appends one JSON line to the machine-wide ledger,
 `~/.local/state/...`): workflow, client, model, family, mode, repository key,
 tokens, dollars, outcome, duration and run id. Writes take an exclusive lock
 file beside it, so two gateway processes never interleave a line. Dollars come
-from Vibe's own export when it carries them, else from the tokens times the
-catalogue's `prices` for the model.
+from the client's own report when it prices the run — Vibe's `export.json`, or
+Hermes' `usage.json` — else from the tokens times the catalogue's `prices` for
+the model.
+
+## The `workflow` commands
+
+`workflow start`, `workflow end` and `workflow list` keep a workflow's life.
+`start` and `end` take `{"name": "<id>"}`; `list` takes `{}`. Each prints one
+JSON object: `{"status":"ok","workflow":{"name","started_at","ended_at","state"}}`
+for `start` and `end`, and `{"status":"ok","workflows":[...]}` for `list`.
+
+```sh
+node model-gateway.mjs workflow start --json '{"name": "spec-293"}'
+node model-gateway.mjs workflow end   --json '{"name": "spec-293"}'
+node model-gateway.mjs workflow list  --json '{}'
+```
+
+A workflow records when it started and, once someone ends it, when it ended. A
+workflow nobody ends within 24 hours counts as ended, worked out on read from
+the clock, so a forgotten workflow cannot stay open for ever. `run` joins a
+workflow: one named for the first time starts at that moment, and one that
+ended is refused (`code: "workflow-ended"`), because its caps and grants
+lapsed with it — a new piece of work needs a new name. `workflow end` on a
+workflow this machine never started is `code: "unknown-workflow"`.
+
+The workflows live in `$XDG_STATE_HOME/agent-kit/model-gateway/workflows.json`,
+else `~/.local/state/agent-kit/model-gateway/workflows.json`, beside the
+ledger and under the same lock: a change reads the file, applies itself and
+writes the result through a temporary file that is renamed into place, so two
+gateway processes never lose each other's change.
 
 ## The data policy
 
@@ -203,6 +258,14 @@ and merges over the shipped defaults:
   run on, by provider name (OpenCode's, whose models are listed as
   `<provider>/<model>`). A provider it does not name takes the client's own
   cost class.
+- `clients.hermes.providers`: the providers a Hermes run may name, by the name
+  `hermes --provider` takes. It is empty by default, so no Hermes run is
+  allowed until the owner lists one; `openrouter` stays refused whatever it
+  says.
+
+A client field the gateway does not know is an error naming it, rather than a
+setting quietly ignored: a client has `binary`, `cost_class`, `model_source`,
+`families`, `provider_cost_classes` and `providers`, and nothing else.
 - `models`: an entry matching `client` and `model` overrides its `tier`,
   `notes` or `family`; a new entry adds a declared model.
 - `settings.<key>` overrides that setting, deep-merging

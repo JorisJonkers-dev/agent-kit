@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import { ModelGatewayError } from './config.js'
 import {
+  clientProof,
   compactTimestamp,
   DEFAULT_TIME_LIMIT_S,
   finalAnswerOf,
+  hermesUsage,
   NO_TOKENS,
+  oneShotAnswer,
   readOnlyProof,
   type ProofFiles,
   readRunInput,
@@ -39,6 +42,7 @@ describe('readRunInput', () => {
       mode: 'read-only',
       model: 'zai-glm-5-3',
       prompt: 'read this',
+      provider: undefined,
       repo: undefined,
       time_limit_s: DEFAULT_TIME_LIMIT_S,
       workflow: 'spec-293',
@@ -50,6 +54,7 @@ describe('readRunInput', () => {
       ...MINIMAL,
       carries: { code: true, history: false },
       max_price_usd: 0.5,
+      provider: 'anthropic',
       repo: '/work/agent-kit',
       time_limit_s: 60,
     })
@@ -57,6 +62,7 @@ describe('readRunInput', () => {
     expect(input).toMatchObject({
       carries: { code: true, history: false },
       max_price_usd: 0.5,
+      provider: 'anthropic',
       repo: '/work/agent-kit',
       time_limit_s: 60,
     })
@@ -69,7 +75,9 @@ describe('readRunInput', () => {
 
   it('refuses a client or a mode a later ticket builds', () => {
     expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).code).toBe('not-supported-yet')
-    expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).message).toBe('only vibe can run a delegation, not "codex"')
+    expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).message).toBe(
+      'only vibe, hermes can run a delegation, not "codex"',
+    )
     expect(thrown(() => readRunInput({ ...MINIMAL, mode: 'writing' })).code).toBe('not-supported-yet')
     expect(thrown(() => readRunInput({ ...MINIMAL, mode: undefined })).message).toBe('only read-only runs are supported, not missing')
   })
@@ -90,6 +98,7 @@ describe('readRunInput', () => {
       'time_limit_s must be a whole number of seconds above 0',
     )
     expect(thrown(() => readRunInput({ ...MINIMAL, max_price_usd: 0 })).message).toBe('max_price_usd must be a number above 0')
+    expect(thrown(() => readRunInput({ ...MINIMAL, provider: '' })).message).toBe('provider must be a non-empty string')
   })
 })
 
@@ -128,6 +137,44 @@ describe('finalAnswerOf', () => {
     expect(finalAnswerOf(JSON.stringify([{ content: [{ text: 'x' }], role: 'user', type: 'message' }]))).toBeUndefined()
     expect(finalAnswerOf(JSON.stringify([{ content: [], role: 'assistant', type: 'message' }]))).toBeUndefined()
     expect(finalAnswerOf(JSON.stringify([{ role: 'assistant', type: 'message' }]))).toBeUndefined()
+  })
+})
+
+describe('oneShotAnswer', () => {
+  it('is what a one-shot client printed, without the newline it ended with', () => {
+    expect(oneShotAnswer('the answer\n')).toBe('the answer')
+  })
+
+  it('says nothing when the client printed nothing but whitespace', () => {
+    expect(oneShotAnswer('')).toBeUndefined()
+    expect(oneShotAnswer('  \n')).toBeUndefined()
+  })
+})
+
+describe('hermesUsage', () => {
+  it('reads the tokens, the dollars and the outcome of a Hermes usage report', () => {
+    expect(
+      hermesUsage({
+        cache_read_tokens: 10,
+        estimated_cost_usd: 0.0123,
+        failed: false,
+        input_tokens: 100,
+        output_tokens: 20,
+      }),
+    ).toEqual({ cost: 0.0123, failed: false, tokens: { cached: 10, input: 100, output: 20 } })
+  })
+
+  it('counts no tokens and no dollars when the report holds none, or holds nonsense', () => {
+    expect(hermesUsage(undefined)).toEqual({ cost: undefined, failed: false, tokens: NO_TOKENS })
+    expect(hermesUsage({ estimated_cost_usd: null, input_tokens: -1, output_tokens: 'many' })).toEqual({
+      cost: undefined,
+      failed: false,
+      tokens: NO_TOKENS,
+    })
+  })
+
+  it('says the run failed when the report says so, and prices a free run at nothing', () => {
+    expect(hermesUsage({ estimated_cost_usd: 0, failed: true })).toEqual({ cost: 0, failed: true, tokens: NO_TOKENS })
   })
 })
 
@@ -199,14 +246,14 @@ function setupResults(result: string, client = 'vibe-glm'): string {
 describe('readOnlyProof', () => {
   it('is the proof of the Vibe critic client whose model this is', () => {
     expect(readOnlyProof(proofFiles({ routing: ROUTING, setupResults: setupResults('pass') }), 'zai-glm-5-3')).toEqual({
-      critic: 'vibe-glm',
+      by: 'vibe-glm',
       status: 'proven',
     })
   })
 
   it('finds the proof of an alias by the model id the routing names among its names', () => {
     expect(readOnlyProof(proofFiles({ routing: ROUTING, setupResults: setupResults('pass') }), 'glm-5-3', ['zai-glm-5-3'])).toEqual({
-      critic: 'vibe-glm',
+      by: 'vibe-glm',
       status: 'proven',
     })
     expect(readOnlyProof(proofFiles({ routing: ROUTING, setupResults: setupResults('pass') }), 'glm-5-3').status).toBe('unproven')
@@ -245,7 +292,7 @@ describe('readOnlyProof', () => {
     const override = JSON.stringify({ clients: { 'vibe-glm': { model: 'zai-glm-6-0' } } })
 
     expect(readOnlyProof(proofFiles({ routing: ROUTING, routingOverride: override, setupResults: setupResults('pass') }), 'zai-glm-6-0')).toEqual({
-      critic: 'vibe-glm',
+      by: 'vibe-glm',
       status: 'proven',
     })
     expect(readOnlyProof(proofFiles({ routing: ROUTING, routingOverride: override, setupResults: setupResults('pass') }), 'zai-glm-5-3').status).toBe(
@@ -257,9 +304,28 @@ describe('readOnlyProof', () => {
     const added = JSON.stringify({ clients: { 'vibe-new': { kind: 'vibe', model: 'mistral-medium-4-1' } } })
 
     expect(readOnlyProof(proofFiles({ routing: ROUTING, routingOverride: added, setupResults: setupResults('pass', 'vibe-new') }), 'mistral-medium-4-1')).toEqual({
-      critic: 'vibe-new',
+      by: 'vibe-new',
       status: 'proven',
     })
     expect(readOnlyProof(proofFiles({ routing: ROUTING, routingOverride: '[]' }), 'zai-glm-5-3').status).toBe('unproven')
+  })
+})
+
+describe('clientProof', () => {
+  it('is the proof setup recorded for the client itself', () => {
+    expect(clientProof(proofFiles({ setupResults: setupResults('pass', 'hermes') }), 'hermes')).toEqual({
+      by: 'hermes',
+      status: 'proven',
+    })
+  })
+
+  it('is unproven when setup recorded no proof for the client, or a failed one', () => {
+    expect(clientProof(proofFiles({}), 'hermes')).toEqual({
+      reason: "setup's read-only proof for hermes is not recorded",
+      status: 'unproven',
+    })
+    expect(clientProof(proofFiles({ setupResults: setupResults('fail', 'hermes') }), 'hermes').status).toBe('unproven')
+    expect(clientProof(proofFiles({ setupResults: setupResults('pass', 'vibe-glm') }), 'hermes').status).toBe('unproven')
+    expect(clientProof(proofFiles({ setupResults: 'not json' }), 'hermes').status).toBe('unproven')
   })
 })

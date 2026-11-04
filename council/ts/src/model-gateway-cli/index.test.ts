@@ -9,6 +9,7 @@ import type { GitRemote } from '../shared-kernel/index.js'
 import {
   FakeEnv,
   FakeGit,
+  FakeHermesProcess,
   FakeProcess,
   FakeVibeProcess,
   type FakeRepository,
@@ -548,7 +549,7 @@ describe('the shipped defaults', () => {
         agy: { binary: 'agy', cost_class: 'subsidised', families: ['google'], model_source: 'live' },
         claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared' },
         codex: { binary: 'codex', cost_class: 'metered-employer', model_source: 'declared' },
-        hermes: { binary: 'hermes', cost_class: 'metered-personal', model_source: 'live' },
+        hermes: { binary: 'hermes', cost_class: 'metered-personal', model_source: 'config' },
         opencode: {
           binary: 'opencode',
           cost_class: 'metered-personal',
@@ -649,7 +650,7 @@ describe('model-gateway command line', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe(
-      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models and run' })}\n`,
+      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run, workflow start, workflow end and workflow list' })}\n`,
     )
   })
 
@@ -817,19 +818,16 @@ describe('models: the clients whose models the gateway declares', () => {
     expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
   })
 
-  it('lists no model for an installed client whose listing the gateway does not read yet, and does not report it missing', async () => {
+  it('leaves out an installed client whose listing cannot be run, and names it with the reason', async () => {
     const w = await workspace({ installed: ['hermes'] })
 
     const result = await w.run('models', '--json', '{}')
 
     expect(listed(result)).toEqual([])
-    expect(printed(result).missing).toEqual([
-      { client: 'agy', reason: 'not installed: agy is not on PATH' },
-      { client: 'claude', reason: 'not installed: claude is not on PATH' },
-      { client: 'codex', reason: 'not installed: codex is not on PATH' },
-      { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
-      { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
-    ])
+    expect(printed(result).missing).toContainEqual({
+      client: 'hermes',
+      reason: 'listing failed: hermes config get model --json: cannot run hermes',
+    })
   })
 
   it('applies the machine override over the shipped defaults', async () => {
@@ -1228,6 +1226,9 @@ interface RunWorkspace {
   readonly repo: string
   readonly vibe: FakeVibeProcess
   readonly ledger: string
+  readonly workflows: string
+  /** Any gateway command, for the tests that are not about `run`. */
+  call(...argv: string[]): Promise<ModelGatewayCliResult>
   /** The input a run test sends unless it says otherwise: one read-only task in the test repository. */
   input(overrides?: Readonly<Record<string, unknown>>): unknown
   run(input: unknown): Promise<ModelGatewayCliResult>
@@ -1235,10 +1236,13 @@ interface RunWorkspace {
   writeOverride(value: unknown): Promise<void>
   writeRoutingOverride(value: unknown): Promise<void>
   writeSetup(value: unknown): Promise<void>
+  writeWorkflows(value: unknown): Promise<void>
 }
 
 interface RunWorkspaceOptions {
   readonly scripts?: readonly VibeScript[]
+  /** The client the gateway launches, when a test runs something other than Vibe. */
+  readonly process?: FakeHermesProcess
   /** The repositories the fake git knows, keyed by path; the test repository by default. */
   readonly repositories?: (repo: string) => Readonly<Record<string, FakeRepository>>
   readonly env?: Readonly<Record<string, string>>
@@ -1273,7 +1277,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     defaultsPath: defaults,
     env: new FakeEnv({ HOME: home, XDG_STATE_HOME: state, ...options.env }),
     git: new FakeGit(repositories),
-    process: vibe,
+    process: options.process ?? vibe,
     routingPath,
   })
   const write = async (path: string, value: unknown): Promise<void> => {
@@ -1292,15 +1296,18 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
       workflow: 'spec-293',
       ...overrides,
     }),
+    call: (...argv) => runModelGatewayCli(argv, runtime),
     ledger: join(state, 'agent-kit', 'model-gateway', 'ledger.jsonl'),
     repo,
     run: (input) => runModelGatewayCli(['run', '--json', JSON.stringify(input)], runtime),
     state,
     vibe,
+    workflows: join(state, 'agent-kit', 'model-gateway', 'workflows.json'),
     writeAllowlist: (value) => write(join(home, '.config', 'agent-kit', 'critique-allowlist.json'), value),
     writeOverride: (value) => write(join(home, '.config', 'agent-kit', 'model-gateway.json'), value),
     writeRoutingOverride: (value) => write(join(home, '.config', 'agent-kit', 'critique-routing.json'), value),
     writeSetup: (value) => write(join(home, '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json'), value),
+    writeWorkflows: (value) => write(join(state, 'agent-kit', 'model-gateway', 'workflows.json'), value),
   }
   if (options.allowlist !== undefined) await w.writeAllowlist(options.allowlist)
   if (options.override !== undefined) await w.writeOverride(options.override)
@@ -1738,7 +1745,7 @@ describe('model-gateway run: the ledger', () => {
     const ids = lines.map((line) => (JSON.parse(line) as { run_id: string }).run_id)
     expect(new Set(ids).size).toBe(8)
     expect(ids.sort()).toEqual(results.map((result) => String(printed(result).run_id)).sort())
-    expect(await readdir(dirname(w.ledger))).toEqual(['ledger.jsonl'])
+    expect(await readdir(dirname(w.ledger))).toEqual(['ledger.jsonl', 'workflows.json'])
   })
 })
 
@@ -1781,5 +1788,458 @@ describe('model-gateway run: the nesting guard', () => {
       status: 'error',
     })
     expect(w.vibe.commands).toEqual([])
+  })
+})
+
+/** What `hermes config get model --json` prints: the default model and the provider it runs on. */
+const HERMES_CONFIG: ProcessResult = {
+  exitCode: 0,
+  stderr: '',
+  stdout: '{"default":"anthropic/claude-sonnet-4.6","provider":"anthropic"}\n',
+}
+
+describe('models: Hermes, read from its own configuration', () => {
+  it('lists the model its configuration names as its default, marked as read from its configuration', async () => {
+    const w = await workspace({ installed: ['hermes'], listings: { hermes: HERMES_CONFIG } })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['hermes:anthropic/claude-sonnet-4.6'])
+    expect(model(result, 'hermes:anthropic/claude-sonnet-4.6')).toEqual({
+      client: 'hermes',
+      cost_class: 'metered-personal',
+      family: 'anthropic',
+      inline_only: true,
+      may_send: { code: false, history: false },
+      model: 'anthropic/claude-sonnet-4.6',
+      notes: '',
+      source: 'config',
+      tier: null,
+    })
+    expect(w.ran).toEqual([{ args: ['config', 'get', 'model', '--json'], command: 'hermes' }])
+  })
+
+  it('leaves the client out with the reason when its configuration names no model', async () => {
+    const w = await workspace({
+      installed: ['hermes'],
+      listings: { hermes: { exitCode: 0, stderr: '', stdout: '{}\n' } },
+    })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(printed(result).missing).toContainEqual({
+      client: 'hermes',
+      reason: 'listing failed: hermes config get model --json named no model',
+    })
+  })
+
+  it('leaves the client out with the reason when its configuration cannot be read', async () => {
+    const w = await workspace({
+      installed: ['hermes'],
+      listings: { hermes: { exitCode: 1, stderr: 'Config key not set: model\n', stdout: '' } },
+    })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(printed(result).missing).toContainEqual({
+      client: 'hermes',
+      reason: 'listing failed: hermes config get model --json exited 1: Config key not set: model',
+    })
+  })
+})
+
+describe('model-gateway workflow', () => {
+  it('starts a workflow and reports when it started', async () => {
+    const w = await runWorkspace()
+
+    const result = await w.call('workflow', 'start', '--json', '{"name":"spec-293"}')
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(printed(result)).toEqual({
+      status: 'ok',
+      workflow: { ended_at: null, name: 'spec-293', started_at: expect.any(String) as unknown, state: 'running' },
+    })
+    expect(JSON.parse(await readFile(w.workflows, 'utf8'))).toEqual({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: printed(result).workflow instanceof Object ? (printed(result).workflow as { started_at: string }).started_at : '' }],
+    })
+  })
+
+  it('leaves a workflow that is already running as it is', async () => {
+    const w = await runWorkspace()
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }] })
+
+    const result = await w.call('workflow', 'start', '--json', '{"name":"spec-293"}')
+
+    expect(printed(result)).toMatchObject({ workflow: { started_at: '2026-11-04T10:00:00.000Z', state: 'running' } })
+  })
+
+  it('ends a workflow and reports when it ended', async () => {
+    const w = await runWorkspace()
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }] })
+
+    const result = await w.call('workflow', 'end', '--json', '{"name":"spec-293"}')
+
+    expect(printed(result)).toEqual({
+      status: 'ok',
+      workflow: {
+        ended_at: expect.any(String) as unknown,
+        name: 'spec-293',
+        started_at: '2026-11-04T10:00:00.000Z',
+        state: 'ended',
+      },
+    })
+  })
+
+  it('lists every workflow, with the 24-hour end worked out', async () => {
+    const w = await runWorkspace()
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [
+        { name: 'abandoned', started_at: '2020-01-01T00:00:00.000Z' },
+        { ended_at: '2026-11-04T11:00:00.000Z', name: 'done', started_at: '2026-11-04T10:00:00.000Z' },
+      ],
+    })
+
+    const result = await w.call('workflow', 'list', '--json', '{}')
+
+    expect(printed(result)).toEqual({
+      status: 'ok',
+      workflows: [
+        { ended_at: '2020-01-02T00:00:00.000Z', name: 'abandoned', started_at: '2020-01-01T00:00:00.000Z', state: 'ended' },
+        { ended_at: '2026-11-04T11:00:00.000Z', name: 'done', started_at: '2026-11-04T10:00:00.000Z', state: 'ended' },
+      ],
+    })
+  })
+
+  it('lists no workflow before one has started', async () => {
+    const w = await runWorkspace()
+
+    expect(printed(await w.call('workflow', 'list', '--json', '{}'))).toEqual({ status: 'ok', workflows: [] })
+  })
+
+  it('refuses a workflow command that names no workflow', async () => {
+    const w = await runWorkspace()
+
+    expect(printed(await w.call('workflow', 'start', '--json', '{}'))).toEqual({
+      code: 'invalid-input',
+      message: 'a workflow command must name its workflow',
+      status: 'error',
+    })
+    expect(printed(await w.call('workflow', 'end', '--json', '{"name":""}'))).toMatchObject({ code: 'invalid-input' })
+  })
+
+  it('refuses to end a workflow this machine never started', async () => {
+    const w = await runWorkspace()
+
+    expect(printed(await w.call('workflow', 'end', '--json', '{"name":"nowhere"}'))).toEqual({
+      code: 'unknown-workflow',
+      message: 'no workflow named nowhere has started on this machine',
+      status: 'error',
+    })
+  })
+
+  it('refuses a workflow file it cannot read, naming the file', async () => {
+    const w = await runWorkspace()
+    await w.writeWorkflows({ version: 2, workflows: [] })
+
+    const result = await w.call('workflow', 'list', '--json', '{}')
+
+    expect(printed(result)).toMatchObject({ code: 'invalid-config', status: 'error' })
+    expect(String(printed(result).message)).toContain(w.workflows)
+  })
+
+  it('refuses a workflow subcommand it does not have', async () => {
+    const w = await runWorkspace()
+
+    expect(printed(await w.call('workflow', 'pause', '--json', '{}'))).toMatchObject({ code: 'unknown-command' })
+  })
+})
+
+describe('model-gateway run: the workflow', () => {
+  it('starts the workflow the first time a run names it', async () => {
+    const w = await readyRun()
+
+    await w.run(w.input())
+
+    expect(JSON.parse(await readFile(w.workflows, 'utf8'))).toMatchObject({
+      workflows: [{ name: 'spec-293', started_at: expect.any(String) as unknown }],
+    })
+  })
+
+  it('refuses a run that names a workflow that ended, and launches nothing', async () => {
+    const w = await readyRun()
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+    })
+
+    expect(printed(await w.run(w.input()))).toEqual({
+      code: 'workflow-ended',
+      message: 'workflow spec-293 ended at 2026-11-04T11:00:00.000Z: a run may not join it, so start a new workflow',
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a run that names a workflow whose 24 hours ran out', async () => {
+    const w = await readyRun()
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2020-01-01T00:00:00.000Z' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      code: 'workflow-ended',
+      message: 'workflow spec-293 ended at 2020-01-02T00:00:00.000Z: a run may not join it, so start a new workflow',
+    })
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('starts no workflow for a run refused for a client the configuration does not declare', async () => {
+    const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as { clients: Record<string, unknown> }
+    delete shipped.clients.vibe
+    const w = await readyRun({ defaults: shipped })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ code: 'unknown-model' })
+    expect(await listedWorkflows(w)).toEqual([])
+  })
+
+  it('starts no workflow for a run the data policy refuses', async () => {
+    const w = await readyRun({ allowlist: allowlist(['mistral'], true, true) })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ code: 'policy-refused' })
+    expect(await listedWorkflows(w)).toEqual([])
+  })
+
+  it('starts no workflow for a run whose provider this machine does not allow', async () => {
+    const { w } = await readyHermes({ override: {} })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ code: 'provider-not-allowed' })
+    expect(await listedWorkflows(w)).toEqual([])
+  })
+
+  it('starts no workflow for a run with no passing read-only proof', async () => {
+    const { w } = await readyHermes({ setupResults: undefined })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ code: 'unproven-read-only' })
+    expect(await listedWorkflows(w)).toEqual([])
+  })
+})
+
+/** The workflows `workflow list` reports, as the gateway itself reads them. */
+async function listedWorkflows(w: RunWorkspace): Promise<readonly unknown[]> {
+  return (printed(await w.call('workflow', 'list', '--json', '{}')) as { workflows: readonly unknown[] }).workflows
+}
+
+/** The machine file that lets Hermes run on Anthropic. */
+const HERMES_MACHINE = {
+  clients: { hermes: { providers: ['anthropic'] } },
+}
+
+/** What Hermes writes to its usage file: its own tokens, dollars and outcome. */
+function hermesUsageFile(options: { cost?: number; failed?: boolean; input?: number; output?: number } = {}): unknown {
+  return {
+    api_calls: 2,
+    cache_read_tokens: 0,
+    estimated_cost_usd: options.cost ?? 0.0234,
+    failed: options.failed ?? false,
+    input_tokens: options.input ?? 1200,
+    model: 'anthropic/claude-sonnet-4.6',
+    output_tokens: options.output ?? 300,
+    provider: 'anthropic',
+  }
+}
+
+interface HermesWorkspace {
+  readonly hermes: FakeHermesProcess
+  readonly w: RunWorkspace
+}
+
+/** A Hermes run's input: the metered-personal client, on the provider the machine allows. */
+function hermesInput(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
+  return w.input({ client: 'hermes', model: 'anthropic/claude-sonnet-4.6', provider: 'anthropic', ...overrides })
+}
+
+/** A workspace whose one Hermes run is permitted, proven and scripted to answer `text`. */
+async function readyHermes(
+  options: RunWorkspaceOptions & { readonly text?: string; readonly usage?: unknown } = {},
+): Promise<HermesWorkspace> {
+  const hermes = new FakeHermesProcess([
+    { stdout: options.text ?? 'the answer\nSUMMARY: it is fine', usage: options.usage ?? hermesUsageFile() },
+  ])
+  const w = await runWorkspace({
+    allowlist: allowlist(['anthropic'], true, true),
+    override: HERMES_MACHINE,
+    process: hermes,
+    setupResults: setupResults('pass', 'hermes'),
+    ...options,
+  })
+  return { hermes, w }
+}
+
+describe('model-gateway run: Hermes, the metered-personal client', () => {
+  it('refuses a hermes run that names no provider, naming the providers this machine allows', async () => {
+    const { hermes, w } = await readyHermes()
+
+    expect(printed(await w.run(hermesInput(w, { provider: undefined })))).toEqual({
+      code: 'provider-not-allowed',
+      message: 'a hermes run must name its provider: this machine allows anthropic',
+      status: 'error',
+    })
+    expect(hermes.commands).toEqual([])
+  })
+
+  it('refuses a provider this machine does not list for hermes', async () => {
+    const { hermes, w } = await readyHermes()
+
+    expect(printed(await w.run(hermesInput(w, { provider: 'google' })))).toEqual({
+      code: 'provider-not-allowed',
+      message: 'hermes may not run on google: this machine allows anthropic',
+      status: 'error',
+    })
+    expect(hermes.commands).toEqual([])
+  })
+
+  it('refuses a hermes run when the machine lists no provider at all', async () => {
+    const { w } = await readyHermes({ override: {} })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({
+      code: 'provider-not-allowed',
+      message: 'hermes may not run on anthropic: this machine allows no provider',
+    })
+  })
+
+  it('refuses openrouter, whatever the machine lists', async () => {
+    const { hermes, w } = await readyHermes({ override: { clients: { hermes: { providers: ['openrouter'] } } } })
+
+    expect(printed(await w.run(hermesInput(w, { provider: 'openrouter' })))).toEqual({
+      code: 'provider-not-allowed',
+      message: 'openrouter is not allowed: the owner forbade OpenRouter',
+      status: 'error',
+    })
+    expect(printed(await w.run(hermesInput(w, { model: 'openrouter/pareto-code' })))).toMatchObject({
+      code: 'provider-not-allowed',
+    })
+    expect(hermes.commands).toEqual([])
+  })
+
+  it('refuses a hermes run setup recorded no read-only proof for, and launches nothing', async () => {
+    const { hermes, w } = await readyHermes({ setupResults: undefined })
+
+    expect(printed(await w.run(hermesInput(w)))).toEqual({
+      code: 'unproven-read-only',
+      message:
+        "hermes:anthropic/claude-sonnet-4.6 has no passing read-only proof: setup's read-only proof for hermes is not recorded",
+      status: 'error',
+    })
+    expect(hermes.commands).toEqual([])
+  })
+
+  it('launches hermes one-shot when setup proves its read-only runs', async () => {
+    const { hermes, w } = await readyHermes()
+
+    const result = await w.run(hermesInput(w, { time_limit_s: 120 }))
+
+    expect(result.exitCode).toBe(0)
+    const [command] = hermes.commands
+    expect(command?.command).toBe('hermes')
+    expect(command?.cwd).toBe(w.repo)
+    expect(command?.args).toEqual([
+      '-z',
+      'read this\n\nEnd your answer with a line "SUMMARY:" followed by at most 1500 characters that summarise the result.',
+      '--usage-file',
+      join(runDirOf(w, result), 'usage.json'),
+      '-m',
+      'anthropic/claude-sonnet-4.6',
+      '--provider',
+      'anthropic',
+    ])
+    expect(command?.env).toEqual({ AGENT_KIT_DELEGATION: '1' })
+    expect(command?.timeoutMs).toBe(180_000)
+  })
+
+  it('prints the short result, with the spend the usage file reports', async () => {
+    const { w } = await readyHermes()
+
+    const result = await w.run(hermesInput(w))
+
+    expect(printed(result)).toEqual({
+      client: 'hermes',
+      cost_usd: 0.0234,
+      family: 'anthropic',
+      mode: 'read-only',
+      model: 'anthropic/claude-sonnet-4.6',
+      output_path: join(runDirOf(w, result), 'output.json'),
+      run_id: printed(result).run_id,
+      status: 'ok',
+      summary: 'it is fine',
+      tokens: { cached: 0, input: 1200, output: 300 },
+      workflow: 'spec-293',
+    })
+  })
+
+  it('records the spend the usage file reports in the ledger, under its workflow', async () => {
+    const { w } = await readyHermes()
+
+    const result = await w.run(hermesInput(w))
+
+    const lines = (await readFile(w.ledger, 'utf8')).trimEnd().split('\n')
+    expect(lines).toHaveLength(1)
+    expect(JSON.parse(String(lines[0]))).toEqual({
+      at: expect.any(String) as unknown,
+      client: 'hermes',
+      cost_usd: 0.0234,
+      duration_s: expect.any(Number) as unknown,
+      family: 'anthropic',
+      mode: 'read-only',
+      model: 'anthropic/claude-sonnet-4.6',
+      outcome: 'ok',
+      repository: KEY,
+      run_id: printed(result).run_id,
+      tokens: { cached: 0, input: 1200, output: 300 },
+      workflow: 'spec-293',
+    })
+  })
+
+  it('counts a run the usage file calls failed as failed, and keeps its spend', async () => {
+    const { w } = await readyHermes({ usage: hermesUsageFile({ cost: 0.5, failed: true }) })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ cost_usd: 0.5, reason: 'failed', status: 'failed' })
+  })
+
+  it('counts no dollars when the usage file prices nothing', async () => {
+    const { w } = await readyHermes({ usage: { failed: false, input_tokens: 10, output_tokens: 5 } })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ cost_usd: 0, status: 'ok' })
+  })
+
+  it('reports a hermes run that printed nothing as a parse error', async () => {
+    const { w } = await readyHermes({ text: '  \n' })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ reason: 'parse-error', status: 'failed', summary: '' })
+  })
+
+  it('reports the exit code hermes ended with', async () => {
+    const hermes = new FakeHermesProcess([{ exitCode: 2, stderr: 'no final response', stdout: '' }])
+    const w = await runWorkspace({
+      allowlist: allowlist(['anthropic'], true, true),
+      override: HERMES_MACHINE,
+      process: hermes,
+      setupResults: setupResults('pass', 'hermes'),
+    })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({
+      reason: 'exit-2',
+      status: 'failed',
+    })
+  })
+
+  it('refuses a hermes run the data policy does not permit, before anything is launched', async () => {
+    const { hermes, w } = await readyHermes({ allowlist: allowlist(['google'], true, true) })
+
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({
+      code: 'policy-refused',
+      message: `hermes:anthropic/claude-sonnet-4.6 is not permitted: ${KEY}: the entry allows google`,
+    })
+    expect(hermes.commands).toEqual([])
   })
 })

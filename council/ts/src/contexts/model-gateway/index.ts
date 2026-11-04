@@ -1,5 +1,5 @@
 export { createModelGatewayCommands, type ModelGatewayCommands } from './application/commands.js'
-export { ledgerPath, runsDir, stateDir } from './application/locations.js'
+export { ledgerPath, runsDir, stateDir, workflowsPath } from './application/locations.js'
 export { decidePolicyFor, resolveScope } from './application/policy.js'
 export { DELEGATION_MARK, READ_ONLY_AGENT, RunCommand, type RunResult } from './application/run.js'
 export type {
@@ -9,8 +9,17 @@ export type {
   ModelGatewayLedgerPort,
   ModelGatewayProcessPort,
   ModelGatewayProofPort,
+  ModelGatewayWorkflowsPort,
   ModelSourcePort,
 } from './application/ports.js'
+export {
+  WorkflowEndCommand,
+  WorkflowListCommand,
+  WorkflowStartCommand,
+  type WorkflowInput,
+  type WorkflowListResult,
+  type WorkflowResult,
+} from './application/workflows.js'
 export type { AllowlistEntry, FamilyAllowlist } from './domain/allowlist.js'
 export { ModelGatewayError, type ModelGatewayErrorCode } from './domain/config.js'
 export type { LedgerRecord } from './domain/ledger.js'
@@ -24,10 +33,12 @@ export type {
   PolicySubject,
   SendPermission,
 } from './domain/policy.js'
-export type { ProofFiles, ReadOnlyProof, RunInput, RunMode, RunTokens } from './domain/run.js'
+export type { HermesUsage, ProofFiles, ReadOnlyProof, RunInput, RunMode, RunTokens } from './domain/run.js'
+export type { WorkflowChange, WorkflowRecord, WorkflowState, WorkflowView } from './domain/workflows.js'
 export { modelSources } from './adapters/clients/index.js'
 export { NodeModelGatewayFiles } from './adapters/fs/index.js'
 export { NodeModelGatewayGit } from './adapters/git/index.js'
 export { NodeModelGatewayLedger } from './adapters/ledger/index.js'
 export { NodeModelGatewayProcess } from './adapters/process/index.js'
 export { NodeModelGatewayProof } from './adapters/proof/index.js'
+export { NodeModelGatewayWorkflows } from './adapters/workflows/index.js'
