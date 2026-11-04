@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "clients": {
+    "vibe":   {"binary": "vibe",   "cost_class": "subsidised",       "model_source": "config"},
+    "agy":    {"binary": "agy",    "cost_class": "subsidised",       "model_source": "live", "families": ["google"]},
+    "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
+    "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "live"},
+    "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"}
+  },
+  "models": [
+    {"client": "claude", "model": "claude-opus-5-5",   "family": "anthropic", "tier": "frontier", "notes": "Strongest Claude; design, hard debugging, review of risky changes."},
+    {"client": "claude", "model": "claude-sonnet-5-5", "family": "anthropic", "tier": "hard",     "notes": "Strong general coding and refactoring."},
+    {"client": "claude", "model": "claude-haiku-5-5",  "family": "anthropic", "tier": "routine",  "notes": "Fast and cheap; mechanical edits, summaries, lookups."},
+    {"client": "codex",  "model": "gpt-5.5",           "family": "openai",    "tier": "frontier", "notes": "Strong implementation and review; metered on the nedap account, grant needed."},
+    {"client": "vibe",   "model": "deepseek-v4-1-flash-1017", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; good at well-specified code changes and lint-like review."},
+    {"client": "vibe",   "model": "zai-glm-5-3",       "family": "zhipu",     "tier": "hard",     "notes": "Strong code review and integration reasoning."},
+    {"client": "vibe",   "model": "mistral-large-4-0", "family": "mistral",   "tier": "hard",     "notes": "Broad general model."},
+    {"client": "vibe",   "model": "mistral-small-latest", "family": "mistral", "tier": "trivial", "notes": "Very cheap; short summaries and classification."},
+    {"client": "agy",    "model": "gemini-3.8-flash-high", "family": "google", "tier": "hard",    "notes": "Long context; reading large codebases and documents."}
+  ],
+  "settings": {
+    "plan_warning_ratio": 0.8,
+    "summary_max_chars": 1500,
+    "max_parallel_per_client": 3,
+    "availability_window_minutes": 60,
+    "metered_personal_caps": {"per_workflow_usd": 2, "per_day_usd": 5}
+  }
+}
