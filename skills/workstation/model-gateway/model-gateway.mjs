@@ -3,7 +3,7 @@
 
 // src/model-gateway-cli/index.ts
 import { readFile as readFile5 } from "node:fs/promises";
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 
 // src/adapters/clock/index.ts
 import { performance } from "node:perf_hooks";
@@ -558,12 +558,13 @@ function readRunInput(raw) {
     throw new ModelGatewayError("invalid-input", "prompt must be a non-empty string");
   }
   const repo = readOptionalString(raw.repo, "repo");
-  const carries = readCarries(raw.carries);
+  const carries2 = readCarries(raw.carries);
   const timeLimit = raw.time_limit_s === void 0 ? DEFAULT_TIME_LIMIT_S : requiredWholeNumber(raw.time_limit_s, "time_limit_s");
   if (timeLimit <= 0) throw new ModelGatewayError("invalid-input", "time_limit_s must be a whole number of seconds above 0");
   const maxPrice = raw.max_price_usd === void 0 ? void 0 : requiredNumberAbove0(raw.max_price_usd, "max_price_usd");
   const writing = readWriting(raw, repo);
   const provider = readOptionalString(raw.provider, "provider");
+  const escalation = readEscalation(raw);
   return {
     client: raw.client,
     mode: raw.mode,
@@ -571,11 +572,23 @@ function readRunInput(raw) {
     prompt: raw.prompt,
     time_limit_s: timeLimit,
     workflow: raw.workflow,
-    ...carries === void 0 ? {} : { carries },
+    ...carries2 === void 0 ? {} : { carries: carries2 },
     ...maxPrice === void 0 ? {} : { max_price_usd: maxPrice },
     ...provider === void 0 ? {} : { provider },
     ...repo === void 0 ? {} : { repo },
+    ...escalation,
     ...writing
+  };
+}
+function readEscalation(raw) {
+  if (raw.escalate !== void 0 && typeof raw.escalate !== "boolean") {
+    throw new ModelGatewayError("invalid-input", "escalate must be true or false");
+  }
+  const attempts = raw.max_attempts === void 0 ? void 0 : requiredWholeNumber(raw.max_attempts, "max_attempts");
+  if (attempts !== void 0 && attempts < 1) throw new ModelGatewayError("invalid-input", "max_attempts must be a whole number above 0");
+  return {
+    ...raw.escalate === void 0 ? {} : { escalate: raw.escalate },
+    ...attempts === void 0 ? {} : { max_attempts: attempts }
   };
 }
 function readWriting(raw, repo) {
@@ -1529,7 +1542,130 @@ function readModelsInput(raw) {
 
 // src/contexts/model-gateway/application/run.ts
 import { randomBytes } from "node:crypto";
-import { join as join4 } from "node:path";
+import { join as join5 } from "node:path";
+
+// src/contexts/model-gateway/domain/escalation.ts
+var DEFAULT_MAX_ATTEMPTS = 3;
+var FAILURE_TAIL_CHARS = 1e3;
+var REFUSAL_REASONS = [
+  "cap-exceeded",
+  "invalid-config",
+  "invalid-input",
+  "nested-delegation",
+  "no-estimate",
+  "not-supported-yet",
+  "policy-refused",
+  "provider-not-allowed",
+  "repository-unreadable",
+  "unknown-model",
+  "unknown-workflow",
+  "workflow-ended",
+  "write-needs-repository",
+  "worktree-failed"
+];
+var CANNOT_START_REASONS = ["auth", "launch-failed", "rate-limited"];
+function isRefusal(reason) {
+  return reason !== void 0 && REFUSAL_REASONS.includes(reason);
+}
+function isCannotStart(reason) {
+  return reason !== void 0 && CANNOT_START_REASONS.includes(reason);
+}
+var CannotStartError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CannotStartError";
+  }
+};
+function retryPrompt(original, reason, detail) {
+  const tail = detail.trim().slice(-FAILURE_TAIL_CHARS);
+  return `${original}
+
+A previous attempt failed: ${reason}${tail === "" ? "" : `; ${tail}`}`;
+}
+function candidateKey(candidate) {
+  return modelKey(candidate.client, candidate.model);
+}
+function tierRank(tier) {
+  return TIERS.indexOf(tier);
+}
+function requestedCandidate(config, input, entry, family) {
+  const client = config.clients[input.client];
+  const provider = providerOf(input);
+  return {
+    client: input.client,
+    costClass: client === void 0 ? "subsidised" : costClassFor(client, provider),
+    family,
+    model: input.model,
+    tier: entry?.tier ?? null,
+    ...input.provider === void 0 ? {} : { provider: input.provider }
+  };
+}
+function providerOf(input) {
+  return input.provider ?? (input.client === "opencode" ? openCodeProvider(input.model) : void 0);
+}
+function candidatePool(config, input, permissions) {
+  const permitted = new Set(permissions.filter((permission2) => carries(permission2, input)).map((permission2) => modelKey(permission2.client, permission2.model)));
+  const pool = [];
+  for (const entry of config.models) {
+    const client = config.clients[entry.client];
+    if (client === void 0 || !RUN_CLIENTS.includes(entry.client)) continue;
+    if (!permitted.has(modelKey(entry.client, entry.model))) continue;
+    if ([entry.model, ...entry.names ?? []].some((name) => config.disabled.includes(modelKey(entry.client, name)))) continue;
+    const named = PROVIDER_CLIENTS.includes(entry.client);
+    if (named && (entry.client !== input.client || input.provider === void 0)) continue;
+    if (entry.client === "opencode" && !providerAllowed(entry.model, client.providers)) continue;
+    const provider = named ? input.provider : entry.client === "opencode" ? openCodeProvider(entry.model) : void 0;
+    const costClass = costClassFor(client, provider);
+    if (costClass === "metered-employer") continue;
+    pool.push({
+      client: entry.client,
+      costClass,
+      family: entry.family,
+      model: entry.model,
+      tier: entry.tier,
+      ...named && provider !== void 0 ? { provider } : {}
+    });
+  }
+  return pool;
+}
+function providerAllowed(model, allowed2) {
+  try {
+    requireAllowedProvider(model, allowed2);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function carries(permission2, input) {
+  if (!permission2.permitted) return false;
+  const marks = input.carries ?? { code: false, history: false };
+  const code = input.repo === void 0 ? marks.code : true;
+  return !(code && !permission2.may_send.code) && !(marks.history && !permission2.may_send.history);
+}
+function climbOrder(from, pool) {
+  if (from.tier === null) return [];
+  const above = tierRank(from.tier);
+  return pool.filter(
+    (candidate) => candidateKey(candidate) !== candidateKey(from) && candidate.costClass === "subsidised" && candidate.tier !== null && tierRank(candidate.tier) > above
+  ).map((candidate, index) => ({ candidate, index })).sort((left, right) => tierRank(left.candidate.tier ?? "trivial") - tierRank(right.candidate.tier ?? "trivial") || left.index - right.index).map((entry) => entry.candidate);
+}
+function fallThroughOrder(wanted, pool) {
+  if (wanted.tier === null) return [];
+  const floor = tierRank(wanted.tier);
+  return pool.filter(
+    (candidate) => candidateKey(candidate) !== candidateKey(wanted) && candidate.costClass === wanted.costClass && candidate.tier !== null && tierRank(candidate.tier) >= floor
+  ).map((candidate, index) => ({ candidate, index })).sort((left, right) => tierRank(left.candidate.tier ?? "trivial") - tierRank(right.candidate.tier ?? "trivial") || left.index - right.index).map((entry) => entry.candidate);
+}
+function attemptInput(input, candidate, prompt) {
+  const rest = Object.fromEntries(Object.entries(input).filter(([key]) => key !== "provider"));
+  return {
+    ...rest,
+    client: candidate.client,
+    model: candidate.model,
+    prompt,
+    ...candidate.provider === void 0 ? {} : { provider: candidate.provider }
+  };
+}
 
 // src/contexts/model-gateway/domain/usage.ts
 var DEFAULT_USAGE_DAYS = 7;
@@ -1763,6 +1899,190 @@ function endWorkflow(records, name, now) {
   return { workflow: ended, workflows: records.map((record) => record.name === name ? ended : record) };
 }
 
+// src/contexts/model-gateway/application/escalation.ts
+import { dirname, join as join4 } from "node:path";
+
+// src/contexts/model-gateway/application/usage.ts
+var UsageCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async run(raw) {
+    const input = readUsageInput(raw);
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const readings = await readClients(this.deps, sortedClients(config));
+    return usageReport(input, config, readings, await this.deps.ledger.read(), this.deps.clock.now());
+  }
+};
+async function clientAvailability(deps, config, client) {
+  const known = config.clients[client];
+  const readings = await readClients(deps, known === void 0 ? [] : [[client, known]]);
+  const report = usageReport({ days: 1 }, config, readings, await deps.ledger.read(), deps.clock.now());
+  return report.clients.find((entry) => entry.client === client)?.availability;
+}
+async function readClients(deps, clients) {
+  const readings = [];
+  for (const [id, client] of clients) {
+    const installed = await deps.process.which(client.binary);
+    const status = installed ? await deps.statuses[id]?.read() : void 0;
+    readings.push({ client: id, installed, status });
+  }
+  return readings;
+}
+
+// src/contexts/model-gateway/application/escalation.ts
+var EscalatedRun = class {
+  constructor(deps) {
+    this.deps = deps;
+  }
+  deps;
+  async run(input, attempt) {
+    if (input.escalate === false) {
+      const only = await attempt(input, {});
+      return { ...only, attempts: [summaryOf2(only)] };
+    }
+    const maxAttempts = input.max_attempts ?? DEFAULT_MAX_ATTEMPTS;
+    const attempts = [];
+    const skipped = [];
+    const dead = /* @__PURE__ */ new Set();
+    let plan;
+    const planned = async () => plan ??= await this.plan(input);
+    let current;
+    let ref;
+    let mode = "same";
+    let failures = 0;
+    let counted = 0;
+    let prompt = input.prompt;
+    let last;
+    let real;
+    const done = (run, escalation, stoppedReason) => ({
+      ...run,
+      attempts,
+      ...escalation === void 0 ? {} : { escalation },
+      ...skipped.length === 0 ? {} : { skipped },
+      ...stoppedReason === void 0 ? {} : { stopped_reason: stoppedReason }
+    });
+    const unavailable = async () => {
+      const from = ref ?? (await planned()).requested;
+      return {
+        attempts,
+        client: input.client,
+        message: `${from.client}:${from.model} cannot start, and no other permitted ${from.costClass} client model covers its tier; the gateway never moves into a costlier cost class by itself`,
+        model: input.model,
+        reasons: skipped,
+        status: "unavailable",
+        workflow: input.workflow
+      };
+    };
+    const passOver = (who, reason) => {
+      dead.add(candidateKey(who));
+      skipped.push({ client: who.client, model: who.model, reason });
+    };
+    const replacement = async () => {
+      const { pool, requested } = await planned();
+      const from = ref ?? requested;
+      const order = mode === "climb" ? climbOrder(from, pool) : fallThroughOrder(from, pool);
+      return order.find((candidate) => !dead.has(candidateKey(candidate)));
+    };
+    for (; ; ) {
+      if (last !== void 0 && counted >= maxAttempts) return done(last, "exhausted");
+      const link = attempts.length === 0 ? void 0 : { attempt: attempts.length + 1, attempt_of: String(attempts[0]?.run_id) };
+      let run;
+      try {
+        const next = current === void 0 ? input : attemptInput(input, current, prompt);
+        run = await attempt(next, { ...link === void 0 ? {} : { link }, startCheck: (checked) => this.startCheck(checked) });
+      } catch (error) {
+        if (!(error instanceof CannotStartError)) {
+          if (last === void 0) throw error;
+          return done(last, "stopped", error instanceof ModelGatewayError ? `${error.code}: ${error.message}` : messageOf(error));
+        }
+        passOver(current ?? input, error.message);
+        const swapped = await replacement();
+        if (swapped === void 0) {
+          if (real === void 0) return await unavailable();
+          return mode === "climb" ? done(real, "exhausted") : done(real, "stopped", error.message);
+        }
+        current = swapped;
+        continue;
+      }
+      attempts.push(summaryOf2(run));
+      last = run;
+      if (run.status === "ok") return done(run);
+      if (isCannotStart(run.reason)) {
+        passOver(current ?? input, run.reason ?? "launch-failed");
+        const swapped = await replacement();
+        if (swapped === void 0) {
+          if (real === void 0) return await unavailable();
+          return mode === "climb" ? done(real, "exhausted") : done(real, "stopped", run.reason ?? "launch-failed");
+        }
+        current = swapped;
+        continue;
+      }
+      real = run;
+      counted += 1;
+      if (isRefusal(run.reason)) return done(run);
+      failures += 1;
+      ref = current ?? (await planned()).requested;
+      current = ref;
+      mode = "same";
+      prompt = retryPrompt(input.prompt, run.reason ?? "failed", await this.failureDetail(run));
+      if (failures === 1) continue;
+      mode = "climb";
+      const stronger = await replacement();
+      if (stronger === void 0) return done(run, "exhausted");
+      current = stronger;
+      failures = 0;
+    }
+  }
+  /** The catalogue the delegation may move through: the model asked for, and every permitted model it may be moved to. */
+  async plan(input) {
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const entry = config.models.find((candidate) => candidate.client === input.client && candidate.model === input.model);
+    const family = entry?.family ?? familyOfModelId(input.model) ?? "";
+    const requested = requestedCandidate(config, input, entry, family);
+    const scope = await resolveScope(this.deps, input.repo);
+    const pool = candidatePool(config, input, decidePolicy(config, scope, config.models).permissions);
+    return { pool, requested };
+  }
+  /** Why a client cannot start, or undefined when it can: what `usage` reports as its availability. */
+  async startCheck(input) {
+    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
+    const availability = await clientAvailability(this.deps, config, input.client);
+    return availability === void 0 || availability.status === "available" ? void 0 : `${availability.status}: ${availability.reason}`;
+  }
+  /**
+   * What a failed attempt tells the next one: the check's output for a writing
+   * run whose check failed, else what the client printed on stderr, else its
+   * output. Whatever cannot be read says nothing.
+   */
+  async failureDetail(run) {
+    const check = run.reason?.startsWith("check-") === true ? run.check?.output_path : void 0;
+    for (const path of [check, join4(dirname(run.output_path), "stderr.txt"), run.output_path]) {
+      const text = path === void 0 ? "" : await this.readQuietly(path);
+      if (text.trim() !== "") return text;
+    }
+    return "";
+  }
+  /** A file's text, or nothing when it is not there or cannot be read: a missing stderr file is a client that printed none. */
+  async readQuietly(path) {
+    try {
+      return await this.deps.files.readText(path);
+    } catch {
+      return "";
+    }
+  }
+};
+function summaryOf2(run) {
+  return {
+    client: run.client,
+    model: run.model,
+    run_id: run.run_id,
+    status: run.status,
+    ...run.reason === void 0 ? {} : { reason: run.reason }
+  };
+}
+
 // src/contexts/model-gateway/application/run.ts
 function isWriting(input) {
   return input.mode === "write" && input.repo !== void 0 && input.base !== void 0 && input.check !== void 0;
@@ -1771,11 +2091,17 @@ var RunCommand = class {
   constructor(deps) {
     this.deps = deps;
     this.clientRun = new ClientRun(deps);
+    this.escalation = new EscalatedRun(deps);
   }
   deps;
   clientRun;
-  async run(raw) {
-    const input = readRunInput(raw);
+  escalation;
+  /** One delegation: a run, retried, climbed and swapped as the escalation decides. */
+  run(raw) {
+    return this.escalation.run(readRunInput(raw), (input, options) => this.runOnce(input, options));
+  }
+  /** One attempt: a single run of one client model, which the escalation wraps. */
+  async runOnce(input, options = {}) {
     this.refuseNested();
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
     const client = config.clients[input.client];
@@ -1792,6 +2118,8 @@ var RunCommand = class {
     }
     const root = input.repo === void 0 ? void 0 : await this.repositoryRoot(input.repo);
     const allowed2 = await this.permission(input, config, family);
+    const blocked = await options.startCheck?.(input);
+    if (blocked !== void 0) throw new CannotStartError(blocked);
     const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry);
     await this.joinWorkflow(input.workflow);
     const startedAt = this.deps.clock.now();
@@ -1817,14 +2145,15 @@ var RunCommand = class {
       throw error;
     }
     const warning = await this.release(workplace);
-    const released = warning === void 0 ? result2 : { ...result2, cleanup_warning: warning };
+    const linked = options.link === void 0 ? result2 : { ...result2, ...options.link };
+    const released = warning === void 0 ? linked : { ...linked, cleanup_warning: warning };
     await this.deps.ledger.append(this.ledgerRecord(released, allowed2.repository, startedMs));
     const warnings = warningsOf(
       input.client,
       planWindows(input.client, client.plan_limits ?? [], await this.deps.ledger.read(), this.deps.clock.now(), config.settings.plan_warning_ratio)
     );
     const recorded = warnings.length === 0 ? released : { ...released, warnings };
-    await this.deps.files.writeText(join4(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
+    await this.deps.files.writeText(join5(runDir, "result.json"), `${JSON.stringify(recorded, null, 2)}
 `);
     return recorded;
   }
@@ -1845,14 +2174,14 @@ var RunCommand = class {
   async delegate(run) {
     const { config, entry, input, runDir } = run;
     const paths = {
-      exportDir: join4(runDir, "vibe"),
-      promptPath: join4(runDir, "prompt.md"),
+      exportDir: join5(runDir, "vibe"),
+      promptPath: join5(runDir, "prompt.md"),
       runDir,
       workDir: run.workDir
     };
     const prompt = wrappedPrompt(input.prompt, config.settings.summary_max_chars, input.mode);
     await this.deps.files.writeText(paths.promptPath, prompt);
-    await this.deps.files.writeText(join4(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
+    await this.deps.files.writeText(join5(runDir, "input.json"), `${JSON.stringify(input, null, 2)}
 `);
     const launched = await this.launch(run.binary, input, paths, prompt);
     const output = launched.output;
@@ -1860,8 +2189,9 @@ var RunCommand = class {
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : void 0;
     const reason = finished === void 0 ? delegateReason : finished.reason;
     const cost = priceRun(output.charged, output.tokens, entry?.prices);
-    const outputPath = join4(runDir, "output.json");
+    const outputPath = join5(runDir, "output.json");
     await this.deps.files.writeText(outputPath, launched.result.stdout);
+    if (launched.result.stderr !== "") await this.deps.files.writeText(join5(runDir, "stderr.txt"), launched.result.stderr);
     const result2 = {
       client: input.client,
       cost_usd: cost,
@@ -1943,7 +2273,7 @@ var RunCommand = class {
     } catch (error) {
       result2 = { exitCode: 127, stderr: messageOf(error), stdout: "" };
     }
-    const outputPath = join4(run.runDir, "check-output.txt");
+    const outputPath = join5(run.runDir, "check-output.txt");
     const report = { command: input.check, exit_code: result2.exitCode, output_path: outputPath };
     try {
       await this.deps.files.writeText(outputPath, `${result2.stdout}${result2.stderr}`);
@@ -2007,12 +2337,12 @@ var RunCommand = class {
     if (!permission2?.permitted) {
       throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} is not permitted: ${decision.reason}`);
     }
-    const carries = input.carries ?? { code: false, history: false };
-    const carriesCode = input.repo === void 0 ? carries.code : true;
+    const carries2 = input.carries ?? { code: false, history: false };
+    const carriesCode = input.repo === void 0 ? carries2.code : true;
     if (carriesCode && !permission2.may_send.code) {
       throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} may not carry code: ${decision.reason}`);
     }
-    if (carries.history && !permission2.may_send.history) {
+    if (carries2.history && !permission2.may_send.history) {
       throw new ModelGatewayError("policy-refused", `${input.client}:${input.model} may not carry history: ${decision.reason}`);
     }
     return { permission: permission2, repository: scope.kind === "repository" ? scope.key : null };
@@ -2054,8 +2384,8 @@ var RunCommand = class {
    * directory otherwise.
    */
   async runDir(root, id) {
-    if (root === void 0) return join4(runsDir(this.deps.env), id);
-    return join4(await this.commonDir(root), "model-gateway", "runs", id);
+    if (root === void 0) return join5(runsDir(this.deps.env), id);
+    return join5(await this.commonDir(root), "model-gateway", "runs", id);
   }
   /** The repository's common directory, which every gateway directory of the repository sits in. */
   async commonDir(root) {
@@ -2074,7 +2404,7 @@ var RunCommand = class {
    * branch are removed again, and the list's error is the run's.
    */
   async writeWorkplace(input, root, id, at) {
-    const dir = join4(await this.commonDir(root), "model-gateway", "worktrees", id);
+    const dir = join5(await this.commonDir(root), "model-gateway", "worktrees", id);
     const branch = `gateway/${id}`;
     try {
       await this.deps.git.createWorktree(root, dir, branch, input.base);
@@ -2160,7 +2490,9 @@ var RunCommand = class {
       run_id: result2.run_id,
       tokens: result2.tokens,
       workflow: result2.workflow,
-      ...result2.reason === void 0 ? {} : { reason: result2.reason }
+      ...result2.reason === void 0 ? {} : { reason: result2.reason },
+      ...result2.attempt === void 0 ? {} : { attempt: result2.attempt },
+      ...result2.attempt_of === void 0 ? {} : { attempt_of: result2.attempt_of }
     };
   }
 };
@@ -2174,25 +2506,6 @@ function catalogueEntry(config, client, model) {
   }
   return config.models.find((candidate) => candidate.client === client && candidate.model === model);
 }
-
-// src/contexts/model-gateway/application/usage.ts
-var UsageCommand = class {
-  constructor(deps) {
-    this.deps = deps;
-  }
-  deps;
-  async run(raw) {
-    const input = readUsageInput(raw);
-    const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
-    const readings = [];
-    for (const [id, client] of sortedClients(config)) {
-      const installed = await this.deps.process.which(client.binary);
-      const status = installed ? await this.deps.statuses[id]?.read() : void 0;
-      readings.push({ client: id, installed, status });
-    }
-    return usageReport(input, config, readings, await this.deps.ledger.read(), this.deps.clock.now());
-  }
-};
 
 // src/contexts/model-gateway/application/worktrees.ts
 function readSelection(raw) {
@@ -2476,7 +2789,7 @@ function clientStatuses(deps) {
 import { randomBytes as randomBytes2 } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join as join5 } from "node:path";
+import { dirname as dirname2, join as join6 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 async function writeFileAtomic(path, content) {
   const temp = `${path}.${randomBytes2(6).toString("hex")}.tmp`;
@@ -2503,14 +2816,14 @@ var NodeModelGatewayFiles = class {
     }
   }
   async writeText(path, content) {
-    await mkdir(dirname(path), { recursive: true });
+    await mkdir(dirname2(path), { recursive: true });
     await writeFile(path, content);
   }
   async mkdir(path) {
     await mkdir(path, { recursive: true });
   }
   async tempDir(prefix) {
-    return mkdtemp(join5(tmpdir(), prefix));
+    return mkdtemp(join6(tmpdir(), prefix));
   }
   async remove(path) {
     await rm(path, { force: true, recursive: true });
@@ -2613,7 +2926,7 @@ function messageOf4(result2) {
 
 // src/contexts/model-gateway/adapters/kept/index.ts
 import { mkdir as mkdir2, readFile as readFile2 } from "node:fs/promises";
-import { dirname as dirname2 } from "node:path";
+import { dirname as dirname3 } from "node:path";
 
 // src/contexts/model-gateway/adapters/lock/index.ts
 import { open, rm as rm3, stat } from "node:fs/promises";
@@ -2700,7 +3013,7 @@ var NodeModelGatewayKept = class {
   /** Reads the list under the lock, and writes back what `change` makes of it unless the change is only a look. */
   async update(change, write = true) {
     const path = keptWorktreesPath(this.env);
-    await mkdir2(dirname2(path), { recursive: true });
+    await mkdir2(dirname3(path), { recursive: true });
     return this.lock.run(`${path}.lock`, async () => {
       const changed = change(await this.read(path));
       if (write) await writeFileAtomic(path, `${JSON.stringify({ version: KEPT_VERSION, worktrees: changed }, null, 2)}
@@ -2731,7 +3044,7 @@ var NodeModelGatewayKept = class {
 
 // src/contexts/model-gateway/adapters/ledger/index.ts
 import { appendFile, mkdir as mkdir3, readFile as readFile3 } from "node:fs/promises";
-import { dirname as dirname3 } from "node:path";
+import { dirname as dirname4 } from "node:path";
 
 // src/contexts/model-gateway/domain/ledger.ts
 function ledgerLine(record) {
@@ -2749,7 +3062,7 @@ var NodeModelGatewayLedger = class {
   lock;
   async append(record) {
     const path = ledgerPath(this.env);
-    await mkdir3(dirname3(path), { recursive: true });
+    await mkdir3(dirname4(path), { recursive: true });
     await this.lock.run(`${path}.lock`, () => appendFile(path, ledgerLine(record)));
   }
   /**
@@ -2781,7 +3094,7 @@ var NodeModelGatewayLedger = class {
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
-import { delimiter, join as join6 } from "node:path";
+import { delimiter, join as join7 } from "node:path";
 
 // src/adapters/process/node-process.ts
 import { spawn } from "node:child_process";
@@ -2872,7 +3185,7 @@ var NodeModelGatewayProcess = class {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
       try {
-        await access2(join6(folder, binary), constants.X_OK);
+        await access2(join7(folder, binary), constants.X_OK);
         return true;
       } catch {
       }
@@ -2906,7 +3219,7 @@ var NodeModelGatewayProof = class {
 
 // src/contexts/model-gateway/adapters/workflows/index.ts
 import { mkdir as mkdir4, readFile as readFile4 } from "node:fs/promises";
-import { dirname as dirname4 } from "node:path";
+import { dirname as dirname5 } from "node:path";
 var NodeModelGatewayWorkflows = class {
   constructor(env, timings = {}) {
     this.env = env;
@@ -2919,7 +3232,7 @@ var NodeModelGatewayWorkflows = class {
   }
   async update(change) {
     const path = workflowsPath(this.env);
-    await mkdir4(dirname4(path), { recursive: true });
+    await mkdir4(dirname5(path), { recursive: true });
     return this.lock.run(`${path}.lock`, async () => {
       const changed = change(await this.load());
       await writeFileAtomic(path, `${JSON.stringify({ version: WORKFLOWS_VERSION, workflows: changed.workflows }, null, 2)}
@@ -2987,8 +3300,9 @@ its status, run id, workflow, client model, family, mode, tokens, cost, the
 path of its full output and a summary of at most "summary_max_chars"
 characters. It takes "workflow", "client" (vibe, agy, claude, opencode or
 hermes), "model", "mode", "prompt", and optionally "repo", "carries" (code and
-history), "time_limit_s" (900 by default), "max_price_usd" (Vibe only) and
-"provider" (which a hermes run must name, and which this machine must allow).
+history), "time_limit_s" (900 by default), "max_price_usd" (Vibe only),
+"provider" (which a hermes run must name, and which this machine must allow),
+"escalate" and "max_attempts".
 The workflow's life, the data policy and the client model's read-only proof are
 checked before anything is launched; a model without a passing proof (every one
 but a proven Vibe or Antigravity model) works in a throwaway worktree of the
@@ -2996,6 +3310,18 @@ repository, removed after the run. An OpenCode model is named provider/model
 and its provider must be in clients.opencode.providers (opencode-go by
 default), never opencode. A client near its plan limit adds "warnings" to the
 result.
+
+A delegation that fails does not come straight back: "escalate" (true by
+default; false turns it all off) and "max_attempts" (3 by default) govern it. A
+failed result (a timeout, output that cannot be parsed, a failed check, a
+non-zero exit) is retried once on the same client model with the failure in the
+prompt; a second failure climbs to the next stronger permitted subsidised
+model; and a client that cannot start is
+swapped for another of its cost class at the same tier or above. Each attempt
+is a run of its own, and the result carries "attempts" (run_id, client, model,
+status, reason), "skipped" and, when nothing is left to try, "escalation":
+"exhausted". When no client model of the cost class can start, the result is
+{"status": "unavailable"} with the "reasons" per candidate, and exit 0.
 
 A run with "mode": "write" changes a repository: it needs "repo", "base" (a ref)
 and "check" (a command, run with sh -c in the worktree). The gateway creates a
@@ -3098,7 +3424,7 @@ function failure(code, message, name) {
 function messageOf6(error) {
   return error instanceof Error ? error.message : String(error);
 }
-var DEFAULT_ROUTING_PATH = join7(import.meta.dirname, "..", "critique", "routing.json");
+var DEFAULT_ROUTING_PATH = join8(import.meta.dirname, "..", "critique", "routing.json");
 function defaultModelGatewayRuntime(options = {}) {
   const { routingPath = DEFAULT_ROUTING_PATH, ...overrides } = options;
   const env = overrides.env ?? new ProcessEnvAdapter();
@@ -3108,7 +3434,7 @@ function defaultModelGatewayRuntime(options = {}) {
   return {
     commands: createModelGatewayCommands({
       clock: new SystemClockAdapter(),
-      defaultsPath: join7(import.meta.dirname, "defaults.json"),
+      defaultsPath: join8(import.meta.dirname, "defaults.json"),
       env,
       files,
       git,

@@ -349,6 +349,17 @@ export interface VibeScript {
   readonly effect?: (command: ProcessCommand) => Promise<void>
 }
 
+/**
+ * What a client's own status command answers in the fakes that play launches:
+ * signed in, so a delegation's check that a client can start never takes a
+ * launch's scripted answer. Undefined for any command that is not one.
+ */
+function statusAnswer(command: ProcessCommand): ProcessResult | undefined {
+  const [first, second] = command.args
+  const credentials = ['hermes', 'opencode'].includes(command.command) && first === 'auth' && second === 'list'
+  return credentials ? { exitCode: 0, stderr: '', stdout: 'signed in\n' } : undefined
+}
+
 /** What one fake Hermes launch answers: its one-shot text, its exit, and the usage report it writes. */
 export interface HermesScript {
   /** What `hermes -z` prints: the final response text alone. */
@@ -382,6 +393,8 @@ export class FakeHermesProcess implements ModelGatewayProcessPort {
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
+    const status = statusAnswer(command)
+    if (status !== undefined) return status
     this.commands.push(command)
     const script = this.scripts.shift()
     if (script === undefined) throw new Error('unexpected process launch')
@@ -417,6 +430,8 @@ export class FakeVibeProcess implements ModelGatewayProcessPort {
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {
+    const status = statusAnswer(command)
+    if (status !== undefined) return status
     this.commands.push(command)
     const script = this.scripts.shift()
     if (script === undefined) throw new Error('unexpected process launch')

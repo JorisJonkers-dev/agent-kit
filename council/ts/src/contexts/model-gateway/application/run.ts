@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import type { ProcessResult } from '../../../ports/index.js'
 import { ModelGatewayError, type GatewayConfig, type ModelEntry } from '../domain/config.js'
+import { CannotStartError, type EscalationReport, type UnavailableResult } from '../domain/escalation.js'
 import type { LedgerRecord } from '../domain/ledger.js'
 import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
@@ -28,6 +29,7 @@ import { planWindows, warningsOf } from '../domain/usage.js'
 import { startWorkflow } from '../domain/workflows.js'
 import { ClientRun, type ClientRunOutcome } from './client-run.js'
 import { loadConfig } from './config.js'
+import { EscalatedRun, type AttemptOptions } from './escalation.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
 import { DELEGATION_MARK, READ_ONLY_AGENT, type LaunchPaths } from './launchers.js'
@@ -98,7 +100,14 @@ export interface RunResult {
   readonly branch?: string
   readonly staged_files?: readonly string[] | null
   readonly check?: CheckReport
+  /** This run's place in its delegation when it is a retry or a climb (2 and up); the first attempt carries none. */
+  readonly attempt?: number
+  /** The run id of the delegation's first attempt, on every later one. */
+  readonly attempt_of?: string
 }
+
+/** What a delegation comes to: its last run with the attempts that led to it, or `unavailable` when nothing could start. */
+export type RunOutcome = (RunResult & EscalationReport) | UnavailableResult
 
 /**
  * Where a run works, and how it leaves: in the repository itself when the
@@ -139,15 +148,22 @@ interface RunPermission {
  * of the client model. A run that is launched always leaves a run directory
  * and a ledger line, whether it succeeded or not.
  */
-export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
+export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
   private readonly clientRun: ClientRun
+  private readonly escalation: EscalatedRun
 
   constructor(private readonly deps: ModelGatewayDependencies) {
     this.clientRun = new ClientRun(deps)
+    this.escalation = new EscalatedRun(deps)
   }
 
-  async run(raw: unknown): Promise<RunResult> {
-    const input = readRunInput(raw)
+  /** One delegation: a run, retried, climbed and swapped as the escalation decides. */
+  run(raw: unknown): Promise<RunOutcome> {
+    return this.escalation.run(readRunInput(raw), (input, options) => this.runOnce(input, options))
+  }
+
+  /** One attempt: a single run of one client model, which the escalation wraps. */
+  async runOnce(input: RunInput, options: AttemptOptions = {}): Promise<RunResult> {
     this.refuseNested()
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
     const client = config.clients[input.client]
@@ -164,6 +180,8 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     }
     const root = input.repo === undefined ? undefined : await this.repositoryRoot(input.repo)
     const allowed = await this.permission(input, config, family)
+    const blocked = await options.startCheck?.(input)
+    if (blocked !== undefined) throw new CannotStartError(blocked)
     const throwaway = isWriting(input) ? false : await this.needsThrowaway(input, entry)
     await this.joinWorkflow(input.workflow)
     const startedAt = this.deps.clock.now()
@@ -191,7 +209,8 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
       throw error
     }
     const warning = await this.release(workplace)
-    const released: RunResult = warning === undefined ? result : { ...result, cleanup_warning: warning }
+    const linked: RunResult = options.link === undefined ? result : { ...result, ...options.link }
+    const released: RunResult = warning === undefined ? linked : { ...linked, cleanup_warning: warning }
     await this.deps.ledger.append(this.ledgerRecord(released, allowed.repository, startedMs))
     const warnings = warningsOf(
       input.client,
@@ -236,6 +255,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const cost = priceRun(output.charged, output.tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
     await this.deps.files.writeText(outputPath, launched.result.stdout)
+    if (launched.result.stderr !== '') await this.deps.files.writeText(join(runDir, 'stderr.txt'), launched.result.stderr)
     const result: RunResult = {
       client: input.client,
       cost_usd: cost,
@@ -557,6 +577,8 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
       tokens: result.tokens,
       workflow: result.workflow,
       ...(result.reason === undefined ? {} : { reason: result.reason }),
+      ...(result.attempt === undefined ? {} : { attempt: result.attempt }),
+      ...(result.attempt_of === undefined ? {} : { attempt_of: result.attempt_of }),
     }
   }
 }

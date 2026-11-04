@@ -1,5 +1,5 @@
 import { ModelsCommand, type ModelsInput, type ModelsResult } from './models.js'
-import { RunCommand, type RunResult } from './run.js'
+import { RunCommand, type RunOutcome } from './run.js'
 import { UsageCommand } from './usage.js'
 import { WorktreesCleanCommand, type WorktreesCleanResult } from './worktrees.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
@@ -15,7 +15,7 @@ import {
 /** The gateway's commands. */
 export interface ModelGatewayCommands {
   readonly models: ModelGatewayCommand<ModelsInput, ModelsResult>
-  readonly run: ModelGatewayCommand<unknown, RunResult>
+  readonly run: ModelGatewayCommand<unknown, RunOutcome>
   readonly usage: ModelGatewayCommand<unknown, UsageResult>
   readonly worktreesClean: ModelGatewayCommand<unknown, WorktreesCleanResult>
   readonly workflowStart: ModelGatewayCommand<unknown, WorkflowResult>
