@@ -21,6 +21,7 @@ import {
   type RunMode,
   type RunTokens,
 } from '../domain/run.js'
+import { planWindows, warningsOf } from '../domain/usage.js'
 import { loadConfig } from './config.js'
 import { messageOf } from './json-file.js'
 import { overridePath, runsDir } from './locations.js'
@@ -64,8 +65,10 @@ export interface RunResult {
   readonly output_path: string
   /** The delegate's own summary, cut at `summary_max_chars`. */
   readonly summary: string
-  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>` or `launch-failed`. */
+  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`, `rate-limited`, `auth` or `launch-failed`. */
   readonly reason?: string
+  /** One line per plan window of this client at or above the warning ratio. */
+  readonly warnings?: readonly string[]
 }
 
 /** Where one launch reads its prompt and writes what Vibe exports. */
@@ -120,7 +123,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
     const launched = await this.launch(client.binary, input, paths)
     const exported = await this.readExport(join(paths.exportDir, 'export.json'))
     const answer = finalAnswerOf(launched.result.stdout)
-    const reason = launched.failure ?? runFailureReason(launched.result, answer)
+    const reason = launched.failure ?? runFailureReason(launched.result, answer, exported)
     const tokens = runTokens(exported)
     const cost = runCost(exported, tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
@@ -139,9 +142,14 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunResult> {
       workflow: input.workflow,
       ...(reason === undefined ? {} : { reason }),
     }
-    await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`)
     await this.deps.ledger.append(this.ledgerRecord(result, allowed.repository, startedMs))
-    return result
+    const warnings = warningsOf(
+      input.client,
+      planWindows(input.client, client.plan_limits ?? [], await this.deps.ledger.read(), this.deps.clock.now(), config.settings.plan_warning_ratio),
+    )
+    const reported: RunResult = warnings.length === 0 ? result : { ...result, warnings }
+    await this.deps.files.writeText(join(runDir, 'result.json'), `${JSON.stringify(reported, null, 2)}\n`)
+    return reported
   }
 
   /** A delegate may not delegate on: the mark is in its environment, so this call came from inside one. */

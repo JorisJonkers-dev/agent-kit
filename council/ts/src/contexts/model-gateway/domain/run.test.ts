@@ -163,10 +163,10 @@ describe('the tokens and the dollars a run used', () => {
 
 describe('runFailureReason', () => {
   it('names a timeout, an exit code, or an answer it could not read', () => {
-    expect(runFailureReason({ exitCode: 124, timedOut: true }, 'text')).toBe('timeout')
-    expect(runFailureReason({ exitCode: 3 }, 'text')).toBe('exit-3')
-    expect(runFailureReason({ exitCode: 0 }, undefined)).toBe('parse-error')
-    expect(runFailureReason({ exitCode: 0 }, 'text')).toBeUndefined()
+    expect(runFailureReason({ exitCode: 124, timedOut: true }, 'text', undefined)).toBe('timeout')
+    expect(runFailureReason({ exitCode: 3 }, 'text', undefined)).toBe('exit-3')
+    expect(runFailureReason({ exitCode: 0 }, undefined, undefined)).toBe('parse-error')
+    expect(runFailureReason({ exitCode: 0 }, 'text', undefined)).toBeUndefined()
   })
 })
 

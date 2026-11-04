@@ -23,6 +23,18 @@ export type Tier = (typeof TIERS)[number]
 export const MODEL_SOURCES = ['live', 'config', 'declared'] as const
 export type ModelSource = (typeof MODEL_SOURCES)[number]
 
+/** The spans a plan limit may name; each reaches back from now. */
+export const PLAN_WINDOWS = ['5h', 'day', 'week', 'month'] as const
+export type PlanWindow = (typeof PLAN_WINDOWS)[number]
+
+/**
+ * One window of a client's plan: the dollars it allows in that window, or the
+ * runs it allows, never both. A plan that is not billed in dollars names runs.
+ */
+export type PlanLimit =
+  | { readonly window: PlanWindow; readonly limit_usd: number }
+  | { readonly window: PlanWindow; readonly limit_runs: number }
+
 /** One client on this machine. */
 export interface ClientConfig {
   /** The program that runs it, as it is named on PATH. */
@@ -36,6 +48,11 @@ export interface ClientConfig {
    * undefined when the client's own cost class covers every model it lists.
    */
   readonly provider_cost_classes: Readonly<Record<string, CostClass>> | undefined
+  /**
+   * What the client's plan allows, window by window; undefined when the owner
+   * has set none, which leaves the client unwatched.
+   */
+  readonly plan_limits?: readonly PlanLimit[]
 }
 
 /** One model a client offers, as the declared list describes it. */
@@ -179,7 +196,9 @@ function mergeClients(base: Readonly<Record<string, ClientConfig>>, raw: unknown
 /**
  * One client, every field it does not name taken from `base`; a new client
  * must name all three. `provider_cost_classes` merges key by key, so an
- * override that names one provider keeps the cost class of the others.
+ * override that names one provider keeps the cost class of the others;
+ * `plan_limits` replaces the list, so an override that names one window
+ * replaces the client's whole plan.
  */
 function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined): ClientConfig {
   const where = `clients.${id}`
@@ -195,10 +214,41 @@ function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined
           ...base?.provider_cost_classes,
           ...parseProviderCostClasses(raw.provider_cost_classes, `${where}.provider_cost_classes`),
         }
+  const planLimits = raw.plan_limits === undefined ? base?.plan_limits : parsePlanLimits(raw.plan_limits, `${where}.plan_limits`)
   if (binary === undefined || costClass === undefined || modelSource === undefined) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`)
   }
-  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses }
+  return {
+    binary,
+    cost_class: costClass,
+    families,
+    model_source: modelSource,
+    provider_cost_classes: providerCostClasses,
+    ...(planLimits === undefined ? {} : { plan_limits: planLimits }),
+  }
+}
+
+/** The windows of a client's plan, each naming its span and either its dollars or its runs. */
+function parsePlanLimits(raw: unknown, where: string): readonly PlanLimit[] {
+  if (!Array.isArray(raw)) throw invalid(`${where} must be a list of windows`)
+  return raw.map((value, index) => {
+    const at = `${where}[${String(index)}]`
+    if (!isObject(value)) throw invalid(`${at} must be an object`)
+    const window = requireOneOf(value.window, PLAN_WINDOWS, `${at}.window`)
+    const dollars = value.limit_usd
+    const runs = value.limit_runs
+    if ((dollars === undefined) === (runs === undefined)) {
+      throw invalid(`${at} must name exactly one of limit_usd and limit_runs`)
+    }
+    if (dollars !== undefined) {
+      const limit = requireNumber(dollars, `${at}.limit_usd`)
+      if (limit <= 0) throw invalid(`${at}.limit_usd must be above 0`)
+      return { limit_usd: limit, window }
+    }
+    const limit = requireNumber(runs, `${at}.limit_runs`)
+    if (!Number.isInteger(limit) || limit <= 0) throw invalid(`${at}.limit_runs must be a whole number above 0`)
+    return { limit_runs: limit, window }
+  })
 }
 
 /** The cost class of each provider a client's models run on, by provider name. */

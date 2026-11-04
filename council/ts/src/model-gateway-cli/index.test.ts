@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { LedgerRecord } from '../contexts/model-gateway/index.js'
 import type { ProcessCommand, ProcessResult } from '../ports/index.js'
 import type { GitRemote } from '../shared-kernel/index.js'
 import {
@@ -11,6 +12,7 @@ import {
   FakeGit,
   FakeProcess,
   FakeVibeProcess,
+  FixedClock,
   type FakeRepository,
   type VibeScript,
 } from '../../test/model-gateway/harness.js'
@@ -77,12 +79,15 @@ interface Workspace {
   readonly defaults: string
   readonly override: string
   readonly allowlist: string
+  /** The machine-wide ledger, in this workspace's state directory. */
+  readonly ledger: string
   readonly asked: readonly string[]
   readonly ran: readonly ProcessCommand[]
   run(...argv: string[]): Promise<ModelGatewayCliResult>
   writeAllowlist(value: unknown): Promise<void>
   writeDefaults(text: string): Promise<void>
   writeInput(name: string, text: string): Promise<string>
+  writeLedger(records: readonly LedgerRecord[]): Promise<void>
   writeOverride(value: unknown): Promise<void>
   writeVibeConfig(text: string): Promise<string>
 }
@@ -104,17 +109,20 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
   await writeFile(defaults, await readFile(SHIPPED_DEFAULTS, 'utf8'))
   const process = new FakeProcess(options.installed ?? ['claude', 'codex'], options.listings ?? {})
   const runtime = defaultModelGatewayRuntime({
+    clock: new FixedClock(),
     defaultsPath: defaults,
     env: new FakeEnv(options.withoutHome === true ? { ...options.env } : { HOME: home, ...options.env }),
     git: new FakeGit(options.repositories ?? {}),
     process,
   })
+  const ledger = join(home, '.local', 'state', 'agent-kit', 'model-gateway', 'ledger.jsonl')
   return {
     allowlist: join(home, '.config', 'agent-kit', 'critique-allowlist.json'),
     asked: process.asked,
     defaults,
     dir,
     home,
+    ledger,
     override: join(home, '.config', 'agent-kit', 'model-gateway.json'),
     ran: process.ran,
     run: (...argv) => runModelGatewayCli(argv, runtime),
@@ -127,6 +135,10 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
       const path = join(dir, name)
       await writeFile(path, text)
       return path
+    },
+    writeLedger: async (records) => {
+      await mkdir(dirname(ledger), { recursive: true })
+      await writeFile(ledger, records.map((record) => `${JSON.stringify(record)}\n`).join(''))
     },
     writeOverride: async (value) => {
       await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
@@ -649,7 +661,7 @@ describe('model-gateway command line', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe(
-      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models and run' })}\n`,
+      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run and usage' })}\n`,
     )
   })
 
@@ -1232,6 +1244,7 @@ interface RunWorkspace {
   input(overrides?: Readonly<Record<string, unknown>>): unknown
   run(input: unknown): Promise<ModelGatewayCliResult>
   writeAllowlist(value: unknown): Promise<void>
+  writeLedger(records: readonly LedgerRecord[]): Promise<void>
   writeOverride(value: unknown): Promise<void>
   writeRoutingOverride(value: unknown): Promise<void>
   writeSetup(value: unknown): Promise<void>
@@ -1270,6 +1283,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], root: repo },
   }
   const runtime = defaultModelGatewayRuntime({
+    clock: new FixedClock(),
     defaultsPath: defaults,
     env: new FakeEnv({ HOME: home, XDG_STATE_HOME: state, ...options.env }),
     git: new FakeGit(repositories),
@@ -1298,6 +1312,11 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     state,
     vibe,
     writeAllowlist: (value) => write(join(home, '.config', 'agent-kit', 'critique-allowlist.json'), value),
+    writeLedger: async (records) => {
+      const path = join(state, 'agent-kit', 'model-gateway', 'ledger.jsonl')
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, records.map((record) => `${JSON.stringify(record)}\n`).join(''))
+    },
     writeOverride: (value) => write(join(home, '.config', 'agent-kit', 'model-gateway.json'), value),
     writeRoutingOverride: (value) => write(join(home, '.config', 'agent-kit', 'critique-routing.json'), value),
     writeSetup: (value) => write(join(home, '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json'), value),
@@ -1781,5 +1800,501 @@ describe('model-gateway run: the nesting guard', () => {
       status: 'error',
     })
     expect(w.vibe.commands).toEqual([])
+  })
+})
+
+/** One ledger line, as a run of `client` at `at` left it. */
+function ledgerRecord(at: string, client: string, overrides: Partial<LedgerRecord> = {}): LedgerRecord {
+  return {
+    at,
+    client,
+    cost_usd: 0,
+    duration_s: 1,
+    family: 'mistral',
+    mode: 'read-only',
+    model: 'glm-5-3',
+    outcome: 'ok',
+    repository: null,
+    run_id: `${client}-${at}`,
+    tokens: { cached: 0, input: 0, output: 0 },
+    workflow: 'spec-293',
+    ...overrides,
+  }
+}
+
+/** One client's entry in a usage report. */
+function usageClient(result: ModelGatewayCliResult, id: string): Record<string, unknown> {
+  const clients = printed(result).clients as Record<string, unknown>[]
+  const found = clients.find((entry) => entry.client === id)
+  if (found === undefined) throw new Error(`${id} is not reported`)
+  return found
+}
+
+/** One client's availability in a usage report. */
+function availability(result: ModelGatewayCliResult, id: string): Record<string, unknown> {
+  return usageClient(result, id).availability as Record<string, unknown>
+}
+
+/** One client's plan windows in a usage report. */
+function planLimits(result: ModelGatewayCliResult, id: string): Record<string, unknown>[] {
+  return usageClient(result, id).plan_limits as Record<string, unknown>[]
+}
+
+/** The clients a usage report named, in the order it printed them. */
+function usageClients(result: ModelGatewayCliResult): string[] {
+  return (printed(result).clients as { client: string }[]).map((entry) => entry.client)
+}
+
+/** What a client's own status command answers, as the fake process plays it. */
+function status(stdout: string, exitCode = 0, stderr = ''): ProcessResult {
+  return { exitCode, stderr, stdout }
+}
+
+describe('model-gateway usage: availability', () => {
+  it('reports every client it knows, with what it found out about each', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toBe('')
+    expect(printed(result)).toMatchObject({ days: 7, status: 'ok' })
+    expect(usageClients(result)).toEqual(['agy', 'claude', 'codex', 'hermes', 'opencode', 'vibe'])
+    expect(usageClient(result, 'vibe')).toEqual({
+      availability: {
+        installed: true,
+        reason: 'vibe has no status command, so the gateway cannot tell whether it is signed in',
+        signed_in: 'unknown',
+        status: 'available',
+      },
+      by_day: [],
+      by_workflow: [],
+      client: 'vibe',
+      cost_class: 'subsidised',
+      plan_limits: [],
+      quota: { reason: 'vibe has no status command, so the gateway cannot read its quota', status: 'unknown' },
+      usage: { cost_usd: 0, runs: 0, tokens: { cached: 0, input: 0, output: 0 } },
+      warnings: [],
+    })
+  })
+
+  it('reports a client that is not installed as unavailable, and asks it nothing', async () => {
+    const w = await workspace({ installed: ['codex'], listings: { codex: status('Logged in using ChatGPT\n') } })
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'vibe').availability).toEqual({
+      installed: false,
+      reason: 'not installed: vibe is not on PATH',
+      signed_in: 'unknown',
+      status: 'unavailable',
+    })
+    expect(w.ran.map((command) => command.command)).toEqual(['codex'])
+  })
+
+  it('reads availability from each client’s own status command', async () => {
+    const w = await workspace({
+      installed: ['codex', 'hermes', 'opencode'],
+      listings: {
+        codex: status('Logged in using ChatGPT\n'),
+        hermes: status('copilot (1 credentials):\n  #1  gh auth token\n'),
+        opencode: status('OpenCode Console  Personal  stored\n'),
+      },
+    })
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'codex').availability).toEqual({
+      installed: true,
+      reason: 'codex login status: Logged in using ChatGPT',
+      signed_in: 'yes',
+      status: 'available',
+    })
+    expect(usageClient(result, 'hermes').availability).toEqual({
+      installed: true,
+      reason: 'hermes auth list: it lists credentials',
+      signed_in: 'yes',
+      status: 'available',
+    })
+    expect(usageClient(result, 'opencode').availability).toEqual({
+      installed: true,
+      reason: 'opencode auth list: it lists credentials',
+      signed_in: 'yes',
+      status: 'available',
+    })
+    expect(w.ran.map((command) => [command.command, ...command.args].join(' '))).toEqual([
+      'codex login status',
+      'hermes auth list',
+      'opencode auth list',
+    ])
+  })
+
+  it('reports a client whose status command says it is signed out as unavailable', async () => {
+    const w = await workspace({
+      installed: ['codex', 'hermes', 'opencode'],
+      listings: {
+        codex: status('', 1, 'Not logged in\n'),
+        hermes: status('\n'),
+        opencode: status('', 2, 'unknown command\n'),
+      },
+    })
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'codex').availability).toEqual({
+      installed: true,
+      reason: 'codex login status: Not logged in',
+      signed_in: 'no',
+      status: 'unavailable',
+    })
+    expect(usageClient(result, 'hermes').availability).toMatchObject({
+      reason: 'hermes auth list: it lists no credentials',
+      signed_in: 'no',
+      status: 'unavailable',
+    })
+    expect(usageClient(result, 'opencode').availability).toEqual({
+      installed: true,
+      reason: 'opencode auth list: could not be read: exited 2: unknown command',
+      signed_in: 'unknown',
+      status: 'available',
+    })
+  })
+
+  it('reports a client whose status command cannot be run as unknown, not signed out', async () => {
+    const w = await workspace({ installed: ['codex', 'hermes', 'opencode'] })
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'codex').availability).toEqual({
+      installed: true,
+      reason: 'codex login status: could not be read: cannot run codex',
+      signed_in: 'unknown',
+      status: 'available',
+    })
+    expect(usageClient(result, 'hermes').availability).toMatchObject({ signed_in: 'unknown', status: 'available' })
+    expect(usageClient(result, 'opencode').availability).toMatchObject({ signed_in: 'unknown', status: 'available' })
+  })
+
+  it('reports a client rate-limited in the last hour as unavailable, unless a later run succeeded', async () => {
+    const limited = await workspace({ installed: ['vibe'] })
+    await limited.writeLedger([ledgerRecord('2026-11-04T10:40:00.000Z', 'vibe', { outcome: 'failed', reason: 'rate-limited' })])
+
+    expect(usageClient(await limited.run('usage', '--json', '{}'), 'vibe').availability).toEqual({
+      installed: true,
+      reason: 'rate-limited at 2026-11-04T10:40:00.000Z, with no later run of it that succeeded',
+      signed_in: 'unknown',
+      status: 'unavailable',
+    })
+
+    const recovered = await workspace({ installed: ['vibe'] })
+    await recovered.writeLedger([
+      ledgerRecord('2026-11-04T10:40:00.000Z', 'vibe', { outcome: 'failed', reason: 'rate-limited' }),
+      ledgerRecord('2026-11-04T10:45:00.000Z', 'vibe'),
+    ])
+
+    expect(availability(await recovered.run('usage', '--json', '{}'), 'vibe').status).toBe('available')
+  })
+
+  it('ignores an error older than the availability window, and takes the window from the machine override', async () => {
+    const old = await workspace({ installed: ['vibe'] })
+    await old.writeLedger([ledgerRecord('2026-11-04T08:00:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' })])
+
+    expect(availability(await old.run('usage', '--json', '{}'), 'vibe').status).toBe('available')
+
+    const wide = await workspace({ installed: ['vibe'] })
+    await wide.writeOverride({ settings: { availability_window_minutes: 180 } })
+    await wide.writeLedger([ledgerRecord('2026-11-04T08:00:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' })])
+
+    expect(usageClient(await wide.run('usage', '--json', '{}'), 'vibe').availability).toMatchObject({
+      reason: 'auth at 2026-11-04T08:00:00.000Z, with no later run of it that succeeded',
+      status: 'unavailable',
+    })
+  })
+
+  it('gives every status command a five second limit, and reads a timeout as unknown', async () => {
+    const w = await workspace({
+      installed: ['codex', 'hermes', 'opencode'],
+      listings: {
+        codex: { exitCode: 124, stderr: '', stdout: '', timedOut: true },
+        hermes: status('copilot (1 credentials):\n'),
+        opencode: status('OpenCode Console  Personal  stored\n'),
+      },
+    })
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'codex').availability).toEqual({
+      installed: true,
+      reason: 'codex login status: status command did not answer in time',
+      signed_in: 'unknown',
+      status: 'available',
+    })
+    expect(w.ran.map((command) => command.timeoutMs)).toEqual([5000, 5000, 5000])
+  })
+
+  it('shows a client’s own quota as unknown, never zero', async () => {
+    const w = await workspace({ installed: ['codex'], listings: { codex: status('Logged in using ChatGPT\n') } })
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'codex').quota).toEqual({ reason: 'codex login status reports no quota', status: 'unknown' })
+  })
+})
+
+describe('model-gateway usage: the ledger', () => {
+  it('counts each client’s runs, tokens and dollars by day and by workflow', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeLedger([
+      ledgerRecord('2026-11-03T09:00:00.000Z', 'vibe', { cost_usd: 0.25, tokens: { cached: 0, input: 100, output: 10 } }),
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.5, tokens: { cached: 5, input: 200, output: 20 } }),
+      ledgerRecord('2026-11-04T10:00:00.000Z', 'vibe', { cost_usd: 0.125, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' }),
+      ledgerRecord('2026-11-04T10:00:00.000Z', 'codex', { cost_usd: 9, tokens: { cached: 0, input: 1, output: 1 } }),
+    ])
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'vibe').usage).toEqual({ cost_usd: 0.875, runs: 3, tokens: { cached: 5, input: 350, output: 35 } })
+    expect(usageClient(result, 'vibe').by_day).toEqual([
+      { cost_usd: 0.25, day: '2026-11-03', runs: 1, tokens: { cached: 0, input: 100, output: 10 } },
+      { cost_usd: 0.625, day: '2026-11-04', runs: 2, tokens: { cached: 5, input: 250, output: 25 } },
+    ])
+    expect(usageClient(result, 'vibe').by_workflow).toEqual([
+      { cost_usd: 0.125, runs: 1, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' },
+      { cost_usd: 0.75, runs: 2, tokens: { cached: 5, input: 300, output: 30 }, workflow: 'spec-293' },
+    ])
+    expect(usageClient(result, 'codex').usage).toEqual({ cost_usd: 9, runs: 1, tokens: { cached: 0, input: 1, output: 1 } })
+  })
+
+  it('narrows the usage to one workflow when the caller names one', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.5, tokens: { cached: 0, input: 200, output: 20 } }),
+      ledgerRecord('2026-11-04T10:00:00.000Z', 'vibe', { cost_usd: 0.125, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' }),
+    ])
+
+    const result = await w.run('usage', '--json', JSON.stringify({ workflow: 'review' }))
+
+    expect(printed(result)).toMatchObject({ workflow: 'review' })
+    expect(usageClient(result, 'vibe').usage).toEqual({ cost_usd: 0.125, runs: 1, tokens: { cached: 0, input: 50, output: 5 } })
+    expect(usageClient(result, 'vibe').by_workflow).toEqual([
+      { cost_usd: 0.125, runs: 1, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' },
+    ])
+  })
+
+  it('covers the last days days, ending today', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeLedger([
+      ledgerRecord('2026-10-28T09:00:00.000Z', 'vibe', { cost_usd: 1 }),
+      ledgerRecord('2026-10-29T00:00:00.000Z', 'vibe', { cost_usd: 2 }),
+    ])
+
+    expect(usageClient(await w.run('usage', '--json', '{}'), 'vibe').usage).toEqual({
+      cost_usd: 2,
+      runs: 1,
+      tokens: { cached: 0, input: 0, output: 0 },
+    })
+    expect(usageClient(await w.run('usage', '--json', JSON.stringify({ days: 30 })), 'vibe').usage).toEqual({
+      cost_usd: 3,
+      runs: 2,
+      tokens: { cached: 0, input: 0, output: 0 },
+    })
+  })
+
+  it('refuses days that is not a whole number above 0, and a workflow that is not a name', async () => {
+    const w = await workspace()
+
+    expect(printed(await w.run('usage', '--json', JSON.stringify({ days: 0 })))).toMatchObject({ code: 'invalid-input', status: 'error' })
+    expect(printed(await w.run('usage', '--json', JSON.stringify({ days: 1.5 })))).toMatchObject({ code: 'invalid-input', status: 'error' })
+    expect(printed(await w.run('usage', '--json', JSON.stringify({ workflow: '' })))).toMatchObject({ code: 'invalid-input', status: 'error' })
+  })
+})
+
+describe('model-gateway usage: plan limits', () => {
+  /** The owner's OpenCode Go plan, as the machine file carries it. */
+  const OPENCODE_GO = [
+    { limit_usd: 12, window: '5h' },
+    { limit_usd: 30, window: 'week' },
+    { limit_usd: 60, window: 'month' },
+  ]
+
+  it('watches each window of a plan limit, and warns at the warning ratio', async () => {
+    const w = await workspace({ installed: ['opencode'] })
+    await w.writeOverride({ clients: { opencode: { plan_limits: OPENCODE_GO } } })
+    await w.writeLedger([
+      ledgerRecord('2026-11-02T10:00:00.000Z', 'opencode', { cost_usd: 25 }),
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'opencode', { cost_usd: 3 }),
+    ])
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'opencode').plan_limits).toEqual([
+      { limit_usd: 12, ratio: 0.25, spent_usd: 3, state: 'ok', window: '5h' },
+      { limit_usd: 30, ratio: 0.9333, spent_usd: 28, state: 'warning', window: 'week' },
+      { limit_usd: 60, ratio: 0.4667, spent_usd: 28, state: 'ok', window: 'month' },
+    ])
+    expect(usageClient(result, 'opencode').warnings).toEqual(['opencode has used 93% of its week plan limit ($28.00 of $30.00)'])
+    expect(availability(result, 'opencode').status).toBe('available')
+  })
+
+  it('reports a client at 100% of a window as unable to start', async () => {
+    const w = await workspace({ installed: ['opencode'] })
+    await w.writeOverride({ clients: { opencode: { plan_limits: OPENCODE_GO } } })
+    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'opencode', { cost_usd: 12 })])
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'opencode').availability).toEqual({
+      installed: true,
+      reason: 'at 100% of its 5h plan limit ($12.00 of $12.00)',
+      signed_in: 'unknown',
+      status: 'unable_to_start',
+    })
+    expect(planLimits(result, 'opencode')[0]).toEqual({
+      limit_usd: 12,
+      ratio: 1,
+      spent_usd: 12,
+      state: 'exhausted',
+      window: '5h',    })
+  })
+
+  it('counts a window’s runs when the plan limit names runs instead of dollars', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeOverride({ clients: { vibe: { plan_limits: [{ limit_runs: 10, window: 'day' }] } } })
+    await w.writeLedger(Array.from({ length: 9 }, (_, index) => ledgerRecord(`2026-11-04T0${String(index)}:00:00.000Z`, 'vibe')))
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'vibe').plan_limits).toEqual([{ limit_runs: 10, ratio: 0.9, runs: 9, state: 'warning', window: 'day' }])
+    expect(usageClient(result, 'vibe').warnings).toEqual(['vibe has used 90% of its day plan limit (9 of 10 runs)'])
+  })
+
+  it('leaves a client without plan limits unwatched', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 100 })])
+
+    const result = await w.run('usage', '--json', '{}')
+
+    expect(usageClient(result, 'vibe').plan_limits).toEqual([])
+    expect(usageClient(result, 'vibe').warnings).toEqual([])
+  })
+
+  it('refuses a plan limit it cannot read, naming what is wrong with it', async () => {
+    const cases: readonly unknown[] = [
+      {},
+      [5],
+      [{ limit_usd: 5, window: 'fortnight' }],
+      [{ limit_runs: 5, limit_usd: 5, window: 'day' }],
+      [{ window: 'day' }],
+      [{ limit_usd: 0, window: 'day' }],
+      [{ limit_runs: 1.5, window: 'day' }],
+    ]
+    for (const planLimits of cases) {
+      const w = await workspace()
+      await w.writeOverride({ clients: { vibe: { plan_limits: planLimits } } })
+
+      expect(printed(await w.run('usage', '--json', '{}'))).toMatchObject({ code: 'invalid-config', status: 'error' })
+    }
+  })
+})
+
+describe('model-gateway run: a client that refuses', () => {
+  it('records a rate-limited run’s reason, so availability can see it', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, stderr: '429 Too Many Requests', stdout: '' }] })
+
+    const result = await w.run(w.input())
+
+    expect(printed(result)).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'rate-limited' })
+  })
+
+  it('records an auth failure’s reason', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, stderr: 'Not logged in. Run `vibe login`.', stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'auth', status: 'failed' })
+  })
+
+  it('reads the exit code when the client says nothing', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 429, stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+  })
+})
+
+describe('model-gateway run: what refused it', () => {
+  it('does not read a refusal out of the delegate’s own answer', async () => {
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, stdout: journal('the log says rate limit exceeded, 429, 401 and 4.429'), stderr: '' }],
+    })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'exit-1', status: 'failed' })
+  })
+
+  it('reads a rate limit from the client’s own error text', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, stderr: 'Error: rate limit exceeded, retry later', stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+  })
+
+  it('reads a rate limit from the HTTP status of the client’s structured error', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { error: { message: 'nope', status: 429 } }, stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+  })
+
+  it('reads a rate limit from the stop reason the client exported', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { stop_reason: 'rate_limited' }, stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+  })
+
+  it('reads a refused credential from the error result the client exported', async () => {
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, exportJson: { is_error: true, result: 'unauthorized: invalid api key' }, stdout: '' }],
+    })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'auth', status: 'failed' })
+  })
+
+  it('reads a rate limit from the HTTP status the client exported beside no error', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { status: 429 }, stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+  })
+
+  it('reads a rate limit from the error text the client exported', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { error: 'rate limit exceeded' }, stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+  })
+
+  it('falls back to the exit code when the export carries no error', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { session_id: 'abc' }, stdout: '' }] })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'exit-1', status: 'failed' })
+  })
+
+  it('ignores a status that is not a whole number', async () => {
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, exportJson: { error: { message: 'boom', status: 'nope' } }, stdout: '' }],
+    })
+
+    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'exit-1', status: 'failed' })
+  })
+})
+
+describe('model-gateway run: the plan limit', () => {
+  it('warns in the result when the client is near its plan limit', async () => {
+    const w = await readyRun({ override: { clients: { vibe: { plan_limits: [{ limit_usd: 1, window: 'day' }] } } } })
+    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.9 })])
+
+    const result = await w.run(w.input())
+
+    expect(printed(result).warnings).toEqual(['vibe has used 91% of its day plan limit ($0.91 of $1.00)'])
+  })
+
+  it('leaves the warning out when the client has no plan limit', async () => {
+    const w = await readyRun()
+
+    expect(printed(await w.run(w.input()))).not.toHaveProperty('warnings')
   })
 })

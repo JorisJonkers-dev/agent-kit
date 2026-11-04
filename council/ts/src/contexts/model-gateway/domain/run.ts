@@ -1,4 +1,4 @@
-import { isObject, ModelGatewayError, type ModelPrices } from './config.js'
+import { isObject, ModelGatewayError, type JsonObject, type ModelPrices } from './config.js'
 
 /** The one mode this ticket runs; writing runs are #299's. */
 export type RunMode = 'read-only'
@@ -172,11 +172,87 @@ export function runCost(exported: unknown, tokens: RunTokens, prices: ModelPrice
   return (uncached * prices.input + tokens.cached * prices.cached_input + tokens.output * prices.output) / 1_000_000
 }
 
-/** Why a run failed: a slug the result's `reason` and the ledger's outcome carry. */
-export function runFailureReason(launch: { exitCode: number; timedOut?: boolean }, answer: string | undefined): string | undefined {
+/**
+ * Why a run failed: a slug the result's `reason` and the ledger's outcome
+ * carry. A client that says it was rate-limited or refused the credentials
+ * gets that slug rather than its exit code, so availability can find it in the
+ * ledger afterwards.
+ *
+ * The slug is read from the client's own error channel only: its stderr, the
+ * error its structured output carries, and its exit code. Never from the
+ * delegate's answer, which is the model's text and may quote any of these
+ * words without meaning them.
+ */
+export function runFailureReason(
+  launch: { exitCode: number; timedOut?: boolean; stderr?: string },
+  answer: string | undefined,
+  exported: unknown,
+): string | undefined {
   if (launch.timedOut === true) return 'timeout'
-  if (launch.exitCode !== 0) return `exit-${String(launch.exitCode)}`
+  if (launch.exitCode !== 0) return refusalOf(launch, exported) ?? `exit-${String(launch.exitCode)}`
   if (answer === undefined) return 'parse-error'
+  return undefined
+}
+
+/** What a client's own error channel says refused the run, when it says so. */
+function refusalOf(launch: { exitCode: number; stderr?: string }, exported: unknown): 'rate-limited' | 'auth' | undefined {
+  const error = structuredError(exported)
+  const said = `${launch.stderr ?? ''}\n${error?.text ?? ''}`
+  if (RATE_LIMITED.test(said) || error?.status === 429 || launch.exitCode === 429) return 'rate-limited'
+  if (
+    REFUSED_CREDENTIALS.test(said) ||
+    error?.status === 401 ||
+    error?.status === 403 ||
+    launch.exitCode === 401 ||
+    launch.exitCode === 403
+  ) {
+    return 'auth'
+  }
+  return undefined
+}
+
+/** What a client prints when it is out of allowance for now. */
+const RATE_LIMITED = /rate.?limit|too many requests|quota exceeded/i
+
+/** What a client prints when it will not run without a login or a valid key. */
+const REFUSED_CREDENTIALS = /unauthori[sz]ed|unauthenticated|not logged in|log ?in required|invalid api key|authentication failed|forbidden/i
+
+/** The error a client's own structured output carries: its text, and the HTTP status where it names one. */
+interface ClientError {
+  readonly text: string
+  readonly status?: number
+}
+
+/**
+ * The error a client's structured output carries, as text the refusal
+ * patterns can read: Vibe's `error` or `stop_reason`, an OpenCode `error`
+ * event, Claude's `is_error` result, and Antigravity's `error` field. A
+ * client that reports no error has none.
+ */
+function structuredError(exported: unknown): ClientError | undefined {
+  if (!isObject(exported)) return undefined
+  const parts: string[] = []
+  const error = exported.error
+  let status: number | undefined
+  if (typeof error === 'string') parts.push(error)
+  else if (isObject(error)) {
+    parts.push(...[error.message, error.type, error.code, error.name].filter((part): part is string => typeof part === 'string'))
+    status = httpStatus(error)
+  }
+  const stop = exported.stop_reason ?? exported.stopReason
+  if (typeof stop === 'string') parts.push(stop)
+  if ((exported.is_error === true || exported.isError === true) && typeof exported.result === 'string') parts.push(exported.result)
+  status ??= httpStatus(exported)
+  if (parts.length === 0 && status === undefined) return undefined
+  return { text: parts.join(' '), ...(status === undefined ? {} : { status }) }
+}
+
+/** The HTTP status an error object names, when it names one as a whole number. */
+function httpStatus(value: JsonObject): number | undefined {
+  for (const key of ['status', 'status_code', 'statusCode', 'code']) {
+    const found = value[key]
+    if (typeof found === 'number' && Number.isInteger(found)) return found
+  }
   return undefined
 }
 

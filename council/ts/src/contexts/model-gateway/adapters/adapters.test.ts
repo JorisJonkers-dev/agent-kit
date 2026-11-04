@@ -5,8 +5,9 @@ import { basename, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { FakeEnv } from '../../../../test/model-gateway/harness.js'
+import { FakeEnv, FakeProcess } from '../../../../test/model-gateway/harness.js'
 import type { LedgerRecord } from '../domain/ledger.js'
+import { CodexStatus } from './clients/status.js'
 import { NodeModelGatewayFiles } from './fs/index.js'
 import { NodeModelGatewayGit } from './git/index.js'
 import { NodeModelGatewayLedger, type LedgerLockTimings } from './ledger/index.js'
@@ -347,6 +348,48 @@ describe('NodeModelGatewayLedger', () => {
     const lines = (await readFile(path, 'utf8')).split('\n').filter((line) => line !== '')
     expect(lines).toHaveLength(ids.length)
     expect(lines.map((line) => (JSON.parse(line) as LedgerRecord).run_id).sort()).toEqual(ids)
+  })
+
+  it('reads every record back, oldest first', async () => {
+    const { ledger: writer } = await ledger()
+    await writer.append(record('one'))
+    await writer.append(record('two'))
+
+    expect((await writer.read()).map((entry) => entry.run_id)).toEqual(['one', 'two'])
+  })
+
+  it('reads no record from a ledger that is not there yet', async () => {
+    const { ledger: reader } = await ledger()
+
+    expect(await reader.read()).toEqual([])
+  })
+
+  it('skips a line a writer left half-written', async () => {
+    const { ledger: reader, path } = await ledger()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, `${JSON.stringify(record('one'))}\n{"run_id":`)
+
+    expect((await reader.read()).map((entry) => entry.run_id)).toEqual(['one'])
+  })
+
+  it('fails with the file system’s own error when the ledger cannot be read at all', async () => {
+    const { ledger: reader, path } = await ledger()
+    await mkdir(path, { recursive: true })
+
+    await expect(reader.read()).rejects.toThrow(/EISDIR|illegal operation/i)
+  })
+})
+
+describe('the clients’ own status commands', () => {
+  it('gives a status command the time limit it is handed, so a hung client cannot hang usage', async () => {
+    const process = new FakeProcess(['codex'], { codex: { exitCode: 0, stderr: '', stdout: 'Logged in using ChatGPT\n' } })
+
+    expect(await new CodexStatus(process, 50).read()).toEqual({
+      command: 'codex login status',
+      detail: 'Logged in using ChatGPT',
+      signed_in: 'yes',
+    })
+    expect(process.ran[0]?.timeoutMs).toBe(50)
   })
 })
 

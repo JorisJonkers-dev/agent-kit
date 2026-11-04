@@ -58,8 +58,49 @@
           "type": "object",
           "additionalProperties": { "enum": ["subsidised", "metered-personal", "metered-employer"] },
           "description": "The cost class of each provider a client's models run on, by provider name; a provider it does not name takes the client's own cost class."
+        },
+        "plan_limits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/plan_limit" },
+          "description": "What the client's plan allows, window by window. The shipped defaults carry none: the owner's own plans go in the machine file, which replaces this list whole."
         }
       }
+    },
+    "plan_limit": {
+      "type": "object",
+      "description": "One window of a client's plan: the dollars it allows in that window, or the runs it allows, never both. A window reaches back from now, so a $12 per 5 hours plan is watched over the last five hours.",
+      "oneOf": [
+        {
+          "required": ["window", "limit_usd"],
+          "additionalProperties": false,
+          "properties": {
+            "window": {
+              "enum": ["5h", "day", "week", "month"],
+              "description": "The span the limit covers, reaching back from now."
+            },
+            "limit_usd": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "The dollars the plan allows in this window; spend comes from the ledger."
+            }
+          }
+        },
+        {
+          "required": ["window", "limit_runs"],
+          "additionalProperties": false,
+          "properties": {
+            "window": {
+              "enum": ["5h", "day", "week", "month"],
+              "description": "The span the limit covers, reaching back from now."
+            },
+            "limit_runs": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The runs the plan allows in this window, for a plan that is not billed in dollars."
+            }
+          }
+        }
+      ]
     },
     "model": {
       "type": "object",
