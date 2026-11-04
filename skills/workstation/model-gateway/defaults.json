@@ -14,9 +14,9 @@
     {"client": "claude", "model": "claude-haiku-5-5",  "family": "anthropic", "tier": "routine",  "notes": "Fast and cheap; mechanical edits, summaries, lookups."},
     {"client": "codex",  "model": "gpt-5.5",           "family": "openai",    "tier": "frontier", "notes": "Strong implementation and review; metered on the nedap account, grant needed."},
     {"client": "vibe",   "model": "deepseek-v4-1-flash-1017", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; good at well-specified code changes and lint-like review."},
-    {"client": "vibe",   "model": "zai-glm-5-3",       "family": "zhipu",     "tier": "hard",     "notes": "Strong code review and integration reasoning."},
-    {"client": "vibe",   "model": "mistral-large-4-0", "family": "mistral",   "tier": "hard",     "notes": "Broad general model."},
-    {"client": "vibe",   "model": "mistral-small-latest", "family": "mistral", "tier": "trivial", "notes": "Very cheap; short summaries and classification."},
+    {"client": "vibe",   "model": "glm-5-3",           "names": ["zai-glm-5-3"],         "family": "zhipu",     "tier": "hard",     "notes": "Strong code review and integration reasoning."},
+    {"client": "vibe",   "model": "mistral-large-latest", "names": ["mistral-large-4-0"], "family": "mistral",   "tier": "hard",     "notes": "Broad general model."},
+    {"client": "vibe",   "model": "mistral-small-latest", "names": ["mistral-small-latest"], "family": "mistral", "tier": "trivial", "notes": "Very cheap; short summaries and classification."},
     {"client": "agy",    "model": "gemini-3.8-flash-high", "family": "google", "tier": "hard",    "notes": "Long context; reading large codebases and documents."}
   ],
   "settings": {

@@ -47,16 +47,16 @@ const OPENCODE_LISTING: ProcessResult = {
   ].join('\n'),
 }
 
-/** A Vibe configuration: three models, two of them in the shipped catalogue. */
+/** A Vibe configuration: three models, two of them in the shipped catalogue, declared with their aliases and names. */
 const VIBE_CONFIG = `[models.mistral-large-4-0]
 name = "mistral-large-4-0"
 provider = "mistral"
-alias = "mistral-large-4-0"
+alias = "mistral-large-latest"
 
 [models.zai-glm-5-3]
 name = "zai-glm-5-3"
 provider = "mistral"
-alias = "zai-glm-5-3"
+alias = "glm-5-3"
 
 [models.mistral-medium-4-1]
 name = "mistral-medium-4-1"
@@ -589,14 +589,16 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'zhipu',
-          model: 'zai-glm-5-3',
+          model: 'glm-5-3',
+          names: ['zai-glm-5-3'],
           notes: 'Strong code review and integration reasoning.',
           tier: 'hard',
         },
         {
           client: 'vibe',
           family: 'mistral',
-          model: 'mistral-large-4-0',
+          model: 'mistral-large-latest',
+          names: ['mistral-large-4-0'],
           notes: 'Broad general model.',
           tier: 'hard',
         },
@@ -604,6 +606,7 @@ describe('the shipped defaults', () => {
           client: 'vibe',
           family: 'mistral',
           model: 'mistral-small-latest',
+          names: ['mistral-small-latest'],
           notes: 'Very cheap; short summaries and classification.',
           tier: 'trivial',
         },
@@ -1000,19 +1003,43 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:mistral-large-4-0', 'vibe:mistral-medium-4-1', 'vibe:zai-glm-5-3'])
-    expect(model(result, 'vibe:zai-glm-5-3')).toEqual({
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-medium-4-1'])
+    expect(model(result, 'vibe:glm-5-3')).toEqual({
       client: 'vibe',
       cost_class: 'subsidised',
       family: 'zhipu',
       inline_only: true,
       may_send: { code: false, history: false },
-      model: 'zai-glm-5-3',
+      model: 'glm-5-3',
       notes: 'Strong code review and integration reasoning.',
       source: 'config',
       tier: 'hard',
     })
     expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({ family: 'mistral', notes: '', tier: null })
+  })
+
+  it('lists a model once, by its alias, when the catalogue knows it by the name its configuration gives it', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['vibe:glm-5-3'])
+    expect(model(result, 'vibe:glm-5-3')).toMatchObject({
+      family: 'zhipu',
+      notes: 'Strong code review and integration reasoning.',
+      tier: 'hard',
+    })
+  })
+
+  it('lists a model whose alias and name both miss the catalogue with no tier', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeVibeConfig('[models.new]\nname = "mistral-medium-4-1"\nprovider = "mistral"\nalias = "medium"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['vibe:medium'])
+    expect(model(result, 'vibe:medium')).toMatchObject({ family: 'mistral', notes: '', tier: null })
   })
 
   it('reads the configuration from VIBE_HOME when it is set', async () => {
@@ -1024,7 +1051,7 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:mistral-large-4-0', 'vibe:mistral-medium-4-1', 'vibe:zai-glm-5-3'])
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-medium-4-1'])
   })
 
   it('leaves the client out with the reason when it has no configuration, and still lists the others', async () => {

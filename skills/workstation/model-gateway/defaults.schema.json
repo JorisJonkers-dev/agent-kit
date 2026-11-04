@@ -73,6 +73,11 @@
           "type": "string",
           "minLength": 1
         },
+        "names": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "The model names the client's own configuration gives this model, where its listing names it by an alias; the model above is the alias the client accepts."
+        },
         "family": {
           "type": "string",
           "minLength": 1

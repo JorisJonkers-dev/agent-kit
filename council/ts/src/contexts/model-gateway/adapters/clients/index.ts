@@ -1,7 +1,7 @@
 import type { EnvPort, ProcessResult } from '../../../../ports/index.js'
 import { vibeConfigPath } from '../../application/locations.js'
 import type { ModelGatewayDependencies, ModelGatewayFilesPort, ModelGatewayProcessPort, ModelSourcePort } from '../../application/ports.js'
-import { parseAntigravityModels, parseOpenCodeModels, vibeModelAliases, type ClientListing } from '../../domain/models.js'
+import { parseAntigravityModels, parseOpenCodeModels, vibeModels, type ClientListing } from '../../domain/models.js'
 
 /**
  * Antigravity's own listing: `agy models` prints a `Fetching available
@@ -46,9 +46,10 @@ export class OpenCodeModelSource implements ModelSourcePort {
 
 /**
  * Vibe's own configuration: the models it declares in `config.toml`, listed by
- * the alias `vibe --model` accepts. A file that is not there, that cannot be
- * read as TOML, or whose home the environment does not name, leaves Vibe out
- * with the reason rather than taking the whole listing down.
+ * the alias `vibe --model` accepts, with the name the configuration gives
+ * each. A file that is not there, that cannot be read as TOML, or whose home
+ * the environment does not name, leaves Vibe out with the reason rather than
+ * taking the whole listing down.
  */
 export class VibeModelSource implements ModelSourcePort {
   constructor(
@@ -61,7 +62,7 @@ export class VibeModelSource implements ModelSourcePort {
     try {
       path = vibeConfigPath(this.env)
       if (!(await this.files.exists(path))) return { reason: `no configuration: ${path} is not there` }
-      return { models: vibeModelAliases(await this.files.readText(path)).map((model) => ({ model })) }
+      return { models: vibeModels(await this.files.readText(path)) }
     } catch (error) {
       return { reason: `configuration unreadable: ${path}: ${messageOf(error)}` }
     }

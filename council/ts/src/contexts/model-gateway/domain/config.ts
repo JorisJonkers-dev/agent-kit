@@ -42,6 +42,11 @@ export interface ClientConfig {
 export interface ModelEntry {
   readonly client: string
   readonly model: string
+  /**
+   * The names the client's own configuration gives this model, where `model`
+   * is the alias the client accepts; undefined when the model has no other name.
+   */
+  readonly names?: readonly string[]
   readonly family: string
   readonly tier: Tier
   readonly notes: string
@@ -118,8 +123,8 @@ export function parseDefaults(raw: unknown): GatewayConfig {
 
 /**
  * This machine's override merged over the defaults: a client field replaces
- * that field, a model entry matching `client` and `model` replaces its tier,
- * notes or family, a new model entry adds a declared model, a setting replaces
+ * that field, a model entry matching `client` and `model` (or one of its
+ * `names`) replaces its tier, notes or family, a new model entry adds a declared model, a setting replaces
  * that setting (deeply for the caps), and a `disabled` list replaces the list.
  */
 export function applyOverride(config: GatewayConfig, raw: unknown): GatewayConfig {
@@ -186,8 +191,9 @@ function mergeModels(base: readonly ModelEntry[], raw: unknown): readonly ModelE
     if (!isObject(value)) throw invalid(`models[${String(index)}] must be an object`)
     const client = requireString(value.client, `models[${String(index)}].client`)
     const model = requireString(value.model, `models[${String(index)}].model`)
-    const at = merged.findIndex((entry) => entry.client === client && entry.model === model)
-    const entry = parseModelEntry(value, index, at === -1 ? undefined : merged[at])
+    const at = merged.findIndex((entry) => entry.client === client && (entry.model === model || (entry.names ?? []).includes(model)))
+    const target = at === -1 ? undefined : merged[at]
+    const entry = parseModelEntry(target === undefined ? value : { ...value, model: target.model }, index, target)
     if (at === -1) merged.push(entry)
     else merged[at] = entry
   }
@@ -206,7 +212,8 @@ function parseModelEntry(raw: unknown, index: number, base: ModelEntry | undefin
   if (family === undefined || tier === undefined || notes === undefined) {
     throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`)
   }
-  return { client, family, model, notes, tier }
+  const names = raw.names === undefined ? base?.names : requireStrings(raw.names, `${where}.names`)
+  return names === undefined ? { client, family, model, notes, tier } : { client, family, model, names, notes, tier }
 }
 
 function mergeSettings(base: Settings, raw: unknown): Settings {

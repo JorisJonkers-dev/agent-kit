@@ -229,6 +229,38 @@ describe('applyOverride', () => {
     })
   })
 
+  it('reads the config names of a catalogue entry and keeps them when an override names the model without them', () => {
+    const base = parseDefaults({
+      ...defaults(),
+      models: [{ client: 'vibe', family: 'zhipu', model: 'glm-5-3', names: ['zai-glm-5-3'], notes: 'review', tier: 'hard' }],
+    })
+    const merged = applyOverride(base, { models: [{ client: 'vibe', model: 'glm-5-3', tier: 'frontier' }] })
+    const renamed = applyOverride(base, { models: [{ client: 'vibe', model: 'glm-5-3', names: ['zai-glm-6'] }] })
+
+    expect(base.models[0]?.names).toEqual(['zai-glm-5-3'])
+    expect(merged.models[0]).toMatchObject({ names: ['zai-glm-5-3'], tier: 'frontier' })
+    expect(renamed.models[0]?.names).toEqual(['zai-glm-6'])
+  })
+
+  it('rejects config names that are not a list of non-empty strings', () => {
+    expect(() => applyOverride(shipped(), { models: [{ client: 'claude', model: 'claude-sonnet-5-5', names: [''] }] })).toThrow(
+      'models[0].names must be a list of non-empty strings',
+    )
+  })
+
+  it('overrides the entry a model is named by one of its config names, keeping its alias', () => {
+    const base = parseDefaults({
+      ...defaults(),
+      models: [{ client: 'vibe', family: 'zhipu', model: 'glm-5-3', names: ['zai-glm-5-3'], notes: 'review', tier: 'hard' }],
+    })
+
+    const merged = applyOverride(base, { models: [{ client: 'vibe', model: 'zai-glm-5-3', tier: 'frontier' }] })
+
+    expect(merged.models).toEqual([
+      { client: 'vibe', family: 'zhipu', model: 'glm-5-3', names: ['zai-glm-5-3'], notes: 'review', tier: 'frontier' },
+    ])
+  })
+
   it('adds a declared model the defaults do not name', () => {
     const merged = applyOverride(shipped(), {
       models: [{ client: 'claude', family: 'anthropic', model: 'claude-opus-5-5', notes: 'frontier', tier: 'frontier' }],

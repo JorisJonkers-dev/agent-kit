@@ -7,7 +7,7 @@ import {
   modelKey,
   parseAntigravityModels,
   parseOpenCodeModels,
-  vibeModelAliases,
+  vibeModels,
   type ClientListing,
 } from './models.js'
 
@@ -31,8 +31,8 @@ function config(): GatewayConfig {
       { client: 'claude', family: 'anthropic', model: 'claude-sonnet-5-5', notes: 'general', tier: 'hard' },
       { client: 'claude', family: 'anthropic', model: 'claude-haiku-5-5', notes: 'cheap', tier: 'routine' },
       { client: 'codex', family: 'openai', model: 'gpt-5.5', notes: 'implementation', tier: 'frontier' },
-      { client: 'vibe', family: 'mistral', model: 'mistral-large-4-0', notes: 'broad', tier: 'hard' },
-      { client: 'vibe', family: 'zhipu', model: 'zai-glm-5-3', notes: 'review', tier: 'hard' },
+      { client: 'vibe', family: 'mistral', model: 'mistral-large-latest', names: ['mistral-large-4-0'], notes: 'broad', tier: 'hard' },
+      { client: 'vibe', family: 'zhipu', model: 'glm-5-3', names: ['zai-glm-5-3'], notes: 'review', tier: 'hard' },
       { client: 'agy', family: 'google', model: 'gemini-3.8-flash-high', notes: 'long context', tier: 'hard' },
     ],
     settings: {
@@ -186,14 +186,14 @@ describe('listModels', () => {
   })
 
   it('lists a configured client by the aliases its configuration declares, marked config', () => {
-    const listed = listings({ vibe: { models: [{ model: 'mistral-large-4-0' }, { model: 'mistral-medium-4-1' }] } })
+    const listed = listings({ vibe: { models: [{ model: 'mistral-large-latest' }, { model: 'mistral-medium-4-1' }] } })
 
     expect(listModels(config(), new Set(['vibe']), listed).models).toEqual([
       {
         client: 'vibe',
         cost_class: 'subsidised',
         family: 'mistral',
-        model: 'mistral-large-4-0',
+        model: 'mistral-large-latest',
         notes: 'broad',
         source: 'config',
         tier: 'hard',
@@ -208,6 +208,66 @@ describe('listModels', () => {
         tier: null,
       },
     ])
+  })
+
+  it('joins a Vibe model to the catalogue on its config name and lists it once, by its alias', () => {
+    const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }, { model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
+
+    expect(listModels(config(), new Set(['vibe']), listed).models).toEqual([
+      {
+        client: 'vibe',
+        cost_class: 'subsidised',
+        family: 'zhipu',
+        model: 'glm-5-3',
+        notes: 'review',
+        source: 'config',
+        tier: 'hard',
+      },
+    ])
+  })
+
+  it('joins a Vibe model on its name when its alias is not the catalogue id', () => {
+    const listed = listings({ vibe: { models: [{ model: 'large', names: ['mistral-large-4-0'] }] } })
+
+    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.tier, entry.notes])).toEqual([
+      ['large', 'hard', 'broad'],
+    ])
+  })
+
+  it('joins a Vibe model on an alias the catalogue lists among its names', () => {
+    const listed = listings({ vibe: { models: [{ model: 'zai-glm-5-3' }] } })
+
+    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.tier])).toEqual([['zai-glm-5-3', 'hard']])
+  })
+
+  it('lists a Vibe model whose alias and names both miss the catalogue with no tier, its family from its name', () => {
+    const listed = listings({ vibe: { models: [{ model: 'fast', names: ['mistral-medium-4-1'] }] } })
+
+    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.family, entry.tier, entry.notes])).toEqual([
+      ['fast', 'mistral', null, ''],
+    ])
+  })
+
+  it('reports a Vibe model whose alias and names name no family', () => {
+    const listed = listings({ vibe: { models: [{ model: 'fast', names: ['mystery'] }] } })
+
+    expect(listModels(config(), new Set(['vibe']), listed).skipped.map((entry) => entry.model)).toEqual(['fast'])
+  })
+
+  it('leaves out a Vibe model whose alias or catalogue id the override disabled', () => {
+    const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }, { model: 'mistral-large-latest' }] } })
+    const byAlias = { ...config(), disabled: [modelKey('vibe', 'glm-5-3')] }
+    const byName = { ...config(), disabled: [modelKey('vibe', 'mistral-large-latest')] }
+
+    expect(listModels(byAlias, new Set(['vibe']), listed).models.map((entry) => entry.model)).toEqual(['mistral-large-latest'])
+    expect(listModels(byName, new Set(['vibe']), listed).models.map((entry) => entry.model)).toEqual(['glm-5-3'])
+  })
+
+  it('leaves out a Vibe model whose recorded catalogue name the override disabled', () => {
+    const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
+    const disabled = { ...config(), disabled: [modelKey('vibe', 'zai-glm-5-3')] }
+
+    expect(listModels(disabled, new Set(['vibe']), listed).models).toEqual([])
   })
 
   it('leaves out a model the override disabled', () => {
@@ -230,7 +290,7 @@ describe('listModels', () => {
   it('sorts by client, then model id', () => {
     const listed = listings({
       agy: { models: [{ model: 'gemini-4-pro' }, { model: 'gemini-3.8-flash-high' }] },
-      vibe: { models: [{ model: 'zai-glm-5-3' }, { model: 'mistral-large-4-0' }] },
+      vibe: { models: [{ model: 'glm-5-3' }, { model: 'mistral-large-latest' }] },
     })
     const listing = listModels(config(), new Set(['agy', 'claude', 'codex', 'vibe']), listed)
 
@@ -240,8 +300,8 @@ describe('listModels', () => {
       'claude:claude-haiku-5-5',
       'claude:claude-sonnet-5-5',
       'codex:gpt-5.5',
-      'vibe:mistral-large-4-0',
-      'vibe:zai-glm-5-3',
+      'vibe:glm-5-3',
+      'vibe:mistral-large-latest',
     ])
   })
 })
@@ -295,37 +355,45 @@ describe('parseOpenCodeModels', () => {
   })
 })
 
-describe('vibeModelAliases', () => {
-  it('reads no alias from an entry that is not a table', () => {
-    expect(vibeModelAliases('models = { oops = "x" }\n')).toEqual([])
+describe('vibeModels', () => {
+  it('reads no model from an entry that is not a table', () => {
+    expect(vibeModels('models = { oops = "x" }\n')).toEqual([])
   })
 
-  it('reads the alias of every model the configuration declares, in file order', () => {
+  it('reads the alias and name of every model the configuration declares, in file order', () => {
     const toml = `[models.mistral-large-4-0]
 name = "mistral-large-4-0"
 provider = "mistral"
-alias = "mistral-large-4-0"
+alias = "mistral-large-latest"
 
 [models.zai-glm-5-3]
 name = "zai-glm-5-3"
 provider = "mistral"
-alias = "glm"
+alias = "glm-5-3"
 `
 
-    expect(vibeModelAliases(toml)).toEqual(['mistral-large-4-0', 'glm'])
+    expect(vibeModels(toml)).toEqual([
+      { model: 'mistral-large-latest', names: ['mistral-large-4-0'] },
+      { model: 'glm-5-3', names: ['zai-glm-5-3'] },
+    ])
+  })
+
+  it('names a model by its alias alone when the alias is its name', () => {
+    expect(vibeModels('models = { small = { name = "small", alias = "small", provider = "mistral" } }\n')).toEqual([{ model: 'small', names: [] }])
   })
 
   it('reads an inline models table, and names a model without an alias by its key', () => {
-    expect(vibeModelAliases('models = { small = { name = "small", provider = "mistral" } }\n')).toEqual(['small'])
+    expect(vibeModels('models = { small = { name = "small-1", provider = "mistral" } }\n')).toEqual([{ model: 'small', names: ['small-1'] }])
+    expect(vibeModels('models = { small = { provider = "mistral" } }\n')).toEqual([{ model: 'small', names: [] }])
   })
 
   it('reads no model from a configuration that declares none', () => {
-    expect(vibeModelAliases('active_model = "mistral-large-4-0"\n')).toEqual([])
-    expect(vibeModelAliases('models = "not a table"\n')).toEqual([])
+    expect(vibeModels('active_model = "mistral-large-4-0"\n')).toEqual([])
+    expect(vibeModels('models = "not a table"\n')).toEqual([])
   })
 
   it('throws on a file that is not TOML, so the caller never acts on half a file', () => {
-    expect(() => vibeModelAliases('this is not TOML\n')).toThrow()
+    expect(() => vibeModels('this is not TOML\n')).toThrow()
   })
 })
 
