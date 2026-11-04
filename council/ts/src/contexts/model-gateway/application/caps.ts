@@ -42,6 +42,32 @@ export interface Reservation {
 /** A run under a grant needs at least this long before the grant or its workflow lapses. */
 export const MIN_GRANT_TIME_LEFT_S = 60
 
+/** One delegation of a batch plan, ready to have its estimate reserved up front. */
+export interface PlannedReservation {
+  /** The delegation's id in the plan, which the result is keyed by. */
+  readonly id: string
+  readonly cap: CapSource
+  readonly costClass: CostClass
+  readonly estimate: Estimate
+  readonly input: RunInput
+  readonly runDir: string
+  readonly runId: string
+  /** How long the reservation holds if its run dies, before the grace period: the plan's longest possible duration. */
+  readonly window_s: number
+}
+
+/** A delegation whose estimate does not fit, and why. */
+export interface PlanRefusal {
+  readonly id: string
+  readonly message: string
+}
+
+/** What reserving a plan came to: the reservation each delegation holds, or the ones that did not fit (and then nothing is held). */
+export interface PlanReservation {
+  readonly held: ReadonlyMap<string, Reservation>
+  readonly refused: readonly PlanRefusal[]
+}
+
 /**
  * What a metered run's estimate is held against: the metered-personal caps, or
  * the grant that covers a metered-employer run. A subsidised run is held to
@@ -160,6 +186,74 @@ export class CapGuard {
   async release(reservation: Reservation | undefined, now: Date): Promise<void> {
     if (reservation === undefined) return
     await this.deps.ledger.append({ ...settledRecord(reservation.record, 0, now), reason: 'not-started' as const })
+  }
+
+  /**
+   * Reserves a whole batch plan's estimates at once: each is checked, in plan
+   * order, against the caps or its grant with the ones before it already held,
+   * and every record is written in the same locked ledger update that decided
+   * them, so no other process can take room in between. A plan any of whose
+   * estimates does not fit holds nothing: the refusals come back, and no
+   * record is written.
+   */
+  async reservePlan(plan: readonly PlannedReservation[], config: GatewayConfig, now: Date): Promise<PlanReservation> {
+    const costs = await this.finishedCosts()
+    return this.deps.ledger.update((entries) => {
+      const settled = settleExpired(entries, now, costs)
+      let all: readonly LedgerEntry[] = [...entries, ...settled]
+      const held = new Map<string, Reservation>()
+      const records: ReservationRecord[] = []
+      const refused: PlanRefusal[] = []
+      for (const item of plan) {
+        const message =
+          item.cap.kind === 'grant'
+            ? grantRefusal(all, item.cap.grant, item.estimate.usd, item.input)
+            : capRefusal(all, item.input, item.estimate.usd, config.settings.metered_personal_caps, now)
+        if (message !== undefined) {
+          refused.push({ id: item.id, message })
+          continue
+        }
+        const record = reservationRecord({
+          client: item.input.client,
+          cost_class: item.costClass,
+          estimate_usd: item.estimate.usd,
+          model: item.input.model,
+          reserved_at: now,
+          run_dir: item.runDir,
+          run_id: item.runId,
+          time_limit_s: item.window_s,
+          workflow: item.input.workflow,
+        })
+        held.set(item.id, { estimate: item.estimate, record, time_limit_s: item.input.time_limit_s })
+        records.push(record)
+        all = [...all, record]
+      }
+      return { append: refused.length === 0 ? [...settled, ...records] : settled, result: { held, refused } }
+    })
+  }
+
+  /**
+   * Gives back the reservations of a batch's delegations, whatever of them is
+   * still held. A run that left a result before it was lost counts what that
+   * result says it cost (settled as a lapsed reservation is, which is what
+   * makes the caps and grants count it); only one that left
+   * none never ran, and is settled at no cost. One a run already settled, or
+   * one that has its own line, is left alone, so it can be called again for
+   * the same plan.
+   */
+  async releaseUnrun(records: readonly ReservationRecord[], now: Date): Promise<void> {
+    const costs = await this.finishedCosts()
+    await this.deps.ledger.update((entries) => {
+      const live = new Set(liveReservations(entries).map((reservation) => reservation.run_id))
+      const lost = records.filter((record) => live.has(record.run_id))
+      return {
+        append: lost.map((record) => {
+          const cost = costs.get(record.run_id)
+          return cost === undefined ? { ...settledRecord(record, 0, now), reason: 'not-run' as const } : { ...settledRecord(record, cost, now), reason: 'expired' as const }
+        }),
+        result: undefined,
+      }
+    })
   }
 
   /**

@@ -39,6 +39,7 @@ function config(): GatewayConfig {
     ],
     settings: {
       availability_window_minutes: 60,
+      max_batch_delegations: 50,
       max_parallel_per_client: 3,
       metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 2 },
       output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },

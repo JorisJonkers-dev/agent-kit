@@ -39,6 +39,9 @@ export interface LedgerRecord {
    */
   readonly tokens?: RunTokens
   readonly workflow: string
+  /** The batch plan this run is one attempt of a delegation of, and that delegation's id in the plan. */
+  readonly batch_id?: string
+  readonly delegation?: string
 }
 
 /**
@@ -86,9 +89,11 @@ export interface SettledRecord {
   /**
    * Why the gateway settled a reservation no run settled itself: `expired`
    * when its run left no line of its own, `not-started` when the run was
-   * released before it launched and cost nothing.
+   * released before it launched and cost nothing, `not-run` when a batch
+   * plan's delegation never ran (it was skipped or the batch stopped) and
+   * its up-front reservation was given back.
    */
-  readonly reason?: 'expired' | 'not-started'
+  readonly reason?: 'expired' | 'not-started' | 'not-run'
 }
 
 /** One line of the ledger: a run (the older lines carry no `kind`), a reservation, or a settlement. */
