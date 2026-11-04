@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { isJsonObject, type JsonFields } from '../domain/json.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
-import type { ModelFamily } from '../domain/family.js'
+import type { AllowlistFamily, ModelFamily } from '../domain/family.js'
 import type { CriticClient, RosterCritic, Routing } from '../domain/routing.js'
 import {
   EMPTY_SETUP_RESULTS,
@@ -44,7 +44,7 @@ export type RepositorySetup =
       readonly status: 'not-opted-in' | 'opted-in'
       readonly key: string
       /** The entry's families; empty while the repository is not opted in. */
-      readonly families: readonly ModelFamily[]
+      readonly families: readonly AllowlistFamily[]
       /** Whether the entry lets the code stages send code. */
       readonly code: boolean
       /** Whether the entry lets a stage send the repository's commit messages and issue text. */

@@ -29,41 +29,6 @@ var ProcessEnvAdapter = class {
   }
 };
 
-// src/contexts/model-gateway/domain/models.ts
-function modelKey(client, model) {
-  return `${client}:${model}`;
-}
-function declaredClients(config) {
-  return Object.entries(config.clients).filter(([, client]) => client.model_source === "declared").sort(([left], [right]) => compare(left, right));
-}
-function listModels(config, installed) {
-  const models = [];
-  const missing = [];
-  for (const [id, client] of declaredClients(config)) {
-    if (!installed.has(id)) {
-      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
-      continue;
-    }
-    for (const entry of config.models) {
-      if (entry.client !== id || config.disabled.includes(modelKey(id, entry.model))) continue;
-      models.push({
-        client: id,
-        model: entry.model,
-        family: entry.family,
-        cost_class: client.cost_class,
-        tier: entry.tier,
-        notes: entry.notes,
-        source: client.model_source
-      });
-    }
-  }
-  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
-  return { models, missing };
-}
-function compare(left, right) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
 // src/contexts/model-gateway/domain/config.ts
 var CONFIG_VERSION = 1;
 var COST_CLASSES = ["subsidised", "metered-personal", "metered-employer"];
@@ -229,27 +194,109 @@ function invalid(message) {
   return new ModelGatewayError("invalid-config", message);
 }
 
-// src/contexts/model-gateway/application/config.ts
-async function loadConfig(files, defaultsPath, override) {
-  const defaults = parseFile(defaultsPath, await readText(files, defaultsPath, "the shipped defaults"), parseDefaults);
-  if (!await overrideExists(files, override)) return defaults;
-  return parseFile(override, await readText(files, override, "the override"), (raw) => applyOverride(defaults, raw));
+// src/contexts/model-gateway/domain/models.ts
+function modelKey(client, model) {
+  return `${client}:${model}`;
 }
-async function overrideExists(files, path) {
-  try {
-    return await files.exists(path);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: cannot read the override: ${messageOf(error)}`);
+function declaredClients(config) {
+  return Object.entries(config.clients).filter(([, client]) => client.model_source === "declared").sort(([left], [right]) => compare(left, right));
+}
+function listModels(config, installed) {
+  const models = [];
+  const missing = [];
+  for (const [id, client] of declaredClients(config)) {
+    if (!installed.has(id)) {
+      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
+      continue;
+    }
+    for (const entry of config.models) {
+      if (entry.client !== id || config.disabled.includes(modelKey(id, entry.model))) continue;
+      models.push({
+        client: id,
+        model: entry.model,
+        family: entry.family,
+        cost_class: client.cost_class,
+        tier: entry.tier,
+        notes: entry.notes,
+        source: client.model_source
+      });
+    }
+  }
+  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
+  return { models, missing };
+}
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+// src/contexts/model-gateway/domain/policy.ts
+var NEDAP_CLIENTS = ["claude", "codex"];
+var INLINE_COST_CLASSES = ["subsidised", "metered-personal"];
+var NOTHING = { code: false, history: false };
+var EVERYTHING = { code: true, history: true };
+function decidePolicy(config, scope) {
+  const permissions = config.models.filter((entry) => !config.disabled.includes(modelKey(entry.client, entry.model))).map((entry) => permission(config, entry, scope));
+  return { permissions, reason: reasonFor(scope) };
+}
+function permission(config, entry, scope) {
+  const base = { client: entry.client, inline_only: false, model: entry.model };
+  switch (scope.kind) {
+    case "outside":
+      return {
+        ...base,
+        inline_only: true,
+        may_send: NOTHING,
+        permitted: INLINE_COST_CLASSES.includes(config.clients[entry.client]?.cost_class ?? "")
+      };
+    case "no-remote":
+      return { ...base, may_send: NOTHING, permitted: false };
+    case "nedap":
+      return { ...base, may_send: EVERYTHING, permitted: NEDAP_CLIENTS.includes(entry.client) };
+    case "repository":
+      return {
+        ...base,
+        may_send: scope.entry === void 0 ? NOTHING : { code: scope.entry.code, history: scope.entry.history },
+        permitted: scope.entry?.families.includes(entry.family) === true
+      };
   }
 }
-async function readText(files, path, what) {
+function reasonFor(scope) {
+  switch (scope.kind) {
+    case "outside":
+      return "no repository: only inline content, to subsidised and metered-personal clients";
+    case "no-remote":
+      return "the repository has no remote, so nothing is sent";
+    case "nedap":
+      return "a nedap repository: only Codex and Claude Code, with code and history";
+    case "repository":
+      return scope.entry === void 0 ? `${scope.key} has no allowlist entry, so nothing is sent` : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
+  }
+}
+function permittedModels(listing, decision) {
+  const byKey = new Map(decision.permissions.map((permission2) => [modelKey(permission2.client, permission2.model), permission2]));
+  const models = listing.models.flatMap((model) => {
+    const permission2 = byKey.get(modelKey(model.client, model.model));
+    if (permission2?.permitted !== true) return [];
+    return [{ ...model, inline_only: permission2.inline_only, may_send: permission2.may_send }];
+  });
+  return { missing: listing.missing, models };
+}
+
+// src/contexts/model-gateway/application/json-file.ts
+async function fileExists(files, path, what) {
   try {
-    return await files.readText(path);
+    return await files.exists(path);
   } catch (error) {
     throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
   }
 }
-function parseFile(path, text, parse) {
+async function readJsonFile(files, path, what, parse) {
+  let text;
+  try {
+    text = await files.readText(path);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+  }
   try {
     return parse(parseJson(text));
   } catch (error) {
@@ -267,12 +314,117 @@ function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// src/contexts/model-gateway/application/config.ts
+async function loadConfig(files, defaultsPath, override) {
+  const defaults = await readJsonFile(files, defaultsPath, "the shipped defaults", parseDefaults);
+  if (!await fileExists(files, override, "the override")) return defaults;
+  return readJsonFile(files, override, "the override", (raw) => applyOverride(defaults, raw));
+}
+
 // src/contexts/model-gateway/application/locations.ts
 import { isAbsolute, join } from "node:path";
 function overridePath(env) {
+  return join(configDir(env), "model-gateway.json");
+}
+function allowlistPath(env) {
+  return join(configDir(env), "critique-allowlist.json");
+}
+function configDir(env) {
   const xdg = env.get("XDG_CONFIG_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit", "model-gateway.json");
-  return join(env.require("HOME"), ".config", "agent-kit", "model-gateway.json");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit");
+  return join(env.require("HOME"), ".config", "agent-kit");
+}
+
+// src/shared-kernel/git-remote.ts
+var DENIED_OWNER = "nedap";
+function parseRemote(url) {
+  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
+  const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
+  const match = scp ?? standard;
+  if (match === null) return void 0;
+  const host = (match[1] ?? "").toLowerCase();
+  const segments = (match[2] ?? "").replace(/\/+$/, "").replace(/\.git$/, "").split("/").filter((segment) => segment.length > 0);
+  const repo = segments.pop();
+  const owner = segments.join("/");
+  if (repo === void 0 || owner.length === 0) return void 0;
+  return { host, owner: owner.toLowerCase(), repo: repo.toLowerCase() };
+}
+function identifyRepository(remotes) {
+  const located = remotes.flatMap((remote) => {
+    const location = parseRemote(remote.url);
+    return location === void 0 ? [] : [{ name: remote.name, location }];
+  });
+  const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
+  if (denied !== void 0) {
+    return { owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
+  }
+  const primary = located.find((remote) => remote.name === "origin") ?? located[0];
+  if (primary === void 0) return { status: "no-remote" };
+  const { host, owner, repo } = primary.location;
+  return { key: `${host}/${owner}/${repo}`, location: primary.location, status: "identified" };
+}
+
+// src/contexts/model-gateway/domain/allowlist.ts
+var EMPTY_ALLOWLIST = { repositories: {} };
+function parseAllowlist(raw) {
+  if (!isObject(raw)) throw invalid2("the allowlist must be a JSON object");
+  if (raw.version !== 1) throw invalid2("version must be 1");
+  if (!isObject(raw.repositories)) throw invalid2("repositories must be an object keyed by repository");
+  const repositories = Object.fromEntries(
+    Object.entries(raw.repositories).map(([key, value]) => {
+      if (!isObject(value)) throw invalid2(`repositories.${key} must be an object`);
+      return [key, parseEntry(key, value)];
+    })
+  );
+  return { repositories };
+}
+function parseEntry(key, raw) {
+  const where = `repositories.${key}`;
+  return {
+    code: raw.code === void 0 ? false : requireBoolean(raw.code, `${where}.code`),
+    families: requireStrings2(raw.families, `${where}.families`),
+    history: raw.history === void 0 ? false : requireBoolean(raw.history, `${where}.history`)
+  };
+}
+function requireStrings2(value, where) {
+  if (!Array.isArray(value)) throw invalid2(`${where} must be a list of non-empty strings`);
+  const items = value;
+  const strings = [];
+  for (const item of items) {
+    if (typeof item !== "string" || item === "") throw invalid2(`${where} must be a list of non-empty strings`);
+    strings.push(item);
+  }
+  return strings;
+}
+function requireBoolean(value, where) {
+  if (typeof value !== "boolean") throw invalid2(`${where} must be true or false`);
+  return value;
+}
+function invalid2(message) {
+  return new ModelGatewayError("invalid-config", message);
+}
+
+// src/contexts/model-gateway/application/policy.ts
+async function resolveScope(deps, repo) {
+  if (repo === void 0) return { kind: "outside" };
+  const root = await gitOrFail(repo, () => deps.git.root(repo));
+  if (root === void 0) return { kind: "outside" };
+  const identity = identifyRepository(await gitOrFail(repo, () => deps.git.remotes(root)));
+  if (identity.status === "denied-owner") return { kind: "nedap" };
+  if (identity.status === "no-remote") return { kind: "no-remote" };
+  const allowlist = await loadAllowlist(deps.files, allowlistPath(deps.env));
+  return { entry: allowlist.repositories[identity.key], key: identity.key, kind: "repository" };
+}
+async function gitOrFail(repo, call) {
+  try {
+    return await call();
+  } catch (error) {
+    throw new ModelGatewayError("repository-unreadable", `${repo}: ${messageOf(error)}`);
+  }
+}
+async function loadAllowlist(files, path) {
+  if (!await fileExists(files, path, "the family allowlist")) return EMPTY_ALLOWLIST;
+  return readJsonFile(files, path, "the family allowlist", parseAllowlist);
 }
 
 // src/contexts/model-gateway/application/models.ts
@@ -281,15 +433,24 @@ var ModelsCommand = class {
     this.deps = deps;
   }
   deps;
-  async run() {
+  async run(raw) {
+    const input = readModelsInput(raw);
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
     const installed = /* @__PURE__ */ new Set();
     for (const [id, client] of declaredClients(config)) {
       if (await this.deps.process.which(client.binary)) installed.add(id);
     }
-    return { status: "ok", ...listModels(config, installed) };
+    const decision = decidePolicy(config, await resolveScope(this.deps, input.repo));
+    return { policy: decision.reason, status: "ok", ...permittedModels(listModels(config, installed), decision) };
   }
 };
+function readModelsInput(raw) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  const repo = raw.repo;
+  if (repo === void 0) return {};
+  if (typeof repo !== "string" || repo === "") throw new ModelGatewayError("invalid-input", "repo must be a non-empty string");
+  return { repo };
+}
 
 // src/contexts/model-gateway/application/commands.ts
 function createModelGatewayCommands(deps) {
@@ -315,6 +476,59 @@ var NodeModelGatewayFiles = class {
   }
 };
 
+// src/contexts/model-gateway/adapters/git/index.ts
+import { execFile } from "node:child_process";
+var OUTPUT_LIMIT = 1024 * 1024;
+var TIMEOUT_MS = 1e4;
+var NOT_A_REPOSITORY = /not a git repository/i;
+var NodeModelGatewayGit = class {
+  constructor(path = process.env.PATH ?? "", timeoutMs = TIMEOUT_MS) {
+    this.path = path;
+    this.timeoutMs = timeoutMs;
+  }
+  path;
+  timeoutMs;
+  async root(path) {
+    const result2 = await this.git(path, ["rev-parse", "--show-toplevel"]);
+    if (result2.exitCode === 0) {
+      const root = result2.stdout.trim();
+      return root === "" ? void 0 : root;
+    }
+    if (NOT_A_REPOSITORY.test(result2.stderr)) return void 0;
+    throw new Error(messageOf2(result2));
+  }
+  async remotes(path) {
+    const result2 = await this.git(path, ["config", "--get-regexp", String.raw`^remote\..*\.url$`]);
+    if (result2.exitCode === 1) return [];
+    if (result2.exitCode !== 0) throw new Error(messageOf2(result2));
+    return result2.stdout.split("\n").flatMap((line) => {
+      const match = /^remote\.(.+)\.url\s+(.+)$/.exec(line.trim());
+      return match === null ? [] : [{ name: String(match[1]), url: String(match[2]) }];
+    });
+  }
+  /** The command's exit code and output; a git that cannot start or does not answer in time rejects. */
+  git(path, args) {
+    return new Promise((resolve, reject) => {
+      const options = {
+        encoding: "utf8",
+        env: { ...process.env, PATH: this.path },
+        maxBuffer: OUTPUT_LIMIT,
+        timeout: this.timeoutMs
+      };
+      execFile("git", ["-C", path, ...args], options, (error, stdout, stderr) => {
+        if (error === null) resolve({ exitCode: 0, stderr, stdout });
+        else if (typeof error.code === "number") resolve({ exitCode: error.code, stderr, stdout });
+        else if (error.killed === true) reject(new Error(`git did not answer within ${String(this.timeoutMs)} ms`));
+        else reject(new Error(`cannot run git: ${error.message}`));
+      });
+    });
+  }
+};
+function messageOf2(result2) {
+  const message = result2.stderr.trim();
+  return message === "" ? `git exited ${String(result2.exitCode)}` : message;
+}
+
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
@@ -338,14 +552,17 @@ var NodeModelGatewayProcess = class {
 };
 
 // src/model-gateway-cli/index.ts
-var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{}'
+var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'
        model-gateway models --input FILE
 
 Each command reads one JSON object, from --json or from FILE, and prints one
-JSON object. models lists every client model this machine can use now, with
-its client, model id, family, cost class, difficulty tier, capability notes
-and where the list came from (live, config or declared), and names each client
-it knows but cannot use. An error prints "status": "error" with its "code" and
+JSON object. models lists every client model this machine can use now for the
+repository the caller works in, with its client, model id, family, cost class,
+difficulty tier, capability notes, where the list came from (live, config or
+declared) and what the data policy lets a delegation to it carry. It names
+each client it knows but cannot use, and says in "policy" why the data policy
+listed what it did. Without "repo", or outside any repository, only inline
+content may be sent. An error prints "status": "error" with its "code" and
 exits 1.
 `;
 var COMMANDS = {
@@ -381,7 +598,7 @@ async function readInput(runtime, path) {
   try {
     return await runtime.readFile(path);
   } catch (error) {
-    throw new ModelGatewayError("invalid-input", `${path}: cannot read the input: ${messageOf2(error)}`);
+    throw new ModelGatewayError("invalid-input", `${path}: cannot read the input: ${messageOf3(error)}`);
   }
 }
 function parseInput(text) {
@@ -389,7 +606,7 @@ function parseInput(text) {
   try {
     raw = JSON.parse(text);
   } catch (error) {
-    throw new ModelGatewayError("invalid-input", `the input is not JSON: ${messageOf2(error)}`);
+    throw new ModelGatewayError("invalid-input", `the input is not JSON: ${messageOf3(error)}`);
   }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
@@ -405,7 +622,7 @@ function failure(code, message, name) {
 `
   };
 }
-function messageOf2(error) {
+function messageOf3(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function defaultModelGatewayRuntime(overrides = {}) {
@@ -414,6 +631,7 @@ function defaultModelGatewayRuntime(overrides = {}) {
       defaultsPath: join3(import.meta.dirname, "defaults.json"),
       env: new ProcessEnvAdapter(),
       files: new NodeModelGatewayFiles(),
+      git: new NodeModelGatewayGit(),
       process: new NodeModelGatewayProcess(),
       ...overrides
     }),

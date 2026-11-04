@@ -1,6 +1,22 @@
 export { createModelGatewayCommands, type ModelGatewayCommands } from './application/commands.js'
-export type { ModelGatewayDependencies, ModelGatewayFilesPort, ModelGatewayProcessPort } from './application/ports.js'
+export { decidePolicyFor, resolveScope } from './application/policy.js'
+export type {
+  ModelGatewayDependencies,
+  ModelGatewayFilesPort,
+  ModelGatewayGitPort,
+  ModelGatewayProcessPort,
+} from './application/ports.js'
+export type { AllowlistEntry, FamilyAllowlist } from './domain/allowlist.js'
 export { ModelGatewayError, type ModelGatewayErrorCode } from './domain/config.js'
 export type { ListedModel, MissingClient, ModelListing } from './domain/models.js'
+export type {
+  DataScope,
+  ModelPermission,
+  PermittedModel,
+  PolicyDecision,
+  PolicyListing,
+  SendPermission,
+} from './domain/policy.js'
 export { NodeModelGatewayFiles } from './adapters/fs/index.js'
+export { NodeModelGatewayGit } from './adapters/git/index.js'
 export { NodeModelGatewayProcess } from './adapters/process/index.js'

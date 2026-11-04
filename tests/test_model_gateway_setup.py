@@ -253,8 +253,14 @@ def test_the_skill_names_its_files_and_the_models_command() -> None:
     text = _skill_text()
     for name in ("model-gateway.mjs", "defaults.json", "defaults.schema.json"):
         assert name in text, name
-    assert "model-gateway.mjs models --json '{}'" in text
+    assert """model-gateway.mjs models --json '{"repo": "/path/to/repo"}'""" in text
     assert "model-gateway.mjs models --input <file.json>" in text
+
+
+def test_the_skill_says_the_data_policy_filters_what_models_offers() -> None:
+    text = _skill_text()
+    for word in ("critique-allowlist.json", "may_send", "inline_only", "nedap"):
+        assert word in text, word
 
 
 def test_the_skill_says_where_the_machine_override_lives() -> None:

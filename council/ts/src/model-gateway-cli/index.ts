@@ -6,6 +6,7 @@ import {
   createModelGatewayCommands,
   ModelGatewayError,
   NodeModelGatewayFiles,
+  NodeModelGatewayGit,
   NodeModelGatewayProcess,
   type ModelGatewayCommands,
   type ModelGatewayDependencies,
@@ -25,14 +26,17 @@ export interface ModelGatewayRuntime {
   readFile(path: string): Promise<string>
 }
 
-export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{}'
+export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'
        model-gateway models --input FILE
 
 Each command reads one JSON object, from --json or from FILE, and prints one
-JSON object. models lists every client model this machine can use now, with
-its client, model id, family, cost class, difficulty tier, capability notes
-and where the list came from (live, config or declared), and names each client
-it knows but cannot use. An error prints "status": "error" with its "code" and
+JSON object. models lists every client model this machine can use now for the
+repository the caller works in, with its client, model id, family, cost class,
+difficulty tier, capability notes, where the list came from (live, config or
+declared) and what the data policy lets a delegation to it carry. It names
+each client it knows but cannot use, and says in "policy" why the data policy
+listed what it did. Without "repo", or outside any repository, only inline
+content may be sent. An error prints "status": "error" with its "code" and
 exits 1.
 `
 
@@ -113,6 +117,7 @@ export function defaultModelGatewayRuntime(overrides: Partial<ModelGatewayDepend
       defaultsPath: join(import.meta.dirname, 'defaults.json'),
       env: new ProcessEnvAdapter(),
       files: new NodeModelGatewayFiles(),
+      git: new NodeModelGatewayGit(),
       process: new NodeModelGatewayProcess(),
       ...overrides,
     }),
