@@ -17,6 +17,7 @@ import {
   runId,
   runTokens,
   summaryOf,
+  WRITE_RULE,
   wrappedPrompt,
 } from './run.js'
 
@@ -74,7 +75,7 @@ describe('readRunInput', () => {
     expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).code).toBe('not-supported-yet')
     expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).message).toBe('only vibe, agy, claude, opencode can run a delegation, not "codex"')
     expect(thrown(() => readRunInput({ ...MINIMAL, mode: 'writing' })).code).toBe('not-supported-yet')
-    expect(thrown(() => readRunInput({ ...MINIMAL, mode: undefined })).message).toBe('only read-only runs are supported, not missing')
+    expect(thrown(() => readRunInput({ ...MINIMAL, mode: undefined })).message).toBe('only read-only and write runs are supported, not missing')
   })
 
   it('refuses an input that is not an object, or that names no model or prompt', () => {
@@ -96,6 +97,30 @@ describe('readRunInput', () => {
   })
 })
 
+describe('readRunInput for a writing run', () => {
+  const WRITING = { ...MINIMAL, base: 'main', check: 'npm test', mode: 'write', repo: '/work/agent-kit' }
+
+  it('reads its base and its check beside the rest', () => {
+    expect(readRunInput(WRITING)).toMatchObject({ base: 'main', check: 'npm test', mode: 'write', repo: '/work/agent-kit' })
+  })
+
+  it('needs a repository first, then a base and a check', () => {
+    expect(thrown(() => readRunInput({ ...WRITING, repo: undefined })).code).toBe('write-needs-repository')
+    expect(thrown(() => readRunInput({ ...WRITING, base: undefined })).message).toBe(
+      'a writing run must name its base, a ref the worktree starts from',
+    )
+    expect(thrown(() => readRunInput({ ...WRITING, check: '' })).message).toBe(
+      'a writing run must name its check, a command that tests the change',
+    )
+  })
+
+  it('leaves base and check out of a read-only input, and refuses them there', () => {
+    expect(readRunInput(MINIMAL)).not.toHaveProperty('base')
+    expect(thrown(() => readRunInput({ ...MINIMAL, base: 'main' })).message).toBe('base and check are for writing runs only')
+    expect(thrown(() => readRunInput({ ...MINIMAL, check: 'npm test' })).code).toBe('invalid-input')
+  })
+})
+
 describe('the prompt and the summary', () => {
   it('wraps the caller’s prompt with the instruction that ends the answer with a SUMMARY line', () => {
     expect(wrappedPrompt('read this', 1500)).toBe(
@@ -111,6 +136,16 @@ describe('the prompt and the summary', () => {
 
   it('falls back to the last characters of the answer when the delegate wrote no SUMMARY line', () => {
     expect(summaryOf('0123456789', 4)).toBe('6789')
+  })
+})
+
+describe('the prompt of a writing run', () => {
+  it('adds where the delegate may edit and that it may not commit, before the summary instruction', () => {
+    expect(wrappedPrompt('fix it', 100, 'write')).toBe(
+      `fix it\n\n${WRITE_RULE}\n\nEnd your answer with a line "SUMMARY:" followed by at most 100 characters that summarise the result.`,
+    )
+    expect(WRITE_RULE).toBe('Edit only files inside the working directory. Do not commit.')
+    expect(wrappedPrompt('fix it', 100)).not.toContain('commit')
   })
 })
 

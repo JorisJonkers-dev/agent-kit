@@ -8,6 +8,9 @@ export const DELEGATION_MARK = 'AGENT_KIT_DELEGATION'
 /** The Vibe agent a read-only delegation runs through: read tools only, no subagents, nothing outside its workdir. */
 export const READ_ONLY_AGENT = 'delegate-readonly'
 
+/** The Vibe agent a writing delegation runs through: it reads, searches, writes and edits files, and runs no shell. */
+export const WRITE_AGENT = 'delegate-write'
+
 /** Seconds the outer timer allows beyond a client's own time limit, so the client's own stop is the one that reports. */
 const OUTER_TIMEOUT_GRACE_S = 60
 
@@ -57,7 +60,7 @@ const vibe: ClientLauncher = {
       '--model',
       input.model,
       '--agent',
-      READ_ONLY_AGENT,
+      input.mode === 'write' ? WRITE_AGENT : READ_ONLY_AGENT,
       '--trust',
       '--workdir',
       paths.workDir,
@@ -84,7 +87,7 @@ function effortOf(model: string): string {
 }
 
 /**
- * Antigravity: print mode in plan mode, with the model, the effort its id
+ * Antigravity: print mode in plan mode (accept-edits for a writing run), with the model, the effort its id
  * names, JSON output, and its own print timeout. Its stdin is closed.
  */
 const agy: ClientLauncher = {
@@ -99,7 +102,7 @@ const agy: ClientLauncher = {
       '--effort',
       effortOf(input.model),
       '--mode',
-      'plan',
+      input.mode === 'write' ? 'accept-edits' : 'plan',
       '--print-timeout',
       `${String(input.time_limit_s)}s`,
     ],
@@ -113,8 +116,9 @@ const agy: ClientLauncher = {
 }
 
 /**
- * Claude Code: headless print mode with the prompt on stdin, in plan mode,
- * and the read tools alone. It has no time limit of its own, so the outer
+ * Claude Code: headless print mode with the prompt on stdin, in plan mode and
+ * with the read tools alone, or for a writing run in accept-edits mode with
+ * the edit tools besides. It has no time limit of its own, so the outer
  * timer is the limit.
  */
 const claude: ClientLauncher = {
@@ -126,9 +130,9 @@ const claude: ClientLauncher = {
       '--output-format',
       'json',
       '--permission-mode',
-      'plan',
+      input.mode === 'write' ? 'acceptEdits' : 'plan',
       '--allowedTools',
-      'Read,Grep,Glob',
+      input.mode === 'write' ? 'Read,Grep,Glob,Edit,Write' : 'Read,Grep,Glob',
     ],
     command: binary,
     cwd: paths.workDir,

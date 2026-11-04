@@ -9,6 +9,7 @@ import {
   modelSources,
   NodeModelGatewayFiles,
   NodeModelGatewayGit,
+  NodeModelGatewayKept,
   NodeModelGatewayLedger,
   NodeModelGatewayProcess,
   NodeModelGatewayProof,
@@ -35,6 +36,11 @@ export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo":
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
                                  "model": "zai-glm-5-3", "mode": "read-only",
                                  "prompt": "read this", "repo": "/path/to/repo"}'
+       model-gateway run --json '{"workflow": "spec-293", "client": "claude",
+                                 "model": "claude-sonnet-5-5", "mode": "write",
+                                 "prompt": "add the flag", "repo": "/path/to/repo",
+                                 "base": "main", "check": "npm test"}'
+       model-gateway worktrees clean --json '{"workflow": "spec-293"}'
        model-gateway <command> --input FILE
 
 Each command reads one JSON object, from --json or from FILE, and prints one
@@ -66,27 +72,42 @@ launched; a model without a passing proof (every one but a proven Vibe or
 Antigravity model) works in a throwaway worktree of the repository, removed
 after the run. An OpenCode model is named provider/model and its provider must
 be in clients.opencode.providers (opencode-go by default), never opencode. A
-client near its plan limit adds "warnings" to the result. An error prints
-"status": "error" with its "code" and exits 1.
+client near its plan limit adds "warnings" to the result.
+
+A run with "mode": "write" changes a repository: it needs "repo", "base" (a ref)
+and "check" (a command, run with sh -c in the worktree). The gateway creates a
+worktree off the base on a new branch gateway/<run id> under the repository's
+git common directory, runs the delegate there with write permission, stages
+what it wrote, and then runs the check, so what the check writes is not part of
+the staged diff. It never commits, merges or pushes. The result adds
+"worktree", "branch", "staged_files" and "check" (command, exit_code and
+output_path); a check that fails is "failed" with reason "check-failed", and a
+run that times out leaves its worktree unstaged. Every writing worktree is kept
+until worktrees clean removes it, with its branch, for the workflow that ended
+("workflow") or for all of them ("all": true).
+
+An error prints "status": "error" with its "code" and exits 1.
 `
 
-/** The subcommands the gateway has; #294 ships models, #296 adds run, #302 adds usage, later tickets add the rest. */
+/** The subcommands the gateway has; #294 ships models, #296 adds run, #300 adds worktrees clean, #302 adds usage. */
 const COMMANDS = {
   models: 'models',
   run: 'run',
   usage: 'usage',
+  'worktrees clean': 'worktreesClean',
 } as const satisfies Record<string, keyof ModelGatewayCommands>
 
 /** The gateway's command line: one subcommand, one JSON object in, one JSON object out. */
 export async function runModelGatewayCli(argv: readonly string[], runtime: ModelGatewayRuntime): Promise<ModelGatewayCliResult> {
-  const [name, ...args] = argv
+  const [first, second, ...rest] = argv
+  const [name, args] = first === 'worktrees' && second === 'clean' ? ['worktrees clean', rest] : [first, argv.slice(1)]
   if (name === '--help' || name === '-h') return { exitCode: 0, stderr: '', stdout: MODEL_GATEWAY_USAGE }
   const method = name !== undefined && Object.hasOwn(COMMANDS, name) ? COMMANDS[name as keyof typeof COMMANDS] : undefined
   if (method === undefined) {
-    return failure('unknown-command', `unknown subcommand ${name === undefined ? '(none)' : `"${name}"`}; the gateway has models, run and usage`)
+    return failure('unknown-command', `unknown subcommand ${name === undefined ? '(none)' : `"${name}"`}; the gateway has models, run, usage and worktrees clean`)
   }
   const input = parseArguments(args)
-  if (input === undefined) return failure('invalid-input', `${method} takes one of --json '<object>' or --input <file>`, name)
+  if (input === undefined) return failure('invalid-input', `${String(name)} takes one of --json '<object>' or --input <file>`, name)
   try {
     const text = 'json' in input ? input.json : await readInput(runtime, input.input)
     const result = await runtime.commands[method].run(parseInput(text))
@@ -164,6 +185,7 @@ export function defaultModelGatewayRuntime(options: ModelGatewayRuntimeOptions =
       env,
       files,
       git,
+      kept: new NodeModelGatewayKept(env),
       ledger: new NodeModelGatewayLedger(env),
       process,
       proof: new NodeModelGatewayProof({ env, files, routingPath }),

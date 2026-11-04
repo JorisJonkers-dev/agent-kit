@@ -45,8 +45,44 @@ export interface ModelGatewayGitPort {
   remotes(path: string): Promise<readonly GitRemote[]>
   /** Checks out the repository's HEAD, detached, into `path`, which is an existing empty directory. Rejects with git's message. */
   addWorktree(repo: string, path: string): Promise<void>
-  /** Removes a worktree added with `addWorktree`, whatever it holds now; its directory is gone afterwards. */
+  /**
+   * Creates a worktree at `path` on a new branch `branch` that starts at `base`
+   * (any ref git resolves), so the delegate's edits land on a branch of its
+   * own. Rejects with git's message when the base is unknown or the branch exists.
+   */
+  createWorktree(repo: string, path: string, branch: string, base: string): Promise<void>
+  /** Stages everything in the worktree, new files and deletions included (`git add -A`). It commits nothing. */
+  stageAll(path: string): Promise<void>
+  /** The files staged in the worktree, relative to it. */
+  stagedFiles(path: string): Promise<readonly string[]>
+  /** Removes a worktree added with `addWorktree` or `createWorktree`, whatever it holds now; its directory is gone afterwards. */
   removeWorktree(repo: string, path: string): Promise<void>
+  /** Deletes a branch with whatever it holds (`git branch -D`); rejects with git's message when it cannot. */
+  deleteBranch(repo: string, branch: string): Promise<void>
+}
+
+/** A writing run's worktree the gateway kept, so the workflow's end can remove it. */
+export interface KeptWorktree {
+  readonly run_id: string
+  readonly workflow: string
+  /** The repository's top level, which git commands about the worktree run in. */
+  readonly repo: string
+  readonly path: string
+  readonly branch: string
+  /** When the worktree was made, as an ISO timestamp. */
+  readonly at: string
+}
+
+/**
+ * The writing worktrees the gateway made and has not removed, machine-wide.
+ * Every operation takes the same exclusive lock, so two gateway processes
+ * never lose each other's entries.
+ */
+export interface ModelGatewayKeptPort {
+  add(worktree: KeptWorktree): Promise<void>
+  list(): Promise<readonly KeptWorktree[]>
+  /** Forgets the worktrees of these runs. */
+  remove(runIds: readonly string[]): Promise<void>
 }
 
 /**
@@ -94,6 +130,8 @@ export interface ModelGatewayDependencies {
   readonly ledger: ModelGatewayLedgerPort
   /** The read-only proofs a run in place needs. */
   readonly proof: ModelGatewayProofPort
+  /** The writing worktrees kept until their workflow ends. */
+  readonly kept: ModelGatewayKeptPort
   /** The clock a run's id, its duration and its ledger line are taken from. */
   readonly clock: ClockPort
 }

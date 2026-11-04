@@ -4,13 +4,14 @@ import { basename, dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { LedgerRecord } from '../contexts/model-gateway/index.js'
+import type { LedgerRecord, ModelGatewayKeptPort } from '../contexts/model-gateway/index.js'
 import type { ProcessCommand, ProcessResult } from '../ports/index.js'
 import type { GitRemote } from '../shared-kernel/index.js'
 import {
   FAKE_CHECKOUT_FILE,
   FakeEnv,
   FakeGit,
+  FakeKept,
   FakeProcess,
   FakeVibeProcess,
   FixedClock,
@@ -662,7 +663,7 @@ describe('model-gateway command line', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe(
-      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run and usage' })}\n`,
+      `${JSON.stringify({ status: 'error', code: 'unknown-command', message: 'unknown subcommand "delegate"; the gateway has models, run, usage and worktrees clean' })}\n`,
     )
   })
 
@@ -1243,6 +1244,10 @@ interface RunWorkspace {
   /** The fake git, which records the worktrees a run added and removed. */
   readonly git: FakeGit
   readonly ledger: string
+  /** The file that lists the writing worktrees the gateway kept. */
+  readonly kept: string
+  /** Any gateway command, by its words. */
+  cli(...argv: string[]): Promise<ModelGatewayCliResult>
   /** The input a run test sends unless it says otherwise: one read-only task in the test repository. */
   input(overrides?: Readonly<Record<string, unknown>>): unknown
   run(input: unknown): Promise<ModelGatewayCliResult>
@@ -1264,6 +1269,8 @@ interface RunWorkspaceOptions {
   readonly override?: unknown
   /** The shipped defaults the gateway reads, when a test needs a broken catalogue. */
   readonly defaults?: unknown
+  /** The kept-worktrees list, when a test needs one that fails; the real file in the state directory by default. */
+  readonly kept?: ModelGatewayKeptPort
 }
 
 /** A gateway wired to a fake Vibe, a temporary home and state directory, and a routing file of its own. */
@@ -1293,6 +1300,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     git,
     process: vibe,
     routingPath,
+    ...(options.kept === undefined ? {} : { kept: options.kept }),
   })
   const write = async (path: string, value: unknown): Promise<void> => {
     await mkdir(dirname(path), { recursive: true })
@@ -1311,6 +1319,8 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
       workflow: 'spec-293',
       ...overrides,
     }),
+    cli: (...argv) => runModelGatewayCli(argv, runtime),
+    kept: join(state, 'agent-kit', 'model-gateway', 'kept-worktrees.json'),
     ledger: join(state, 'agent-kit', 'model-gateway', 'ledger.jsonl'),
     repo,
     run: (input) => runModelGatewayCli(['run', '--json', JSON.stringify(input)], runtime),
@@ -2940,5 +2950,601 @@ describe('model-gateway run: the plan limit', () => {
     const w = await readyRun()
 
     expect(printed(await w.run(w.input()))).not.toHaveProperty('warnings')
+  })
+})
+
+const EDIT_RULE = 'Edit only files inside the working directory. Do not commit.'
+
+/** The git operations a run may make: it finds, creates, stages, lists and removes, and never commits, merges or pushes. */
+const ALLOWED_GIT_CALLS = new Set([
+  'commonDir',
+  'createWorktree',
+  'deleteBranch',
+  'remotes',
+  'removeWorktree',
+  'root',
+  'stageAll',
+  'stagedFiles',
+])
+
+/** The input of a writing run: one task, on a base, with a check. */
+function writeInput(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
+  return w.input({ base: 'main', check: 'npm test', mode: 'write', ...overrides })
+}
+
+/** What a fake delegate does in its workdir: writes the files it names, as a client that edits would. */
+function edits(...files: readonly string[]): (command: ProcessCommand) => Promise<void> {
+  return async (command) => {
+    for (const file of files) {
+      await mkdir(dirname(join(command.cwd ?? '', file)), { recursive: true })
+      await writeFile(join(command.cwd ?? '', file), 'edited')
+    }
+  }
+}
+
+/** The worktree a writing run was given, from its result. */
+function worktreeOf(result: ModelGatewayCliResult): string {
+  return String(printed(result).worktree)
+}
+
+describe('model-gateway run: writing, the input', () => {
+  it('refuses a writing run without a repository, before anything is launched', async () => {
+    const w = await readyRun({ scripts: [{ stdout: journal('x') }] })
+
+    const result = await w.run(writeInput(w, { repo: undefined }))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toMatchObject({ code: 'write-needs-repository', status: 'error' })
+    expect(w.vibe.commands).toEqual([])
+    expect(w.git.worktrees).toEqual([])
+  })
+
+  it('refuses a writing run without a base or without a check, naming the field', async () => {
+    const w = await readyRun()
+
+    expect(printed(await w.run(writeInput(w, { base: undefined })))).toEqual({
+      code: 'invalid-input',
+      message: 'a writing run must name its base, a ref the worktree starts from',
+      status: 'error',
+    })
+    expect(printed(await w.run(writeInput(w, { check: undefined })))).toEqual({
+      code: 'invalid-input',
+      message: 'a writing run must name its check, a command that tests the change',
+      status: 'error',
+    })
+    expect(printed(await w.run(writeInput(w, { base: '' }))).code).toBe('invalid-input')
+    expect(printed(await w.run(writeInput(w, { check: 7 }))).code).toBe('invalid-input')
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('refuses a base or a check on a read-only run, which has neither', async () => {
+    const w = await readyRun()
+
+    expect(printed(await w.run(w.input({ base: 'main' })))).toMatchObject({
+      code: 'invalid-input',
+      message: 'base and check are for writing runs only',
+    })
+    expect(printed(await w.run(w.input({ check: 'npm test' }))).code).toBe('invalid-input')
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('needs the code permission of the repository’s entry, as every run that reads a repository does', async () => {
+    const w = await readyRun({ allowlist: allowlist(['zhipu'], false, true) })
+
+    expect(printed(await w.run(writeInput(w)))).toMatchObject({
+      code: 'policy-refused',
+      message: `vibe:glm-5-3 may not carry code: ${KEY}: the entry allows zhipu`,
+    })
+    expect(w.vibe.commands).toEqual([])
+    expect(w.git.worktrees).toEqual([])
+  })
+
+  it('refuses a model the entry’s families do not allow, as a read-only run is', async () => {
+    const w = await readyRun({ allowlist: allowlist(['mistral'], true, true) })
+
+    expect(printed(await w.run(writeInput(w))).code).toBe('policy-refused')
+    expect(w.git.worktrees).toEqual([])
+  })
+})
+
+describe('model-gateway run: writing, the worktree and the check', () => {
+  it('creates a worktree off the base on a new branch, runs the delegate there only, stages its work, then runs the check', async () => {
+    const stagedBeforeCheck: number[] = []
+    const w = await readyRun({
+      scripts: [
+        { effect: edits('src/a.ts', 'lib/b.ts'), exportJson: exported({ cost: 0.02, input: 100, output: 10 }), stdout: journal('done\nSUMMARY: edited two files') },
+        {
+          effect: () => {
+            stagedBeforeCheck.push(w.git.stagedIn.length)
+            return Promise.resolve()
+          },
+          stdout: '3 passed\n',
+        },
+      ],
+    })
+
+    const result = await w.run(writeInput(w, { time_limit_s: 120 }))
+
+    expect(result.exitCode).toBe(0)
+    const out = printed(result)
+    const runId = String(out.run_id)
+    const worktree = join(w.repo, '.git', 'model-gateway', 'worktrees', runId)
+    expect(out).toEqual({
+      branch: `gateway/${runId}`,
+      check: { command: 'npm test', exit_code: 0, output_path: join(runDirOf(w, result), 'check-output.txt') },
+      client: 'vibe',
+      cost_usd: 0.02,
+      family: 'zhipu',
+      mode: 'write',
+      model: 'glm-5-3',
+      output_path: join(runDirOf(w, result), 'output.json'),
+      run_id: runId,
+      staged_files: ['lib/b.ts', 'src/a.ts'],
+      status: 'ok',
+      summary: 'edited two files',
+      tokens: { cached: 0, input: 100, output: 10 },
+      workflow: 'spec-293',
+      worktree,
+    })
+    expect(w.git.worktrees).toEqual([{ action: 'create', base: 'main', branch: `gateway/${runId}`, path: worktree, repo: w.repo }])
+    const [delegate, check] = w.vibe.commands
+    expect(delegate?.cwd).toBe(worktree)
+    expect(flag(delegate, '--workdir')).toBe(worktree)
+    expect(check).toMatchObject({ args: ['-c', 'npm test'], command: 'sh', cwd: worktree, timeoutMs: 120_000 })
+    expect(w.vibe.commands).toHaveLength(2)
+    expect(stagedBeforeCheck).toEqual([1])
+    expect(w.git.stagedIn).toEqual([worktree])
+    expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe('3 passed\n')
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(out)
+    expect(await readdir(worktree)).toContain('src')
+  })
+
+  it('tells the delegate to edit inside its working directory and not to commit', async () => {
+    const w = await readyRun({ scripts: [{ stdout: journal('x') }, { stdout: '' }] })
+
+    const result = await w.run(writeInput(w))
+
+    expect(await readFile(join(runDirOf(w, result), 'prompt.md'), 'utf8')).toBe(
+      `read this\n\n${EDIT_RULE}\n\nEnd your answer with a line "SUMMARY:" followed by at most 1500 characters that summarise the result.`,
+    )
+    const read = await readyRun({ scripts: [{ stdout: journal('x') }] })
+    expect(await readFile(join(runDirOf(read, await read.run(read.input())), 'prompt.md'), 'utf8')).not.toContain('Do not commit')
+  })
+
+  it('launches Vibe through the write agent, which edits files and runs no shell', async () => {
+    const w = await readyRun({ scripts: [{ stdout: journal('x') }, { stdout: '' }] })
+
+    await w.run(writeInput(w))
+
+    expect(flag(w.vibe.commands[0], '--agent')).toBe('delegate-write')
+    expect(w.vibe.commands[0]?.env).toMatchObject({ AGENT_KIT_DELEGATION: '1', VIBE_OUTSIDE_WORKDIR: 'deny' })
+  })
+
+  it('launches Claude Code with acceptEdits, Antigravity with accept-edits and OpenCode with its default agent', async () => {
+    const w = await clientRun({
+      scripts: [
+        { stdout: claudeResult('x') },
+        { stdout: '' },
+        { stdout: agyResult('x') },
+        { stdout: '' },
+        { stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('x')) },
+        { stdout: '' },
+      ],
+    })
+
+    await w.run(writeInput(w, { client: 'claude', model: 'claude-sonnet-5-5' }))
+    await w.run(writeInput(w, { client: 'agy', model: 'gemini-3.8-flash-high' }))
+    await w.run(writeInput(w, { client: 'opencode', model: 'opencode-go/glm-5-3' }))
+
+    const [claude, , agy, , opencode] = w.vibe.commands
+    expect(claude?.args).toEqual([
+      '-p',
+      '--model',
+      'claude-sonnet-5-5',
+      '--output-format',
+      'json',
+      '--permission-mode',
+      'acceptEdits',
+      '--allowedTools',
+      'Read,Grep,Glob,Edit,Write',
+    ])
+    expect(claude?.stdin).toContain(EDIT_RULE)
+    expect(flag(agy, '--mode')).toBe('accept-edits')
+    expect(agy?.args[1]).toContain(EDIT_RULE)
+    expect(opencode?.args).toEqual(['run', '--model', 'opencode-go/glm-5-3', '--format', 'json', expect.stringContaining(EDIT_RULE) as unknown])
+    for (const command of [claude, agy, opencode]) expect(String(command?.cwd)).toContain(join('.git', 'model-gateway', 'worktrees'))
+  })
+
+  it('works in its own worktree even when the model’s read-only proof passed', async () => {
+    const w = await readyRun({ scripts: [{ stdout: journal('x') }, { stdout: '' }], setupResults: setupResults('pass') })
+
+    const result = await w.run(writeInput(w))
+
+    expect(w.vibe.commands[0]?.cwd).toBe(worktreeOf(result))
+    expect(w.vibe.commands[0]?.cwd).not.toBe(w.repo)
+  })
+
+  it('reports a check that fails as a failed run, keeps its worktree, and still stages what the delegate wrote', async () => {
+    const w = await readyRun({
+      scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { exitCode: 1, stderr: '1 failed\n', stdout: 'running\n' }],
+    })
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      check: { command: 'npm test', exit_code: 1 },
+      reason: 'check-failed',
+      staged_files: ['src/a.ts'],
+      status: 'failed',
+    })
+    expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe('running\n1 failed\n')
+    expect(await readdir(worktreeOf(result))).toContain('src')
+    expect(w.git.worktrees.map((call) => call.action)).toEqual(['create'])
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ mode: 'write', outcome: 'failed', reason: 'check-failed' })
+  })
+
+  it('reports a check that cannot start as a failed check with exit code 127 and the reason as its output', async () => {
+    const w = await readyRun({ scripts: [{ stdout: journal('done') }] })
+
+    const result = await w.run(writeInput(w))
+
+    expect(printed(result)).toMatchObject({ check: { exit_code: 127 }, reason: 'check-failed', status: 'failed' })
+    expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe('unexpected process launch')
+  })
+
+  it('reports a check that outlives its time limit as a failed check', async () => {
+    const w = await readyRun({ scripts: [{ stdout: journal('done') }, { stdout: '', timedOut: true }] })
+
+    expect(printed(await w.run(writeInput(w)))).toMatchObject({ check: { exit_code: 124 }, reason: 'check-failed', status: 'failed' })
+  })
+
+  it('leaves the worktree of a run that hit its time limit unstaged and kept, runs no check, and lists it for the workflow’s end', async () => {
+    const w = await readyRun({ scripts: [{ effect: edits('src/partial.ts'), stdout: '', timedOut: true }] })
+
+    const result = await w.run(writeInput(w))
+
+    expect(printed(result)).toMatchObject({ reason: 'timeout', staged_files: [], status: 'failed' })
+    expect(printed(result)).not.toHaveProperty('check')
+    expect(w.vibe.commands).toHaveLength(1)
+    expect(w.git.stagedIn).toEqual([])
+    expect(await readdir(worktreeOf(result))).toContain('src')
+    expect(w.git.worktrees.map((call) => call.action)).toEqual(['create'])
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toEqual({
+      version: 1,
+      worktrees: [
+        {
+          at: expect.any(String) as unknown,
+          branch: printed(result).branch,
+          path: worktreeOf(result),
+          repo: w.repo,
+          run_id: printed(result).run_id,
+          workflow: 'spec-293',
+        },
+      ],
+    })
+  })
+
+  it('leaves the worktree of any run the delegate failed unstaged and kept, with the delegate’s own reason', async () => {
+    const w = await readyRun({ scripts: [{ exitCode: 3, stdout: '' }, { stdout: 'not a journal' }] })
+
+    expect(printed(await w.run(writeInput(w)))).toMatchObject({ reason: 'exit-3', staged_files: [], status: 'failed' })
+    expect(printed(await w.run(writeInput(w)))).toMatchObject({ reason: 'parse-error', staged_files: [], status: 'failed' })
+    expect(w.vibe.commands).toHaveLength(2)
+    expect(w.git.stagedIn).toEqual([])
+  })
+
+  it('stops the run when git cannot create the worktree off the base, and leaves nothing behind', async () => {
+    const w = await readyRun({
+      repositories: (repo) => ({
+        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], root: repo, worktreeError: 'fatal: invalid reference: nowhere' },
+      }),
+      scripts: [{ stdout: journal('x') }],
+    })
+
+    const result = await w.run(writeInput(w, { base: 'nowhere' }))
+
+    expect(printed(result)).toEqual({
+      code: 'worktree-failed',
+      message: `${w.repo}: cannot create a worktree off nowhere: fatal: invalid reference: nowhere`,
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+    await expect(readFile(w.kept, 'utf8')).rejects.toThrow()
+    expect(await readdir(join(w.repo, '.git', 'model-gateway')).catch(() => [])).not.toContain('worktrees')
+  })
+
+  it('stages the delegate’s work before the check, so what the check writes is not the delegate’s diff', async () => {
+    const callsAtCheck: string[][] = []
+    const w = await readyRun({
+      scripts: [
+        { effect: edits('src/a.ts'), stdout: journal('done') },
+        {
+          effect: async (command) => {
+            callsAtCheck.push([...w.git.calls])
+            await mkdir(join(String(command.cwd), 'coverage'), { recursive: true })
+            await writeFile(join(String(command.cwd), 'coverage', 'lcov.info'), 'generated by the check')
+            await writeFile(join(String(command.cwd), 'src', 'a.ts'), 'rewritten by the check')
+          },
+          stdout: '3 passed\n',
+        },
+      ],
+    })
+
+    const result = await w.run(writeInput(w))
+
+    expect(printed(result)).toMatchObject({ staged_files: ['src/a.ts'], status: 'ok' })
+    expect(callsAtCheck[0]?.slice(-2)).toEqual(['stageAll', 'stagedFiles'])
+    expect(w.git.calls.filter((call) => call === 'stageAll')).toHaveLength(1)
+    expect(w.git.calls.filter((call) => call === 'stagedFiles')).toHaveLength(1)
+    expect(await readFile(join(worktreeOf(result), 'src', 'a.ts'), 'utf8')).toBe('rewritten by the check')
+    expect(await readdir(worktreeOf(result))).toContain('coverage')
+  })
+
+  it('reports a failed run when git cannot list what it staged, and keeps the worktree', async () => {
+    const w = await readyRun({ scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { stdout: '3 passed\n' }] })
+    w.git.stagedFilesError = 'fatal: index file smaller than expected'
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      check: { command: 'npm test', exit_code: 0 },
+      reason: 'stage-list-failed',
+      staged_files: null,
+      status: 'failed',
+      worktree_error: 'fatal: index file smaller than expected',
+    })
+    expect(w.git.stagedIn).toEqual([worktreeOf(result)])
+    expect(await readdir(worktreeOf(result))).toContain('src')
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'stage-list-failed' })
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id }] })
+  })
+
+  it('reports a failed run, not an error, when git cannot stage after a delegate and a check that went well', async () => {
+    const w = await readyRun({ scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { stdout: '3 passed\n' }] })
+    w.git.stageError = 'fatal: not a git repository: .git'
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      branch: expect.stringMatching(/^gateway\//) as unknown,
+      check: { command: 'npm test', exit_code: 0 },
+      reason: 'stage-failed',
+      staged_files: [],
+      status: 'failed',
+      worktree_error: 'fatal: not a git repository: .git',
+    })
+    expect(worktreeOf(result)).toContain(join('.git', 'model-gateway', 'worktrees'))
+    expect(await readFile(join(runDirOf(w, result), 'output.json'), 'utf8')).toBe(journal('done'))
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(printed(result))
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ mode: 'write', outcome: 'failed', reason: 'stage-failed' })
+    expect(await readdir(worktreeOf(result))).toContain('src')
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id }] })
+  })
+
+  it('reports a failed run when the check’s output cannot be written, and keeps the check’s exit code', async () => {
+    const w = await readyRun({
+      scripts: [
+        {
+          effect: async (command) => {
+            await mkdir(join(dirname(String(flag(command, '--prompt-file'))), 'check-output.txt'), { recursive: true })
+          },
+          stdout: journal('done'),
+        },
+        { stdout: '3 passed\n' },
+      ],
+    })
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      check: { exit_code: 0 },
+      reason: 'check-output-failed',
+      status: 'failed',
+      worktree_error: expect.stringContaining('check-output.txt') as unknown,
+    })
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'check-output-failed' })
+  })
+
+  it('removes the worktree and its branch, and throws the original error, when the kept list cannot take it', async () => {
+    const kept = new FakeKept()
+    kept.addError = new Error('disk full')
+    const w = await readyRun({ kept, scripts: [{ stdout: journal('x') }] })
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toEqual({ code: 'unexpected', message: 'disk full', status: 'error' })
+    const [created, removed] = w.git.worktrees
+    expect(w.git.worktrees.map((call) => call.action)).toEqual(['create', 'remove'])
+    expect(removed?.path).toBe(created?.path)
+    expect(w.git.deletedBranches).toEqual([{ branch: created?.branch, repo: w.repo }])
+    expect(w.vibe.commands).toEqual([])
+  })
+
+  it('throws the original error even when the worktree and the branch cannot be removed either', async () => {
+    const kept = new FakeKept()
+    kept.addError = new Error('disk full')
+    const w = await readyRun({
+      kept,
+      repositories: (repo) => ({
+        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], removeError: 'fatal: cannot lock', root: repo },
+      }),
+    })
+    w.git.deleteBranchError = 'error: branch not found'
+
+    expect(printed(await w.run(writeInput(w)))).toEqual({ code: 'unexpected', message: 'disk full', status: 'error' })
+    expect(w.git.worktrees.map((call) => call.action)).toEqual(['create', 'remove'])
+  })
+
+  it('never commits, merges or pushes: the only git it makes is finding, creating, staging, listing and removing', async () => {
+    const w = await readyRun({
+      scripts: [
+        { effect: edits('a.ts'), stdout: journal('x') },
+        { stdout: '' },
+        { effect: edits('b.ts'), stdout: journal('y') },
+        { exitCode: 1, stdout: '' },
+        { stdout: '', timedOut: true },
+      ],
+    })
+
+    await w.run(writeInput(w))
+    await w.run(writeInput(w))
+    await w.run(writeInput(w))
+    await w.cli('worktrees', 'clean', '--json', JSON.stringify({ all: true }))
+
+    expect(w.git.calls.length).toBeGreaterThan(0)
+    for (const call of w.git.calls) expect(ALLOWED_GIT_CALLS.has(call)).toBe(true)
+    expect(w.git.calls.filter((call) => /commit|merge|push/i.test(call))).toEqual([])
+    expect(w.git.calls).toContain('stageAll')
+  })
+
+  it('lists every worktree it made, whatever the run came to, so the workflow’s end can remove them', async () => {
+    const w = await readyRun({ scripts: [{ stdout: journal('x') }, { stdout: '' }] })
+
+    const result = await w.run(writeInput(w))
+
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id, workflow: 'spec-293' }] })
+  })
+
+  it('keeps the list when two runs add to it at once', async () => {
+    const w = await readyRun({ scripts: Array.from({ length: 6 }, () => ({ stdout: journal('x') })) })
+    w.vibe.queue(...Array.from({ length: 6 }, () => ({ stdout: '' })))
+
+    const results = await Promise.all(Array.from({ length: 6 }, () => w.run(writeInput(w))))
+
+    const listed = (JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { run_id: string }[] }).worktrees.map((entry) => entry.run_id)
+    expect(listed.sort()).toEqual(results.map((result) => String(printed(result).run_id)).sort())
+  })
+})
+
+describe('model-gateway worktrees clean', () => {
+  /** A workspace with one finished writing run of workflow `spec-293` and one that timed out in `spec-294`. */
+  async function withKept(): Promise<{ w: RunWorkspace; ok: ModelGatewayCliResult; timedOut: ModelGatewayCliResult }> {
+    const w = await readyRun({ scripts: [{ stdout: journal('x') }, { stdout: '' }, { stdout: '', timedOut: true }] })
+    const ok = await w.run(writeInput(w))
+    const timedOut = await w.run(writeInput(w, { workflow: 'spec-294' }))
+    return { ok, timedOut, w }
+  }
+
+  it('removes the worktrees of the workflow that ended, and their branches, and keeps the others listed', async () => {
+    const { w, ok, timedOut } = await withKept()
+    w.git.worktrees.length = 0
+
+    const result = await w.cli('worktrees', 'clean', '--json', '{"workflow":"spec-294"}')
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toEqual({
+      branch_kept: [],
+      failed: [],
+      removed: [{ branch: printed(timedOut).branch, run_id: printed(timedOut).run_id, workflow: 'spec-294', worktree: worktreeOf(timedOut) }],
+      status: 'ok',
+    })
+    expect(w.git.worktrees).toEqual([{ action: 'remove', path: worktreeOf(timedOut), repo: w.repo }])
+    expect(w.git.deletedBranches).toEqual([{ branch: printed(timedOut).branch, repo: w.repo }])
+    expect(await readdir(dirname(worktreeOf(timedOut)))).not.toContain(basename(worktreeOf(timedOut)))
+    expect((JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { run_id: string }[] }).worktrees.map((entry) => entry.run_id)).toEqual([
+      printed(ok).run_id,
+    ])
+  })
+
+  it('counts a worktree as cleaned once it is removed, and reports a branch git would not delete', async () => {
+    const { w, timedOut } = await withKept()
+    w.git.deleteBranchError = 'error: Cannot delete branch checked out at /elsewhere'
+
+    const result = await w.cli('worktrees', 'clean', '--json', '{"workflow":"spec-294"}')
+
+    expect(printed(result)).toEqual({
+      branch_kept: [
+        { branch: printed(timedOut).branch, reason: 'error: Cannot delete branch checked out at /elsewhere', run_id: printed(timedOut).run_id },
+      ],
+      failed: [],
+      removed: [{ branch: printed(timedOut).branch, run_id: printed(timedOut).run_id, workflow: 'spec-294', worktree: worktreeOf(timedOut) }],
+      status: 'ok',
+    })
+    expect((JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { workflow: string }[] }).worktrees.map((entry) => entry.workflow)).toEqual(['spec-293'])
+  })
+
+  it('removes every kept worktree when told to, and leaves an empty list', async () => {
+    const { w } = await withKept()
+
+    const result = await w.cli('worktrees', 'clean', '--json', '{"all":true}')
+
+    expect((printed(result).removed as unknown[]).length).toBe(2)
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toEqual({ version: 1, worktrees: [] })
+  })
+
+  it('removes nothing for a workflow it kept nothing for, and when it has kept nothing at all', async () => {
+    const { w } = await withKept()
+    expect(printed(await w.cli('worktrees', 'clean', '--json', '{"workflow":"other"}'))).toEqual({ branch_kept: [], failed: [], removed: [], status: 'ok' })
+    expect(w.git.worktrees.map((call) => call.action)).toEqual(['create', 'create'])
+
+    const empty = await runWorkspace()
+    expect(printed(await empty.cli('worktrees', 'clean', '--json', '{"all":true}'))).toEqual({ branch_kept: [], failed: [], removed: [], status: 'ok' })
+  })
+
+  it('refuses input that names both a workflow and all', async () => {
+    const w = await runWorkspace()
+
+    const result = await w.cli('worktrees', 'clean', '--json', '{"workflow":"spec-294","all":true}')
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toMatchObject({ code: 'invalid-input', status: 'error' })
+    expect(String(printed(result).message)).toContain('not both')
+  })
+
+  it('keeps the entry of a worktree it could not remove, and says why', async () => {
+    const w = await readyRun({
+      repositories: (repo) => ({
+        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], removeError: 'fatal: cannot lock', root: repo },
+      }),
+      scripts: [{ stdout: journal('x') }, { stdout: '' }],
+    })
+    const ran = await w.run(writeInput(w))
+
+    const result = await w.cli('worktrees', 'clean', '--json', '{"workflow":"spec-293"}')
+
+    expect(printed(result)).toEqual({
+      branch_kept: [],
+      failed: [{ reason: 'fatal: cannot lock', run_id: printed(ran).run_id, worktree: worktreeOf(ran) }],
+      removed: [],
+      status: 'ok',
+    })
+    expect(w.git.deletedBranches).toEqual([])
+    expect((JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: unknown[] }).worktrees).toHaveLength(1)
+  })
+
+  it('refuses input that names neither a workflow nor all, or both', async () => {
+    const w = await readyRun()
+
+    for (const input of ['{}', '{"workflow":1}', '{"workflow":""}', '{"all":false}', '{"all":true,"workflow":"x"}']) {
+      const result = await w.cli('worktrees', 'clean', '--json', input)
+      expect(result.exitCode).toBe(1)
+      expect(printed(result)).toMatchObject({ code: 'invalid-input', status: 'error' })
+    }
+  })
+
+  it('names a list it cannot read', async () => {
+    const w = await readyRun()
+    await mkdir(dirname(w.kept), { recursive: true })
+    await writeFile(w.kept, 'not json')
+
+    const result = await w.cli('worktrees', 'clean', '--json', '{"all":true}')
+
+    expect(printed(result)).toMatchObject({ code: 'invalid-config', status: 'error' })
+    expect(String(printed(result).message)).toContain(w.kept)
+    await writeFile(w.kept, '{"version":1,"worktrees":"x"}')
+    expect(printed(await w.cli('worktrees', 'clean', '--json', '{"all":true}')).code).toBe('invalid-config')
+  })
+
+  it('is a subcommand of its own: worktrees alone, or with another word, is unknown', async () => {
+    const w = await readyRun()
+
+    expect(printed(await w.cli('worktrees', '--json', '{}'))).toMatchObject({ code: 'unknown-command', status: 'error' })
+    expect(printed(await w.cli('worktrees', 'list', '--json', '{}'))).toMatchObject({ code: 'unknown-command', status: 'error' })
+    expect(printed(await w.cli('worktrees'))).toMatchObject({ code: 'unknown-command', status: 'error' })
   })
 })

@@ -618,7 +618,7 @@ _vibe_critic_agents() {
   return 0
 }
 
-# The read-only delegate agents the model gateway launches as
+# The delegate agents the model gateway launches as
 # `vibe --agent delegate-<what it may do>`. Called for the shared Vibe
 # home only: vibe-private never delegates. Nothing here touches
 # config.toml, so no delegate becomes the default agent.
@@ -632,6 +632,15 @@ _vibe_delegate_agents() {
     ok "Vibe delegate agent delegate-readonly -> ${dest}"
   else
     fail "Vibe delegate agent delegate-readonly: ${dest} does not match ${src}"
+  fi
+  src="${KIT_ROOT}/registry/generated/vibe/agents/delegate-write.toml"
+  dest="${home}/agents/delegate-write.toml"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Vibe delegate agent delegate-write -> ${dest}"
+  else
+    fail "Vibe delegate agent delegate-write: ${dest} does not match ${src}"
   fi
   return 0
 }

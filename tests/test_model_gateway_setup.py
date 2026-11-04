@@ -34,6 +34,7 @@ HOMES = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemi
 ROUTING = KIT_ROOT / "skills" / "workstation" / "critique" / "routing.json"
 DELEGATE_AGENTS_DIR = render_registry.VIBE_DELEGATE_AGENTS_DIR
 DELEGATE_AGENT = "delegate-readonly"
+WRITE_DELEGATE_AGENT = "delegate-write"
 # Every key a rendered delegate agent file may hold: Vibe's own settings, the
 # same set the critic agent files are held to (#168 loaded them under
 # VIBE_STRICT_CONFIG=1, which refuses any setting Vibe does not use).
@@ -379,9 +380,12 @@ def _delegate_file() -> dict:
     return tomllib.loads((KIT_ROOT / DELEGATE_AGENTS_DIR / f"{DELEGATE_AGENT}.toml").read_text())
 
 
-def test_the_delegate_agent_is_declared_for_the_workstation() -> None:
+def test_the_delegate_agents_are_declared_for_the_workstation() -> None:
     agents = _registry()["vibe_delegate_agents"]
-    assert [(a["name"], a["surfaces"]) for a in agents] == [(DELEGATE_AGENT, ["workstation"])]
+    assert [(a["name"], a["surfaces"]) for a in agents] == [
+        (DELEGATE_AGENT, ["workstation"]),
+        (WRITE_DELEGATE_AGENT, ["workstation"]),
+    ]
 
 
 def test_the_delegate_agent_can_only_read_and_search_inside_its_working_directory() -> None:
@@ -402,6 +406,40 @@ def test_the_delegate_agent_can_only_read_and_search_inside_its_working_director
     assert doc["enabled_skills"] == ["re:^$"]
     assert doc["session_logging"] == {"enabled": False}
     assert doc["safety"] == "safe"
+
+
+def _write_delegate_file() -> dict:
+    return tomllib.loads((KIT_ROOT / DELEGATE_AGENTS_DIR / f"{WRITE_DELEGATE_AGENT}.toml").read_text())
+
+
+def test_the_write_delegate_reads_searches_writes_and_edits_inside_its_working_directory_and_runs_no_shell() -> None:
+    """A writing delegation (#300) runs in a worktree the gateway made, so the agent may change files.
+
+    It still has no bash (the gateway runs the caller's check itself), no
+    subagents, no skills, no MCP, nothing outside the working directory and no
+    project context. Its two write tools are always allowed, because a
+    headless run has nobody to ask.
+    """
+    doc = _write_delegate_file()
+    assert doc["enabled_tools"] == ["read_file", "grep", "write_file", "edit"]
+    assert not {"bash", "task"} & set(doc["enabled_tools"])
+    assert doc["tools"] == {"write_file": {"permission": "always"}, "edit": {"permission": "always"}}
+    assert doc["outside_workdir"] == "deny"
+    assert "enable_mcp" not in doc
+    assert "mcp_servers" not in doc
+    assert doc["enable_subagents"] is False
+    assert doc["include_project_context"] is False
+    assert doc["enabled_skills"] == ["re:^$"]
+    assert doc["session_logging"] == {"enabled": False}
+    assert doc["safety"] == "safe"
+    assert "active_model" not in doc
+    assert "models" not in doc
+    assert "default_agent" not in doc
+    assert not set(doc) - DELEGATE_PROFILE_KEYS - DELEGATE_SETTING_KEYS
+
+
+def test_the_read_only_delegate_still_has_no_write_tool() -> None:
+    assert not {"write_file", "edit", "bash"} & set(_delegate_file()["enabled_tools"])
 
 
 def test_the_delegate_agent_pins_no_model_and_is_nobody_s_default() -> None:
@@ -443,11 +481,12 @@ def test_a_file_left_over_from_a_retired_delegate_is_a_stale_artifact(tmp_path: 
     assert render_registry.stale_artifacts(data, tmp_path) == [str(DELEGATE_AGENTS_DIR / "delegate-gone.toml")]
 
 
-def test_setup_installs_the_delegate_agent_into_the_shared_vibe_home(macos_run: Run) -> None:
-    installed = macos_run.home / ".vibe" / "agents" / f"{DELEGATE_AGENT}.toml"
-    assert installed.read_text() == (KIT_ROOT / DELEGATE_AGENTS_DIR / f"{DELEGATE_AGENT}.toml").read_text()
-    assert f"Vibe delegate agent {DELEGATE_AGENT} -> " in macos_run.stdout
-    assert not (macos_run.home / ".vibe-private" / "agents" / f"{DELEGATE_AGENT}.toml").exists()
+@pytest.mark.parametrize("agent", [DELEGATE_AGENT, WRITE_DELEGATE_AGENT])
+def test_setup_installs_the_delegate_agents_into_the_shared_vibe_home(macos_run: Run, agent: str) -> None:
+    installed = macos_run.home / ".vibe" / "agents" / f"{agent}.toml"
+    assert installed.read_text() == (KIT_ROOT / DELEGATE_AGENTS_DIR / f"{agent}.toml").read_text()
+    assert f"Vibe delegate agent {agent} -> " in macos_run.stdout
+    assert not (macos_run.home / ".vibe-private" / "agents" / f"{agent}.toml").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -485,11 +524,25 @@ def test_the_skill_documents_the_run_command() -> None:
         "model-gateway.mjs run --json",
         "delegate-readonly",
         "throwaway worktree",
+        "worktree-failed",
+        "cleanup_warning",
+        "delegate-write",
+        "write-needs-repository",
+        "check-failed",
+        "worktrees clean",
+        "kept-worktrees.json",
         "AGENT_KIT_DELEGATION",
         "ledger.jsonl",
         "SUMMARY:",
         "not-supported-yet",
     ):
+        assert word in text, word
+
+
+def test_the_skill_warns_that_the_check_runs_the_delegate_s_code() -> None:
+    text = _skill_text()
+    assert "The check runs the delegate's code" in text
+    for word in ("sh -c", "trust", "staged diff"):
         assert word in text, word
 
 

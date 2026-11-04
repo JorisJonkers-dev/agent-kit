@@ -62,6 +62,11 @@ VIBE_DELEGATE_AGENT_KEYS = {"name", "surfaces", "note"}
 # What a read-only delegate may do: read a file and search the working
 # directory. Vibe 3.0.4 has no listing tool, so `grep` is how it finds files.
 DELEGATE_TOOLS = ("read_file", "grep")
+# What a writing delegate may add: create or overwrite a file and edit one in
+# place. There is no shell tool among them: the gateway runs the check itself.
+DELEGATE_WRITE_TOOLS = ("write_file", "edit")
+# The one delegate agent that may write; every other `delegate-*` is read-only.
+WRITE_DELEGATE_AGENT = "delegate-write"
 # Mistral bills cached prompt tokens at this share of the input price
 # (docs.mistral.ai/studio/conversations/advanced/prompt-caching). Every critic
 # model runs through Mistral, so its agent file prices cached input this way.
@@ -586,34 +591,45 @@ def retired_vibe_delegate_agents(data: dict[str, Any]) -> list[str]:
 
 
 def render_vibe_delegate_agent(agent: dict[str, Any]) -> str:
-    """One read-only delegate agent file, a Vibe config overlay for ``vibe --agent <name>``.
+    """One delegate agent file, a Vibe config overlay for ``vibe --agent <name>``.
 
     Every setting is fixed here, so no entry can widen a delegate. Its tool
-    list (``read_file`` and ``grep``) is what keeps writes, shells, skills and
-    subagents from it; ``outside_workdir = "deny"`` keeps it inside the
-    directory the gateway points it at, and ``include_project_context =
-    false`` keeps the home's ``AGENTS.md`` out of its prompt. It pins no model
-    and sets no ``default_agent``: the gateway passes ``--model <alias>``, and
-    a plain ``vibe`` never starts with it.
+    list is what keeps shells, skills and subagents from it, and writes too
+    unless it is ``delegate-write``, which adds ``write_file`` and ``edit``
+    (set to ``always``, as a headless run has nobody to ask);
+    ``outside_workdir = "deny"`` keeps it inside the directory the gateway
+    points it at, and ``include_project_context = false`` keeps the home's
+    ``AGENTS.md`` out of its prompt. It pins no model and sets no
+    ``default_agent``: the gateway passes ``--model <alias>``, and a plain
+    ``vibe`` never starts with it.
     """
     name = str(agent["name"])
+    writes = name == WRITE_DELEGATE_AGENT
+    tools = (*DELEGATE_TOOLS, *DELEGATE_WRITE_TOOLS) if writes else DELEGATE_TOOLS
+    description = (
+        "Write delegate for the model gateway: edits files in its worktree"
+        if writes
+        else "Read-only delegate for the model gateway"
+    )
     lines = [
         f"# {GENERATED_BANNER}",
-        "# A read-only delegate of the model gateway, launched by it as",
+        f"# A {'writing' if writes else 'read-only'} delegate of the model gateway, launched by it as",
         f"# `vibe --agent {name} --model <alias>`. Installed into the shared Vibe home only.",
         "",
         f"display_name = {_toml_str(name.replace('-', ' ').title())}",
-        'description = "Read-only delegate for the model gateway"',
+        f'description = "{description}"',
         'safety = "safe"',
-        "enabled_tools = [" + ", ".join(_toml_str(tool) for tool in DELEGATE_TOOLS) + "]",
+        "enabled_tools = [" + ", ".join(_toml_str(tool) for tool in tools) + "]",
         'enabled_skills = ["re:^$"]',
         'outside_workdir = "deny"',
         "enable_subagents = false",
         "include_project_context = false",
         "",
-        "[session_logging]",
-        "enabled = false",
     ]
+    if writes:
+        for tool in DELEGATE_WRITE_TOOLS:
+            lines += [f"[tools.{tool}]", 'permission = "always"', ""]
+    lines += ["[session_logging]", "enabled = false"]
     return "\n".join(lines) + "\n"
 
 
@@ -1652,7 +1668,7 @@ def _delegate_agents_step(data: dict[str, Any], w: Any) -> None:
     left alone. One line per file keeps every path setup reads from the kit
     literal, which is how the bundle test sees it.
     """
-    w("# The read-only delegate agents the model gateway launches as")
+    w("# The delegate agents the model gateway launches as")
     w("# `vibe --agent delegate-<what it may do>`. Called for the shared Vibe")
     w("# home only: vibe-private never delegates. Nothing here touches")
     w("# config.toml, so no delegate becomes the default agent.")

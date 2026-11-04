@@ -1,7 +1,7 @@
 import { isObject, ModelGatewayError, type ModelPrices } from './config.js'
 
-/** The one mode a run has today; writing runs come later. */
-export type RunMode = 'read-only'
+/** What a run may do: read the repository, or change it in a worktree of its own. */
+export type RunMode = 'read-only' | 'write'
 
 /** The clients a delegation can be handed to: Vibe, Antigravity, Claude Code and OpenCode. */
 export const RUN_CLIENTS = ['vibe', 'agy', 'claude', 'opencode'] as const
@@ -31,6 +31,10 @@ export interface RunInput {
   readonly carries?: Carries
   readonly time_limit_s: number
   readonly max_price_usd?: number
+  /** A writing run's starting point: the ref its worktree is created off. */
+  readonly base?: string
+  /** A writing run's check: a command the gateway runs with `sh -c` in the worktree once the delegate ends. */
+  readonly check?: string
 }
 
 /** Reads a run's input, or says what is wrong with it. */
@@ -42,8 +46,8 @@ export function readRunInput(raw: unknown): RunInput {
   if (typeof raw.client !== 'string' || !(RUN_CLIENTS as readonly string[]).includes(raw.client)) {
     throw new ModelGatewayError('not-supported-yet', `only ${RUN_CLIENTS.join(', ')} can run a delegation, not ${shown(raw.client)}`)
   }
-  if (raw.mode !== 'read-only') {
-    throw new ModelGatewayError('not-supported-yet', `only read-only runs are supported, not ${shown(raw.mode)}`)
+  if (raw.mode !== 'read-only' && raw.mode !== 'write') {
+    throw new ModelGatewayError('not-supported-yet', `only read-only and write runs are supported, not ${shown(raw.mode)}`)
   }
   if (typeof raw.model !== 'string' || raw.model === '') {
     throw new ModelGatewayError('invalid-input', 'model must be a non-empty string')
@@ -56,9 +60,10 @@ export function readRunInput(raw: unknown): RunInput {
   const timeLimit = raw.time_limit_s === undefined ? DEFAULT_TIME_LIMIT_S : requiredWholeNumber(raw.time_limit_s, 'time_limit_s')
   if (timeLimit <= 0) throw new ModelGatewayError('invalid-input', 'time_limit_s must be a whole number of seconds above 0')
   const maxPrice = raw.max_price_usd === undefined ? undefined : requiredNumberAbove0(raw.max_price_usd, 'max_price_usd')
+  const writing = readWriting(raw, repo)
   return {
     client: raw.client,
-    mode: 'read-only',
+    mode: raw.mode,
     model: raw.model,
     prompt: raw.prompt,
     time_limit_s: timeLimit,
@@ -66,7 +71,32 @@ export function readRunInput(raw: unknown): RunInput {
     ...(carries === undefined ? {} : { carries }),
     ...(maxPrice === undefined ? {} : { max_price_usd: maxPrice }),
     ...(repo === undefined ? {} : { repo }),
+    ...writing,
   }
+}
+
+/**
+ * What a writing run adds to the input: its base and its check, and a
+ * repository to work in. A read-only run has neither, and one that names
+ * them is refused rather than having them ignored.
+ */
+function readWriting(raw: Record<string, unknown>, repo: string | undefined): { base?: string; check?: string } {
+  if (raw.mode !== 'write') {
+    if (raw.base !== undefined || raw.check !== undefined) {
+      throw new ModelGatewayError('invalid-input', 'base and check are for writing runs only')
+    }
+    return {}
+  }
+  if (repo === undefined) {
+    throw new ModelGatewayError('write-needs-repository', 'a writing run changes a repository, so it must name its repo')
+  }
+  if (typeof raw.base !== 'string' || raw.base === '') {
+    throw new ModelGatewayError('invalid-input', 'a writing run must name its base, a ref the worktree starts from')
+  }
+  if (typeof raw.check !== 'string' || raw.check === '') {
+    throw new ModelGatewayError('invalid-input', 'a writing run must name its check, a command that tests the change')
+  }
+  return { base: raw.base, check: raw.check }
 }
 
 function readOptionalString(value: unknown, name: string): string | undefined {
@@ -103,13 +133,17 @@ function shown(value: unknown): string {
   return value === undefined ? 'missing' : JSON.stringify(value)
 }
 
+/** What a writing delegate is told: where it may edit, and that committing is the gateway's caller's. */
+export const WRITE_RULE = 'Edit only files inside the working directory. Do not commit.'
+
 /**
- * The prompt the delegate receives: the caller's prompt, and the instruction
- * that ends its answer with a SUMMARY line the gateway can cut to the
- * summary's limit.
+ * The prompt the delegate receives: the caller's prompt, for a writing run
+ * the rule about where it edits, and the instruction that ends its answer
+ * with a SUMMARY line the gateway can cut to the summary's limit.
  */
-export function wrappedPrompt(prompt: string, summaryMaxChars: number): string {
-  return `${prompt}\n\nEnd your answer with a line "SUMMARY:" followed by at most ${String(summaryMaxChars)} characters that summarise the result.`
+export function wrappedPrompt(prompt: string, summaryMaxChars: number, mode: RunMode = 'read-only'): string {
+  const rule = mode === 'write' ? `\n\n${WRITE_RULE}` : ''
+  return `${prompt}${rule}\n\nEnd your answer with a line "SUMMARY:" followed by at most ${String(summaryMaxChars)} characters that summarise the result.`
 }
 
 /**
