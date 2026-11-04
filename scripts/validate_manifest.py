@@ -28,8 +28,20 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SELFTEST_ENV = "AGENT_RUNTIME_SELFTEST"
 MANIFEST_PATH = ROOT / "manifest.yaml"
 COUNCIL_CLI_INDEX_PATH = ROOT / "council" / "ts" / "src" / "cli" / "index.ts"
+MODEL_GATEWAY_ROOT = ROOT / "skills" / "workstation" / "model-gateway"
 ROUND3_SKELETON_DIR = ROOT / "runner/manifests"
 ROUND3_VALIDATED_DIRS = (ROUND3_SKELETON_DIR,)
+
+# The JSON Schema types validate_json_schema knows, and the Python type each
+# one accepts. A bool is not a number here, as in JSON Schema.
+JSON_SCHEMA_TYPES: dict[str, Any] = {
+    "object": dict,
+    "array": list,
+    "string": str,
+    "boolean": bool,
+    "number": (int, float),
+    "integer": int,
+}
 
 ROUND3_FORBIDDEN_PATTERNS = {
     "personal domain or hostname": re.compile(
@@ -459,6 +471,141 @@ def validate_build_tracker(manifest: dict[str, Any]) -> None:
     }
     if manifest_files != actual_files:
         fail(f"build_tracker.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
+
+
+def validate_model_gateway(manifest: dict[str, Any]) -> None:
+    """model_gateway.files pins every file of skills/workstation/model-gateway but its SKILL.md.
+
+    As with critique.files, validate_checksums checks each sha256; this checks
+    the set. The shipped defaults are then checked against the schema beside
+    them, so a default the gateway cannot read fails here rather than in a
+    delegation.
+    """
+    section = as_mapping(manifest.get("model_gateway"), "model_gateway")
+    files = as_list(section.get("files"), "model_gateway.files")
+    manifest_files = {item.get("path") for item in files}
+    actual_files = {
+        path.relative_to(ROOT).as_posix()
+        for path in MODEL_GATEWAY_ROOT.rglob("*")
+        if path.is_file() and path.relative_to(MODEL_GATEWAY_ROOT).as_posix() != "SKILL.md"
+    }
+    if manifest_files != actual_files:
+        fail(f"model_gateway.files mismatch: manifest={sorted(manifest_files)} actual={sorted(actual_files)}")
+    validate_model_gateway_defaults()
+
+
+def validate_model_gateway_defaults(defaults_path: Path | None = None, schema_path: Path | None = None) -> None:
+    """The shipped defaults validate against the schema beside them.
+
+    The schema is the source of truth for what a default may say. The machine
+    override merges over this file and is not checked here: it is the owner's,
+    and the gateway reports a bad one itself.
+    """
+    defaults_file = defaults_path or MODEL_GATEWAY_ROOT / "defaults.json"
+    schema_file = schema_path or MODEL_GATEWAY_ROOT / "defaults.schema.json"
+    for path in (defaults_file, schema_file):
+        if not path.is_file():
+            fail(f"model gateway defaults are missing: {path}")
+    schema = as_mapping(_read_json(schema_file), "model gateway defaults schema")
+    defaults = _read_json(defaults_file)
+    try:
+        validate_json_schema(defaults, schema, "defaults", schema)
+    except AssertionError as exc:
+        fail(f"{defaults_file.name}: {exc}")
+
+
+def _read_json(path: Path) -> Any:
+    """A shipped JSON file, or a validation failure naming it when it is not JSON."""
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        fail(f"{path.name}: not JSON: {exc}")
+
+
+def validate_json_schema(instance: Any, schema: dict[str, Any], path: str, root: dict[str, Any]) -> None:
+    """The subset of JSON Schema the shipped asset schemas use.
+
+    $ref (local), type, const, enum, required, properties,
+    additionalProperties: false, items, minItems, uniqueItems, minLength,
+    minimum and maximum. Any other keyword is an annotation here, as it is for
+    a real validator.
+    """
+    if "$ref" in schema:
+        validate_json_schema(instance, resolve_schema_ref(str(schema["$ref"]), root, path), path, root)
+        return
+    if "const" in schema and instance != schema["const"]:
+        fail(f"{path} must be {schema['const']!r}")
+    if "enum" in schema:
+        allowed = as_list(schema["enum"], f"{path}: enum")
+        if instance not in allowed:
+            fail(f"{path} must be one of {allowed}, not {instance!r}")
+    if "type" in schema:
+        name = str(schema["type"])
+        if name not in JSON_SCHEMA_TYPES:
+            fail(f"{path}: unsupported schema type {name!r}")
+        if not json_type_matches(instance, name):
+            fail(f"{path} must be a {name}")
+    if isinstance(instance, dict):
+        validate_json_schema_object(instance, schema, path, root)
+    elif isinstance(instance, list):
+        validate_json_schema_array(instance, schema, path, root)
+    elif isinstance(instance, str):
+        minimum_length = schema.get("minLength")
+        if isinstance(minimum_length, int) and len(instance) < minimum_length:
+            fail(f"{path} must be at least {minimum_length} characters")
+    elif isinstance(instance, (int, float)) and not isinstance(instance, bool):
+        minimum = schema.get("minimum")
+        if isinstance(minimum, (int, float)) and instance < minimum:
+            fail(f"{path} must be at least {minimum}")
+        maximum = schema.get("maximum")
+        if isinstance(maximum, (int, float)) and instance > maximum:
+            fail(f"{path} must be at most {maximum}")
+
+
+def resolve_schema_ref(ref: str, root: dict[str, Any], path: str) -> dict[str, Any]:
+    if not ref.startswith("#/"):
+        fail(f"{path}: unsupported $ref {ref!r}")
+    node: Any = root
+    for part in ref[2:].split("/"):
+        node = as_mapping(node, f"{path}: $ref {ref}").get(part)
+    return as_mapping(node, f"{path}: $ref {ref}")
+
+
+def json_type_matches(value: Any, name: str) -> bool:
+    if name in ("number", "integer") and isinstance(value, bool):
+        return False
+    return isinstance(value, JSON_SCHEMA_TYPES[name])
+
+
+def validate_json_schema_object(
+    instance: dict[str, Any], schema: dict[str, Any], path: str, root: dict[str, Any],
+) -> None:
+    for key in as_list(schema.get("required") or [], f"{path}: required"):
+        if key not in instance:
+            fail(f"{path}.{key} is required")
+    properties = as_mapping(schema.get("properties") or {}, f"{path}: properties")
+    for key, value in instance.items():
+        child = f"{path}.{key}"
+        if key in properties:
+            validate_json_schema(value, as_mapping(properties[key], child), child, root)
+        elif schema.get("additionalProperties") is False:
+            fail(f"{child} is not a key this schema allows")
+
+
+def validate_json_schema_array(instance: list[Any], schema: dict[str, Any], path: str, root: dict[str, Any]) -> None:
+    minimum_items = schema.get("minItems")
+    if isinstance(minimum_items, int) and len(instance) < minimum_items:
+        fail(f"{path} must hold at least {minimum_items} item(s)")
+    if schema.get("uniqueItems") is True:
+        seen: list[Any] = []
+        for item in instance:
+            if item in seen:
+                fail(f"{path} must not repeat {item!r}")
+            seen.append(item)
+    items = schema.get("items")
+    if items is not None:
+        for index, item in enumerate(instance):
+            validate_json_schema(item, as_mapping(items, f"{path}: items"), f"{path}[{index}]", root)
 
 
 # _scan_served_installer/validate_installer scanned install.sh/install-agents.sh; retired with them (agent-kit#40).
@@ -987,6 +1134,7 @@ def main(argv: list[str] | None = None) -> int:
         validate_council(manifest)
         validate_critique(manifest)
         validate_build_tracker(manifest)
+        validate_model_gateway(manifest)
         validate_runtime_package_manifest(manifest)
         validate_runtime_package_artifacts()
         validate_runtime_shell_contracts(runtime_selftest=runtime_selftest)

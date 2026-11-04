@@ -548,6 +548,23 @@ build_tracker:
     - path: skills/workstation/build-tracker/build-tracker.mjs
       sha256: 0b6a7c87b93005f8b39f22596a9895766b8f8d38b8c8d9108a7e3660d022ab77
       mode: "0755"
+# The model gateway's runner and shipped defaults, pinned the way
+# critique.files pins the critique runner. skills/workstation/model-gateway/ is
+# the copy setup installs; its SKILL.md is the skill's text and is left out.
+# `npm run build` in council/ts rebuilds model-gateway.mjs: update its sha256
+# here in the same commit. defaults.json is validated against
+# defaults.schema.json by scripts/validate_manifest.py.
+model_gateway:
+  files:
+    - path: skills/workstation/model-gateway/model-gateway.mjs
+      sha256: 813990ae4a83710192a88a63ca14b42e09fda120ce4120b42f7af775ecff5bd2
+      mode: "0755"
+    - path: skills/workstation/model-gateway/defaults.json
+      sha256: e4b8b10c80a865625b36c350d6bbad6e68801ec237674e17d9a09c0c08cd1810
+      mode: "0644"
+    - path: skills/workstation/model-gateway/defaults.schema.json
+      sha256: f52849e9b317287bc547b534fec4565940e638cc9650524d1832be881d03feac
+      mode: "0644"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
   schema: runner/manifests/runtime-package.schema.json

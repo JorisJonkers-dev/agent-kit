@@ -3,7 +3,7 @@
 
 // src/model-gateway-cli/index.ts
 import { readFile as readFile2 } from "node:fs/promises";
-import { join as join2 } from "node:path";
+import { join as join3 } from "node:path";
 
 // src/adapters/clock/index.ts
 var ProcessEnvAdapter = class {
@@ -232,8 +232,15 @@ function invalid(message) {
 // src/contexts/model-gateway/application/config.ts
 async function loadConfig(files, defaultsPath, override) {
   const defaults = parseFile(defaultsPath, await readText(files, defaultsPath, "the shipped defaults"), parseDefaults);
-  if (!await files.exists(override)) return defaults;
+  if (!await overrideExists(files, override)) return defaults;
   return parseFile(override, await readText(files, override, "the override"), (raw) => applyOverride(defaults, raw));
+}
+async function overrideExists(files, path) {
+  try {
+    return await files.exists(path);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: cannot read the override: ${messageOf(error)}`);
+  }
 }
 async function readText(files, path, what) {
   try {
@@ -291,29 +298,42 @@ function createModelGatewayCommands(deps) {
 
 // src/contexts/model-gateway/adapters/fs/index.ts
 import { access, readFile } from "node:fs/promises";
+var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 var NodeModelGatewayFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
   }
+  /** False only when the file is not there; any other failure to look is thrown. */
   async exists(path) {
     try {
       await access(path);
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if (ABSENT.has(error.code ?? "")) return false;
+      throw error;
     }
   }
 };
 
 // src/contexts/model-gateway/adapters/process/index.ts
-import { execFile } from "node:child_process";
+import { constants } from "node:fs";
+import { access as access2 } from "node:fs/promises";
+import { delimiter, join as join2 } from "node:path";
 var NodeModelGatewayProcess = class {
-  which(binary) {
-    return new Promise((resolve) => {
-      execFile("which", [binary], { encoding: "utf8" }, (error) => {
-        resolve(error === null);
-      });
-    });
+  constructor(path = process.env.PATH ?? "") {
+    this.path = path;
+  }
+  path;
+  async which(binary) {
+    for (const folder of this.path.split(delimiter)) {
+      if (folder === "") continue;
+      try {
+        await access2(join2(folder, binary), constants.X_OK);
+        return true;
+      } catch {
+      }
+    }
+    return false;
   }
 };
 
@@ -391,7 +411,7 @@ function messageOf2(error) {
 function defaultModelGatewayRuntime(overrides = {}) {
   return {
     commands: createModelGatewayCommands({
-      defaultsPath: join2(import.meta.dirname, "defaults.json"),
+      defaultsPath: join3(import.meta.dirname, "defaults.json"),
       env: new ProcessEnvAdapter(),
       files: new NodeModelGatewayFiles(),
       process: new NodeModelGatewayProcess(),
