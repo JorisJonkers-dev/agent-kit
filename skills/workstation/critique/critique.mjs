@@ -8709,7 +8709,7 @@ function classifyAgyRun(exitCode, stdout, run, stderr) {
 // src/contexts/critique/adapters/vibe/index.ts
 import { isAbsolute as isAbsolute4, join as join26 } from "node:path";
 
-// src/contexts/critique/adapters/vibe/toml.ts
+// src/shared-kernel/toml.ts
 var TomlError = class extends Error {
 };
 function readToml(text) {

@@ -1,4 +1,4 @@
-import { declaredClients, listModels, type ModelListing } from '../domain/models.js'
+import { listModels, sortedClients, type ClientListing, type ModelListing } from '../domain/models.js'
 import { loadConfig } from './config.js'
 import { overridePath } from './locations.js'
 import type { ModelGatewayCommand, ModelGatewayDependencies } from './ports.js'
@@ -17,9 +17,15 @@ export class ModelsCommand implements ModelGatewayCommand<ModelsInput, ModelsRes
   async run(): Promise<ModelsResult> {
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env))
     const installed = new Set<string>()
-    for (const [id, client] of declaredClients(config)) {
+    for (const [id, client] of sortedClients(config)) {
       if (await this.deps.process.which(client.binary)) installed.add(id)
     }
-    return { status: 'ok', ...listModels(config, installed) }
+    const listings = new Map<string, ClientListing>()
+    for (const [id, client] of sortedClients(config)) {
+      const source = this.deps.sources[id]
+      if (source === undefined || !installed.has(id) || client.model_source === 'declared') continue
+      listings.set(id, await source.list())
+    }
+    return { status: 'ok', ...listModels(config, installed, listings) }
   }
 }

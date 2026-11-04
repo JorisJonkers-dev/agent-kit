@@ -29,40 +29,194 @@ var ProcessEnvAdapter = class {
   }
 };
 
-// src/contexts/model-gateway/domain/models.ts
-function modelKey(client, model) {
-  return `${client}:${model}`;
+// src/shared-kernel/toml.ts
+var TomlError = class extends Error {
+};
+function readToml(text) {
+  return new TomlReader(text).document();
 }
-function declaredClients(config) {
-  return Object.entries(config.clients).filter(([, client]) => client.model_source === "declared").sort(([left], [right]) => compare(left, right));
-}
-function listModels(config, installed) {
-  const models = [];
-  const missing = [];
-  for (const [id, client] of declaredClients(config)) {
-    if (!installed.has(id)) {
-      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
-      continue;
-    }
-    for (const entry of config.models) {
-      if (entry.client !== id || config.disabled.includes(modelKey(id, entry.model))) continue;
-      models.push({
-        client: id,
-        model: entry.model,
-        family: entry.family,
-        cost_class: client.cost_class,
-        tier: entry.tier,
-        notes: entry.notes,
-        source: client.model_source
-      });
+var TomlReader = class {
+  constructor(text) {
+    this.text = text;
+  }
+  text;
+  at = 0;
+  document() {
+    const root = {};
+    let table = root;
+    for (; ; ) {
+      this.skip(true);
+      if (this.at >= this.text.length) return root;
+      if (this.text.startsWith("[[", this.at)) {
+        this.at += 2;
+        const path = this.keyPath("]]");
+        const list = this.arrayAt(root, path);
+        table = {};
+        list.push(table);
+      } else if (this.peek() === "[") {
+        this.at += 1;
+        table = this.tableAt(root, this.keyPath("]"));
+      } else {
+        const path = this.keyPath("=");
+        this.assign(table, path, this.value());
+      }
+      this.endOfLine();
     }
   }
-  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
-  return { models, missing };
-}
-function compare(left, right) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
+  /** A dotted key, up to and past `end`. */
+  keyPath(end) {
+    const path = [];
+    for (; ; ) {
+      this.skip(false);
+      path.push(this.key());
+      this.skip(false);
+      if (this.text.startsWith(end, this.at)) {
+        this.at += end.length;
+        return path;
+      }
+      this.expect(".");
+    }
+  }
+  key() {
+    const char = this.peek();
+    if (char === '"' || char === "'") return this.string();
+    const bare = /^[A-Za-z0-9_-]+/.exec(this.text.slice(this.at));
+    if (bare === null) throw this.error("a key");
+    this.at += bare[0].length;
+    return bare[0];
+  }
+  value() {
+    this.skip(false);
+    const char = this.peek();
+    if (char === '"' || char === "'") return this.string();
+    if (char === "[") return this.array();
+    if (char === "{") return this.inlineTable();
+    const word = /^[^\s,\]}#]+/.exec(this.text.slice(this.at));
+    if (word === null) throw this.error("a value");
+    this.at += word[0].length;
+    if (word[0] === "true") return true;
+    if (word[0] === "false") return false;
+    const number = Number(word[0].replace(/_/g, ""));
+    return Number.isNaN(number) ? word[0] : number;
+  }
+  string() {
+    const quote = this.peek();
+    const triple = quote.repeat(3);
+    const multi = this.text.startsWith(triple, this.at);
+    const close = multi ? triple : quote;
+    this.at += close.length;
+    if (multi) this.at += /^\r?\n/.exec(this.text.slice(this.at))?.[0].length ?? 0;
+    let out = "";
+    for (; ; ) {
+      if (this.at >= this.text.length) throw this.error(`the closing ${close}`);
+      if (this.text.startsWith(close, this.at)) {
+        this.at += close.length;
+        return out;
+      }
+      const char = this.text.charAt(this.at);
+      if (char === "\n" && !multi) throw this.error(`the closing ${close}`);
+      if (char === "\\" && quote === '"') {
+        out += this.escape();
+        continue;
+      }
+      out += char;
+      this.at += 1;
+    }
+  }
+  escape() {
+    const code = this.text.charAt(this.at + 1);
+    const simple = { '"': '"', "\\": "\\", b: "\b", f: "\f", n: "\n", r: "\r", t: "	" };
+    const plain = simple[code];
+    if (plain !== void 0) {
+      this.at += 2;
+      return plain;
+    }
+    const unicode = /^u([0-9A-Fa-f]{4})|^U([0-9A-Fa-f]{8})/.exec(this.text.slice(this.at + 1));
+    if (unicode === null) throw this.error("a valid escape");
+    this.at += 1 + unicode[0].length;
+    return String.fromCodePoint(parseInt(unicode[1] ?? unicode[2] ?? "", 16));
+  }
+  array() {
+    this.at += 1;
+    const items = [];
+    for (; ; ) {
+      this.skip(true);
+      if (this.peek() === "]") {
+        this.at += 1;
+        return items;
+      }
+      items.push(this.value());
+      this.skip(true);
+      if (this.peek() !== "]") this.expect(",");
+    }
+  }
+  inlineTable() {
+    this.at += 1;
+    const table = {};
+    this.skip(false);
+    if (this.peek() === "}") {
+      this.at += 1;
+      return table;
+    }
+    for (; ; ) {
+      this.assign(table, this.keyPath("="), this.value());
+      this.skip(false);
+      if (this.peek() === "}") {
+        this.at += 1;
+        return table;
+      }
+      this.expect(",");
+    }
+  }
+  assign(table, path, value) {
+    const last = path.at(-1) ?? "";
+    const parent = this.tableAt(table, path.slice(0, -1));
+    if (Object.hasOwn(parent, last)) throw this.error(`a key not already defined (${last})`);
+    parent[last] = value;
+  }
+  /** The table at `path` under `root`, created where missing; under an array of tables, its latest table. */
+  tableAt(root, path) {
+    let table = root;
+    for (const key of path) {
+      const next = table[key] ?? (table[key] = {});
+      const resolved = Array.isArray(next) ? next.at(-1) : next;
+      if (typeof resolved !== "object" || resolved === null) throw this.error(`a table at ${key}`);
+      table = resolved;
+    }
+    return table;
+  }
+  arrayAt(root, path) {
+    const parent = this.tableAt(root, path.slice(0, -1));
+    const last = path.at(-1) ?? "";
+    const list = parent[last] ?? (parent[last] = []);
+    if (!Array.isArray(list)) throw this.error(`an array of tables at ${last}`);
+    return list;
+  }
+  /** Skips spaces and comments, and newlines too when `lines` is set. */
+  skip(lines) {
+    for (; ; ) {
+      const char = this.peek();
+      if (char === " " || char === "	" || char === "\r" || lines && char === "\n") this.at += 1;
+      else if (char === "#") while (this.at < this.text.length && this.peek() !== "\n") this.at += 1;
+      else return;
+    }
+  }
+  endOfLine() {
+    this.skip(false);
+    if (this.at < this.text.length) this.expect("\n");
+  }
+  expect(char) {
+    if (this.peek() !== char) throw this.error(`'${char}'`);
+    this.at += 1;
+  }
+  peek() {
+    return this.text.charAt(this.at);
+  }
+  error(wanted) {
+    const line = this.text.slice(0, this.at).split("\n").length;
+    return new TomlError(`line ${String(line)}: expected ${wanted}`);
+  }
+};
 
 // src/contexts/model-gateway/domain/config.ts
 var CONFIG_VERSION = 1;
@@ -128,10 +282,20 @@ function parseClient(id, raw, base) {
   const costClass = raw.cost_class === void 0 ? base?.cost_class : requireOneOf(raw.cost_class, COST_CLASSES, `${where}.cost_class`);
   const modelSource = raw.model_source === void 0 ? base?.model_source : requireOneOf(raw.model_source, MODEL_SOURCES, `${where}.model_source`);
   const families = raw.families === void 0 ? base?.families : requireStrings(raw.families, `${where}.families`);
+  const providerCostClasses = raw.provider_cost_classes === void 0 ? base?.provider_cost_classes : {
+    ...base?.provider_cost_classes,
+    ...parseProviderCostClasses(raw.provider_cost_classes, `${where}.provider_cost_classes`)
+  };
   if (binary === void 0 || costClass === void 0 || modelSource === void 0) {
     throw invalid(`${where} is new, so it needs binary, cost_class and model_source`);
   }
-  return { binary, cost_class: costClass, families, model_source: modelSource };
+  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses };
+}
+function parseProviderCostClasses(raw, where) {
+  if (!isObject(raw)) throw invalid(`${where} must be an object keyed by provider name`);
+  return Object.fromEntries(
+    Object.entries(raw).map(([provider, value]) => [provider, requireOneOf(value, COST_CLASSES, `${where}.${provider}`)])
+  );
 }
 function mergeModels(base, raw) {
   if (raw === void 0) return base;
@@ -229,6 +393,138 @@ function invalid(message) {
   return new ModelGatewayError("invalid-config", message);
 }
 
+// src/contexts/model-gateway/domain/models.ts
+function modelKey(client, model) {
+  return `${client}:${model}`;
+}
+var FAMILY_PREFIXES = [
+  ["gemini", "google"],
+  ["claude", "anthropic"],
+  ["gpt", "openai"],
+  ["deepseek", "deepseek"],
+  ["glm", "zhipu"],
+  ["zai", "zhipu"],
+  ["kimi", "moonshot"],
+  ["minimax", "minimax"],
+  ["grok", "xai"],
+  ["qwen", "alibaba"],
+  ["mistral", "mistral"],
+  ["codestral", "mistral"]
+];
+function familyOf(model) {
+  return FAMILY_PREFIXES.find(([prefix]) => model.startsWith(prefix))?.[1];
+}
+function parseAntigravityModels(stdout) {
+  const ids = [];
+  for (const line of stdout.split("\n")) {
+    const [id = "", display] = line.split("	");
+    if (display === void 0) continue;
+    const trimmed = id.trim();
+    if (trimmed !== "") ids.push(trimmed);
+  }
+  return ids;
+}
+function parseOpenCodeModels(stdout) {
+  const models = [];
+  for (const line of stdout.split("\n")) {
+    const id = line.trim();
+    const slash = id.indexOf("/");
+    if (slash <= 0 || slash === id.length - 1) continue;
+    models.push({ model: id, provider: id.slice(0, slash) });
+  }
+  return models;
+}
+function vibeModelAliases(toml) {
+  const models = readToml(toml).models;
+  if (!isObject(models)) return [];
+  const aliases = [];
+  for (const [key, value] of Object.entries(models)) {
+    if (!isObject(value)) continue;
+    aliases.push(typeof value.alias === "string" && value.alias !== "" ? value.alias : key);
+  }
+  return aliases;
+}
+function listModels(config, installed, listings) {
+  const models = [];
+  const missing = [];
+  const skipped = [];
+  for (const [id, client] of sortedClients(config)) {
+    if (!installed.has(id)) {
+      missing.push({ client: id, reason: `not installed: ${client.binary} is not on PATH` });
+      continue;
+    }
+    if (client.model_source === "declared") {
+      models.push(...catalogueModels(config, id, client));
+      continue;
+    }
+    const listing = listings.get(id);
+    if (listing === void 0) continue;
+    if ("reason" in listing) {
+      missing.push({ client: id, reason: listing.reason });
+      continue;
+    }
+    const listed = listedModels(config, id, client, listing.models);
+    models.push(...listed.models);
+    skipped.push(...listed.skipped);
+  }
+  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
+  missing.sort((left, right) => compare(left.client, right.client));
+  skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
+  return { models, missing, skipped };
+}
+function catalogueModels(config, id, client) {
+  return config.models.filter((entry) => entry.client === id && !config.disabled.includes(modelKey(id, entry.model))).map((entry) => ({
+    client: id,
+    cost_class: client.cost_class,
+    family: entry.family,
+    model: entry.model,
+    notes: entry.notes,
+    source: client.model_source,
+    tier: entry.tier
+  }));
+}
+function listedModels(config, id, client, listed) {
+  const models = [];
+  const skipped = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const { model, provider } of listed) {
+    if (seen.has(model)) continue;
+    seen.add(model);
+    if (config.disabled.includes(modelKey(id, model))) continue;
+    const entry = config.models.find((candidate) => candidate.client === id && candidate.model === model);
+    const family = entry?.family ?? familyOf(modelPart(model));
+    if (family === void 0) {
+      skipped.push({ client: id, model, reason: FAMILY_UNKNOWN });
+      continue;
+    }
+    if (client.families !== void 0 && !client.families.includes(family)) continue;
+    models.push({
+      client: id,
+      cost_class: costClassFor(client, provider),
+      family,
+      model,
+      notes: entry?.notes ?? "",
+      source: client.model_source,
+      tier: entry?.tier ?? null
+    });
+  }
+  return { models, skipped };
+}
+var FAMILY_UNKNOWN = "family unknown: add it to the catalogue in defaults.json or the machine override";
+function modelPart(model) {
+  return model.slice(model.lastIndexOf("/") + 1);
+}
+function costClassFor(client, provider) {
+  if (provider === void 0) return client.cost_class;
+  return client.provider_cost_classes?.[provider] ?? client.cost_class;
+}
+function sortedClients(config) {
+  return Object.entries(config.clients).sort(([left], [right]) => compare(left, right));
+}
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 // src/contexts/model-gateway/application/config.ts
 async function loadConfig(files, defaultsPath, override) {
   const defaults = parseFile(defaultsPath, await readText(files, defaultsPath, "the shipped defaults"), parseDefaults);
@@ -274,6 +570,11 @@ function overridePath(env) {
   if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit", "model-gateway.json");
   return join(env.require("HOME"), ".config", "agent-kit", "model-gateway.json");
 }
+function vibeConfigPath(env) {
+  const home = env.get("VIBE_HOME");
+  if (home !== void 0 && isAbsolute(home)) return join(home, "config.toml");
+  return join(env.require("HOME"), ".vibe", "config.toml");
+}
 
 // src/contexts/model-gateway/application/models.ts
 var ModelsCommand = class {
@@ -284,16 +585,91 @@ var ModelsCommand = class {
   async run() {
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
     const installed = /* @__PURE__ */ new Set();
-    for (const [id, client] of declaredClients(config)) {
+    for (const [id, client] of sortedClients(config)) {
       if (await this.deps.process.which(client.binary)) installed.add(id);
     }
-    return { status: "ok", ...listModels(config, installed) };
+    const listings = /* @__PURE__ */ new Map();
+    for (const [id, client] of sortedClients(config)) {
+      const source = this.deps.sources[id];
+      if (source === void 0 || !installed.has(id) || client.model_source === "declared") continue;
+      listings.set(id, await source.list());
+    }
+    return { status: "ok", ...listModels(config, installed, listings) };
   }
 };
 
 // src/contexts/model-gateway/application/commands.ts
 function createModelGatewayCommands(deps) {
   return { models: new ModelsCommand(deps) };
+}
+
+// src/contexts/model-gateway/adapters/clients/index.ts
+var AntigravityModelSource = class {
+  constructor(process2) {
+    this.process = process2;
+  }
+  process;
+  async list() {
+    const command = "agy models";
+    let result2;
+    try {
+      result2 = await this.process.exec({ args: ["models"], command: "agy" });
+    } catch (error) {
+      return { reason: `listing failed: ${command}: ${messageOf2(error)}` };
+    }
+    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
+    return { models: parseAntigravityModels(result2.stdout).map((model) => ({ model })) };
+  }
+};
+var OpenCodeModelSource = class {
+  constructor(process2) {
+    this.process = process2;
+  }
+  process;
+  async list() {
+    const command = "opencode models";
+    let result2;
+    try {
+      result2 = await this.process.exec({ args: ["models"], command: "opencode" });
+    } catch (error) {
+      return { reason: `listing failed: ${command}: ${messageOf2(error)}` };
+    }
+    if (result2.exitCode !== 0) return { reason: failureReason(command, result2) };
+    return { models: parseOpenCodeModels(result2.stdout) };
+  }
+};
+var VibeModelSource = class {
+  constructor(files, env) {
+    this.files = files;
+    this.env = env;
+  }
+  files;
+  env;
+  async list() {
+    let path = "~/.vibe/config.toml";
+    try {
+      path = vibeConfigPath(this.env);
+      if (!await this.files.exists(path)) return { reason: `no configuration: ${path} is not there` };
+      return { models: vibeModelAliases(await this.files.readText(path)).map((model) => ({ model })) };
+    } catch (error) {
+      return { reason: `configuration unreadable: ${path}: ${messageOf2(error)}` };
+    }
+  }
+};
+function modelSources(deps) {
+  return {
+    agy: new AntigravityModelSource(deps.process),
+    opencode: new OpenCodeModelSource(deps.process),
+    vibe: new VibeModelSource(deps.files, deps.env)
+  };
+}
+function failureReason(command, result2) {
+  const detail = result2.stderr.trim().split("\n")[0] ?? "";
+  const exit = `${command} exited ${String(result2.exitCode)}`;
+  return `listing failed: ${detail === "" ? exit : `${exit}: ${detail}`}`;
+}
+function messageOf2(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
@@ -319,11 +695,92 @@ var NodeModelGatewayFiles = class {
 import { constants } from "node:fs";
 import { access as access2 } from "node:fs/promises";
 import { delimiter, join as join2 } from "node:path";
+
+// src/adapters/process/node-process.ts
+import { spawn } from "node:child_process";
+var DEFAULT_KILL_GRACE_MS = 5e3;
+var NodeProcessAdapter = class {
+  killGraceMs;
+  constructor(options = {}) {
+    this.killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
+  }
+  async exec(command) {
+    const child = spawn(command.command, [...command.args], {
+      ...command.cwd === void 0 ? {} : { cwd: command.cwd },
+      env: command.env === void 0 ? process.env : { ...process.env, ...command.env },
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.stdin.on("error", () => void 0);
+    child.stdin.end(command.stdin);
+    const timer = new ProcessTimer(child, command.timeoutMs, this.killGraceMs);
+    const exitCode = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code) => {
+        resolve(processExitCode(code));
+      });
+    }).finally(() => {
+      timer.clear();
+    });
+    return {
+      exitCode,
+      stderr,
+      stdout,
+      ...timer.fired ? { timedOut: true } : {}
+    };
+  }
+};
+var ProcessTimer = class {
+  constructor(child, timeoutMs, killGraceMs) {
+    this.child = child;
+    this.killGraceMs = killGraceMs;
+    if (timeoutMs !== void 0) {
+      this.after(timeoutMs, () => {
+        this.terminate();
+      });
+    }
+  }
+  child;
+  killGraceMs;
+  fired = false;
+  timers = [];
+  clear() {
+    for (const timer of this.timers) clearTimeout(timer);
+  }
+  terminate() {
+    this.fired = true;
+    this.child.kill("SIGTERM");
+    this.after(this.killGraceMs, () => {
+      this.child.kill("SIGKILL");
+    });
+  }
+  after(ms, action) {
+    const timer = setTimeout(action, ms);
+    timer.unref();
+    this.timers.push(timer);
+  }
+};
+function processExitCode(code) {
+  if (code !== null) return code;
+  return 124;
+}
+
+// src/contexts/model-gateway/adapters/process/index.ts
 var NodeModelGatewayProcess = class {
   constructor(path = process.env.PATH ?? "") {
     this.path = path;
   }
   path;
+  adapter = new NodeProcessAdapter();
   async which(binary) {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
@@ -334,6 +791,9 @@ var NodeModelGatewayProcess = class {
       }
     }
     return false;
+  }
+  async exec(command) {
+    return this.adapter.exec(command);
   }
 };
 
@@ -381,7 +841,7 @@ async function readInput(runtime, path) {
   try {
     return await runtime.readFile(path);
   } catch (error) {
-    throw new ModelGatewayError("invalid-input", `${path}: cannot read the input: ${messageOf2(error)}`);
+    throw new ModelGatewayError("invalid-input", `${path}: cannot read the input: ${messageOf3(error)}`);
   }
 }
 function parseInput(text) {
@@ -389,7 +849,7 @@ function parseInput(text) {
   try {
     raw = JSON.parse(text);
   } catch (error) {
-    throw new ModelGatewayError("invalid-input", `the input is not JSON: ${messageOf2(error)}`);
+    throw new ModelGatewayError("invalid-input", `the input is not JSON: ${messageOf3(error)}`);
   }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
@@ -405,16 +865,20 @@ function failure(code, message, name) {
 `
   };
 }
-function messageOf2(error) {
+function messageOf3(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function defaultModelGatewayRuntime(overrides = {}) {
+  const env = overrides.env ?? new ProcessEnvAdapter();
+  const files = overrides.files ?? new NodeModelGatewayFiles();
+  const process2 = overrides.process ?? new NodeModelGatewayProcess();
   return {
     commands: createModelGatewayCommands({
       defaultsPath: join3(import.meta.dirname, "defaults.json"),
-      env: new ProcessEnvAdapter(),
-      files: new NodeModelGatewayFiles(),
-      process: new NodeModelGatewayProcess(),
+      env,
+      files,
+      process: process2,
+      sources: modelSources({ env, files, process: process2 }),
       ...overrides
     }),
     readFile: (path) => readFile2(path, "utf8")

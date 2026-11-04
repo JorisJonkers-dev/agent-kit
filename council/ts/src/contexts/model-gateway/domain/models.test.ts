@@ -1,15 +1,30 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseDefaults, type GatewayConfig } from './config.js'
-import { declaredClients, listModels, modelKey } from './models.js'
+import {
+  familyOf,
+  listModels,
+  modelKey,
+  parseAntigravityModels,
+  parseOpenCodeModels,
+  vibeModelAliases,
+  type ClientListing,
+} from './models.js'
 
-/** Two declared clients, one configured and one live, with models for each. */
+/** Two declared clients, one live, one configured and one live with providers, with models for each. */
 function config(): GatewayConfig {
   return parseDefaults({
     clients: {
+      agy: { binary: 'agy', cost_class: 'subsidised', families: ['google'], model_source: 'live' },
       claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared' },
       codex: { binary: 'codex', cost_class: 'metered-employer', model_source: 'declared' },
       hermes: { binary: 'hermes', cost_class: 'metered-personal', model_source: 'live' },
+      opencode: {
+        binary: 'opencode',
+        cost_class: 'metered-personal',
+        model_source: 'live',
+        provider_cost_classes: { 'opencode-go': 'subsidised' },
+      },
       vibe: { binary: 'vibe', cost_class: 'subsidised', model_source: 'config' },
     },
     models: [
@@ -17,6 +32,8 @@ function config(): GatewayConfig {
       { client: 'claude', family: 'anthropic', model: 'claude-haiku-5-5', notes: 'cheap', tier: 'routine' },
       { client: 'codex', family: 'openai', model: 'gpt-5.5', notes: 'implementation', tier: 'frontier' },
       { client: 'vibe', family: 'mistral', model: 'mistral-large-4-0', notes: 'broad', tier: 'hard' },
+      { client: 'vibe', family: 'zhipu', model: 'zai-glm-5-3', notes: 'review', tier: 'hard' },
+      { client: 'agy', family: 'google', model: 'gemini-3.8-flash-high', notes: 'long context', tier: 'hard' },
     ],
     settings: {
       availability_window_minutes: 60,
@@ -29,9 +46,26 @@ function config(): GatewayConfig {
   })
 }
 
+/** The listings a client's own source gave, by client id. */
+function listings(entries: Readonly<Record<string, ClientListing>> = {}): ReadonlyMap<string, ClientListing> {
+  return new Map(Object.entries(entries))
+}
+
 describe('listModels', () => {
+  it('lists a model a listing names twice once', () => {
+    const listed = listings({ opencode: { models: [{ model: 'opencode-go/glm-5.3', provider: 'opencode-go' }, { model: 'opencode-go/glm-5.3', provider: 'opencode-go' }] } })
+
+    expect(listModels(config(), new Set(['opencode']), listed).models).toHaveLength(1)
+  })
+
+  it('lists a configured Vibe GLM model the catalogue does not know', () => {
+    const listed = listings({ vibe: { models: [{ model: 'zai-glm-6' }] } })
+
+    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.family])).toEqual([['zai-glm-6', 'zhipu']])
+  })
+
   it('lists the declared models of an installed client with its cost class and source', () => {
-    const listing = listModels(config(), new Set(['claude']))
+    const listing = listModels(config(), new Set(['claude']), listings())
 
     expect(listing.models).toEqual([
       {
@@ -55,39 +89,243 @@ describe('listModels', () => {
     ])
   })
 
-  it('leaves out a declared client that is not installed and names it with the reason', () => {
-    const listing = listModels(config(), new Set(['claude']))
+  it('leaves out a client that is not installed and names it with the reason, whatever its source', () => {
+    const listing = listModels(config(), new Set(['claude']), listings())
 
-    expect(listing.missing).toEqual([{ client: 'codex', reason: 'not installed: codex is not on PATH' }])
+    expect(listing.missing).toEqual([
+      { client: 'agy', reason: 'not installed: agy is not on PATH' },
+      { client: 'codex', reason: 'not installed: codex is not on PATH' },
+      { client: 'hermes', reason: 'not installed: hermes is not on PATH' },
+      { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
+      { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
+    ])
   })
 
-  it('lists nothing for a client whose models come from itself or its configuration, and does not report it missing', () => {
-    const listing = listModels(config(), new Set())
+  it('lists nothing for an installed client whose listing the gateway does not have, and does not report it missing', () => {
+    const listing = listModels(config(), new Set(['hermes']), listings())
 
     expect(listing.models).toEqual([])
-    expect(listing.missing.map((entry) => entry.client)).toEqual(['claude', 'codex'])
+    expect(listing.missing.map((entry) => entry.client)).toEqual(['agy', 'claude', 'codex', 'opencode', 'vibe'])
+  })
+
+  it('joins a live listing to the catalogue, and marks it live', () => {
+    const listing = listModels(config(), new Set(['agy']), listings({ agy: { models: [{ model: 'gemini-3.8-flash-high' }] } }))
+
+    expect(listing.models).toEqual([
+      {
+        client: 'agy',
+        cost_class: 'subsidised',
+        family: 'google',
+        model: 'gemini-3.8-flash-high',
+        notes: 'long context',
+        source: 'live',
+        tier: 'hard',
+      },
+    ])
+  })
+
+  it('lists a model the catalogue does not know with no tier and no notes', () => {
+    const listing = listModels(config(), new Set(['agy']), listings({ agy: { models: [{ model: 'gemini-4-pro' }] } }))
+
+    expect(listing.models).toEqual([
+      { client: 'agy', cost_class: 'subsidised', family: 'google', model: 'gemini-4-pro', notes: '', source: 'live', tier: null },
+    ])
+  })
+
+  it('leaves out a model of a family the client may not reach', () => {
+    const listed = listings({
+      agy: { models: [{ model: 'gemini-4-pro' }, { model: 'claude-sonnet-4-6' }, { model: 'gpt-oss-120b-medium' }] },
+    })
+
+    expect(listModels(config(), new Set(['agy']), listed).models.map((entry) => entry.model)).toEqual(['gemini-4-pro'])
+  })
+
+  it('reports every model whose family it cannot work out in skipped, with the reason', () => {
+    const listed = listings({
+      opencode: {
+        models: [
+          { model: 'opencode-go/longcat-2.0', provider: 'opencode-go' },
+          { model: 'opencode-go/hy3', provider: 'opencode-go' },
+        ],
+      },
+    })
+
+    const listing = listModels(config(), new Set(['opencode']), listed)
+
+    expect(listing.models).toEqual([])
+    expect(listing.skipped).toEqual([
+      {
+        client: 'opencode',
+        model: 'opencode-go/hy3',
+        reason: 'family unknown: add it to the catalogue in defaults.json or the machine override',
+      },
+      {
+        client: 'opencode',
+        model: 'opencode-go/longcat-2.0',
+        reason: 'family unknown: add it to the catalogue in defaults.json or the machine override',
+      },
+    ])
+  })
+
+  it('takes the cost class of the provider a model runs on, and the client cost class for the rest', () => {
+    const listed = listings({
+      opencode: {
+        models: [
+          { model: 'opencode-go/glm-5.3', provider: 'opencode-go' },
+          { model: 'other/gemini-4-argon', provider: 'other' },
+          { model: 'gemini-4-argon' },
+        ],
+      },
+    })
+
+    expect(listModels(config(), new Set(['opencode']), listed).models.map((entry) => [entry.model, entry.cost_class])).toEqual([
+      ['gemini-4-argon', 'metered-personal'],
+      ['opencode-go/glm-5.3', 'subsidised'],
+      ['other/gemini-4-argon', 'metered-personal'],
+    ])
+  })
+
+  it('lists a configured client by the aliases its configuration declares, marked config', () => {
+    const listed = listings({ vibe: { models: [{ model: 'mistral-large-4-0' }, { model: 'mistral-medium-4-1' }] } })
+
+    expect(listModels(config(), new Set(['vibe']), listed).models).toEqual([
+      {
+        client: 'vibe',
+        cost_class: 'subsidised',
+        family: 'mistral',
+        model: 'mistral-large-4-0',
+        notes: 'broad',
+        source: 'config',
+        tier: 'hard',
+      },
+      {
+        client: 'vibe',
+        cost_class: 'subsidised',
+        family: 'mistral',
+        model: 'mistral-medium-4-1',
+        notes: '',
+        source: 'config',
+        tier: null,
+      },
+    ])
   })
 
   it('leaves out a model the override disabled', () => {
-    const disabled = { ...config(), disabled: [modelKey('claude', 'claude-haiku-5-5')] }
+    const disabled = { ...config(), disabled: [modelKey('claude', 'claude-haiku-5-5'), modelKey('agy', 'gemini-4-pro')] }
+    const listed = listings({ agy: { models: [{ model: 'gemini-4-pro' }] } })
 
-    expect(listModels(disabled, new Set(['claude'])).models.map((entry) => entry.model)).toEqual(['claude-sonnet-5-5'])
+    expect(listModels(disabled, new Set(['agy', 'claude']), listed).models.map((entry) => entry.model)).toEqual([
+      'claude-sonnet-5-5',
+    ])
+  })
+
+  it('reports a listing that failed in missing, with its reason', () => {
+    const installed = new Set(['agy', 'claude', 'codex', 'hermes', 'opencode', 'vibe'])
+    const listing = listModels(config(), installed, listings({ agy: { reason: 'listing failed: agy models exited 1' } }))
+
+    expect(listing.missing).toEqual([{ client: 'agy', reason: 'listing failed: agy models exited 1' }])
+    expect(listing.models.map((entry) => entry.model)).toEqual(['claude-haiku-5-5', 'claude-sonnet-5-5', 'gpt-5.5'])
   })
 
   it('sorts by client, then model id', () => {
-    const listing = listModels(config(), new Set(['claude', 'codex']))
+    const listed = listings({
+      agy: { models: [{ model: 'gemini-4-pro' }, { model: 'gemini-3.8-flash-high' }] },
+      vibe: { models: [{ model: 'zai-glm-5-3' }, { model: 'mistral-large-4-0' }] },
+    })
+    const listing = listModels(config(), new Set(['agy', 'claude', 'codex', 'vibe']), listed)
 
     expect(listing.models.map((entry) => modelKey(entry.client, entry.model))).toEqual([
+      'agy:gemini-3.8-flash-high',
+      'agy:gemini-4-pro',
       'claude:claude-haiku-5-5',
       'claude:claude-sonnet-5-5',
       'codex:gpt-5.5',
+      'vibe:mistral-large-4-0',
+      'vibe:zai-glm-5-3',
     ])
   })
 })
 
-describe('declaredClients', () => {
-  it('names only the clients whose models the gateway declares, in client order', () => {
-    expect(declaredClients(config()).map(([id]) => id)).toEqual(['claude', 'codex'])
+describe('familyOf', () => {
+  it('names the family a model id starts with', () => {
+    expect(familyOf('gemini-3.8-flash-high')).toBe('google')
+    expect(familyOf('claude-sonnet-4-6')).toBe('anthropic')
+    expect(familyOf('gpt-oss-120b-medium')).toBe('openai')
+    expect(familyOf('deepseek-v4.1-flash')).toBe('deepseek')
+    expect(familyOf('glm-5.3')).toBe('zhipu')
+    expect(familyOf('zai-glm-5-3')).toBe('zhipu')
+    expect(familyOf('zai-glm-6')).toBe('zhipu')
+    expect(familyOf('kimi-k3')).toBe('moonshot')
+    expect(familyOf('minimax-m2')).toBe('minimax')
+    expect(familyOf('grok-4.7')).toBe('xai')
+    expect(familyOf('qwen3-coder')).toBe('alibaba')
+    expect(familyOf('mistral-large-4-0')).toBe('mistral')
+    expect(familyOf('codestral-2508')).toBe('mistral')
+  })
+
+  it('says nothing for a model id it cannot place', () => {
+    expect(familyOf('hy3')).toBeUndefined()
+    expect(familyOf('longcat-2.0')).toBeUndefined()
+  })
+})
+
+describe('parseAntigravityModels', () => {
+  it('reads one model per line after the fetching line, by its id', () => {
+    const stdout = 'Fetching available models...\ngemini-3.8-flash-high\tGemini 3.8 Flash (High)\nclaude-sonnet-4-6\tClaude Sonnet 4.6\n'
+
+    expect(parseAntigravityModels(stdout)).toEqual(['gemini-3.8-flash-high', 'claude-sonnet-4-6'])
+  })
+
+  it('reads a listing that ends without a newline, and skips lines that name no model', () => {
+    expect(parseAntigravityModels('Fetching available models...\ngemini-4-pro\tGemini 4 Pro')).toEqual(['gemini-4-pro'])
+    expect(parseAntigravityModels('Fetching available models...\n\n\t\n')).toEqual([])
+  })
+})
+
+describe('parseOpenCodeModels', () => {
+  it('reads one provider model per line, with the provider it runs on', () => {
+    expect(parseOpenCodeModels('opencode-go/glm-5.3\nother/gemini-4-argon\n')).toEqual([
+      { model: 'opencode-go/glm-5.3', provider: 'opencode-go' },
+      { model: 'other/gemini-4-argon', provider: 'other' },
+    ])
+  })
+
+  it('skips a line that names no provider or no model', () => {
+    expect(parseOpenCodeModels('\nno-provider\n/provider-only\nprovider/\n')).toEqual([])
+  })
+})
+
+describe('vibeModelAliases', () => {
+  it('reads no alias from an entry that is not a table', () => {
+    expect(vibeModelAliases('models = { oops = "x" }\n')).toEqual([])
+  })
+
+  it('reads the alias of every model the configuration declares, in file order', () => {
+    const toml = `[models.mistral-large-4-0]
+name = "mistral-large-4-0"
+provider = "mistral"
+alias = "mistral-large-4-0"
+
+[models.zai-glm-5-3]
+name = "zai-glm-5-3"
+provider = "mistral"
+alias = "glm"
+`
+
+    expect(vibeModelAliases(toml)).toEqual(['mistral-large-4-0', 'glm'])
+  })
+
+  it('reads an inline models table, and names a model without an alias by its key', () => {
+    expect(vibeModelAliases('models = { small = { name = "small", provider = "mistral" } }\n')).toEqual(['small'])
+  })
+
+  it('reads no model from a configuration that declares none', () => {
+    expect(vibeModelAliases('active_model = "mistral-large-4-0"\n')).toEqual([])
+    expect(vibeModelAliases('models = "not a table"\n')).toEqual([])
+  })
+
+  it('throws on a file that is not TOML, so the caller never acts on half a file', () => {
+    expect(() => vibeModelAliases('this is not TOML\n')).toThrow()
   })
 })
 

@@ -59,6 +59,21 @@ describe('NodeModelGatewayProcess', () => {
     expect(await new NodeModelGatewayProcess().which('agent-kit-no-such-binary')).toBe(false)
   })
 
+  it('runs a listing command and reads what it printed', async () => {
+    const result = await new NodeModelGatewayProcess().exec({
+      args: ['-e', 'process.stdout.write("gemini-4-pro\\tGemini 4 Pro")'],
+      command: process.execPath,
+    })
+
+    expect(result).toMatchObject({ exitCode: 0, stdout: 'gemini-4-pro\tGemini 4 Pro' })
+  })
+
+  it('reports the exit code of a listing command that fails', async () => {
+    const result = await new NodeModelGatewayProcess().exec({ args: ['-e', 'process.exit(3)'], command: process.execPath })
+
+    expect(result.exitCode).toBe(3)
+  })
+
   it('looks the program up on the PATH it is given, without running any other program', async () => {
     const dir = await tempDir()
     const bin = join(dir, 'bin')

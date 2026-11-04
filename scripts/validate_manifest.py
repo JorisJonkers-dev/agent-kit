@@ -526,9 +526,9 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], path: str, root:
     """The subset of JSON Schema the shipped asset schemas use.
 
     $ref (local), type, const, enum, required, properties,
-    additionalProperties: false, items, minItems, uniqueItems, minLength,
-    minimum and maximum. Any other keyword is an annotation here, as it is for
-    a real validator.
+    additionalProperties (false, or a schema every other key must fit), items,
+    minItems, uniqueItems, minLength, minimum and maximum. Any other keyword is
+    an annotation here, as it is for a real validator.
     """
     if "$ref" in schema:
         validate_json_schema(instance, resolve_schema_ref(str(schema["$ref"]), root, path), path, root)
@@ -584,12 +584,15 @@ def validate_json_schema_object(
         if key not in instance:
             fail(f"{path}.{key} is required")
     properties = as_mapping(schema.get("properties") or {}, f"{path}: properties")
+    additional = schema.get("additionalProperties")
     for key, value in instance.items():
         child = f"{path}.{key}"
         if key in properties:
             validate_json_schema(value, as_mapping(properties[key], child), child, root)
-        elif schema.get("additionalProperties") is False:
+        elif additional is False:
             fail(f"{child} is not a key this schema allows")
+        elif isinstance(additional, dict):
+            validate_json_schema(value, additional, child, root)
 
 
 def validate_json_schema_array(instance: list[Any], schema: dict[str, Any], path: str, root: dict[str, Any]) -> None:

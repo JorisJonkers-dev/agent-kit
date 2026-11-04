@@ -53,9 +53,27 @@ describe('parseDefaults', () => {
   it('reads the shipped defaults, with no model disabled', () => {
     expect(shipped()).toEqual({
       clients: {
-        claude: { binary: 'claude', cost_class: 'subsidised', families: undefined, model_source: 'declared' },
-        codex: { binary: 'codex', cost_class: 'metered-employer', families: undefined, model_source: 'declared' },
-        vibe: { binary: 'vibe', cost_class: 'subsidised', families: undefined, model_source: 'config' },
+        claude: {
+          binary: 'claude',
+          cost_class: 'subsidised',
+          families: undefined,
+          model_source: 'declared',
+          provider_cost_classes: undefined,
+        },
+        codex: {
+          binary: 'codex',
+          cost_class: 'metered-employer',
+          families: undefined,
+          model_source: 'declared',
+          provider_cost_classes: undefined,
+        },
+        vibe: {
+          binary: 'vibe',
+          cost_class: 'subsidised',
+          families: undefined,
+          model_source: 'config',
+          provider_cost_classes: undefined,
+        },
       },
       disabled: [],
       models: [
@@ -80,6 +98,20 @@ describe('parseDefaults', () => {
     expect(parseDefaults(raw).clients.agy?.families).toEqual(['google'])
   })
 
+  it('keeps the cost class a client sets for each of its providers', () => {
+    const raw = defaults()
+    raw.clients = {
+      opencode: {
+        binary: 'opencode',
+        cost_class: 'metered-personal',
+        model_source: 'live',
+        provider_cost_classes: { 'opencode-go': 'subsidised' },
+      },
+    }
+
+    expect(parseDefaults(raw).clients.opencode?.provider_cost_classes).toEqual({ 'opencode-go': 'subsidised' })
+  })
+
   const broken: [string, (raw: Record<string, unknown>) => unknown][] = [
     ['not an object', () => []],
     ['a version other than 1', (raw) => ({ ...raw, version: 2 })],
@@ -89,6 +121,17 @@ describe('parseDefaults', () => {
     ['an unknown cost class', (raw) => ({ ...raw, clients: { claude: { binary: 'claude', cost_class: 'free', model_source: 'declared' } } })],
     ['an unknown model source', (raw) => ({ ...raw, clients: { claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'guess' } } })],
     ['families that are not strings', (raw) => ({ ...raw, clients: { claude: { binary: 'claude', cost_class: 'subsidised', families: [1], model_source: 'declared' } } })],
+    [
+      'provider cost classes that are not an object',
+      (raw) => ({ ...raw, clients: { claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared', provider_cost_classes: [] } } }),
+    ],
+    [
+      'a provider cost class that is not a cost class',
+      (raw) => ({
+        ...raw,
+        clients: { claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared', provider_cost_classes: { p: 'free' } } },
+      }),
+    ],
     ['models that are not a list', (raw) => ({ ...raw, models: {} })],
     ['a model that is not an object', (raw) => ({ ...raw, models: ['claude'] })],
     ['a model without a family', (raw) => ({ ...raw, models: [{ client: 'claude', model: 'x', notes: 'n', tier: 'hard' }] })],
@@ -135,7 +178,18 @@ describe('applyOverride', () => {
       cost_class: 'subsidised',
       families: undefined,
       model_source: 'declared',
+      provider_cost_classes: undefined,
     })
+  })
+
+  it('sets the cost class of one provider and keeps the others', () => {
+    const base = applyOverride(shipped(), {
+      clients: { opencode: { binary: 'opencode', cost_class: 'metered-personal', model_source: 'live', provider_cost_classes: { a: 'subsidised', b: 'metered-employer' } } },
+    })
+
+    const merged = applyOverride(base, { clients: { opencode: { provider_cost_classes: { b: 'subsidised' } } } })
+
+    expect(merged.clients.opencode?.provider_cost_classes).toEqual({ a: 'subsidised', b: 'subsidised' })
   })
 
   it('adds a client the defaults do not name', () => {
@@ -148,6 +202,7 @@ describe('applyOverride', () => {
       cost_class: 'metered-personal',
       families: undefined,
       model_source: 'live',
+      provider_cost_classes: undefined,
     })
   })
 
@@ -215,6 +270,8 @@ describe('applyOverride', () => {
     ['an unknown cost class', { clients: { claude: { cost_class: 'free' } } }],
     ['an unknown model source', { clients: { claude: { model_source: 'guess' } } }],
     ['families that are not strings', { clients: { claude: { families: 'google' } } }],
+    ['provider cost classes that are not an object', { clients: { claude: { provider_cost_classes: 'free' } } }],
+    ['a provider cost class that is not a cost class', { clients: { claude: { provider_cost_classes: { p: 'free' } } } }],
     ['models that are not a list', { models: {} }],
     ['a model that is not an object', { models: ['claude'] }],
     ['a model without a client', { models: [{ model: 'gpt-5.5' }] }],

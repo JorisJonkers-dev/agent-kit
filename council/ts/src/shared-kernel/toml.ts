@@ -1,11 +1,11 @@
 /**
- * A small TOML reader for the two Vibe files the runner reads before it
- * launches a critic: a critic agent file and the home's `config.toml`. It
- * reads what those files hold (tables, arrays of tables, dotted and quoted
- * keys, basic and literal strings, single- and multi-line, booleans,
- * numbers, arrays and inline tables, comments) and throws on anything it
- * cannot read, so a caller never acts on half a file. Dates and the finer
- * points of number syntax are kept as their text.
+ * A small TOML reader for the TOML files the runners read: a Vibe critic agent
+ * file, the home's `config.toml`, and the models that configuration declares.
+ * It reads what those files hold (tables, arrays of tables, dotted and quoted
+ * keys, basic and literal strings, single- and multi-line, booleans, numbers,
+ * arrays and inline tables, comments) and throws on anything it cannot read,
+ * so a caller never acts on half a file. Dates and the finer points of number
+ * syntax are kept as their text.
  */
 export type TomlTable = Record<string, unknown>
 

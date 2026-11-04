@@ -12,13 +12,14 @@
     },
     "clients": {
       "type": "object",
-      "required": ["vibe", "agy", "claude", "hermes", "codex"],
+      "required": ["vibe", "agy", "claude", "hermes", "opencode", "codex"],
       "additionalProperties": false,
       "properties": {
         "vibe": { "$ref": "#/$defs/client" },
         "agy": { "$ref": "#/$defs/client" },
         "claude": { "$ref": "#/$defs/client" },
         "hermes": { "$ref": "#/$defs/client" },
+        "opencode": { "$ref": "#/$defs/client" },
         "codex": { "$ref": "#/$defs/client" }
       }
     },
@@ -52,6 +53,11 @@
           "minItems": 1,
           "uniqueItems": true,
           "description": "The model families this client serves, where the client itself does not say."
+        },
+        "provider_cost_classes": {
+          "type": "object",
+          "additionalProperties": { "enum": ["subsidised", "metered-personal", "metered-employer"] },
+          "description": "The cost class of each provider a client's models run on, by provider name; a provider it does not name takes the client's own cost class."
         }
       }
     },
@@ -61,7 +67,7 @@
       "additionalProperties": false,
       "properties": {
         "client": {
-          "enum": ["vibe", "agy", "claude", "hermes", "codex"]
+          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "codex"]
         },
         "model": {
           "type": "string",

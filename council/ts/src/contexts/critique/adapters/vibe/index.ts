@@ -19,7 +19,7 @@ import { parseFindings } from '../../domain/findings.js'
 import { cliVersion } from '../cli-version.js'
 import { isJsonObject, jsonObjectOrUndefined, type JsonObject } from '../../domain/json.js'
 import { tokenCost, type TokenPrices } from '../../domain/pricing.js'
-import { readToml, type TomlError, type TomlTable } from './toml.js'
+import { readToml, type TomlError, type TomlTable } from '../../../../shared-kernel/toml.js'
 import type { ClientReadiness, RosterSlot, VibeCriticClient as VibeClientConfig } from '../../domain/routing.js'
 
 /**

@@ -38,13 +38,39 @@ node model-gateway.mjs models --input <file.json>
 
 The input is `{}` today; later tickets add `repo`. The result carries one entry
 per client model with its client, model id, family, cost class, difficulty tier,
-capability notes and source, plus a `missing` list naming each client that is
-not installed and why. A client counts as installed when its binary is on
-`PATH`. Models are sorted by client, then model id.
+capability notes and source, plus a `missing` list naming each client the
+gateway cannot use and why and a `skipped` list naming each model it cannot
+offer and why. A client counts as installed when its binary is on `PATH`; one
+that is not is named in `missing` whatever its model source. Models are sorted
+by client, then model id.
 
-`source` is `live`, `config` or `declared`. Today only `declared` is produced,
-for Codex and Claude Code; Vibe and Antigravity listing comes later, and until
-then those clients list no models and are not reported missing.
+`source` says where the list came from:
+
+- `live` — the client's own listing: Antigravity's `agy models` (a
+  `Fetching available models...` line, then one `<id>\t<display name>` per
+  model) and OpenCode's `opencode models` (one `<provider>/<model>` per line).
+  Only the families a client may reach are offered, so Antigravity's Claude and
+  GPT-OSS models are left out. An OpenCode model takes the cost class of its
+  provider: the shipped defaults count OpenCode Go, the owner's subscription,
+  as subsidised, and every other provider as metered-personal.
+- `config` — the models Vibe's own configuration declares, listed by the alias
+  `vibe --model` accepts. The gateway reads `$VIBE_HOME/config.toml`, else
+  `~/.vibe/config.toml`.
+- `declared` — the shipped catalogue, for Codex and Claude Code.
+
+A listed model takes its family, tier and notes from the catalogue entry that
+matches its id. A model the catalogue does not know is still listed, with its
+family worked out from its id, `"tier": null` and no notes: the `delegate`
+skill must not pick a null-tier model, because nobody has judged what it
+handles well. A model whose family the gateway cannot work out is not offered
+at all: it is named in `skipped` with the reason, so it never vanishes
+silently, and adding it to the catalogue in `defaults.json` or the machine
+override brings it back.
+
+A listing that fails, or a Vibe configuration that cannot be read, leaves that
+client out and names it in `missing` with the reason; the other clients are
+still listed. Hermes lists nothing until its own ticket lands, and is not
+reported missing for that.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 
@@ -57,7 +83,11 @@ The owner's own settings live outside this repository, in
 The file takes the same top-level keys as `defaults.json`, every one optional,
 and merges over the shipped defaults:
 
-- `clients.<id>.<field>` overrides that field.
+- `clients.<id>.<field>` overrides that field, including
+  `provider_cost_classes`: the cost class of each provider a client's models
+  run on, by provider name (OpenCode's, whose models are listed as
+  `<provider>/<model>`). A provider it does not name takes the client's own
+  cost class.
 - `models`: an entry matching `client` and `model` overrides its `tier`,
   `notes` or `family`; a new entry adds a declared model.
 - `settings.<key>` overrides that setting, deep-merging
