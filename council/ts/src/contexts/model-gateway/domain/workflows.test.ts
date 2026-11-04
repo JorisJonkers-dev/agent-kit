@@ -6,6 +6,7 @@ import {
   parseWorkflowsFile,
   startWorkflow,
   workflowEnded,
+  workflowEndsAt,
   workflowView,
   workflowViews,
   WORKFLOW_TTL_MS,
@@ -193,5 +194,15 @@ describe('endWorkflow', () => {
   it('refuses a workflow this machine never started', () => {
     expect(codeOf(() => endWorkflow([], 'nowhere', at(1)))).toBe('unknown-workflow')
     expect(messageOf(() => endWorkflow([], 'nowhere', at(1)))).toBe('no workflow named nowhere has started on this machine')
+  })
+})
+
+describe('workflowEndsAt', () => {
+  it('is the moment the 24 hours run out while the workflow runs', () => {
+    expect(workflowEndsAt({ name: 'w', started_at: STARTED })).toEqual(at(24))
+  })
+
+  it('is the moment someone ended it when that came first', () => {
+    expect(workflowEndsAt({ ended_at: at(2).toISOString(), name: 'w', started_at: STARTED })).toEqual(at(2))
   })
 })

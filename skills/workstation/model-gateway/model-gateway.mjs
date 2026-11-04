@@ -506,6 +506,10 @@ function messageOf(error) {
 function expiryOf(record) {
   return new Date(Date.parse(record.started_at) + WORKFLOW_TTL_MS).toISOString();
 }
+function workflowEndsAt(record) {
+  const lifeEnd = Date.parse(expiryOf(record));
+  return new Date(record.ended_at === void 0 ? lifeEnd : Math.min(lifeEnd, Date.parse(record.ended_at)));
+}
 function workflowEnded(record, now) {
   if (record.ended_at !== void 0) return true;
   return now.getTime() - Date.parse(record.started_at) >= WORKFLOW_TTL_MS;
@@ -1300,6 +1304,7 @@ function compare(left, right) {
 }
 
 // src/contexts/model-gateway/application/caps.ts
+var MIN_GRANT_TIME_LEFT_S = 60;
 var CapGuard = class {
   constructor(deps) {
     this.deps = deps;
@@ -1331,6 +1336,8 @@ var CapGuard = class {
   async reserve(args) {
     const { cap, config, costClass, estimate, input, now, runDir, runId: runId2 } = args;
     if (estimate === void 0) return void 0;
+    const held = cap.kind === "grant" ? await this.grantTimeLimit(cap.grant, input, now) : void 0;
+    const timeLimitS = held?.time_limit_s ?? input.time_limit_s;
     const costs = await this.finishedCosts();
     const record = reservationRecord({
       client: input.client,
@@ -1340,7 +1347,7 @@ var CapGuard = class {
       reserved_at: now,
       run_dir: runDir,
       run_id: runId2,
-      time_limit_s: input.time_limit_s,
+      time_limit_s: timeLimitS,
       workflow: input.workflow
     });
     const refusal = await this.deps.ledger.update((entries) => {
@@ -1350,7 +1357,26 @@ var CapGuard = class {
       return { append: message === void 0 ? [...settled, record] : settled, result: message };
     });
     if (refusal !== void 0) throw new ModelGatewayError("cap-exceeded", refusal);
-    return { estimate, record };
+    return { estimate, record, time_limit_s: timeLimitS, ...held === void 0 ? {} : { ends_at: held.ends_at } };
+  }
+  /**
+   * The time limit a run under a grant may have: its own, clamped to the time
+   * left until the grant lapses and until its workflow's 24 hours (or its end)
+   * run out, so a run launched just before either keeps no spend running past
+   * it. With under a minute left the run is refused (`grant-expiring`).
+   */
+  async grantTimeLimit(grant, input, now) {
+    const record = (await this.deps.workflows.read()).find((candidate) => candidate.name === input.workflow);
+    const ends = [Date.parse(grant.expires_at), ...record === void 0 ? [] : [workflowEndsAt(record).getTime()]];
+    const endsAt = new Date(Math.min(...ends));
+    const leftS = Math.floor((endsAt.getTime() - now.getTime()) / 1e3);
+    if (leftS < MIN_GRANT_TIME_LEFT_S) {
+      throw new ModelGatewayError(
+        "grant-expiring",
+        `the grant covering workflow ${input.workflow} has ${String(Math.max(leftS, 0))} seconds left: wait for it to lapse, then ask the owner for a new grant, or start a new workflow`
+      );
+    }
+    return { ends_at: endsAt, time_limit_s: Math.min(input.time_limit_s, leftS) };
   }
   /** Releases a reservation with what the run really cost, so the caps count spend rather than the estimate. */
   async settle(reservation, costUsd, now) {
@@ -1963,11 +1989,12 @@ function workflowsPath(env) {
 var GrantWriteCommand = class {
   constructor(deps) {
     this.deps = deps;
-    this.grants = new GrantGuard(deps);
+    this.caps = new CapGuard(deps);
   }
   deps;
-  grants;
+  caps;
   async run(raw) {
+    this.refuseNested();
     const input = readGrantInput(raw);
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
     const client = config.clients[input.client];
@@ -1980,34 +2007,49 @@ var GrantWriteCommand = class {
     }
     const now = this.deps.clock.now();
     const record = requireWorkflowOpen(await this.deps.workflows.read(), input.workflow, now);
-    const standing = await this.standing(input.workflow, input.client, now);
-    if (standing !== void 0) {
-      const room2 = grantRoom(await this.deps.ledger.read(), standing);
-      throw new ModelGatewayError(
-        "grant-exists",
-        `workflow ${input.workflow} already has live grant ${standing.id} of ${usd(standing.cap_usd)} with ${usd(room2.remaining_usd)} left: the owner re-approves only after it lapsed`
-      );
-    }
+    const entries = await this.readLedger(now);
     const grant = newGrant({
       ...input,
       id: grantId(now, randomBytes(3).toString("hex")),
       workflowRecord: record,
       written_at: now
     });
-    const written = await this.deps.grants.update((grants) => ({ grant, grants: [...grants, grant] }));
+    const written = await this.deps.grants.update((grants) => {
+      const standing = liveGrant(grants, input.workflow, input.client, entries, record, now);
+      if (standing !== void 0) {
+        const room2 = grantRoom(entries, standing);
+        throw new ModelGatewayError(
+          "grant-exists",
+          `workflow ${input.workflow} already has live grant ${standing.id} of ${usd(standing.cap_usd)} with ${usd(room2.remaining_usd)} left: the owner re-approves only after it lapsed`
+        );
+      }
+      return { grant, grants: [...grants, grant] };
+    });
     return await this.report(written);
   }
+  /** A delegate may not write a grant: the mark is in its environment, so this call came from inside a gateway run. */
+  refuseNested() {
+    if (this.deps.env.get(DELEGATION_MARK) !== void 0) {
+      throw new ModelGatewayError(
+        "nested-delegation",
+        "a delegate may not write a grant: only the agent the owner works in may, after asking the owner"
+      );
+    }
+  }
   /**
-   * The live grant that already covers this workflow and client, or undefined
-   * when there is none or the ledger cannot be read: a ledger the gateway
-   * cannot read is no reason to refuse the grant the owner gave.
+   * The ledger, after the reservations whose runs died are settled when the
+   * ledger can be written. A ledger that cannot be read refuses the write: a standing grant cannot be ruled
+   * out, and a second grant carries a fresh full cap of the employer's money.
    */
-  async standing(workflow, client, now) {
+  async readLedger(now) {
+    await this.caps.settleStale(now).catch(() => void 0);
     try {
-      return await this.grants.live(workflow, client, now);
+      return await this.deps.ledger.read();
     } catch (error) {
-      if (error instanceof ModelGatewayError) throw error;
-      return void 0;
+      throw new ModelGatewayError(
+        "ledger-unreadable",
+        `${ledgerPath(this.deps.env)}: the ledger cannot be read, so a standing grant cannot be ruled out and no grant is written: ${messageOf3(error)}`
+      );
     }
   }
   /**
@@ -2841,10 +2883,11 @@ var RunCommand = class {
         entry,
         family,
         id,
-        input: reservation === void 0 ? input : { ...input, max_price_usd: reservation.estimate.usd },
+        input: reservation === void 0 ? input : { ...input, max_price_usd: reservation.estimate.usd, time_limit_s: reservation.time_limit_s },
         runDir,
         workDir: workplace.dir,
-        ...workplace.branch === void 0 ? {} : { branch: workplace.branch }
+        ...workplace.branch === void 0 ? {} : { branch: workplace.branch },
+        ...reservation?.ends_at === void 0 ? {} : { endsAt: reservation.ends_at }
       });
     } catch (error) {
       await this.release(workplace);
@@ -2936,6 +2979,7 @@ var RunCommand = class {
     if (delegateReason !== void 0) return { reason: delegateReason, report: { ...base, staged_files: [] } };
     const staged = await this.stage(run.workDir);
     const check = await this.runCheck(run, input);
+    if (check === void 0) return { reason: "grant-expired", report: { ...base, staged_files: staged.files, ...staged.error === void 0 ? {} : { worktree_error: staged.error } } };
     const failure2 = staged.error ?? check.outputError;
     const reason = staged.reason ?? (check.outputError !== void 0 ? "check-output-failed" : check.report.exit_code === 0 ? void 0 : "check-failed");
     return {
@@ -2964,18 +3008,30 @@ var RunCommand = class {
   }
   /**
    * The caller's check, `sh -c <command>` in the worktree, held to the run's
-   * time limit. Its output is kept in the run directory, and a check whose
-   * output cannot be kept still reports its exit code; a check that cannot
-   * start has exit code 127 and the reason as its output.
+   * time limit and, for a run under a grant, to the time still left on its
+   * grant and workflow when the check starts (at least a second): the delegate
+   * has spent part of it. With none left the check is not started and this
+   * gives undefined. The check carries the delegation mark, like the delegate,
+   * so test code the delegate wrote cannot write a grant or delegate on. Its
+   * output is kept in the run directory, and a check whose output cannot be
+   * kept still reports its exit code; a check that cannot start has exit code
+   * 127 and the reason as its output.
    */
   async runCheck(run, input) {
+    let timeoutMs = input.time_limit_s * 1e3;
+    if (run.endsAt !== void 0) {
+      const leftMs = run.endsAt.getTime() - this.deps.clock.now().getTime();
+      if (leftMs <= 0) return void 0;
+      timeoutMs = Math.min(timeoutMs, Math.max(leftMs, 1e3));
+    }
     let result2;
     try {
       result2 = await this.deps.process.exec({
         args: ["-c", input.check],
         command: "sh",
         cwd: run.workDir,
-        timeoutMs: input.time_limit_s * 1e3
+        env: { [DELEGATION_MARK]: "1" },
+        timeoutMs
       });
     } catch (error) {
       result2 = { exitCode: 127, stderr: messageOf3(error), stdout: "" };

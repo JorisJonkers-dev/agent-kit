@@ -510,8 +510,22 @@ gateway does not know (`unknown-model`), a workflow that ended
 (`workflow-ended`) and a workflow and client a live grant already covers
 (`grant-exists`, naming that grant, its cap and what it has left): the owner
 re-approves only after it lapsed, so a second grant can never quietly double
-the cap. A grant lapses 24 hours after it was written, or when its workflow's
-own 24 hours run out first, whichever comes first.
+the cap. The duplicate check runs inside the grants file's lock, so of two
+concurrent writes one is refused `grant-exists`. A ledger the gateway cannot
+read refuses the write too (`ledger-unreadable`, naming the file): a standing
+grant cannot be ruled out, so it fails closed. A grant lapses 24 hours after it
+was written, or when its workflow's own 24 hours run out first, whichever comes
+first.
+
+**A delegate may not write a grant.** A gateway run carries the
+`AGENT_KIT_DELEGATION` mark in its environment, and `grant write` refuses when
+it is set (`code: "nested-delegation"`): only the agent the owner works in may
+write one, after asking the owner. `grant list` stays allowed. A writing run's
+`check` carries the mark too. The mark guards against accidents, not against a
+determined delegate: a delegate that runs shell commands can scrub its own
+environment, so it stops a careless nested call but not a deliberate one. The
+real protection is that the owner reads the staged diff and the ledger, and
+that grants are small and short-lived.
 
 The write is the last thing that can fail: when the ledger cannot be read
 afterwards, the result is still `ok`, with the grant it wrote, `"room": null`
@@ -547,8 +561,12 @@ metered-personal caps use — is reserved against the grant's remaining cap in
 one locked critical section, and the run's actual spend replaces the
 reservation when it ends. The gateway settles the reservations whose runs died
 before it reads a grant, so a dead run's reservation never makes a grant look
-spent for the run that asks next. A refused run reserves nothing and starts no
-workflow. The order is always `requireWorkflowOpen` → reserve →
+spent for the run that asks next. A run under a grant is also clamped to the
+time left: its `time_limit_s` never exceeds what remains until the grant's
+`expires_at` and its workflow's 24 hours (or end), so a run launched just
+before either keeps no spend running past it, and one launched with under 60
+seconds left is refused `grant-expiring`, naming the time left. The check of a writing run gets only the time still left once the delegate is done (a failed run with reason `grant-expired`, and no check, when none is left). A refused run
+reserves nothing and starts no workflow. The order is always `requireWorkflowOpen` → reserve →
 `startWorkflow`.
 
 ## The check runs the delegate's code

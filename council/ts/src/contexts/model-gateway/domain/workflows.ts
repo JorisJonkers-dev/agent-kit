@@ -109,6 +109,12 @@ function expiryOf(record: WorkflowRecord): string {
   return new Date(Date.parse(record.started_at) + WORKFLOW_TTL_MS).toISOString()
 }
 
+/** The moment a workflow stops taking runs: when someone ended it, or when its 24 hours run out, whichever comes first. */
+export function workflowEndsAt(record: WorkflowRecord): Date {
+  const lifeEnd = Date.parse(expiryOf(record))
+  return new Date(record.ended_at === undefined ? lifeEnd : Math.min(lifeEnd, Date.parse(record.ended_at)))
+}
+
 /** Whether a workflow is closed to runs: someone ended it, or its 24 hours ran out. */
 export function workflowEnded(record: WorkflowRecord, now: Date): boolean {
   if (record.ended_at !== undefined) return true

@@ -134,6 +134,8 @@ interface Delegation {
   readonly runDir: string
   readonly workDir: string
   readonly branch?: string
+  /** When the run's grant or workflow lapses; the check may not outlive it. */
+  readonly endsAt?: Date
 }
 
 /** What the data policy allows this run, and the repository it is keyed by. */
@@ -219,10 +221,11 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
         entry,
         family,
         id,
-        input: reservation === undefined ? input : { ...input, max_price_usd: reservation.estimate.usd },
+        input: reservation === undefined ? input : { ...input, max_price_usd: reservation.estimate.usd, time_limit_s: reservation.time_limit_s },
         runDir,
         workDir: workplace.dir,
         ...(workplace.branch === undefined ? {} : { branch: workplace.branch }),
+        ...(reservation?.ends_at === undefined ? {} : { endsAt: reservation.ends_at }),
       })
     } catch (error) {
       await this.release(workplace)
@@ -319,6 +322,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     if (delegateReason !== undefined) return { reason: delegateReason, report: { ...base, staged_files: [] } }
     const staged = await this.stage(run.workDir)
     const check = await this.runCheck(run, input)
+    if (check === undefined) return { reason: 'grant-expired', report: { ...base, staged_files: staged.files, ...(staged.error === undefined ? {} : { worktree_error: staged.error }) } }
     const failure = staged.error ?? check.outputError
     const reason =
       staged.reason ??
@@ -351,18 +355,30 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
 
   /**
    * The caller's check, `sh -c <command>` in the worktree, held to the run's
-   * time limit. Its output is kept in the run directory, and a check whose
-   * output cannot be kept still reports its exit code; a check that cannot
-   * start has exit code 127 and the reason as its output.
+   * time limit and, for a run under a grant, to the time still left on its
+   * grant and workflow when the check starts (at least a second): the delegate
+   * has spent part of it. With none left the check is not started and this
+   * gives undefined. The check carries the delegation mark, like the delegate,
+   * so test code the delegate wrote cannot write a grant or delegate on. Its
+   * output is kept in the run directory, and a check whose output cannot be
+   * kept still reports its exit code; a check that cannot start has exit code
+   * 127 and the reason as its output.
    */
-  private async runCheck(run: Delegation, input: WritingInput): Promise<{ report: CheckReport; outputError?: string }> {
+  private async runCheck(run: Delegation, input: WritingInput): Promise<{ report: CheckReport; outputError?: string } | undefined> {
+    let timeoutMs = input.time_limit_s * 1000
+    if (run.endsAt !== undefined) {
+      const leftMs = run.endsAt.getTime() - this.deps.clock.now().getTime()
+      if (leftMs <= 0) return undefined
+      timeoutMs = Math.min(timeoutMs, Math.max(leftMs, 1000))
+    }
     let result: ProcessResult
     try {
       result = await this.deps.process.exec({
         args: ['-c', input.check],
         command: 'sh',
         cwd: run.workDir,
-        timeoutMs: input.time_limit_s * 1000,
+        env: { [DELEGATION_MARK]: '1' },
+        timeoutMs,
       })
     } catch (error) {
       result = { exitCode: 127, stderr: messageOf(error), stdout: '' }

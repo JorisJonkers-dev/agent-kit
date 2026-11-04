@@ -1296,6 +1296,8 @@ interface RunWorkspace {
 }
 
 interface RunWorkspaceOptions {
+  /** The clock the gateway reads, when a test moves it on while a delegate runs. */
+  readonly clock?: FixedClock
   readonly scripts?: readonly VibeScript[]
   /** The client the gateway launches, when a test runs something other than Vibe. */
   readonly process?: ModelGatewayProcessPort
@@ -1337,7 +1339,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
   }
   const git = new FakeGit(repositories)
   const runtime = defaultModelGatewayRuntime({
-    clock: new FixedClock(),
+    clock: options.clock ?? new FixedClock(),
     defaultsPath: defaults,
     env: new FakeEnv({ HOME: home, XDG_STATE_HOME: state, ...options.env }),
     git,
@@ -3191,6 +3193,7 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     expect(delegate?.cwd).toBe(worktree)
     expect(flag(delegate, '--workdir')).toBe(worktree)
     expect(check).toMatchObject({ args: ['-c', 'npm test'], command: 'sh', cwd: worktree, timeoutMs: 120_000 })
+    expect(check?.env).toEqual({ AGENT_KIT_DELEGATION: '1' })
     expect(w.vibe.commands).toHaveLength(2)
     expect(stagedBeforeCheck).toEqual([1])
     expect(w.git.stagedIn).toEqual([worktree])
@@ -5466,18 +5469,44 @@ describe('model-gateway grant write', () => {
     expect(await grantsOf(w)).toHaveLength(2)
   })
 
-  it('reports the grant it wrote even when the ledger cannot be read, rather than failing after the write', async () => {
+  it('refuses when the ledger cannot be read, since a standing grant cannot be ruled out, and writes nothing', async () => {
     const { w } = await readyCodex()
     await mkdir(w.ledger, { recursive: true })
 
-    const result = await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT))
+    const result = printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))
 
-    expect(result.exitCode).toBe(0)
-    expect(printed(result)).toMatchObject({
-      grant: { cap_usd: 5, room: null, workflow: 'spec-293' },
-      status: 'ok',
-      warning: expect.stringContaining('the grant is written') as unknown,
+    expect(result).toMatchObject({ code: 'ledger-unreadable', status: 'error' })
+    expect(String(result.message)).toContain(w.ledger)
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('refuses from inside a delegation, so a delegate cannot mint itself a grant, and writes nothing', async () => {
+    const { w } = await readyCodex({ env: { AGENT_KIT_DELEGATION: '1' } })
+
+    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toEqual({
+      code: 'nested-delegation',
+      message: 'a delegate may not write a grant: only the agent the owner works in may, after asking the owner',
+      status: 'error',
     })
+    expect(await grantsOf(w)).toEqual([])
+  })
+
+  it('still lists grants from inside a delegation', async () => {
+    const { w } = await readyCodex({ env: { AGENT_KIT_DELEGATION: '1' } })
+
+    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toEqual({ grants: [], lapsed: [], status: 'ok' })
+  })
+
+  it('lets one of two concurrent writes win and refuses the other, so two live grants never stand', async () => {
+    const { w } = await readyCodex()
+
+    const results = (await Promise.all([
+      w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)),
+      w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)),
+    ])).map((result) => printed(result))
+
+    expect(results.map((result) => result.status).sort()).toEqual(['error', 'ok'])
+    expect(results.find((result) => result.status === 'error')).toMatchObject({ code: 'grant-exists' })
     expect(await grantsOf(w)).toHaveLength(1)
   })
 
@@ -5641,6 +5670,27 @@ describe('model-gateway grant list', () => {
 })
 
 describe('model-gateway run: Codex, the metered-employer client', () => {
+  it('runs under the time left on its workflow, not its full time limit', async () => {
+    const { codex, w } = await readyCodex()
+    // The workflow's 24 hours run out 5 minutes after the fixed clock.
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await writeGrant(w)
+
+    const result = await w.run(codexInput(w, { time_limit_s: 900 }))
+
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+    expect(codex.commands[0]?.timeoutMs).toBe(300_000)
+  })
+
+  it('refuses a run launched with under a minute left on its grant, and starts nothing', async () => {
+    const { codex, w } = await readyCodex()
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:52:45.000Z' }] })
+    await writeGrant(w)
+
+    expect(printed(await w.run(codexInput(w)))).toMatchObject({ code: 'grant-expiring', status: 'error' })
+    expect(codex.commands).toEqual([])
+  })
+
   it('runs codex exec non-interactively, and reads its tokens and answer from the events', async () => {
     const { codex, w } = await readyCodex()
     await writeGrant(w)
@@ -5700,6 +5750,80 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     expect(printed(result)).toMatchObject({ status: 'ok' })
     expect(flag(codex.commands[0], '-c')).toBe('model_reasoning_effort="high"')
     expect(flag(codex.commands[0], '-s')).toBe('workspace-write')
+  })
+
+  it('gives the check only the time left on the grant after the delegate ran, not the time limit again', async () => {
+    const clock = new FixedClock()
+    const { codex, w } = await readyCodex({
+      clock,
+      scripts: [
+        {
+          effect: async (command) => {
+            await edits('src/app.ts')(command)
+            clock.advance(290_000)
+          },
+          stdout: codexAnswer('done\nSUMMARY: added it'),
+        },
+        { stdout: '3 passed\n' },
+      ],
+    })
+    // The workflow's 24 hours run out 5 minutes after the clock starts.
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await writeGrant(w)
+
+    const result = await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 }))
+
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+    expect(codex.commands[0]?.timeoutMs).toBe(300_000)
+    expect(codex.commands[1]?.timeoutMs).toBe(10_000)
+  })
+
+  it('gives the check at least a second while the grant has any time left, and never more than its time limit', async () => {
+    const clock = new FixedClock()
+    const { codex, w } = await readyCodex({
+      clock,
+      scripts: [
+        {
+          effect: async (command) => {
+            await edits('src/app.ts')(command)
+            clock.advance(299_500)
+          },
+          stdout: codexAnswer('done\nSUMMARY: added it'),
+        },
+        { stdout: '3 passed\n' },
+      ],
+    })
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await writeGrant(w)
+
+    await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 }))
+
+    expect(codex.commands[1]?.timeoutMs).toBe(1000)
+  })
+
+  it('does not start the check once the grant ran out while the delegate worked', async () => {
+    const clock = new FixedClock()
+    const { codex, w } = await readyCodex({
+      clock,
+      scripts: [
+        {
+          effect: async (command) => {
+            await edits('src/app.ts')(command)
+            clock.advance(300_000)
+          },
+          stdout: codexAnswer('done\nSUMMARY: added it'),
+        },
+        { stdout: '3 passed\n' },
+      ],
+    })
+    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await writeGrant(w)
+
+    const result = printed(await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 })))
+
+    expect(result).toMatchObject({ reason: 'grant-expired', status: 'failed' })
+    expect(result).not.toHaveProperty('check')
+    expect(codex.commands).toHaveLength(1)
   })
 
   it('refuses a Codex run whose workflow no live grant covers, naming the workflow and the grant write call', async () => {
