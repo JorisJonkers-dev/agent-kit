@@ -97,7 +97,8 @@ def test_setup_skips_the_whole_surface_on_linux(linux_run: Run) -> None:
         assert line.endswith(SKIPPED), line
     for message in SKIPPED:
         assert f"warn  {message}" in linux_run.stderr
-    assert not [call for call in linux_run.calls if call.startswith("brew")]
+    # Other entries may use Homebrew on Linux (OpenCode does); no cask is touched.
+    assert not [call for call in linux_run.calls if call.startswith("brew") and "--cask" in call]
     assert not (linux_run.home / ".gemini").exists()
     assert not (linux_run.home / ".local" / "bin" / "antigravity-mcp-proxy").exists()
 

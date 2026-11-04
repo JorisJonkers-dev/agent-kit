@@ -23,7 +23,7 @@ list prints "Nothing left to do." A missing toolchain (no `rustup`, no
 
 ## Setup converges
 
-Each Claude profile, Codex and Vibe ends a run with exactly the MCP servers
+Each Claude profile, Codex, Vibe and OpenCode ends a run with exactly the MCP servers
 the registry declares for it, plus the ones the keep file names
 ([CONTEXT.md](../CONTEXT.md) defines the terms). Claude's marketplaces and
 user-scope plugins converge the same way, once for every profile, because
@@ -587,6 +587,85 @@ Setup writes **only** under `~/.gemini/config/` and
 `managed by agent-kit` marker, and one without it is reported and kept. Note
 that `brew uninstall --cask antigravity` removes part of `~/.gemini` as well,
 so uninstalling the app can take your own files with it.
+
+## OpenCode
+
+[OpenCode](https://opencode.ai) is another terminal agent beside Claude Code,
+Codex and Vibe. Setup installs **OpenCode 2** from Homebrew core
+(`brew install opencode`) and configures it like the others. It is not a
+council or critique target: no runner routes work to it.
+
+The opencode.ai install script, the npm `opencode-ai` package and the
+`anomalyco/tap` formula still install OpenCode 1, which reads MCP servers from
+another shape. When the `opencode` on `PATH` reports a 1.x version, setup warns
+`opencode: <version> is OpenCode 1; its MCP config is left alone`, and neither
+merges nor converges `opencode.json`: the V2 shape would read there as one
+server named `servers`. It leaves the binary alone too: only an OpenCode that
+Homebrew installed is Homebrew's to upgrade. Skills and `AGENTS.md` are
+written either way.
+
+Without Homebrew on `PATH` (a Linux machine, say) the install step says so:
+`opencode: Homebrew is not on PATH; install it, or OpenCode 2, then re-run`.
+
+OpenCode is a workstation surface only. A `--cloud` run logs
+`opencode: not set up in cloud mode` and writes nothing under
+`~/.config/opencode`.
+
+### What it gets
+
+| Path | What setup puts there |
+|---|---|
+| `~/.config/opencode/opencode.json` | the MCP fleet under `mcp.servers`, merged from `registry/generated/opencode/opencode.json` |
+| `~/.config/opencode/AGENTS.md` | the instructions pointer, Shared Memory only |
+| `~/.config/opencode/skills/<name>/` | the kit's skills, the vendored skills (superpowers), and the skills of every enabled Claude Code plugin |
+
+`~/.config` is `$XDG_CONFIG_HOME` when that is set.
+
+**MCP servers.** The workstation fleet minus `memory-private`, as for
+Antigravity; the renderer refuses `enabled_for: [opencode]`. OpenCode fills in
+`{env:NAME}` when it loads the file, so a token-bearing server carries
+`Authorization: Bearer {env:HINDSIGHT_API_TOKEN}` (and so on) with OAuth
+discovery off, and no secret reaches the file. The value comes from the
+environment OpenCode starts in, which `~/.config/agent-kit/env.sh` sets up in
+every shell. `n8n` is left to OpenCode's own sign-in: run
+`opencode mcp auth n8n` once. OpenCode gets no `hindsight` server, because
+Hindsight Coding Agents installs for Claude Code and Codex only; `memory-api`
+reaches the same Shared Memory bank.
+
+`scripts/opencode-merge-mcp.py` replaces each server the fragment names, keeps
+an `enabled` flag you set on one, and keeps every other key in the file. The
+first merge copies the file to `opencode.json.bak` and never overwrites that
+copy. The backup is taken only from a file no merge has touched, so a machine
+with no OpenCode config before agent-kit never gets one. Each write goes to a temporary file that is then renamed over it, so a
+starting OpenCode never reads half a file. A file with comments in it is
+refused rather than rewritten without them, and convergence skips it with a
+note while the other agents still converge. Otherwise the file converges like
+Codex's: an undeclared server goes unless the keep file names it. Both steps run only when `opencode` is on `PATH`.
+
+**Skills.** OpenCode reads `~/.claude/skills` and `~/.agents/skills` as well
+as its own folder, and its own folder wins a name clash. Setup copies the
+kit's and the vendored skills into its own folder all the same, so OpenCode
+holds the registry's copy even when Claude's home is somewhere else.
+
+**Plugins.** OpenCode cannot load a Claude Code plugin, and its own plugins
+are JavaScript modules, so setup carries over what a plugin ships that
+OpenCode can use: its skills. `scripts/opencode-plugin-skills.py` asks
+`claude plugin list --json` where each enabled plugin of the registry is
+installed and copies its skills the way Claude finds them: each path its
+`plugin.json` lists under `skills`, the default `skills/` folder, or a
+`SKILL.md` at the plugin's root. A plugin you disabled in Claude ships no
+skills, and a `skills` path that leads out of the plugin is ignored. Each
+copy is built beside the others, marked with a `.agent-kit-plugin-skill` file
+naming its plugin, and only then renamed into place, so an interrupted run
+cannot leave an unmarked copy. The next run replaces the marked copies,
+removes any that no enabled plugin ships any more, and never touches a skill
+folder without the marker. A plugin's hooks, agents and commands stay Claude's — the
+caveman hooks and security-guidance among them — and so do plugin MCP servers
+(the `github` plugin's needs a token setup does not manage).
+
+**The service.** OpenCode 2 runs a background service that reads its config
+and skills once, at start. When `opencode service status` shows it running,
+setup restarts it at the end of a run so the new configuration takes effect.
 
 ## Language servers have two halves
 

@@ -39,6 +39,7 @@ def setup_run(
     args: tuple[str, ...] = (),
     prepare_home: Callable[[Path], None] | None = None,
     stubs: dict[str, str] | None = None,
+    without: tuple[str, ...] = (),
 ) -> Run:
     """Run the checked-in setup script with HOME in a temp dir and nothing real on PATH.
 
@@ -48,7 +49,8 @@ def setup_run(
     already there. ``prepare_home`` writes anything else the home should hold
     before the run, and ``args`` are passed to the script (``--check``).
     ``stubs`` replaces or adds stub bodies by command name, written after the
-    defaults, for a test that needs one command to do real work.
+    defaults, for a test that needs one command to do real work. ``without``
+    names default stubs to leave off PATH, for a machine that lacks them.
     """
     bin_dir = root / "bin"
     bin_dir.mkdir(parents=True)
@@ -79,6 +81,8 @@ def setup_run(
     )
     for name, body in (stubs or {}).items():
         stub(bin_dir, name, body)
+    for name in without:
+        (bin_dir / name).unlink()
     result = subprocess.run(
         ["bash", str(SETUP), *args],
         capture_output=True,

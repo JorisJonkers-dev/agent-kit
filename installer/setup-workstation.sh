@@ -693,6 +693,8 @@ converge_mcp() {
   # is what marks the home for the next run's split.
   [ "${VIBE_HOMES_READY}" = 1 ] \
     && args+=(--vibe "${VIBE_HOME}/config.toml" --vibe-private "${VIBE_PRIVATE_HOME}/config.toml")
+  [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ] && command -v opencode >/dev/null 2>&1 \
+    && args+=(--opencode "${OPENCODE_HOME}/opencode.json")
   [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
   if ! command -v uv >/dev/null 2>&1; then
     warn "uv is not on PATH; MCP servers not converged"
@@ -704,6 +706,7 @@ converge_mcp() {
     --declared codex=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
     --declared vibe=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
     --declared vibe-private=memory-api,memory-private,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
+    --declared opencode=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf \
     --retired memory-mcp,vuetify --private memory-private 2>&1) || rc=$?
   while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
   [ "${rc}" = 0 ] || fail "MCP servers did not converge (see above)"
@@ -846,6 +849,13 @@ ANTIGRAVITY_CLI_HOME="${HOME}/.gemini/antigravity-cli"
 # rather than leaving half of it behind in ~/.gemini.
 ANTIGRAVITY_READY=0
 [ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1
+# OpenCode 2's global config: opencode.json, AGENTS.md and skills/.
+OPENCODE_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+# 0 on a cloud run: OpenCode is a workstation surface only.
+OPENCODE_READY=1
+[ "${CLOUD}" = 1 ] && OPENCODE_READY=0
+# 1 once the opencode on PATH reports a 1.x release: its MCP config is then left alone.
+OPENCODE_V1=0
 # 0 after a failed split of the Vibe home: nothing then touches either home.
 VIBE_HOMES_READY=1
 
@@ -1624,6 +1634,30 @@ else
     fi
   else
     warn "antigravity: macOS only; skipped on $(uname -s)"
+  fi
+fi
+
+# OpenCode 2, the open-source terminal coding agent. Gets the
+# workstation MCP fleet minus Private Memory, the agent-kit
+# instructions pointer, the kit's and the vendored skills, and the
+# skills of every enabled Claude Code plugin. Not a council or
+# critique target.
+if [ "${CLOUD}" = 1 ]; then
+  log "opencode: not set up in cloud mode"
+else
+  if command -v opencode >/dev/null 2>&1; then
+    run_sh '! brew list --formula opencode >/dev/null 2>&1 || brew upgrade opencode'
+    ok "opencode $(opencode --version 2>/dev/null | head -1)"
+  else
+    run_sh 'if command -v brew >/dev/null 2>&1; then brew install opencode; else echo "opencode: Homebrew is not on PATH; install it, or OpenCode 2, then re-run" >&2; fi'
+    if [ "${CHECK_ONLY}" = 1 ]; then
+      log "opencode would be installed"
+    elif command -v opencode >/dev/null 2>&1; then
+      ok "opencode installed"
+      new_binaries+=("opencode")
+    else
+      fail "opencode still not on PATH after install; open a new shell and re-run"
+    fi
   fi
 fi
 
@@ -2842,6 +2876,33 @@ for install in installs:
     if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then
       _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared
     fi
+    # OpenCode 2 reads mcp.servers from its global opencode.json and fills in
+    # {env:NAME} at load, so the fragment names each credential and holds
+    # none. OpenCode 1 reads another shape, so a V1 binary is named, not fed.
+    if [ "${OPENCODE_READY}" = 1 ] && command -v opencode >/dev/null 2>&1; then
+      opencode_version="$(opencode --version 2>/dev/null | head -1)"
+      # V2 prints `opencode v2.2.5`; match the last word, with or without its v.
+      opencode_release="${opencode_version##* }"
+      case "${opencode_release#v}" in
+        1.*)
+          OPENCODE_V1=1
+          warn "opencode: ${opencode_version} is OpenCode 1; its MCP config is left alone; agent-kit configures OpenCode 2 (brew install opencode)" ;;
+      esac
+      if [ "${OPENCODE_V1}" = 1 ]; then
+        :
+      elif [ "${CHECK_ONLY}" = 1 ]; then
+        log "would merge OpenCode MCP servers into ${OPENCODE_HOME}/opencode.json"
+      elif python3 "${KIT_ROOT}/scripts/opencode-merge-mcp.py" \
+        "${KIT_ROOT}/registry/generated/opencode/opencode.json" --config "${OPENCODE_HOME}/opencode.json" --remove memory-mcp --remove vuetify --remove memory-private; then
+        ok "OpenCode MCP servers merged"
+      else
+        fail "OpenCode MCP merge failed"
+      fi
+    fi
+    # OpenCode's global rules file; it reads ~/.claude/CLAUDE.md only without one.
+    if [ "${OPENCODE_READY}" = 1 ]; then
+      _agents_pointer "${OPENCODE_HOME}/AGENTS.md" shared
+    fi
     converge_mcp
     # Verify the VALUE, not the exit codes: ask Claude what it
     # actually has, and check every expected server is present.
@@ -2988,6 +3049,24 @@ else
       fail "pr-composer: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/pr-composer"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "pr-composer -> ${dest}"
+    else
+      fail "pr-composer: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Cross-model orchestrator (Claude + Codex) for large,
@@ -3086,6 +3165,24 @@ else
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/council"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "council -> ${dest}"
+    else
+      fail "council: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${OPENCODE_HOME}/skills/council"
+  if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -3215,6 +3312,24 @@ else
       fail "kb-first: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/kb-first"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "kb-first -> ${dest}"
+    else
+      fail "kb-first: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Token-budget discipline: progressive disclosure, bounded recall,
@@ -3312,6 +3427,24 @@ else
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/token-economy"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "token-economy -> ${dest}"
+    else
+      fail "token-economy: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${OPENCODE_HOME}/skills/token-economy"
+  if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -3441,6 +3574,24 @@ else
       fail "agent-session-bootstrap: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/agent-session-bootstrap"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "agent-session-bootstrap -> ${dest}"
+    else
+      fail "agent-session-bootstrap: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # The critique pipeline's shared files: the bundled runner, the
@@ -3538,6 +3689,24 @@ else
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/critique"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique -> ${dest}"
+    else
+      fail "critique: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${OPENCODE_HOME}/skills/critique"
+  if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -3668,6 +3837,24 @@ else
       fail "critique-decisions: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/critique-decisions"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-decisions -> ${dest}"
+    else
+      fail "critique-decisions: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Critique a spec after /to-spec: critics from other model
@@ -3781,6 +3968,24 @@ else
       fail "critique-spec: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/critique-spec"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-spec -> ${dest}"
+    else
+      fail "critique-spec: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Report how each critique critic client performs per stage, from
@@ -3877,6 +4082,24 @@ else
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/critique-stats"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "critique-stats -> ${dest}"
+    else
+      fail "critique-stats: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${OPENCODE_HOME}/skills/critique-stats"
+  if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -4008,6 +4231,24 @@ else
       fail "check-tickets: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/check-tickets"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "check-tickets -> ${dest}"
+    else
+      fail "check-tickets: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # Review a risky ticket's staged change after its /code-review and
@@ -4107,6 +4348,24 @@ else
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/review-ticket"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-ticket -> ${dest}"
+    else
+      fail "review-ticket: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${OPENCODE_HOME}/skills/review-ticket"
+  if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -4238,6 +4497,24 @@ else
       fail "review-feature: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/review-feature"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "review-feature -> ${dest}"
+    else
+      fail "review-feature: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # The critique pipeline's stepper: says in a few lines where the
@@ -4336,6 +4613,24 @@ else
   fi
   dest="${ANTIGRAVITY_CLI_HOME}/skills/flow"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "flow -> ${dest}"
+    else
+      fail "flow: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${OPENCODE_HOME}/skills/flow"
+  if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
@@ -4465,6 +4760,24 @@ else
       fail "build-tracker: ${dest} is incomplete after copy"
     fi
   fi
+  dest="${OPENCODE_HOME}/skills/build-tracker"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "build-tracker -> ${dest}"
+    else
+      fail "build-tracker: ${dest} is incomplete after copy"
+    fi
+  fi
 fi
 
 # The read-only Vibe critic agents, into the shared Vibe home only. Like
@@ -4480,7 +4793,8 @@ fi
 # Mirrors Hermes' sync-skills init container: clone the pinned ref,
 # verify the commit sha (a mismatch is a supply-chain event, so it
 # fails loudly rather than installing something else), then install
-# every SKILL.md the source publishes into both agent homes.
+# every SKILL.md the source publishes into the Claude, Codex and
+# OpenCode skills folders.
 # -----------------------------------------------------------------
 log "vendored skills"
 
@@ -4503,7 +4817,9 @@ else
       while IFS= read -r vendor_skill_md; do
         vendor_dir="$(dirname "${vendor_skill_md}")"
         vendor_name="$(basename "${vendor_dir}")"
-        for vendor_home in "${CLAUDE_HOME}" "${CODEX_HOME}"; do
+        vendor_homes=("${CLAUDE_HOME}" "${CODEX_HOME}")
+        [ "${OPENCODE_READY}" = 1 ] && vendor_homes+=("${OPENCODE_HOME}")
+        for vendor_home in "${vendor_homes[@]}"; do
           vendor_dest="${vendor_home}/skills/${vendor_name}"
           rm -rf "${vendor_dest}"
           mkdir -p "$(dirname "${vendor_dest}")"
@@ -4520,6 +4836,35 @@ else
       fail "superpowers: could not clone https://github.com/obra/superpowers@v6.3.0 at commit b36e0829c6d0140e93cfef2ca599b1b07d4a7797 (supply-chain mismatch or network failure)"
     fi
     rm -rf "${vendor_stage}"
+  fi
+fi
+
+# -----------------------------------------------------------------
+# 8b. OpenCode: the skills of the enabled Claude Code plugins, copied
+# from where Claude installed them. A plugin's hooks, agents and commands
+# stay Claude's. Then the background service reloads, because it reads
+# its config and skills once, at start.
+# -----------------------------------------------------------------
+if [ "${OPENCODE_READY}" = 1 ]; then
+  log "OpenCode plugin skills"
+  if command -v claude >/dev/null 2>&1; then
+    opencode_skill_args=(--skills-dir "${OPENCODE_HOME}/skills" --plugins 'caveman@caveman,drawio@drawio,frontend-design@agent-kit-official,mattpocock-skills@agent-kit-official,security-guidance@agent-kit-official,kubernetes-skill@kubernetes-skill,github@agent-kit-official')
+    [ "${CHECK_ONLY}" = 1 ] && opencode_skill_args+=(--check)
+    opencode_skill_rc=0
+    opencode_skill_out="$(python3 "${KIT_ROOT}/scripts/opencode-plugin-skills.py" \
+      "${opencode_skill_args[@]}" 2>&1)" || opencode_skill_rc=$?
+    while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${opencode_skill_out}"
+    [ "${opencode_skill_rc}" = 0 ] || fail "OpenCode plugin skills did not all land (see above)"
+  else
+    warn "claude not on PATH; OpenCode gets no plugin skills"
+  fi
+  if [ "${CHECK_ONLY}" != 1 ] && command -v opencode >/dev/null 2>&1 \
+     && opencode service status 2>/dev/null | grep -q '^http'; then
+    if opencode service restart >/dev/null 2>&1; then
+      ok "OpenCode service restarted"
+    else
+      warn "opencode service restart failed; restart it to load the new config"
+    fi
   fi
 fi
 

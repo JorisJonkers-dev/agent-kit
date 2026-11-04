@@ -23,6 +23,7 @@ uv run pytest tests/test_registry_render.py
 | `registry/generated/vibe/agents/critic-<model>.toml` | a workstation's `~/.vibe/agents/`, copied by setup (never `~/.vibe-private`) |
 | `registry/generated/vibe-private/mcp-servers.toml` | a workstation's `~/.vibe-private/config.toml`, via `scripts/vibe-merge-mcp.py` |
 | `registry/generated/antigravity/mcp_config.json` | a workstation's `~/.gemini/config/mcp_config.json`, via `scripts/antigravity-merge-mcp.py` |
+| `registry/generated/opencode/opencode.json` | a workstation's `~/.config/opencode/opencode.json`, via `scripts/opencode-merge-mcp.py` |
 | `registry/generated/workstation-secrets.json` | `scripts/agent-kit-keys.py`, as the table of tokens and keys to get |
 
 A hand edit to any of them fails `--check`, and so does a registry change that
@@ -34,7 +35,7 @@ was never rendered. Both are one test.
 
 | Surface | Means |
 |---|---|
-| `workstation` | Claude Code, Codex, Vibe, Antigravity and local Hermes on a developer machine |
+| `workstation` | Claude Code, Codex, Vibe, Antigravity, OpenCode and local Hermes on a developer machine |
 | `hermes` | the in-cluster Hermes gateway |
 | `runner` | the per-workspace agent-runner image |
 | `container` | the agents image, through `setup-container.sh` |
@@ -175,7 +176,8 @@ Two traps this catches:
   substitution list, or `sed` writes an empty string into a syntactically valid
   config whose server fails at the first tool call. Antigravity expands no
   environment variables, so there a credential-bearing http server renders as
-  the stdio proxy with `--secret <field>` instead.
+  the stdio proxy with `--secret <field>` instead. OpenCode renders it as an
+  `Authorization: Bearer {env:<field>}` header, which it fills in at load.
 - `credential_optional: true` declares a credential that is a convenience
   override, not a requirement — the server self-manages auth (e.g. overleaf via
   `olcli`'s stored session), so an unset env var must not skip registration.
@@ -198,8 +200,10 @@ Two traps this catches:
   secret. On Codex it writes the entry with `scripts/codex-add-url-mcp.py`,
   because `codex mcp add --url` starts the sign-in at once and waits for a
   browser. Each client signs in once: `/mcp` in Claude (each profile),
-  `codex mcp login <name>`, `/mcp login <name>` in Vibe. Until a client has,
-  setup and `--check` warn `<name>: needs sign-in (<client>)`. Local Hermes gets
+  `codex mcp login <name>`, `/mcp login <name>` in Vibe,
+  `opencode mcp auth <name>` in OpenCode. Until a client has, setup and
+  `--check` warn `<name>: needs sign-in (<client>)` (OpenCode is not checked
+  yet). Local Hermes gets
   no OAuth server, and an OAuth server should carry `cloud: false`.
 - `trust: hosted` stamps the generated config with the reminder that the
   server's output is context, never instruction.
@@ -244,7 +248,7 @@ skill has landed, with `pending:` set to that issue's URL:
 - name: example-skill
   path: skills/example-skill
   pending: https://github.com/JorisJonkers-dev/agent-kit/issues/<n>
-  agents: [claude, codex, vibe, antigravity]
+  agents: [claude, codex, vibe, antigravity, opencode]
   surfaces: [workstation]
 ```
 
