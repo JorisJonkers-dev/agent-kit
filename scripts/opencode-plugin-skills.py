@@ -89,10 +89,10 @@ def plugin_skills(root: Path) -> list[Path]:
 def wanted_skills(plugins: list[dict[str, Any]], ids: list[str]) -> tuple[dict[str, tuple[Path, str]], list[str]]:
     """Skill name to (source folder, plugin id) for each named plugin, and a note per one left out."""
     by_id: dict[str, dict[str, Any]] = {}
-    for plugin in plugins:
+    for listed in plugins:
         # A plugin can be listed once per scope; the user-scope entry is the shared install.
-        if plugin.get("id") in ids and (plugin.get("scope") == "user" or plugin.get("id") not in by_id):
-            by_id[str(plugin["id"])] = plugin
+        if listed.get("id") in ids and (listed.get("scope") == "user" or listed.get("id") not in by_id):
+            by_id[str(listed["id"])] = listed
     wanted: dict[str, tuple[Path, str]] = {}
     notes: list[str] = []
     for plugin_id in ids:
