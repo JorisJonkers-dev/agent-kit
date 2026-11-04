@@ -6,7 +6,10 @@ import {
   DEFAULT_TIME_LIMIT_S,
   finalAnswerOf,
   NO_TOKENS,
+  openCodeProvider,
+  priceRun,
   readOnlyProof,
+  requireAllowedProvider,
   type ProofFiles,
   readRunInput,
   runCost,
@@ -69,7 +72,7 @@ describe('readRunInput', () => {
 
   it('refuses a client or a mode a later ticket builds', () => {
     expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).code).toBe('not-supported-yet')
-    expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).message).toBe('only vibe can run a delegation, not "codex"')
+    expect(thrown(() => readRunInput({ ...MINIMAL, client: 'codex' })).message).toBe('only vibe, agy, claude, opencode can run a delegation, not "codex"')
     expect(thrown(() => readRunInput({ ...MINIMAL, mode: 'writing' })).code).toBe('not-supported-yet')
     expect(thrown(() => readRunInput({ ...MINIMAL, mode: undefined })).message).toBe('only read-only runs are supported, not missing')
   })
@@ -168,6 +171,52 @@ describe('runFailureReason', () => {
     expect(runFailureReason({ exitCode: 0 }, undefined)).toBe('parse-error')
     expect(runFailureReason({ exitCode: 0 }, 'text')).toBeUndefined()
   })
+
+  it('names what the client itself reported although it exited 0, after a timeout or an exit code, and before a missing answer', () => {
+    expect(runFailureReason({ exitCode: 0 }, 'text', 'denied-action')).toBe('denied-action')
+    expect(runFailureReason({ exitCode: 0 }, undefined, 'client-error')).toBe('client-error')
+    expect(runFailureReason({ exitCode: 3 }, 'text', 'client-error')).toBe('exit-3')
+    expect(runFailureReason({ exitCode: 0, timedOut: true }, 'text', 'client-error')).toBe('timeout')
+  })
+})
+
+describe('priceRun', () => {
+  const prices = { cached_input: 0.1, input: 1, output: 2 }
+
+  it('takes the client’s own figure first, then the catalogue price times the tokens, then nothing', () => {
+    expect(priceRun(0.42, { cached: 0, input: 1_000_000, output: 0 }, prices)).toBe(0.42)
+    expect(priceRun(undefined, { cached: 500_000, input: 1_000_000, output: 1_000_000 }, prices)).toBeCloseTo(0.5 * 0.1 + 0.5 + 2, 10)
+    expect(priceRun(undefined, { cached: 0, input: 10, output: 10 }, undefined)).toBe(0)
+  })
+})
+
+describe('the OpenCode provider', () => {
+  it('is the part of the model id before its first slash, when there is one on each side', () => {
+    expect(openCodeProvider('opencode-go/glm-5-3')).toBe('opencode-go')
+    expect(openCodeProvider('openrouter/z-ai/glm-5')).toBe('openrouter')
+    expect(openCodeProvider('glm-5-3')).toBeUndefined()
+    expect(openCodeProvider('/glm-5-3')).toBeUndefined()
+    expect(openCodeProvider('opencode-go/')).toBeUndefined()
+  })
+
+  it('is allowed when the machine names it, and by default only opencode-go is', () => {
+    expect(() => {
+      requireAllowedProvider('opencode-go/glm-5-3', undefined)
+      requireAllowedProvider('zai/glm-5-3', ['zai'])
+    }).not.toThrow()
+    expect(thrown(() => { requireAllowedProvider('zai/glm-5-3', undefined); }).code).toBe('provider-not-allowed')
+    expect(thrown(() => { requireAllowedProvider('opencode-go/glm-5-3', ['zai']); }).code).toBe('provider-not-allowed')
+  })
+
+  it('is never the pay-per-token one, whatever the machine names', () => {
+    expect(thrown(() => { requireAllowedProvider('opencode/glm-5-3', ['opencode', 'opencode-go']); }).code).toBe('provider-not-allowed')
+  })
+
+  it('is refused for a model that names none, with the form it needs', () => {
+    expect(thrown(() => { requireAllowedProvider('glm-5-3', undefined); }).message).toBe(
+      'glm-5-3: an OpenCode model is named <provider>/<model>, and the allowed providers are opencode-go',
+    )
+  })
 })
 
 describe('the run id', () => {
@@ -261,5 +310,33 @@ describe('readOnlyProof', () => {
       status: 'proven',
     })
     expect(readOnlyProof(proofFiles({ routing: ROUTING, routingOverride: '[]' }), 'zai-glm-5-3').status).toBe('unproven')
+  })
+})
+
+describe('readOnlyProof for the other clients', () => {
+  it('is the proof of the Antigravity critic client that runs the Gemini model', () => {
+    const files = proofFiles({ routing: ROUTING, setupResults: setupResults('pass', 'agy-gemini-flash-high') })
+
+    expect(readOnlyProof(files, 'gemini-3.8-flash-high', [], 'agy')).toEqual({ critic: 'agy-gemini-flash-high', status: 'proven' })
+    expect(readOnlyProof(files, 'gemini-3.8-flash-high').status).toBe('unproven')
+    expect(readOnlyProof(files, 'zai-glm-5-3', [], 'agy')).toEqual({
+      reason: "no Antigravity critic client in critique's routing runs zai-glm-5-3",
+      status: 'unproven',
+    })
+    expect(readOnlyProof(proofFiles({}), 'gemini-3.8-flash-high', [], 'agy')).toEqual({
+      reason: "critique's routing is not installed, so no Antigravity critic client proves a model read-only",
+      status: 'unproven',
+    })
+  })
+
+  it('has none for a client with no critic client, whatever the routing and the results hold', () => {
+    const files = proofFiles({ routing: ROUTING, setupResults: setupResults('pass', 'claude-sonnet') })
+
+    for (const client of ['claude', 'opencode', 'codex', 'hermes']) {
+      expect(readOnlyProof(files, 'claude-sonnet-5-5', [], client)).toEqual({
+        reason: `${client} has no critic client in critique's routing, so nothing proves it read-only`,
+        status: 'unproven',
+      })
+    }
   })
 })

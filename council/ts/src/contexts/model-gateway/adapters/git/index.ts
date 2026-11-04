@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { rm } from 'node:fs/promises'
 
 import type { GitRemote } from '../../../../shared-kernel/index.js'
 import type { ModelGatewayGitPort } from '../../application/ports.js'
@@ -7,6 +8,9 @@ const OUTPUT_LIMIT = 1024 * 1024
 
 /** How long git may take before the gateway gives up on it. */
 const TIMEOUT_MS = 10_000
+
+/** How long a worktree may take to check out or remove: far longer than a lookup, as a large repository's files are written. */
+const WORKTREE_TIMEOUT_MS = 120_000
 
 /** git's answer for a path that is in no repository; every other failure is an error. */
 const NOT_A_REPOSITORY = /not a git repository/i
@@ -18,10 +22,10 @@ interface GitResult {
 }
 
 /**
- * Finds a path's repository with git: its root and its remotes. It starts no
- * client, only git. A path in no repository has no root; a path git cannot
- * read at all, or does not answer for in time, is an error rather than a
- * repository with nothing to say.
+ * Finds a path's repository with git: its root and its remotes, and adds and
+ * removes the throwaway worktrees of it. It starts no client, only git. A path
+ * in no repository has no root; a path git cannot read at all, or does not
+ * answer for in time, is an error rather than a repository with nothing to say.
  */
 export class NodeModelGatewayGit implements ModelGatewayGitPort {
   constructor(
@@ -56,19 +60,37 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
     })
   }
 
+  async addWorktree(repo: string, path: string): Promise<void> {
+    const result = await this.git(repo, ['worktree', 'add', '--detach', path, 'HEAD'], WORKTREE_TIMEOUT_MS)
+    if (result.exitCode !== 0) throw new Error(messageOf(result))
+  }
+
+  /**
+   * `git worktree remove --force`, which takes the directory with it. A
+   * worktree git no longer knows (its directory moved, or a lock was left) is
+   * deleted by hand and pruned, so a run never leaves its worktree behind.
+   */
+  async removeWorktree(repo: string, path: string): Promise<void> {
+    const result = await this.git(repo, ['worktree', 'remove', '--force', path], WORKTREE_TIMEOUT_MS)
+    if (result.exitCode === 0) return
+    await rm(path, { force: true, recursive: true })
+    const pruned = await this.git(repo, ['worktree', 'prune'])
+    if (pruned.exitCode !== 0) throw new Error(messageOf(pruned))
+  }
+
   /** The command's exit code and output; a git that cannot start or does not answer in time rejects. */
-  private git(path: string, args: readonly string[]): Promise<GitResult> {
+  private git(path: string, args: readonly string[], timeoutMs: number = this.timeoutMs): Promise<GitResult> {
     return new Promise((resolve, reject) => {
       const options = {
         encoding: 'utf8' as const,
         env: { ...process.env, PATH: this.path },
         maxBuffer: OUTPUT_LIMIT,
-        timeout: this.timeoutMs,
+        timeout: timeoutMs,
       }
       execFile('git', ['-C', path, ...args], options, (error, stdout, stderr) => {
         if (error === null) resolve({ exitCode: 0, stderr, stdout })
         else if (typeof error.code === 'number') resolve({ exitCode: error.code, stderr, stdout })
-        else if (error.killed === true) reject(new Error(`git did not answer within ${String(this.timeoutMs)} ms`))
+        else if (error.killed === true) reject(new Error(`git did not answer within ${String(timeoutMs)} ms`))
         else reject(new Error(`cannot run git: ${error.message}`))
       })
     })

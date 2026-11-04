@@ -54,6 +54,13 @@
           "uniqueItems": true,
           "description": "The model families this client serves, where the client itself does not say."
         },
+        "providers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The providers a run may reach through the client, where it serves several (OpenCode); a run on any other is refused with provider-not-allowed. Absent means opencode-go alone for OpenCode. OpenCode's own pay-per-token provider, opencode, is refused whatever this names."
+        },
         "provider_cost_classes": {
           "type": "object",
           "additionalProperties": { "enum": ["subsidised", "metered-personal", "metered-employer"] },

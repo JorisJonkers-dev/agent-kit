@@ -47,11 +47,15 @@ content may be sent.
 run hands one read-only task to one client model and prints a short result:
 its status, run id, workflow, client model, family, mode, tokens, cost, the
 path of its full output and a summary of at most "summary_max_chars"
-characters. It takes "workflow", "client", "model", "mode", "prompt", and
-optionally "repo", "carries" (code and history), "time_limit_s" (900 by
-default) and "max_price_usd". The data policy and the client model's read-only
-proof are checked before anything is launched. An error prints "status":
-"error" with its "code" and exits 1.
+characters. It takes "workflow", "client" (vibe, agy, claude or opencode),
+"model", "mode", "prompt", and optionally "repo", "carries" (code and history),
+"time_limit_s" (900 by default) and "max_price_usd" (Vibe only). The data
+policy and the client model's read-only proof are checked before anything is
+launched; a model without a passing proof (every one but a proven Vibe or
+Antigravity model) works in a throwaway worktree of the repository, removed
+after the run. An OpenCode model is named provider/model and its provider must
+be in clients.opencode.providers (opencode-go by default), never opencode. An
+error prints "status": "error" with its "code" and exits 1.
 `
 
 /** The subcommands the gateway has; #294 ships models, #296 adds run, later tickets add the rest. */

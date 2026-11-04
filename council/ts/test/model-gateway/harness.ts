@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -68,12 +68,46 @@ export type FakeRepository =
       readonly commonDir?: string
       /** What git says when it cannot name the common directory, as a worktree git refuses. */
       readonly commonDirError?: string
+      /** What git says when it cannot add a worktree, as a repository with no commit does. */
+      readonly worktreeError?: string
+      /** What git says when it cannot remove a worktree. */
+      readonly removeError?: string
     }
   | { readonly error: string }
 
-/** A git that knows exactly the paths the test names; any other path is in no repository. */
+/** One worktree call a fake git was asked for. */
+export interface FakeWorktreeCall {
+  readonly action: 'add' | 'remove'
+  readonly repo: string
+  readonly path: string
+}
+
+/** The file a fake worktree holds, as the checkout of HEAD a real one holds. */
+export const FAKE_CHECKOUT_FILE = 'CHECKED-OUT'
+
+/**
+ * A git that knows exactly the paths the test names; any other path is in no
+ * repository. A worktree it adds is the directory the caller made, with a
+ * marker file in it; one it removes is gone.
+ */
 export class FakeGit implements ModelGatewayGitPort {
+  readonly worktrees: FakeWorktreeCall[] = []
+
   constructor(private readonly repositories: Readonly<Record<string, FakeRepository>>) {}
+
+  async addWorktree(repo: string, path: string): Promise<void> {
+    this.worktrees.push({ action: 'add', path, repo })
+    const entry = this.repositories[repo]
+    if (entry !== undefined && 'root' in entry && entry.worktreeError !== undefined) throw new Error(entry.worktreeError)
+    await writeFile(join(path, FAKE_CHECKOUT_FILE), 'HEAD')
+  }
+
+  async removeWorktree(repo: string, path: string): Promise<void> {
+    this.worktrees.push({ action: 'remove', path, repo })
+    const entry = this.repositories[repo]
+    if (entry !== undefined && 'root' in entry && entry.removeError !== undefined) throw new Error(entry.removeError)
+    await rm(path, { force: true, recursive: true })
+  }
 
   root(path: string): Promise<string | undefined> {
     const entry = this.repositories[path]
@@ -125,6 +159,10 @@ export class FakeFiles implements ModelGatewayFilesPort {
   async tempDir(prefix: string): Promise<string> {
     return mkdtemp(join(tmpdir(), prefix))
   }
+
+  async remove(path: string): Promise<void> {
+    await rm(path, { force: true, recursive: true })
+  }
 }
 
 /** A ledger that keeps every record in memory, so a test can read what a run appended. */
@@ -172,9 +210,9 @@ export class FixedClock implements ClockPort {
   }
 }
 
-/** What one fake Vibe launch answers: its journal, its exit, and the export it writes where it was told to. */
+/** What one fake client launch answers: its stdout, its exit, and the export Vibe writes where it was told to. */
 export interface VibeScript {
-  /** What Vibe prints on stdout: its journal, as `--output json` writes it. */
+  /** What the client prints on stdout: Vibe's journal, agy's or Claude Code's JSON object, OpenCode's event lines. */
   readonly stdout: string
   readonly stderr?: string
   readonly exitCode?: number
@@ -186,9 +224,10 @@ export interface VibeScript {
 }
 
 /**
- * A Vibe that plays the scripts a test queues, one per launch, and writes each
- * launch's export where `--output-dir` points. It starts nothing and spends
- * nothing.
+ * A client that plays the scripts a test queues, one per launch, and writes
+ * Vibe's export where `--output-dir` points (the other clients have none). It
+ * starts nothing and spends nothing. It stands in for whichever client a test
+ * runs: Vibe, Antigravity, Claude Code or OpenCode.
  */
 export class FakeVibeProcess implements ModelGatewayProcessPort {
   readonly commands: ProcessCommand[] = []

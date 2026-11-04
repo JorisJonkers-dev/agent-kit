@@ -1,10 +1,11 @@
 import { isObject, ModelGatewayError, type ModelPrices } from './config.js'
 
-/** The one mode this ticket runs; writing runs are #299's. */
+/** The one mode a run has today; writing runs come later. */
 export type RunMode = 'read-only'
 
-/** The clients this ticket can hand a delegation to: Vibe only. */
-export const RUN_CLIENTS = ['vibe'] as const
+/** The clients a delegation can be handed to: Vibe, Antigravity, Claude Code and OpenCode. */
+export const RUN_CLIENTS = ['vibe', 'agy', 'claude', 'opencode'] as const
+export type RunClient = (typeof RUN_CLIENTS)[number]
 
 /** A run with no time limit of its own gets this many seconds. */
 export const DEFAULT_TIME_LIMIT_S = 900
@@ -160,24 +161,83 @@ export function runTokens(exported: unknown): RunTokens {
   return { cached: count(usage.cached_input_tokens), input: count(usage.input_tokens), output: count(usage.output_tokens) }
 }
 
+/** The dollars Vibe's export says it charged; undefined when it priced nothing. */
+export function chargedOf(exported: unknown): number | undefined {
+  const charged = isObject(exported) ? exported.cost_usd : undefined
+  return typeof charged === 'number' && Number.isFinite(charged) && charged > 0 ? charged : undefined
+}
+
 /**
  * The run's dollars: Vibe's own figure when it priced the run, else the
  * tokens times the catalogue price, else 0 when nothing prices it.
  */
 export function runCost(exported: unknown, tokens: RunTokens, prices: ModelPrices | undefined): number {
-  const charged = isObject(exported) ? exported.cost_usd : undefined
-  if (typeof charged === 'number' && Number.isFinite(charged) && charged > 0) return charged
+  return priceRun(chargedOf(exported), tokens, prices)
+}
+
+/**
+ * The run's dollars whatever the client: the figure the client charged when
+ * it priced the run, else the tokens times the catalogue price, else 0.
+ */
+export function priceRun(charged: number | undefined, tokens: RunTokens, prices: ModelPrices | undefined): number {
+  if (charged !== undefined) return charged
   if (prices === undefined) return 0
   const uncached = Math.max(tokens.input - tokens.cached, 0)
   return (uncached * prices.input + tokens.cached * prices.cached_input + tokens.output * prices.output) / 1_000_000
 }
 
-/** Why a run failed: a slug the result's `reason` and the ledger's outcome carry. */
-export function runFailureReason(launch: { exitCode: number; timedOut?: boolean }, answer: string | undefined): string | undefined {
+/**
+ * Why a run failed: a slug the result's `reason` and the ledger's outcome
+ * carry. The client's own report of a failure (`timeout`, `denied-action`,
+ * `client-error`) counts when it exited 0, and comes before a missing answer.
+ */
+export function runFailureReason(
+  launch: { exitCode: number; timedOut?: boolean },
+  answer: string | undefined,
+  clientFailure?: string,
+): string | undefined {
   if (launch.timedOut === true) return 'timeout'
   if (launch.exitCode !== 0) return `exit-${String(launch.exitCode)}`
+  if (clientFailure !== undefined) return clientFailure
   if (answer === undefined) return 'parse-error'
   return undefined
+}
+
+/** The providers an OpenCode run may reach when the machine names none. */
+export const DEFAULT_OPENCODE_PROVIDERS: readonly string[] = ['opencode-go']
+
+/**
+ * OpenCode's own pay-per-token providers (`opencode/<model>` is its Zen). The
+ * owner's rule is that a run never reaches one, so no allowlist can open it.
+ */
+const PAY_PER_TOKEN_PROVIDERS: readonly string[] = ['opencode']
+
+/** The provider of an OpenCode model named `<provider>/<model>`; undefined when it names none. */
+export function openCodeProvider(model: string): string | undefined {
+  const slash = model.indexOf('/')
+  return slash <= 0 || slash === model.length - 1 ? undefined : model.slice(0, slash)
+}
+
+/**
+ * Refuses an OpenCode model whose provider the machine's
+ * `clients.opencode.providers` (else `opencode-go` alone) does not name, and
+ * every pay-per-token one whatever it names.
+ */
+export function requireAllowedProvider(model: string, allowed: readonly string[] | undefined): void {
+  const providers = allowed ?? DEFAULT_OPENCODE_PROVIDERS
+  const provider = openCodeProvider(model)
+  if (provider === undefined) {
+    throw new ModelGatewayError(
+      'provider-not-allowed',
+      `${model}: an OpenCode model is named <provider>/<model>, and the allowed providers are ${providers.join(', ')}`,
+    )
+  }
+  if (PAY_PER_TOKEN_PROVIDERS.includes(provider) || !providers.includes(provider)) {
+    throw new ModelGatewayError(
+      'provider-not-allowed',
+      `${model}: the provider ${provider} is not allowed (clients.opencode.providers: ${providers.join(', ')}), and OpenCode’s pay-per-token models are never reached`,
+    )
+  }
 }
 
 /** A UTC moment as a run id's first half: `20261104T105215Z`. */
@@ -206,32 +266,45 @@ export interface ProofFiles {
 }
 
 /**
- * The read-only proof of a client model: setup's `read-only:<critic client>`
- * result for the Vibe critic client whose model this is in critique's
- * routing. A run names a model by the alias `models` prints, while the
- * routing names it by the model's own id, so a critic client matches on the
- * alias or on any name the catalogue keeps for it. A model no critic client
- * runs, and a proof that is missing, failed or unproven, are all unproven: a
- * run goes in place only on a proof that passed.
+ * The critic client kind whose read-only proof counts for a client, and what
+ * the messages call it. Only Vibe and Antigravity have a critic: the others
+ * (Claude Code, OpenCode, Codex, Hermes) are never proven.
  */
-export function readOnlyProof(files: ProofFiles, model: string, names: readonly string[] = []): ReadOnlyProof {
+const CRITIC_KINDS: Readonly<Record<string, { readonly kind: string; readonly label: string }>> = {
+  agy: { kind: 'agy', label: 'Antigravity' },
+  vibe: { kind: 'vibe', label: 'Vibe' },
+}
+
+/**
+ * The read-only proof of a client model: setup's `read-only:<critic client>`
+ * result for the critic client of the client's own kind (Vibe, or Antigravity
+ * as the Gemini critic) whose model this is in critique's routing. A run names
+ * a model by the alias `models` prints, while the routing names it by the
+ * model's own id, so a critic client matches on the alias or on any name the
+ * catalogue keeps for it. A client with no critic kind, a model no critic
+ * client runs, and a proof that is missing, failed or unproven, are all
+ * unproven: a run goes in place only on a proof that passed.
+ */
+export function readOnlyProof(files: ProofFiles, model: string, names: readonly string[] = [], client = 'vibe'): ReadOnlyProof {
+  const critic = CRITIC_KINDS[client]
+  if (critic === undefined) return unproven(`${client} has no critic client in critique's routing, so nothing proves it read-only`)
   const routing = parseJsonObject(files.routing)
   if (routing === undefined) {
-    return unproven("critique's routing is not installed, so no Vibe critic client proves a model read-only")
+    return unproven(`critique's routing is not installed, so no ${critic.label} critic client proves a model read-only`)
   }
-  const critic = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, [model, ...names])
-  if (critic === undefined) return unproven(`no Vibe critic client in critique's routing runs ${model}`)
-  const result = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${critic}`)
-  if (result !== 'pass') return unproven(`setup's read-only proof for ${critic} is ${result ?? 'not recorded'}`)
-  return { critic, status: 'proven' }
+  const name = criticFor(routing.clients, parseJsonObject(files.routingOverride)?.clients, critic.kind, [model, ...names])
+  if (name === undefined) return unproven(`no ${critic.label} critic client in critique's routing runs ${model}`)
+  const result = checkResult(parseJsonObject(files.setupResults)?.checks, `read-only:${name}`)
+  if (result !== 'pass') return unproven(`setup's read-only proof for ${name} is ${result ?? 'not recorded'}`)
+  return { critic: name, status: 'proven' }
 }
 
 function unproven(reason: string): ReadOnlyProof {
   return { reason, status: 'unproven' }
 }
 
-/** The first Vibe critic client, in name order, whose model is one of `models`, with the override applied over the shipped routing. */
-function criticFor(routing: unknown, override: unknown, models: readonly string[]): string | undefined {
+/** The first critic client of a kind, in name order, whose model is one of `models`, with the override applied over the shipped routing. */
+function criticFor(routing: unknown, override: unknown, kind: string, models: readonly string[]): string | undefined {
   const clients = new Map<string, Readonly<Record<string, unknown>>>()
   for (const source of [routing, override]) {
     if (!isObject(source)) continue
@@ -240,7 +313,7 @@ function criticFor(routing: unknown, override: unknown, models: readonly string[
     }
   }
   return [...clients]
-    .filter(([, entry]) => entry.kind === 'vibe' && typeof entry.model === 'string' && models.includes(entry.model))
+    .filter(([, entry]) => entry.kind === kind && typeof entry.model === 'string' && models.includes(entry.model))
     .map(([name]) => name)
     .sort()[0]
 }

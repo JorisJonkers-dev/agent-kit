@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -33,5 +33,9 @@ export class NodeModelGatewayFiles implements ModelGatewayFilesPort {
 
   async tempDir(prefix: string): Promise<string> {
     return mkdtemp(join(tmpdir(), prefix))
+  }
+
+  async remove(path: string): Promise<void> {
+    await rm(path, { force: true, recursive: true })
   }
 }
