@@ -229,9 +229,39 @@ function processExitCode(code) {
   return 124;
 }
 
+// src/shared-kernel/git-remote.ts
+var DENIED_OWNER = "nedap";
+function parseRemote(url) {
+  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
+  const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
+  const match = scp ?? standard;
+  if (match === null) return void 0;
+  const host = (match[1] ?? "").toLowerCase();
+  const segments = (match[2] ?? "").replace(/\/+$/, "").replace(/\.git$/, "").split("/").filter((segment) => segment.length > 0);
+  const repo = segments.pop();
+  const owner = segments.join("/");
+  if (repo === void 0 || owner.length === 0) return void 0;
+  return { host, owner: owner.toLowerCase(), repo: repo.toLowerCase() };
+}
+function identifyRepository(remotes) {
+  const located = remotes.flatMap((remote) => {
+    const location = parseRemote(remote.url);
+    return location === void 0 ? [] : [{ name: remote.name, location }];
+  });
+  const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
+  if (denied !== void 0) {
+    return { owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
+  }
+  const primary = located.find((remote) => remote.name === "origin") ?? located[0];
+  if (primary === void 0) return { status: "no-remote" };
+  const { host, owner, repo } = primary.location;
+  return { key: `${host}/${owner}/${repo}`, location: primary.location, status: "identified" };
+}
+
 // src/contexts/critique/domain/family.ts
 var MODEL_FAMILIES = ["mistral", "zhipu", "deepseek", "google"];
 var ORCHESTRATOR_FAMILIES = ["anthropic", "openai", ...MODEL_FAMILIES];
+var ALLOWLIST_FAMILIES = [...MODEL_FAMILIES, "anthropic", "openai"];
 
 // src/contexts/critique/domain/json.ts
 function isJsonObject(value) {
@@ -402,34 +432,15 @@ var CritiqueError = class extends Error {
 };
 
 // src/contexts/critique/domain/family-allowlist.ts
-var DENIED_OWNER = "nedap";
-function parseRemote(url) {
-  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
-  const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
-  const match = scp ?? standard;
-  if (match === null) return void 0;
-  const host = (match[1] ?? "").toLowerCase();
-  const segments = (match[2] ?? "").replace(/\/+$/, "").replace(/\.git$/, "").split("/").filter((segment) => segment.length > 0);
-  const repo = segments.pop();
-  const owner = segments.join("/");
-  if (repo === void 0 || owner.length === 0) return void 0;
-  return { host, owner: owner.toLowerCase(), repo: repo.toLowerCase() };
-}
-function identifyRepository(remotes) {
-  const located = remotes.flatMap((remote) => {
-    const location = parseRemote(remote.url);
-    return location === void 0 ? [] : [{ name: remote.name, location }];
-  });
-  const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
-  if (denied !== void 0) {
-    return refusal("nedap", `remote ${denied.name} belongs to the ${DENIED_OWNER} organisation; nothing is sent to any critic`);
+function identifyRepository2(remotes) {
+  const identity = identifyRepository(remotes);
+  if (identity.status === "denied-owner") {
+    return refusal("nedap", `remote ${identity.remote} belongs to the ${DENIED_OWNER} organisation; nothing is sent to any critic`);
   }
-  const primary = located.find((remote) => remote.name === "origin") ?? located[0];
-  if (primary === void 0) {
+  if (identity.status === "no-remote") {
     return refusal("no-remote", "the repository has no remote, so it counts as not opted in");
   }
-  const { host, owner, repo } = primary.location;
-  return { key: `${host}/${owner}/${repo}`, status: "identified" };
+  return { key: identity.key, status: "identified" };
 }
 var EMPTY_ALLOWLIST = { version: 1, repositories: {} };
 function parseAllowlist(text) {
@@ -437,7 +448,7 @@ function parseAllowlist(text) {
   return {
     repositories: file.entries("repositories", (entry) => ({
       code: entry.has("code") ? entry.boolean("code") : false,
-      families: entry.oneOfList("families", MODEL_FAMILIES),
+      families: entry.oneOfList("families", ALLOWLIST_FAMILIES),
       history: entry.has("history") ? entry.boolean("history") : false,
       updated_at: entry.string("updated_at")
     })),
@@ -472,9 +483,14 @@ async function readJsonFile(files, path, code, parse) {
 }
 
 // src/contexts/critique/application/locations.ts
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
+function configDir(env) {
+  const xdg = env.get("XDG_CONFIG_HOME");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit");
+  return join(env.require("HOME"), ".config", "agent-kit");
+}
 function allowlistPath(env) {
-  return join(env.require("HOME"), ".config", "agent-kit", "critique-allowlist.json");
+  return join(configDir(env), "critique-allowlist.json");
 }
 function routingOverridePath(env) {
   return join(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
@@ -521,7 +537,7 @@ var RepositoryGate = class {
   deps;
   /** The repository's allowlist key and git directories, or the refusal its remotes earn. */
   async resolve(cwd) {
-    const decision = identifyRepository(await this.deps.git.remotes(cwd));
+    const decision = identifyRepository2(await this.deps.git.remotes(cwd));
     if (decision.status === "refused") return decision;
     return {
       commonDir: await this.deps.git.commonDir(cwd),
@@ -549,7 +565,7 @@ var AllowCommand = class {
   async run(raw) {
     const input = readInput(raw, "allow", (fields) => ({
       code: fields.has("code") ? fields.boolean("code") : void 0,
-      families: fields.oneOfList("families", MODEL_FAMILIES),
+      families: fields.oneOfList("families", ALLOWLIST_FAMILIES),
       history: fields.has("history") ? fields.boolean("history") : void 0,
       repo: fields.string("repo")
     }));
@@ -2699,7 +2715,7 @@ function listedFiles(manifest) {
 function parseManifest(text) {
   const file = JsonFields.parse(text);
   return {
-    allowed_families: file.oneOfList("allowed_families", MODEL_FAMILIES),
+    allowed_families: file.oneOfList("allowed_families", ALLOWLIST_FAMILIES),
     artifact: readArtifactSource(file.object("artifact")),
     created_at: file.string("created_at"),
     critics: file.list("critics", readRosterCritic),
@@ -3057,10 +3073,10 @@ import { dirname as dirname2, join as join3 } from "node:path";
 import { basename, dirname, join as join2 } from "node:path";
 
 // src/contexts/critique/application/paths.ts
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute as isAbsolute2, relative, resolve } from "node:path";
 function insideRepository(root, path) {
-  const rel = relative(root, isAbsolute(path) ? path : resolve(root, path));
-  if (rel.startsWith("..") || isAbsolute(rel)) throw new CritiqueError("outside-repository", `${path} is outside the repository`);
+  const rel = relative(root, isAbsolute2(path) ? path : resolve(root, path));
+  if (rel.startsWith("..") || isAbsolute2(rel)) throw new CritiqueError("outside-repository", `${path} is outside the repository`);
   return rel;
 }
 
@@ -4741,7 +4757,7 @@ function fallbackRetries(manifest, first, blocked2) {
 import { join as join12 } from "node:path";
 
 // src/contexts/critique/domain/shell-command.ts
-import { isAbsolute as isAbsolute2, resolve as resolve2 } from "node:path";
+import { isAbsolute as isAbsolute3, resolve as resolve2 } from "node:path";
 function simpleCommands(line2) {
   return new ShellScanner(line2).commands();
 }
@@ -4989,7 +5005,7 @@ function changeDirectory(dir, args, home) {
 function within(dir, path, home) {
   if (dir === null || path === "-" || path.includes("$")) return null;
   if (path === "~" || path.startsWith("~/")) return home === void 0 ? null : resolve2(home, path.slice(2));
-  return isAbsolute2(path) ? path : resolve2(dir, path);
+  return isAbsolute3(path) ? path : resolve2(dir, path);
 }
 function gitSubcommand(args, dir, home) {
   let cwd = dir;
@@ -8533,7 +8549,7 @@ var NodeCritiqueFiles = class {
 };
 
 // src/contexts/critique/adapters/agy/index.ts
-import { isAbsolute as isAbsolute3, join as join25 } from "node:path";
+import { isAbsolute as isAbsolute4, join as join25 } from "node:path";
 
 // src/contexts/critique/adapters/cli-version.ts
 var VERSION_TIMEOUT_MS = 1e4;
@@ -8598,7 +8614,7 @@ var AgyCriticClient = class {
     return { ...result, chargedUsd: 0, exportPath, outcome };
   }
   async onPath(binary) {
-    if (isAbsolute3(binary)) return this.files.exists(binary);
+    if (isAbsolute4(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
       if (await this.files.exists(join25(dir, binary))) return true;
     }
@@ -8707,7 +8723,7 @@ function classifyAgyRun(exitCode, stdout, run, stderr) {
 }
 
 // src/contexts/critique/adapters/vibe/index.ts
-import { isAbsolute as isAbsolute4, join as join26 } from "node:path";
+import { isAbsolute as isAbsolute5, join as join26 } from "node:path";
 
 // src/shared-kernel/toml.ts
 var TomlError = class extends Error {
@@ -8959,7 +8975,7 @@ var VibeCriticClient = class {
     return (await this.files.readText(dotenv)).split("\n").some((line2) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line2));
   }
   async onPath(binary) {
-    if (isAbsolute4(binary)) return this.files.exists(binary);
+    if (isAbsolute5(binary)) return this.files.exists(binary);
     for (const dir of (this.env.get("PATH") ?? "").split(":").filter((entry) => entry.length > 0)) {
       if (await this.files.exists(join26(dir, binary))) return true;
     }
@@ -9345,7 +9361,7 @@ import { createInterface } from "node:readline";
 
 // src/contexts/critique/adapters/search/engine.ts
 import { lstat, readdir as readdir2, readFile as readFile2, realpath } from "node:fs/promises";
-import { isAbsolute as isAbsolute5, join as join27, relative as relative3, sep } from "node:path";
+import { isAbsolute as isAbsolute6, join as join27, relative as relative3, sep } from "node:path";
 var OUTSIDE = "Nothing: that path is outside the packet, or is not in it.";
 var PacketSearchEngine = class _PacketSearchEngine {
   constructor(root, limits, tools) {
@@ -9404,7 +9420,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
    * absolute, climbs out, passes through a symlink or does not exist.
    */
   async inside(path) {
-    if (isAbsolute5(path)) return void 0;
+    if (isAbsolute6(path)) return void 0;
     const target = join27(this.root, path);
     if (!within2(this.root, target)) return void 0;
     const real = await realpath(target).catch(() => void 0);
@@ -9426,7 +9442,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
 };
 function within2(root, path) {
   const rel = relative3(root, path);
-  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute5(rel);
+  return rel === "" || rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute6(rel);
 }
 function requiredString(args, key2) {
   const value = args[key2];

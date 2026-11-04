@@ -1,5 +1,5 @@
 import { withEntry } from '../domain/family-allowlist.js'
-import { MODEL_FAMILIES, type ModelFamily } from '../domain/family.js'
+import { ALLOWLIST_FAMILIES, type AllowlistFamily } from '../domain/family.js'
 import type { Refusal } from '../domain/outcomes.js'
 import { readInput } from './decode.js'
 import { allowlistPath } from './locations.js'
@@ -9,7 +9,7 @@ import { RepositoryGate } from './repository.js'
 export interface AllowResult {
   readonly status: 'allowed'
   readonly repository: string
-  readonly families: readonly ModelFamily[]
+  readonly families: readonly AllowlistFamily[]
   /** Whether the repository may send code to the code stages. */
   readonly code: boolean
   /** Whether the repository may send its commit messages and issue text. */
@@ -33,7 +33,7 @@ export class AllowCommand implements CritiqueCommand<AllowResult | Refusal> {
   async run(raw: unknown): Promise<AllowResult | Refusal> {
     const input = readInput(raw, 'allow', (fields) => ({
       code: fields.has('code') ? fields.boolean('code') : undefined,
-      families: fields.oneOfList('families', MODEL_FAMILIES),
+      families: fields.oneOfList('families', ALLOWLIST_FAMILIES),
       history: fields.has('history') ? fields.boolean('history') : undefined,
       repo: fields.string('repo'),
     }))

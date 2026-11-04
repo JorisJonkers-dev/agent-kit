@@ -1,6 +1,6 @@
 import { readLimits, type CritiqueLimits } from './budget.js'
 import { NO_DEPTH_SIGNALS, readDepthSignalsConfig, type DepthSignalsConfig } from './depth.js'
-import { MODEL_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
+import { MODEL_FAMILIES, type AllowlistFamily, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields, JsonShapeError } from './json.js'
 import { readTokenPrices, type TokenPrices } from './pricing.js'
 import { CritiqueError } from './outcomes.js'
@@ -248,7 +248,7 @@ export function readDroppedCritic(fields: JsonFields): DroppedCritic {
 export interface RosterRequest {
   readonly stage: CritiqueStage
   readonly depth: Depth
-  readonly allowedFamilies: readonly ModelFamily[]
+  readonly allowedFamilies: readonly AllowlistFamily[]
   readonly orchestratorFamily: OrchestratorFamily
 }
 

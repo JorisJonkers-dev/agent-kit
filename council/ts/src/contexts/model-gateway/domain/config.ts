@@ -70,7 +70,12 @@ export interface GatewayConfig {
   readonly disabled: readonly string[]
 }
 
-export type ModelGatewayErrorCode = 'invalid-config' | 'invalid-input' | 'unknown-command'
+export type ModelGatewayErrorCode =
+  | 'invalid-config'
+  | 'invalid-input'
+  /** git could not read the path the caller named, so the data policy cannot be decided. */
+  | 'repository-unreadable'
+  | 'unknown-command'
 
 export class ModelGatewayError extends Error {
   constructor(

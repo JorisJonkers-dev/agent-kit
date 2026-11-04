@@ -1,7 +1,7 @@
 import { isCheckId } from './checks.js'
 import { readCriticRun, type CriticRun } from './critic.js'
 import { checkEvidence, type PacketIndex } from './evidence.js'
-import type { ModelFamily, OrchestratorFamily } from './family.js'
+import type { AllowlistFamily, ModelFamily, OrchestratorFamily } from './family.js'
 import {
   CHECK_HINT_CODES,
   HINT_CODES,
@@ -108,7 +108,7 @@ export function refuterCandidates(routing: Routing, stage: CritiqueStage): reado
 
 /** The families no refuter of a run may come from, beyond those that raised the finding. */
 export interface RefuterRules {
-  readonly allowedFamilies: readonly ModelFamily[]
+  readonly allowedFamilies: readonly AllowlistFamily[]
   readonly orchestratorFamily: OrchestratorFamily
 }
 

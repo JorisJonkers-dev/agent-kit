@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { readLimits, type CritiqueLimits } from './budget.js'
 import { readDepthChoice, type DepthChoice } from './depth.js'
-import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
+import { ALLOWLIST_FAMILIES, ORCHESTRATOR_FAMILIES, type AllowlistFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { REPO_MAP_PATH } from './repo-map.js'
 import { FACTS_INDEX_PATH } from './repository-packet.js'
@@ -134,7 +134,7 @@ export interface RunManifest {
   readonly repo_root: string
   readonly run_dir: string
   readonly packet_dir: string
-  readonly allowed_families: readonly ModelFamily[]
+  readonly allowed_families: readonly AllowlistFamily[]
   readonly artifact: ArtifactSource
   /**
    * The flow this run belongs to: the spend of every run of one flow of one
@@ -181,7 +181,7 @@ export function listedFiles(manifest: Pick<RunManifest, 'packet_files' | 'code'>
 export function parseManifest(text: string): RunManifest {
   const file = JsonFields.parse(text)
   return {
-    allowed_families: file.oneOfList('allowed_families', MODEL_FAMILIES),
+    allowed_families: file.oneOfList('allowed_families', ALLOWLIST_FAMILIES),
     artifact: readArtifactSource(file.object('artifact')),
     created_at: file.string('created_at'),
     critics: file.list('critics', readRosterCritic),

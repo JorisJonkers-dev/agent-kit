@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -6,9 +8,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { AGENT_KIT_REMOTE, harness, type Harness } from '../../../test/critique/harness.js'
 
 const open: Harness[] = []
+const cleanups: (() => Promise<void>)[] = []
 
 afterEach(async () => {
   await Promise.all(open.splice(0).map((h) => h.cleanup()))
+  await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()))
 })
 
 async function setup(...args: Parameters<typeof harness>): Promise<Harness> {
@@ -105,6 +109,18 @@ describe('family allowlist', () => {
     })
   })
 
+  it('keeps the allowlist under XDG_CONFIG_HOME when it is set, as the model gateway reads it', async () => {
+    const xdg = await mkdtemp(join(tmpdir(), 'critique-xdg-'))
+    cleanups.push(() => rm(xdg, { force: true, recursive: true }))
+    const h = await setup({ env: { XDG_CONFIG_HOME: xdg } })
+
+    const result = await h.commands.allow.run({ repo: h.repo, families: ['mistral'] })
+
+    const path = join(xdg, 'agent-kit', 'critique-allowlist.json')
+    expect(result).toMatchObject({ allowlist_path: path, status: 'allowed' })
+    expect(existsSync(path)).toBe(true)
+  })
+
   it('replaces a repository entry and leaves other repositories alone', async () => {
     const h = await setup()
     await h.commands.allow.run({ repo: h.repo, families: ['mistral', 'google'] })
@@ -124,7 +140,20 @@ describe('family allowlist', () => {
   it('rejects a family it does not know', async () => {
     const h = await setup()
 
-    await expect(h.commands.allow.run({ repo: h.repo, families: ['openai'] })).rejects.toThrow(/families\[0\] must be one of mistral, zhipu, deepseek, google/)
+    await expect(h.commands.allow.run({ repo: h.repo, families: ['meta'] })).rejects.toThrow(
+      /families\[0\] must be one of mistral, zhipu, deepseek, google, anthropic, openai/,
+    )
+  })
+
+  it.each(['anthropic', 'openai'])('accepts %s as a family, so a delegation can reach that client', async (family) => {
+    const h = await setup()
+
+    const result = await h.commands.allow.run({ repo: h.repo, families: [family] })
+
+    expect(result).toMatchObject({ status: 'allowed', families: [family] })
+    expect(JSON.parse(await h.readText(join(h.home, '.config', 'agent-kit', 'critique-allowlist.json')))).toMatchObject({
+      repositories: { 'github.com/jorisjonkers-dev/agent-kit': { families: [family] } },
+    })
   })
 
   it('prepares a run with no critics when the allowlist permits none of the routed families', async () => {
@@ -145,7 +174,7 @@ describe('family allowlist', () => {
 
   it.each<[string, unknown]>([
     ['families written as one string', 'mistral'],
-    ['a family it does not know', ['mistral', 'openai']],
+    ['a family it does not know', ['mistral', 'meta']],
   ])('refuses to trust an allowlist entry with %s', async (_name, families) => {
     const h = await setup()
     await h.writeText(

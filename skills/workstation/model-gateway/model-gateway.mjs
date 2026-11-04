@@ -29,6 +29,181 @@ var ProcessEnvAdapter = class {
   }
 };
 
+// src/contexts/model-gateway/domain/config.ts
+var CONFIG_VERSION = 1;
+var COST_CLASSES = ["subsidised", "metered-personal", "metered-employer"];
+var TIERS = ["trivial", "routine", "hard", "frontier"];
+var MODEL_SOURCES = ["live", "config", "declared"];
+var ModelGatewayError = class extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+    this.name = "ModelGatewayError";
+  }
+  code;
+};
+function isObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function parseDefaults(raw) {
+  if (!isObject(raw)) throw invalid("the defaults must be a JSON object");
+  if (raw.version !== CONFIG_VERSION) throw invalid(`version must be ${String(CONFIG_VERSION)}`);
+  if (!isObject(raw.clients)) throw invalid("clients must be an object keyed by client id");
+  const clients = Object.fromEntries(
+    Object.entries(raw.clients).map(([id, value]) => {
+      if (!isObject(value)) throw invalid(`clients.${id} must be an object`);
+      return [id, parseClient(id, value, void 0)];
+    })
+  );
+  if (!Array.isArray(raw.models)) throw invalid("models must be a list");
+  const models = raw.models.map((value, index) => parseModelEntry(value, index, void 0));
+  if (!isObject(raw.settings)) throw invalid("settings must be an object");
+  return {
+    clients,
+    disabled: parseDisabled(raw.disabled),
+    models,
+    settings: parseSettings(raw.settings),
+    version: CONFIG_VERSION
+  };
+}
+function applyOverride(config, raw) {
+  if (!isObject(raw)) throw invalid("the override must be a JSON object");
+  if (raw.version !== void 0 && raw.version !== CONFIG_VERSION) throw invalid(`version must be ${String(CONFIG_VERSION)}`);
+  return {
+    clients: mergeClients(config.clients, raw.clients),
+    disabled: raw.disabled === void 0 ? config.disabled : parseDisabled(raw.disabled),
+    models: mergeModels(config.models, raw.models),
+    settings: mergeSettings(config.settings, raw.settings),
+    version: CONFIG_VERSION
+  };
+}
+function mergeClients(base, raw) {
+  if (raw === void 0) return base;
+  if (!isObject(raw)) throw invalid("clients must be an object keyed by client id");
+  const merged = { ...base };
+  for (const [id, value] of Object.entries(raw)) {
+    if (!isObject(value)) throw invalid(`clients.${id} must be an object`);
+    merged[id] = parseClient(id, value, merged[id]);
+  }
+  return merged;
+}
+function parseClient(id, raw, base) {
+  const where = `clients.${id}`;
+  const binary = raw.binary === void 0 ? base?.binary : requireString(raw.binary, `${where}.binary`);
+  const costClass = raw.cost_class === void 0 ? base?.cost_class : requireOneOf(raw.cost_class, COST_CLASSES, `${where}.cost_class`);
+  const modelSource = raw.model_source === void 0 ? base?.model_source : requireOneOf(raw.model_source, MODEL_SOURCES, `${where}.model_source`);
+  const families = raw.families === void 0 ? base?.families : requireStrings(raw.families, `${where}.families`);
+  const providerCostClasses = raw.provider_cost_classes === void 0 ? base?.provider_cost_classes : {
+    ...base?.provider_cost_classes,
+    ...parseProviderCostClasses(raw.provider_cost_classes, `${where}.provider_cost_classes`)
+  };
+  if (binary === void 0 || costClass === void 0 || modelSource === void 0) {
+    throw invalid(`${where} is new, so it needs binary, cost_class and model_source`);
+  }
+  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses };
+}
+function parseProviderCostClasses(raw, where) {
+  if (!isObject(raw)) throw invalid(`${where} must be an object keyed by provider name`);
+  return Object.fromEntries(
+    Object.entries(raw).map(([provider, value]) => [provider, requireOneOf(value, COST_CLASSES, `${where}.${provider}`)])
+  );
+}
+function mergeModels(base, raw) {
+  if (raw === void 0) return base;
+  if (!Array.isArray(raw)) throw invalid("models must be a list");
+  const merged = [...base];
+  for (const [index, value] of raw.entries()) {
+    if (!isObject(value)) throw invalid(`models[${String(index)}] must be an object`);
+    const client = requireString(value.client, `models[${String(index)}].client`);
+    const model = requireString(value.model, `models[${String(index)}].model`);
+    const at = merged.findIndex((entry2) => entry2.client === client && entry2.model === model);
+    const entry = parseModelEntry(value, index, at === -1 ? void 0 : merged[at]);
+    if (at === -1) merged.push(entry);
+    else merged[at] = entry;
+  }
+  return merged;
+}
+function parseModelEntry(raw, index, base) {
+  const where = `models[${String(index)}]`;
+  if (!isObject(raw)) throw invalid(`${where} must be an object`);
+  const client = requireString(raw.client, `${where}.client`);
+  const model = requireString(raw.model, `${where}.model`);
+  const family = raw.family === void 0 ? base?.family : requireString(raw.family, `${where}.family`);
+  const tier = raw.tier === void 0 ? base?.tier : requireOneOf(raw.tier, TIERS, `${where}.tier`);
+  const notes = raw.notes === void 0 ? base?.notes : requireString(raw.notes, `${where}.notes`);
+  if (family === void 0 || tier === void 0 || notes === void 0) {
+    throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`);
+  }
+  return { client, family, model, notes, tier };
+}
+function mergeSettings(base, raw) {
+  if (raw === void 0) return base;
+  if (!isObject(raw)) throw invalid("settings must be an object");
+  return {
+    availability_window_minutes: numberField(raw, "availability_window_minutes", base.availability_window_minutes),
+    max_parallel_per_client: numberField(raw, "max_parallel_per_client", base.max_parallel_per_client),
+    metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
+    plan_warning_ratio: numberField(raw, "plan_warning_ratio", base.plan_warning_ratio),
+    summary_max_chars: numberField(raw, "summary_max_chars", base.summary_max_chars)
+  };
+}
+function parseSettings(raw) {
+  const caps = raw.metered_personal_caps;
+  if (!isObject(caps)) throw invalid("settings.metered_personal_caps must be an object");
+  return {
+    availability_window_minutes: requireNumber(raw.availability_window_minutes, "settings.availability_window_minutes"),
+    max_parallel_per_client: requireNumber(raw.max_parallel_per_client, "settings.max_parallel_per_client"),
+    metered_personal_caps: {
+      per_day_usd: requireNumber(caps.per_day_usd, "settings.metered_personal_caps.per_day_usd"),
+      per_workflow_usd: requireNumber(caps.per_workflow_usd, "settings.metered_personal_caps.per_workflow_usd")
+    },
+    plan_warning_ratio: requireNumber(raw.plan_warning_ratio, "settings.plan_warning_ratio"),
+    summary_max_chars: requireNumber(raw.summary_max_chars, "settings.summary_max_chars")
+  };
+}
+function mergeCaps(base, raw) {
+  if (raw === void 0) return base;
+  if (!isObject(raw)) throw invalid("settings.metered_personal_caps must be an object");
+  return {
+    per_day_usd: numberField(raw, "per_day_usd", base.per_day_usd, "settings.metered_personal_caps."),
+    per_workflow_usd: numberField(raw, "per_workflow_usd", base.per_workflow_usd, "settings.metered_personal_caps.")
+  };
+}
+function numberField(raw, name, base, prefix = "settings.") {
+  return raw[name] === void 0 ? base : requireNumber(raw[name], `${prefix}${name}`);
+}
+function parseDisabled(raw) {
+  if (raw === void 0) return [];
+  return requireStrings(raw, "disabled");
+}
+function requireStrings(value, where) {
+  if (!Array.isArray(value)) throw invalid(`${where} must be a list of non-empty strings`);
+  const items = value;
+  const strings = [];
+  for (const item of items) {
+    if (typeof item !== "string" || item === "") throw invalid(`${where} must be a list of non-empty strings`);
+    strings.push(item);
+  }
+  return strings;
+}
+function requireString(value, where) {
+  if (typeof value !== "string" || value === "") throw invalid(`${where} must be a non-empty string`);
+  return value;
+}
+function requireNumber(value, where) {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw invalid(`${where} must be a number`);
+  return value;
+}
+function requireOneOf(value, allowed, where) {
+  if (typeof value !== "string" || !allowed.includes(value)) {
+    throw invalid(`${where} must be one of ${allowed.join(", ")}`);
+  }
+  return value;
+}
+function invalid(message) {
+  return new ModelGatewayError("invalid-config", message);
+}
+
 // src/shared-kernel/toml.ts
 var TomlError = class extends Error {
 };
@@ -218,181 +393,6 @@ var TomlReader = class {
   }
 };
 
-// src/contexts/model-gateway/domain/config.ts
-var CONFIG_VERSION = 1;
-var COST_CLASSES = ["subsidised", "metered-personal", "metered-employer"];
-var TIERS = ["trivial", "routine", "hard", "frontier"];
-var MODEL_SOURCES = ["live", "config", "declared"];
-var ModelGatewayError = class extends Error {
-  constructor(code, message) {
-    super(message);
-    this.code = code;
-    this.name = "ModelGatewayError";
-  }
-  code;
-};
-function isObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function parseDefaults(raw) {
-  if (!isObject(raw)) throw invalid("the defaults must be a JSON object");
-  if (raw.version !== CONFIG_VERSION) throw invalid(`version must be ${String(CONFIG_VERSION)}`);
-  if (!isObject(raw.clients)) throw invalid("clients must be an object keyed by client id");
-  const clients = Object.fromEntries(
-    Object.entries(raw.clients).map(([id, value]) => {
-      if (!isObject(value)) throw invalid(`clients.${id} must be an object`);
-      return [id, parseClient(id, value, void 0)];
-    })
-  );
-  if (!Array.isArray(raw.models)) throw invalid("models must be a list");
-  const models = raw.models.map((value, index) => parseModelEntry(value, index, void 0));
-  if (!isObject(raw.settings)) throw invalid("settings must be an object");
-  return {
-    clients,
-    disabled: parseDisabled(raw.disabled),
-    models,
-    settings: parseSettings(raw.settings),
-    version: CONFIG_VERSION
-  };
-}
-function applyOverride(config, raw) {
-  if (!isObject(raw)) throw invalid("the override must be a JSON object");
-  if (raw.version !== void 0 && raw.version !== CONFIG_VERSION) throw invalid(`version must be ${String(CONFIG_VERSION)}`);
-  return {
-    clients: mergeClients(config.clients, raw.clients),
-    disabled: raw.disabled === void 0 ? config.disabled : parseDisabled(raw.disabled),
-    models: mergeModels(config.models, raw.models),
-    settings: mergeSettings(config.settings, raw.settings),
-    version: CONFIG_VERSION
-  };
-}
-function mergeClients(base, raw) {
-  if (raw === void 0) return base;
-  if (!isObject(raw)) throw invalid("clients must be an object keyed by client id");
-  const merged = { ...base };
-  for (const [id, value] of Object.entries(raw)) {
-    if (!isObject(value)) throw invalid(`clients.${id} must be an object`);
-    merged[id] = parseClient(id, value, merged[id]);
-  }
-  return merged;
-}
-function parseClient(id, raw, base) {
-  const where = `clients.${id}`;
-  const binary = raw.binary === void 0 ? base?.binary : requireString(raw.binary, `${where}.binary`);
-  const costClass = raw.cost_class === void 0 ? base?.cost_class : requireOneOf(raw.cost_class, COST_CLASSES, `${where}.cost_class`);
-  const modelSource = raw.model_source === void 0 ? base?.model_source : requireOneOf(raw.model_source, MODEL_SOURCES, `${where}.model_source`);
-  const families = raw.families === void 0 ? base?.families : requireStrings(raw.families, `${where}.families`);
-  const providerCostClasses = raw.provider_cost_classes === void 0 ? base?.provider_cost_classes : {
-    ...base?.provider_cost_classes,
-    ...parseProviderCostClasses(raw.provider_cost_classes, `${where}.provider_cost_classes`)
-  };
-  if (binary === void 0 || costClass === void 0 || modelSource === void 0) {
-    throw invalid(`${where} is new, so it needs binary, cost_class and model_source`);
-  }
-  return { binary, cost_class: costClass, families, model_source: modelSource, provider_cost_classes: providerCostClasses };
-}
-function parseProviderCostClasses(raw, where) {
-  if (!isObject(raw)) throw invalid(`${where} must be an object keyed by provider name`);
-  return Object.fromEntries(
-    Object.entries(raw).map(([provider, value]) => [provider, requireOneOf(value, COST_CLASSES, `${where}.${provider}`)])
-  );
-}
-function mergeModels(base, raw) {
-  if (raw === void 0) return base;
-  if (!Array.isArray(raw)) throw invalid("models must be a list");
-  const merged = [...base];
-  for (const [index, value] of raw.entries()) {
-    if (!isObject(value)) throw invalid(`models[${String(index)}] must be an object`);
-    const client = requireString(value.client, `models[${String(index)}].client`);
-    const model = requireString(value.model, `models[${String(index)}].model`);
-    const at = merged.findIndex((entry2) => entry2.client === client && entry2.model === model);
-    const entry = parseModelEntry(value, index, at === -1 ? void 0 : merged[at]);
-    if (at === -1) merged.push(entry);
-    else merged[at] = entry;
-  }
-  return merged;
-}
-function parseModelEntry(raw, index, base) {
-  const where = `models[${String(index)}]`;
-  if (!isObject(raw)) throw invalid(`${where} must be an object`);
-  const client = requireString(raw.client, `${where}.client`);
-  const model = requireString(raw.model, `${where}.model`);
-  const family = raw.family === void 0 ? base?.family : requireString(raw.family, `${where}.family`);
-  const tier = raw.tier === void 0 ? base?.tier : requireOneOf(raw.tier, TIERS, `${where}.tier`);
-  const notes = raw.notes === void 0 ? base?.notes : requireString(raw.notes, `${where}.notes`);
-  if (family === void 0 || tier === void 0 || notes === void 0) {
-    throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`);
-  }
-  return { client, family, model, notes, tier };
-}
-function mergeSettings(base, raw) {
-  if (raw === void 0) return base;
-  if (!isObject(raw)) throw invalid("settings must be an object");
-  return {
-    availability_window_minutes: numberField(raw, "availability_window_minutes", base.availability_window_minutes),
-    max_parallel_per_client: numberField(raw, "max_parallel_per_client", base.max_parallel_per_client),
-    metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
-    plan_warning_ratio: numberField(raw, "plan_warning_ratio", base.plan_warning_ratio),
-    summary_max_chars: numberField(raw, "summary_max_chars", base.summary_max_chars)
-  };
-}
-function parseSettings(raw) {
-  const caps = raw.metered_personal_caps;
-  if (!isObject(caps)) throw invalid("settings.metered_personal_caps must be an object");
-  return {
-    availability_window_minutes: requireNumber(raw.availability_window_minutes, "settings.availability_window_minutes"),
-    max_parallel_per_client: requireNumber(raw.max_parallel_per_client, "settings.max_parallel_per_client"),
-    metered_personal_caps: {
-      per_day_usd: requireNumber(caps.per_day_usd, "settings.metered_personal_caps.per_day_usd"),
-      per_workflow_usd: requireNumber(caps.per_workflow_usd, "settings.metered_personal_caps.per_workflow_usd")
-    },
-    plan_warning_ratio: requireNumber(raw.plan_warning_ratio, "settings.plan_warning_ratio"),
-    summary_max_chars: requireNumber(raw.summary_max_chars, "settings.summary_max_chars")
-  };
-}
-function mergeCaps(base, raw) {
-  if (raw === void 0) return base;
-  if (!isObject(raw)) throw invalid("settings.metered_personal_caps must be an object");
-  return {
-    per_day_usd: numberField(raw, "per_day_usd", base.per_day_usd, "settings.metered_personal_caps."),
-    per_workflow_usd: numberField(raw, "per_workflow_usd", base.per_workflow_usd, "settings.metered_personal_caps.")
-  };
-}
-function numberField(raw, name, base, prefix = "settings.") {
-  return raw[name] === void 0 ? base : requireNumber(raw[name], `${prefix}${name}`);
-}
-function parseDisabled(raw) {
-  if (raw === void 0) return [];
-  return requireStrings(raw, "disabled");
-}
-function requireStrings(value, where) {
-  if (!Array.isArray(value)) throw invalid(`${where} must be a list of non-empty strings`);
-  const items = value;
-  const strings = [];
-  for (const item of items) {
-    if (typeof item !== "string" || item === "") throw invalid(`${where} must be a list of non-empty strings`);
-    strings.push(item);
-  }
-  return strings;
-}
-function requireString(value, where) {
-  if (typeof value !== "string" || value === "") throw invalid(`${where} must be a non-empty string`);
-  return value;
-}
-function requireNumber(value, where) {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw invalid(`${where} must be a number`);
-  return value;
-}
-function requireOneOf(value, allowed, where) {
-  if (typeof value !== "string" || !allowed.includes(value)) {
-    throw invalid(`${where} must be one of ${allowed.join(", ")}`);
-  }
-  return value;
-}
-function invalid(message) {
-  return new ModelGatewayError("invalid-config", message);
-}
-
 // src/contexts/model-gateway/domain/models.ts
 function modelKey(client, model) {
   return `${client}:${model}`;
@@ -525,27 +525,74 @@ function compare(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-// src/contexts/model-gateway/application/config.ts
-async function loadConfig(files, defaultsPath, override) {
-  const defaults = parseFile(defaultsPath, await readText(files, defaultsPath, "the shipped defaults"), parseDefaults);
-  if (!await overrideExists(files, override)) return defaults;
-  return parseFile(override, await readText(files, override, "the override"), (raw) => applyOverride(defaults, raw));
+// src/contexts/model-gateway/domain/policy.ts
+var NEDAP_CLIENTS = ["claude", "codex"];
+var INLINE_COST_CLASSES = ["subsidised", "metered-personal"];
+var NOTHING = { code: false, history: false };
+var EVERYTHING = { code: true, history: true };
+function decidePolicy(config, scope, subjects = config.models) {
+  const permissions = subjects.filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model))).map((subject) => permission(config, subject, scope));
+  return { permissions, reason: reasonFor(scope) };
 }
-async function overrideExists(files, path) {
-  try {
-    return await files.exists(path);
-  } catch (error) {
-    throw new ModelGatewayError("invalid-config", `${path}: cannot read the override: ${messageOf(error)}`);
+function permission(config, subject, scope) {
+  const base = { client: subject.client, inline_only: false, model: subject.model };
+  switch (scope.kind) {
+    case "outside":
+      return {
+        ...base,
+        inline_only: true,
+        may_send: NOTHING,
+        permitted: INLINE_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? "")
+      };
+    case "no-remote":
+      return { ...base, may_send: NOTHING, permitted: false };
+    case "nedap":
+      return { ...base, may_send: EVERYTHING, permitted: NEDAP_CLIENTS.includes(subject.client) };
+    case "repository":
+      return {
+        ...base,
+        may_send: scope.entry === void 0 ? NOTHING : { code: scope.entry.code, history: scope.entry.history },
+        permitted: scope.entry?.families.includes(subject.family) === true
+      };
   }
 }
-async function readText(files, path, what) {
+function reasonFor(scope) {
+  switch (scope.kind) {
+    case "outside":
+      return "no repository: only inline content, to subsidised and metered-personal clients";
+    case "no-remote":
+      return "the repository has no remote, so nothing is sent";
+    case "nedap":
+      return "a nedap repository: only Codex and Claude Code, with code and history";
+    case "repository":
+      return scope.entry === void 0 ? `${scope.key} has no allowlist entry, so nothing is sent` : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
+  }
+}
+function permittedModels(listing, decision) {
+  const byKey = new Map(decision.permissions.map((permission2) => [modelKey(permission2.client, permission2.model), permission2]));
+  const models = listing.models.flatMap((model) => {
+    const permission2 = byKey.get(modelKey(model.client, model.model));
+    if (permission2?.permitted !== true) return [];
+    return [{ ...model, inline_only: permission2.inline_only, may_send: permission2.may_send }];
+  });
+  return { missing: listing.missing, models, skipped: listing.skipped };
+}
+
+// src/contexts/model-gateway/application/json-file.ts
+async function fileExists(files, path, what) {
   try {
-    return await files.readText(path);
+    return await files.exists(path);
   } catch (error) {
     throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
   }
 }
-function parseFile(path, text, parse) {
+async function readJsonFile(files, path, what, parse) {
+  let text;
+  try {
+    text = await files.readText(path);
+  } catch (error) {
+    throw new ModelGatewayError("invalid-config", `${path}: cannot read ${what}: ${messageOf(error)}`);
+  }
   try {
     return parse(parseJson(text));
   } catch (error) {
@@ -563,17 +610,122 @@ function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+// src/contexts/model-gateway/application/config.ts
+async function loadConfig(files, defaultsPath, override) {
+  const defaults = await readJsonFile(files, defaultsPath, "the shipped defaults", parseDefaults);
+  if (!await fileExists(files, override, "the override")) return defaults;
+  return readJsonFile(files, override, "the override", (raw) => applyOverride(defaults, raw));
+}
+
 // src/contexts/model-gateway/application/locations.ts
 import { isAbsolute, join } from "node:path";
 function overridePath(env) {
+  return join(configDir(env), "model-gateway.json");
+}
+function allowlistPath(env) {
+  return join(configDir(env), "critique-allowlist.json");
+}
+function configDir(env) {
   const xdg = env.get("XDG_CONFIG_HOME");
-  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit", "model-gateway.json");
-  return join(env.require("HOME"), ".config", "agent-kit", "model-gateway.json");
+  if (xdg !== void 0 && isAbsolute(xdg)) return join(xdg, "agent-kit");
+  return join(env.require("HOME"), ".config", "agent-kit");
 }
 function vibeConfigPath(env) {
   const home = env.get("VIBE_HOME");
   if (home !== void 0 && isAbsolute(home)) return join(home, "config.toml");
   return join(env.require("HOME"), ".vibe", "config.toml");
+}
+
+// src/shared-kernel/git-remote.ts
+var DENIED_OWNER = "nedap";
+function parseRemote(url) {
+  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
+  const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
+  const match = scp ?? standard;
+  if (match === null) return void 0;
+  const host = (match[1] ?? "").toLowerCase();
+  const segments = (match[2] ?? "").replace(/\/+$/, "").replace(/\.git$/, "").split("/").filter((segment) => segment.length > 0);
+  const repo = segments.pop();
+  const owner = segments.join("/");
+  if (repo === void 0 || owner.length === 0) return void 0;
+  return { host, owner: owner.toLowerCase(), repo: repo.toLowerCase() };
+}
+function identifyRepository(remotes) {
+  const located = remotes.flatMap((remote) => {
+    const location = parseRemote(remote.url);
+    return location === void 0 ? [] : [{ name: remote.name, location }];
+  });
+  const denied = located.find((remote) => remote.location.owner.split("/")[0] === DENIED_OWNER);
+  if (denied !== void 0) {
+    return { owner: denied.location.owner, remote: denied.name, status: "denied-owner" };
+  }
+  const primary = located.find((remote) => remote.name === "origin") ?? located[0];
+  if (primary === void 0) return { status: "no-remote" };
+  const { host, owner, repo } = primary.location;
+  return { key: `${host}/${owner}/${repo}`, location: primary.location, status: "identified" };
+}
+
+// src/contexts/model-gateway/domain/allowlist.ts
+var EMPTY_ALLOWLIST = { repositories: {} };
+function parseAllowlist(raw) {
+  if (!isObject(raw)) throw invalid2("the allowlist must be a JSON object");
+  if (raw.version !== 1) throw invalid2("version must be 1");
+  if (!isObject(raw.repositories)) throw invalid2("repositories must be an object keyed by repository");
+  const repositories = Object.fromEntries(
+    Object.entries(raw.repositories).map(([key, value]) => {
+      if (!isObject(value)) throw invalid2(`repositories.${key} must be an object`);
+      return [key, parseEntry(key, value)];
+    })
+  );
+  return { repositories };
+}
+function parseEntry(key, raw) {
+  const where = `repositories.${key}`;
+  return {
+    code: raw.code === void 0 ? false : requireBoolean(raw.code, `${where}.code`),
+    families: requireStrings2(raw.families, `${where}.families`),
+    history: raw.history === void 0 ? false : requireBoolean(raw.history, `${where}.history`)
+  };
+}
+function requireStrings2(value, where) {
+  if (!Array.isArray(value)) throw invalid2(`${where} must be a list of non-empty strings`);
+  const items = value;
+  const strings = [];
+  for (const item of items) {
+    if (typeof item !== "string" || item === "") throw invalid2(`${where} must be a list of non-empty strings`);
+    strings.push(item);
+  }
+  return strings;
+}
+function requireBoolean(value, where) {
+  if (typeof value !== "boolean") throw invalid2(`${where} must be true or false`);
+  return value;
+}
+function invalid2(message) {
+  return new ModelGatewayError("invalid-config", message);
+}
+
+// src/contexts/model-gateway/application/policy.ts
+async function resolveScope(deps, repo) {
+  if (repo === void 0) return { kind: "outside" };
+  const root = await gitOrFail(repo, () => deps.git.root(repo));
+  if (root === void 0) return { kind: "outside" };
+  const identity = identifyRepository(await gitOrFail(repo, () => deps.git.remotes(root)));
+  if (identity.status === "denied-owner") return { kind: "nedap" };
+  if (identity.status === "no-remote") return { kind: "no-remote" };
+  const allowlist = await loadAllowlist(deps.files, allowlistPath(deps.env));
+  return { entry: allowlist.repositories[identity.key], key: identity.key, kind: "repository" };
+}
+async function gitOrFail(repo, call) {
+  try {
+    return await call();
+  } catch (error) {
+    throw new ModelGatewayError("repository-unreadable", `${repo}: ${messageOf(error)}`);
+  }
+}
+async function loadAllowlist(files, path) {
+  if (!await fileExists(files, path, "the family allowlist")) return EMPTY_ALLOWLIST;
+  return readJsonFile(files, path, "the family allowlist", parseAllowlist);
 }
 
 // src/contexts/model-gateway/application/models.ts
@@ -582,7 +734,8 @@ var ModelsCommand = class {
     this.deps = deps;
   }
   deps;
-  async run() {
+  async run(raw) {
+    const input = readModelsInput(raw);
     const config = await loadConfig(this.deps.files, this.deps.defaultsPath, overridePath(this.deps.env));
     const installed = /* @__PURE__ */ new Set();
     for (const [id, client] of sortedClients(config)) {
@@ -594,9 +747,18 @@ var ModelsCommand = class {
       if (source === void 0 || !installed.has(id) || client.model_source === "declared") continue;
       listings.set(id, await source.list());
     }
-    return { status: "ok", ...listModels(config, installed, listings) };
+    const listing = listModels(config, installed, listings);
+    const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
+    return { policy: decision.reason, status: "ok", ...permittedModels(listing, decision) };
   }
 };
+function readModelsInput(raw) {
+  if (!isObject(raw)) throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
+  const repo = raw.repo;
+  if (repo === void 0) return {};
+  if (typeof repo !== "string" || repo === "") throw new ModelGatewayError("invalid-input", "repo must be a non-empty string");
+  return { repo };
+}
 
 // src/contexts/model-gateway/application/commands.ts
 function createModelGatewayCommands(deps) {
@@ -690,6 +852,59 @@ var NodeModelGatewayFiles = class {
     }
   }
 };
+
+// src/contexts/model-gateway/adapters/git/index.ts
+import { execFile } from "node:child_process";
+var OUTPUT_LIMIT = 1024 * 1024;
+var TIMEOUT_MS = 1e4;
+var NOT_A_REPOSITORY = /not a git repository/i;
+var NodeModelGatewayGit = class {
+  constructor(path = process.env.PATH ?? "", timeoutMs = TIMEOUT_MS) {
+    this.path = path;
+    this.timeoutMs = timeoutMs;
+  }
+  path;
+  timeoutMs;
+  async root(path) {
+    const result2 = await this.git(path, ["rev-parse", "--show-toplevel"]);
+    if (result2.exitCode === 0) {
+      const root = result2.stdout.trim();
+      return root === "" ? void 0 : root;
+    }
+    if (NOT_A_REPOSITORY.test(result2.stderr)) return void 0;
+    throw new Error(messageOf3(result2));
+  }
+  async remotes(path) {
+    const result2 = await this.git(path, ["config", "--get-regexp", String.raw`^remote\..*\.url$`]);
+    if (result2.exitCode === 1) return [];
+    if (result2.exitCode !== 0) throw new Error(messageOf3(result2));
+    return result2.stdout.split("\n").flatMap((line) => {
+      const match = /^remote\.(.+)\.url\s+(.+)$/.exec(line.trim());
+      return match === null ? [] : [{ name: String(match[1]), url: String(match[2]) }];
+    });
+  }
+  /** The command's exit code and output; a git that cannot start or does not answer in time rejects. */
+  git(path, args) {
+    return new Promise((resolve, reject) => {
+      const options = {
+        encoding: "utf8",
+        env: { ...process.env, PATH: this.path },
+        maxBuffer: OUTPUT_LIMIT,
+        timeout: this.timeoutMs
+      };
+      execFile("git", ["-C", path, ...args], options, (error, stdout, stderr) => {
+        if (error === null) resolve({ exitCode: 0, stderr, stdout });
+        else if (typeof error.code === "number") resolve({ exitCode: error.code, stderr, stdout });
+        else if (error.killed === true) reject(new Error(`git did not answer within ${String(this.timeoutMs)} ms`));
+        else reject(new Error(`cannot run git: ${error.message}`));
+      });
+    });
+  }
+};
+function messageOf3(result2) {
+  const message = result2.stderr.trim();
+  return message === "" ? `git exited ${String(result2.exitCode)}` : message;
+}
 
 // src/contexts/model-gateway/adapters/process/index.ts
 import { constants } from "node:fs";
@@ -798,14 +1013,17 @@ var NodeModelGatewayProcess = class {
 };
 
 // src/model-gateway-cli/index.ts
-var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{}'
+var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'
        model-gateway models --input FILE
 
 Each command reads one JSON object, from --json or from FILE, and prints one
-JSON object. models lists every client model this machine can use now, with
-its client, model id, family, cost class, difficulty tier, capability notes
-and where the list came from (live, config or declared), and names each client
-it knows but cannot use. An error prints "status": "error" with its "code" and
+JSON object. models lists every client model this machine can use now for the
+repository the caller works in, with its client, model id, family, cost class,
+difficulty tier, capability notes, where the list came from (live, config or
+declared) and what the data policy lets a delegation to it carry. It names
+each client it knows but cannot use, and says in "policy" why the data policy
+listed what it did. Without "repo", or outside any repository, only inline
+content may be sent. An error prints "status": "error" with its "code" and
 exits 1.
 `;
 var COMMANDS = {
@@ -841,7 +1059,7 @@ async function readInput(runtime, path) {
   try {
     return await runtime.readFile(path);
   } catch (error) {
-    throw new ModelGatewayError("invalid-input", `${path}: cannot read the input: ${messageOf3(error)}`);
+    throw new ModelGatewayError("invalid-input", `${path}: cannot read the input: ${messageOf4(error)}`);
   }
 }
 function parseInput(text) {
@@ -849,7 +1067,7 @@ function parseInput(text) {
   try {
     raw = JSON.parse(text);
   } catch (error) {
-    throw new ModelGatewayError("invalid-input", `the input is not JSON: ${messageOf3(error)}`);
+    throw new ModelGatewayError("invalid-input", `the input is not JSON: ${messageOf4(error)}`);
   }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new ModelGatewayError("invalid-input", "the input must be a JSON object");
@@ -865,18 +1083,20 @@ function failure(code, message, name) {
 `
   };
 }
-function messageOf3(error) {
+function messageOf4(error) {
   return error instanceof Error ? error.message : String(error);
 }
 function defaultModelGatewayRuntime(overrides = {}) {
   const env = overrides.env ?? new ProcessEnvAdapter();
   const files = overrides.files ?? new NodeModelGatewayFiles();
+  const git = overrides.git ?? new NodeModelGatewayGit();
   const process2 = overrides.process ?? new NodeModelGatewayProcess();
   return {
     commands: createModelGatewayCommands({
       defaultsPath: join3(import.meta.dirname, "defaults.json"),
       env,
       files,
+      git,
       process: process2,
       sources: modelSources({ env, files, process: process2 }),
       ...overrides

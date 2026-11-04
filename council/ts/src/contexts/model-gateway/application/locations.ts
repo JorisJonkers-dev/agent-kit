@@ -9,9 +9,22 @@ import type { EnvPort } from '../../../ports/index.js'
  * not an absolute path.
  */
 export function overridePath(env: EnvPort): string {
+  return join(configDir(env), 'model-gateway.json')
+}
+
+/**
+ * The family allowlist critique writes and the gateway reads, resolved the
+ * same way critique resolves it: `$XDG_CONFIG_HOME/agent-kit/`, else
+ * `~/.config/agent-kit/`.
+ */
+export function allowlistPath(env: EnvPort): string {
+  return join(configDir(env), 'critique-allowlist.json')
+}
+
+function configDir(env: EnvPort): string {
   const xdg = env.get('XDG_CONFIG_HOME')
-  if (xdg !== undefined && isAbsolute(xdg)) return join(xdg, 'agent-kit', 'model-gateway.json')
-  return join(env.require('HOME'), '.config', 'agent-kit', 'model-gateway.json')
+  if (xdg !== undefined && isAbsolute(xdg)) return join(xdg, 'agent-kit')
+  return join(env.require('HOME'), '.config', 'agent-kit')
 }
 
 /**
