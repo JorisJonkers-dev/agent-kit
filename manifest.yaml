@@ -131,11 +131,11 @@ skills:
       - agent: codex
         path: .agents/skills/council-design/SKILL.md
         source: skills/repo/council-design/codex/SKILL.md
-        sha256: 3a535ec04112a0d04f19b15374371173c41c0cae714ff25397938c58b4c0f0ec
+        sha256: 1d6de36f4face394a09f9bd23dad0676bdf6ded6a52049fbb8d2a0de966e4141
       - agent: claude
         path: .claude/skills/council-design/SKILL.md
         source: skills/repo/council-design/claude/SKILL.md
-        sha256: a79f7609469170f39ba54d109f39f5fe2cda040d4f5f416356c4192bb4cc42f5
+        sha256: d26f2adbe46359b8798943dc2b5e6d61502fc59770f1a061fc37823d32f0982e
   - name: council-grill
     supported_agents: [codex, claude]
     targets:
@@ -186,11 +186,11 @@ skills:
       - agent: codex
         path: .agents/skills/council-triage/SKILL.md
         source: skills/repo/council-triage/codex/SKILL.md
-        sha256: 940b8ff8d5c8df31695365dd1f475c93bf765259895a0e1f480bfccb8aee7329
+        sha256: c9efd0db797780e11954606976cc0e35bc7796f00f947c7521311773ca5366a5
       - agent: claude
         path: .claude/skills/council-triage/SKILL.md
         source: skills/repo/council-triage/claude/SKILL.md
-        sha256: ab6c4503e24a5aadf4d52ceadfd7d72dabd23a0de1916cd6f4f404c04e15b368
+        sha256: 09cda7c2edf9c824ac235cfb09aef672ea373b00c148b99c920d667346ddae3e
   - name: agent-codex-med
     supported_agents: [claude]
     targets:

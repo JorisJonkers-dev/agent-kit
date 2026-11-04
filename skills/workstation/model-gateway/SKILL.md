@@ -1,12 +1,12 @@
 ---
 name: model-gateway
-description: Holds the model gateway's runner and its shipped defaults; it is not a workflow of its own, since the delegate skill, coming later, drives it.
+description: Holds the model gateway's runner and its shipped defaults; it is not a workflow of its own, since the delegate skill drives it.
 ---
 
 # model-gateway
 
 This folder is what the model gateway runs on. It does nothing on its own: an
-agent calls the runner, and the `delegate` skill (a later ticket) is what
+agent calls the runner, and the `delegate` skill is what
 teaches an orchestrator to plan with it. The runner answers these questions:
 `models`, which client models this machine can use right now; `usage`, what
 each client can do now and what it has spent; `run`, one delegation to one of
