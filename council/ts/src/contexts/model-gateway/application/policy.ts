@@ -7,6 +7,9 @@ import { fileExists, messageOf, readJsonFile } from './json-file.js'
 import { allowlistPath, overridePath } from './locations.js'
 import type { ModelGatewayDependencies, ModelGatewayFilesPort } from './ports.js'
 
+/** What the scope reads: git for the repository, and the files and environment for its allowlist. */
+export type ScopeDependencies = Pick<ModelGatewayDependencies, 'env' | 'files' | 'git'>
+
 /**
  * The data policy for a delegation made from `repo`: per client model,
  * whether it is permitted and what may be sent. Every run and every batch
@@ -23,7 +26,7 @@ export async function decidePolicyFor(deps: ModelGatewayDependencies, repo: stri
  * the caller declares its content itself; a path git cannot read is an error,
  * never a permissive scope.
  */
-export async function resolveScope(deps: ModelGatewayDependencies, repo: string | undefined): Promise<DataScope> {
+export async function resolveScope(deps: ScopeDependencies, repo: string | undefined): Promise<DataScope> {
   if (repo === undefined) return { kind: 'outside' }
   const root = await gitOrFail(repo, () => deps.git.root(repo))
   if (root === undefined) return { kind: 'outside' }

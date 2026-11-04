@@ -190,6 +190,11 @@ export type ModelGatewayErrorCode =
   | 'grant-exists'
   /** The grants file lies inside a git repository, and a grant is never written into one. */
   | 'grants-in-repository'
+  /**
+   * A subsidised client is at 100% of one of its plan windows, so an engine run
+   * that asks the gateway first is refused rather than started to fail.
+   */
+  | 'unable-to-start'
 
 export class ModelGatewayError extends Error {
   constructor(

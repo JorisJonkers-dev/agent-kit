@@ -1,6 +1,19 @@
 import type { EngineDef } from './domain/index.js'
 
 export * from './domain/index.js'
+export * from './domain/guard.js'
+export {
+  EngineGate,
+  engineLeaseFileText,
+  parseEngineLeaseFile,
+  type EngineLeaseFile,
+  type PersistedEngineLease,
+  type EngineEnd,
+  type EngineGateClock,
+  type EngineLaunch,
+  type EngineLease,
+  type EngineRunGuard,
+} from './adapters/engines/engine-gate.js'
 
 export interface EngineSpawnCommand {
   readonly args: readonly string[]

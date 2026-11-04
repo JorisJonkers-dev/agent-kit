@@ -1,5 +1,6 @@
 import {
   CouncilApp,
+  defaultEngineGuard,
   PreFanoutGateError,
   type CouncilAppFanoutInput,
   type CouncilAppFleetInput,
@@ -86,7 +87,7 @@ export function commandRegistry(): readonly CommandSpec[] {
 }
 
 export async function runCli(argv: readonly string[], runtime: CliRuntime = {}): Promise<CliResult> {
-  const app = runtime.app ?? new CouncilApp()
+  const app = runtime.app ?? new CouncilApp({ engineGuard: defaultEngineGuard() })
   const [command, ...rest] = argv
   try {
     if (command === undefined || command === '--help' || command === '-h') {
@@ -391,6 +392,9 @@ function parseSupervise(argv: readonly string[]): SuperviseInput {
     worktree: requireFlag(flags, 'worktree'),
     command: requireFlag(flags, 'command'),
     watchdog: parseSuperviseWatchdog(flags),
+    ...optionalFlag(flags, 'engine', 'engine'),
+    ...optionalNumberFlag(flags, 'promptChars', 'prompt-chars'),
+    ...(flags.has('no-history') ? { noHistory: true } : {}),
     ...optionalFlag(flags, 'stdin', 'stdin'),
     ...optionalFlag(flags, 'restartPreamble', 'restart-preamble'),
     ...optionalFlag(flags, 'checkpointPreamble', 'checkpoint-preamble'),

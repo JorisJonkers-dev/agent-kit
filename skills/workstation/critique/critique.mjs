@@ -2472,32 +2472,6 @@ var ClientRun = class {
   }
 };
 
-// src/contexts/model-gateway/application/config.ts
-async function loadConfig(files, defaultsPath, override) {
-  const defaults = await readJsonFile2(files, defaultsPath, "the shipped defaults", parseDefaults);
-  if (!await fileExists(files, override, "the override")) return defaults;
-  return readJsonFile2(files, override, "the override", (raw) => applyOverride(defaults, raw));
-}
-
-// src/contexts/model-gateway/application/locations.ts
-import { isAbsolute as isAbsolute2, join as join4 } from "node:path";
-function overridePath(env) {
-  return join4(configDir2(env), "model-gateway.json");
-}
-function configDir2(env) {
-  const xdg = env.get("XDG_CONFIG_HOME");
-  if (xdg !== void 0 && isAbsolute2(xdg)) return join4(xdg, "agent-kit");
-  return join4(env.require("HOME"), ".config", "agent-kit");
-}
-function stateDir(env) {
-  const xdg = env.get("XDG_STATE_HOME");
-  if (xdg !== void 0 && isAbsolute2(xdg)) return join4(xdg, "agent-kit", "model-gateway");
-  return join4(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
-}
-function ledgerPath2(env) {
-  return join4(stateDir(env), "ledger.jsonl");
-}
-
 // src/contexts/model-gateway/domain/usage.ts
 var DAY_MS = 24 * 60 * 60 * 1e3;
 var WINDOW_MS = {
@@ -2533,6 +2507,35 @@ function round2(value, places) {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;
 }
+
+// src/contexts/model-gateway/application/config.ts
+async function loadConfig(files, defaultsPath, override) {
+  const defaults = await readJsonFile2(files, defaultsPath, "the shipped defaults", parseDefaults);
+  if (!await fileExists(files, override, "the override")) return defaults;
+  return readJsonFile2(files, override, "the override", (raw) => applyOverride(defaults, raw));
+}
+
+// src/contexts/model-gateway/application/locations.ts
+import { isAbsolute as isAbsolute2, join as join4 } from "node:path";
+function overridePath(env) {
+  return join4(configDir2(env), "model-gateway.json");
+}
+function configDir2(env) {
+  const xdg = env.get("XDG_CONFIG_HOME");
+  if (xdg !== void 0 && isAbsolute2(xdg)) return join4(xdg, "agent-kit");
+  return join4(env.require("HOME"), ".config", "agent-kit");
+}
+function stateDir(env) {
+  const xdg = env.get("XDG_STATE_HOME");
+  if (xdg !== void 0 && isAbsolute2(xdg)) return join4(xdg, "agent-kit", "model-gateway");
+  return join4(env.require("HOME"), ".local", "state", "agent-kit", "model-gateway");
+}
+function ledgerPath2(env) {
+  return join4(stateDir(env), "ledger.jsonl");
+}
+
+// src/contexts/model-gateway/application/engine-guard.ts
+var ENGINE_TIME_LIMIT_S = 4 * 60 * 60;
 
 // src/contexts/model-gateway/application/plan.ts
 async function readPlanLimit(deps, client) {
