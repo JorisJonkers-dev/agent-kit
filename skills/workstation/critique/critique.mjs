@@ -1485,6 +1485,7 @@ var CLIENT_FIELDS = [
   "providers",
   "plan_limits"
 ];
+var OVERRIDE_KEYS = ["version", "clients", "disabled", "models", "settings"];
 var ModelGatewayError = class extends Error {
   constructor(code, message) {
     super(message);
@@ -1519,6 +1520,7 @@ function parseDefaults(raw) {
 }
 function applyOverride(config, raw) {
   if (!isObject(raw)) throw invalid("the override must be a JSON object");
+  refuseUnknownFields(raw, "the override", OVERRIDE_KEYS, "a key the override has");
   if (raw.version !== void 0 && raw.version !== CONFIG_VERSION) throw invalid(`version must be ${String(CONFIG_VERSION)}`);
   return {
     clients: mergeClients(config.clients, raw.clients),
@@ -1540,7 +1542,7 @@ function mergeClients(base, raw) {
 }
 function parseClient(id, raw, base) {
   const where = `clients.${id}`;
-  refuseUnknownFields(raw, where);
+  refuseUnknownFields(raw, where, CLIENT_FIELDS, "a field a client has");
   const binary = raw.binary === void 0 ? base?.binary : requireString(raw.binary, `${where}.binary`);
   const costClass = raw.cost_class === void 0 ? base?.cost_class : requireOneOf(raw.cost_class, COST_CLASSES, `${where}.cost_class`);
   const modelSource = raw.model_source === void 0 ? base?.model_source : requireOneOf(raw.model_source, MODEL_SOURCES, `${where}.model_source`);
@@ -1585,10 +1587,10 @@ function parsePlanLimits(raw, where) {
     return { limit_runs: limit, window };
   });
 }
-function refuseUnknownFields(raw, where) {
-  const unknown = Object.keys(raw).find((key2) => !CLIENT_FIELDS.includes(key2));
+function refuseUnknownFields(raw, where, allowed2, what) {
+  const unknown = Object.keys(raw).find((key2) => !allowed2.includes(key2));
   if (unknown !== void 0) {
-    throw invalid(`${where}.${unknown} is not a field a client has; choose from ${CLIENT_FIELDS.join(", ")}`);
+    throw invalid(`${where}.${unknown} is not ${what}; choose from ${allowed2.join(", ")}`);
   }
 }
 function parseProviderCostClasses(raw, where) {
@@ -1654,7 +1656,7 @@ function mergeSettings(base, raw) {
     max_parallel_per_client: countField(raw, "max_parallel_per_client", base.max_parallel_per_client),
     metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
     output_allowance_tokens: mergeAllowances(base.output_allowance_tokens, raw.output_allowance_tokens),
-    plan_warning_ratio: numberField(raw, "plan_warning_ratio", base.plan_warning_ratio),
+    plan_warning_ratio: ratioField(raw, "plan_warning_ratio", base.plan_warning_ratio),
     summary_max_chars: numberField(raw, "summary_max_chars", base.summary_max_chars)
   };
 }
@@ -1677,7 +1679,7 @@ function parseSettings(raw) {
       routine: requireAllowance(allowances, "routine"),
       trivial: requireAllowance(allowances, "trivial")
     },
-    plan_warning_ratio: requireNumber(raw.plan_warning_ratio, "settings.plan_warning_ratio"),
+    plan_warning_ratio: requireRatio(raw.plan_warning_ratio, "settings.plan_warning_ratio"),
     summary_max_chars: requireNumber(raw.summary_max_chars, "settings.summary_max_chars")
   };
 }
@@ -1711,10 +1713,18 @@ function numberField(raw, name, base, prefix = "settings.") {
 function countField(raw, name, base) {
   return raw[name] === void 0 ? base : requireCount(raw[name], `settings.${name}`);
 }
+function ratioField(raw, name, base) {
+  return raw[name] === void 0 ? base : requireRatio(raw[name], `settings.${name}`);
+}
 function requireCount(value, where) {
   const count2 = requireNumber(value, where);
   if (!Number.isInteger(count2) || count2 < 1) throw invalid(`${where} must be a whole number of at least 1`);
   return count2;
+}
+function requireRatio(value, where) {
+  const ratio = requireNumber(value, where);
+  if (ratio < 0 || ratio > 1) throw invalid(`${where} must be between 0 and 1`);
+  return ratio;
 }
 function parseDisabled(raw) {
   if (raw === void 0) return [];
