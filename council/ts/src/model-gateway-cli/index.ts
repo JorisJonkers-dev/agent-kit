@@ -67,12 +67,16 @@ difficulty tier, capability notes, where the list came from (live, config or
 declared) and what the data policy lets a delegation to it carry. It names
 each client it knows but cannot use, and says in "policy" why the data policy
 listed what it did. Without "repo", or outside any repository, only inline
-content may be sent.
+content may be sent. A client model whose own answer said it cannot run — the
+quota of the account, which says when it resets, or a model the account
+cannot use — is not offered: the ledger remembers it until then, and models
+names it in "skipped" with the reason.
 
 usage reports every client it knows: whether it is installed, whether its own
 status command says it is signed in, whether its last run in the availability
-window was rate-limited or refused for its credentials, what it has spent over
-the last "days" days (7 by default) by day and by workflow, what its own plan
+window was rate-limited or refused for its credentials, what answers it
+remembers saying a client model cannot run until the reset each named passes,
+what it has spent over the last "days" days (7 by default) by day and by workflow, what its own plan
 has left ("unknown" where the client reports none), each window of the plan
 limit the machine file sets for it, and what its live reservations hold
 ("reserved_usd" and "reserved_runs"). A client at or above
@@ -103,7 +107,11 @@ A delegation that fails does not come straight back: "escalate" (true by
 default; false turns it all off) and "max_attempts" (3 by default) govern it. A
 failed result (a timeout, output that cannot be parsed, a failed check, a
 non-zero exit) is retried once on the same client model with the failure in the
-prompt; a second failure climbs to the next stronger permitted subsidised
+prompt, but an answer that says the client model cannot run — the account's
+quota, with the reset it names, or a model the account cannot use — is never
+retried: it is swapped at once, and the gateway remembers it until it is
+usable again, so no later attempt of any delegation starts on it before
+then. A second failure climbs to the next stronger permitted subsidised
 model; and a client that cannot start is
 swapped for another of its cost class at the same tier or above. Each attempt
 is a run of its own, and the result carries "attempts" (run_id, client, model,

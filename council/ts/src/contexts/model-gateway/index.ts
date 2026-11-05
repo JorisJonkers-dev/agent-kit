@@ -92,6 +92,7 @@ export type {
   PlanState,
   PlanWindowUsage,
   Quota,
+  StandingRefusal,
   UsageInput,
   UsageResult,
   UsageTotals,

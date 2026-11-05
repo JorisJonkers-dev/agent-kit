@@ -44,8 +44,8 @@ const REFUSAL_REASONS: readonly string[] = [
   'worktree-failed',
 ]
 
-/** What a client's own error channel says when it will not start: it is signed out or out of allowance, or its launch failed. */
-const CANNOT_START_REASONS: readonly string[] = ['auth', 'launch-failed', 'rate-limited']
+/** What a client's own error channel says when it will not start: it is signed out or out of allowance, the model it named is not one the account may use, or its launch failed. */
+const CANNOT_START_REASONS: readonly string[] = ['auth', 'launch-failed', 'model-unavailable', 'rate-limited']
 
 /** Whether a failed result's reason is a refusal, which never retries. */
 export function isRefusal(reason: string | undefined): boolean {

@@ -23,8 +23,15 @@ export interface LedgerRecord {
   readonly mode: RunMode
   readonly model: string
   readonly outcome: 'ok' | 'failed'
-  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>` or `launch-failed`. */
+  /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`, `rate-limited`, `auth`, `model-unavailable` or `launch-failed`. */
   readonly reason?: string
+  /**
+   * When the client model's own answer said it is usable again: the reset a
+   * quota refusal named. Until then, and for a refusal that named no moment
+   * until a run of the client model succeeded, `usage` names the client
+   * unavailable and `models` offers neither.
+   */
+  readonly unavailable_until?: string
   /** The repository the run worked in, keyed `<host>/<owner>/<repo>`; null for an inline run. */
   readonly repository: string | null
   readonly run_id: string

@@ -333,9 +333,12 @@ export interface ClientReport {
 
 /**
  * Why a run failed: a slug the result's `reason` and the ledger's outcome
- * carry. A client that says it was rate-limited or refused the credentials
- * gets that slug rather than its exit code or its own failure slug, so
- * availability can find it in the ledger afterwards. The client's own report
+ * carry. A client that says it was rate-limited (its account's quota
+ * included) or refused the credentials gets that slug rather than its exit
+ * code or its own failure slug, so availability can find it in the ledger
+ * afterwards; one that says the model cannot run for this account at all
+ * (`model-unavailable`) is remembered even longer, until a run of the client
+ * model succeeds. The client's own report
  * of a failure (`timeout`, `denied-action`, `client-error`) counts when it
  * exited 0, and comes before a missing answer.
  *
@@ -404,8 +407,9 @@ export function requireAllowedProvider(model: string, allowed: readonly string[]
 function refusalOf(
   launch: { exitCode: number; stderr?: string },
   error: ClientError | undefined,
-): 'rate-limited' | 'auth' | undefined {
+): 'rate-limited' | 'auth' | 'model-unavailable' | undefined {
   const said = `${launch.stderr ?? ''}\n${error?.text ?? ''}`
+  if (MODEL_UNAVAILABLE.test(said)) return 'model-unavailable'
   if (RATE_LIMITED.test(said) || error?.status === 429 || launch.exitCode === 429) return 'rate-limited'
   if (
     REFUSED_CREDENTIALS.test(said) ||
@@ -419,11 +423,35 @@ function refusalOf(
   return undefined
 }
 
-/** What a client prints when it is out of allowance for now. */
-const RATE_LIMITED = /rate.?limit|too many requests|quota exceeded/i
+/** What a client prints when it is out of allowance for now, its account's quota included. */
+const RATE_LIMITED = /rate.?limit|too many requests|quota (exceeded|reached)|resource_exhausted/i
+
+/** What a client prints when the account may not use the model it named at all, however long it waits. */
+const MODEL_UNAVAILABLE = /is hosted outside/i
 
 /** What a client prints when it will not run without a login or a valid key. */
 const REFUSED_CREDENTIALS = /unauthori[sz]ed|unauthenticated|not logged in|log ?in required|invalid api key|authentication failed|forbidden/i
+
+/**
+ * When the client's own error channel said its client model is usable again:
+ * the reset its refusal named (`Resets in 29h2m9s`), measured from the run's
+ * start. A refusal that names no reset gives none, so the gateway remembers
+ * it only until a run of the client model succeeded.
+ */
+export function namedReset(
+  launch: { stderr?: string; timedOut?: boolean },
+  error: ClientError | undefined,
+  at: Date,
+): Date | undefined {
+  const said = `${launch.stderr ?? ''}\n${error?.text ?? ''}`
+  const found = /resets? in (?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i.exec(said)
+  if (found === null) return undefined
+  const [hours = 0, minutes = 0, seconds = 0] = [found[1], found[2], found[3]].map((part) =>
+    part === undefined ? undefined : Number(part),
+  )
+  const ms = hours * 3_600_000 + minutes * 60_000 + seconds * 1000
+  return ms === 0 ? undefined : new Date(at.getTime() + ms)
+}
 
 /** A UTC moment as a run id's first half: `20261104T105215Z`. */
 export function compactTimestamp(at: Date): string {

@@ -6,6 +6,7 @@ import {
   DEFAULT_TIME_LIMIT_S,
   finalAnswerOf,
   hermesUsage,
+  namedReset,
   NO_TOKENS,
   oneShotAnswer,
   openCodeProvider,
@@ -281,6 +282,35 @@ describe('runFailureReason', () => {
     expect(runFailureReason({ exitCode: 1 }, undefined, { error: { status: 429, text: '' } })).toBe('rate-limited')
     expect(runFailureReason({ exitCode: 1 }, undefined, { error: { text: 'invalid api key' } })).toBe('auth')
     expect(runFailureReason({ exitCode: 1, stderr: 'boom' }, undefined, { error: { text: 'boom' } })).toBe('exit-1')
+  })
+
+  it('names a quota the account is out of, and a model the account cannot use, before its exit code', () => {
+    expect(
+      runFailureReason(
+        { exitCode: 3 },
+        undefined,
+        { error: { text: 'RESOURCE_EXHAUSTED: Individual quota reached. Resets in 29h2m9s' } },
+      ),
+    ).toBe('rate-limited')
+    expect(
+      runFailureReason(
+        { exitCode: 1, stderr: 'This Go model is hosted outside Europe and the United States. Select Global' },
+        undefined,
+        undefined,
+      ),
+    ).toBe('model-unavailable')
+  })
+
+  it('names the moment a refusal said the client model is usable again, measured from the run', () => {
+    const at = new Date('2026-11-04T10:52:15.000Z')
+    expect(namedReset({ stderr: 'Individual quota reached. Resets in 29h2m9s' }, undefined, at)).toEqual(
+      new Date('2026-11-05T15:54:24.000Z'),
+    )
+    expect(namedReset({}, { text: 'rate limited, resets in 30m12s' }, at)).toEqual(
+      new Date('2026-11-04T11:22:27.000Z'),
+    )
+    expect(namedReset({ stderr: 'rate limit exceeded, try again' }, undefined, at)).toBeUndefined()
+    expect(namedReset({ stderr: 'resets in 0h0m0s' }, undefined, at)).toBeUndefined()
   })
 
   it('names a refusal the client reported although it exited 0, before its own failure slug', () => {

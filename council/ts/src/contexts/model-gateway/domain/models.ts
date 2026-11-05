@@ -162,12 +162,15 @@ export function vibeModels(toml: string): readonly ClientModel[] {
  * client whose models come from itself or from its configuration lists what
  * `listings` holds for it, joined to the catalogue; a listing that failed is
  * named in `missing` with its reason (Vibe still lists its catalogue entries), and a client the gateway has no listing
- * for lists nothing and is not reported missing.
+ * for lists nothing and is not reported missing. A client model the gateway
+ * remembers its own answer said cannot run (`unavailable`, from the ledger)
+ * is not offered: it is moved to `skipped`, with the reason its answer gave.
  */
 export function listModels(
   config: GatewayConfig,
   installed: ReadonlySet<string>,
   listings: ReadonlyMap<string, ClientListing>,
+  unavailable: readonly SkippedModel[] = [],
 ): ModelListing {
   const models: ListedModel[] = []
   const missing: MissingClient[] = []
@@ -193,10 +196,23 @@ export function listModels(
     skipped.push(...listed.skipped)
     if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched))
   }
+  const refused = new Map(
+    unavailable.map((entry) => [modelKey(entry.client, entry.model), entry.reason]),
+  )
+  const refusedKey = (model: ListedModel): string => modelKey(model.client, model.model)
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
   missing.sort((left, right) => compare(left.client, right.client))
   skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
-  return { models, missing, skipped }
+  return {
+    missing,
+    models: models.filter((model) => !refused.has(refusedKey(model))),
+    skipped: [
+      ...skipped,
+      ...models
+        .filter((model) => refused.has(refusedKey(model)))
+        .map((model) => ({ client: model.client, model: model.model, reason: refused.get(refusedKey(model)) ?? '' })),
+    ].sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model)),
+  }
 }
 
 /**

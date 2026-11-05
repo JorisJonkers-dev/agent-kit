@@ -630,14 +630,27 @@ function requireAllowedProvider(model, allowed2) {
 function refusalOf(launch, error) {
   const said = `${launch.stderr ?? ""}
 ${error?.text ?? ""}`;
+  if (MODEL_UNAVAILABLE.test(said)) return "model-unavailable";
   if (RATE_LIMITED.test(said) || error?.status === 429 || launch.exitCode === 429) return "rate-limited";
   if (REFUSED_CREDENTIALS.test(said) || error?.status === 401 || error?.status === 403 || launch.exitCode === 401 || launch.exitCode === 403) {
     return "auth";
   }
   return void 0;
 }
-var RATE_LIMITED = /rate.?limit|too many requests|quota exceeded/i;
+var RATE_LIMITED = /rate.?limit|too many requests|quota (exceeded|reached)|resource_exhausted/i;
+var MODEL_UNAVAILABLE = /is hosted outside/i;
 var REFUSED_CREDENTIALS = /unauthori[sz]ed|unauthenticated|not logged in|log ?in required|invalid api key|authentication failed|forbidden/i;
+function namedReset(launch, error, at) {
+  const said = `${launch.stderr ?? ""}
+${error?.text ?? ""}`;
+  const found = /resets? in (?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i.exec(said);
+  if (found === null) return void 0;
+  const [hours = 0, minutes = 0, seconds = 0] = [found[1], found[2], found[3]].map(
+    (part) => part === void 0 ? void 0 : Number(part)
+  );
+  const ms = hours * 36e5 + minutes * 6e4 + seconds * 1e3;
+  return ms === 0 ? void 0 : new Date(at.getTime() + ms);
+}
 function compactTimestamp(at) {
   return at.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
@@ -1081,7 +1094,7 @@ function vibeModels(toml) {
   }
   return declared;
 }
-function listModels(config, installed, listings) {
+function listModels(config, installed, listings, unavailable = []) {
   const models = [];
   const missing = [];
   const skipped = [];
@@ -1106,10 +1119,21 @@ function listModels(config, installed, listings) {
     skipped.push(...listed.skipped);
     if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched));
   }
+  const refused = new Map(
+    unavailable.map((entry) => [modelKey(entry.client, entry.model), entry.reason])
+  );
+  const refusedKey = (model) => modelKey(model.client, model.model);
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
   missing.sort((left, right) => compare(left.client, right.client));
   skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
-  return { models, missing, skipped };
+  return {
+    missing,
+    models: models.filter((model) => !refused.has(refusedKey(model))),
+    skipped: [
+      ...skipped,
+      ...models.filter((model) => refused.has(refusedKey(model))).map((model) => ({ client: model.client, model: model.model, reason: refused.get(refusedKey(model)) ?? "" }))
+    ].sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
+  };
 }
 var BUILT_IN_MODEL_CLIENTS = ["vibe"];
 function catalogueModels(config, id, client, except = /* @__PURE__ */ new Set()) {
@@ -1197,7 +1221,7 @@ var REFUSAL_REASONS = [
   "write-needs-repository",
   "worktree-failed"
 ];
-var CANNOT_START_REASONS = ["auth", "launch-failed", "rate-limited"];
+var CANNOT_START_REASONS = ["auth", "launch-failed", "model-unavailable", "rate-limited"];
 function isRefusal(reason) {
   return reason !== void 0 && REFUSAL_REASONS.includes(reason);
 }
@@ -1651,15 +1675,15 @@ var CapGuard = class {
   async grantTimeLimit(grant, input, now) {
     const record = (await this.deps.workflows.read()).find((candidate) => candidate.name === input.workflow);
     const ends = [Date.parse(grant.expires_at), ...record === void 0 ? [] : [workflowEndsAt(record).getTime()]];
-    const endsAt = new Date(Math.min(...ends));
-    const leftS = Math.floor((endsAt.getTime() - now.getTime()) / 1e3);
+    const endsAt2 = new Date(Math.min(...ends));
+    const leftS = Math.floor((endsAt2.getTime() - now.getTime()) / 1e3);
     if (leftS < MIN_GRANT_TIME_LEFT_S) {
       throw new ModelGatewayError(
         "grant-expiring",
         `the grant covering workflow ${input.workflow} has ${String(Math.max(leftS, 0))} seconds left: wait for it to lapse, then ask the owner for a new grant, or start a new workflow`
       );
     }
-    return { ends_at: endsAt, time_limit_s: Math.min(input.time_limit_s, leftS) };
+    return { ends_at: endsAt2, time_limit_s: Math.min(input.time_limit_s, leftS) };
   }
   /** Releases a reservation with what the run really cost, so the caps count spend rather than the estimate. */
   async settle(reservation, costUsd, now) {
@@ -2756,6 +2780,30 @@ function stateOf(ratio, warningRatio) {
   if (ratio >= 1) return "exhausted";
   return ratio >= warningRatio ? "warning" : "ok";
 }
+function refusalReason(record) {
+  const said = `${record.reason ?? "failed"} at ${record.at}`;
+  return record.unavailable_until === void 0 ? said : `${said}: unavailable until ${record.unavailable_until}`;
+}
+function standingRefusals(records, now) {
+  const standing = /* @__PURE__ */ new Map();
+  for (const record of [...records].sort((left, right) => Date.parse(left.at) - Date.parse(right.at))) {
+    const key = `${record.client}:${record.model}`;
+    if (record.outcome === "ok") standing.delete(key);
+    else if (record.unavailable_until !== void 0 || record.reason === "model-unavailable" || record.reason === "rate-limited") {
+      const held = standing.get(key);
+      if (held === void 0 || endsAt(record) >= endsAt(held)) standing.set(key, record);
+    }
+  }
+  return [...standing.values()].filter((record) => endsAt(record) > now.getTime()).sort((left, right) => Date.parse(left.at) - Date.parse(right.at)).map((record) => ({
+    at: record.at,
+    client: record.client,
+    model: record.model,
+    reason: refusalReason(record)
+  }));
+}
+function endsAt(record) {
+  return record.unavailable_until === void 0 ? Number.POSITIVE_INFINITY : Date.parse(record.unavailable_until);
+}
 function availabilityOf(client, binary, reading, records, now, windowMinutes, windows) {
   if (!reading.installed) {
     return { installed: false, reason: `not installed: ${binary} is not on PATH`, signed_in: "unknown", status: "unavailable" };
@@ -2767,11 +2815,16 @@ function availabilityOf(client, binary, reading, records, now, windowMinutes, wi
   if (exhausted !== void 0) {
     return { installed: true, reason: `at 100% of ${describeWindow(exhausted)}`, signed_in: signedIn, status: "unable_to_start" };
   }
-  const error = recentError(
-    records.filter((record) => record.client === client),
-    now,
-    windowMinutes
+  const mine = records.filter((record) => record.client === client);
+  const standing = standingRefusals(
+    mine.filter((record) => record.reason !== "model-unavailable" && record.unavailable_until !== void 0),
+    now
   );
+  const latest = standing[standing.length - 1];
+  if (latest !== void 0) {
+    return { installed: true, reason: latest.reason, signed_in: signedIn, status: "unavailable" };
+  }
+  const error = recentError(mine, now, windowMinutes);
   if (error !== void 0) {
     return {
       installed: true,
@@ -3118,9 +3171,21 @@ var ModelsCommand = class {
       if (source === void 0 || !installed.has(id) || client.model_source === "declared") continue;
       listings.set(id, await source.list());
     }
-    const listing = listModels(config, installed, listings);
+    const listing = listModels(config, installed, listings, await this.unavailable());
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models);
     return { policy: decision.reason, status: "ok", ...permittedModels(listing, decision) };
+  }
+  /**
+   * The client models this machine cannot run now, as their own answers said:
+   * read from the machine-wide ledger. A ledger the gateway cannot read knows
+   * nothing, so it lists none and the listing still works.
+   */
+  async unavailable() {
+    try {
+      return standingRefusals(runRecords(await this.deps.ledger.read()), this.deps.clock.now());
+    } catch {
+      return [];
+    }
   }
 };
 function readModelsInput(raw) {
@@ -3426,6 +3491,8 @@ var RunCommand = class {
     let result2;
     try {
       result2 = await this.delegate({
+        at: startedAt,
+        startedMs,
         binary: client.binary,
         config,
         entry,
@@ -3525,6 +3592,7 @@ var RunCommand = class {
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output);
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : void 0;
     const reason = finished === void 0 ? delegateReason : finished.reason;
+    const unavailableUntil = delegateReason === "rate-limited" || delegateReason === "model-unavailable" ? namedReset(launched.result, output.error, new Date(run.at.getTime() + (this.deps.clock.monotonicMs() - run.startedMs))) : void 0;
     const cost = priceRun(output.charged, output.tokens, entry?.prices);
     const outputPath = join6(runDir, "output.json");
     await this.deps.files.writeText(outputPath, launched.result.stdout);
@@ -3542,6 +3610,7 @@ var RunCommand = class {
       tokens: output.tokens,
       workflow: input.workflow,
       ...reason === void 0 ? {} : { reason },
+      ...unavailableUntil === void 0 ? {} : { unavailable_until: unavailableUntil.toISOString() },
       ...finished?.report
     };
     return result2;
@@ -3867,6 +3936,7 @@ var RunCommand = class {
       tokens: result2.tokens,
       workflow: result2.workflow,
       ...result2.reason === void 0 ? {} : { reason: result2.reason },
+      ...result2.unavailable_until === void 0 ? {} : { unavailable_until: result2.unavailable_until },
       ...result2.attempt === void 0 ? {} : { attempt: result2.attempt },
       ...result2.attempt_of === void 0 ? {} : { attempt_of: result2.attempt_of },
       ...tag
@@ -4747,12 +4817,16 @@ difficulty tier, capability notes, where the list came from (live, config or
 declared) and what the data policy lets a delegation to it carry. It names
 each client it knows but cannot use, and says in "policy" why the data policy
 listed what it did. Without "repo", or outside any repository, only inline
-content may be sent.
+content may be sent. A client model whose own answer said it cannot run \u2014 the
+quota of the account, which says when it resets, or a model the account
+cannot use \u2014 is not offered: the ledger remembers it until then, and models
+names it in "skipped" with the reason.
 
 usage reports every client it knows: whether it is installed, whether its own
 status command says it is signed in, whether its last run in the availability
-window was rate-limited or refused for its credentials, what it has spent over
-the last "days" days (7 by default) by day and by workflow, what its own plan
+window was rate-limited or refused for its credentials, what answers it
+remembers saying a client model cannot run until the reset each named passes,
+what it has spent over the last "days" days (7 by default) by day and by workflow, what its own plan
 has left ("unknown" where the client reports none), each window of the plan
 limit the machine file sets for it, and what its live reservations hold
 ("reserved_usd" and "reserved_runs"). A client at or above
@@ -4783,7 +4857,11 @@ A delegation that fails does not come straight back: "escalate" (true by
 default; false turns it all off) and "max_attempts" (3 by default) govern it. A
 failed result (a timeout, output that cannot be parsed, a failed check, a
 non-zero exit) is retried once on the same client model with the failure in the
-prompt; a second failure climbs to the next stronger permitted subsidised
+prompt, but an answer that says the client model cannot run \u2014 the account's
+quota, with the reset it names, or a model the account cannot use \u2014 is never
+retried: it is swapped at once, and the gateway remembers it until it is
+usable again, so no later attempt of any delegation starts on it before
+then. A second failure climbs to the next stronger permitted subsidised
 model; and a client that cannot start is
 swapped for another of its cost class at the same tier or above. Each attempt
 is a run of its own, and the result carries "attempts" (run_id, client, model,
