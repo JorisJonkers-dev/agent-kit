@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { fenced, harness, isolatedExport, vibeStdout, type Harness, type VibeScript } from '../../../test/critique/harness.js'
+import { fenced, harness, isolatedExport, vibeStdout, writeFlowState, type Harness, type VibeScript } from '../../../test/critique/harness.js'
 import type { GateResult, PrepareResult } from './index.js'
 
 /**
@@ -25,9 +25,10 @@ const TICKET = '.scratch/widgets/issues/01-session.md'
 const RISKY_PATH = 'src/auth/session.ts'
 
 /** A repository opted in for code with Mistral and GLM, with its ticket committed. */
-async function optedIn(options: Parameters<typeof harness>[0] & { readonly code?: boolean } = {}): Promise<Harness> {
+async function optedIn(options: Parameters<typeof harness>[0] & { readonly code?: boolean; readonly flow?: boolean } = {}): Promise<Harness> {
   const h = await harness(options)
   open.push(h)
+  if (options.flow !== false) await writeFlowState(h)
   await h.commands.allow.run({ code: options.code ?? true, families: ['mistral', 'zhipu'], repo: h.repo })
   await h.writeText(join(h.repo, TICKET), '# 01: Sessions expire\n\n## Acceptance criteria\n\n- [ ] A session expires after a minute.\n')
   await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 1\n')
@@ -294,6 +295,7 @@ describe("the ticket's risk label", () => {
     const issue = { body: 'Copy.', comments: [], labels: ['Risk:High'], number: 5, title: 'Copy', url: 'https://github.com/JorisJonkers-dev/agent-kit/issues/5' }
     const h = await harness({ issues: { 'github.com/jorisjonkers-dev/agent-kit#5': issue }, tracker: 'github' })
     open.push(h)
+    await writeFlowState(h)
     await h.commands.allow.run({ code: true, families: ['mistral', 'zhipu'], repo: h.repo })
     await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
     await h.git.stage()
@@ -709,6 +711,69 @@ describe('a commit that records more than is staged', () => {
     expect(await gate(h, 'git commit --message x -C HEAD')).toMatchObject({ reason: 'reviewed' })
     expect(await gate(h, 'git commit -mx -- ')).toMatchObject({ reason: 'reviewed' })
     expect(await gate(h, 'git commit --include -m x')).toMatchObject({ reason: 'reviewed' })
+  })
+})
+
+describe('where there is no active flow', () => {
+  it('lets a risky unreviewed commit through, a PR and a push to a non-feature branch too', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+
+    expect(await gate(h, 'git commit -m x')).toEqual({ gate: 'commit', line: null, reason: 'no-active-flow', status: 'allowed' })
+    expect(await gate(h, 'gh pr create --fill')).toEqual({ gate: 'pr', line: null, reason: 'no-active-flow', status: 'allowed' })
+    expect(await gate(h, 'git push origin main')).toMatchObject({ gate: 'pr', reason: 'no-active-flow', status: 'allowed' })
+  })
+
+  it('counts a flow still in planning, or of another repository, as no flow', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await writeFlowState(h, { name: 'planning', phase: 'planning' })
+    await writeFlowState(h, { name: 'other', repository: 'github.com/example/other' })
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'notes.txt'), 'not a flow state')
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'no-active-flow', status: 'allowed' })
+  })
+
+  it.each(['implementation', 'finishing'] as const)('still blocks the risky unreviewed commit and the PR while a flow is in %s', async (phase) => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await writeFlowState(h, { phase })
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'unreviewed', status: 'blocked' })
+    expect(await gate(h, 'gh pr create --fill')).toMatchObject({ reason: 'no-feature-review', status: 'blocked' })
+  })
+
+  it('allows and logs when a flow state does not read, since it cannot tell whether a flow is active', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'broken.json'), '{not json')
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ failure: 'unreadable-state', gate: 'commit', reason: 'failed-open', status: 'allowed' })
+  })
+
+  it('lets an active flow of this repository win over a state file that does not read', async () => {
+    const h = await optedIn()
+    await stageRisky(h)
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'a-torn.json'), '{not json')
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'unreviewed', status: 'blocked' })
+  })
+
+  it('still fails open when a state file does not read and no readable one shows an active flow', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'a-torn.json'), '{not json')
+    await writeFlowState(h, { name: 'planning', phase: 'planning' })
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ failure: 'unreadable-state', reason: 'failed-open', status: 'allowed' })
+  })
+
+  it('checks opt-in before it looks for a flow', async () => {
+    const h = await harness()
+    open.push(h)
+    await stageRisky(h)
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'not-opted-in' })
   })
 })
 

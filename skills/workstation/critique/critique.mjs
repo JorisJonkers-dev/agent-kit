@@ -6689,6 +6689,7 @@ async function appendTriageIndex(files, commonDir, record) {
 
 // src/contexts/critique/application/gate.ts
 var GATE_DEADLINE_MS = 700;
+var ACTIVE_PHASES = ["implementation", "finishing"];
 var UnreadableState = class extends Error {
 };
 var GateCommand = class {
@@ -6740,9 +6741,38 @@ var GateCommand = class {
     const entry = allowlist.repositories[repository.key];
     if (entry === void 0) return allowed(gate, "not-opted-in");
     if (!entry.code) return allowed(gate, "code-not-allowed");
+    if (!await this.activeFlow(repository)) return allowed(gate, "no-active-flow");
     if (invocation.kind === "commit") return this.commitGate(repository, invocation.widened);
     if (invocation.kind === "merge") return this.mergeGate(repository, invocation);
     return this.prGate(repository, invocation);
+  }
+  /**
+   * Whether the repository has an active flow: a flow state of this
+   * repository, in the critique folder of the git common directory, whose
+   * phase is implementation or finishing. Planning (no spec, no tickets, or
+   * the spec or ticket critique not recorded) does not count. The state has
+   * no closed or merged phase, so a feature stays active until its state
+   * file is removed. Local files only; a file that does not read is skipped, and counts as unreadable state
+   * (fail open) only when no readable file shows an active flow.
+   */
+  async activeFlow(repository) {
+    const dir = join16(repository.commonDir, "critique", "flows");
+    let unreadable;
+    for (const name of await this.deps.files.listFiles(dir)) {
+      if (!name.endsWith(".json")) continue;
+      const path = join16(dir, name);
+      try {
+        const state = readState(path, await this.deps.files.readText(path), (text) => {
+          const file = JsonFields.parse(text);
+          return { phase: file.oneOf("phase", FLOW_PHASES), repository: file.string("repository") };
+        });
+        if (state.repository === repository.key && ACTIVE_PHASES.includes(state.phase)) return true;
+      } catch (error) {
+        unreadable ??= error;
+      }
+    }
+    if (unreadable !== void 0) throw unreadable;
+    return false;
   }
   async commitGate(repository, widened) {
     const triage = (await this.routing.load()).triage;

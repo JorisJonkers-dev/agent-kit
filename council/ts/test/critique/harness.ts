@@ -1043,6 +1043,19 @@ export interface Harness {
 /** The `critic-<model>` agents setup installs (registry `vibe_critic_agents:`). */
 export const VIBE_CRITIC_AGENTS = ['critic-mistral-large', 'critic-mistral-small', 'critic-glm', 'critic-deepseek-flash'] as const
 
+/**
+ * Writes a flow state for the repository, as the state command keeps it in
+ * the critique folder of the git common directory, so the gates treat the
+ * repository as having an active flow (any phase but planning).
+ */
+export async function writeFlowState(
+  h: Pick<Harness, 'repo' | 'writeText'>,
+  options: { readonly phase?: 'planning' | 'implementation' | 'finishing'; readonly repository?: string; readonly name?: string } = {},
+): Promise<void> {
+  const state = { phase: options.phase ?? 'implementation', repository: options.repository ?? 'github.com/jorisjonkers-dev/agent-kit' }
+  await h.writeText(join(h.repo, '.git', 'critique', 'flows', `${options.name ?? 'widgets'}.json`), `${JSON.stringify(state)}\n`)
+}
+
 export const AGENT_KIT_REMOTE: GitRemote = {
   name: 'origin',
   url: 'git@github.com:JorisJonkers-dev/agent-kit.git',

@@ -12,6 +12,7 @@ import {
   type GateName,
   type GateResult,
 } from '../domain/gate.js'
+import { FLOW_PHASES, type FlowPhase } from '../domain/flow.js'
 import { isJsonObject, JsonFields } from '../domain/json.js'
 import { gatedInvocations, type GatedInvocation, type PushTarget } from '../domain/shell-command.js'
 import { parseTicketReviewRecord, type TicketReviewRecord } from '../domain/ticket-review.js'
@@ -31,6 +32,9 @@ import { triageIndexPath } from './triage-index.js'
  * this the gate stops waiting and allows, whatever it was still reading.
  */
 export const GATE_DEADLINE_MS = 700
+
+/** The flow phases that make a flow active. */
+const ACTIVE_PHASES: readonly FlowPhase[] = ['implementation', 'finishing']
 
 /** A state file the gate relies on could not be read; the gate fails open rather than guess. */
 class UnreadableState extends Error {}
@@ -56,7 +60,8 @@ class UnreadableState extends Error {}
  *   commit it sends says `GATE: PASS`.
  *
  * It does nothing in a repository that is not opted in for code, has a
- * `nedap` remote or none, and under the kill switch. Anything that keeps it
+ * `nedap` remote or none, has no active flow (`activeFlow`), and under the
+ * kill switch. Anything that keeps it
  * from deciding (its own error, a state file it cannot read, its deadline)
  * allows the command and is logged.
  */
@@ -118,9 +123,39 @@ export class GateCommand implements CritiqueCommand<GateResult> {
     const entry = allowlist.repositories[repository.key]
     if (entry === undefined) return allowed(gate, 'not-opted-in')
     if (!entry.code) return allowed(gate, 'code-not-allowed')
+    if (!(await this.activeFlow(repository))) return allowed(gate, 'no-active-flow')
     if (invocation.kind === 'commit') return this.commitGate(repository, invocation.widened)
     if (invocation.kind === 'merge') return this.mergeGate(repository, invocation)
     return this.prGate(repository, invocation)
+  }
+
+  /**
+   * Whether the repository has an active flow: a flow state of this
+   * repository, in the critique folder of the git common directory, whose
+   * phase is implementation or finishing. Planning (no spec, no tickets, or
+   * the spec or ticket critique not recorded) does not count. The state has
+   * no closed or merged phase, so a feature stays active until its state
+   * file is removed. Local files only; a file that does not read is skipped, and counts as unreadable state
+   * (fail open) only when no readable file shows an active flow.
+   */
+  private async activeFlow(repository: ResolvedRepository): Promise<boolean> {
+    const dir = join(repository.commonDir, 'critique', 'flows')
+    let unreadable: UnreadableState | undefined
+    for (const name of await this.deps.files.listFiles(dir)) {
+      if (!name.endsWith('.json')) continue
+      const path = join(dir, name)
+      try {
+        const state = readState(path, await this.deps.files.readText(path), (text) => {
+          const file = JsonFields.parse(text)
+          return { phase: file.oneOf('phase', FLOW_PHASES), repository: file.string('repository') }
+        })
+        if (state.repository === repository.key && ACTIVE_PHASES.includes(state.phase)) return true
+      } catch (error) {
+        unreadable ??= error as UnreadableState
+      }
+    }
+    if (unreadable !== undefined) throw unreadable
+    return false
   }
 
   private async commitGate(repository: ResolvedRepository, widened: 'none' | 'tracked' | 'untracked'): Promise<GateResult> {
