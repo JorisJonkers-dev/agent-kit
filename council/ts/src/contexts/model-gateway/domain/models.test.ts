@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseDefaults, type GatewayConfig } from './config.js'
+import { parseDefaults, type ClientConfig, type GatewayConfig } from './config.js'
 import {
   familyOf,
   familyOfModelId,
@@ -11,6 +11,7 @@ import {
   parseOpenCodeModels,
   vibeModels,
   type ClientListing,
+  type ListedModel,
 } from './models.js'
 
 /** Two declared clients, one live, one configured and one live with providers, with models for each. */
@@ -55,6 +56,18 @@ function listings(entries: Readonly<Record<string, ClientListing>> = {}): Readon
   return new Map(Object.entries(entries))
 }
 
+/** The configuration with one client's settings changed. */
+function withClient(base: GatewayConfig, id: string, patch: Partial<ClientConfig>): GatewayConfig {
+  const client = base.clients[id]
+  if (client === undefined) throw new Error(`no client ${id}`)
+  return { ...base, clients: { ...base.clients, [id]: { ...client, ...patch } } }
+}
+
+/** The Vibe models its configuration declared, leaving the catalogue's built-ins aside. */
+function fromConfig(gateway: GatewayConfig, listed: ReadonlyMap<string, ClientListing>): readonly ListedModel[] {
+  return listModels(gateway, new Set(['vibe']), listed).models.filter((entry) => entry.source === 'config')
+}
+
 describe('listModels', () => {
   it('lists a model a listing names twice once', () => {
     const listed = listings({ opencode: { models: [{ model: 'opencode-go/glm-5.3', provider: 'opencode-go' }, { model: 'opencode-go/glm-5.3', provider: 'opencode-go' }] } })
@@ -65,7 +78,7 @@ describe('listModels', () => {
   it('lists a configured Vibe GLM model the catalogue does not know', () => {
     const listed = listings({ vibe: { models: [{ model: 'zai-glm-6' }] } })
 
-    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.family])).toEqual([['zai-glm-6', 'zhipu']])
+    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.family])).toEqual([['zai-glm-6', 'zhipu']])
   })
 
   it('lists the declared models of an installed client with its cost class and source', () => {
@@ -177,13 +190,12 @@ describe('listModels', () => {
         models: [
           { model: 'opencode-go/glm-5.3', provider: 'opencode-go' },
           { model: 'other/gemini-4-argon', provider: 'other' },
-          { model: 'gemini-4-argon' },
         ],
       },
     })
+    const named = withClient(config(), 'opencode', { providers: ['opencode-go', 'other'] })
 
-    expect(listModels(config(), new Set(['opencode']), listed).models.map((entry) => [entry.model, entry.cost_class])).toEqual([
-      ['gemini-4-argon', 'metered-personal'],
+    expect(listModels(named, new Set(['opencode']), listed).models.map((entry) => [entry.model, entry.cost_class])).toEqual([
       ['opencode-go/glm-5.3', 'subsidised'],
       ['other/gemini-4-argon', 'metered-personal'],
     ])
@@ -192,7 +204,7 @@ describe('listModels', () => {
   it('lists a configured client by the aliases its configuration declares, marked config', () => {
     const listed = listings({ vibe: { models: [{ model: 'mistral-large-latest' }, { model: 'mistral-medium-4-1' }] } })
 
-    expect(listModels(config(), new Set(['vibe']), listed).models).toEqual([
+    expect(fromConfig(config(), listed)).toEqual([
       {
         client: 'vibe',
         cost_class: 'subsidised',
@@ -217,7 +229,7 @@ describe('listModels', () => {
   it('joins a Vibe model to the catalogue on its config name and lists it once, by its alias', () => {
     const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }, { model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
 
-    expect(listModels(config(), new Set(['vibe']), listed).models).toEqual([
+    expect(fromConfig(config(), listed)).toEqual([
       {
         client: 'vibe',
         cost_class: 'subsidised',
@@ -233,7 +245,7 @@ describe('listModels', () => {
   it('joins a Vibe model on its name when its alias is not the catalogue id', () => {
     const listed = listings({ vibe: { models: [{ model: 'large', names: ['mistral-large-4-0'] }] } })
 
-    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.tier, entry.notes])).toEqual([
+    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.tier, entry.notes])).toEqual([
       ['large', 'hard', 'broad'],
     ])
   })
@@ -241,13 +253,13 @@ describe('listModels', () => {
   it('joins a Vibe model on an alias the catalogue lists among its names', () => {
     const listed = listings({ vibe: { models: [{ model: 'zai-glm-5-3' }] } })
 
-    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.tier])).toEqual([['zai-glm-5-3', 'hard']])
+    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.tier])).toEqual([['zai-glm-5-3', 'hard']])
   })
 
   it('lists a Vibe model whose alias and names both miss the catalogue with no tier, its family from its name', () => {
     const listed = listings({ vibe: { models: [{ model: 'fast', names: ['mistral-medium-4-1'] }] } })
 
-    expect(listModels(config(), new Set(['vibe']), listed).models.map((entry) => [entry.model, entry.family, entry.tier, entry.notes])).toEqual([
+    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.family, entry.tier, entry.notes])).toEqual([
       ['fast', 'mistral', null, ''],
     ])
   })
@@ -263,15 +275,15 @@ describe('listModels', () => {
     const byAlias = { ...config(), disabled: [modelKey('vibe', 'glm-5-3')] }
     const byName = { ...config(), disabled: [modelKey('vibe', 'mistral-large-latest')] }
 
-    expect(listModels(byAlias, new Set(['vibe']), listed).models.map((entry) => entry.model)).toEqual(['mistral-large-latest'])
-    expect(listModels(byName, new Set(['vibe']), listed).models.map((entry) => entry.model)).toEqual(['glm-5-3'])
+    expect(fromConfig(byAlias, listed).map((entry) => entry.model)).toEqual(['mistral-large-latest'])
+    expect(fromConfig(byName, listed).map((entry) => entry.model)).toEqual(['glm-5-3'])
   })
 
   it('leaves out a Vibe model whose recorded catalogue name the override disabled', () => {
     const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
     const disabled = { ...config(), disabled: [modelKey('vibe', 'zai-glm-5-3')] }
 
-    expect(listModels(disabled, new Set(['vibe']), listed).models).toEqual([])
+    expect(fromConfig(disabled, listed)).toEqual([])
   })
 
   it('leaves out a model the override disabled', () => {
@@ -444,5 +456,144 @@ alias = "glm-5-3"
 describe('modelKey', () => {
   it('joins a client and a model id the way the disabled list names them', () => {
     expect(modelKey('codex', 'gpt-5.5')).toBe('codex:gpt-5.5')
+  })
+})
+
+describe('listModels: Vibe built-in models', () => {
+  const installed = new Set(['vibe'])
+
+  it('lists the catalogue entries, marked declared, when the configuration declares nothing', () => {
+    const listing = listModels(config(), installed, listings({ vibe: { models: [] } }))
+
+    expect(listing.models.map((entry) => [entry.model, entry.source, entry.tier])).toEqual([
+      ['glm-5-3', 'declared', 'hard'],
+      ['mistral-large-latest', 'declared', 'hard'],
+    ])
+    expect(listing.models[0]).toMatchObject({ client: 'vibe', cost_class: 'subsidised', family: 'zhipu', notes: 'review' })
+  })
+
+  it('lists a model the configuration declares once, marked config, and the rest declared', () => {
+    const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
+
+    expect(listModels(config(), installed, listed).models.map((entry) => [entry.model, entry.source])).toEqual([
+      ['glm-5-3', 'config'],
+      ['mistral-large-latest', 'declared'],
+    ])
+  })
+
+  it('lists a configured alias that names a catalogue entry once, under the alias', () => {
+    const listed = listings({ vibe: { models: [{ model: 'large', names: ['mistral-large-4-0'] }] } })
+
+    expect(listModels(config(), installed, listed).models.map((entry) => [entry.model, entry.source])).toEqual([
+      ['glm-5-3', 'declared'],
+      ['large', 'config'],
+    ])
+  })
+
+  it('does not bring back a catalogue entry whose configured model the override disabled', () => {
+    const listed = listings({ vibe: { models: [{ model: 'large', names: ['mistral-large-4-0'] }] } })
+    const disabled = { ...config(), disabled: [modelKey('vibe', 'large')] }
+
+    expect(listModels(disabled, installed, listed).models.map((entry) => entry.model)).toEqual(['glm-5-3'])
+  })
+
+  it('leaves out a catalogue entry the override disabled', () => {
+    const disabled = { ...config(), disabled: [modelKey('vibe', 'zai-glm-5-3')] }
+
+    expect(listModels(disabled, installed, listings({ vibe: { models: [] } })).models.map((entry) => entry.model)).toEqual([
+      'mistral-large-latest',
+    ])
+  })
+
+  it('lists the catalogue entries for Vibe when its configuration cannot be read, and still reports the reason', () => {
+    const listing = listModels(config(), installed, listings({ vibe: { reason: 'no configuration' } }))
+
+    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([
+      ['glm-5-3', 'declared'],
+      ['mistral-large-latest', 'declared'],
+    ])
+    expect(listing.missing.filter((entry) => entry.client === 'vibe')).toEqual([{ client: 'vibe', reason: 'no configuration' }])
+  })
+
+  it('lists no model for a client without built-in models when its listing cannot be read', () => {
+    const listing = listModels(config(), new Set(['agy']), listings({ agy: { reason: 'listing failed' } }))
+
+    expect(listing.models).toEqual([])
+    expect(listing.missing.filter((entry) => entry.client === 'agy')).toEqual([{ client: 'agy', reason: 'listing failed' }])
+  })
+
+  it('applies the client family restriction to the built-in models', () => {
+    const restricted = withClient(config(), 'vibe', { families: ['mistral'] })
+
+    expect(listModels(restricted, installed, listings({ vibe: { models: [] } })).models.map((entry) => entry.model)).toEqual([
+      'mistral-large-latest',
+    ])
+  })
+
+  it('leaves out a configured model of a barred family without hiding or leaking its catalogue entry', () => {
+    const restricted = withClient(config(), 'vibe', { families: ['mistral'] })
+    const gateway = {
+      ...restricted,
+      models: [...restricted.models, { client: 'vibe', family: 'zhipu', model: 'glm-5-3-extra', notes: 'x', tier: 'hard' as const }],
+    }
+    const listing = listModels(gateway, installed, listings({ vibe: { models: [{ model: 'glm', names: ['zai-glm-5-3'] }] } }))
+
+    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([['mistral-large-latest', 'declared']])
+    expect(listing.skipped).toEqual([])
+  })
+
+  it('lists no catalogue entry for a configured client that has no built-in models, Hermes included', () => {
+    const base = withClient(config(), 'hermes', { model_source: 'config' })
+    const hermes = {
+      ...base,
+      models: [...base.models, { client: 'hermes', family: 'anthropic', model: 'claude-sonnet-5-5', notes: 'x', tier: 'hard' as const }],
+    }
+
+    const listing = listModels(hermes, new Set(['hermes']), listings({ hermes: { models: [{ model: 'gpt-5.5' }] } }))
+
+    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([['gpt-5.5', 'config']])
+  })
+})
+
+describe('listModels: OpenCode providers', () => {
+  const installed = new Set(['opencode'])
+  const mixed = {
+    models: [
+      { model: 'opencode-go/glm-5.3', provider: 'opencode-go' },
+      { model: 'opencode/glm-5.3', provider: 'opencode' },
+      { model: 'other/gemini-4-argon', provider: 'other' },
+      { model: 'openrouter/hy3', provider: 'openrouter' },
+    ],
+  }
+
+  it('lists only the models of the default opencode-go provider, and drops the rest without a trace', () => {
+    const listing = listModels(config(), installed, listings({ opencode: mixed }))
+
+    expect(listing.models.map((entry) => entry.model)).toEqual(['opencode-go/glm-5.3'])
+    expect(listing.skipped).toEqual([])
+    expect(listing.missing.filter((entry) => entry.client === 'opencode')).toEqual([])
+  })
+
+  it('lists the models of every provider the client names, but never the pay-per-token opencode provider', () => {
+    const named = withClient(config(), 'opencode', { providers: ['opencode-go', 'other', 'opencode'] })
+
+    expect(listModels(named, installed, listings({ opencode: mixed })).models.map((entry) => entry.model)).toEqual([
+      'opencode-go/glm-5.3',
+      'other/gemini-4-argon',
+    ])
+  })
+
+  it('drops an OpenCode model that names no provider', () => {
+    const listed = listings({ opencode: { models: [{ model: 'glm-5.3' }] } })
+
+    expect(listModels(config(), installed, listed).models).toEqual([])
+  })
+
+  it('lists an OpenCode model whose provider only its id names, as a run accepts it', () => {
+    const listed = listings({ opencode: { models: [{ model: 'opencode-go/glm-5.3' }] } })
+
+    expect(listModels(config(), installed, listed).models.map((entry) => [entry.model, entry.cost_class])).toEqual([
+      ['opencode-go/glm-5.3', 'subsidised'],
+    ])
   })
 })

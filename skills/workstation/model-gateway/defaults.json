@@ -17,7 +17,16 @@
     {"client": "vibe",   "model": "glm-5-3",           "names": ["zai-glm-5-3"],         "family": "zhipu",     "tier": "hard",     "notes": "Strong code review and integration reasoning.", "prices": {"input": 1.4, "cached_input": 0.14, "output": 4.4}},
     {"client": "vibe",   "model": "mistral-large-latest", "names": ["mistral-large-4-0"], "family": "mistral",   "tier": "hard",     "notes": "Broad general model.", "prices": {"input": 0.7, "cached_input": 0.07, "output": 2.1}},
     {"client": "vibe",   "model": "mistral-small-latest", "names": ["mistral-small-latest"], "family": "mistral", "tier": "trivial", "notes": "Very cheap; short summaries and classification.", "prices": {"input": 0.15, "cached_input": 0.015, "output": 0.6}},
-    {"client": "agy",    "model": "gemini-3.8-flash-high", "family": "google", "tier": "hard",    "notes": "Long context; reading large codebases and documents."}
+    {"client": "agy",    "model": "gemini-3.8-flash-high", "family": "google", "tier": "hard",    "notes": "Long context; reading large codebases and documents."},
+    {"client": "agy",    "model": "gemini-3.8-flash-medium", "family": "google", "tier": "routine", "notes": "Fast long-context reader; summaries and well-specified edits."},
+    {"client": "agy",    "model": "gemini-3.8-flash-low", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries, classification and lookups."},
+    {"client": "opencode", "model": "opencode-go/glm-5.3", "family": "zhipu", "tier": "hard", "notes": "Strong code review and integration reasoning on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/deepseek-v4-pro", "family": "deepseek", "tier": "hard", "notes": "Strong coding and reasoning; larger DeepSeek on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/qwen3.8-max", "family": "alibaba", "tier": "hard", "notes": "Strongest Qwen; multi-file changes and analysis on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/kimi-k3.1-pro", "family": "moonshot", "tier": "hard", "notes": "Strong agentic coding and long-context work on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; well-specified code changes on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/glm-5.3-flash", "family": "zhipu", "tier": "routine", "notes": "Fast GLM; mechanical edits and review of small diffs on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries on OpenCode Go."}
   ],
   "settings": {
     "plan_warning_ratio": 0.8,

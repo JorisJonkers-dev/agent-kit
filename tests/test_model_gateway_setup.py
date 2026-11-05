@@ -105,6 +105,15 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("vibe", "mistral-large-latest", "mistral", "hard"),
         ("vibe", "mistral-small-latest", "mistral", "trivial"),
         ("agy", "gemini-3.8-flash-high", "google", "hard"),
+        ("agy", "gemini-3.8-flash-medium", "google", "routine"),
+        ("agy", "gemini-3.8-flash-low", "google", "trivial"),
+        ("opencode", "opencode-go/glm-5.3", "zhipu", "hard"),
+        ("opencode", "opencode-go/deepseek-v4-pro", "deepseek", "hard"),
+        ("opencode", "opencode-go/qwen3.8-max", "alibaba", "hard"),
+        ("opencode", "opencode-go/kimi-k3.1-pro", "moonshot", "hard"),
+        ("opencode", "opencode-go/deepseek-v4.1-flash", "deepseek", "routine"),
+        ("opencode", "opencode-go/glm-5.3-flash", "zhipu", "routine"),
+        ("opencode", "opencode-go/qwen3.8-flash", "alibaba", "routine"),
     ]
     assert all(m["notes"].strip() for m in models)
 

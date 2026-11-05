@@ -132,7 +132,9 @@ async function batchWorkspace(options: BatchOptions = {}): Promise<BatchWorkspac
   const repo = join(dir, 'repo')
   await mkdir(repo, { recursive: true })
   const defaults = join(dir, 'defaults.json')
-  await writeFile(defaults, await readFile(SHIPPED_DEFAULTS, 'utf8'))
+  const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as { models: { client: string }[] }
+  // The batch tests are written against the Vibe, Claude, Antigravity and Codex catalogue; an OpenCode Go model would join every stand-in pool.
+  await writeFile(defaults, JSON.stringify({ ...shipped, models: shipped.models.filter((entry) => entry.client !== 'opencode') }))
   const routingPath = join(dir, 'routing.json')
   await writeFile(routingPath, JSON.stringify({ clients: {} }))
   const write = async (path: string, value: unknown): Promise<void> => {

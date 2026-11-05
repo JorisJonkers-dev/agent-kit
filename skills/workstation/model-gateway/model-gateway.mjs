@@ -608,6 +608,9 @@ function openCodeProvider(model) {
   const slash = model.indexOf("/");
   return slash <= 0 || slash === model.length - 1 ? void 0 : model.slice(0, slash);
 }
+function isProviderAllowed(provider, allowed2) {
+  return provider !== void 0 && !PAY_PER_TOKEN_PROVIDERS.includes(provider) && (allowed2 ?? DEFAULT_OPENCODE_PROVIDERS).includes(provider);
+}
 function requireAllowedProvider(model, allowed2) {
   const providers = allowed2 ?? DEFAULT_OPENCODE_PROVIDERS;
   const provider = openCodeProvider(model);
@@ -617,7 +620,7 @@ function requireAllowedProvider(model, allowed2) {
       `${model}: an OpenCode model is named <provider>/<model>, and the allowed providers are ${providers.join(", ")}`
     );
   }
-  if (PAY_PER_TOKEN_PROVIDERS.includes(provider) || !providers.includes(provider)) {
+  if (!isProviderAllowed(provider, allowed2)) {
     throw new ModelGatewayError(
       "provider-not-allowed",
       `${model}: the provider ${provider} is not allowed (clients.opencode.providers: ${providers.join(", ")}), and OpenCode\u2019s pay-per-token models are never reached`
@@ -1095,49 +1098,59 @@ function listModels(config, installed, listings) {
     if (listing === void 0) continue;
     if ("reason" in listing) {
       missing.push({ client: id, reason: listing.reason });
+      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client));
       continue;
     }
     const listed = listedModels(config, id, client, listing.models);
     models.push(...listed.models);
     skipped.push(...listed.skipped);
+    if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched));
   }
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
   missing.sort((left, right) => compare(left.client, right.client));
   skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
   return { models, missing, skipped };
 }
-function catalogueModels(config, id, client) {
-  return config.models.filter((entry) => entry.client === id && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))).map((entry) => ({
+var BUILT_IN_MODEL_CLIENTS = ["vibe"];
+function catalogueModels(config, id, client, except = /* @__PURE__ */ new Set()) {
+  return config.models.filter(
+    (entry) => entry.client === id && !except.has(entry) && (client.families === void 0 || client.families.includes(entry.family)) && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))
+  ).map((entry) => ({
     client: id,
     cost_class: client.cost_class,
     family: entry.family,
     model: entry.model,
     notes: entry.notes,
-    source: client.model_source,
+    source: "declared",
     tier: entry.tier
   }));
 }
 function listedModels(config, id, client, listed) {
   const models = [];
   const skipped = [];
+  const matched = /* @__PURE__ */ new Set();
   const seen = /* @__PURE__ */ new Set();
   for (const { model, names = [], provider } of listed) {
     if (seen.has(model)) continue;
     seen.add(model);
+    const runsOn = id === "opencode" ? provider ?? openCodeProvider(model) : provider;
+    if (id === "opencode" && !isProviderAllowed(runsOn, client.providers)) continue;
     const known = [model, ...names];
     const entry = config.models.find(
       (candidate) => candidate.client === id && [candidate.model, ...candidate.names ?? []].some((name) => known.includes(name))
     );
-    if ([model, entry?.model, ...entry?.names ?? []].some((key) => key !== void 0 && config.disabled.includes(modelKey(id, key)))) continue;
     const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== void 0);
+    const barred = family !== void 0 && client.families !== void 0 && !client.families.includes(family);
+    if (entry !== void 0 && !barred) matched.add(entry);
+    if ([model, entry?.model, ...entry?.names ?? []].some((key) => key !== void 0 && config.disabled.includes(modelKey(id, key)))) continue;
     if (family === void 0) {
       skipped.push({ client: id, model, reason: FAMILY_UNKNOWN });
       continue;
     }
-    if (client.families !== void 0 && !client.families.includes(family)) continue;
+    if (barred) continue;
     models.push({
       client: id,
-      cost_class: costClassFor(client, provider),
+      cost_class: costClassFor(client, runsOn),
       family,
       model,
       notes: entry?.notes ?? "",
@@ -1145,7 +1158,7 @@ function listedModels(config, id, client, listed) {
       tier: entry?.tier ?? null
     });
   }
-  return { models, skipped };
+  return { matched, models, skipped };
 }
 var FAMILY_UNKNOWN = "family unknown: add it to the catalogue in defaults.json or the machine override";
 function modelPart(model) {
@@ -1234,7 +1247,7 @@ function candidatePool(config, input, permissions, granted) {
     if ([entry.model, ...entry.names ?? []].some((name) => config.disabled.includes(modelKey(entry.client, name)))) continue;
     const named = PROVIDER_CLIENTS.includes(entry.client);
     if (named && (entry.client !== input.client || input.provider === void 0)) continue;
-    if (entry.client === "opencode" && !providerAllowed(entry.model, client.providers)) continue;
+    if (entry.client === "opencode" && !isProviderAllowed(openCodeProvider(entry.model), client.providers)) continue;
     const provider = named ? input.provider : entry.client === "opencode" ? openCodeProvider(entry.model) : void 0;
     const costClass = costClassFor(client, provider);
     if (costClass === "metered-employer" && !granted.has(entry.client)) continue;
@@ -1248,14 +1261,6 @@ function candidatePool(config, input, permissions, granted) {
     });
   }
   return pool;
-}
-function providerAllowed(model, allowed2) {
-  try {
-    requireAllowedProvider(model, allowed2);
-    return true;
-  } catch {
-    return false;
-  }
 }
 function carries(permission2, input) {
   if (!permission2.permitted) return false;

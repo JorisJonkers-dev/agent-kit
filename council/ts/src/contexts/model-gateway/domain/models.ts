@@ -1,5 +1,6 @@
 import { readToml } from '../../../shared-kernel/toml.js'
-import { isObject, type ClientConfig, type CostClass, type GatewayConfig, type ModelSource, type Tier } from './config.js'
+import { isObject, type ClientConfig, type CostClass, type GatewayConfig, type ModelEntry, type ModelSource, type Tier } from './config.js'
+import { isProviderAllowed, openCodeProvider } from './run.js'
 
 /** One model the gateway can list now, with where its list came from. */
 export interface ListedModel {
@@ -160,7 +161,7 @@ export function vibeModels(toml: string): readonly ClientModel[] {
  * whatever its model source. A declared client lists its catalogue entries. A
  * client whose models come from itself or from its configuration lists what
  * `listings` holds for it, joined to the catalogue; a listing that failed is
- * named in `missing` with its reason, and a client the gateway has no listing
+ * named in `missing` with its reason (Vibe still lists its catalogue entries), and a client the gateway has no listing
  * for lists nothing and is not reported missing.
  */
 export function listModels(
@@ -184,11 +185,13 @@ export function listModels(
     if (listing === undefined) continue
     if ('reason' in listing) {
       missing.push({ client: id, reason: listing.reason })
+      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client))
       continue
     }
     const listed = listedModels(config, id, client, listing.models)
     models.push(...listed.models)
     skipped.push(...listed.skipped)
+    if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched))
   }
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
   missing.sort((left, right) => compare(left.client, right.client))
@@ -196,17 +199,40 @@ export function listModels(
   return { models, missing, skipped }
 }
 
-/** The models a declared client offers, as the catalogue describes them. */
-function catalogueModels(config: GatewayConfig, id: string, client: ClientConfig): readonly ListedModel[] {
+/**
+ * The clients that offer models of their own beside the ones their
+ * configuration declares: Vibe's built-ins, which `config.toml` does not
+ * name, are the catalogue's entries for it. Hermes has none; its catalogue
+ * entries only describe the model its configuration names.
+ */
+const BUILT_IN_MODEL_CLIENTS: readonly string[] = ['vibe']
+
+/**
+ * The models a client offers as the catalogue describes them, marked
+ * `declared`; a catalogue entry in `except` is already listed from the
+ * client's own source, which wins, so it is not listed twice.
+ */
+function catalogueModels(
+  config: GatewayConfig,
+  id: string,
+  client: ClientConfig,
+  except: ReadonlySet<ModelEntry> = new Set(),
+): readonly ListedModel[] {
   return config.models
-    .filter((entry) => entry.client === id && ![entry.model, ...(entry.names ?? [])].some((key) => config.disabled.includes(modelKey(id, key))))
+    .filter(
+      (entry) =>
+        entry.client === id &&
+        !except.has(entry) &&
+        (client.families === undefined || client.families.includes(entry.family)) &&
+        ![entry.model, ...(entry.names ?? [])].some((key) => config.disabled.includes(modelKey(id, key))),
+    )
     .map((entry) => ({
       client: id,
       cost_class: client.cost_class,
       family: entry.family,
       model: entry.model,
       notes: entry.notes,
-      source: client.model_source,
+      source: 'declared',
       tier: entry.tier,
     }))
 }
@@ -219,34 +245,48 @@ function catalogueModels(config: GatewayConfig, id: string, client: ClientConfig
  * its id or names and no tier. A model is listed by the id the client
  * accepts, never by a name. A model a listing names twice is listed once. A model of a family
  * the client may not reach is left out; one whose family the gateway cannot
- * work out is reported in `skipped`, so it never vanishes silently.
+ * work out is reported in `skipped`, so it never vanishes silently. OpenCode
+ * models of a provider the client's `providers` allowlist (else `opencode-go`)
+ * does not name, and its pay-per-token ones, are dropped without a trace: no
+ * run could reach them.
  */
 function listedModels(
   config: GatewayConfig,
   id: string,
   client: ClientConfig,
   listed: readonly ClientModel[],
-): { readonly models: readonly ListedModel[]; readonly skipped: readonly SkippedModel[] } {
+): {
+  readonly models: readonly ListedModel[]
+  readonly skipped: readonly SkippedModel[]
+  /** The catalogue entries a listed model joined to, whether or not it was then offered. */
+  readonly matched: ReadonlySet<ModelEntry>
+} {
   const models: ListedModel[] = []
   const skipped: SkippedModel[] = []
+  const matched = new Set<ModelEntry>()
   const seen = new Set<string>()
   for (const { model, names = [], provider } of listed) {
     if (seen.has(model)) continue
     seen.add(model)
+    const runsOn = id === 'opencode' ? (provider ?? openCodeProvider(model)) : provider
+    if (id === 'opencode' && !isProviderAllowed(runsOn, client.providers)) continue
     const known = [model, ...names]
     const entry = config.models.find(
       (candidate) => candidate.client === id && [candidate.model, ...(candidate.names ?? [])].some((name) => known.includes(name)),
     )
-    if ([model, entry?.model, ...(entry?.names ?? [])].some((key) => key !== undefined && config.disabled.includes(modelKey(id, key)))) continue
     const family = entry?.family ?? known.map((name) => familyOf(modelPart(name))).find((found) => found !== undefined)
+    const barred = family !== undefined && client.families !== undefined && !client.families.includes(family)
+    // A model of a barred family leaves its catalogue entry to the family restriction, which drops it too.
+    if (entry !== undefined && !barred) matched.add(entry)
+    if ([model, entry?.model, ...(entry?.names ?? [])].some((key) => key !== undefined && config.disabled.includes(modelKey(id, key)))) continue
     if (family === undefined) {
       skipped.push({ client: id, model, reason: FAMILY_UNKNOWN })
       continue
     }
-    if (client.families !== undefined && !client.families.includes(family)) continue
+    if (barred) continue
     models.push({
       client: id,
-      cost_class: costClassFor(client, provider),
+      cost_class: costClassFor(client, runsOn),
       family,
       model,
       notes: entry?.notes ?? '',
@@ -254,7 +294,7 @@ function listedModels(
       tier: entry?.tier ?? null,
     })
   }
-  return { models, skipped }
+  return { matched, models, skipped }
 }
 
 /** Why a listed model is not offered: nobody has said which family it belongs to. */
