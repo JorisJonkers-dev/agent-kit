@@ -159,11 +159,13 @@ function vibeEnv(extras: LaunchExtras | undefined, workDir: string): Readonly<Re
 }
 
 /**
- * Vibe: the wrapped prompt from a file, the client model by the alias `models`
- * lists, the agent the caller names (the read-only one, or the writing one for
- * a writing run), the tools the caller allows, and Vibe's own time and price
- * limits. The model is always named, so a run whose agent file names another
- * one still runs the model the policy checked and the ledger records. Every
+ * Vibe: the wrapped prompt from a file, the agent the caller names (the
+ * read-only one, or the writing one for a writing run), the tools the caller
+ * allows, and Vibe's own time and price limits. A run that names no agent also
+ * names the client model by the alias `models` lists. A run that names an
+ * agent leaves the model to that agent's file: Vibe refuses `--model` beside an
+ * agent that pins one, so the policy check and the ledger line carry the model
+ * the routing named, and the agent file is what runs it. Every
  * launch is the read-only profile: `MISTRAL_API_KEY` and `VIBE_HOME` unset,
  * MCP, subagents and the project's `AGENTS.md` pointer off, and nothing
  * outside the workdir.
@@ -175,8 +177,7 @@ const vibe: ClientLauncher = {
       binary,
       '--prompt-file',
       paths.promptPath,
-      '--model',
-      input.model,
+      ...(extras?.agent === undefined ? ['--model', input.model] : []),
       '--agent',
       extras?.agent ?? (input.mode === 'write' ? WRITE_AGENT : READ_ONLY_AGENT),
       '--trust',

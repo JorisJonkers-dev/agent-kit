@@ -114,14 +114,25 @@ describe('the gateway launch path, for a caller inside this process', () => {
     })
   })
 
-  it('names the model the caller asked for even when an agent names one too', async () => {
+  it('leaves the model to the agent a caller names, since the agent’s file pins one and Vibe refuses a second', async () => {
     const w = await workspace([{ stdout: '{"type":"assistant","content":"fine"}\n' }])
 
     await w.run.launch(w.request({ extras: { agent: 'critic-glm' } }))
 
     const [command] = w.process.commands
-    expect(flag(command, '--model')).toBe('glm-5-3')
+    expect(command?.args).not.toContain('--model')
+    expect(command?.args).not.toContain('glm-5-3')
     expect(flag(command, '--agent')).toBe('critic-glm')
+  })
+
+  it('still names the model the run was checked for, beside the read-only agent, when no agent is named', async () => {
+    const w = await workspace([{ stdout: '{"type":"assistant","content":"fine"}\n' }])
+
+    await w.run.launch(w.request({ extras: { tools: ['read_file'] } }))
+
+    const [command] = w.process.commands
+    expect(flag(command, '--model')).toBe('glm-5-3')
+    expect(flag(command, '--agent')).toBe('delegate-readonly')
   })
 
   it('leaves the home’s servers alone when the caller does not switch them off', async () => {
