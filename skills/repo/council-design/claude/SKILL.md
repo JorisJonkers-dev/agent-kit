@@ -1,6 +1,7 @@
 ---
 name: council-design
 description: Produce or refine a council-ready design, consolidated plan, and parallel task DAG. Use when Claude needs to turn a clear brief into bounded chunks with dependencies, validation, and model assignments before execution.
+disable-model-invocation: true
 ---
 
 # Council Design

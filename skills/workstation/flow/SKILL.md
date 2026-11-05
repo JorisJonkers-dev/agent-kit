@@ -1,6 +1,7 @@
 ---
 name: flow
 description: Use when the owner asks how the critique pipeline works, what to do next in it, or to set it up or check its budget. Says where the current feature stands and names the single next step.
+disable-model-invocation: true
 ---
 
 # flow

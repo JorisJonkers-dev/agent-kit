@@ -1,6 +1,7 @@
 ---
 name: review-feature
 description: Use after every ticket of a spec has landed on its feature branch and before the PR. Critics from two other model families review the whole feature diff read-only; each finding you accept becomes a follow-up ticket, and the report opens with a PASS or FAIL gate line.
+disable-model-invocation: true
 ---
 
 # review-feature

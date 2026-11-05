@@ -1,6 +1,7 @@
 ---
 name: council-triage
 description: Decide whether work belongs in a normal session, a council split skill, or a full council run. Use when Claude needs to classify scope, risk, decomposition, model mix, or next council action before spending multi-agent budget.
+disable-model-invocation: true
 ---
 
 # Council Triage

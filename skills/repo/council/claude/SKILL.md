@@ -1,6 +1,7 @@
 ---
 name: council
 description: Orchestrate a large, decomposable problem across Claude and Codex with triage, cross-model planning, grill, design checkpoint, guarded fan-out, review council, and resumable status/tail. Use for big parallelizable work; NOT for small or tightly-coupled/sequential changes.
+disable-model-invocation: true
 ---
 
 # council
