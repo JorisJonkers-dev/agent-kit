@@ -4669,6 +4669,22 @@ function oneRunADay(client: string): unknown {
 const RATE_LIMITED: VibeScript = { exitCode: 1, stderr: '429 Too Many Requests', stdout: '' }
 const EXITS_1: VibeScript = { exitCode: 1, stderr: 'boom: the tests did not pass', stdout: '' }
 
+/** What an Antigravity answers when the account's own quota is spent: its own error, with the reset it names. */
+const AGY_QUOTA: VibeScript = {
+  exitCode: 3,
+  stdout: agyResult('', {
+    error: { code: 'RESOURCE_EXHAUSTED', message: 'Individual quota reached. Resets in 29h2m9s', retryable: true },
+    status: 'ERROR',
+  }),
+}
+
+/** What OpenCode Go answers for a model the account may not use, hosted in a region its plan does not cover. */
+const OPENCODE_REGION: VibeScript = {
+  exitCode: 1,
+  stderr: 'This Go model is hosted outside Europe and the United States. Select Global for models hosted outside this region.',
+  stdout: '',
+}
+
 describe('model-gateway run: fall-through', () => {
   it('swaps a client whose plan window is spent for another permitted client model of its cost class that covers the tier', async () => {
     const w = await escalating({ override: oneRunADay('vibe'), scripts: [CLAUDE_SUCCEEDS] })
@@ -4723,6 +4739,167 @@ describe('model-gateway run: fall-through', () => {
       { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
     ])
     expect(binariesOf(w.vibe.commands)).toEqual(['vibe', 'claude'])
+  })
+
+  it('runs a quota-exhausted answer once, without retrying it, and falls through at once', async () => {
+    const w = await escalating({
+      scripts: [AGY_QUOTA, CLAUDE_SUCCEEDS],
+      setupResults: AGY_PROVEN,
+    })
+
+    const result = await w.run(delegation(w, { client: 'agy', model: 'gemini-3.8-flash-high' }))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(attemptsOf(result)).toMatchObject([
+      { client: 'agy', model: 'gemini-3.8-flash-high', reason: 'rate-limited', status: 'failed' },
+      { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
+    ])
+    expect(printed(result).skipped).toEqual([
+      { client: 'agy', model: 'gemini-3.8-flash-high', reason: 'rate-limited' },
+    ])
+    expect(binariesOf(w.vibe.commands)).toEqual(['agy', 'claude'])
+  })
+
+  it('remembers the quota answer until the reset it named, naming the client unavailable in usage and the client model in models', async () => {
+    const clock = new FixedClock()
+    const w = await escalating({
+      clock,
+      scripts: [AGY_QUOTA, CLAUDE_SUCCEEDS],
+      setupResults: AGY_PROVEN,
+    })
+
+    await w.run(delegation(w, { client: 'agy', model: 'gemini-3.8-flash-high' }))
+
+    expect(availability(await w.cli('usage', '--json', '{}'), 'agy')).toEqual({
+      installed: true,
+      reason: 'rate-limited at 2026-11-04T10:52:15.000Z: unavailable until 2026-11-05T15:54:24.000Z',
+      signed_in: 'unknown',
+      status: 'unavailable',
+    })
+
+    w.vibe.queue({ stdout: AGY_PLAN_LISTING.stdout })
+    const models = await w.cli('models', '--json', JSON.stringify({ repo: w.repo }))
+    expect(listed(models)).not.toContain('agy:gemini-3.8-flash-high')
+    expect(listed(models)).toContain('agy:gemini-3.8-flash-medium')
+    expect(printed(models).skipped).toContainEqual({
+      client: 'agy',
+      model: 'gemini-3.8-flash-high',
+      reason: 'rate-limited at 2026-11-04T10:52:15.000Z: unavailable until 2026-11-05T15:54:24.000Z',
+    })
+
+    clock.advance(29 * 3_600_000 + 2 * 60_000 + 9_000 + 1)
+
+    expect(availability(await w.cli('usage', '--json', '{}'), 'agy').status).toBe('available')
+    w.vibe.queue({ stdout: AGY_PLAN_LISTING.stdout })
+    const recovered = await w.cli('models', '--json', JSON.stringify({ repo: w.repo }))
+    expect(listed(recovered)).toContain('agy:gemini-3.8-flash-high')
+  })
+
+  describe('standing refusals', () => {
+    const AGY = 'gemini-3.8-flash-high'
+    const refusal = (at: string, overrides: Partial<LedgerRecord> = {}): LedgerRecord =>
+      ledgerRecord(at, 'agy', { model: AGY, outcome: 'failed', reason: 'rate-limited', ...overrides })
+    const offered = async (w: Awaited<ReturnType<typeof escalating>>): Promise<string[]> => {
+      w.vibe.queue({ stdout: AGY_PLAN_LISTING.stdout })
+      return listed(await w.cli('models', '--json', JSON.stringify({ repo: w.repo })))
+    }
+
+    it('keeps the refusal that names the latest reset when a later one names an earlier reset', async () => {
+      const clock = new FixedClock()
+      const w = await escalating({ clock, scripts: [], setupResults: AGY_PROVEN })
+      await w.writeLedger([
+        refusal('2026-11-04T10:00:00.000Z', { unavailable_until: '2026-11-05T15:00:00.000Z' }),
+        refusal('2026-11-04T10:30:00.000Z', { unavailable_until: '2026-11-04T10:35:00.000Z' }),
+      ])
+      clock.advance(10 * 60_000)
+
+      expect(await offered(w)).not.toContain(`agy:${AGY}`)
+    })
+
+    it('remembers a rate-limit answer that names no reset until a later run of that client model succeeds', async () => {
+      const w = await escalating({ scripts: [], setupResults: AGY_PROVEN })
+      await w.writeLedger([refusal('2026-11-04T10:00:00.000Z')])
+      expect(await offered(w)).not.toContain(`agy:${AGY}`)
+
+      await w.writeLedger([refusal('2026-11-04T10:00:00.000Z'), ledgerRecord('2026-11-04T10:10:00.000Z', 'agy', { model: AGY })])
+      expect(await offered(w)).toContain(`agy:${AGY}`)
+    })
+
+    it('names, for the client, the refusal answered last across its models', async () => {
+      const w = await escalating({ scripts: [], setupResults: AGY_PROVEN })
+      await w.writeLedger([
+        refusal('2026-11-04T10:00:00.000Z', { model: 'a', unavailable_until: '2026-11-05T10:00:00.000Z' }),
+        refusal('2026-11-04T10:10:00.000Z', { model: 'b', unavailable_until: '2026-11-05T11:00:00.000Z' }),
+        refusal('2026-11-04T10:20:00.000Z', { model: 'a', unavailable_until: '2026-11-05T12:00:00.000Z' }),
+      ])
+
+      expect(availability(await w.cli('usage', '--json', '{}'), 'agy').reason).toContain('at 2026-11-04T10:20:00.000Z')
+    })
+
+    it('measures the reset a refusal names from when the client answered, not from when the run started', async () => {
+      const clock = new FixedClock()
+      const w = await escalating({
+        clock,
+        scripts: [
+          {
+            effect: () => {
+              clock.advance(12 * 60_000)
+              return Promise.resolve()
+            },
+            exitCode: 1,
+            stderr: 'rate limit exceeded. resets in 5m',
+            stdout: '',
+          },
+          CLAUDE_SUCCEEDS,
+        ],
+        setupResults: AGY_PROVEN,
+      })
+
+      await w.run(delegation(w, { client: 'agy', model: AGY }))
+
+      const until = availability(await w.cli('usage', '--json', '{}'), 'agy').reason as string
+      expect(until).toContain('unavailable until 2026-11-04T11:09:15.000Z')
+    })
+  })
+
+  it('treats a model the account cannot use the same way, and models marks that model unavailable', async () => {
+    const w = await escalating({
+      defaults: JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as unknown,
+      scripts: [OPENCODE_REGION, CLAUDE_SUCCEEDS],
+    })
+
+    const result = await w.run(delegation(w, { client: 'opencode', model: 'opencode-go/glm-5.3' }))
+
+    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(attemptsOf(result)).toMatchObject([
+      {
+        client: 'opencode',
+        model: 'opencode-go/glm-5.3',
+        reason: 'model-unavailable',
+        status: 'failed',
+      },
+      { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
+    ])
+    expect(printed(result).skipped).toEqual([
+      { client: 'opencode', model: 'opencode-go/glm-5.3', reason: 'model-unavailable' },
+    ])
+    expect(binariesOf(w.vibe.commands)).toEqual(['opencode', 'claude'])
+    expect(availability(await w.cli('usage', '--json', '{}'), 'opencode').status).not.toBe('unavailable')
+
+    w.vibe.queue(
+      { stdout: AGY_PLAN_LISTING.stdout },
+      { stdout: JSON.stringify({ default: 'anthropic/claude-sonnet-4.6', provider: 'anthropic' }) },
+      { stdout: OPENCODE_GO_LISTING.stdout },
+    )
+    const models = await w.cli('models', '--json', JSON.stringify({ repo: w.repo }))
+    expect(listed(models)).toContain('opencode:opencode-go/glm-5.3-flash')
+    expect(listed(models)).not.toContain('opencode:opencode-go/glm-5.3')
+    expect(printed(models).skipped).toContainEqual({
+      client: 'opencode',
+      model: 'opencode-go/glm-5.3',
+      reason: 'model-unavailable at 2026-11-04T10:52:15.000Z',
+    })
   })
 
   it('reports the delegation unavailable, with the reasons per candidate, when no model of the cost class can start', async () => {
