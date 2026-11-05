@@ -314,6 +314,28 @@ clis:
     macos_only: true
     cloud: false
 
+  - name: opencode
+    binary: opencode
+    purpose: >-
+      OpenCode 2, the open-source terminal coding agent. Gets the workstation
+      MCP fleet minus Private Memory, the agent-kit instructions pointer, the
+      kit's and the vendored skills, and the skills of every enabled Claude
+      Code plugin. Not a council or critique target.
+    latest: true
+    surfaces: [workstation]
+    # Homebrew core's `opencode` formula is OpenCode 2. The opencode.ai install
+    # script, the npm `opencode-ai` package and the anomalyco tap are still
+    # OpenCode 1, whose MCP config has another shape; setup warns about one.
+    # Without Homebrew (a Linux machine) the install names the missing piece.
+    install: >-
+      if command -v brew >/dev/null 2>&1; then brew install opencode;
+      else echo "opencode: Homebrew is not on PATH; install it, or OpenCode 2, then re-run" >&2; fi
+    # Only an OpenCode Homebrew installed is Homebrew's to upgrade.
+    update: "! brew list --formula opencode >/dev/null 2>&1 || brew upgrade opencode"
+    version_command: "opencode --version"
+    # A cloud host has no Homebrew, and setup writes no opencode config there.
+    cloud: false
+
   - name: olcli
     binary: olcli
     purpose: >-
@@ -788,7 +810,7 @@ local_skills:
       Compose a pull request in the repository's own house style: reads the
       PR template, mines recent merged PRs, and gates on an explicit
       confirmation before anything is pushed or created.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Fits the estate's label trap directly — it reads `gh label list` for
@@ -801,7 +823,7 @@ local_skills:
       Cross-model orchestrator (Claude + Codex) for large, decomposable work:
       triage, cross-model planning, grill, a design checkpoint, guarded
       fan-out, a review council, and resumable status/tail.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Previously shipped only by the retired install.sh. Content is unchanged from that install other than the
@@ -814,7 +836,7 @@ local_skills:
       Consult the current memory platform before designing or changing
       behavior that may depend on prior captures, and capture durable
       lessons near task completion.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Rewritten for the current memory platform (memory-api/Hindsight; the
@@ -829,7 +851,7 @@ local_skills:
     purpose: >-
       Token-budget discipline: progressive disclosure, bounded recall,
       narrow MCP profiles, and prompt-cache-friendly instruction ordering.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Rewritten alongside kb-first for the same reason: the original tuned
@@ -842,7 +864,7 @@ local_skills:
       Checklist for configuring a Claude Code or Codex session: config
       layers, MCP servers and profiles, memory-file hygiene, and Claude/Codex
       parity.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Updated to reference memory-api instead of the retired
@@ -855,7 +877,7 @@ local_skills:
       The critique pipeline's shared files: the bundled runner, the prompt
       preamble, roles, lenses, finding schema and default routing that the
       critique skills drive.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       critique.mjs is built from council/ts by its build and pinned in
@@ -868,7 +890,7 @@ local_skills:
       Critique a feature's decisions after grilling and before /to-spec:
       gap critics from other model families list the questions nobody
       asked, and the orchestrator asks the owner the real ones.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
@@ -879,7 +901,7 @@ local_skills:
     purpose: >-
       Critique a spec after /to-spec: critics from other model families
       review it read-only, and the orchestrator rules on their findings.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
@@ -890,7 +912,7 @@ local_skills:
     purpose: >-
       Report how each critique critic client performs per stage, from the
       ledger, ending with routing suggestions the owner acts on.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the runner's stats command in skills/workstation/critique/, so setup
@@ -904,7 +926,7 @@ local_skills:
       /implement: the deterministic ticket checker, then one critic from
       another model family lints their structure read-only, and the
       orchestrator fixes the tickets and asks before changing scope.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
@@ -919,7 +941,7 @@ local_skills:
       family reviews the diff, each bug finding is decided by running its
       failing test, and the summary says "do not commit" while an accepted
       critical finding is unfixed.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the runner in skills/workstation/critique/ (triage, prepare, fan-out,
@@ -934,7 +956,7 @@ local_skills:
       tickets of a spec landed: critics from two other model families read the spec, the
       tickets and the feature diff, each accepted finding becomes a
       follow-up ticket, and the report opens with the gate line.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
@@ -948,7 +970,7 @@ local_skills:
       current feature stands (phase, stage runs, open questions, gate)
       and names the single next step, running a critique stage on the
       owner's word and naming the Pocock command otherwise.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       Drives the runner's state command in skills/workstation/critique/ and invokes
@@ -961,7 +983,7 @@ local_skills:
       The build tracker for a spec being implemented: a state file with
       each ticket's status, rendered into one page with a summary strip,
       a dependency graph and a list per milestone.
-    agents: [claude, codex, vibe, antigravity]
+    agents: [claude, codex, vibe, antigravity, opencode]
     surfaces: [workstation]
     note: >-
       build-tracker.mjs is built from council/ts by its build and pinned

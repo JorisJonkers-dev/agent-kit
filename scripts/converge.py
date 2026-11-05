@@ -3,8 +3,9 @@
 
 ``mcp``: the MCP servers of each Claude profile's ``.claude.json``, Codex's
 ``config.toml`` and the ``config.toml`` of each Vibe home (the shared one and
-vibe-private's). ``plugins``: Claude's marketplaces and user-scope plugins,
-which every profile shares. The setup script renders
+vibe-private's), and the ``mcp.servers`` of OpenCode's ``opencode.json``.
+``plugins``: Claude's marketplaces and user-scope plugins, which every
+profile shares. The setup script renders
 the declared and retired names from the registry. A retired entry is removed;
 any other entry the surface's declared set does not name is removed unless the
 keep file names it. A ``--private`` entry (Private Memory) is removed from every
@@ -17,7 +18,7 @@ Usage::
 
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py mcp \\
         --keep PATH --claude-home DIR [--claude DIR ...] [--codex PATH] [--vibe PATH] [--vibe-private PATH] \\
-        --declared SURFACE=NAME,... --retired NAME,... [--private NAME,...] [--check]
+        [--opencode PATH] --declared SURFACE=NAME,... --retired NAME,... [--private NAME,...] [--check]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py plugins \\
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
@@ -59,6 +60,8 @@ class Surface:
             return set()
         if self.kind == "claude":
             return set(json.loads(self.path.read_text()).get("mcpServers") or {})
+        if self.kind == "opencode":
+            return set(_opencode_servers(json.loads(self.path.read_text())))
         data = tomllib.loads(self.path.read_text())
         if self.kind == "codex":
             return set(data.get("mcp_servers") or {})
@@ -75,6 +78,13 @@ class Surface:
             subprocess.run(commands[self.kind], env=self.env or None, capture_output=True, check=False)
             return
         assert self.path is not None
+        if self.kind == "opencode":
+            config = json.loads(self.path.read_text())
+            _opencode_servers(config).pop(name, None)
+            staged = self.path.with_name(self.path.name + ".agent-kit-tmp")
+            staged.write_text(json.dumps(config, indent=2) + "\n")
+            os.replace(staged, self.path)
+            return
         doc = tomlkit.parse(self.path.read_text())
         kept = tomlkit.aot()
         for server in doc.get("mcp_servers") or []:
@@ -84,6 +94,24 @@ class Surface:
         if len(kept):
             doc["mcp_servers"] = kept
         self.path.write_text(tomlkit.dumps(doc))
+
+
+def _opencode_servers(config: dict[str, Any]) -> dict[str, Any]:
+    """OpenCode 2's ``mcp.servers`` table, the live object, or an empty one."""
+    mcp = config.get("mcp")
+    servers = mcp.get("servers") if isinstance(mcp, dict) else None
+    return servers if isinstance(servers, dict) else {}
+
+
+def _plain_json(path: Path) -> bool:
+    """True when ``path`` is missing or parses as JSON."""
+    if not path.is_file():
+        return True
+    try:
+        json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return False
+    return True
 
 
 def _claude_json(*args: str) -> list[dict[str, Any]]:
@@ -164,13 +192,22 @@ def mcp(args: argparse.Namespace) -> int:
         surfaces.append(Surface("vibe", "vibe", args.vibe))
     if args.vibe_private:
         surfaces.append(Surface("vibe-private", "vibe-private", args.vibe_private))
+    unreadable = 0
+    if args.opencode:
+        if _plain_json(args.opencode):
+            surfaces.append(Surface("opencode", "opencode", args.opencode))
+        else:
+            # OpenCode accepts comments; rewriting would drop them, and one bad file
+            # must not stop every other surface from converging.
+            print(f"{_tilde(args.opencode)} is not plain JSON; opencode not converged")
+            unreadable = 1
     return converge(
         surfaces,
         lambda _, name: name in retired,
         lambda s, name: name in declared.get(s.kind, set()) or name.startswith(DECLARED_SOURCES) or name in keep,
         args.check,
         lambda s, name: name in private and name not in declared.get(s.kind, set()),
-    )
+    ) or unreadable
 
 
 def plugins(args: argparse.Namespace) -> int:
@@ -196,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--codex", type=Path)
     m.add_argument("--vibe", type=Path)
     m.add_argument("--vibe-private", type=Path)
+    m.add_argument("--opencode", type=Path)
     m.add_argument("--declared", action="append", default=[], metavar="SURFACE=NAME,...")
     m.add_argument("--retired", default="")
     m.add_argument("--private", default="", metavar="NAME,...")

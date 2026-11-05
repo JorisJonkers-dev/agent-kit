@@ -47,6 +47,7 @@ HERMES_LOCAL_MCP = Path("registry/generated/hermes/mcp-servers.local.yaml")
 VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
 ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
+OPENCODE_MCP = Path("registry/generated/opencode/opencode.json")
 # One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry,
 # and one read-only `delegate-*` file per vibe_delegate_agents entry, in the
 # same directory: both are agents the kit launches by name.
@@ -90,6 +91,7 @@ SKILL_AGENT_HOMES = {
     "codex": ["CODEX_HOME"],
     "vibe": ["VIBE_HOME", "VIBE_PRIVATE_HOME"],
     "antigravity": ["ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"],
+    "opencode": ["OPENCODE_HOME"],
 }
 
 RETIRED_SKILL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -274,11 +276,12 @@ def validate(data: dict[str, Any]) -> None:
         if "enabled_for" in server:
             if not session_only(server):
                 raise RegistryError(f"mcp server {name}: enabled_for only applies to a session-only server")
-            if "antigravity" in (server["enabled_for"] or []):
-                raise RegistryError(
-                    f"mcp server {name}: enabled_for may not name antigravity; "
-                    "Antigravity never gets Private Memory",
-                )
+            for agent, label in (("antigravity", "Antigravity"), ("opencode", "OpenCode")):
+                if agent in (server["enabled_for"] or []):
+                    raise RegistryError(
+                        f"mcp server {name}: enabled_for may not name {agent}; "
+                        f"{label} never gets Private Memory",
+                    )
             if not set(server["enabled_for"] or []) <= ALWAYS_ON_AGENTS:
                 raise RegistryError(
                     f"mcp server {name}: enabled_for may only name {sorted(ALWAYS_ON_AGENTS)}, "
@@ -1142,6 +1145,47 @@ def render_antigravity_mcp(data: dict[str, Any]) -> str:
     return json.dumps({"mcpServers": servers}, indent=2) + "\n"
 
 
+def opencode_servers(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """OpenCode's servers: the shared workstation fleet, never Private Memory."""
+    return vibe_servers(data, "vibe")
+
+
+def render_opencode_mcp(data: dict[str, Any]) -> str:
+    """Render the ``mcp`` block merged into OpenCode 2's global ``opencode.json``.
+
+    OpenCode 2 nests servers under ``mcp.servers``. It substitutes
+    ``{env:NAME}`` when it loads the file, so a credential is named, never
+    written: the header carries ``Bearer {env:<credential>}`` and OAuth
+    discovery is off for it. An ``auth: oauth`` server is left to OpenCode's
+    own sign-in (``opencode mcp auth <name>``). Timeouts are milliseconds.
+    Merged into ``~/.config/opencode/opencode.json`` by
+    ``scripts/opencode-merge-mcp.py``.
+    """
+    servers: dict[str, Any] = {}
+    for server in opencode_servers(data):
+        name = server["name"]
+        entry: dict[str, Any]
+        if server["transport"] == "http":
+            url = server.get("url_workstation")
+            if not url:
+                raise RegistryError(f"mcp server {name} is on workstation but has no url_workstation")
+            entry = {"type": "remote", "url": url}
+            credential = server.get("credential")
+            if credential:
+                entry["oauth"] = False
+                entry["headers"] = {"Authorization": f"Bearer {{env:{credential}}}"}
+        else:
+            entry = {"type": "local", "command": [server["command"], *(str(a) for a in server.get("args") or [])]}
+            # Static values only, as for Vibe: every stdio credential here is optional.
+            env = server.get("env") or {}
+            if env:
+                entry["environment"] = {str(k): str(v) for k, v in env.items()}
+        if server.get("timeout"):
+            entry["timeout"] = int(max(server["timeout"], server.get("startup_timeout") or 0) * 1000)
+        servers[name] = entry
+    return json.dumps({"$schema": "https://opencode.ai/config.json", "mcp": {"servers": servers}}, indent=2) + "\n"
+
+
 MANIFEST_PATH = KIT_ROOT / "manifest.yaml"
 # The critique hooks' scripts, in each agent home's copy of the critique skill.
 CRITIQUE_HOOK_SCRIPTS = "skills/critique/hooks"
@@ -1552,11 +1596,15 @@ def _agents_pointer_text(w: Any, private: bool) -> None:
 
 
 def declared_servers(data: dict[str, Any], surface: str) -> list[str]:
-    """MCP servers a local surface (claude, codex, vibe or vibe-private) is declared to hold.
+    """MCP servers a local surface (claude, codex, vibe, vibe-private or opencode) is declared to hold.
 
     ``vibe`` is the shared Vibe home. A session-only server (Private Memory)
-    is declared only for the launcher it is enabled for.
+    is declared only for the launcher it is enabled for. OpenCode gets no
+    ``hindsight`` server: Hindsight Coding Agents installs only for Claude
+    Code and Codex.
     """
+    if surface == "opencode":
+        return [str(s["name"]) for s in opencode_servers(data)]
     if surface in ("vibe", "vibe-private"):
         names = [str(s["name"]) for s in vibe_servers(data, surface)]
     else:
@@ -1610,6 +1658,8 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w("  # is what marks the home for the next run's split.")
     w('  [ "${VIBE_HOMES_READY}" = 1 ] \\')
     w('    && args+=(--vibe "${VIBE_HOME}/config.toml" --vibe-private "${VIBE_PRIVATE_HOME}/config.toml")')
+    w('  [ "${OPENCODE_READY}" = 1 ] && [ "${OPENCODE_V1}" != 1 ] && command -v opencode >/dev/null 2>&1 \\')
+    w('    && args+=(--opencode "${OPENCODE_HOME}/opencode.json")')
     w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
     w("  if ! command -v uv >/dev/null 2>&1; then")
     w('    warn "uv is not on PATH; MCP servers not converged"')
@@ -1617,7 +1667,7 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w("  fi")
     w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \\')
     w('    "${args[@]}" \\')
-    for surface in ("claude", "codex", "vibe", "vibe-private"):
+    for surface in ("claude", "codex", "vibe", "vibe-private", "opencode"):
         w(f"    --declared {surface}={','.join(declared_servers(data, surface))} \\")
     private = ",".join(str(s["name"]) for s in _entries(data, "mcp_servers") if session_only(s))
     w(f'    --retired {",".join(retired_servers(data))} --private {private} 2>&1) || rc=$?')
@@ -1704,6 +1754,54 @@ def _delegate_agents_step(data: dict[str, Any], w: Any) -> None:
         w("  fi")
     w("  return 0")
     w("}")
+    w("")
+
+
+def opencode_plugin_ids(data: dict[str, Any]) -> list[str]:
+    """The enabled Claude Code plugins whose skills OpenCode gets, as Claude shows them."""
+    return [
+        f"{p['name']}@{declared_name(data, p['marketplace'])}"
+        for p in _entries(data, "plugins")
+        if p.get("enabled") is not False
+    ]
+
+
+def _opencode_plugin_skills_step(data: dict[str, Any], w: Any) -> None:
+    """Copy the enabled Claude plugins' skills into OpenCode, then reload its service.
+
+    OpenCode reads ``~/.claude/skills`` but not Claude's plugin cache, so a
+    plugin's skills reach it only as copies. Hooks, agents and commands stay
+    Claude's: OpenCode has no format that runs them.
+    """
+    ids = ",".join(opencode_plugin_ids(data))
+    w("# -----------------------------------------------------------------")
+    w("# 8b. OpenCode: the skills of the enabled Claude Code plugins, copied")
+    w("# from where Claude installed them. A plugin's hooks, agents and commands")
+    w("# stay Claude's. Then the background service reloads, because it reads")
+    w("# its config and skills once, at start.")
+    w("# -----------------------------------------------------------------")
+    w('if [ "${OPENCODE_READY}" = 1 ]; then')
+    w('  log "OpenCode plugin skills"')
+    w("  if command -v claude >/dev/null 2>&1; then")
+    w('    opencode_skill_args=(--skills-dir "${OPENCODE_HOME}/skills" --plugins ' + _q(ids) + ")")
+    w('    [ "${CHECK_ONLY}" = 1 ] && opencode_skill_args+=(--check)')
+    w('    opencode_skill_rc=0')
+    w('    opencode_skill_out="$(python3 "${KIT_ROOT}/scripts/opencode-plugin-skills.py" \\')
+    w('      "${opencode_skill_args[@]}" 2>&1)" || opencode_skill_rc=$?')
+    w('    while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${opencode_skill_out}"')
+    w('    [ "${opencode_skill_rc}" = 0 ] || fail "OpenCode plugin skills did not all land (see above)"')
+    w("  else")
+    w('    warn "claude not on PATH; OpenCode gets no plugin skills"')
+    w("  fi")
+    w('  if [ "${CHECK_ONLY}" != 1 ] && command -v opencode >/dev/null 2>&1 \\')
+    w("     && opencode service status 2>/dev/null | grep -q '^http'; then")
+    w("    if opencode service restart >/dev/null 2>&1; then")
+    w('      ok "OpenCode service restarted"')
+    w("    else")
+    w('      warn "opencode service restart failed; restart it to load the new config"')
+    w("    fi")
+    w("  fi")
+    w("fi")
     w("")
 
 
@@ -2544,6 +2642,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# rather than leaving half of it behind in ~/.gemini.")
     w("ANTIGRAVITY_READY=0")
     w('[ "$(uname -s)" = Darwin ] && ANTIGRAVITY_READY=1')
+    w("# OpenCode 2's global config: opencode.json, AGENTS.md and skills/.")
+    w('OPENCODE_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"')
+    w("# 0 on a cloud run: OpenCode is a workstation surface only.")
+    w("OPENCODE_READY=1")
+    w('[ "${CLOUD}" = 1 ] && OPENCODE_READY=0')
+    w("# 1 once the opencode on PATH reports a 1.x release: its MCP config is then left alone.")
+    w("OPENCODE_V1=0")
     w("# 0 after a failed split of the Vibe home: nothing then touches either home.")
     w("VIBE_HOMES_READY=1")
     w("")
@@ -3471,6 +3576,39 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('      _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared')
     w('      gateway_pointer "${ANTIGRAVITY_HOME}/AGENTS.md"')
     w("    fi")
+    w("    # OpenCode 2 reads mcp.servers from its global opencode.json and fills in")
+    w("    # {env:NAME} at load, so the fragment names each credential and holds")
+    w("    # none. OpenCode 1 reads another shape, so a V1 binary is named, not fed.")
+    w('    if [ "${OPENCODE_READY}" = 1 ] && command -v opencode >/dev/null 2>&1; then')
+    w('      opencode_version="$(opencode --version 2>/dev/null | head -1)"')
+    w("      # V2 prints `opencode v2.2.5`; match the last word, with or without its v.")
+    w('      opencode_release="${opencode_version##* }"')
+    w('      case "${opencode_release#v}" in')
+    w("        1.*)")
+    w("          OPENCODE_V1=1")
+    w('          warn "opencode: ${opencode_version} is OpenCode 1; its MCP config is left alone;'
+      ' agent-kit configures OpenCode 2 (brew install opencode)" ;;')
+    w("      esac")
+    w('      if [ "${OPENCODE_V1}" = 1 ]; then')
+    w("        :")
+    w('      elif [ "${CHECK_ONLY}" = 1 ]; then')
+    w('        log "would merge OpenCode MCP servers into ${OPENCODE_HOME}/opencode.json"')
+    w("      elif python3 \"${KIT_ROOT}/scripts/opencode-merge-mcp.py\" \\")
+    opencode_private = [
+        str(s["name"]) for s in _entries(data, "mcp_servers")
+        if session_only(s) and s not in opencode_servers(data)
+    ]
+    removes = "".join(f" --remove {name}" for name in [*retired_servers(data), *opencode_private])
+    w(f'        "${{KIT_ROOT}}/{OPENCODE_MCP}" --config "${{OPENCODE_HOME}}/opencode.json"{removes}; then')
+    w('        ok "OpenCode MCP servers merged"')
+    w("      else")
+    w('        fail "OpenCode MCP merge failed"')
+    w("      fi")
+    w("    fi")
+    w("    # OpenCode's global rules file; it reads ~/.claude/CLAUDE.md only without one.")
+    w('    if [ "${OPENCODE_READY}" = 1 ]; then')
+    w('      _agents_pointer "${OPENCODE_HOME}/AGENTS.md" shared')
+    w("    fi")
     w("    converge_mcp")
     w("    # Verify the VALUE, not the exit codes: ask Claude what it")
     w("    # actually has, and check every expected server is present.")
@@ -3546,6 +3684,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
                 # Antigravity is a macOS-only surface: a cloud run never builds
                 # it, and neither does a Linux one, which skips it entirely.
                 w('  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then')
+                w("    :")
+                w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+            elif home == "OPENCODE_HOME":
+                # OpenCode is workstation-only: a cloud run never builds its home.
+                w('  if [ "${OPENCODE_READY}" != 1 ]; then')
                 w("    :")
                 w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
             elif home == "VIBE_PRIVATE_HOME":
@@ -3634,7 +3777,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# Mirrors Hermes' sync-skills init container: clone the pinned ref,")
     w("# verify the commit sha (a mismatch is a supply-chain event, so it")
     w('# fails loudly rather than installing something else), then install')
-    w("# every SKILL.md the source publishes into both agent homes.")
+    w("# every SKILL.md the source publishes into the Claude, Codex and")
+    w("# OpenCode skills folders.")
     w("# -----------------------------------------------------------------")
     vendor_sources = [s for s in _entries(data, "skill_sources") if on_surface(s, "workstation")]
     if vendor_sources:
@@ -3663,7 +3807,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w('      while IFS= read -r vendor_skill_md; do')
         w('        vendor_dir="$(dirname "${vendor_skill_md}")"')
         w('        vendor_name="$(basename "${vendor_dir}")"')
-        w('        for vendor_home in "${CLAUDE_HOME}" "${CODEX_HOME}"; do')
+        w('        vendor_homes=("${CLAUDE_HOME}" "${CODEX_HOME}")')
+        w('        [ "${OPENCODE_READY}" = 1 ] && vendor_homes+=("${OPENCODE_HOME}")')
+        w('        for vendor_home in "${vendor_homes[@]}"; do')
         w('          vendor_dest="${vendor_home}/skills/${vendor_name}"')
         w('          rm -rf "${vendor_dest}"')
         w('          mkdir -p "$(dirname "${vendor_dest}")"')
@@ -3686,6 +3832,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("  fi")
         w("fi")
     w("")
+
+    _opencode_plugin_skills_step(data, w)
 
     # --- retired hooks ---
     w("# -----------------------------------------------------------------")
@@ -3948,6 +4096,7 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
         VIBE_MCP: (render_vibe_mcp(data), 0o644),
         VIBE_PRIVATE_MCP: (render_vibe_private_mcp(data), 0o644),
         ANTIGRAVITY_MCP: (render_antigravity_mcp(data), 0o644),
+        OPENCODE_MCP: (render_opencode_mcp(data), 0o644),
         SECRETS_TABLE: (json.dumps(_entries(data, "workstation_secrets"), indent=2) + "\n", 0o644),
         **{
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)

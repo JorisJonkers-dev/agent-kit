@@ -2,7 +2,7 @@
 
 agent-kit sets up the estate's coding agents. `registry/estate-tooling.yaml`
 says what each agent surface (Claude Code in every profile, Codex, each Vibe
-home, Antigravity) should hold, and a setup run makes the surface match it.
+home, Antigravity, OpenCode) should hold, and a setup run makes the surface match it.
 
 ## Registry entries
 

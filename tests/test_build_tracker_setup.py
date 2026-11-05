@@ -57,7 +57,7 @@ def test_the_build_tracker_skill_is_declared_for_claude_codex_and_the_other_agen
     skill = next(s for s in _registry()["local_skills"] if s["name"] == "build-tracker")
     assert skill["path"] == "skills/workstation/build-tracker"
     assert {"claude", "codex"} <= set(skill["agents"])
-    assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity"}
+    assert set(skill["agents"]) == {"claude", "codex", "vibe", "antigravity", "opencode"}
     assert skill["surfaces"] == ["workstation"]
     assert "pending" not in skill
 
