@@ -30,13 +30,13 @@ function critiqueDir(h: Harness): string {
 }
 
 describe('family allowlist', () => {
-  it('refuses a repository with no allowlist entry before any packet exists', async () => {
+  it('prepares a repository with no allowlist entry under the personal default', async () => {
     const h = await setup()
 
     const result = await h.commands.prepare.run(prepareInput(h))
 
-    expect(result).toMatchObject({ status: 'refused', reason: 'not-opted-in' })
-    expect(existsSync(critiqueDir(h))).toBe(false)
+    expect(result).toMatchObject({ status: 'ready' })
+    expect(existsSync(critiqueDir(h))).toBe(true)
   })
 
   it('refuses to record an allowlist entry for a repository with no remote', async () => {

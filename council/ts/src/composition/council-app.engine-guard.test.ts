@@ -122,9 +122,9 @@ function supervisorResult(
 
 function input(overrides: Partial<SuperviseInput> = {}): SuperviseInput {
   return {
-    args: ['exec', '-m', 'gpt-5.5', '-'],
+    args: ['exec', '-m', 'gpt-6.1-sol', '-'],
     command: 'codex',
-    engine: 'codex:gpt-5.5',
+    engine: 'codex:gpt-6.1-sol',
     runDir: '/runs/run-a',
     stdin: 'implement the ticket',
     taskId: 'T1',
@@ -170,9 +170,9 @@ function openLeaseFile(overrides: Record<string, unknown> = {}): string {
     lease: {
       council_run: 'run-a',
       engine: 'codex',
-      model: 'gpt-5.5',
+      model: 'gpt-6.1-sol',
       task_id: 'T1',
-      reservation: { client: 'codex', cost_class: 'metered-employer', estimate_usd: 0.5, family: 'openai', model: 'gpt-5.5', repository: null, run_id: 'dead-run-1', workflow: 'run-a' },
+      reservation: { client: 'codex', cost_class: 'metered-employer', estimate_usd: 0.5, family: 'openai', model: 'gpt-6.1-sol', repository: null, run_id: 'dead-run-1', workflow: 'run-a' },
       started_at: '2026-11-04T09:00:00.000Z',
       ...overrides,
     },
@@ -189,7 +189,7 @@ describe('CouncilApp.supervise through the gateway', () => {
 
     expect(guard.authorized).toEqual([
       // 20 characters of stdin and 4 + 2 + 7 + 1 of arguments.
-      { carries_history: true, client: 'codex', model: 'gpt-5.5', prompt_chars: 20 + 'exec'.length + '-m'.length + 'gpt-5.5'.length + '-'.length, repo: WORKTREE, workflow: 'run-a' },
+      { carries_history: true, client: 'codex', model: 'gpt-6.1-sol', prompt_chars: 20 + 'exec'.length + '-m'.length + 'gpt-6.1-sol'.length + '-'.length, repo: WORKTREE, workflow: 'run-a' },
     ])
     expect(supervisor.starts).toHaveLength(1)
   })
@@ -212,10 +212,10 @@ describe('CouncilApp.supervise through the gateway', () => {
 
   it('refuses a worker the gateway refuses, with the gateway’s reason, and spawns nothing', async () => {
     const guard = new FakeEngineGuard()
-    guard.refusal = new ModelGatewayError('cap-exceeded', 'codex:gpt-5.5 does not fit grant g of $5.00')
+    guard.refusal = new ModelGatewayError('cap-exceeded', 'codex:gpt-6.1-sol does not fit grant g of $5.00')
     const { app, store, supervisor } = harness(guard)
 
-    await expect(app.supervise(input())).rejects.toThrow('codex:gpt-5.5 does not fit grant g of $5.00')
+    await expect(app.supervise(input())).rejects.toThrow('codex:gpt-6.1-sol does not fit grant g of $5.00')
 
     expect(supervisor.starts).toEqual([])
     expect(store.events).toEqual([])
@@ -291,7 +291,7 @@ describe('CouncilApp.supervise through the gateway', () => {
     const guard = new FakeEngineGuard()
 
     const { engine: _engine, ...unnamed } = input({ command: 'node' })
-    expect(_engine).toBe('codex:gpt-5.5')
+    expect(_engine).toBe('codex:gpt-6.1-sol')
 
     await harness(guard).app.supervise(unnamed)
 
@@ -302,7 +302,7 @@ describe('CouncilApp.supervise through the gateway', () => {
     const guard = new FakeEngineGuard()
     const { app, supervisor } = harness(guard)
     const { engine: _engine, ...unnamed } = input()
-    expect(_engine).toBe('codex:gpt-5.5')
+    expect(_engine).toBe('codex:gpt-6.1-sol')
 
     await expect(app.supervise(unnamed)).rejects.toThrow('codex runs through the model gateway: name it with --engine codex:<model>')
     await expect(app.supervise({ ...unnamed, command: '/usr/local/bin/claude' })).rejects.toThrow('claude runs through the model gateway')
@@ -314,7 +314,7 @@ describe('CouncilApp.supervise through the gateway', () => {
     const { app, supervisor } = harness(undefined)
 
     const { engine: _engine, ...unnamed } = input({ command: 'node' })
-    expect(_engine).toBe('codex:gpt-5.5')
+    expect(_engine).toBe('codex:gpt-6.1-sol')
 
     await app.supervise(unnamed)
 
@@ -333,9 +333,9 @@ describe('CouncilApp.supervise through the gateway', () => {
   it.each([
     ['a different guarded engine', { command: 'codex', engine: 'claude:haiku' }, 'engine claude does not match the command codex'],
     ['a engine that is not guarded', { command: 'codex', engine: 'generic:x' }, 'engine generic does not match the command codex'],
-    ['a guarded engine named for a command that is none', { command: 'node', engine: 'codex:gpt-5.5' }, 'engine codex does not match the command node'],
+    ['a guarded engine named for a command that is none', { command: 'node', engine: 'codex:gpt-6.1-sol' }, 'engine codex does not match the command node'],
     ['no model', { command: 'codex', engine: 'codex' }, '--engine must name an engine and its model'],
-    ['a model other than the one its arguments pick', { args: ['exec', '-m', 'gpt-9'], command: 'codex', engine: 'codex:gpt-5.5' }, 'picks gpt-9 but --engine names gpt-5.5'],
+    ['a model other than the one its arguments pick', { args: ['exec', '-m', 'gpt-9'], command: 'codex', engine: 'codex:gpt-6.1-sol' }, 'picks gpt-9 but --engine names gpt-6.1-sol'],
     ['a model other than the one its --model picks', { args: ['--model=opus'], command: 'claude', engine: 'claude:haiku' }, 'picks opus but --engine names haiku'],
   ] as const)('refuses %s, and spawns nothing', async (_name, overrides, message) => {
     const guard = new FakeEngineGuard()
@@ -368,9 +368,9 @@ describe('CouncilApp.supervise through the gateway', () => {
     const guard = new FakeEngineGuard()
     const { app, supervisor } = harness(guard)
 
-    for (const engine of [undefined, 'generic:x', 'codex:gpt-5.5']) {
+    for (const engine of [undefined, 'generic:x', 'codex:gpt-6.1-sol']) {
       const { engine: dropped, ...rest } = input({ args, command })
-      expect(dropped).toBe('codex:gpt-5.5')
+      expect(dropped).toBe('codex:gpt-6.1-sol')
       await expect(app.supervise(engine === undefined ? rest : { ...rest, engine })).rejects.toMatchObject({ code: 'engine-wrapper' })
     }
 
@@ -398,7 +398,7 @@ describe('CouncilApp.supervise through the gateway', () => {
     [['--config', 'model=gpt-9']],
     [['--config=model=gpt-9']],
     [['--model=gpt-9']],
-    [['-m', 'gpt-5.5', '-c', 'model=gpt-9']],
+    [['-m', 'gpt-6.1-sol', '-c', 'model=gpt-9']],
   ])('refuses a codex command whose arguments %j run a model other than the authorised one', async (args) => {
     const guard = new FakeEngineGuard()
     const { app, supervisor } = harness(guard)
@@ -415,7 +415,7 @@ describe('CouncilApp.supervise through the gateway', () => {
     [['--profile=x']],
     [['-c', 'model_provider=oss']],
     [['--config', 'model_provider="x"']],
-    [['-c', 'model=gpt-5.5', '-p', 'x']],
+    [['-c', 'model=gpt-6.1-sol', '-p', 'x']],
   ])('refuses a codex command whose arguments %j could change the model or its provider', async (args) => {
     const { app, supervisor } = harness(new FakeEngineGuard())
 
@@ -428,7 +428,7 @@ describe('CouncilApp.supervise through the gateway', () => {
     const guard = new FakeEngineGuard()
     const { app, supervisor } = harness(guard)
 
-    await app.supervise(input({ args: ['exec', '-c', 'model="gpt-5.5"', '-c', 'model_reasoning_effort=high', '-m', 'gpt-5.5', '-'] }))
+    await app.supervise(input({ args: ['exec', '-c', 'model="gpt-6.1-sol"', '-c', 'model_reasoning_effort=high', '-m', 'gpt-6.1-sol', '-'] }))
     await app.supervise(input({ args: ['-p', '--model', 'haiku'], command: 'claude', engine: 'claude:haiku' }))
 
     expect(supervisor.starts).toHaveLength(2)
@@ -755,7 +755,7 @@ describe('CouncilApp.supervise with the gateway’s own guard', () => {
     const { app } = harness(guard)
 
     await runCli(
-      ['supervise', '--run', '/runs/run-a', '--task', 'T1', '--worktree', WORKTREE, '--command', 'codex', '--engine', 'codex:gpt-5.5', '--prompt-chars', '7777', '--no-history', '--', 'exec', '-'],
+      ['supervise', '--run', '/runs/run-a', '--task', 'T1', '--worktree', WORKTREE, '--command', 'codex', '--engine', 'codex:gpt-6.1-sol', '--prompt-chars', '7777', '--no-history', '--', 'exec', '-'],
       { app },
     )
 
@@ -767,7 +767,7 @@ describe('CouncilApp.supervise with the gateway’s own guard', () => {
     const { app, supervisor } = harness(g.guard)
 
     const result = await runCli(
-      ['supervise', '--run', '/runs/run-a', '--task', 'T1', '--worktree', WORKTREE, '--command', 'codex', '--engine', 'codex:gpt-5.5', '--stdin', 'go', '--', 'exec', '-'],
+      ['supervise', '--run', '/runs/run-a', '--task', 'T1', '--worktree', WORKTREE, '--command', 'codex', '--engine', 'codex:gpt-6.1-sol', '--stdin', 'go', '--', 'exec', '-'],
       { app },
     )
 
@@ -800,7 +800,7 @@ describe('CouncilApp.supervise with the gateway’s own guard', () => {
     expect(lines[0]).toMatchObject({
       client: 'codex',
       mode: 'write',
-      model: 'gpt-5.5',
+      model: 'gpt-6.1-sol',
       outcome: 'ok',
       repository: 'github.com/jorisjonkers-dev/agent-kit',
       source: 'council',
@@ -861,10 +861,10 @@ describe('CouncilApp native DAG workers through the gateway', () => {
     const guard = new FakeEngineGuard()
     const { app, supervisor } = dagApp(guard)
 
-    await superviseDagWorker(app, 'codex', 'gpt-5.5')
+    await superviseDagWorker(app, 'codex', 'gpt-6.1-sol')
 
     expect(guard.authorized).toHaveLength(1)
-    expect(guard.authorized[0]).toMatchObject({ client: 'codex', model: 'gpt-5.5', repo: WORKTREE, workflow: 'run-a' })
+    expect(guard.authorized[0]).toMatchObject({ client: 'codex', model: 'gpt-6.1-sol', repo: WORKTREE, workflow: 'run-a' })
     expect(guard.authorized[0]?.prompt_chars).toBeGreaterThan(100)
     expect(guard.recorded).toHaveLength(1)
     expect(supervisor.starts).toHaveLength(1)
@@ -875,7 +875,7 @@ describe('CouncilApp native DAG workers through the gateway', () => {
     guard.refusal = new ModelGatewayError('no-grant', 'no live grant covers workflow run-a')
     const { app, supervisor } = dagApp(guard)
 
-    await expect(superviseDagWorker(app, 'codex', 'gpt-5.5')).rejects.toThrow('no live grant covers workflow run-a')
+    await expect(superviseDagWorker(app, 'codex', 'gpt-6.1-sol')).rejects.toThrow('no live grant covers workflow run-a')
 
     expect(supervisor.starts).toEqual([])
   })
@@ -906,7 +906,7 @@ describe('defaultEngineGuard', () => {
 
   it('looks for the defaults in the model-gateway skill beside the council skill when it is told nothing', async () => {
     await expect(
-      defaultEngineGuard().authorize({ client: 'codex', model: 'gpt-5.5', prompt_chars: 1, workflow: 'run-a' }),
+      defaultEngineGuard().authorize({ client: 'codex', model: 'gpt-6.1-sol', prompt_chars: 1, workflow: 'run-a' }),
     ).rejects.toMatchObject({ code: 'invalid-config' })
   })
 })

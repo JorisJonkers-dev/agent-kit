@@ -8,6 +8,8 @@ export type {
 export type { EngineCli, EngineDef, EngineTagged, ModelTier } from './engine.js'
 export type { Amendment } from './amendment.js'
 export type { GitRemote, RemoteLocation, RepositoryIdentity } from './git-remote.js'
+export { KNOWN_FAMILIES } from './families.js'
+export type { KnownFamily } from './families.js'
 export { DENIED_OWNER, identifyRepository, parseRemote } from './git-remote.js'
 export type { DesignLedger, DesignLedgerEntry } from './design-ledger.js'
 export type { ReviewVerdict, RoutingVerdict } from './verdicts.js'

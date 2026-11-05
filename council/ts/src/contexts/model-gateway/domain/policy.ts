@@ -1,6 +1,7 @@
 import type { AllowlistEntry } from './allowlist.js'
+import { openCodeProvider } from './run.js'
 import type { GatewayConfig } from './config.js'
-import { modelKey, type ListedModel, type MissingClient, type ModelListing, type SkippedModel } from './models.js'
+import { costClassFor, modelKey, type ListedModel, type MissingClient, type ModelListing, type SkippedModel } from './models.js'
 
 /** What a delegation to one client model may carry. */
 export interface SendPermission {
@@ -27,8 +28,10 @@ export interface PolicyDecision {
 
 /**
  * What a delegation would carry: a repository's content, or only what the
- * caller declares. A repository with no remote, and one owned by `nedap`,
- * are decided by their own rule rather than by an allowlist entry.
+ * caller declares. A repository with no remote, and one owned by `nedap`, are
+ * decided by their own rule rather than by an allowlist entry. Every other
+ * repository is decided by its entry — a personal repository without one by
+ * the entry derived from the catalogue, with code and without history.
  */
 export type DataScope =
   | { readonly kind: 'outside' }
@@ -43,8 +46,8 @@ export type DataScope =
  */
 const NEDAP_CLIENTS = ['claude', 'codex']
 
-/** The cost classes a delegation outside any repository may reach. */
-const INLINE_COST_CLASSES = ['subsidised', 'metered-personal']
+/** The cost classes the owner, not an employer, is paying for. */
+const PERSONAL_COST_CLASSES = ['subsidised', 'metered-personal']
 
 const NOTHING: SendPermission = { code: false, history: false }
 const EVERYTHING: SendPermission = { code: true, history: true }
@@ -67,16 +70,43 @@ export interface PolicySubject {
  * It decides about `subjects`, which default to the catalogue: the caller
  * passes the models it actually lists, so a model a client lists itself is
  * decided by the same rules as a declared one.
+ *
+ * A personal repository — every one whose remote its owner controls — that
+ * has no recorded entry is given one derived from the catalogue as it stands:
+ * every family a subsidised or metered-personal client model serves, with
+ * code but without history. The derived entry is never written to the
+ * allowlist; an entry the owner records always wins over it.
  */
 export function decidePolicy(
   config: GatewayConfig,
   scope: DataScope,
   subjects: readonly PolicySubject[] = config.models,
 ): PolicyDecision {
+  const defaulted = scope.kind === 'repository' && scope.entry === undefined
+  const resolved = defaulted ? { ...scope, entry: defaultPersonalEntry(config) } : scope
   const permissions = subjects
     .filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model)))
-    .map((subject) => permission(config, subject, scope))
-  return { permissions, reason: reasonFor(scope) }
+    .map((subject) => permission(config, subject, resolved))
+  return { permissions, reason: reasonFor(resolved, defaulted) }
+}
+
+/**
+ * The personal default an unrecorded repository is delegated under: every
+ * family the catalogue's own entries serve from a subsidised or
+ * metered-personal client model, in catalogue order, without repeats. A model
+ * the catalogue prices nowhere has no tier, so the delegate skill will not
+ * route to it: the default reaches as far as the catalogue does.
+ */
+function defaultPersonalEntry(config: GatewayConfig): AllowlistEntry {
+  const families: string[] = []
+  for (const entry of config.models) {
+    const client = config.clients[entry.client]
+    if (client === undefined) continue
+    const provider = entry.client === 'opencode' ? openCodeProvider(entry.model) : undefined
+    if (!PERSONAL_COST_CLASSES.includes(costClassFor(client, provider))) continue
+    if (!families.includes(entry.family)) families.push(entry.family)
+  }
+  return { code: true, families, history: false }
 }
 
 function permission(config: GatewayConfig, subject: PolicySubject, scope: DataScope): ModelPermission {
@@ -87,7 +117,7 @@ function permission(config: GatewayConfig, subject: PolicySubject, scope: DataSc
         ...base,
         inline_only: true,
         may_send: NOTHING,
-        permitted: INLINE_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? ''),
+        permitted: PERSONAL_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? ''),
       }
     case 'no-remote':
       return { ...base, may_send: NOTHING, permitted: false }
@@ -103,7 +133,8 @@ function permission(config: GatewayConfig, subject: PolicySubject, scope: DataSc
 }
 
 /** One line saying why the policy decided what it did. */
-function reasonFor(scope: DataScope): string {
+/** One line saying why the policy decided what it did; `defaulted` marks an entry derived from the catalogue rather than recorded. */
+function reasonFor(scope: DataScope, defaulted: boolean): string {
   switch (scope.kind) {
     case 'outside':
       return 'no repository: only inline content, to subsidised and metered-personal clients'
@@ -112,9 +143,11 @@ function reasonFor(scope: DataScope): string {
     case 'nedap':
       return 'a nedap repository: only Codex and Claude Code, with code and history'
     case 'repository':
-      return scope.entry === undefined
-        ? `${scope.key} has no allowlist entry, so nothing is sent`
-        : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? 'no family' : scope.entry.families.join(', ')}`
+      return defaulted
+        ? `${scope.key} has no allowlist entry: the personal default applies, every subsidised and metered-personal family, with code but no history`
+        : `${scope.key}: the entry allows ${
+            scope.entry === undefined || scope.entry.families.length === 0 ? 'no family' : scope.entry.families.join(', ')
+          }`
   }
 }
 

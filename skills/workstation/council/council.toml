@@ -4,7 +4,7 @@
 
 intensity = "standard"
 planner_a = "claude:opus"
-planner_b = "codex:gpt-5.5"
+planner_b = "codex:gpt-6.1-sol"
 consolidator = "claude:opus"
 verifier = "claude:sonnet"
 
@@ -35,7 +35,7 @@ engine = "claude:opus"
 effort = "high"
 
 [design.stages.vote]
-engine = "codex:gpt-5.5"
+engine = "codex:gpt-6.1-sol"
 effort = "high"
 
 # Review council is opt-in; fix rounds stay bounded by default.
@@ -84,7 +84,7 @@ pack_stale_after_s = 86400
 
 [model_matrix.roles]
 planner_a = "claude:opus"
-planner_b = "codex:gpt-5.5"
+planner_b = "codex:gpt-6.1-sol"
 consolidator = "claude:opus"
 verifier = "claude:sonnet"
 

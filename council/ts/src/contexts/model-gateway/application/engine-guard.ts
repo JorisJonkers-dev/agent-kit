@@ -34,7 +34,7 @@ export interface EngineAuthorizeRequest {
   readonly workflow: string
   /** The client that runs it, as the gateway names it (`codex`, `claude`). */
   readonly client: string
-  /** The model, as the catalogue or a client alias (`gpt-5.5`, `haiku`) names it. */
+  /** The model, as the catalogue or a client alias (`gpt-6.1-sol`, `haiku`) names it. */
   readonly model: string
   /** How long the prompt is, in characters, which the estimate counts. */
   readonly prompt_chars: number

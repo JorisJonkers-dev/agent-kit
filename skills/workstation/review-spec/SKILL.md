@@ -59,16 +59,14 @@ given. Leave `comments` out, so earlier change comments stay out of the
 packet; pass `"comments": true` only when the owner says decisions live in the
 issue's comments.
 
-- **Refused with `not-opted-in`**: this repository has no **family
-  allowlist** entry, so nothing may be sent yet. Offer the opt-in: name the
-  families (`mistral`, `zhipu`, `deepseek`, `google`), point at
-  `routing.json` in the critique directory for which critic clients each one
-  feeds, and say that a base critique needs two families other than yours.
-  If the owner chooses families, run allow with `repo` and `families`, then
-  prepare again. If they decline, stop: nothing was sent. In the offer, say
-  that the entry's code permission and its history permission (commit
-  messages and issue text, turned on with allow and `"history": true`) are
-  both off by default, and that this stage needs neither.
+- **A repository with no recorded entry** reviews under the personal default
+  (every critic family, documents and code, but no history), so it needs no
+  opt-in. Only a recorded entry can refuse it, by naming fewer families; if
+  the owner declines to widen one, record nothing and stop: nothing was sent.
+
+  The history permission (commit messages and issue text, turned on with
+  allow and `"history": true`) is off by default — for the personal default
+  as for a recorded entry — and this stage sends history to neither.
 - **Any other refusal** (a `nedap` or remote-less repository, an unreadable
   tracker): give the runner's line and stop.
 - **Ready**: keep `run_dir`, `packet_dir`, `artifact` and `critics`. For each

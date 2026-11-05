@@ -69,14 +69,48 @@ describe('decidePolicy', () => {
     })
   })
 
-  it('permits nothing in a repository with a remote but no entry, and says why', () => {
+  it('permits the personal default in a repository with a remote but no entry, and says why', () => {
     const scope: DataScope = { entry: undefined, key: 'github.com/acme/widgets', kind: 'repository' }
 
     const decision = decidePolicy(config(), scope)
 
-    expect(decision.permissions.every((permission) => !permission.permitted)).toBe(true)
-    expect(decision.permissions.every((permission) => !permission.may_send.code && !permission.may_send.history)).toBe(true)
-    expect(decision.reason).toBe('github.com/acme/widgets has no allowlist entry, so nothing is sent')
+    expect(permitted(scope)).toEqual(['claude:claude-sonnet-5-5', 'hermes:hermes-4', 'vibe:zai-glm-5-3'])
+    expect(decision.permissions.every((permission) => !permission.permitted || (permission.may_send.code && !permission.may_send.history && !permission.inline_only))).toBe(true)
+    expect(decision.reason).toBe('github.com/acme/widgets has no allowlist entry: the personal default applies, every subsidised and metered-personal family, with code but no history')
+  })
+
+  it('excludes the employer-metered models from the personal default', () => {
+    const scope: DataScope = { entry: undefined, key: 'github.com/acme/widgets', kind: 'repository' }
+
+    const codex = decidePolicy(config(), scope).permissions.find((permission) => permission.client === 'codex')
+
+    expect(codex).toMatchObject({ may_send: { code: true, history: false }, permitted: false })
+  })
+
+  it('reaches only as far as the catalogue does: a subsidised model of a new family joins the default', () => {
+    const base = config()
+    const withQwen = parseDefaults({
+      clients: {
+        ...base.clients,
+        opencode: {
+          binary: 'opencode',
+          cost_class: 'metered-personal',
+          model_source: 'declared',
+          provider_cost_classes: { 'opencode-go': 'subsidised' },
+        },
+      },
+      models: [
+        ...base.models,
+        { client: 'opencode', family: 'alibaba', model: 'opencode-go/qwen3.8-flash', notes: 'qwen', tier: 'routine' },
+      ],
+      settings: base.settings,
+      version: 1,
+    })
+    const scope: DataScope = { entry: undefined, key: 'github.com/acme/widgets', kind: 'repository' }
+
+    const qwen = decidePolicy(withQwen, scope).permissions.find((permission) => permission.model === 'opencode-go/qwen3.8-flash')
+
+    expect(qwen).toMatchObject({ may_send: { code: true, history: false }, permitted: true })
   })
 
   it('permits nothing in a repository with no remote, and says why', () => {

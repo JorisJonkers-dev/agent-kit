@@ -332,13 +332,13 @@ describe('where the gates do nothing', () => {
     expect(await gate(h, 'git commit -m x && gh pr create --fill')).toEqual({ gate: 'commit', line: null, reason, status: 'allowed' })
   })
 
-  it('allows every command in a repository with no allowlist entry', async () => {
+  it('gives a repository with no allowlist entry the personal default, so it looks for a flow', async () => {
     const h = await harness()
     open.push(h)
     await stageRisky(h)
 
-    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'not-opted-in', status: 'allowed' })
-    expect(await gate(h, 'gh pr create')).toMatchObject({ gate: 'pr', reason: 'not-opted-in', status: 'allowed' })
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'no-active-flow', status: 'allowed' })
+    expect(await gate(h, 'gh pr create')).toMatchObject({ gate: 'pr', reason: 'no-active-flow', status: 'allowed' })
   })
 
   it('allows every command where the entry allows documents only, since no code stage could pass the gate', async () => {
@@ -768,12 +768,12 @@ describe('where there is no active flow', () => {
     expect(await gate(h, 'git commit -m x')).toMatchObject({ failure: 'unreadable-state', reason: 'failed-open', status: 'allowed' })
   })
 
-  it('checks opt-in before it looks for a flow', async () => {
+  it('holds a repository with no allowlist entry to the personal default, so the flow decides', async () => {
     const h = await harness()
     open.push(h)
     await stageRisky(h)
 
-    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'not-opted-in' })
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'no-active-flow' })
   })
 })
 

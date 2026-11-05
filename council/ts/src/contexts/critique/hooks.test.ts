@@ -444,12 +444,12 @@ describe('the session-start hook', () => {
     expect(await sessionStart(h)).toEqual({ line: null, reason: 'setup-current', status: 'silent' })
   })
 
-  it('stays silent in a repository that is not opted in, has no remote or has a nedap remote', async () => {
+  it('treats a repository with no allowlist entry like an opted-in one, and stays silent on no remote or a nedap remote', async () => {
     const plain = await machine()
     const lone = await machine({ remotes: [] })
     const nedap = await machine({ remotes: [{ name: 'origin', url: 'git@github.com:nedap/widgets.git' }] })
 
-    expect([(await sessionStart(plain)).reason, (await sessionStart(lone)).reason, (await sessionStart(nedap)).reason]).toEqual(['not-opted-in', 'no-remote', 'nedap'])
+    expect([(await sessionStart(plain)).reason, (await sessionStart(lone)).reason, (await sessionStart(nedap)).reason]).toEqual(['setup-missing', 'no-remote', 'nedap'])
   })
 
   it('stays silent under the kill switch', async () => {
