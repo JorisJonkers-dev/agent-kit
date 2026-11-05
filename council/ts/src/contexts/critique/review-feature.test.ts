@@ -18,7 +18,7 @@ import {
 import type { PrepareResult } from './index.js'
 
 /**
- * What `/review-feature` (#189) relies on the runner for: the feature-review
+ * What `/review-pr` (#189) relies on the runner for: the feature-review
  * roster in shipped routing, the `feature-reviewer` role, the evidence rule
  * for accepting a feature finding, a follow-up ticket per accepted finding,
  * and the gate line with the head it was computed for.

@@ -1,10 +1,10 @@
 ---
-name: review-ticket
-description: Use after a ticket's /code-review and before its commit. Risk triage decides whether the change is risky; a risky one gets a critic from another model family on the staged diff, every bug it claims comes with a failing test you run, and the summary says "do not commit" while an accepted critical finding is unfixed.
+name: review-implementation
+description: Reviews one ticket's staged change before its commit; use after the ticket's /code-review. Risk triage decides whether the change is risky; a risky one gets a critic from another model family on the staged diff, every bug it claims comes with a failing test you run, and the summary says "do not commit" while an accepted critical finding is unfixed.
 disable-model-invocation: true
 ---
 
-# review-ticket
+# review-implementation
 
 You are the **orchestrator**: a critic from another model family reviews a
 frozen copy of the ticket's staged change (the **packet**: the ticket, its
@@ -30,7 +30,7 @@ carries a `code` and a `message`: show both and stop. Your own files
 
 ## Arguments
 
-`/review-ticket [ticket] [spec] [base|deep]`
+`/review-implementation [ticket] [spec] [base|deep]`
 
 - **ticket**: the issue (`186`, `#186`, an issue URL) or, with a local
   markdown tracker, the ticket's path. Without one, use the ticket this
@@ -214,9 +214,9 @@ round, `Refute skipped: <finding_id> (<reason_code>)`, then record's
 commit", the commit is still blocked, and you say so plainly:
 
 - **An accepted critical finding is unfixed**: the commit waits until it is
-  fixed, staged and reviewed again with `/review-ticket`.
+  fixed, staged and reviewed again with `/review-implementation`.
 - **No critic reported, so the review is degraded**: nobody reviewed the
   change, and the commit gate stays shut. Name each critic and why it did
   not report (`ticket_review.critic_failures` in record's result). The
-  commit waits for another `/review-ticket` run in which a critic reports;
+  commit waits for another `/review-implementation` run in which a critic reports;
   only the owner can turn the gate off with the kill switch.

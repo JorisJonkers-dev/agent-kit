@@ -19,7 +19,7 @@ import {
 import { parseTicketReviewRecord, StagedDiffReader, ticketReviewIndexPath, ticketReviewPath, type PrepareResult, type TriageResult } from './index.js'
 
 /**
- * What `/review-ticket` (#188) relies on the runner for: the ticket-review
+ * What `/review-implementation` (#188) relies on the runner for: the ticket-review
  * roster in shipped routing, the `diff-reviewer` role, a review of the
  * staged change with a hash of it a commit gate can match, the evidence rule
  * for accepting a ticket finding, and the summary's "do not commit" while an
@@ -228,7 +228,7 @@ describe('the diff-reviewer role', () => {
 })
 
 /**
- * The ticket's change as `/review-ticket` finds it after `/code-review`:
+ * The ticket's change as `/review-implementation` finds it after `/code-review`:
  * `c2` committed, the change staged on top of it, and a file the owner has
  * not staged.
  */

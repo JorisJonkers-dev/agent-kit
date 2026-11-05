@@ -23,10 +23,10 @@ offers it.
 
 | Stage | Skill | After / before | Base critics (role) | Deep adds | You get |
 |---|---|---|---|---|---|
-| `decisions` | `/critique-decisions` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`) | GLM | Up to seven questions about decision branches nobody opened |
-| `spec` | `/critique-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
-| `tickets` | `/check-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
-| `ticket-review` | `/review-ticket` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
+| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`) | GLM | Up to seven questions about decision branches nobody opened |
+| `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
+| `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
+| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
 | `adr-review` | none yet (`/critique-adrs`) | on demand, outside any feature | Mistral Large, Gemini Flash (`spec-redteam`, until `adr-reviewer` ships) | GLM | Findings on the decision records; the stage is being built and has no skill yet |
 
@@ -259,17 +259,17 @@ that fired either way.
 
 ## Gates and the kill switch
 
-- **Commit gate**: a risky staged change needs a passing `/review-ticket` run
+- **Commit gate**: a risky staged change needs a passing `/review-implementation` run
   for that exact staged change, matched by a hash taken at record time, fixes
   and kept tests included, so a change restaged or amended after its review
   needs another. A review fails ("do not commit") while an accepted critical
   finding is unfixed. A degraded review, in which no critic reported, does
-  not pass either: the commit stays blocked until a `/review-ticket` run in
+  not pass either: the commit stays blocked until a `/review-implementation` run in
   which a critic reported, or the kill switch.
 - **Merge commits**: the commit gate also runs before a `git merge` or
   `git pull` that may record a merge commit, and before a `git commit` (or
   `git merge --continue`) while `MERGE_HEAD` is set. A merge goes through
-  when every commit it brings in has a passing, non-degraded `/review-ticket`
+  when every commit it brings in has a passing, non-degraded `/review-implementation`
   record (matched by the reviewed commit, or by the staged change it was made
   from) or was low-risk on its own, and the merge adds nothing beyond the
   clean auto-merge except manifest sha256 pins and rebuilt generated files

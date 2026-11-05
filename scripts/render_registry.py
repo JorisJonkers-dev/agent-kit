@@ -92,6 +92,8 @@ SKILL_AGENT_HOMES = {
     "antigravity": ["ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"],
 }
 
+RETIRED_SKILL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
 # Paths under a Claude Code config root that hold ONE profile's own state.
@@ -402,6 +404,11 @@ def validate(data: dict[str, Any]) -> None:
             for field in ("cask", "macos_only"):
                 if field in item:
                     raise RegistryError(f"{key} entry {_label(item)} may not set {field}: it is a clis: key")
+
+    for retired_skill in _entries(data, "retired_skills"):
+        rname = retired_skill.get("name")
+        if not isinstance(rname, str) or not RETIRED_SKILL_NAME.fullmatch(rname):
+            raise RegistryError(f"retired_skills entry needs a plain `name` (letters, digits, . _ -): {rname!r}")
 
     _validate_claude_profiles(data)
     _validate_container(data)
@@ -3569,6 +3576,37 @@ def render_setup_script(data: dict[str, Any]) -> str:
             w("  fi")
         w("fi")
     w("")
+
+    # --- retired first-party skills ---
+    retired_skills = _entries(data, "retired_skills")
+    if retired_skills:
+        w("# Retired first-party skills (registry retired_skills:): a renamed skill's")
+        w("# old directory is removed from every agent home, not left beside the new one.")
+        w('log "retired skills"')
+        for retired_skill in retired_skills:
+            rname = retired_skill["name"]
+            for home in (h for homes in SKILL_AGENT_HOMES.values() for h in homes):
+                w(f'if [ -d "${{{home}}}/skills/{rname}" ]; then')
+                w(f'  dest="${{{home}}}/skills/{rname}"')
+                guard = {
+                    "ANTIGRAVITY_HOME": '[ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]',
+                    "ANTIGRAVITY_CLI_HOME": '[ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]',
+                    "VIBE_PRIVATE_HOME": '[ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]',
+                    "VIBE_HOME": '[ "${VIBE_HOMES_READY}" != 1 ]',
+                }.get(home)
+                if guard:
+                    w(f"  if {guard}; then")
+                    w("    :")
+                    w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+                else:
+                    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+                w('    log "would remove retired skill ${dest}"')
+                w("  else")
+                w('    rm -rf "${dest}"')
+                w(f'    ok "removed retired skill {rname} from ${{dest}}"')
+                w("  fi")
+                w("fi")
+        w("")
 
     # --- the critique pipeline's Vibe critic agents ---
     if _entries(data, "vibe_critic_agents"):

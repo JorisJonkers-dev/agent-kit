@@ -1,10 +1,10 @@
 ---
-name: review-feature
-description: Use after every ticket of a spec has landed on its feature branch and before the PR. Critics from two other model families review the whole feature diff read-only; each finding you accept becomes a follow-up ticket, and the report opens with a PASS or FAIL gate line.
+name: review-pr
+description: Reviews the whole feature diff before the pull request; use after every ticket of a spec has landed on its feature branch. Critics from two other model families review the whole feature diff read-only; each finding you accept becomes a follow-up ticket, and the report opens with a PASS or FAIL gate line.
 disable-model-invocation: true
 ---
 
-# review-feature
+# review-pr
 
 You are the **orchestrator**: critics from other model families review a frozen
 copy of the finished feature (the **packet**: the spec, every ticket, the diff
@@ -31,7 +31,7 @@ runner's.
 
 ## Arguments
 
-`/review-feature [spec] [base] [base|deep]`
+`/review-pr [spec] [base] [base|deep]`
 
 - **spec**: the issue (`181`, `#181`, an issue URL) or, with a local markdown
   tracker, the spec's path. Without one, use the spec whose tickets this
@@ -201,4 +201,4 @@ result of the refute round, `Refute skipped: <finding_id> (<reason_code>)`.
 While the gate is FAIL, tell the owner the PR waits: fix each critical
 follow-up through `/implement`, close it once its fix is on the feature
 branch (`gh issue close`, or `**Status:** done` in a local ticket), then run
-`/review-feature` again on the new head. Each run's gate belongs to the head it reviewed.
+`/review-pr` again on the new head. Each run's gate belongs to the head it reviewed.

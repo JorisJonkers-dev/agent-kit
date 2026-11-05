@@ -17,7 +17,7 @@ import {
 import type { PrepareResult } from './index.js'
 
 /**
- * What `/critique-spec` (#177) relies on the runner for: the warning not to
+ * What `/review-spec` (#177) relies on the runner for: the warning not to
  * start `/to-tickets` while a critical question is unanswered, and the rule
  * that more than three accepted critical findings call for one second round
  * and never a third; and the refute round between its verdicts and record

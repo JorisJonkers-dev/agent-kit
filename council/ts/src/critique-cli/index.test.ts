@@ -172,7 +172,7 @@ describe('critique runner command line', () => {
           hookEventName: 'PreToolUse',
           permissionDecision: 'deny',
           permissionDecisionReason:
-            'Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. Run /review-ticket, then commit.',
+            'Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-implementation run matches it. Run /review-implementation, then commit.',
         },
       },
     ])
@@ -193,7 +193,7 @@ describe('critique runner command line', () => {
 
     expect([pr.exitCode, (JSON.parse(pr.stdout) as { hookSpecificOutput: { permissionDecisionReason: string } }).hookSpecificOutput.permissionDecisionReason]).toEqual([
       0,
-      'PR blocked: no /review-feature run has recorded a gate for c1. Run /review-feature, then open the PR.',
+      'PR blocked: no /review-pr run has recorded a gate for c1. Run /review-pr, then open the PR.',
     ])
     expect(commit).toEqual({ exitCode: 0, stderr: '', stdout: '' })
   })

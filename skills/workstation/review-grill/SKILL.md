@@ -1,10 +1,10 @@
 ---
-name: critique-decisions
+name: review-grill
 description: Use after /grill-with-docs or /grill-me settled a feature's decisions, and before /to-spec. Critics from other model families list the decision branches nobody opened; you check each against the decision docs and ask the owner the real gaps, one at a time. Nothing changes until the owner answers.
 disable-model-invocation: true
 ---
 
-# critique-decisions
+# review-grill
 
 You are the **orchestrator**: critics from other model families read a frozen
 copy of the decisions grilling recorded (the **packet**) and report the
@@ -27,7 +27,7 @@ carries a `code` and a `message`: show both and stop. Keep your own files
 
 ## Arguments
 
-`/critique-decisions [base|deep]`: the **depth**. Pass it to prepare as
+`/review-grill [base|deep]`: the **depth**. Pass it to prepare as
 `"depth"` only when the owner named it; otherwise the runner chooses.
 
 When `/flow` starts this stage it names the feature's flow

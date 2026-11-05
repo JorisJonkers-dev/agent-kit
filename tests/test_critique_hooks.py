@@ -342,8 +342,8 @@ def test_the_commit_gate_script_blocks_an_unreviewed_risky_commit_with_the_deny_
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": "Commit blocked: the staged change is risky "
-            "(src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. "
-            "Run /review-ticket, then commit.",
+            "(src/auth/session.ts is a risk path) and no passing /review-implementation run matches it. "
+            "Run /review-implementation, then commit.",
         },
     }
     assert took < 1.0, f"the commit gate took {took:.2f}s"
@@ -375,7 +375,7 @@ def test_the_pr_gate_script_blocks_a_pr_with_no_feature_review(repo: tuple[Path,
     result, _ = _hook("critique-pr-gate", _bash(path, "gh pr create --fill"), home)
 
     reason = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
-    assert result.returncode == 0 and reason.startswith("PR blocked: no /review-feature run has recorded a gate for ")
+    assert result.returncode == 0 and reason.startswith("PR blocked: no /review-pr run has recorded a gate for ")
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")

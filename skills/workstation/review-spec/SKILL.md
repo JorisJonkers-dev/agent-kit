@@ -1,10 +1,10 @@
 ---
-name: critique-spec
+name: review-spec
 description: Use after /to-spec produced or changed a spec. Critics from other model families review the spec read-only; you rule on each finding against the evidence, fix the spec, and ask the owner about anything that touches a decision.
 disable-model-invocation: true
 ---
 
-# critique-spec
+# review-spec
 
 You are the **orchestrator**: critics from other model families review a frozen
 copy of the spec (the **packet**), and you are the only one who rules on their
@@ -27,7 +27,7 @@ files (the spec copy, `verdicts.json`) go beside them.
 
 ## Arguments
 
-`/critique-spec [spec] [base|deep]`
+`/review-spec [spec] [base|deep]`
 
 - **spec**: the issue (`167`, `#167`, an issue URL) or, with a local markdown
   tracker, the spec's path. Without one, use the spec `/to-spec` published in

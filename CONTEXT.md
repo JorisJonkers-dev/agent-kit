@@ -14,9 +14,10 @@ declared through that source.
 _Avoid_: managed entry, fleet entry
 
 **Retired record**:
-A declared entry with `surfaces: []`, one listed in `retired_plugins:`, or one
-with `enabled: false` on a surface. It stays in the registry as history, and
-setup removes it from that surface.
+A declared entry with `surfaces: []`, one listed in `retired_plugins:`, one
+with `enabled: false` on a surface, or a first-party skill listed in
+`retired_skills:` (a renamed skill's old name). It stays in the registry as
+history, and setup removes it from that surface.
 _Avoid_: disabled entry, legacy entry
 
 **Undeclared entry**:

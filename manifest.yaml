@@ -316,12 +316,12 @@ hooks:
     adr: docs/adr/0002-exactly-three-critique-hooks.md
     event: PreToolUse
     agents: [claude, codex]
-    purpose: Block a risky staged diff before `git commit` until a passing /review-ticket run matches it.
+    purpose: Block a risky staged diff before `git commit` until a passing /review-implementation run matches it.
   critique-pr-gate:
     adr: docs/adr/0002-exactly-three-critique-hooks.md
     event: PreToolUse
     agents: [claude, codex]
-    purpose: Block `gh pr create`, or a push outside the feature branch patterns, unless /review-feature passed for the head.
+    purpose: Block `gh pr create`, or a push outside the feature branch patterns, unless /review-pr passed for the head.
   critique-session-start:
     adr: docs/adr/0002-exactly-three-critique-hooks.md
     event: SessionStart
@@ -468,13 +468,13 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: b4dc69109107f1fbe2b666149435764082fdbd75376c033e1c0e3c6ecf1ba031
+      sha256: 2e29e6f3fbc192adf295f3f64bf70a8f2d5742985a71e8371c06bcbf67f19e76
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
-      sha256: dbbc98efd6f1ef0e53667cdec6c659d89f6ee6eeea0d5ae42961bd0dbfc119f0
+      sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-pr-gate.sh
-      sha256: 260cc63345933d028e33e6b356b279b6d1d0afd0c4dac9599193cb3206912ae3
+      sha256: c188adc6e001d623cf8c17a3958d469ef3b1616c61ce653bb0294c8a1ccb8f28
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-session-start.sh
       sha256: 65becf61d98d40d27a34a997fecfbe4b84263009a62125fdc1939ed61714e907
@@ -531,7 +531,7 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/workstation/critique/README.md
-      sha256: 7ef3d604931c2727faf9104d3bad2bc11646bbd2c6b6dc70ba9721be01727946
+      sha256: a9b73c36b2922b2fc4e10302c1478cbcfde3e09a9c10e01ca5cab7619649fbe6
       mode: "0644"
     - path: skills/workstation/critique/routing.json
       sha256: adab6cd8a7510ceff7efd8092ab4cc01b0eb1ae51783a79a7ed95e4c49f4f702

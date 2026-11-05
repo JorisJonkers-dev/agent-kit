@@ -167,10 +167,10 @@ The last two lines come from `next`:
 
 | `next.stage` | Stage skill | Inputs you give it |
 |---|---|---|
-| `decisions` | `critique-decisions` | `"flow": "draft:<name>"` for its prepare, so the run joins the draft's flow |
-| `spec` | `critique-spec` | the spec; with `previous_run_id`, `"previous_run_dir"` = that run's directory in the runs folder, for the second round |
-| `tickets` | `check-tickets` | the spec |
-| `ticket-review` | `review-ticket` | `next.ticket` and the spec |
+| `decisions` | `review-grill` | `"flow": "draft:<name>"` for its prepare, so the run joins the draft's flow |
+| `spec` | `review-spec` | the spec; with `previous_run_id`, `"previous_run_dir"` = that run's directory in the runs folder, for the second round |
+| `tickets` | `review-tickets` | the spec |
+| `ticket-review` | `review-implementation` | `next.ticket` and the spec |
 | `feature-review` | shown as `/flow finish` | (see `/flow finish`) |
 
 With `resume_run_id`, the stage owes a run that was prepared but not
@@ -197,7 +197,7 @@ Done when the reply ends with the next step, its reason and the offer.
 1. Find the feature and read its state (steps 1 and 2). Unless `next` is the
    `feature-review` stage, refresh and report as `/flow` does (steps 3 and
    4) and stop: that report names what is still due.
-2. Load the `review-feature` skill and follow it with the spec (and the
+2. Load the `review-pr` skill and follow it with the spec (and the
    resume inputs when `next` has `resume_run_id`).
 3. Read the state again, then refresh the build tracker as step 3 of `/flow`
    says. Once the gate passes, that is the build's last render: the page

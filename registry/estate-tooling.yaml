@@ -573,6 +573,21 @@ retired_plugins:
   - ref: hindsight-memory@hindsight
     marketplace: hindsight
 
+# Retired skills: first-party skills that were renamed or dropped. Setup
+# removes each one's installed directory from every agent home on every run
+# (the old name is data here, never a skill that ships).
+retired_skills:
+  - name: critique-decisions
+    renamed_to: review-grill
+  - name: critique-spec
+    renamed_to: review-spec
+  - name: check-tickets
+    renamed_to: review-tickets
+  - name: review-ticket
+    renamed_to: review-implementation
+  - name: review-feature
+    renamed_to: review-pr
+
 # -------------------------------------------------------------------
 # Hindsight Coding Agents: Hindsight's own plugin for Claude Code and
 # Codex, pinned and locked down. One npx install wires both agents' hooks
@@ -847,8 +862,8 @@ local_skills:
       manifest.yaml's critique.files, the way council's runner is pinned in
       council.files.
 
-  - name: critique-decisions
-    path: skills/workstation/critique-decisions
+  - name: review-grill
+    path: skills/workstation/review-grill
     purpose: >-
       Critique a feature's decisions after grilling and before /to-spec:
       gap critics from other model families list the questions nobody
@@ -859,8 +874,8 @@ local_skills:
       Drives the runner in skills/workstation/critique/ (prepare, fan-out, record,
       allow), so setup installs both side by side in every agent home.
 
-  - name: critique-spec
-    path: skills/workstation/critique-spec
+  - name: review-spec
+    path: skills/workstation/review-spec
     purpose: >-
       Critique a spec after /to-spec: critics from other model families
       review it read-only, and the orchestrator rules on their findings.
@@ -882,8 +897,8 @@ local_skills:
       installs both side by side in every agent home. It reads the ledger
       and routing and writes nothing.
 
-  - name: check-tickets
-    path: skills/workstation/check-tickets
+  - name: review-tickets
+    path: skills/workstation/review-tickets
     purpose: >-
       Check a spec's tickets after /to-tickets and before the first
       /implement: the deterministic ticket checker, then one critic from
@@ -896,11 +911,11 @@ local_skills:
       allow, check-tickets), so setup installs both side by side in every
       agent home.
 
-  - name: review-ticket
-    path: skills/workstation/review-ticket
+  - name: review-implementation
+    path: skills/workstation/review-implementation
     purpose: >-
-      Review a risky ticket's staged change after its /code-review and
-      before its commit: risk triage decides, one critic from another model
+      Review one ticket's staged change before its commit, after its
+      /code-review: risk triage decides, one critic from another model
       family reviews the diff, each bug finding is decided by running its
       failing test, and the summary says "do not commit" while an accepted
       critical finding is unfixed.
@@ -912,11 +927,11 @@ local_skills:
       home. Its run's review.json, with the staged change's hash, is what
       the commit gate reads.
 
-  - name: review-feature
-    path: skills/workstation/review-feature
+  - name: review-pr
+    path: skills/workstation/review-pr
     purpose: >-
-      Review a whole feature after all tickets of a spec landed and before
-      the PR: critics from two other model families read the spec, the
+      Review the whole feature diff before the pull request, after all
+      tickets of a spec landed: critics from two other model families read the spec, the
       tickets and the feature diff, each accepted finding becomes a
       follow-up ticket, and the report opens with the gate line.
     agents: [claude, codex, vibe, antigravity]

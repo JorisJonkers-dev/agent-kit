@@ -6803,7 +6803,7 @@ var GateCommand = class {
       return blocked(
         "commit",
         "unstaged",
-        `Commit blocked: the change is risky (${why}) and this command commits changes that are not staged yet, so no /review-ticket run can vouch for them. Stage them in a command of their own, run /review-ticket, then commit.`
+        `Commit blocked: the change is risky (${why}) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.`
       );
     }
     const review = await this.lastLine(
@@ -6816,7 +6816,7 @@ var GateCommand = class {
       return blocked(
         "commit",
         "unreviewed",
-        own === void 0 ? `Commit blocked: the staged change is risky (${why}) and no passing /review-ticket run matches it. Run /review-ticket, then commit.` : `Commit blocked: this merge's own changes beyond the reviewed commits it brings in are risky (${why}) and no passing /review-ticket run matches the staged merge. Run /review-ticket, then commit.`
+        own === void 0 ? `Commit blocked: the staged change is risky (${why}) and no passing /review-implementation run matches it. Run /review-implementation, then commit.` : `Commit blocked: this merge's own changes beyond the reviewed commits it brings in are risky (${why}) and no passing /review-implementation run matches the staged merge. Run /review-implementation, then commit.`
       );
     }
     if (review.review === "fail") return blocked("commit", "review-failed", reviewFailedLine(review));
@@ -6868,7 +6868,7 @@ var GateCommand = class {
       return blocked(
         "commit",
         "unreviewed",
-        `Merge blocked: merging ${revision} is risky (${riskReason([first, ...more])}) and ${unvouchedReason(verdict, evidence.limit)}. Stage the merge with git merge --no-commit ${revision}, run /review-ticket, then commit.`
+        `Merge blocked: merging ${revision} is risky (${riskReason([first, ...more])}) and ${unvouchedReason(verdict, evidence.limit)}. Stage the merge with git merge --no-commit ${revision}, run /review-implementation, then commit.`
       );
     }
     return allowed("commit", reasons.find((reason) => reason === "low-risk") ?? reasons[0] ?? "not-gated");
@@ -6914,7 +6914,7 @@ var GateCommand = class {
       return blocked(
         "pr",
         "head-unknown",
-        `${sent[0]?.what ?? "Push"} blocked: this command moves HEAD before it ${verb}, so no /review-feature gate can hold for what it sends. Run that part in a command of its own after /review-feature.`
+        `${sent[0]?.what ?? "Push"} blocked: this command moves HEAD before it ${verb}, so no /review-pr gate can hold for what it sends. Run that part in a command of its own after /review-pr.`
       );
     }
     for (const target of sent) {
@@ -6929,7 +6929,7 @@ var GateCommand = class {
         return blocked(
           "pr",
           "no-feature-review",
-          `${target.what} blocked: no /review-feature run has recorded a gate for ${short(head)}. Run /review-feature, then ${target.retry}.`
+          `${target.what} blocked: no /review-pr run has recorded a gate for ${short(head)}. Run /review-pr, then ${target.retry}.`
         );
       }
       if (record.gate === "fail") return blocked("pr", "gate-fail", gateFailLine(target.what, target.retry, record, head));
@@ -6969,7 +6969,7 @@ function readPayload(raw) {
   };
 }
 function unvouchedReason(verdict, limit) {
-  return verdict.kind === "too-many" ? `it brings in ${String(verdict.count)} commits, more than the ${String(limit)} the gate checks one by one` : `${short(verdict.commit)}, a commit it brings in, has no passing /review-ticket run`;
+  return verdict.kind === "too-many" ? `it brings in ${String(verdict.count)} commits, more than the ${String(limit)} the gate checks one by one` : `${short(verdict.commit)}, a commit it brings in, has no passing /review-implementation run`;
 }
 function gateOf(invocation) {
   return invocation.kind === "commit" || invocation.kind === "merge" ? "commit" : "pr";
@@ -6994,14 +6994,14 @@ function short(commit) {
 }
 function reviewFailedLine(review) {
   const findings = review.unfixed_critical.join(", ");
-  return `Commit blocked: /review-ticket run ${review.run_id} failed for this staged change, with critical ${findings} accepted and not fixed. Fix and stage ${review.unfixed_critical.length === 1 ? "it" : "them"}, then run /review-ticket again.`;
+  return `Commit blocked: /review-implementation run ${review.run_id} failed for this staged change, with critical ${findings} accepted and not fixed. Fix and stage ${review.unfixed_critical.length === 1 ? "it" : "them"}, then run /review-implementation again.`;
 }
 function reviewDegradedLine(review) {
   const why = review.critic_failures.map((failure3) => `${failure3.critic_id}: ${failure3.reason}`).join(", ");
-  return `Commit blocked: /review-ticket run ${review.run_id} is degraded: no critic reported on this staged change${why === "" ? "" : ` (${why})`}. Run /review-ticket again; the commit waits for a run in which a critic reports.`;
+  return `Commit blocked: /review-implementation run ${review.run_id} is degraded: no critic reported on this staged change${why === "" ? "" : ` (${why})`}. Run /review-implementation again; the commit waits for a run in which a critic reports.`;
 }
 function gateFailLine(what, retry, record, head) {
-  return `${what} blocked: /review-feature says ${record.line} for ${short(head)}. Fix and close the critical follow-ups, run /review-feature on the new head, then ${retry}.`;
+  return `${what} blocked: /review-pr says ${record.line} for ${short(head)}. Fix and close the critical follow-ups, run /review-pr on the new head, then ${retry}.`;
 }
 
 // src/contexts/critique/application/prepare.ts

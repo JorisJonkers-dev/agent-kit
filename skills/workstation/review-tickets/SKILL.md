@@ -1,10 +1,10 @@
 ---
-name: check-tickets
+name: review-tickets
 description: Use after /to-tickets and before the first /implement. A script checks the spec's tickets for dependency cycles, dangling blockers and uncited stories, a critic from another model family lints them read-only; you fix ticket structure on the tracker and ask the owner before changing scope.
 disable-model-invocation: true
 ---
 
-# check-tickets
+# review-tickets
 
 You are the **orchestrator**: a deterministic ticket checker and a critic
 from another model family review a frozen copy of the spec and its tickets
@@ -29,7 +29,7 @@ directory stay as the runner wrote them; your own files (ticket copies,
 
 ## Arguments
 
-`/check-tickets [spec] [base|deep]`
+`/review-tickets [spec] [base|deep]`
 
 - **spec**: the spec issue (`181`, `#181`, an issue URL) whose sub-issues are
   the tickets, or, with a local markdown tracker, the spec's path (its
