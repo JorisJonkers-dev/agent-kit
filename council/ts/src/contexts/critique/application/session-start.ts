@@ -71,7 +71,6 @@ export class SessionStartCommand implements CritiqueCommand<SessionStartResult> 
     const cwd = JsonFields.of(raw, 'the session-start payload').string('cwd')
     const repository = await this.repositories.resolve(cwd)
     if (repository.status === 'refused') return silent(repository.reason === 'nedap' ? 'nedap' : 'no-remote')
-    if ((await this.repositories.allowlist()).repositories[repository.key] === undefined) return silent('not-opted-in')
     const checks = setupChecklist((await this.routing.load()).clients).filter((check) => check.kind !== 'read-only')
     const resultsPath = setupResultsPath(this.deps.env)
     const results = (await this.deps.files.exists(resultsPath)) ? parseSetupResults(await this.deps.files.readText(resultsPath)) : EMPTY_SETUP_RESULTS

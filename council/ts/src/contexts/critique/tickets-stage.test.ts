@@ -223,12 +223,20 @@ describe('the tickets packet', () => {
     expect(await readdir(join(h.repo, '.git'))).not.toContain('critique')
   })
 
-  it('is refused before anything is read when the repository is not opted in', async () => {
-    const h = await harness({ tracker: 'github' })
+  it('reads the tickets of a repository with no allowlist entry, under the personal default', async () => {
+    const h = await harness({
+      issues: {
+        [`${AGENT_KIT}#167`]: specIssue({ labels: ['type:feature'] }),
+        [`${AGENT_KIT}#170`]: ticketIssue(170, 'Evidence checks', `## Parent\n\n#167\n\n${CRITERIA}`),
+      },
+      links: { subIssues: { [`${AGENT_KIT}#167`]: [170] } },
+      scripts: [],
+      tracker: 'github',
+    })
     open.push(h)
 
-    expect(await prepare(h, '#167')).toMatchObject({ reason: 'not-opted-in', status: 'refused' })
-    expect(h.gh.linkRequests).toEqual([])
+    expect(await prepare(h, '#167')).toMatchObject({ status: 'ready' })
+    expect(h.gh.linkRequests).not.toEqual([])
   })
 })
 

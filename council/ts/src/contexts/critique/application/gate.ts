@@ -117,11 +117,9 @@ export class GateCommand implements CritiqueCommand<GateResult> {
     if (invocation.cwd === null) throw new Error('the command line does not say which directory the command runs in')
     const repository = await this.repositories.resolve(invocation.cwd)
     if (repository.status === 'refused') return allowed(gate, repository.reason === 'nedap' ? 'nedap' : 'no-remote')
-    const allowlist = await this.repositories.allowlist().catch((error: unknown) => {
+    const entry = await this.repositories.entry(repository.key).catch((error: unknown) => {
       throw new UnreadableState(error instanceof Error ? error.message : String(error))
     })
-    const entry = allowlist.repositories[repository.key]
-    if (entry === undefined) return allowed(gate, 'not-opted-in')
     if (!entry.code) return allowed(gate, 'code-not-allowed')
     if (!(await this.activeFlow(repository))) return allowed(gate, 'no-active-flow')
     if (invocation.kind === 'commit') return this.commitGate(repository, invocation.widened)

@@ -66,9 +66,9 @@ Run triage with `repo` (`git rev-parse --show-toplevel`), `ticket`, `spec`,
 
 - **`low-risk`**: return its `summary` line as the whole result and stop. No
   critic runs; the skip is logged.
-- **`risky` with signal `model-unavailable`, reason `code-not-allowed` or
-  `not-opted-in`**: the opt-in comes first, in step 3; after it, triage
-  again, since the triage model may then answer.
+- **`risky` with signal `model-unavailable`, reason `code-not-allowed`**:
+  the opt-in comes first, in step 3; after it, triage again, since the triage
+  model may then answer.
 - **`risky`**: keep its `summary` line for the result, and go on.
 
 ### 3. Prepare
@@ -86,11 +86,6 @@ counts against the same cap as the spec's other stages.
   (`repositories["<host/owner/repo>"].families`). If the owner agrees, run
   allow with `repo`, those `families` and `"code": true`, then triage and
   prepare again. If they decline, stop: nothing was sent.
-- **Refused with `not-opted-in`**: offer the opt-in. Name the families
-  (`mistral`, `zhipu`, `deepseek`, `google`), point at `routing.json` in the
-  critique directory for the clients each one feeds, and say that this stage
-  sends code, so the entry needs `"code": true`. Run allow with the owner's
-  choice, then triage and prepare again.
 - **Any other refusal**: give the runner's line and stop.
 - **Ready**: keep `run_dir`, `packet_dir`, `code` and `critics`.
   `code.head_commit` is a commit made of the index; no branch points at it.

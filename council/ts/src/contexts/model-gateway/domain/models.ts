@@ -67,6 +67,10 @@ const FAMILY_PREFIXES: readonly (readonly [string, string])[] = [
   ['minimax', 'minimax'],
   ['grok', 'xai'],
   ['qwen', 'alibaba'],
+  ['mimo', 'xiaomi'],
+  ['hy', 'tencent'],
+  ['longcat', 'meituan'],
+  ['step', 'stepfun'],
   ['mistral', 'mistral'],
   ['codestral', 'mistral'],
 ]
@@ -138,14 +142,20 @@ export function hermesDefaultModel(stdout: string): ClientModel | undefined {
  * The models a Vibe `config.toml` declares, in the order it declares them: the
  * alias is what `vibe --model` accepts, and the model's own name is kept
  * beside it when it differs, because the catalogue may know the model by
- * either. An entry that is not a table declares no model. Throws on a file
- * that is not TOML, so the caller never acts on half a file.
+ * either. The configuration holds them either as `[[models]]` tables, which is
+ * what `vibe-sync-models.py` writes, or as a `models` map of tables. An entry
+ * that is not a table declares no model. Throws on a file that is not TOML, so
+ * the caller never acts on half a file.
  */
 export function vibeModels(toml: string): readonly ClientModel[] {
-  const models = readToml(toml).models
-  if (!isObject(models)) return []
+  const raw: unknown = readToml(toml).models
+  const entries = Array.isArray(raw)
+    ? raw.map((value: unknown, index: number): [string, unknown] => [String(index), value])
+    : isObject(raw)
+      ? Object.entries(raw)
+      : []
   const declared: ClientModel[] = []
-  for (const [key, value] of Object.entries(models)) {
+  for (const [key, value] of entries) {
     if (!isObject(value)) continue
     const alias = typeof value.alias === 'string' && value.alias !== '' ? value.alias : key
     const name = typeof value.name === 'string' && value.name !== '' && value.name !== alias ? value.name : undefined

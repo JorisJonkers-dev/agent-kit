@@ -211,11 +211,11 @@ skills:
       - agent: codex
         path: .agents/skills/council/SKILL.md
         source: skills/repo/council/codex/SKILL.md
-        sha256: 6c896bc1bfc06e7be82879e759c2243a30614b6c9092920edeb440a8912ed068
+        sha256: 338fb944b6a4a7cf290ae4da3ce4460127091692896b3b22971a9de850181422
       - agent: claude
         path: .claude/skills/council/SKILL.md
         source: skills/repo/council/claude/SKILL.md
-        sha256: 1913f16a57dc1bacf3c9b2a210fe4d5bb02cf28c7e2b0ae9741c765256bc2696
+        sha256: 027202ce6ca25934d731957c2bf0b4eed90c9a7e91cc25928639c62f8b0b67f7
   - name: deploy-status
     supported_agents: [codex, claude]
     targets:
@@ -468,7 +468,7 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: 2679f2bedf5f198489151469ec7c1d0a1e621bc18ce974d122982a3e00bd752a
+      sha256: 6a0341d5e89690bb8903867be1c4d1b3e4f1b9c87561c45c600f72cf47f8ddb9
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
       sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
@@ -531,7 +531,7 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/workstation/critique/README.md
-      sha256: a9b73c36b2922b2fc4e10302c1478cbcfde3e09a9c10e01ca5cab7619649fbe6
+      sha256: e29d2683e4192c05e4ce12a55f44fb981921872da1e017bbb84bcd33b9c14361
       mode: "0644"
     - path: skills/workstation/critique/routing.json
       sha256: adab6cd8a7510ceff7efd8092ab4cc01b0eb1ae51783a79a7ed95e4c49f4f702
@@ -557,10 +557,10 @@ build_tracker:
 model_gateway:
   files:
     - path: skills/workstation/model-gateway/model-gateway.mjs
-      sha256: 1b8239a256090bbafba8e7220fa9599b07bf2cb66cd791ca88af06d0c5e9bf4f
+      sha256: ca82d9937ae82357bbf9a2ff73fceee4d306de40bb58da8010b6dffe8a19dcc1
       mode: "0755"
     - path: skills/workstation/model-gateway/defaults.json
-      sha256: 54fdf1861094f31a2962d539259eac0bfc18486d6f5d14af7bd46e8ae6593eb4
+      sha256: 525bfe3ccd9863029555738e057badb113a845529fbb5a5979ebf1f0e5d2fe5d
       mode: "0644"
     - path: skills/workstation/model-gateway/defaults.schema.json
       sha256: 17330924e72eba5cc00bf813fa704d02cbb7c9e96445f44843843afc2f7f8046

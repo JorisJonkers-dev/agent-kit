@@ -58,7 +58,7 @@ run dir.
 ```bash
 # ad-hoc, engine-agnostic worker pool over any tasks.json (no plan phase)
 node council/council.mjs fleet \
-  --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
+  --tasks tasks.json --agents 'codex:gpt-6.1-sol*3,claude:haiku*2'
 ```
 
 `fleet` round-robins the tasks across the declared pool — workers may be Claude
@@ -97,7 +97,7 @@ Driven by an intensity preset plus optional per-role overrides in `council.toml`
 council.mjs plan --brief b.md --intensity thorough     # one-off
 council.mjs config show                                # resolved config + sources
 council.mjs config set intensity thorough              # persist (user-global)
-council.mjs config set planner_b codex:gpt-5.5
+council.mjs config set planner_b codex:gpt-6.1-sol
 council.mjs config set worker claude:sonnet --project  # persist for THIS repo only
 council.mjs config unset worker                         # back to preset
 ```
