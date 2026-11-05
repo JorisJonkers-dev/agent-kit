@@ -246,7 +246,7 @@ _Avoid_: router, proxy, broker
 
 **Client**:
 A CLI that runs models on one account (Vibe, Antigravity, Codex, Claude Code,
-Hermes). One client can serve models of several model families.
+Hermes, OpenCode). One client can serve models of several model families.
 _Avoid_: provider, engine, backend
 
 **Client model**:
@@ -293,8 +293,9 @@ already made, and reports each delegation as done, failed or skipped.
 _Avoid_: pipeline, DAG, job list
 
 **Plan limit**:
-How much a subsidised client's plan allows (credits a month, prompts a day).
-The model gateway warns as usage nears it; it replaces a spend cap for that
+How much a subsidised client's plan allows in one window (5 hours, day, week
+or month): dollars or runs, never both. A plan may hold several windows. The
+model gateway warns as usage nears a window; it replaces a spend cap for that
 client.
 _Avoid_: budget, quota (a quota is what the client itself reports is left)
 
