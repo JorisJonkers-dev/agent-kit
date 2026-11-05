@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { FakeEngineGuard } from '../../test/council/fake-engine-guard.js'
 import { CouncilApp } from './council-app.js'
 import type {
   CouncilTailTickerInput,
@@ -212,6 +213,7 @@ describe('CouncilApp native execution composition', () => {
     const supervisors: RecordingSupervisor[] = []
     const promptWrites: { readonly path: string; readonly text: string }[] = []
     const app = new CouncilApp({
+      engineGuard: new FakeEngineGuard(),
       createRunStore: () => store,
       createWorkerSupervisor: (dependencies) => {
         const supervisor = new RecordingSupervisor(dependencies, completedSupervisorResult('T1'))
@@ -281,7 +283,7 @@ describe('CouncilApp native execution composition', () => {
         worktreePath: '/repo/.worktrees/workers/run-native/T1',
       },
     ])
-    expect(promptWrites).toEqual([
+    expect(promptWrites.filter((write) => write.path.endsWith('prompt.md'))).toEqual([
       {
         path: '/repo/.worktrees/workers/run-native/T1/.council/workers/T1/prompt.md',
         text: expect.stringContaining('Task T1: Native task') as string,
@@ -340,6 +342,7 @@ describe('CouncilApp native execution composition', () => {
     const store = new RecordingRunStore()
     const supervisors: RecordingSupervisor[] = []
     const app = new CouncilApp({
+      engineGuard: new FakeEngineGuard(),
       createRunStore: () => store,
       createWorkerSupervisor: (dependencies) => {
         const supervisor = new RecordingSupervisor(dependencies, completedSupervisorResult('T1'))

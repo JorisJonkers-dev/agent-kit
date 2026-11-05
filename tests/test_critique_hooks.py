@@ -304,6 +304,11 @@ def repo(tmp_path: Path) -> tuple[Path, Path]:
     (repo / "src" / "auth").mkdir(parents=True)
     (repo / "src" / "auth" / "session.ts").write_text("export const ttl = 60\n")
     _git(repo, "add", "-A")
+    flows = repo / ".git" / "critique" / "flows"
+    flows.mkdir(parents=True)
+    (flows / "widgets.json").write_text(
+        json.dumps({"phase": "implementation", "repository": "github.com/example/widgets"}),
+    )
     return repo, home
 
 
@@ -337,8 +342,8 @@ def test_the_commit_gate_script_blocks_an_unreviewed_risky_commit_with_the_deny_
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": "Commit blocked: the staged change is risky "
-            "(src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. "
-            "Run /review-ticket, then commit.",
+            "(src/auth/session.ts is a risk path) and no passing /review-implementation run matches it. "
+            "Run /review-implementation, then commit.",
         },
     }
     assert took < 1.0, f"the commit gate took {took:.2f}s"
@@ -355,12 +360,22 @@ def test_the_gate_scripts_print_nothing_when_they_allow(repo: tuple[Path, Path])
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+def test_the_gate_scripts_allow_everything_when_the_repository_has_no_active_flow(repo: tuple[Path, Path]) -> None:
+    path, home = repo
+    (path / ".git" / "critique" / "flows" / "widgets.json").unlink()
+    commit, _ = _hook("critique-commit-gate", _bash(path, "git commit -m x"), home)
+    pr, _ = _hook("critique-pr-gate", _bash(path, "gh pr create --fill"), home)
+
+    assert [(r.returncode, r.stdout) for r in (commit, pr)] == [(0, ""), (0, "")]
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_pr_gate_script_blocks_a_pr_with_no_feature_review(repo: tuple[Path, Path]) -> None:
     path, home = repo
     result, _ = _hook("critique-pr-gate", _bash(path, "gh pr create --fill"), home)
 
     reason = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
-    assert result.returncode == 0 and reason.startswith("PR blocked: no /review-feature run has recorded a gate for ")
+    assert result.returncode == 0 and reason.startswith("PR blocked: no /review-pr run has recorded a gate for ")
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")

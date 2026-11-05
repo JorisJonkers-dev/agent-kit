@@ -1,6 +1,7 @@
 import type { CriticRun } from './critic.js'
 import { signalledDepth, type DepthSignal } from './depth.js'
 import type { RunFinding } from './findings.js'
+import { gatewayLedgerWarning } from './gateway-ledger.js'
 import type { RefuteRecord } from './refute.js'
 import type { DroppedCritic } from './routing.js'
 import { STAGE_TABLE } from './stage-table.js'
@@ -55,6 +56,8 @@ export function renderSummary(run: AdjudicatedRun, reportPath: string): string {
       ...roundLines(run),
       verdictLine(run),
       ...ticketCheckLines(run),
+      ...planWarningLines(run),
+      ...ledgerWarningLines(run),
       ...doNotStartLines(run),
       '',
       '## Critics',
@@ -211,6 +214,24 @@ function roundLines(run: AdjudicatedRun): readonly string[] {
  * cycle, or while a critical scope question about the tickets is open. A
  * review stage sits before no command of a feature's flow, so it names none.
  */
+/**
+ * The model gateway's warning for each Vibe plan window at or above its
+ * warning ratio, in the gateway's own words: the stage ran, and the owner
+ * should know how little of the plan is left before the next one.
+ */
+function planWarningLines(run: AdjudicatedRun): readonly string[] {
+  return (run.plan_warnings ?? []).map((warning) => `Vibe plan: ${warning}`)
+}
+
+/**
+ * A run the gateway's ledger would not take: the stage went on, and the owner
+ * is told the run is in critique's own ledger only, so the gateway's spend
+ * does not count it.
+ */
+function ledgerWarningLines(run: AdjudicatedRun): readonly string[] {
+  return (run.ledger_warnings ?? []).map(gatewayLedgerWarning)
+}
+
 function doNotStartLines(run: AdjudicatedRun): readonly string[] {
   const next = STAGE_TABLE[run.stage].doNotStart
   if (next === null) return []

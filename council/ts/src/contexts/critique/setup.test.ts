@@ -114,9 +114,29 @@ describe("setup's machine checklist", () => {
       'read-only:vibe-glm',
       'read-only:vibe-deepseek-flash',
       'read-only:vibe-mistral-small',
+      'read-only:claude',
+      'read-only:codex',
+      'read-only:hermes',
+      'read-only:opencode',
       'hooks-installed',
       'kill-switch',
     ])
+  })
+
+  it('tells the owner to delete a routing override that still names the removed per-flow Vibe cap', async () => {
+    const h = await machine({ routingOverride: { budget: { vibe_flow_cap_usd: 8 } } })
+
+    const result = await listed(h)
+
+    expect(result.notes).toEqual([
+      `your routing override still names budget.vibe_flow_cap_usd in ${join(h.home, '.config', 'agent-kit', 'critique-routing.json')}: it is ignored, since Vibe is counted against its plan limit; delete it`,
+    ])
+  })
+
+  it('says nothing about a routing override that names no removed setting', async () => {
+    const h = await machine({ routingOverride: { antigravity_quota: { daily_cap: 8 } } })
+
+    expect((await listed(h)).notes).toBeUndefined()
   })
 
   it('says what each item costs: sign-ins and the quota are free, a critic spends on its own CLI', async () => {
@@ -202,6 +222,10 @@ describe("setup's machine checklist", () => {
       'vibe-signed-in',
       'critic:vibe-glm',
       'read-only:vibe-glm',
+      'read-only:claude',
+      'read-only:codex',
+      'read-only:hermes',
+      'read-only:opencode',
       'hooks-installed',
       'kill-switch',
     ])
@@ -228,6 +252,10 @@ describe("setup's machine checklist", () => {
       'critic:agy-gemini-flash-high',
       'agy-quota',
       'read-only:agy-gemini-flash-high',
+      'read-only:claude',
+      'read-only:codex',
+      'read-only:hermes',
+      'read-only:opencode',
       'hooks-installed',
       'kill-switch',
     ])
@@ -261,6 +289,66 @@ const gateway = (calls = REFUSED, overrides: Partial<VibeScript> = {}): VibeScri
   ...overrides,
 })
 
+describe('the read-only proof for a client with no critic', () => {
+  it('does not title an unproven client as proven', async () => {
+    const h = await machine({ search: true })
+
+    const items = await list(h)
+    const titles = ['read-only:claude', 'read-only:codex', 'read-only:hermes', 'read-only:opencode'].map((id) => item(items, id).title)
+
+    expect(titles.filter((title) => title.includes('is proven'))).toEqual([])
+  })
+
+  it('records Claude Code, Codex, Hermes and OpenCode as unproven, with the reason, and runs nothing', async () => {
+    const h = await machine({ search: true })
+
+    const result = await check(h, 'read-only:codex')
+
+    expect([result.status, result.item.last?.result, h.process.commands, h.process.searches, h.agy.launches]).toEqual([
+      'checked',
+      'unproven',
+      [],
+      [],
+      [],
+    ])
+    expect(result.item.last?.detail).toContain('sandbox')
+    expect(result.item.last?.detail).toContain('live prompt')
+    expect(result.item.kind).toBe('read-only')
+  })
+
+  it('never reports one of them as passing', async () => {
+    const h = await machine({ search: true })
+
+    const outcomes = [] as string[]
+    for (const id of ['read-only:claude', 'read-only:codex', 'read-only:hermes', 'read-only:opencode']) {
+      outcomes.push((await check(h, id)).item.last?.result ?? 'none')
+    }
+
+    expect(outcomes).toEqual(['unproven', 'unproven', 'unproven', 'unproven'])
+  })
+
+  it('is current once recorded, and due again only when setup is re-run after its inputs change', async () => {
+    const h = await machine({ search: true })
+    await check(h, 'read-only:hermes')
+
+    const again = await check(h, 'read-only:hermes')
+
+    expect([again.status, item(await list(h), 'read-only:hermes').status]).toEqual(['current', 'current'])
+  })
+
+  it('gives each client its own reason, and never calls one a read-only mode it has not shown', async () => {
+    const h = await machine({ search: true })
+
+    const items = await list(h)
+    const reasons = ['read-only:claude', 'read-only:codex', 'read-only:hermes', 'read-only:opencode'].map(
+      (id) => item(items, id).why,
+    )
+
+    expect(new Set(reasons).size).toBe(4)
+    expect(reasons.every((why) => why.endsWith('.'))).toBe(true)
+  })
+})
+
 describe('the read-only proof', () => {
   it('waits for #178 for agy, and is one Vibe prompt for each Vibe client', async () => {
     const h = await machine({ search: true })
@@ -273,6 +361,10 @@ describe('the read-only proof', () => {
       ['read-only:vibe-glm', 'due', 'vibe', 'never-checked'],
       ['read-only:vibe-deepseek-flash', 'due', 'vibe', 'never-checked'],
       ['read-only:vibe-mistral-small', 'due', 'vibe', 'never-checked'],
+      ['read-only:claude', 'due', 'free', 'never-checked'],
+      ['read-only:codex', 'due', 'free', 'never-checked'],
+      ['read-only:hermes', 'due', 'free', 'never-checked'],
+      ['read-only:opencode', 'due', 'free', 'never-checked'],
     ])
     expect(item(proofs, 'read-only:vibe-glm').why).toContain('refuses shell commands, file writes and process starts')
   })

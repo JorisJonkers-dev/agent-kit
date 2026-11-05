@@ -90,6 +90,56 @@ module.exports = {
       to: { path: '^src/contexts/build-tracker/(domain|adapters|application)/.+' },
     },
     {
+      // The model gateway is its own small runner: its context and CLI reach
+      // no other context and none of council's shells, so its bundle stays
+      // self-contained. The shared ports and the shared process and
+      // environment adapters are all it may use from outside.
+      name: 'model-gateway-stands-alone',
+      severity: 'error',
+      from: { path: '^src/(contexts/model-gateway|model-gateway-cli)/' },
+      to: {
+        path: '^src/(contexts/[^/]+|workflows|composition|app|cli|critique-cli|build-tracker-cli)/',
+        pathNot: '^src/contexts/model-gateway/',
+      },
+    },
+    {
+      // The model gateway's domain is pure: no ports, no application layer and
+      // no adapters. Reading a file and asking PATH live in an adapter.
+      name: 'model-gateway-domain-is-pure',
+      severity: 'error',
+      from: { path: '^src/contexts/model-gateway/domain/' },
+      to: { path: '^src/(ports|adapters)/|^src/contexts/model-gateway/(application|adapters)/' },
+    },
+    {
+      // The critique context reaches the model gateway only through its public
+      // barrel: a critic's launch goes through the gateway's launch path, never
+      // its internals. The gateway reaches nothing in critique.
+      name: 'critique-uses-the-gateway-barrel',
+      severity: 'error',
+      from: { path: '^src/contexts/critique/' },
+      to: { path: '^src/contexts/model-gateway/(domain|application|adapters)/.+' },
+    },
+    {
+      // Council's engines reach the model gateway only through its public
+      // barrel, and reach no other context: an engine process is authorised
+      // and recorded by the gateway's guard, never by its internals. The
+      // gateway reaches nothing in council or critique (model-gateway-stands-alone).
+      name: 'engines-reach-only-the-gateway-barrel',
+      severity: 'error',
+      from: { path: '^src/contexts/engines/' },
+      to: {
+        path: '^src/contexts/(?!engines/)[^/]+/',
+        pathNot: '^src/contexts/model-gateway/index\\.ts$',
+      },
+    },
+    {
+      // The model gateway's CLI reaches its context only through the barrel.
+      name: 'model-gateway-cli-uses-context-barrel',
+      severity: 'error',
+      from: { path: '^src/model-gateway-cli/' },
+      to: { path: '^src/contexts/model-gateway/(domain|adapters|application)/.+' },
+    },
+    {
       // The CLI is a thin inbound adapter and reaches contexts only through
       // their public barrels, never their internals.
       name: 'cli-uses-context-barrels',

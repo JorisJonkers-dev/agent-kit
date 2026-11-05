@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "clients": {
+    "vibe":   {"binary": "vibe",   "cost_class": "subsidised",       "model_source": "config"},
+    "agy":    {"binary": "agy",    "cost_class": "subsidised",       "model_source": "live", "families": ["google"]},
+    "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
+    "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "config"},
+    "opencode": {"binary": "opencode", "cost_class": "metered-personal", "model_source": "live", "provider_cost_classes": {"opencode-go": "subsidised"}},
+    "codex":  {"binary": "codex",  "cost_class": "metered-employer", "model_source": "declared"}
+  },
+  "models": [
+    {"client": "claude", "model": "claude-opus-5-5",   "family": "anthropic", "tier": "frontier", "notes": "Strongest Claude; design, hard debugging, review of risky changes."},
+    {"client": "claude", "model": "claude-sonnet-5-5", "family": "anthropic", "tier": "hard",     "notes": "Strong general coding and refactoring."},
+    {"client": "claude", "model": "claude-haiku-5-5",  "family": "anthropic", "tier": "routine",  "notes": "Fast and cheap; mechanical edits, summaries, lookups."},
+    {"client": "codex",  "model": "gpt-5.5",           "family": "openai",    "tier": "frontier", "notes": "Strong implementation and review; metered on the nedap account, grant needed.", "prices": {"input": 1.25, "cached_input": 0.125, "output": 10}},
+    {"client": "vibe",   "model": "deepseek-v4-1-flash-1017", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; good at well-specified code changes and lint-like review.", "prices": {"input": 0.3, "cached_input": 0.03, "output": 1.2}},
+    {"client": "vibe",   "model": "glm-5-3",           "names": ["zai-glm-5-3"],         "family": "zhipu",     "tier": "hard",     "notes": "Strong code review and integration reasoning.", "prices": {"input": 1.4, "cached_input": 0.14, "output": 4.4}},
+    {"client": "vibe",   "model": "mistral-large-latest", "names": ["mistral-large-4-0"], "family": "mistral",   "tier": "hard",     "notes": "Broad general model.", "prices": {"input": 0.7, "cached_input": 0.07, "output": 2.1}},
+    {"client": "vibe",   "model": "mistral-small-latest", "names": ["mistral-small-latest"], "family": "mistral", "tier": "trivial", "notes": "Very cheap; short summaries and classification.", "prices": {"input": 0.15, "cached_input": 0.015, "output": 0.6}},
+    {"client": "agy",    "model": "gemini-3.8-flash-high", "family": "google", "tier": "hard",    "notes": "Long context; reading large codebases and documents."},
+    {"client": "agy",    "model": "gemini-3.8-flash-medium", "family": "google", "tier": "routine", "notes": "Fast long-context reader; summaries and well-specified edits."},
+    {"client": "agy",    "model": "gemini-3.8-flash-low", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries, classification and lookups."},
+    {"client": "opencode", "model": "opencode-go/glm-5.3", "family": "zhipu", "tier": "hard", "notes": "Strong code review and integration reasoning on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/deepseek-v4-pro", "family": "deepseek", "tier": "hard", "notes": "Strong coding and reasoning; larger DeepSeek on OpenCode Go. Needs the privacy region of the account set to Global."},
+    {"client": "opencode", "model": "opencode-go/qwen3.8-max", "family": "alibaba", "tier": "hard", "notes": "Strongest Qwen; multi-file changes and analysis on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/kimi-k3.1-pro", "family": "moonshot", "tier": "hard", "notes": "Strong agentic coding and long-context work on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; well-specified code changes on OpenCode Go. Needs the privacy region of the account set to Global."},
+    {"client": "opencode", "model": "opencode-go/glm-5.3-flash", "family": "zhipu", "tier": "routine", "notes": "Fast GLM; mechanical edits and review of small diffs on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate."}
+  ],
+  "settings": {
+    "plan_warning_ratio": 0.8,
+    "summary_max_chars": 1500,
+    "max_parallel_per_client": 3,
+    "max_batch_delegations": 50,
+    "availability_window_minutes": 60,
+    "metered_personal_caps": {"per_workflow_usd": 2, "per_day_usd": 5},
+    "output_allowance_tokens": {"trivial": 500, "routine": 2000, "hard": 6000, "frontier": 16000}
+  }
+}

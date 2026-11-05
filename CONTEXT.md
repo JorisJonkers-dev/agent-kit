@@ -14,9 +14,10 @@ declared through that source.
 _Avoid_: managed entry, fleet entry
 
 **Retired record**:
-A declared entry with `surfaces: []`, one listed in `retired_plugins:`, or one
-with `enabled: false` on a surface. It stays in the registry as history, and
-setup removes it from that surface.
+A declared entry with `surfaces: []`, one listed in `retired_plugins:`, one
+with `enabled: false` on a surface, or a first-party skill listed in
+`retired_skills:` (a renamed skill's old name). It stays in the registry as
+history, and setup removes it from that surface.
 _Avoid_: disabled entry, legacy entry
 
 **Undeclared entry**:
@@ -105,8 +106,8 @@ The agent the owner is working in, which runs a critique and gives each of
 the critics' findings its verdict.
 
 **Critic client**:
-One CLI pinned to one model, through which a critic runs (for example Vibe
-with Mistral Large, or Antigravity with Gemini Flash).
+A client model pinned for critique, through which a critic runs (for example
+Vibe with Mistral Large, or Antigravity with Gemini Flash).
 _Avoid_: preset, provider, engine
 
 **Model family**:
@@ -206,15 +207,18 @@ The angle one critic is told to review from (fidelity, failure modes, ...).
 _Avoid_: perspective, persona
 
 **Family allowlist**:
-The per-repository list of model families a critique may send content to,
-kept per machine outside the repository, so nothing about it is committed.
+The per-repository list of model families a critique or a delegation may
+send content to, kept per machine outside the repository, so nothing about it
+is committed.
 It is keyed by the repository's remote. A repository with no entry, or with
 no remote, sends nothing; a repository owned by the `nedap` GitHub
-organisation sends nothing, whatever its entry says. An entry allows
+organisation sends nothing to critics, whatever its entry says. An entry allows
 documents only unless its code permission is on; the code stages refuse
 while it is off. Its history permission, also off by default, separately
 lets a stage send the repository's commit messages and issue text; while it
-is off, a stage leaves history out.
+is off, a stage leaves history out. For delegation, a `nedap` repository is
+the one exception: it may delegate to Codex on the nedap account (under a
+grant) and to Claude Code, and to nothing else, whatever its entry says.
 _Avoid_: data policy, provider list
 
 **Flow state**:
@@ -226,6 +230,80 @@ feature in the git common directory, so every worktree shares it, and it is
 only a cache: it can always be rebuilt from the ledger, the run directories
 and the tracker.
 _Avoid_: session, progress, checkpoint
+
+**Active flow**:
+A feature of this repository whose flow state says it is in implementation or
+finishing, not planning. The commit, merge and PR gates enforce reviews only
+while the repository has one; outside it they let every command through.
+_Avoid_: open feature, running flow
+
+## Model gateway
+
+**Model gateway**:
+The one tool every agent uses to list the client models on this machine, hand
+a delegation to one of them, and read their availability, usage and quota.
+_Avoid_: router, proxy, broker
+
+**Client**:
+A CLI that runs models on one account (Vibe, Antigravity, Codex, Claude Code,
+Hermes, OpenCode). One client can serve models of several model families.
+_Avoid_: provider, engine, backend
+
+**Client model**:
+One model a client offers now, as the client itself reports it, as its own
+configuration declares it, or, failing both, as the owner declares it.
+_Avoid_: preset, engine
+
+**Delegation**:
+One task an agent hands to one client model through the model gateway. A
+read-only delegation changes no files; a writing delegation works in its own
+worktree and stops at a staged change.
+_Avoid_: job, offload, subtask
+
+**Cost class**:
+Who pays when a client runs: subsidised (included in a plan the owner already
+pays for), metered-personal (the owner pays per token) or metered-employer
+(nedap pays per token). Delegation prefers them in that order. The model
+gateway moves between client models of one cost class on its own, but never
+into a costlier class; that choice belongs to the orchestrator. Metered-personal
+runs are held to a dollar cap per workflow and per day, and metered-employer
+runs to a grant.
+_Avoid_: tier, pricing
+
+**Grant**:
+The owner's permission for one named workflow to send delegations to a
+metered-employer client, with a dollar cap. Without a grant the model gateway
+refuses that client. A grant ends when its workflow ends, after 24 hours, or
+when its cap is spent; a lapsed grant needs the owner asked again.
+_Avoid_: approval, token, allowance
+
+**Workflow**:
+A named piece of work under which an orchestrator sends delegations, for
+example one spec or one batch plan. Every delegation names its workflow, and
+caps and grants are counted per workflow. It ends when the orchestrator ends
+it, or after 24 hours. One Workflow tool script usually runs as one workflow,
+but the two are not the same thing.
+_Avoid_: job, session, run (a run is one critique pass or one delegation)
+
+**Batch plan**:
+A set of delegations, with the dependencies between them, that the model
+gateway runs in one call. When one delegation fails for good, the gateway
+skips only the delegations that depend on it, keeps every staged change
+already made, and reports each delegation as done, failed or skipped.
+_Avoid_: pipeline, DAG, job list
+
+**Plan limit**:
+How much a subsidised client's plan allows in one window (5 hours, day, week
+or month): dollars or runs, never both. A plan may hold several windows. The
+model gateway warns as usage nears a window; it replaces a spend cap for that
+client.
+_Avoid_: budget, quota (a quota is what the client itself reports is left)
+
+**Difficulty tier**:
+How hard one task is: trivial, routine, hard or frontier. Each client model
+carries the highest tier it handles well, and a task goes to the cheapest
+cost class whose model covers its tier.
+_Avoid_: complexity, level, size
 
 ## Build tracker
 

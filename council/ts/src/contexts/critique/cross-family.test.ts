@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   agyFindings,
@@ -10,6 +10,7 @@ import {
   finding,
   harness,
   isolatedExport,
+  LaunchLog,
   SPEC_CANARY,
   vibeStdout,
   type AgyScript,
@@ -276,5 +277,25 @@ describe('dissent across families', () => {
 
     expect(summary).toContain('(raised by mistral and google)')
     expect(summary.slice(summary.indexOf('## Dissent'))).toContain('none')
+  })
+})
+
+describe('the launch barrier', () => {
+  it('holds a critic until the other starts, however long the machine takes', async () => {
+    vi.useFakeTimers()
+    try {
+      const log = new LaunchLog()
+      const first = log.play('vibe', 2)
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(log.events).toEqual(['start vibe'])
+
+      await log.play('agy', 2)
+      await first
+
+      expect(log.events).toEqual(['start vibe', 'start agy', 'end agy', 'end vibe'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

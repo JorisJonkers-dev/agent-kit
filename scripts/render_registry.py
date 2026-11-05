@@ -48,13 +48,26 @@ VIBE_MCP = Path("registry/generated/vibe/mcp-servers.toml")
 VIBE_PRIVATE_MCP = Path("registry/generated/vibe-private/mcp-servers.toml")
 ANTIGRAVITY_MCP = Path("registry/generated/antigravity/mcp_config.json")
 OPENCODE_MCP = Path("registry/generated/opencode/opencode.json")
-# One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry.
+# One read-only `critic-<model>` Vibe agent file per vibe_critic_agents entry,
+# and one read-only `delegate-*` file per vibe_delegate_agents entry, in the
+# same directory: both are agents the kit launches by name.
 VIBE_CRITIC_AGENTS_DIR = Path("registry/generated/vibe/agents")
+VIBE_DELEGATE_AGENTS_DIR = VIBE_CRITIC_AGENTS_DIR
 # The runner's search server goes by `packet` in a critic's launch, so Vibe
 # names its tools `packet_<tool>` (ADR-0006). They exist only while it runs.
 CRITIC_SEARCH_TOOLS = ("packet_grep", "packet_list", "packet_symbol")
 CRITIC_TOOLS = ("read_file", *CRITIC_SEARCH_TOOLS)
 VIBE_CRITIC_AGENT_KEYS = {"name", "model", "input_price", "output_price", "thinking", "surfaces", "note"}
+# A delegate agent pins no model: the gateway passes `--model <alias>`.
+VIBE_DELEGATE_AGENT_KEYS = {"name", "surfaces", "note"}
+# What a read-only delegate may do: read a file and search the working
+# directory. Vibe 3.0.4 has no listing tool, so `grep` is how it finds files.
+DELEGATE_TOOLS = ("read_file", "grep")
+# What a writing delegate may add: create or overwrite a file and edit one in
+# place. There is no shell tool among them: the gateway runs the check itself.
+DELEGATE_WRITE_TOOLS = ("write_file", "edit")
+# The one delegate agent that may write; every other `delegate-*` is read-only.
+WRITE_DELEGATE_AGENT = "delegate-write"
 # Mistral bills cached prompt tokens at this share of the input price
 # (docs.mistral.ai/studio/conversations/advanced/prompt-caching). Every critic
 # model runs through Mistral, so its agent file prices cached input this way.
@@ -80,6 +93,8 @@ SKILL_AGENT_HOMES = {
     "antigravity": ["ANTIGRAVITY_HOME", "ANTIGRAVITY_CLI_HOME"],
     "opencode": ["OPENCODE_HOME"],
 }
+
+RETIRED_SKILL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -349,6 +364,7 @@ def validate(data: dict[str, Any]) -> None:
             )
 
     _validate_vibe_critic_agents(data)
+    _validate_vibe_delegate_agents(data)
 
     for key in ("clis", "plugins", "language_servers", "mcp_servers"):
         for item in _entries(data, key):
@@ -391,6 +407,11 @@ def validate(data: dict[str, Any]) -> None:
             for field in ("cask", "macos_only"):
                 if field in item:
                     raise RegistryError(f"{key} entry {_label(item)} may not set {field}: it is a clis: key")
+
+    for retired_skill in _entries(data, "retired_skills"):
+        rname = retired_skill.get("name")
+        if not isinstance(rname, str) or not RETIRED_SKILL_NAME.fullmatch(rname):
+            raise RegistryError(f"retired_skills entry needs a plain `name` (letters, digits, . _ -): {rname!r}")
 
     _validate_claude_profiles(data)
     _validate_container(data)
@@ -547,6 +568,79 @@ def vibe_critic_agents(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 def retired_vibe_critic_agents(data: dict[str, Any]) -> list[str]:
     return [str(a["name"]) for a in _entries(data, "vibe_critic_agents") if not on_surface(a, "workstation")]
+
+
+def _validate_vibe_delegate_agents(data: dict[str, Any]) -> None:
+    seen: set[str] = set()
+    for agent in _entries(data, "vibe_delegate_agents"):
+        name = str(agent.get("name") or "")
+        if not re.fullmatch(r"delegate-[a-z0-9]+(-[a-z0-9]+)*", name):
+            raise RegistryError(f"vibe delegate agent {name!r} must be named delegate-<what it may do>, in lower case")
+        if name in seen:
+            raise RegistryError(f"vibe delegate agent {name} is declared twice")
+        seen.add(name)
+        unknown = set(agent) - VIBE_DELEGATE_AGENT_KEYS
+        if unknown:
+            raise RegistryError(
+                f"vibe delegate agent {name} sets {sorted(unknown)}; an entry names only itself, "
+                "and the read-only settings are the same for every delegate",
+            )
+        if agent.get("surfaces") not in ([], ["workstation"]):
+            raise RegistryError(
+                f"vibe delegate agent {name} surfaces must be [workstation], or [] to retire it",
+            )
+
+
+def vibe_delegate_agents(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """The declared delegate agents; a retired one has ``surfaces: []``."""
+    return [a for a in _entries(data, "vibe_delegate_agents") if on_surface(a, "workstation")]
+
+
+def retired_vibe_delegate_agents(data: dict[str, Any]) -> list[str]:
+    return [str(a["name"]) for a in _entries(data, "vibe_delegate_agents") if not on_surface(a, "workstation")]
+
+
+def render_vibe_delegate_agent(agent: dict[str, Any]) -> str:
+    """One delegate agent file, a Vibe config overlay for ``vibe --agent <name>``.
+
+    Every setting is fixed here, so no entry can widen a delegate. Its tool
+    list is what keeps shells, skills and subagents from it, and writes too
+    unless it is ``delegate-write``, which adds ``write_file`` and ``edit``
+    (set to ``always``, as a headless run has nobody to ask);
+    ``outside_workdir = "deny"`` keeps it inside the directory the gateway
+    points it at, and ``include_project_context = false`` keeps the home's
+    ``AGENTS.md`` out of its prompt. It pins no model and sets no
+    ``default_agent``: the gateway passes ``--model <alias>``, and a plain
+    ``vibe`` never starts with it.
+    """
+    name = str(agent["name"])
+    writes = name == WRITE_DELEGATE_AGENT
+    tools = (*DELEGATE_TOOLS, *DELEGATE_WRITE_TOOLS) if writes else DELEGATE_TOOLS
+    description = (
+        "Write delegate for the model gateway: edits files in its worktree"
+        if writes
+        else "Read-only delegate for the model gateway"
+    )
+    lines = [
+        f"# {GENERATED_BANNER}",
+        f"# A {'writing' if writes else 'read-only'} delegate of the model gateway, launched by it as",
+        f"# `vibe --agent {name} --model <alias>`. Installed into the shared Vibe home only.",
+        "",
+        f"display_name = {_toml_str(name.replace('-', ' ').title())}",
+        f'description = "{description}"',
+        'safety = "safe"',
+        "enabled_tools = [" + ", ".join(_toml_str(tool) for tool in tools) + "]",
+        'enabled_skills = ["re:^$"]',
+        'outside_workdir = "deny"',
+        "enable_subagents = false",
+        "include_project_context = false",
+        "",
+    ]
+    if writes:
+        for tool in DELEGATE_WRITE_TOOLS:
+            lines += [f"[tools.{tool}]", 'permission = "always"', ""]
+    lines += ["[session_logging]", "enabled = false"]
+    return "\n".join(lines) + "\n"
 
 
 def cached_input_price(agent: dict[str, Any]) -> float:
@@ -1623,6 +1717,46 @@ def _critic_agents_step(data: dict[str, Any], w: Any) -> None:
     w("")
 
 
+def _delegate_agents_step(data: dict[str, Any], w: Any) -> None:
+    """The shell function that converges the delegate agents in one Vibe home.
+
+    Each declared agent's file is replaced, so a hand edit is undone; a retired
+    one's is removed; any other agent in the directory is the owner's and is
+    left alone. One line per file keeps every path setup reads from the kit
+    literal, which is how the bundle test sees it.
+    """
+    w("# The delegate agents the model gateway launches as")
+    w("# `vibe --agent delegate-<what it may do>`. Called for the shared Vibe")
+    w("# home only: vibe-private never delegates. Nothing here touches")
+    w("# config.toml, so no delegate becomes the default agent.")
+    w("_vibe_delegate_agents() {")
+    w('  local home="$1" src dest')
+    for agent in vibe_delegate_agents(data):
+        name = agent["name"]
+        w(f'  src="${{KIT_ROOT}}/{VIBE_DELEGATE_AGENTS_DIR}/{name}.toml"')
+        w(f'  dest="${{home}}/agents/{name}.toml"')
+        w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would write ${dest}"')
+        w('  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then')
+        w(f'    ok "Vibe delegate agent {name} -> ${{dest}}"')
+        w("  else")
+        w(f'    fail "Vibe delegate agent {name}: ${{dest}} does not match ${{src}}"')
+        w("  fi")
+    for name in retired_vibe_delegate_agents(data):
+        w(f'  dest="${{home}}/agents/{name}.toml"')
+        w('  if [ ! -e "${dest}" ]; then')
+        w("    :")
+        w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+        w('    log "would remove ${dest}"')
+        w("  else")
+        w('    rm -f "${dest}"')
+        w(f'    ok "removed retired Vibe delegate agent {name}"')
+        w("  fi")
+    w("  return 0")
+    w("}")
+    w("")
+
+
 def opencode_plugin_ids(data: dict[str, Any]) -> list[str]:
     """The enabled Claude Code plugins whose skills OpenCode gets, as Claude shows them."""
     return [
@@ -1685,9 +1819,81 @@ def claude_allow_rules(data: dict[str, Any]) -> list[str]:
     ]
 
 
+# The model gateway's pointer text, one marked block in each client's global
+# instruction file. Plain words only: it is written through a quoted heredoc.
+GATEWAY_POINTER_TEXT = (
+    "The model gateway is the `model-gateway` command on PATH. `model-gateway models`",
+    "lists the client models on this machine, each with its cost class and difficulty tier.",
+    "The `delegate` skill, which is coming later, plans delegations with it.",
+)
+INSTRUCTION_BLOCK = Path("scripts/instruction-block.py")
+
+
+def _gateway_pointer_fn(w: Any) -> None:
+    """The gateway_pointer function: writes or removes setup's marked block in one instruction file."""
+    w("# The model gateway's pointer: one marked block in a client's global instruction")
+    w("# file. Setup owns only that block; the text around it stays the user's.")
+    w("gateway_pointer() {")
+    w('  local file="$1" action="${2:-write}"')
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would ${action} the model-gateway pointer in ${file}"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${action}" = remove ]; then')
+    w('    [ -f "${file}" ] || return 0')
+    w(f'    python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" model-gateway --remove >/dev/null \\')
+    w('      && ok "model-gateway pointer removed from ${file}" \\')
+    w('      || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"')
+    w("    return 0")
+    w("  fi")
+    w('  mkdir -p "$(dirname "${file}")"')
+    w(f'  python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" model-gateway <<\'BLOCK\' \\')
+    w('    && ok "model-gateway pointer -> ${file}" \\')
+    w('    || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"')
+    for line in GATEWAY_POINTER_TEXT:
+        w(line)
+    w("BLOCK")
+    w("}")
+    w("")
+
+
+def _gateway_step(w: Any, declared: bool) -> None:
+    """The model gateway's command and pointers, or their retirement when it is not declared here."""
+    w("# -----------------------------------------------------------------")
+    w("# The model gateway: the `model-gateway` command on PATH, and a pointer to it in")
+    w("# each client's global instruction file. A gateway that is not declared on this")
+    w("# surface is retired: its command and its pointers are removed, if setup wrote them.")
+    w("# -----------------------------------------------------------------")
+    if declared:
+        w("install_kit_command model-gateway")
+        w('gateway_pointer "${CLAUDE_HOME}/CLAUDE.md"')
+        w('gateway_pointer "${CODEX_HOME}/AGENTS.md"')
+        w('if [ "${CLOUD}" != 1 ]; then')
+        w('  gateway_pointer "${HOME}/.hermes/SOUL.md"')
+        w('  gateway_pointer "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"')
+        w("fi")
+    else:
+        w("retire_kit_command model-gateway")
+        for home_file in (
+            '"${CLAUDE_HOME}/CLAUDE.md"',
+            '"${CODEX_HOME}/AGENTS.md"',
+            '"${VIBE_HOME}/AGENTS.md"',
+            '"${VIBE_PRIVATE_HOME}/AGENTS.md"',
+            '"${ANTIGRAVITY_HOME}/AGENTS.md"',
+            '"${HOME}/.hermes/SOUL.md"',
+            '"${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"',
+        ):
+            w(f"gateway_pointer {home_file} remove")
+    w("")
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
+    gateway_declared = any(
+        skill.get("name") == "model-gateway" and on_surface(skill, "workstation")
+        for skill in _entries(data, "local_skills")
+    )
 
     w("#!/usr/bin/env bash")
     w(f"# {GENERATED_BANNER}")
@@ -2161,6 +2367,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  _agents_pointer "${1}/AGENTS.md" "$2"')
     w("}")
     w("")
+    _gateway_pointer_fn(w)
     w("# Every chat model the Mistral login can use, kept current in one Vibe home.")
     w("_vibe_models() {")
     w('  local home="$1"')
@@ -2214,9 +2421,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f'    _vibe_hooks "${{VIBE_PRIVATE_HOME}}" {_retired_vibe_hooks()}')
     w("  fi")
     w('  _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private')
+    w('  gateway_pointer "${VIBE_PRIVATE_HOME}/AGENTS.md"')
     w("}")
     w("")
     _critic_agents_step(data, w)
+    _delegate_agents_step(data, w)
     w("# A shell -c wrapper for the pipe-into-sh installers the upstreams publish.")
     w("run_sh() {")
     w('  if [ "${CHECK_ONLY}" = 1 ]; then')
@@ -3336,6 +3545,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w(f'        _vibe_hooks "${{VIBE_HOME}}" {hooks_remove}')
     w("      fi")
     w('      _vibe_agents_pointer "${VIBE_HOME}" shared')
+    w('      gateway_pointer "${VIBE_HOME}/AGENTS.md"')
     w('      [ "${CLOUD}" = 1 ] || _vibe_private_home')
     w("    else")
     w('      warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"')
@@ -3364,6 +3574,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("    # GEMINI.md: Gemini CLI reads those.")
     w('    if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then')
     w('      _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared')
+    w('      gateway_pointer "${ANTIGRAVITY_HOME}/AGENTS.md"')
     w("    fi")
     w("    # OpenCode 2 reads mcp.servers from its global opencode.json and fills in")
     w("    # {env:NAME} at load, so the fragment names each credential and holds")
@@ -3437,6 +3648,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("fi")
     w("")
 
+    _gateway_step(w, gateway_declared)
     # --- first-party skills ---
     w("# -----------------------------------------------------------------")
     w("# 7. First-party skills that ship in this repository.")
@@ -3508,6 +3720,37 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("fi")
     w("")
 
+    # --- retired first-party skills ---
+    retired_skills = _entries(data, "retired_skills")
+    if retired_skills:
+        w("# Retired first-party skills (registry retired_skills:): a renamed skill's")
+        w("# old directory is removed from every agent home, not left beside the new one.")
+        w('log "retired skills"')
+        for retired_skill in retired_skills:
+            rname = retired_skill["name"]
+            for home in (h for homes in SKILL_AGENT_HOMES.values() for h in homes):
+                w(f'if [ -d "${{{home}}}/skills/{rname}" ]; then')
+                w(f'  dest="${{{home}}}/skills/{rname}"')
+                guard = {
+                    "ANTIGRAVITY_HOME": '[ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]',
+                    "ANTIGRAVITY_CLI_HOME": '[ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]',
+                    "VIBE_PRIVATE_HOME": '[ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]',
+                    "VIBE_HOME": '[ "${VIBE_HOMES_READY}" != 1 ]',
+                }.get(home)
+                if guard:
+                    w(f"  if {guard}; then")
+                    w("    :")
+                    w('  elif [ "${CHECK_ONLY}" = 1 ]; then')
+                else:
+                    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+                w('    log "would remove retired skill ${dest}"')
+                w("  else")
+                w('    rm -rf "${dest}"')
+                w(f'    ok "removed retired skill {rname} from ${{dest}}"')
+                w("  fi")
+                w("fi")
+        w("")
+
     # --- the critique pipeline's Vibe critic agents ---
     if _entries(data, "vibe_critic_agents"):
         w("# The read-only Vibe critic agents, into the shared Vibe home only. Like")
@@ -3515,6 +3758,15 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w('if [ "${VIBE_HOMES_READY}" = 1 ]; then')
         w('  log "Vibe critic agents"')
         w('  _vibe_critic_agents "${VIBE_HOME}"')
+        w("fi")
+        w("")
+
+    # --- the model gateway's Vibe delegate agents ---
+    if _entries(data, "vibe_delegate_agents"):
+        w("# The read-only Vibe delegate agents, into the shared Vibe home only.")
+        w('if [ "${VIBE_HOMES_READY}" = 1 ]; then')
+        w('  log "Vibe delegate agents"')
+        w('  _vibe_delegate_agents "${VIBE_HOME}"')
         w("fi")
         w("")
 
@@ -3850,11 +4102,15 @@ def artifacts(data: dict[str, Any]) -> dict[Path, tuple[str, int]]:
             VIBE_CRITIC_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_critic_agent(agent), 0o644)
             for agent in vibe_critic_agents(data)
         },
+        **{
+            VIBE_DELEGATE_AGENTS_DIR / f"{agent['name']}.toml": (render_vibe_delegate_agent(agent), 0o644)
+            for agent in vibe_delegate_agents(data)
+        },
     }
 
 
-def _leftover_critic_agents(data: dict[str, Any], root: Path) -> list[Path]:
-    """Files in the critic agents' directory that no declared agent renders."""
+def _leftover_agent_files(data: dict[str, Any], root: Path) -> list[Path]:
+    """Files in the agents' directory that no declared critic or delegate renders."""
     directory = root / VIBE_CRITIC_AGENTS_DIR
     if not directory.is_dir():
         return []
@@ -3872,8 +4128,8 @@ def stale_artifacts(data: dict[str, Any], root: Path = KIT_ROOT) -> list[str]:
         target = root / relative
         if (target.read_text() if target.is_file() else None) != content:
             stale.append(str(relative))
-    # A retired critic agent's file would otherwise linger, and ship.
-    stale.extend(str(path) for path in _leftover_critic_agents(data, root))
+    # A retired critic's or delegate's file would otherwise linger, and ship.
+    stale.extend(str(path) for path in _leftover_agent_files(data, root))
     return stale
 
 
@@ -3909,7 +4165,7 @@ def main(argv: list[str] | None = None) -> int:
         if current != content:
             target.write_text(content)
         target.chmod(mode)
-    for leftover in _leftover_critic_agents(data, KIT_ROOT):
+    for leftover in _leftover_agent_files(data, KIT_ROOT):
         (KIT_ROOT / leftover).unlink()
 
     print(f"rendered {len(artifacts(data))} registry artifacts")

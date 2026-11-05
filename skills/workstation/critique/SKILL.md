@@ -1,15 +1,15 @@
 ---
 name: critique
-description: Shared files of the critique pipeline (the bundled runner, prompts, roles, lenses, finding schema and default routing) that the critique stage skills such as /critique-spec drive. Not a workflow of its own; use the stage skill instead.
+description: Shared files of the critique pipeline (the bundled runner, prompts, roles, lenses, finding schema and default routing) that the critique stage skills such as /review-spec drive. Not a workflow of its own; use the stage skill instead.
 ---
 
 # critique
 
 This directory is what the critique stage skills run on. It does nothing on
 its own: `/flow` says which stage is due and runs it, or start a critique
-with the stage skill (`/critique-spec` after
-`/to-spec` produced or changed a spec, `/check-tickets` after `/to-tickets`
-and before the first `/implement`, `/review-ticket` after a ticket's
+with the stage skill (`/review-spec` after
+`/to-spec` produced or changed a spec, `/review-tickets` after `/to-tickets`
+and before the first `/implement`, `/review-implementation` after a ticket's
 `/code-review` and before its commit), which tells you how to drive it.
 
 ## What is here

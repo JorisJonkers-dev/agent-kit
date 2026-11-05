@@ -889,7 +889,7 @@ the ADR gate are [ADR-0003](../adr/0003-review-stages-run-outside-the-feature-fl
     refute round. **Out of scope:** the 10% audit of rejected findings, and a
     self-reported confidence field.
 
-### From `/critique-decisions` (run 20261102T064601Z-decisions)
+### From `/review-grill` (run 20261102T064601Z-decisions)
 
 35. **A failed decision-sentence check undoes the rewrite.** When the runner
     finds that a rewrite changed an ADR's decision sentence, it refuses to

@@ -18,7 +18,7 @@ import {
 import type { PrepareResult } from './index.js'
 
 /**
- * What `/critique-decisions` (#183) relies on the runner for: a packet of the
+ * What `/review-grill` (#183) relies on the runner for: a packet of the
  * decisions grilling recorded (the decision docs, or the orchestrator's
  * summary after `/grill-me`) with the feature they bear on, the shipped
  * decisions roster, and the stage's evidence and verdict rules.

@@ -20,7 +20,7 @@ import { sha256 } from './domain/manifest.js'
 import type { PrepareResult, Refusal } from './index.js'
 
 /**
- * The tickets stage that `/check-tickets` (#185) drives: prepare runs the
+ * The tickets stage that `/review-tickets` (#185) drives: prepare runs the
  * deterministic ticket checker and freezes its report beside the spec and
  * the tickets, one cheap `ticket-linter` critic judges what the checker
  * cannot, a finding must name the ticket and the rule it breaks, and the

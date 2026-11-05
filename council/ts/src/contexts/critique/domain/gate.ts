@@ -15,6 +15,8 @@ export const ALLOW_REASONS = [
   'no-remote',
   'nedap',
   'not-opted-in',
+  /** The repository has no active flow (no flow state in implementation or finishing), so the gates do not hold. */
+  'no-active-flow',
   /** The repository's allowlist entry allows documents only, so no code stage could ever pass the gate. */
   'code-not-allowed',
   /** No deterministic risk rule fired on the staged change. */

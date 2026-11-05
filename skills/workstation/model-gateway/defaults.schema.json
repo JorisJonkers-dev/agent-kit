@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JorisJonkers-dev/agent-kit/skills/workstation/model-gateway/defaults.schema.json",
+  "title": "ModelGatewayDefaults",
+  "description": "The model gateway's shipped defaults: the clients on this machine, the client models each offers, and the caps and thresholds a delegation is held to. The machine override in $XDG_CONFIG_HOME/agent-kit/model-gateway.json merges over this file and is not validated by it.",
+  "type": "object",
+  "required": ["version", "clients", "models", "settings"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "clients": {
+      "type": "object",
+      "required": ["vibe", "agy", "claude", "hermes", "opencode", "codex"],
+      "additionalProperties": false,
+      "properties": {
+        "vibe": { "$ref": "#/$defs/client" },
+        "agy": { "$ref": "#/$defs/client" },
+        "claude": { "$ref": "#/$defs/client" },
+        "hermes": { "$ref": "#/$defs/client" },
+        "opencode": { "$ref": "#/$defs/client" },
+        "codex": { "$ref": "#/$defs/client" }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/model" }
+    },
+    "settings": { "$ref": "#/$defs/settings" }
+  },
+  "$defs": {
+    "client": {
+      "type": "object",
+      "required": ["binary", "cost_class", "model_source"],
+      "additionalProperties": false,
+      "properties": {
+        "binary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The command whose presence on PATH means the client is installed."
+        },
+        "cost_class": {
+          "enum": ["subsidised", "metered-personal", "metered-employer"]
+        },
+        "model_source": {
+          "enum": ["live", "config", "declared"],
+          "description": "Where the client's models come from: the client itself, its own configuration, or the declared list below."
+        },
+        "families": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The model families this client serves, where the client itself does not say."
+        },
+        "providers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "The providers a run may reach through the client, by the name its own command line takes: the ones an OpenCode model may name, and the ones a Hermes run may name. A run on any other is refused with provider-not-allowed. Absent means opencode-go alone for OpenCode, and no provider at all for Hermes. OpenCode's own pay-per-token provider, opencode, and OpenRouter are refused whatever this names."
+        },
+        "provider_cost_classes": {
+          "type": "object",
+          "additionalProperties": { "enum": ["subsidised", "metered-personal", "metered-employer"] },
+          "description": "The cost class of each provider a client's models run on, by provider name; a provider it does not name takes the client's own cost class."
+        },
+        "plan_limits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/plan_limit" },
+          "description": "What the client's plan allows, window by window. The shipped defaults carry none: the owner's own plans go in the machine file, which replaces this list whole."
+        }
+      }
+    },
+    "plan_limit": {
+      "type": "object",
+      "description": "One window of a client's plan: the dollars it allows in that window, or the runs it allows, never both. A window reaches back from now, so a $12 per 5 hours plan is watched over the last five hours.",
+      "oneOf": [
+        {
+          "required": ["window", "limit_usd"],
+          "additionalProperties": false,
+          "properties": {
+            "window": {
+              "enum": ["5h", "day", "week", "month"],
+              "description": "The span the limit covers, reaching back from now."
+            },
+            "limit_usd": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "The dollars the plan allows in this window; spend comes from the ledger."
+            }
+          }
+        },
+        {
+          "required": ["window", "limit_runs"],
+          "additionalProperties": false,
+          "properties": {
+            "window": {
+              "enum": ["5h", "day", "week", "month"],
+              "description": "The span the limit covers, reaching back from now."
+            },
+            "limit_runs": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The runs the plan allows in this window, for a plan that is not billed in dollars."
+            }
+          }
+        }
+      ]
+    },
+    "model": {
+      "type": "object",
+      "required": ["client", "model", "family", "tier", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "client": {
+          "enum": ["vibe", "agy", "claude", "hermes", "opencode", "codex"]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "names": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "The model names the client's own configuration gives this model, where its listing names it by an alias; the model above is the alias the client accepts."
+        },
+        "family": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tier": {
+          "enum": ["trivial", "routine", "hard", "frontier"],
+          "description": "The highest difficulty tier this client model handles well."
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the model is good at, in the owner's words."
+        },
+        "prices": {
+          "type": "object",
+          "required": ["input", "cached_input", "output"],
+          "additionalProperties": false,
+          "description": "What the model costs, in USD per million tokens, copied from the client's own prices: a run whose client prices nothing is counted at these.",
+          "properties": {
+            "input": { "type": "number", "exclusiveMinimum": 0 },
+            "cached_input": { "type": "number", "minimum": 0 },
+            "output": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "required": [
+        "plan_warning_ratio",
+        "summary_max_chars",
+        "max_parallel_per_client",
+        "max_batch_delegations",
+        "availability_window_minutes",
+        "metered_personal_caps",
+        "output_allowance_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "plan_warning_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "How much of a subsidised client's plan may be used before the gateway warns."
+        },
+        "summary_max_chars": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The longest summary a delegation returns; the full output stays in its file."
+        },
+        "max_parallel_per_client": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_batch_delegations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The most delegations one batch plan may hold; a bigger plan is refused before any work."
+        },
+        "availability_window_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long a passively found availability reading counts as current."
+        },
+        "metered_personal_caps": {
+          "type": "object",
+          "required": ["per_workflow_usd", "per_day_usd"],
+          "additionalProperties": false,
+          "properties": {
+            "per_workflow_usd": { "type": "number", "minimum": 0 },
+            "per_day_usd": { "type": "number", "minimum": 0 }
+          }
+        },
+        "output_allowance_tokens": {
+          "type": "object",
+          "description": "The output tokens a run of each difficulty tier is allowed, which is what a metered run's estimate counts at the model's output price. The machine file may override any tier.",
+          "required": ["trivial", "routine", "hard", "frontier"],
+          "additionalProperties": false,
+          "properties": {
+            "trivial": { "type": "integer", "minimum": 1 },
+            "routine": { "type": "integer", "minimum": 1 },
+            "hard": { "type": "integer", "minimum": 1 },
+            "frontier": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    }
+  }
+}

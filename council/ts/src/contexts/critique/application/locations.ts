@@ -1,10 +1,21 @@
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 
 import type { EnvPort } from '../../../ports/index.js'
 
-/** Per-machine files live in the owner's home, never in a repository. */
+/**
+ * Per-machine files live in the owner's home, never in a repository:
+ * `$XDG_CONFIG_HOME/agent-kit/`, or `~/.config/agent-kit/` when
+ * XDG_CONFIG_HOME is unset or not an absolute path.
+ */
+function configDir(env: EnvPort): string {
+  const xdg = env.get('XDG_CONFIG_HOME')
+  if (xdg !== undefined && isAbsolute(xdg)) return join(xdg, 'agent-kit')
+  return join(env.require('HOME'), '.config', 'agent-kit')
+}
+
+/** The family allowlist the model gateway reads too, so both resolve it the same way. */
 export function allowlistPath(env: EnvPort): string {
-  return join(env.require('HOME'), '.config', 'agent-kit', 'critique-allowlist.json')
+  return join(configDir(env), 'critique-allowlist.json')
 }
 
 /** This machine's routing override, applied key by key over the routing agent-kit ships. */

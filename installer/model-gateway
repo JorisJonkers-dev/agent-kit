@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# managed by agent-kit setup-workstation.sh
+#
+# model-gateway <subcommand> --json '<object>' | --input <file.json>
+#
+# The model gateway's command on PATH. It runs the gateway bundle setup copies
+# into each agent home (skills/workstation/model-gateway); every copy is the
+# same file, so the Claude Code home's is used.
+set -euo pipefail
+exec node "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/skills/model-gateway/model-gateway.mjs" "$@"

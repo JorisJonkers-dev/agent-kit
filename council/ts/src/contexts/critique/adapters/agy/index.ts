@@ -1,8 +1,10 @@
 import { isAbsolute, join } from 'node:path'
 
-import type { EnvPort, ProcessCommand, ProcessPort, ProcessResult } from '../../../../ports/index.js'
+import { ClientRun, type RunExtras } from '../../../model-gateway/index.js'
+import type { EnvPort, ProcessPort, ProcessResult } from '../../../../ports/index.js'
 import type { CriticClientPort, CriticLaunch, CriticReport, CritiqueFilesPort } from '../../application/ports.js'
 import type { CriticFailure, CriticOutcome } from '../../domain/critic.js'
+import { READ_ONLY_TOOLSET, toolNames } from '../../domain/critic-tools.js'
 import { readFindings } from '../../domain/findings.js'
 import { jsonObjectOrUndefined, type JsonObject } from '../../domain/json.js'
 import type { AgyCriticClient as AgyClientConfig, ClientReadiness } from '../../domain/routing.js'
@@ -24,27 +26,6 @@ const MODELS_PROGRESS = 'Fetching available models...'
 const OUTER_TIMEOUT_GRACE_S = 60
 
 /**
- * Settings for this session only; agy never saves them. Deny beats any allow
- * rule in the owner's `settings.json`, so the critic cannot call an MCP tool,
- * fetch or drive a URL, run a command or write a file, whatever that file
- * allows. agy has no session switch for loading the MCP servers themselves or
- * the global `AGENTS.md`; the integration document records that gap.
- */
-const SESSION_SETTINGS = {
-  permissions: {
-    deny: ['mcp(*)', 'read_url(*)', 'execute_url(*)', 'command(*)', 'write_file(*)'],
-  },
-}
-
-/**
- * The settings of a critic that may not search (ADR-0006: agy's search is
- * unproven until #178), which also deny agy's own listing and search tools.
- */
-const READ_ALONE_SETTINGS = {
-  permissions: { deny: [...SESSION_SETTINGS.permissions.deny, 'list_dir(*)', 'grep_search(*)', 'find_by_name(*)'] },
-}
-
-/**
  * The tools a critic may use: reading, listing and searching its packet, and
  * `finish`, through which agy returns structured output. Any other tool in the
  * stream (MCP, web search, browser, workflows, subagents, commands, edits)
@@ -54,17 +35,23 @@ const READ_ONLY_TOOLS: ReadonlySet<string> = new Set(['read_file', 'view_file', 
 
 /**
  * The Antigravity critic client: runs one Gemini critic through `agy` in
- * print mode and reads its review from the `stream-json` events. Everything
- * agy-specific (the launch, the isolation it needs, its readiness check and
- * its output format) stays here.
+ * print mode and reads its review from the `stream-json` events. The launch
+ * goes through the model gateway's launch path, with the extras a critic
+ * needs: the read-only sandbox profile, the finding schema and the tools its
+ * prompt names. Everything agy-specific about reading the run (its readiness
+ * check, its event stream and its exit codes) stays here.
  */
 export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
+  private readonly gateway: ClientRun
+
   constructor(
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
     private readonly env: EnvPort,
     private readonly platform: NodeJS.Platform,
-  ) {}
+  ) {
+    this.gateway = new ClientRun({ env, files, process })
+  }
 
   /** agy has no per-critic file, so being signed in is all a critic needs. */
   async signIn(config: AgyClientConfig): Promise<ClientReadiness> {
@@ -91,8 +78,16 @@ export class AgyCriticClient implements CriticClientPort<AgyClientConfig> {
   }
 
   async review(launch: CriticLaunch, config: AgyClientConfig): Promise<CriticReport> {
-    const prompt = await this.files.readText(launch.promptPath)
-    const result = await this.process.exec(agyLaunch(launch, config, prompt))
+    const launched = await this.gateway.launch({
+      binary: config.binary,
+      client: config.gateway?.client ?? 'agy',
+      extras: agyExtras(launch),
+      model: config.gateway?.model ?? config.model,
+      paths: { exportDir: join(launch.criticDir, 'export'), promptPath: launch.promptPath, workDir: launch.packetDir },
+      prompt: await this.files.readText(launch.promptPath),
+      time_limit_s: launch.critic.time_limit_s,
+    })
+    const result = launched.result
     const run = readStream(result.stdout)
     const exportPath = join(launch.criticDir, 'result.json')
     if (run.result !== undefined) await this.files.writeText(exportPath, `${JSON.stringify(run.result, null, 2)}\n`)
@@ -136,34 +131,14 @@ function modelsReadiness(listed: ProcessResult | string, config: AgyClientConfig
 }
 
 /**
- * A fresh print-mode session in the packet: no `--continue`, `--conversation`
- * or project, so a critic never resumes an earlier one. Slash commands and
- * skill expansion are off, the sandbox is on, and plan mode is left out
- * because agy ignores it once slash commands are disabled. Stdin is closed.
+ * What an agy critic asks the gateway for: the read-only sandbox profile, the
+ * finding schema agy enforces on its structured output, and the tools its
+ * prompt names. The gateway denies every tool family the critic may not use,
+ * so a critic that may not search (ADR-0006: agy's search is unproven until
+ * #178) has agy's own listing and search tools denied too.
  */
-function agyLaunch(launch: CriticLaunch, config: AgyClientConfig, prompt: string): ProcessCommand {
-  const timeLimit = launch.critic.time_limit_s
-  return {
-    args: [
-      '-p',
-      prompt,
-      '--output-format',
-      'stream-json',
-      '--model',
-      config.model,
-      '--print-timeout',
-      `${String(timeLimit)}s`,
-      '--disable-slash-commands',
-      '--sandbox',
-      '--json-schema',
-      launch.schemaPath,
-      '--settings',
-      JSON.stringify(launch.toolset?.kind === 'agy' && launch.toolset.search ? SESSION_SETTINGS : READ_ALONE_SETTINGS),
-    ],
-    command: config.binary,
-    cwd: launch.packetDir,
-    timeoutMs: (timeLimit + OUTER_TIMEOUT_GRACE_S) * 1000,
-  }
+function agyExtras(launch: CriticLaunch): RunExtras {
+  return { sandbox: 'read-only', schema: launch.schemaPath, tools: toolNames(launch.toolset ?? READ_ONLY_TOOLSET) }
 }
 
 interface AgyStream {

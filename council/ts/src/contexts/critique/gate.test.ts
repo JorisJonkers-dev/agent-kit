@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { fenced, harness, isolatedExport, vibeStdout, type Harness, type VibeScript } from '../../../test/critique/harness.js'
+import { fenced, harness, isolatedExport, vibeStdout, writeFlowState, type Harness, type VibeScript } from '../../../test/critique/harness.js'
 import type { GateResult, PrepareResult } from './index.js'
 
 /**
@@ -25,9 +25,10 @@ const TICKET = '.scratch/widgets/issues/01-session.md'
 const RISKY_PATH = 'src/auth/session.ts'
 
 /** A repository opted in for code with Mistral and GLM, with its ticket committed. */
-async function optedIn(options: Parameters<typeof harness>[0] & { readonly code?: boolean } = {}): Promise<Harness> {
+async function optedIn(options: Parameters<typeof harness>[0] & { readonly code?: boolean; readonly flow?: boolean } = {}): Promise<Harness> {
   const h = await harness(options)
   open.push(h)
+  if (options.flow !== false) await writeFlowState(h)
   await h.commands.allow.run({ code: options.code ?? true, families: ['mistral', 'zhipu'], repo: h.repo })
   await h.writeText(join(h.repo, TICKET), '# 01: Sessions expire\n\n## Acceptance criteria\n\n- [ ] A session expires after a minute.\n')
   await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 1\n')
@@ -55,7 +56,7 @@ function quietCritic(): VibeScript {
   return { exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced({ findings: [], no_findings_reason: 'Read the diff.' })) }
 }
 
-/** Runs `/review-ticket` on the staged change as the skill does, with a critic that finds nothing, so the review passes. */
+/** Runs `/review-implementation` on the staged change as the skill does, with a critic that finds nothing, so the review passes. */
 async function reviewStaged(h: Harness): Promise<PrepareResult> {
   h.process.queue(quietCritic())
   const run = await h.commands.prepare.run({
@@ -78,14 +79,14 @@ function deny(line: string): unknown {
 }
 
 describe('the commit gate', () => {
-  it('blocks a risky staged change that no /review-ticket run has passed, in one line that names the skill', async () => {
+  it('blocks a risky staged change that no /review-implementation run has passed, in one line that names the skill', async () => {
     const h = await optedIn()
     await stageRisky(h)
 
     const result = await gate(h, 'git commit -m "Expire sessions"')
 
     const line =
-      'Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. Run /review-ticket, then commit.'
+      'Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-implementation run matches it. Run /review-implementation, then commit.'
     expect(result).toEqual({ gate: 'commit', hook_output: deny(line), line, reason: 'unreviewed', status: 'blocked' })
   })
 
@@ -97,7 +98,7 @@ describe('the commit gate', () => {
     expect(await gate(h, 'git commit -m "More widgets"')).toEqual({ gate: 'commit', line: null, reason: 'low-risk', status: 'allowed' })
   })
 
-  it('allows the risky change once a /review-ticket run passed for it', async () => {
+  it('allows the risky change once a /review-implementation run passed for it', async () => {
     const h = await optedIn()
     await stageRisky(h)
     await reviewStaged(h)
@@ -130,7 +131,7 @@ describe('the commit gate', () => {
     await h.git.stage()
 
     expect(await gate(h, 'git commit -m big')).toMatchObject({
-      line: 'Commit blocked: the staged change is risky (302 changed lines, above 300) and no passing /review-ticket run matches it. Run /review-ticket, then commit.',
+      line: 'Commit blocked: the staged change is risky (302 changed lines, above 300) and no passing /review-implementation run matches it. Run /review-implementation, then commit.',
       status: 'blocked',
     })
   })
@@ -169,7 +170,7 @@ describe('a ticket review that failed', () => {
     await rewriteReview(h, { review: 'fail', unfixed_critical: ['F1'] })
 
     expect(await gate(h, 'git commit -m x')).toMatchObject({
-      line: `Commit blocked: /review-ticket run ${run.run_id} failed for this staged change, with critical F1 accepted and not fixed. Fix and stage it, then run /review-ticket again.`,
+      line: `Commit blocked: /review-implementation run ${run.run_id} failed for this staged change, with critical F1 accepted and not fixed. Fix and stage it, then run /review-implementation again.`,
       reason: 'review-failed',
     })
   })
@@ -203,7 +204,7 @@ describe('a ticket review that failed', () => {
 })
 
 describe('a ticket review no critic reported on', () => {
-  /** Runs `/review-ticket` on the staged change with a critic that fails, so the run is degraded. */
+  /** Runs `/review-implementation` on the staged change with a critic that fails, so the run is degraded. */
   async function reviewDegraded(h: Harness): Promise<PrepareResult> {
     h.process.queue({ exitCode: 1, stdout: '' })
     const run = await h.commands.prepare.run({
@@ -226,7 +227,7 @@ describe('a ticket review no critic reported on', () => {
     await stageRisky(h)
     const run = await reviewDegraded(h)
 
-    const line = `Commit blocked: /review-ticket run ${run.run_id} is degraded: no critic reported on this staged change (c1-vibe-glm: config-error). Run /review-ticket again; the commit waits for a run in which a critic reports.`
+    const line = `Commit blocked: /review-implementation run ${run.run_id} is degraded: no critic reported on this staged change (c1-vibe-glm: config-error). Run /review-implementation again; the commit waits for a run in which a critic reports.`
     expect(await gate(h, 'git commit -m x')).toEqual({ gate: 'commit', hook_output: deny(line), line, reason: 'review-degraded', status: 'blocked' })
   })
 
@@ -240,7 +241,7 @@ describe('a ticket review no critic reported on', () => {
     await h.writeText(index, `${JSON.stringify({ ...legacy, degraded: true, review: 'pass' })}\n`)
 
     expect(await gate(h, 'git commit -m x')).toMatchObject({
-      line: `Commit blocked: /review-ticket run ${run.run_id} is degraded: no critic reported on this staged change. Run /review-ticket again; the commit waits for a run in which a critic reports.`,
+      line: `Commit blocked: /review-implementation run ${run.run_id} is degraded: no critic reported on this staged change. Run /review-implementation again; the commit waits for a run in which a critic reports.`,
       reason: 'review-degraded',
     })
   })
@@ -294,6 +295,7 @@ describe("the ticket's risk label", () => {
     const issue = { body: 'Copy.', comments: [], labels: ['Risk:High'], number: 5, title: 'Copy', url: 'https://github.com/JorisJonkers-dev/agent-kit/issues/5' }
     const h = await harness({ issues: { 'github.com/jorisjonkers-dev/agent-kit#5': issue }, tracker: 'github' })
     open.push(h)
+    await writeFlowState(h)
     await h.commands.allow.run({ code: true, families: ['mistral', 'zhipu'], repo: h.repo })
     await h.writeText(join(h.repo, 'src/widget.ts'), 'export const widgets = 2\n')
     await h.git.stage()
@@ -407,7 +409,7 @@ describe('where the gates do nothing', () => {
   })
 })
 
-/** Runs `/review-feature` on HEAD as the skill does, with critics that find nothing, so its gate passes. */
+/** Runs `/review-pr` on HEAD as the skill does, with critics that find nothing, so its gate passes. */
 async function reviewFeature(h: Harness): Promise<void> {
   h.process.queue(quietCritic())
   h.process.queue(quietCritic())
@@ -426,14 +428,14 @@ async function rewriteGate(h: Harness, changes: Record<string, unknown>): Promis
 }
 
 describe('the PR gate', () => {
-  it('blocks gh pr create while no /review-feature run has recorded a gate for HEAD', async () => {
+  it('blocks gh pr create while no /review-pr run has recorded a gate for HEAD', async () => {
     const h = await optedIn()
 
-    const line = 'PR blocked: no /review-feature run has recorded a gate for c2. Run /review-feature, then open the PR.'
+    const line = 'PR blocked: no /review-pr run has recorded a gate for c2. Run /review-pr, then open the PR.'
     expect(await gate(h, 'gh pr create --fill')).toEqual({ gate: 'pr', hook_output: deny(line), line, reason: 'no-feature-review', status: 'blocked' })
   })
 
-  it('allows it once the latest /review-feature run for HEAD says GATE: PASS', async () => {
+  it('allows it once the latest /review-pr run for HEAD says GATE: PASS', async () => {
     const h = await optedIn()
     await reviewFeature(h)
 
@@ -446,7 +448,7 @@ describe('the PR gate', () => {
     await rewriteGate(h, { critical_open: 1, gate: 'fail', line: 'GATE: FAIL (1 critical)' })
 
     expect(await gate(h, 'gh pr create --fill')).toMatchObject({
-      line: 'PR blocked: /review-feature says GATE: FAIL (1 critical) for c2. Fix and close the critical follow-ups, run /review-feature on the new head, then open the PR.',
+      line: 'PR blocked: /review-pr says GATE: FAIL (1 critical) for c2. Fix and close the critical follow-ups, run /review-pr on the new head, then open the PR.',
       reason: 'gate-fail',
     })
   })
@@ -483,7 +485,7 @@ describe('the PR gate', () => {
     await reviewFeature(h)
 
     expect(await gate(h, 'git commit -m wip && gh pr create --fill')).toMatchObject({
-      line: 'PR blocked: this command moves HEAD before it opens the PR, so no /review-feature gate can hold for what it sends. Run that part in a command of its own after /review-feature.',
+      line: 'PR blocked: this command moves HEAD before it opens the PR, so no /review-pr gate can hold for what it sends. Run that part in a command of its own after /review-pr.',
       reason: 'head-unknown',
     })
   })
@@ -520,7 +522,7 @@ describe('the PR gate on a push', () => {
     const h = await optedIn()
 
     expect(await gate(h, 'git push origin main')).toMatchObject({
-      line: 'Push to main blocked: no /review-feature run has recorded a gate for c2. Run /review-feature, then push.',
+      line: 'Push to main blocked: no /review-pr run has recorded a gate for c2. Run /review-pr, then push.',
       reason: 'no-feature-review',
     })
   })
@@ -538,7 +540,7 @@ describe('the PR gate on a push', () => {
     expect((await gate(h, 'git push origin HEAD')).line).toMatch(/^Push to every branch blocked: /)
   })
 
-  it('allows the push once the commit it sends passed /review-feature', async () => {
+  it('allows the push once the commit it sends passed /review-pr', async () => {
     const h = await optedIn()
     await reviewFeature(h)
 
@@ -551,7 +553,7 @@ describe('the PR gate on a push', () => {
     await reviewFeature(h)
 
     expect((await gate(h, 'git push origin c1:main')).line).toBe(
-      'Push to main blocked: no /review-feature run has recorded a gate for c1. Run /review-feature, then push.',
+      'Push to main blocked: no /review-pr run has recorded a gate for c1. Run /review-pr, then push.',
     )
   })
 
@@ -567,7 +569,7 @@ describe('the PR gate on a push', () => {
     await reviewFeature(h)
 
     expect((await gate(h, 'git commit -m wip && git push origin main')).line).toBe(
-      'Push to main blocked: this command moves HEAD before it pushes, so no /review-feature gate can hold for what it sends. Run that part in a command of its own after /review-feature.',
+      'Push to main blocked: this command moves HEAD before it pushes, so no /review-pr gate can hold for what it sends. Run that part in a command of its own after /review-pr.',
     )
   })
 
@@ -670,7 +672,7 @@ describe('a commit that records more than is staged', () => {
       await h.writeText(join(h.repo, RISKY_PATH), 'export const ttl = 90\n')
 
       expect(await gate(h, command)).toMatchObject({
-        line: 'Commit blocked: the change is risky (src/auth/session.ts is a risk path) and this command commits changes that are not staged yet, so no /review-ticket run can vouch for them. Stage them in a command of their own, run /review-ticket, then commit.',
+        line: 'Commit blocked: the change is risky (src/auth/session.ts is a risk path) and this command commits changes that are not staged yet, so no /review-implementation run can vouch for them. Stage them in a command of their own, run /review-implementation, then commit.',
         reason: 'unstaged',
       })
     },
@@ -709,6 +711,69 @@ describe('a commit that records more than is staged', () => {
     expect(await gate(h, 'git commit --message x -C HEAD')).toMatchObject({ reason: 'reviewed' })
     expect(await gate(h, 'git commit -mx -- ')).toMatchObject({ reason: 'reviewed' })
     expect(await gate(h, 'git commit --include -m x')).toMatchObject({ reason: 'reviewed' })
+  })
+})
+
+describe('where there is no active flow', () => {
+  it('lets a risky unreviewed commit through, a PR and a push to a non-feature branch too', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+
+    expect(await gate(h, 'git commit -m x')).toEqual({ gate: 'commit', line: null, reason: 'no-active-flow', status: 'allowed' })
+    expect(await gate(h, 'gh pr create --fill')).toEqual({ gate: 'pr', line: null, reason: 'no-active-flow', status: 'allowed' })
+    expect(await gate(h, 'git push origin main')).toMatchObject({ gate: 'pr', reason: 'no-active-flow', status: 'allowed' })
+  })
+
+  it('counts a flow still in planning, or of another repository, as no flow', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await writeFlowState(h, { name: 'planning', phase: 'planning' })
+    await writeFlowState(h, { name: 'other', repository: 'github.com/example/other' })
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'notes.txt'), 'not a flow state')
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'no-active-flow', status: 'allowed' })
+  })
+
+  it.each(['implementation', 'finishing'] as const)('still blocks the risky unreviewed commit and the PR while a flow is in %s', async (phase) => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await writeFlowState(h, { phase })
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'unreviewed', status: 'blocked' })
+    expect(await gate(h, 'gh pr create --fill')).toMatchObject({ reason: 'no-feature-review', status: 'blocked' })
+  })
+
+  it('allows and logs when a flow state does not read, since it cannot tell whether a flow is active', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'broken.json'), '{not json')
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ failure: 'unreadable-state', gate: 'commit', reason: 'failed-open', status: 'allowed' })
+  })
+
+  it('lets an active flow of this repository win over a state file that does not read', async () => {
+    const h = await optedIn()
+    await stageRisky(h)
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'a-torn.json'), '{not json')
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'unreviewed', status: 'blocked' })
+  })
+
+  it('still fails open when a state file does not read and no readable one shows an active flow', async () => {
+    const h = await optedIn({ flow: false })
+    await stageRisky(h)
+    await h.writeText(join(h.repo, '.git', 'critique', 'flows', 'a-torn.json'), '{not json')
+    await writeFlowState(h, { name: 'planning', phase: 'planning' })
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ failure: 'unreadable-state', reason: 'failed-open', status: 'allowed' })
+  })
+
+  it('checks opt-in before it looks for a flow', async () => {
+    const h = await harness()
+    open.push(h)
+    await stageRisky(h)
+
+    expect(await gate(h, 'git commit -m x')).toMatchObject({ reason: 'not-opted-in' })
   })
 })
 

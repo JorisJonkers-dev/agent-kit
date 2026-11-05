@@ -37,6 +37,8 @@ KIT_FILES = (
     "scripts/codex-add-url-mcp.py",
     "scripts/converge.py",
     "installer/antigravity-mcp-proxy",
+    "installer/model-gateway",
+    "scripts/instruction-block.py",
     "scripts/antigravity-merge-mcp.py",
     "registry/generated/antigravity/mcp_config.json",
     "scripts/opencode-merge-mcp.py",

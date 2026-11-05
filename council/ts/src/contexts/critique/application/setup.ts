@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { isJsonObject, type JsonFields } from '../domain/json.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
-import type { ModelFamily } from '../domain/family.js'
+import type { AllowlistFamily, ModelFamily } from '../domain/family.js'
 import type { CriticClient, RosterCritic, Routing } from '../domain/routing.js'
 import {
   EMPTY_SETUP_RESULTS,
@@ -44,7 +44,7 @@ export type RepositorySetup =
       readonly status: 'not-opted-in' | 'opted-in'
       readonly key: string
       /** The entry's families; empty while the repository is not opted in. */
-      readonly families: readonly ModelFamily[]
+      readonly families: readonly AllowlistFamily[]
       /** Whether the entry lets the code stages send code. */
       readonly code: boolean
       /** Whether the entry lets a stage send the repository's commit messages and issue text. */
@@ -57,6 +57,12 @@ export interface SetupListResult {
   readonly status: 'listed'
   readonly results_path: string
   readonly items: readonly SetupItem[]
+  /**
+   * One line per setting this machine's routing override still names that
+   * routing no longer reads, such as the removed per-flow Vibe cap: the
+   * runner ignores it, and the owner should delete it.
+   */
+  readonly notes?: readonly string[]
   /** Present when the input named a repository. */
   readonly repository?: RepositorySetup
 }
@@ -180,12 +186,29 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     const items: SetupItem[] = []
     for (const check of setupChecklist(routing.clients))
       items.push(setupItem(check, await this.inputs(check, routing), results.checks[check.id]))
+    const notes = await this.staleNotes()
     return {
       items,
+      ...(notes.length === 0 ? {} : { notes }),
       results_path: setupResultsPath(this.deps.env),
       status: 'listed',
       ...(repo === undefined ? {} : { repository: await this.repository(repo, routing) }),
     }
+  }
+
+  /**
+   * What this machine's routing override still names that routing no longer
+   * reads. The per-flow Vibe cap is gone: Vibe is counted against its plan
+   * limit, which the model gateway reads, so the runner ignores the key and
+   * the owner should delete it.
+   */
+  private async staleNotes(): Promise<readonly string[]> {
+    const override = await this.override()
+    const budget = override.budget
+    if (!isJsonObject(budget) || !('vibe_flow_cap_usd' in budget)) return []
+    return [
+      `your routing override still names budget.vibe_flow_cap_usd in ${routingOverridePath(this.deps.env)}: it is ignored, since Vibe is counted against its plan limit; delete it`,
+    ]
   }
 
   private async check(id: string, confirmed: boolean, force: boolean): Promise<SetupCheckOutput> {
@@ -238,6 +261,7 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
 
   /** What the check's result depends on, read without launching a model. */
   private async inputs(check: SetupCheck, routing: Routing): Promise<SetupInputs> {
+    if (check.kind === 'read-only' && check.client_config === undefined) return {}
     if (check.kind === 'read-only') {
       const config = check.client_config
       if (config.kind !== 'vibe') return {}
@@ -270,6 +294,8 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
   ): Promise<{ readonly result: SetupOutcome; readonly detail: string } | 'needs-confirmation'> {
     if (isMachineCheck(check)) return (check.kind === 'hooks' ? this.hooks : this.killSwitch).check()
     if (check.kind === 'agy-quota') return this.quotaCheck(routing)
+    if (check.kind === 'read-only' && check.client_config === undefined)
+      return { detail: `${check.reason}.`, result: 'unproven' }
     const config = check.client_config
     if (check.kind === 'read-only') {
       const reach = await this.searchReach(check.client ?? '', routing)

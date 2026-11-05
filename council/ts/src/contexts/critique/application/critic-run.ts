@@ -96,6 +96,7 @@ export async function runCritic(
     finding_count: findings.length,
     stdout_path: stdoutPath,
     ...(report.vibeCostUsd === undefined ? {} : { vibe_cost_usd: report.vibeCostUsd }),
+    ...(report.tokens === undefined ? {} : { tokens: report.tokens }),
     tools: toolNames(toolset),
     ...(searchFailure === undefined ? {} : { search_failure: searchFailure }),
     ...criticStatus(outcome, violations),

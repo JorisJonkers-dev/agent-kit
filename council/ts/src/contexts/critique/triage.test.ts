@@ -8,6 +8,7 @@ import {
   codeStageRouting,
   harness,
   isolatedExport,
+  seedGatewayLedger,
   ticketIssue,
   twoCriticRouting,
   vibeStdout,
@@ -454,16 +455,15 @@ describe('when the triage model may not run', () => {
     expect(h.process.commands).toEqual([])
   })
 
-  it('calls a change risky once the flow has spent its Vibe cap', async () => {
+  it("calls a change risky once Vibe is at 100% of its plan", async () => {
     const flow = 'github.com/jorisjonkers-dev/agent-kit#181'
-    const h = await optedIn([answers('no')])
-    const spent = { charged_usd: 5, flow, kind: 'vibe', recorded_at: '2026-10-30T11:00:00.000Z', repository: 'github.com/jorisjonkers-dev/agent-kit', type: 'invocation' }
-    await h.writeText(join(h.home, '.local', 'share', 'agent-kit', 'critique', 'ledger.jsonl'), `${JSON.stringify(spent)}\n`)
+    const h = await optedIn([answers('no')], {}, { gatewayOverride: { clients: { vibe: { plan_limits: [{ limit_usd: 5, window: 'day' }] } } } })
+    await seedGatewayLedger(h, [{ cost_usd: 5 }])
 
     const result = await triaged(h, { flow })
 
     expect(result.signal).toEqual({
-      detail: "the flow's Vibe spend $5.0000 has reached its $5.00 cap",
+      detail: 'at 100% of its day plan limit ($5.00 of $5.00)',
       kind: 'model-unavailable',
       reason: 'budget',
     })

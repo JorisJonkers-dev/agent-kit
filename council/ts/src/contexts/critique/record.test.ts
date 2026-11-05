@@ -72,6 +72,19 @@ const verdicts = [
 ]
 
 describe('record', () => {
+  it('renders a critic a run recorded before the plan limit skipped for its flow cap', async () => {
+    const { h, run } = await reviewed([])
+    // A findings.json fan-out wrote before the per-flow cap was removed.
+    const path = join(run.run_dir, 'findings.json')
+    const fan = JSON.parse(await readFile(path, 'utf8')) as { critics: Record<string, unknown>[] }
+    fan.critics = fan.critics.map((critic) => ({ ...critic, detail: "the flow's Vibe spend $5.0000 has reached its $5.00 cap", status: 'budget-skip' }))
+    await h.writeText(path, `${JSON.stringify(fan, null, 2)}\n`)
+
+    const result = await h.commands.record.run({ run_dir: run.run_dir, verdicts: [] })
+
+    expect(result.summary).toContain("budget-skip: the flow's Vibe spend $5.0000 has reached its $5.00 cap")
+  })
+
   it('writes the report and a summary in the fixed shape', async () => {
     const { h, run } = await reviewed(four)
 

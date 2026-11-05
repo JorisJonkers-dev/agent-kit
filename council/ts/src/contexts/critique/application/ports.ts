@@ -1,5 +1,6 @@
 import type { ClockPort, EnvPort, GhPort, GitIndexPort, GitPort, GitRevisionPort } from '../../../ports/index.js'
-import type { CriticFailure, CriticOutcome } from '../domain/critic.js'
+import type { ModelGatewayLedgerPort, PlanLimitReading } from '../../model-gateway/index.js'
+import type { CriticFailure, CriticOutcome, CriticTokens } from '../domain/critic.js'
 import type { CriticToolset, SearchServerLaunch, ToolCall } from '../domain/critic-tools.js'
 import type { SearchCall, SearchLimits, SearchToolName } from '../domain/packet-search.js'
 import type { AgyCriticClient, ClientReadiness, CriticClient, RosterCritic, VibeCriticClient } from '../domain/routing.js'
@@ -69,6 +70,8 @@ export interface CriticReport {
    * the tokens; null when it reported nothing. Absent for any other client.
    */
   readonly vibeCostUsd?: number | null
+  /** What the run used, as its client reported it; absent when the client reports none. */
+  readonly tokens?: CriticTokens
   /** Why the critic's searches failed during the run, such as a search server that died: the report names it. */
   readonly searchFailure?: string
   /** Every tool call the critic made, in order, when its client's journal records them. */
@@ -192,6 +195,17 @@ export interface SearchClientPort {
   stop(root: string): Promise<void>
 }
 
+/**
+ * A client's plan limit as the model gateway reads it: each window of the
+ * plan with what the machine-wide ledger says is spent in it, the gateway's
+ * warning for every window at or above the warning ratio, and why the client
+ * cannot start at all. Critique asks before it plans a Vibe critic, so it
+ * counts Vibe the way the gateway does.
+ */
+export interface PlanLimitPort {
+  read(client: string): Promise<PlanLimitReading>
+}
+
 export interface CritiqueDeps {
   /** Directory holding the shipped prompts, lenses, schema and routing. */
   readonly assetsRoot: string
@@ -205,4 +219,8 @@ export interface CritiqueDeps {
   readonly clients: CriticClients
   /** The runner's search server for Vibe critics; without it every Vibe critic reads alone. */
   readonly search?: SearchClientPort
+  /** The gateway's ledger, where every critic run is recorded beside the gateway's own runs. */
+  readonly ledger: ModelGatewayLedgerPort
+  /** The gateway's plan-limit reading, which replaces the per-flow Vibe cap. */
+  readonly plan: PlanLimitPort
 }

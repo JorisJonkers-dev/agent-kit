@@ -23,10 +23,10 @@ offers it.
 
 | Stage | Skill | After / before | Base critics (role) | Deep adds | You get |
 |---|---|---|---|---|---|
-| `decisions` | `/critique-decisions` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`) | GLM | Up to seven questions about decision branches nobody opened |
-| `spec` | `/critique-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
-| `tickets` | `/check-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
-| `ticket-review` | `/review-ticket` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
+| `decisions` | `/review-grill` | `/grill-with-docs` or `/grill-me` / `/to-spec` | Mistral Large, Gemini Flash (`gap-critic`) | GLM | Up to seven questions about decision branches nobody opened |
+| `spec` | `/review-spec` | `/to-spec` / `/to-tickets` | Mistral Large, Gemini Flash (`spec-redteam`) | GLM, DeepSeek Flash | Spec fixes; a question for any fix that changes a decision; a second round after more than three accepted critical findings |
+| `tickets` | `/review-tickets` | `/to-tickets` / first `/implement` | DeepSeek Flash (`ticket-linter`) | Mistral Large | A script's check for cycles, dangling blockers and uncited stories, and structural fixes; scope changes become questions |
+| `ticket-review` | `/review-implementation` | `/code-review` / the commit | Gemini Flash (`diff-reviewer`) | Mistral Large | For a risky staged change: each bug proven by a failing test, fixed, and kept as a regression test |
 | `feature-review` | `/flow finish` | every ticket landed / the PR | Mistral Large, Gemini Flash (`feature-reviewer`) | GLM, DeepSeek Flash | A follow-up ticket per accepted finding, and the gate line |
 | `adr-review` | none yet (`/critique-adrs`) | on demand, outside any feature | Mistral Large, Gemini Flash (`spec-redteam`, until `adr-reviewer` ships) | GLM | Findings on the decision records; the stage is being built and has no skill yet |
 
@@ -235,14 +235,18 @@ that fired either way.
   tokens at the client's `prices` in routing: uncached input at the input
   price, cached input at the cached price (10% of the input price, as
   Mistral bills it), output at the output price. That figure is what the
-  ledger, the flow cap, `/flow budget` and the reports use. Vibe's own
+  ledger, Vibe's plan window, `/flow budget` and the reports use. Vibe's own
   `cost_usd` is kept beside it as `vibe_cost_usd`. A client with no prices,
   or an export with no token counts, falls back to Vibe's figure.
-- **Per flow**: Vibe spend capped at $5 (`budget.vibe_flow_cap_usd`),
-  triage included. Each flow key is capped on its own: the decisions stage
-  charges the draft's, every later stage the spec's, and each review run
-  its own run id. Past the cap, Vibe
-  critics don't launch and show as `budget-skip`.
+- **Vibe's plan limit**: Vibe is a subsidised plan, so it is counted against
+  the plan's own windows, not a dollar cap of the runner's. Before a stage
+  plans a Vibe critic it asks the model gateway for Vibe's plan limit — the
+  windows this machine's `clients.vibe.plan_limits` declares, with what the
+  machine-wide ledger says is spent in each. At or above the gateway's
+  warning ratio (80%) the stage's summary carries the gateway's warning and
+  the stage runs. At 100% of any window Vibe counts as unable to start, so a
+  Vibe critic is dropped with the reason `quota` and the stage runs with the
+  critics left. A fallback retry is checked again.
 - **Antigravity per day**: 20 invocations a UTC day
   (`antigravity_quota.daily_cap`). After 10 (`reserve_threshold`), the rest
   are kept for the spec and feature-review stages; other stages drop Gemini
@@ -255,17 +259,17 @@ that fired either way.
 
 ## Gates and the kill switch
 
-- **Commit gate**: a risky staged change needs a passing `/review-ticket` run
+- **Commit gate**: a risky staged change needs a passing `/review-implementation` run
   for that exact staged change, matched by a hash taken at record time, fixes
   and kept tests included, so a change restaged or amended after its review
   needs another. A review fails ("do not commit") while an accepted critical
   finding is unfixed. A degraded review, in which no critic reported, does
-  not pass either: the commit stays blocked until a `/review-ticket` run in
+  not pass either: the commit stays blocked until a `/review-implementation` run in
   which a critic reported, or the kill switch.
 - **Merge commits**: the commit gate also runs before a `git merge` or
   `git pull` that may record a merge commit, and before a `git commit` (or
   `git merge --continue`) while `MERGE_HEAD` is set. A merge goes through
-  when every commit it brings in has a passing, non-degraded `/review-ticket`
+  when every commit it brings in has a passing, non-degraded `/review-implementation`
   record (matched by the reviewed commit, or by the staged change it was made
   from) or was low-risk on its own, and the merge adds nothing beyond the
   clean auto-merge except manifest sha256 pins and rebuilt generated files
@@ -332,8 +336,13 @@ key, and a list is replaced whole. A bad merge is `invalid-routing`, naming
 both files.
 
 ```json
-{ "budget": { "vibe_flow_cap_usd": 8 }, "antigravity_quota": { "daily_cap": 50 } }
+{ "antigravity_quota": { "daily_cap": 50 } }
 ```
+
+Vibe's plan limit is not routing's: it is the model gateway's, in
+`~/.config/agent-kit/model-gateway.json` under `clients.vibe.plan_limits`. An
+override that still names the removed `budget.vibe_flow_cap_usd` is ignored,
+and `setup` says so.
 
 A default for every machine is a change to agent-kit's
 `skills/workstation/critique/routing.json`.

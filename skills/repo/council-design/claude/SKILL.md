@@ -1,6 +1,7 @@
 ---
 name: council-design
 description: Produce or refine a council-ready design, consolidated plan, and parallel task DAG. Use when Claude needs to turn a clear brief into bounded chunks with dependencies, validation, and model assignments before execution.
+disable-model-invocation: true
 ---
 
 # Council Design
@@ -28,18 +29,15 @@ Build the design lens before drafting tasks:
 - Parallelism boundaries and dependency order.
 - Integration strategy and rollback or amendment path.
 
-## Model Preference Doctrine
+## Model Choice
 
-- Prefer stronger reasoning for DAG shape, dependency calls, and validation
-  design.
-- Prefer Codex high or xhigh for codebase-heavy decomposition.
-- Prefer Claude sonnet or opus for product, architecture, and task clarity.
-- Use cheap workers only after the plan is approved and chunks are bounded.
+- Rate each task's difficulty and choose its model with the `delegate` skill
+  (`skills/workstation/delegate/SKILL.md` in agent-kit). This skill carries no
+  rubric of its own.
 
 ## Interop Surfaces
 
 - Primary command shape: `node ~/.claude/skills/council/council.mjs design ...`.
 - Use `council-grill` to challenge the design before `council-run`.
-- Use `codex-xhigh` for an independent code-focused design pass when needed.
 - Return a concise plan, DAG tasks, dependencies, validation commands, and open
   questions.

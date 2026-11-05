@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { harness, SyntheticLedger, twoCriticRouting, type Harness } from '../../../test/critique/harness.js'
+import { harness, seedGatewayLedger, SyntheticLedger, twoCriticRouting, type Harness } from '../../../test/critique/harness.js'
 import type { BudgetResult } from './index.js'
 
 /**
@@ -57,37 +57,46 @@ describe("the flow's Vibe spend", () => {
     const result = await budgetOf(h)
 
     expect(result.vibe).toEqual({
-      cap_usd: 5,
       flows: [
         { flow: SPEC, spent_usd: 1.25 },
         { flow: DRAFT, spent_usd: 0.5 },
       ],
+      plan_limits: [],
       spent_usd: 1.75,
+      warnings: [],
     })
   })
 })
 
-const SPEC_CAP = "the flow's Vibe spend $5.2500 has reached its $5.00 cap"
+/** This machine's gateway file: Vibe's plan allows $5 a day. */
+const VIBE_PLAN = { clients: { vibe: { plan_limits: [{ limit_usd: 5, window: 'day' }] } } }
+const PLAN_SPENT = 'at 100% of its day plan limit ($5.25 of $5.00)'
 
-describe('the stages whose Vibe critics would be skipped now', () => {
-  it("skips them on every stage of the spec's flow once it has spent its cap, but not the draft's decisions", async () => {
-    const h = await repository()
-    await new SyntheticLedger()
-      .raw(draftLink())
-      .invocation({ charged_usd: 5.25, flow: SPEC, kind: 'vibe' })
-      .invocation({ charged_usd: 0.5, flow: DRAFT, kind: 'vibe', stage: 'decisions' })
-      .writeTo(h)
+describe('the stages whose Vibe critics would be dropped now', () => {
+  it("drops them on every stage once Vibe is at 100% of its plan, since the plan is the machine's", async () => {
+    const h = await repository({ gatewayOverride: VIBE_PLAN })
+    await new SyntheticLedger().raw(draftLink()).writeTo(h)
+    await seedGatewayLedger(h, [{ cost_usd: 5.25 }])
 
     const result = await budgetOf(h)
 
     expect(result.stages.map((stage) => [stage.stage, stage.flow, stage.vibe])).toEqual([
-      ['decisions', DRAFT, null],
-      ['spec', SPEC, SPEC_CAP],
-      ['tickets', SPEC, SPEC_CAP],
-      ['ticket-review', SPEC, SPEC_CAP],
-      ['feature-review', SPEC, SPEC_CAP],
-      ['adr-review', null, null],
+      ['decisions', DRAFT, PLAN_SPENT],
+      ['spec', SPEC, PLAN_SPENT],
+      ['tickets', SPEC, PLAN_SPENT],
+      ['ticket-review', SPEC, PLAN_SPENT],
+      ['feature-review', SPEC, PLAN_SPENT],
+      ['adr-review', null, PLAN_SPENT],
     ])
+  })
+
+  it('leaves them alone while Vibe is under its plan, whatever the flow has spent', async () => {
+    const h = await repository({ gatewayOverride: VIBE_PLAN })
+    await new SyntheticLedger().invocation({ charged_usd: 5.25, flow: SPEC, kind: 'vibe' }).writeTo(h)
+
+    const result = await budgetOf(h)
+
+    expect(result.stages.map((stage) => stage.vibe)).toEqual([null, null, null, null, null, null])
   })
 
   it("charges an adr-review run to its own run id, never to the feature's spec or draft", async () => {
@@ -108,15 +117,15 @@ describe('the stages whose Vibe critics would be skipped now', () => {
     ])
   })
 
-  it('skips them on the decisions stage of a draft that has spent its cap, before there is a spec', async () => {
-    const h = await repository()
-    await new SyntheticLedger().invocation({ charged_usd: 5.25, flow: DRAFT, kind: 'vibe', stage: 'decisions' }).writeTo(h)
+  it('drops them on the decisions stage of a draft, before there is a spec', async () => {
+    const h = await repository({ gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 5.25 }])
 
     const result = await budgetOf(h, { draft: 'widgets', spec: undefined })
 
     expect(result.stages.slice(0, 2).map((stage) => [stage.stage, stage.flow, stage.vibe])).toEqual([
-      ['decisions', DRAFT, SPEC_CAP],
-      ['spec', null, null],
+      ['decisions', DRAFT, PLAN_SPENT],
+      ['spec', null, PLAN_SPENT],
     ])
   })
 })
@@ -149,17 +158,14 @@ describe('the figures the stages enforce', () => {
     expect(outlook?.falls_back).toEqual([{ client: 'agy-gemini-flash-high', to: 'vibe-glm' }])
   })
 
-  it('names the budget skip fan-out records for a stage past the Vibe cap', async () => {
-    const h = await repository()
-    await new SyntheticLedger().invocation({ charged_usd: 5.25, flow: SPEC, kind: 'vibe' }).writeTo(h)
+  it('names the quota drop prepare makes for a stage past Vibe\'s plan', async () => {
+    const h = await repository({ gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 5.25 }])
     await h.commands.allow.run({ families: ['mistral'], repo: h.repo })
     const outlook = (await budgetOf(h)).stages.find((stage) => stage.stage === 'spec')
     const run = await h.commands.prepare.run({ orchestrator_family: 'anthropic', repo: h.repo, spec: SPEC, stage: 'spec' })
-    if (run.status !== 'ready') throw new Error(run.message)
 
-    const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
-
-    expect(result.critics.map((critic) => [critic.status, critic.detail])).toEqual([['budget-skip', outlook?.vibe]])
+    expect(run.status === 'ready' ? run.dropped[0] : undefined).toMatchObject({ client: 'vibe-mistral-large', detail: outlook?.vibe, reason: 'quota' })
   })
 })
 
@@ -176,6 +182,15 @@ describe('a budget the runner refuses', () => {
     expect(await h.commands.budget.run({ repo: h.repo, spec: SPEC })).toMatchObject({ reason: 'nedap', status: 'refused' })
   })
 
+  it("refuses when this machine's gateway file cannot be read, naming the gateway's problem", async () => {
+    const h = await repository({ gatewayOverride: '{ not json' })
+
+    expect(await h.commands.budget.run({ repo: h.repo, spec: SPEC })).toMatchObject({
+      reason: 'invalid-gateway-config',
+      status: 'refused',
+    })
+  })
+
   it('reports a ledger line it cannot read', async () => {
     const h = await repository()
     await new SyntheticLedger().raw({ type: 'flow' }).writeTo(h)
@@ -185,12 +200,14 @@ describe('a budget the runner refuses', () => {
 })
 
 describe("the caps this machine's routing sets", () => {
-  it('holds the flow to the Vibe cap the per-machine override names', async () => {
-    const h = await repository({ routingOverride: { budget: { vibe_flow_cap_usd: 2 } } })
+  it("reads Vibe's plan limit from the machine's gateway file, and warns at the warning ratio", async () => {
+    const h = await repository({ gatewayOverride: VIBE_PLAN })
+    await seedGatewayLedger(h, [{ cost_usd: 4.2 }])
 
     const result = await budgetOf(h)
 
-    expect(result.vibe.cap_usd).toBe(2)
+    expect(result.vibe.plan_limits).toEqual([{ limit_usd: 5, ratio: 0.84, spent_usd: 4.2, state: 'warning', window: 'day' }])
+    expect(result.vibe.warnings).toEqual(['vibe has used 84% of its day plan limit ($4.20 of $5.00)'])
   })
 
   it('holds Antigravity to the daily cap and reserve the per-machine override names', async () => {

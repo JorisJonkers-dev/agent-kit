@@ -7,12 +7,14 @@ import {
   AgyCriticClient,
   createCritiqueCommands,
   CritiqueError,
+  GatewayPlanLimit,
   NodeCritiqueFiles,
   ProcessSearchClient,
   VibeCriticClient,
   type CritiqueCommands,
 } from '../contexts/critique/index.js'
 import { GitCliAdapter } from '../contexts/graph/index.js'
+import { NodeModelGatewayLedger } from '../contexts/model-gateway/index.js'
 
 export { runSearchServer } from '../contexts/critique/index.js'
 
@@ -152,6 +154,7 @@ export function defaultCritiqueRuntime(
   const files = new NodeCritiqueFiles()
   const processPort = new NodeProcessAdapter()
   const env = new ProcessEnvAdapter(environment)
+  const clock = new SystemClockAdapter()
   return {
     commands: createCritiqueCommands({
       assetsRoot,
@@ -159,11 +162,16 @@ export function defaultCritiqueRuntime(
         agy: new AgyCriticClient(processPort, files, env, platform),
         vibe: new VibeCriticClient(processPort, files, env),
       },
-      clock: new SystemClockAdapter(),
+      clock,
       env,
       files,
       gh: new GhCliAdapter(processPort),
       git: new GitCliAdapter(processPort),
+      // Every critic run is recorded in the gateway's ledger, and Vibe's plan
+      // limit is read the way the gateway reads it, from its shipped defaults
+      // beside this bundle.
+      ledger: new NodeModelGatewayLedger(env),
+      plan: new GatewayPlanLimit(env, clock, join(assetsRoot, '..', 'model-gateway', 'defaults.json')),
       // Vibe starts the search server as `node critique.mjs search-server ...`.
       search: new ProcessSearchClient(processPort, { args: [join(assetsRoot, 'critique.mjs')], command: process.execPath }),
     }),

@@ -1,6 +1,7 @@
 ---
 name: flow
 description: Use when the owner asks how the critique pipeline works, what to do next in it, or to set it up or check its budget. Says where the current feature stands and names the single next step.
+disable-model-invocation: true
 ---
 
 # flow
@@ -166,10 +167,10 @@ The last two lines come from `next`:
 
 | `next.stage` | Stage skill | Inputs you give it |
 |---|---|---|
-| `decisions` | `critique-decisions` | `"flow": "draft:<name>"` for its prepare, so the run joins the draft's flow |
-| `spec` | `critique-spec` | the spec; with `previous_run_id`, `"previous_run_dir"` = that run's directory in the runs folder, for the second round |
-| `tickets` | `check-tickets` | the spec |
-| `ticket-review` | `review-ticket` | `next.ticket` and the spec |
+| `decisions` | `review-grill` | `"flow": "draft:<name>"` for its prepare, so the run joins the draft's flow |
+| `spec` | `review-spec` | the spec; with `previous_run_id`, `"previous_run_dir"` = that run's directory in the runs folder, for the second round |
+| `tickets` | `review-tickets` | the spec |
+| `ticket-review` | `review-implementation` | `next.ticket` and the spec |
 | `feature-review` | shown as `/flow finish` | (see `/flow finish`) |
 
 With `resume_run_id`, the stage owes a run that was prepared but not
@@ -196,7 +197,7 @@ Done when the reply ends with the next step, its reason and the offer.
 1. Find the feature and read its state (steps 1 and 2). Unless `next` is the
    `feature-review` stage, refresh and report as `/flow` does (steps 3 and
    4) and stop: that report names what is still due.
-2. Load the `review-feature` skill and follow it with the spec (and the
+2. Load the `review-pr` skill and follow it with the spec (and the
    resume inputs when `next` has `resume_run_id`).
 3. Read the state again, then refresh the build tracker as step 3 of `/flow`
    says. Once the gate passes, that is the build's last render: the page
@@ -246,6 +247,11 @@ Run `list`, with `repo` when `git rev-parse --show-toplevel` names one. Keep
 Open with one line: how many items are `current` (they passed, and nothing
 they depend on changed since) and how many are due.
 
+If the result carries `notes`, say each one as it stands before the first
+item: they name a setting this machine's routing override still holds that
+routing no longer reads, such as the removed `budget.vibe_flow_cap_usd`, and
+the owner should delete it.
+
 Done when `list` returned `"status": "listed"`.
 
 ### 2. Walk the machine checklist
@@ -257,6 +263,11 @@ Take the items in the runner's order, skipping the `current` ones. For each:
 2. **Check.** Run `check` with the item's `id`.
    - `not-available`: give the item's `detail`. The Antigravity read-only
      proof answers this way until agent-kit#178 lands.
+   - Claude Code, Codex, Hermes and OpenCode each have a read-only item
+     with no critic behind it. It is recorded as `unproven` with its reason,
+     at no cost and without launching anything. Report it as unproven, never
+     as a pass: the gateway runs that client's read-only work in a throwaway
+     worktree.
    - A Vibe client's read-only proof first checks, for free, that the
      runner's search server cannot reach past the packet. Then it asks for
      confirmation, like any `vibe` item, and runs one trivial prompt. That
@@ -270,7 +281,7 @@ Take the items in the runner's order, skipping the `current` ones. For each:
      pass `"confirmed": true` for later items of that cost without asking
      again. A no is a skip.
    - `checked`: the result is the item's `last`.
-3. **Report.** One line: `pass` or `fail`, with `last.detail`.
+3. **Report.** One line: `pass`, `fail` or `unproven`, with `last.detail`.
 4. **Offer the fix** on a fail: the item's `fix`. For `agy-quota`, ask for
    the plan's daily request limit and the reserve to keep for the spec and
    feature reviews (propose half the limit), then run `quota` with both.

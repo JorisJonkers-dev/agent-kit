@@ -493,6 +493,31 @@ _vibe_agents_pointer() {
   _agents_pointer "${1}/AGENTS.md" "$2"
 }
 
+# The model gateway's pointer: one marked block in a client's global instruction
+# file. Setup owns only that block; the text around it stays the user's.
+gateway_pointer() {
+  local file="$1" action="${2:-write}"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would ${action} the model-gateway pointer in ${file}"
+    return 0
+  fi
+  if [ "${action}" = remove ]; then
+    [ -f "${file}" ] || return 0
+    python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" model-gateway --remove >/dev/null \
+      && ok "model-gateway pointer removed from ${file}" \
+      || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"
+    return 0
+  fi
+  mkdir -p "$(dirname "${file}")"
+  python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" model-gateway <<'BLOCK' \
+    && ok "model-gateway pointer -> ${file}" \
+    || warn "model-gateway pointer: ${file} left alone; fix its block, then re-run setup"
+The model gateway is the `model-gateway` command on PATH. `model-gateway models`
+lists the client models on this machine, each with its cost class and difficulty tier.
+The `delegate` skill, which is coming later, plans delegations with it.
+BLOCK
+}
+
 # Every chat model the Mistral login can use, kept current in one Vibe home.
 _vibe_models() {
   local home="$1"
@@ -545,6 +570,7 @@ _vibe_private_home() {
     _vibe_hooks "${VIBE_PRIVATE_HOME}" --remove agent-kit-retain-private
   fi
   _vibe_agents_pointer "${VIBE_PRIVATE_HOME}" private
+  gateway_pointer "${VIBE_PRIVATE_HOME}/AGENTS.md"
 }
 
 # The read-only critic agents the critique runner launches as
@@ -588,6 +614,33 @@ _vibe_critic_agents() {
     ok "Vibe critic agent critic-deepseek-flash -> ${dest}"
   else
     fail "Vibe critic agent critic-deepseek-flash: ${dest} does not match ${src}"
+  fi
+  return 0
+}
+
+# The delegate agents the model gateway launches as
+# `vibe --agent delegate-<what it may do>`. Called for the shared Vibe
+# home only: vibe-private never delegates. Nothing here touches
+# config.toml, so no delegate becomes the default agent.
+_vibe_delegate_agents() {
+  local home="$1" src dest
+  src="${KIT_ROOT}/registry/generated/vibe/agents/delegate-readonly.toml"
+  dest="${home}/agents/delegate-readonly.toml"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Vibe delegate agent delegate-readonly -> ${dest}"
+  else
+    fail "Vibe delegate agent delegate-readonly: ${dest} does not match ${src}"
+  fi
+  src="${KIT_ROOT}/registry/generated/vibe/agents/delegate-write.toml"
+  dest="${home}/agents/delegate-write.toml"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write ${dest}"
+  elif mkdir -p "${home}/agents" && cp "${src}" "${dest}" && cmp -s "${src}" "${dest}"; then
+    ok "Vibe delegate agent delegate-write -> ${dest}"
+  else
+    fail "Vibe delegate agent delegate-write: ${dest} does not match ${src}"
   fi
   return 0
 }
@@ -2852,6 +2905,7 @@ for install in installs:
         _vibe_hooks "${VIBE_HOME}" ${vibe_hooks_remove[@]+"${vibe_hooks_remove[@]}"}
       fi
       _vibe_agents_pointer "${VIBE_HOME}" shared
+      gateway_pointer "${VIBE_HOME}/AGENTS.md"
       [ "${CLOUD}" = 1 ] || _vibe_private_home
     else
       warn "vibe not on PATH, or its home is not split yet; Vibe MCP config not merged"
@@ -2875,6 +2929,7 @@ for install in installs:
     # GEMINI.md: Gemini CLI reads those.
     if [ "${CLOUD}" != 1 ] && [ "${ANTIGRAVITY_READY}" = 1 ]; then
       _agents_pointer "${ANTIGRAVITY_HOME}/AGENTS.md" shared
+      gateway_pointer "${ANTIGRAVITY_HOME}/AGENTS.md"
     fi
     # OpenCode 2 reads mcp.servers from its global opencode.json and fills in
     # {env:NAME} at load, so the fragment names each credential and holds
@@ -2927,6 +2982,19 @@ for install in installs:
   else
     log "MCP registration skipped (--no-mcp)"
   fi
+fi
+
+# -----------------------------------------------------------------
+# The model gateway: the `model-gateway` command on PATH, and a pointer to it in
+# each client's global instruction file. A gateway that is not declared on this
+# surface is retired: its command and its pointers are removed, if setup wrote them.
+# -----------------------------------------------------------------
+install_kit_command model-gateway
+gateway_pointer "${CLAUDE_HOME}/CLAUDE.md"
+gateway_pointer "${CODEX_HOME}/AGENTS.md"
+if [ "${CLOUD}" != 1 ]; then
+  gateway_pointer "${HOME}/.hermes/SOUL.md"
+  gateway_pointer "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"
 fi
 
 # -----------------------------------------------------------------
@@ -3729,11 +3797,11 @@ fi
 # /to-spec: gap critics from other model families list the
 # questions nobody asked, and the orchestrator asks the owner the
 # real ones.
-src="${KIT_ROOT}/skills/workstation/critique-decisions"
+src="${KIT_ROOT}/skills/workstation/review-grill"
 if [ ! -f "${src}/SKILL.md" ]; then
-  fail "critique-decisions: ${src}/SKILL.md is missing; nothing to install"
+  fail "review-grill: ${src}/SKILL.md is missing; nothing to install"
 else
-  dest="${CLAUDE_HOME}/skills/critique-decisions"
+  dest="${CLAUDE_HOME}/skills/review-grill"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -3744,12 +3812,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-decisions -> ${dest}"
+      ok "review-grill -> ${dest}"
     else
-      fail "critique-decisions: ${dest} is incomplete after copy"
+      fail "review-grill: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${CODEX_HOME}/skills/critique-decisions"
+  dest="${CODEX_HOME}/skills/review-grill"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -3760,12 +3828,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-decisions -> ${dest}"
+      ok "review-grill -> ${dest}"
     else
-      fail "critique-decisions: ${dest} is incomplete after copy"
+      fail "review-grill: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_HOME}/skills/critique-decisions"
+  dest="${VIBE_HOME}/skills/review-grill"
   if [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3778,12 +3846,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-decisions -> ${dest}"
+      ok "review-grill -> ${dest}"
     else
-      fail "critique-decisions: ${dest} is incomplete after copy"
+      fail "review-grill: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_PRIVATE_HOME}/skills/critique-decisions"
+  dest="${VIBE_PRIVATE_HOME}/skills/review-grill"
   if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3796,12 +3864,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-decisions -> ${dest}"
+      ok "review-grill -> ${dest}"
     else
-      fail "critique-decisions: ${dest} is incomplete after copy"
+      fail "review-grill: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_HOME}/skills/critique-decisions"
+  dest="${ANTIGRAVITY_HOME}/skills/review-grill"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3814,12 +3882,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-decisions -> ${dest}"
+      ok "review-grill -> ${dest}"
     else
-      fail "critique-decisions: ${dest} is incomplete after copy"
+      fail "review-grill: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_CLI_HOME}/skills/critique-decisions"
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-grill"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3832,12 +3900,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-decisions -> ${dest}"
+      ok "review-grill -> ${dest}"
     else
-      fail "critique-decisions: ${dest} is incomplete after copy"
+      fail "review-grill: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${OPENCODE_HOME}/skills/critique-decisions"
+  dest="${OPENCODE_HOME}/skills/review-grill"
   if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3850,9 +3918,9 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-decisions -> ${dest}"
+      ok "review-grill -> ${dest}"
     else
-      fail "critique-decisions: ${dest} is incomplete after copy"
+      fail "review-grill: ${dest} is incomplete after copy"
     fi
   fi
 fi
@@ -3860,11 +3928,11 @@ fi
 # Critique a spec after /to-spec: critics from other model
 # families review it read-only, and the orchestrator rules on
 # their findings.
-src="${KIT_ROOT}/skills/workstation/critique-spec"
+src="${KIT_ROOT}/skills/workstation/review-spec"
 if [ ! -f "${src}/SKILL.md" ]; then
-  fail "critique-spec: ${src}/SKILL.md is missing; nothing to install"
+  fail "review-spec: ${src}/SKILL.md is missing; nothing to install"
 else
-  dest="${CLAUDE_HOME}/skills/critique-spec"
+  dest="${CLAUDE_HOME}/skills/review-spec"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -3875,12 +3943,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-spec -> ${dest}"
+      ok "review-spec -> ${dest}"
     else
-      fail "critique-spec: ${dest} is incomplete after copy"
+      fail "review-spec: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${CODEX_HOME}/skills/critique-spec"
+  dest="${CODEX_HOME}/skills/review-spec"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -3891,12 +3959,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-spec -> ${dest}"
+      ok "review-spec -> ${dest}"
     else
-      fail "critique-spec: ${dest} is incomplete after copy"
+      fail "review-spec: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_HOME}/skills/critique-spec"
+  dest="${VIBE_HOME}/skills/review-spec"
   if [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3909,12 +3977,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-spec -> ${dest}"
+      ok "review-spec -> ${dest}"
     else
-      fail "critique-spec: ${dest} is incomplete after copy"
+      fail "review-spec: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_PRIVATE_HOME}/skills/critique-spec"
+  dest="${VIBE_PRIVATE_HOME}/skills/review-spec"
   if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3927,12 +3995,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-spec -> ${dest}"
+      ok "review-spec -> ${dest}"
     else
-      fail "critique-spec: ${dest} is incomplete after copy"
+      fail "review-spec: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_HOME}/skills/critique-spec"
+  dest="${ANTIGRAVITY_HOME}/skills/review-spec"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3945,12 +4013,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-spec -> ${dest}"
+      ok "review-spec -> ${dest}"
     else
-      fail "critique-spec: ${dest} is incomplete after copy"
+      fail "review-spec: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_CLI_HOME}/skills/critique-spec"
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-spec"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3963,12 +4031,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-spec -> ${dest}"
+      ok "review-spec -> ${dest}"
     else
-      fail "critique-spec: ${dest} is incomplete after copy"
+      fail "review-spec: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${OPENCODE_HOME}/skills/critique-spec"
+  dest="${OPENCODE_HOME}/skills/review-spec"
   if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -3981,9 +4049,9 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "critique-spec -> ${dest}"
+      ok "review-spec -> ${dest}"
     else
-      fail "critique-spec: ${dest} is incomplete after copy"
+      fail "review-spec: ${dest} is incomplete after copy"
     fi
   fi
 fi
@@ -4123,11 +4191,11 @@ fi
 # from another model family lints their structure read-only, and
 # the orchestrator fixes the tickets and asks before changing
 # scope.
-src="${KIT_ROOT}/skills/workstation/check-tickets"
+src="${KIT_ROOT}/skills/workstation/review-tickets"
 if [ ! -f "${src}/SKILL.md" ]; then
-  fail "check-tickets: ${src}/SKILL.md is missing; nothing to install"
+  fail "review-tickets: ${src}/SKILL.md is missing; nothing to install"
 else
-  dest="${CLAUDE_HOME}/skills/check-tickets"
+  dest="${CLAUDE_HOME}/skills/review-tickets"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -4138,12 +4206,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "check-tickets -> ${dest}"
+      ok "review-tickets -> ${dest}"
     else
-      fail "check-tickets: ${dest} is incomplete after copy"
+      fail "review-tickets: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${CODEX_HOME}/skills/check-tickets"
+  dest="${CODEX_HOME}/skills/review-tickets"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -4154,12 +4222,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "check-tickets -> ${dest}"
+      ok "review-tickets -> ${dest}"
     else
-      fail "check-tickets: ${dest} is incomplete after copy"
+      fail "review-tickets: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_HOME}/skills/check-tickets"
+  dest="${VIBE_HOME}/skills/review-tickets"
   if [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4172,12 +4240,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "check-tickets -> ${dest}"
+      ok "review-tickets -> ${dest}"
     else
-      fail "check-tickets: ${dest} is incomplete after copy"
+      fail "review-tickets: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_PRIVATE_HOME}/skills/check-tickets"
+  dest="${VIBE_PRIVATE_HOME}/skills/review-tickets"
   if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4190,12 +4258,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "check-tickets -> ${dest}"
+      ok "review-tickets -> ${dest}"
     else
-      fail "check-tickets: ${dest} is incomplete after copy"
+      fail "review-tickets: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_HOME}/skills/check-tickets"
+  dest="${ANTIGRAVITY_HOME}/skills/review-tickets"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4208,12 +4276,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "check-tickets -> ${dest}"
+      ok "review-tickets -> ${dest}"
     else
-      fail "check-tickets: ${dest} is incomplete after copy"
+      fail "review-tickets: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_CLI_HOME}/skills/check-tickets"
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-tickets"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4226,12 +4294,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "check-tickets -> ${dest}"
+      ok "review-tickets -> ${dest}"
     else
-      fail "check-tickets: ${dest} is incomplete after copy"
+      fail "review-tickets: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${OPENCODE_HOME}/skills/check-tickets"
+  dest="${OPENCODE_HOME}/skills/review-tickets"
   if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4244,23 +4312,23 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "check-tickets -> ${dest}"
+      ok "review-tickets -> ${dest}"
     else
-      fail "check-tickets: ${dest} is incomplete after copy"
+      fail "review-tickets: ${dest} is incomplete after copy"
     fi
   fi
 fi
 
-# Review a risky ticket's staged change after its /code-review and
-# before its commit: risk triage decides, one critic from another
-# model family reviews the diff, each bug finding is decided by
-# running its failing test, and the summary says "do not commit"
-# while an accepted critical finding is unfixed.
-src="${KIT_ROOT}/skills/workstation/review-ticket"
+# Review one ticket's staged change before its commit, after its
+# /code-review: risk triage decides, one critic from another model
+# family reviews the diff, each bug finding is decided by running
+# its failing test, and the summary says "do not commit" while an
+# accepted critical finding is unfixed.
+src="${KIT_ROOT}/skills/workstation/review-implementation"
 if [ ! -f "${src}/SKILL.md" ]; then
-  fail "review-ticket: ${src}/SKILL.md is missing; nothing to install"
+  fail "review-implementation: ${src}/SKILL.md is missing; nothing to install"
 else
-  dest="${CLAUDE_HOME}/skills/review-ticket"
+  dest="${CLAUDE_HOME}/skills/review-implementation"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -4271,12 +4339,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-ticket -> ${dest}"
+      ok "review-implementation -> ${dest}"
     else
-      fail "review-ticket: ${dest} is incomplete after copy"
+      fail "review-implementation: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${CODEX_HOME}/skills/review-ticket"
+  dest="${CODEX_HOME}/skills/review-implementation"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -4287,12 +4355,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-ticket -> ${dest}"
+      ok "review-implementation -> ${dest}"
     else
-      fail "review-ticket: ${dest} is incomplete after copy"
+      fail "review-implementation: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_HOME}/skills/review-ticket"
+  dest="${VIBE_HOME}/skills/review-implementation"
   if [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4305,12 +4373,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-ticket -> ${dest}"
+      ok "review-implementation -> ${dest}"
     else
-      fail "review-ticket: ${dest} is incomplete after copy"
+      fail "review-implementation: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_PRIVATE_HOME}/skills/review-ticket"
+  dest="${VIBE_PRIVATE_HOME}/skills/review-implementation"
   if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4323,12 +4391,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-ticket -> ${dest}"
+      ok "review-implementation -> ${dest}"
     else
-      fail "review-ticket: ${dest} is incomplete after copy"
+      fail "review-implementation: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_HOME}/skills/review-ticket"
+  dest="${ANTIGRAVITY_HOME}/skills/review-implementation"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4341,12 +4409,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-ticket -> ${dest}"
+      ok "review-implementation -> ${dest}"
     else
-      fail "review-ticket: ${dest} is incomplete after copy"
+      fail "review-implementation: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-ticket"
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-implementation"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4359,12 +4427,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-ticket -> ${dest}"
+      ok "review-implementation -> ${dest}"
     else
-      fail "review-ticket: ${dest} is incomplete after copy"
+      fail "review-implementation: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${OPENCODE_HOME}/skills/review-ticket"
+  dest="${OPENCODE_HOME}/skills/review-implementation"
   if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4377,23 +4445,23 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-ticket -> ${dest}"
+      ok "review-implementation -> ${dest}"
     else
-      fail "review-ticket: ${dest} is incomplete after copy"
+      fail "review-implementation: ${dest} is incomplete after copy"
     fi
   fi
 fi
 
-# Review a whole feature after all tickets of a spec landed and
-# before the PR: critics from two other model families read the
-# spec, the tickets and the feature diff, each accepted finding
-# becomes a follow-up ticket, and the report opens with the gate
-# line.
-src="${KIT_ROOT}/skills/workstation/review-feature"
+# Review the whole feature diff before the pull request, after all
+# tickets of a spec landed: critics from two other model families
+# read the spec, the tickets and the feature diff, each accepted
+# finding becomes a follow-up ticket, and the report opens with
+# the gate line.
+src="${KIT_ROOT}/skills/workstation/review-pr"
 if [ ! -f "${src}/SKILL.md" ]; then
-  fail "review-feature: ${src}/SKILL.md is missing; nothing to install"
+  fail "review-pr: ${src}/SKILL.md is missing; nothing to install"
 else
-  dest="${CLAUDE_HOME}/skills/review-feature"
+  dest="${CLAUDE_HOME}/skills/review-pr"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -4404,12 +4472,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-feature -> ${dest}"
+      ok "review-pr -> ${dest}"
     else
-      fail "review-feature: ${dest} is incomplete after copy"
+      fail "review-pr: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${CODEX_HOME}/skills/review-feature"
+  dest="${CODEX_HOME}/skills/review-pr"
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would replace ${dest}"
   else
@@ -4420,12 +4488,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-feature -> ${dest}"
+      ok "review-pr -> ${dest}"
     else
-      fail "review-feature: ${dest} is incomplete after copy"
+      fail "review-pr: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_HOME}/skills/review-feature"
+  dest="${VIBE_HOME}/skills/review-pr"
   if [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4438,12 +4506,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-feature -> ${dest}"
+      ok "review-pr -> ${dest}"
     else
-      fail "review-feature: ${dest} is incomplete after copy"
+      fail "review-pr: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${VIBE_PRIVATE_HOME}/skills/review-feature"
+  dest="${VIBE_PRIVATE_HOME}/skills/review-pr"
   if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4456,12 +4524,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-feature -> ${dest}"
+      ok "review-pr -> ${dest}"
     else
-      fail "review-feature: ${dest} is incomplete after copy"
+      fail "review-pr: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_HOME}/skills/review-feature"
+  dest="${ANTIGRAVITY_HOME}/skills/review-pr"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4474,12 +4542,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-feature -> ${dest}"
+      ok "review-pr -> ${dest}"
     else
-      fail "review-feature: ${dest} is incomplete after copy"
+      fail "review-pr: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-feature"
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-pr"
   if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4492,12 +4560,12 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-feature -> ${dest}"
+      ok "review-pr -> ${dest}"
     else
-      fail "review-feature: ${dest} is incomplete after copy"
+      fail "review-pr: ${dest} is incomplete after copy"
     fi
   fi
-  dest="${OPENCODE_HOME}/skills/review-feature"
+  dest="${OPENCODE_HOME}/skills/review-pr"
   if [ "${OPENCODE_READY}" != 1 ]; then
     :
   elif [ "${CHECK_ONLY}" = 1 ]; then
@@ -4510,9 +4578,9 @@ else
     # every script actually landed.
     if [ -f "${dest}/SKILL.md" ] \
        && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
-      ok "review-feature -> ${dest}"
+      ok "review-pr -> ${dest}"
     else
-      fail "review-feature: ${dest} is incomplete after copy"
+      fail "review-pr: ${dest} is incomplete after copy"
     fi
   fi
 fi
@@ -4780,11 +4848,604 @@ else
   fi
 fi
 
+# The model gateway's runner and shipped defaults: the clients on
+# this machine, the client models each offers with their family,
+# difficulty tier and capability notes, and the caps and
+# thresholds a delegation is held to.
+src="${KIT_ROOT}/skills/workstation/model-gateway"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "model-gateway: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/model-gateway"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "model-gateway -> ${dest}"
+    else
+      fail "model-gateway: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/model-gateway"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "model-gateway -> ${dest}"
+    else
+      fail "model-gateway: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/model-gateway"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "model-gateway -> ${dest}"
+    else
+      fail "model-gateway: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/model-gateway"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "model-gateway -> ${dest}"
+    else
+      fail "model-gateway: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/model-gateway"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "model-gateway -> ${dest}"
+    else
+      fail "model-gateway: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/model-gateway"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "model-gateway -> ${dest}"
+    else
+      fail "model-gateway: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Plan work to hand to other model clients through the model
+# gateway: rate each task's difficulty tier, split it, pick the
+# cheapest cost class whose model covers the tier, send one batch
+# and verify what comes back, with few Claude tokens.
+src="${KIT_ROOT}/skills/workstation/delegate"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "delegate: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/delegate"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "delegate -> ${dest}"
+    else
+      fail "delegate: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/delegate"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "delegate -> ${dest}"
+    else
+      fail "delegate: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/delegate"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "delegate -> ${dest}"
+    else
+      fail "delegate: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/delegate"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "delegate -> ${dest}"
+    else
+      fail "delegate: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/delegate"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "delegate -> ${dest}"
+    else
+      fail "delegate: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/delegate"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "delegate -> ${dest}"
+    else
+      fail "delegate: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Retired first-party skills (registry retired_skills:): a renamed skill's
+# old directory is removed from every agent home, not left beside the new one.
+log "retired skills"
+if [ -d "${CLAUDE_HOME}/skills/critique-decisions" ]; then
+  dest="${CLAUDE_HOME}/skills/critique-decisions"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-decisions from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/critique-decisions" ]; then
+  dest="${CODEX_HOME}/skills/critique-decisions"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-decisions from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/critique-decisions" ]; then
+  dest="${VIBE_HOME}/skills/critique-decisions"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-decisions from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/critique-decisions" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/critique-decisions"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-decisions from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/critique-decisions" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/critique-decisions"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-decisions from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/critique-decisions" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/critique-decisions"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-decisions from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/critique-decisions" ]; then
+  dest="${OPENCODE_HOME}/skills/critique-decisions"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-decisions from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/critique-spec" ]; then
+  dest="${CLAUDE_HOME}/skills/critique-spec"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-spec from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/critique-spec" ]; then
+  dest="${CODEX_HOME}/skills/critique-spec"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-spec from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/critique-spec" ]; then
+  dest="${VIBE_HOME}/skills/critique-spec"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-spec from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/critique-spec" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/critique-spec"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-spec from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/critique-spec" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/critique-spec"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-spec from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/critique-spec" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/critique-spec"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-spec from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/critique-spec" ]; then
+  dest="${OPENCODE_HOME}/skills/critique-spec"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill critique-spec from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/check-tickets" ]; then
+  dest="${CLAUDE_HOME}/skills/check-tickets"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill check-tickets from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/check-tickets" ]; then
+  dest="${CODEX_HOME}/skills/check-tickets"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill check-tickets from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/check-tickets" ]; then
+  dest="${VIBE_HOME}/skills/check-tickets"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill check-tickets from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/check-tickets" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/check-tickets"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill check-tickets from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/check-tickets" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/check-tickets"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill check-tickets from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/check-tickets" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/check-tickets"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill check-tickets from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/check-tickets" ]; then
+  dest="${OPENCODE_HOME}/skills/check-tickets"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill check-tickets from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/review-ticket" ]; then
+  dest="${CLAUDE_HOME}/skills/review-ticket"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-ticket from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/review-ticket" ]; then
+  dest="${CODEX_HOME}/skills/review-ticket"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-ticket from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/review-ticket" ]; then
+  dest="${VIBE_HOME}/skills/review-ticket"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-ticket from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/review-ticket" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-ticket from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/review-ticket" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-ticket from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/review-ticket" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-ticket"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-ticket from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/review-ticket" ]; then
+  dest="${OPENCODE_HOME}/skills/review-ticket"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-ticket from ${dest}"
+  fi
+fi
+if [ -d "${CLAUDE_HOME}/skills/review-feature" ]; then
+  dest="${CLAUDE_HOME}/skills/review-feature"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-feature from ${dest}"
+  fi
+fi
+if [ -d "${CODEX_HOME}/skills/review-feature" ]; then
+  dest="${CODEX_HOME}/skills/review-feature"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-feature from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_HOME}/skills/review-feature" ]; then
+  dest="${VIBE_HOME}/skills/review-feature"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-feature from ${dest}"
+  fi
+fi
+if [ -d "${VIBE_PRIVATE_HOME}/skills/review-feature" ]; then
+  dest="${VIBE_PRIVATE_HOME}/skills/review-feature"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-feature from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_HOME}/skills/review-feature" ]; then
+  dest="${ANTIGRAVITY_HOME}/skills/review-feature"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-feature from ${dest}"
+  fi
+fi
+if [ -d "${ANTIGRAVITY_CLI_HOME}/skills/review-feature" ]; then
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/review-feature"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-feature from ${dest}"
+  fi
+fi
+if [ -d "${OPENCODE_HOME}/skills/review-feature" ]; then
+  dest="${OPENCODE_HOME}/skills/review-feature"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would remove retired skill ${dest}"
+  else
+    rm -rf "${dest}"
+    ok "removed retired skill review-feature from ${dest}"
+  fi
+fi
+
 # The read-only Vibe critic agents, into the shared Vibe home only. Like
 # its skills, a failed split leaves the home alone this run.
 if [ "${VIBE_HOMES_READY}" = 1 ]; then
   log "Vibe critic agents"
   _vibe_critic_agents "${VIBE_HOME}"
+fi
+
+# The read-only Vibe delegate agents, into the shared Vibe home only.
+if [ "${VIBE_HOMES_READY}" = 1 ]; then
+  log "Vibe delegate agents"
+  _vibe_delegate_agents "${VIBE_HOME}"
 fi
 
 # -----------------------------------------------------------------

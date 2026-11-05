@@ -124,18 +124,18 @@ skills:
       - agent: claude
         path: .claude/skills/council-amend/SKILL.md
         source: skills/repo/council-amend/claude/SKILL.md
-        sha256: 6aa6b39b8a54be030b2d26cb1db3554a55078d7d2dfbcd594893e5230d2d76e4
+        sha256: 7ccc25b8d78d9ebb5881c89984f7d7d89d6f4f29f780e8d7d008ba53ee21aabd
   - name: council-design
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-design/SKILL.md
         source: skills/repo/council-design/codex/SKILL.md
-        sha256: 3a535ec04112a0d04f19b15374371173c41c0cae714ff25397938c58b4c0f0ec
+        sha256: 1d6de36f4face394a09f9bd23dad0676bdf6ded6a52049fbb8d2a0de966e4141
       - agent: claude
         path: .claude/skills/council-design/SKILL.md
         source: skills/repo/council-design/claude/SKILL.md
-        sha256: a79f7609469170f39ba54d109f39f5fe2cda040d4f5f416356c4192bb4cc42f5
+        sha256: 6a808acfd8fcac7716bb77ffaf68c11935e06c6e700e35de2df55277c241c64e
   - name: council-grill
     supported_agents: [codex, claude]
     targets:
@@ -146,7 +146,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-grill/SKILL.md
         source: skills/repo/council-grill/claude/SKILL.md
-        sha256: 86bae122f746c33ddb6d5ef09f869819b70ac00fa9a4ae0e62afa6c2c94383af
+        sha256: 34a75867ff83230519abc2ebc3c6c77c5e4301deaf0c10b34cf4083bd0a30592
   - name: council-inject
     supported_agents: [codex, claude]
     targets:
@@ -157,7 +157,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-inject/SKILL.md
         source: skills/repo/council-inject/claude/SKILL.md
-        sha256: f266cf7422737f873b4f2a5e605a83d49a5292ca2a05f4f3fe243ba38222740b
+        sha256: af90a507199e3b136b0e2155ec09512d8058aa49be4bac3bf99a554c580d22c8
   - name: council-run
     supported_agents: [codex, claude]
     targets:
@@ -168,7 +168,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-run/SKILL.md
         source: skills/repo/council-run/claude/SKILL.md
-        sha256: 032e6a56d610e51cc45c01cc37524065a523e1497a4dc5ce02a7ee6d4f829b2d
+        sha256: 82f5e9b91104b323ecef63f823169f779afe637c1abaad2c686267444b9a337a
   - name: council-supervise
     supported_agents: [codex, claude]
     targets:
@@ -179,32 +179,32 @@ skills:
       - agent: claude
         path: .claude/skills/council-supervise/SKILL.md
         source: skills/repo/council-supervise/claude/SKILL.md
-        sha256: c1e945e4a3296ae5c40cc95af9b09ad511594534963d65473b4ffc883e66a3f0
+        sha256: ccae593199c728b0c1b7b813517ed0f5c14abce919ff4d538ed9558c6838ee38
   - name: council-triage
     supported_agents: [codex, claude]
     targets:
       - agent: codex
         path: .agents/skills/council-triage/SKILL.md
         source: skills/repo/council-triage/codex/SKILL.md
-        sha256: 940b8ff8d5c8df31695365dd1f475c93bf765259895a0e1f480bfccb8aee7329
+        sha256: c9efd0db797780e11954606976cc0e35bc7796f00f947c7521311773ca5366a5
       - agent: claude
         path: .claude/skills/council-triage/SKILL.md
         source: skills/repo/council-triage/claude/SKILL.md
-        sha256: ab6c4503e24a5aadf4d52ceadfd7d72dabd23a0de1916cd6f4f404c04e15b368
+        sha256: e33f015c82be59efbd7a1b56805225116ed0bbe08c2ebe4bf293000cc3293a81
   - name: agent-codex-med
     supported_agents: [claude]
     targets:
       - agent: claude
         path: .claude/agents/codex-med.md
         source: agents/codex-med.md
-        sha256: 8baecdbe41412b666a6c35d1fdd87ca934cc64665d2ba1ff63262347b8f6519c
+        sha256: 00b17c97d3be0cd2331628c927f718b0e934d080aef4284f5b725e8786a7024c
   - name: agent-codex-xhigh
     supported_agents: [claude]
     targets:
       - agent: claude
         path: .claude/agents/codex-xhigh.md
         source: agents/codex-xhigh.md
-        sha256: ada0b5f8876071b01df1907137d4e9ebe4f41396c72360c3fab8337c396cd8f0
+        sha256: ca45f12036179e0a94089d5b42a3aa81741639eca227b860107b30d818a8a682
   - name: council
     supported_agents: [codex, claude]
     targets:
@@ -215,7 +215,7 @@ skills:
       - agent: claude
         path: .claude/skills/council/SKILL.md
         source: skills/repo/council/claude/SKILL.md
-        sha256: bde73e754681120c476bee0612f26f2aeb828f731344d7a9f302b562474d5383
+        sha256: 1913f16a57dc1bacf3c9b2a210fe4d5bb02cf28c7e2b0ae9741c765256bc2696
   - name: deploy-status
     supported_agents: [codex, claude]
     targets:
@@ -316,12 +316,12 @@ hooks:
     adr: docs/adr/0002-exactly-three-critique-hooks.md
     event: PreToolUse
     agents: [claude, codex]
-    purpose: Block a risky staged diff before `git commit` until a passing /review-ticket run matches it.
+    purpose: Block a risky staged diff before `git commit` until a passing /review-implementation run matches it.
   critique-pr-gate:
     adr: docs/adr/0002-exactly-three-critique-hooks.md
     event: PreToolUse
     agents: [claude, codex]
-    purpose: Block `gh pr create`, or a push outside the feature branch patterns, unless /review-feature passed for the head.
+    purpose: Block `gh pr create`, or a push outside the feature branch patterns, unless /review-pr passed for the head.
   critique-session-start:
     adr: docs/adr/0002-exactly-three-critique-hooks.md
     event: SessionStart
@@ -468,13 +468,13 @@ council:
 critique:
   files:
     - path: skills/workstation/critique/critique.mjs
-      sha256: 29dd338df213da3fa39855b58402e2905d118eabd55500fcb3b6451a68cada9c
+      sha256: 2679f2bedf5f198489151469ec7c1d0a1e621bc18ce974d122982a3e00bd752a
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-commit-gate.sh
-      sha256: dbbc98efd6f1ef0e53667cdec6c659d89f6ee6eeea0d5ae42961bd0dbfc119f0
+      sha256: 4bcf6d9cefbef0eb638d5dac328c84a22f120e7799cd834f677daaa48fcef65c
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-pr-gate.sh
-      sha256: 260cc63345933d028e33e6b356b279b6d1d0afd0c4dac9599193cb3206912ae3
+      sha256: c188adc6e001d623cf8c17a3958d469ef3b1616c61ce653bb0294c8a1ccb8f28
       mode: "0755"
     - path: skills/workstation/critique/hooks/critique-session-start.sh
       sha256: 65becf61d98d40d27a34a997fecfbe4b84263009a62125fdc1939ed61714e907
@@ -531,10 +531,10 @@ critique:
       sha256: fa4dceabc2764d7d2fcf4638b376f9444553764b674ce42aec3c295012dfd20a
       mode: "0644"
     - path: skills/workstation/critique/README.md
-      sha256: a2f49c8a492e44abeb13555fab64f1f8038b9cbb70c74fdccc6ce5f8be38f81c
+      sha256: a9b73c36b2922b2fc4e10302c1478cbcfde3e09a9c10e01ca5cab7619649fbe6
       mode: "0644"
     - path: skills/workstation/critique/routing.json
-      sha256: d8526af9bd61c58ad2e2baed94aafe09e3495e6c52d477522411dfa73fd06a55
+      sha256: adab6cd8a7510ceff7efd8092ab4cc01b0eb1ae51783a79a7ed95e4c49f4f702
       mode: "0644"
     - path: skills/workstation/critique/schemas/finding.schema.json
       sha256: 3e5a5fc33f61562457c628c33a8706b6f9fa3d6e849502bc94b7a73464833bc6
@@ -548,6 +548,23 @@ build_tracker:
     - path: skills/workstation/build-tracker/build-tracker.mjs
       sha256: 0b6a7c87b93005f8b39f22596a9895766b8f8d38b8c8d9108a7e3660d022ab77
       mode: "0755"
+# The model gateway's runner and shipped defaults, pinned the way
+# critique.files pins the critique runner. skills/workstation/model-gateway/ is
+# the copy setup installs; its SKILL.md is the skill's text and is left out.
+# `npm run build` in council/ts rebuilds model-gateway.mjs: update its sha256
+# here in the same commit. defaults.json is validated against
+# defaults.schema.json by scripts/validate_manifest.py.
+model_gateway:
+  files:
+    - path: skills/workstation/model-gateway/model-gateway.mjs
+      sha256: 1b8239a256090bbafba8e7220fa9599b07bf2cb66cd791ca88af06d0c5e9bf4f
+      mode: "0755"
+    - path: skills/workstation/model-gateway/defaults.json
+      sha256: 54fdf1861094f31a2962d539259eac0bfc18486d6f5d14af7bd46e8ae6593eb4
+      mode: "0644"
+    - path: skills/workstation/model-gateway/defaults.schema.json
+      sha256: 17330924e72eba5cc00bf813fa704d02cbb7c9e96445f44843843afc2f7f8046
+      mode: "0644"
 agent_runner_runtime:
   supported_agents: [codex, claude, shell]
   schema: runner/manifests/runtime-package.schema.json

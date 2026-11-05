@@ -1,7 +1,7 @@
 import { isCheckId } from './checks.js'
 import { readCriticRun, type CriticRun } from './critic.js'
 import { checkEvidence, type PacketIndex } from './evidence.js'
-import type { ModelFamily, OrchestratorFamily } from './family.js'
+import type { AllowlistFamily, ModelFamily, OrchestratorFamily } from './family.js'
 import {
   CHECK_HINT_CODES,
   HINT_CODES,
@@ -79,6 +79,8 @@ export interface RefuteFile {
   readonly refute_path: string
   readonly results: readonly RefuteRecord[]
   readonly counts: Readonly<Record<RefuteOutcome, number>>
+  /** Why the gateway's ledger would not take a refuter's run, one message per failed append. */
+  readonly ledger_warnings?: readonly string[]
 }
 
 /** One client a stage routes, with the slot whose caps a refuter through it takes. */
@@ -108,7 +110,7 @@ export function refuterCandidates(routing: Routing, stage: CritiqueStage): reado
 
 /** The families no refuter of a run may come from, beyond those that raised the finding. */
 export interface RefuterRules {
-  readonly allowedFamilies: readonly ModelFamily[]
+  readonly allowedFamilies: readonly AllowlistFamily[]
   readonly orchestratorFamily: OrchestratorFamily
 }
 
@@ -276,6 +278,7 @@ export function parseRefuteFile(text: string): RefuteFile {
   const file = JsonFields.parse(text)
   return {
     counts: countOutcomes(file.list('results', readRefuteRecord)),
+    ...(file.has('ledger_warnings') ? { ledger_warnings: file.strings('ledger_warnings') } : {}),
     refute_path: file.string('refute_path'),
     results: file.list('results', readRefuteRecord),
     run_id: file.string('run_id'),

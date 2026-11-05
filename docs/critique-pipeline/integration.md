@@ -23,6 +23,21 @@ The checks were run on 2026-10-30 for agent-kit#168, on macOS, against
 Vibe 3.0.3 (`~/.local/bin/vibe`, the `mistral-vibe` uv tool) and Antigravity
 CLI 1.4.11 (`/opt/homebrew/bin/agy`).
 
+## Names
+
+The skills were renamed to follow the order they run in. Setup removes the old
+directories (`retired_skills:` in the registry). Stage ids, ledger values, the
+`check-tickets` runner command and file formats keep their names; history
+sections below keep the names they were written with.
+
+| Old name | New name |
+| --- | --- |
+| `critique-decisions` | `review-grill` |
+| `critique-spec` | `review-spec` |
+| `check-tickets` | `review-tickets` |
+| `review-ticket` | `review-implementation` |
+| `review-feature` | `review-pr` |
+
 ## Summary
 
 Most of what #167 assumes holds. Six things do not, and the tickets that
@@ -767,8 +782,8 @@ agent-kit. Tickets are the sub-issues of #167.
 | Read-only Vibe critic agents `critic-<model>` | rendered from `registry/estate-tooling.yaml` into `registry/generated/vibe/`, installed by a new setup step into the personal Vibe home's `agents/` (`~/.vibe/agents/`), not `vibe-private`'s | #176 |
 | Routing (stages, depths, lenses, caps, fallbacks, Antigravity quota, per-flow Vibe cap) | default file in the `critique` skill directory; optional per-machine override under `~/.config/agent-kit/` | #173, #174 |
 | Prompts: shared preamble, `spec-redteam` role, eight lens files, finding schema | the `critique` skill directory (`skills/workstation/critique/`), hashed into the ledger | #169, #177 |
-| Shared `critique` skill and user-invocable `critique-spec` skill | `skills/workstation/critique/` and `skills/workstation/critique-spec/`, as `local_skills` entries in `registry/estate-tooling.yaml` for claude, codex, vibe and antigravity | #176, #177 |
-| `critique-spec`'s frontmatter description (applies after `/to-spec` produced or changed a spec) | the frontmatter of `skills/workstation/critique-spec/SKILL.md` | #177 |
+| Shared `critique` skill and user-invocable `critique-spec` skill | `skills/workstation/critique/` and `skills/workstation/review-spec/`, as `local_skills` entries in `registry/estate-tooling.yaml` for claude, codex, vibe and antigravity | #176, #177 |
+| `critique-spec`'s frontmatter description (applies after `/to-spec` produced or changed a spec) | the frontmatter of `skills/workstation/review-spec/SKILL.md` | #177 |
 | Acting on spec findings (user stories 35 to 40): edits to the spec issue body, the one change comment, the second round, the warning not to start `/to-tickets` | the `critique-spec` skill text, writing through `gh`; a second round is a second prepare and fan-out | #177 |
 | Offering the opt-in when a repository has no family allowlist entry (user story 50) | the `critique-spec` skill, recording the owner's choice through `allow` | #177 |
 | Saying clearly when a critic CLI is missing or not signed in, and offering to continue without it (user story 68) | detection in fan-out, as a critic status of its own; the offer in the `critique-spec` skill | #173 (a stage routed to an unavailable `agy` falls back and the summary names the reason), #177 (the missing or signed-out CLI is reported in setup's wording, with the offer to continue) |
@@ -808,7 +823,7 @@ and in the grilling session behind it.
 - **`/flow` becomes a stepper merged with `/flow-guide`.** There is one
   entry point that steps through the flow and owns setup, explanation and
   budget, instead of two overlapping ones. It was out of scope for #167,
-  whose only part of it was the opt-in offered by `/critique-spec`; #182
+  whose only part of it was the opt-in offered by `/review-spec`; #182
   delivers it (#192 and its siblings).
 - **Storage in the git directory.** Run directories live under the
   repository's git common directory, so they are never committed, need no
@@ -824,10 +839,10 @@ and in the grilling session behind it.
   logged so the automatic rule can be checked.
 - **Pocock 1.3.1 rather than v1.1.** The installed skills are 1.3.1. There
   `/to-spec` publishes the spec to the issue tracker rather than writing a
-  file, so `/critique-spec` reads the spec and its tickets from the tracker
+  file, so `/review-spec` reads the spec and its tickets from the tracker
   (GitHub issues or local markdown tickets). `/to-spec`, `/to-tickets` and
   `/implement` are not model-invocable in 1.3.1, so the critique cannot call
-  them; the owner runs `/to-spec`, then `/critique-spec`. Pocock's skills are
+  them; the owner runs `/to-spec`, then `/review-spec`. Pocock's skills are
   not edited or forked.
 
 ### Amendments made to #167
@@ -927,7 +942,16 @@ them:
 - **Paths.** The family allowlist is `~/.config/agent-kit/critique-allowlist.json`,
   keyed by `host/owner/repo` of the `origin` remote (or the first remote when
   there is no `origin`). The ledger is
-  `~/.local/share/agent-kit/critique/ledger.jsonl`. Each run lives in
+  `~/.local/share/agent-kit/critique/ledger.jsonl`, and since #307 every
+  critic run is also appended to the model gateway's ledger
+  (`$XDG_STATE_HOME/agent-kit/model-gateway/ledger.jsonl`) as one record
+  carrying the gateway's fields (`client`, `model`, `family`, `mode`
+  `read-only`, `workflow` = the flow, `tokens`, `cost_usd`, `outcome`) beside
+  critique's (`critic_id`, `critic_client`, `critic_model`, `stage`, `round`,
+  `run_id`, `repository`, `charged_usd`, `status`, `finding_count`, `role`,
+  `lenses`, `prompt_hashes`). Stats, `/flow budget`, `/flow` and the flow
+  state read both ledgers and count a launch both hold once, by run and
+  critic id; nothing was migrated or deleted. Each run lives in
   `critique/<run-id>/` in the git common directory, with `packet/`,
   `manifest.json`, `critics/<critic-id>/` (prompt, stdout, stderr and the
   export directory), `findings.json`, `report.md` and `summary.md`.
@@ -1231,7 +1255,7 @@ Tracker and domain-doc resolution (agent-kit#175) fixed these:
   exists. The harness's `FakeGh` serves issues by `<repo>#<number>`.
 - **Comments.** An issue's comments are frozen only when prepare's input
   has `"comments": true`; the default is the body alone. Comments can hold
-  the change summary `/critique-spec` posts after a round (#177), so leaving
+  the change summary `/review-spec` posts after a round (#177), so leaving
   them out keeps one round's results from reaching the next round's critics.
 - **The frozen issue.** `packet/artifact/issue-<n>.md` holds `# <title>`,
   the body and, when asked, `## Comments` with one `### <login>, <date>`
@@ -1316,7 +1340,7 @@ agents. Later tickets build on these:
   points at the stage skills) and `critique-spec` are `local_skills` for
   claude, codex, vibe and antigravity, so they reach Antigravity's app and
   `agy` homes through the existing copy, skipped on Linux. `critique-spec`
-  carries `pending: <#177's URL>`: until `skills/workstation/critique-spec/SKILL.md`
+  carries `pending: <#177's URL>`: until `skills/workstation/review-spec/SKILL.md`
   exists, setup logs `critique-spec: not built yet (...); skipped`. **#177
   must delete that `pending:` line** in the change that adds the skill; the
   renderer refuses it once the `SKILL.md` exists.
@@ -1585,9 +1609,9 @@ these:
 
 ## What #177 settled
 
-The `/critique-spec` skill (agent-kit#177) fixed these:
+The `/review-spec` skill (agent-kit#177) fixed these:
 
-- **The skill.** `skills/workstation/critique-spec/SKILL.md` is agent-neutral and finds
+- **The skill.** `skills/workstation/review-spec/SKILL.md` is agent-neutral and finds
   the runner at `../critique/critique.mjs`, so the two skills must always be
   installed side by side (a pytest checks every agent home). It maps the
   orchestrator's own model, not its app, to `orchestrator_family`: Claude
@@ -1849,16 +1873,23 @@ Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
   second round (`previous_run_dir`) inherits its first round's flow. The
   manifest carries `flow` and `limits`. Later stages (tickets, ticket
   review, feature review) should pass the spec's reference as `flow`, so the
-  whole spec-to-ticket flow shares one cap. `/flow budget` (#193) can sum
-  `charged_usd` of the `vibe` invocation lines of a repository and flow.
-- **Per-flow cap.** Routing's `budget.vibe_flow_cap_usd` (5). Before each
-  wave, fan-out reads the flow's spend; a Vibe critic is not launched once it
-  has reached the cap, and is recorded with status `budget-skip` (exit code
-  null, no stdout or export path, charged 0) and a `detail` such as `the
-  flow's Vibe spend $5.2500 has reached its $5.00 cap`. The summary lists it
-  as `<client> (...): budget-skip: <detail>`. A wave's critics start
-  together, so one wave can overshoot by its critics' caps (plus a turn each).
-  A budget skip gets no fallback retry.
+  whole spec-to-ticket flow shares one flow key. `/flow budget` (#193) sums
+  `charged_usd` of the `vibe` invocation lines of a repository and flow, from
+  both ledgers.
+- **Vibe's plan limit (#307).** The per-flow dollar cap is gone: routing no
+  longer carries `budget.vibe_flow_cap_usd`, and a machine override that
+  still names it is ignored (critique's `setup` says so). Vibe is counted
+  against its plan instead, read through the model gateway's `usage`
+  computation: the windows this machine's `clients.vibe.plan_limits`
+  declares, with what the machine-wide ledger says is spent in each. At or
+  above the gateway's warning ratio (80%) the manifest carries
+  `plan_warnings` and the summary renders each as `Vibe plan: <warning>`. At
+  100% of any window Vibe counts as unable to start, so prepare drops a Vibe
+  critic with the reason `quota` and a `detail` such as `at 100% of its day
+  plan limit ($5.25 of $5.00)`, and the stage runs with the critics left. A
+  fallback retry re-reads the plan, so a run that spends it does not retry
+  into Vibe. `budget-skip` stays in `CRITIC_STATUSES` only so a run recorded
+  before #307 still renders.
 - **Antigravity quota.** Routing's `antigravity_quota` (`daily_cap` 20,
   `reserve_threshold` 10, `reserved_stages` `spec` and `feature-review`).
   Prepare counts today's `agy` invocation lines (the UTC day of the clock),
@@ -1903,7 +1934,7 @@ Budget, quota, timeouts and fallbacks (agent-kit#173) fixed these:
 
 ## What #183 settled
 
-The `/critique-decisions` skill (agent-kit#183) fixed these:
+The `/review-grill` skill (agent-kit#183) fixed these:
 
 - **Prepare's input at the decisions stage.** `feature` (required, at most
   5 lines) is the orchestrator's statement of the feature being grilled; it
@@ -1948,7 +1979,7 @@ The `/critique-decisions` skill (agent-kit#183) fixed these:
   one, at any stage. `second_round_due` is never true at the decisions
   stage. The `answered` check moved from reading the input to after the
   manifest is read, since it now depends on the stage.
-- **Not checked live.** The live check of #181 (`/critique-decisions` asks
+- **Not checked live.** The live check of #181 (`/review-grill` asks
   questions and changes no decision on its own, on a real small feature)
   has not been run; it needs the personal Vibe login and agy.
 
@@ -2038,7 +2069,7 @@ Risk triage for ticket review (agent-kit#187) fixed these:
 
 ## What #185 settled
 
-The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
+The `/review-tickets` skill and the tickets stage (agent-kit#185) fixed these:
 
 - **The tickets packet.** Prepare at `stage: "tickets"` reads the spec and
   its tickets through `readCheckedTickets` (`application/check-tickets.ts`),
@@ -2086,7 +2117,7 @@ The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
   tickets as prepare froze them; the skill runs `check-tickets` again after
   its fixes and says when the cycles are gone. Record's run status is still
   `recorded`, and the ledger is unchanged.
-- **The skill.** `skills/workstation/check-tickets/SKILL.md`, a `local_skills` entry for
+- **The skill.** `skills/workstation/review-tickets/SKILL.md`, a `local_skills` entry for
   every agent beside `critique-spec`. A finding is accepted only after the
   orchestrator re-checks its rule on the named ticket. Structural fixes
   (reworded criteria, a named seam, blocker links, splits and merges that
@@ -2107,7 +2138,7 @@ The `/check-tickets` skill and the tickets stage (agent-kit#185) fixed these:
 
 ## What #189 settled
 
-The `/review-feature` skill and its gate (agent-kit#189) fixed these:
+The `/review-pr` skill and its gate (agent-kit#189) fixed these:
 
 - **Routing.** Shipped `routing.json` now defines `feature-review`: base
   `vibe-mistral-large` (integration) and `agy-gemini-flash-high`
@@ -2177,7 +2208,7 @@ The `/review-feature` skill and its gate (agent-kit#189) fixed these:
 
 ## What #188 settled
 
-The `/review-ticket` skill (agent-kit#188) fixed these:
+The `/review-implementation` skill (agent-kit#188) fixed these:
 
 - **Routing.** Shipped `ticket-review`: base `agy-gemini-flash-high`
   (`diff-reviewer`, failure-modes and security), deep `vibe-mistral-large`
@@ -2366,11 +2397,11 @@ added no runner behaviour. #193, #194, #195 and #197 build on it:
   named for is already committed (`landed`, since a low-risk commit leaves
   no record).
 - **Stages run through their skills.** `/flow` loads the stage skill and
-  passes it the step's inputs: `/critique-decisions` now takes a `flow` from
+  passes it the step's inputs: `/review-grill` now takes a `flow` from
   `/flow` and passes it to prepare (`draft:<name>`); a second spec round
   passes `previous_run_dir`; a `resume_run_id` resumes the run at its
   fan-out step, or at its ruling step once `findings.json` exists. The
-  feature review is reached as `/flow finish`, which runs `/review-feature`.
+  feature review is reached as `/flow finish`, which runs `/review-pr`.
 - **Seams for the siblings.** `/flow setup`, `/flow explain` and `/flow
   budget` are stub sections of `skills/workstation/flow/SKILL.md`, each one heading that
   says which ticket brings it (#195, #194, #193); replace the section, and
@@ -2476,8 +2507,8 @@ around it.
   code stage, so its gates are inert too), `low-risk`, `reviewed`,
   `feature-branch`, `gate-pass`, `failed-open`. Block reasons: `unreviewed`,
   `review-failed`, `unstaged`, `no-feature-review`, `gate-fail`,
-  `head-unknown`. Each block line names `/review-ticket` or
-  `/review-feature`.
+  `head-unknown`. Each block line names `/review-implementation` or
+  `/review-pr`.
 - **Kill switch.** `CRITIQUE_OFF=1` returns `off` before anything is read.
   The per-machine flag is `{"disabled": true}` in
   `~/.config/agent-kit/critique.json` (`critiqueConfigPath`); a file that does
@@ -2537,10 +2568,10 @@ around it.
   that did not. The commit gate blocks a degraded record with
   `review-degraded`, naming the run and each critic's reason; a record
   written before #259 with `review: "pass"` and `degraded: true` blocks the
-  same way. Only a later `/review-ticket` run of the same change in which a
+  same way. Only a later `/review-implementation` run of the same change in which a
   critic reported, or the kill switch, lets the commit through. Record's
   summary for such a run ends with "do not commit", and `/flow` gives the
-  ticket review status `degraded` and names `/review-ticket` again.
+  ticket review status `degraded` and names `/review-implementation` again.
 - **PR gate.** `gh pr create` (with `--head <branch>`, that branch) and any
   push that updates a branch outside routing's new `gate.feature_branches`
   globs need the last `gates.jsonl` line whose `repository` and
@@ -2559,6 +2590,24 @@ around it.
   written and nothing is installed (#198). The per-machine config file is
   only read. #198's live check should confirm the timings with the installed
   hooks, and that Codex accepts the printed `hook_output` unchanged.
+
+### Details settled: the gates hold only in an active flow
+
+The commit, merge and PR gates enforce reviews only while the repository has
+an active flow (owner decision). The gate looks for it after the kill switch,
+the opt-in and the code permission, and before it reads any index:
+
+- **The rule.** A flow state of this repository (the same repository key the
+  gate resolved), kept in `critique/flows/` of the git common directory, whose
+  `phase` is `implementation` or `finishing`. A state in `planning` (no spec
+  yet, spec or ticket critique not recorded, or no tickets) does not count.
+  The state has no closed, merged or abandoned phase, so a feature stays
+  active until its state file is removed.
+- **Outside a flow** every commit, merge, push and `gh pr create` is allowed
+  with the reason `no-active-flow`, like `not-opted-in`.
+- **Local files only.** The gate lists `critique/flows/*.json` and reads each
+  one's `repository` and `phase`. A file that does not read is unreadable
+  state: the command is allowed and logged (`failed-open`).
 
 ## What #195 settled
 
@@ -2763,12 +2812,12 @@ order, after merging. `<kit>` is an agent-kit checkout on the merged branch.
    `mkdir -p src/auth && echo 'export const ttl = 60' > src/auth/session.ts && git add -A`.
    In `claude`, ask: "Run `git commit -m 'Expire sessions'` and report the
    result verbatim." Expect the tool call refused with
-   `Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-ticket run matches it. Run /review-ticket, then commit.`
+   `Commit blocked: the staged change is risky (src/auth/session.ts is a risk path) and no passing /review-implementation run matches it. Run /review-implementation, then commit.`
    and `git log` unchanged. Time it:
    `time (echo '{"cwd":"'"$PWD"'","tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' | /bin/sh ~/.claude/skills/critique/hooks/critique-commit-gate.sh)`
    prints the deny in well under a second (0.10 to 0.11 s here, in a
    throwaway HOME).
-6. **Commit gate allows after a passing review.** Run `/review-ticket` on
+6. **Commit gate allows after a passing review.** Run `/review-implementation` on
    the staged change. It needs a ticket file, for example a
    `.scratch/probe/issues/01-ttl.md` with acceptance criteria, staged too.
    When it passes, ask `claude` to run the same commit again. Expect it to
@@ -2779,7 +2828,7 @@ order, after merging. `<kit>` is an agent-kit checkout on the merged branch.
    which would mean Codex rejected the printed `hook_output`.
 8. **PR gate.** On a branch named `release` (outside the feature patterns),
    ask either agent to run `git push origin release`. Expect
-   `Push to release blocked: no /review-feature run has recorded a gate for <sha>. Run /review-feature, then push.`
+   `Push to release blocked: no /review-pr run has recorded a gate for <sha>. Run /review-pr, then push.`
    A push of `feat/probe` goes through.
 9. **Kill switch.** Turn the kill switch on at its `/flow setup` item, or
    run
@@ -3109,7 +3158,7 @@ untestable     F5 [major] (DeepSeek), F12 [major, hint no-decision-or-scenario] 
 ```
 
 The orchestrator (this session, family `anthropic`) followed
-`/critique-spec`. It accepted 7 findings, asked 4 needs-human questions
+`/review-spec`. It accepted 7 findings, asked 4 needs-human questions
 (left unanswered), rejected 1 and left 1 hint. It fixed the spec in the
 scratch repository and recorded the run, whose summary says `Do not start
 /to-tickets: critical question F3 is unanswered.` The overlapping findings
@@ -3325,7 +3374,7 @@ How the runner chooses a critic's tools:
   bundled in the runner, so either quote style and multi-line arrays
   count. This is
   decided before the launch, never as a void after the critic has spent: a
-  `/review-ticket` run on #255 lost three critics, about $3.90, to that
+  `/review-implementation` run on #255 lost three critics, about $3.90, to that
   until setup was re-run. The fix is to re-run agent-kit setup. Setup's
   read-only item fails with the same reason before it asks to spend.
 - **Vibe critics.** Once per fan-out or refute round, the runner proves its

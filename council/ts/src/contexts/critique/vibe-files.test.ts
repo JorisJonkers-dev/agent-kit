@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { agentFileSearchProblem, homeConfigProblem, mcpServerNames } from './adapters/vibe/index.js'
-import { readToml } from './adapters/vibe/toml.js'
+import { readToml } from '../../shared-kernel/toml.js'
 
 /**
  * What the runner reads from Vibe's files before it launches a critic that

@@ -12,5 +12,7 @@ export default defineConfig({
         functions: 100,
       },
     },
+    hookTimeout: 60_000,
+    testTimeout: 60_000,
   },
 })

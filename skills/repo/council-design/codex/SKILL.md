@@ -28,13 +28,11 @@ Build the design lens before drafting tasks:
 - Parallelism boundaries and dependency order.
 - Integration strategy and rollback or amendment path.
 
-## Model Preference Doctrine
+## Model Choice
 
-- Prefer stronger reasoning for DAG shape, dependency calls, and validation
-  design.
-- Prefer Codex high or xhigh for codebase-heavy decomposition.
-- Prefer Claude sonnet or opus for product, architecture, and task clarity.
-- Use cheap workers only after the plan is approved and chunks are bounded.
+- Rate each task's difficulty and choose its model with the `delegate` skill
+  (`skills/workstation/delegate/SKILL.md` in agent-kit). This skill carries no
+  rubric of its own.
 
 ## Interop Surfaces
 

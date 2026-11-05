@@ -1,6 +1,7 @@
 ---
 name: council
 description: Orchestrate a large, decomposable problem across Claude and Codex with triage, cross-model planning, grill, design checkpoint, guarded fan-out, review council, and resumable status/tail. Use for big parallelizable work; NOT for small or tightly-coupled/sequential changes.
+disable-model-invocation: true
 ---
 
 # council
@@ -102,6 +103,40 @@ council config set preset thorough
 `run` owns the normal triage -> design checkpoint -> fan-out -> review council
 loop. `resume` continues from the latest checkpoint or interrupted stage. Use
 the exact resume command printed by the CLI when a run stops at a gate.
+
+## Model Gateway
+
+Council's `claude` and `codex` workers run through the model gateway. Council
+keeps its own launch, streaming and supervision; the gateway stands either side
+of it. Before a worker's process starts the gateway authorises it, under a
+workflow named after the council run (the run directory's name, with anything
+outside letters, digits and `._:/-` turned into `-`), and when it ends the
+gateway records it in its ledger with `source: council`.
+
+- A Codex run needs a live grant for that workflow. Without one the task is
+  refused with the gateway's reason (`no-grant`) and nothing is spawned. Ask
+  the owner, then write the grant yourself:
+  `model-gateway grant write --json '{"workflow":"<run id>","client":"codex","cap_usd":5,"question":"<what you asked the owner>","answer":"<what the owner answered>"}'`
+- The gateway also refuses on the caps (`cap-exceeded`), the repository's data
+  policy (`policy-refused`) and a client at its plan limit (`unable-to-start`).
+- `council supervise` starts a `codex` or `claude` worker only when
+  `--engine <engine>:<model>` names the same engine as `--command` and the same
+  model as the command's `-m`/`--model`, and a guard is wired in; anything else
+  is refused and nothing is spawned. A runnable call:
+  ```bash
+  node ~/.claude/skills/council/council.mjs supervise --engine codex:gpt-5.5 \
+    --run <run-dir> --task <task-id> --worktree <repository-worktree> \
+    --command codex --stdin "<the task prompt>" \
+    -- exec -m gpt-5.5 -c model_reasoning_effort=medium --skip-git-repo-check -
+  ```
+  The prompt is assumed to carry ticket or issue text, so the repository's
+  history permission applies; `--no-history` says it carries none. The prompt's
+  length is counted from stdin, the arguments and any `--prompt-file`; pass
+  `--prompt-chars <n>` when it is longer. If the supervisor dies, re-running the
+  same `supervise` re-attaches and records the original run once.
+  Other engines are council's own.
+
+Council runs are recorded at their estimate because council workers report no token usage, so the owner reads the ledger and keeps grants small.
 
 ## Config Knobs
 

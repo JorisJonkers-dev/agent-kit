@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { readLimits, type CritiqueLimits } from './budget.js'
 import { readDepthChoice, type DepthChoice } from './depth.js'
-import { MODEL_FAMILIES, ORCHESTRATOR_FAMILIES, type ModelFamily, type OrchestratorFamily } from './family.js'
+import { ALLOWLIST_FAMILIES, ORCHESTRATOR_FAMILIES, type AllowlistFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { REPO_MAP_PATH } from './repo-map.js'
 import { FACTS_INDEX_PATH } from './repository-packet.js'
@@ -134,7 +134,7 @@ export interface RunManifest {
   readonly repo_root: string
   readonly run_dir: string
   readonly packet_dir: string
-  readonly allowed_families: readonly ModelFamily[]
+  readonly allowed_families: readonly AllowlistFamily[]
   readonly artifact: ArtifactSource
   /**
    * The flow this run belongs to: the spend of every run of one flow of one
@@ -142,6 +142,12 @@ export interface RunManifest {
    */
   readonly flow: string
   readonly limits: CritiqueLimits
+  /**
+   * The model gateway's warning for each Vibe plan window at or above its
+   * warning ratio, read when the run was prepared; absent while Vibe is well
+   * inside its plan. The stage's summary carries them.
+   */
+  readonly plan_warnings?: readonly string[]
   readonly packet_files: readonly PacketFile[]
   /** Only for a code stage. */
   readonly code?: CodeSource
@@ -181,7 +187,7 @@ export function listedFiles(manifest: Pick<RunManifest, 'packet_files' | 'code'>
 export function parseManifest(text: string): RunManifest {
   const file = JsonFields.parse(text)
   return {
-    allowed_families: file.oneOfList('allowed_families', MODEL_FAMILIES),
+    allowed_families: file.oneOfList('allowed_families', ALLOWLIST_FAMILIES),
     artifact: readArtifactSource(file.object('artifact')),
     created_at: file.string('created_at'),
     critics: file.list('critics', readRosterCritic),
@@ -194,6 +200,7 @@ export function parseManifest(text: string): RunManifest {
     orchestrator_family: file.oneOf('orchestrator_family', ORCHESTRATOR_FAMILIES),
     packet_dir: file.string('packet_dir'),
     ...(file.has('code') ? { code: readCodeSource(file.object('code')) } : {}),
+    ...(file.has('plan_warnings') ? { plan_warnings: file.strings('plan_warnings') } : {}),
     packet_files: file.list('packet_files', (packetFile) => ({
       kind: packetFile.oneOf('kind', PACKET_FILE_KINDS),
       path: packetFile.string('path'),
