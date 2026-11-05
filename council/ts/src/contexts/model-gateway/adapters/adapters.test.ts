@@ -175,7 +175,7 @@ describe('NodeModelGatewayGit', () => {
   it('finds the common directory a worktree shares with its repository', async () => {
     const root = await tempDir()
     await git(root, 'init', '-q')
-    await git(root, 'commit', '-q', '--allow-empty', '-m', 'first')
+    await git(root, '-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-q', '--allow-empty', '-m', 'first')
     const worktree = join(root, '..', `${basename(root)}-worktree`)
     cleanups.push(() => rm(worktree, { force: true, recursive: true }))
     await git(root, 'worktree', 'add', '-q', worktree)
