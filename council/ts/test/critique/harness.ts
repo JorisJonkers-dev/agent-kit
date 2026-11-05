@@ -668,19 +668,28 @@ export function searchExport(overrides: Record<string, unknown> = {}): (command:
 /** Every critic launch and return, in the order they happened, across all critic clients. */
 export class LaunchLog {
   readonly events: string[] = []
+  private readonly waiters: (() => void)[] = []
 
   /**
    * Records a critic's start, waits until `waitForStarts` critics have
-   * started (for at most two seconds, so critics run one after another make
-   * the test fail rather than hang), then records its end.
+   * started, then records its end. The other critic's start releases the
+   * wait, so a loaded machine cannot make a critic give up before the
+   * critics overlap; a fan-out that runs them one after another times out
+   * instead of passing.
    */
   async play(name: string, waitForStarts = 0): Promise<void> {
     this.events.push(`start ${name}`)
-    const deadline = Date.now() + 2000
-    while (this.events.filter((event) => event.startsWith('start')).length < waitForStarts && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5))
+    this.waiters.splice(0).forEach((wake) => {
+      wake()
+    })
+    while (this.starts() < waitForStarts) {
+      await new Promise<void>((resolve) => this.waiters.push(resolve))
     }
     this.events.push(`end ${name}`)
+  }
+
+  private starts(): number {
+    return this.events.filter((event) => event.startsWith('start')).length
   }
 }
 
