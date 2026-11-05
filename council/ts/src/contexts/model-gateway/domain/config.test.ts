@@ -197,6 +197,7 @@ describe('parseDefaults', () => {
     ],
     ['settings that are not an object', (raw) => ({ ...raw, settings: [] })],
     ['a setting that is not a number', (raw) => ({ ...raw, settings: { ...settings(), plan_warning_ratio: 'high' } })],
+    ['a plan warning ratio above 1', (raw) => ({ ...raw, settings: { ...settings(), plan_warning_ratio: 80 } })],
     ['a parallel limit of 0', (raw) => ({ ...raw, settings: { ...settings(), max_parallel_per_client: 0 } })],
     ['a parallel limit that is not whole', (raw) => ({ ...raw, settings: { ...settings(), max_parallel_per_client: 1.5 } })],
     ['a batch size limit of 0', (raw) => ({ ...raw, settings: { ...settings(), max_batch_delegations: 0 } })],
@@ -336,6 +337,12 @@ describe('applyOverride', () => {
     )
   })
 
+  it('refuses a top-level key it does not know, rather than applying nothing and saying nothing', () => {
+    expect(messageOf(() => applyOverride(shipped(), { client: { codex: { cost_class: 'subsidised' } } }))).toBe(
+      'the override.client is not a key the override has; choose from version, clients, disabled, models, settings',
+    )
+  })
+
   it('overrides the tier, notes and family of a model it names', () => {
     const merged = applyOverride(shipped(), {
       models: [{ client: 'codex', family: 'openai-internal', model: 'gpt-5.5', notes: 'grant needed', tier: 'hard' }],
@@ -435,6 +442,12 @@ describe('applyOverride', () => {
     const base = { ...shipped(), disabled: ['codex:gpt-5.5'] }
 
     expect(applyOverride(base, { settings: { summary_max_chars: 500 } }).disabled).toEqual(['codex:gpt-5.5'])
+  })
+
+  it('refuses a plan warning ratio outside 0..1, naming the setting', () => {
+    expect(messageOf(() => applyOverride(shipped(), { settings: { plan_warning_ratio: 80 } }))).toBe(
+      'settings.plan_warning_ratio must be between 0 and 1',
+    )
   })
 
   const broken: [string, unknown][] = [

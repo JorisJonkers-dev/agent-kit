@@ -72,6 +72,9 @@ const CLIENT_FIELDS = [
   'plan_limits',
 ] as const
 
+/** The top-level keys a machine file may name; one it does not is refused, not quietly dropped. */
+const OVERRIDE_KEYS = ['version', 'clients', 'disabled', 'models', 'settings'] as const
+
 /** One model a client offers, as the declared list describes it. */
 export interface ModelEntry {
   readonly client: string
@@ -258,6 +261,7 @@ export function parseDefaults(raw: unknown): GatewayConfig {
  */
 export function applyOverride(config: GatewayConfig, raw: unknown): GatewayConfig {
   if (!isObject(raw)) throw invalid('the override must be a JSON object')
+  refuseUnknownFields(raw, 'the override', OVERRIDE_KEYS, 'a key the override has')
   if (raw.version !== undefined && raw.version !== CONFIG_VERSION) throw invalid(`version must be ${String(CONFIG_VERSION)}`)
   return {
     clients: mergeClients(config.clients, raw.clients),
@@ -288,7 +292,7 @@ function mergeClients(base: Readonly<Record<string, ClientConfig>>, raw: unknown
  */
 function parseClient(id: string, raw: JsonObject, base: ClientConfig | undefined): ClientConfig {
   const where = `clients.${id}`
-  refuseUnknownFields(raw, where)
+  refuseUnknownFields(raw, where, CLIENT_FIELDS, 'a field a client has')
   const binary = raw.binary === undefined ? base?.binary : requireString(raw.binary, `${where}.binary`)
   const costClass = raw.cost_class === undefined ? base?.cost_class : requireOneOf(raw.cost_class, COST_CLASSES, `${where}.cost_class`)
   const modelSource =
@@ -340,11 +344,11 @@ function parsePlanLimits(raw: unknown, where: string): readonly PlanLimit[] {
   })
 }
 
-/** Refuses a field a client does not have, so a machine file that names one learns it, rather than losing it. */
-function refuseUnknownFields(raw: JsonObject, where: string): void {
-  const unknown = Object.keys(raw).find((key) => !(CLIENT_FIELDS as readonly string[]).includes(key))
+/** Refuses a key a file may not name, so a machine file that misspells one learns it, rather than losing it. */
+function refuseUnknownFields(raw: JsonObject, where: string, allowed: readonly string[], what: string): void {
+  const unknown = Object.keys(raw).find((key) => !allowed.includes(key))
   if (unknown !== undefined) {
-    throw invalid(`${where}.${unknown} is not a field a client has; choose from ${CLIENT_FIELDS.join(', ')}`)
+    throw invalid(`${where}.${unknown} is not ${what}; choose from ${allowed.join(', ')}`)
   }
 }
 
@@ -418,7 +422,7 @@ function mergeSettings(base: Settings, raw: unknown): Settings {
     max_parallel_per_client: countField(raw, 'max_parallel_per_client', base.max_parallel_per_client),
     metered_personal_caps: mergeCaps(base.metered_personal_caps, raw.metered_personal_caps),
     output_allowance_tokens: mergeAllowances(base.output_allowance_tokens, raw.output_allowance_tokens),
-    plan_warning_ratio: numberField(raw, 'plan_warning_ratio', base.plan_warning_ratio),
+    plan_warning_ratio: ratioField(raw, 'plan_warning_ratio', base.plan_warning_ratio),
     summary_max_chars: numberField(raw, 'summary_max_chars', base.summary_max_chars),
   }
 }
@@ -442,7 +446,7 @@ function parseSettings(raw: JsonObject): Settings {
       routine: requireAllowance(allowances, 'routine'),
       trivial: requireAllowance(allowances, 'trivial'),
     },
-    plan_warning_ratio: requireNumber(raw.plan_warning_ratio, 'settings.plan_warning_ratio'),
+    plan_warning_ratio: requireRatio(raw.plan_warning_ratio, 'settings.plan_warning_ratio'),
     summary_max_chars: requireNumber(raw.summary_max_chars, 'settings.summary_max_chars'),
   }
 }
@@ -484,10 +488,22 @@ function countField(raw: JsonObject, name: string, base: number): number {
   return raw[name] === undefined ? base : requireCount(raw[name], `settings.${name}`)
 }
 
+/** A setting that is a share of a whole: a ratio from 0 to 1. */
+function ratioField(raw: JsonObject, name: string, base: number): number {
+  return raw[name] === undefined ? base : requireRatio(raw[name], `settings.${name}`)
+}
+
 function requireCount(value: unknown, where: string): number {
   const count = requireNumber(value, where)
   if (!Number.isInteger(count) || count < 1) throw invalid(`${where} must be a whole number of at least 1`)
   return count
+}
+
+/** The share of a plan that may be used before the gateway warns: a ratio from 0 to 1, not a percentage. */
+function requireRatio(value: unknown, where: string): number {
+  const ratio = requireNumber(value, where)
+  if (ratio < 0 || ratio > 1) throw invalid(`${where} must be between 0 and 1`)
+  return ratio
 }
 
 function parseDisabled(raw: unknown): readonly string[] {
