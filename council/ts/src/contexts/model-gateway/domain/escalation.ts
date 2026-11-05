@@ -1,7 +1,7 @@
 import { TIERS, type CostClass, type GatewayConfig, type ModelEntry, type Tier } from './config.js'
 import { costClassFor, modelKey } from './models.js'
 import type { ModelPermission } from './policy.js'
-import { openCodeProvider, PROVIDER_CLIENTS, requireAllowedProvider, RUN_CLIENTS, type RunInput } from './run.js'
+import { isProviderAllowed, openCodeProvider, PROVIDER_CLIENTS, RUN_CLIENTS, type RunInput } from './run.js'
 
 /**
  * What happens to a delegation that does not come back clean: it is retried
@@ -191,7 +191,7 @@ export function candidatePool(
     if ([entry.model, ...(entry.names ?? [])].some((name) => config.disabled.includes(modelKey(entry.client, name)))) continue
     const named = (PROVIDER_CLIENTS as readonly string[]).includes(entry.client)
     if (named && (entry.client !== input.client || input.provider === undefined)) continue
-    if (entry.client === 'opencode' && !providerAllowed(entry.model, client.providers)) continue
+    if (entry.client === 'opencode' && !isProviderAllowed(openCodeProvider(entry.model), client.providers)) continue
     const provider = named ? input.provider : entry.client === 'opencode' ? openCodeProvider(entry.model) : undefined
     const costClass = costClassFor(client, provider)
     if (costClass === 'metered-employer' && !granted.has(entry.client)) continue
@@ -205,15 +205,6 @@ export function candidatePool(
     })
   }
   return pool
-}
-
-function providerAllowed(model: string, allowed: readonly string[] | undefined): boolean {
-  try {
-    requireAllowedProvider(model, allowed)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /** Whether the policy lets a delegation with this run's contents reach the model: what the run reads and what the caller marks. */

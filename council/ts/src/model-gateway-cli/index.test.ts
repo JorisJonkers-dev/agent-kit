@@ -77,6 +77,54 @@ const OPENCODE_LISTING: ProcessResult = {
   ].join('\n'),
 }
 
+/** What `models` lists for Vibe with the shipped catalogue and no configured model. */
+const VIBE_CATALOGUE_LISTED = ['vibe:deepseek-v4-1-flash-1017', 'vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-small-latest']
+
+/** What `models` lists for Vibe with the configuration below: its three models and the catalogue entries it does not declare. */
+const VIBE_LISTED_WITH_CONFIG = [
+  'vibe:deepseek-v4-1-flash-1017',
+  'vibe:glm-5-3',
+  'vibe:mistral-large-latest',
+  'vibe:mistral-medium-4-1',
+  'vibe:mistral-small-latest',
+]
+
+/** An OpenCode listing with Zen and other providers beside one OpenCode Go model. */
+const OPENCODE_LISTING_WITH_OTHER_PROVIDERS: ProcessResult = {
+  exitCode: 0,
+  stderr: '',
+  stdout: ['opencode/glm-5.3', 'opencode-go/glm-5.3', 'other/gemini-4-argon', 'openrouter/hy3', ''].join('\n'),
+}
+
+/** The OpenCode Go models the owner's plan offers. */
+const OPENCODE_GO_LISTING: ProcessResult = {
+  exitCode: 0,
+  stderr: '',
+  stdout: [
+    'opencode-go/glm-5.3',
+    'opencode-go/deepseek-v4-pro',
+    'opencode-go/deepseek-v4.1-flash',
+    'opencode-go/glm-5.3-flash',
+    'opencode-go/qwen3.8-flash',
+    'opencode-go/qwen3.8-max',
+    'opencode-go/kimi-k3.1-pro',
+    '',
+  ].join('\n'),
+}
+
+/** The Antigravity models the owner's plan offers. */
+const AGY_PLAN_LISTING: ProcessResult = {
+  exitCode: 0,
+  stderr: '',
+  stdout: [
+    'Fetching available models...',
+    'gemini-3.8-flash-high\tGemini 3.8 Flash (High)',
+    'gemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)',
+    'gemini-3.8-flash-low\tGemini 3.8 Flash (Low)',
+    '',
+  ].join('\n'),
+}
+
 /** A Vibe configuration: three models, two of them in the shipped catalogue, declared with their aliases and names. */
 const VIBE_CONFIG = `[models.mistral-large-4-0]
 name = "mistral-large-4-0"
@@ -197,6 +245,11 @@ function ledgerLines(text: string): Record<string, unknown>[] {
 function listed(result: ModelGatewayCliResult): string[] {
   const models = printed(result).models as { client: string; model: string }[]
   return models.map((entry) => `${entry.client}:${entry.model}`)
+}
+
+/** Every listed model, as printed. */
+function models(result: ModelGatewayCliResult): Record<string, unknown>[] {
+  return printed(result).models as Record<string, unknown>[]
 }
 
 /** One listed model, by its `<client>:<model>` key. */
@@ -676,6 +729,69 @@ describe('the shipped defaults', () => {
           notes: 'Long context; reading large codebases and documents.',
           tier: 'hard',
         },
+        {
+          client: 'agy',
+          family: 'google',
+          model: 'gemini-3.8-flash-medium',
+          notes: 'Fast long-context reader; summaries and well-specified edits.',
+          tier: 'routine',
+        },
+        {
+          client: 'agy',
+          family: 'google',
+          model: 'gemini-3.8-flash-low',
+          notes: 'Cheapest Gemini; short summaries, classification and lookups.',
+          tier: 'trivial',
+        },
+        {
+          client: 'opencode',
+          family: 'zhipu',
+          model: 'opencode-go/glm-5.3',
+          notes: 'Strong code review and integration reasoning on OpenCode Go.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'deepseek',
+          model: 'opencode-go/deepseek-v4-pro',
+          notes: 'Strong coding and reasoning; larger DeepSeek on OpenCode Go.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'alibaba',
+          model: 'opencode-go/qwen3.8-max',
+          notes: 'Strongest Qwen; multi-file changes and analysis on OpenCode Go.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'moonshot',
+          model: 'opencode-go/kimi-k3.1-pro',
+          notes: 'Strong agentic coding and long-context work on OpenCode Go.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'deepseek',
+          model: 'opencode-go/deepseek-v4.1-flash',
+          notes: 'Cheap and quick; well-specified code changes on OpenCode Go.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'zhipu',
+          model: 'opencode-go/glm-5.3-flash',
+          notes: 'Fast GLM; mechanical edits and review of small diffs on OpenCode Go.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'alibaba',
+          model: 'opencode-go/qwen3.8-flash',
+          notes: 'Fast Qwen; routine edits and summaries on OpenCode Go.',
+          tier: 'routine',
+        },
       ],
       settings: {
         availability_window_minutes: 60,
@@ -1061,7 +1177,7 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-medium-4-1'])
+    expect(listed(result)).toEqual(VIBE_LISTED_WITH_CONFIG)
     expect(model(result, 'vibe:glm-5-3')).toEqual({
       client: 'vibe',
       cost_class: 'subsidised',
@@ -1073,7 +1189,35 @@ describe('models: Vibe, read from its own configuration', () => {
       source: 'config',
       tier: 'hard',
     })
-    expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({ family: 'mistral', notes: '', tier: null })
+    expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({ family: 'mistral', notes: '', source: 'config', tier: null })
+    expect(model(result, 'vibe:mistral-small-latest')).toMatchObject({ family: 'mistral', source: 'declared', tier: 'trivial' })
+  })
+
+  it('lists the catalogue entries for Vibe, marked declared, when its configuration declares nothing', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeVibeConfig('active_model = "devstral"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
+    expect(models(result).map((entry) => entry.source)).toEqual(['declared', 'declared', 'declared', 'declared'])
+    expect(model(result, 'vibe:glm-5-3')).toMatchObject({ family: 'zhipu', notes: 'Strong code review and integration reasoning.', tier: 'hard' })
+    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
+  })
+
+  it('lists a catalogue entry its configuration declares once, marked config, and the rest declared', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
+    expect(models(result).map((entry) => [entry.model, entry.source])).toEqual([
+      ['deepseek-v4-1-flash-1017', 'declared'],
+      ['glm-5-3', 'config'],
+      ['mistral-large-latest', 'declared'],
+      ['mistral-small-latest', 'declared'],
+    ])
   })
 
   it('lists a model once, by its alias, when the catalogue knows it by the name its configuration gives it', async () => {
@@ -1082,7 +1226,7 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:glm-5-3'])
+    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
     expect(model(result, 'vibe:glm-5-3')).toMatchObject({
       family: 'zhipu',
       notes: 'Strong code review and integration reasoning.',
@@ -1096,7 +1240,7 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:medium'])
+    expect(listed(result)).toEqual([...VIBE_CATALOGUE_LISTED, 'vibe:medium'].sort())
     expect(model(result, 'vibe:medium')).toMatchObject({ family: 'mistral', notes: '', tier: null })
   })
 
@@ -1109,10 +1253,10 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-medium-4-1'])
+    expect(listed(result)).toEqual(VIBE_LISTED_WITH_CONFIG)
   })
 
-  it('leaves the client out with the reason when it has no configuration, and still lists the others', async () => {
+  it('names the reason when it has no configuration, and still lists the others and its catalogue entries', async () => {
     const w = await workspace({ installed: ['claude', 'vibe'] })
 
     const result = await w.run('models', '--json', '{}')
@@ -1121,10 +1265,10 @@ describe('models: Vibe, read from its own configuration', () => {
       client: 'vibe',
       reason: `no configuration: ${join(w.home, '.vibe', 'config.toml')} is not there`,
     })
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', ...VIBE_CATALOGUE_LISTED])
   })
 
-  it('leaves the client out with the reason when it cannot tell where its configuration is, and still lists the others', async () => {
+  it('names the reason when it cannot tell where its configuration is, and still lists the others and its catalogue entries', async () => {
     const w = await workspace({
       env: { XDG_CONFIG_HOME: join(tmpdir(), 'model-gateway-no-home') },
       installed: ['claude', 'vibe'],
@@ -1134,7 +1278,7 @@ describe('models: Vibe, read from its own configuration', () => {
     const result = await w.run('models', '--json', '{}')
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', ...VIBE_CATALOGUE_LISTED])
     expect(printed(result).missing).toContainEqual({
       client: 'vibe',
       reason: 'configuration unreadable: ~/.vibe/config.toml: required environment variable is missing: HOME',
@@ -1155,7 +1299,7 @@ describe('models: Vibe, read from its own configuration', () => {
 })
 
 describe('models: OpenCode, read from its own listing', () => {
-  it('lists each provider model, marked live, with the family its model names', async () => {
+  it('lists each model of the allowed provider, marked live, with the family its model names', async () => {
     const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING } })
 
     const result = await w.run('models', '--json', '{}')
@@ -1165,7 +1309,6 @@ describe('models: OpenCode, read from its own listing', () => {
       'opencode:opencode-go/gemini-4-argon',
       'opencode:opencode-go/glm-5.3',
       'opencode:opencode-go/kimi-k3',
-      'opencode:other/gemini-4-argon',
     ])
     expect(model(result, 'opencode:opencode-go/glm-5.3')).toEqual({
       client: 'opencode',
@@ -1174,21 +1317,63 @@ describe('models: OpenCode, read from its own listing', () => {
       inline_only: true,
       may_send: { code: false, history: false },
       model: 'opencode-go/glm-5.3',
-      notes: '',
+      notes: 'Strong code review and integration reasoning on OpenCode Go.',
       source: 'live',
-      tier: null,
+      tier: 'hard',
     })
     expect(model(result, 'opencode:opencode-go/kimi-k3').family).toBe('moonshot')
     expect(w.ran).toEqual([{ args: ['models'], command: 'opencode' }])
   })
 
-  it('takes the cost class the shipped defaults set for OpenCode Go, and the client cost class for another provider', async () => {
-    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING } })
+  it('never lists a model of a provider outside the allowlist, Zen included, and does not report it as skipped or missing', async () => {
+    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING_WITH_OTHER_PROVIDERS } })
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(model(result, 'opencode:opencode-go/gemini-4-argon').cost_class).toBe('subsidised')
+    expect(listed(result)).toEqual(['opencode:opencode-go/glm-5.3'])
+    expect(printed(result).skipped).toEqual([])
+    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'opencode' }))
+  })
+
+  it('lists the models of a provider the machine file allows, at the client cost class, and still never the Zen ones', async () => {
+    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING_WITH_OTHER_PROVIDERS } })
+    await w.writeOverride({ clients: { opencode: { providers: ['opencode-go', 'opencode', 'other'] } } })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['opencode:opencode-go/glm-5.3', 'opencode:other/gemini-4-argon'])
+    expect(model(result, 'opencode:opencode-go/glm-5.3').cost_class).toBe('subsidised')
     expect(model(result, 'opencode:other/gemini-4-argon').cost_class).toBe('metered-personal')
+  })
+
+  it('gives every OpenCode Go model the owner’s plan offers a tier, and lists none of them tierless', async () => {
+    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_GO_LISTING } })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(models(result).map((entry) => [entry.model, entry.family, entry.tier])).toEqual([
+      ['opencode-go/deepseek-v4-pro', 'deepseek', 'hard'],
+      ['opencode-go/deepseek-v4.1-flash', 'deepseek', 'routine'],
+      ['opencode-go/glm-5.3', 'zhipu', 'hard'],
+      ['opencode-go/glm-5.3-flash', 'zhipu', 'routine'],
+      ['opencode-go/kimi-k3.1-pro', 'moonshot', 'hard'],
+      ['opencode-go/qwen3.8-flash', 'alibaba', 'routine'],
+      ['opencode-go/qwen3.8-max', 'alibaba', 'hard'],
+    ])
+    expect(models(result).filter((entry) => entry.tier === null || entry.notes === '')).toEqual([])
+    expect(printed(result).skipped).toEqual([])
+  })
+
+  it('gives the Antigravity models the owner’s plan offers a tier', async () => {
+    const w = await workspace({ installed: ['agy'], listings: { agy: AGY_PLAN_LISTING } })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(models(result).map((entry) => [entry.model, entry.family, entry.tier])).toEqual([
+      ['gemini-3.8-flash-high', 'google', 'hard'],
+      ['gemini-3.8-flash-low', 'google', 'trivial'],
+      ['gemini-3.8-flash-medium', 'google', 'routine'],
+    ])
   })
 
   it('takes the cost class the machine file sets for a provider over the shipped one', async () => {
@@ -1319,6 +1504,17 @@ interface RunWorkspaceOptions {
   readonly files?: ModelGatewayFilesPort
 }
 
+/**
+ * The shipped defaults without the OpenCode catalogue entries: the run tests
+ * below are about the Vibe, Claude, Antigravity and Codex catalogue they were
+ * written against, and an OpenCode Go model of the same family would join
+ * every climb and fall-through pool they check.
+ */
+async function shippedWithoutOpenCode(): Promise<string> {
+  const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as { models: { client: string }[] }
+  return JSON.stringify({ ...shipped, models: shipped.models.filter((entry) => entry.client !== 'opencode') })
+}
+
 /** A gateway wired to a fake Vibe, a temporary home and state directory, and a routing file of its own. */
 async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorkspace> {
   const dir = await mkdtemp(join(tmpdir(), 'model-gateway-run-'))
@@ -1330,7 +1526,7 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
   const defaults = join(dir, 'defaults.json')
   await writeFile(
     defaults,
-    options.defaults === undefined ? await readFile(SHIPPED_DEFAULTS, 'utf8') : JSON.stringify(options.defaults),
+    options.defaults === undefined ? await shippedWithoutOpenCode() : JSON.stringify(options.defaults),
   )
   const routingPath = join(dir, 'routing.json')
   await writeFile(routingPath, JSON.stringify(options.routing ?? ROUTING))

@@ -373,6 +373,11 @@ export function openCodeProvider(model: string): string | undefined {
   return slash <= 0 || slash === model.length - 1 ? undefined : model.slice(0, slash)
 }
 
+/** Whether a run may reach the provider: the allowlist (else `opencode-go` alone) names it and it is not pay-per-token. */
+export function isProviderAllowed(provider: string | undefined, allowed: readonly string[] | undefined): boolean {
+  return provider !== undefined && !PAY_PER_TOKEN_PROVIDERS.includes(provider) && (allowed ?? DEFAULT_OPENCODE_PROVIDERS).includes(provider)
+}
+
 /**
  * Refuses an OpenCode model whose provider the machine's
  * `clients.opencode.providers` (else `opencode-go` alone) does not name, and
@@ -387,7 +392,7 @@ export function requireAllowedProvider(model: string, allowed: readonly string[]
       `${model}: an OpenCode model is named <provider>/<model>, and the allowed providers are ${providers.join(', ')}`,
     )
   }
-  if (PAY_PER_TOKEN_PROVIDERS.includes(provider) || !providers.includes(provider)) {
+  if (!isProviderAllowed(provider, allowed)) {
     throw new ModelGatewayError(
       'provider-not-allowed',
       `${model}: the provider ${provider} is not allowed (clients.opencode.providers: ${providers.join(', ')}), and OpenCode’s pay-per-token models are never reached`,
