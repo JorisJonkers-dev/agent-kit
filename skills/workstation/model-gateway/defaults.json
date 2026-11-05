@@ -21,12 +21,13 @@
     {"client": "agy",    "model": "gemini-3.8-flash-medium", "family": "google", "tier": "routine", "notes": "Fast long-context reader; summaries and well-specified edits."},
     {"client": "agy",    "model": "gemini-3.8-flash-low", "family": "google", "tier": "trivial", "notes": "Cheapest Gemini; short summaries, classification and lookups."},
     {"client": "opencode", "model": "opencode-go/glm-5.3", "family": "zhipu", "tier": "hard", "notes": "Strong code review and integration reasoning on OpenCode Go."},
-    {"client": "opencode", "model": "opencode-go/deepseek-v4-pro", "family": "deepseek", "tier": "hard", "notes": "Strong coding and reasoning; larger DeepSeek on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/deepseek-v4-pro", "family": "deepseek", "tier": "hard", "notes": "Strong coding and reasoning; larger DeepSeek on OpenCode Go. Needs the privacy region of the account set to Global."},
     {"client": "opencode", "model": "opencode-go/qwen3.8-max", "family": "alibaba", "tier": "hard", "notes": "Strongest Qwen; multi-file changes and analysis on OpenCode Go."},
     {"client": "opencode", "model": "opencode-go/kimi-k3.1-pro", "family": "moonshot", "tier": "hard", "notes": "Strong agentic coding and long-context work on OpenCode Go."},
-    {"client": "opencode", "model": "opencode-go/deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; well-specified code changes on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/deepseek-v4.1-flash", "family": "deepseek", "tier": "routine", "notes": "Cheap and quick; well-specified code changes on OpenCode Go. Needs the privacy region of the account set to Global."},
     {"client": "opencode", "model": "opencode-go/glm-5.3-flash", "family": "zhipu", "tier": "routine", "notes": "Fast GLM; mechanical edits and review of small diffs on OpenCode Go."},
-    {"client": "opencode", "model": "opencode-go/qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries on OpenCode Go."}
+    {"client": "opencode", "model": "opencode-go/qwen3.8-flash", "family": "alibaba", "tier": "routine", "notes": "Fast Qwen; routine edits and summaries on OpenCode Go."},
+    {"client": "opencode", "model": "opencode-go/mimo-v2.6-flash", "family": "xiaomi", "tier": "routine", "notes": "Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate."}
   ],
   "settings": {
     "plan_warning_ratio": 0.8,

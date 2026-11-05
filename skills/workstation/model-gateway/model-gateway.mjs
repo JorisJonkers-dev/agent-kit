@@ -1160,7 +1160,7 @@ function listedModels(config, id, client, listed) {
   }
   return { matched, models, skipped };
 }
-var FAMILY_UNKNOWN = "family unknown: add it to the catalogue in defaults.json or the machine override";
+var FAMILY_UNKNOWN = "no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override";
 function modelPart(model) {
   return model.slice(model.lastIndexOf("/") + 1);
 }
