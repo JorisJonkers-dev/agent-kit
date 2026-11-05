@@ -114,6 +114,7 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("opencode", "opencode-go/deepseek-v4.1-flash", "deepseek", "routine"),
         ("opencode", "opencode-go/glm-5.3-flash", "zhipu", "routine"),
         ("opencode", "opencode-go/qwen3.8-flash", "alibaba", "routine"),
+        ("opencode", "opencode-go/mimo-v2.6-flash", "xiaomi", "routine"),
     ]
     assert all(m["notes"].strip() for m in models)
 

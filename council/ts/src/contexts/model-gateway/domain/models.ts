@@ -297,8 +297,8 @@ function listedModels(
   return { matched, models, skipped }
 }
 
-/** Why a listed model is not offered: nobody has said which family it belongs to. */
-const FAMILY_UNKNOWN = 'family unknown: add it to the catalogue in defaults.json or the machine override'
+/** Why a listed model is not offered: the catalogue gives it no family and tier, and its id names no known family. */
+const FAMILY_UNKNOWN = 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override'
 
 /** The model part of a `<provider>/<model>` id, which is what names its family. */
 export function modelPart(model: string): string {

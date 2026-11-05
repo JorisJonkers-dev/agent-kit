@@ -174,12 +174,12 @@ describe('listModels', () => {
       {
         client: 'opencode',
         model: 'opencode-go/hy3',
-        reason: 'family unknown: add it to the catalogue in defaults.json or the machine override',
+        reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
       {
         client: 'opencode',
         model: 'opencode-go/longcat-2.0',
-        reason: 'family unknown: add it to the catalogue in defaults.json or the machine override',
+        reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
     ])
   })

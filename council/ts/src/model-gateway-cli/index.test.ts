@@ -112,6 +112,29 @@ const OPENCODE_GO_LISTING: ProcessResult = {
   ].join('\n'),
 }
 
+/** What the owner's OpenCode Go plan lists now: newer models beside the ones the catalogue names. */
+const OPENCODE_GO_PLAN_LISTING: ProcessResult = {
+  exitCode: 0,
+  stderr: '',
+  stdout: [
+    'opencode-go/beam-free',
+    'opencode-go/deepseek-v4-pro',
+    'opencode-go/glm-5.3-flash',
+    'opencode-go/gpt-6-luna',
+    'opencode-go/hy3',
+    'opencode-go/hy4-preview',
+    'opencode-go/iceman-contributor-free',
+    'opencode-go/kimi-k2.7-code',
+    'opencode-go/longcat-2.0',
+    'opencode-go/mimo-v2.6-flash',
+    'opencode-go/mimo-v2.6-pro',
+    'opencode-go/minimax-m3.1-flash',
+    'opencode-go/qwen3.8-flash',
+    'opencode-go/step-5-preview',
+    '',
+  ].join('\n'),
+}
+
 /** The Antigravity models the owner's plan offers. */
 const AGY_PLAN_LISTING: ProcessResult = {
   exitCode: 0,
@@ -754,7 +777,7 @@ describe('the shipped defaults', () => {
           client: 'opencode',
           family: 'deepseek',
           model: 'opencode-go/deepseek-v4-pro',
-          notes: 'Strong coding and reasoning; larger DeepSeek on OpenCode Go.',
+          notes: 'Strong coding and reasoning; larger DeepSeek on OpenCode Go. Needs the privacy region of the account set to Global.',
           tier: 'hard',
         },
         {
@@ -775,7 +798,7 @@ describe('the shipped defaults', () => {
           client: 'opencode',
           family: 'deepseek',
           model: 'opencode-go/deepseek-v4.1-flash',
-          notes: 'Cheap and quick; well-specified code changes on OpenCode Go.',
+          notes: 'Cheap and quick; well-specified code changes on OpenCode Go. Needs the privacy region of the account set to Global.',
           tier: 'routine',
         },
         {
@@ -790,6 +813,13 @@ describe('the shipped defaults', () => {
           family: 'alibaba',
           model: 'opencode-go/qwen3.8-flash',
           notes: 'Fast Qwen; routine edits and summaries on OpenCode Go.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'xiaomi',
+          model: 'opencode-go/mimo-v2.6-flash',
+          notes: 'Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate.',
           tier: 'routine',
         },
       ],
@@ -1364,6 +1394,38 @@ describe('models: OpenCode, read from its own listing', () => {
     expect(printed(result).skipped).toEqual([])
   })
 
+  it('lists the OpenCode Go models the catalogue gives a family and a tier, and keeps the rest skipped with what is missing', async () => {
+    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_GO_PLAN_LISTING } })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(models(result).map((entry) => [entry.model, entry.family, entry.tier])).toEqual([
+      ['opencode-go/deepseek-v4-pro', 'deepseek', 'hard'],
+      ['opencode-go/glm-5.3-flash', 'zhipu', 'routine'],
+      ['opencode-go/gpt-6-luna', 'openai', null],
+      ['opencode-go/kimi-k2.7-code', 'moonshot', null],
+      ['opencode-go/mimo-v2.6-flash', 'xiaomi', 'routine'],
+      ['opencode-go/minimax-m3.1-flash', 'minimax', null],
+      ['opencode-go/qwen3.8-flash', 'alibaba', 'routine'],
+    ])
+    expect(model(result, 'opencode:opencode-go/deepseek-v4-pro').notes).toContain('privacy region of the account set to Global')
+    expect(printed(result).skipped).toEqual(
+      [
+        'opencode-go/beam-free',
+        'opencode-go/hy3',
+        'opencode-go/hy4-preview',
+        'opencode-go/iceman-contributor-free',
+        'opencode-go/longcat-2.0',
+        'opencode-go/mimo-v2.6-pro',
+        'opencode-go/step-5-preview',
+      ].map((m) => ({
+        client: 'opencode',
+        model: m,
+        reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
+      })),
+    )
+  })
+
   it('gives the Antigravity models the owner’s plan offers a tier', async () => {
     const w = await workspace({ installed: ['agy'], listings: { agy: AGY_PLAN_LISTING } })
 
@@ -1395,7 +1457,7 @@ describe('models: OpenCode, read from its own listing', () => {
       {
         client: 'opencode',
         model: 'opencode-go/hy3',
-        reason: 'family unknown: add it to the catalogue in defaults.json or the machine override',
+        reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
     ])
   })
