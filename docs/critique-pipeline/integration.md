@@ -2576,6 +2576,24 @@ around it.
   only read. #198's live check should confirm the timings with the installed
   hooks, and that Codex accepts the printed `hook_output` unchanged.
 
+### Details settled: the gates hold only in an active flow
+
+The commit, merge and PR gates enforce reviews only while the repository has
+an active flow (owner decision). The gate looks for it after the kill switch,
+the opt-in and the code permission, and before it reads any index:
+
+- **The rule.** A flow state of this repository (the same repository key the
+  gate resolved), kept in `critique/flows/` of the git common directory, whose
+  `phase` is `implementation` or `finishing`. A state in `planning` (no spec
+  yet, spec or ticket critique not recorded, or no tickets) does not count.
+  The state has no closed, merged or abandoned phase, so a feature stays
+  active until its state file is removed.
+- **Outside a flow** every commit, merge, push and `gh pr create` is allowed
+  with the reason `no-active-flow`, like `not-opted-in`.
+- **Local files only.** The gate lists `critique/flows/*.json` and reads each
+  one's `repository` and `phase`. A file that does not read is unreadable
+  state: the command is allowed and logged (`failed-open`).
+
 ## What #195 settled
 
 `/flow setup` (agent-kit#195) is skill text on a new runner command,

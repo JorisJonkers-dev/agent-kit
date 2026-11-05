@@ -230,6 +230,12 @@ only a cache: it can always be rebuilt from the ledger, the run directories
 and the tracker.
 _Avoid_: session, progress, checkpoint
 
+**Active flow**:
+A feature of this repository whose flow state says it is in implementation or
+finishing, not planning. The commit, merge and PR gates enforce reviews only
+while the repository has one; outside it they let every command through.
+_Avoid_: open feature, running flow
+
 ## Model gateway
 
 **Model gateway**:

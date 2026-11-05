@@ -304,6 +304,11 @@ def repo(tmp_path: Path) -> tuple[Path, Path]:
     (repo / "src" / "auth").mkdir(parents=True)
     (repo / "src" / "auth" / "session.ts").write_text("export const ttl = 60\n")
     _git(repo, "add", "-A")
+    flows = repo / ".git" / "critique" / "flows"
+    flows.mkdir(parents=True)
+    (flows / "widgets.json").write_text(
+        json.dumps({"phase": "implementation", "repository": "github.com/example/widgets"}),
+    )
     return repo, home
 
 
@@ -352,6 +357,16 @@ def test_the_gate_scripts_print_nothing_when_they_allow(repo: tuple[Path, Path])
     killed, _ = _hook("critique-commit-gate", _bash(path, "git commit -m x"), home, CRITIQUE_OFF="1")
 
     assert [(r.returncode, r.stdout) for r in (commit_on_pr, pr_on_commit, killed)] == [(0, ""), (0, ""), (0, "")]
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+def test_the_gate_scripts_allow_everything_when_the_repository_has_no_active_flow(repo: tuple[Path, Path]) -> None:
+    path, home = repo
+    (path / ".git" / "critique" / "flows" / "widgets.json").unlink()
+    commit, _ = _hook("critique-commit-gate", _bash(path, "git commit -m x"), home)
+    pr, _ = _hook("critique-pr-gate", _bash(path, "gh pr create --fill"), home)
+
+    assert [(r.returncode, r.stdout) for r in (commit, pr)] == [(0, ""), (0, "")]
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")

@@ -12,6 +12,7 @@ import {
   harness,
   isolatedExport,
   vibeStdout,
+  writeFlowState,
   type Harness,
 } from '../../test/critique/harness.js'
 import { CRITIQUE_USAGE, defaultCritiqueRuntime, runCritiqueCli, type CritiqueCliRuntime } from './index.js'
@@ -132,6 +133,7 @@ describe('critique runner command line', () => {
   it('exits 0 with the deny a hook prints when the gate blocks', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
+    await writeFlowState(h)
     await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
     await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
     await h.git.stage()
@@ -153,6 +155,7 @@ describe('critique runner command line', () => {
   it('as a hook, prints only the deny the agent reads when the commit gate blocks, and exits 0', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
+    await writeFlowState(h)
     await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
     await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
     await h.git.stage()
@@ -179,6 +182,7 @@ describe('critique runner command line', () => {
   it('as the PR gate hook, blocks a PR with no feature review and leaves commits to the commit gate', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
+    await writeFlowState(h)
     await h.commands.allow.run({ code: true, families: ['mistral'], repo: h.repo })
     await h.writeText(join(h.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
     await h.git.stage()
@@ -371,6 +375,10 @@ describe('the real adapters', () => {
     await mkdir(join(real.repo, 'src', 'auth'), { recursive: true })
     await writeFile(join(real.repo, 'src', 'auth', 'session.ts'), 'export const ttl = 60\n')
     const hook = (command: string) => JSON.stringify({ cwd: real.repo, tool_input: { command }, tool_name: 'Bash' })
+
+    expect(await run(real.runtime, 'gate', '--json', hook('git commit -m x'))).toMatchObject({ reason: 'no-active-flow' })
+    await mkdir(join(real.repo, '.git', 'critique', 'flows'), { recursive: true })
+    await writeFile(join(real.repo, '.git', 'critique', 'flows', 'widgets.json'), JSON.stringify({ phase: 'implementation', repository: 'github.com/example/widgets' }))
 
     expect(await run(real.runtime, 'gate', '--json', hook('git commit -m x'))).toMatchObject({ reason: 'low-risk' })
     expect(await run(real.runtime, 'gate', '--json', hook('git add -A && git commit -m x'))).toMatchObject({ reason: 'unstaged' })
