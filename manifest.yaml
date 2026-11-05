@@ -124,7 +124,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-amend/SKILL.md
         source: skills/repo/council-amend/claude/SKILL.md
-        sha256: 6aa6b39b8a54be030b2d26cb1db3554a55078d7d2dfbcd594893e5230d2d76e4
+        sha256: 7ccc25b8d78d9ebb5881c89984f7d7d89d6f4f29f780e8d7d008ba53ee21aabd
   - name: council-design
     supported_agents: [codex, claude]
     targets:
@@ -135,7 +135,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-design/SKILL.md
         source: skills/repo/council-design/claude/SKILL.md
-        sha256: d26f2adbe46359b8798943dc2b5e6d61502fc59770f1a061fc37823d32f0982e
+        sha256: 6a808acfd8fcac7716bb77ffaf68c11935e06c6e700e35de2df55277c241c64e
   - name: council-grill
     supported_agents: [codex, claude]
     targets:
@@ -146,7 +146,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-grill/SKILL.md
         source: skills/repo/council-grill/claude/SKILL.md
-        sha256: 86bae122f746c33ddb6d5ef09f869819b70ac00fa9a4ae0e62afa6c2c94383af
+        sha256: 34a75867ff83230519abc2ebc3c6c77c5e4301deaf0c10b34cf4083bd0a30592
   - name: council-inject
     supported_agents: [codex, claude]
     targets:
@@ -157,7 +157,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-inject/SKILL.md
         source: skills/repo/council-inject/claude/SKILL.md
-        sha256: f266cf7422737f873b4f2a5e605a83d49a5292ca2a05f4f3fe243ba38222740b
+        sha256: af90a507199e3b136b0e2155ec09512d8058aa49be4bac3bf99a554c580d22c8
   - name: council-run
     supported_agents: [codex, claude]
     targets:
@@ -168,7 +168,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-run/SKILL.md
         source: skills/repo/council-run/claude/SKILL.md
-        sha256: 032e6a56d610e51cc45c01cc37524065a523e1497a4dc5ce02a7ee6d4f829b2d
+        sha256: 82f5e9b91104b323ecef63f823169f779afe637c1abaad2c686267444b9a337a
   - name: council-supervise
     supported_agents: [codex, claude]
     targets:
@@ -179,7 +179,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-supervise/SKILL.md
         source: skills/repo/council-supervise/claude/SKILL.md
-        sha256: c1e945e4a3296ae5c40cc95af9b09ad511594534963d65473b4ffc883e66a3f0
+        sha256: ccae593199c728b0c1b7b813517ed0f5c14abce919ff4d538ed9558c6838ee38
   - name: council-triage
     supported_agents: [codex, claude]
     targets:
@@ -190,7 +190,7 @@ skills:
       - agent: claude
         path: .claude/skills/council-triage/SKILL.md
         source: skills/repo/council-triage/claude/SKILL.md
-        sha256: 09cda7c2edf9c824ac235cfb09aef672ea373b00c148b99c920d667346ddae3e
+        sha256: e33f015c82be59efbd7a1b56805225116ed0bbe08c2ebe4bf293000cc3293a81
   - name: agent-codex-med
     supported_agents: [claude]
     targets:
@@ -215,7 +215,7 @@ skills:
       - agent: claude
         path: .claude/skills/council/SKILL.md
         source: skills/repo/council/claude/SKILL.md
-        sha256: bde73e754681120c476bee0612f26f2aeb828f731344d7a9f302b562474d5383
+        sha256: 1913f16a57dc1bacf3c9b2a210fe4d5bb02cf28c7e2b0ae9741c765256bc2696
   - name: deploy-status
     supported_agents: [codex, claude]
     targets:

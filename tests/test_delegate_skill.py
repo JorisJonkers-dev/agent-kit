@@ -73,7 +73,7 @@ def macos_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 
 def test_the_front_matter_names_the_skill_and_says_when_to_use_it() -> None:
     front = yaml.safe_load(_text().split("---")[1])
-    assert set(front) == {"name", "description"}
+    assert set(front) == {"name", "description", "disable-model-invocation"}
     assert front["name"] == "delegate"
     description = front["description"]
     assert description.startswith("Use when planning work to hand to other model clients")

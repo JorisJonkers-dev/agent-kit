@@ -209,7 +209,7 @@ def _glossary_entries(section: str) -> dict[str, list[str]]:
 
 def test_the_skill_says_it_applies_at_the_start_of_every_multi_ticket_build() -> None:
     front = _front()
-    assert set(front) == {"name", "description"}
+    assert set(front) == {"name", "description", "disable-model-invocation"}
     assert front["name"] == "build-tracker"
     assert front["description"].startswith("Use at the start of any multi-ticket build")
     for build in ("/implement-spec", "council run", "/flow"):
