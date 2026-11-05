@@ -67,11 +67,6 @@ counts against the same cap as the spec's other stages.
   (`repositories["<host/owner/repo>"].families`). If the owner agrees, run
   allow with `repo`, those `families` and `"code": true`, then prepare again.
   If they decline, stop: nothing was sent.
-- **Refused with `not-opted-in`**: offer the opt-in. Name the families
-  (`mistral`, `zhipu`, `deepseek`, `google`), point at `routing.json` in the
-  critique directory for the clients each one feeds, and say that this stage
-  sends code, so the entry needs `"code": true`. Run allow with the owner's
-  choice, then prepare again.
 - **Any other refusal**: give the runner's line and stop.
 - **Ready**: keep `run_dir`, `packet_dir`, `artifact`, `code` and `critics`.
   For each `dropped` entry with reason `unavailable`, quote its `detail` and

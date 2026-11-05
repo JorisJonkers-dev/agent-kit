@@ -192,8 +192,7 @@ export class TriageCommand implements CritiqueCommand<TriageResult | Refusal> {
       decision: 'risky',
       signal: { detail, kind: 'model-unavailable', reason },
     })
-    const entry = (await this.repositories.allowlist()).repositories[repository.key]
-    if (entry === undefined) return unavailable('not-opted-in', `${repository.key} has no family allowlist entry on this machine`)
+    const entry = await this.repositories.entry(repository.key)
     if (!entry.code) return unavailable('code-not-allowed', `${repository.key} allows documents but not code`)
     if (!entry.families.includes(config.family)) {
       return unavailable('family-not-allowed', `${repository.key} does not allow the ${config.family} family`)

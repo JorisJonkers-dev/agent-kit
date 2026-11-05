@@ -126,7 +126,7 @@ describe('critique runner command line', () => {
     cleanups.push(h.cleanup)
 
     expect(await run(cli(h), 'setup', '--json', JSON.stringify({ action: 'list', repo: h.repo }))).toMatchObject({
-      repository: { status: 'not-opted-in' },
+      repository: { status: 'opted-in' },
       status: 'listed',
     })
   })
@@ -230,9 +230,10 @@ describe('critique runner command line', () => {
 
     const after = await runCritiqueCli(['hook', 'critique-session-start'], cli(h, payload))
 
+    const setupMissing = 'Critique: /flow setup has not checked this machine yet (10 of 10 checks never ran). Run /flow setup.\n'
     expect([before, after]).toEqual([
-      { exitCode: 0, stderr: '', stdout: '' },
-      { exitCode: 0, stderr: '', stdout: 'Critique: /flow setup has not checked this machine yet (10 of 10 checks never ran). Run /flow setup.\n' },
+      { exitCode: 0, stderr: '', stdout: setupMissing },
+      { exitCode: 0, stderr: '', stdout: setupMissing },
     ])
     expect(await run(cli(h, payload), 'session-start')).toMatchObject({ reason: 'setup-missing', status: 'suggest' })
   })
@@ -265,12 +266,12 @@ describe('critique runner command line', () => {
   })
 
   it('prints a refusal as a normal result', async () => {
-    const h = await harness()
+    const h = await harness({ remotes: [] })
     cleanups.push(h.cleanup)
 
     expect(
       await run(cli(h), 'prepare', '--json', JSON.stringify({ orchestrator_family: 'anthropic', repo: h.repo, spec: 'x', stage: 'spec' })),
-    ).toMatchObject({ reason: 'not-opted-in', status: 'refused' })
+    ).toMatchObject({ reason: 'no-remote', status: 'refused' })
   })
 
   it('reports input that is not JSON as an invalid-input error with exit code 1', async () => {

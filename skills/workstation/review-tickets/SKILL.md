@@ -64,15 +64,12 @@ packet as `check/tickets.json`, beside `spec/` and `tickets/`.
 
 - **Refused with `no-tickets`**: the spec has no tickets yet. Say so and stop;
   the next step is `/to-tickets`.
-- **Refused with `not-opted-in`**: this repository has no **family
-  allowlist** entry, so nothing may be sent yet. Offer the opt-in: name the
-  families (`mistral`, `zhipu`, `deepseek`, `google`) and point at
-  `routing.json` in the critique directory for which critic clients each
-  feeds (the tickets stage runs DeepSeek Flash, and Mistral Large at deep
-  depth). If the owner chooses families, run allow with `repo` and
-  `families`, then prepare again. If they decline, run `check-tickets` with
-  `repo` and `spec` instead (it sends nothing anywhere), act on its report
-  as in steps 3 and 6, and skip the critic's steps.
+- **A repository with no recorded entry** reviews under the personal default
+  (every critic family, documents and code, but no history), so no opt-in is
+  needed. Only a recorded entry can refuse a family: a declined entry (or a
+  `nedap` repository without one) falls back to `check-tickets` with `repo`
+  and `spec` (it sends nothing anywhere); act on its report as in steps 3
+  and 6, and skip the critic's steps.
 - **Any other refusal** (a `nedap` or remote-less repository, an unreadable
   tracker): give the runner's line and stop.
 - **Ready**: keep `run_dir`, `packet_dir`, `artifact` and `critics`. For each

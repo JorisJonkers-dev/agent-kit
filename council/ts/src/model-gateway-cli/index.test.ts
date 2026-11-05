@@ -72,7 +72,7 @@ const OPENCODE_LISTING: ProcessResult = {
     'opencode-go/glm-5.3',
     'opencode-go/kimi-k3',
     'other/gemini-4-argon',
-    'opencode-go/hy3',
+    'opencode-go/beam-free',
     '',
   ].join('\n'),
 }
@@ -388,8 +388,8 @@ describe('model-gateway models', () => {
           family: 'openai',
           inline_only: false,
           may_send: { code: true, history: true },
-          model: 'gpt-5.5',
-          notes: 'Strong implementation and review; metered on the nedap account, grant needed.',
+          model: 'gpt-6.1-sol',
+          notes: 'Current Codex CLI default; strong implementation and review. Metered on the nedap account, grant needed.',
           source: 'declared',
           tier: 'frontier',
         },
@@ -408,7 +408,7 @@ describe('model-gateway models', () => {
     const result = await w.run('models', '--input', input)
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
+    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', 'codex:gpt-6.1-sol'])
   })
 
   it('asks PATH about every client it knows, and runs no client it does not have to', async () => {
@@ -466,9 +466,9 @@ describe('model-gateway models', () => {
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
-    expect(listed(result)).toEqual(['claude:claude-opus-5-5', 'claude:claude-opus-5-6', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
+    expect(listed(result)).toEqual(['claude:claude-opus-5-5', 'claude:claude-opus-5-6', 'claude:claude-sonnet-5-5', 'codex:gpt-6.1-sol'])
     const models = printed(result).models as { client: string; cost_class: string; model: string; notes: string; tier: string }[]
-    expect(models.find((entry) => entry.model === 'gpt-5.5')?.cost_class).toBe('subsidised')
+    expect(models.find((entry) => entry.model === 'gpt-6.1-sol')?.cost_class).toBe('subsidised')
     expect(models.find((entry) => entry.model === 'claude-sonnet-5-5')).toMatchObject({ notes: 'the one to use', tier: 'frontier' })
   })
 
@@ -477,7 +477,7 @@ describe('model-gateway models', () => {
     const xdg = join(tmpdir(), 'model-gateway-xdg', 'agent-kit')
     cleanups.push(() => rm(join(tmpdir(), 'model-gateway-xdg'), { force: true, recursive: true }))
     await mkdir(xdg, { recursive: true })
-    await writeFile(join(xdg, 'model-gateway.json'), JSON.stringify({ disabled: ['codex:gpt-5.5'] }))
+    await writeFile(join(xdg, 'model-gateway.json'), JSON.stringify({ disabled: ['codex:gpt-6.1-sol'] }))
 
     const result = await w.run('models', '--json', '{}')
 
@@ -522,7 +522,7 @@ describe('model-gateway models', () => {
 
   it('reports an override behind a directory it may not enter as invalid-config, naming the file', async () => {
     const w = await workspace()
-    await w.writeOverride({ disabled: ['codex:gpt-5.5'] })
+    await w.writeOverride({ disabled: ['codex:gpt-6.1-sol'] })
     const folder = join(w.home, '.config', 'agent-kit')
     await chmod(folder, 0o000)
     cleanups.push(() => chmod(folder, 0o755))
@@ -577,14 +577,22 @@ describe('the data policy', () => {
     expect(maybeModel(result, 'claude:claude-opus-5-5')).toMatchObject({ inline_only: false, may_send: { code: true, history: false } })
   })
 
-  it('lists nothing for a repository with a remote but no entry, and says why', async () => {
+  it('lists the personal default for a repository with a remote but no entry, and says why', async () => {
     const w = await workspace({ repositories: { [REPO]: repository() } })
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual([])
-    expect(printed(result).policy).toBe(`${KEY} has no allowlist entry, so nothing is sent`)
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+      'codex:gpt-6.1-sol',
+    ])
+    expect(maybeModel(result, 'claude:claude-opus-5-5')).toMatchObject({ inline_only: false, may_send: { code: true, history: false } })
+    expect(printed(result).policy).toBe(
+      `${KEY} has no allowlist entry: the personal default applies, every subsidised and metered-personal family, with code but no history`,
+    )
   })
 
   it('lists nothing for a repository with no remote, and says why', async () => {
@@ -605,8 +613,8 @@ describe('the data policy', () => {
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
-    expect(maybeModel(result, 'codex:gpt-5.5')).toMatchObject({ inline_only: false, may_send: { code: true, history: true } })
+    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', 'codex:gpt-6.1-sol'])
+    expect(maybeModel(result, 'codex:gpt-6.1-sol')).toMatchObject({ inline_only: false, may_send: { code: true, history: true } })
     expect(printed(result).policy).toBe('a nedap repository: only Codex and Claude Code, with code and history')
   })
 
@@ -735,9 +743,9 @@ describe('the shipped defaults', () => {
         {
           client: 'codex',
           family: 'openai',
-          model: 'gpt-5.5',
-          notes: 'Strong implementation and review; metered on the nedap account, grant needed.',
-          prices: { cached_input: 0.125, input: 1.25, output: 10 },
+          model: 'gpt-6.1-sol',
+          notes: 'Current Codex CLI default; strong implementation and review. Metered on the nedap account, grant needed.',
+          prices: { cached_input: 0.1, input: 2, output: 10 },
           tier: 'frontier',
         },
         {
@@ -864,6 +872,66 @@ describe('the shipped defaults', () => {
           family: 'xiaomi',
           model: 'opencode-go/mimo-v2.6-flash',
           notes: 'Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'xiaomi',
+          model: 'opencode-go/mimo-v2.6-pro',
+          notes:
+            'Xiaomi’s MiMo pro variant; large-model reasoning on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'tencent',
+          model: 'opencode-go/hy3',
+          notes: 'Tencent Hunyuan 3 flagship MoE on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'tencent',
+          model: 'opencode-go/hy4-preview',
+          notes:
+            'Tencent Hunyuan 4 preview, the 770B MoE flagship; on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'meituan',
+          model: 'opencode-go/longcat-2.0',
+          notes:
+            'Meituan LongCat 2.0, the trillion-parameter flagship; on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'stepfun',
+          model: 'opencode-go/step-5-preview',
+          notes:
+            'StepFun Step 5 preview, flagship for agentic work; on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'openai',
+          model: 'opencode-go/gpt-6-luna',
+          notes: 'OpenAI’s small GPT-6 model via OpenCode Go; pricey on the plan, use sparingly.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'moonshot',
+          model: 'opencode-go/kimi-k2.7-code',
+          notes: 'Kimi code-tuned flash; routine code work on OpenCode Go.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'minimax',
+          model: 'opencode-go/minimax-m3.1-flash',
+          notes: 'MiniMax flash variant; routine work on OpenCode Go. Untried as a delegate.',
           tier: 'routine',
         },
       ],
@@ -1083,9 +1151,9 @@ describe('models: the clients whose models the gateway declares', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['claude:claude-opus-5-5', 'claude:claude-opus-5-6', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
+    expect(listed(result)).toEqual(['claude:claude-opus-5-5', 'claude:claude-opus-5-6', 'claude:claude-sonnet-5-5', 'codex:gpt-6.1-sol'])
     const models = printed(result).models as { client: string; cost_class: string; model: string; notes: string; tier: string }[]
-    expect(models.find((entry) => entry.model === 'gpt-5.5')?.cost_class).toBe('subsidised')
+    expect(models.find((entry) => entry.model === 'gpt-6.1-sol')?.cost_class).toBe('subsidised')
     expect(models.find((entry) => entry.model === 'claude-sonnet-5-5')).toMatchObject({ notes: 'the one to use', tier: 'frontier' })
   })
 
@@ -1094,7 +1162,7 @@ describe('models: the clients whose models the gateway declares', () => {
     const xdg = join(tmpdir(), 'model-gateway-xdg', 'agent-kit')
     cleanups.push(() => rm(join(tmpdir(), 'model-gateway-xdg'), { force: true, recursive: true }))
     await mkdir(xdg, { recursive: true })
-    await writeFile(join(xdg, 'model-gateway.json'), JSON.stringify({ disabled: ['codex:gpt-5.5'] }))
+    await writeFile(join(xdg, 'model-gateway.json'), JSON.stringify({ disabled: ['codex:gpt-6.1-sol'] }))
 
     const result = await w.run('models', '--json', '{}')
 
@@ -1139,7 +1207,7 @@ describe('models: the clients whose models the gateway declares', () => {
 
   it('reports an override behind a directory it may not enter as invalid-config, naming the file', async () => {
     const w = await workspace()
-    await w.writeOverride({ disabled: ['codex:gpt-5.5'] })
+    await w.writeOverride({ disabled: ['codex:gpt-6.1-sol'] })
     const folder = join(w.home, '.config', 'agent-kit')
     await chmod(folder, 0o000)
     cleanups.push(() => chmod(folder, 0o755))
@@ -1692,22 +1760,22 @@ describe('models: OpenCode, read from its own listing', () => {
     expect(models(result).map((entry) => [entry.model, entry.family, entry.tier])).toEqual([
       ['opencode-go/deepseek-v4-pro', 'deepseek', 'hard'],
       ['opencode-go/glm-5.3-flash', 'zhipu', 'routine'],
-      ['opencode-go/gpt-6-luna', 'openai', null],
-      ['opencode-go/kimi-k2.7-code', 'moonshot', null],
+      ['opencode-go/gpt-6-luna', 'openai', 'routine'],
+      ['opencode-go/hy3', 'tencent', 'hard'],
+      ['opencode-go/hy4-preview', 'tencent', 'hard'],
+      ['opencode-go/kimi-k2.7-code', 'moonshot', 'routine'],
+      ['opencode-go/longcat-2.0', 'meituan', 'hard'],
       ['opencode-go/mimo-v2.6-flash', 'xiaomi', 'routine'],
-      ['opencode-go/minimax-m3.1-flash', 'minimax', null],
+      ['opencode-go/mimo-v2.6-pro', 'xiaomi', 'hard'],
+      ['opencode-go/minimax-m3.1-flash', 'minimax', 'routine'],
       ['opencode-go/qwen3.8-flash', 'alibaba', 'routine'],
+      ['opencode-go/step-5-preview', 'stepfun', 'hard'],
     ])
     expect(model(result, 'opencode:opencode-go/deepseek-v4-pro').notes).toContain('privacy region of the account set to Global')
     expect(printed(result).skipped).toEqual(
       [
         'opencode-go/beam-free',
-        'opencode-go/hy3',
-        'opencode-go/hy4-preview',
         'opencode-go/iceman-contributor-free',
-        'opencode-go/longcat-2.0',
-        'opencode-go/mimo-v2.6-pro',
-        'opencode-go/step-5-preview',
       ].map((m) => ({
         client: 'opencode',
         model: m,
@@ -1742,11 +1810,11 @@ describe('models: OpenCode, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).not.toContain('opencode:opencode-go/hy3')
+    expect(listed(result)).not.toContain('opencode:opencode-go/beam-free')
     expect(printed(result).skipped).toEqual([
       {
         client: 'opencode',
-        model: 'opencode-go/hy3',
+        model: 'opencode-go/beam-free',
         reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
     ])
@@ -6366,7 +6434,7 @@ async function grantsOf(w: RunWorkspace): Promise<Record<string, unknown>[]> {
 
 /** A Codex run's input: the metered-employer client, on the model the catalogue prices. */
 function codexInput(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
-  return w.input({ client: 'codex', model: 'gpt-5.5', ...overrides })
+  return w.input({ client: 'codex', model: 'gpt-6.1-sol', ...overrides })
 }
 
 /** What `grant write` takes unless a test says otherwise: the owner's answer for the test workflow. */
@@ -6727,9 +6795,9 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     expect(result.exitCode).toBe(0)
     expect(printed(result)).toMatchObject({
       client: 'codex',
-      cost_usd: 0.0031375,
+      cost_usd: 0.00381,
       family: 'openai',
-      model: 'gpt-5.5',
+      model: 'gpt-6.1-sol',
       status: 'ok',
       summary: 'it is fine',
       tokens: { cached: 100, input: 1000, output: 200 },
@@ -6742,7 +6810,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
       '--json',
       '--skip-git-repo-check',
       '-m',
-      'gpt-5.5',
+      'gpt-6.1-sol',
       '-c',
       'model_reasoning_effort="medium"',
       '-s',
@@ -6761,9 +6829,9 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
           {
             client: 'codex',
             family: 'openai',
-            model: 'gpt-5.5-high',
+            model: 'gpt-6.1-sol-high',
             notes: 'the same model, asking for more reasoning',
-            prices: { cached_input: 0.125, input: 1.25, output: 10 },
+            prices: { cached_input: 0.1, input: 2, output: 10 },
             tier: 'frontier',
           },
         ],
@@ -6772,7 +6840,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     })
     await writeGrant(w)
 
-    const result = await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', model: 'gpt-5.5-high' }))
+    const result = await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', model: 'gpt-6.1-sol-high' }))
 
     expect(printed(result)).toMatchObject({ status: 'ok' })
     expect(flag(codex.commands[0], '-c')).toBe('model_reasoning_effort="high"')
@@ -6901,19 +6969,19 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
       {
         client: 'codex',
         cost_class: 'metered-employer',
-        estimate_usd: 0.160004,
+        estimate_usd: 0.160006,
         expires_at: '2026-11-04T11:08:15.000Z',
         kind: 'reservation',
-        model: 'gpt-5.5',
+        model: 'gpt-6.1-sol',
         reserved_at: '2026-11-04T10:52:15.000Z',
         run_dir: runDirOf(w, result),
         run_id: printed(result).run_id,
         workflow: 'spec-293',
       },
     ])
-    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.0031375, run_id: printed(result).run_id }])
+    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.00381, run_id: printed(result).run_id }])
     expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toMatchObject({
-      grants: [{ id: grant.id, remaining_usd: 4.996862, spent_usd: 0.003138 }],
+      grants: [{ id: grant.id, remaining_usd: 4.99619, spent_usd: 0.00381 }],
     })
   })
 
@@ -6923,7 +6991,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
 
     expect(printed(await w.run(codexInput(w)))).toEqual({
       code: 'cap-exceeded',
-      message: `codex:gpt-5.5 does not fit grant ${String(grant.id)} of $0.10 for workflow spec-293: $0.00 spent and $0.00 reserved, and its estimate is $0.16`,
+      message: `codex:gpt-6.1-sol does not fit grant ${String(grant.id)} of $0.10 for workflow spec-293: $0.00 spent and $0.00 reserved, and its estimate is $0.16`,
       status: 'error',
     })
     expect(codex.commands).toEqual([])
@@ -7074,7 +7142,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
             family: 'openai',
             model: 'gpt-5.6',
             notes: 'newer',
-            prices: { cached_input: 0.125, input: 1.25, output: 10 },
+            prices: { cached_input: 0.1, input: 2, output: 10 },
             tier: 'frontier',
           },
         ],
@@ -7089,7 +7157,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     const result = await w.run(codexInput(w, { escalate: true }))
 
     expect(printed(result)).toMatchObject({ client: 'codex', model: 'gpt-5.6', status: 'ok' })
-    expect(attemptedModels(result)).toEqual(['codex:gpt-5.5', 'codex:gpt-5.6'])
+    expect(attemptedModels(result)).toEqual(['codex:gpt-6.1-sol', 'codex:gpt-5.6'])
     expect(codex.commands).toHaveLength(2)
   })
 })

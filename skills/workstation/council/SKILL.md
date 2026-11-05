@@ -124,10 +124,10 @@ gateway records it in its ledger with `source: council`.
   model as the command's `-m`/`--model`, and a guard is wired in; anything else
   is refused and nothing is spawned. A runnable call:
   ```bash
-  node ~/.claude/skills/council/council.mjs supervise --engine codex:gpt-5.5 \
+  node ~/.claude/skills/council/council.mjs supervise --engine codex:gpt-6.1-sol \
     --run <run-dir> --task <task-id> --worktree <repository-worktree> \
     --command codex --stdin "<the task prompt>" \
-    -- exec -m gpt-5.5 -c model_reasoning_effort=medium --skip-git-repo-check -
+    -- exec -m gpt-6.1-sol -c model_reasoning_effort=medium --skip-git-repo-check -
   ```
   The prompt is assumed to carry ticket or issue text, so the repository's
   history permission applies; `--no-history` says it carries none. The prompt's
@@ -176,7 +176,7 @@ Use `fleet` when the task DAG already exists and no plan/grill/design phase is
 needed:
 
 ```bash
-council fleet --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
+council fleet --tasks tasks.json --agents 'codex:gpt-6.1-sol*3,claude:haiku*2'
 council fleet --tasks tasks.json --agents 'claude:haiku*4' --estimate
 ```
 

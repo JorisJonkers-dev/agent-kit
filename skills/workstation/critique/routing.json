@@ -4,9 +4,9 @@
     "codex-work": {
       "kind": "codex",
       "binary": "codex",
-      "model": "gpt-5.5",
+      "model": "gpt-6.1-sol",
       "family": "openai",
-      "gateway": { "client": "codex", "model": "gpt-5.5" }
+      "gateway": { "client": "codex", "model": "gpt-6.1-sol" }
     },
     "claude-work": {
       "kind": "claude",

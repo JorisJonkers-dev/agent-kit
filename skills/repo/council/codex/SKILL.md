@@ -137,8 +137,8 @@ Use `fleet` when the task DAG already exists and no plan/grill/design phase is
 needed:
 
 ```bash
-council fleet --tasks tasks.json --agents 'codex:gpt-5.5*3,claude:haiku*2'
-council fleet --tasks tasks.json --agents 'codex:gpt-5.5*4' --estimate
+council fleet --tasks tasks.json --agents 'codex:gpt-6.1-sol*3,claude:haiku*2'
+council fleet --tasks tasks.json --agents 'codex:gpt-6.1-sol*4' --estimate
 ```
 
 The same context-pack, watchdog, review-pack, review-council, and GitHub mirror

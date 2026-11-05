@@ -342,7 +342,7 @@ function codex(
     escalate: false,
     id,
     mode: 'read-only',
-    model: 'gpt-5.5',
+    model: 'gpt-6.1-sol',
     prompt: `TASK-${id} read the code`,
     ...overrides,
   }

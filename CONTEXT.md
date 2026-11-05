@@ -211,11 +211,15 @@ _Avoid_: perspective, persona
 The per-repository list of model families a critique or a delegation may
 send content to, kept per machine outside the repository, so nothing about it
 is committed.
-It is keyed by the repository's remote. A repository with no entry, or with
-no remote, sends nothing. A repository owned by the `nedap` GitHub
-organisation has a work-only critic roster, whatever its entry says: its
-critics may be Codex on the nedap account (under a grant) and the work Claude
-agent, and nothing else, and never the orchestrator's own family. An entry allows
+It is keyed by the repository's remote. A repository with no remote sends
+nothing. A repository owned by the `nedap` GitHub organisation has a work-only
+critic roster, whatever its entry says: its critics may be Codex on the nedap
+account (under a grant) and the work Claude agent, and nothing else, and never
+the orchestrator's own family. Every other repository is held to its entry,
+and one with no entry to the personal default derived from the catalogue as it
+stands: every family a subsidised or metered-personal client model serves, with
+code but without history. A recorded entry always wins over the default. An
+entry allows
 documents only unless its code permission is on; the code stages refuse
 while it is off. Its history permission, also off by default, separately
 lets a stage send the repository's commit messages and issue text; while it

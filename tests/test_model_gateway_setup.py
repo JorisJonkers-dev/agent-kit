@@ -99,7 +99,7 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("claude", "claude-opus-5-5", "anthropic", "frontier"),
         ("claude", "claude-sonnet-5-5", "anthropic", "hard"),
         ("claude", "claude-haiku-5-5", "anthropic", "routine"),
-        ("codex", "gpt-5.5", "openai", "frontier"),
+        ("codex", "gpt-6.1-sol", "openai", "frontier"),
         ("vibe", "deepseek-v4-1-flash-1017", "deepseek", "routine"),
         ("vibe", "glm-5-3", "zhipu", "hard"),
         ("vibe", "mistral-large-4-0-3", "mistral", "hard"),
@@ -117,6 +117,14 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("opencode", "opencode-go/glm-5.3-flash", "zhipu", "routine"),
         ("opencode", "opencode-go/qwen3.8-flash", "alibaba", "routine"),
         ("opencode", "opencode-go/mimo-v2.6-flash", "xiaomi", "routine"),
+        ("opencode", "opencode-go/mimo-v2.6-pro", "xiaomi", "hard"),
+        ("opencode", "opencode-go/hy3", "tencent", "hard"),
+        ("opencode", "opencode-go/hy4-preview", "tencent", "hard"),
+        ("opencode", "opencode-go/longcat-2.0", "meituan", "hard"),
+        ("opencode", "opencode-go/step-5-preview", "stepfun", "hard"),
+        ("opencode", "opencode-go/gpt-6-luna", "openai", "routine"),
+        ("opencode", "opencode-go/kimi-k2.7-code", "moonshot", "routine"),
+        ("opencode", "opencode-go/minimax-m3.1-flash", "minimax", "routine"),
     ]
     assert all(m["notes"].strip() for m in models)
 

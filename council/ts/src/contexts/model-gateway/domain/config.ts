@@ -9,6 +9,8 @@
  * later.
  */
 
+import { isKnownFamily, KNOWN_FAMILIES } from '../../../shared-kernel/families.js'
+
 export const CONFIG_VERSION = 1
 
 /** What a run on a client costs the owner. */
@@ -389,6 +391,9 @@ function parseModelEntry(raw: unknown, index: number, base: ModelEntry | undefin
   const prices = raw.prices === undefined ? base?.prices : parseModelPrices(raw.prices, `${where}.prices`)
   if (family === undefined || tier === undefined || notes === undefined) {
     throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`)
+  }
+  if (!isKnownFamily(family)) {
+    throw invalid(`${where}.family ("${family}") is not a known family: ${KNOWN_FAMILIES.join(', ')}`)
   }
   const names = raw.names === undefined ? base?.names : requireStrings(raw.names, `${where}.names`)
   return {

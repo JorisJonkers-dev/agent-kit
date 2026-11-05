@@ -16,11 +16,13 @@ Nothing is sent until the repository has a **family allowlist** entry
 remote). A repository with no remote never sends. A `nedap` remote needs no entry and
 has a work-only roster instead: Codex on the nedap account, only under a live
 model-gateway grant for the `workflow` the call names, and the work Claude
-agent, each never in the orchestrator's own family, and no other family. An
-entry covers documents only until its code permission is on, which the code
-stages need, and leaves out commit messages and issue text until its history
-permission is on. Both are off by default. The first stage that needs one
-offers it.
+agent, each never in the orchestrator's own family, and no other family. Any
+other repository with no entry reviews under the personal default — every
+family a critic can come from, code but no history — and a recorded entry
+always wins over the default. An entry covers documents only until its code
+permission is on, which the code stages need, and leaves out commit messages
+and issue text until its history permission is on. Both are off by default.
+The first stage that needs one offers it.
 
 ## Stages
 

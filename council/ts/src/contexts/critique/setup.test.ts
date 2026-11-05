@@ -907,16 +907,16 @@ describe('the Antigravity quota', () => {
 })
 
 describe("the repository's opt-in", () => {
-  it('reports a repository with no allowlist entry as not opted in, with the families routing uses', async () => {
+  it('reports a repository with no allowlist entry as opted in under the personal default, with the families routing uses', async () => {
     const h = await machine()
 
     expect((await listed(h, { repo: h.repo })).repository).toEqual({
-      code: false,
-      families: [],
+      code: true,
+      families: ['mistral', 'zhipu', 'deepseek', 'google'],
       history: false,
       key: 'github.com/jorisjonkers-dev/agent-kit',
       routed_families: ['mistral', 'google', 'zhipu', 'deepseek'],
-      status: 'not-opted-in',
+      status: 'opted-in',
     })
   })
 

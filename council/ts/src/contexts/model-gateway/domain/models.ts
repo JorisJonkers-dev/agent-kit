@@ -67,6 +67,10 @@ const FAMILY_PREFIXES: readonly (readonly [string, string])[] = [
   ['minimax', 'minimax'],
   ['grok', 'xai'],
   ['qwen', 'alibaba'],
+  ['mimo', 'xiaomi'],
+  ['hy', 'tencent'],
+  ['longcat', 'meituan'],
+  ['step', 'stepfun'],
   ['mistral', 'mistral'],
   ['codestral', 'mistral'],
 ]
