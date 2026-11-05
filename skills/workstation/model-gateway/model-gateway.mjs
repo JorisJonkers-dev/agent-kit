@@ -2535,7 +2535,7 @@ var claude = {
 };
 var opencode = {
   command: (binary, input, paths, prompt, extras) => ({
-    args: ["run", "--model", input.model, "--format", "json", prompt],
+    args: ["run", "--standalone", "--model", input.model, "--format", "json", prompt],
     command: binary,
     cwd: paths.workDir,
     env: extras?.env ?? {},
@@ -3198,7 +3198,7 @@ function readModelsInput(raw) {
 
 // src/contexts/model-gateway/application/run.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { join as join6 } from "node:path";
+import { join as join6, sep } from "node:path";
 
 // src/contexts/model-gateway/application/escalation.ts
 import { dirname, join as join5 } from "node:path";
@@ -3463,6 +3463,7 @@ var RunCommand = class {
     const { allowed: allowed2, client, config, entry, family, root } = await this.place(given);
     const held = options.reservation;
     const costClass = runCostClass(client, given);
+    const watched = isWriting(given) ? await this.watchOthers(root ?? given.repo) : [];
     const input = held !== void 0 && costClass === "metered-employer" ? await this.withinGrant(given) : given;
     const blocked = await options.startCheck?.(input);
     if (blocked !== void 0) {
@@ -3502,6 +3503,7 @@ var RunCommand = class {
         runDir,
         workDir: workplace.dir,
         ...workplace.branch === void 0 ? {} : { branch: workplace.branch },
+        ...watched.length === 0 ? {} : { watched },
         ...reservation?.ends_at === void 0 ? {} : { endsAt: reservation.ends_at }
       });
     } catch (error) {
@@ -3590,7 +3592,7 @@ var RunCommand = class {
     const launched = await this.launch(run.binary, input, paths, prompt);
     const output = launched.output;
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output);
-    const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : void 0;
+    const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason, run.watched ?? []) : void 0;
     const reason = finished === void 0 ? delegateReason : finished.reason;
     const unavailableUntil = delegateReason === "rate-limited" || delegateReason === "model-unavailable" ? namedReset(launched.result, output.error, new Date(run.at.getTime() + (this.deps.clock.monotonicMs() - run.startedMs))) : void 0;
     const cost = priceRun(output.charged, output.tokens, entry?.prices);
@@ -3625,15 +3627,33 @@ var RunCommand = class {
    * its worktree unstaged, with no check run. The gateway never commits,
    * merges or pushes: the worktree and its branch are the caller's to take.
    *
+   * A worktree of the repository the run watches is held to the state its
+   * snapshot holds: one a delegate changed, or one that cannot be read when
+   * the run ends, makes the run fail with
+   * `foreign-worktree-change`, and the name of the worktree goes out beside
+   * the result.
+   *
    * The delegate has run by now, so a failure of the gateway's own (git cannot
    * stage or list, the check's output cannot be kept) is a failed run with its
    * reason, never an error that would lose the result, the output and the
    * ledger line.
    */
-  async finishWrite(run, input, delegateReason) {
+  async finishWrite(run, input, delegateReason, watched) {
     const base = { branch: String(run.branch), worktree: run.workDir };
-    if (delegateReason !== void 0) return { reason: delegateReason, report: { ...base, staged_files: [] } };
-    const staged = await this.stage(run.workDir);
+    const foreign = await this.foreignChange(watched);
+    const staged = delegateReason === void 0 ? await this.stage(run.workDir) : void 0;
+    if (foreign !== void 0) {
+      return {
+        reason: "foreign-worktree-change",
+        report: {
+          ...base,
+          foreign_worktree: foreign.path,
+          staged_files: staged === void 0 ? [] : staged.files,
+          ...staged?.error === void 0 ? {} : { worktree_error: staged.error }
+        }
+      };
+    }
+    if (staged === void 0) return { reason: delegateReason, report: { ...base, staged_files: [] } };
     const check = await this.runCheck(run, input);
     if (check === void 0) return { reason: "grant-expired", report: { ...base, staged_files: staged.files, ...staged.error === void 0 ? {} : { worktree_error: staged.error } } };
     const failure2 = staged.error ?? check.outputError;
@@ -3661,6 +3681,50 @@ var RunCommand = class {
     } catch (error) {
       return { error: messageOf3(error), files: null, reason: "stage-list-failed" };
     }
+  }
+  /**
+   * Every worktree of the repository but nothing of the run's own: where each
+   * stands before the delegate runs, so the run can hold every other checkout
+   * of the repository to the state the delegate found it in. Worktrees the
+   * gateway itself keeps for its runs — everything under the repository's
+   * common directory's `model-gateway/worktrees` — are not watched: they are
+   * this gateway's own workplaces, whose changes are its own work and never
+   * a change beside the run.
+   */
+  async watchOthers(repo) {
+    let worktrees;
+    try {
+      worktrees = await this.deps.git.listWorktrees(repo);
+    } catch (error) {
+      throw new ModelGatewayError("worktree-failed", `${repo}: cannot list the worktrees to watch: ${messageOf3(error)}`);
+    }
+    const common = await this.commonDir(repo);
+    const kept = join6(common, "model-gateway", "worktrees");
+    const watched = [];
+    for (const path of worktrees) {
+      if (path === kept || path.startsWith(`${kept}${sep}`)) continue;
+      try {
+        watched.push({ before: await this.deps.git.status(path), path });
+      } catch (error) {
+        throw new ModelGatewayError("worktree-failed", `${repo}: cannot read the status of ${path}: ${messageOf3(error)}`);
+      }
+    }
+    return watched;
+  }
+  /**
+   * The watched worktree that is no longer as it was found: its listing
+   * changed, or it cannot be read any more. The delegate has run by now, so
+   * this never throws; a worktree that went away counts as changed.
+   */
+  async foreignChange(watched) {
+    for (const one of watched) {
+      try {
+        if (await this.deps.git.status(one.path) !== one.before) return one;
+      } catch {
+        return one;
+      }
+    }
+    return void 0;
   }
   /**
    * The caller's check, `sh -c <command>` in the worktree, held to the run's
@@ -4162,6 +4226,27 @@ var NodeModelGatewayGit = class {
   async deleteBranch(repo, branch) {
     const result2 = await this.git(repo, ["branch", "-D", branch]);
     if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
+  }
+  async listWorktrees(repo) {
+    const result2 = await this.git(repo, ["worktree", "list", "--porcelain"]);
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
+    const listed = [];
+    let current;
+    for (const line of result2.stdout.split("\n")) {
+      if (line.startsWith("worktree ")) {
+        if (current !== void 0) listed.push(current);
+        current = { path: line.slice("worktree ".length).trim(), prunable: false };
+      } else if (line === "prunable" || line.startsWith("prunable ")) {
+        if (current !== void 0) current = { ...current, prunable: true };
+      }
+    }
+    if (current !== void 0) listed.push(current);
+    return listed.filter((entry) => !entry.prunable).map((entry) => entry.path);
+  }
+  async status(path) {
+    const result2 = await this.git(path, ["status", "--porcelain"]);
+    if (result2.exitCode !== 0) throw new Error(messageOf4(result2));
+    return result2.stdout;
   }
   /**
    * `git worktree remove --force`, which takes the directory with it. A

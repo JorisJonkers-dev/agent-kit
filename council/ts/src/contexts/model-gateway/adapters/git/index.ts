@@ -87,6 +87,37 @@ export class NodeModelGatewayGit implements ModelGatewayGitPort {
     if (result.exitCode !== 0) throw new Error(messageOf(result))
   }
 
+  async listWorktrees(repo: string): Promise<readonly string[]> {
+    const result = await this.git(repo, ['worktree', 'list', '--porcelain'])
+    if (result.exitCode !== 0) throw new Error(messageOf(result))
+    /**
+     * The porcelain answer is one block per worktree, opened by the worktree's
+     * `worktree <path>` line. A block git marks `prunable` names an entry whose
+     * directory is gone, and a worktree whose directory git cannot read any
+     * more is gone with it: both are skipped rather than handed on to be
+     * watched, where their status could not be read and every writing run
+     * would be refused for a checkout that is not there.
+     */
+    const listed: { path: string; prunable: boolean }[] = []
+    let current: { path: string; prunable: boolean } | undefined
+    for (const line of result.stdout.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        if (current !== undefined) listed.push(current)
+        current = { path: line.slice('worktree '.length).trim(), prunable: false }
+      } else if (line === 'prunable' || line.startsWith('prunable ')) {
+        if (current !== undefined) current = { ...current, prunable: true }
+      }
+    }
+    if (current !== undefined) listed.push(current)
+    return listed.filter((entry) => !entry.prunable).map((entry) => entry.path)
+  }
+
+  async status(path: string): Promise<string> {
+    const result = await this.git(path, ['status', '--porcelain'])
+    if (result.exitCode !== 0) throw new Error(messageOf(result))
+    return result.stdout
+  }
+
   /**
    * `git worktree remove --force`, which takes the directory with it. A
    * worktree git no longer knows (its directory moved, or a lock was left) is

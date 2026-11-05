@@ -81,6 +81,8 @@ export type FakeRepository =
       readonly worktreeError?: string
       /** What git says when it cannot remove a worktree. */
       readonly removeError?: string
+      /** Other checkouts of the repository, which `listWorktrees` names beside the repository itself. */
+      readonly worktrees?: readonly string[]
     }
   | { readonly error: string }
 
@@ -120,6 +122,10 @@ export class FakeGit implements ModelGatewayGitPort {
   stagedFilesError: string | undefined
   /** What `deleteBranch` fails with, as a branch checked out elsewhere does; none by default. */
   deleteBranchError: string | undefined
+  /** What `listWorktrees` fails with, as a repository git cannot read the worktrees of does; none by default. */
+  listWorktreesError: string | undefined
+  /** What `status` fails with, as a worktree that went away mid-run does; none by default. */
+  statusError: string | undefined
 
   constructor(private readonly repositories: Readonly<Record<string, FakeRepository>>) {}
 
@@ -138,6 +144,35 @@ export class FakeGit implements ModelGatewayGitPort {
     if (this.stageError !== undefined) return Promise.reject(new Error(this.stageError))
     this.stagedIn.push(path)
     return Promise.resolve()
+  }
+
+  /** Every worktree of the repository, its own checkout included, as `git worktree list` names them. */
+  async listWorktrees(repo: string): Promise<readonly string[]> {
+    this.calls.push('listWorktrees')
+    if (this.listWorktreesError !== undefined) return Promise.reject(new Error(this.listWorktreesError))
+    const entry = this.repositories[repo]
+    if (entry === undefined) return Promise.reject(new Error(`${repo}: not a git repository`))
+    if ('error' in entry) return Promise.reject(new Error(entry.error))
+    return [entry.root, ...(entry.worktrees ?? [])]
+  }
+
+  /**
+   * What `git status --porcelain` says for a worktree, as the real one: one
+   * line per file the working tree holds (a real one names the tracked and
+   * untracked ones; what matters to the tests is whether the listing
+   * changed), and none under a `.git` directory, which git never reads.
+   */
+  async status(path: string): Promise<string> {
+    this.calls.push('status')
+    if (this.statusError !== undefined) throw new Error(this.statusError)
+    const entries = await readdir(path, { recursive: true, withFileTypes: true }).catch(() => null)
+    if (entries === null) throw new Error(`${path}: not a git repository`)
+    return entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name).slice(path.length + 1))
+      .filter((relative) => !relative.split('/').some((part) => part === '.git'))
+      .sort()
+      .join('\n')
   }
 
   /** Every file in the worktree but the checkout marker, relative to it and sorted: what a real `git add -A` would stage. */

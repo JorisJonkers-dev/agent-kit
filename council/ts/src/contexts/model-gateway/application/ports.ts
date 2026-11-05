@@ -57,6 +57,10 @@ export interface ModelGatewayGitPort {
   stageAll(path: string): Promise<void>
   /** The files staged in the worktree, relative to it. */
   stagedFiles(path: string): Promise<readonly string[]>
+  /** Every worktree of the repository, its own checkout included, as absolute paths. */
+  listWorktrees(repo: string): Promise<readonly string[]>
+  /** What `git status --porcelain` says for a worktree: `''` when it is clean. */
+  status(path: string): Promise<string>
   /** Removes a worktree added with `addWorktree` or `createWorktree`, whatever it holds now; its directory is gone afterwards. */
   removeWorktree(repo: string, path: string): Promise<void>
   /** Deletes a branch with whatever it holds (`git branch -D`); rejects with git's message when it cannot. */

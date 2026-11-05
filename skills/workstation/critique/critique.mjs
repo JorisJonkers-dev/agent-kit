@@ -2392,7 +2392,7 @@ var claude = {
 };
 var opencode = {
   command: (binary, input, paths, prompt, extras) => ({
-    args: ["run", "--model", input.model, "--format", "json", prompt],
+    args: ["run", "--standalone", "--model", input.model, "--format", "json", prompt],
     command: binary,
     cwd: paths.workDir,
     env: extras?.env ?? {},

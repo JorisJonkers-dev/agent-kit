@@ -2516,7 +2516,7 @@ describe('model-gateway run: OpenCode', () => {
     expect(result.exitCode).toBe(0)
     const [command] = w.vibe.commands
     expect(command?.command).toBe('opencode')
-    expect(command?.args).toEqual(['run', '--model', MODEL, '--format', 'json', WRAPPED_PROMPT])
+    expect(command?.args).toEqual(['run', '--standalone', '--model', MODEL, '--format', 'json', WRAPPED_PROMPT])
     expect(command?.cwd).not.toBe(w.repo)
     expect(command?.env).toEqual({ AGENT_KIT_DELEGATION: '1' })
     expect(command?.timeoutMs).toBe(900_000)
@@ -3320,11 +3320,13 @@ const ALLOWED_GIT_CALLS = new Set([
   'commonDir',
   'createWorktree',
   'deleteBranch',
+  'listWorktrees',
   'remotes',
   'removeWorktree',
   'root',
   'stageAll',
   'stagedFiles',
+  'status',
 ])
 
 /** The input of a writing run: one task, on a base, with a check. */
@@ -3513,7 +3515,7 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     expect(claude?.stdin).toContain(EDIT_RULE)
     expect(flag(agy, '--mode')).toBe('accept-edits')
     expect(agy?.args[1]).toContain(EDIT_RULE)
-    expect(opencode?.args).toEqual(['run', '--model', 'opencode-go/glm-5-3', '--format', 'json', expect.stringContaining(EDIT_RULE) as unknown])
+    expect(opencode?.args).toEqual(['run', '--standalone', '--model', 'opencode-go/glm-5-3', '--format', 'json', expect.stringContaining(EDIT_RULE) as unknown])
     for (const command of [claude, agy, opencode]) expect(String(command?.cwd)).toContain(join('.git', 'model-gateway', 'worktrees'))
   })
 
@@ -3780,6 +3782,204 @@ describe('model-gateway run: writing, the worktree and the check', () => {
 
     const listed = (JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { run_id: string }[] }).worktrees.map((entry) => entry.run_id)
     expect(listed.sort()).toEqual(results.map((result) => String(printed(result).run_id)).sort())
+  })
+})
+
+describe('model-gateway run: writing, the other worktrees', () => {
+  /** A workspace for a writing run that watches `other-checkout`, a second checkout of the same repository. */
+  async function withOtherCheckout(options: RunWorkspaceOptions = {}): Promise<{ readonly w: RunWorkspace; readonly other: string }> {
+    const w = await readyRun({
+      ...options,
+      repositories: (repo: string) => ({
+        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], root: repo, worktrees: [join(repo, '..', 'other-checkout')] },
+      }),
+    })
+    const other = join(w.dir, 'other-checkout')
+    await mkdir(other, { recursive: true })
+    return { other, w }
+  }
+
+  it('checks the other worktrees of the repository before and after the delegate, and leaves a clean run alone', async () => {
+    const { w } = await withOtherCheckout({
+      scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { stdout: '3 passed\n' }],
+    })
+
+    const result = await w.run(writeInput(w))
+
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+    expect(w.vibe.commands).toHaveLength(2)
+    expect(w.git.calls.filter((call) => call === 'status')).toHaveLength(4)
+  })
+
+  it('fails the delegation when a fake OpenCode writes into another worktree, and stages its own work still', async () => {
+    const { w, other } = await withOtherCheckout({
+      scripts: [
+        {
+          effect: async (command) => {
+            await edits('src/a.ts')(command)
+            await writeFile(join(w.dir, 'other-checkout', 'stepped-over.md'), 'written beside its worktree')
+          },
+          stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('done\nSUMMARY: stepped on another checkout'), openCodeStepFinish(0.01, { input: 100, output: 10 })),
+        },
+      ],
+    })
+
+    const result = await w.run(writeInput(w, { client: 'opencode', model: 'opencode-go/glm-5-3' }))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      foreign_worktree: other,
+      reason: 'foreign-worktree-change',
+      staged_files: ['src/a.ts'],
+      status: 'failed',
+    })
+    expect(printed(result)).not.toHaveProperty('check')
+    expect(w.vibe.commands).toHaveLength(1)
+    expect(w.git.stagedIn).toEqual([worktreeOf(result)])
+    expect(await readdir(worktreeOf(result))).toContain('src')
+    expect(join(w.dir, 'other-checkout', 'stepped-over.md')).toBeTruthy()
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'foreign-worktree-change' })
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id }] })
+  })
+
+  it('fails the delegation when another worktree cannot be read when the run ends, as one that went away does', async () => {
+    const { w } = await withOtherCheckout({
+      scripts: [
+        {
+          effect: async () => {
+            w.git.statusError = 'fatal: cannot change to other-checkout'
+            await Promise.resolve()
+          },
+          stdout: journal('done\nSUMMARY: it vanished under me'),
+        },
+      ],
+    })
+
+    const result = await w.run(writeInput(w))
+
+    expect(printed(result)).toMatchObject({
+      foreign_worktree: w.repo,
+      reason: 'foreign-worktree-change',
+      status: 'failed',
+    })
+    expect(w.vibe.commands).toHaveLength(1)
+  })
+
+  it('does not hold a run to a worktree the gateway itself keeps, which may change beside it', async () => {
+    const w = await readyRun({
+      repositories: (repo: string) => ({
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          root: repo,
+          worktrees: [join(repo, '.git', 'model-gateway', 'worktrees', 'sibling-run')],
+        },
+      }),
+      scripts: [
+        {
+          effect: async (command) => {
+            await edits('src/a.ts')(command)
+            await writeFile(join(w.repo, '.git', 'model-gateway', 'worktrees', 'sibling-run', 'own-work.md'), 'another run of the same gateway worked here')
+          },
+          stdout: journal('done'),
+        },
+        { stdout: '3 passed\n' },
+      ],
+    })
+    await mkdir(join(w.repo, '.git', 'model-gateway', 'worktrees', 'sibling-run'), { recursive: true })
+
+    const result = await w.run(writeInput(w))
+
+    expect(printed(result)).toMatchObject({ status: 'ok' })
+    expect(printed(result)).not.toHaveProperty('foreign_worktree')
+    expect(printed(result)).not.toHaveProperty('reason')
+    expect(w.git.calls.filter((call) => call === 'status')).toHaveLength(2)
+  })
+
+  it('refuses to start a writing delegation whose other worktrees it cannot read before the run', async () => {
+    const { w } = await withOtherCheckout()
+    w.git.statusError = 'fatal: cannot change to other-checkout'
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toMatchObject({ code: 'worktree-failed', message: expect.stringContaining(w.repo) as unknown, status: 'error' })
+    expect(w.vibe.commands).toEqual([])
+    expect(w.git.worktrees).toEqual([])
+  })
+
+  it('refuses to start a writing delegation when git cannot list the other worktrees to watch', async () => {
+    const { w } = await withOtherCheckout()
+    w.git.listWorktreesError = 'fatal: cannot reach the worktrees of this repository'
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toEqual({
+      code: 'worktree-failed',
+      message: `${w.repo}: cannot list the worktrees to watch: fatal: cannot reach the worktrees of this repository`,
+      status: 'error',
+    })
+    expect(w.vibe.commands).toEqual([])
+    expect(w.git.calls.slice(-2)).toEqual(['remotes', 'listWorktrees'])
+    expect(w.git.calls).not.toContain('status')
+    expect(w.git.calls).not.toContain('stageAll')
+    expect(w.git.stagedIn).toEqual([])
+    expect(w.git.worktrees).toEqual([])
+  })
+
+  it('refuses a metered writing run whose worktrees it cannot list, and leaves the ledger, the caps and the kept worktrees untouched', async () => {
+    const { w } = await withOtherCheckout()
+    w.git.listWorktreesError = 'fatal: cannot reach the worktrees of this repository'
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(1)
+    expect(printed(result)).toMatchObject({ code: 'worktree-failed', status: 'error' })
+    expect(printed(result).message).toContain(w.repo)
+    expect(printed(result).message).toContain('cannot list the worktrees to watch')
+    expect(printed(result).message).toContain('cannot reach the worktrees of this repository')
+    expect(w.vibe.commands).toEqual([])
+    expect(w.git.stagedIn).toEqual([])
+    expect(w.git.worktrees).toEqual([])
+    expect(w.git.calls).not.toContain('stageAll')
+    expect(w.git.calls).not.toContain('createWorktree')
+    expect(w.git.calls.filter((call) => call === 'status')).toEqual([])
+    await expect(readFile(w.ledger, 'utf8')).rejects.toThrow()
+    expect(ledgerLines(await readFile(w.ledger, 'utf8').catch(() => ''))).toEqual([])
+    await expect(readFile(w.kept, 'utf8')).rejects.toThrow()
+    expect(((JSON.parse(await readFile(w.kept, 'utf8').catch(() => '{"worktrees":[]}')) as { worktrees?: { run_id: string }[] }).worktrees ?? []).map((one) => one.run_id)).toEqual([])
+    await expect(readFile(w.workflows, 'utf8')).rejects.toThrow()
+    expect(((JSON.parse(await readFile(w.workflows, 'utf8').catch(() => '{"workflows":[]}')) as { workflows?: unknown[] }).workflows ?? [])).toEqual([])
+  })
+
+  it('reports a change of another worktree, and not the delegate’s own failure, when both happened', async () => {
+    const { w, other } = await withOtherCheckout({
+      scripts: [
+        {
+          effect: async (command) => {
+            await edits('src/a.ts')(command)
+            await writeFile(join(w.dir, 'other-checkout', 'stepped-over.md'), 'written beside its worktree')
+          },
+          exitCode: 3,
+          stderr: 'the delegate fell over',
+          stdout: journal('nothing'),
+        },
+      ],
+    })
+
+    const result = await w.run(writeInput(w))
+
+    expect(result.exitCode).toBe(0)
+    expect(printed(result)).toMatchObject({
+      foreign_worktree: other,
+      reason: 'foreign-worktree-change',
+      staged_files: [],
+      status: 'failed',
+    })
+    expect(printed(result)).not.toHaveProperty('check')
+    expect(w.vibe.commands).toHaveLength(1)
+    expect(w.git.stagedIn).toEqual([])
   })
 })
 

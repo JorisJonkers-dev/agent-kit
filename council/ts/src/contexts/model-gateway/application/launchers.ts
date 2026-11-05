@@ -300,12 +300,14 @@ const claude: ClientLauncher = {
 
 /**
  * OpenCode: `opencode run` with the provider/model, JSON events and the
- * prompt as its message. It works in the directory it is started in, and has
- * no time limit of its own, so the outer timer is the limit.
+ * prompt as its message. `--standalone` keeps it on a private server rooted
+ * in the directory it is started in: left to the background service, a run
+ * lands in whatever checkout that service was started in. It has no time
+ * limit of its own, so the outer timer is the limit.
  */
 const opencode: ClientLauncher = {
   command: (binary, input, paths, prompt, extras) => ({
-    args: ['run', '--model', input.model, '--format', 'json', prompt],
+    args: ['run', '--standalone', '--model', input.model, '--format', 'json', prompt],
     command: binary,
     cwd: paths.workDir,
     env: extras?.env ?? {},

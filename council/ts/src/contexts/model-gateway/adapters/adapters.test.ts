@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -278,6 +278,55 @@ describe('NodeModelGatewayGit', () => {
     await git(root, 'init', '-q')
 
     expect(await repositories.remotes(root)).toEqual([])
+  })
+
+  it('reports no remote for a repository without one', async () => {
+    const root = await tempDir()
+    await git(root, 'init', '-q')
+
+    expect(await repositories.remotes(root)).toEqual([])
+  })
+
+  it('names every worktree of a repository, and reads what each holds', async () => {
+    const root = await committed()
+    const worktree = join(root, '..', `${basename(root)}-worktree`)
+    cleanups.push(() => rm(worktree, { force: true, recursive: true }))
+    await git(root, 'worktree', 'add', '-q', worktree)
+
+    expect(await repositories.listWorktrees(root)).toEqual([await realpath(root), await realpath(worktree)])
+    expect(await repositories.status(worktree)).toBe('')
+    await writeFile(join(worktree, 'stepped-over.md'), 'x')
+    await writeFile(join(root, 'README.md'), 'edited')
+    expect(await repositories.status(worktree)).toBe('?? stepped-over.md\n')
+    expect(await repositories.status(root)).toBe(' M README.md\n')
+    await expect(repositories.status(await tempDir())).rejects.toThrow(/not a git repository/)
+  })
+
+  it('names and reads a worktree that lives inside the common directory, as the gateway’s own do', async () => {
+    const root = await committed()
+    const nested = join(root, '.git', 'model-gateway', 'worktrees', 'run-1')
+    await mkdir(dirname(nested), { recursive: true })
+    await git(root, 'worktree', 'add', '-q', nested)
+
+    expect(await repositories.listWorktrees(root)).toContain(await realpath(nested))
+    expect(await repositories.status(nested)).toBe('')
+    expect(await repositories.status(root)).toBe('')
+  })
+
+  it('leaves a worktree that is gone, and so marked prunable, out of the list', async () => {
+    const root = await committed()
+    const worktree = join(root, '..', `${basename(root)}-worktree`)
+    cleanups.push(() => rm(worktree, { force: true, recursive: true }))
+    await git(root, 'worktree', 'add', '-q', worktree)
+    await rm(worktree, { force: true, recursive: true })
+
+    expect(await repositories.listWorktrees(root)).toEqual([await realpath(root)])
+  })
+
+  it('fails with git\'s own message when it cannot name the worktrees of a path', async () => {
+    const dir = await tempDir()
+
+    await expect(repositories.listWorktrees(dir)).rejects.toThrow(/not a git repository/)
   })
 
   it('says a directory outside any repository has no root', async () => {

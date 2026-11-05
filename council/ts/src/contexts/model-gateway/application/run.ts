@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 
 import type { ProcessResult } from '../../../ports/index.js'
 import { ModelGatewayError, type CostClass, type GatewayConfig, type ModelEntry } from '../domain/config.js'
@@ -64,6 +64,8 @@ export interface WriteReport {
   readonly check?: CheckReport
   /** What git or the file system said when the gateway could not stage the worktree or keep the check's output. */
   readonly worktree_error?: string
+  /** The other checkout of the repository whose changes beside the run made it fail. */
+  readonly foreign_worktree?: string
 }
 
 /** One check command's outcome. */
@@ -93,8 +95,10 @@ export interface RunResult {
    * Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`,
    * `rate-limited`, `auth`, `model-unavailable`, `launch-failed`,
    * `denied-action`, `client-error`, `failed` (Hermes' own usage report counts
-   * the run as failed) or, for a writing run, `check-failed`,
-   * `check-output-failed` or `stage-failed`.
+   * the run as failed), `check-failed`, `check-output-failed` or
+   * `stage-failed`, and, for a writing run, `foreign-worktree-change` when a
+   * checkout of the repository beside the run's own worktree changed while
+   * it ran.
    */
   readonly reason?: string
   /** When the client model's own answer said it is usable again, so the gateway remembers the refusal until then; absent when it named no reset. */
@@ -144,6 +148,8 @@ interface Delegation {
   readonly runDir: string
   readonly workDir: string
   readonly branch?: string
+  /** The worktrees of the repository a writing run watches, with what they held before the delegate ran. */
+  readonly watched?: readonly WatchedWorktree[]
   /** When the run's grant or workflow lapses; the check may not outlive it. */
   readonly endsAt?: Date
 }
@@ -191,6 +197,12 @@ export interface Checked extends Placed {
 interface RunPermission {
   readonly permission: ModelPermission
   readonly repository: string | null
+}
+
+/** One watched worktree: where it is, and what `git status --porcelain` said before the delegate ran. */
+interface WatchedWorktree {
+  readonly path: string
+  readonly before: string
 }
 
 /**
@@ -268,6 +280,13 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const { allowed, client, config, entry, family, root } = await this.place(given)
     const held = options.reservation
     const costClass = runCostClass(client, given)
+    /**
+     * The other checkouts of the repository, watched from before anything is
+     * taken: the listing itself refuses the run when it cannot be read, so a
+     * refusal leaves no reservation to settle, no workflow joined, and no
+     * worktree kept behind it.
+     */
+    const watched = isWriting(given) ? await this.watchOthers(root ?? given.repo) : []
     const input = held !== undefined && costClass === 'metered-employer' ? await this.withinGrant(given) : given
     const blocked = await options.startCheck?.(input)
     if (blocked !== undefined) {
@@ -312,6 +331,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
         runDir,
         workDir: workplace.dir,
         ...(workplace.branch === undefined ? {} : { branch: workplace.branch }),
+        ...(watched.length === 0 ? {} : { watched }),
         ...(reservation?.ends_at === undefined ? {} : { endsAt: reservation.ends_at }),
       })
     } catch (error) {
@@ -402,7 +422,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const launched = await this.launch(run.binary, input, paths, prompt)
     const output = launched.output
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output)
-    const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : undefined
+    const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason, run.watched ?? []) : undefined
     const reason = finished === undefined ? delegateReason : finished.reason
     const unavailableUntil =
       delegateReason === 'rate-limited' || delegateReason === 'model-unavailable'
@@ -441,6 +461,12 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
    * its worktree unstaged, with no check run. The gateway never commits,
    * merges or pushes: the worktree and its branch are the caller's to take.
    *
+   * A worktree of the repository the run watches is held to the state its
+   * snapshot holds: one a delegate changed, or one that cannot be read when
+   * the run ends, makes the run fail with
+   * `foreign-worktree-change`, and the name of the worktree goes out beside
+   * the result.
+   *
    * The delegate has run by now, so a failure of the gateway's own (git cannot
    * stage or list, the check's output cannot be kept) is a failed run with its
    * reason, never an error that would lose the result, the output and the
@@ -450,10 +476,30 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     run: Delegation,
     input: WritingInput,
     delegateReason: string | undefined,
+    watched: readonly WatchedWorktree[],
   ): Promise<{ reason: string | undefined; report: WriteReport }> {
     const base = { branch: String(run.branch), worktree: run.workDir }
-    if (delegateReason !== undefined) return { reason: delegateReason, report: { ...base, staged_files: [] } }
-    const staged = await this.stage(run.workDir)
+    /**
+     * A change of another checkout is checked before the delegate's own
+     * failure: whatever went wrong inside the run, a checkout of the
+     * repository beside it changed, and that is what the result says first.
+     * The delegate's own work is staged as before, and only a delegate that
+     * did not finish leaves nothing staged.
+     */
+    const foreign = await this.foreignChange(watched)
+    const staged = delegateReason === undefined ? await this.stage(run.workDir) : undefined
+    if (foreign !== undefined) {
+      return {
+        reason: 'foreign-worktree-change',
+        report: {
+          ...base,
+          foreign_worktree: foreign.path,
+          staged_files: staged === undefined ? [] : staged.files,
+          ...(staged?.error === undefined ? {} : { worktree_error: staged.error }),
+        },
+      }
+    }
+    if (staged === undefined) return { reason: delegateReason, report: { ...base, staged_files: [] } }
     const check = await this.runCheck(run, input)
     if (check === undefined) return { reason: 'grant-expired', report: { ...base, staged_files: staged.files, ...(staged.error === undefined ? {} : { worktree_error: staged.error }) } }
     const failure = staged.error ?? check.outputError
@@ -484,6 +530,52 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     } catch (error) {
       return { error: messageOf(error), files: null, reason: 'stage-list-failed' }
     }
+  }
+
+  /**
+   * Every worktree of the repository but nothing of the run's own: where each
+   * stands before the delegate runs, so the run can hold every other checkout
+   * of the repository to the state the delegate found it in. Worktrees the
+   * gateway itself keeps for its runs — everything under the repository's
+   * common directory's `model-gateway/worktrees` — are not watched: they are
+   * this gateway's own workplaces, whose changes are its own work and never
+   * a change beside the run.
+   */
+  private async watchOthers(repo: string): Promise<readonly WatchedWorktree[]> {
+    let worktrees: readonly string[]
+    try {
+      worktrees = await this.deps.git.listWorktrees(repo)
+    } catch (error) {
+      throw new ModelGatewayError('worktree-failed', `${repo}: cannot list the worktrees to watch: ${messageOf(error)}`)
+    }
+    const common = await this.commonDir(repo)
+    const kept = join(common, 'model-gateway', 'worktrees')
+    const watched: WatchedWorktree[] = []
+    for (const path of worktrees) {
+      if (path === kept || path.startsWith(`${kept}${sep}`)) continue
+      try {
+        watched.push({ before: await this.deps.git.status(path), path })
+      } catch (error) {
+        throw new ModelGatewayError('worktree-failed', `${repo}: cannot read the status of ${path}: ${messageOf(error)}`)
+      }
+    }
+    return watched
+  }
+
+  /**
+   * The watched worktree that is no longer as it was found: its listing
+   * changed, or it cannot be read any more. The delegate has run by now, so
+   * this never throws; a worktree that went away counts as changed.
+   */
+  private async foreignChange(watched: readonly WatchedWorktree[]): Promise<WatchedWorktree | undefined> {
+    for (const one of watched) {
+      try {
+        if ((await this.deps.git.status(one.path)) !== one.before) return one
+      } catch {
+        return one
+      }
+    }
+    return undefined
   }
 
   /**
