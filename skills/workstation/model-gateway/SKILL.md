@@ -252,7 +252,7 @@ codex exec --json --skip-git-repo-check -m <model> \
 Codex runs non-interactively with its own sandbox: `-s read-only` for a
 read-only run and `-s workspace-write` for a writing one, so the sandbox is
 Codex's, not the gateway's. Its reasoning effort is the model id's last word
-(`gpt-5.5-high` is `high`), else `medium`. `--json` makes it print one event
+(`gpt-6.1-sol-high` is `high`), else `medium`. `--json` makes it print one event
 per line: the answer is the last `agent_message` item, and the tokens come from
 the `turn.completed` usage (`input_tokens` counts the cached ones too, which
 are reported separately). Codex prices nothing, so its dollars are the tokens
@@ -726,8 +726,11 @@ go to. It lives at `$XDG_CONFIG_HOME/agent-kit/critique-allowlist.json`, else
 
 - A repository with an entry lists only the client models whose family the
   entry names, and each reports the entry's `code` and `history` in `may_send`.
-- A repository with a remote but no entry, or with no remote, lists nothing and
-  `policy` says why.
+- A repository with a remote but no entry lists the personal default, derived
+  from the catalogue as it stands: every family a subsidised or
+  metered-personal client model serves, with code but without history. The
+  derived entry is never written to the file; a repository with no remote
+  lists nothing and `policy` says why.
 - A repository owned by the `nedap` GitHub organisation lists only Codex and
   Claude Code, whatever its entry says, with code and history allowed.
 - No `repo`, or a path outside any repository, lists only subsidised and

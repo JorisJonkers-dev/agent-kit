@@ -100,7 +100,7 @@ async function workspace(): Promise<Workspace> {
 }
 
 function request(overrides: Partial<EngineAuthorizeRequest> = {}): EngineAuthorizeRequest {
-  return { client: 'codex', model: 'gpt-5.5', prompt_chars: 3500, repo: REPO, workflow: 'run-1', ...overrides }
+  return { client: 'codex', model: 'gpt-6.1-sol', prompt_chars: 3500, repo: REPO, workflow: 'run-1', ...overrides }
 }
 
 async function refusal(promise: Promise<unknown>): Promise<{ code: string; message: string }> {
@@ -142,7 +142,7 @@ describe('EngineGuard.authorize', () => {
 
     const { reservation } = await w.guard.authorize(request())
 
-    expect(reservation).toMatchObject({ client: 'codex', cost_class: 'metered-employer', family: 'openai', model: 'gpt-5.5', workflow: 'run-1' })
+    expect(reservation).toMatchObject({ client: 'codex', cost_class: 'metered-employer', family: 'openai', model: 'gpt-6.1-sol', workflow: 'run-1' })
     expect(reservation.run_id).toMatch(/^20261104T105215Z-[0-9a-f]{6}$/u)
     expect(w.ledger.records.filter(isReservation)).toHaveLength(1)
     expect(w.ledger.records.find(isReservation)).toMatchObject({ client: 'codex', run_id: reservation.run_id, workflow: 'run-1' })
@@ -168,7 +168,7 @@ describe('EngineGuard.authorize', () => {
     const refused = await refusal(w.guard.authorize(request()))
 
     expect(refused.code).toBe('policy-refused')
-    expect(refused.message).toContain('codex:gpt-5.5 is not permitted')
+    expect(refused.message).toContain('codex:gpt-6.1-sol is not permitted')
   })
 
   it('refuses code to a repository whose entry does not let code leave', async () => {
@@ -312,7 +312,7 @@ describe('EngineGuard.authorize', () => {
 
   it('refuses a model the machine’s configuration disabled', async () => {
     const w = await workspace()
-    await w.writeOverride({ disabled: ['codex:gpt-5.5'] })
+    await w.writeOverride({ disabled: ['codex:gpt-6.1-sol'] })
 
     const refused = await refusal(w.guard.authorize(request()))
 
@@ -366,11 +366,11 @@ describe('EngineGuard.record', () => {
         at: '2026-11-04T10:52:15.000Z',
         client: 'codex',
         cost_class: 'metered-employer',
-        cost_usd: 0.02125,
+        cost_usd: 0.022,
         duration_s: 42,
         family: 'openai',
         mode: 'write',
-        model: 'gpt-5.5',
+        model: 'gpt-6.1-sol',
         outcome: 'ok',
         repository: KEY,
         run_id: reservation.run_id,
@@ -381,9 +381,9 @@ describe('EngineGuard.record', () => {
     ])
     const settled = w.ledger.records.filter(isSettled)
     expect(settled).toHaveLength(1)
-    expect(settled[0]).toMatchObject({ cost_usd: 0.02125, run_id: reservation.run_id })
+    expect(settled[0]).toMatchObject({ cost_usd: 0.022, run_id: reservation.run_id })
     const grants = await new GrantListCommand(w.deps).run({})
-    expect(grants.grants[0]).toMatchObject({ remaining_usd: 4.97875, reserved_usd: 0, spent_usd: 0.02125 })
+    expect(grants.grants[0]).toMatchObject({ remaining_usd: 4.978, reserved_usd: 0, spent_usd: 0.022 })
   })
 
   it('takes the cost the engine reported over a count of tokens', async () => {
@@ -608,7 +608,7 @@ describe('EngineGuard.reauthorize and the repository', () => {
   it('refuses to resume a run on a model the machine disabled since', async () => {
     const w = await workspace()
     const reservation = await leased(w)
-    await w.writeOverride({ disabled: ['codex:gpt-5.5'] })
+    await w.writeOverride({ disabled: ['codex:gpt-6.1-sol'] })
 
     expect((await refusal(w.guard.reauthorize({ reservation }))).code).toBe('unknown-model')
   })

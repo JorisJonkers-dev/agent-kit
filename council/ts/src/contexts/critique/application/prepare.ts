@@ -207,10 +207,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     }
     const repository = await this.repositories.resolve(input.repo)
     if (repository.status === 'refused') return repository
-    const entry = (await this.repositories.allowlist()).repositories[repository.key]
-    if (entry === undefined) {
-      return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
-    }
+    const entry = await this.repositories.entry(repository.key)
     if (isCodeStage(stage) && !entry.code) {
       return refusal(
         'code-not-allowed',

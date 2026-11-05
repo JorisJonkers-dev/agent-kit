@@ -23,7 +23,7 @@ describe('nodeEngineGuard', () => {
     const env = new FakeEnv({ HOME: home })
     const guard = nodeEngineGuard({ clock: new FixedClock(), defaultsPath: SHIPPED_DEFAULTS, env })
 
-    const refused = await guard.authorize({ client: 'codex', model: 'gpt-5.5', prompt_chars: 100, workflow: 'run-1' })
+    const refused = await guard.authorize({ client: 'codex', model: 'gpt-6.1-sol', prompt_chars: 100, workflow: 'run-1' })
       .then(() => undefined, (error: unknown) => (error as { code: string }).code)
     expect(refused).toBe('policy-refused')
 

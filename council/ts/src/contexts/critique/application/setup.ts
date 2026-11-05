@@ -504,20 +504,18 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
   private async repository(repo: string, routing: Routing): Promise<RepositorySetup> {
     const resolved = await this.repositories.resolve(repo)
     if (resolved.status === 'refused') return resolved
-    const entry = (await this.repositories.allowlist()).repositories[resolved.key]
+    const entry = await this.repositories.entry(resolved.key)
     const routed_families = [
       ...new Set(Object.values(routing.clients).map((client) => client.family)),
     ]
-    return entry === undefined
-      ? { code: false, families: [], history: false, key: resolved.key, routed_families, status: 'not-opted-in' }
-      : {
-          code: entry.code,
-          families: entry.families,
-          history: entry.history,
-          key: resolved.key,
-          routed_families,
-          status: 'opted-in',
-        }
+    return {
+      code: entry.code,
+      families: entry.families,
+      history: entry.history,
+      key: resolved.key,
+      routed_families,
+      status: 'opted-in',
+    }
   }
 
   private async agentHash(agent: string): Promise<string | null> {

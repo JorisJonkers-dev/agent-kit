@@ -345,12 +345,12 @@ describe('applyOverride', () => {
 
   it('overrides the tier, notes and family of a model it names', () => {
     const merged = applyOverride(shipped(), {
-      models: [{ client: 'codex', family: 'openai-internal', model: 'gpt-5.5', notes: 'grant needed', tier: 'hard' }],
+      models: [{ client: 'codex', family: 'moonshot', model: 'gpt-5.5', notes: 'grant needed', tier: 'hard' }],
     })
 
     expect(merged.models).toEqual([
       { client: 'claude', family: 'anthropic', model: 'claude-sonnet-5-5', notes: 'general', tier: 'hard' },
-      { client: 'codex', family: 'openai-internal', model: 'gpt-5.5', notes: 'grant needed', tier: 'hard' },
+      { client: 'codex', family: 'moonshot', model: 'gpt-5.5', notes: 'grant needed', tier: 'hard' },
     ])
   })
 

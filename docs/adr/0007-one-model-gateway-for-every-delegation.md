@@ -58,3 +58,23 @@ MCP wrapper can come later on top of the command.
   runs per workflow (default $2) and per day (default $5). The gateway
   reserves each run's estimate against both caps, as it does for grants, and
   refuses a run that does not fit either.
+
+## The personal default, settled 2026-11-05
+
+A repository with a remote whose owner is not `nedap` no longer needs a
+recorded allowlist entry before anything may be sent. When no entry is
+recorded, both readers of the file hold the repository to the same derived
+entry: the gateway to every family a subsidised or metered-personal client
+model serves, computed from its catalogue as it stands; critique to every
+family a critic can come from. Both carry code and not history. The entry is
+computed at read time and never written; an entry the owner records always
+wins over it, so a recorded entry narrows rather than opens.
+
+This replaces the earlier rule that a repository with a remote but no entry
+sends nothing (spec story 61, issue #295), which made every personal
+repository a manual, hand-maintained step — and a hand-written entry could
+fail validation or overwrite other repositories' entries, which is what
+broke the critique pipeline on 2026-11-05. The owner asked for personal
+repositories to be dynamic the way `nedap` ones already were. The `nedap`
+rule, the no-remote rule, and the code and history permissions are
+unchanged.

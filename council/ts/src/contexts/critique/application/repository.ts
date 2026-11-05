@@ -1,4 +1,4 @@
-import { EMPTY_ALLOWLIST, identifyRepository, parseAllowlist, type FamilyAllowlist } from '../domain/family-allowlist.js'
+import { DEFAULT_PERSONAL_ENTRY, EMPTY_ALLOWLIST, identifyRepository, parseAllowlist, type AllowlistEntry, type FamilyAllowlist } from '../domain/family-allowlist.js'
 import type { Refusal } from '../domain/outcomes.js'
 import { readJsonFile } from './decode.js'
 import { allowlistPath } from './locations.js'
@@ -32,5 +32,14 @@ export class RepositoryGate {
     const path = allowlistPath(this.deps.env)
     if (!(await this.deps.files.exists(path))) return EMPTY_ALLOWLIST
     return readJsonFile(this.deps.files, path, 'invalid-allowlist', parseAllowlist)
+  }
+
+  /**
+   * The entry the pipeline holds the repository to: the one this machine
+   * recorded for it, or the personal default (every critic family, code but
+   * no history) when none is recorded.
+   */
+  async entry(key: string): Promise<AllowlistEntry> {
+    return (await this.allowlist()).repositories[key] ?? DEFAULT_PERSONAL_ENTRY
   }
 }

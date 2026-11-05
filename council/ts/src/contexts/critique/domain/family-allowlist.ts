@@ -1,5 +1,5 @@
 import { DENIED_OWNER, identifyRepository as identify, type GitRemote } from '../../../shared-kernel/index.js'
-import { ALLOWLIST_FAMILIES, type AllowlistFamily } from './family.js'
+import { ALLOWLIST_FAMILIES, MODEL_FAMILIES, type AllowlistFamily } from './family.js'
 import { JsonFields } from './json.js'
 import { refusal, type Refusal } from './outcomes.js'
 
@@ -44,6 +44,21 @@ export interface FamilyAllowlist {
 }
 
 export const EMPTY_ALLOWLIST: FamilyAllowlist = { version: 1, repositories: {} }
+
+/**
+ * The entry a repository its owner controls is held to when this machine has
+ * recorded none for it: every family a critic can come from, with code but
+ * without history. It is never written to the file; a recorded entry always
+ * wins over it, and a `nedap` repository never reaches it — its remote
+ * refuses it before an entry is asked for. The model gateway gives an
+ * unrecorded personal repository the same shape, derived from its catalogue.
+ */
+export const DEFAULT_PERSONAL_ENTRY: AllowlistEntry = {
+  code: true,
+  families: [...MODEL_FAMILIES],
+  history: false,
+  updated_at: 'never recorded; the personal default applies',
+}
 
 /** Reads the allowlist file; an entry naming a family no client serves does not parse. */
 export function parseAllowlist(text: string): FamilyAllowlist {

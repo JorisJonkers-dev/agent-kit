@@ -229,6 +229,27 @@ function processExitCode(code) {
   return 124;
 }
 
+// src/shared-kernel/families.ts
+var KNOWN_FAMILIES = [
+  "mistral",
+  "zhipu",
+  "deepseek",
+  "google",
+  "anthropic",
+  "openai",
+  "alibaba",
+  "moonshot",
+  "xiaomi",
+  "minimax",
+  "xai",
+  "tencent",
+  "meituan",
+  "stepfun"
+];
+function isKnownFamily(family) {
+  return KNOWN_FAMILIES.includes(family);
+}
+
 // src/shared-kernel/git-remote.ts
 var DENIED_OWNER = "nedap";
 function parseRemote(url) {
@@ -261,7 +282,7 @@ function identifyRepository(remotes) {
 // src/contexts/critique/domain/family.ts
 var MODEL_FAMILIES = ["mistral", "zhipu", "deepseek", "google"];
 var ORCHESTRATOR_FAMILIES = ["anthropic", "openai", ...MODEL_FAMILIES];
-var ALLOWLIST_FAMILIES = [...MODEL_FAMILIES, "anthropic", "openai"];
+var ALLOWLIST_FAMILIES = KNOWN_FAMILIES;
 
 // src/contexts/critique/domain/json.ts
 function isJsonObject(value) {
@@ -443,6 +464,12 @@ function identifyRepository2(remotes) {
   return { key: identity.key, status: "identified" };
 }
 var EMPTY_ALLOWLIST = { version: 1, repositories: {} };
+var DEFAULT_PERSONAL_ENTRY = {
+  code: true,
+  families: [...MODEL_FAMILIES],
+  history: false,
+  updated_at: "never recorded; the personal default applies"
+};
 function parseAllowlist(text) {
   const file = JsonFields.parse(text);
   return {
@@ -551,6 +578,14 @@ var RepositoryGate = class {
     const path = allowlistPath(this.deps.env);
     if (!await this.deps.files.exists(path)) return EMPTY_ALLOWLIST;
     return readJsonFile(this.deps.files, path, "invalid-allowlist", parseAllowlist);
+  }
+  /**
+   * The entry the pipeline holds the repository to: the one this machine
+   * recorded for it, or the personal default (every critic family, code but
+   * no history) when none is recorded.
+   */
+  async entry(key2) {
+    return (await this.allowlist()).repositories[key2] ?? DEFAULT_PERSONAL_ENTRY;
   }
 };
 
@@ -1626,6 +1661,9 @@ function parseModelEntry(raw, index, base) {
   const prices = raw.prices === void 0 ? base?.prices : parseModelPrices(raw.prices, `${where}.prices`);
   if (family === void 0 || tier === void 0 || notes === void 0) {
     throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`);
+  }
+  if (!isKnownFamily(family)) {
+    throw invalid(`${where}.family ("${family}") is not a known family: ${KNOWN_FAMILIES.join(", ")}`);
   }
   const names = raw.names === void 0 ? base?.names : requireStrings(raw.names, `${where}.names`);
   return {
@@ -6745,11 +6783,9 @@ var GateCommand = class {
     if (invocation.cwd === null) throw new Error("the command line does not say which directory the command runs in");
     const repository = await this.repositories.resolve(invocation.cwd);
     if (repository.status === "refused") return allowed(gate, repository.reason === "nedap" ? "nedap" : "no-remote");
-    const allowlist = await this.repositories.allowlist().catch((error) => {
+    const entry = await this.repositories.entry(repository.key).catch((error) => {
       throw new UnreadableState(error instanceof Error ? error.message : String(error));
     });
-    const entry = allowlist.repositories[repository.key];
-    if (entry === void 0) return allowed(gate, "not-opted-in");
     if (!entry.code) return allowed(gate, "code-not-allowed");
     if (!await this.activeFlow(repository)) return allowed(gate, "no-active-flow");
     if (invocation.kind === "commit") return this.commitGate(repository, invocation.widened);
@@ -7733,10 +7769,7 @@ var PrepareCommand = class {
     }
     const repository = await this.repositories.resolve(input.repo);
     if (repository.status === "refused") return repository;
-    const entry = (await this.repositories.allowlist()).repositories[repository.key];
-    if (entry === void 0) {
-      return refusal("not-opted-in", `${repository.key} has no family allowlist entry on this machine; record one with allow`);
-    }
+    const entry = await this.repositories.entry(repository.key);
     if (isCodeStage(stage) && !entry.code) {
       return refusal(
         "code-not-allowed",
@@ -8821,7 +8854,6 @@ var SessionStartCommand = class {
     const cwd = JsonFields.of(raw, "the session-start payload").string("cwd");
     const repository = await this.repositories.resolve(cwd);
     if (repository.status === "refused") return silent(repository.reason === "nedap" ? "nedap" : "no-remote");
-    if ((await this.repositories.allowlist()).repositories[repository.key] === void 0) return silent("not-opted-in");
     const checks = setupChecklist((await this.routing.load()).clients).filter((check) => check.kind !== "read-only");
     const resultsPath = setupResultsPath(this.deps.env);
     const results = await this.deps.files.exists(resultsPath) ? parseSetupResults(await this.deps.files.readText(resultsPath)) : EMPTY_SETUP_RESULTS;
@@ -9406,11 +9438,11 @@ var SetupCommand = class {
   async repository(repo, routing) {
     const resolved = await this.repositories.resolve(repo);
     if (resolved.status === "refused") return resolved;
-    const entry = (await this.repositories.allowlist()).repositories[resolved.key];
+    const entry = await this.repositories.entry(resolved.key);
     const routed_families = [
       ...new Set(Object.values(routing.clients).map((client) => client.family))
     ];
-    return entry === void 0 ? { code: false, families: [], history: false, key: resolved.key, routed_families, status: "not-opted-in" } : {
+    return {
       code: entry.code,
       families: entry.families,
       history: entry.history,
@@ -9905,8 +9937,7 @@ var TriageCommand = class {
       decision: "risky",
       signal: { detail, kind: "model-unavailable", reason }
     });
-    const entry = (await this.repositories.allowlist()).repositories[repository.key];
-    if (entry === void 0) return unavailable("not-opted-in", `${repository.key} has no family allowlist entry on this machine`);
+    const entry = await this.repositories.entry(repository.key);
     if (!entry.code) return unavailable("code-not-allowed", `${repository.key} allows documents but not code`);
     if (!entry.families.includes(config.family)) {
       return unavailable("family-not-allowed", `${repository.key} does not allow the ${config.family} family`);

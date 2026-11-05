@@ -46,7 +46,10 @@ afterEach(async () => {
 })
 
 /** The defaults agent-kit ships, which the bundle reads from its own folder. */
-const SHIPPED_DEFAULTS = join(import.meta.dirname, '../../../../skills/workstation/model-gateway/defaults.json')
+const SHIPPED_DEFAULTS = join(
+  import.meta.dirname,
+  '../../../../skills/workstation/model-gateway/defaults.json',
+)
 
 /** What `agy models` prints: a fetching line, then one `<id>\t<display name>` per model. */
 const AGY_LISTING: ProcessResult = {
@@ -72,13 +75,19 @@ const OPENCODE_LISTING: ProcessResult = {
     'opencode-go/glm-5.3',
     'opencode-go/kimi-k3',
     'other/gemini-4-argon',
-    'opencode-go/hy3',
+    'opencode-go/beam-free',
     '',
   ].join('\n'),
 }
 
 /** What `models` lists for Vibe with the shipped catalogue and no configured model. */
-const VIBE_CATALOGUE_LISTED = ['vibe:deepseek-v4-1-flash-1017', 'vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-small-latest']
+const VIBE_CATALOGUE_LISTED = [
+  'vibe:deepseek-v4-1-flash-1017',
+  'vibe:glm-5-3',
+  'vibe:mistral-large-latest',
+  'vibe:mistral-small-latest',
+  'vibe:zai-glm-5-3-flash',
+]
 
 /** What `models` lists for Vibe with the configuration below: its three models and the catalogue entries it does not declare. */
 const VIBE_LISTED_WITH_CONFIG = [
@@ -87,13 +96,20 @@ const VIBE_LISTED_WITH_CONFIG = [
   'vibe:mistral-large-latest',
   'vibe:mistral-medium-4-1',
   'vibe:mistral-small-latest',
+  'vibe:zai-glm-5-3-flash',
 ]
 
 /** An OpenCode listing with Zen and other providers beside one OpenCode Go model. */
 const OPENCODE_LISTING_WITH_OTHER_PROVIDERS: ProcessResult = {
   exitCode: 0,
   stderr: '',
-  stdout: ['opencode/glm-5.3', 'opencode-go/glm-5.3', 'other/gemini-4-argon', 'openrouter/hy3', ''].join('\n'),
+  stdout: [
+    'opencode/glm-5.3',
+    'opencode-go/glm-5.3',
+    'other/gemini-4-argon',
+    'openrouter/hy3',
+    '',
+  ].join('\n'),
 }
 
 /** The OpenCode Go models the owner's plan offers. */
@@ -203,7 +219,9 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
   const runtime = defaultModelGatewayRuntime({
     clock: new FixedClock(),
     defaultsPath: defaults,
-    env: new FakeEnv(options.withoutHome === true ? { ...options.env } : { HOME: home, ...options.env }),
+    env: new FakeEnv(
+      options.withoutHome === true ? { ...options.env } : { HOME: home, ...options.env },
+    ),
     git: new FakeGit(options.repositories ?? {}),
     process,
   })
@@ -220,7 +238,10 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
     run: (...argv) => runModelGatewayCli(argv, runtime),
     writeAllowlist: async (value) => {
       await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
-      await writeFile(join(home, '.config', 'agent-kit', 'critique-allowlist.json'), JSON.stringify(value))
+      await writeFile(
+        join(home, '.config', 'agent-kit', 'critique-allowlist.json'),
+        JSON.stringify(value),
+      )
     },
     writeDefaults: (text) => writeFile(defaults, text),
     writeInput: async (name, text) => {
@@ -234,7 +255,10 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
     },
     writeOverride: async (value) => {
       await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
-      await writeFile(join(home, '.config', 'agent-kit', 'model-gateway.json'), JSON.stringify(value))
+      await writeFile(
+        join(home, '.config', 'agent-kit', 'model-gateway.json'),
+        JSON.stringify(value),
+      )
     },
     writeVibeConfig: async (text) => {
       const path = join(home, '.vibe', 'config.toml')
@@ -283,7 +307,10 @@ function model(result: ModelGatewayCliResult, key: string): Record<string, unkno
   return found
 }
 /** One listed model, as the run printed it, or undefined when the run left it out. */
-function maybeModel(result: ModelGatewayCliResult, key: string): Record<string, unknown> | undefined {
+function maybeModel(
+  result: ModelGatewayCliResult,
+  key: string,
+): Record<string, unknown> | undefined {
   const models = printed(result).models as { client: string; model: string }[]
   return models.find((entry) => `${entry.client}:${entry.model}` === key)
 }
@@ -291,7 +318,10 @@ function maybeModel(result: ModelGatewayCliResult, key: string): Record<string, 
 /** The repository the tests work in, and the remote that keys it. */
 const REPO = '/work/agent-kit'
 const KEY = 'github.com/jorisjonkers-dev/agent-kit'
-const AGENT_KIT_REMOTE: GitRemote = { name: 'origin', url: 'git@github.com:JorisJonkers-dev/agent-kit.git' }
+const AGENT_KIT_REMOTE: GitRemote = {
+  name: 'origin',
+  url: 'git@github.com:JorisJonkers-dev/agent-kit.git',
+}
 
 function repository(remotes: readonly GitRemote[] = [AGENT_KIT_REMOTE]): FakeRepository {
   return { remotes, root: REPO }
@@ -299,7 +329,10 @@ function repository(remotes: readonly GitRemote[] = [AGENT_KIT_REMOTE]): FakeRep
 
 /** An allowlist file with one entry for the test repository. */
 function allowlist(families: readonly string[], code = false, history = false): unknown {
-  return { repositories: { [KEY]: { code, families, history, updated_at: '2026-11-04T00:00:00.000Z' } }, version: 1 }
+  return {
+    repositories: { [KEY]: { code, families, history, updated_at: '2026-11-04T00:00:00.000Z' } },
+    version: 1,
+  }
 }
 
 describe('model-gateway models', () => {
@@ -358,8 +391,9 @@ describe('model-gateway models', () => {
           family: 'openai',
           inline_only: false,
           may_send: { code: true, history: true },
-          model: 'gpt-5.5',
-          notes: 'Strong implementation and review; metered on the nedap account, grant needed.',
+          model: 'gpt-6.1-sol',
+          notes:
+            'Current Codex CLI default; strong implementation and review. Metered on the nedap account, grant needed.',
           source: 'declared',
           tier: 'frontier',
         },
@@ -378,7 +412,12 @@ describe('model-gateway models', () => {
     const result = await w.run('models', '--input', input)
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+      'codex:gpt-6.1-sol',
+    ])
   })
 
   it('asks PATH about every client it knows, and runs no client it does not have to', async () => {
@@ -402,7 +441,11 @@ describe('model-gateway models', () => {
       { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
       { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
     ])
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 
   it('lists no model when no client is installed, and names every client it knows', async () => {
@@ -429,17 +472,37 @@ describe('model-gateway models', () => {
       disabled: ['claude:claude-haiku-5-5'],
       models: [
         { client: 'claude', model: 'claude-sonnet-5-5', notes: 'the one to use', tier: 'frontier' },
-        { client: 'claude', family: 'anthropic', model: 'claude-opus-5-6', notes: 'newer', tier: 'frontier' },
+        {
+          client: 'claude',
+          family: 'anthropic',
+          model: 'claude-opus-5-6',
+          notes: 'newer',
+          tier: 'frontier',
+        },
       ],
       settings: { summary_max_chars: 500 },
     })
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
-    expect(listed(result)).toEqual(['claude:claude-opus-5-5', 'claude:claude-opus-5-6', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
-    const models = printed(result).models as { client: string; cost_class: string; model: string; notes: string; tier: string }[]
-    expect(models.find((entry) => entry.model === 'gpt-5.5')?.cost_class).toBe('subsidised')
-    expect(models.find((entry) => entry.model === 'claude-sonnet-5-5')).toMatchObject({ notes: 'the one to use', tier: 'frontier' })
+    expect(listed(result)).toEqual([
+      'claude:claude-opus-5-5',
+      'claude:claude-opus-5-6',
+      'claude:claude-sonnet-5-5',
+      'codex:gpt-6.1-sol',
+    ])
+    const models = printed(result).models as {
+      client: string
+      cost_class: string
+      model: string
+      notes: string
+      tier: string
+    }[]
+    expect(models.find((entry) => entry.model === 'gpt-6.1-sol')?.cost_class).toBe('subsidised')
+    expect(models.find((entry) => entry.model === 'claude-sonnet-5-5')).toMatchObject({
+      notes: 'the one to use',
+      tier: 'frontier',
+    })
   })
 
   it('reads the override from XDG_CONFIG_HOME when it is set', async () => {
@@ -447,11 +510,18 @@ describe('model-gateway models', () => {
     const xdg = join(tmpdir(), 'model-gateway-xdg', 'agent-kit')
     cleanups.push(() => rm(join(tmpdir(), 'model-gateway-xdg'), { force: true, recursive: true }))
     await mkdir(xdg, { recursive: true })
-    await writeFile(join(xdg, 'model-gateway.json'), JSON.stringify({ disabled: ['codex:gpt-5.5'] }))
+    await writeFile(
+      join(xdg, 'model-gateway.json'),
+      JSON.stringify({ disabled: ['codex:gpt-6.1-sol'] }),
+    )
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 
   it('reports an override that is not JSON as invalid-config, naming the file', async () => {
@@ -492,7 +562,7 @@ describe('model-gateway models', () => {
 
   it('reports an override behind a directory it may not enter as invalid-config, naming the file', async () => {
     const w = await workspace()
-    await w.writeOverride({ disabled: ['codex:gpt-5.5'] })
+    await w.writeOverride({ disabled: ['codex:gpt-6.1-sol'] })
     const folder = join(w.home, '.config', 'agent-kit')
     await chmod(folder, 0o000)
     cleanups.push(() => chmod(folder, 0o755))
@@ -534,7 +604,11 @@ describe('the data policy', () => {
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
     expect(printed(result).policy).toBe(`${KEY}: the entry allows anthropic`)
   })
 
@@ -544,17 +618,31 @@ describe('the data policy', () => {
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
-    expect(maybeModel(result, 'claude:claude-opus-5-5')).toMatchObject({ inline_only: false, may_send: { code: true, history: false } })
+    expect(maybeModel(result, 'claude:claude-opus-5-5')).toMatchObject({
+      inline_only: false,
+      may_send: { code: true, history: false },
+    })
   })
 
-  it('lists nothing for a repository with a remote but no entry, and says why', async () => {
+  it('lists the personal default for a repository with a remote but no entry, and says why', async () => {
     const w = await workspace({ repositories: { [REPO]: repository() } })
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual([])
-    expect(printed(result).policy).toBe(`${KEY} has no allowlist entry, so nothing is sent`)
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+      'codex:gpt-6.1-sol',
+    ])
+    expect(maybeModel(result, 'claude:claude-opus-5-5')).toMatchObject({
+      inline_only: false,
+      may_send: { code: true, history: false },
+    })
+    expect(printed(result).policy).toBe(
+      `${KEY} has no allowlist entry: the personal default applies, every subsidised and metered-personal family, with code but no history`,
+    )
   })
 
   it('lists nothing for a repository with no remote, and says why', async () => {
@@ -569,29 +657,59 @@ describe('the data policy', () => {
 
   it('lists only Codex and Claude Code for a nedap repository, whatever its entry says', async () => {
     const w = await workspace({
-      repositories: { [REPO]: repository([{ name: 'origin', url: 'git@github.com:Nedap/widgets.git' }]) },
+      repositories: {
+        [REPO]: repository([{ name: 'origin', url: 'git@github.com:Nedap/widgets.git' }]),
+      },
     })
     await w.writeAllowlist(allowlist(['mistral']))
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
-    expect(maybeModel(result, 'codex:gpt-5.5')).toMatchObject({ inline_only: false, may_send: { code: true, history: true } })
-    expect(printed(result).policy).toBe('a nedap repository: only Codex and Claude Code, with code and history')
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+      'codex:gpt-6.1-sol',
+    ])
+    expect(maybeModel(result, 'codex:gpt-6.1-sol')).toMatchObject({
+      inline_only: false,
+      may_send: { code: true, history: true },
+    })
+    expect(printed(result).policy).toBe(
+      'a nedap repository: only Codex and Claude Code, with code and history',
+    )
   })
 
   it('lists only subsidised and metered-personal client models outside any repository, marked inline-only', async () => {
     const w = await workspace({ installed: ['claude', 'codex', 'hermes'] })
     await w.writeOverride({
       clients: { hermes: { model_source: 'declared' } },
-      models: [{ client: 'hermes', family: 'mistral', model: 'hermes-4', notes: 'Metered on the owner account.', tier: 'routine' }],
+      models: [
+        {
+          client: 'hermes',
+          family: 'mistral',
+          model: 'hermes-4',
+          notes: 'Metered on the owner account.',
+          tier: 'routine',
+        },
+      ],
     })
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', 'hermes:hermes-4'])
-    expect(maybeModel(result, 'hermes:hermes-4')).toMatchObject({ inline_only: true, may_send: { code: false, history: false } })
-    expect(printed(result).policy).toBe('no repository: only inline content, to subsidised and metered-personal clients')
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+      'hermes:hermes-4',
+    ])
+    expect(maybeModel(result, 'hermes:hermes-4')).toMatchObject({
+      inline_only: true,
+      may_send: { code: false, history: false },
+    })
+    expect(printed(result).policy).toBe(
+      'no repository: only inline content, to subsidised and metered-personal clients',
+    )
   })
 
   it('treats a path outside any repository as outside', async () => {
@@ -599,7 +717,11 @@ describe('the data policy', () => {
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: '/tmp/nowhere' }))
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
     expect(maybeModel(result, 'claude:claude-opus-5-5')).toMatchObject({ inline_only: true })
   })
 
@@ -607,12 +729,22 @@ describe('the data policy', () => {
     const xdg = join(tmpdir(), 'model-gateway-allowlist-xdg')
     cleanups.push(() => rm(xdg, { force: true, recursive: true }))
     await mkdir(join(xdg, 'agent-kit'), { recursive: true })
-    await writeFile(join(xdg, 'agent-kit', 'critique-allowlist.json'), JSON.stringify(allowlist(['anthropic'])))
-    const w = await workspace({ env: { XDG_CONFIG_HOME: xdg }, repositories: { [REPO]: repository() } })
+    await writeFile(
+      join(xdg, 'agent-kit', 'critique-allowlist.json'),
+      JSON.stringify(allowlist(['anthropic'])),
+    )
+    const w = await workspace({
+      env: { XDG_CONFIG_HOME: xdg },
+      repositories: { [REPO]: repository() },
+    })
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 
   it('reports an allowlist that is not JSON as invalid-config, naming the file', async () => {
@@ -629,18 +761,25 @@ describe('the data policy', () => {
 
   it('reports an allowlist entry that does not fit as invalid-config, naming the file', async () => {
     const w = await workspace({ repositories: { [REPO]: repository() } })
-    await w.writeAllowlist({ repositories: { [KEY]: { code: 'yes', families: ['anthropic'], updated_at: 'x' } }, version: 1 })
+    await w.writeAllowlist({
+      repositories: { [KEY]: { code: 'yes', families: ['anthropic'], updated_at: 'x' } },
+      version: 1,
+    })
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
 
     expect(result.exitCode).toBe(1)
     expect(printed(result)).toMatchObject({ code: 'invalid-config', status: 'error' })
-    expect(String(printed(result).message)).toBe(`${w.allowlist}: repositories.${KEY}.code must be true or false`)
+    expect(String(printed(result).message)).toBe(
+      `${w.allowlist}: repositories.${KEY}.code must be true or false`,
+    )
   })
 
-  it('fails with repository-unreadable when git cannot read the path, naming it and git\'s message', async () => {
+  it("fails with repository-unreadable when git cannot read the path, naming it and git's message", async () => {
     const w = await workspace({
-      repositories: { [REPO]: { error: "fatal: detected dubious ownership in repository at '/work/agent-kit'" } },
+      repositories: {
+        [REPO]: { error: "fatal: detected dubious ownership in repository at '/work/agent-kit'" },
+      },
     })
 
     const result = await w.run('models', '--json', JSON.stringify({ repo: REPO }))
@@ -658,7 +797,11 @@ describe('the data policy', () => {
     const result = await w.run('models', '--json', JSON.stringify({ repo: 7 }))
 
     expect(result.exitCode).toBe(1)
-    expect(printed(result)).toMatchObject({ code: 'invalid-input', message: 'repo must be a non-empty string', status: 'error' })
+    expect(printed(result)).toMatchObject({
+      code: 'invalid-input',
+      message: 'repo must be a non-empty string',
+      status: 'error',
+    })
   })
 })
 
@@ -668,17 +811,40 @@ describe('the shipped defaults', () => {
 
     expect(shipped).toEqual({
       clients: {
-        agy: { binary: 'agy', cost_class: 'subsidised', families: ['google'], model_source: 'live' },
-        claude: { binary: 'claude', cost_class: 'subsidised', model_source: 'declared' },
-        codex: { binary: 'codex', cost_class: 'metered-employer', model_source: 'declared' },
-        hermes: { binary: 'hermes', cost_class: 'metered-personal', model_source: 'config' },
+        agy: {
+          binary: 'agy',
+          cost_class: 'subsidised',
+          families: ['google'],
+          model_source: 'live',
+        },
+        claude: {
+          binary: 'claude',
+          cost_class: 'subsidised',
+          model_source: 'declared',
+        },
+        codex: {
+          binary: 'codex',
+          cost_class: 'metered-employer',
+          model_source: 'declared',
+        },
+        hermes: {
+          binary: 'hermes',
+          cost_class: 'metered-personal',
+          model_source: 'config',
+        },
         opencode: {
           binary: 'opencode',
           cost_class: 'metered-personal',
           model_source: 'live',
-          provider_cost_classes: { 'opencode-go': 'subsidised' },
+          provider_cost_classes: {
+            'opencode-go': 'subsidised',
+          },
         },
-        vibe: { binary: 'vibe', cost_class: 'subsidised', model_source: 'config' },
+        vibe: {
+          binary: 'vibe',
+          cost_class: 'subsidised',
+          model_source: 'config',
+        },
       },
       models: [
         {
@@ -705,9 +871,14 @@ describe('the shipped defaults', () => {
         {
           client: 'codex',
           family: 'openai',
-          model: 'gpt-5.5',
-          notes: 'Strong implementation and review; metered on the nedap account, grant needed.',
-          prices: { cached_input: 0.125, input: 1.25, output: 10 },
+          model: 'gpt-6.1-sol',
+          notes:
+            'Current Codex CLI default; strong implementation and review. Metered on the nedap account, grant needed.',
+          prices: {
+            cached_input: 0.1,
+            input: 2,
+            output: 10,
+          },
           tier: 'frontier',
         },
         {
@@ -715,7 +886,11 @@ describe('the shipped defaults', () => {
           family: 'deepseek',
           model: 'deepseek-v4-1-flash-1017',
           notes: 'Cheap and quick; good at well-specified code changes and lint-like review.',
-          prices: { cached_input: 0.03, input: 0.3, output: 1.2 },
+          prices: {
+            cached_input: 0.03,
+            input: 0.3,
+            output: 1.2,
+          },
           tier: 'routine',
         },
         {
@@ -724,8 +899,24 @@ describe('the shipped defaults', () => {
           model: 'glm-5-3',
           names: ['zai-glm-5-3'],
           notes: 'Strong code review and integration reasoning.',
-          prices: { cached_input: 0.14, input: 1.4, output: 4.4 },
+          prices: {
+            cached_input: 0.14,
+            input: 1.4,
+            output: 4.4,
+          },
           tier: 'hard',
+        },
+        {
+          client: 'vibe',
+          family: 'zhipu',
+          model: 'zai-glm-5-3-flash',
+          notes: 'Fast GLM; small-diff review and well-specified changes at flash prices.',
+          prices: {
+            cached_input: 0.03,
+            input: 0.15,
+            output: 0.5,
+          },
+          tier: 'routine',
         },
         {
           client: 'vibe',
@@ -733,7 +924,11 @@ describe('the shipped defaults', () => {
           model: 'mistral-large-latest',
           names: ['mistral-large-4-0'],
           notes: 'Broad general model.',
-          prices: { cached_input: 0.07, input: 0.7, output: 2.1 },
+          prices: {
+            cached_input: 0.07,
+            input: 0.7,
+            output: 2.1,
+          },
           tier: 'hard',
         },
         {
@@ -742,7 +937,11 @@ describe('the shipped defaults', () => {
           model: 'mistral-small-latest',
           names: ['mistral-small-latest'],
           notes: 'Very cheap; short summaries and classification.',
-          prices: { cached_input: 0.015, input: 0.15, output: 0.6 },
+          prices: {
+            cached_input: 0.015,
+            input: 0.15,
+            output: 0.6,
+          },
           tier: 'trivial',
         },
         {
@@ -777,7 +976,8 @@ describe('the shipped defaults', () => {
           client: 'opencode',
           family: 'deepseek',
           model: 'opencode-go/deepseek-v4-pro',
-          notes: 'Strong coding and reasoning; larger DeepSeek on OpenCode Go. Needs the privacy region of the account set to Global.',
+          notes:
+            'Strong coding and reasoning; larger DeepSeek on OpenCode Go. Needs the privacy region of the account set to Global.',
           tier: 'hard',
         },
         {
@@ -798,7 +998,8 @@ describe('the shipped defaults', () => {
           client: 'opencode',
           family: 'deepseek',
           model: 'opencode-go/deepseek-v4.1-flash',
-          notes: 'Cheap and quick; well-specified code changes on OpenCode Go. Needs the privacy region of the account set to Global.',
+          notes:
+            'Cheap and quick; well-specified code changes on OpenCode Go. Needs the privacy region of the account set to Global.',
           tier: 'routine',
         },
         {
@@ -822,13 +1023,81 @@ describe('the shipped defaults', () => {
           notes: 'Xiaomi’s MiMo flash variant, new on the plan; untried as a delegate.',
           tier: 'routine',
         },
+        {
+          client: 'opencode',
+          family: 'xiaomi',
+          model: 'opencode-go/mimo-v2.6-pro',
+          notes:
+            'Xiaomi’s MiMo pro variant; large-model reasoning on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'tencent',
+          model: 'opencode-go/hy3',
+          notes: 'Tencent Hunyuan 3 flagship MoE on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'tencent',
+          model: 'opencode-go/hy4-preview',
+          notes:
+            'Tencent Hunyuan 4 preview, the 770B MoE flagship; on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'meituan',
+          model: 'opencode-go/longcat-2.0',
+          notes:
+            'Meituan LongCat 2.0, the trillion-parameter flagship; on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'stepfun',
+          model: 'opencode-go/step-5-preview',
+          notes:
+            'StepFun Step 5 preview, flagship for agentic work; on OpenCode Go. Untried as a delegate.',
+          tier: 'hard',
+        },
+        {
+          client: 'opencode',
+          family: 'openai',
+          model: 'opencode-go/gpt-6-luna',
+          notes: 'OpenAI’s small GPT-6 model via OpenCode Go; pricey on the plan, use sparingly.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'moonshot',
+          model: 'opencode-go/kimi-k2.7-code',
+          notes: 'Kimi code-tuned flash; routine code work on OpenCode Go.',
+          tier: 'routine',
+        },
+        {
+          client: 'opencode',
+          family: 'minimax',
+          model: 'opencode-go/minimax-m3.1-flash',
+          notes: 'MiniMax flash variant; routine work on OpenCode Go. Untried as a delegate.',
+          tier: 'routine',
+        },
       ],
       settings: {
         availability_window_minutes: 60,
         max_batch_delegations: 50,
         max_parallel_per_client: 3,
-        metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 2 },
-        output_allowance_tokens: { frontier: 16000, hard: 6000, routine: 2000, trivial: 500 },
+        metered_personal_caps: {
+          per_day_usd: 5,
+          per_workflow_usd: 2,
+        },
+        output_allowance_tokens: {
+          frontier: 16000,
+          hard: 6000,
+          routine: 2000,
+          trivial: 500,
+        },
         plan_warning_ratio: 0.8,
         summary_max_chars: 1500,
       },
@@ -900,7 +1169,11 @@ describe('model-gateway command line', () => {
     const result = await w.run('models', '--json', '[]')
 
     expect(result.exitCode).toBe(1)
-    expect(printed(result)).toMatchObject({ code: 'invalid-input', message: 'the input must be a JSON object', status: 'error' })
+    expect(printed(result)).toMatchObject({
+      code: 'invalid-input',
+      message: 'the input must be a JSON object',
+      status: 'error',
+    })
   })
 
   it('refuses an input file it cannot read, naming the file', async () => {
@@ -986,7 +1259,11 @@ describe('models: the clients whose models the gateway declares', () => {
     const result = await w.run('models', '--input', input)
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 
   it('asks PATH about every client it knows, and runs no client it does not have to', async () => {
@@ -1010,7 +1287,11 @@ describe('models: the clients whose models the gateway declares', () => {
       { client: 'opencode', reason: 'not installed: opencode is not on PATH' },
       { client: 'vibe', reason: 'not installed: vibe is not on PATH' },
     ])
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 
   it('leaves out an installed client whose listing cannot be run, and names it with the reason', async () => {
@@ -1032,17 +1313,37 @@ describe('models: the clients whose models the gateway declares', () => {
       disabled: ['claude:claude-haiku-5-5'],
       models: [
         { client: 'claude', model: 'claude-sonnet-5-5', notes: 'the one to use', tier: 'frontier' },
-        { client: 'claude', family: 'anthropic', model: 'claude-opus-5-6', notes: 'newer', tier: 'frontier' },
+        {
+          client: 'claude',
+          family: 'anthropic',
+          model: 'claude-opus-5-6',
+          notes: 'newer',
+          tier: 'frontier',
+        },
       ],
       settings: { summary_max_chars: 500 },
     })
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['claude:claude-opus-5-5', 'claude:claude-opus-5-6', 'claude:claude-sonnet-5-5', 'codex:gpt-5.5'])
-    const models = printed(result).models as { client: string; cost_class: string; model: string; notes: string; tier: string }[]
-    expect(models.find((entry) => entry.model === 'gpt-5.5')?.cost_class).toBe('subsidised')
-    expect(models.find((entry) => entry.model === 'claude-sonnet-5-5')).toMatchObject({ notes: 'the one to use', tier: 'frontier' })
+    expect(listed(result)).toEqual([
+      'claude:claude-opus-5-5',
+      'claude:claude-opus-5-6',
+      'claude:claude-sonnet-5-5',
+      'codex:gpt-6.1-sol',
+    ])
+    const models = printed(result).models as {
+      client: string
+      cost_class: string
+      model: string
+      notes: string
+      tier: string
+    }[]
+    expect(models.find((entry) => entry.model === 'gpt-6.1-sol')?.cost_class).toBe('subsidised')
+    expect(models.find((entry) => entry.model === 'claude-sonnet-5-5')).toMatchObject({
+      notes: 'the one to use',
+      tier: 'frontier',
+    })
   })
 
   it('reads the override from XDG_CONFIG_HOME when it is set', async () => {
@@ -1050,11 +1351,18 @@ describe('models: the clients whose models the gateway declares', () => {
     const xdg = join(tmpdir(), 'model-gateway-xdg', 'agent-kit')
     cleanups.push(() => rm(join(tmpdir(), 'model-gateway-xdg'), { force: true, recursive: true }))
     await mkdir(xdg, { recursive: true })
-    await writeFile(join(xdg, 'model-gateway.json'), JSON.stringify({ disabled: ['codex:gpt-5.5'] }))
+    await writeFile(
+      join(xdg, 'model-gateway.json'),
+      JSON.stringify({ disabled: ['codex:gpt-6.1-sol'] }),
+    )
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 
   it('reports an override that is not JSON as invalid-config, naming the file', async () => {
@@ -1095,7 +1403,7 @@ describe('models: the clients whose models the gateway declares', () => {
 
   it('reports an override behind a directory it may not enter as invalid-config, naming the file', async () => {
     const w = await workspace()
-    await w.writeOverride({ disabled: ['codex:gpt-5.5'] })
+    await w.writeOverride({ disabled: ['codex:gpt-6.1-sol'] })
     const folder = join(w.home, '.config', 'agent-kit')
     await chmod(folder, 0o000)
     cleanups.push(() => chmod(folder, 0o755))
@@ -1187,8 +1495,15 @@ describe('models: Antigravity, read from its own listing', () => {
     const result = await w.run('models', '--json', '{}')
 
     expect(result.exitCode).toBe(0)
-    expect(printed(result).missing).toContainEqual({ client: 'agy', reason: 'listing failed: agy models exited 1: not signed in' })
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(printed(result).missing).toContainEqual({
+      client: 'agy',
+      reason: 'listing failed: agy models exited 1: not signed in',
+    })
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 
   it('leaves the client out with the reason when its listing cannot be run at all', async () => {
@@ -1196,7 +1511,10 @@ describe('models: Antigravity, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(printed(result).missing).toContainEqual({ client: 'agy', reason: 'listing failed: agy models: cannot run agy' })
+    expect(printed(result).missing).toContainEqual({
+      client: 'agy',
+      reason: 'listing failed: agy models: cannot run agy',
+    })
   })
 })
 
@@ -1219,8 +1537,17 @@ describe('models: Vibe, read from its own configuration', () => {
       source: 'config',
       tier: 'hard',
     })
-    expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({ family: 'mistral', notes: '', source: 'config', tier: null })
-    expect(model(result, 'vibe:mistral-small-latest')).toMatchObject({ family: 'mistral', source: 'declared', tier: 'trivial' })
+    expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({
+      family: 'mistral',
+      notes: '',
+      source: 'config',
+      tier: null,
+    })
+    expect(model(result, 'vibe:mistral-small-latest')).toMatchObject({
+      family: 'mistral',
+      source: 'declared',
+      tier: 'trivial',
+    })
   })
 
   it('lists the catalogue entries for Vibe, marked declared, when its configuration declares nothing', async () => {
@@ -1230,14 +1557,26 @@ describe('models: Vibe, read from its own configuration', () => {
     const result = await w.run('models', '--json', '{}')
 
     expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
-    expect(models(result).map((entry) => entry.source)).toEqual(['declared', 'declared', 'declared', 'declared'])
-    expect(model(result, 'vibe:glm-5-3')).toMatchObject({ family: 'zhipu', notes: 'Strong code review and integration reasoning.', tier: 'hard' })
+    expect(models(result).map((entry) => entry.source)).toEqual([
+      'declared',
+      'declared',
+      'declared',
+      'declared',
+      'declared',
+    ])
+    expect(model(result, 'vibe:glm-5-3')).toMatchObject({
+      family: 'zhipu',
+      notes: 'Strong code review and integration reasoning.',
+      tier: 'hard',
+    })
     expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
   })
 
   it('lists a catalogue entry its configuration declares once, marked config, and the rest declared', async () => {
     const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+    await w.writeVibeConfig(
+      '[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n',
+    )
 
     const result = await w.run('models', '--json', '{}')
 
@@ -1247,12 +1586,15 @@ describe('models: Vibe, read from its own configuration', () => {
       ['glm-5-3', 'config'],
       ['mistral-large-latest', 'declared'],
       ['mistral-small-latest', 'declared'],
+      ['zai-glm-5-3-flash', 'declared'],
     ])
   })
 
   it('lists a model once, by its alias, when the catalogue knows it by the name its configuration gives it', async () => {
     const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+    await w.writeVibeConfig(
+      '[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n',
+    )
 
     const result = await w.run('models', '--json', '{}')
 
@@ -1266,7 +1608,9 @@ describe('models: Vibe, read from its own configuration', () => {
 
   it('lists a model whose alias and name both miss the catalogue with no tier', async () => {
     const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig('[models.new]\nname = "mistral-medium-4-1"\nprovider = "mistral"\nalias = "medium"\n')
+    await w.writeVibeConfig(
+      '[models.new]\nname = "mistral-medium-4-1"\nprovider = "mistral"\nalias = "medium"\n',
+    )
 
     const result = await w.run('models', '--json', '{}')
 
@@ -1275,7 +1619,10 @@ describe('models: Vibe, read from its own configuration', () => {
   })
 
   it('reads the configuration from VIBE_HOME when it is set', async () => {
-    const w = await workspace({ env: { VIBE_HOME: join(tmpdir(), 'model-gateway-vibe-home') }, installed: ['vibe'] })
+    const w = await workspace({
+      env: { VIBE_HOME: join(tmpdir(), 'model-gateway-vibe-home') },
+      installed: ['vibe'],
+    })
     const home = join(tmpdir(), 'model-gateway-vibe-home')
     cleanups.push(() => rm(home, { force: true, recursive: true }))
     await mkdir(home, { recursive: true })
@@ -1295,7 +1642,12 @@ describe('models: Vibe, read from its own configuration', () => {
       client: 'vibe',
       reason: `no configuration: ${join(w.home, '.vibe', 'config.toml')} is not there`,
     })
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', ...VIBE_CATALOGUE_LISTED])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+      ...VIBE_CATALOGUE_LISTED,
+    ])
   })
 
   it('names the reason when it cannot tell where its configuration is, and still lists the others and its catalogue entries', async () => {
@@ -1308,10 +1660,16 @@ describe('models: Vibe, read from its own configuration', () => {
     const result = await w.run('models', '--json', '{}')
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', ...VIBE_CATALOGUE_LISTED])
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+      ...VIBE_CATALOGUE_LISTED,
+    ])
     expect(printed(result).missing).toContainEqual({
       client: 'vibe',
-      reason: 'configuration unreadable: ~/.vibe/config.toml: required environment variable is missing: HOME',
+      reason:
+        'configuration unreadable: ~/.vibe/config.toml: required environment variable is missing: HOME',
     })
   })
 
@@ -1356,28 +1714,44 @@ describe('models: OpenCode, read from its own listing', () => {
   })
 
   it('never lists a model of a provider outside the allowlist, Zen included, and does not report it as skipped or missing', async () => {
-    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING_WITH_OTHER_PROVIDERS } })
+    const w = await workspace({
+      installed: ['opencode'],
+      listings: { opencode: OPENCODE_LISTING_WITH_OTHER_PROVIDERS },
+    })
 
     const result = await w.run('models', '--json', '{}')
 
     expect(listed(result)).toEqual(['opencode:opencode-go/glm-5.3'])
     expect(printed(result).skipped).toEqual([])
-    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'opencode' }))
+    expect(printed(result).missing).not.toContainEqual(
+      expect.objectContaining({ client: 'opencode' }),
+    )
   })
 
   it('lists the models of a provider the machine file allows, at the client cost class, and still never the Zen ones', async () => {
-    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING_WITH_OTHER_PROVIDERS } })
-    await w.writeOverride({ clients: { opencode: { providers: ['opencode-go', 'opencode', 'other'] } } })
+    const w = await workspace({
+      installed: ['opencode'],
+      listings: { opencode: OPENCODE_LISTING_WITH_OTHER_PROVIDERS },
+    })
+    await w.writeOverride({
+      clients: { opencode: { providers: ['opencode-go', 'opencode', 'other'] } },
+    })
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(['opencode:opencode-go/glm-5.3', 'opencode:other/gemini-4-argon'])
+    expect(listed(result)).toEqual([
+      'opencode:opencode-go/glm-5.3',
+      'opencode:other/gemini-4-argon',
+    ])
     expect(model(result, 'opencode:opencode-go/glm-5.3').cost_class).toBe('subsidised')
     expect(model(result, 'opencode:other/gemini-4-argon').cost_class).toBe('metered-personal')
   })
 
   it('gives every OpenCode Go model the owner’s plan offers a tier, and lists none of them tierless', async () => {
-    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_GO_LISTING } })
+    const w = await workspace({
+      installed: ['opencode'],
+      listings: { opencode: OPENCODE_GO_LISTING },
+    })
 
     const result = await w.run('models', '--json', '{}')
 
@@ -1395,33 +1769,36 @@ describe('models: OpenCode, read from its own listing', () => {
   })
 
   it('lists the OpenCode Go models the catalogue gives a family and a tier, and keeps the rest skipped with what is missing', async () => {
-    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_GO_PLAN_LISTING } })
+    const w = await workspace({
+      installed: ['opencode'],
+      listings: { opencode: OPENCODE_GO_PLAN_LISTING },
+    })
 
     const result = await w.run('models', '--json', '{}')
 
     expect(models(result).map((entry) => [entry.model, entry.family, entry.tier])).toEqual([
       ['opencode-go/deepseek-v4-pro', 'deepseek', 'hard'],
       ['opencode-go/glm-5.3-flash', 'zhipu', 'routine'],
-      ['opencode-go/gpt-6-luna', 'openai', null],
-      ['opencode-go/kimi-k2.7-code', 'moonshot', null],
+      ['opencode-go/gpt-6-luna', 'openai', 'routine'],
+      ['opencode-go/hy3', 'tencent', 'hard'],
+      ['opencode-go/hy4-preview', 'tencent', 'hard'],
+      ['opencode-go/kimi-k2.7-code', 'moonshot', 'routine'],
+      ['opencode-go/longcat-2.0', 'meituan', 'hard'],
       ['opencode-go/mimo-v2.6-flash', 'xiaomi', 'routine'],
-      ['opencode-go/minimax-m3.1-flash', 'minimax', null],
+      ['opencode-go/mimo-v2.6-pro', 'xiaomi', 'hard'],
+      ['opencode-go/minimax-m3.1-flash', 'minimax', 'routine'],
       ['opencode-go/qwen3.8-flash', 'alibaba', 'routine'],
+      ['opencode-go/step-5-preview', 'stepfun', 'hard'],
     ])
-    expect(model(result, 'opencode:opencode-go/deepseek-v4-pro').notes).toContain('privacy region of the account set to Global')
+    expect(model(result, 'opencode:opencode-go/deepseek-v4-pro').notes).toContain(
+      'privacy region of the account set to Global',
+    )
     expect(printed(result).skipped).toEqual(
-      [
-        'opencode-go/beam-free',
-        'opencode-go/hy3',
-        'opencode-go/hy4-preview',
-        'opencode-go/iceman-contributor-free',
-        'opencode-go/longcat-2.0',
-        'opencode-go/mimo-v2.6-pro',
-        'opencode-go/step-5-preview',
-      ].map((m) => ({
+      ['opencode-go/beam-free', 'opencode-go/iceman-contributor-free'].map((m) => ({
         client: 'opencode',
         model: m,
-        reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
+        reason:
+          'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       })),
     )
   })
@@ -1440,7 +1817,9 @@ describe('models: OpenCode, read from its own listing', () => {
 
   it('takes the cost class the machine file sets for a provider over the shipped one', async () => {
     const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING } })
-    await w.writeOverride({ clients: { opencode: { provider_cost_classes: { 'opencode-go': 'metered-employer' } } } })
+    await w.writeOverride({
+      clients: { opencode: { provider_cost_classes: { 'opencode-go': 'metered-employer' } } },
+    })
 
     const result = await w.run('models', '--json', '{}')
 
@@ -1452,12 +1831,13 @@ describe('models: OpenCode, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).not.toContain('opencode:opencode-go/hy3')
+    expect(listed(result)).not.toContain('opencode:opencode-go/beam-free')
     expect(printed(result).skipped).toEqual([
       {
         client: 'opencode',
-        model: 'opencode-go/hy3',
-        reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
+        model: 'opencode-go/beam-free',
+        reason:
+          'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
     ])
   })
@@ -1467,7 +1847,10 @@ describe('models: OpenCode, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(printed(result).missing).toContainEqual({ client: 'opencode', reason: 'listing failed: opencode models: cannot run opencode' })
+    expect(printed(result).missing).toContainEqual({
+      client: 'opencode',
+      reason: 'listing failed: opencode models: cannot run opencode',
+    })
   })
 
   it('leaves the client out with the reason when its listing fails, and still lists the others', async () => {
@@ -1478,8 +1861,15 @@ describe('models: OpenCode, read from its own listing', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(printed(result).missing).toContainEqual({ client: 'opencode', reason: 'listing failed: opencode models exited 2' })
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(printed(result).missing).toContainEqual({
+      client: 'opencode',
+      reason: 'listing failed: opencode models exited 2',
+    })
+    expect(listed(result)).toEqual([
+      'claude:claude-haiku-5-5',
+      'claude:claude-opus-5-5',
+      'claude:claude-sonnet-5-5',
+    ])
   })
 })
 
@@ -1489,7 +1879,9 @@ function journal(text: string): string {
 }
 
 /** What Vibe writes to `export.json`: its token counts, and its own figure when it priced the run. */
-function exported(options: { cost?: number; cached?: number; input?: number; output?: number } = {}): unknown {
+function exported(
+  options: { cost?: number; cached?: number; input?: number; output?: number } = {},
+): unknown {
   return {
     ...(options.cost === undefined ? {} : { cost_usd: options.cost }),
     usage: {
@@ -1573,8 +1965,13 @@ interface RunWorkspaceOptions {
  * every climb and fall-through pool they check.
  */
 async function shippedWithoutOpenCode(): Promise<string> {
-  const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as { models: { client: string }[] }
-  return JSON.stringify({ ...shipped, models: shipped.models.filter((entry) => entry.client !== 'opencode') })
+  const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as {
+    models: { client: string }[]
+  }
+  return JSON.stringify({
+    ...shipped,
+    models: shipped.models.filter((entry) => entry.client !== 'opencode'),
+  })
 }
 
 /** A gateway wired to a fake Vibe, a temporary home and state directory, and a routing file of its own. */
@@ -1588,7 +1985,9 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
   const defaults = join(dir, 'defaults.json')
   await writeFile(
     defaults,
-    options.defaults === undefined ? await shippedWithoutOpenCode() : JSON.stringify(options.defaults),
+    options.defaults === undefined
+      ? await shippedWithoutOpenCode()
+      : JSON.stringify(options.defaults),
   )
   const routingPath = join(dir, 'routing.json')
   await writeFile(routingPath, JSON.stringify(options.routing ?? ROUTING))
@@ -1643,16 +2042,21 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
     state,
     vibe,
     workflows: join(state, 'agent-kit', 'model-gateway', 'workflows.json'),
-    writeAllowlist: (value) => write(join(home, '.config', 'agent-kit', 'critique-allowlist.json'), value),
+    writeAllowlist: (value) =>
+      write(join(home, '.config', 'agent-kit', 'critique-allowlist.json'), value),
     writeLedger: async (records) => {
       const path = join(state, 'agent-kit', 'model-gateway', 'ledger.jsonl')
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, records.map((record) => `${JSON.stringify(record)}\n`).join(''))
     },
-    writeOverride: (value) => write(join(home, '.config', 'agent-kit', 'model-gateway.json'), value),
-    writeRoutingOverride: (value) => write(join(home, '.config', 'agent-kit', 'critique-routing.json'), value),
-    writeSetup: (value) => write(join(home, '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json'), value),
-    writeWorkflows: (value) => write(join(state, 'agent-kit', 'model-gateway', 'workflows.json'), value),
+    writeOverride: (value) =>
+      write(join(home, '.config', 'agent-kit', 'model-gateway.json'), value),
+    writeRoutingOverride: (value) =>
+      write(join(home, '.config', 'agent-kit', 'critique-routing.json'), value),
+    writeSetup: (value) =>
+      write(join(home, '.local', 'share', 'agent-kit', 'critique', 'machine-setup.json'), value),
+    writeWorkflows: (value) =>
+      write(join(state, 'agent-kit', 'model-gateway', 'workflows.json'), value),
   }
   if (options.allowlist !== undefined) await w.writeAllowlist(options.allowlist)
   if (options.override !== undefined) await w.writeOverride(options.override)
@@ -1661,10 +2065,17 @@ async function runWorkspace(options: RunWorkspaceOptions = {}): Promise<RunWorks
 }
 
 /** A workspace whose one run is permitted, proven and scripted to answer `text`. */
-async function readyRun(options: RunWorkspaceOptions & { readonly text?: string } = {}): Promise<RunWorkspace> {
+async function readyRun(
+  options: RunWorkspaceOptions & { readonly text?: string } = {},
+): Promise<RunWorkspace> {
   return runWorkspace({
     allowlist: allowlist(['zhipu'], true, true),
-    scripts: [{ exportJson: exported({ cost: 0.0123, input: 100 }), stdout: journal(options.text ?? 'the answer\nSUMMARY: it is fine') }],
+    scripts: [
+      {
+        exportJson: exported({ cost: 0.0123, input: 100 }),
+        stdout: journal(options.text ?? 'the answer\nSUMMARY: it is fine'),
+      },
+    ],
     setupResults: setupResults('pass'),
     ...options,
   })
@@ -1688,7 +2099,11 @@ describe('model-gateway run: the input', () => {
     const result = await w.run(w.input({ workflow: undefined }))
 
     expect(result.exitCode).toBe(1)
-    expect(printed(result)).toEqual({ code: 'invalid-input', message: 'a run must name its workflow', status: 'error' })
+    expect(printed(result)).toEqual({
+      code: 'invalid-input',
+      message: 'a run must name its workflow',
+      status: 'error',
+    })
     expect(w.vibe.commands).toEqual([])
   })
 
@@ -1701,7 +2116,9 @@ describe('model-gateway run: the input', () => {
   })
 
   it('refuses a client the configuration does not declare', async () => {
-    const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as { clients: Record<string, unknown> }
+    const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as {
+      clients: Record<string, unknown>
+    }
     delete shipped.clients.vibe
     const w = await readyRun({ defaults: shipped })
 
@@ -1718,7 +2135,8 @@ describe('model-gateway run: the input', () => {
 
     expect(printed(await w.run(w.input({ model: 'unknown-model-1' })))).toMatchObject({
       code: 'unknown-model',
-      message: 'vibe:unknown-model-1 is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override',
+      message:
+        'vibe:unknown-model-1 is not a model the gateway can place: add it to the catalogue in defaults.json or the machine override',
     })
     expect(printed(await w.run(w.input({ model: 'mistral-large-4-0' })))).toMatchObject({
       code: 'unknown-model',
@@ -1753,22 +2171,29 @@ describe('model-gateway run: the data policy, before anything is launched', () =
   it('refuses history the entry does not allow, and runs when it does', async () => {
     const refused = await readyRun({ allowlist: allowlist(['zhipu'], true, false) })
 
-    expect(printed(await refused.run(refused.input({ carries: { code: true, history: true } })))).toMatchObject({
+    expect(
+      printed(await refused.run(refused.input({ carries: { code: true, history: true } }))),
+    ).toMatchObject({
       code: 'policy-refused',
       message: `vibe:glm-5-3 may not carry history: ${KEY}: the entry allows zhipu`,
     })
     expect(refused.vibe.commands).toEqual([])
 
     const allowed = await readyRun({ allowlist: allowlist(['zhipu'], true, true) })
-    expect(printed(await allowed.run(allowed.input({ carries: { code: true, history: true } }))).status).toBe('ok')
+    expect(
+      printed(await allowed.run(allowed.input({ carries: { code: true, history: true } }))).status,
+    ).toBe('ok')
   })
 
   it('refuses an inline run that claims code, and runs one that claims nothing', async () => {
     const w = await readyRun()
 
-    expect(printed(await w.run(w.input({ carries: { code: true, history: false }, repo: undefined })))).toMatchObject({
+    expect(
+      printed(await w.run(w.input({ carries: { code: true, history: false }, repo: undefined }))),
+    ).toMatchObject({
       code: 'policy-refused',
-      message: 'vibe:glm-5-3 may not carry code: no repository: only inline content, to subsidised and metered-personal clients',
+      message:
+        'vibe:glm-5-3 may not carry code: no repository: only inline content, to subsidised and metered-personal clients',
     })
     expect(w.vibe.commands).toEqual([])
 
@@ -1778,13 +2203,18 @@ describe('model-gateway run: the data policy, before anything is launched', () =
   it('refuses a nedap repository, which may reach only Codex and Claude Code', async () => {
     const w = await readyRun({
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [{ name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }], root: repo },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [{ name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }],
+          root: repo,
+        },
       }),
     })
 
     expect(printed(await w.run(w.input()))).toMatchObject({
       code: 'policy-refused',
-      message: 'vibe:glm-5-3 is not permitted: a nedap repository: only Codex and Claude Code, with code and history',
+      message:
+        'vibe:glm-5-3 is not permitted: a nedap repository: only Codex and Claude Code, with code and history',
     })
     expect(w.vibe.commands).toEqual([])
   })
@@ -1801,7 +2231,9 @@ describe('model-gateway run: the data policy, before anything is launched', () =
   })
 
   it('refuses a path git cannot read, naming the path and git’s message', async () => {
-    const w = await readyRun({ repositories: (repo) => ({ [repo]: { error: 'fatal: detected dubious ownership' } }) })
+    const w = await readyRun({
+      repositories: (repo) => ({ [repo]: { error: 'fatal: detected dubious ownership' } }),
+    })
 
     expect(printed(await w.run(w.input()))).toEqual({
       code: 'repository-unreadable',
@@ -1813,7 +2245,10 @@ describe('model-gateway run: the data policy, before anything is launched', () =
 })
 
 /** Asserts that a Vibe run worked in a throwaway worktree of the repository, which is gone afterwards. */
-async function expectThrowawayVibeRun(w: RunWorkspace, result: ModelGatewayCliResult): Promise<void> {
+async function expectThrowawayVibeRun(
+  w: RunWorkspace,
+  result: ModelGatewayCliResult,
+): Promise<void> {
   expect(printed(result).status).toBe('ok')
   const [command] = w.vibe.commands
   const workDir = String(command?.cwd)
@@ -1867,7 +2302,9 @@ describe('model-gateway run: the read-only proof', () => {
   })
 
   it('runs in a throwaway worktree when the routing runs no client on any of the alias’s names', async () => {
-    const w = await readyRun({ routing: { clients: { 'vibe-glm': { kind: 'vibe', model: 'zai-glm-6-0' } } } })
+    const w = await readyRun({
+      routing: { clients: { 'vibe-glm': { kind: 'vibe', model: 'zai-glm-6-0' } } },
+    })
 
     await expectThrowawayVibeRun(w, await w.run(w.input()))
   })
@@ -1966,7 +2403,11 @@ describe('model-gateway run: extras', () => {
     const result = await w.run(w.input({ extras: { sandbox: 'read-only' } }))
 
     expect(result.exitCode).toBe(1)
-    expect(printed(result)).toEqual({ code: 'invalid-input', message: 'extras are for in-process callers only', status: 'error' })
+    expect(printed(result)).toEqual({
+      code: 'invalid-input',
+      message: 'extras are for in-process callers only',
+      status: 'error',
+    })
     expect(w.vibe.commands).toEqual([])
   })
 })
@@ -1974,7 +2415,12 @@ describe('model-gateway run: extras', () => {
 describe('model-gateway run: the result', () => {
   it('prints the short result: status, run id, client model, tokens, cost, output path and summary', async () => {
     const w = await readyRun({
-      scripts: [{ exportJson: exported({ cached: 10, cost: 0.0123, input: 100, output: 20 }), stdout: journal('the answer\nSUMMARY: it is fine') }],
+      scripts: [
+        {
+          exportJson: exported({ cached: 10, cost: 0.0123, input: 100, output: 20 }),
+          stdout: journal('the answer\nSUMMARY: it is fine'),
+        },
+      ],
     })
 
     const result = await w.run(w.input())
@@ -1982,7 +2428,9 @@ describe('model-gateway run: the result', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stderr).toBe('')
     expect(printed(result)).toEqual({
-      attempts: [{ client: 'vibe', model: 'glm-5-3', run_id: printed(result).run_id, status: 'ok' }],
+      attempts: [
+        { client: 'vibe', model: 'glm-5-3', run_id: printed(result).run_id, status: 'ok' },
+      ],
       client: 'vibe',
       cost_usd: 0.0123,
       family: 'zhipu',
@@ -1999,10 +2447,16 @@ describe('model-gateway run: the result', () => {
   })
 
   it('cuts the summary at summary_max_chars, and falls back to the last characters of the answer', async () => {
-    const cut = await readyRun({ override: { settings: { summary_max_chars: 5 } }, text: 'SUMMARY: 0123456789' })
+    const cut = await readyRun({
+      override: { settings: { summary_max_chars: 5 } },
+      text: 'SUMMARY: 0123456789',
+    })
     expect(printed(await cut.run(cut.input())).summary).toBe('01234')
 
-    const fallback = await readyRun({ override: { settings: { summary_max_chars: 5 } }, text: '0123456789' })
+    const fallback = await readyRun({
+      override: { settings: { summary_max_chars: 5 } },
+      text: '0123456789',
+    })
     expect(printed(await fallback.run(fallback.input())).summary).toBe('56789')
   })
 
@@ -2022,11 +2476,19 @@ describe('model-gateway run: the result', () => {
 
     const result = await w.run(w.input())
 
-    expect(printed(result)).toMatchObject({ cost_usd: 0, status: 'ok', tokens: { cached: 0, input: 0, output: 0 } })
+    expect(printed(result)).toMatchObject({
+      cost_usd: 0,
+      status: 'ok',
+      tokens: { cached: 0, input: 0, output: 0 },
+    })
   })
 
   it('counts the dollars at the catalogue price when Vibe priced nothing', async () => {
-    const w = await readyRun({ scripts: [{ exportJson: exported({ input: 1_000_000, output: 1_000_000 }), stdout: journal('done') }] })
+    const w = await readyRun({
+      scripts: [
+        { exportJson: exported({ input: 1_000_000, output: 1_000_000 }), stdout: journal('done') },
+      ],
+    })
 
     expect(printed(await w.run(w.input())).cost_usd).toBeCloseTo(1.4 + 4.4, 10)
   })
@@ -2042,15 +2504,26 @@ describe('model-gateway run: the run directory', () => {
     expect(await readFile(join(runDir, 'prompt.md'), 'utf8')).toBe(
       'read this\n\nEnd your answer with a line "SUMMARY:" followed by at most 1500 characters that summarise the result.',
     )
-    expect(JSON.parse(await readFile(join(runDir, 'input.json'), 'utf8'))).toEqual({ ...(w.input() as object), time_limit_s: 900 })
-    expect(await readFile(join(runDir, 'output.json'), 'utf8')).toBe(journal('the answer\nSUMMARY: it is fine'))
-    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
+    expect(JSON.parse(await readFile(join(runDir, 'input.json'), 'utf8'))).toEqual({
+      ...(w.input() as object),
+      time_limit_s: 900,
+    })
+    expect(await readFile(join(runDir, 'output.json'), 'utf8')).toBe(
+      journal('the answer\nSUMMARY: it is fine'),
+    )
+    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toEqual(
+      withoutAttempts(result),
+    )
   })
 
   it('refuses a repository whose common directory git cannot name', async () => {
     const w = await readyRun({
       repositories: (repo) => ({
-        [repo]: { commonDirError: 'fatal: not a git repository', remotes: [AGENT_KIT_REMOTE], root: repo },
+        [repo]: {
+          commonDirError: 'fatal: not a git repository',
+          remotes: [AGENT_KIT_REMOTE],
+          root: repo,
+        },
       }),
     })
 
@@ -2067,7 +2540,13 @@ describe('model-gateway run: the run directory', () => {
 
     const result = await w.run(w.input({ repo: undefined }))
 
-    const runDir = join(w.state, 'agent-kit', 'model-gateway', 'runs', String(printed(result).run_id))
+    const runDir = join(
+      w.state,
+      'agent-kit',
+      'model-gateway',
+      'runs',
+      String(printed(result).run_id),
+    )
     expect(printed(result).output_path).toBe(join(runDir, 'output.json'))
     expect(await readFile(join(runDir, 'prompt.md'), 'utf8')).toContain('read this')
   })
@@ -2112,7 +2591,12 @@ describe('model-gateway run: the ledger', () => {
 
   it('never interleaves a line when two runs append at once', async () => {
     const w = await readyRun()
-    w.vibe.queue(...Array.from({ length: 7 }, () => ({ exportJson: exported({ cost: 0.01 }), stdout: journal('done') })))
+    w.vibe.queue(
+      ...Array.from({ length: 7 }, () => ({
+        exportJson: exported({ cost: 0.01 }),
+        stdout: journal('done'),
+      })),
+    )
 
     const results = await Promise.all(Array.from({ length: 8 }, () => w.run(w.input())))
 
@@ -2150,7 +2634,10 @@ describe('model-gateway run: a failed run', () => {
   it('reports a launch that cannot start at all', async () => {
     const w = await readyRun({ scripts: [] })
 
-    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'launch-failed', status: 'failed' })
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      reason: 'launch-failed',
+      status: 'failed',
+    })
   })
 })
 
@@ -2175,7 +2662,12 @@ function claudeResult(result: string, extra: Readonly<Record<string, unknown>> =
     subtype: 'success',
     total_cost_usd: 0.042,
     type: 'result',
-    usage: { cache_creation_input_tokens: 20, cache_read_input_tokens: 300, input_tokens: 10, output_tokens: 40 },
+    usage: {
+      cache_creation_input_tokens: 20,
+      cache_read_input_tokens: 300,
+      input_tokens: 10,
+      output_tokens: 40,
+    },
     ...extra,
   })
 }
@@ -2213,7 +2705,10 @@ function openCodeStepFinish(
 
 /** A gateway whose run is permitted for every family the clients here serve, with the proofs and scripts the test names. */
 function clientRun(options: RunWorkspaceOptions = {}): Promise<RunWorkspace> {
-  return runWorkspace({ allowlist: allowlist(['anthropic', 'google', 'zhipu'], true, true), ...options })
+  return runWorkspace({
+    allowlist: allowlist(['anthropic', 'google', 'zhipu'], true, true),
+    ...options,
+  })
 }
 
 /** The proof of the Antigravity critic client, as setup records it. */
@@ -2227,7 +2722,10 @@ describe('model-gateway run: Antigravity', () => {
   const MODEL = 'gemini-3.8-flash-high'
 
   it('runs a read-only delegation in print mode in plan mode, with its model, effort, JSON output and time limit', async () => {
-    const w = await clientRun({ scripts: [{ stdout: agyResult('looks fine\nSUMMARY: all good') }], setupResults: AGY_PROVEN })
+    const w = await clientRun({
+      scripts: [{ stdout: agyResult('looks fine\nSUMMARY: all good') }],
+      setupResults: AGY_PROVEN,
+    })
 
     const result = await w.run(w.input({ client: 'agy', model: MODEL, time_limit_s: 120 }))
 
@@ -2264,11 +2762,18 @@ describe('model-gateway run: Antigravity', () => {
     await w.run(w.input({ client: 'agy', model: 'gemini-3.8-flash-medium' }))
     await w.run(w.input({ client: 'agy', model: 'gemini-4-pro' }))
 
-    expect(w.vibe.commands.map((command) => flag(command, '--effort'))).toEqual(['low', 'medium', 'medium'])
+    expect(w.vibe.commands.map((command) => flag(command, '--effort'))).toEqual([
+      'low',
+      'medium',
+      'medium',
+    ])
   })
 
   it('reports the result and the ledger line in the shape a Vibe run does', async () => {
-    const w = await clientRun({ scripts: [{ stdout: agyResult('looks fine\nSUMMARY: all good') }], setupResults: AGY_PROVEN })
+    const w = await clientRun({
+      scripts: [{ stdout: agyResult('looks fine\nSUMMARY: all good') }],
+      setupResults: AGY_PROVEN,
+    })
 
     const result = await w.run(w.input({ client: 'agy', model: MODEL }))
 
@@ -2286,7 +2791,9 @@ describe('model-gateway run: Antigravity', () => {
       tokens: { cached: 100, input: 7661, output: 29 },
       workflow: 'spec-293',
     })
-    expect(await readFile(join(runDirOf(w, result), 'output.json'), 'utf8')).toBe(agyResult('looks fine\nSUMMARY: all good'))
+    expect(await readFile(join(runDirOf(w, result), 'output.json'), 'utf8')).toBe(
+      agyResult('looks fine\nSUMMARY: all good'),
+    )
     expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toEqual({
       at: expect.any(String) as unknown,
       client: 'agy',
@@ -2306,12 +2813,21 @@ describe('model-gateway run: Antigravity', () => {
 
   it('counts the dollars at the catalogue price when the model has one, as agy prices nothing', async () => {
     const w = await clientRun({
-      override: { models: [{ client: 'agy', model: MODEL, prices: { cached_input: 0, input: 1, output: 2 } }] },
-      scripts: [{ stdout: agyResult('x', { usage: { input_tokens: 1_000_000, output_tokens: 1_000_000 } }) }],
+      override: {
+        models: [{ client: 'agy', model: MODEL, prices: { cached_input: 0, input: 1, output: 2 } }],
+      },
+      scripts: [
+        {
+          stdout: agyResult('x', { usage: { input_tokens: 1_000_000, output_tokens: 1_000_000 } }),
+        },
+      ],
       setupResults: AGY_PROVEN,
     })
 
-    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).cost_usd).toBeCloseTo(3, 10)
+    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).cost_usd).toBeCloseTo(
+      3,
+      10,
+    )
   })
 
   it('runs in place when its read-only proof as the Gemini critic passed', async () => {
@@ -2339,7 +2855,11 @@ describe('model-gateway run: Antigravity', () => {
     const w = await clientRun({
       scripts: [
         { stdout: agyResult('partial', { finished_reason: 'print_timeout' }) },
-        { stdout: agyResult('tried', { denied_actions: [{ action: 'write_file', display_name: 'Write' }] }) },
+        {
+          stdout: agyResult('tried', {
+            denied_actions: [{ action: 'write_file', display_name: 'Write' }],
+          }),
+        },
         { stdout: agyResult('boom', { status: 'ERROR' }) },
         { stdout: agyResult('  ') },
         { stdout: 'not json' },
@@ -2353,7 +2873,14 @@ describe('model-gateway run: Antigravity', () => {
       reasons.push(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).reason)
     }
 
-    expect(reasons).toEqual(['timeout', 'denied-action', 'client-error', 'parse-error', 'parse-error', 'parse-error'])
+    expect(reasons).toEqual([
+      'timeout',
+      'denied-action',
+      'client-error',
+      'parse-error',
+      'parse-error',
+      'parse-error',
+    ])
   })
 
   it('reports no tokens for a result that carries no usage, and ignores a negative or non-numeric count', async () => {
@@ -2365,14 +2892,28 @@ describe('model-gateway run: Antigravity', () => {
       setupResults: AGY_PROVEN,
     })
 
-    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).tokens).toEqual({ cached: 0, input: 0, output: 0 })
-    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).tokens).toEqual({ cached: 0, input: 0, output: 0 })
+    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).tokens).toEqual({
+      cached: 0,
+      input: 0,
+      output: 0,
+    })
+    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).tokens).toEqual({
+      cached: 0,
+      input: 0,
+      output: 0,
+    })
   })
 
   it('refuses a family the repository’s entry does not allow, before anything is launched', async () => {
-    const w = await clientRun({ allowlist: allowlist(['zhipu'], true, true), scripts: [{ stdout: agyResult('x') }], setupResults: AGY_PROVEN })
+    const w = await clientRun({
+      allowlist: allowlist(['zhipu'], true, true),
+      scripts: [{ stdout: agyResult('x') }],
+      setupResults: AGY_PROVEN,
+    })
 
-    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).code).toBe('policy-refused')
+    expect(printed(await w.run(w.input({ client: 'agy', model: MODEL }))).code).toBe(
+      'policy-refused',
+    )
     expect(w.vibe.commands).toEqual([])
     expect(w.git.worktrees).toEqual([])
   })
@@ -2437,18 +2978,29 @@ describe('model-gateway run: Claude Code', () => {
 
   it('counts the dollars at the catalogue price times the tokens when Claude Code charged nothing', async () => {
     const w = await clientRun({
-      override: { models: [{ client: 'claude', model: MODEL, prices: { cached_input: 0.5, input: 3, output: 15 } }] },
+      override: {
+        models: [
+          { client: 'claude', model: MODEL, prices: { cached_input: 0.5, input: 3, output: 15 } },
+        ],
+      },
       scripts: [
         {
           stdout: claudeResult('x', {
             total_cost_usd: undefined,
-            usage: { cache_read_input_tokens: 1_000_000, input_tokens: 1_000_000, output_tokens: 1_000_000 },
+            usage: {
+              cache_read_input_tokens: 1_000_000,
+              input_tokens: 1_000_000,
+              output_tokens: 1_000_000,
+            },
           }),
         },
       ],
     })
 
-    expect(printed(await w.run(w.input({ client: 'claude', model: MODEL }))).cost_usd).toBeCloseTo(3 + 0.5 + 15, 10)
+    expect(printed(await w.run(w.input({ client: 'claude', model: MODEL }))).cost_usd).toBeCloseTo(
+      3 + 0.5 + 15,
+      10,
+    )
   })
 
   it('has no passing read-only proof, so it runs in a throwaway worktree of the repository', async () => {
@@ -2480,7 +3032,12 @@ describe('model-gateway run: Claude Code', () => {
   it('reads a result that comes as a list of events, and fails one Claude Code reports as an error', async () => {
     const w = await clientRun({
       scripts: [
-        { stdout: JSON.stringify([{ type: 'system' }, JSON.parse(claudeResult('from a list')) as unknown]) },
+        {
+          stdout: JSON.stringify([
+            { type: 'system' },
+            JSON.parse(claudeResult('from a list')) as unknown,
+          ]),
+        },
         { stdout: claudeResult('Credit balance is too low', { is_error: true }) },
         { stdout: JSON.stringify([{ type: 'system' }]) },
         { stdout: claudeResult('') },
@@ -2489,10 +3046,17 @@ describe('model-gateway run: Claude Code', () => {
     })
 
     const runs: Record<string, unknown>[] = []
-    for (let index = 0; index < 5; index += 1) runs.push(printed(await w.run(w.input({ client: 'claude', model: MODEL }))))
+    for (let index = 0; index < 5; index += 1)
+      runs.push(printed(await w.run(w.input({ client: 'claude', model: MODEL }))))
 
     expect(runs.map((run) => run.status)).toEqual(['ok', 'failed', 'failed', 'failed', 'failed'])
-    expect(runs.map((run) => run.reason)).toEqual([undefined, 'client-error', 'parse-error', 'parse-error', 'parse-error'])
+    expect(runs.map((run) => run.reason)).toEqual([
+      undefined,
+      'client-error',
+      'parse-error',
+      'parse-error',
+      'parse-error',
+    ])
     expect(runs[0]?.summary).toBe('from a list')
   })
 })
@@ -2516,7 +3080,15 @@ describe('model-gateway run: OpenCode', () => {
     expect(result.exitCode).toBe(0)
     const [command] = w.vibe.commands
     expect(command?.command).toBe('opencode')
-    expect(command?.args).toEqual(['run', '--standalone', '--model', MODEL, '--format', 'json', WRAPPED_PROMPT])
+    expect(command?.args).toEqual([
+      'run',
+      '--standalone',
+      '--model',
+      MODEL,
+      '--format',
+      'json',
+      WRAPPED_PROMPT,
+    ])
     expect(command?.cwd).not.toBe(w.repo)
     expect(command?.env).toEqual({ AGENT_KIT_DELEGATION: '1' })
     expect(command?.timeoutMs).toBe(900_000)
@@ -2528,7 +3100,9 @@ describe('model-gateway run: OpenCode', () => {
     const result = await w.run(w.input({ client: 'opencode', model: MODEL }))
 
     expect(printed(result)).toEqual({
-      attempts: [{ client: 'opencode', model: MODEL, run_id: printed(result).run_id, status: 'ok' }],
+      attempts: [
+        { client: 'opencode', model: MODEL, run_id: printed(result).run_id, status: 'ok' },
+      ],
       client: 'opencode',
       cost_usd: expect.closeTo(0.03, 10) as unknown,
       family: 'zhipu',
@@ -2552,21 +3126,45 @@ describe('model-gateway run: OpenCode', () => {
   it('counts the dollars at the catalogue price when the events charged nothing', async () => {
     const w = await clientRun({
       override: {
-        models: [{ client: 'opencode', family: 'zhipu', model: MODEL, notes: 'n', prices: { cached_input: 0, input: 1, output: 2 }, tier: 'hard' }],
+        models: [
+          {
+            client: 'opencode',
+            family: 'zhipu',
+            model: MODEL,
+            notes: 'n',
+            prices: { cached_input: 0, input: 1, output: 2 },
+            tier: 'hard',
+          },
+        ],
       },
       scripts: [
-        { stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('x'), openCodeStepFinish(0, { input: 1_000_000, output: 1_000_000 })) },
+        {
+          stdout: openCodeEvents(
+            OPENCODE_STEP_START,
+            openCodeText('x'),
+            openCodeStepFinish(0, { input: 1_000_000, output: 1_000_000 }),
+          ),
+        },
       ],
     })
 
-    expect(printed(await w.run(w.input({ client: 'opencode', model: MODEL }))).cost_usd).toBeCloseTo(3, 10)
+    expect(
+      printed(await w.run(w.input({ client: 'opencode', model: MODEL }))).cost_usd,
+    ).toBeCloseTo(3, 10)
   })
 
   it('works out the family of a model from the part after its provider', async () => {
-    const w = await clientRun({ allowlist: allowlist(['zhipu'], true, true), scripts: [{ stdout: STEPS }] })
+    const w = await clientRun({
+      allowlist: allowlist(['zhipu'], true, true),
+      scripts: [{ stdout: STEPS }],
+    })
 
-    expect(printed(await w.run(w.input({ client: 'opencode', model: 'opencode-go/kimi-k3' }))).code).toBe('policy-refused')
-    expect(printed(await w.run(w.input({ client: 'opencode', model: 'opencode-go/mystery-1' }))).code).toBe('unknown-model')
+    expect(
+      printed(await w.run(w.input({ client: 'opencode', model: 'opencode-go/kimi-k3' }))).code,
+    ).toBe('policy-refused')
+    expect(
+      printed(await w.run(w.input({ client: 'opencode', model: 'opencode-go/mystery-1' }))).code,
+    ).toBe('unknown-model')
     expect(w.vibe.commands).toEqual([])
   })
 
@@ -2585,14 +3183,17 @@ describe('model-gateway run: OpenCode', () => {
   it('names the provider and the allowed ones in the refusal', async () => {
     const w = await clientRun()
 
-    expect(printed(await w.run(w.input({ client: 'opencode', model: 'opencode/glm-5-3' })))).toEqual({
+    expect(
+      printed(await w.run(w.input({ client: 'opencode', model: 'opencode/glm-5-3' }))),
+    ).toEqual({
       code: 'provider-not-allowed',
       message:
         'opencode/glm-5-3: the provider opencode is not allowed (clients.opencode.providers: opencode-go), and OpenCode’s pay-per-token models are never reached',
       status: 'error',
     })
     expect(printed(await w.run(w.input({ client: 'opencode', model: 'glm-5-3' })))).toMatchObject({
-      message: 'glm-5-3: an OpenCode model is named <provider>/<model>, and the allowed providers are opencode-go',
+      message:
+        'glm-5-3: an OpenCode model is named <provider>/<model>, and the allowed providers are opencode-go',
     })
   })
 
@@ -2614,8 +3215,12 @@ describe('model-gateway run: OpenCode', () => {
       scripts: [{ stdout: STEPS }],
     })
 
-    expect(printed(await w.run(w.input({ client: 'opencode', model: 'opencode/glm-5-3' }))).code).toBe('provider-not-allowed')
-    expect(printed(await w.run(w.input({ client: 'opencode', model: 'zai/glm-5-3' }))).status).toBe('ok')
+    expect(
+      printed(await w.run(w.input({ client: 'opencode', model: 'opencode/glm-5-3' }))).code,
+    ).toBe('provider-not-allowed')
+    expect(printed(await w.run(w.input({ client: 'opencode', model: 'zai/glm-5-3' }))).status).toBe(
+      'ok',
+    )
     expect(w.vibe.commands).toHaveLength(1)
   })
 
@@ -2631,19 +3236,41 @@ describe('model-gateway run: OpenCode', () => {
   it('fails a run whose events hold an error, or no answer, and reads the answer past events it does not know', async () => {
     const w = await clientRun({
       scripts: [
-        { stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('partial'), { error: { name: 'APIError' }, type: 'error' }) },
-        { stdout: openCodeEvents(OPENCODE_STEP_START, openCodeStepFinish(0, { input: 1, output: 1 })) },
+        {
+          stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('partial'), {
+            error: { name: 'APIError' },
+            type: 'error',
+          }),
+        },
+        {
+          stdout: openCodeEvents(
+            OPENCODE_STEP_START,
+            openCodeStepFinish(0, { input: 1, output: 1 }),
+          ),
+        },
         {
           stdout: `not json\n${openCodeEvents(OPENCODE_STEP_START, openCodeText(''), openCodeText('a'), openCodeText('b'), { type: 'tool_use' }, 'a string', null)}`,
         },
-        { stdout: openCodeEvents({ part: { text: 3 }, type: 'text' }, { part: {}, type: 'step_finish' }, { type: 'text' }) },
+        {
+          stdout: openCodeEvents(
+            { part: { text: 3 }, type: 'text' },
+            { part: {}, type: 'step_finish' },
+            { type: 'text' },
+          ),
+        },
       ],
     })
 
     const runs: Record<string, unknown>[] = []
-    for (let index = 0; index < 4; index += 1) runs.push(printed(await w.run(w.input({ client: 'opencode', model: MODEL }))))
+    for (let index = 0; index < 4; index += 1)
+      runs.push(printed(await w.run(w.input({ client: 'opencode', model: MODEL }))))
 
-    expect(runs.map((run) => run.reason)).toEqual(['client-error', 'parse-error', undefined, 'parse-error'])
+    expect(runs.map((run) => run.reason)).toEqual([
+      'client-error',
+      'parse-error',
+      undefined,
+      'parse-error',
+    ])
     expect(runs[2]?.summary).toBe('ab')
   })
 })
@@ -2652,7 +3279,12 @@ describe('model-gateway run: a throwaway worktree', () => {
   const MODEL = 'claude-sonnet-5-5'
 
   it('is removed after a run that timed out, exited non-zero or could not start', async () => {
-    const w = await clientRun({ scripts: [{ stdout: '', timedOut: true }, { exitCode: 2, stdout: '' }] })
+    const w = await clientRun({
+      scripts: [
+        { stdout: '', timedOut: true },
+        { exitCode: 2, stdout: '' },
+      ],
+    })
 
     const reasons = [
       printed(await w.run(w.input({ client: 'claude', model: MODEL }))).reason,
@@ -2661,7 +3293,14 @@ describe('model-gateway run: a throwaway worktree', () => {
     ]
 
     expect(reasons).toEqual(['timeout', 'exit-2', 'launch-failed'])
-    expect(w.git.worktrees.map((call) => call.action)).toEqual(['add', 'remove', 'add', 'remove', 'add', 'remove'])
+    expect(w.git.worktrees.map((call) => call.action)).toEqual([
+      'add',
+      'remove',
+      'add',
+      'remove',
+      'add',
+      'remove',
+    ])
     for (const call of w.git.worktrees) expect(call.repo).toBe(w.repo)
     for (const command of w.vibe.commands) {
       const folder = String(command.cwd)
@@ -2685,7 +3324,12 @@ describe('model-gateway run: a throwaway worktree', () => {
   it('stops the run when git cannot add it, and leaves no directory behind', async () => {
     const w = await clientRun({
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], root: repo, worktreeError: 'fatal: invalid reference: HEAD' },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          root: repo,
+          worktreeError: 'fatal: invalid reference: HEAD',
+        },
       }),
       scripts: [{ stdout: claudeResult('x') }],
     })
@@ -2706,7 +3350,12 @@ describe('model-gateway run: a throwaway worktree', () => {
   it('never loses the result of a run that succeeded when git cannot remove its worktree: it warns', async () => {
     const w = await clientRun({
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], removeError: 'fatal: cannot lock', root: repo },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          removeError: 'fatal: cannot lock',
+          root: repo,
+        },
       }),
       scripts: [{ stdout: claudeResult('x') }],
     })
@@ -2719,8 +3368,13 @@ describe('model-gateway run: a throwaway worktree', () => {
       cleanup_warning: `cannot remove the throwaway worktree ${workDir}: fatal: cannot lock`,
       status: 'ok',
     })
-    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
-    const ledger = JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd()) as Record<string, unknown>
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(
+      withoutAttempts(result),
+    )
+    const ledger = JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd()) as Record<
+      string,
+      unknown
+    >
     expect(ledger).toMatchObject({ client: 'claude', outcome: 'ok' })
     expect(ledger).not.toHaveProperty('cleanup_warning')
   })
@@ -2728,7 +3382,12 @@ describe('model-gateway run: a throwaway worktree', () => {
   it('keeps the failed result of a run when git cannot remove its worktree either', async () => {
     const w = await clientRun({
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], removeError: 'fatal: cannot lock', root: repo },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          removeError: 'fatal: cannot lock',
+          root: repo,
+        },
       }),
       scripts: [{ exitCode: 3, stdout: '' }],
     })
@@ -2736,18 +3395,30 @@ describe('model-gateway run: a throwaway worktree', () => {
     const result = await w.run(w.input({ client: 'claude', model: MODEL }))
 
     expect(result.exitCode).toBe(0)
-    expect(printed(result)).toMatchObject({ cleanup_warning: expect.stringContaining('fatal: cannot lock') as unknown, reason: 'exit-3', status: 'failed' })
+    expect(printed(result)).toMatchObject({
+      cleanup_warning: expect.stringContaining('fatal: cannot lock') as unknown,
+      reason: 'exit-3',
+      status: 'failed',
+    })
   })
 
   it('keeps the error of a run that threw when git cannot remove its worktree either', async () => {
     const w = await clientRun({
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], removeError: 'fatal: cannot lock', root: repo },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          removeError: 'fatal: cannot lock',
+          root: repo,
+        },
       }),
       scripts: [{ stdout: claudeResult('x') }],
     })
     await mkdir(join(w.repo, '.git', 'model-gateway'), { recursive: true })
-    await writeFile(join(w.repo, '.git', 'model-gateway', 'runs'), 'a file where the runs directory should be')
+    await writeFile(
+      join(w.repo, '.git', 'model-gateway', 'runs'),
+      'a file where the runs directory should be',
+    )
 
     const result = await w.run(w.input({ client: 'claude', model: MODEL }))
 
@@ -2782,7 +3453,10 @@ describe('model-gateway run: a throwaway worktree', () => {
   })
 
   it('is not made for a Vibe model with a passing proof, which runs in place as before', async () => {
-    const w = await clientRun({ scripts: [{ stdout: journal('x') }], setupResults: setupResults('pass') })
+    const w = await clientRun({
+      scripts: [{ stdout: journal('x') }],
+      setupResults: setupResults('pass'),
+    })
 
     await w.run(w.input())
 
@@ -2798,7 +3472,11 @@ describe('model-gateway run: a throwaway worktree', () => {
 })
 
 /** One ledger line, as a run of `client` at `at` left it, charged to the metered-personal caps unless it says otherwise. */
-function ledgerRecord(at: string, client: string, overrides: Partial<LedgerRecord> = {}): LedgerRecord {
+function ledgerRecord(
+  at: string,
+  client: string,
+  overrides: Partial<LedgerRecord> = {},
+): LedgerRecord {
   return {
     at,
     client,
@@ -2818,7 +3496,11 @@ function ledgerRecord(at: string, client: string, overrides: Partial<LedgerRecor
 }
 
 /** A run's line as a client that reported no token counts leaves it: the gateway cannot read them, so the line carries none. */
-function ledgerRecordWithoutTokens(at: string, client: string, overrides: Partial<LedgerRecord> = {}): LedgerRecord {
+function ledgerRecordWithoutTokens(
+  at: string,
+  client: string,
+  overrides: Partial<LedgerRecord> = {},
+): LedgerRecord {
   const record = { ...ledgerRecord(at, client, overrides) }
   delete record.tokens
   return record
@@ -2874,7 +3556,10 @@ describe('model-gateway usage: availability', () => {
       client: 'vibe',
       cost_class: 'subsidised',
       plan_limits: [],
-      quota: { reason: 'vibe has no status command, so the gateway cannot read its quota', status: 'unknown' },
+      quota: {
+        reason: 'vibe has no status command, so the gateway cannot read its quota',
+        status: 'unknown',
+      },
       reserved_runs: 0,
       reserved_usd: 0,
       usage: { cost_usd: 0, runs: 0, tokens: { cached: 0, input: 0, output: 0 } },
@@ -2883,7 +3568,10 @@ describe('model-gateway usage: availability', () => {
   })
 
   it('reports a client that is not installed as unavailable, and asks it nothing', async () => {
-    const w = await workspace({ installed: ['codex'], listings: { codex: status('Logged in using ChatGPT\n') } })
+    const w = await workspace({
+      installed: ['codex'],
+      listings: { codex: status('Logged in using ChatGPT\n') },
+    })
 
     const result = await w.run('usage', '--json', '{}')
 
@@ -2975,13 +3663,24 @@ describe('model-gateway usage: availability', () => {
       signed_in: 'unknown',
       status: 'available',
     })
-    expect(usageClient(result, 'hermes').availability).toMatchObject({ signed_in: 'unknown', status: 'available' })
-    expect(usageClient(result, 'opencode').availability).toMatchObject({ signed_in: 'unknown', status: 'available' })
+    expect(usageClient(result, 'hermes').availability).toMatchObject({
+      signed_in: 'unknown',
+      status: 'available',
+    })
+    expect(usageClient(result, 'opencode').availability).toMatchObject({
+      signed_in: 'unknown',
+      status: 'available',
+    })
   })
 
   it('reports a client rate-limited in the last hour as unavailable, unless a later run succeeded', async () => {
     const limited = await workspace({ installed: ['vibe'] })
-    await limited.writeLedger([ledgerRecord('2026-11-04T10:40:00.000Z', 'vibe', { outcome: 'failed', reason: 'rate-limited' })])
+    await limited.writeLedger([
+      ledgerRecord('2026-11-04T10:40:00.000Z', 'vibe', {
+        outcome: 'failed',
+        reason: 'rate-limited',
+      }),
+    ])
 
     expect(usageClient(await limited.run('usage', '--json', '{}'), 'vibe').availability).toEqual({
       installed: true,
@@ -2992,27 +3691,38 @@ describe('model-gateway usage: availability', () => {
 
     const recovered = await workspace({ installed: ['vibe'] })
     await recovered.writeLedger([
-      ledgerRecord('2026-11-04T10:40:00.000Z', 'vibe', { outcome: 'failed', reason: 'rate-limited' }),
+      ledgerRecord('2026-11-04T10:40:00.000Z', 'vibe', {
+        outcome: 'failed',
+        reason: 'rate-limited',
+      }),
       ledgerRecord('2026-11-04T10:45:00.000Z', 'vibe'),
     ])
 
-    expect(availability(await recovered.run('usage', '--json', '{}'), 'vibe').status).toBe('available')
+    expect(availability(await recovered.run('usage', '--json', '{}'), 'vibe').status).toBe(
+      'available',
+    )
   })
 
   it('ignores an error older than the availability window, and takes the window from the machine override', async () => {
     const old = await workspace({ installed: ['vibe'] })
-    await old.writeLedger([ledgerRecord('2026-11-04T08:00:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' })])
+    await old.writeLedger([
+      ledgerRecord('2026-11-04T08:00:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' }),
+    ])
 
     expect(availability(await old.run('usage', '--json', '{}'), 'vibe').status).toBe('available')
 
     const wide = await workspace({ installed: ['vibe'] })
     await wide.writeOverride({ settings: { availability_window_minutes: 180 } })
-    await wide.writeLedger([ledgerRecord('2026-11-04T08:00:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' })])
+    await wide.writeLedger([
+      ledgerRecord('2026-11-04T08:00:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' }),
+    ])
 
-    expect(usageClient(await wide.run('usage', '--json', '{}'), 'vibe').availability).toMatchObject({
-      reason: 'auth at 2026-11-04T08:00:00.000Z, with no later run of it that succeeded',
-      status: 'unavailable',
-    })
+    expect(usageClient(await wide.run('usage', '--json', '{}'), 'vibe').availability).toMatchObject(
+      {
+        reason: 'auth at 2026-11-04T08:00:00.000Z, with no later run of it that succeeded',
+        status: 'unavailable',
+      },
+    )
   })
 
   it('gives every status command a five second limit, and reads a timeout as unknown', async () => {
@@ -3037,11 +3747,17 @@ describe('model-gateway usage: availability', () => {
   })
 
   it('shows a client’s own quota as unknown, never zero', async () => {
-    const w = await workspace({ installed: ['codex'], listings: { codex: status('Logged in using ChatGPT\n') } })
+    const w = await workspace({
+      installed: ['codex'],
+      listings: { codex: status('Logged in using ChatGPT\n') },
+    })
 
     const result = await w.run('usage', '--json', '{}')
 
-    expect(usageClient(result, 'codex').quota).toEqual({ reason: 'codex login status reports no quota', status: 'unknown' })
+    expect(usageClient(result, 'codex').quota).toEqual({
+      reason: 'codex login status reports no quota',
+      status: 'unknown',
+    })
   })
 })
 
@@ -3049,47 +3765,93 @@ describe('model-gateway usage: the ledger', () => {
   it('counts each client’s runs, tokens and dollars by day and by workflow', async () => {
     const w = await workspace({ installed: ['vibe'] })
     await w.writeLedger([
-      ledgerRecord('2026-11-03T09:00:00.000Z', 'vibe', { cost_usd: 0.25, tokens: { cached: 0, input: 100, output: 10 } }),
-      ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.5, tokens: { cached: 5, input: 200, output: 20 } }),
-      ledgerRecord('2026-11-04T10:00:00.000Z', 'vibe', { cost_usd: 0.125, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' }),
-      ledgerRecord('2026-11-04T10:00:00.000Z', 'codex', { cost_usd: 9, tokens: { cached: 0, input: 1, output: 1 } }),
+      ledgerRecord('2026-11-03T09:00:00.000Z', 'vibe', {
+        cost_usd: 0.25,
+        tokens: { cached: 0, input: 100, output: 10 },
+      }),
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', {
+        cost_usd: 0.5,
+        tokens: { cached: 5, input: 200, output: 20 },
+      }),
+      ledgerRecord('2026-11-04T10:00:00.000Z', 'vibe', {
+        cost_usd: 0.125,
+        tokens: { cached: 0, input: 50, output: 5 },
+        workflow: 'review',
+      }),
+      ledgerRecord('2026-11-04T10:00:00.000Z', 'codex', {
+        cost_usd: 9,
+        tokens: { cached: 0, input: 1, output: 1 },
+      }),
     ])
 
     const result = await w.run('usage', '--json', '{}')
 
-    expect(usageClient(result, 'vibe').usage).toEqual({ cost_usd: 0.875, runs: 3, tokens: { cached: 5, input: 350, output: 35 } })
+    expect(usageClient(result, 'vibe').usage).toEqual({
+      cost_usd: 0.875,
+      runs: 3,
+      tokens: { cached: 5, input: 350, output: 35 },
+    })
     expect(usageClient(result, 'vibe').by_day).toEqual([
       { cost_usd: 0.25, day: '2026-11-03', runs: 1, tokens: { cached: 0, input: 100, output: 10 } },
-      { cost_usd: 0.625, day: '2026-11-04', runs: 2, tokens: { cached: 5, input: 250, output: 25 } },
+      {
+        cost_usd: 0.625,
+        day: '2026-11-04',
+        runs: 2,
+        tokens: { cached: 5, input: 250, output: 25 },
+      },
     ])
     expect(usageClient(result, 'vibe').by_workflow).toEqual([
       { cost_usd: 0.125, runs: 1, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' },
-      { cost_usd: 0.75, runs: 2, tokens: { cached: 5, input: 300, output: 30 }, workflow: 'spec-293' },
+      {
+        cost_usd: 0.75,
+        runs: 2,
+        tokens: { cached: 5, input: 300, output: 30 },
+        workflow: 'spec-293',
+      },
     ])
-    expect(usageClient(result, 'codex').usage).toEqual({ cost_usd: 9, runs: 1, tokens: { cached: 0, input: 1, output: 1 } })
+    expect(usageClient(result, 'codex').usage).toEqual({
+      cost_usd: 9,
+      runs: 1,
+      tokens: { cached: 0, input: 1, output: 1 },
+    })
   })
 
   it('leaves the token totals unknown for a run that reported none, and still counts the run', async () => {
     const w = await workspace({ installed: ['vibe'] })
-    await w.writeLedger([ledgerRecordWithoutTokens('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.5 })])
+    await w.writeLedger([
+      ledgerRecordWithoutTokens('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.5 }),
+    ])
 
     const result = await w.run('usage', '--json', '{}')
 
     expect(usageClient(result, 'vibe').usage).toEqual({ cost_usd: 0.5, runs: 1 })
-    expect(usageClient(result, 'vibe').by_day).toEqual([{ cost_usd: 0.5, day: '2026-11-04', runs: 1 }])
+    expect(usageClient(result, 'vibe').by_day).toEqual([
+      { cost_usd: 0.5, day: '2026-11-04', runs: 1 },
+    ])
   })
 
   it('narrows the usage to one workflow when the caller names one', async () => {
     const w = await workspace({ installed: ['vibe'] })
     await w.writeLedger([
-      ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.5, tokens: { cached: 0, input: 200, output: 20 } }),
-      ledgerRecord('2026-11-04T10:00:00.000Z', 'vibe', { cost_usd: 0.125, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' }),
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', {
+        cost_usd: 0.5,
+        tokens: { cached: 0, input: 200, output: 20 },
+      }),
+      ledgerRecord('2026-11-04T10:00:00.000Z', 'vibe', {
+        cost_usd: 0.125,
+        tokens: { cached: 0, input: 50, output: 5 },
+        workflow: 'review',
+      }),
     ])
 
     const result = await w.run('usage', '--json', JSON.stringify({ workflow: 'review' }))
 
     expect(printed(result)).toMatchObject({ workflow: 'review' })
-    expect(usageClient(result, 'vibe').usage).toEqual({ cost_usd: 0.125, runs: 1, tokens: { cached: 0, input: 50, output: 5 } })
+    expect(usageClient(result, 'vibe').usage).toEqual({
+      cost_usd: 0.125,
+      runs: 1,
+      tokens: { cached: 0, input: 50, output: 5 },
+    })
     expect(usageClient(result, 'vibe').by_workflow).toEqual([
       { cost_usd: 0.125, runs: 1, tokens: { cached: 0, input: 50, output: 5 }, workflow: 'review' },
     ])
@@ -3107,7 +3869,9 @@ describe('model-gateway usage: the ledger', () => {
       runs: 1,
       tokens: { cached: 0, input: 0, output: 0 },
     })
-    expect(usageClient(await w.run('usage', '--json', JSON.stringify({ days: 30 })), 'vibe').usage).toEqual({
+    expect(
+      usageClient(await w.run('usage', '--json', JSON.stringify({ days: 30 })), 'vibe').usage,
+    ).toEqual({
       cost_usd: 3,
       runs: 2,
       tokens: { cached: 0, input: 0, output: 0 },
@@ -3117,9 +3881,17 @@ describe('model-gateway usage: the ledger', () => {
   it('refuses days that is not a whole number above 0, and a workflow that is not a name', async () => {
     const w = await workspace()
 
-    expect(printed(await w.run('usage', '--json', JSON.stringify({ days: 0 })))).toMatchObject({ code: 'invalid-input', status: 'error' })
-    expect(printed(await w.run('usage', '--json', JSON.stringify({ days: 1.5 })))).toMatchObject({ code: 'invalid-input', status: 'error' })
-    expect(printed(await w.run('usage', '--json', JSON.stringify({ workflow: '' })))).toMatchObject({ code: 'invalid-input', status: 'error' })
+    expect(printed(await w.run('usage', '--json', JSON.stringify({ days: 0 })))).toMatchObject({
+      code: 'invalid-input',
+      status: 'error',
+    })
+    expect(printed(await w.run('usage', '--json', JSON.stringify({ days: 1.5 })))).toMatchObject({
+      code: 'invalid-input',
+      status: 'error',
+    })
+    expect(printed(await w.run('usage', '--json', JSON.stringify({ workflow: '' })))).toMatchObject(
+      { code: 'invalid-input', status: 'error' },
+    )
   })
 })
 
@@ -3146,7 +3918,9 @@ describe('model-gateway usage: plan limits', () => {
       { limit_usd: 30, ratio: 0.9333, spent_usd: 28, state: 'warning', window: 'week' },
       { limit_usd: 60, ratio: 0.4667, spent_usd: 28, state: 'ok', window: 'month' },
     ])
-    expect(usageClient(result, 'opencode').warnings).toEqual(['opencode has used 93% of its week plan limit ($28.00 of $30.00)'])
+    expect(usageClient(result, 'opencode').warnings).toEqual([
+      'opencode has used 93% of its week plan limit ($28.00 of $30.00)',
+    ])
     expect(availability(result, 'opencode').status).toBe('available')
   })
 
@@ -3168,18 +3942,29 @@ describe('model-gateway usage: plan limits', () => {
       ratio: 1,
       spent_usd: 12,
       state: 'exhausted',
-      window: '5h',    })
+      window: '5h',
+    })
   })
 
   it('counts a window’s runs when the plan limit names runs instead of dollars', async () => {
     const w = await workspace({ installed: ['vibe'] })
-    await w.writeOverride({ clients: { vibe: { plan_limits: [{ limit_runs: 10, window: 'day' }] } } })
-    await w.writeLedger(Array.from({ length: 9 }, (_, index) => ledgerRecord(`2026-11-04T0${String(index)}:00:00.000Z`, 'vibe')))
+    await w.writeOverride({
+      clients: { vibe: { plan_limits: [{ limit_runs: 10, window: 'day' }] } },
+    })
+    await w.writeLedger(
+      Array.from({ length: 9 }, (_, index) =>
+        ledgerRecord(`2026-11-04T0${String(index)}:00:00.000Z`, 'vibe'),
+      ),
+    )
 
     const result = await w.run('usage', '--json', '{}')
 
-    expect(usageClient(result, 'vibe').plan_limits).toEqual([{ limit_runs: 10, ratio: 0.9, runs: 9, state: 'warning', window: 'day' }])
-    expect(usageClient(result, 'vibe').warnings).toEqual(['vibe has used 90% of its day plan limit (9 of 10 runs)'])
+    expect(usageClient(result, 'vibe').plan_limits).toEqual([
+      { limit_runs: 10, ratio: 0.9, runs: 9, state: 'warning', window: 'day' },
+    ])
+    expect(usageClient(result, 'vibe').warnings).toEqual([
+      'vibe has used 90% of its day plan limit (9 of 10 runs)',
+    ])
   })
 
   it('leaves a client without plan limits unwatched', async () => {
@@ -3206,23 +3991,33 @@ describe('model-gateway usage: plan limits', () => {
       const w = await workspace()
       await w.writeOverride({ clients: { vibe: { plan_limits: planLimits } } })
 
-      expect(printed(await w.run('usage', '--json', '{}'))).toMatchObject({ code: 'invalid-config', status: 'error' })
+      expect(printed(await w.run('usage', '--json', '{}'))).toMatchObject({
+        code: 'invalid-config',
+        status: 'error',
+      })
     }
   })
 })
 
 describe('model-gateway run: a client that refuses', () => {
   it('records a rate-limited run’s reason, so availability can see it', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, stderr: '429 Too Many Requests', stdout: '' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, stderr: '429 Too Many Requests', stdout: '' }],
+    })
 
     const result = await w.run(w.input())
 
     expect(printed(result)).toMatchObject({ reason: 'rate-limited', status: 'failed' })
-    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'rate-limited' })
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({
+      outcome: 'failed',
+      reason: 'rate-limited',
+    })
   })
 
   it('records an auth failure’s reason', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, stderr: 'Not logged in. Run `vibe login`.', stdout: '' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, stderr: 'Not logged in. Run `vibe login`.', stdout: '' }],
+    })
 
     expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'auth', status: 'failed' })
   })
@@ -3230,66 +4025,112 @@ describe('model-gateway run: a client that refuses', () => {
   it('reads the exit code when the client says nothing', async () => {
     const w = await readyRun({ scripts: [{ exitCode: 429, stdout: '' }] })
 
-    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      reason: 'rate-limited',
+      status: 'failed',
+    })
   })
 })
 
 describe('model-gateway run: what refused it', () => {
   it('does not read a refusal out of the delegate’s own answer', async () => {
     const w = await readyRun({
-      scripts: [{ exitCode: 1, stdout: journal('the log says rate limit exceeded, 429, 401 and 4.429'), stderr: '' }],
+      scripts: [
+        {
+          exitCode: 1,
+          stdout: journal('the log says rate limit exceeded, 429, 401 and 4.429'),
+          stderr: '',
+        },
+      ],
     })
 
     expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'exit-1', status: 'failed' })
   })
 
   it('reads a rate limit from the client’s own error text', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, stderr: 'Error: rate limit exceeded, retry later', stdout: '' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, stderr: 'Error: rate limit exceeded, retry later', stdout: '' }],
+    })
 
-    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      reason: 'rate-limited',
+      status: 'failed',
+    })
   })
 
   it('reads a rate limit from the HTTP status of the client’s structured error', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { error: { message: 'nope', status: 429 } }, stdout: '' }] })
+    const w = await readyRun({
+      scripts: [
+        { exitCode: 1, exportJson: { error: { message: 'nope', status: 429 } }, stdout: '' },
+      ],
+    })
 
-    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      reason: 'rate-limited',
+      status: 'failed',
+    })
   })
 
   it('reads a rate limit from the stop reason the client exported', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { stop_reason: 'rate_limited' }, stdout: '' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, exportJson: { stop_reason: 'rate_limited' }, stdout: '' }],
+    })
 
-    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      reason: 'rate-limited',
+      status: 'failed',
+    })
   })
 
   it('reads a refused credential from the error result the client exported', async () => {
     const w = await readyRun({
-      scripts: [{ exitCode: 1, exportJson: { is_error: true, result: 'unauthorized: invalid api key' }, stdout: '' }],
+      scripts: [
+        {
+          exitCode: 1,
+          exportJson: { is_error: true, result: 'unauthorized: invalid api key' },
+          stdout: '',
+        },
+      ],
     })
 
     expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'auth', status: 'failed' })
   })
 
   it('reads a rate limit from the HTTP status the client exported beside no error', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { status: 429 }, stdout: '' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, exportJson: { status: 429 }, stdout: '' }],
+    })
 
-    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      reason: 'rate-limited',
+      status: 'failed',
+    })
   })
 
   it('reads a rate limit from the error text the client exported', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { error: 'rate limit exceeded' }, stdout: '' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, exportJson: { error: 'rate limit exceeded' }, stdout: '' }],
+    })
 
-    expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'rate-limited', status: 'failed' })
+    expect(printed(await w.run(w.input()))).toMatchObject({
+      reason: 'rate-limited',
+      status: 'failed',
+    })
   })
 
   it('falls back to the exit code when the export carries no error', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 1, exportJson: { session_id: 'abc' }, stdout: '' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 1, exportJson: { session_id: 'abc' }, stdout: '' }],
+    })
 
     expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'exit-1', status: 'failed' })
   })
 
   it('ignores a status that is not a whole number', async () => {
     const w = await readyRun({
-      scripts: [{ exitCode: 1, exportJson: { error: { message: 'boom', status: 'nope' } }, stdout: '' }],
+      scripts: [
+        { exitCode: 1, exportJson: { error: { message: 'boom', status: 'nope' } }, stdout: '' },
+      ],
     })
 
     expect(printed(await w.run(w.input()))).toMatchObject({ reason: 'exit-1', status: 'failed' })
@@ -3298,12 +4139,16 @@ describe('model-gateway run: what refused it', () => {
 
 describe('model-gateway run: the plan limit', () => {
   it('warns in the result when the client is near its plan limit', async () => {
-    const w = await readyRun({ override: { clients: { vibe: { plan_limits: [{ limit_usd: 1, window: 'day' }] } } } })
+    const w = await readyRun({
+      override: { clients: { vibe: { plan_limits: [{ limit_usd: 1, window: 'day' }] } } },
+    })
     await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'vibe', { cost_usd: 0.9 })])
 
     const result = await w.run(w.input())
 
-    expect(printed(result).warnings).toEqual(['vibe has used 91% of its day plan limit ($0.91 of $1.00)'])
+    expect(printed(result).warnings).toEqual([
+      'vibe has used 91% of its day plan limit ($0.91 of $1.00)',
+    ])
   })
 
   it('leaves the warning out when the client has no plan limit', async () => {
@@ -3414,7 +4259,11 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     const stagedBeforeCheck: number[] = []
     const w = await readyRun({
       scripts: [
-        { effect: edits('src/a.ts', 'lib/b.ts'), exportJson: exported({ cost: 0.02, input: 100, output: 10 }), stdout: journal('done\nSUMMARY: edited two files') },
+        {
+          effect: edits('src/a.ts', 'lib/b.ts'),
+          exportJson: exported({ cost: 0.02, input: 100, output: 10 }),
+          stdout: journal('done\nSUMMARY: edited two files'),
+        },
         {
           effect: () => {
             stagedBeforeCheck.push(w.git.stagedIn.length)
@@ -3434,7 +4283,11 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     expect(out).toEqual({
       attempts: [{ client: 'vibe', model: 'glm-5-3', run_id: runId, status: 'ok' }],
       branch: `gateway/${runId}`,
-      check: { command: 'npm test', exit_code: 0, output_path: join(runDirOf(w, result), 'check-output.txt') },
+      check: {
+        command: 'npm test',
+        exit_code: 0,
+        output_path: join(runDirOf(w, result), 'check-output.txt'),
+      },
       client: 'vibe',
       cost_usd: 0.02,
       family: 'zhipu',
@@ -3449,17 +4302,26 @@ describe('model-gateway run: writing, the worktree and the check', () => {
       workflow: 'spec-293',
       worktree,
     })
-    expect(w.git.worktrees).toEqual([{ action: 'create', base: 'main', branch: `gateway/${runId}`, path: worktree, repo: w.repo }])
+    expect(w.git.worktrees).toEqual([
+      { action: 'create', base: 'main', branch: `gateway/${runId}`, path: worktree, repo: w.repo },
+    ])
     const [delegate, check] = w.vibe.commands
     expect(delegate?.cwd).toBe(worktree)
     expect(flag(delegate, '--workdir')).toBe(worktree)
-    expect(check).toMatchObject({ args: ['-c', 'npm test'], command: 'sh', cwd: worktree, timeoutMs: 120_000 })
+    expect(check).toMatchObject({
+      args: ['-c', 'npm test'],
+      command: 'sh',
+      cwd: worktree,
+      timeoutMs: 120_000,
+    })
     expect(check?.env).toEqual({ AGENT_KIT_DELEGATION: '1' })
     expect(w.vibe.commands).toHaveLength(2)
     expect(stagedBeforeCheck).toEqual([1])
     expect(w.git.stagedIn).toEqual([worktree])
     expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe('3 passed\n')
-    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(
+      withoutAttempts(result),
+    )
     expect(await readdir(worktree)).toContain('src')
   })
 
@@ -3472,7 +4334,9 @@ describe('model-gateway run: writing, the worktree and the check', () => {
       `read this\n\n${EDIT_RULE}\n\nEnd your answer with a line "SUMMARY:" followed by at most 1500 characters that summarise the result.`,
     )
     const read = await readyRun({ scripts: [{ stdout: journal('x') }] })
-    expect(await readFile(join(runDirOf(read, await read.run(read.input())), 'prompt.md'), 'utf8')).not.toContain('Do not commit')
+    expect(
+      await readFile(join(runDirOf(read, await read.run(read.input())), 'prompt.md'), 'utf8'),
+    ).not.toContain('Do not commit')
   })
 
   it('launches Vibe through the write agent, which edits files and runs no shell', async () => {
@@ -3481,7 +4345,10 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     await w.run(writeInput(w))
 
     expect(flag(w.vibe.commands[0], '--agent')).toBe('delegate-write')
-    expect(w.vibe.commands[0]?.env).toMatchObject({ AGENT_KIT_DELEGATION: '1', VIBE_OUTSIDE_WORKDIR: 'deny' })
+    expect(w.vibe.commands[0]?.env).toMatchObject({
+      AGENT_KIT_DELEGATION: '1',
+      VIBE_OUTSIDE_WORKDIR: 'deny',
+    })
   })
 
   it('launches Claude Code with acceptEdits, Antigravity with accept-edits and OpenCode with its default agent', async () => {
@@ -3515,12 +4382,24 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     expect(claude?.stdin).toContain(EDIT_RULE)
     expect(flag(agy, '--mode')).toBe('accept-edits')
     expect(agy?.args[1]).toContain(EDIT_RULE)
-    expect(opencode?.args).toEqual(['run', '--standalone', '--model', 'opencode-go/glm-5-3', '--format', 'json', expect.stringContaining(EDIT_RULE) as unknown])
-    for (const command of [claude, agy, opencode]) expect(String(command?.cwd)).toContain(join('.git', 'model-gateway', 'worktrees'))
+    expect(opencode?.args).toEqual([
+      'run',
+      '--standalone',
+      '--model',
+      'opencode-go/glm-5-3',
+      '--format',
+      'json',
+      expect.stringContaining(EDIT_RULE) as unknown,
+    ])
+    for (const command of [claude, agy, opencode])
+      expect(String(command?.cwd)).toContain(join('.git', 'model-gateway', 'worktrees'))
   })
 
   it('works in its own worktree even when the model’s read-only proof passed', async () => {
-    const w = await readyRun({ scripts: [{ stdout: journal('x') }, { stdout: '' }], setupResults: setupResults('pass') })
+    const w = await readyRun({
+      scripts: [{ stdout: journal('x') }, { stdout: '' }],
+      setupResults: setupResults('pass'),
+    })
 
     const result = await w.run(writeInput(w))
 
@@ -3530,7 +4409,10 @@ describe('model-gateway run: writing, the worktree and the check', () => {
 
   it('reports a check that fails as a failed run, keeps its worktree, and still stages what the delegate wrote', async () => {
     const w = await readyRun({
-      scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { exitCode: 1, stderr: '1 failed\n', stdout: 'running\n' }],
+      scripts: [
+        { effect: edits('src/a.ts'), stdout: journal('done') },
+        { exitCode: 1, stderr: '1 failed\n', stdout: 'running\n' },
+      ],
     })
 
     const result = await w.run(writeInput(w))
@@ -3542,10 +4424,16 @@ describe('model-gateway run: writing, the worktree and the check', () => {
       staged_files: ['src/a.ts'],
       status: 'failed',
     })
-    expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe('running\n1 failed\n')
+    expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe(
+      'running\n1 failed\n',
+    )
     expect(await readdir(worktreeOf(result))).toContain('src')
     expect(w.git.worktrees.map((call) => call.action)).toEqual(['create'])
-    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ mode: 'write', outcome: 'failed', reason: 'check-failed' })
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({
+      mode: 'write',
+      outcome: 'failed',
+      reason: 'check-failed',
+    })
   })
 
   it('reports a check that cannot start as a failed check with exit code 127 and the reason as its output', async () => {
@@ -3553,18 +4441,32 @@ describe('model-gateway run: writing, the worktree and the check', () => {
 
     const result = await w.run(writeInput(w))
 
-    expect(printed(result)).toMatchObject({ check: { exit_code: 127 }, reason: 'check-failed', status: 'failed' })
-    expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe('unexpected process launch')
+    expect(printed(result)).toMatchObject({
+      check: { exit_code: 127 },
+      reason: 'check-failed',
+      status: 'failed',
+    })
+    expect(await readFile(join(runDirOf(w, result), 'check-output.txt'), 'utf8')).toBe(
+      'unexpected process launch',
+    )
   })
 
   it('reports a check that outlives its time limit as a failed check', async () => {
-    const w = await readyRun({ scripts: [{ stdout: journal('done') }, { stdout: '', timedOut: true }] })
+    const w = await readyRun({
+      scripts: [{ stdout: journal('done') }, { stdout: '', timedOut: true }],
+    })
 
-    expect(printed(await w.run(writeInput(w)))).toMatchObject({ check: { exit_code: 124 }, reason: 'check-failed', status: 'failed' })
+    expect(printed(await w.run(writeInput(w)))).toMatchObject({
+      check: { exit_code: 124 },
+      reason: 'check-failed',
+      status: 'failed',
+    })
   })
 
   it('leaves the worktree of a run that hit its time limit unstaged and kept, runs no check, and lists it for the workflow’s end', async () => {
-    const w = await readyRun({ scripts: [{ effect: edits('src/partial.ts'), stdout: '', timedOut: true }] })
+    const w = await readyRun({
+      scripts: [{ effect: edits('src/partial.ts'), stdout: '', timedOut: true }],
+    })
 
     const result = await w.run(writeInput(w))
 
@@ -3590,10 +4492,20 @@ describe('model-gateway run: writing, the worktree and the check', () => {
   })
 
   it('leaves the worktree of any run the delegate failed unstaged and kept, with the delegate’s own reason', async () => {
-    const w = await readyRun({ scripts: [{ exitCode: 3, stdout: '' }, { stdout: 'not a journal' }] })
+    const w = await readyRun({
+      scripts: [{ exitCode: 3, stdout: '' }, { stdout: 'not a journal' }],
+    })
 
-    expect(printed(await w.run(writeInput(w)))).toMatchObject({ reason: 'exit-3', staged_files: [], status: 'failed' })
-    expect(printed(await w.run(writeInput(w)))).toMatchObject({ reason: 'parse-error', staged_files: [], status: 'failed' })
+    expect(printed(await w.run(writeInput(w)))).toMatchObject({
+      reason: 'exit-3',
+      staged_files: [],
+      status: 'failed',
+    })
+    expect(printed(await w.run(writeInput(w)))).toMatchObject({
+      reason: 'parse-error',
+      staged_files: [],
+      status: 'failed',
+    })
     expect(w.vibe.commands).toHaveLength(2)
     expect(w.git.stagedIn).toEqual([])
   })
@@ -3601,7 +4513,12 @@ describe('model-gateway run: writing, the worktree and the check', () => {
   it('stops the run when git cannot create the worktree off the base, and leaves nothing behind', async () => {
     const w = await readyRun({
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], root: repo, worktreeError: 'fatal: invalid reference: nowhere' },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          root: repo,
+          worktreeError: 'fatal: invalid reference: nowhere',
+        },
       }),
       scripts: [{ stdout: journal('x') }],
     })
@@ -3615,7 +4532,9 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     })
     expect(w.vibe.commands).toEqual([])
     await expect(readFile(w.kept, 'utf8')).rejects.toThrow()
-    expect(await readdir(join(w.repo, '.git', 'model-gateway')).catch(() => [])).not.toContain('worktrees')
+    expect(await readdir(join(w.repo, '.git', 'model-gateway')).catch(() => [])).not.toContain(
+      'worktrees',
+    )
   })
 
   it('stages the delegate’s work before the check, so what the check writes is not the delegate’s diff', async () => {
@@ -3627,7 +4546,10 @@ describe('model-gateway run: writing, the worktree and the check', () => {
           effect: async (command) => {
             callsAtCheck.push([...w.git.calls])
             await mkdir(join(String(command.cwd), 'coverage'), { recursive: true })
-            await writeFile(join(String(command.cwd), 'coverage', 'lcov.info'), 'generated by the check')
+            await writeFile(
+              join(String(command.cwd), 'coverage', 'lcov.info'),
+              'generated by the check',
+            )
             await writeFile(join(String(command.cwd), 'src', 'a.ts'), 'rewritten by the check')
           },
           stdout: '3 passed\n',
@@ -3641,12 +4563,16 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     expect(callsAtCheck[0]?.slice(-2)).toEqual(['stageAll', 'stagedFiles'])
     expect(w.git.calls.filter((call) => call === 'stageAll')).toHaveLength(1)
     expect(w.git.calls.filter((call) => call === 'stagedFiles')).toHaveLength(1)
-    expect(await readFile(join(worktreeOf(result), 'src', 'a.ts'), 'utf8')).toBe('rewritten by the check')
+    expect(await readFile(join(worktreeOf(result), 'src', 'a.ts'), 'utf8')).toBe(
+      'rewritten by the check',
+    )
     expect(await readdir(worktreeOf(result))).toContain('coverage')
   })
 
   it('reports a failed run when git cannot list what it staged, and keeps the worktree', async () => {
-    const w = await readyRun({ scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { stdout: '3 passed\n' }] })
+    const w = await readyRun({
+      scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { stdout: '3 passed\n' }],
+    })
     w.git.stagedFilesError = 'fatal: index file smaller than expected'
 
     const result = await w.run(writeInput(w))
@@ -3661,12 +4587,19 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     })
     expect(w.git.stagedIn).toEqual([worktreeOf(result)])
     expect(await readdir(worktreeOf(result))).toContain('src')
-    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'stage-list-failed' })
-    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id }] })
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({
+      outcome: 'failed',
+      reason: 'stage-list-failed',
+    })
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({
+      worktrees: [{ run_id: printed(result).run_id }],
+    })
   })
 
   it('reports a failed run, not an error, when git cannot stage after a delegate and a check that went well', async () => {
-    const w = await readyRun({ scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { stdout: '3 passed\n' }] })
+    const w = await readyRun({
+      scripts: [{ effect: edits('src/a.ts'), stdout: journal('done') }, { stdout: '3 passed\n' }],
+    })
     w.git.stageError = 'fatal: not a git repository: .git'
 
     const result = await w.run(writeInput(w))
@@ -3682,10 +4615,18 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     })
     expect(worktreeOf(result)).toContain(join('.git', 'model-gateway', 'worktrees'))
     expect(await readFile(join(runDirOf(w, result), 'output.json'), 'utf8')).toBe(journal('done'))
-    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(withoutAttempts(result))
-    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ mode: 'write', outcome: 'failed', reason: 'stage-failed' })
+    expect(JSON.parse(await readFile(join(runDirOf(w, result), 'result.json'), 'utf8'))).toEqual(
+      withoutAttempts(result),
+    )
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({
+      mode: 'write',
+      outcome: 'failed',
+      reason: 'stage-failed',
+    })
     expect(await readdir(worktreeOf(result))).toContain('src')
-    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id }] })
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({
+      worktrees: [{ run_id: printed(result).run_id }],
+    })
   })
 
   it('reports a failed run when the check’s output cannot be written, and keeps the check’s exit code', async () => {
@@ -3693,7 +4634,9 @@ describe('model-gateway run: writing, the worktree and the check', () => {
       scripts: [
         {
           effect: async (command) => {
-            await mkdir(join(dirname(String(flag(command, '--prompt-file'))), 'check-output.txt'), { recursive: true })
+            await mkdir(join(dirname(String(flag(command, '--prompt-file'))), 'check-output.txt'), {
+              recursive: true,
+            })
           },
           stdout: journal('done'),
         },
@@ -3710,7 +4653,10 @@ describe('model-gateway run: writing, the worktree and the check', () => {
       status: 'failed',
       worktree_error: expect.stringContaining('check-output.txt') as unknown,
     })
-    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'check-output-failed' })
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({
+      outcome: 'failed',
+      reason: 'check-output-failed',
+    })
   })
 
   it('removes the worktree and its branch, and throws the original error, when the kept list cannot take it', async () => {
@@ -3735,12 +4681,21 @@ describe('model-gateway run: writing, the worktree and the check', () => {
     const w = await readyRun({
       kept,
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], removeError: 'fatal: cannot lock', root: repo },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          removeError: 'fatal: cannot lock',
+          root: repo,
+        },
       }),
     })
     w.git.deleteBranchError = 'error: branch not found'
 
-    expect(printed(await w.run(writeInput(w)))).toEqual({ code: 'unexpected', message: 'disk full', status: 'error' })
+    expect(printed(await w.run(writeInput(w)))).toEqual({
+      code: 'unexpected',
+      message: 'disk full',
+      status: 'error',
+    })
     expect(w.git.worktrees.map((call) => call.action)).toEqual(['create', 'remove'])
   })
 
@@ -3771,27 +4726,40 @@ describe('model-gateway run: writing, the worktree and the check', () => {
 
     const result = await w.run(writeInput(w))
 
-    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id, workflow: 'spec-293' }] })
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({
+      worktrees: [{ run_id: printed(result).run_id, workflow: 'spec-293' }],
+    })
   })
 
   it('keeps the list when two runs add to it at once', async () => {
-    const w = await readyRun({ scripts: Array.from({ length: 6 }, () => ({ stdout: journal('x') })) })
+    const w = await readyRun({
+      scripts: Array.from({ length: 6 }, () => ({ stdout: journal('x') })),
+    })
     w.vibe.queue(...Array.from({ length: 6 }, () => ({ stdout: '' })))
 
     const results = await Promise.all(Array.from({ length: 6 }, () => w.run(writeInput(w))))
 
-    const listed = (JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { run_id: string }[] }).worktrees.map((entry) => entry.run_id)
+    const listed = (
+      JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { run_id: string }[] }
+    ).worktrees.map((entry) => entry.run_id)
     expect(listed.sort()).toEqual(results.map((result) => String(printed(result).run_id)).sort())
   })
 })
 
 describe('model-gateway run: writing, the other worktrees', () => {
   /** A workspace for a writing run that watches `other-checkout`, a second checkout of the same repository. */
-  async function withOtherCheckout(options: RunWorkspaceOptions = {}): Promise<{ readonly w: RunWorkspace; readonly other: string }> {
+  async function withOtherCheckout(
+    options: RunWorkspaceOptions = {},
+  ): Promise<{ readonly w: RunWorkspace; readonly other: string }> {
     const w = await readyRun({
       ...options,
       repositories: (repo: string) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], root: repo, worktrees: [join(repo, '..', 'other-checkout')] },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          root: repo,
+          worktrees: [join(repo, '..', 'other-checkout')],
+        },
       }),
     })
     const other = join(w.dir, 'other-checkout')
@@ -3817,9 +4785,16 @@ describe('model-gateway run: writing, the other worktrees', () => {
         {
           effect: async (command) => {
             await edits('src/a.ts')(command)
-            await writeFile(join(w.dir, 'other-checkout', 'stepped-over.md'), 'written beside its worktree')
+            await writeFile(
+              join(w.dir, 'other-checkout', 'stepped-over.md'),
+              'written beside its worktree',
+            )
           },
-          stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('done\nSUMMARY: stepped on another checkout'), openCodeStepFinish(0.01, { input: 100, output: 10 })),
+          stdout: openCodeEvents(
+            OPENCODE_STEP_START,
+            openCodeText('done\nSUMMARY: stepped on another checkout'),
+            openCodeStepFinish(0.01, { input: 100, output: 10 }),
+          ),
         },
       ],
     })
@@ -3838,8 +4813,13 @@ describe('model-gateway run: writing, the other worktrees', () => {
     expect(w.git.stagedIn).toEqual([worktreeOf(result)])
     expect(await readdir(worktreeOf(result))).toContain('src')
     expect(join(w.dir, 'other-checkout', 'stepped-over.md')).toBeTruthy()
-    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({ outcome: 'failed', reason: 'foreign-worktree-change' })
-    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({ worktrees: [{ run_id: printed(result).run_id }] })
+    expect(JSON.parse((await readFile(w.ledger, 'utf8')).trimEnd())).toMatchObject({
+      outcome: 'failed',
+      reason: 'foreign-worktree-change',
+    })
+    expect(JSON.parse(await readFile(w.kept, 'utf8'))).toMatchObject({
+      worktrees: [{ run_id: printed(result).run_id }],
+    })
   })
 
   it('fails the delegation when another worktree cannot be read when the run ends, as one that went away does', async () => {
@@ -3879,14 +4859,19 @@ describe('model-gateway run: writing, the other worktrees', () => {
         {
           effect: async (command) => {
             await edits('src/a.ts')(command)
-            await writeFile(join(w.repo, '.git', 'model-gateway', 'worktrees', 'sibling-run', 'own-work.md'), 'another run of the same gateway worked here')
+            await writeFile(
+              join(w.repo, '.git', 'model-gateway', 'worktrees', 'sibling-run', 'own-work.md'),
+              'another run of the same gateway worked here',
+            )
           },
           stdout: journal('done'),
         },
         { stdout: '3 passed\n' },
       ],
     })
-    await mkdir(join(w.repo, '.git', 'model-gateway', 'worktrees', 'sibling-run'), { recursive: true })
+    await mkdir(join(w.repo, '.git', 'model-gateway', 'worktrees', 'sibling-run'), {
+      recursive: true,
+    })
 
     const result = await w.run(writeInput(w))
 
@@ -3903,7 +4888,11 @@ describe('model-gateway run: writing, the other worktrees', () => {
     const result = await w.run(writeInput(w))
 
     expect(result.exitCode).toBe(1)
-    expect(printed(result)).toMatchObject({ code: 'worktree-failed', message: expect.stringContaining(w.repo) as unknown, status: 'error' })
+    expect(printed(result)).toMatchObject({
+      code: 'worktree-failed',
+      message: expect.stringContaining(w.repo) as unknown,
+      status: 'error',
+    })
     expect(w.vibe.commands).toEqual([])
     expect(w.git.worktrees).toEqual([])
   })
@@ -3948,9 +4937,23 @@ describe('model-gateway run: writing, the other worktrees', () => {
     await expect(readFile(w.ledger, 'utf8')).rejects.toThrow()
     expect(ledgerLines(await readFile(w.ledger, 'utf8').catch(() => ''))).toEqual([])
     await expect(readFile(w.kept, 'utf8')).rejects.toThrow()
-    expect(((JSON.parse(await readFile(w.kept, 'utf8').catch(() => '{"worktrees":[]}')) as { worktrees?: { run_id: string }[] }).worktrees ?? []).map((one) => one.run_id)).toEqual([])
+    expect(
+      (
+        (
+          JSON.parse(await readFile(w.kept, 'utf8').catch(() => '{"worktrees":[]}')) as {
+            worktrees?: { run_id: string }[]
+          }
+        ).worktrees ?? []
+      ).map((one) => one.run_id),
+    ).toEqual([])
     await expect(readFile(w.workflows, 'utf8')).rejects.toThrow()
-    expect(((JSON.parse(await readFile(w.workflows, 'utf8').catch(() => '{"workflows":[]}')) as { workflows?: unknown[] }).workflows ?? [])).toEqual([])
+    expect(
+      (
+        JSON.parse(await readFile(w.workflows, 'utf8').catch(() => '{"workflows":[]}')) as {
+          workflows?: unknown[]
+        }
+      ).workflows ?? [],
+    ).toEqual([])
   })
 
   it('reports a change of another worktree, and not the delegate’s own failure, when both happened', async () => {
@@ -3959,7 +4962,10 @@ describe('model-gateway run: writing, the other worktrees', () => {
         {
           effect: async (command) => {
             await edits('src/a.ts')(command)
-            await writeFile(join(w.dir, 'other-checkout', 'stepped-over.md'), 'written beside its worktree')
+            await writeFile(
+              join(w.dir, 'other-checkout', 'stepped-over.md'),
+              'written beside its worktree',
+            )
           },
           exitCode: 3,
           stderr: 'the delegate fell over',
@@ -3985,8 +4991,14 @@ describe('model-gateway run: writing, the other worktrees', () => {
 
 describe('model-gateway worktrees clean', () => {
   /** A workspace with one finished writing run of workflow `spec-293` and one that timed out in `spec-294`. */
-  async function withKept(): Promise<{ w: RunWorkspace; ok: ModelGatewayCliResult; timedOut: ModelGatewayCliResult }> {
-    const w = await readyRun({ scripts: [{ stdout: journal('x') }, { stdout: '' }, { stdout: '', timedOut: true }] })
+  async function withKept(): Promise<{
+    w: RunWorkspace
+    ok: ModelGatewayCliResult
+    timedOut: ModelGatewayCliResult
+  }> {
+    const w = await readyRun({
+      scripts: [{ stdout: journal('x') }, { stdout: '' }, { stdout: '', timedOut: true }],
+    })
     const ok = await w.run(writeInput(w))
     const timedOut = await w.run(writeInput(w, { workflow: 'spec-294' }))
     return { ok, timedOut, w }
@@ -4002,15 +5014,28 @@ describe('model-gateway worktrees clean', () => {
     expect(printed(result)).toEqual({
       branch_kept: [],
       failed: [],
-      removed: [{ branch: printed(timedOut).branch, run_id: printed(timedOut).run_id, workflow: 'spec-294', worktree: worktreeOf(timedOut) }],
+      removed: [
+        {
+          branch: printed(timedOut).branch,
+          run_id: printed(timedOut).run_id,
+          workflow: 'spec-294',
+          worktree: worktreeOf(timedOut),
+        },
+      ],
       status: 'ok',
     })
-    expect(w.git.worktrees).toEqual([{ action: 'remove', path: worktreeOf(timedOut), repo: w.repo }])
-    expect(w.git.deletedBranches).toEqual([{ branch: printed(timedOut).branch, repo: w.repo }])
-    expect(await readdir(dirname(worktreeOf(timedOut)))).not.toContain(basename(worktreeOf(timedOut)))
-    expect((JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { run_id: string }[] }).worktrees.map((entry) => entry.run_id)).toEqual([
-      printed(ok).run_id,
+    expect(w.git.worktrees).toEqual([
+      { action: 'remove', path: worktreeOf(timedOut), repo: w.repo },
     ])
+    expect(w.git.deletedBranches).toEqual([{ branch: printed(timedOut).branch, repo: w.repo }])
+    expect(await readdir(dirname(worktreeOf(timedOut)))).not.toContain(
+      basename(worktreeOf(timedOut)),
+    )
+    expect(
+      (
+        JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { run_id: string }[] }
+      ).worktrees.map((entry) => entry.run_id),
+    ).toEqual([printed(ok).run_id])
   })
 
   it('counts a worktree as cleaned once it is removed, and reports a branch git would not delete', async () => {
@@ -4021,13 +5046,28 @@ describe('model-gateway worktrees clean', () => {
 
     expect(printed(result)).toEqual({
       branch_kept: [
-        { branch: printed(timedOut).branch, reason: 'error: Cannot delete branch checked out at /elsewhere', run_id: printed(timedOut).run_id },
+        {
+          branch: printed(timedOut).branch,
+          reason: 'error: Cannot delete branch checked out at /elsewhere',
+          run_id: printed(timedOut).run_id,
+        },
       ],
       failed: [],
-      removed: [{ branch: printed(timedOut).branch, run_id: printed(timedOut).run_id, workflow: 'spec-294', worktree: worktreeOf(timedOut) }],
+      removed: [
+        {
+          branch: printed(timedOut).branch,
+          run_id: printed(timedOut).run_id,
+          workflow: 'spec-294',
+          worktree: worktreeOf(timedOut),
+        },
+      ],
       status: 'ok',
     })
-    expect((JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { workflow: string }[] }).worktrees.map((entry) => entry.workflow)).toEqual(['spec-293'])
+    expect(
+      (
+        JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: { workflow: string }[] }
+      ).worktrees.map((entry) => entry.workflow),
+    ).toEqual(['spec-293'])
   })
 
   it('removes every kept worktree when told to, and leaves an empty list', async () => {
@@ -4041,11 +5081,21 @@ describe('model-gateway worktrees clean', () => {
 
   it('removes nothing for a workflow it kept nothing for, and when it has kept nothing at all', async () => {
     const { w } = await withKept()
-    expect(printed(await w.cli('worktrees', 'clean', '--json', '{"workflow":"other"}'))).toEqual({ branch_kept: [], failed: [], removed: [], status: 'ok' })
+    expect(printed(await w.cli('worktrees', 'clean', '--json', '{"workflow":"other"}'))).toEqual({
+      branch_kept: [],
+      failed: [],
+      removed: [],
+      status: 'ok',
+    })
     expect(w.git.worktrees.map((call) => call.action)).toEqual(['create', 'create'])
 
     const empty = await runWorkspace()
-    expect(printed(await empty.cli('worktrees', 'clean', '--json', '{"all":true}'))).toEqual({ branch_kept: [], failed: [], removed: [], status: 'ok' })
+    expect(printed(await empty.cli('worktrees', 'clean', '--json', '{"all":true}'))).toEqual({
+      branch_kept: [],
+      failed: [],
+      removed: [],
+      status: 'ok',
+    })
   })
 
   it('refuses input that names both a workflow and all', async () => {
@@ -4061,7 +5111,12 @@ describe('model-gateway worktrees clean', () => {
   it('keeps the entry of a worktree it could not remove, and says why', async () => {
     const w = await readyRun({
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [AGENT_KIT_REMOTE], removeError: 'fatal: cannot lock', root: repo },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [AGENT_KIT_REMOTE],
+          removeError: 'fatal: cannot lock',
+          root: repo,
+        },
       }),
       scripts: [{ stdout: journal('x') }, { stdout: '' }],
     })
@@ -4071,18 +5126,28 @@ describe('model-gateway worktrees clean', () => {
 
     expect(printed(result)).toEqual({
       branch_kept: [],
-      failed: [{ reason: 'fatal: cannot lock', run_id: printed(ran).run_id, worktree: worktreeOf(ran) }],
+      failed: [
+        { reason: 'fatal: cannot lock', run_id: printed(ran).run_id, worktree: worktreeOf(ran) },
+      ],
       removed: [],
       status: 'ok',
     })
     expect(w.git.deletedBranches).toEqual([])
-    expect((JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: unknown[] }).worktrees).toHaveLength(1)
+    expect(
+      (JSON.parse(await readFile(w.kept, 'utf8')) as { worktrees: unknown[] }).worktrees,
+    ).toHaveLength(1)
   })
 
   it('refuses input that names neither a workflow nor all, or both', async () => {
     const w = await readyRun()
 
-    for (const input of ['{}', '{"workflow":1}', '{"workflow":""}', '{"all":false}', '{"all":true,"workflow":"x"}']) {
+    for (const input of [
+      '{}',
+      '{"workflow":1}',
+      '{"workflow":""}',
+      '{"all":false}',
+      '{"all":true,"workflow":"x"}',
+    ]) {
       const result = await w.cli('worktrees', 'clean', '--json', input)
       expect(result.exitCode).toBe(1)
       expect(printed(result)).toMatchObject({ code: 'invalid-input', status: 'error' })
@@ -4099,15 +5164,26 @@ describe('model-gateway worktrees clean', () => {
     expect(printed(result)).toMatchObject({ code: 'invalid-config', status: 'error' })
     expect(String(printed(result).message)).toContain(w.kept)
     await writeFile(w.kept, '{"version":1,"worktrees":"x"}')
-    expect(printed(await w.cli('worktrees', 'clean', '--json', '{"all":true}')).code).toBe('invalid-config')
+    expect(printed(await w.cli('worktrees', 'clean', '--json', '{"all":true}')).code).toBe(
+      'invalid-config',
+    )
   })
 
   it('is a subcommand of its own: worktrees alone, or with another word, is unknown', async () => {
     const w = await readyRun()
 
-    expect(printed(await w.cli('worktrees', '--json', '{}'))).toMatchObject({ code: 'unknown-command', status: 'error' })
-    expect(printed(await w.cli('worktrees', 'list', '--json', '{}'))).toMatchObject({ code: 'unknown-command', status: 'error' })
-    expect(printed(await w.cli('worktrees'))).toMatchObject({ code: 'unknown-command', status: 'error' })
+    expect(printed(await w.cli('worktrees', '--json', '{}'))).toMatchObject({
+      code: 'unknown-command',
+      status: 'error',
+    })
+    expect(printed(await w.cli('worktrees', 'list', '--json', '{}'))).toMatchObject({
+      code: 'unknown-command',
+      status: 'error',
+    })
+    expect(printed(await w.cli('worktrees'))).toMatchObject({
+      code: 'unknown-command',
+      status: 'error',
+    })
   })
 })
 
@@ -4178,26 +5254,47 @@ describe('model-gateway workflow', () => {
     expect(result.stderr).toBe('')
     expect(printed(result)).toEqual({
       status: 'ok',
-      workflow: { ended_at: null, name: 'spec-293', started_at: expect.any(String) as unknown, state: 'running' },
+      workflow: {
+        ended_at: null,
+        name: 'spec-293',
+        started_at: expect.any(String) as unknown,
+        state: 'running',
+      },
     })
     expect(JSON.parse(await readFile(w.workflows, 'utf8'))).toEqual({
       version: 1,
-      workflows: [{ name: 'spec-293', started_at: printed(result).workflow instanceof Object ? (printed(result).workflow as { started_at: string }).started_at : '' }],
+      workflows: [
+        {
+          name: 'spec-293',
+          started_at:
+            printed(result).workflow instanceof Object
+              ? (printed(result).workflow as { started_at: string }).started_at
+              : '',
+        },
+      ],
     })
   })
 
   it('leaves a workflow that is already running as it is', async () => {
     const w = await runWorkspace()
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+    })
 
     const result = await w.cli('workflow', 'start', '--json', '{"name":"spec-293"}')
 
-    expect(printed(result)).toMatchObject({ workflow: { started_at: '2026-11-04T10:00:00.000Z', state: 'running' } })
+    expect(printed(result)).toMatchObject({
+      workflow: { started_at: '2026-11-04T10:00:00.000Z', state: 'running' },
+    })
   })
 
   it('ends a workflow and reports when it ended', async () => {
     const w = await runWorkspace()
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+    })
 
     const result = await w.cli('workflow', 'end', '--json', '{"name":"spec-293"}')
 
@@ -4218,7 +5315,11 @@ describe('model-gateway workflow', () => {
       version: 1,
       workflows: [
         { name: 'abandoned', started_at: '2020-01-01T00:00:00.000Z' },
-        { ended_at: '2026-11-04T11:00:00.000Z', name: 'done', started_at: '2026-11-04T10:00:00.000Z' },
+        {
+          ended_at: '2026-11-04T11:00:00.000Z',
+          name: 'done',
+          started_at: '2026-11-04T10:00:00.000Z',
+        },
       ],
     })
 
@@ -4227,8 +5328,18 @@ describe('model-gateway workflow', () => {
     expect(printed(result)).toEqual({
       status: 'ok',
       workflows: [
-        { ended_at: '2020-01-02T00:00:00.000Z', name: 'abandoned', started_at: '2020-01-01T00:00:00.000Z', state: 'ended' },
-        { ended_at: '2026-11-04T11:00:00.000Z', name: 'done', started_at: '2026-11-04T10:00:00.000Z', state: 'ended' },
+        {
+          ended_at: '2020-01-02T00:00:00.000Z',
+          name: 'abandoned',
+          started_at: '2020-01-01T00:00:00.000Z',
+          state: 'ended',
+        },
+        {
+          ended_at: '2026-11-04T11:00:00.000Z',
+          name: 'done',
+          started_at: '2026-11-04T10:00:00.000Z',
+          state: 'ended',
+        },
       ],
     })
   })
@@ -4236,7 +5347,10 @@ describe('model-gateway workflow', () => {
   it('lists no workflow before one has started', async () => {
     const w = await runWorkspace()
 
-    expect(printed(await w.cli('workflow', 'list', '--json', '{}'))).toEqual({ status: 'ok', workflows: [] })
+    expect(printed(await w.cli('workflow', 'list', '--json', '{}'))).toEqual({
+      status: 'ok',
+      workflows: [],
+    })
   })
 
   it('refuses a workflow command that names no workflow', async () => {
@@ -4247,7 +5361,9 @@ describe('model-gateway workflow', () => {
       message: 'a workflow command must name its workflow',
       status: 'error',
     })
-    expect(printed(await w.cli('workflow', 'end', '--json', '{"name":""}'))).toMatchObject({ code: 'invalid-input' })
+    expect(printed(await w.cli('workflow', 'end', '--json', '{"name":""}'))).toMatchObject({
+      code: 'invalid-input',
+    })
   })
 
   it('refuses to end a workflow this machine never started', async () => {
@@ -4273,7 +5389,9 @@ describe('model-gateway workflow', () => {
   it('refuses a workflow subcommand it does not have', async () => {
     const w = await runWorkspace()
 
-    expect(printed(await w.cli('workflow', 'pause', '--json', '{}'))).toMatchObject({ code: 'unknown-command' })
+    expect(printed(await w.cli('workflow', 'pause', '--json', '{}'))).toMatchObject({
+      code: 'unknown-command',
+    })
   })
 })
 
@@ -4292,12 +5410,19 @@ describe('model-gateway run: the workflow', () => {
     const w = await readyRun()
     await w.writeWorkflows({
       version: 1,
-      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+      workflows: [
+        {
+          ended_at: '2026-11-04T11:00:00.000Z',
+          name: 'spec-293',
+          started_at: '2026-11-04T10:00:00.000Z',
+        },
+      ],
     })
 
     expect(printed(await w.run(w.input()))).toEqual({
       code: 'workflow-ended',
-      message: 'workflow spec-293 ended at 2026-11-04T11:00:00.000Z: a run may not join it, so start a new workflow',
+      message:
+        'workflow spec-293 ended at 2026-11-04T11:00:00.000Z: a run may not join it, so start a new workflow',
       status: 'error',
     })
     expect(w.vibe.commands).toEqual([])
@@ -4305,17 +5430,23 @@ describe('model-gateway run: the workflow', () => {
 
   it('refuses a run that names a workflow whose 24 hours ran out', async () => {
     const w = await readyRun()
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2020-01-01T00:00:00.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2020-01-01T00:00:00.000Z' }],
+    })
 
     expect(printed(await w.run(w.input()))).toMatchObject({
       code: 'workflow-ended',
-      message: 'workflow spec-293 ended at 2020-01-02T00:00:00.000Z: a run may not join it, so start a new workflow',
+      message:
+        'workflow spec-293 ended at 2020-01-02T00:00:00.000Z: a run may not join it, so start a new workflow',
     })
     expect(w.vibe.commands).toEqual([])
   })
 
   it('starts no workflow for a run refused for a client the configuration does not declare', async () => {
-    const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as { clients: Record<string, unknown> }
+    const shipped = JSON.parse(await readFile(SHIPPED_DEFAULTS, 'utf8')) as {
+      clients: Record<string, unknown>
+    }
     delete shipped.clients.vibe
     const w = await readyRun({ defaults: shipped })
 
@@ -4359,7 +5490,9 @@ describe('model-gateway run: the workflow', () => {
 
 /** The workflows `workflow list` reports, as the gateway itself reads them. */
 async function listedWorkflows(w: RunWorkspace): Promise<readonly unknown[]> {
-  return (printed(await w.cli('workflow', 'list', '--json', '{}')) as { workflows: readonly unknown[] }).workflows
+  return (
+    printed(await w.cli('workflow', 'list', '--json', '{}')) as { workflows: readonly unknown[] }
+  ).workflows
 }
 
 /** The machine file that lets Hermes run on Anthropic, with the price and tier a metered run is estimated at. */
@@ -4378,7 +5511,9 @@ const HERMES_MACHINE = {
 }
 
 /** What Hermes writes to its usage file: its own tokens, dollars and outcome. */
-function hermesUsageFile(options: { cost?: number; failed?: boolean; input?: number; output?: number } = {}): unknown {
+function hermesUsageFile(
+  options: { cost?: number; failed?: boolean; input?: number; output?: number } = {},
+): unknown {
   return {
     api_calls: 2,
     cache_read_tokens: 0,
@@ -4398,7 +5533,12 @@ interface HermesWorkspace {
 
 /** A Hermes run's input: the metered-personal client, on the provider the machine allows. */
 function hermesInput(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
-  return w.input({ client: 'hermes', model: 'anthropic/claude-sonnet-4.6', provider: 'anthropic', ...overrides })
+  return w.input({
+    client: 'hermes',
+    model: 'anthropic/claude-sonnet-4.6',
+    provider: 'anthropic',
+    ...overrides,
+  })
 }
 
 /** A workspace whose one Hermes run is permitted, proven and scripted to answer `text`. */
@@ -4406,7 +5546,10 @@ async function readyHermes(
   options: RunWorkspaceOptions & { readonly text?: string; readonly usage?: unknown } = {},
 ): Promise<HermesWorkspace> {
   const hermes = new FakeHermesProcess([
-    { stdout: options.text ?? 'the answer\nSUMMARY: it is fine', usage: options.usage ?? hermesUsageFile() },
+    {
+      stdout: options.text ?? 'the answer\nSUMMARY: it is fine',
+      usage: options.usage ?? hermesUsageFile(),
+    },
   ])
   const w = await runWorkspace({
     allowlist: allowlist(['anthropic'], true, true),
@@ -4451,16 +5594,20 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
   })
 
   it('refuses openrouter, whatever the machine lists', async () => {
-    const { hermes, w } = await readyHermes({ override: { clients: { hermes: { providers: ['openrouter'] } } } })
+    const { hermes, w } = await readyHermes({
+      override: { clients: { hermes: { providers: ['openrouter'] } } },
+    })
 
     expect(printed(await w.run(hermesInput(w, { provider: 'openrouter' })))).toEqual({
       code: 'provider-not-allowed',
       message: 'openrouter is not allowed: the owner forbade OpenRouter',
       status: 'error',
     })
-    expect(printed(await w.run(hermesInput(w, { model: 'openrouter/pareto-code' })))).toMatchObject({
-      code: 'provider-not-allowed',
-    })
+    expect(printed(await w.run(hermesInput(w, { model: 'openrouter/pareto-code' })))).toMatchObject(
+      {
+        code: 'provider-not-allowed',
+      },
+    )
     expect(hermes.commands).toEqual([])
   })
 
@@ -4507,7 +5654,14 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
     const result = await w.run(hermesInput(w))
 
     expect(printed(result)).toEqual({
-      attempts: [{ client: 'hermes', model: 'anthropic/claude-sonnet-4.6', run_id: printed(result).run_id, status: 'ok' }],
+      attempts: [
+        {
+          client: 'hermes',
+          model: 'anthropic/claude-sonnet-4.6',
+          run_id: printed(result).run_id,
+          status: 'ok',
+        },
+      ],
       client: 'hermes',
       cost_usd: 0.0234,
       family: 'anthropic',
@@ -4527,7 +5681,9 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
 
     const result = await w.run(hermesInput(w))
 
-    const lines = ledgerLines(await readFile(w.ledger, 'utf8')).filter((line) => line.kind === undefined)
+    const lines = ledgerLines(await readFile(w.ledger, 'utf8')).filter(
+      (line) => line.kind === undefined,
+    )
     expect(lines).toHaveLength(1)
     expect(lines[0]).toEqual({
       at: expect.any(String) as unknown,
@@ -4549,11 +5705,17 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
   it('counts a run the usage file calls failed as failed, and keeps its spend', async () => {
     const { w } = await readyHermes({ usage: hermesUsageFile({ cost: 0.5, failed: true }) })
 
-    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ cost_usd: 0.5, reason: 'failed', status: 'failed' })
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({
+      cost_usd: 0.5,
+      reason: 'failed',
+      status: 'failed',
+    })
   })
 
   it('counts the run at the catalogue price when the usage file prices nothing', async () => {
-    const { w } = await readyHermes({ usage: { failed: false, input_tokens: 10, output_tokens: 5 } })
+    const { w } = await readyHermes({
+      usage: { failed: false, input_tokens: 10, output_tokens: 5 },
+    })
 
     expect(printed(await w.run(hermesInput(w)))).toMatchObject({ cost_usd: 0.000105, status: 'ok' })
   })
@@ -4561,7 +5723,11 @@ describe('model-gateway run: Hermes, the metered-personal client', () => {
   it('reports a hermes run that printed nothing as a parse error', async () => {
     const { w } = await readyHermes({ text: '  \n' })
 
-    expect(printed(await w.run(hermesInput(w)))).toMatchObject({ reason: 'parse-error', status: 'failed', summary: '' })
+    expect(printed(await w.run(hermesInput(w)))).toMatchObject({
+      reason: 'parse-error',
+      status: 'failed',
+      summary: '',
+    })
   })
 
   it('reports the exit code hermes ended with', async () => {
@@ -4604,7 +5770,9 @@ function attemptsOf(result: ModelGatewayCliResult): AttemptRow[] {
 }
 
 /** The program each launched command runs: Vibe is launched behind `env -u ...`, which this looks through. */
-function binariesOf(commands: readonly { readonly command: string; readonly args: readonly string[] }[]): string[] {
+function binariesOf(
+  commands: readonly { readonly command: string; readonly args: readonly string[] }[],
+): string[] {
   return commands.map((launched) => {
     if (launched.command !== 'env') return launched.command
     let skip = false
@@ -4637,12 +5805,19 @@ function delegation(w: RunWorkspace, overrides: Readonly<Record<string, unknown>
 }
 
 const FAILS: VibeScript = { exitCode: 3, stderr: 'boom: the tests did not pass', stdout: '' }
-const SUCCEEDS: VibeScript = { exportJson: exported({ cost: 0.01, input: 10 }), stdout: journal('fixed\nSUMMARY: done') }
+const SUCCEEDS: VibeScript = {
+  exportJson: exported({ cost: 0.01, input: 10 }),
+  stdout: journal('fixed\nSUMMARY: done'),
+}
 const CLAUDE_SUCCEEDS: VibeScript = { stdout: claudeResult('fixed\nSUMMARY: done by claude') }
 const ALL_FAMILIES = ['anthropic', 'deepseek', 'google', 'mistral', 'zhipu']
 
 async function escalating(options: RunWorkspaceOptions = {}): Promise<RunWorkspace> {
-  return runWorkspace({ allowlist: allowlist(ALL_FAMILIES, true, true), setupResults: setupResults('pass'), ...options })
+  return runWorkspace({
+    allowlist: allowlist(ALL_FAMILIES, true, true),
+    setupResults: setupResults('pass'),
+    ...options,
+  })
 }
 
 describe('model-gateway run: retry', () => {
@@ -4652,7 +5827,10 @@ describe('model-gateway run: retry', () => {
     const result = await w.run(delegation(w))
 
     expect(result.exitCode).toBe(0)
-    expect(printed(result)).toMatchObject({ attempts: [{ client: 'vibe', model: 'glm-5-3', status: 'ok' }], status: 'ok' })
+    expect(printed(result)).toMatchObject({
+      attempts: [{ client: 'vibe', model: 'glm-5-3', status: 'ok' }],
+      status: 'ok',
+    })
     expect(printed(result)).not.toHaveProperty('escalation')
     expect(w.vibe.commands).toHaveLength(1)
     const [line] = await ledgerOf(w, undefined)
@@ -4668,7 +5846,12 @@ describe('model-gateway run: retry', () => {
     expect(printed(result)).toMatchObject({ client: 'vibe', model: 'glm-5-3', status: 'ok' })
     expect(printed(result)).not.toHaveProperty('escalation')
     const [first, second] = attemptsOf(result)
-    expect(first).toMatchObject({ client: 'vibe', model: 'glm-5-3', reason: 'exit-3', status: 'failed' })
+    expect(first).toMatchObject({
+      client: 'vibe',
+      model: 'glm-5-3',
+      reason: 'exit-3',
+      status: 'failed',
+    })
     expect(second).toMatchObject({ client: 'vibe', model: 'glm-5-3', status: 'ok' })
     expect(printed(result).run_id).toBe(second?.run_id)
     expect(first?.run_id).not.toBe(second?.run_id)
@@ -4694,7 +5877,12 @@ describe('model-gateway run: retry', () => {
   })
 
   it('shows the retry the last 1,000 characters of what the failed attempt printed, its stderr first', async () => {
-    const w = await escalating({ scripts: [{ exitCode: 1, stderr: `${'x'.repeat(1500)}THE END`, stdout: 'stdout is not shown' }, SUCCEEDS] })
+    const w = await escalating({
+      scripts: [
+        { exitCode: 1, stderr: `${'x'.repeat(1500)}THE END`, stdout: 'stdout is not shown' },
+        SUCCEEDS,
+      ],
+    })
 
     const result = await w.run(delegation(w))
 
@@ -4709,23 +5897,40 @@ describe('model-gateway run: retry', () => {
   it('shows the retry what the failed attempt printed on stdout when it printed nothing on stderr, and nothing when it printed nothing', async () => {
     const out = await escalating({ scripts: [{ stdout: 'not a journal' }, SUCCEEDS] })
     const withOutput = await out.run(delegation(out))
-    expect(await promptOf(out, String(attemptsOf(withOutput)[1]?.run_id))).toContain('A previous attempt failed: parse-error; not a journal\n\n')
+    expect(await promptOf(out, String(attemptsOf(withOutput)[1]?.run_id))).toContain(
+      'A previous attempt failed: parse-error; not a journal\n\n',
+    )
 
     const silent = await escalating({ scripts: [{ exitCode: 2, stdout: '' }, SUCCEEDS] })
     const withNothing = await silent.run(delegation(silent))
-    expect(await promptOf(silent, String(attemptsOf(withNothing)[1]?.run_id))).toContain('A previous attempt failed: exit-2\n\n')
+    expect(await promptOf(silent, String(attemptsOf(withNothing)[1]?.run_id))).toContain(
+      'A previous attempt failed: exit-2\n\n',
+    )
   })
 
   it('counts a timeout and output it cannot parse as failed results, and keeps the raw output with the reason', async () => {
-    const w = await escalating({ scripts: [{ stdout: 'partial', timedOut: true }, { stdout: 'not a journal' }, CLAUDE_SUCCEEDS] })
+    const w = await escalating({
+      scripts: [
+        { stdout: 'partial', timedOut: true },
+        { stdout: 'not a journal' },
+        CLAUDE_SUCCEEDS,
+      ],
+    })
 
     const result = await w.run(delegation(w))
 
-    expect(attemptsOf(result).map((attempt) => attempt.reason)).toEqual(['timeout', 'parse-error', undefined])
+    expect(attemptsOf(result).map((attempt) => attempt.reason)).toEqual([
+      'timeout',
+      'parse-error',
+      undefined,
+    ])
     const [timedOut] = attemptsOf(result)
     const runDir = join(w.repo, '.git', 'model-gateway', 'runs', String(timedOut?.run_id))
     expect(await readFile(join(runDir, 'output.json'), 'utf8')).toBe('partial')
-    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toMatchObject({ reason: 'timeout', status: 'failed' })
+    expect(JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'))).toMatchObject({
+      reason: 'timeout',
+      status: 'failed',
+    })
   })
 
   it('retries a writing run whose check failed in a fresh worktree, showing what the check printed', async () => {
@@ -4747,7 +5952,9 @@ describe('model-gateway run: retry', () => {
     expect(created).toHaveLength(2)
     expect(created[0]?.path).not.toBe(created[1]?.path)
     expect(worktreeOf(result)).toBe(created[1]?.path)
-    expect(await promptOf(w, String(second?.run_id))).toContain('A previous attempt failed: check-failed; 1 failed: a.test.ts')
+    expect(await promptOf(w, String(second?.run_id))).toContain(
+      'A previous attempt failed: check-failed; 1 failed: a.test.ts',
+    )
   })
 
   it('does not retry when the caller turns the escalation off, and says so with one attempt', async () => {
@@ -4755,7 +5962,11 @@ describe('model-gateway run: retry', () => {
 
     const result = await w.run(delegation(w, { escalate: false }))
 
-    expect(printed(result)).toMatchObject({ attempts: [{ reason: 'exit-3', status: 'failed' }], reason: 'exit-3', status: 'failed' })
+    expect(printed(result)).toMatchObject({
+      attempts: [{ reason: 'exit-3', status: 'failed' }],
+      reason: 'exit-3',
+      status: 'failed',
+    })
     expect(printed(result)).not.toHaveProperty('escalation')
     expect(w.vibe.commands).toHaveLength(1)
   })
@@ -4779,7 +5990,10 @@ describe('model-gateway run: retry', () => {
   })
 
   it('never retries a refusal: a run the gateway refuses is an error that stops the call before anything is launched', async () => {
-    const w = await escalating({ allowlist: allowlist(['mistral'], true, true), scripts: [SUCCEEDS] })
+    const w = await escalating({
+      allowlist: allowlist(['mistral'], true, true),
+      scripts: [SUCCEEDS],
+    })
 
     const result = await w.run(delegation(w))
 
@@ -4825,8 +6039,16 @@ describe('model-gateway run: climb', () => {
 
     const result = await w.run(delegation(w))
 
-    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-opus-5-5', status: 'ok' })
-    expect(attemptedModels(result)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3', 'claude:claude-opus-5-5'])
+    expect(printed(result)).toMatchObject({
+      client: 'claude',
+      model: 'claude-opus-5-5',
+      status: 'ok',
+    })
+    expect(attemptedModels(result)).toEqual([
+      'vibe:glm-5-3',
+      'vibe:glm-5-3',
+      'claude:claude-opus-5-5',
+    ])
     expect(binariesOf(w.vibe.commands)).toEqual(['vibe', 'vibe', 'claude'])
     const lines = await ledgerOf(w, undefined)
     expect(lines.map((line) => line.attempt)).toEqual([undefined, 2, 3])
@@ -4846,7 +6068,10 @@ describe('model-gateway run: climb', () => {
   })
 
   it('climbs only through the models the repository’s allowlist permits', async () => {
-    const w = await escalating({ allowlist: allowlist(['deepseek', 'mistral'], true, true), scripts: [FAILS, FAILS, SUCCEEDS] })
+    const w = await escalating({
+      allowlist: allowlist(['deepseek', 'mistral'], true, true),
+      scripts: [FAILS, FAILS, SUCCEEDS],
+    })
 
     const result = await w.run(delegation(w, { model: 'deepseek-v4-1-flash-1017' }))
 
@@ -4858,12 +6083,19 @@ describe('model-gateway run: climb', () => {
   })
 
   it('returns the last result with escalation exhausted when no stronger model is left', async () => {
-    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), scripts: [FAILS, FAILS] })
+    const w = await escalating({
+      allowlist: allowlist(['zhipu'], true, true),
+      scripts: [FAILS, FAILS],
+    })
 
     const result = await w.run(delegation(w))
 
     expect(result.exitCode).toBe(0)
-    expect(printed(result)).toMatchObject({ escalation: 'exhausted', reason: 'exit-3', status: 'failed' })
+    expect(printed(result)).toMatchObject({
+      escalation: 'exhausted',
+      reason: 'exit-3',
+      status: 'failed',
+    })
     expect(attemptedModels(result)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3'])
     expect(w.vibe.commands).toHaveLength(2)
   })
@@ -4882,7 +6114,12 @@ describe('model-gateway run: climb', () => {
     const five = await escalating({ scripts: [FAILS, FAILS, FAILS, FAILS, SUCCEEDS] })
     const fiveResult = await five.run(delegation(five, { max_attempts: 5 }))
     expect(printed(fiveResult)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
-    expect(attemptedModels(fiveResult)).toEqual(['vibe:glm-5-3', 'vibe:glm-5-3', 'claude:claude-opus-5-5', 'claude:claude-opus-5-5'])
+    expect(attemptedModels(fiveResult)).toEqual([
+      'vibe:glm-5-3',
+      'vibe:glm-5-3',
+      'claude:claude-opus-5-5',
+      'claude:claude-opus-5-5',
+    ])
   })
 
   it('never climbs into a costlier cost class, a metered-employer one included', async () => {
@@ -4891,7 +6128,15 @@ describe('model-gateway run: climb', () => {
         allowlist: allowlist(['deepseek', 'google'], true, true),
         override: {
           clients: { agy: { cost_class: costClass } },
-          models: [{ client: 'hermes', family: 'google', model: 'google/gemini-5', notes: 'x', tier: 'frontier' }],
+          models: [
+            {
+              client: 'hermes',
+              family: 'google',
+              model: 'google/gemini-5',
+              notes: 'x',
+              tier: 'frontier',
+            },
+          ],
         },
         scripts: [FAILS, FAILS, SUCCEEDS],
       })
@@ -4899,7 +6144,10 @@ describe('model-gateway run: climb', () => {
       const result = await w.run(delegation(w, { model: 'deepseek-v4-1-flash-1017' }))
 
       expect(printed(result)).toMatchObject({ escalation: 'exhausted', status: 'failed' })
-      expect(attemptedModels(result)).toEqual(['vibe:deepseek-v4-1-flash-1017', 'vibe:deepseek-v4-1-flash-1017'])
+      expect(attemptedModels(result)).toEqual([
+        'vibe:deepseek-v4-1-flash-1017',
+        'vibe:deepseek-v4-1-flash-1017',
+      ])
       expect(binariesOf(w.vibe.commands)).toEqual(['vibe', 'vibe'])
     }
   })
@@ -4909,7 +6157,13 @@ describe('model-gateway run: climb', () => {
       allowlist: allowlist(['anthropic', 'google'], true, true),
       override: {
         clients: { agy: { cost_class: 'metered-personal' } },
-        models: [{ client: 'agy', model: 'gemini-3.8-flash-high', prices: { cached_input: 0, input: 1, output: 2 } }],
+        models: [
+          {
+            client: 'agy',
+            model: 'gemini-3.8-flash-high',
+            prices: { cached_input: 0, input: 1, output: 2 },
+          },
+        ],
       },
       scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS],
       setupResults: AGY_PROVEN,
@@ -4917,7 +6171,11 @@ describe('model-gateway run: climb', () => {
 
     const result = await w.run(delegation(w, { client: 'agy', model: 'gemini-3.8-flash-high' }))
 
-    expect(attemptedModels(result)).toEqual(['agy:gemini-3.8-flash-high', 'agy:gemini-3.8-flash-high', 'claude:claude-opus-5-5'])
+    expect(attemptedModels(result)).toEqual([
+      'agy:gemini-3.8-flash-high',
+      'agy:gemini-3.8-flash-high',
+      'claude:claude-opus-5-5',
+    ])
   })
 })
 
@@ -4935,7 +6193,11 @@ const EXITS_1: VibeScript = { exitCode: 1, stderr: 'boom: the tests did not pass
 const AGY_QUOTA: VibeScript = {
   exitCode: 3,
   stdout: agyResult('', {
-    error: { code: 'RESOURCE_EXHAUSTED', message: 'Individual quota reached. Resets in 29h2m9s', retryable: true },
+    error: {
+      code: 'RESOURCE_EXHAUSTED',
+      message: 'Individual quota reached. Resets in 29h2m9s',
+      retryable: true,
+    },
     status: 'ERROR',
   }),
 }
@@ -4943,7 +6205,8 @@ const AGY_QUOTA: VibeScript = {
 /** What OpenCode Go answers for a model the account may not use, hosted in a region its plan does not cover. */
 const OPENCODE_REGION: VibeScript = {
   exitCode: 1,
-  stderr: 'This Go model is hosted outside Europe and the United States. Select Global for models hosted outside this region.',
+  stderr:
+    'This Go model is hosted outside Europe and the United States. Select Global for models hosted outside this region.',
   stdout: '',
 }
 
@@ -4955,39 +6218,61 @@ describe('model-gateway run: fall-through', () => {
     const result = await w.run(delegation(w))
 
     expect(result.exitCode).toBe(0)
-    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(printed(result)).toMatchObject({
+      client: 'claude',
+      model: 'claude-sonnet-5-5',
+      status: 'ok',
+    })
     expect(attemptedModels(result)).toEqual(['claude:claude-sonnet-5-5'])
     expect(binariesOf(w.vibe.commands)).toEqual(['claude'])
     expect(printed(result).skipped).toEqual([
-      { client: 'vibe', model: 'glm-5-3', reason: 'unable_to_start: at 100% of its day plan limit (1 of 1 runs)' },
+      {
+        client: 'vibe',
+        model: 'glm-5-3',
+        reason: 'unable_to_start: at 100% of its day plan limit (1 of 1 runs)',
+      },
     ])
     expect(printed(result)).not.toHaveProperty('attempt')
   })
 
   it('swaps a client whose last run was refused for its credentials, and runs the swapped model with the caller’s own prompt', async () => {
     const w = await escalating({ scripts: [CLAUDE_SUCCEEDS] })
-    await w.writeLedger([ledgerRecord('2026-11-04T10:30:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' })])
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:30:00.000Z', 'vibe', { outcome: 'failed', reason: 'auth' }),
+    ])
 
     const result = await w.run(delegation(w))
 
     expect(attemptedModels(result)).toEqual(['claude:claude-sonnet-5-5'])
-    expect((printed(result).skipped as { reason: string }[])[0]?.reason).toMatch(/^unavailable: auth at /)
+    expect((printed(result).skipped as { reason: string }[])[0]?.reason).toMatch(
+      /^unavailable: auth at /,
+    )
     expect(w.vibe.commands[0]?.stdin).toBe(WRAPPED_PROMPT)
   })
 
   it('swaps a client whose launch failed before the client ran, and does not count the swap as a retry', async () => {
     const w = await escalating({
-      scripts: [{ effect: () => Promise.reject(new Error('spawn vibe ENOENT')), stdout: '' }, CLAUDE_SUCCEEDS],
+      scripts: [
+        { effect: () => Promise.reject(new Error('spawn vibe ENOENT')), stdout: '' },
+        CLAUDE_SUCCEEDS,
+      ],
     })
 
     const result = await w.run(delegation(w))
 
-    expect(printed(result)).toMatchObject({ attempt: 2, client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(printed(result)).toMatchObject({
+      attempt: 2,
+      client: 'claude',
+      model: 'claude-sonnet-5-5',
+      status: 'ok',
+    })
     expect(attemptsOf(result)).toMatchObject([
       { client: 'vibe', reason: 'launch-failed', status: 'failed' },
       { client: 'claude', status: 'ok' },
     ])
-    expect(printed(result).skipped).toEqual([{ client: 'vibe', model: 'glm-5-3', reason: 'launch-failed' }])
+    expect(printed(result).skipped).toEqual([
+      { client: 'vibe', model: 'glm-5-3', reason: 'launch-failed' },
+    ])
     expect(binariesOf(w.vibe.commands)).toEqual(['vibe', 'claude'])
   })
 
@@ -5012,7 +6297,11 @@ describe('model-gateway run: fall-through', () => {
     const result = await w.run(delegation(w, { client: 'agy', model: 'gemini-3.8-flash-high' }))
 
     expect(result.exitCode).toBe(0)
-    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(printed(result)).toMatchObject({
+      client: 'claude',
+      model: 'claude-sonnet-5-5',
+      status: 'ok',
+    })
     expect(attemptsOf(result)).toMatchObject([
       { client: 'agy', model: 'gemini-3.8-flash-high', reason: 'rate-limited', status: 'failed' },
       { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
@@ -5035,7 +6324,8 @@ describe('model-gateway run: fall-through', () => {
 
     expect(availability(await w.cli('usage', '--json', '{}'), 'agy')).toEqual({
       installed: true,
-      reason: 'rate-limited at 2026-11-04T10:52:15.000Z: unavailable until 2026-11-05T15:54:24.000Z',
+      reason:
+        'rate-limited at 2026-11-04T10:52:15.000Z: unavailable until 2026-11-05T15:54:24.000Z',
       signed_in: 'unknown',
       status: 'unavailable',
     })
@@ -5047,7 +6337,8 @@ describe('model-gateway run: fall-through', () => {
     expect(printed(models).skipped).toContainEqual({
       client: 'agy',
       model: 'gemini-3.8-flash-high',
-      reason: 'rate-limited at 2026-11-04T10:52:15.000Z: unavailable until 2026-11-05T15:54:24.000Z',
+      reason:
+        'rate-limited at 2026-11-04T10:52:15.000Z: unavailable until 2026-11-05T15:54:24.000Z',
     })
 
     clock.advance(29 * 3_600_000 + 2 * 60_000 + 9_000 + 1)
@@ -5061,7 +6352,12 @@ describe('model-gateway run: fall-through', () => {
   describe('standing refusals', () => {
     const AGY = 'gemini-3.8-flash-high'
     const refusal = (at: string, overrides: Partial<LedgerRecord> = {}): LedgerRecord =>
-      ledgerRecord(at, 'agy', { model: AGY, outcome: 'failed', reason: 'rate-limited', ...overrides })
+      ledgerRecord(at, 'agy', {
+        model: AGY,
+        outcome: 'failed',
+        reason: 'rate-limited',
+        ...overrides,
+      })
     const offered = async (w: Awaited<ReturnType<typeof escalating>>): Promise<string[]> => {
       w.vibe.queue({ stdout: AGY_PLAN_LISTING.stdout })
       return listed(await w.cli('models', '--json', JSON.stringify({ repo: w.repo })))
@@ -5084,19 +6380,33 @@ describe('model-gateway run: fall-through', () => {
       await w.writeLedger([refusal('2026-11-04T10:00:00.000Z')])
       expect(await offered(w)).not.toContain(`agy:${AGY}`)
 
-      await w.writeLedger([refusal('2026-11-04T10:00:00.000Z'), ledgerRecord('2026-11-04T10:10:00.000Z', 'agy', { model: AGY })])
+      await w.writeLedger([
+        refusal('2026-11-04T10:00:00.000Z'),
+        ledgerRecord('2026-11-04T10:10:00.000Z', 'agy', { model: AGY }),
+      ])
       expect(await offered(w)).toContain(`agy:${AGY}`)
     })
 
     it('names, for the client, the refusal answered last across its models', async () => {
       const w = await escalating({ scripts: [], setupResults: AGY_PROVEN })
       await w.writeLedger([
-        refusal('2026-11-04T10:00:00.000Z', { model: 'a', unavailable_until: '2026-11-05T10:00:00.000Z' }),
-        refusal('2026-11-04T10:10:00.000Z', { model: 'b', unavailable_until: '2026-11-05T11:00:00.000Z' }),
-        refusal('2026-11-04T10:20:00.000Z', { model: 'a', unavailable_until: '2026-11-05T12:00:00.000Z' }),
+        refusal('2026-11-04T10:00:00.000Z', {
+          model: 'a',
+          unavailable_until: '2026-11-05T10:00:00.000Z',
+        }),
+        refusal('2026-11-04T10:10:00.000Z', {
+          model: 'b',
+          unavailable_until: '2026-11-05T11:00:00.000Z',
+        }),
+        refusal('2026-11-04T10:20:00.000Z', {
+          model: 'a',
+          unavailable_until: '2026-11-05T12:00:00.000Z',
+        }),
       ])
 
-      expect(availability(await w.cli('usage', '--json', '{}'), 'agy').reason).toContain('at 2026-11-04T10:20:00.000Z')
+      expect(availability(await w.cli('usage', '--json', '{}'), 'agy').reason).toContain(
+        'at 2026-11-04T10:20:00.000Z',
+      )
     })
 
     it('measures the reset a refusal names from when the client answered, not from when the run started', async () => {
@@ -5133,7 +6443,11 @@ describe('model-gateway run: fall-through', () => {
 
     const result = await w.run(delegation(w, { client: 'opencode', model: 'opencode-go/glm-5.3' }))
 
-    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
+    expect(printed(result)).toMatchObject({
+      client: 'claude',
+      model: 'claude-sonnet-5-5',
+      status: 'ok',
+    })
     expect(attemptsOf(result)).toMatchObject([
       {
         client: 'opencode',
@@ -5147,7 +6461,9 @@ describe('model-gateway run: fall-through', () => {
       { client: 'opencode', model: 'opencode-go/glm-5.3', reason: 'model-unavailable' },
     ])
     expect(binariesOf(w.vibe.commands)).toEqual(['opencode', 'claude'])
-    expect(availability(await w.cli('usage', '--json', '{}'), 'opencode').status).not.toBe('unavailable')
+    expect(availability(await w.cli('usage', '--json', '{}'), 'opencode').status).not.toBe(
+      'unavailable',
+    )
 
     w.vibe.queue(
       { stdout: AGY_PLAN_LISTING.stdout },
@@ -5165,7 +6481,11 @@ describe('model-gateway run: fall-through', () => {
   })
 
   it('reports the delegation unavailable, with the reasons per candidate, when no model of the cost class can start', async () => {
-    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), override: oneRunADay('vibe'), scripts: [SUCCEEDS] })
+    const w = await escalating({
+      allowlist: allowlist(['zhipu'], true, true),
+      override: oneRunADay('vibe'),
+      scripts: [SUCCEEDS],
+    })
     await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
 
     const result = await w.run(delegation(w))
@@ -5177,7 +6497,13 @@ describe('model-gateway run: fall-through', () => {
       message:
         'vibe:glm-5-3 cannot start, and no other permitted subsidised client model covers its tier; the gateway never moves into a costlier cost class by itself',
       model: 'glm-5-3',
-      reasons: [{ client: 'vibe', model: 'glm-5-3', reason: 'unable_to_start: at 100% of its day plan limit (1 of 1 runs)' }],
+      reasons: [
+        {
+          client: 'vibe',
+          model: 'glm-5-3',
+          reason: 'unable_to_start: at 100% of its day plan limit (1 of 1 runs)',
+        },
+      ],
       status: 'unavailable',
       workflow: 'spec-293',
     })
@@ -5187,7 +6513,12 @@ describe('model-gateway run: fall-through', () => {
   it('never swaps into a costlier cost class, however strong the model there is', async () => {
     const w = await escalating({
       allowlist: allowlist(['anthropic', 'zhipu'], true, true),
-      override: { clients: { claude: { cost_class: 'metered-personal' }, vibe: { plan_limits: [{ limit_runs: 1, window: 'day' }] } } },
+      override: {
+        clients: {
+          claude: { cost_class: 'metered-personal' },
+          vibe: { plan_limits: [{ limit_runs: 1, window: 'day' }] },
+        },
+      },
       scripts: [CLAUDE_SUCCEEDS],
     })
     await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
@@ -5199,7 +6530,11 @@ describe('model-gateway run: fall-through', () => {
   })
 
   it('never swaps into a model below the tier the caller asked for', async () => {
-    const w = await escalating({ allowlist: allowlist(['deepseek', 'zhipu'], true, true), override: oneRunADay('vibe'), scripts: [SUCCEEDS] })
+    const w = await escalating({
+      allowlist: allowlist(['deepseek', 'zhipu'], true, true),
+      override: oneRunADay('vibe'),
+      scripts: [SUCCEEDS],
+    })
     await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
 
     const result = await w.run(delegation(w))
@@ -5209,7 +6544,10 @@ describe('model-gateway run: fall-through', () => {
   })
 
   it('reports the delegation unavailable, with the failed run in its attempts, when the client that failed has no stand-in', async () => {
-    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), scripts: [RATE_LIMITED, SUCCEEDS] })
+    const w = await escalating({
+      allowlist: allowlist(['zhipu'], true, true),
+      scripts: [RATE_LIMITED, SUCCEEDS],
+    })
 
     const result = await w.run(delegation(w))
 
@@ -5222,7 +6560,10 @@ describe('model-gateway run: fall-through', () => {
   })
 
   it('returns the run it really made when the retry cannot start and no model can stand in', async () => {
-    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), scripts: [EXITS_1, RATE_LIMITED] })
+    const w = await escalating({
+      allowlist: allowlist(['zhipu'], true, true),
+      scripts: [EXITS_1, RATE_LIMITED],
+    })
 
     const result = await w.run(delegation(w))
 
@@ -5243,7 +6584,11 @@ describe('model-gateway run: fall-through', () => {
   })
 
   it('returns the run it really made when the retry’s client cannot start at all, naming why', async () => {
-    const w = await escalating({ allowlist: allowlist(['zhipu'], true, true), override: oneRunADay('vibe'), scripts: [EXITS_1] })
+    const w = await escalating({
+      allowlist: allowlist(['zhipu'], true, true),
+      override: oneRunADay('vibe'),
+      scripts: [EXITS_1],
+    })
 
     const result = await w.run(delegation(w))
 
@@ -5263,7 +6608,11 @@ describe('model-gateway run: fall-through', () => {
     const w = await escalating({
       override: oneRunADay('claude'),
       repositories: (repo) => ({
-        [repo]: { commonDir: join(repo, '.git'), remotes: [{ name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }], root: repo },
+        [repo]: {
+          commonDir: join(repo, '.git'),
+          remotes: [{ name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }],
+          root: repo,
+        },
       }),
       scripts: [SUCCEEDS],
     })
@@ -5291,7 +6640,10 @@ describe('model-gateway run: fall-through', () => {
   })
 
   it('passes over a stronger model that cannot start when it climbs, and says so', async () => {
-    const w = await escalating({ override: oneRunADay('claude'), scripts: [FAILS, FAILS, SUCCEEDS] })
+    const w = await escalating({
+      override: oneRunADay('claude'),
+      scripts: [FAILS, FAILS, SUCCEEDS],
+    })
     await w.writeLedger([ledgerRecord(TODAY, 'claude')])
 
     const result = await w.run(delegation(w, { model: 'deepseek-v4-1-flash-1017' }))
@@ -5301,7 +6653,9 @@ describe('model-gateway run: fall-through', () => {
       'vibe:deepseek-v4-1-flash-1017',
       'vibe:glm-5-3',
     ])
-    expect(printed(result).skipped).toMatchObject([{ client: 'claude', model: 'claude-sonnet-5-5' }])
+    expect(printed(result).skipped).toMatchObject([
+      { client: 'claude', model: 'claude-sonnet-5-5' },
+    ])
   })
 
   it('returns the last result exhausted when every stronger model it could climb to cannot start', async () => {
@@ -5314,7 +6668,11 @@ describe('model-gateway run: fall-through', () => {
 
     const result = await w.run(delegation(w))
 
-    expect(printed(result)).toMatchObject({ escalation: 'exhausted', reason: 'exit-3', status: 'failed' })
+    expect(printed(result)).toMatchObject({
+      escalation: 'exhausted',
+      reason: 'exit-3',
+      status: 'failed',
+    })
     expect(printed(result).skipped).toMatchObject([{ client: 'claude', model: 'claude-opus-5-5' }])
     expect(attemptsOf(result)).toHaveLength(2)
   })
@@ -5326,10 +6684,24 @@ describe('model-gateway run: fall-through', () => {
         clients: { vibe: { plan_limits: [{ limit_runs: 1, window: 'day' }] } },
         models: [
           { client: 'opencode', family: 'zhipu', model: 'other/glm-5.3', notes: 'x', tier: 'hard' },
-          { client: 'opencode', family: 'zhipu', model: 'opencode-go/glm-5.3', notes: 'x', tier: 'hard' },
+          {
+            client: 'opencode',
+            family: 'zhipu',
+            model: 'opencode-go/glm-5.3',
+            notes: 'x',
+            tier: 'hard',
+          },
         ],
       },
-      scripts: [{ stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('fine\nSUMMARY: ok'), openCodeStepFinish(0.01, { input: 10, output: 5 })) }],
+      scripts: [
+        {
+          stdout: openCodeEvents(
+            OPENCODE_STEP_START,
+            openCodeText('fine\nSUMMARY: ok'),
+            openCodeStepFinish(0.01, { input: 10, output: 5 }),
+          ),
+        },
+      ],
     })
     await w.writeLedger([ledgerRecord(TODAY, 'vibe')])
 
@@ -5342,7 +6714,10 @@ describe('model-gateway run: fall-through', () => {
 
 describe('model-gateway run: review fixes', () => {
   it('never climbs to a model the machine disabled, by its alias or by a name it is known by', async () => {
-    const w = await escalating({ override: { disabled: ['claude:claude-opus-5-5'] }, scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS] })
+    const w = await escalating({
+      override: { disabled: ['claude:claude-opus-5-5'] },
+      scripts: [FAILS, FAILS, CLAUDE_SUCCEEDS],
+    })
 
     const result = await w.run(delegation(w))
 
@@ -5364,7 +6739,16 @@ describe('model-gateway run: review fixes', () => {
       override: {
         clients: { vibe: { plan_limits: [{ limit_runs: 1, window: 'day' }] } },
         disabled: ['claude:claude-sonnet-5-5', 'claude:claude-opus-5-5', 'claude:claude-x-alias'],
-        models: [{ client: 'claude', family: 'anthropic', model: 'claude-x', names: ['claude-x-alias'], notes: 'x', tier: 'hard' }],
+        models: [
+          {
+            client: 'claude',
+            family: 'anthropic',
+            model: 'claude-x',
+            names: ['claude-x-alias'],
+            notes: 'x',
+            tier: 'hard',
+          },
+        ],
       },
       scripts: [CLAUDE_SUCCEEDS],
     })
@@ -5453,7 +6837,10 @@ describe('model-gateway run: review fixes', () => {
 
     const result = await w.run(hermesInput(w, { escalate: undefined }))
 
-    expect(attemptedModels(result)).toEqual(['hermes:anthropic/claude-sonnet-4.6', 'hermes:anthropic/claude-opus-4.8'])
+    expect(attemptedModels(result)).toEqual([
+      'hermes:anthropic/claude-sonnet-4.6',
+      'hermes:anthropic/claude-opus-4.8',
+    ])
     expect(printed(result)).toMatchObject({ status: 'ok' })
     expect(hermes.commands[1]?.args).toContain('anthropic')
   })
@@ -5479,7 +6866,12 @@ describe('model-gateway run: review fixes', () => {
       'claude:claude-sonnet-5-5',
       'claude:claude-opus-5-5',
     ])
-    expect(attemptsOf(result).map((attempt) => attempt.reason)).toEqual(['auth', 'check-failed', 'check-failed', undefined])
+    expect(attemptsOf(result).map((attempt) => attempt.reason)).toEqual([
+      'auth',
+      'check-failed',
+      'check-failed',
+      undefined,
+    ])
     expect(printed(result)).toMatchObject({ model: 'claude-opus-5-5', status: 'ok' })
     expect(printed(result)).not.toHaveProperty('escalation')
   })
@@ -5535,7 +6927,11 @@ function reservationRecord(overrides: Partial<ReservationRecord> = {}): Reservat
 }
 
 /** One settlement line, as a run that ended, or a reservation that expired, left it. */
-function settledLine(runId: string, costUsd: number, reason?: 'expired' | 'not-started'): SettledRecord {
+function settledLine(
+  runId: string,
+  costUsd: number,
+  reason?: 'expired' | 'not-started',
+): SettledRecord {
   return {
     client: 'hermes',
     cost_class: 'metered-personal',
@@ -5553,7 +6949,10 @@ function settledLine(runId: string, costUsd: number, reason?: 'expired' | 'not-s
 function filesWithUnreadableExists(broken: string): ModelGatewayFilesPort {
   const files = new NodeModelGatewayFiles()
   return {
-    exists: (path) => (path === broken ? Promise.reject(new Error(`EACCES: permission denied, access '${path}'`)) : files.exists(path)),
+    exists: (path) =>
+      path === broken
+        ? Promise.reject(new Error(`EACCES: permission denied, access '${path}'`))
+        : files.exists(path),
     mkdir: (path) => files.mkdir(path),
     readText: (path) => files.readText(path),
     remove: (path) => files.remove(path),
@@ -5563,8 +6962,13 @@ function filesWithUnreadableExists(broken: string): ModelGatewayFilesPort {
 }
 
 /** The ledger's lines of one kind: `reservation`, `settled`, or a run's own line for `undefined`. */
-async function ledgerOf(w: RunWorkspace, kind: 'reservation' | 'settled' | undefined): Promise<Record<string, unknown>[]> {
-  return ledgerLines(await readFile(w.ledger, 'utf8').catch(() => '')).filter((line) => line.kind === kind)
+async function ledgerOf(
+  w: RunWorkspace,
+  kind: 'reservation' | 'settled' | undefined,
+): Promise<Record<string, unknown>[]> {
+  return ledgerLines(await readFile(w.ledger, 'utf8').catch(() => '')).filter(
+    (line) => line.kind === kind,
+  )
 }
 
 describe('model-gateway run: the metered-personal caps', () => {
@@ -5618,7 +7022,9 @@ describe('model-gateway run: the metered-personal caps', () => {
   })
 
   it('refuses a metered run the catalogue cannot estimate, before anything is launched', async () => {
-    const { hermes, w } = await readyHermes({ override: { clients: { hermes: { providers: ['anthropic'] } } } })
+    const { hermes, w } = await readyHermes({
+      override: { clients: { hermes: { providers: ['anthropic'] } } },
+    })
 
     expect(printed(await w.run(hermesInput(w)))).toEqual({
       code: 'no-estimate',
@@ -5652,13 +7058,17 @@ describe('model-gateway run: the metered-personal caps', () => {
 
     expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({
       code: 'cap-exceeded',
-      message: expect.stringContaining('$0.49 spent and $1.50 reserved in workflow spec-293') as unknown,
+      message: expect.stringContaining(
+        '$0.49 spent and $1.50 reserved in workflow spec-293',
+      ) as unknown,
     })
   })
 
   it('refuses a run that does not fit the per-day cap, naming the UTC day', async () => {
     const { w } = await readyHermes()
-    await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 4.99, workflow: 'other' })])
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 4.99, workflow: 'other' }),
+    ])
 
     expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toEqual({
       code: 'cap-exceeded',
@@ -5672,7 +7082,11 @@ describe('model-gateway run: the metered-personal caps', () => {
     const { w } = await readyHermes()
     await w.writeLedger([
       ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 4.5, workflow: 'other' }),
-      reservationRecord({ estimate_usd: 0.5, expires_at: '2026-11-04T12:00:00.000Z', workflow: 'another' }),
+      reservationRecord({
+        estimate_usd: 0.5,
+        expires_at: '2026-11-04T12:00:00.000Z',
+        workflow: 'another',
+      }),
     ])
 
     expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({
@@ -5695,7 +7109,9 @@ describe('model-gateway run: the metered-personal caps', () => {
 
   it('counts a run of another day against its own day, not today’s', async () => {
     const { w } = await readyHermes()
-    await w.writeLedger([ledgerRecord('2026-11-03T09:00:00.000Z', 'hermes', { cost_usd: 4.99, workflow: 'other' })])
+    await w.writeLedger([
+      ledgerRecord('2026-11-03T09:00:00.000Z', 'hermes', { cost_usd: 4.99, workflow: 'other' }),
+    ])
 
     expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT }))).status).toBe('ok')
   })
@@ -5752,7 +7168,9 @@ describe('model-gateway run: the metered-personal caps', () => {
 
     await w.cli('usage', '--json', '{}')
 
-    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.5, reason: 'expired', run_id: 'run-1' }])
+    expect(await ledgerOf(w, 'settled')).toMatchObject([
+      { cost_usd: 0.5, reason: 'expired', run_id: 'run-1' },
+    ])
   })
 
   it('counts a reservation whose run left a result it cannot read at its full estimate', async () => {
@@ -5771,13 +7189,17 @@ describe('model-gateway run: the metered-personal caps', () => {
     const { w } = await readyHermes()
     await w.writeLedger([reservationRecord({ estimate_usd: 1.99 })])
 
-    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({ code: 'cap-exceeded' })
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({
+      code: 'cap-exceeded',
+    })
     expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 1.99, reason: 'expired' }])
   })
 
   it('leaves a reservation that has not expired alone, and reports what it holds', async () => {
     const w = await runWorkspace()
-    await w.writeLedger([reservationRecord({ estimate_usd: 0.5, expires_at: '2026-11-04T12:00:00.000Z' })])
+    await w.writeLedger([
+      reservationRecord({ estimate_usd: 0.5, expires_at: '2026-11-04T12:00:00.000Z' }),
+    ])
 
     const result = await w.cli('usage', '--json', '{}')
 
@@ -5801,16 +7223,24 @@ describe('model-gateway run: the metered-personal caps', () => {
     await mkdir(runDir, { recursive: true })
     await writeFile(join(runDir, 'result.json'), JSON.stringify({ cost_usd: 0.4 }))
     await w.writeLedger([
-      reservationRecord({ estimate_usd: 1.99, expires_at: '2026-11-04T12:00:00.000Z', run_dir: runDir }),
+      reservationRecord({
+        estimate_usd: 1.99,
+        expires_at: '2026-11-04T12:00:00.000Z',
+        run_dir: runDir,
+      }),
     ])
 
     expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT }))).status).toBe('ok')
-    expect(await ledgerOf(w, 'settled')).toContainEqual(expect.objectContaining({ cost_usd: 0.4, run_id: 'run-1' }))
+    expect(await ledgerOf(w, 'settled')).toContainEqual(
+      expect.objectContaining({ cost_usd: 0.4, run_id: 'run-1' }),
+    )
   })
 
   it('holds a reservation whose run left neither a line nor a result until it expires', async () => {
     const { w } = await readyHermes()
-    await w.writeLedger([reservationRecord({ estimate_usd: 1.99, expires_at: '2026-11-04T12:00:00.000Z' })])
+    await w.writeLedger([
+      reservationRecord({ estimate_usd: 1.99, expires_at: '2026-11-04T12:00:00.000Z' }),
+    ])
 
     expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({
       code: 'cap-exceeded',
@@ -5850,7 +7280,9 @@ describe('model-gateway run: the metered-personal caps', () => {
       },
     ])
     const { w } = await readyHermes({ process: first })
-    const other = w.gateway(new FakeHermesProcess([{ stdout: 'b\nSUMMARY: b', usage: hermesUsageFile({ cost: 0.01 }) }]))
+    const other = w.gateway(
+      new FakeHermesProcess([{ stdout: 'b\nSUMMARY: b', usage: hermesUsageFile({ cost: 0.01 }) }]),
+    )
     await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 1.95 })])
     const input = hermesInput(w, { prompt: LONG_PROMPT })
 
@@ -5873,7 +7305,11 @@ describe('model-gateway run: the metered-personal caps', () => {
     const blocked = new Promise<void>((resolve) => {
       release = resolve
     })
-    const steps = openCodeEvents(OPENCODE_STEP_START, openCodeText('a\nSUMMARY: a'), openCodeStepFinish(0.01, { input: 100, output: 10 }))
+    const steps = openCodeEvents(
+      OPENCODE_STEP_START,
+      openCodeText('a\nSUMMARY: a'),
+      openCodeStepFinish(0.01, { input: 100, output: 10 }),
+    )
     const w = await clientRun({
       override: METERED_OPENCODE,
       scripts: [
@@ -5901,10 +7337,19 @@ describe('model-gateway run: the metered-personal caps', () => {
   it('counts an expired reservation of a metered provider run at its estimate', async () => {
     const w = await clientRun({ override: METERED_OPENCODE })
     await w.writeLedger([
-      reservationRecord({ client: 'opencode', cost_class: 'metered-personal', estimate_usd: 0.02, model: 'zai/glm-5-3' }),
+      reservationRecord({
+        client: 'opencode',
+        cost_class: 'metered-personal',
+        estimate_usd: 0.02,
+        model: 'zai/glm-5-3',
+      }),
     ])
 
-    expect(printed(await w.run(w.input({ client: 'opencode', model: 'zai/glm-5-3', prompt: LONG_PROMPT })))).toMatchObject({
+    expect(
+      printed(
+        await w.run(w.input({ client: 'opencode', model: 'zai/glm-5-3', prompt: LONG_PROMPT })),
+      ),
+    ).toMatchObject({
       code: 'cap-exceeded',
     })
     expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.02, reason: 'expired' }])
@@ -5914,7 +7359,9 @@ describe('model-gateway run: the metered-personal caps', () => {
     const { w } = await readyHermes()
     await w.writeLedger([ledgerRecord('2026-11-04T09:00:00.000Z', 'hermes', { cost_usd: 1.99 })])
 
-    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({ code: 'cap-exceeded' })
+    expect(printed(await w.run(hermesInput(w, { prompt: LONG_PROMPT })))).toMatchObject({
+      code: 'cap-exceeded',
+    })
     expect(await listedWorkflows(w)).toEqual([])
     expect(w.git.worktrees).toEqual([])
   })
@@ -5923,7 +7370,13 @@ describe('model-gateway run: the metered-personal caps', () => {
     const { w } = await readyHermes()
     await w.writeWorkflows({
       version: 1,
-      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+      workflows: [
+        {
+          ended_at: '2026-11-04T11:00:00.000Z',
+          name: 'spec-293',
+          started_at: '2026-11-04T10:00:00.000Z',
+        },
+      ],
     })
 
     expect(printed(await w.run(hermesInput(w)))).toMatchObject({ code: 'workflow-ended' })
@@ -5931,7 +7384,9 @@ describe('model-gateway run: the metered-personal caps', () => {
   })
 
   it('releases the reservation when the workflow cannot be started after it', async () => {
-    const workflows = new FakeWorkflows([{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }])
+    const workflows = new FakeWorkflows([
+      { name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' },
+    ])
     workflows.updateError = new ModelGatewayError(
       'workflow-ended',
       'workflow spec-293 ended at 2026-11-04T11:00:00.000Z: a run may not join it, so start a new workflow',
@@ -5957,7 +7412,13 @@ function codexAnswer(text: string, usage: Readonly<Record<string, number>> = {})
     { item: { id: 'item_0', text, type: 'agent_message' }, type: 'item.completed' },
     {
       type: 'turn.completed',
-      usage: { cached_input_tokens: 100, input_tokens: 1000, output_tokens: 200, reasoning_output_tokens: 50, ...usage },
+      usage: {
+        cached_input_tokens: 100,
+        input_tokens: 1000,
+        output_tokens: 200,
+        reasoning_output_tokens: 50,
+        ...usage,
+      },
     },
   )
 }
@@ -5975,7 +7436,7 @@ async function grantsOf(w: RunWorkspace): Promise<Record<string, unknown>[]> {
 
 /** A Codex run's input: the metered-employer client, on the model the catalogue prices. */
 function codexInput(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): unknown {
-  return w.input({ client: 'codex', model: 'gpt-5.5', ...overrides })
+  return w.input({ client: 'codex', model: 'gpt-6.1-sol', ...overrides })
 }
 
 /** What `grant write` takes unless a test says otherwise: the owner's answer for the test workflow. */
@@ -5988,8 +7449,16 @@ const GRANT_INPUT = {
 }
 
 /** Writes a grant through the command line, as the agent does after asking the owner, and hands back what the file holds. */
-async function writeGrant(w: RunWorkspace, overrides: Readonly<Record<string, unknown>> = {}): Promise<Record<string, unknown>> {
-  const result = await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, ...overrides }))
+async function writeGrant(
+  w: RunWorkspace,
+  overrides: Readonly<Record<string, unknown>> = {},
+): Promise<Record<string, unknown>> {
+  const result = await w.cli(
+    'grant',
+    'write',
+    '--json',
+    JSON.stringify({ ...GRANT_INPUT, ...overrides }),
+  )
   if (result.exitCode !== 0) throw new Error(`grant write failed: ${result.stdout}`)
   return storedGrant(printed(result).grant as Record<string, unknown>)
 }
@@ -6010,9 +7479,16 @@ interface CodexWorkspace {
 
 /** A workspace whose Codex run is permitted, and whose client is scripted to answer `text`. */
 async function readyCodex(
-  options: RunWorkspaceOptions & { readonly text?: string; readonly scripts?: readonly VibeScript[] } = {},
+  options: RunWorkspaceOptions & {
+    readonly text?: string
+    readonly scripts?: readonly VibeScript[]
+  } = {},
 ): Promise<CodexWorkspace> {
-  const codex = new FakeVibeProcess([...(options.scripts ?? [{ stdout: codexAnswer(options.text ?? 'the answer\nSUMMARY: it is fine') }])])
+  const codex = new FakeVibeProcess([
+    ...(options.scripts ?? [
+      { stdout: codexAnswer(options.text ?? 'the answer\nSUMMARY: it is fine') },
+    ]),
+  ])
   const w = await runWorkspace({
     allowlist: allowlist(['openai'], true, true),
     process: codex,
@@ -6033,7 +7509,10 @@ async function repositoryWorkspace(): Promise<CodexWorkspace & { readonly repo: 
   await mkdir(repo, { recursive: true })
   const { w, codex } = await readyCodex({
     env: { XDG_CONFIG_HOME: join(repo, 'config') },
-    repositories: (own) => ({ [own]: { commonDir: join(own, '.git'), remotes: [AGENT_KIT_REMOTE], root: own }, [repo]: { remotes: [], root: repo } }),
+    repositories: (own) => ({
+      [own]: { commonDir: join(own, '.git'), remotes: [AGENT_KIT_REMOTE], root: own },
+      [repo]: { remotes: [], root: repo },
+    }),
   })
   return { codex, repo, w }
 }
@@ -6061,21 +7540,31 @@ describe('model-gateway grant write', () => {
       },
       status: 'ok',
     })
-    expect(await grantsOf(w)).toEqual([storedGrant(printed(result).grant as Record<string, unknown>)])
+    expect(await grantsOf(w)).toEqual([
+      storedGrant(printed(result).grant as Record<string, unknown>),
+    ])
   })
 
   it('ends earlier when the workflow’s own 24 hours run out first', async () => {
     const { w } = await readyCodex()
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+    })
 
     expect((await writeGrant(w)).expires_at).toBe('2026-11-05T10:00:00.000Z')
   })
 
   it('refuses a workflow whose 24 hours already ran out, and writes nothing', async () => {
     const { w } = await readyCodex()
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:00:00.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:00:00.000Z' }],
+    })
 
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toMatchObject({
+    expect(
+      printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT))),
+    ).toMatchObject({
       code: 'workflow-ended',
       status: 'error',
     })
@@ -6098,7 +7587,11 @@ describe('model-gateway grant write', () => {
     const { w } = await readyCodex()
     await writeGrant(w, { cap_usd: 1 })
     await w.writeLedger([
-      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1, workflow: 'spec-293' }),
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', {
+        cost_class: 'metered-employer',
+        cost_usd: 1,
+        workflow: 'spec-293',
+      }),
     ])
 
     expect((await writeGrant(w)).cap_usd).toBe(5)
@@ -6121,7 +7614,8 @@ describe('model-gateway grant write', () => {
 
     expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toEqual({
       code: 'nested-delegation',
-      message: 'a delegate may not write a grant: only the agent the owner works in may, after asking the owner',
+      message:
+        'a delegate may not write a grant: only the agent the owner works in may, after asking the owner',
       status: 'error',
     })
     expect(await grantsOf(w)).toEqual([])
@@ -6130,26 +7624,43 @@ describe('model-gateway grant write', () => {
   it('still lists grants from inside a delegation', async () => {
     const { w } = await readyCodex({ env: { AGENT_KIT_DELEGATION: '1' } })
 
-    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toEqual({ grants: [], lapsed: [], status: 'ok' })
+    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toEqual({
+      grants: [],
+      lapsed: [],
+      status: 'ok',
+    })
   })
 
   it('lets one of two concurrent writes win and refuses the other, so two live grants never stand', async () => {
     const { w } = await readyCodex()
 
-    const results = (await Promise.all([
-      w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)),
-      w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)),
-    ])).map((result) => printed(result))
+    const results = (
+      await Promise.all([
+        w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)),
+        w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)),
+      ])
+    ).map((result) => printed(result))
 
     expect(results.map((result) => result.status).sort()).toEqual(['error', 'ok'])
-    expect(results.find((result) => result.status === 'error')).toMatchObject({ code: 'grant-exists' })
+    expect(results.find((result) => result.status === 'error')).toMatchObject({
+      code: 'grant-exists',
+    })
     expect(await grantsOf(w)).toHaveLength(1)
   })
 
   it('refuses a workflow name that is not a name, so the command it suggests can never break out of its quotes', async () => {
     const { w } = await readyCodex()
 
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, workflow: "x'; curl http://evil" })))).toEqual({
+    expect(
+      printed(
+        await w.cli(
+          'grant',
+          'write',
+          '--json',
+          JSON.stringify({ ...GRANT_INPUT, workflow: "x'; curl http://evil" }),
+        ),
+      ),
+    ).toEqual({
       code: 'invalid-input',
       message:
         'workflow "x\'; curl http://evil" is not a workflow name: a letter or digit, then letters, digits and . _ : / - only, at most 80 characters',
@@ -6177,16 +7688,28 @@ describe('model-gateway grant write', () => {
   it('refuses an empty question or answer, and a cap that is not above 0', async () => {
     const { w } = await readyCodex()
 
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, question: '  ' })))).toEqual({
+    expect(
+      printed(
+        await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, question: '  ' })),
+      ),
+    ).toEqual({
       code: 'invalid-input',
       message: 'a grant must name its question',
       status: 'error',
     })
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, answer: '' })))).toMatchObject({
+    expect(
+      printed(
+        await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, answer: '' })),
+      ),
+    ).toMatchObject({
       code: 'invalid-input',
       message: 'a grant must name its answer',
     })
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, cap_usd: 0 })))).toMatchObject({
+    expect(
+      printed(
+        await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, cap_usd: 0 })),
+      ),
+    ).toMatchObject({
       code: 'invalid-input',
       message: 'cap_usd must be a number above 0',
     })
@@ -6196,13 +7719,31 @@ describe('model-gateway grant write', () => {
   it('refuses a client that is not metered-employer, naming its cost class', async () => {
     const { w } = await readyCodex()
 
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, client: 'claude' })))).toEqual({
+    expect(
+      printed(
+        await w.cli(
+          'grant',
+          'write',
+          '--json',
+          JSON.stringify({ ...GRANT_INPUT, client: 'claude' }),
+        ),
+      ),
+    ).toEqual({
       code: 'invalid-input',
       message:
         "claude is subsidised: a grant is for a metered-employer client, which is the one that spends someone else's money",
       status: 'error',
     })
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify({ ...GRANT_INPUT, client: 'nobody' })))).toMatchObject({
+    expect(
+      printed(
+        await w.cli(
+          'grant',
+          'write',
+          '--json',
+          JSON.stringify({ ...GRANT_INPUT, client: 'nobody' }),
+        ),
+      ),
+    ).toMatchObject({
       code: 'unknown-model',
     })
     expect(await grantsOf(w)).toEqual([])
@@ -6212,10 +7753,18 @@ describe('model-gateway grant write', () => {
     const { w } = await readyCodex()
     await w.writeWorkflows({
       version: 1,
-      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+      workflows: [
+        {
+          ended_at: '2026-11-04T11:00:00.000Z',
+          name: 'spec-293',
+          started_at: '2026-11-04T10:00:00.000Z',
+        },
+      ],
     })
 
-    expect(printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT)))).toMatchObject({
+    expect(
+      printed(await w.cli('grant', 'write', '--json', JSON.stringify(GRANT_INPUT))),
+    ).toMatchObject({
       code: 'workflow-ended',
     })
     expect(await grantsOf(w)).toEqual([])
@@ -6234,7 +7783,9 @@ describe('model-gateway grant write', () => {
   it('refuses to read a grants file inside a git repository too', async () => {
     const { w } = await repositoryWorkspace()
 
-    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toMatchObject({ code: 'grants-in-repository' })
+    expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toMatchObject({
+      code: 'grants-in-repository',
+    })
   })
 })
 
@@ -6243,7 +7794,10 @@ describe('model-gateway grant list', () => {
     const { w } = await readyCodex()
     const grant = await writeGrant(w)
     await w.writeLedger([
-      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1.5 }),
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', {
+        cost_class: 'metered-employer',
+        cost_usd: 1.5,
+      }),
       reservationRecord({
         client: 'codex',
         cost_class: 'metered-employer',
@@ -6267,19 +7821,29 @@ describe('model-gateway grant list', () => {
     await w.writeWorkflows({
       version: 1,
       workflows: [
-        { ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' },
+        {
+          ended_at: '2026-11-04T11:00:00.000Z',
+          name: 'spec-293',
+          started_at: '2026-11-04T10:00:00.000Z',
+        },
         { name: 'spec-294', started_at: '2026-11-04T10:00:00.000Z' },
       ],
     })
     await writeGrant(w, { workflow: 'spec-294', cap_usd: 1 })
     await w.writeLedger([
-      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1, workflow: 'spec-294' }),
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', {
+        cost_class: 'metered-employer',
+        cost_usd: 1,
+        workflow: 'spec-294',
+      }),
     ])
 
     const listed = printed(await w.cli('grant', 'list', '--json', '{}'))
 
     expect(listed.grants).toEqual([])
-    expect((listed.lapsed as Record<string, unknown>[]).map((entry) => [entry.workflow, entry.reason])).toEqual([
+    expect(
+      (listed.lapsed as Record<string, unknown>[]).map((entry) => [entry.workflow, entry.reason]),
+    ).toEqual([
       ['spec-293', 'workflow-ended'],
       ['spec-294', 'cap-spent'],
     ])
@@ -6297,7 +7861,9 @@ describe('model-gateway grant list', () => {
       routingPath: join(w.dir, 'routing.json'),
     })
 
-    expect(printed(await runModelGatewayCli(['grant', 'list', '--json', '{}'], late))).toMatchObject({
+    expect(
+      printed(await runModelGatewayCli(['grant', 'list', '--json', '{}'], late)),
+    ).toMatchObject({
       grants: [],
       lapsed: [{ id: grant.id, reason: 'expired' }],
     })
@@ -6309,7 +7875,10 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
   it('runs under the time left on its workflow, not its full time limit', async () => {
     const { codex, w } = await readyCodex()
     // The workflow's 24 hours run out 5 minutes after the fixed clock.
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }],
+    })
     await writeGrant(w)
 
     const result = await w.run(codexInput(w, { time_limit_s: 900 }))
@@ -6320,10 +7889,16 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
 
   it('refuses a run launched with under a minute left on its grant, and starts nothing', async () => {
     const { codex, w } = await readyCodex()
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:52:45.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:52:45.000Z' }],
+    })
     await writeGrant(w)
 
-    expect(printed(await w.run(codexInput(w)))).toMatchObject({ code: 'grant-expiring', status: 'error' })
+    expect(printed(await w.run(codexInput(w)))).toMatchObject({
+      code: 'grant-expiring',
+      status: 'error',
+    })
     expect(codex.commands).toEqual([])
   })
 
@@ -6336,9 +7911,9 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     expect(result.exitCode).toBe(0)
     expect(printed(result)).toMatchObject({
       client: 'codex',
-      cost_usd: 0.0031375,
+      cost_usd: 0.00381,
       family: 'openai',
-      model: 'gpt-5.5',
+      model: 'gpt-6.1-sol',
       status: 'ok',
       summary: 'it is fine',
       tokens: { cached: 100, input: 1000, output: 200 },
@@ -6351,7 +7926,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
       '--json',
       '--skip-git-repo-check',
       '-m',
-      'gpt-5.5',
+      'gpt-6.1-sol',
       '-c',
       'model_reasoning_effort="medium"',
       '-s',
@@ -6370,18 +7945,23 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
           {
             client: 'codex',
             family: 'openai',
-            model: 'gpt-5.5-high',
+            model: 'gpt-6.1-sol-high',
             notes: 'the same model, asking for more reasoning',
             prices: { cached_input: 0.125, input: 1.25, output: 10 },
             tier: 'frontier',
           },
         ],
       },
-      scripts: [{ effect: edits('src/app.ts'), stdout: codexAnswer('done\nSUMMARY: added it') }, { stdout: '3 passed\n' }],
+      scripts: [
+        { effect: edits('src/app.ts'), stdout: codexAnswer('done\nSUMMARY: added it') },
+        { stdout: '3 passed\n' },
+      ],
     })
     await writeGrant(w)
 
-    const result = await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', model: 'gpt-5.5-high' }))
+    const result = await w.run(
+      codexInput(w, { base: 'main', check: 'true', mode: 'write', model: 'gpt-6.1-sol-high' }),
+    )
 
     expect(printed(result)).toMatchObject({ status: 'ok' })
     expect(flag(codex.commands[0], '-c')).toBe('model_reasoning_effort="high"')
@@ -6404,10 +7984,15 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
       ],
     })
     // The workflow's 24 hours run out 5 minutes after the clock starts.
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }],
+    })
     await writeGrant(w)
 
-    const result = await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 }))
+    const result = await w.run(
+      codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 }),
+    )
 
     expect(printed(result)).toMatchObject({ status: 'ok' })
     expect(codex.commands[0]?.timeoutMs).toBe(300_000)
@@ -6429,7 +8014,10 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
         { stdout: '3 passed\n' },
       ],
     })
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }],
+    })
     await writeGrant(w)
 
     await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 }))
@@ -6452,10 +8040,15 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
         { stdout: '3 passed\n' },
       ],
     })
-    await w.writeWorkflows({ version: 1, workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }] })
+    await w.writeWorkflows({
+      version: 1,
+      workflows: [{ name: 'spec-293', started_at: '2026-11-03T10:57:15.000Z' }],
+    })
     await writeGrant(w)
 
-    const result = printed(await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 })))
+    const result = printed(
+      await w.run(codexInput(w, { base: 'main', check: 'true', mode: 'write', time_limit_s: 900 })),
+    )
 
     expect(result).toMatchObject({ reason: 'grant-expired', status: 'failed' })
     expect(result).not.toHaveProperty('check')
@@ -6494,7 +8087,13 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     await writeGrant(w)
     await w.writeWorkflows({
       version: 1,
-      workflows: [{ ended_at: '2026-11-04T11:00:00.000Z', name: 'spec-293', started_at: '2026-11-04T10:00:00.000Z' }],
+      workflows: [
+        {
+          ended_at: '2026-11-04T11:00:00.000Z',
+          name: 'spec-293',
+          started_at: '2026-11-04T10:00:00.000Z',
+        },
+      ],
     })
 
     expect(printed(await w.run(codexInput(w)))).toMatchObject({ code: 'workflow-ended' })
@@ -6510,19 +8109,21 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
       {
         client: 'codex',
         cost_class: 'metered-employer',
-        estimate_usd: 0.160004,
+        estimate_usd: 0.160006,
         expires_at: '2026-11-04T11:08:15.000Z',
         kind: 'reservation',
-        model: 'gpt-5.5',
+        model: 'gpt-6.1-sol',
         reserved_at: '2026-11-04T10:52:15.000Z',
         run_dir: runDirOf(w, result),
         run_id: printed(result).run_id,
         workflow: 'spec-293',
       },
     ])
-    expect(await ledgerOf(w, 'settled')).toMatchObject([{ cost_usd: 0.0031375, run_id: printed(result).run_id }])
+    expect(await ledgerOf(w, 'settled')).toMatchObject([
+      { cost_usd: 0.00381, run_id: printed(result).run_id },
+    ])
     expect(printed(await w.cli('grant', 'list', '--json', '{}'))).toMatchObject({
-      grants: [{ id: grant.id, remaining_usd: 4.996862, spent_usd: 0.003138 }],
+      grants: [{ id: grant.id, remaining_usd: 4.99619, spent_usd: 0.00381 }],
     })
   })
 
@@ -6532,7 +8133,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
 
     expect(printed(await w.run(codexInput(w)))).toEqual({
       code: 'cap-exceeded',
-      message: `codex:gpt-5.5 does not fit grant ${String(grant.id)} of $0.10 for workflow spec-293: $0.00 spent and $0.00 reserved, and its estimate is $0.16`,
+      message: `codex:gpt-6.1-sol does not fit grant ${String(grant.id)} of $0.10 for workflow spec-293: $0.00 spent and $0.00 reserved, and its estimate is $0.16`,
       status: 'error',
     })
     expect(codex.commands).toEqual([])
@@ -6556,13 +8157,17 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
 
     expect(printed(await w.run(codexInput(w)))).toMatchObject({
       code: 'cap-exceeded',
-      message: expect.stringContaining(`does not fit grant ${String(grant.id)} of $0.20`) as unknown,
+      message: expect.stringContaining(
+        `does not fit grant ${String(grant.id)} of $0.20`,
+      ) as unknown,
     })
   })
 
   it('runs in a nedap repository under a grant, and is refused there without one', async () => {
     const nedap: GitRemote = { name: 'origin', url: 'git@github.com:nedap/agent-kit.git' }
-    const { w } = await readyCodex({ repositories: (repo) => ({ [repo]: { remotes: [nedap], root: repo } }) })
+    const { w } = await readyCodex({
+      repositories: (repo) => ({ [repo]: { remotes: [nedap], root: repo } }),
+    })
 
     expect(printed(await w.run(codexInput(w)))).toMatchObject({ code: 'no-grant' })
     await writeGrant(w)
@@ -6588,9 +8193,13 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     })
     await writeGrant(w)
 
-    expect(printed(await w.run(w.input({ client: 'opencode', model: 'opencode-go/glm-5-3' })))).toMatchObject({
+    expect(
+      printed(await w.run(w.input({ client: 'opencode', model: 'opencode-go/glm-5-3' }))),
+    ).toMatchObject({
       code: 'no-grant',
-      message: expect.stringContaining('no live grant covers workflow spec-293, so opencode may not run') as unknown,
+      message: expect.stringContaining(
+        'no live grant covers workflow spec-293, so opencode may not run',
+      ) as unknown,
     })
   })
 
@@ -6614,7 +8223,9 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     })
     expect(printed(await w.run(codexInput(w)))).toMatchObject({
       code: 'cap-exceeded',
-      message: expect.stringContaining(`does not fit grant ${String(grant.id)} of $0.20`) as unknown,
+      message: expect.stringContaining(
+        `does not fit grant ${String(grant.id)} of $0.20`,
+      ) as unknown,
     })
   })
 
@@ -6644,10 +8255,15 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
       routingPath: join(w.dir, 'routing.json'),
     })
 
-    const result = await runModelGatewayCli(['run', '--json', JSON.stringify(codexInput(w, { escalate: false }))], later)
+    const result = await runModelGatewayCli(
+      ['run', '--json', JSON.stringify(codexInput(w, { escalate: false }))],
+      later,
+    )
 
     expect(printed(result)).toMatchObject({ client: 'codex', status: 'ok' })
-    expect(await ledgerOf(w, 'settled')).toContainEqual(expect.objectContaining({ cost_usd: 0.01, run_id: 'run-dead' }))
+    expect(await ledgerOf(w, 'settled')).toContainEqual(
+      expect.objectContaining({ cost_usd: 0.01, run_id: 'run-dead' }),
+    )
   })
 
   it('keeps a metered-employer model out of the fall-through pool when its grant is for another workflow or lapsed', async () => {
@@ -6658,10 +8274,16 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     await writeGrant(w, { workflow: 'spec-294' })
     await writeGrant(w, { cap_usd: 1 })
     await w.writeLedger([
-      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', { cost_class: 'metered-employer', cost_usd: 1, workflow: 'spec-293' }),
+      ledgerRecord('2026-11-04T10:55:00.000Z', 'codex', {
+        cost_class: 'metered-employer',
+        cost_usd: 1,
+        workflow: 'spec-293',
+      }),
     ])
 
-    const result = await w.run(w.input({ client: 'claude', escalate: true, model: 'claude-sonnet-5-5' }))
+    const result = await w.run(
+      w.input({ client: 'claude', escalate: true, model: 'claude-sonnet-5-5' }),
+    )
 
     expect(printed(result)).toMatchObject({ status: 'unavailable' })
     expect(attemptedModels(result)).toEqual(['claude:claude-sonnet-5-5'])
@@ -6670,7 +8292,9 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
   it('never retries a no-grant refusal, and never climbs to a metered-employer model', async () => {
     const { codex, w } = await readyCodex()
 
-    expect(printed(await w.run(codexInput(w, { escalate: true })))).toMatchObject({ code: 'no-grant' })
+    expect(printed(await w.run(codexInput(w, { escalate: true })))).toMatchObject({
+      code: 'no-grant',
+    })
     expect(codex.commands).toEqual([])
   })
 
@@ -6698,7 +8322,7 @@ describe('model-gateway run: Codex, the metered-employer client', () => {
     const result = await w.run(codexInput(w, { escalate: true }))
 
     expect(printed(result)).toMatchObject({ client: 'codex', model: 'gpt-5.6', status: 'ok' })
-    expect(attemptedModels(result)).toEqual(['codex:gpt-5.5', 'codex:gpt-5.6'])
+    expect(attemptedModels(result)).toEqual(['codex:gpt-6.1-sol', 'codex:gpt-5.6'])
     expect(codex.commands).toHaveLength(2)
   })
 })

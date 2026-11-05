@@ -46,6 +46,27 @@ var ProcessEnvAdapter = class {
 // src/contexts/model-gateway/application/batch.ts
 import { randomBytes } from "node:crypto";
 
+// src/shared-kernel/families.ts
+var KNOWN_FAMILIES = [
+  "mistral",
+  "zhipu",
+  "deepseek",
+  "google",
+  "anthropic",
+  "openai",
+  "alibaba",
+  "moonshot",
+  "xiaomi",
+  "minimax",
+  "xai",
+  "tencent",
+  "meituan",
+  "stepfun"
+];
+function isKnownFamily(family) {
+  return KNOWN_FAMILIES.includes(family);
+}
+
 // src/contexts/model-gateway/domain/config.ts
 var CONFIG_VERSION = 1;
 var COST_CLASSES = ["subsidised", "metered-personal", "metered-employer"];
@@ -202,6 +223,9 @@ function parseModelEntry(raw, index, base) {
   const prices = raw.prices === void 0 ? base?.prices : parseModelPrices(raw.prices, `${where}.prices`);
   if (family === void 0 || tier === void 0 || notes === void 0) {
     throw invalid(`${where} (${client}:${model}) is new, so it needs family, tier and notes`);
+  }
+  if (!isKnownFamily(family)) {
+    throw invalid(`${where}.family ("${family}") is not a known family: ${KNOWN_FAMILIES.join(", ")}`);
   }
   const names = raw.names === void 0 ? base?.names : requireStrings(raw.names, `${where}.names`);
   return {
@@ -1049,6 +1073,10 @@ var FAMILY_PREFIXES = [
   ["minimax", "minimax"],
   ["grok", "xai"],
   ["qwen", "alibaba"],
+  ["mimo", "xiaomi"],
+  ["hy", "tencent"],
+  ["longcat", "meituan"],
+  ["step", "stepfun"],
   ["mistral", "mistral"],
   ["codestral", "mistral"]
 ];
@@ -1093,10 +1121,10 @@ function hermesDefaultModel(stdout) {
   return { model, ...provider === void 0 ? {} : { provider } };
 }
 function vibeModels(toml) {
-  const models = readToml(toml).models;
-  if (!isObject(models)) return [];
+  const raw = readToml(toml).models;
+  const entries = Array.isArray(raw) ? raw.map((value, index) => [String(index), value]) : isObject(raw) ? Object.entries(raw) : [];
   const declared = [];
-  for (const [key, value] of Object.entries(models)) {
+  for (const [key, value] of entries) {
     if (!isObject(value)) continue;
     const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
     const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
@@ -2660,12 +2688,25 @@ var ClientRun = class {
 
 // src/contexts/model-gateway/domain/policy.ts
 var NEDAP_CLIENTS = ["claude", "codex"];
-var INLINE_COST_CLASSES = ["subsidised", "metered-personal"];
+var PERSONAL_COST_CLASSES = ["subsidised", "metered-personal"];
 var NOTHING2 = { code: false, history: false };
 var EVERYTHING = { code: true, history: true };
 function decidePolicy(config, scope, subjects = config.models) {
-  const permissions = subjects.filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model))).map((subject) => permission(config, subject, scope));
-  return { permissions, reason: reasonFor(scope) };
+  const defaulted = scope.kind === "repository" && scope.entry === void 0;
+  const resolved = defaulted ? { ...scope, entry: defaultPersonalEntry(config) } : scope;
+  const permissions = subjects.filter((subject) => !config.disabled.includes(modelKey(subject.client, subject.model))).map((subject) => permission(config, subject, resolved));
+  return { permissions, reason: reasonFor(resolved, defaulted) };
+}
+function defaultPersonalEntry(config) {
+  const families = [];
+  for (const entry of config.models) {
+    const client = config.clients[entry.client];
+    if (client === void 0) continue;
+    const provider = entry.client === "opencode" ? openCodeProvider(entry.model) : void 0;
+    if (!PERSONAL_COST_CLASSES.includes(costClassFor(client, provider))) continue;
+    if (!families.includes(entry.family)) families.push(entry.family);
+  }
+  return { code: true, families, history: false };
 }
 function permission(config, subject, scope) {
   const base = { client: subject.client, inline_only: false, model: subject.model };
@@ -2675,7 +2716,7 @@ function permission(config, subject, scope) {
         ...base,
         inline_only: true,
         may_send: NOTHING2,
-        permitted: INLINE_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? "")
+        permitted: PERSONAL_COST_CLASSES.includes(config.clients[subject.client]?.cost_class ?? "")
       };
     case "no-remote":
       return { ...base, may_send: NOTHING2, permitted: false };
@@ -2689,7 +2730,7 @@ function permission(config, subject, scope) {
       };
   }
 }
-function reasonFor(scope) {
+function reasonFor(scope, defaulted) {
   switch (scope.kind) {
     case "outside":
       return "no repository: only inline content, to subsidised and metered-personal clients";
@@ -2698,7 +2739,7 @@ function reasonFor(scope) {
     case "nedap":
       return "a nedap repository: only Codex and Claude Code, with code and history";
     case "repository":
-      return scope.entry === void 0 ? `${scope.key} has no allowlist entry, so nothing is sent` : `${scope.key}: the entry allows ${scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
+      return defaulted ? `${scope.key} has no allowlist entry: the personal default applies, every subsidised and metered-personal family, with code but no history` : `${scope.key}: the entry allows ${scope.entry === void 0 || scope.entry.families.length === 0 ? "no family" : scope.entry.families.join(", ")}`;
   }
 }
 function permittedModels(listing, decision) {

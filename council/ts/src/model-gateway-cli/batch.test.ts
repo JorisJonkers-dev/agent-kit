@@ -238,7 +238,7 @@ function vibe(id: string, overrides: Readonly<Record<string, unknown>> = {}): Re
 
 /** A Codex delegation: the metered-employer client. */
 function codex(id: string, overrides: Readonly<Record<string, unknown>> = {}): Record<string, unknown> {
-  return { client: 'codex', escalate: false, id, mode: 'read-only', model: 'gpt-5.5', prompt: `TASK-${id} read the code`, ...overrides }
+  return { client: 'codex', escalate: false, id, mode: 'read-only', model: 'gpt-6.1-sol', prompt: `TASK-${id} read the code`, ...overrides }
 }
 
 function printed(result: ModelGatewayCliResult): Record<string, unknown> {

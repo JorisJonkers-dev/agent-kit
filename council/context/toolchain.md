@@ -35,7 +35,7 @@ renders the gitignored `.claude/`, `.agents/` and `.council/context/` from
 
 - Council requires authenticated `claude` and `codex` CLIs.
 - Default council config uses `standard` intensity, `claude:opus` planner A,
-  `codex:gpt-5.5` planner B, `claude:opus` consolidator, and `claude:sonnet`
+  `codex:gpt-6.1-sol` planner B, `claude:opus` consolidator, and `claude:sonnet`
   verifier.
 - Council supports `plan`, `fanout`, `fleet`, `split`, `config`, and
   `--self-test` workflow from the TypeScript CLI (`node council/council.mjs --self-test`).

@@ -161,8 +161,8 @@ describe('listModels', () => {
     const listed = listings({
       opencode: {
         models: [
-          { model: 'opencode-go/longcat-2.0', provider: 'opencode-go' },
-          { model: 'opencode-go/hy3', provider: 'opencode-go' },
+          { model: 'opencode-go/beam-free', provider: 'opencode-go' },
+          { model: 'opencode-go/iceman-contributor-free', provider: 'opencode-go' },
         ],
       },
     })
@@ -173,12 +173,12 @@ describe('listModels', () => {
     expect(listing.skipped).toEqual([
       {
         client: 'opencode',
-        model: 'opencode-go/hy3',
+        model: 'opencode-go/beam-free',
         reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
       {
         client: 'opencode',
-        model: 'opencode-go/longcat-2.0',
+        model: 'opencode-go/iceman-contributor-free',
         reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
     ])
@@ -340,8 +340,8 @@ describe('familyOf', () => {
   })
 
   it('says nothing for a model id it cannot place', () => {
-    expect(familyOf('hy3')).toBeUndefined()
-    expect(familyOf('longcat-2.0')).toBeUndefined()
+    expect(familyOf('beam-free')).toBeUndefined()
+    expect(familyOf('iceman-contributor-free')).toBeUndefined()
   })
 })
 
@@ -356,7 +356,7 @@ describe('familyOfModelId', () => {
   })
 
   it('says nothing for a model id it cannot place', () => {
-    expect(familyOfModelId('anthropic/hy3')).toBeUndefined()
+    expect(familyOfModelId('anthropic/beam-free')).toBeUndefined()
   })
 })
 
@@ -432,6 +432,34 @@ alias = "glm-5-3"
       { model: 'mistral-large-latest', names: ['mistral-large-4-0'] },
       { model: 'glm-5-3', names: ['zai-glm-5-3'] },
     ])
+  })
+
+  it('reads every [[models]] table the configuration declares, in file order', () => {
+    const toml = `[[models]]
+name = "zai-glm-5-3"
+provider = "mistral"
+alias = "glm-5-3"
+thinking = "high"
+
+[[models]]
+name = "zai-glm-5-3-flash"
+provider = "mistral"
+alias = "zai-glm-5-3-flash"
+thinking = "high"
+
+[[models]]
+alias = "deepseek-v4-1-flash-1017"
+`
+
+    expect(vibeModels(toml)).toEqual([
+      { model: 'glm-5-3', names: ['zai-glm-5-3'] },
+      { model: 'zai-glm-5-3-flash', names: [] },
+      { model: 'deepseek-v4-1-flash-1017', names: [] },
+    ])
+  })
+
+  it('skips an entry of a [[models]] list that is not a table', () => {
+    expect(vibeModels('models = ["not a table"]\n')).toEqual([])
   })
 
   it('names a model by its alias alone when the alias is its name', () => {
@@ -562,7 +590,7 @@ describe('listModels: OpenCode providers', () => {
       { model: 'opencode-go/glm-5.3', provider: 'opencode-go' },
       { model: 'opencode/glm-5.3', provider: 'opencode' },
       { model: 'other/gemini-4-argon', provider: 'other' },
-      { model: 'openrouter/hy3', provider: 'openrouter' },
+      { model: 'openrouter/beam-free', provider: 'openrouter' },
     ],
   }
 
