@@ -48,6 +48,8 @@ KIT_PATHS=(
   registry/generated/antigravity/mcp_config.json
   registry/generated/opencode/opencode.json
   installer/setup-workstation.sh
+  installer/git-hooks/no-agent-attribution
+  installer/git-hooks/allowed-identities
   installer/port-forward-agent.sh
   installer/cloud-session.sh
   installer/memory-private
@@ -62,6 +64,7 @@ KIT_PATHS=(
   scripts/codex-add-url-mcp.py
   scripts/converge.py
   scripts/vibe-merge-mcp.py
+  scripts/vibe-no-commit-signature.py
   scripts/antigravity-merge-mcp.py
   scripts/opencode-merge-mcp.py
   scripts/opencode-plugin-skills.py
