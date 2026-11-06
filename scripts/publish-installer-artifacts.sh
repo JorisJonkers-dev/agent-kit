@@ -48,6 +48,7 @@ KIT_PATHS=(
   registry/generated/antigravity/mcp_config.json
   registry/generated/opencode/opencode.json
   installer/setup-workstation.sh
+  installer/git-hooks/no-agent-attribution
   installer/port-forward-agent.sh
   installer/cloud-session.sh
   installer/memory-private

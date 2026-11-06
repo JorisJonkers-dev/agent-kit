@@ -1123,6 +1123,77 @@ PURGE
 }
 
 # -----------------------------------------------------------------
+# Human authorship only: no commit or PR may credit a coding agent
+# (constitution). Claude Code adds a Co-Authored-By trailer and a
+# "Generated with" PR line unless its settings say otherwise, so every
+# profile turns both off. The git hook catches the rest, whichever agent
+# or person wrote the message: installer/git-hooks/no-agent-attribution,
+# wired as config hooks (hook.<name>.command), which run next to a
+# repository's own hooks instead of replacing them as core.hooksPath
+# would. git commit/push --no-verify still skips it.
+# -----------------------------------------------------------------
+claude_no_attribution() {
+  local profile_dir
+  for profile_dir in "${CLAUDE_PROFILE_DIRS[@]}"; do
+    if _merge_user_config "${profile_dir}/settings.json" '{"attribution": {"commit": "", "pr": ""}, "includeCoAuthoredBy": false}'; then
+      [ "${CHECK_ONLY}" = 1 ] || ok "no commit or PR attribution in ${profile_dir}/settings.json"
+    else
+      fail "could not turn off commit and PR attribution in ${profile_dir}/settings.json"
+    fi
+  done
+}
+
+# True when git, configured as above, refuses a commit that credits an
+# agent and accepts one that does not. Run in a scratch repository.
+_git_no_agent_attribution_works() {
+  local repo rc=1
+  repo="$(mktemp -d)" || return 1
+  if git -C "${repo}" init -q \
+    && ! git -C "${repo}" -c user.name=check -c user.email=check@example.invalid -c commit.gpgsign=false commit -q --allow-empty \
+      -m "check" -m "Co-Authored-By: Claude <noreply@anthropic.com>" >/dev/null 2>&1 \
+    && git -C "${repo}" -c user.name=check -c user.email=check@example.invalid -c commit.gpgsign=false commit -q --allow-empty \
+      -m "check" >/dev/null 2>&1; then
+    rc=0
+  fi
+  rm -rf "${repo}"
+  return "${rc}"
+}
+
+git_no_agent_attribution() {
+  local dest="${HOME}/.config/agent-kit/git-hooks/no-agent-attribution" event
+  if ! command -v git >/dev/null 2>&1; then
+    warn "git is not on PATH; the no-agent-attribution git hook is not installed"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would install the no-agent-attribution git hook (${dest}) for commit-msg and pre-push"
+    return 0
+  fi
+  if ! mkdir -p "$(dirname "${dest}")" \
+    || ! install -m 0755 "${KIT_ROOT}/installer/git-hooks/no-agent-attribution" "${dest}"; then
+    fail "could not install the no-agent-attribution git hook at ${dest}"
+    return 0
+  fi
+  for event in commit-msg pre-push; do
+    if ! git config --global "hook.agent-kit-no-attribution-${event}.command" "\"${dest}\" ${event}" \
+      || ! git config --global "hook.agent-kit-no-attribution-${event}.event" "${event}"; then
+      fail "could not register the no-agent-attribution ${event} hook in ~/.gitconfig"
+      return 0
+    fi
+  done
+  # A stubbed git (the test harness) prints no version; there is nothing to check.
+  case "$(git --version 2>/dev/null)" in
+    "git version "*) ;;
+    *) ok "no-agent-attribution git hook registered for commit-msg and pre-push"; return 0 ;;
+  esac
+  if _git_no_agent_attribution_works; then
+    ok "no-agent-attribution git hook refuses commits that credit an agent"
+  else
+    fail "the no-agent-attribution git hook is registered but did not refuse a test commit; $(git --version) may not run hooks from config (hook.<name>.command)"
+  fi
+}
+
+# -----------------------------------------------------------------
 # The runner entrypoint (runner/template/entrypoint.sh) once
 # wrote its global git settings wherever it ran. On a workstation they
 # name the credential helper agent-gh-app, which only the runner image
@@ -1806,6 +1877,9 @@ claude_private_denies
 
 # MCP servers the registry trusts to run every tool without a prompt.
 claude_mcp_allows
+
+# Claude Code credits neither itself nor its model in commits or PRs.
+claude_no_attribution
 
 # Before anything touches a Vibe home (MCP merge, converge, skills), and
 # whether or not vibe is on PATH yet.
@@ -5537,6 +5611,7 @@ fi
 # -----------------------------------------------------------------
 purge_retired_hooks
 purge_leaked_runner_git_config
+git_no_agent_attribution
 purge_leaked_runner_workspace_trust /workspace
 log "critique hooks"
 critique_hooks install

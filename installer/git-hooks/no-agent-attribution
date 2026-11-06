@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Rejects commits that credit a coding agent: a Co-Authored-By trailer naming
+# one, a "Generated with ..." line, the robot emoji, or an agent's noreply
+# address. The estate allows human authorship only (see the constitution).
+#
+# Setup wires this into the global git config as two config hooks
+# (hook.<name>.command / hook.<name>.event), so it runs next to each
+# repository's own hooks instead of replacing them:
+#
+#   no-agent-attribution commit-msg <message-file>   checks the new message
+#   no-agent-attribution pre-push <remote> <url>     checks every commit the
+#                                                    push would publish
+set -u
+
+# One extended regex per mark, matched case-insensitively against each line.
+marks=(
+  '^co-authored-by:.*(claude|anthropic|openai|chatgpt|codex|copilot|gemini|cursor|devin|aider|opencode)'
+  'noreply@(anthropic|openai)\.com'
+  'generated (with|by) .*(claude|codex|chatgpt|copilot|gemini|cursor|opencode|devin|aider)'
+  'claude\.(com|ai)/(claude-)?code'
+  $'\xf0\x9f\xa4\x96'
+)
+
+# Prints "<line>" for each line of the message on stdin that carries a mark.
+# Comment lines and everything below git's scissors line are not part of the
+# commit, so they are skipped.
+offending_lines() {
+  local line mark lower
+  while IFS= read -r line || [ -n "${line}" ]; do
+    case "${line}" in
+      "# ------------------------ >8 ------------------------"*) break ;;
+      "#"*) continue ;;
+    esac
+    lower="$(printf '%s' "${line}" | tr '[:upper:]' '[:lower:]')"
+    for mark in "${marks[@]}"; do
+      if printf '%s\n' "${lower}" | grep -Eq -- "${mark}"; then
+        printf '%s\n' "${line}"
+        break
+      fi
+    done
+  done
+}
+
+refuse() {
+  printf 'no-agent-attribution: %s\n' "$1" >&2
+  printf '%s\n' "$2" | sed 's/^/    /' >&2
+  printf 'no-agent-attribution: remove the attribution; commits carry human authorship only.\n' >&2
+  exit 1
+}
+
+check_message() {
+  local found
+  found="$(offending_lines <"$1")"
+  [ -z "${found}" ] || refuse "this commit message credits a coding agent:" "${found}"
+}
+
+check_push() {
+  local remote="$1" zero local_ref local_sha remote_ref remote_sha range sha found report=""
+  zero="$(git hash-object --stdin </dev/null | tr '0-9a-f' '0')"
+  while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "${local_sha}" = "${zero}" ] && continue
+    if [ "${remote_sha}" = "${zero}" ]; then
+      range=("${local_sha}" --not "--remotes=${remote}")
+    else
+      range=("${remote_sha}..${local_sha}")
+    fi
+    for sha in $(git rev-list "${range[@]}"); do
+      found="$(git log -1 --format=%B "${sha}" | offending_lines)"
+      [ -n "${found}" ] && report="${report}$(git log -1 --format='%h %s' "${sha}")"$'\n'"${found}"$'\n'
+    done
+  done
+  [ -z "${report}" ] || refuse "this push would publish commits that credit a coding agent:" "${report%$'\n'}"
+}
+
+case "${1:-}" in
+  commit-msg) check_message "$2" ;;
+  pre-push) check_push "$2" ;;
+  *) printf 'usage: %s commit-msg <file> | pre-push <remote> <url>\n' "$0" >&2; exit 2 ;;
+esac

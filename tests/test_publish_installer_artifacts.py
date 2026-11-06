@@ -21,6 +21,7 @@ KIT_FILES = (
     "registry/generated/vibe/mcp-servers.toml",
     "registry/generated/vibe/agents/critic-glm.toml",
     "registry/generated/vibe-private/mcp-servers.toml",
+    "installer/git-hooks/no-agent-attribution",
     "installer/port-forward-agent.sh",
     "installer/cloud-session.sh",
     "installer/memory-private",
