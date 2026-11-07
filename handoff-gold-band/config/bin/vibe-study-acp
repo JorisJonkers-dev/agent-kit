@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# DRAFT, not installed. ACP twin of installer/vibe-study: Study-account key, shared Vibe home, then vibe-acp.
+set -euo pipefail
+VAR=MISTRAL_STUDY_API_KEY
+config="${HOME}/.config/agent-kit"
+unset MEMORY_PRIVATE_TOKEN
+export VIBE_HOME="${HOME}/.vibe"
+key="${MISTRAL_STUDY_API_KEY:-}"
+if [ -z "${key}" ]; then
+  env_sh="${config}/env.sh"
+  reader="$( [ -f "${env_sh}" ] && grep -m1 '^_agent_kit_secret() ' "${env_sh}" || true )"
+  [ -z "${reader}" ] || key="$( (eval "${reader}"; _agent_kit_secret "${VAR}" 2>/dev/null || true) )"
+fi
+[ -n "${key}" ] || { echo "vibe-study-acp: not signed in with the Study account; run: vibe-study --login" >&2; exit 1; }
+unset MISTRAL_STUDY_API_KEY
+export MISTRAL_API_KEY="${key}"
+exec "${HOME}/.local/bin/vibe-acp" "$@"

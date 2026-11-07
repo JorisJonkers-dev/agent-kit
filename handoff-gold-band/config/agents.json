@@ -1,0 +1,127 @@
+{
+  "agents": {
+    "claude-acp": {
+      "adapter": {
+        "displayName": "Claude (work)",
+        "env": {
+          "CLAUDE_CONFIG_DIR": "/Users/j.w.jonkers/.claude"
+        }
+      },
+      "icon": "claude",
+      "primaryAgentDir": ".claude",
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "meta-append",
+      "externalSessionSyncSupported": true,
+      "externalSessionSyncEnabled": false
+    },
+    "claude-personal": {
+      "adapter": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@agentclientprotocol/claude-agent-acp@0.87.0"
+        ],
+        "displayName": "Claude (personal)",
+        "env": {
+          "CLAUDE_CONFIG_DIR": "/Users/j.w.jonkers/.claude-personal"
+        }
+      },
+      "icon": "claude",
+      "primaryAgentDir": ".claude-personal",
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "meta-append",
+      "externalSessionSyncSupported": true,
+      "externalSessionSyncEnabled": false
+    },
+    "opencode": {
+      "adapter": {
+        "displayName": "OpenCode"
+      },
+      "icon": "opencode",
+      "primaryAgentDir": null,
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "none"
+    },
+    "vibe": {
+      "adapter": {
+        "command": "/Users/j.w.jonkers/.local/bin/vibe-acp",
+        "args": [],
+        "displayName": "Vibe",
+        "env": {
+          "VIBE_HOME": "/Users/j.w.jonkers/.vibe"
+        }
+      },
+      "icon": "agent",
+      "primaryAgentDir": null,
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "none"
+    },
+    "vibe-study": {
+      "adapter": {
+        "command": "/Users/j.w.jonkers/.local/bin/vibe-study-acp",
+        "args": [],
+        "displayName": "Vibe (Study account)",
+        "env": {}
+      },
+      "icon": "agent",
+      "primaryAgentDir": null,
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "none"
+    },
+    "pi-local": {
+      "adapter": {
+        "command": "/Users/j.w.jonkers/.nvm/versions/node/v22.21.0/bin/pi-acp",
+        "args": [],
+        "displayName": "Pi (full tools, throwaway repos only)",
+        "env": {
+          "PI_CODING_AGENT_DIR": "/Users/j.w.jonkers/.pi/agent"
+        }
+      },
+      "icon": "agent",
+      "primaryAgentDir": null,
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "none"
+    },
+    "agy": {
+      "adapter": {
+        "command": "/opt/homebrew/bin/agy",
+        "args": [
+          "acp"
+        ],
+        "displayName": "Antigravity",
+        "env": {}
+      },
+      "icon": "agent",
+      "primaryAgentDir": null,
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "none"
+    },
+    "hermes": {
+      "adapter": {
+        "command": "/Users/j.w.jonkers/.local/bin/hermes-acp",
+        "args": [],
+        "displayName": "Hermes",
+        "env": {}
+      },
+      "icon": "agent",
+      "primaryAgentDir": null,
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "none"
+    },
+    "pi-read": {
+      "adapter": {
+        "command": "/Users/j.w.jonkers/.nvm/versions/node/v22.21.0/bin/pi-acp",
+        "args": [],
+        "displayName": "Pi (read level)",
+        "env": {
+          "PI_CODING_AGENT_DIR": "/Users/j.w.jonkers/.pi/agent",
+          "PI_ACP_PI_COMMAND": "/Users/j.w.jonkers/.local/bin/pi-read"
+        }
+      },
+      "icon": "agent",
+      "primaryAgentDir": null,
+      "compatibleAgentDirs": [],
+      "systemPromptDelivery": "none"
+    }
+  }
+}

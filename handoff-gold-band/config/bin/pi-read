@@ -1,0 +1,7 @@
+#!/bin/sh
+# Pi restricted to the `read` reach level (spec #327). pi-acp runs the command named in
+# PI_ACP_PI_COMMAND as `<cmd> --mode rpc --no-themes ...`; this wrapper adds the restriction flags.
+# Tool names (read,grep,find,ls) are from `pi --help` examples and are not yet verified against a run.
+# No web tool exists in Pi's default set, so this level has no web access by construction.
+exec /Users/j.w.jonkers/.nvm/versions/node/v22.21.0/bin/pi \
+  --tools read,grep,find,ls --no-mcp --no-extensions --no-skills --no-context-files --offline "$@"

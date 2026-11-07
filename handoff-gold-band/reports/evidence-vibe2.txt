@@ -1,0 +1,60 @@
+## vibe builtin tool files
+__pycache__
+_powershell_lexer.py
+_shell_command_policy.py
+_shell_permission_analysis.py
+ask_user_question.py
+bash.py
+edit.py
+experimental_bash.py
+git_bash.py
+grep.py
+managed_shell
+prompts
+read_file.py
+skill.py
+task.py
+todo.py
+web_fetch.py
+web_search.py
+windows_shell.py
+write_file.py
+
+## tool names
+33:    name: str = Field(description="The name of the skill from available_skills")
+37:    name: str = Field(description="The name of the loaded skill")
+398:    shell_tool_name: ClassVar[str] = "bash"
+271:    name = name.casefold()
+500:    shell_tool_name: ClassVar[str] = "powershell"
+626:    name = token.strip("\"'").replace("\\", "/").rsplit("/", 1)[-1].casefold()
+71:    shell_tool_name: ClassVar[str] = "git_bash"
+120:    name = Path(executable).name.lower()
+
+## tool permission enum/config
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py:10:class ToolPermissionError(Exception):
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-11-    pass
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-12-
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-13-
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py:14:class ToolPermission(StrEnum):
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-15-    ALWAYS = auto()
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-16-    NEVER = auto()
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-17-    ASK = auto()
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-18-
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-19-    @classmethod
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-20-    def by_name(cls, name: str) -> ToolPermission:
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-21-        try:
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/models.py-22-            return ToolPermission(name.upper())
+
+## allowlist/denylist for paths
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/task.py:32:    allowlist: list[str] = Field(default=[Buil
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/task.py:39:        for pattern in self.config.denylist:
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/task.py:43:        for pattern in self.config.allowlist:
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/edit.py:50:    sensitive_patterns: list[str] = Field(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/edit.py:61:            allowlist=self.config.allowlist,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/edit.py:62:            denylist=self.config.denylist,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/edit.py:64:            sensitive_patterns=self.config.sen
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/grep.py:18:    sensitive_patterns: list[str] = Field(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/grep.py:152:            allowlist=self.config.allowlist,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/grep.py:153:            denylist=self.config.denylist,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/grep.py:155:            sensitive_patterns=self.config.se
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/builtins/bash.py:97:def _get_default_allowlist() -> list[str]:
