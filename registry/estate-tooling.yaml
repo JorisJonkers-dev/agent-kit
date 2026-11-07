@@ -506,7 +506,7 @@ marketplaces:
   - name: claude-plugins-official
     repo: anthropics/claude-plugins-official
     ref: main
-    commit: ea10b213686c90bb1984b2016937310e05336cf3
+    commit: 0412be76f50ab4f4f8abff3753efa9269fbbca5b
     # Claude Code reserves this name for GitHub sources, so the pinned folder is
     # declared under another name and its plugins install as <plugin>@agent-kit-official.
     declare_as: agent-kit-official
