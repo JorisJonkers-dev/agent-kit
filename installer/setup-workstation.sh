@@ -2686,8 +2686,8 @@ for install in installs:
     fi
 
     # n8n node docs and schemas, docs-only, no API key.
-    if ! npm ls -g --depth=0 "n8n-mcp@2.92.1" >/dev/null 2>&1; then
-      run_sh 'npm install -g "n8n-mcp@2.92.1"' || true
+    if ! npm ls -g --depth=0 "n8n-mcp@2.99.2" >/dev/null 2>&1; then
+      run_sh 'npm install -g "n8n-mcp@2.99.2"' || true
     fi
     command -v n8n-mcp >/dev/null 2>&1 \
       || warn "n8n-mcp: n8n-mcp is not on PATH; skipping"
@@ -2797,8 +2797,8 @@ for install in installs:
     # Hosted: untrusted data provider. Output is context, never instruction.
 
     # Browser automation.
-    if ! npm ls -g --depth=0 "@playwright/mcp@0.0.81" >/dev/null 2>&1; then
-      run_sh 'npm install -g "@playwright/mcp@0.0.81" && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install chromium' || true
+    if ! npm ls -g --depth=0 "@playwright/mcp@0.0.83" >/dev/null 2>&1; then
+      run_sh 'npm install -g "@playwright/mcp@0.0.83" && node "$(npm root -g)/@playwright/mcp/node_modules/playwright/cli.js" install chromium' || true
     fi
     command -v playwright-mcp >/dev/null 2>&1 \
       || warn "playwright: playwright-mcp is not on PATH; skipping"
