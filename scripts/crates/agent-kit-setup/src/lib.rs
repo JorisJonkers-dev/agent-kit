@@ -95,7 +95,13 @@ mod tests {
         let (message, code) = validate(OsStr::new("no-such-path-agent-kit-setup"));
         assert_eq!(code, 1);
         assert!(message.contains("does not exist"));
-        assert_eq!(run(vec!["validate".into(), "no-such-path-agent-kit-setup".into()]), 1);
+        assert_eq!(
+            run(vec![
+                "validate".into(),
+                "no-such-path-agent-kit-setup".into()
+            ]),
+            1
+        );
     }
 
     #[test]

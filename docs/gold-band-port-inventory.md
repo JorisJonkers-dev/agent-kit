@@ -158,11 +158,20 @@ Retired and disabled records are listed and marked.
 
 ## Check script
 
-Not written. The #351 check script would be new Rust code, and per the issue
-it waits on the Rust workspace from #331; this issue delivers the inventory
-document only. When #331 lands, the check script should verify each row here
-against what the port actually shipped (one entry per row, exactly one kind,
-declared reach within the ladder, and the 33-skill-directory count).
+`scripts/crates/inventory-check` (std-only workspace member) checks this
+document against the repository and exits 1 on any problem:
+
+```bash
+cargo run --manifest-path scripts/Cargo.toml -p inventory-check -- .
+```
+
+It fails when a directory under `skills/workstation/` or `skills/repo/` has no
+row, when a skills row has no directory, when a hook in `manifest.yaml`, a
+critique role file or an MCP server in `registry/estate-tooling.yaml` has no row
+in the `## Hooks`, `## Roles` or `## MCP servers` section (and fails if one of
+those sources yields nothing), and when any row (skills, hooks,
+roles, MCP servers) lacks exactly one target kind from the five allowed or a
+reach from the ladder (`n/a` only for "stays outside").
 
 ## Proposed wave order after Wave 2
 
