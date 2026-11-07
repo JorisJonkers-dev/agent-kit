@@ -1,0 +1,79 @@
+## hermes acp_adapter: how toolsets are chosen
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:75:from acp_adapter.session import SessionManager, SessionState, _expand_acp_enabled_toolsets
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:833:            enabled_toolsets = _expand_acp_enabled_toolsets(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:834:                getattr(state.agent, "enabled_toolsets", None) or ["hermes-acp"],
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:837:            state.agent.enabled_toolsets = enabled_toolsets
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:838:            disabled_toolsets = getattr(state.agent, "disabled_toolsets", None)
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:840:                enabled_toolsets=enabled_toolsets,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:841:                disabled_toolsets=disabled_toolsets,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1809:            toolsets = _expand_acp_enabled_toolsets(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1810:                getattr(state.agent, "enabled_toolsets", None) or ["hermes-acp"]
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1812:            tools = get_tool_definitions(enabled_toolsets=toolsets, quiet_mode=True)
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1820:                enabled_toolsets=toolsets,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:129:def _expand_acp_enabled_toolsets(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:130:    toolsets: List[str] | None = None,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:133:    """Return ACP toolsets plus explicit MCP server toolsets for this session."""
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:135:    for name in list(toolsets or ["hermes-acp"]):
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:140:        toolset_name = f"mcp-{server_name}"
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:141:        if server_name and toolset_name not in expanded:
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:142:            expanded.append(toolset_name)
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:625:            "enabled_toolsets": _expand_acp_enabled_toolsets(
+
+## toolsets.py definitions
+33:    "web_search", "web_extract",
+35:    "terminal", "process",
+41:    "read_file", "write_file", "patch", "search_files",
+87:    "web_search",
+88:    "web_extract",
+98:    "web": {
+100:        "tools": ["web_search", "web_extract"],
+106:        "tools": ["web_search"],
+161:    "terminal": {
+163:        "tools": ["terminal", "process"],
+180:            "browser_dialog", "web_search"
+192:    "file": {
+194:        "tools": ["read_file", "write_file", "patch", "search_files"],
+334:        "tools": ["terminal", "process"],
+335:        "includes": ["web", "file"]  # For searching error messages and solutions, and file operations
+341:        "includes": ["web", "vision", "image_gen"]
+351:            "web_search", "web_extract",
+352:            "terminal", "process", "read_terminal", "close_terminal",
+353:            "read_file", "write_file", "patch", "search_files",
+380:    "hermes-acp": {
+383:            "web_search", "web_extract",
+384:            "terminal", "process",
+385:            "read_file", "write_file", "patch", "search_files",
+403:            "web_search", "web_extract",
+405:            "terminal", "process",
+407:            "read_file", "write_file", "patch", "search_files",
+951:    for name in ["web", "terminal", "safe", "debugging"]:
+958:    combined = resolve_multiple_toolsets(["web", "vision", "terminal"])
+967:        tools=["web_search"],
+968:        includes=["terminal", "vision"]
+
+## config: toolsets / HERMES_HOME / project override
+182:# * ``HERMES_HOME`` / ``HERMES_PROFILE`` / ``HERMES_CONFIG`` /
+214:    "HERMES_HOME", "HERMES_PROFILE", "HERMES_CONFIG", "HERMES_ENV",
+229:            "(HERMES_HOME, HERMES_PROFILE, ...) cannot be persisted via "
+355:    or a .managed marker file in HERMES_HOME (set by the NixOS activation
+380:    interpreter, NOT of ``$HERMES_HOME``, which is why a code-scoped stamp
+394:    2. Legacy home-scoped stamp ``$HERMES_HOME/.install_method`` — read for
+404:    ``$HERMES_HOME`` is a shared DATA directory — the Docker docs deliberately
+407:    containerised gateway and a host install share one ``$HERMES_HOME``, a
+433:    # 1. Code-scoped stamp — authoritative, immune to shared $HERMES_HOME.
+443:    #    host install whose shared $HERMES_HOME was stamped by a co-located
+491:    not in ``$HERMES_HOME``, so that two installs sharing one data directory
+642:  • Your config and session history live under ``$HERMES_HOME`` (``/opt/data``
+697:    """Read container mode metadata from HERMES_HOME/.container-mode.
+766:    ownership. The entrypoint chowns the top-level HERMES_HOME once, but
+827:    The mode can be overridden via the HERMES_HOME_MODE environment variable
+828:    (e.g. HERMES_HOME_MODE=0701) for deployments where a web server (nginx,
+829:    caddy, etc.) needs to traverse HERMES_HOME to reach a served subdirectory.
+841:        mode_str = os.environ.get("HERMES_HOME_MODE", "").strip()
+896:    """Seed a default SOUL.md into HERMES_HOME, upgrading legacy empty templates.
+919:_HERMES_HOME_ENSURED: set = set()
+932:    After the first successful pass for a given ``HERMES_HOME`` we only re-run
+940:    if key in _HERMES_HOME_ENSURED and home.is_dir():
+944:    # silently mkdir-ing the old HERMES_HOME would resurrect an empty skeleton
+969:    _HERMES_HOME_ENSURED.add(key)
+976:            f"HERMES_HOME {home} does not exist. "

@@ -1,0 +1,93 @@
+## opencode --help
+DESCRIPTION
+  OpenCode command line interface
+
+USAGE
+  opencode <subcommand> [flags] [<directory>]
+
+ARGUMENTS
+  directory string    Directory to start OpenCode in (optional)
+
+FLAGS
+  --standalone            Run with a private server instead of the background service
+  --server string         Connect to a server URL instead of the background service
+  --auto                  Auto-approve permissions that are not explicitly denied
+  --continue, -c          Continue the last session
+  --session, -s string    Session ID to continue, or to create if it does not exist
+  --prompt string         Prompt to use
+
+GLOBAL FLAGS
+  --help, -h                                                          Show help information
+  --version, -v                                                       Show version information
+  --wizard                                                            Start wizard mode for a command
+  --completions <bash|zsh|fish|powershell|sh|pwsh>                    Print shell completion script (choices: bash, zsh, fish, powershell, sh, pwsh)
+  --log-level <all|trace|debug|info|warn|warning|error|fatal|none>    Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)
+  --print-logs                                                        Print logs to stderr (server logs require --standalone)
+
+SUBCOMMANDS
+  upgrade, update    Upgrade OpenCode to the latest or a specific version
+  uninstall          Uninstall OpenCode, keeping session data, configuration, and state
+  acp                Start an Agent Client Protocol server
+  api                Make a request to the running server
+  debug              Debugging and troubleshooting tools
+  auth               manage integrations and credentials
+  mcp                Manage MCP (Model Context Protocol) servers
+  plugin             Manage plugins
+  models             List all available models
+  stats              Show shareable usage statistics
+  mini               Start the minimal interactive interface
+  run                Run OpenCode with a message
+  session            Manage sessions
+  service            Manage the background server
+
+## opencode acp --help
+DESCRIPTION
+  Start an Agent Client Protocol server
+
+USAGE
+  opencode acp [flags]
+
+FLAGS
+  --login    Run auth login instead of starting the server
+
+GLOBAL FLAGS
+  --help, -h                                                          Show help information
+  --version, -v                                                       Show version information
+  --wizard                                                            Start wizard mode for a command
+  --completions <bash|zsh|fish|powershell|sh|pwsh>                    Print shell completion script (choices: bash, zsh, fish, powershell, sh, pwsh)
+  --log-level <all|trace|debug|info|warn|warning|error|fatal|none>    Sets the minimum log level (choices: all, trace, debug, info, warn, warning, error, fatal, none)
+  --print-logs                                                        Print logs to stderr (server logs require --standalone)
+
+## strings: permission/config keys in the binary (bounded)
+${e.resource.text}`}]}if(!e.resource.mimeType)return[];return[{type:"file",url:e.resource.uri.startsWith("data:")?e.resource.uri:`data:${e.resource.mimeType};base64,${e.resource.blob}`,filename:ps(e.resource.uri)??"file"
+${v.slice(-y).join("")}`}function ki(n,a){let u=[];return n.forEach((m)=>{wi(u,m,a(m))}),u}function wi(n,a,u,m=0){let h=u[m];if(h===void 0){n.push({type:"entry",entry:a,size:1});return}let D=n.at(-1);if(D?.type==="group"
+- If the conversation ends with an imperative statement or request to the user (e.g. "Now please run the command and paste the console output"), always include that exact request in the summary`,fF=ft({id:"opencode.agent
+</subagent>`,metadata:{source:"subagent",childID:n.childSessionID,agent:n.agent,state:o.status}}),o.notificationID)yield*a.completeBackground(o.notificationID)});var kE="The server restarted while you were working. Conti
+Integration: ${G().integrationID}`:""}`},onBack:()=>{C(void 0),n.setSize("medium")}})})),j})()}function W3(t){let r=Yt(),n=Ce().surface("dialog"),i=Ce(),a=Pr().data,l=Kt(),c=b(()=>Math.max(6,Math.floor(l().height*0.6)-2)
+OPENCODE_CONFIG
+OPENCODE_CONFIG_CONTENT
+OPENCODE_CONFIG_DIR
+Use a more targeted tool when one is available. This tool is read-only. Large text results may be replaced with a preview while the complete output is retained in managed storage.`,BN=ke.check(Wc(0),Ag(d3)),l3=i({url:t.a
+`)),di=""};for(let He of a){if(typeof He!=="string"){At(),ri.push(He.raw);continue}di+=He}return At(),ze(ri.join("").trim(),kd)}var jh="webfetch",u3=kd,LN=30,d3=120,ON=`Fetch content from an HTTP or HTTPS URL and return 
+`)){if(n.startsWith("p"))o=/^\d+$/.test(n.slice(1))?n.slice(1):void 0;if(n.startsWith("n")&&o!==void 0)r.push({pid:o,address:n.slice(1,n.lastIndexOf(":")).replace(/^\[(.*)\]$/,"$1")})}return r}function de(e,r){let o=r?.r
+`))}var jD=[{pattern:"{agent,agents}/**/*.md",primary:!1},{pattern:"{mode,modes}/*.md",primary:!0}],AD=["agent","agents","mode","modes"],MD=ct($C),TD=ct(ure),CD=["external_directory","read","edit"],PD=new Set(["variant",
+`),P).then((A)=>A.highlights).catch(()=>{return})}),C=(P)=>async()=>{let A=await k();if(!A)return;let K=h()[P],M=K+p()[P].length;return A.flatMap((J)=>J[0]<M&&J[1]>K?[[Math.max(J[0],K)-K,Math.min(J[1],M)-K,J[2],J[3]]]:[]
+`),lR=i({prompt:t.check(In(1)).annotate({description:"What to create, or for edits, what to change. Be specific about subject, style, composition and any text that should appear in the image."}),images:Ze(k(t.check(In(1)
+`),metadata:{}}});return}if(e==="subagent"){let i=m(t,"subagent",{description:"Inspect footer spacing across direct-mode prompts",agent:"explore"});g(t,{ref:i,permission:"subagent",patterns:["explore"],always:["*"],done:
+`).map((o)=>o.trim()).find((o)=>o.length>0);return a?`code (${a.slice(0,60)})`:"code"}}}var FI=m(function*(e,a,o,n){switch(yield*(yield*HA).awaitActivation,n.condition.type){case"shell":return yield*$I(e,a,o,n.mode,n.con
+`)[0];return Ye.includes("R language")&&Ye.includes("formatter")?[Be,"format","$FILE"]:!1})},z={name:"uv",extensions:[".py",".pyi"],enabled:c(function*(){let Be=o("uv");if(!Be)return!1;let Ce=yield*f([Be,"format","--help
+`)},get tool(){return n.part.name},get part(){return n.part}};return[s(oo,{get children(){return[s(Ye,{get when(){return a()==="shell"},get children(){return s(Id,u)}}),s(Ye,{get when(){return a()==="glob"},get children(
+`)}var Y=[...new Set([process.env.NO_PROXY,process.env.no_proxy,"127.0.0.1,localhost,::1"].flatMap((e)=>(e??"").split(",").flatMap((o)=>o.trim()||[])))].join(",");process.env.NO_PROXY=Y;process.env.no_proxy=Y;JJ();if(pro
+`,M=v.then(async()=>{let N=e.getWriter();try{await N.write(f.encode(Q))}finally{N.releaseLock()}});return v=M.catch(()=>{}),M},w=new ReadableStream({async start(j){let Q=new Fo(d),M=async(ie)=>{let J=u.decode(ie).trim();
+`,b-1)+1;if(n.slice(T,b).trimStart().startsWith("//")){d+=E,f=b+E.length;continue}let P=E.slice(6,-1),O=P.startsWith("~/")?fc.join(av.homedir(),P.slice(2)):P,M=fc.isAbsolute(O)?O:fc.resolve(s,O),H=yield*o.readFileString(
+`;case 114:return"\r";case 120:return String.fromCharCode(this.readHexChar(2));case 117:return Ko(this.readCodePoint());case 116:return"\t";case 98:return"\b";case 118:return"\v";case 102:return"\f";case 13:if(this.input
+`;return Ke(d,null,E)}let f=yield*Te(()=>Bun.file(d).text());if(s.type==="delete")return Ke(d,f,"");let u=yield*Qe(()=>LQ(s.path,s.chunks,f));return Ke(s.movePath?Ue(s.movePath,o):d,f,u.content)}),{concurrency:"unbounded
+`}[output truncated]`:""}`,s=u.status==="exited"&&u.exit===0?void 0:u.status==="exited"?`Shell exited with code ${u.exit??"unknown"}`:`Shell ${u.status}`;if(!s)return[v(o,a,{text:p,phase:"progress",toolState:"completed"}
+disabled_providers
+external_directory
+import{Ju,ji,ya,L$}from"/$bunfs/root/chunk-7q8a9q2p.js";import{W0}from"/$bunfs/root/chunk-x0z70xwa.js";class t extends W0()("@opencode/client/LocationMiddleware",{error:[Ju]}){}class e extends W0()("@opencode/client/Sess
+import{L,Be,eE,tE,eb,ca,Sn,ns}from"/$bunfs/root/chunk-rb62gmw0.js";import{o7,n_,sA}from"/$bunfs/root/chunk-xj43vhd8.js";import{Pf,Si,x,Q,s,o,d,f,pf,e,Gc,Ri,r7,T1e,R1e,jr,Ic,Fc,Pr}from"/$bunfs/root/chunk-78gwdbdd.js";impo
+import{L}from"/$bunfs/root/chunk-rb62gmw0.js";import{Zoe,ake}from"/$bunfs/root/chunk-hm453b5f.js";import{ES,IC,z3,XF,Lq,ZF,_ne,nw,Hq,YF,e$}from"/$bunfs/root/chunk-a11ftk7f.js";import{P0,t$}from"/$bunfs/root/chunk-0t2t05r
+import{X0}from"/$bunfs/root/chunk-me83m954.js";import{Jt}from"/$bunfs/root/chunk-x7sw31dt.js";import{j,ee,me,q,c}from"/$bunfs/root/chunk-04tds43r.js";import{E}from"/$bunfs/root/chunk-qcdn3p0k.js";var Ipe={};E(Ipe,{Global
+import{pr,ut,v,Ma,$n}from"/$bunfs/root/chunk-ajaztryf.js";import{mc,bR,Qbe,Wo,zP,WS,YC,J0,EBe,fpe}from"/$bunfs/root/chunk-yv2bgb6m.js";import{wc,RU,Uce,um,A5,Nw,XC,T5,bBe,xBe,_X,si,BP,wP,R5,yU,qbe,k5,IP,DP,OP,jP,PP,MP}fr
+import{qd}from"/$bunfs/root/chunk-d8j29m7q.js";import{mR,X1,VQ}from"/$bunfs/root/chunk-vz19b7cn.js";import{xF}from"/$bunfs/root/chunk-yvktpdby.js";import{of,t_}from"/$bunfs/root/chunk-jkmzjgff.js";import{Bc}from"/$bunfs/

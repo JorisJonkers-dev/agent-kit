@@ -1,0 +1,103 @@
+## vibe-acp --help
+usage: vibe-acp [-h] [-v] [--setup]
+
+Run Mistral Vibe in ACP mode
+
+options:
+  -h, --help     show this help message and exit
+  -v, --version  show program's version number and exit
+  --setup        Setup API key and exit
+
+## vibe core/tools/manager.py (enabled_tools / disabled_tools lines)
+104:        permission_getter: Callable[[str], ToolPermission | None] | None = None,
+114:        self._permission_getter = permission_getter
+173:        if self._config.enabled_tools:
+177:                if name_matches(name, self._config.enabled_tools)
+179:        if self._config.disabled_tools:
+183:                if not name_matches(name, self._config.disabled_tools)
+282:            elif srv.disabled_tools:
+283:                per_source_disabled[key] = set(srv.disabled_tools)
+286:            if cfg.disabled_tools and not cfg.disabled:
+287:                per_source_disabled[(cfg.name, True)] = set(cfg.disabled_tools)
+431:        self, tool_name: str, *, default_permission: ToolPermission = ToolPermission.ASK
+441:            default_config = BaseToolConfig(permission=default_permission)
+444:        permission_override = (
+445:            self._permission_getter(tool_name) if self._permission_getter else None
+447:        if user_overrides is None and permission_override is None:
+451:        if permission_override is not None:
+452:            merged_dict["permission"] = permission_override.value
+
+## vibe config: tool permission fields
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/config/vibe_schema.py:774:    enable_auto_approve: Annotated[bool, WithReplaceMerge()] = Fie
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/config/_setting_keys.py:76:    "auto_approve": False,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/tools/base.py:57:    permission: ToolPermission = ToolPermission.ASK
+
+## vibe VIBE_HOME
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/config/vibe_schema.py:119:    VIBE_HOME_ENV_FILE = "vibe_home_env_file"
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/config/vibe_schema.py:180:            record_env_value_origin(key, value, EnvValueOrigin.VIB
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/paths/__init__.py:25:    VIBE_HOME,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/paths/__init__.py:52:    "VIBE_HOME",
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/paths/_vibe_home.py:13:VIBE_HOME = GlobalPath(get_vibe_home)
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/paths/_vibe_home.py:14:GLOBAL_ENV_FILE = GlobalPath(lambda: VIBE_HOME.path / ".env")
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/paths/_vibe_home.py:15:SESSION_LOG_DIR = GlobalPath(lambda: VIBE_HOME.path / "logs" / "sessi
+/Users/j.w.jonkers/Library/Application Support/uv/tools/mistral-vibe/lib/python3.12/site-packages/vibe/core/paths/_vibe_home.py:16:WORKTREES_DIR = GlobalPath(lambda: VIBE_HOME.path / "worktrees")
+
+## hermes acp --help
+usage: hermes-acp [-h] [--version] [--check] [--setup] [--setup-browser]
+                  [--yes]
+
+Run Hermes Agent as an ACP stdio server.
+
+options:
+  -h, --help       show this help message and exit
+  --version        Print Hermes version and exit
+  --check          Verify ACP dependencies and adapter imports, then exit
+  --setup          Run interactive Hermes provider/model setup for ACP
+                   terminal auth
+  --setup-browser  Install agent-browser + Playwright Chromium into
+                   ~/.hermes/node/ for browser tool support. Idempotent.
+  --yes, -y        Accept all prompts (currently used by --setup-browser to
+                   skip the ~400 MB Chromium download confirmation).
+
+## hermes acp_adapter toolsets
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/entry.py:13:    hermes-acp
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/entry.py:102:    """Load .env from HERMES_HOME (default ``~/.hermes``)."""
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/entry.py:118:        prog="hermes-acp",
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:75:from acp_adapter.session import SessionManager, SessionState, _expand_acp_ena
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:833:            enabled_toolsets = _expand_acp_enabled_toolsets(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:834:                getattr(state.agent, "enabled_toolsets", None) or ["hermes-a
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:837:            state.agent.enabled_toolsets = enabled_toolsets
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:838:            disabled_toolsets = getattr(state.agent, "disabled_toolsets", No
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:840:                enabled_toolsets=enabled_toolsets,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:841:                disabled_toolsets=disabled_toolsets,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1809:            toolsets = _expand_acp_enabled_toolsets(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1810:                getattr(state.agent, "enabled_toolsets", None) or ["hermes-
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1812:            tools = get_tool_definitions(enabled_toolsets=toolsets, quiet_m
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/server.py:1820:                enabled_toolsets=toolsets,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:129:def _expand_acp_enabled_toolsets(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:130:    toolsets: List[str] | None = None,
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:133:    """Return ACP toolsets plus explicit MCP server toolsets for this sessi
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:135:    for name in list(toolsets or ["hermes-acp"]):
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:140:        toolset_name = f"mcp-{server_name}"
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:141:        if server_name and toolset_name not in expanded:
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:142:            expanded.append(toolset_name)
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:396:        Note: we resolve ``HERMES_HOME`` dynamically rather than relying on
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:625:            "enabled_toolsets": _expand_acp_enabled_toolsets(
+/Users/j.w.jonkers/Library/Application Support/uv/tools/hermes-agent/lib/python3.13/site-packages/acp_adapter/session.py:626:                ["hermes-acp"],
+
+## hermes toolsets defining file/web
+35:    "terminal", "process",
+98:    "web": {
+161:    "terminal": {
+163:        "tools": ["terminal", "process"],
+192:    "file": {
+334:        "tools": ["terminal", "process"],
+335:        "includes": ["web", "file"]  # For searching error messages and solutions, and file operations
+341:        "includes": ["web", "vision", "image_gen"]
+352:            "terminal", "process", "read_terminal", "close_terminal",
+380:    "hermes-acp": {
+384:            "terminal", "process",
+405:            "terminal", "process",
+951:    for name in ["web", "terminal", "safe", "debugging"]:
+958:    combined = resolve_multiple_toolsets(["web", "vision", "terminal"])
+968:        includes=["terminal", "vision"]
