@@ -20,6 +20,7 @@ uv run mypy
 uv run pytest
 uv run python scripts/validate_manifest.py
 uv run python scripts/render_registry.py --check
+cargo test --manifest-path scripts/Cargo.toml
 ```
 
 Run `uv run python scripts/render_agent_kit.py --write` after a checkout or a pull. It
@@ -44,6 +45,7 @@ script is generated from `registry/estate-tooling.yaml` -- see
 ## Docs
 
 - [docs/SETUP.md](docs/SETUP.md): workstation setup, credentials, exit codes.
+- [docs/RUST.md](docs/RUST.md): the Rust workspace, the 7-day crate cooldown, the pre-commit hook, the pull-request gate and the security-fix waiver.
 - [docs/REGISTRY.md](docs/REGISTRY.md): the one file to edit to add a skill,
   plugin, CLI or MCP server to every surface at once.
 - [docs/HERMES.md](docs/HERMES.md): getting a registry entry onto the
@@ -85,7 +87,9 @@ knowledge hooks from a machine that still has them, on every run.
   they source. `installer/cloud/` holds the setup script and environment
   variables pasted into a Claude Code cloud environment.
 - `scripts/`: the renderers (`render_agent_kit.py`, `render_registry.py`),
-  validators, release helpers, and the `deploy/` helpers the deploy skills use.
+  validators, release helpers, the `deploy/` helpers the deploy skills use,
+  and the Rust workspace (`Cargo.toml`, its one std-only crate) behind the
+  7-day crate cooldown ([docs/RUST.md](docs/RUST.md)).
 - `provenance/`: lock files recording the upstream sources adapted here.
 - `docs/`: setup, registry, cloud, portability and critique-pipeline docs, and
   the ADRs.

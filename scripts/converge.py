@@ -11,6 +11,10 @@ any other entry the surface's declared set does not name is removed unless the
 keep file names it. A ``--private`` entry (Private Memory) is removed from every
 surface that does not declare it, whatever the keep file says.
 
+Every run first calls the Rust workspace's canary crate for its version, when
+its binary is built, proving the workspace path end to end from setup itself;
+without a build it says so and carries on (see docs/RUST.md).
+
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
 
@@ -29,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -41,6 +46,54 @@ import tomlkit
 import yaml
 
 DECLARED_SOURCES = ("plugin:",)
+
+# The one workspace (`scripts/Cargo.toml`) and its one std-only member
+# crate, whose built binary marks a machine where the Rust path works.
+KIT_ROOT = Path(__file__).resolve().parent.parent
+CRATE_NAME = "agent-kit-setup"
+CRATE_TIMEOUT_S = 30.0
+
+
+def crate_binary(kit_root: Path) -> Path | None:
+    """The canary crate's built binary, preferring the release build over a debug one.
+
+    The binary is only ever there after `cargo build --manifest-path
+    scripts/Cargo.toml`; a machine without a Rust toolchain never has it, and
+    setup skips the crate call rather than pretending it happened.
+    """
+    for profile in ("release", "debug"):
+        candidate = kit_root / "scripts" / "target" / profile / CRATE_NAME
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def crate_report(kit_root: Path, cargo: bool) -> tuple[str, int]:
+    """One line from the workspace's canary crate, and whether the run may carry on.
+
+    Setup runs converge on every run, so the canary crate proves the Rust
+    workspace path end to end from setup itself: when the binary is built,
+    converge asks it for its version. A binary that is not there skips the
+    call with the reason said out loud, because nothing can be proven about a
+    machine that never built it; a built binary that cannot answer blocks the
+    run, closing the gate instead of assuming the crate is fine.
+    """
+    binary = crate_binary(kit_root)
+    if binary is None:
+        if cargo:
+            return (f"{CRATE_NAME}: skipped: not built yet; "
+                    "run cargo build --manifest-path scripts/Cargo.toml"), 0
+        return f"{CRATE_NAME}: skipped: no Rust toolchain (cargo) on PATH", 0
+    try:
+        result = subprocess.run(
+            [str(binary), "--version"], capture_output=True, text=True, check=False, timeout=CRATE_TIMEOUT_S
+        )
+    except subprocess.TimeoutExpired:
+        return f"{CRATE_NAME}: the built binary at {binary} did not answer within {CRATE_TIMEOUT_S:g} seconds", 1
+    version = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+    if version and result.returncode == 0:
+        return f"{CRATE_NAME}: {version} ({binary})", 0
+    return f"{CRATE_NAME}: the built binary at {binary} answered exit {result.returncode}, not a version", 1
 
 
 @dataclass
@@ -244,6 +297,12 @@ def main(argv: list[str] | None = None) -> int:
         each.add_argument("--keep", type=Path, required=True)
         each.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
+    # The workspace's canary crate first: one line proving the Rust path works
+    # on this machine, or saying why it could not be called (docs/RUST.md).
+    line, crate_code = crate_report(KIT_ROOT, shutil.which("cargo") is not None)
+    print(line)
+    if crate_code:
+        return crate_code
     return mcp(args) if args.surface == "mcp" else plugins(args)
 
 

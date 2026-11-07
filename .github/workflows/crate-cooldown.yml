@@ -1,0 +1,62 @@
+'name': 'Crate Cooldown'
+
+'on':
+  'pull_request':
+  'push':
+    'branches':
+      - 'main'
+  'workflow_dispatch':
+
+'concurrency':
+  'group': 'crate-cooldown-${{ github.workflow }}-${{ github.ref }}'
+  'cancel-in-progress': '${{ github.ref != ''refs/heads/main'' }}'
+
+'permissions':
+  'contents': 'read'
+
+# The 7-day crate cooldown (the standards repo's ADR-0014; docs/RUST.md):
+# crate-age refuses a change that adds or updates a crate version younger
+# than seven days (exit 1) and one whose age cannot be proven (exit 2),
+# failing this job either way. The pre-commit hook (.githooks/pre-commit)
+# is the same check before the commit exists; this workflow is the gate a
+# pull request cannot skip.
+
+'jobs':
+  'crate-age':
+    'name': 'Crate Cooldown Gate (crate-age)'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'name': 'Check out agent-kit'
+        'uses': 'actions/checkout@v6'
+        'with':
+          'path': 'agent-kit'
+
+      # crate-age is never copied into this repository: this job builds it
+      # from its source in the standards repo (scripts/crates/crate-age).
+      # The runner has no crate-gate (a workstation's Cargo resolves through
+      # 127.0.0.1:17342), so only the after-the-fact check runs here.
+      # `ref: main` follows the standards repo until it publishes a tag;
+      # pin this checkout to a tag the day it does. If JorisJonkers-dev/
+      # standards is private, the workflow token needs the org allowlist to
+      # read it; a checkout that cannot happen fails this job closed.
+      - 'name': 'Check out the standards repo (crate-age source)'
+        'uses': 'actions/checkout@v6'
+        'with':
+          'repository': 'JorisJonkers-dev/standards'
+          'ref': 'main'
+          'path': 'standards'
+
+      # crate-age's command line is owned by the standards repo
+      # (scripts/README.md there); this gate points it at the checkout.
+      - 'name': 'Run crate-age over the checkout'
+        'run': 'cargo run --manifest-path standards/scripts/crates/crate-age/Cargo.toml -- --root agent-kit'
+
+  'rust-tests':
+    'name': 'Rust Workspace Tests'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      # The workspace is std-only, so no dependency is fetched and the
+      # runner's cargo toolchain is all this needs (docs/RUST.md).
+      - 'run': 'cargo build --manifest-path scripts/Cargo.toml'
+      - 'run': 'cargo test --manifest-path scripts/Cargo.toml'

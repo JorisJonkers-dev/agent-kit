@@ -1,0 +1,17 @@
+# Crate-cooldown waivers: the human-approved, expiring route by which a
+# security fix may land a crate version younger than 7 days. The schema and
+# the rules are in docs/RUST.md; the standard itself is the standards repo's
+# ADR-0014 (JorisJonkers-dev/standards).
+#
+#   - package:      the crate's registry name
+#     version:      the exact version the waiver lets in, nothing broader
+#     reason:       one line, naming the security fix (advisory link)
+#     pr:           the pull request that carries the fix
+#     approved_by:  the named human owner who reviewed the security case
+#     approved_at:  YYYY-MM-DD, the day the human approved it
+#     expires:     YYYY-MM-DD, never later than approved_at + 7 days, after
+#                  which the entry is dead and must be removed
+#
+# An entry is only valid while today is on or before its expires date; on the
+# day after, remove it. A waiver is never renewed.
+waivers: []
