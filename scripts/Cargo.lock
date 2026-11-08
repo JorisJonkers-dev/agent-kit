@@ -7,6 +7,10 @@ name = "agent-kit-setup"
 version = "0.1.0"
 
 [[package]]
+name = "gold-band-registry"
+version = "0.1.0"
+
+[[package]]
 name = "inventory-check"
 version = "0.1.0"
 

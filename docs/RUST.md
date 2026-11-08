@@ -14,7 +14,7 @@ documents its tooling); this page is how agent-kit follows it.
   for a version proven younger than 7 days, `2` for a version whose age cannot
   be proven, and `0` only for a proven-old-enough version. The gate **fails
   closed**: an unprovable age blocks the change.
-* **The workspace.** Three members today. `crates/inventory-check` fails when a
+* **The workspace.** Four members today. `crates/inventory-check` fails when a
   skill directory has no row in `docs/gold-band-port-inventory.md` (#351).
   `crates/agent-kit-setup` is the setup
   canary: a std-only, dependency-free crate (nothing in the lockfile has an
@@ -22,6 +22,11 @@ documents its tooling); this page is how agent-kit follows it.
   <PATH>` checks a path. New Rust — the Gold Band launcher, the registry
   validation, the gate wrappers — joins this workspace as a new member, never
   as its own Cargo project.
+* **The registry.** `crates/gold-band-registry` validates the Gold Band agent
+  declarations — flattened into its line protocol by Python (#332) — and
+  refuses a declaration that breaks one of the owner's hard rules (no Codex,
+  no OpenRouter, OpenCode models only from `opencode-go/`, no literal
+  secrets, a constrained reach).
 
   * `crates/ticket-export` writes requirement.md from one GitHub issue and
     its sub-issues through read-only GitHub access, so a workflow can start
