@@ -2244,7 +2244,7 @@ for install in installs:
         else
           run claude plugin disable kotlin-lsp@agent-kit-official >/dev/null 2>&1 || true
           if [ "$(uname -s)" = Linux ]; then
-            lsp_cmd='v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405 && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download-cdn.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
+            lsp_cmd='v=263.4702.0 sum=1e11d2e5fefbf9ea215ad8dd6be95f2222897cd086e8cb7a661a52084a590405 && curl -fsSL -o /tmp/kotlin-lsp.tgz "https://download.jetbrains.com/language-server/kotlin-server/${v}/kotlin-server-${v}.tar.gz" && echo "${sum}  /tmp/kotlin-lsp.tgz" | sha256sum -c - && rm -rf "${AK_OPT_DIR}/kotlin-lsp" && mkdir -p "${AK_OPT_DIR}/kotlin-lsp" "${AK_BIN_DIR}" && tar -xzf /tmp/kotlin-lsp.tgz -C "${AK_OPT_DIR}/kotlin-lsp" --strip-components=1 && rm -f /tmp/kotlin-lsp.tgz && ln -sf "${AK_OPT_DIR}/kotlin-lsp/kotlin-lsp.sh" "${AK_BIN_DIR}/kotlin-lsp"'
           else
             lsp_cmd='brew install kotlin-lsp'
           fi
@@ -2272,23 +2272,32 @@ for install in installs:
           && ok "jdtls-lsp: removed the copy installed as jdtls-lsp@claude-plugins-official" ;;
       esac
       if run claude plugin install jdtls-lsp@agent-kit-official --yes --scope user; then
-        if command -v jdtls >/dev/null 2>&1; then
+        if command -v jdtls >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
           run claude plugin enable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
           ok "jdtls-lsp: jdtls on PATH, plugin enabled"
+        elif command -v jdtls >/dev/null 2>&1; then
+          run claude plugin disable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
+          warn "jdtls-lsp: jdtls is on PATH but java is not; plugin left disabled"
+          missing_lsp_binaries+=("jdtls-lsp: install java, which jdtls runs")
         else
           run claude plugin disable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
-          if [ "$(uname -s)" = Linux ]; then
-            lsp_cmd='curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz && rm -rf "${AK_OPT_DIR}/jdtls" && mkdir -p "${AK_OPT_DIR}/jdtls" "${AK_BIN_DIR}" && tar -xzf /tmp/jdtls.tgz -C "${AK_OPT_DIR}/jdtls" && rm -f /tmp/jdtls.tgz && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"'
+          if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+            warn "jdtls-lsp: jdtls is absent; on NixOS declare pkgs.jdt-language-server and a java in nix-config; plugin left disabled"
+            missing_lsp_binaries+=("jdtls-lsp: declare pkgs.jdt-language-server and a java in nix-config")
           else
-            lsp_cmd='brew install jdtls'
-          fi
-          run_sh "${lsp_cmd}" || true
-          if command -v jdtls >/dev/null 2>&1; then
-            run claude plugin enable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
-            ok "jdtls-lsp: jdtls installed and enabled"
-          else
-            warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: ${lsp_cmd})"
-            missing_lsp_binaries+=("jdtls-lsp: install with: ${lsp_cmd}")
+            if [ "$(uname -s)" = Linux ]; then
+              lsp_cmd='curl -fsSL -o /tmp/jdtls.tgz https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz && rm -rf "${AK_OPT_DIR}/jdtls" && mkdir -p "${AK_OPT_DIR}/jdtls" "${AK_BIN_DIR}" && tar -xzf /tmp/jdtls.tgz -C "${AK_OPT_DIR}/jdtls" && rm -f /tmp/jdtls.tgz && ln -sf "${AK_OPT_DIR}/jdtls/bin/jdtls" "${AK_BIN_DIR}/jdtls"'
+            else
+              lsp_cmd='brew install jdtls'
+            fi
+            run_sh "${lsp_cmd}" || true
+            if command -v jdtls >/dev/null 2>&1 && command -v java >/dev/null 2>&1; then
+              run claude plugin enable jdtls-lsp@agent-kit-official >/dev/null 2>&1 || true
+              ok "jdtls-lsp: jdtls installed and enabled"
+            else
+              warn "jdtls-lsp: jdtls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+              missing_lsp_binaries+=("jdtls-lsp: install with: ${lsp_cmd}")
+            fi
           fi
         fi
       else
@@ -2314,14 +2323,19 @@ for install in installs:
             ok "ruby-lsp: ruby-lsp on PATH, plugin enabled"
           else
             run claude plugin disable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
-            lsp_cmd='gem install ruby-lsp'
-            run_sh "${lsp_cmd}" || true
-            if command -v ruby-lsp >/dev/null 2>&1; then
-              run claude plugin enable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
-              ok "ruby-lsp: ruby-lsp installed and enabled"
+            if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              warn "ruby-lsp: ruby-lsp is absent; on NixOS declare pkgs.ruby-lsp in nix-config; plugin left disabled"
+              missing_lsp_binaries+=("ruby-lsp: declare pkgs.ruby-lsp in nix-config")
             else
-              warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
-              missing_lsp_binaries+=("ruby-lsp: install with: ${lsp_cmd}")
+              lsp_cmd='gem install ruby-lsp'
+              run_sh "${lsp_cmd}" || true
+              if command -v ruby-lsp >/dev/null 2>&1; then
+                run claude plugin enable ruby-lsp@agent-kit-official >/dev/null 2>&1 || true
+                ok "ruby-lsp: ruby-lsp installed and enabled"
+              else
+                warn "ruby-lsp: ruby-lsp is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                missing_lsp_binaries+=("ruby-lsp: install with: ${lsp_cmd}")
+              fi
             fi
           fi
         else
@@ -2348,14 +2362,19 @@ for install in installs:
             ok "gopls-lsp: gopls on PATH, plugin enabled"
           else
             run claude plugin disable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
-            lsp_cmd='go install golang.org/x/tools/gopls@latest'
-            run_sh "${lsp_cmd}" || true
-            if command -v gopls >/dev/null 2>&1; then
-              run claude plugin enable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
-              ok "gopls-lsp: gopls installed and enabled"
+            if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              warn "gopls-lsp: gopls is absent; on NixOS declare pkgs.gopls in nix-config; plugin left disabled"
+              missing_lsp_binaries+=("gopls-lsp: declare pkgs.gopls in nix-config")
             else
-              warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: ${lsp_cmd})"
-              missing_lsp_binaries+=("gopls-lsp: install with: ${lsp_cmd}")
+              lsp_cmd='go install golang.org/x/tools/gopls@latest'
+              run_sh "${lsp_cmd}" || true
+              if command -v gopls >/dev/null 2>&1; then
+                run claude plugin enable gopls-lsp@agent-kit-official >/dev/null 2>&1 || true
+                ok "gopls-lsp: gopls installed and enabled"
+              else
+                warn "gopls-lsp: gopls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                missing_lsp_binaries+=("gopls-lsp: install with: ${lsp_cmd}")
+              fi
             fi
           fi
         else
@@ -2385,14 +2404,19 @@ for install in installs:
             if ! command -v rustup >/dev/null 2>&1; then
               log "rust-analyzer-lsp: no rustup on this machine; plugin left off"
             else
-              lsp_cmd='rustup component add rust-analyzer'
-              run_sh "${lsp_cmd}" || true
-              if command -v rust-analyzer >/dev/null 2>&1; then
-                run claude plugin enable rust-analyzer-lsp@agent-kit-official >/dev/null 2>&1 || true
-                ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+              if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+                warn "rust-analyzer-lsp: rust-analyzer is absent; on NixOS declare pkgs.rust-analyzer in nix-config; plugin left disabled"
+                missing_lsp_binaries+=("rust-analyzer-lsp: declare pkgs.rust-analyzer in nix-config")
               else
-                warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
-                missing_lsp_binaries+=("rust-analyzer-lsp: install with: ${lsp_cmd}")
+                lsp_cmd='rustup component add rust-analyzer'
+                run_sh "${lsp_cmd}" || true
+                if command -v rust-analyzer >/dev/null 2>&1; then
+                  run claude plugin enable rust-analyzer-lsp@agent-kit-official >/dev/null 2>&1 || true
+                  ok "rust-analyzer-lsp: rust-analyzer installed and enabled"
+                else
+                  warn "rust-analyzer-lsp: rust-analyzer is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                  missing_lsp_binaries+=("rust-analyzer-lsp: install with: ${lsp_cmd}")
+                fi
               fi
             fi
           fi
@@ -2420,14 +2444,19 @@ for install in installs:
             ok "lua-lsp: lua-language-server on PATH, plugin enabled"
           else
             run claude plugin disable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
-            lsp_cmd='brew install lua-language-server'
-            run_sh "${lsp_cmd}" || true
-            if command -v lua-language-server >/dev/null 2>&1; then
-              run claude plugin enable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
-              ok "lua-lsp: lua-language-server installed and enabled"
+            if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              warn "lua-lsp: lua-language-server is absent; on NixOS declare pkgs.lua-language-server in nix-config; plugin left disabled"
+              missing_lsp_binaries+=("lua-lsp: declare pkgs.lua-language-server in nix-config")
             else
-              warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
-              missing_lsp_binaries+=("lua-lsp: install with: ${lsp_cmd}")
+              lsp_cmd='brew install lua-language-server'
+              run_sh "${lsp_cmd}" || true
+              if command -v lua-language-server >/dev/null 2>&1; then
+                run claude plugin enable lua-lsp@agent-kit-official >/dev/null 2>&1 || true
+                ok "lua-lsp: lua-language-server installed and enabled"
+              else
+                warn "lua-lsp: lua-language-server is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                missing_lsp_binaries+=("lua-lsp: install with: ${lsp_cmd}")
+              fi
             fi
           fi
         else
@@ -2454,14 +2483,19 @@ for install in installs:
             ok "clangd-lsp: clangd on PATH, plugin enabled"
           else
             run claude plugin disable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
-            lsp_cmd='brew install llvm'
-            run_sh "${lsp_cmd}" || true
-            if command -v clangd >/dev/null 2>&1; then
-              run claude plugin enable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
-              ok "clangd-lsp: clangd installed and enabled"
+            if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              warn "clangd-lsp: clangd is absent; on NixOS declare pkgs.clang-tools in nix-config; plugin left disabled"
+              missing_lsp_binaries+=("clangd-lsp: declare pkgs.clang-tools in nix-config")
             else
-              warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: ${lsp_cmd})"
-              missing_lsp_binaries+=("clangd-lsp: install with: ${lsp_cmd}")
+              lsp_cmd='brew install llvm'
+              run_sh "${lsp_cmd}" || true
+              if command -v clangd >/dev/null 2>&1; then
+                run claude plugin enable clangd-lsp@agent-kit-official >/dev/null 2>&1 || true
+                ok "clangd-lsp: clangd installed and enabled"
+              else
+                warn "clangd-lsp: clangd is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                missing_lsp_binaries+=("clangd-lsp: install with: ${lsp_cmd}")
+              fi
             fi
           fi
         else
@@ -2525,14 +2559,19 @@ for install in installs:
             if ! command -v dotnet >/dev/null 2>&1; then
               log "csharp-lsp: no dotnet on this machine; plugin left off"
             else
-              lsp_cmd='dotnet tool install --global csharp-ls'
-              run_sh "${lsp_cmd}" || true
-              if command -v csharp-ls >/dev/null 2>&1; then
-                run claude plugin enable csharp-lsp@agent-kit-official >/dev/null 2>&1 || true
-                ok "csharp-lsp: csharp-ls installed and enabled"
+              if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+                warn "csharp-lsp: csharp-ls is absent; on NixOS declare pkgs.csharp-ls in nix-config; plugin left disabled"
+                missing_lsp_binaries+=("csharp-lsp: declare pkgs.csharp-ls in nix-config")
               else
-                warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
-                missing_lsp_binaries+=("csharp-lsp: install with: ${lsp_cmd}")
+                lsp_cmd='dotnet tool install --global csharp-ls'
+                run_sh "${lsp_cmd}" || true
+                if command -v csharp-ls >/dev/null 2>&1; then
+                  run claude plugin enable csharp-lsp@agent-kit-official >/dev/null 2>&1 || true
+                  ok "csharp-lsp: csharp-ls installed and enabled"
+                else
+                  warn "csharp-lsp: csharp-ls is absent; plugin left disabled (install missing: ${lsp_cmd})"
+                  missing_lsp_binaries+=("csharp-lsp: install with: ${lsp_cmd}")
+                fi
               fi
             fi
           fi
@@ -2560,8 +2599,13 @@ for install in installs:
             ok "swift-lsp: sourcekit-lsp on PATH, plugin enabled"
           else
             run claude plugin disable swift-lsp@agent-kit-official >/dev/null 2>&1 || true
-            warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
-            missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
+            if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then
+              warn "swift-lsp: sourcekit-lsp is absent; on NixOS declare pkgs.sourcekit-lsp in nix-config; plugin left disabled"
+              missing_lsp_binaries+=("swift-lsp: declare pkgs.sourcekit-lsp in nix-config")
+            else
+              warn "swift-lsp: sourcekit-lsp is absent and ships with its platform toolchain; plugin left disabled"
+              missing_lsp_binaries+=("swift-lsp: missing from toolchain (no install command)")
+            fi
           fi
         else
           warn "swift-lsp@agent-kit-official install failed"
@@ -2587,15 +2631,7 @@ for install in installs:
             ok "liquid-lsp: shopify on PATH, so plugin enabled (off by default)"
           else
             run claude plugin disable liquid-lsp@agent-kit-official >/dev/null 2>&1 || true
-            lsp_cmd='npm install -g @shopify/cli'
-            run_sh "${lsp_cmd}" || true
-            if command -v shopify >/dev/null 2>&1; then
-              run claude plugin enable liquid-lsp@agent-kit-official >/dev/null 2>&1 || true
-              ok "liquid-lsp: shopify installed and enabled"
-            else
-              warn "liquid-lsp: shopify is absent; plugin left disabled (install missing: ${lsp_cmd})"
-              missing_lsp_binaries+=("liquid-lsp: install with: ${lsp_cmd}")
-            fi
+            log "liquid-lsp: off by default; install shopify to enable it"
           fi
         else
           warn "liquid-lsp@agent-kit-official install failed"

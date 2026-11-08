@@ -90,7 +90,13 @@ def setup_run(
         capture_output=True,
         text=True,
         check=False,
-        env={"HOME": str(home), "PATH": f"{bin_dir}:/usr/bin:/bin", **(extra_env or {})},
+        # Not NixOS unless a test says so, whatever machine runs the suite.
+        env={
+            "HOME": str(home),
+            "PATH": f"{bin_dir}:/usr/bin:/bin",
+            "AK_NIXOS_MARKER": str(root / "not-nixos"),
+            **(extra_env or {}),
+        },
     )
     return Run(
         home=home,

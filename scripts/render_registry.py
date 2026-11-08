@@ -371,6 +371,11 @@ def validate(data: dict[str, Any]) -> None:
             if "cloud" in item and not isinstance(item["cloud"], bool):
                 raise RegistryError(f"{key} entry {_label(item)} cloud: must be true or false")
     for server in _entries(data, "language_servers"):
+        for field in ("runtime", "nixos"):
+            if field in server and not (isinstance(server[field], str) and server[field]):
+                raise RegistryError(
+                    f"language server {server.get('plugin')} {field}: must be a non-empty string",
+                )
         if "install_linux" in server and not (server["install_linux"] and server.get("install")):
             raise RegistryError(
                 f"language server {server.get('plugin')} install_linux must be a command, "
@@ -3263,16 +3268,37 @@ def render_setup_script(data: dict[str, Any]) -> str:
         block = _unalias(data, plugin, "claude-plugins-official", "    ")
         b = block.append
         b(f'    if run claude plugin install {ref} --yes --scope user; then')
-        # Always check binary presence to determine enable/disable state
-        b(f'      if command -v {binary} >/dev/null 2>&1; then')
+        runtime = server.get("runtime")
+        nixos_pkg = server.get("nixos")
+        # A server that needs a runtime (jdtls runs `java`) is usable only
+        # when both are on PATH; the launcher alone answers no request.
+        present = f"command -v {binary} >/dev/null 2>&1"
+        if runtime:
+            present += f" && command -v {runtime} >/dev/null 2>&1"
+        b(f"      if {present}; then")
+        b(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
         if enabled:
-            b(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
             b(f'        ok "{plugin}: {binary} on PATH, plugin enabled"')
         else:
-            b(f'        run claude plugin enable {ref} >/dev/null 2>&1 || true')
             b(f'        ok "{plugin}: {binary} on PATH, so plugin enabled (off by default)"')
+        if runtime:
+            b(f"      elif command -v {binary} >/dev/null 2>&1; then")
+            b(f'        run claude plugin disable {ref} >/dev/null 2>&1 || true')
+            b(f'        warn "{plugin}: {binary} is on PATH but {runtime} is not; plugin left disabled"')
+            b(f'        missing_lsp_binaries+=("{plugin}: install {runtime}, which {binary} runs")')
         b("      else")
         b(f'        run claude plugin disable {ref} >/dev/null 2>&1 || true')
+        if not enabled:
+            # Off by default: installing the binary by hand is the opt-in,
+            # so setup never installs it.
+            b(f'        log "{plugin}: off by default; install {binary} to enable it"')
+            b("      fi")
+            b("    else")
+            b(f'      warn "{ref} install failed"')
+            b("    fi")
+            guarded = _pinned_guard(block, "claude-plugins-official", plugin, "    ")
+            out.extend(_cloud_guard(guarded, server, "    "))
+            continue
         toolchain = server.get("toolchain")
         if toolchain:
             # No toolchain means no work in that language here: a fact, not a to-do.
@@ -3280,6 +3306,18 @@ def render_setup_script(data: dict[str, Any]) -> str:
             b(f'          log "{plugin}: no {toolchain} on this machine; plugin left off"')
             b("        else")
         install_at = len(block)
+        if nixos_pkg:
+            # NixOS cannot run brew, gem, go install or rustup into its store:
+            # nix-config declares the binary, setup only reports it.
+            b('        if [ -e "${AK_NIXOS_MARKER:-/etc/NIXOS}" ]; then')
+            needs = f"pkgs.{nixos_pkg}" + (f" and a {runtime}" if runtime else "")
+            b(
+                f'          warn "{plugin}: {binary} is absent; on NixOS declare {needs} '
+                'in nix-config; plugin left disabled"'
+            )
+            b(f'          missing_lsp_binaries+=("{plugin}: declare {needs} in nix-config")')
+            b("        else")
+        nix_at = len(block)
         # Attempt install if one is configured
         if lsp_install:
             if server.get("install_linux"):
@@ -3291,7 +3329,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
             else:
                 b(f"        lsp_cmd={_q(lsp_install)}")
             b('        run_sh "${lsp_cmd}" || true')
-            b(f'        if command -v {binary} >/dev/null 2>&1; then')
+            b(f"        if {present}; then")
             b(f'          run claude plugin enable {ref} >/dev/null 2>&1 || true')
             b(f'          ok "{plugin}: {binary} installed and enabled"')
             b("        else")
@@ -3305,6 +3343,9 @@ def render_setup_script(data: dict[str, Any]) -> str:
             )
             b(f'        warn {msg}')
             b(f'        missing_lsp_binaries+=("{plugin}: missing from toolchain (no install command)")')
+        if nixos_pkg:
+            block[nix_at:] = ["  " + line for line in block[nix_at:]]
+            b("        fi")
         if toolchain:
             block[install_at:] = ["  " + line for line in block[install_at:]]
             b("        fi")
