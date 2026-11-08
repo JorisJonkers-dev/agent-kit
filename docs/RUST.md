@@ -32,6 +32,9 @@ on the Linux workstation.
   `crates/transcript-mix` is the transcript tool-mix analyser (below), std-only
   with the JSON parser borrowed from `code-nav-eval`. New Rust joins this
   workspace as a new member, never as its own Cargo project.
+  `crates/ticket-export` writes requirement.md from one GitHub issue and its
+  sub-issues through read-only GitHub access, so a workflow can start from a
+  ticket without any agent holding write access (#355).
 
 ```bash
 cargo build --manifest-path scripts/Cargo.toml
