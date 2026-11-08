@@ -14,7 +14,7 @@ documents its tooling); this page is how agent-kit follows it.
   for a version proven younger than 7 days, `2` for a version whose age cannot
   be proven, and `0` only for a proven-old-enough version. The gate **fails
   closed**: an unprovable age blocks the change.
-* **The workspace.** Five members today. `crates/inventory-check` fails when a
+* **The workspace.** Six members today. `crates/inventory-check` fails when a
   skill directory has no row in `docs/gold-band-port-inventory.md` (#351).
   `crates/agent-kit-setup` is the setup
   canary: a std-only, dependency-free crate (nothing in the lockfile has an
@@ -42,6 +42,12 @@ documents its tooling); this page is how agent-kit follows it.
     entries, quotes against stored pages, source tiers — regenerates its
     generated `INDEX.md` files, and mounts the papers repository as a
     private git submodule (#356).
+
+* **The Gold Band allowlist check.** `crates/gold-band-allowlist` checks a
+  Gold Band workflow definition against its repository's family allowlist
+  entry before anything runs — the family allowlist, the code permission
+  and the `nedap` and no-remote refusals, at setup and again at each run
+  start through `exec` (#352, ADR-0009).
 
 ```bash
 cargo build --manifest-path scripts/Cargo.toml         # release canary in scripts/target/release/

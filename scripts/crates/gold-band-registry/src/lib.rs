@@ -329,7 +329,9 @@ fn kind(path: &str) -> Kind {
         "useLocalClaude" | "throwawayOnly" => Kind::Boolean,
         "systemPromptDelivery" => Kind::Delivery,
         "adapter.command" | "adapter.displayName" | "icon" | "primaryAgentDir" => Kind::Known,
-        "projectPrimaryAgentDir" | "outputDir" | "provider" | "model" | "reach" => Kind::Known,
+        "family" | "projectPrimaryAgentDir" | "outputDir" | "provider" | "model" | "reach" => {
+            Kind::Known
+        }
         _ => prefixed(path),
     }
 }
@@ -673,6 +675,14 @@ field\treach\tread
         assert!(problems(&agents).is_empty());
         let file = temp("clean-declaration", text).into_os_string();
         assert_eq!(run(vec!["validate".into(), file]), 0);
+    }
+
+    #[test]
+    fn the_family_field_is_a_known_plain_string_field() {
+        expect(
+            "agent\tzeta\nfield\tfamily\tdeepseek\nfield\treach\tread\n",
+            &[],
+        );
     }
 
     #[test]
