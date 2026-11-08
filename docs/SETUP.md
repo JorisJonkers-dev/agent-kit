@@ -677,21 +677,30 @@ indistinguishable from a working one.
 So the script verifies `command -v <binary>`, never the plugin list, and warns
 by name when the binary is absent:
 
-| Plugin | Binary | Comes from |
-|---|---|---|
-| `typescript-lsp` | `typescript-language-server` | npm |
-| `pyright-lsp` | `pyright-langserver` | npm |
-| `kotlin-lsp` | `kotlin-lsp` | brew |
-| `jdtls-lsp` | `jdtls` | brew |
-| `ruby-lsp` | `ruby-lsp` | gem |
-| `gopls-lsp` | `gopls` | `go install` |
-| `rust-analyzer-lsp` | `rust-analyzer` | `rustup component add` |
-| `lua-lsp` | `lua-language-server` | brew |
-| `clangd-lsp` | `clangd` | brew (llvm) |
-| `php-lsp` | `intelephense` | npm |
-| `csharp-lsp` | `csharp-ls` | `dotnet tool install` |
-| `swift-lsp` | `sourcekit-lsp` | the Swift/Xcode toolchain — nothing to install |
-| `liquid-lsp` | `shopify` | npm — installed disabled |
+| Plugin | Binary | Comes from | On NixOS |
+|---|---|---|---|
+| `typescript-lsp` | `typescript-language-server` | npm | npm |
+| `pyright-lsp` | `pyright-langserver` | npm | npm |
+| `kotlin-lsp` | `kotlin-lsp` | brew; JetBrains tarball on Linux | tarball |
+| `jdtls-lsp` | `jdtls`, runs `java` | brew; Eclipse tarball on Linux | `jdt-language-server` + a JDK |
+| `ruby-lsp` | `ruby-lsp` | gem | `ruby-lsp` |
+| `gopls-lsp` | `gopls` | `go install` | `gopls` |
+| `rust-analyzer-lsp` | `rust-analyzer` | `rustup component add` | `rust-analyzer` |
+| `lua-lsp` | `lua-language-server` | brew | `lua-language-server` |
+| `clangd-lsp` | `clangd` | brew (llvm) | `clang-tools` |
+| `php-lsp` | `intelephense` | npm | npm |
+| `csharp-lsp` | `csharp-ls` | `dotnet tool install` | `csharp-ls` |
+| `swift-lsp` | `sourcekit-lsp` | the Swift/Xcode toolchain — nothing to install | `sourcekit-lsp` |
+| `liquid-lsp` | `shopify` | off by default: never installed; install it by hand to turn it on | same |
+
+A server with a runtime (`jdtls` runs `java`) counts as present only when
+both are on `PATH`; the launcher alone answers no request.
+
+On NixOS (`/etc/NIXOS` exists) brew, gem, `go install` and rustup cannot
+install into the system, so setup does not try. The packages in the last
+column come from nix-config's agent-workstation role, and setup warns with
+the package name when one is missing. Rerun setup after a rebuild to enable
+the plugins.
 
 ## Claude Code is installed by its own installer
 

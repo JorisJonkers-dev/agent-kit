@@ -30,6 +30,7 @@ and re-runs the copy inside it.
    ```text
    *.jorisjonkers.dev
    release-assets.githubusercontent.com
+   download.jetbrains.com
    download-cdn.jetbrains.com
    openrouter.ai
    api.openai.com
@@ -42,7 +43,9 @@ and re-runs the copy inside it.
    redirect to `release-assets.githubusercontent.com`, listed in case the
    defaults do not cover it; without it the setup script cannot even fetch
    the kit. The
-   JetBrains CDN serves the Kotlin language server, the next two are Hermes'
+   Kotlin language server downloads from `download.jetbrains.com`, which
+   redirects to a signed link on `download-cdn.jetbrains.com` (the CDN alone
+   answers 404), the next two are Hermes'
    and Codex' model APIs, and the last two serve Playwright's browser on first
    use. **Full** access works too.
 3. **Paste the two files** and fill in the values.
