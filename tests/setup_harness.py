@@ -41,6 +41,7 @@ def setup_run(
     stubs: dict[str, str] | None = None,
     extra_env: dict[str, str] | None = None,
     without: tuple[str, ...] = (),
+    home: Path | None = None,
 ) -> Run:
     """Run the checked-in setup script with HOME in a temp dir and nothing real on PATH.
 
@@ -53,11 +54,15 @@ def setup_run(
     defaults, for a test that needs one command to do real work. ``extra_env``
     adds variables to the run's environment, such as XDG_CONFIG_HOME. ``without``
     names default stubs to leave off PATH, for a machine that lacks them.
+    ``home`` reuses an existing directory as the run's home instead of making
+    a fresh one under ``root``, so a later run can go against the home an
+    earlier one left behind.
     """
     bin_dir = root / "bin"
     bin_dir.mkdir(parents=True)
-    home = root / "home"
-    home.mkdir()
+    if home is None:
+        home = root / "home"
+        home.mkdir()
     if seed is not None:
         config = home / ".gemini" / "config" / "mcp_config.json"
         config.parent.mkdir(parents=True)

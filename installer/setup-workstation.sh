@@ -826,6 +826,40 @@ gold_band_validate() {
   exit 1
 }
 
+# -----------------------------------------------------------------
+# The Gold Band agent map, converged onto the registry (#333). The
+# declarations were validated above; converge.py now runs the
+# gold-band-registry crate's converge command, which makes the `agents`
+# map of ~/.gold-band/settings.json hold exactly the declared agents
+# plus the kept ones -- the settings map REPLACES the app's runtime
+# agent list, it is not merged with the built-in catalog (#328), and no
+# keep-file entry can keep a codex id or a retired one, while every
+# other top-level key of the document keeps its value and its order.
+# An unchanged document is written by no one, so a second run changes
+# nothing (--check only prints the lines). converge.py refuses to
+# write under a running Gold Band; where the app is not installed, the
+# step is skipped and the run carries on.
+# -----------------------------------------------------------------
+gold_band_converge() {
+  local out rc=0 line app
+  app="${AGENT_KIT_GOLD_BAND_APP:-/Applications/Gold Band.app}"
+  if [ ! -e "${app}" ]; then
+    log "Gold Band is not installed (${app}); its agent map is left alone"
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band agent map is not converged"
+    return 0
+  fi
+  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --settings "${HOME}/.gold-band/settings.json")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \
+    "${args[@]}" \
+    --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] || fail "the Gold Band agent map did not converge (see above)"
+}
+
 # An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.
 claude_in_profile() {
   local dir="$1"; shift
@@ -1608,6 +1642,15 @@ fi
 # validation that could not run stops the run with its own message.
 # -----------------------------------------------------------------
 gold_band_validate
+
+# -----------------------------------------------------------------
+# 0b. Gold Band agent map. The agents validated above are converged
+# into ~/.gold-band/settings.json by gold_band_converge, only while
+# Gold Band is installed: converge.py itself refuses to write under a
+# running one and says so; not installed, the step is skipped and the
+# run carries on.
+# -----------------------------------------------------------------
+gold_band_converge
 
 # -----------------------------------------------------------------
 # 1. Command-line tools.

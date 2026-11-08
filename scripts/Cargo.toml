@@ -1,18 +1,17 @@
 # The estate's Rust goes in ONE cargo workspace, with ONE lockfile at
 # scripts/Cargo.lock (the standards repo's ADR-0014; see docs/RUST.md).
 #
-members = [
-    "crates/agent-kit-setup",
-    "crates/gold-band-allowlist",
-    "crates/gold-band-registry",
-    "crates/inventory-check",
-    "crates/research-layout",
-    "crates/ticket-export",
-    "crates/workflow-lint",
-]
-# (127.0.0.1:17342, configured in ~/.cargo/config.toml), which hides any
-# version younger than 7 days; crate-age is the after-the-fact check, wired
-# into this repository's pre-commit hook and pull-request workflow.
+# Members are std-only except those that pin serde and serde_json
+# (gold-band-allowlist, gold-band-registry, research-layout, workflow-lint),
+# at versions far older than the 7-day crate cooldown. serde_json brings
+# transitive registry versions into scripts/Cargo.lock (itoa, memchr,
+# proc-macro2, quote, ryu, serde_core, serde_derive, syn, unicode-ident, and
+# indexmap with its own for preserve_order), and crate-age checks every one of
+# them. No member has a git or path dependency outside this workspace. On a
+# workstation, cargo resolves through the crate-gate (127.0.0.1:17342,
+# configured in ~/.cargo/config.toml), which hides any version younger than 7
+# days; crate-age is the after-the-fact check, wired into this repository's
+# pre-commit hook and pull-request workflow.
 
 [workspace]
 resolver = "2"
