@@ -2,10 +2,11 @@
 
 The registry's ``gold_band.agents`` are flattened into the gold-band-registry
 crate's line protocol and validated by its binary first thing in a setup run,
-so a declaration that breaks an owner rule (#332) -- no Codex, no OpenRouter,
-OpenCode models only from ``opencode-go/``, no literal secret, a well-formed id
-declared once, only known fields -- stops the run before any file could be
-written. A failure that is no verdict -- a ``uv`` that cannot run, or
+so a declaration that breaks an owner rule (#332) -- no Codex, no literal
+secret, a well-formed id declared once, only known fields -- stops the run
+before any file could be written. Every OpenRouter and every OpenCode model
+(an ``opencode/`` one included) is allowed (owner decision, 2026-11-08): the
+per-key LiteLLM budgets are the guard, not this registry. A failure that is no verdict -- a ``uv`` that cannot run, or
 converge.py's own failure (exit 3) -- stops the run with its own message,
 never the refusal's. The flattening cases call converge.py's function
 directly; each refusal case runs the whole checked-in setup script against a
@@ -198,20 +199,25 @@ def test_a_codex_agent_is_refused(tmp_path: Path, built_crate: None) -> None:
     _refused(run, "my-codex: id must not name codex")
 
 
-def test_an_openrouter_provider_or_model_is_refused(tmp_path: Path, built_crate: None) -> None:
+def test_an_openrouter_provider_or_model_passes(tmp_path: Path, built_crate: None) -> None:
     run = _setup_run(tmp_path, [{
         "id": "mixer",
         "reach": "read",
         "provider": "openrouter",
         "model": "openrouter/anthropic/claude-3",
     }])
-    _refused(run, "mixer: provider must not name openrouter")
-    assert "mixer: model must not name openrouter" in run.stdout
+    assert "gold-band-registry: ok (1 agents)" in run.stdout
+    assert "the Gold Band registry is refused" not in run.stdout + run.stderr
+    # The validation stopped nothing: the run reached its next step.
+    assert "tokens and keys" in run.stdout
 
 
-def test_an_opencode_model_outside_opencode_go_is_refused(tmp_path: Path, built_crate: None) -> None:
+def test_an_opencode_model_passes(tmp_path: Path, built_crate: None) -> None:
     run = _setup_run(tmp_path, [{"id": "sidekick", "reach": "read", "model": "opencode/zeta"}])
-    _refused(run, "sidekick: model must not start with opencode/")
+    assert "gold-band-registry: ok (1 agents)" in run.stdout
+    assert "the Gold Band registry is refused" not in run.stdout + run.stderr
+    # The validation stopped nothing: the run reached its next step.
+    assert "tokens and keys" in run.stdout
 
 
 def test_a_literal_secret_in_adapter_env_is_refused(tmp_path: Path, built_crate: None) -> None:

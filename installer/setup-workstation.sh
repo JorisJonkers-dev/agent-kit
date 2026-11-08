@@ -787,8 +787,8 @@ converge_plugins() {
 # The Gold Band agents, validated before anything is written.
 # converge.py flattens gold_band.agents into the gold-band-registry
 # crate's line protocol and the crate refuses a declaration that breaks
-# an owner rule (#332): no Codex anywhere, no OpenRouter, OpenCode
-# models only from opencode-go/, no literal secret, a well-formed id
+# an owner rule (#332): no Codex anywhere (OpenRouter and OpenCode
+# models are allowed on Gold Band), no literal secret, a well-formed id
 # declared once, only the fields the crate knows. Its verdict is logged,
 # and a refusal stops the run here; nothing was written yet, so nothing
 # needs unwinding. A failure that is no verdict -- uv itself, or
