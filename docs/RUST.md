@@ -48,9 +48,13 @@ cargo build --manifest-path scripts/Cargo.toml         # release canary in scrip
 cargo test --manifest-path scripts/Cargo.toml          # the canary's unit tests
 ```
 
-The workspace keeps **100 percent line coverage** of every crate: the unit
-tests in `src/lib.rs` execute each of its lines (the single executable line in
-`src/main.rs`, the exit wrapper, is the one they cannot).
+The workspace aims at **100 percent line coverage** of every crate: the unit
+tests in `src/lib.rs` execute each of its lines, with two kinds of exception
+that each crate names in a comment beside the code: the single executable line
+in `src/main.rs` (the exit wrapper), and the thin bridge that starts a real
+process (`gh`, `git`, the command `exec` runs), which the tests replace with a
+fake behind a trait. Coverage is not measured by a tool yet (`cargo llvm-cov`
+is not installed); until it is, these claims rest on reading the tests.
 
 ## Setup calls the crate
 
