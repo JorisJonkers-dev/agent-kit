@@ -2952,10 +2952,13 @@ else
   install_kit_command kubernetes-mcp-readonly
   # The Vibe launchers. Plain vibe is Vibe itself: the shared Vibe home, the
   # personal login, Shared Memory. vibe-study is the same home with the Study
-  # account; vibe-private has its own home and Private Memory, behind the gate.
+  # account; vibe-study-acp is that account over ACP for Gold Band, which
+  # reads the key at start so no Gold Band file holds one; vibe-private has
+  # its own home and Private Memory, behind the gate.
   # Workstation only: a cloud session gets plain vibe.
   if [ "${CLOUD}" != 1 ]; then
     install_kit_command vibe-study
+    install_kit_command vibe-study-acp
     install_kit_command vibe-private
     # Antigravity's MCP config cannot hold a token, so Shared Memory reaches
     # it through this stdio proxy, which reads the token from the keychain.

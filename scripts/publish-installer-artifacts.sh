@@ -62,6 +62,7 @@ KIT_PATHS=(
   scripts/gold-band/shell.nix
   installer/agent-kit-secret
   installer/vibe-study
+  installer/vibe-study-acp
   installer/vibe-private
   installer/vibe-hooks.toml
   scripts/hermes-merge-mcp.py
