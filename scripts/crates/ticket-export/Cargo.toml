@@ -1,0 +1,10 @@
+[package]
+name = "ticket-export"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Writes requirement.md from a GitHub issue and its sub-issues with read-only GitHub access (#355)."
+
+# std only, by design: nothing here has an age for the 7-day crate cooldown
+# (standards ADR-0014, docs/RUST.md) to question.
+[dependencies]
