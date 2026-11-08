@@ -50,6 +50,14 @@ on the Linux workstation.
   sub-issues through read-only GitHub access, so a workflow can start from a
   ticket without any agent holding write access (#355).
 
+* **The Gold Band roles.** `crates/gold-band-roles` renders the critique
+  pipeline's role and lens files into the six Gold Band profiles ("roles")
+  of `~/.gold-band/presets/profiles/`, rule for rule with templating off,
+  and converges that directory: a retired role disappears, a kept
+  hand-made one survives, and a Gold Band built-in is never touched
+  (#345); `docs/gold-band-roles.md` maps each role to the model families
+  that may run it.
+
 ```bash
 cargo build --manifest-path scripts/Cargo.toml
 cargo test --manifest-path scripts/Cargo.toml

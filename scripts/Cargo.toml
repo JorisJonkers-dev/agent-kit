@@ -25,4 +25,5 @@ members = [
     "crates/gold-band-agents",
     "crates/research-layout",
     "crates/gold-band-allowlist",
+    "crates/gold-band-roles",
 ]
