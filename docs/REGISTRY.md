@@ -238,6 +238,50 @@ run. A macOS app that ships as a Homebrew cask names `cask:` instead:
 - Both keys are `clis:` keys only. The renderer rejects them on a plugin,
   language server, MCP server, skill source or local skill.
 
+## A CLI installed from pinned npm packages
+
+A `clis:` entry can install pinned npm packages instead of a floating
+`install:`/`update:` pair. Give it a `pinned_npm:` block naming the exact
+packages and versions, and `binary:` as usual -- that is the binary whose
+absolute path setup prints at the end of the step:
+
+```yaml
+- name: pi
+  binary: pi-acp
+  surfaces: [workstation]
+  throwaway_only: true
+  pinned_npm:
+    packages:
+      - package: "@earendil-works/pi-coding-agent"
+        version: "1.5.0"
+      - package: "pi-acp"
+        version: "0.0.34"
+```
+
+- Presence is each pin, the way an `install_pinned` MCP server checks its own:
+  setup runs `npm ls -g --depth=0 <pkg>@<version>` for every package and
+  installs only when one is missing.
+- Setup installs ONE command line for the whole block:
+  `npm install -g --ignore-scripts --before=<cutoff> <every pin>`. Install
+  scripts are off (`--ignore-scripts`), and the cutoff is computed at setup
+  time as now minus 7 days, UTC: npm's `--before` resolves every package --
+  transitive ones included -- as the registry stood at that moment, so
+  nothing published in the last 7 days can install (issue #337; the same
+  discipline as the 7-day crate cooldown, standards ADR-0014).
+- Before installing, setup checks each pin's own publish time
+  (`npm view <pkg>@<version> time --json`) against the same cutoff. A pin
+  younger than 7 days fails the step and installs nothing, and so does a pin
+  whose publish time cannot be proven: the step fails closed, the way
+  crate-age does.
+- After the install, setup resolves the entry's `binary` to its absolute
+  installed path (`npm prefix -g` + `/bin/<binary>`) and prints it. That is
+  the adapter command the Gold Band agent declaration uses; the registry's
+  `gold_band:` section holds the commented placeholder until that ticket
+  lands.
+- `throwaway_only: true` records that the CLI may run only inside throwaway
+  repositories. Pi is why the field exists (it runs with no permission
+  prompts), and the renderer refuses a Pi entry without it.
+
 ## A first-party skill whose directory is not written yet
 
 A `local_skills:` entry can be registered before the issue that writes the
