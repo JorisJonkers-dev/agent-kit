@@ -96,7 +96,7 @@ OPENCODE_SETTINGS: dict[str, Any] = {
 }
 
 
-def _seeded_settings(home: Path, keep: tuple[str, ...] = ("mine", "codex-acp", "old-friend")) -> None:
+def _seeded_settings(home: Path, keep: tuple[str, ...] = ("mine", "codex-acp")) -> None:
     """A settings.json with extra keys and undeclared, kept, retired and codex agents."""
     settings = home / ".gold-band" / "settings.json"
     settings.parent.mkdir(parents=True)

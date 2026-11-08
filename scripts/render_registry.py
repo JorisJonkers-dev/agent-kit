@@ -94,7 +94,44 @@ SKILL_AGENT_HOMES = {
     "opencode": ["OPENCODE_HOME"],
 }
 
+# A `pinned_npm:` CLI installs behind a release cutoff this many days deep,
+# computed at setup time (issue #337): npm's --before resolves every package --
+# transitive ones included -- as the registry stood at that moment, so nothing
+# published inside the window can install. The same discipline as the 7-day
+# crate cooldown (standards ADR-0014, docs/RUST.md).
+PIN_CUTOFF_DAYS = 7
+# The generated cutoff computation: now minus the cutoff, UTC, printed in
+# npm's own publish-time format so the --before flag and the age check
+# compare like with like.
+PIN_CUTOFF_PY = (
+    "import datetime; print((datetime.datetime.now(datetime.timezone.utc)"
+    f" - datetime.timedelta(days={PIN_CUTOFF_DAYS})"
+    ').strftime("%Y-%m-%dT%H:%M:%S.000Z"))'
+)
+# A pin's own publish-time check, run against `npm view <pkg>@<version> time
+# --json` on stdin: prints that time (argv: the cutoff, then the version) and
+# exits 0 only when the version is no younger than the cutoff. An age that
+# cannot be proven exits 1, so the step fails closed, like crate-age does.
+PIN_AGE_PY = """import json, sys
+from datetime import datetime
+
+def when(stamp):
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+try:
+    published = when(json.load(sys.stdin)[sys.argv[2]])
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+print(published.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+sys.exit(0 if published <= when(sys.argv[1]) else 1)"""
+
 RETIRED_SKILL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+# An exact npm version: MAJOR.MINOR.PATCH with an optional -prerelease. A
+# range (`^1.5.0`, `>=1.0.0`), a tag (`latest`), an x-version (`1.x`) or a
+# YAML float (`1.5`) renders a floating install whose publish time cannot be
+# proven, so a `pinned_npm:` entry naming one is refused at render time.
+EXACT_NPM_PIN = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
 
 GENERATED_BANNER = "GENERATED FROM registry/estate-tooling.yaml -- DO NOT EDIT."
 
@@ -400,8 +437,19 @@ def validate(data: dict[str, Any]) -> None:
             continue
         if not cli.get("binary"):
             raise RegistryError(f"cli {cli.get('name')} must name a binary, or a cask that installs it")
-        if on_surface(cli, "workstation") and not cli.get("install"):
+        # A pinned npm CLI's install step is generated from its pin block.
+        if on_surface(cli, "workstation") and not cli.get("install") and not cli.get("pinned_npm"):
             raise RegistryError(f"cli {cli.get('name')} must name an install command, or a cask")
+    for cli in _entries(data, "clis"):
+        if cli.get("pinned_npm"):
+            _validate_pinned_npm_cli(cli, cli["pinned_npm"])
+        # Pi has no permission prompts: it runs only in throwaway repositories,
+        # so an entry for it that does not say so is refused rather than trusted.
+        if cli.get("name") == "pi" and cli.get("throwaway_only") is not True:
+            raise RegistryError(
+                "cli pi must set throwaway_only: true: Pi has no permission prompts, "
+                "so it runs only in throwaway repositories",
+            )
     for key in ("plugins", "language_servers", "mcp_servers", "skill_sources", "local_skills"):
         for item in _entries(data, key):
             for field in ("cask", "macos_only"):
@@ -436,6 +484,29 @@ def pinned_source(server: dict[str, Any]) -> dict[str, Any]:
 def workstation_pins(data: dict[str, Any]) -> list[dict[str, Any]]:
     """The `pin:` blocks of workstation-only pinned installs, which Renovate moves like container pins."""
     return [dict(s["pin"]) for s in _entries(data, "mcp_servers") if s.get("install_pinned") and s.get("pin")]
+
+
+def pinned_npm_cli_pin_specs(pin: dict[str, Any]) -> list[str]:
+    """A `pinned_npm:` block's package@version pins, in the registry's order."""
+    return [f"{entry['package']}@{entry['version']}" for entry in pin["packages"]]
+
+
+def _validate_pinned_npm_cli(cli: dict[str, Any], pin: dict[str, Any]) -> None:
+    """A `pinned_npm:` CLI declares the exact packages setup installs behind the cutoff."""
+    name = str(cli.get("name"))
+    if not isinstance(pin, dict):
+        raise RegistryError(f"cli {name} pinned_npm must be a mapping with a packages list")
+    packages = pin.get("packages")
+    if not isinstance(packages, list) or not packages:
+        raise RegistryError(f"cli {name} pinned_npm must list its pinned packages")
+    for entry in packages:
+        if not isinstance(entry, dict) or not entry.get("package"):
+            raise RegistryError(f"cli {name} pinned_npm needs a package name for every pin")
+        version = str(entry.get("version") or "")
+        if not EXACT_NPM_PIN.fullmatch(version):
+            raise RegistryError(
+                f"cli {name} must pin an exact version of {entry.get('package')}, not {version!r}",
+            )
 
 
 def on_surface(item: dict[str, Any], surface: str) -> bool:
@@ -1999,6 +2070,84 @@ def _gateway_step(w: Any, declared: bool) -> None:
     w("")
 
 
+def _pinned_npm_cli_block(cli: dict[str, Any], pin: dict[str, Any]) -> list[str]:
+    """A `pinned_npm:` CLI's step: pinned, install scripts off, behind the cutoff.
+
+    The cutoff is computed at SETUP time, so ``--before`` holds while npm
+    resolves every package -- transitive ones included -- as the registry
+    stood at that moment, and nothing published in the last
+    ``PIN_CUTOFF_DAYS`` days can install. Each pin's own publish time is
+    proven against the same cutoff before anything installs; a pin younger
+    than the window, or one whose age cannot be proven, fails the step with
+    nothing installed, the way crate-age fails a young crate closed. The step
+    ends by resolving the entry's binary to its absolute installed path and
+    printing it, which is the adapter command the Gold Band declaration
+    uses (the registry's ``gold_band:`` section holds the placeholder).
+    """
+    name = str(cli["name"])
+    binary = str(cli["binary"])
+    packages = [str(entry["package"]) for entry in pin["packages"]]
+    versions = [str(entry["version"]) for entry in pin["packages"]]
+    specs = pinned_npm_cli_pin_specs(pin)
+    install_args = " ".join(f'"{spec}"' for spec in specs)
+    listed = ", ".join(specs)
+    block: list[str] = []
+    b = block.append
+    b("# Pinned, install scripts off, behind the release cutoff: --before makes")
+    b("# npm resolve every package (transitive ones included) as the registry")
+    b(f"# stood at the cutoff, so nothing published in the last {PIN_CUTOFF_DAYS} days can")
+    b("# install. Each pin's own publish time is proven against the same cutoff")
+    b("# first: a pin younger than that, or one whose age cannot be proven,")
+    b("# fails the step and installs nothing.")
+    b(f"{name}_cutoff=\"$(python3 -c {_q(PIN_CUTOFF_PY)})\"")
+    b(f"{name}_installed=1")
+    for spec in specs:
+        b(f'npm ls -g --depth=0 "{spec}" >/dev/null 2>&1 || {name}_installed=0')
+    b(f"_{name}_pin_age() {{")
+    b("  # $1 package, $2 version: prints the version's own publish time and")
+    b("  # exits 0 only when it is no younger than the cutoff; an age that")
+    b("  # cannot be proven fails closed.")
+    b(f'  npm view "$1@$2" time --json | python3 -c {_q(PIN_AGE_PY)} "${{{name}_cutoff}}" "$2"')
+    b("}")
+    b(f'if [ "${{{name}_installed}}" = 1 ]; then')
+    b(f'  ok "{name}: pinned packages already installed"')
+    b("else")
+    b('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    b(f'    log "{name} would be installed at its pins ({listed}), behind the {PIN_CUTOFF_DAYS}-day release cutoff"')
+    b("  else")
+    b(f"    {name}_refused=0")
+    for package, version, spec in zip(packages, versions, specs, strict=True):
+        b(f'    if {name}_published="$(_{name}_pin_age "{package}" "{version}")"; then')
+        b(f'      log "{name}: {spec} was published ${{{name}_published}}, outside the cutoff"')
+        b("    else")
+        b(f"      {name}_refused=1")
+        too_young = (
+            f"{name}: {spec} was published ${{{name}_published:-<no time proven>}}, inside "
+            f"the {PIN_CUTOFF_DAYS}-day release cutoff; nothing installed"
+        )
+        b(f'      fail "{too_young}"')
+        b("    fi")
+    b(f'    if [ "${{{name}_refused}}" = 0 ]; then')
+    b(f'      npm install -g --ignore-scripts --before="${{{name}_cutoff}}" {install_args}')
+    b(f"      {name}_installed=1")
+    for spec in specs:
+        b(f'      npm ls -g --depth=0 "{spec}" >/dev/null 2>&1 || {name}_installed=0')
+    b(f'      if [ "${{{name}_installed}}" = 1 ]; then')
+    b(f'        ok "{name}: installed at its pins"')
+    b(f'        new_binaries+=("{binary}")')
+    b("      else")
+    b(f'        fail "{name}: npm install did not leave the pins installed"')
+    b("      fi")
+    b("    fi")
+    b("  fi")
+    b("fi")
+    b(f'if [ "${{{name}_installed}}" = 1 ]; then')
+    b(f'  {name}_bin="$(npm prefix -g)/bin/{binary}"')
+    b(f'  ok "{name}: {binary} -> ${{{name}_bin}}"')
+    b("fi")
+    return block
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
@@ -3100,6 +3249,12 @@ def render_setup_script(data: dict[str, Any]) -> str:
         w("")
         for chunk in _wrap(str(cli.get("purpose") or "").strip(), 64):
             w(f"# {chunk}")
+        pin_block = cli.get("pinned_npm")
+        if pin_block:
+            # The whole step is generated from the pin block, so a pinned
+            # npm CLI takes no install:/update:/version_command: of its own.
+            out.extend(_cloud_guard(_pinned_npm_cli_block(cli, pin_block), cli, ""))
+            continue
         block: list[str] = []
         b = block.append
         if cask:
