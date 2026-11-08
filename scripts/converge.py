@@ -15,6 +15,15 @@ Every run first calls the Rust workspace's canary crate for its version, when
 its binary is built, proving the workspace path end to end from setup itself;
 without a build it says so and carries on (see docs/RUST.md).
 
+``gold-band-validate`` flattens the registry's ``gold_band.agents`` into the
+gold-band-registry crate's line protocol and asks the crate's binary to rule
+on it. The crate's output is printed and its verdict is the exit code, so
+setup refuses a bad declaration before anything is written; without a built
+binary the reason is printed and nothing is refused, the canary's pattern.
+A failure that is no verdict -- the registry unreadable or malformed, the
+crate binary not answering, the canary blocking the run -- exits 3 with the
+reason printed, so setup never reports it as the crate's refusal (exit 1).
+
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
 
@@ -26,6 +35,8 @@ Usage::
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py plugins \\
         --keep PATH --declared-markets NAME,... --declared-plugins ID,... \\
         --retired-markets NAME,... --retired-plugins ID,... [--check]
+    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-validate \\
+        [--registry PATH]
 """
 
 from __future__ import annotations
@@ -36,6 +47,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -53,16 +65,27 @@ KIT_ROOT = Path(__file__).resolve().parent.parent
 CRATE_NAME = "agent-kit-setup"
 CRATE_TIMEOUT_S = 30.0
 
+# The Gold Band registry crate, whose `validate` refuses a declaration that
+# breaks an owner rule (agent-kit#332).
+GOLD_BAND_CRATE_NAME = "gold-band-registry"
+GOLD_BAND_TIMEOUT_S = 30.0
 
-def crate_binary(kit_root: Path) -> Path | None:
-    """The canary crate's built binary, preferring the release build over a debug one.
+# gold-band-validate exits 3 for its own failures -- the registry unreadable
+# or malformed, the crate binary not answering, the canary blocking the run --
+# a code apart from the crate's refusal (exit 1), so setup never reports a
+# broken step as "the Gold Band registry is refused" (agent-kit#332).
+GOLD_BAND_CANNOT_VALIDATE_EXIT = 3
+
+
+def crate_binary(kit_root: Path, crate: str = CRATE_NAME) -> Path | None:
+    """A workspace crate's built binary, preferring the release build over a debug one.
 
     The binary is only ever there after `cargo build --manifest-path
     scripts/Cargo.toml`; a machine without a Rust toolchain never has it, and
     setup skips the crate call rather than pretending it happened.
     """
     for profile in ("release", "debug"):
-        candidate = kit_root / "scripts" / "target" / profile / CRATE_NAME
+        candidate = kit_root / "scripts" / "target" / profile / crate
         if candidate.is_file():
             return candidate
     return None
@@ -94,6 +117,98 @@ def crate_report(kit_root: Path, cargo: bool) -> tuple[str, int]:
     if version and result.returncode == 0:
         return f"{CRATE_NAME}: {version} ({binary})", 0
     return f"{CRATE_NAME}: the built binary at {binary} answered exit {result.returncode}, not a version", 1
+
+
+def gold_band_line_protocol(agents: list[dict[str, Any]]) -> str:
+    """``agents`` in the gold-band-registry crate's line protocol.
+
+    One ``agent<TAB>id`` line opens each declaration, then one
+    ``field<TAB>path<TAB>value`` line per field in declaration order: dotted
+    paths for the nested ones (``adapter.command``, ``adapter.args.<N>``,
+    ``adapter.env.<NAME>``, ``compatibleAgentDirs.<N>``) and booleans as
+    true/false. A key the crate does not know flattens the same way, so the
+    crate refuses it as an unknown field: this file decides the paths, the
+    crate the rules.
+    """
+    lines: list[str] = []
+    for agent in agents:
+        lines.append(f"agent\t{agent.get('id', '')}")
+        for key, value in agent.items():
+            if key != "id":
+                lines.extend(_gold_band_field(key, value))
+    return "".join(f"{line}\n" for line in lines)
+
+
+def _gold_band_field(path: str, value: Any) -> list[str]:
+    """One field's lines: a nested key flattens into a dotted path, a leaf into one line."""
+    if isinstance(value, dict):
+        return [line for name, item in value.items() for line in _gold_band_field(f"{path}.{name}", item)]
+    if isinstance(value, list):
+        return [line for index, item in enumerate(value) for line in _gold_band_field(f"{path}.{index}", item)]
+    if isinstance(value, bool):
+        return [f"field\t{path}\t{'true' if value else 'false'}"]
+    return [f"field\t{path}\t{'' if value is None else value}"]
+
+
+def gold_band_validate(kit_root: Path, registry: Path, cargo: bool) -> int:
+    """The registry's Gold Band agents through the crate: 0 clean or skipped, 1 a refusal, 3 its own failures.
+
+    The declared ``gold_band.agents`` flatten into the crate's line protocol
+    in a temporary file and the crate's built binary rules on it; the crate's
+    own output is printed and its exit code returned, so setup stops before
+    anything is written when the verdict is a refusal. A binary that is not
+    built can prove nothing either way, so the reason is said out loud and the
+    run carries on, like the canary. A failure that is no verdict -- the
+    registry unreadable, ``gold_band`` not the expected shape, the crate
+    binary not answering -- exits ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, so
+    setup tells a broken step from the crate's refusal.
+    """
+    binary = crate_binary(kit_root, GOLD_BAND_CRATE_NAME)
+    if binary is None:
+        reason = ("not built yet; run cargo build --manifest-path scripts/Cargo.toml"
+                  if cargo else "no Rust toolchain (cargo) on PATH")
+        print(f"{GOLD_BAND_CRATE_NAME}: skipped: {reason}")
+        return 0
+    try:
+        data = yaml.safe_load(registry.read_text()) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: cannot read {registry}: {exc}")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    agents: list[dict[str, Any]] = []
+    if not isinstance(data, dict):
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: {registry} is not a mapping")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    section = data.get("gold_band")
+    if section is not None:
+        if not isinstance(section, dict):
+            print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: {registry}: gold_band must be a mapping")
+            return GOLD_BAND_CANNOT_VALIDATE_EXIT
+        declared = section.get("agents")
+        if declared is not None:
+            if not isinstance(declared, list) or not all(isinstance(a, dict) for a in declared):
+                print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: {registry}:"
+                      " gold_band.agents must be a list of mappings")
+                return GOLD_BAND_CANNOT_VALIDATE_EXIT
+            agents = declared
+    descriptor, staged = tempfile.mkstemp(prefix=f"{GOLD_BAND_CRATE_NAME}-", suffix=".txt")
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(gold_band_line_protocol(agents))
+        try:
+            result = subprocess.run(
+                [str(binary), "validate", staged],
+                capture_output=True, text=True, check=False, timeout=GOLD_BAND_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: the built binary at {binary}"
+                  f" did not answer within {GOLD_BAND_TIMEOUT_S:g} seconds")
+            return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    finally:
+        os.unlink(staged)
+    for output in (result.stdout, result.stderr):
+        if output.strip():
+            print(output.strip())
+    return result.returncode
 
 
 @dataclass
@@ -296,13 +411,26 @@ def main(argv: list[str] | None = None) -> int:
     for each in (m, p):
         each.add_argument("--keep", type=Path, required=True)
         each.add_argument("--check", action="store_true")
+    g = sub.add_parser("gold-band-validate")
+    g.add_argument("--registry", type=Path, default=None)
     args = parser.parse_args(argv)
     # The workspace's canary crate first: one line proving the Rust path works
     # on this machine, or saying why it could not be called (docs/RUST.md).
     line, crate_code = crate_report(KIT_ROOT, shutil.which("cargo") is not None)
     print(line)
     if crate_code:
+        if args.surface == "gold-band-validate":
+            # The canary blocking the run is no verdict on the registry, so it
+            # takes the cannot-validate code -- never the refusal's exit 1.
+            print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: the canary crate blocked the run")
+            return GOLD_BAND_CANNOT_VALIDATE_EXIT
         return crate_code
+    if args.surface == "gold-band-validate":
+        return gold_band_validate(
+            KIT_ROOT,
+            args.registry or KIT_ROOT / "registry" / "estate-tooling.yaml",
+            shutil.which("cargo") is not None,
+        )
     return mcp(args) if args.surface == "mcp" else plugins(args)
 
 
