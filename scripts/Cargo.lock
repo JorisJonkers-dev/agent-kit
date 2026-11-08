@@ -86,6 +86,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "research-layout"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"

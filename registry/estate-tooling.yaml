@@ -244,6 +244,8 @@ gold_band:
   tag: "v0.19.1"
   commit: "987fc3e298b15d725a7f0e9b609b0f77dba63a74"
   linux_script: "scripts/gold-band/build-linux.sh"
+  # The Gold Band agents (see "Gold Band agents" below); empty until declared.
+  agents: []
 
 # -------------------------------------------------------------------
 # Claude Code profiles.
@@ -1567,6 +1569,43 @@ gold_band_instances:
       no_remote: allow
     hosts: [linux, mac]
     banks: [shared]
+
+# -------------------------------------------------------------------
+# Gold Band agents (`gold_band.agents`, under the Gold Band block above).
+#
+# The Gold Band desktop client's custom agents, declared here once so a
+# later ticket can converge them into ~/.gold-band (the app rewrites that
+# directory itself, so setup never touches it while the app runs). The
+# declarations are VALIDATED BEFORE ANYTHING IS WRITTEN: converge.py
+# flattens `gold_band.agents` into the gold-band-agents crate's line
+# protocol (scripts/crates/gold-band-agents) and the crate refuses a
+# declaration that breaks an owner rule (#332):
+#
+#   * no Codex anywhere: the id, the adapter command or args, the provider
+#     or the model must not name it;
+#   * no OpenRouter-backed provider, model, argument or env value;
+#   * OpenCode models only from `opencode-go/`, never `opencode/`;
+#   * no literal secret in any field, argument or environment value: a
+#     secret-named field holds an environment reference (`$NAME`,
+#     `${NAME}`) or a keychain-proxy name, and no other value may be one
+#     of the crate's secret shapes;
+#   * an id of lowercase letters, digits and dash-separated groups,
+#     declared once;
+#   * only the fields the crate knows (`reach` one of read, read-web,
+#     research, write-scoped, write, full, run-one-command, with
+#     research and write-scoped needing outputDir and full needing
+#     throwawayOnly: true).
+#
+# A refusal is printed by setup and stops the run, so nothing is written
+# from a declaration the owner's rules refuse. Each entry is a mapping
+# with `id` plus the fields the crate knows -- the shape Gold Band's own
+# settings.json uses: adapter {command, args, displayName, env}, icon,
+# primaryAgentDir, projectPrimaryAgentDir, compatibleAgentDirs,
+# systemPromptDelivery (none or meta-append), externalSessionSyncSupported,
+# externalSessionSyncEnabled, useLocalClaude, reach, outputDir, provider,
+# model, throwawayOnly. The agents themselves are declared by later
+# tickets (#326); the list is empty until then.
+# -------------------------------------------------------------------
 
 # -------------------------------------------------------------------
 # Vendored third-party skills.

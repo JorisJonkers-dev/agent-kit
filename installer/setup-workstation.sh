@@ -1441,6 +1441,49 @@ converge_plugins() {
   [ "${rc}" = 0 ] || fail "plugins did not converge (see above)"
 }
 
+# -----------------------------------------------------------------
+# The Gold Band agents, validated before anything is written.
+# converge.py flattens gold_band.agents into the gold-band-agents
+# crate's line protocol and the crate refuses a declaration that breaks
+# an owner rule (#332): no Codex anywhere, no OpenRouter, OpenCode
+# models only from opencode-go/, no literal secret, a well-formed id
+# declared once, only the fields the crate knows. Its verdict is logged,
+# and a refusal stops the run here; nothing was written yet, so nothing
+# needs unwinding. A failure that is no verdict -- uv itself, or
+# converge.py's own (exit 3) -- stops the run with its own message, so
+# nothing is written either way. Without a built crate converge.py says
+# so and the declarations are not validated.
+# -----------------------------------------------------------------
+gold_band_validate() {
+  local out rc=0 line refusal=0
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band declarations are not validated"
+    return 0
+  fi
+  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-validate \
+    --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] && return 0
+  # Exit 1 with the canary crate's line in the output is the
+  # gold-band-agents crate's refusal: converge.py prints that line
+  # whenever it ran at all, so an exit 1 without it is uv itself
+  # failing to run converge.py, and converge.py's own failures exit 3.
+  # Either way nothing arrived that the run could act on, so it stops
+  # with nothing written: a refusal is refused, a broken step fails
+  # closed.
+  if [ "${rc}" = 1 ]; then
+    case "${out}" in
+      *"agent-kit-setup: "*) refusal=1 ;;
+    esac
+  fi
+  if [ "${refusal}" = 1 ]; then
+    fail "the Gold Band registry is refused; nothing was written"
+  else
+    fail "the Gold Band declarations could not be validated (exit ${rc}; see above)"
+  fi
+  exit 1
+}
+
 # An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.
 claude_in_profile() {
   local dir="$1"; shift
@@ -2329,6 +2372,14 @@ if [ "${UNINSTALL}" = 1 ]; then
   [ "${failures}" = 0 ]
   exit $?
 fi
+
+# -----------------------------------------------------------------
+# 0. Gold Band agents. The registry's declarations are validated before
+# anything is written: a refusal prints the crate's lines and stops the
+# run, so setup never writes from a declaration the crate refuses, and a
+# validation that could not run stops the run with its own message.
+# -----------------------------------------------------------------
+gold_band_validate
 
 # -----------------------------------------------------------------
 # 1. Command-line tools.
