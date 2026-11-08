@@ -1193,7 +1193,8 @@ def render_opencode_mcp(data: dict[str, Any]) -> str:
 
 MANIFEST_PATH = KIT_ROOT / "manifest.yaml"
 # The critique hooks' scripts, in each agent home's copy of the critique skill.
-CRITIQUE_HOOK_SCRIPTS = "skills/critique/hooks"
+# Where every hook's script lives in an agent home: skills/<skill>/hooks/<name>.sh.
+HOOK_SKILLS = "skills"
 # A PreToolUse hook gates shell commands only; SessionStart takes no matcher.
 CRITIQUE_HOOK_MATCHERS = {"PreToolUse": "Bash"}
 # Seconds: a backstop to the runner's own deadline below one second (ADR-0002).
@@ -1206,21 +1207,33 @@ CRITIQUE_HOOK_HOMES = {
 
 
 def critique_hooks(manifest_path: Path = MANIFEST_PATH) -> list[dict[str, Any]]:
-    """The hooks manifest.yaml declares (ADR-0002), in its order: name, event, matcher and agents.
+    """The hooks manifest.yaml declares, in its order: name, event, matcher, agents and skill.
 
     The manifest is the one place the hook names live, and its validator
-    allows exactly the three ADR-0002 names, so setup installs nothing else.
+    allows only the names an ADR allows (ADR-0002, ADR-0009), so setup
+    installs nothing else. `skill` is the first-party skill whose `hooks/`
+    holds the script (critique unless the entry names another); `matcher`
+    overrides the event's default, either for every agent or per agent as a
+    mapping (Codex has no EnterWorktree tool to match).
     """
     hooks = yaml.safe_load(manifest_path.read_text()).get("hooks") or {}
     return [
         {
             "name": name,
             "event": entry["event"],
-            "matcher": CRITIQUE_HOOK_MATCHERS.get(entry["event"]),
+            "matcher": entry.get("matcher") or CRITIQUE_HOOK_MATCHERS.get(entry["event"]),
             "agents": list(entry["agents"]),
+            "skill": entry.get("skill") or "critique",
         }
         for name, entry in hooks.items()
     ]
+
+
+def _agent_matcher(matcher: str | dict[str, str] | None, agent: str) -> str | None:
+    """A hook's matcher for one agent: the same string for all, or that agent's entry of a mapping."""
+    if isinstance(matcher, dict):
+        return matcher.get(agent)
+    return matcher
 
 
 # Merges the critique hooks into one agent's hook file by NAME, or removes
@@ -1249,8 +1262,8 @@ def names(handler, name):
     return any(token.rsplit("/", 1)[-1] == name + ".sh" for token in command.replace('"', " ").split())
 
 
-def wanted(name, matcher):
-    script = "%s/skills/critique/hooks/%s.sh" % (home, name)
+def wanted(name, matcher, skill):
+    script = "%s/skills/%s/hooks/%s.sh" % (home, skill, name)
     group = {"matcher": matcher} if matcher else {}
     group["hooks"] = [{"type": "command", "command": '/bin/sh "%s"' % script, "timeout": timeout}]
     return group
@@ -1271,8 +1284,8 @@ if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
 before = json.loads(json.dumps(data))
 hooks = data.setdefault("hooks", {})
 
-for name, event, matcher in spec:
-    want = wanted(name, matcher) if mode == "install" else None
+for name, event, matcher, skill in spec:
+    want = wanted(name, matcher, skill) if mode == "install" else None
     placed = False
     for current in list(hooks):
         groups = hooks[current]
@@ -1310,7 +1323,7 @@ path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, indent=2) + "\n")
 
 back = json.loads(path.read_text()).get("hooks", {})
-for name, event, matcher in spec:
+for name, event, matcher, skill in spec:
     found = [
         (current, group)
         for current, groups in back.items()
@@ -1318,7 +1331,7 @@ for name, event, matcher in spec:
         for group in groups
         if isinstance(group, dict) and any(names(h, name) for h in group.get("hooks", []))
     ]
-    expected = [(event, wanted(name, matcher))] if mode == "install" else []
+    expected = [(event, wanted(name, matcher, skill))] if mode == "install" else []
     if found != expected:
         print("%s: %s is wired as %r, not %r" % (path, name, found, expected), file=sys.stderr)
         raise SystemExit(1)
@@ -1519,8 +1532,8 @@ def _critique_hooks_fn(w: Any) -> None:
     w("  fi")
     w('  if [ "${mode}" = install ] && [ "${CHECK_ONLY}" != 1 ]; then')
     w("    for name in ${names}; do")
-    w(f'      if [ ! -f "${{home}}/{CRITIQUE_HOOK_SCRIPTS}/${{name}}.sh" ]; then')
-    missing = f"${{home}}/{CRITIQUE_HOOK_SCRIPTS}/${{name}}.sh is missing"
+    w(f'      if [ ! -f "${{home}}/{HOOK_SKILLS}/${{name}}.sh" ]; then')
+    missing = f"${{home}}/{HOOK_SKILLS}/${{name}}.sh is missing"
     w(f'        fail "critique hooks: {missing}; not wired into ${{path}}"')
     w("        return 0")
     w("      fi")
@@ -1556,8 +1569,14 @@ def _critique_hooks_fn(w: Any) -> None:
         mine = [h for h in hooks if agent in h["agents"]]
         if not mine:
             continue
-        spec = json.dumps([[h["name"], h["event"], h["matcher"]] for h in mine], separators=(",", ":"))
-        names = " ".join(h["name"] for h in mine)
+        spec = json.dumps(
+            [
+                [h["name"], h["event"], _agent_matcher(h["matcher"], agent), h["skill"]]
+                for h in mine
+            ],
+            separators=(",", ":"),
+        )
+        names = " ".join(f'{h["skill"]}/hooks/{h["name"]}' for h in mine)
         w(f'  _critique_hooks "$1" "${{{home_var}}}" {file} {_q(label)} {_q(spec)} {_q(names)}')
     w("}")
     w("")
@@ -1892,11 +1911,80 @@ def _gateway_step(w: Any, declared: bool) -> None:
     w("")
 
 
+# The projects layout's rule, one marked block in each client's global
+# instruction file (docs/adr/0009-projects-layout-guard.md). Plain words only:
+# it is written through a quoted heredoc.
+LAYOUT_POINTER_TEXT = (
+    "Clones live at `~/Projects/<owner>/<repo>` (GitHub owner, exact case). Use an existing",
+    "clone instead of cloning again, even into /tmp. Worktrees live at",
+    "`~/Projects/<owner>/worktrees/<repo>/<name>`, never inside the repository:",
+    "`git -C ~/Projects/<owner>/<repo> worktree add ~/Projects/<owner>/worktrees/<repo>/<name> -b <branch>`.",
+    "In Claude Code, create the worktree that way, then call `EnterWorktree` with `path`, never `name`.",
+    "The projects-layout skill has the details.",
+)
+LAYOUT_POINTER_FILES = (
+    '"${CLAUDE_HOME}/CLAUDE.md"',
+    '"${CODEX_HOME}/AGENTS.md"',
+    '"${HOME}/.hermes/SOUL.md"',
+    '"${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"',
+)
+
+
+def _layout_pointer_fn(w: Any) -> None:
+    """The layout_pointer function: writes or removes the projects-layout block in one instruction file."""
+    w("# The projects layout's rule: one marked block in a client's global instruction")
+    w("# file. Setup owns only that block; the text around it stays the user's.")
+    w("layout_pointer() {")
+    w('  local file="$1" action="${2:-write}"')
+    w('  if [ "${CHECK_ONLY}" = 1 ]; then')
+    w('    log "would ${action} the projects-layout rule in ${file}"')
+    w("    return 0")
+    w("  fi")
+    w('  if [ "${action}" = remove ]; then')
+    w('    [ -f "${file}" ] || return 0')
+    w(f'    python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" projects-layout --remove >/dev/null \\')
+    w('      && ok "projects-layout rule removed from ${file}" \\')
+    w('      || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"')
+    w("    return 0")
+    w("  fi")
+    w('  mkdir -p "$(dirname "${file}")"')
+    w(f'  python3 "${{KIT_ROOT}}/{INSTRUCTION_BLOCK}" "${{file}}" projects-layout <<\'BLOCK\' \\')
+    w('    && ok "projects-layout rule -> ${file}" \\')
+    w('    || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"')
+    for line in LAYOUT_POINTER_TEXT:
+        w(line)
+    w("BLOCK")
+    w("}")
+    w("")
+
+
+def _layout_step(w: Any, declared: bool) -> None:
+    """The projects-layout rule in each client's instruction file, or its removal when not declared."""
+    w("# -----------------------------------------------------------------")
+    w("# The projects layout: its rule in each client's global instruction file.")
+    w("# A cloud session has no ~/Projects, so it gets no rule. A layout that is")
+    w("# not declared on this surface is retired: setup removes the blocks it wrote.")
+    w("# -----------------------------------------------------------------")
+    if declared:
+        w('if [ "${CLOUD}" != 1 ]; then')
+        for home_file in LAYOUT_POINTER_FILES:
+            w(f"  layout_pointer {home_file}")
+        w("fi")
+    else:
+        for home_file in LAYOUT_POINTER_FILES:
+            w(f"layout_pointer {home_file} remove")
+    w("")
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
     gateway_declared = any(
         skill.get("name") == "model-gateway" and on_surface(skill, "workstation")
+        for skill in _entries(data, "local_skills")
+    )
+    layout_declared = any(
+        skill.get("name") == "projects-layout" and on_surface(skill, "workstation")
         for skill in _entries(data, "local_skills")
     )
 
@@ -2373,6 +2461,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("}")
     w("")
     _gateway_pointer_fn(w)
+    _layout_pointer_fn(w)
     w("# Every chat model the Mistral login can use, kept current in one Vibe home.")
     w("_vibe_models() {")
     w('  local home="$1"')
@@ -3690,6 +3779,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
 
     _gateway_step(w, gateway_declared)
+    _layout_step(w, layout_declared)
     # --- first-party skills ---
     w("# -----------------------------------------------------------------")
     w("# 7. First-party skills that ship in this repository.")

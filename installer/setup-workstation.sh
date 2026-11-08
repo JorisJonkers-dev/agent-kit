@@ -518,6 +518,34 @@ The `delegate` skill, which is coming later, plans delegations with it.
 BLOCK
 }
 
+# The projects layout's rule: one marked block in a client's global instruction
+# file. Setup owns only that block; the text around it stays the user's.
+layout_pointer() {
+  local file="$1" action="${2:-write}"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would ${action} the projects-layout rule in ${file}"
+    return 0
+  fi
+  if [ "${action}" = remove ]; then
+    [ -f "${file}" ] || return 0
+    python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" projects-layout --remove >/dev/null \
+      && ok "projects-layout rule removed from ${file}" \
+      || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"
+    return 0
+  fi
+  mkdir -p "$(dirname "${file}")"
+  python3 "${KIT_ROOT}/scripts/instruction-block.py" "${file}" projects-layout <<'BLOCK' \
+    && ok "projects-layout rule -> ${file}" \
+    || warn "projects-layout rule: ${file} left alone; fix its block, then re-run setup"
+Clones live at `~/Projects/<owner>/<repo>` (GitHub owner, exact case). Use an existing
+clone instead of cloning again, even into /tmp. Worktrees live at
+`~/Projects/<owner>/worktrees/<repo>/<name>`, never inside the repository:
+`git -C ~/Projects/<owner>/<repo> worktree add ~/Projects/<owner>/worktrees/<repo>/<name> -b <branch>`.
+In Claude Code, create the worktree that way, then call `EnterWorktree` with `path`, never `name`.
+The projects-layout skill has the details.
+BLOCK
+}
+
 # Every chat model the Mistral login can use, kept current in one Vibe home.
 _vibe_models() {
   local home="$1"
@@ -1289,8 +1317,8 @@ _critique_hooks() {
   fi
   if [ "${mode}" = install ] && [ "${CHECK_ONLY}" != 1 ]; then
     for name in ${names}; do
-      if [ ! -f "${home}/skills/critique/hooks/${name}.sh" ]; then
-        fail "critique hooks: ${home}/skills/critique/hooks/${name}.sh is missing; not wired into ${path}"
+      if [ ! -f "${home}/skills/${name}.sh" ]; then
+        fail "critique hooks: ${home}/skills/${name}.sh is missing; not wired into ${path}"
         return 0
       fi
     done
@@ -1319,8 +1347,8 @@ def names(handler, name):
     return any(token.rsplit("/", 1)[-1] == name + ".sh" for token in command.replace('"', " ").split())
 
 
-def wanted(name, matcher):
-    script = "%s/skills/critique/hooks/%s.sh" % (home, name)
+def wanted(name, matcher, skill):
+    script = "%s/skills/%s/hooks/%s.sh" % (home, skill, name)
     group = {"matcher": matcher} if matcher else {}
     group["hooks"] = [{"type": "command", "command": '/bin/sh "%s"' % script, "timeout": timeout}]
     return group
@@ -1341,8 +1369,8 @@ if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
 before = json.loads(json.dumps(data))
 hooks = data.setdefault("hooks", {})
 
-for name, event, matcher in spec:
-    want = wanted(name, matcher) if mode == "install" else None
+for name, event, matcher, skill in spec:
+    want = wanted(name, matcher, skill) if mode == "install" else None
     placed = False
     for current in list(hooks):
         groups = hooks[current]
@@ -1380,7 +1408,7 @@ path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, indent=2) + "\n")
 
 back = json.loads(path.read_text()).get("hooks", {})
-for name, event, matcher in spec:
+for name, event, matcher, skill in spec:
     found = [
         (current, group)
         for current, groups in back.items()
@@ -1388,7 +1416,7 @@ for name, event, matcher in spec:
         for group in groups
         if isinstance(group, dict) and any(names(h, name) for h in group.get("hooks", []))
     ]
-    expected = [(event, wanted(name, matcher))] if mode == "install" else []
+    expected = [(event, wanted(name, matcher, skill))] if mode == "install" else []
     if found != expected:
         print("%s: %s is wired as %r, not %r" % (path, name, found, expected), file=sys.stderr)
         raise SystemExit(1)
@@ -1411,8 +1439,8 @@ CRITIQUE_HOOKS
 }
 
 critique_hooks() {
-  _critique_hooks "$1" "${CLAUDE_HOME}" settings.json 'Claude Code' '[["critique-commit-gate","PreToolUse","Bash"],["critique-pr-gate","PreToolUse","Bash"],["critique-session-start","SessionStart",null]]' 'critique-commit-gate critique-pr-gate critique-session-start'
-  _critique_hooks "$1" "${CODEX_HOME}" hooks.json 'Codex' '[["critique-commit-gate","PreToolUse","Bash"],["critique-pr-gate","PreToolUse","Bash"],["critique-session-start","SessionStart",null]]' 'critique-commit-gate critique-pr-gate critique-session-start'
+  _critique_hooks "$1" "${CLAUDE_HOME}" settings.json 'Claude Code' '[["critique-commit-gate","PreToolUse","Bash","critique"],["critique-pr-gate","PreToolUse","Bash","critique"],["critique-session-start","SessionStart",null,"critique"],["projects-layout-guard","PreToolUse","Bash|EnterWorktree","projects-layout"]]' 'critique/hooks/critique-commit-gate critique/hooks/critique-pr-gate critique/hooks/critique-session-start projects-layout/hooks/projects-layout-guard'
+  _critique_hooks "$1" "${CODEX_HOME}" hooks.json 'Codex' '[["critique-commit-gate","PreToolUse","Bash","critique"],["critique-pr-gate","PreToolUse","Bash","critique"],["critique-session-start","SessionStart",null,"critique"],["projects-layout-guard","PreToolUse","Bash","projects-layout"]]' 'critique/hooks/critique-commit-gate critique/hooks/critique-pr-gate critique/hooks/critique-session-start projects-layout/hooks/projects-layout-guard'
 }
 
 # -----------------------------------------------------------------
@@ -3031,6 +3059,18 @@ gateway_pointer "${CODEX_HOME}/AGENTS.md"
 if [ "${CLOUD}" != 1 ]; then
   gateway_pointer "${HOME}/.hermes/SOUL.md"
   gateway_pointer "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"
+fi
+
+# -----------------------------------------------------------------
+# The projects layout: its rule in each client's global instruction file.
+# A cloud session has no ~/Projects, so it gets no rule. A layout that is
+# not declared on this surface is retired: setup removes the blocks it wrote.
+# -----------------------------------------------------------------
+if [ "${CLOUD}" != 1 ]; then
+  layout_pointer "${CLAUDE_HOME}/CLAUDE.md"
+  layout_pointer "${CODEX_HOME}/AGENTS.md"
+  layout_pointer "${HOME}/.hermes/SOUL.md"
+  layout_pointer "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/AGENTS.md"
 fi
 
 # -----------------------------------------------------------------
@@ -4880,6 +4920,138 @@ else
       ok "build-tracker -> ${dest}"
     else
       fail "build-tracker: ${dest} is incomplete after copy"
+    fi
+  fi
+fi
+
+# Where clones and worktrees live on a workstation:
+# ~/Projects/<owner>/<repo> and
+# ~/Projects/<owner>/worktrees/<repo>/<name>, and the guard hook
+# that denies a clone or worktree outside them.
+src="${KIT_ROOT}/skills/workstation/projects-layout"
+if [ ! -f "${src}/SKILL.md" ]; then
+  fail "projects-layout: ${src}/SKILL.md is missing; nothing to install"
+else
+  dest="${CLAUDE_HOME}/skills/projects-layout"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "projects-layout -> ${dest}"
+    else
+      fail "projects-layout: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${CODEX_HOME}/skills/projects-layout"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "projects-layout -> ${dest}"
+    else
+      fail "projects-layout: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_HOME}/skills/projects-layout"
+  if [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "projects-layout -> ${dest}"
+    else
+      fail "projects-layout: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${VIBE_PRIVATE_HOME}/skills/projects-layout"
+  if [ "${CLOUD}" = 1 ] || [ "${VIBE_HOMES_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "projects-layout -> ${dest}"
+    else
+      fail "projects-layout: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_HOME}/skills/projects-layout"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "projects-layout -> ${dest}"
+    else
+      fail "projects-layout: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${ANTIGRAVITY_CLI_HOME}/skills/projects-layout"
+  if [ "${CLOUD}" = 1 ] || [ "${ANTIGRAVITY_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "projects-layout -> ${dest}"
+    else
+      fail "projects-layout: ${dest} is incomplete after copy"
+    fi
+  fi
+  dest="${OPENCODE_HOME}/skills/projects-layout"
+  if [ "${OPENCODE_READY}" != 1 ]; then
+    :
+  elif [ "${CHECK_ONLY}" = 1 ]; then
+    log "would replace ${dest}"
+  else
+    rm -rf "${dest}"
+    mkdir -p "$(dirname "${dest}")"
+    cp -R "${src}" "${dest}"
+    # Verify the value: the copy is only useful if SKILL.md and
+    # every script actually landed.
+    if [ -f "${dest}/SKILL.md" ] \
+       && [ "$(find "${src}" -type f | wc -l)" = "$(find "${dest}" -type f | wc -l)" ]; then
+      ok "projects-layout -> ${dest}"
+    else
+      fail "projects-layout: ${dest} is incomplete after copy"
     fi
   fi
 fi

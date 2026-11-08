@@ -305,29 +305,42 @@ def validate_surface_parity(manifest: dict[str, Any]) -> None:
 
 
 HOOKS_ADR = "docs/adr/0002-exactly-three-critique-hooks.md"
-# ADR-0002 allows exactly these hooks, each on one event. Any other name
-# needs its own ADR before it can be added here.
+LAYOUT_HOOK_ADR = "docs/adr/0009-projects-layout-guard.md"
+# ADR-0002 allows the three critique hooks and ADR-0009 the projects-layout
+# guard, each on one event. Any other name needs its own ADR before it can be
+# added here.
 ALLOWED_HOOK_EVENTS = {
     "critique-commit-gate": "PreToolUse",
     "critique-pr-gate": "PreToolUse",
     "critique-session-start": "SessionStart",
+    "projects-layout-guard": "PreToolUse",
 }
+HOOK_ADRS = {name: HOOKS_ADR for name in ALLOWED_HOOK_EVENTS} | {"projects-layout-guard": LAYOUT_HOOK_ADR}
 
 
 def validate_hooks(manifest: dict[str, Any]) -> None:
     hooks = as_mapping(manifest.get("hooks", {}), "hooks")
     for name, value in hooks.items():
         if name not in ALLOWED_HOOK_EVENTS:
-            fail(f"hook {name} is not allowed: {HOOKS_ADR} allows only {', '.join(ALLOWED_HOOK_EVENTS)}")
+            fail(f"hook {name} is not allowed: only {', '.join(ALLOWED_HOOK_EVENTS)} have an ADR")
         hook = as_mapping(value, f"hook {name}")
-        if hook.get("adr") != HOOKS_ADR or not (ROOT / HOOKS_ADR).is_file():
-            fail(f"hook {name} must cite {HOOKS_ADR}")
+        adr = HOOK_ADRS[name]
+        if hook.get("adr") != adr or not (ROOT / adr).is_file():
+            fail(f"hook {name} must cite {adr}")
         if hook.get("event") != ALLOWED_HOOK_EVENTS[name]:
             fail(f"hook {name} must run on {ALLOWED_HOOK_EVENTS[name]}, not {hook.get('event')}")
         agents = as_string_list(hook.get("agents"), f"hook {name}.agents", min_items=1)
         # Vibe and Antigravity stay out until their hook events are checked.
         if not set(agents) <= {"claude", "codex"}:
             fail(f"hook {name} agents must be claude and/or codex, not {agents}")
+        matcher = hook.get("matcher")
+        if matcher is not None and not isinstance(matcher, str):
+            per_agent = as_mapping(matcher, f"hook {name}.matcher")
+            if set(per_agent) != set(agents) or not all(isinstance(v, str) and v for v in per_agent.values()):
+                fail(f"hook {name} matcher must be a string, or one string for each of {agents}")
+        script = ROOT / "skills" / "workstation" / str(hook.get("skill")) / "hooks" / f"{name}.sh"
+        if "skill" in hook and not script.is_file():
+            fail(f"hook {name} skill {hook['skill']} has no hooks/{name}.sh")
 
 
 def _has_council_command_spec(source: str, command: str) -> bool:

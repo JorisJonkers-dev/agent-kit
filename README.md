@@ -58,9 +58,11 @@ script is generated from `registry/estate-tooling.yaml` -- see
   what the critic CLIs were shown to do, where the critique pipeline lands in
   agent-kit, and where it departs from its brief.
 
-The estate ships **exactly three agent hooks**, the critique pipeline's
-commit gate, PR gate and session-start line
-([ADR-0002](docs/adr/0002-exactly-three-critique-hooks.md)).
+The estate ships **four agent hooks**: the critique pipeline's commit gate,
+PR gate and session-start line
+([ADR-0002](docs/adr/0002-exactly-three-critique-hooks.md)), and the
+projects-layout guard, which keeps clones and worktrees under
+`~/Projects/<owner>/` ([ADR-0009](docs/adr/0009-projects-layout-guard.md)).
 `setup-workstation.sh` merges them by name into Claude Code's `settings.json`
 and Codex's `hooks.json`, leaving your own hooks alone, and purges the retired
 knowledge hooks from a machine that still has them, on every run.

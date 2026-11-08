@@ -27,12 +27,16 @@ sys.path.insert(0, str(KIT_ROOT / "scripts"))
 import render_registry  # noqa: E402
 from setup_harness import Run, setup_run  # noqa: E402
 
-HOOKS = ("critique-commit-gate", "critique-pr-gate", "critique-session-start")
+GUARD = "projects-layout-guard"
+HOOKS = ("critique-commit-gate", "critique-pr-gate", "critique-session-start", GUARD)
 EVENTS = {
     "critique-commit-gate": "PreToolUse",
     "critique-pr-gate": "PreToolUse",
     "critique-session-start": "SessionStart",
+    GUARD: "PreToolUse",
 }
+# The skill each hook's script lives in (ADR-0002, ADR-0009).
+SKILLS = {name: "critique" for name in HOOKS} | {GUARD: "projects-layout"}
 
 OWN_HOOK = {"matcher": "Bash", "hooks": [{"type": "command", "command": "node /opt/own/audit-hook.js"}]}
 CODING_AGENTS = {"hooks": [{"type": "command", "command": 'node "/h/.hindsight/coding-agents/dist/codex-hook.js"'}]}
@@ -43,9 +47,10 @@ def _retired(home: Path) -> dict:
 
 
 def _group(agent_home: Path, name: str) -> dict:
-    """The one matcher group setup wires per hook: sh running the script in the agent home's critique skill."""
-    script = agent_home / "skills" / "critique" / "hooks" / f"{name}.sh"
-    group: dict = {"matcher": "Bash"} if EVENTS[name] == "PreToolUse" else {}
+    """The one matcher group setup wires per hook: sh running the script in the agent home's skill for it."""
+    script = agent_home / "skills" / SKILLS[name] / "hooks" / f"{name}.sh"
+    matcher = "Bash|EnterWorktree" if name == GUARD and agent_home.name == ".claude" else "Bash"
+    group: dict = {"matcher": matcher} if EVENTS[name] == "PreToolUse" else {}
     group["hooks"] = [{"type": "command", "command": f'/bin/sh "{script}"', "timeout": 5}]
     return group
 
@@ -103,18 +108,23 @@ def test_the_renderer_installs_exactly_the_hooks_the_validator_allows() -> None:
     assert all(set(h["agents"]) == {"claude", "codex"} for h in hooks)
 
 
-def test_a_fresh_machine_gets_the_three_hooks_in_claude_code_and_codex(fresh: Run) -> None:
+def test_a_fresh_machine_gets_the_four_hooks_in_claude_code_and_codex(fresh: Run) -> None:
     assert "FAIL  critique hooks" not in fresh.stderr, fresh.stderr
     for agent, file in ((".claude", "settings.json"), (".codex", "hooks.json")):
         home = fresh.home / agent
         hooks = _hooks(home / file)
         assert hooks == {
-            "PreToolUse": [_group(home, "critique-commit-gate"), _group(home, "critique-pr-gate")],
+            "PreToolUse": [
+                _group(home, "critique-commit-gate"),
+                _group(home, "critique-pr-gate"),
+                _group(home, GUARD),
+            ],
             "SessionStart": [_group(home, "critique-session-start")],
         }, agent
         for name in HOOKS:
-            script = home / "skills" / "critique" / "hooks" / f"{name}.sh"
-            assert script.read_bytes() == (SCRIPTS / f"{name}.sh").read_bytes()
+            script = home / "skills" / SKILLS[name] / "hooks" / f"{name}.sh"
+            source = KIT_ROOT / "skills" / "workstation" / SKILLS[name] / "hooks" / f"{name}.sh"
+            assert script.read_bytes() == source.read_bytes()
     assert "critique hooks installed in Claude Code" in fresh.stdout
     assert "critique hooks installed in Codex" in fresh.stdout
 
@@ -125,13 +135,23 @@ def test_the_operators_own_hooks_survive_and_the_retired_purge_still_runs_beside
     settings = json.loads((claude / "settings.json").read_text())
     assert settings["model"] == "opus"
     assert settings["hooks"] == {
-        "PreToolUse": [OWN_HOOK, _group(claude, "critique-commit-gate"), _group(claude, "critique-pr-gate")],
+        "PreToolUse": [
+            OWN_HOOK,
+            _group(claude, "critique-commit-gate"),
+            _group(claude, "critique-pr-gate"),
+            _group(claude, GUARD),
+        ],
         "Stop": [{"hooks": [{"type": "command", "command": "say done"}]}],
         "SessionStart": [_group(claude, "critique-session-start")],
     }
     codex = lived_in.home / ".codex"
     assert _hooks(codex / "hooks.json") == {
-        "PreToolUse": [OWN_HOOK, _group(codex, "critique-commit-gate"), _group(codex, "critique-pr-gate")],
+        "PreToolUse": [
+            OWN_HOOK,
+            _group(codex, "critique-commit-gate"),
+            _group(codex, "critique-pr-gate"),
+            _group(codex, GUARD),
+        ],
         "UserPromptSubmit": [CODING_AGENTS],
         "SessionStart": [_group(codex, "critique-session-start")],
     }
@@ -173,6 +193,7 @@ def test_a_hook_that_moved_is_replaced_in_place_so_codex_keeps_its_position(tmp_
         _group(codex, "critique-pr-gate"),
         OWN_HOOK,
         _group(codex, "critique-commit-gate"),
+        _group(codex, GUARD),
     ]
 
 
@@ -191,6 +212,7 @@ def test_a_critique_handler_sharing_a_group_with_the_operators_is_split_out(tmp_
         OWN_HOOK,
         _group(claude, "critique-commit-gate"),
         _group(claude, "critique-pr-gate"),
+        _group(claude, GUARD),
     ]
 
 
@@ -260,7 +282,7 @@ def test_uninstall_drops_a_hooks_section_left_empty(tmp_path: Path) -> None:
 def test_setup_fails_rather_than_wiring_a_hook_to_a_missing_script() -> None:
     script = render_registry.render_setup_script(render_registry.load_registry())
     assert (
-        'fail "critique hooks: ${home}/skills/critique/hooks/${name}.sh is missing; not wired into ${path}"' in script
+        'fail "critique hooks: ${home}/skills/${name}.sh is missing; not wired into ${path}"' in script
     )
     # The scripts are copied in step 7, the hooks merged in step 9.
     assert script.index('cp -R "${src}" "${dest}"') < script.index("\ncritique_hooks install\n")

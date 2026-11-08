@@ -303,7 +303,8 @@ skills:
 # memory-api equivalent, so nothing replaces them. See the
 # agent-kit#40 PR body.
 
-# hooks: exactly the three critique hooks ADR-0002 allows.
+# hooks: the three critique hooks ADR-0002 allows, and the projects-layout
+# guard ADR-0009 allows.
 #
 # The three knowledge-recall hooks that used to live here were retired with
 # the knowledge base they wrote into, and setup-workstation.sh still purges
@@ -327,6 +328,15 @@ hooks:
     event: SessionStart
     agents: [claude, codex]
     purpose: Print one line suggesting /flow setup in an opted-in repository whose machine setup is missing or failing.
+  projects-layout-guard:
+    adr: docs/adr/0009-projects-layout-guard.md
+    event: PreToolUse
+    matcher:
+      claude: Bash|EnterWorktree
+      codex: Bash
+    skill: projects-layout
+    agents: [claude, codex]
+    purpose: Deny a clone or worktree outside ~/Projects/<owner>/<repo> and ~/Projects/<owner>/worktrees/<repo>/<name>.
 
 # settings: intentionally absent. The only settings files the kit ever
 # pinned (.claude/settings.json, .codex/hooks.json) existed solely to wire the

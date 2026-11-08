@@ -712,9 +712,13 @@ runs the installer when it does not.
 
 ## Hooks
 
-The estate ships **exactly three agent hooks**, the critique pipeline's
+The estate ships **four agent hooks**: the critique pipeline's
 `critique-commit-gate`, `critique-pr-gate` and `critique-session-start`
-([ADR-0002](adr/0002-exactly-three-critique-hooks.md)). The three
+([ADR-0002](adr/0002-exactly-three-critique-hooks.md)), and
+`projects-layout-guard`, which denies a clone or worktree outside
+`~/Projects/<owner>/` ([ADR-0009](adr/0009-projects-layout-guard.md)). The
+guard's script is in the `projects-layout` skill, and the same rule is written
+as a marked block into each client's global instruction file. The three
 knowledge-recall hooks are retired along with the knowledge base they wrote
 into.
 

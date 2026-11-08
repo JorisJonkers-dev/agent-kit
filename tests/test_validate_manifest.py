@@ -309,15 +309,27 @@ class ValidateManifestHooks(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.validator = load_validator()
 
-    def test_checked_in_manifest_declares_exactly_the_three_adr_hooks(self) -> None:
+    def test_checked_in_manifest_declares_exactly_the_hooks_an_adr_allows(self) -> None:
         manifest = self.validator.load_manifest()
 
         self.validator.validate_hooks(manifest)
 
         self.assertEqual(
             set(manifest["hooks"]),
-            {"critique-commit-gate", "critique-pr-gate", "critique-session-start"},
+            {"critique-commit-gate", "critique-pr-gate", "critique-session-start", "projects-layout-guard"},
         )
+
+    def test_the_layout_guard_must_cite_its_own_adr(self) -> None:
+        hook = dict(self.validator.load_manifest()["hooks"]["projects-layout-guard"])
+        hook["adr"] = "docs/adr/0002-exactly-three-critique-hooks.md"
+        with self.assertRaisesRegex(AssertionError, "must cite docs/adr/0009-projects-layout-guard.md"):
+            self.validator.validate_hooks({"hooks": {"projects-layout-guard": hook}})
+
+    def test_a_per_agent_matcher_must_name_every_agent_of_the_hook(self) -> None:
+        hook = dict(self.validator.load_manifest()["hooks"]["projects-layout-guard"])
+        hook["matcher"] = {"claude": "Bash"}
+        with self.assertRaisesRegex(AssertionError, "matcher must be a string, or one string for each"):
+            self.validator.validate_hooks({"hooks": {"projects-layout-guard": hook}})
 
     @staticmethod
     def hook(event: str = "PreToolUse") -> dict[str, object]:
