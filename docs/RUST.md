@@ -32,6 +32,10 @@ on the Linux workstation.
   `crates/transcript-mix` is the transcript tool-mix analyser (below), std-only
   with the JSON parser borrowed from `code-nav-eval`. New Rust joins this
   workspace as a new member, never as its own Cargo project.
+  `crates/gold-band-allowlist` checks a Gold Band workflow definition against its
+  repository's family allowlist entry before anything runs: the family
+  allowlist, the code permission and the `nedap` and no-remote refusals, at
+  setup and again at each run start through `exec` (#352, ADR-0014).
   `crates/research-layout` validates the papers directory (catalog entries,
   quotes against stored pages, source tiers), regenerates its generated
   `INDEX.md` files, and mounts the papers repository as a private git

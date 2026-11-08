@@ -28,6 +28,14 @@ name = "gold-band-agents"
 version = "0.1.0"
 
 [[package]]
+name = "gold-band-allowlist"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gold-band-registry"
 version = "0.1.0"
 
