@@ -32,6 +32,10 @@ on the Linux workstation.
   `crates/transcript-mix` is the transcript tool-mix analyser (below), std-only
   with the JSON parser borrowed from `code-nav-eval`. New Rust joins this
   workspace as a new member, never as its own Cargo project.
+  `crates/research-layout` validates the papers directory (catalog entries,
+  quotes against stored pages, source tiers), regenerates its generated
+  `INDEX.md` files, and mounts the papers repository as a private git
+  submodule (#356).
   `crates/gold-band-agents` validates the Gold Band agent declarations, flattened
   into its line protocol by Python (#332), and refuses one that breaks an owner
   rule: no Codex, no OpenRouter, OpenCode models only from `opencode-go/`, no

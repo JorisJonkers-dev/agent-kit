@@ -23,4 +23,5 @@ members = [
     "crates/transcript-mix",
     "crates/ticket-export",
     "crates/gold-band-agents",
+    "crates/research-layout",
 ]
