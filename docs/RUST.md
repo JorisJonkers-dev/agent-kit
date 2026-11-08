@@ -51,6 +51,14 @@ documents its tooling); this page is how agent-kit follows it.
   and the `nedap` and no-remote refusals, at setup and again at each run
   start through `exec` (#352, ADR-0009).
 
+* **The Gold Band roles.** `crates/gold-band-roles` renders the critique
+  pipeline's role and lens files into the six Gold Band profiles ("roles")
+  of `~/.gold-band/presets/profiles/`, rule for rule with templating off,
+  and converges that directory: a retired role disappears, a kept
+  hand-made one survives, and a Gold Band built-in is never touched
+  (#345); `docs/gold-band-roles.md` maps each role to the model families
+  that may run it.
+
 ```bash
 cargo build --manifest-path scripts/Cargo.toml         # release canary in scripts/target/release/
 cargo test --manifest-path scripts/Cargo.toml          # the canary's unit tests

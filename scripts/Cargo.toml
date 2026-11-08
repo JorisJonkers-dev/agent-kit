@@ -19,6 +19,7 @@ members = [
     "crates/agent-kit-setup",
     "crates/gold-band-allowlist",
     "crates/gold-band-registry",
+    "crates/gold-band-roles",
     "crates/inventory-check",
     "crates/research-layout",
     "crates/ticket-export",
