@@ -31,6 +31,12 @@ documents its tooling); this page is how agent-kit follows it.
   * `crates/ticket-export` writes requirement.md from one GitHub issue and
     its sub-issues through read-only GitHub access, so a workflow can start
     from a ticket without any agent holding write access (#355).
+  * `crates/workflow-lint` reads a Gold Band workflow definition — bare
+    or in the `--workflow` authoring wrapper — and refuses it when it
+    breaks the model and loop rules every port shares: no banned agent or
+    model, Opus only on a `-escalation` or `-acceptance` judgment node, and
+    every back-edge or `$new-round` edge bounded by
+    `control.max_attempts`/`control.max_rounds` (#371).
 
   * `crates/research-layout` validates the papers directory — catalog
     entries, quotes against stored pages, source tiers — regenerates its
