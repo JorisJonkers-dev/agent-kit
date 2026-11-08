@@ -1,4 +1,5 @@
-//! Checks `docs/gold-band-port-inventory.md` against the repository (#351).
+//! Checks `docs/gold-band-port-inventory.md` against the repository
+//! (#351, #369).
 //!
 //! Rules, each reported as one problem line:
 //! * every directory under `skills/workstation/` and `skills/repo/` has a row
@@ -7,8 +8,11 @@
 //! * every hook declared in `manifest.yaml`, every critique role file and every
 //!   MCP server in `registry/estate-tooling.yaml` has a row in the `## Hooks`,
 //!   `## Roles` and `## MCP servers` sections;
-//! * every row of every table carries exactly one target kind from
-//!   [`KINDS`] and a reach from [`REACHES`] (`n/a` only for "stays outside").
+//! * every row of every table carries exactly one target kind from [`KINDS`]
+//!   and a reach from [`REACHES`] (`n/a` only for "stays outside");
+//! * every row of the `## Hooks` section stays outside;
+//! * every row's last cell, `Target`, is [`NO_TARGET`] (nothing is ported yet)
+//!   or names something that exists for the row's kind.
 //!
 //! Usage: `inventory-check <REPO_ROOT>`. Exit 0 clean, 1 problems, 2 bad usage.
 
@@ -38,6 +42,10 @@ pub const REACHES: [&str; 7] = [
     "full",
     "run-one-command",
 ];
+/// The `Target` cell of a row whose entry is not ported yet.
+pub const NO_TARGET: &str = "-";
+/// The section whose every row must stay outside Gold Band.
+const HOOKS: &str = "Hooks";
 
 /// One table row: the cells between the pipes, trimmed.
 fn cells(line: &str) -> Option<Vec<&str>> {
@@ -128,6 +136,93 @@ fn md_stems(dir: &Path) -> BTreeSet<String> {
     out
 }
 
+/// Whether the registry declares `name` as an agent id or a skill-set name.
+///
+/// The Gold Band section of the registry is not built yet, so the rule for now
+/// is a text match: some line, after its list dash, reads exactly `id: <name>`
+/// or `name: <name>`.
+fn declares(registry: &str, name: &str) -> bool {
+    let id = format!("id: {name}");
+    let named = format!("name: {name}");
+    registry.lines().any(|line| {
+        let line = line.trim();
+        let line = line.strip_prefix("- ").unwrap_or(line);
+        line == id.as_str() || line == named.as_str()
+    })
+}
+
+/// Whether `target` names something that exists for `kind`.
+fn target_exists(root: &Path, registry: &str, kind: &str, target: &str) -> bool {
+    match kind {
+        "workflow" => root.join(target).exists(),
+        "MCP server" => mcp_names(registry).contains(target),
+        "role" | "skill set" => declares(registry, target),
+        _ => false,
+    }
+}
+
+/// One inventory row, as the checks see it.
+struct Row<'a> {
+    section: &'a str,
+    name: &'a str,
+    kind: &'a str,
+    reach: &'a str,
+    target: &'a str,
+}
+
+/// How many of [`KINDS`] the kind cell names, so `workflow, role` counts two.
+fn kinds_named(kind: &str) -> usize {
+    let mut named = 0;
+    for known in KINDS {
+        if kind.contains(known) {
+            named += 1;
+        }
+    }
+    named
+}
+
+/// Whether the row's `Target` cell names something that does not exist.
+fn target_missing(root: &Path, registry: &str, row: &Row) -> bool {
+    if row.target == NO_TARGET || !KINDS.contains(&row.kind) {
+        return false;
+    }
+    !target_exists(root, registry, row.kind, row.target)
+}
+
+/// Every problem one row earns, in a stable order.
+fn row_problems(root: &Path, registry: &str, row: &Row) -> Vec<String> {
+    let (section, name, kind) = (row.section, row.name, row.kind);
+    let mut out = Vec::new();
+    if kind.is_empty() {
+        out.push(format!("{section}/{name}: row has no target kind"));
+    } else if kinds_named(kind) > 1 {
+        out.push(format!("{section}/{name}: row has two target kinds"));
+    } else if !KINDS.contains(&kind) {
+        out.push(format!(
+            "{section}/{name}: target kind {kind:?} is not one of {KINDS:?}"
+        ));
+    }
+    if section == HOOKS && kind != "stays outside" {
+        out.push(format!("{section}/{name}: a hook must stay outside"));
+    }
+    let reach = row.reach;
+    let target = row.target;
+    let reach_ok = if kind == "stays outside" {
+        reach == "n/a"
+    } else {
+        REACHES.contains(&reach)
+    };
+    if !reach_ok {
+        out.push(format!(
+            "{section}/{name}: reach {reach:?} does not fit kind {kind:?}"
+        ));
+    }
+    if target_missing(root, registry, row) {
+        out.push(format!("{section}/{name}: target {target} does not exist"));
+    }
+    out
+}
+
 /// Every problem found for `root`, in a stable order.
 pub fn check(root: &Path) -> Vec<String> {
     let text = match fs::read_to_string(root.join(INVENTORY)) {
@@ -156,10 +251,12 @@ pub fn check(root: &Path) -> Vec<String> {
         }
     }
     let read = |file: &str| fs::read_to_string(root.join(file)).unwrap_or_default();
+    let manifest = read(MANIFEST);
+    let registry = read(REGISTRY);
     let declared = [
-        ("Hooks", hook_names(&read(MANIFEST)), MANIFEST),
+        (HOOKS, hook_names(&manifest), MANIFEST),
         ("Roles", md_stems(&root.join(ROLES_DIR)), ROLES_DIR),
-        ("MCP servers", mcp_names(&read(REGISTRY)), REGISTRY),
+        ("MCP servers", mcp_names(&registry), REGISTRY),
     ];
     for (section, names, source) in declared {
         if names.is_empty() {
@@ -182,24 +279,14 @@ pub fn check(root: &Path) -> Vec<String> {
             problems.push(format!("{section}/{name}: row has fewer than 5 cells"));
             continue;
         }
-        let kind = c[3];
-        let reach = c[4];
-        if !KINDS.contains(&kind) {
-            problems.push(format!(
-                "{section}/{name}: target kind {kind:?} is not one of {KINDS:?}"
-            ));
-        }
-        let outside = kind == "stays outside";
-        let ok = if outside {
-            reach == "n/a"
-        } else {
-            REACHES.contains(&reach)
+        let row = Row {
+            section: section.as_str(),
+            name,
+            kind: c[3],
+            reach: c[4],
+            target: c.get(6).copied().unwrap_or(NO_TARGET),
         };
-        if !ok {
-            problems.push(format!(
-                "{section}/{name}: reach {reach:?} does not fit kind {kind:?}"
-            ));
-        }
+        problems.extend(row_problems(root, &registry, &row));
     }
     problems
 }
@@ -231,6 +318,11 @@ mod tests {
     use super::*;
 
     const HEAD: &str = "| Name | Path | What | Target kind | Reach | Dep |\n| --- | --- | --- | --- | --- | --- |\n";
+    const HEAD7: &str = "| Name | Path | What | Target kind | Reach | Dep | Target |\n| --- | --- | --- | --- | --- | --- | --- |\n";
+    const HOOKS7: &str = "| h | p | w | stays outside | n/a | no | - |\n";
+    const ROLES7: &str = "| r | p | w | role | read | no | - |\n";
+    const SERVERS7: &str =
+        "| m | p | w | MCP server | read | no | - |\n| m2 | p | w | MCP server | write | no | - |\n";
 
     fn fixture(tag: &str, skills: &[(&str, &str)], inventory: &str) -> std::path::PathBuf {
         let root =
@@ -240,6 +332,8 @@ mod tests {
             fs::create_dir_all(root.join("skills").join(group).join(name)).unwrap();
         }
         fs::create_dir_all(root.join("skills/workstation")).unwrap();
+        // Both fixture documents list a `critique` row, so its directory exists.
+        fs::create_dir_all(root.join("skills/workstation/critique")).unwrap();
         fs::create_dir_all(root.join("skills/repo")).unwrap();
         fs::create_dir_all(root.join("docs")).unwrap();
         fs::write(root.join(INVENTORY), inventory).unwrap();
@@ -254,7 +348,7 @@ mod tests {
         fs::write(root.join(ROLES_DIR).join("notes.txt"), "not a role").unwrap();
         fs::write(
             root.join(REGISTRY),
-            "mcp_servers:\n  - name: m\n    transport: http\n  - name: m2\nclis:\n  - name: no\n",
+            "mcp_servers:\n  - name: m\n    transport: http\n  - name: m2\nclis:\n  - name: no\nagents:\n  - id: agent-x\n  - name: skill-y\n",
         )
         .unwrap();
         root
@@ -268,6 +362,18 @@ mod tests {
 
     fn doc(ws: &str, repo: &str) -> String {
         format!("## Skill directories\n\n### skills/workstation (1)\n\n{HEAD}| critique | p | w | workflow | run-one-command | no |\n{ws}\n### skills/repo (1)\n\n{HEAD}{repo}{}", sections(""))
+    }
+
+    /// A complete inventory with a `Target` column, its five sections holding
+    /// the given rows.
+    fn inventory(ws: &str, repo: &str, hooks: &str, roles: &str, servers: &str) -> String {
+        format!(
+            "## Skill directories\n\n### skills/workstation (1)\n\n{HEAD7}| critique | p | w | workflow | run-one-command | no | - |\n{ws}\n### skills/repo (1)\n\n{HEAD7}{repo}\n## Hooks\n\n{HEAD7}{hooks}\n## Roles\n\n{HEAD7}{roles}\n## MCP servers\n\n{HEAD7}{servers}"
+        )
+    }
+
+    fn doc7(ws: &str, repo: &str) -> String {
+        inventory(ws, repo, HOOKS7, ROLES7, SERVERS7)
     }
 
     #[test]
@@ -393,5 +499,156 @@ mod tests {
     fn non_row_lines_are_ignored() {
         assert!(cells("plain text").is_none());
         assert!(rows("no tables here").is_empty());
+    }
+
+    #[test]
+    fn row_with_two_kinds_fails() {
+        let d = doc7(
+            concat!(
+                "| a | p | w | workflow, role | read | no | - |\n",
+                "| b | p | w | workflow / role | read | no | - |\n",
+            ),
+            "",
+        );
+        let root = fixture(
+            "twokinds",
+            &[("workstation", "a"), ("workstation", "b")],
+            &d,
+        );
+        assert_eq!(
+            check(&root),
+            vec![
+                "skills/workstation/a: row has two target kinds",
+                "skills/workstation/b: row has two target kinds",
+            ]
+        );
+    }
+
+    #[test]
+    fn row_without_kind_fails() {
+        let d = doc7("| a | p | w |  | read | no | - |\n", "");
+        let root = fixture("nokind", &[("workstation", "a")], &d);
+        assert_eq!(
+            check(&root),
+            vec!["skills/workstation/a: row has no target kind"]
+        );
+    }
+
+    #[test]
+    fn hook_that_does_not_stay_outside_fails() {
+        let d = inventory(
+            "",
+            "",
+            "| h | p | w | workflow | read | no | - |\n",
+            ROLES7,
+            SERVERS7,
+        );
+        let root = fixture("hookkind", &[], &d);
+        assert_eq!(check(&root), vec!["Hooks/h: a hook must stay outside"]);
+    }
+
+    #[test]
+    fn workflow_target_must_exist() {
+        let d = doc7(
+            concat!(
+                "| a | p | w | workflow | read | no | manifest.yaml |\n",
+                "| b | p | w | workflow | read | no | gone.yaml |\n",
+            ),
+            "",
+        );
+        let root = fixture(
+            "workflowtarget",
+            &[("workstation", "a"), ("workstation", "b")],
+            &d,
+        );
+        assert_eq!(
+            check(&root),
+            vec!["skills/workstation/b: target gone.yaml does not exist"]
+        );
+    }
+
+    #[test]
+    fn mcp_server_target_must_be_declared() {
+        let d = doc7(
+            concat!(
+                "| a | p | w | MCP server | read | no | m |\n",
+                "| b | p | w | MCP server | read | no | zzz |\n",
+            ),
+            "",
+        );
+        let root = fixture(
+            "mcptarget",
+            &[("workstation", "a"), ("workstation", "b")],
+            &d,
+        );
+        assert_eq!(
+            check(&root),
+            vec!["skills/workstation/b: target zzz does not exist"]
+        );
+    }
+
+    #[test]
+    fn role_and_skill_set_targets_must_be_declared() {
+        let d = doc7(
+            concat!(
+                "| a | p | w | role | read | no | agent-x |\n",
+                "| b | p | w | skill set | read | no | skill-y |\n",
+                "| c | p | w | role | read | no | ghost |\n",
+                "| d | p | w | skill set | read | no | ghost |\n",
+            ),
+            "",
+        );
+        let root = fixture(
+            "roletarget",
+            &[
+                ("workstation", "a"),
+                ("workstation", "b"),
+                ("workstation", "c"),
+                ("workstation", "d"),
+            ],
+            &d,
+        );
+        assert_eq!(
+            check(&root),
+            vec![
+                "skills/workstation/c: target ghost does not exist",
+                "skills/workstation/d: target ghost does not exist",
+            ]
+        );
+    }
+
+    #[test]
+    fn stays_outside_target_must_be_a_dash() {
+        let d = doc7("| a | p | w | stays outside | n/a | no | out |\n", "");
+        let root = fixture("outsidetarget", &[("workstation", "a")], &d);
+        assert_eq!(
+            check(&root),
+            vec!["skills/workstation/a: target out does not exist"]
+        );
+    }
+
+    #[test]
+    fn unknown_kind_skips_the_target_rule() {
+        let d = doc7("| a | p | w | magic | read | no | ghost |\n", "");
+        let root = fixture("magictarget", &[("workstation", "a")], &d);
+        let p = check(&root);
+        assert_eq!(p.len(), 1);
+        assert!(p[0].contains("target kind \"magic\""));
+    }
+
+    #[test]
+    fn six_and_seven_cell_rows_both_pass() {
+        let d6 = doc(
+            "| a | p | w | workflow | read | no |\n",
+            "| b | p | w | stays outside | n/a | no |\n",
+        );
+        let root = fixture("six", &[("workstation", "a"), ("repo", "b")], &d6);
+        assert!(check(&root).is_empty());
+        let d7 = doc7(
+            "| a | p | w | workflow | read | no | - |\n",
+            "| b | p | w | stays outside | n/a | no | - |\n",
+        );
+        let root = fixture("seven", &[("workstation", "a"), ("repo", "b")], &d7);
+        assert!(check(&root).is_empty());
     }
 }
