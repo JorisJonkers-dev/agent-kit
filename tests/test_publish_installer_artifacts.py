@@ -32,6 +32,7 @@ KIT_FILES = (
     "scripts/agent-kit-keys.py",
     "registry/generated/workstation-secrets.json",
     "installer/vibe-study",
+    "installer/vibe-study-acp",
     "installer/vibe-private",
     "scripts/vibe-split-homes.py",
     "scripts/codex-add-url-mcp.py",

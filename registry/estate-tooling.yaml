@@ -1192,6 +1192,41 @@ gold_band:
       externalSessionSyncEnabled: false
       reach: write
       model: opencode-go/kimi-k2.7-code
+    # Vibe over ACP: the adapter command is the ACP binary (#336's
+    # vibe-study-acp below is its Study twin). No declaration holds a key;
+    # each Vibe signs in itself, so none is read here.
+    - id: vibe
+      adapter:
+        command: ~/.local/bin/vibe-acp
+        displayName: Vibe
+      reach: write
+    # Vibe signed in with the Study account, over ACP: its launcher reads
+    # MISTRAL_STUDY_API_KEY from the agent-kit secret store at start and
+    # starts nothing without it (#336). The key never reaches this file.
+    - id: vibe-study
+      adapter:
+        command: ~/.local/bin/vibe-study-acp
+        displayName: Vibe (Study)
+      reach: write
+    # Google Antigravity over ACP (`agy acp`).
+    - id: agy
+      adapter:
+        command: /opt/homebrew/bin/agy
+        args: [acp]
+        displayName: Antigravity
+      reach: write
+    # Hermes' toolset cannot be restricted over ACP: in ACP mode Hermes
+    # builds its session with a fixed toolset (web search and fetch,
+    # terminal, file read and write, browser, skills, memory) plus MCP
+    # servers and does not read the per-platform toolset list, so tool
+    # configuration cannot remove the shell, the web or writes. Only
+    # `write` (and `write-scoped` through the operating-system layer) is
+    # possible; a narrower reach would be a lie the session ignores.
+    - id: hermes
+      adapter:
+        command: ~/.local/bin/hermes-acp
+        displayName: Hermes
+      reach: write
   # Agent ids setup removes even when the keep file names them (none yet).
   retired: []
   # Placeholder (issue #337 pins and installs Pi here; the declaration lands

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# managed by agent-kit setup-workstation.sh
+#
+# vibe-study-acp [ARGS...]
+#
+# Mistral Vibe over ACP (the binary at ~/.local/bin/vibe-acp), signed in with
+# the Study account, in the shared Vibe home that plain `vibe` and `vibe-study`
+# use too: Shared Memory only, no passphrase, safe for agents. Gold Band starts
+# this launcher as its vibe-study agent, so it reads the Study key itself, the
+# way `vibe-study` does, and no key ever lands in a Gold Band file.
+#
+# Without a key nothing starts: no fall-back to Vibe's machine-wide personal
+# login, which would quietly give a Gold Band session the Personal account.
+set -euo pipefail
+
+VAR=MISTRAL_STUDY_API_KEY
+config="${HOME}/.config/agent-kit"
+
+fail() { echo "vibe-study-acp: $*" >&2; exit 1; }
+
+# The one-line reader setup's env.sh defines for the agent-kit secret store.
+# Only the function, never the rest of env.sh, and the key from the
+# environment first -- exactly the way `vibe-study` reads it.
+secret_reader() {
+  local env_sh="${config}/env.sh"
+  [ -f "${env_sh}" ] && grep -m1 '^_agent_kit_secret() ' "${env_sh}" || true
+}
+
+read_secret() {
+  local reader="$1"
+  (eval "${reader}"; _agent_kit_secret "${VAR}" 2>/dev/null || true)
+}
+
+# Never pass on an unlock: run from inside a vibe-private session, the token
+# and that session's Vibe home would otherwise reach this run.
+unset MEMORY_PRIVATE_TOKEN
+private_home="${HOME}/.vibe-private"
+if [ -z "${VIBE_HOME:-}" ] || [ "${VIBE_HOME%/}" = "${private_home}" ]; then
+  export VIBE_HOME="${HOME}/.vibe"
+fi
+
+key="${MISTRAL_STUDY_API_KEY:-}"
+if [ -z "${key}" ]; then
+  reader="$(secret_reader)"
+  [ -z "${reader}" ] || key="$(read_secret "${reader}")"
+fi
+[ -n "${key}" ] || fail "not signed in with the Study account; run: vibe-study --login"
+unset MISTRAL_STUDY_API_KEY
+export MISTRAL_API_KEY="${key}"
+exec "${HOME}/.local/bin/vibe-acp" "$@"

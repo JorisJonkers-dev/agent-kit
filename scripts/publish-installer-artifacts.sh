@@ -56,6 +56,7 @@ KIT_PATHS=(
   installer/model-gateway
   scripts/instruction-block.py
   installer/vibe-study
+  installer/vibe-study-acp
   installer/vibe-private
   installer/vibe-hooks.toml
   scripts/hermes-merge-mcp.py
