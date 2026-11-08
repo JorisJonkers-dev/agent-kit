@@ -48,3 +48,6 @@ council/ts/toolkit-files.json
 *scratchpad*.md
 *.scratch.md
 *agent-council*.md
+
+# Gold Band keeps per-repository state and its run worktrees here.
+.gold-band/
