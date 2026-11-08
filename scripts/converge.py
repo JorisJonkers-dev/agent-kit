@@ -24,6 +24,21 @@ A failure that is no verdict -- the registry unreadable or malformed, the
 crate binary not answering, the canary blocking the run -- exits 3 with the
 reason printed, so setup never reports it as the crate's refusal (exit 1).
 
+``gold-band`` converges the ``agents`` map of ``~/.gold-band/settings.json``
+onto the registry's ``gold_band.agents`` (#333): each declared agent is
+written with only the fields Gold Band knows, without
+``adapter.command``/``adapter.args`` for a built-in id -- the settings map
+REPLACES the app's runtime agent list, it is not merged with the built-in
+catalog (#328). An existing agent survives only when the keep file names
+it, never when its id names codex, and a retired id (registry
+``gold_band.retired``) goes even when kept; every other top-level key of
+the document is preserved. Nothing is written while Gold Band runs: a
+writing run is refused and the caller told to quit it and re-run; ``--check``
+writes nothing, so a running app never refuses it. The step reuses
+gold-band-validate's flattener and crate,
+passes the crate's exit code through, and exits 3 for its own failures,
+like gold-band-validate.
+
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
 
@@ -37,6 +52,8 @@ Usage::
         --retired-markets NAME,... --retired-plugins ID,... [--check]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-validate \\
         [--registry PATH]
+    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
+        --keep PATH [--settings PATH] [--registry PATH] [--check]
 """
 
 from __future__ import annotations
@@ -70,11 +87,15 @@ CRATE_TIMEOUT_S = 30.0
 GOLD_BAND_CRATE_NAME = "gold-band-agents"
 GOLD_BAND_TIMEOUT_S = 30.0
 
-# gold-band-validate exits 3 for its own failures -- the registry unreadable
-# or malformed, the crate binary not answering, the canary blocking the run --
-# a code apart from the crate's refusal (exit 1), so setup never reports a
-# broken step as "the Gold Band registry is refused" (agent-kit#332).
+# gold-band-validate and gold-band exit 3 for their own failures -- the
+# registry unreadable or malformed, the crate binary not answering, the
+# canary blocking the run, Gold Band running under a converge -- a code
+# apart from the crate's refusal (exit 1), so setup never reports a broken
+# step as "the Gold Band registry is refused" (agent-kit#332).
 GOLD_BAND_CANNOT_VALIDATE_EXIT = 3
+
+# How the tests answer "is Gold Band running" (1: yes, anything else: no).
+GOLD_BAND_RUNNING_ENV = "AGENT_KIT_GOLD_BAND_RUNNING"
 
 
 def crate_binary(kit_root: Path, crate: str = CRATE_NAME) -> Path | None:
@@ -150,6 +171,45 @@ def _gold_band_field(path: str, value: Any) -> list[str]:
     return [f"field\t{path}\t{'' if value is None else value}"]
 
 
+def _gold_band_agents(registry: Path, step: str) -> tuple[list[dict[str, Any]], list[str]] | int:
+    """The registry's ``gold_band`` section, read as its declared agents and retired ids.
+
+    Returns ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, with the reason printed, when
+    the registry is unreadable or the section is the wrong shape, so ``step``
+    (validate or converge) stops there having written nothing; a missing
+    section is an empty list on both sides.
+    """
+    try:
+        data = yaml.safe_load(registry.read_text()) or {}
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: cannot read {registry}: {exc}")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    if not isinstance(data, dict):
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry} is not a mapping")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    section = data.get("gold_band")
+    if section is None:
+        return ([], [])
+    if not isinstance(section, dict):
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}: gold_band must be a mapping")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    declared = section.get("agents")
+    if declared is not None and (
+        not isinstance(declared, list) or not all(isinstance(a, dict) for a in declared)
+    ):
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}:"
+              " gold_band.agents must be a list of mappings")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    retired = section.get("retired")
+    if retired is None:
+        retired = []
+    if not isinstance(retired, list) or not all(isinstance(r, str) for r in retired):
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}:"
+              " gold_band.retired must be a list of agent ids")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    return (declared or [], retired)
+
+
 def gold_band_validate(kit_root: Path, registry: Path, cargo: bool) -> int:
     """The registry's Gold Band agents through the crate: 0 clean or skipped, 1 a refusal, 3 its own failures.
 
@@ -169,27 +229,10 @@ def gold_band_validate(kit_root: Path, registry: Path, cargo: bool) -> int:
                   if cargo else "no Rust toolchain (cargo) on PATH")
         print(f"{GOLD_BAND_CRATE_NAME}: skipped: {reason}")
         return 0
-    try:
-        data = yaml.safe_load(registry.read_text()) or {}
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-        print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: cannot read {registry}: {exc}")
-        return GOLD_BAND_CANNOT_VALIDATE_EXIT
-    agents: list[dict[str, Any]] = []
-    if not isinstance(data, dict):
-        print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: {registry} is not a mapping")
-        return GOLD_BAND_CANNOT_VALIDATE_EXIT
-    section = data.get("gold_band")
-    if section is not None:
-        if not isinstance(section, dict):
-            print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: {registry}: gold_band must be a mapping")
-            return GOLD_BAND_CANNOT_VALIDATE_EXIT
-        declared = section.get("agents")
-        if declared is not None:
-            if not isinstance(declared, list) or not all(isinstance(a, dict) for a in declared):
-                print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: {registry}:"
-                      " gold_band.agents must be a list of mappings")
-                return GOLD_BAND_CANNOT_VALIDATE_EXIT
-            agents = declared
+    read = _gold_band_agents(registry, "validate")
+    if isinstance(read, int):
+        return read
+    agents, _retired = read
     descriptor, staged = tempfile.mkstemp(prefix=f"{GOLD_BAND_CRATE_NAME}-", suffix=".txt")
     try:
         with os.fdopen(descriptor, "w") as handle:
@@ -205,6 +248,94 @@ def gold_band_validate(kit_root: Path, registry: Path, cargo: bool) -> int:
             return GOLD_BAND_CANNOT_VALIDATE_EXIT
     finally:
         os.unlink(staged)
+    for output in (result.stdout, result.stderr):
+        if output.strip():
+            print(output.strip())
+    return result.returncode
+
+
+def _gold_band_running() -> bool:
+    """Whether Gold Band runs right now, so setup never writes under it.
+
+    ``pgrep -f '/Applications/Gold Band.app/'`` hears the real app; the tests,
+    and any caller that cannot trust pgrep, answer through the env var
+    instead (``1`` always means running; any other value means not running
+    only in test mode, with ``AGENT_KIT_GOLD_BAND_APP`` set). The full running-app
+    guard is #334's; this is the rule this ticket always enforces.
+    """
+    forced = os.environ.get(GOLD_BAND_RUNNING_ENV)
+    if forced == "1":
+        return True
+    # "Not running" may be forced only in test mode, where a fake app path
+    # stands in for /Applications/Gold Band.app; otherwise pgrep decides, so
+    # the environment can never hide a running app.
+    if forced is not None and os.environ.get("AGENT_KIT_GOLD_BAND_APP"):
+        return False
+    try:
+        return subprocess.run(
+            ["pgrep", "-f", "/Applications/Gold Band.app/"], capture_output=True, check=False
+        ).returncode == 0
+    except OSError:
+        return False
+
+
+def gold_band(args: argparse.Namespace, cargo: bool) -> int:
+    """Converge ``~/.gold-band/settings.json``'s agent map onto the registry (#333).
+
+    The declared agents and the retired ids come from the registry's
+    ``gold_band`` section, the keep ids from the same keep file the other
+    surfaces use; each goes to a temporary file, and the crate's `converge`
+    command makes the settings' ``agents`` map hold exactly the declared
+    agents plus the kept ones (#328: the map REPLACES the app's runtime list,
+    it is not merged with the built-in catalog). A run that would write never
+    happens while Gold Band runs: the caller is told to quit it and re-run;
+    ``--check`` writes nothing, so a running app never refuses it. The crate's
+    exit code is passed through, and this step's own failures carry
+    ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, like gold-band-validate's, so a
+    broken step is never reported as the crate's refusal (exit 1).
+    """
+    if not args.check and _gold_band_running():
+        print(f"{GOLD_BAND_CRATE_NAME}: Gold Band is running;"
+              " quit it and re-run setup (nothing was written)")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    binary = crate_binary(KIT_ROOT, GOLD_BAND_CRATE_NAME)
+    if binary is None:
+        reason = ("not built yet; run cargo build --manifest-path scripts/Cargo.toml"
+                  if cargo else "no Rust toolchain (cargo) on PATH")
+        print(f"{GOLD_BAND_CRATE_NAME}: skipped: {reason}")
+        return 0
+    read = _gold_band_agents(args.registry, "converge")
+    if isinstance(read, int):
+        return read
+    agents, retired = read
+    keep = _keep(args.keep)
+    staged: list[str] = []
+    try:
+        for kind, lines in (
+            ("declared", gold_band_line_protocol(agents)),
+            ("keep", "".join(f"{name}\n" for name in keep)),
+            ("retired", "".join(f"{name}\n" for name in retired)),
+        ):
+            descriptor, path = tempfile.mkstemp(
+                prefix=f"{GOLD_BAND_CRATE_NAME}-{kind}-", suffix=".txt")
+            staged.append(path)
+            with os.fdopen(descriptor, "w") as handle:
+                handle.write(lines)
+        command = [str(binary), "converge",
+                   "--declared", staged[0], "--keep", staged[1], "--retired", staged[2],
+                   "--settings", str(args.settings)]
+        if args.check:
+            command.append("--check")
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=False,
+                                     timeout=GOLD_BAND_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            print(f"{GOLD_BAND_CRATE_NAME}: cannot converge: the built binary at {binary}"
+                  f" did not answer within {GOLD_BAND_TIMEOUT_S:g} seconds")
+            return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    finally:
+        for path in staged:
+            os.unlink(path)
     for output in (result.stdout, result.stderr):
         if output.strip():
             print(output.strip())
@@ -413,6 +544,11 @@ def main(argv: list[str] | None = None) -> int:
         each.add_argument("--check", action="store_true")
     g = sub.add_parser("gold-band-validate")
     g.add_argument("--registry", type=Path, default=None)
+    b = sub.add_parser("gold-band")
+    b.add_argument("--keep", type=Path, required=True)
+    b.add_argument("--settings", type=Path, default=None)
+    b.add_argument("--registry", type=Path, default=None)
+    b.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     # The workspace's canary crate first: one line proving the Rust path works
     # on this machine, or saying why it could not be called (docs/RUST.md).
@@ -431,6 +567,10 @@ def main(argv: list[str] | None = None) -> int:
             args.registry or KIT_ROOT / "registry" / "estate-tooling.yaml",
             shutil.which("cargo") is not None,
         )
+    if args.surface == "gold-band":
+        args.settings = args.settings or Path.home() / ".gold-band" / "settings.json"
+        args.registry = args.registry or KIT_ROOT / "registry" / "estate-tooling.yaml"
+        return gold_band(args, shutil.which("cargo") is not None)
     return mcp(args) if args.surface == "mcp" else plugins(args)
 
 

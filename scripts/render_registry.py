@@ -1889,6 +1889,62 @@ def _gold_band_validate_fn(w: Any) -> None:
     w("")
 
 
+def _gold_band_converge_fn(w: Any) -> None:
+    """``gold_band_converge``: settings.json's agent map, converged onto the registry (#333).
+
+    The declarations were just validated; converge.py now runs the crate's
+    converge command, which makes the ``agents`` map of
+    ``~/.gold-band/settings.json`` hold exactly the declared agents plus
+    the kept ones -- the settings map REPLACES the app's runtime agent
+    list, it is not merged with the built-in catalog (#328), a built-in id
+    carries no ``adapter.command``/``adapter.args`` the app would have to
+    strip again, and no keep-file entry can keep a codex id or a retired
+    one, while every other top-level key of the document keeps its value
+    and its order. Only while Gold Band is installed --
+    ``/Applications/Gold Band.app``, or the ``AGENT_KIT_GOLD_BAND_APP`` test
+    override -- and converge.py itself refuses to write under a running
+    app, with the reason to quit it and re-run; not installed, the step
+    reports the skip and the run carries on. The crate's lines (the
+    backup that was made, the added/changed/removed ids, ``settings
+    unchanged``) are logged, and a non-zero exit fails the step as no
+    verdict, the way the validation above does.
+    """
+    w("# -----------------------------------------------------------------")
+    w("# The Gold Band agent map, converged onto the registry (#333). The")
+    w("# declarations were validated above; converge.py now runs the")
+    w("# gold-band-agents crate's converge command, which makes the `agents`")
+    w("# map of ~/.gold-band/settings.json hold exactly the declared agents")
+    w("# plus the kept ones -- the settings map REPLACES the app's runtime")
+    w("# agent list, it is not merged with the built-in catalog (#328), and no")
+    w("# keep-file entry can keep a codex id or a retired one, while every")
+    w("# other top-level key of the document keeps its value and its order.")
+    w("# An unchanged document is written by no one, so a second run changes")
+    w("# nothing (--check only prints the lines). converge.py refuses to")
+    w("# write under a running Gold Band; where the app is not installed, the")
+    w("# step is skipped and the run carries on.")
+    w("# -----------------------------------------------------------------")
+    w("gold_band_converge() {")
+    w("  local out rc=0 line app")
+    w('  app="${AGENT_KIT_GOLD_BAND_APP:-/Applications/Gold Band.app}"')
+    w('  if [ ! -e "${app}" ]; then')
+    w('    log "Gold Band is not installed (${app}); its agent map is left alone"')
+    w("    return 0")
+    w("  fi")
+    w('  if ! command -v uv >/dev/null 2>&1; then')
+    w('    warn "uv is not on PATH; the Gold Band agent map is not converged"')
+    w("    return 0")
+    w("  fi")
+    w('  local args=(--keep "${HOME}/.config/agent-kit/keep.yaml" --settings "${HOME}/.gold-band/settings.json")')
+    w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
+    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band \\')
+    w('    "${args[@]}" \\')
+    w('    --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?')
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  [ "${rc}" = 0 ] || fail "the Gold Band agent map did not converge (see above)"')
+    w("}")
+    w("")
+
+
 def _critic_agents_step(data: dict[str, Any], w: Any) -> None:
     """The shell function that converges the critic agents in one Vibe home.
 
@@ -3588,6 +3644,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     _converge_mcp(data, w)
     _converge_plugins(data, w)
     _gold_band_validate_fn(w)
+    _gold_band_converge_fn(w)
     w("# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.")
     w("claude_in_profile() {")
     w('  local dir="$1"; shift')
@@ -4027,6 +4084,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# validation that could not run stops the run with its own message.")
     w("# -----------------------------------------------------------------")
     w("gold_band_validate")
+    w("")
+
+    # --- Gold Band: the agent map, converged while the app is installed ---
+    w("# -----------------------------------------------------------------")
+    w("# 0b. Gold Band agent map. The agents validated above are converged")
+    w("# into ~/.gold-band/settings.json by gold_band_converge, only while")
+    w("# Gold Band is installed: converge.py itself refuses to write under a")
+    w("# running one and says so; not installed, the step is skipped and the")
+    w("# run carries on.")
+    w("# -----------------------------------------------------------------")
+    w("gold_band_converge")
     w("")
 
     # --- CLIs ---
