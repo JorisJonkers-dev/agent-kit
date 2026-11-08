@@ -1600,9 +1600,9 @@ gold_band_instances:
 # declaration that breaks an owner rule (#332):
 #
 #   * no Codex anywhere: the id, the adapter command or args, the provider
-#     or the model must not name it;
-#   * no OpenRouter-backed provider, model, argument or env value;
-#   * OpenCode models only from `opencode-go/`, never `opencode/`;
+#     or the model must not name it; every OpenRouter and every OpenCode
+#     model (an `opencode/` one included) is allowed (owner decision,
+#     2026-11-08), the per-key LiteLLM budgets being the guard;
 #   * no literal secret in any field, argument or environment value: a
 #     secret-named field holds an environment reference (`$NAME`,
 #     `${NAME}`) or a keychain-proxy name, and no other value may be one

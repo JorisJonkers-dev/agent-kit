@@ -42,8 +42,10 @@ on the Linux workstation.
   submodule (#356).
   `crates/gold-band-agents` validates the Gold Band agent declarations, flattened
   into its line protocol by Python (#332), and refuses one that breaks an owner
-  rule: no Codex, no OpenRouter, OpenCode models only from `opencode-go/`, no
-  literal secrets, a constrained reach.
+  rule: no Codex, no literal secrets, a constrained reach. Every OpenRouter and
+  every OpenCode model (an `opencode/` one included) is allowed (owner
+  decision, 2026-11-08): the per-key LiteLLM budgets are the guard, and the
+  model gateway keeps its own refusals.
   `crates/ticket-export` writes requirement.md from one GitHub issue and its
   sub-issues through read-only GitHub access, so a workflow can start from a
   ticket without any agent holding write access (#355).

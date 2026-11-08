@@ -9,12 +9,9 @@
 //!   a duplicate id, which is named only once;
 //! * no Codex anywhere: the id, `adapter.command`, any `adapter.args` value,
 //!   `provider` or `model` must not contain `codex` (case-insensitive);
-//! * no OpenRouter: `provider`, `model` and every `adapter.args` and
-//!   `adapter.env` value must not contain `openrouter` (case-insensitive);
-//! * OpenCode models only from the `opencode-go/` provider: no `model` may
-//!   start with `opencode/`, and an agent whose id starts with `opencode` or
-//!   whose `adapter.command`'s file name is `opencode` must set a `model` that
-//!   starts with `opencode-go/`;
+//! * every OpenRouter and every OpenCode model (an `opencode/` one included)
+//!   is allowed (owner decision, 2026-11-08): the per-key LiteLLM budgets
+//!   are the guard, not this registry;
 //! * no literal secret in any field, argument or environment value: a
 //!   secret-named field (its path's last segment, lowercased, contains
 //!   `token`, `secret`, `key`, `password` or `authorization`) must hold an
@@ -205,33 +202,6 @@ fn agent_problems(a: &Agent, duplicate: bool) -> Vec<String> {
             if names(body, "codex") {
                 p.push(format!("{id}: {field} must not name codex"));
             }
-        }
-    }
-    for field in ["provider", "model"] {
-        if let Some(body) = value(a, field) {
-            if names(body, "openrouter") {
-                p.push(format!("{id}: {field} must not name openrouter"));
-            }
-        }
-    }
-    for (path, body) in &a.fields {
-        if matches!(kind(path), Kind::Args | Kind::Env) && names(body, "openrouter") {
-            p.push(format!("{id}: {path} must not name openrouter"));
-        }
-    }
-    if opencode_agent(a) && value(a, "model").is_none() {
-        p.push(format!(
-            "{id}: model must start with opencode-go/ (an opencode agent)"
-        ));
-    }
-    if let Some(model) = value(a, "model") {
-        if model.starts_with("opencode/") {
-            p.push(format!("{id}: model must not start with opencode/"));
-        }
-        if opencode_agent(a) && !model.starts_with("opencode-go/") {
-            p.push(format!(
-                "{id}: model must start with opencode-go/ (an opencode agent)"
-            ));
         }
     }
     for (path, body) in &a.fields {
@@ -688,19 +658,6 @@ fn value<'a>(a: &'a Agent, path: &str) -> Option<&'a str> {
         .map(|(_, body)| body.as_str())
 }
 
-/// True when this is an OpenCode-served agent: the id or the command's file
-/// name says `opencode`.
-fn opencode_agent(a: &Agent) -> bool {
-    a.id.starts_with("opencode")
-        || value(a, "adapter.command").is_some_and(|command| file_name(command) == "opencode")
-}
-
-/// The file name of a command: its first word's last `/` segment.
-fn file_name(command: &str) -> &str {
-    let program = command.split_whitespace().next().unwrap_or("");
-    program.rsplit('/').next().unwrap_or("")
-}
-
 /// True when `body` contains `word`, ignoring ASCII case.
 fn names(body: &str, word: &str) -> bool {
     body.to_ascii_lowercase().contains(word)
@@ -1154,7 +1111,7 @@ field\tmodel\tcodex-5
     }
 
     #[test]
-    fn openrouter_is_refused_in_providers_and_values() {
+    fn openrouter_providers_and_values_are_accepted() {
         let text = "\
 agent\tmixer
 field\treach\tread
@@ -1163,44 +1120,24 @@ field\tmodel\topenrouter/anthropic/claude-3
 field\tadapter.args.0\t--provider openrouter
 field\tadapter.env.OPENROUTER_API_URL\thttps://openrouter.ai/api/v1
 ";
-        expect(
-            text,
-            &[
-                "mixer: provider must not name openrouter",
-                "mixer: model must not name openrouter",
-                "mixer: adapter.args.0 must not name openrouter",
-                "mixer: adapter.env.OPENROUTER_API_URL must not name openrouter",
-            ],
-        );
+        expect(text, &[]);
     }
 
     #[test]
-    fn opencode_models_must_come_from_opencode_go() {
+    fn opencode_models_and_opencode_agents_are_accepted() {
         let text = "agent\tsidekick\nfield\treach\tread\nfield\tmodel\topencode/zeta\n";
-        expect(text, &["sidekick: model must not start with opencode/"]);
+        expect(text, &[]);
         let text = "\
 agent\tsidekick
 field\treach\tread
 field\tadapter.command\t/usr/local/bin/opencode
 field\tmodel\tzeta-3
 ";
-        expect(
-            text,
-            &["sidekick: model must start with opencode-go/ (an opencode agent)"],
-        );
+        expect(text, &[]);
         let text = "agent\topencode\nfield\treach\tread\nfield\tmodel\tzeta-3\n";
-        expect(
-            text,
-            &["opencode: model must start with opencode-go/ (an opencode agent)"],
-        );
+        expect(text, &[]);
         let text = "agent\topencode\nfield\treach\tread\nfield\tmodel\topencode/zeta\n";
-        expect(
-            text,
-            &[
-                "opencode: model must not start with opencode/",
-                "opencode: model must start with opencode-go/ (an opencode agent)",
-            ],
-        );
+        expect(text, &[]);
         let text = "\
 agent\topencode
 field\treach\tread
@@ -1404,10 +1341,6 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         assert!(id_ok("a") && id_ok("opencode-2"));
         assert!(!id_ok("") && !id_ok("a-") && !id_ok("A") && !id_ok("a_b"));
         assert!(!id_ok("a--b"));
-        assert_eq!(file_name("opencode serve"), "opencode");
-        assert_eq!(file_name("/usr/local/bin/opencode"), "opencode");
-        assert_eq!(file_name(""), "");
-        assert_eq!(file_name("/usr/bin/my-opencode"), "my-opencode");
     }
 
     #[test]
@@ -1472,11 +1405,8 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
     }
 
     #[test]
-    fn regression_an_opencode_agent_with_no_model_is_refused() {
-        expect(
-            "agent\topencode\nfield\treach\tread\n",
-            &["opencode: model must start with opencode-go/ (an opencode agent)"],
-        );
+    fn regression_an_opencode_agent_with_no_model_is_accepted() {
+        expect("agent\topencode\nfield\treach\tread\n", &[]);
     }
 
     #[test]
