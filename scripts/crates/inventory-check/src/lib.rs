@@ -1,5 +1,5 @@
 //! Checks `docs/gold-band-port-inventory.md` against the repository
-//! (#351, #369).
+//! (#351, #369, #370).
 //!
 //! Rules, each reported as one problem line:
 //! * every directory under `skills/workstation/` and `skills/repo/` has a row
@@ -12,14 +12,18 @@
 //!   and a reach from [`REACHES`] (`n/a` only for "stays outside");
 //! * every row of the `## Hooks` section stays outside;
 //! * every row's last cell, `Target`, is [`NO_TARGET`] (nothing is ported yet)
-//!   or names something that exists for the row's kind.
+//!   or names something that exists for the row's kind;
+//! * every row whose `Depends on unverified Gold Band fact` cell starts with
+//!   `no` cites one of [`SPECS`];
+//! * a `workflow` target stays inside the repository: an absolute path or a
+//!   path with a `..` segment is treated as not existing.
 //!
 //! Usage: `inventory-check <REPO_ROOT>`. Exit 0 clean, 1 problems, 2 bad usage.
 
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path};
 
 pub const INVENTORY: &str = "docs/gold-band-port-inventory.md";
 pub const MANIFEST: &str = "manifest.yaml";
@@ -44,6 +48,8 @@ pub const REACHES: [&str; 7] = [
 ];
 /// The `Target` cell of a row whose entry is not ported yet.
 pub const NO_TARGET: &str = "-";
+/// The specs a dependency cell that says `no` must cite.
+pub const SPECS: [&str; 3] = ["#327", "#350", "#367"];
 /// The section whose every row must stay outside Gold Band.
 const HOOKS: &str = "Hooks";
 
@@ -151,10 +157,20 @@ fn declares(registry: &str, name: &str) -> bool {
     })
 }
 
+/// Whether a workflow `target` is a path from `root` that stays inside it:
+/// `root.join` would otherwise follow an absolute path or a `..` segment out
+/// of the repository, so both are treated as not existing.
+fn inside(root: &Path, target: &str) -> bool {
+    let path = Path::new(target);
+    !path.is_absolute()
+        && !path.components().any(|c| c == Component::ParentDir)
+        && root.join(path).exists()
+}
+
 /// Whether `target` names something that exists for `kind`.
 fn target_exists(root: &Path, registry: &str, kind: &str, target: &str) -> bool {
     match kind {
-        "workflow" => root.join(target).exists(),
+        "workflow" => inside(root, target),
         "MCP server" => mcp_names(registry).contains(target),
         "role" | "skill set" => declares(registry, target),
         _ => false,
@@ -167,6 +183,7 @@ struct Row<'a> {
     name: &'a str,
     kind: &'a str,
     reach: &'a str,
+    dep: &'a str,
     target: &'a str,
 }
 
@@ -207,6 +224,7 @@ fn row_problems(root: &Path, registry: &str, row: &Row) -> Vec<String> {
     }
     let reach = row.reach;
     let target = row.target;
+    let dep = row.dep;
     let reach_ok = if kind == "stays outside" {
         reach == "n/a"
     } else {
@@ -219,6 +237,9 @@ fn row_problems(root: &Path, registry: &str, row: &Row) -> Vec<String> {
     }
     if target_missing(root, registry, row) {
         out.push(format!("{section}/{name}: target {target} does not exist"));
+    }
+    if dep.starts_with("no") && SPECS.iter().all(|s| !dep.contains(*s)) {
+        out.push(format!("{section}/{name}: \"no\" without a spec citation"));
     }
     out
 }
@@ -264,7 +285,7 @@ pub fn check(root: &Path) -> Vec<String> {
         }
         let listed: BTreeSet<&str> = table
             .iter()
-            .filter(|(s, _)| s == section)
+            .filter(|(s, _)| *s == section)
             .map(|(_, c)| c[0])
             .collect();
         for name in names.iter().filter(|n| !listed.contains(n.as_str())) {
@@ -284,6 +305,7 @@ pub fn check(root: &Path) -> Vec<String> {
             name,
             kind: c[3],
             reach: c[4],
+            dep: c.get(5).copied().unwrap_or(""),
             target: c.get(6).copied().unwrap_or(NO_TARGET),
         };
         problems.extend(row_problems(root, &registry, &row));
@@ -319,10 +341,10 @@ mod tests {
 
     const HEAD: &str = "| Name | Path | What | Target kind | Reach | Dep |\n| --- | --- | --- | --- | --- | --- |\n";
     const HEAD7: &str = "| Name | Path | What | Target kind | Reach | Dep | Target |\n| --- | --- | --- | --- | --- | --- | --- |\n";
-    const HOOKS7: &str = "| h | p | w | stays outside | n/a | no | - |\n";
-    const ROLES7: &str = "| r | p | w | role | read | no | - |\n";
-    const SERVERS7: &str =
-        "| m | p | w | MCP server | read | no | - |\n| m2 | p | w | MCP server | write | no | - |\n";
+    const CITED: &str = "no — #367 x";
+    const HOOKS7: &str = "| h | p | w | stays outside | n/a | no — #367 x | - |\n";
+    const ROLES7: &str = "| r | p | w | role | read | no — #367 x | - |\n";
+    const SERVERS7: &str = "| m | p | w | MCP server | read | no — #367 x | - |\n| m2 | p | w | MCP server | write | no — #367 x | - |\n";
 
     fn fixture(tag: &str, skills: &[(&str, &str)], inventory: &str) -> std::path::PathBuf {
         let root =
@@ -354,21 +376,21 @@ mod tests {
         root
     }
 
-    const SECTIONS: &str = "\n## Hooks\n\n{H}| h | p | w | stays outside | n/a | no |\n\n## Roles\n\n{H}| r | p | w | role | read | no |\n\n## MCP servers\n\n{H}| m | p | w | MCP server | read | no |\n| m2 | p | w | MCP server | write | no |\n";
+    const SECTIONS: &str = "\n## Hooks\n\n{H}| h | p | w | stays outside | n/a | no — #367 x |\n\n## Roles\n\n{H}| r | p | w | role | read | no — #367 x |\n\n## MCP servers\n\n{H}| m | p | w | MCP server | read | no — #367 x |\n| m2 | p | w | MCP server | write | no — #367 x |\n";
 
     fn sections(extra: &str) -> String {
         format!("{}{extra}", SECTIONS.replace("{H}", HEAD))
     }
 
     fn doc(ws: &str, repo: &str) -> String {
-        format!("## Skill directories\n\n### skills/workstation (1)\n\n{HEAD}| critique | p | w | workflow | run-one-command | no |\n{ws}\n### skills/repo (1)\n\n{HEAD}{repo}{}", sections(""))
+        format!("## Skill directories\n\n### skills/workstation (1)\n\n{HEAD}| critique | p | w | workflow | run-one-command | {CITED} |\n{ws}\n### skills/repo (1)\n\n{HEAD}{repo}{}", sections(""))
     }
 
     /// A complete inventory with a `Target` column, its five sections holding
     /// the given rows.
     fn inventory(ws: &str, repo: &str, hooks: &str, roles: &str, servers: &str) -> String {
         format!(
-            "## Skill directories\n\n### skills/workstation (1)\n\n{HEAD7}| critique | p | w | workflow | run-one-command | no | - |\n{ws}\n### skills/repo (1)\n\n{HEAD7}{repo}\n## Hooks\n\n{HEAD7}{hooks}\n## Roles\n\n{HEAD7}{roles}\n## MCP servers\n\n{HEAD7}{servers}"
+            "## Skill directories\n\n### skills/workstation (1)\n\n{HEAD7}| critique | p | w | workflow | run-one-command | {CITED} | - |\n{ws}\n### skills/repo (1)\n\n{HEAD7}{repo}\n## Hooks\n\n{HEAD7}{hooks}\n## Roles\n\n{HEAD7}{roles}\n## MCP servers\n\n{HEAD7}{servers}"
         )
     }
 
@@ -379,8 +401,8 @@ mod tests {
     #[test]
     fn clean_inventory_passes() {
         let d = doc(
-            "| a | p | w | workflow | read | no |\n",
-            "| b | p | w | stays outside | n/a | no |\n",
+            "| a | p | w | workflow | read | no — #367 x |\n",
+            "| b | p | w | stays outside | n/a | no — #367 x |\n",
         );
         let root = fixture("clean", &[("workstation", "a"), ("repo", "b")], &d);
         assert!(check(&root).is_empty());
@@ -389,7 +411,7 @@ mod tests {
 
     #[test]
     fn directory_without_row_fails() {
-        let d = doc("| a | p | w | workflow | read | no |\n", "");
+        let d = doc("| a | p | w | workflow | read | no — #367 x |\n", "");
         let root = fixture("norow", &[("workstation", "a"), ("repo", "b")], &d);
         let p = check(&root);
         assert_eq!(
@@ -402,7 +424,7 @@ mod tests {
     #[test]
     fn row_without_directory_fails() {
         let d = doc(
-            "| a | p | w | workflow | read | no |\n| ghost | p | w | role | read | no |\n",
+            "| a | p | w | workflow | read | no — #367 x |\n| ghost | p | w | role | read | no — #367 x |\n",
             "",
         );
         let root = fixture("nodir", &[("workstation", "a")], &d);
@@ -416,7 +438,7 @@ mod tests {
     #[test]
     fn bad_kind_bad_reach_and_short_row_fail() {
         let d = doc(
-            "| a | p | w | magic | read | no |\n| b | p | w | workflow | huge | no |\n| c | p | w | stays outside | read | no |\n| d | p |\n",
+            "| a | p | w | magic | read | no — #367 x |\n| b | p | w | workflow | huge | no — #367 x |\n| c | p | w | stays outside | read | no — #367 x |\n| d | p |\n",
             "",
         );
         let root = fixture(
@@ -441,7 +463,11 @@ mod tests {
 
     #[test]
     fn non_skill_tables_are_checked_for_kind_and_reach() {
-        let d = format!("{}{}", doc("", ""), "| bad | p | w | role | n/a | no |\n");
+        let d = format!(
+            "{}{}",
+            doc("", ""),
+            "| bad | p | w | role | n/a | no — #367 x |\n"
+        );
         let root = fixture("badrow", &[], &d);
         let p = check(&root);
         assert_eq!(
@@ -453,7 +479,7 @@ mod tests {
     #[test]
     fn hook_role_and_server_without_row_fail() {
         let d = format!(
-            "## Skill directories\n\n### skills/workstation (1)\n\n{HEAD}| critique | p | w | workflow | run-one-command | no |\n\n### skills/repo (0)\n\n{HEAD}\n## Hooks\n\n{HEAD}\n## Roles\n\n{HEAD}\n## MCP servers\n\n{HEAD}| m | p | w | MCP server | read | no |\n"
+            "## Skill directories\n\n### skills/workstation (1)\n\n{HEAD}| critique | p | w | workflow | run-one-command | {CITED} |\n\n### skills/repo (0)\n\n{HEAD}\n## Hooks\n\n{HEAD}\n## Roles\n\n{HEAD}\n## MCP servers\n\n{HEAD}| m | p | w | MCP server | read | {CITED} |\n"
         );
         let root = fixture("undeclared", &[], &d);
         let p = check(&root);
@@ -505,8 +531,8 @@ mod tests {
     fn row_with_two_kinds_fails() {
         let d = doc7(
             concat!(
-                "| a | p | w | workflow, role | read | no | - |\n",
-                "| b | p | w | workflow / role | read | no | - |\n",
+                "| a | p | w | workflow, role | read | no — #367 x | - |\n",
+                "| b | p | w | workflow / role | read | no — #367 x | - |\n",
             ),
             "",
         );
@@ -526,7 +552,7 @@ mod tests {
 
     #[test]
     fn row_without_kind_fails() {
-        let d = doc7("| a | p | w |  | read | no | - |\n", "");
+        let d = doc7("| a | p | w |  | read | no — #367 x | - |\n", "");
         let root = fixture("nokind", &[("workstation", "a")], &d);
         assert_eq!(
             check(&root),
@@ -539,7 +565,7 @@ mod tests {
         let d = inventory(
             "",
             "",
-            "| h | p | w | workflow | read | no | - |\n",
+            "| h | p | w | workflow | read | no — #367 x | - |\n",
             ROLES7,
             SERVERS7,
         );
@@ -551,8 +577,8 @@ mod tests {
     fn workflow_target_must_exist() {
         let d = doc7(
             concat!(
-                "| a | p | w | workflow | read | no | manifest.yaml |\n",
-                "| b | p | w | workflow | read | no | gone.yaml |\n",
+                "| a | p | w | workflow | read | no — #367 x | manifest.yaml |\n",
+                "| b | p | w | workflow | read | no — #367 x | gone.yaml |\n",
             ),
             "",
         );
@@ -568,11 +594,39 @@ mod tests {
     }
 
     #[test]
+    fn workflow_target_may_not_escape_the_repository() {
+        // A file outside the fixture root that `root.join(target)` would reach
+        // with an absolute path or a `..` segment; only refusing them can keep
+        // the check honest.
+        let tag = format!("escape-{}", std::process::id());
+        let outside = std::env::temp_dir().join(format!("inventory-check-{tag}-outside.yaml"));
+        fs::write(&outside, "x").unwrap();
+        let up = outside.file_name().unwrap().to_string_lossy().into_owned();
+        let abs = outside.to_string_lossy().into_owned();
+        let d = doc7(
+            &format!(
+                "| a | p | w | workflow | read | {CITED} | ../{up} |\n| b | p | w | workflow | read | {CITED} | {abs} |\n"
+            ),
+            "",
+        );
+        let root = fixture(&tag, &[("workstation", "a"), ("workstation", "b")], &d);
+        assert!(root.join(format!("../{up}")).exists());
+        assert!(root.join(abs.as_str()).exists());
+        assert_eq!(
+            check(&root),
+            vec![
+                format!("skills/workstation/a: target ../{up} does not exist"),
+                format!("skills/workstation/b: target {abs} does not exist"),
+            ]
+        );
+    }
+
+    #[test]
     fn mcp_server_target_must_be_declared() {
         let d = doc7(
             concat!(
-                "| a | p | w | MCP server | read | no | m |\n",
-                "| b | p | w | MCP server | read | no | zzz |\n",
+                "| a | p | w | MCP server | read | no — #367 x | m |\n",
+                "| b | p | w | MCP server | read | no — #367 x | zzz |\n",
             ),
             "",
         );
@@ -591,10 +645,10 @@ mod tests {
     fn role_and_skill_set_targets_must_be_declared() {
         let d = doc7(
             concat!(
-                "| a | p | w | role | read | no | agent-x |\n",
-                "| b | p | w | skill set | read | no | skill-y |\n",
-                "| c | p | w | role | read | no | ghost |\n",
-                "| d | p | w | skill set | read | no | ghost |\n",
+                "| a | p | w | role | read | no — #367 x | agent-x |\n",
+                "| b | p | w | skill set | read | no — #367 x | skill-y |\n",
+                "| c | p | w | role | read | no — #367 x | ghost |\n",
+                "| d | p | w | skill set | read | no — #367 x | ghost |\n",
             ),
             "",
         );
@@ -619,7 +673,10 @@ mod tests {
 
     #[test]
     fn stays_outside_target_must_be_a_dash() {
-        let d = doc7("| a | p | w | stays outside | n/a | no | out |\n", "");
+        let d = doc7(
+            "| a | p | w | stays outside | n/a | no — #367 x | out |\n",
+            "",
+        );
         let root = fixture("outsidetarget", &[("workstation", "a")], &d);
         assert_eq!(
             check(&root),
@@ -629,7 +686,7 @@ mod tests {
 
     #[test]
     fn unknown_kind_skips_the_target_rule() {
-        let d = doc7("| a | p | w | magic | read | no | ghost |\n", "");
+        let d = doc7("| a | p | w | magic | read | no — #367 x | ghost |\n", "");
         let root = fixture("magictarget", &[("workstation", "a")], &d);
         let p = check(&root);
         assert_eq!(p.len(), 1);
@@ -637,16 +694,56 @@ mod tests {
     }
 
     #[test]
+    fn no_without_a_spec_citation_fails() {
+        let d = doc(
+            "| a | p | w | workflow | read | no |\n| b | p | w | workflow | read | no — wave 2 only |\n",
+            "",
+        );
+        let root = fixture("nocite", &[("workstation", "a"), ("workstation", "b")], &d);
+        assert_eq!(
+            check(&root),
+            vec![
+                "skills/workstation/a: \"no\" without a spec citation",
+                "skills/workstation/b: \"no\" without a spec citation",
+            ]
+        );
+    }
+
+    #[test]
+    fn no_with_each_spec_citation_passes() {
+        let d = doc(
+            concat!(
+                "| a | p | w | workflow | read | no — #327 Implementation Decisions, Hard rules in validation: no Codex |\n",
+                "| b | p | w | workflow | read | no — #350 Implementation Decisions, Port waves: wave 2 |\n",
+                "| c | p | w | workflow | read | no — #367 Implementation Decisions, Waves: wave 2 (#363) |\n",
+                "| d | p | w | workflow | read | yes — an unverified fact, no citation needed |\n",
+            ),
+            "",
+        );
+        let root = fixture(
+            "cited",
+            &[
+                ("workstation", "a"),
+                ("workstation", "b"),
+                ("workstation", "c"),
+                ("workstation", "d"),
+            ],
+            &d,
+        );
+        assert!(check(&root).is_empty());
+    }
+
+    #[test]
     fn six_and_seven_cell_rows_both_pass() {
         let d6 = doc(
-            "| a | p | w | workflow | read | no |\n",
-            "| b | p | w | stays outside | n/a | no |\n",
+            "| a | p | w | workflow | read | no — #367 x |\n",
+            "| b | p | w | stays outside | n/a | yes — x |\n",
         );
         let root = fixture("six", &[("workstation", "a"), ("repo", "b")], &d6);
         assert!(check(&root).is_empty());
         let d7 = doc7(
-            "| a | p | w | workflow | read | no | - |\n",
-            "| b | p | w | stays outside | n/a | no | - |\n",
+            "| a | p | w | workflow | read | no — #367 x | - |\n",
+            "| b | p | w | stays outside | n/a | yes — x | - |\n",
         );
         let root = fixture("seven", &[("workstation", "a"), ("repo", "b")], &d7);
         assert!(check(&root).is_empty());
