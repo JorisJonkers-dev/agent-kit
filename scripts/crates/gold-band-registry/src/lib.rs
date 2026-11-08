@@ -66,6 +66,8 @@ use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::ErrorKind;
+use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 use serde_json::{Map, Value};
@@ -629,7 +631,16 @@ fn write(settings: &Path, document: &Value, existed: bool) -> i32 {
     let staged =
         settings.with_file_name(format!("{}.{}.tmp", name_of(settings), std::process::id()));
     let body = serde_json::to_string_pretty(document).expect("a Value serialises") + "\n";
-    match fs::write(&staged, body).and_then(|()| fs::rename(&staged, settings)) {
+    // Owner-only: Gold Band keeps tokens in this file, so the rewrite never
+    // widens it past 0600, whatever the umask.
+    let written = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(&staged)
+        .and_then(|mut file| file.write_all(body.as_bytes()));
+    match written.and_then(|()| fs::rename(&staged, settings)) {
         Ok(()) => 0,
         Err(e) => {
             eprintln!("{NAME}: cannot write {}: {e}", settings.display());
@@ -1820,5 +1831,16 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
             ]),
             0
         );
+    }
+
+    #[test]
+    fn regression_the_rewritten_settings_file_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let declared = "agent\tzeta\nfield\treach\tread\n";
+        let settings = temp("cv-mode", "{}");
+        fs::set_permissions(&settings, fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(converge("cv-mode", declared, "", "", &settings, false), 0);
+        let mode = fs::metadata(&settings).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 }
