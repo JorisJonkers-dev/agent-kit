@@ -170,7 +170,9 @@ def test_a_second_run_replaces_setups_block_and_keeps_the_text_around_it(tmp_pat
 
     text = (run.home / ".codex" / "AGENTS.md").read_text()
     assert text.startswith("# My notes\n\nKeep this.\n\n")
-    assert text.endswith("\nTail I wrote.\n")
+    # The gateway block is replaced where it stood; the projects-layout block
+    # is the only text setup adds after the user's tail.
+    assert text.split("<!-- agent-kit projects-layout begin -->")[0].endswith("\nTail I wrote.\n\n")
     assert text.count(BEGIN) == 1
     assert "an old pointer" not in text
     assert "`model-gateway models`" in text

@@ -1007,6 +1007,19 @@ local_skills:
       in manifest.yaml's build_tracker.files, the way the critique runner
       is pinned in critique.files.
 
+  - name: projects-layout
+    path: skills/workstation/projects-layout
+    purpose: >-
+      Where clones and worktrees live on a workstation:
+      ~/Projects/<owner>/<repo> and ~/Projects/<owner>/worktrees/<repo>/<name>,
+      and the guard hook that denies a clone or worktree outside them.
+    agents: [claude, codex, vibe, antigravity, opencode]
+    surfaces: [workstation]
+    note: >-
+      Setup also writes the rule as a marked block into each client's global
+      instruction file, and merges hooks/projects-layout-guard.sh into Claude
+      Code and Codex (docs/adr/0009-projects-layout-guard.md).
+
   - name: model-gateway
     path: skills/workstation/model-gateway
     purpose: >-
