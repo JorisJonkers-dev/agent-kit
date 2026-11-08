@@ -223,15 +223,17 @@ def gold_band_validate(kit_root: Path, registry: Path, cargo: bool) -> int:
     binary not answering -- exits ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, so
     setup tells a broken step from the crate's refusal.
     """
+    # The registry's shape is checked first: it needs no crate, so a broken
+    # registry fails the same way whether or not the crate is built.
+    read = _gold_band_agents(registry, "validate")
+    if isinstance(read, int):
+        return read
     binary = crate_binary(kit_root, GOLD_BAND_CRATE_NAME)
     if binary is None:
         reason = ("not built yet; run cargo build --manifest-path scripts/Cargo.toml"
                   if cargo else "no Rust toolchain (cargo) on PATH")
         print(f"{GOLD_BAND_CRATE_NAME}: skipped: {reason}")
         return 0
-    read = _gold_band_agents(registry, "validate")
-    if isinstance(read, int):
-        return read
     agents, _retired = read
     descriptor, staged = tempfile.mkstemp(prefix=f"{GOLD_BAND_CRATE_NAME}-", suffix=".txt")
     try:
