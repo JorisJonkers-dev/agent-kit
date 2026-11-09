@@ -309,12 +309,12 @@ gold_band:
     # same adapter package and version Gold Band's catalogue pins for
     # claude-acp, and agent-kit installs the same skills and critique
     # hooks into both homes (the `claude_profiles` work and personal
-    # config dirs above). UNVERIFIED, to be settled by the owner with the
-    # headless probe recorded on #328: whether the Claude adapter passes
-    # CLAUDE_CONFIG_DIR on to Claude Code is NOT settled by Gold Band's
-    # source. That does not block this ticket, because the variable is
-    # forwarded to the adapter either way; useLocalClaude stays undeclared
-    # (pinned off in this build).
+    # config dirs above). The adapter passes the variable on to Claude
+    # Code: claude-agent-acp 0.87.0 starts it with { ...process.env, ... }
+    # and loads the user, project and local settings, so each identity's
+    # own settings and critique hooks apply (verified from the adapter's
+    # source, recorded on #328). useLocalClaude stays undeclared (pinned
+    # off in this build).
     - id: claude-acp
       adapter:
         displayName: "Claude (work)"
