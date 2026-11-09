@@ -93,8 +93,9 @@ The Gold Band workflows are:
 - the later port waves, cut from the port inventory.
 
 Each Gold Band workflow is proven headless against stub agents before any
-model is spent. Only judgment nodes may use Opus, and only judgment nodes may
-write memory.
+model is spent. Only judgment nodes (an id ending in `-escalation`,
+`-acceptance` or `-planning`) may use Opus, and only `-acceptance` and
+`-escalation` nodes may write memory.
 
 Agents also get a cheaper way to find code. The first step is measuring what
 they use today. Then every repository gets an `AGENTS.md`, and a small
@@ -112,7 +113,7 @@ owner approves. One new build tracker shows every ticket of this spec.
 
 ### The two instances and their boundaries
 
-1. As the owner, I want a work instance named `gold-band` and a personal instance named `gold-band-personal`, so that the names follow the launcher scheme (unsuffixed is work, `-personal` is personal).
+1. As the owner, I want a work instance named `gold-band` and a personal instance named `gold-band-personal`, so that the names follow the Claude profiles (the unsuffixed profile is work, `-personal` is personal), not the Vibe launchers' account suffix, where no suffix means the personal account.
 2. As the owner, I want the work instance to hold only the work Claude agent and Codex, so that employer code reaches only employer-paid models.
 3. As the owner, I want the personal instance to hold every declared agent except Codex and the work Claude agent, so that personal work never runs on an employer account.
 4. As the owner, I want the work instance to refuse any repository whose remote is not owned by `nedap`, and any repository with no remote, so that it touches only employer repositories.
@@ -131,14 +132,14 @@ owner approves. One new build tracker shows every ticket of this spec.
 
 ### Codex in the work instance
 
-17. As the owner, I want each work-instance run to count as one gateway workflow (`<gold band workflow>@<repository>@<run id>`), refused unless it holds its own live grant, with the grant's cap counted in Codex node starts because the gateway never sees Gold Band spend, so that Codex spend stays under the grant rule (ADR-0008).
+17. As the owner, I want each work-instance run to count as one gateway workflow (`<gold band workflow>@<repository>@<run id>`), refused unless it holds its own live grant, with the grant's cap counted in Codex node starts because the gateway never sees Gold Band spend, so that Codex spend stays under the grant rule (ADR-0008, as applied to Gold Band by ADR-0011).
 18. As the owner, I want the grant read from the gateway's own record, not a copy, both at run start and by a grant-check node before every Codex node, so that a grant that lapses mid-run (by time or cap) fails the next Codex node and pauses the run for a manual check.
 19. As the owner, I want a refused run to say which grant is missing and how to ask for it, so that I can fix it in one step.
 20. As the owner, I want grants still asked for and recorded only through the gateway, so that agents keep asking before they write a grant.
 
 ### Setup and convergence
 
-21. As the owner, I want one setup run to converge both instances present on a machine, so that a fresh machine matches the registry.
+21. As the owner, I want one setup run to converge every instance that belongs to the account it runs in (on the work machine, one run in each of the two accounts), so that a fresh machine matches the registry.
 22. As the owner, I want a second setup run to change nothing, so that I can run setup whenever I like.
 23. As the owner, I want setup to skip an instance that is not installed, create nothing for it and say so, so that a machine without it still sets up cleanly.
 24. As the owner, I want setup to build the Gold Band desktop app and the headless binary from the pinned, audited source on Linux and macOS, so that I never run an unknown build.
@@ -200,7 +201,7 @@ owner approves. One new build tracker shows every ticket of this spec.
 65. As the owner, I want the existing employer facts moved from Shared Memory into the Nedap bank under the work Claude subscription, so that employer content is processed only under the employer's account.
 66. As the owner, I want recall from the Nedap bank checked before the moved facts are deleted, and the same pass run over Private Memory, started by me through `vibe-private` behind the passphrase gate, so that nothing is lost and no personal bank keeps employer facts.
 67. As the owner, I want the moved facts deleted from Shared Memory after that check, so that no personal bank keeps employer content.
-68. As the owner, I want only judgment nodes (an id ending in `-acceptance` or `-escalation`) to write memory inside Gold Band, and every other node to read only, while direct-lane sessions keep writing their bank as today, so that only checked results are remembered by workflows.
+68. As the owner, I want only nodes whose id ends in `-acceptance` or `-escalation` to write memory inside Gold Band (`-planning` judgment nodes may use Opus but not write memory), and every other node to read only, while direct-lane sessions keep writing their bank as today, so that only checked results are remembered by workflows.
 69. As the owner, I want the workflow lint to refuse a memory-writing binding on any other node, so that the rule is enforced like the Opus rule.
 70. As the owner, I want Private Memory reachable only from `vibe-private`, and never from either instance, so that the passphrase gate stays the only way in.
 71. As the owner, I want it re-checked that a fact learned by one agent can be recalled by another agent in a fresh session, within the same bank, so that cross-agent memory is proven after the bank split.
@@ -215,7 +216,7 @@ owner approves. One new build tracker shows every ticket of this spec.
 77. As the owner, I want Opus only in judgment nodes (`-escalation`, `-acceptance`, `-planning`) in both instances, so that expensive judgment is spent only where it decides.
 78. As the owner, I want repair loops unrolled into fixed nodes and capped at two repairs, then an Opus judgment node, then a manual check, so that every loop is bounded by the file itself.
 79. As the owner, I want each Gold Band workflow proven by a headless run against stub agents before any real run, and a real run refused when that proof was skipped, so that structure and routing are known good before a model is spent.
-80. As the owner, I want the work instance to run the same Gold Band workflows as the personal instance, bound only to the work Claude agent and Codex, so that work repositories get the same sequencing, gates and critique.
+80. As the owner, I want the work instance to run the same Gold Band workflows as the personal instance, bound only to the work Claude agent and Codex, with critique on a `nedap` repository allowed only through the work-only critic roster (Codex under a grant, and the work Claude agent, never the orchestrator's own family), so that work repositories get the same sequencing, gates and critique.
 81. As the owner, I want author and reviewer families to differ in every workflow, using Claude and Codex in the work instance and the allowed families in the personal instance, so that no reviewer shares the author's blind spot.
 
 ### Workflow A: research
@@ -263,7 +264,7 @@ owner approves. One new build tracker shows every ticket of this spec.
 
 ### Direct lane
 
-110. As the owner, I want the ADR review stages (`/critique-adrs`, `/recover-decisions`, `/review-architecture`, `/critique-plan`) finished in the critique runner, so that work repositories get them from the command line.
+110. As the owner, I want the review stages (`/critique-adrs`, `/recover-decisions`, `/review-architecture`) and the refactoring-plan critique stage of the feature flow (`/critique-plan`) finished in the critique runner, with the work-only critic roster on `nedap` repositories, so that work repositories get them from the command line.
 111. As the owner, I want those stages wrapped as Gold Band workflow templates after they land, so that both instances get them without a second implementation.
 112. As the owner, I want calibration in the critique stats, so that I can see whether critics are right over time.
 113. As the owner, I want one real feature taken through `/flow` to a passing gate on a work repository, so that the direct-lane pipeline is proven end to end.
@@ -350,7 +351,8 @@ These earlier owner decisions hold unless this spec says otherwise:
   processes.
 - **Hooks** stay outside Gold Band, in the Claude Code and Codex homes. The git
   commit gate and the PR gate hold whatever app makes the commit.
-- **Opus** is used only in judgment nodes. Reach levels apply, with one agent id
+- **Opus** is used only in judgment nodes: nodes whose id ends in
+  `-escalation`, `-acceptance` or `-planning`. Reach levels apply, with one agent id
   per agent, reach level and skill set.
 - **Models on the personal instance.** OpenRouter and OpenCode models,
   including `opencode/` Zen models, are allowed, guarded by the LiteLLM
@@ -374,6 +376,15 @@ These earlier owner decisions hold unless this spec says otherwise:
   after the stages land.
 - #374's decision 5 (Hindsight read-only for agents) is replaced by the
   judgment-node write rule and the bank split.
+- The family allowlist's rule that a `nedap` repository sends nothing to
+  critics is replaced by a work-only critic roster (owner decision,
+  2026-11-09). On a `nedap` repository, a critique stage may send to Codex on
+  the nedap account, under a grant, and to the work Claude agent, and to
+  nothing else, whatever the repository's entry says. This holds in the work
+  instance and in the direct lane. A critic still never shares the
+  orchestrator's family. So with a Claude orchestrator the critic is Codex,
+  and with a Codex orchestrator the critic is the work Claude agent. The
+  family allowlist entry in the glossary is amended to match.
 
 ### Modules
 
@@ -445,12 +456,15 @@ These earlier owner decisions hold unless this spec says otherwise:
   It writes its report like a gate report. A failed check ends the run before
   any model node runs. In the work instance, every node that binds Codex is
   preceded by a grant-check node that runs the same pinned wrapper for the
-  grant alone. It counts one Codex node start against the grant's cap, and it
-  fails, routing to a manual check, once the grant has lapsed. Each run names
+  grant alone. Before the node runs, it reserves one Codex node start
+  against the grant's cap in the gateway's grant record. It refuses when the
+  reservation does not fit, as ADR-0008 does for parallel delegations, so
+  parallel Codex nodes cannot both pass on the last start. It fails, routing
+  to a manual check, once the grant has lapsed. Each run names
   its gateway workflow `<gold band workflow>@<repository>@<run id>`.
 - **Memory binding.** Each agent id declares its bank: Nedap for the work
   instance, Shared for the personal instance. A memory-write flag is allowed
-  only on agent ids bound to judgment nodes. The workflow lint gains the rule
+  only on agent ids bound to `-acceptance` or `-escalation` nodes. The workflow lint gains the rule
   "memory write only on `-acceptance` or `-escalation` nodes". The rule
   applies only inside Gold Band; direct-lane sessions keep reading and
   writing their bank as today. Direct-lane
@@ -479,8 +493,11 @@ These earlier owner decisions hold unless this spec says otherwise:
   that records the tracker (GitHub issues), the label vocabulary and the
   triage labels. A setup command writes it, as the existing skills setup
   does. Workflow C and the export wrapper refuse a repository without one.
-- **Critique runner.** The ADR stages, decision recovery, architecture review,
-  refactoring plans and calibration are finished in the existing runner. The
+- **Critique runner.** The review stages (ADR review, decision recovery,
+  architecture review), the refactoring-plan critique stage inside the
+  feature flow, and calibration are finished in the existing runner. On a
+  `nedap` repository, the runner's routing uses the work-only critic roster.
+  It runs the one critic whose family is not the orchestrator's. The
   draft stage work on the old branches is rebased and reused. The Wave 2
   templates call the runner through the gate shim. The Rust port of the
   runner is a later ticket, behind the same commands.
