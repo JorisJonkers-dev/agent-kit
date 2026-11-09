@@ -55,10 +55,8 @@ fallback. Unix permissions then also keep personal agents from reading the
 employer clones in the work account (#396), which the OS write limit
 (ADR-0013) does not prevent.
 
-On Linux, where no employer clones exist, a recorded check (the first B0
-ticket of the spec) settles whether Gold Band can keep two data directories
-apart. Until that check is recorded, setup converges only the instance the
-machine already supports, and reports the other one as blocked.
+The Linux workstation holds only the personal instance, so no machine runs
+two instances in one account, and no data-directory split has to be proven.
 
 This replaces the earlier rules that Gold Band never touches a work repository
 and that Codex is banned from Gold Band. The Codex ban now applies to the

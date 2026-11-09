@@ -48,7 +48,8 @@ and the **personal instance** (`gold-band-personal`). Beside them is the
 - **Work instance.** It holds only the work Claude agent and Codex. It runs
   only on repositories with a `nedap`-owned remote and only on the work
   machine. Every run that binds Codex is refused unless the model gateway
-  holds a live grant for that repository. It runs the same Gold Band
+  holds a live grant for that run, and the grant is checked again before
+  every Codex node. It runs the same Gold Band
   workflows as the personal instance, with two model families (Claude and
   Codex), so author and reviewer always differ. Its research results stay
   inside the work repository. Its tickets go to the work repository's GitHub
@@ -58,7 +59,9 @@ and the **personal instance** (`gold-band-personal`). Beside them is the
   work Claude agent: the personal Claude agent, OpenCode, Vibe, Vibe-study,
   Pi, Antigravity and Hermes. It refuses `nedap`-owned repositories and allows
   a repository with no remote. It runs on the Linux workstation and on the
-  work machine. It reads and writes Shared Memory. Its cheap agents reach
+  work machine. On the work machine it runs under a second macOS user
+  account. That account keeps its data, keychain and keep file apart, and
+  cannot read the employer clones of the work account. It reads and writes Shared Memory. Its cheap agents reach
   their models through one LiteLLM proxy in the estate cluster, capped by
   per-key budgets.
 - **Direct lane.** It keeps the model gateway, `delegate`, the council, the
@@ -106,11 +109,11 @@ owner approves. One new build tracker shows every ticket of this spec.
 4. As the owner, I want the work instance to refuse any repository whose remote is not owned by `nedap`, and any repository with no remote, so that it touches only employer repositories.
 5. As the owner, I want the personal instance to refuse any repository with a `nedap`-owned remote, so that employer code never reaches a personal provider.
 6. As the owner, I want the personal instance to allow a repository with no remote, so that I can bootstrap a new personal repository; I accept that I must be mindful there.
-7. As the owner, I want the repository rule checked both when setup binds a Gold Band workflow and again when each run starts, so that a remote changed after setup still refuses the run.
+7. As the owner, I want the repository rule and the family allowlist (including its code and history permissions) checked both when setup binds a Gold Band workflow and again by a run-start shim before any model node runs, so that a remote or allowlist entry changed after setup still refuses the run.
 8. As the owner, I want the work instance installed only on the work machine, so that the Linux workstation never holds employer configuration.
 9. As the owner, I want the personal instance installed on the Linux workstation and on the work machine, so that I can use it on both.
 10. As the owner, I want the two instances on one Mac to keep separate data, settings, agents and logs, so that a run in one can never see the other's state.
-11. As the owner, I want the personal instance to run under a second macOS user account if Gold Band cannot keep two data directories apart, so that the separation holds whatever the app supports.
+11. As the owner, I want the personal instance on the work machine always to run under a second macOS user account, with its own data directory, keychain, keep file and overlay, and setup run once in each account, so that the split holds whatever the app supports and personal agents cannot read employer clones.
 12. As the owner, I want no keep-file entry able to keep Codex or the work Claude agent on the personal instance, so that the boundary cannot be broken by one file.
 13. As the owner, I want the registry to declare only the generic shape of the work instance (`claude-work`, `codex`), so that nothing about the employer enters the public registry.
 14. As the owner, I want employer-specific work-instance settings, such as work MCP servers, in a per-machine overlay beside the keep file, so that they are repeatable on my machine but never published.
@@ -119,8 +122,8 @@ owner approves. One new build tracker shows every ticket of this spec.
 
 ### Codex in the work instance
 
-17. As the owner, I want every work-instance run that binds Codex to be refused unless the model gateway holds a live grant for that repository, so that Codex spend stays under the grant rule (ADR-0008).
-18. As the owner, I want the run-start check to read the gateway's own grant record, not a copy, so that granting, expiry and caps keep one source.
+17. As the owner, I want each work-instance run to count as one gateway workflow (`<gold band workflow>@<repository>@<run id>`), refused unless it holds its own live grant, with the grant's cap counted in Codex node starts because the gateway never sees Gold Band spend, so that Codex spend stays under the grant rule (ADR-0008).
+18. As the owner, I want the grant read from the gateway's own record, not a copy, both at run start and by a grant-check node before every Codex node, so that a grant that lapses mid-run (by time or cap) fails the next Codex node and pauses the run for a manual check.
 19. As the owner, I want a refused run to say which grant is missing and how to ask for it, so that I can fix it in one step.
 20. As the owner, I want grants still asked for and recorded only through the gateway, so that agents keep asking before they write a grant.
 
@@ -158,10 +161,10 @@ owner approves. One new build tracker shows every ticket of this spec.
 44. As the owner, I want every agent id to carry a reach level, so that a node's reach is visible in the registry.
 45. As the owner, I want one agent id for each agent, reach level and skill set, so that a node gets exactly the reach of the id it names.
 46. As the owner, I want the launcher to refuse a reach level the agent cannot enforce, so that a node never runs with more access than declared.
-47. As the owner, I want file writes outside the declared directory blocked by the operating system, not only by the tool settings, so that a gap in a tool list does not matter.
+47. As the owner, I want each reach level's writable paths fixed by one table (ADR-0013) and enforced by the operating system, not only by the tool settings, with `write` unable to change `.git/hooks` or `.git/config`, so that a gap in a tool list does not matter and no agent can switch off the repository's hooks.
 48. As the owner, I want the write limit to use Landlock on Linux and `sandbox-exec` on macOS behind one interface, so that the same declaration means the same thing on both machines.
 49. As the owner, I want the launcher to refuse to start an agent when the write-limit backend for the current OS is unavailable, so that no agent runs unlimited.
-50. As the owner, I want it written down that neither backend limits the network, so that nobody treats a read-only node as offline.
+50. As the owner, I want it written down that neither backend limits reads or the network, and that the account boundary is what keeps personal agents out of employer clones on the work machine, so that nobody treats a read-only node as offline or confined.
 51. As the owner, I want each cell of the support record (agent by reach level) verified on each OS before it is used, so that a level proven on the Mac is not assumed on Linux.
 52. As a maintainer, I want validation to fail when an agent id has no reach level, a reach level its agent does not support on that OS, or a `write-scoped` or `research` level without an output directory, so that errors show in CI.
 
@@ -186,9 +189,9 @@ owner approves. One new build tracker shows every ticket of this spec.
 63. As the owner, I want the work instance and direct-lane sessions on `nedap` repositories to read and write only the Nedap bank, so that employer facts never reach Shared Memory again.
 64. As the owner, I want the personal instance to read and write only Shared Memory, so that personal agents cannot recall employer facts.
 65. As the owner, I want the existing employer facts moved from Shared Memory into the Nedap bank under the work Claude subscription, so that employer content is processed only under the employer's account.
-66. As the owner, I want recall from the Nedap bank checked before the moved facts are deleted from Shared Memory, so that nothing is lost.
+66. As the owner, I want recall from the Nedap bank checked before the moved facts are deleted, and the same pass run over Private Memory, started by me through `vibe-private` behind the passphrase gate, so that nothing is lost and no personal bank keeps employer facts.
 67. As the owner, I want the moved facts deleted from Shared Memory after that check, so that no personal bank keeps employer content.
-68. As the owner, I want only judgment nodes (an id ending in `-acceptance` or `-escalation`) to write memory, and every other node to read only, so that only checked results are remembered.
+68. As the owner, I want only judgment nodes (an id ending in `-acceptance` or `-escalation`) to write memory inside Gold Band, and every other node to read only, while direct-lane sessions keep writing their bank as today, so that only checked results are remembered by workflows.
 69. As the owner, I want the workflow lint to refuse a memory-writing binding on any other node, so that the rule is enforced like the Opus rule.
 70. As the owner, I want Private Memory reachable only from `vibe-private`, and never from either instance, so that the passphrase gate stays the only way in.
 71. As the owner, I want it re-checked that a fact learned by one agent can be recalled by another agent in a fresh session, within the same bank, so that cross-agent memory is proven after the bank split.
@@ -359,11 +362,13 @@ These earlier owner decisions hold unless this spec says otherwise:
   work instance only, never agents beyond the two allowed. Its schema is
   validated like the registry.
 - **Instance isolation.** Each instance has its own data directory, settings,
-  agent map, role files and skill directories. Whether Gold Band can be
-  pointed at a second data directory is the first fact to verify on each OS.
-  If it cannot, the personal instance on the Mac runs under a second macOS
-  user account. Setup prepares that account's instance in the same way and
-  reports it.
+  agent map, role files and skill directories. The Linux workstation holds
+  only the personal instance. On the work machine, the personal instance
+  always runs under a second macOS user account (ADR-0011). That account has
+  its own data directory, keychain, keep file and overlay, and setup runs
+  once in each account. The account boundary is also the read boundary that
+  keeps personal agents out of employer clones, which the OS write limit
+  does not provide. So no machine needs two instances in one account.
 - **Gold Band build.** It is a deep module with one interface: "make the
   pinned Gold Band present on this host". It:
   - checks out the pinned commit;
@@ -388,7 +393,8 @@ These earlier owner decisions hold unless this spec says otherwise:
   - the reach-level tool configuration for each agent (unchanged from the
     support record);
   - a write-limit interface with a Landlock backend and a `sandbox-exec`
-    backend (ADR-0013).
+    backend (ADR-0013). It builds each agent's profile from ADR-0013's table
+    of writable paths for each reach level.
 
   When the backend for the OS is unavailable, or when the agent cannot hold
   the reach level, the launcher exits with an error before it starts
@@ -403,14 +409,21 @@ These earlier owner decisions hold unless this spec says otherwise:
   copy and from no model output:
   - the instance's repository rule against the repository's remotes;
   - the family allowlist for every bound agent id;
-  - in the work instance, a live gateway grant for every bound Codex agent id.
+  - in the work instance, a live gateway grant for this run, for every bound
+    Codex agent id.
 
   It writes its report like a gate report. A failed check ends the run before
-  any model node runs.
+  any model node runs. In the work instance, every node that binds Codex is
+  preceded by a grant-check node that runs the same pinned wrapper for the
+  grant alone. It counts one Codex node start against the grant's cap, and it
+  fails, routing to a manual check, once the grant has lapsed. Each run names
+  its gateway workflow `<gold band workflow>@<repository>@<run id>`.
 - **Memory binding.** Each agent id declares its bank: Nedap for the work
   instance, Shared for the personal instance. A memory-write flag is allowed
   only on agent ids bound to judgment nodes. The workflow lint gains the rule
-  "memory write only on `-acceptance` or `-escalation` nodes". Direct-lane
+  "memory write only on `-acceptance` or `-escalation` nodes". The rule
+  applies only inside Gold Band; direct-lane sessions keep reading and
+  writing their bank as today. Direct-lane
   sessions choose their bank by the repository's remote owner, using the same
   rule as the instances: `nedap` goes to the Nedap bank, and everything else
   goes to Shared Memory.
@@ -421,6 +434,10 @@ These earlier owner decisions hold unless this spec says otherwise:
   - check recall against a recorded question set;
   - delete them from Shared Memory only after the check passes, with a
     report of what was moved and what was deleted.
+
+  The owner then runs the same pass over Private Memory through
+  `vibe-private`, after typing the passphrase, because no agent can reach
+  Private Memory on its own.
 - **Gate shim, Workflows A, B and C, the export wrapper, the workflow lint,
   and the inventory check.** These are as specified in #350 and #367, and
   their landed crates are reused. They change in three ways:
@@ -466,7 +483,7 @@ Dependencies may cross branches.
   - the sync tool;
   - the Gold Band build on both OSes;
   - the first ticket, which re-verifies every cited Gold Band fact at the
-    pin on both OSes, including whether a second data directory is possible.
+    pin on both OSes.
 - **B1 Instances and setup.** It covers:
   - the instance model and overlay;
   - convergence and safe writes;
@@ -544,6 +561,8 @@ already uses its number.
   - an instance that is not installed is skipped;
   - the running-app guard refuses;
   - the data directories are owner-only;
+  - on a macOS host, the personal instance is prepared only for the second
+    user account, never beside the work instance;
   - launchers are installed;
   - a missing secret fails closed;
   - no macOS path is written on a Linux host.
@@ -559,6 +578,8 @@ already uses its number.
   - escalation after the second repair;
   - refusal by the run-start shim for a wrong-instance repository, a
     forbidden family, and a missing Codex grant;
+  - a grant that lapses mid-run: the next Codex node's grant check fails and
+    the run pauses at a manual check;
   - the gate-report tamper cases;
   - budget exhaustion;
   - a memory write from a non-judgment node refused by the lint before the
@@ -572,7 +593,9 @@ already uses its number.
   stub agent. The stub tries to write inside and outside its output
   directory. The test asserts that the outside write is refused by the
   operating system, with the tool configuration out of the way, and that the
-  launcher refuses to start when the backend is unavailable.
+  launcher refuses to start when the backend is unavailable. For each reach
+  level, it also asserts the ADR-0013 table, including that a `write` agent
+  cannot change `.git/hooks` or `.git/config`.
 - **Existing seams, kept.** These stay as they are:
   - critique runner tests for the direct-lane stages;
   - model-gateway tests for the Codex worktree support and the Vibe model
@@ -590,7 +613,8 @@ already uses its number.
   host where its claim applies:
   - the same-name MCP overlap test;
   - the reach-level cells for each OS;
-  - the second data directory;
+  - the second macOS user on the work machine: a personal agent cannot read
+    an employer clone;
   - real-run smokes;
   - the Nedap migration recall check;
   - cross-agent recall;
@@ -630,8 +654,7 @@ already uses its number.
   - skill-directory handling;
   - per-node working directories;
   - the behaviour of the dynamic node;
-  - the headless exit codes;
-  - a second data directory.
+  - the headless exit codes.
 - **macOS assumptions to port first.** Found on the old integration branch:
   - the hard-coded application path in the converger and its running-app
     check;
@@ -658,12 +681,11 @@ already uses its number.
     #394 and closed. It is recorded under B1 (the secret store) as done.
   - #395: the model gateway silently moves a delegation that names a family
     to Claude when it fails. Belongs to B4 (direct lane).
-  - #396: the operating-system layer limits writes, not reads. So on the
-    work machine, a personal-instance agent can read employer clones. It
-    belongs to B1. Its mitigation is an owner decision that is still open:
-    the recommendation is the second macOS user (ADR-0011), with a read
-    limit in the launcher as defence in depth. Stories 10, 11, 47 and 48 and
-    ADR-0013 are amended when it is decided.
+  - #396: the operating-system layer limits writes, not reads, so on the
+    work machine a personal-instance agent could read employer clones. It is
+    decided (ADR-0011, ADR-0013): the personal instance on the work machine
+    always runs under a second macOS user. A read limit in the launcher is
+    optional defence in depth. Belongs to B1.
   - #399: Antigravity on the Linux workstation, so that Linux gets a
     Google-family critic and the personal instance's Antigravity agent.
     Belongs to B1 (agents on each OS).
