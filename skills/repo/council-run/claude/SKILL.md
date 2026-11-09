@@ -1,6 +1,7 @@
 ---
 name: council-run
 description: Execute an approved council plan or task DAG through supervised workers. Use when Claude has an accepted design and needs to fan out bounded work, monitor progress, merge results, and report verification outcomes.
+disable-model-invocation: true
 ---
 
 # Council Run

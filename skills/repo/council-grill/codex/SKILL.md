@@ -1,6 +1,7 @@
 ---
 name: council-grill
 description: Stress-test a plan, patch, task DAG, or decision through a council-style adversarial review. Use when Codex needs a focused critique, risk scan, missing-evidence pass, or cross-model challenge before implementation or merge.
+disable-model-invocation: true
 ---
 
 # Council Grill

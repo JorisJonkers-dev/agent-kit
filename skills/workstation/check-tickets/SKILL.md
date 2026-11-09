@@ -1,6 +1,7 @@
 ---
 name: check-tickets
 description: Use after /to-tickets and before the first /implement. A script checks the spec's tickets for dependency cycles, dangling blockers and uncited stories, a critic from another model family lints them read-only; you fix ticket structure on the tracker and ask the owner before changing scope.
+disable-model-invocation: true
 ---
 
 # check-tickets

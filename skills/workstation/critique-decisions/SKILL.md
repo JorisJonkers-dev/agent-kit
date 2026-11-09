@@ -1,6 +1,7 @@
 ---
 name: critique-decisions
 description: Use after /grill-with-docs or /grill-me settled a feature's decisions, and before /to-spec. Critics from other model families list the decision branches nobody opened; you check each against the decision docs and ask the owner the real gaps, one at a time. Nothing changes until the owner answers.
+disable-model-invocation: true
 ---
 
 # critique-decisions

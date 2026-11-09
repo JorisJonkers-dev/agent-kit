@@ -1,6 +1,7 @@
 ---
 name: review-ticket
 description: Use after a ticket's /code-review and before its commit. Risk triage decides whether the change is risky; a risky one gets a critic from another model family on the staged diff, every bug it claims comes with a failing test you run, and the summary says "do not commit" while an accepted critical finding is unfixed.
+disable-model-invocation: true
 ---
 
 # review-ticket

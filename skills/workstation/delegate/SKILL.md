@@ -1,6 +1,7 @@
 ---
 name: delegate
 description: Use when planning work to hand to other model clients through the model gateway, with minimal Claude tokens. Rate each task's difficulty, split it, pick the cheapest model that covers it, send one batch and verify what comes back.
+disable-model-invocation: true
 ---
 
 # delegate

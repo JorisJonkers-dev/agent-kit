@@ -1,6 +1,7 @@
 ---
 name: council-amend
 description: Amend an existing council brief, design, task DAG, or run after user feedback, failed validation, changed constraints, or worker findings. Use when Codex must revise the plan without discarding useful completed work.
+disable-model-invocation: true
 ---
 
 # Council Amend

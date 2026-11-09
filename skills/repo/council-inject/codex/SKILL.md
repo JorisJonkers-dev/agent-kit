@@ -1,6 +1,7 @@
 ---
 name: council-inject
 description: Inject new constraints, evidence, files, or operator guidance into an active council flow. Use when Codex must add context to a run without restarting or rewriting unrelated plan artifacts.
+disable-model-invocation: true
 ---
 
 # Council Inject

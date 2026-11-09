@@ -1,6 +1,7 @@
 ---
 name: critique-spec
 description: Use after /to-spec produced or changed a spec. Critics from other model families review the spec read-only; you rule on each finding against the evidence, fix the spec, and ask the owner about anything that touches a decision.
+disable-model-invocation: true
 ---
 
 # critique-spec

@@ -1,6 +1,7 @@
 ---
 name: council-supervise
 description: Supervise a single cross-CLI delegate with bounded scope and progress relay. Use when Codex needs one Codex or Claude worker for a scoped task without launching a full council plan or fan-out.
+disable-model-invocation: true
 ---
 
 # Council Supervise
