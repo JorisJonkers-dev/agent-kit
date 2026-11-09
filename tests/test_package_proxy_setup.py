@@ -572,6 +572,11 @@ def test_a_fresh_root_gets_the_gradle_init_script_without_the_key(tmp_path: Path
     assert "packages.jorisjonkers.dev/maven/" in text
     assert "PACKAGES_PROXY_TOKEN" in text
     assert "packagesProxyToken" in text
+    # Repositories are rewritten in place: none is added or removed.
+    assert "fun proxyUrlFor" in text
+    assert "repo.setUrl(target)" in text
+    assert "remove(this)" not in text
+    assert "addPackagesProxy" not in text
     # The init script is world-readable and so holds no key: Gradle reads the
     # token from the property or the environment at build time.
     assert KEY not in text
