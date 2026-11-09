@@ -38,7 +38,7 @@ export interface ModelGatewayRuntime {
 export const MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'
        model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
-                                 "model": "zai-glm-5-3", "mode": "read-only",
+                                 "model": "glm-5-3", "mode": "read-only",
                                  "prompt": "read this", "repo": "/path/to/repo"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "claude",
                                  "model": "claude-sonnet-5-5", "mode": "write",
@@ -306,9 +306,10 @@ export function defaultModelGatewayRuntime(options: ModelGatewayRuntimeOptions =
   const files = overrides.files ?? new NodeModelGatewayFiles()
   const git = overrides.git ?? new NodeModelGatewayGit()
   const process = overrides.process ?? new NodeModelGatewayProcess()
+  const clock = overrides.clock ?? new SystemClockAdapter()
   return {
     commands: createModelGatewayCommands({
-      clock: new SystemClockAdapter(),
+      clock,
       defaultsPath: join(import.meta.dirname, 'defaults.json'),
       env,
       files,
@@ -318,7 +319,7 @@ export function defaultModelGatewayRuntime(options: ModelGatewayRuntimeOptions =
       ledger: new NodeModelGatewayLedger(env),
       process,
       proof: new NodeModelGatewayProof({ env, files, routingPath }),
-      sources: modelSources({ env, files, process }),
+      sources: modelSources({ clock, env, files, process }),
       statuses: clientStatuses({ process }),
       workflows: new NodeModelGatewayWorkflows(env),
       ...overrides,

@@ -48,6 +48,18 @@ export function vibeConfigPath(env: EnvPort): string {
 }
 
 /**
+ * Where the gateway keeps what the Vibe probe answered, so a `models` call
+ * costs nothing while the answer holds: `$XDG_CACHE_HOME/model-gateway/`, or
+ * `~/.cache/model-gateway/` when XDG_CACHE_HOME is unset or not an absolute
+ * path.
+ */
+export function vibeAvailableCachePath(env: EnvPort): string {
+  const xdg = env.get('XDG_CACHE_HOME')
+  const root = xdg !== undefined && isAbsolute(xdg) ? xdg : join(env.require('HOME'), '.cache')
+  return join(root, 'model-gateway', 'vibe-available.json')
+}
+
+/**
  * This machine's routing override, applied client by client over the routing
  * critique ships. It is resolved the way critique resolves it, so the gateway
  * reads the routing critique really runs.

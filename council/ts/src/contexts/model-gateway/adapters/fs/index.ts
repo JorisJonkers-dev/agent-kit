@@ -1,9 +1,9 @@
-import { randomBytes } from 'node:crypto'
-import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { createHash, randomBytes } from 'node:crypto'
+import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import type { ModelGatewayFilesPort } from '../../application/ports.js'
+import type { FileStamp, ModelGatewayFilesPort } from '../../application/ports.js'
 
 const ABSENT = new Set(['ENOENT', 'ENOTDIR'])
 
@@ -11,12 +11,14 @@ const ABSENT = new Set(['ENOENT', 'ENOTDIR'])
  * Writes `content` to `path` in one step: a temporary file beside it, then a
  * rename over it. A write that fails leaves the file as it was, so a reader
  * never sees half of one, and a process that dies mid-write leaves the old
- * file rather than a truncated one.
+ * file rather than a truncated one. A `mode` makes the file — and the
+ * temporary one it is written through — one the platform takes for the new
+ * file's permissions.
  */
-export async function writeFileAtomic(path: string, content: string): Promise<void> {
+export async function writeFileAtomic(path: string, content: string, mode?: number): Promise<void> {
   const temp = `${path}.${randomBytes(6).toString('hex')}.tmp`
   try {
-    await writeFile(temp, content)
+    await writeFile(temp, content, mode === undefined ? undefined : { mode })
     await rename(temp, path)
   } catch (error) {
     await rm(temp, { force: true })
@@ -55,5 +57,34 @@ export class NodeModelGatewayFiles implements ModelGatewayFilesPort {
 
   async remove(path: string): Promise<void> {
     await rm(path, { force: true, recursive: true })
+  }
+
+  async modifiedMs(path: string): Promise<number | undefined> {
+    try {
+      return (await stat(path)).mtimeMs
+    } catch {
+      return undefined
+    }
+  }
+
+  async stamp(path: string): Promise<FileStamp | undefined> {
+    try {
+      const real = await realpath(path)
+      const of = await stat(real)
+      return {
+        ctimeMs: of.ctimeMs,
+        ino: of.ino,
+        realpath: real,
+        sha256: createHash('sha256').update(await readFile(real)).digest('hex'),
+        size: of.size,
+      }
+    } catch {
+      return undefined
+    }
+  }
+
+  async writeTextPrivate(path: string, content: string): Promise<void> {
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+    await writeFileAtomic(path, content, 0o600)
   }
 }

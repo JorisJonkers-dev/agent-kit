@@ -1,10 +1,10 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { ModelGatewayError, NodeModelGatewayFiles } from '../contexts/model-gateway/index.js'
+import { ModelGatewayError, NOT_ACCEPTED_BY_CLIENT, NodeModelGatewayFiles } from '../contexts/model-gateway/index.js'
 import type {
   LedgerEntry,
   LedgerRecord,
@@ -77,16 +77,25 @@ const OPENCODE_LISTING: ProcessResult = {
   ].join('\n'),
 }
 
-/** What `models` lists for Vibe with the shipped catalogue and no configured model. */
-const VIBE_CATALOGUE_LISTED = ['vibe:deepseek-v4-1-flash-1017', 'vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-small-latest']
+/**
+ * What the Vibe probe answers: `vibe --model model-gateway-probe -p ping`
+ * exits 1 before any request and refuses the id, naming the aliases it accepts.
+ */
+const VIBE_PROBE: ProcessResult = {
+  exitCode: 1,
+  stderr: 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-large-4-0-3, mistral-medium-3.5, zai-glm-5-3-flash\n',
+  stdout: '',
+}
 
-/** What `models` lists for Vibe with the configuration below: its three models and the catalogue entries it does not declare. */
-const VIBE_LISTED_WITH_CONFIG = [
-  'vibe:deepseek-v4-1-flash-1017',
+/** The aliases the probe above names in its refusal. */
+const VIBE_PROBE_MODELS = ['glm-5-3', 'mistral-large-4-0-3', 'mistral-medium-3.5', 'zai-glm-5-3-flash']
+
+/** What `models` lists with the probe above: every accepted alias, and nothing else. */
+const VIBE_LISTED = [
   'vibe:glm-5-3',
-  'vibe:mistral-large-latest',
-  'vibe:mistral-medium-4-1',
-  'vibe:mistral-small-latest',
+  'vibe:mistral-large-4-0-3',
+  'vibe:mistral-medium-3.5',
+  'vibe:zai-glm-5-3-flash',
 ]
 
 /** An OpenCode listing with Zen and other providers beside one OpenCode Go model. */
@@ -148,21 +157,26 @@ const AGY_PLAN_LISTING: ProcessResult = {
   ].join('\n'),
 }
 
-/** A Vibe configuration: three models, two of them in the shipped catalogue, declared with their aliases and names. */
-const VIBE_CONFIG = `[models.mistral-large-4-0]
-name = "mistral-large-4-0"
+/** The models a Vibe configuration declares, in the shape `vibe-sync-models.py`
+ * writes them: one entry per accepted alias, with the model's own name, which
+ * the gateway joins to the catalogue beside the alias. */
+const VIBE_CONFIG = `[[models]]
+name = "mistral-large-latest"
 provider = "mistral"
-alias = "mistral-large-latest"
+alias = "mistral-large-4-0-3"
+supports_images = true
+thinking = "off"
+thinking_levels = ["off"]
 
-[models.zai-glm-5-3]
-name = "zai-glm-5-3"
+[[models]]
+name = "glm-5-3"
 provider = "mistral"
 alias = "glm-5-3"
 
-[models.mistral-medium-4-1]
-name = "mistral-medium-4-1"
+[[models]]
+name = "zai-glm-5-3-flash"
 provider = "mistral"
-alias = "mistral-medium-4-1"
+alias = "zai-glm-5-3-flash"
 `
 
 interface Workspace {
@@ -171,6 +185,8 @@ interface Workspace {
   readonly defaults: string
   readonly override: string
   readonly allowlist: string
+  /** The Vibe probe's answer cache, which the workspace fills in its own throwaway cache dir. */
+  readonly vibeCache: string
   /** The machine-wide ledger, in this workspace's state directory. */
   readonly ledger: string
   readonly asked: readonly string[]
@@ -189,8 +205,12 @@ interface WorkspaceOptions {
   readonly env?: Readonly<Record<string, string>>
   readonly listings?: Readonly<Record<string, ProcessResult>>
   readonly repositories?: Readonly<Record<string, FakeRepository>>
+  /** The path `PATH` resolves each program to, for a test that points it at a real file on disk. */
+  readonly resolved?: Readonly<Record<string, string>>
   /** Leaves HOME out of the environment, as a session that never set it has none. */
   readonly withoutHome?: boolean
+  /** The clock the listing keeps the probe's answer till under; one shared instance lets a test move it on. */
+  readonly clock?: FixedClock
 }
 
 async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
@@ -199,11 +219,15 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
   const home = join(dir, 'home')
   const defaults = join(dir, 'defaults.json')
   await writeFile(defaults, await readFile(SHIPPED_DEFAULTS, 'utf8'))
-  const process = new FakeProcess(options.installed ?? ['claude', 'codex'], options.listings ?? {})
+  const process = new FakeProcess(options.installed ?? ['claude', 'codex'], options.listings ?? {}, options.resolved ?? {})
   const runtime = defaultModelGatewayRuntime({
-    clock: new FixedClock(),
+    clock: options.clock ?? new FixedClock(),
     defaultsPath: defaults,
-    env: new FakeEnv(options.withoutHome === true ? { ...options.env } : { HOME: home, ...options.env }),
+    env: new FakeEnv(
+      options.withoutHome === true
+        ? { ...options.env }
+        : { HOME: home, XDG_CACHE_HOME: join(dir, 'cache'), ...options.env },
+    ),
     git: new FakeGit(options.repositories ?? {}),
     process,
   })
@@ -214,6 +238,7 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
     defaults,
     dir,
     home,
+    vibeCache: join(dir, 'cache', 'model-gateway', 'vibe-available.json'),
     ledger,
     override: join(home, '.config', 'agent-kit', 'model-gateway.json'),
     ran: process.ran,
@@ -273,6 +298,11 @@ function listed(result: ModelGatewayCliResult): string[] {
 /** Every listed model, as printed. */
 function models(result: ModelGatewayCliResult): Record<string, unknown>[] {
   return printed(result).models as Record<string, unknown>[]
+}
+
+/** The models the run refused to offer, as printed, by their model id. */
+function skippedModels(result: ModelGatewayCliResult): string[] {
+  return (printed(result).skipped as { client: string; model: string }[]).map((entry) => entry.model)
 }
 
 /** One listed model, by its `<client>:<model>` key. */
@@ -678,7 +708,7 @@ describe('the shipped defaults', () => {
           model_source: 'live',
           provider_cost_classes: { 'opencode-go': 'subsidised' },
         },
-        vibe: { binary: 'vibe', cost_class: 'subsidised', model_source: 'config' },
+        vibe: { binary: 'vibe', cost_class: 'subsidised', model_source: 'live' },
       },
       models: [
         {
@@ -730,8 +760,8 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'mistral',
-          model: 'mistral-large-latest',
-          names: ['mistral-large-4-0'],
+          model: 'mistral-large-4-0-3',
+          names: ['mistral-large-latest', 'mistral-large-4-0'],
           notes: 'Broad general model.',
           prices: { cached_input: 0.07, input: 0.7, output: 2.1 },
           tier: 'hard',
@@ -739,11 +769,25 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'mistral',
+          model: 'mistral-medium-3.5',
+          notes: "Vibe's built-in default; general coding, tool use and reasoning.",
+          tier: 'routine',
+        },
+        {
+          client: 'vibe',
+          family: 'mistral',
           model: 'mistral-small-latest',
-          names: ['mistral-small-latest'],
           notes: 'Very cheap; short summaries and classification.',
           prices: { cached_input: 0.015, input: 0.15, output: 0.6 },
           tier: 'trivial',
+        },
+        {
+          client: 'vibe',
+          family: 'zhipu',
+          model: 'zai-glm-5-3-flash',
+          notes: 'Cheap and quick; well-specified code changes and lint-like review.',
+          prices: { cached_input: 0.03, input: 0.15, output: 0.5 },
+          tier: 'routine',
         },
         {
           client: 'agy',
@@ -1200,14 +1244,13 @@ describe('models: Antigravity, read from its own listing', () => {
   })
 })
 
-describe('models: Vibe, read from its own configuration', () => {
-  it('lists the aliases its configuration declares, marked config, joined to the catalogue', async () => {
-    const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig(VIBE_CONFIG)
+describe('models: Vibe, read from its own answer', () => {
+  it('probes Vibe with a model id it does not know, and lists the aliases its refusal names, marked live', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(VIBE_LISTED_WITH_CONFIG)
+    expect(listed(result)).toEqual(VIBE_LISTED)
     expect(model(result, 'vibe:glm-5-3')).toEqual({
       client: 'vibe',
       cost_class: 'subsidised',
@@ -1216,115 +1259,362 @@ describe('models: Vibe, read from its own configuration', () => {
       may_send: { code: false, history: false },
       model: 'glm-5-3',
       notes: 'Strong code review and integration reasoning.',
-      source: 'config',
+      source: 'live',
       tier: 'hard',
     })
-    expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({ family: 'mistral', notes: '', source: 'config', tier: null })
-    expect(model(result, 'vibe:mistral-small-latest')).toMatchObject({ family: 'mistral', source: 'declared', tier: 'trivial' })
-  })
-
-  it('lists the catalogue entries for Vibe, marked declared, when its configuration declares nothing', async () => {
-    const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig('active_model = "devstral"\n')
-
-    const result = await w.run('models', '--json', '{}')
-
-    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
-    expect(models(result).map((entry) => entry.source)).toEqual(['declared', 'declared', 'declared', 'declared'])
-    expect(model(result, 'vibe:glm-5-3')).toMatchObject({ family: 'zhipu', notes: 'Strong code review and integration reasoning.', tier: 'hard' })
-    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
-  })
-
-  it('lists a catalogue entry its configuration declares once, marked config, and the rest declared', async () => {
-    const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
-
-    const result = await w.run('models', '--json', '{}')
-
-    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
-    expect(models(result).map((entry) => [entry.model, entry.source])).toEqual([
-      ['deepseek-v4-1-flash-1017', 'declared'],
-      ['glm-5-3', 'config'],
-      ['mistral-large-latest', 'declared'],
-      ['mistral-small-latest', 'declared'],
+    expect(model(result, 'vibe:mistral-medium-3.5')).toMatchObject({
+      family: 'mistral',
+      notes: "Vibe's built-in default; general coding, tool use and reasoning.",
+      source: 'live',
+      tier: 'routine',
+    })
+    expect(w.ran).toEqual([
+      {
+        args: ['--model', 'model-gateway-probe', '--max-turns', '1', '--max-tokens', '1', '--max-price', '0', '-p', 'ping'],
+        command: 'vibe',
+        timeoutMs: 30_000,
+      },
     ])
   })
 
-  it('lists a model once, by its alias, when the catalogue knows it by the name its configuration gives it', async () => {
-    const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+  it('never offers a catalogue entry Vibe does not accept, and reports it in skipped with the reason', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
-    expect(model(result, 'vibe:glm-5-3')).toMatchObject({
-      family: 'zhipu',
-      notes: 'Strong code review and integration reasoning.',
-      tier: 'hard',
-    })
+    expect(listed(result)).not.toContain('vibe:deepseek-v4-1-flash-1017')
+    expect(listed(result)).not.toContain('vibe:mistral-small-latest')
+    expect(printed(result).skipped).toEqual(
+      ['deepseek-v4-1-flash-1017', 'mistral-small-latest'].map((m) => ({
+        client: 'vibe',
+        model: m,
+        reason: NOT_ACCEPTED_BY_CLIENT,
+      })),
+    )
   })
 
-  it('lists a model whose alias and name both miss the catalogue with no tier', async () => {
-    const w = await workspace({ installed: ['vibe'] })
-    await w.writeVibeConfig('[models.new]\nname = "mistral-medium-4-1"\nprovider = "mistral"\nalias = "medium"\n')
-
-    const result = await w.run('models', '--json', '{}')
-
-    expect(listed(result)).toEqual([...VIBE_CATALOGUE_LISTED, 'vibe:medium'].sort())
-    expect(model(result, 'vibe:medium')).toMatchObject({ family: 'mistral', notes: '', tier: null })
-  })
-
-  it('reads the configuration from VIBE_HOME when it is set', async () => {
-    const w = await workspace({ env: { VIBE_HOME: join(tmpdir(), 'model-gateway-vibe-home') }, installed: ['vibe'] })
-    const home = join(tmpdir(), 'model-gateway-vibe-home')
-    cleanups.push(() => rm(home, { force: true, recursive: true }))
-    await mkdir(home, { recursive: true })
-    await writeFile(join(home, 'config.toml'), VIBE_CONFIG)
-
-    const result = await w.run('models', '--json', '{}')
-
-    expect(listed(result)).toEqual(VIBE_LISTED_WITH_CONFIG)
-  })
-
-  it('names the reason when it has no configuration, and still lists the others and its catalogue entries', async () => {
-    const w = await workspace({ installed: ['claude', 'vibe'] })
-
-    const result = await w.run('models', '--json', '{}')
-
-    expect(printed(result).missing).toContainEqual({
-      client: 'vibe',
-      reason: `no configuration: ${join(w.home, '.vibe', 'config.toml')} is not there`,
-    })
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', ...VIBE_CATALOGUE_LISTED])
-  })
-
-  it('names the reason when it cannot tell where its configuration is, and still lists the others and its catalogue entries', async () => {
+  it('tolerates the warning lines Vibe prints before its refusal', async () => {
     const w = await workspace({
-      env: { XDG_CONFIG_HOME: join(tmpdir(), 'model-gateway-no-home') },
-      installed: ['claude', 'vibe'],
-      withoutHome: true,
+      installed: ['vibe'],
+      listings: {
+        vibe: {
+          exitCode: 1,
+          stdout: '',
+          stderr: [
+            'Warning: MCP server memory failed to connect',
+            'Warning: MCP server fetch failed to connect',
+            'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-3.5',
+            '',
+          ].join('\n'),
+        },
+      },
     })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-medium-3.5'])
+    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
+  })
+
+  it('offers no Vibe model, and names the reason, when the probe answers nothing it can read', async () => {
+    const w = await workspace({ installed: ['claude', 'vibe'], listings: { vibe: { exitCode: 1, stdout: '', stderr: 'Error: something else\n' } } })
 
     const result = await w.run('models', '--json', '{}')
 
     expect(result.exitCode).toBe(0)
-    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', ...VIBE_CATALOGUE_LISTED])
+    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(skippedModels(result)).toEqual([])
     expect(printed(result).missing).toContainEqual({
       client: 'vibe',
-      reason: 'configuration unreadable: ~/.vibe/config.toml: required environment variable is missing: HOME',
+      reason: 'listing failed: vibe --model model-gateway-probe --max-turns 1 --max-tokens 1 --max-price 0 -p ping exited 1: Error: something else',
     })
   })
 
-  it('leaves the client out with the reason when its configuration cannot be read', async () => {
-    const w = await workspace({ installed: ['vibe'] })
-    const path = await w.writeVibeConfig('this is not TOML\n')
+  it('offers no Vibe model, and names the reason, when the probe does not answer in time', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: { exitCode: 124, stdout: '', stderr: '', timedOut: true } } })
 
     const result = await w.run('models', '--json', '{}')
 
+    expect(listed(result)).toEqual([])
+    expect(skippedModels(result)).toEqual([])
     expect(printed(result).missing).toContainEqual({
       client: 'vibe',
-      reason: `configuration unreadable: ${path}: line 1: expected '.'`,
+      reason: 'listing failed: vibe --model model-gateway-probe --max-turns 1 --max-tokens 1 --max-price 0 -p ping did not answer within 30s',
     })
+  })
+
+  it('offers no Vibe model, and names the reason, when the probe cannot be run at all', async () => {
+    const w = await workspace({ installed: ['claude', 'vibe'] })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
+    expect(skippedModels(result)).toEqual([])
+    expect(printed(result).missing).toContainEqual({
+      client: 'vibe',
+      reason: 'listing failed: vibe --model model-gateway-probe --max-turns 1 --max-tokens 1 --max-price 0 -p ping: cannot run vibe',
+    })
+  })
+
+  it('lists the accepted aliases without a configuration at all, joining the catalogue by the ids themselves', async () => {
+    const w = await workspace({ installed: ['claude', 'vibe'], listings: { vibe: VIBE_PROBE } })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5', ...VIBE_LISTED])
+    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
+  })
+
+  it('joins an accepted alias to the catalogue by the name its home configuration gives it', async () => {
+    const w = await workspace({
+      installed: ['vibe'],
+      listings: {
+        vibe: {
+          exitCode: 1,
+          stdout: '',
+          stderr: 'Error: Unknown model: model-gateway-probe. Available: mistral-large-today\n',
+        },
+      },
+    })
+    await w.writeVibeConfig('[[models]]\nname = "mistral-large-latest"\nprovider = "mistral"\nalias = "mistral-large-today"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['vibe:mistral-large-today'])
+    expect(model(result, 'vibe:mistral-large-today')).toMatchObject({
+      family: 'mistral',
+      notes: 'Broad general model.',
+      source: 'live',
+      tier: 'hard',
+    })
+  })
+
+  it('reads the configuration from VIBE_HOME when it is set, for the names it joins by', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'model-gateway-vibe-home-'))
+    cleanups.push(() => rm(home, { force: true, recursive: true }))
+    const w = await workspace({ env: { VIBE_HOME: home }, installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+    await mkdir(join(home), { recursive: true })
+    await writeFile(join(home, 'config.toml'), VIBE_CONFIG)
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(VIBE_LISTED)
+    expect(model(result, 'vibe:mistral-large-4-0-3')).toMatchObject({
+      notes: 'Broad general model.',
+      source: 'live',
+      tier: 'hard',
+    })
+  })
+
+  it('joins no name when the configuration is not TOML, and still lists every alias it accepts', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+    await w.writeVibeConfig('this is not TOML\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(VIBE_LISTED)
+    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
+    expect(skippedModels(result)).toEqual(['deepseek-v4-1-flash-1017', 'mistral-small-latest'])
+  })
+
+  it('reads the aliases from the stdout as well as the stderr Vibe may answer on', async () => {
+    const w = await workspace({
+      installed: ['vibe'],
+      listings: {
+        vibe: {
+          exitCode: 1,
+          stdout: 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-3.5\n',
+          stderr: '',
+        },
+      },
+    })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['vibe:glm-5-3', 'vibe:mistral-medium-3.5'])
+  })
+
+  it('offers no Vibe model and runs no probe when the home configuration declares the probe id as a model', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+    await w.writeVibeConfig('[[models]]\nname = "glm-5-3"\nprovider = "mistral"\nalias = "model-gateway-probe"\n')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual([])
+    expect(w.ran).toEqual([])
+    expect(printed(result).missing).toContainEqual({
+      client: 'vibe',
+      reason: `listing failed: ${join(w.home, '.vibe', 'config.toml')} declares the gateway's probe id 'model-gateway-probe' as a model, so the probe could run it instead of being refused: rename or remove the alias`,
+    })
+  })
+
+  it('keeps the probe\'s answer for the calls that follow, so a repeated listing probes Vibe only once', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+
+    await w.run('models', '--json', '{}')
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toEqual([
+      {
+        args: ['--model', 'model-gateway-probe', '--max-turns', '1', '--max-tokens', '1', '--max-price', '0', '-p', 'ping'],
+        command: 'vibe',
+        timeoutMs: 30_000,
+      },
+    ])
+    const kept = JSON.parse(await readFile(w.vibeCache, 'utf8')) as Record<string, unknown>
+    expect(kept.models).toEqual(VIBE_PROBE_MODELS)
+  })
+
+  it('probes again once ten minutes have passed since the answer it kept', async () => {
+    const clock = new FixedClock()
+    const w = await workspace({ clock, installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+
+    await w.run('models', '--json', '{}')
+    clock.advance(10 * 60 * 1000)
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('probes again when the home configuration changed since the answer it kept, so the name joins stay fresh', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+
+    await w.run('models', '--json', '{}')
+    await w.writeVibeConfig('[[models]]\nname = "mistral-large-latest"\nprovider = "mistral"\nalias = "mistral-large-4-0-3"\n')
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(model(again, 'vibe:mistral-large-4-0-3')).toMatchObject({ tier: 'hard' })
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('never keeps the answer of a probe that failed, so a bad moment does not stick for ten minutes', async () => {
+    const w = await workspace({
+      installed: ['vibe'],
+      listings: { vibe: { exitCode: 1, stdout: '', stderr: 'Error: something else\n' } },
+    })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(printed(result).missing).toContainEqual({ client: 'vibe', reason: 'listing failed: vibe --model model-gateway-probe --max-turns 1 --max-tokens 1 --max-price 0 -p ping exited 1: Error: something else' })
+    expect(w.ran).toHaveLength(1)
+    await expect(readFile(w.vibeCache, 'utf8')).rejects.toThrow()
+  })
+
+  it('treats an answer file it cannot read as no answer, probes again, and overwrites it', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+    await mkdir(join(w.dir, 'cache', 'model-gateway'), { recursive: true })
+    await writeFile(w.vibeCache, 'not json')
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(1)
+    expect((JSON.parse(await readFile(w.vibeCache, 'utf8')) as Record<string, unknown>).models).toEqual(VIBE_PROBE_MODELS)
+  })
+
+  it('ignores an answer that belongs to another Vibe, another configuration, another window or no ids at all, and probes again', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+    await w.run('models', '--json', '{}')
+    expect(w.ran).toHaveLength(1)
+    const kept = JSON.parse(await readFile(w.vibeCache, 'utf8')) as Record<string, unknown>
+    const entry = (over: Readonly<Record<string, unknown>>): string => JSON.stringify({ ...kept, ...over })
+    const notTheAnswer = [
+      'null',
+      entry({ version: 3 }),
+      entry({ binary: '/opt/vibe/bin/vibe' }),
+      entry({ binary_ctime_ms: 1_712_345_678_901 }),
+      entry({ binary_size: 1 }),
+      entry({ binary_ino: 1 }),
+      entry({ config_path: join(w.home, 'other-vibe', 'config.toml') }),
+      entry({ config_sha256: 'ef537f25c8959fa9b5defbbecb6a0dbf6d0e107ec3c2ecc9fa08a90ffd1e0036' }),
+      entry({ written_at_ms: 'not a number' }),
+      entry({ written_at_ms: (kept.written_at_ms as number) - 10 * 60 * 1000 }),
+      entry({ models: [] }),
+      entry({ models: ['--not an id'] }),
+      JSON.stringify({ ...kept }).replace(`"written_at_ms":${JSON.stringify(kept.written_at_ms)}`, '"written_at_ms":1e999'),
+    ]
+    for (const bad of notTheAnswer) {
+      await writeFile(w.vibeCache, bad)
+      const result = await w.run('models', '--json', '{}')
+      expect(listed(result)).toEqual(VIBE_LISTED)
+    }
+    expect(w.ran).toHaveLength(notTheAnswer.length + 1)
+  })
+
+  it('probes again when the symlink PATH resolves to Vibe now names another binary with the same mtime', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'model-gateway-vibe-bin-'))
+    cleanups.push(() => rm(dir, { force: true, recursive: true }))
+    const first = join(dir, 'vibe-1')
+    const second = join(dir, 'vibe-2')
+    const when = new Date('2026-11-04T10:52:15.000Z')
+    await writeFile(first, '#!/bin/sh\nfirst Vibe\n', { mode: 0o755 })
+    await writeFile(second, '#!/bin/sh\nsecond Vibe\n', { mode: 0o755 })
+    for (const binary of [first, second]) await utimes(binary, when, when)
+    const onPath = join(dir, 'vibe')
+    await symlink(first, onPath)
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE }, resolved: { vibe: onPath } })
+
+    await w.run('models', '--json', '{}')
+    await rm(onPath)
+    await symlink(second, onPath)
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('probes again when the home configuration was rewritten with its mtime held still, so the answer never outlives its content', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+    const config = await w.writeVibeConfig(VIBE_CONFIG)
+
+    await w.run('models', '--json', '{}')
+    const of = await stat(config)
+    await writeFile(config, '[[models]]\nname = "mistral-large-latest"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+    await utimes(config, of.atime, of.mtime)
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('treats an answer written in the future — a clock that stepped back — as no answer, and probes again', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+
+    await w.run('models', '--json', '{}')
+    const kept = JSON.parse(await readFile(w.vibeCache, 'utf8')) as Record<string, unknown>
+    await writeFile(w.vibeCache, JSON.stringify({ ...kept, written_at_ms: (kept.written_at_ms as number) + 60_000 }))
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('keeps the answer where only its owner can read it: the file 0o600, the directory it sits in 0o700', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+
+    await w.run('models', '--json', '{}')
+
+    expect((await stat(w.vibeCache)).mode & 0o777).toBe(0o600)
+    expect((await stat(dirname(w.vibeCache))).mode & 0o777).toBe(0o700)
+  })
+
+  it('lists Vibe anyway, keeping nothing, on a machine whose environment names no home and no cache', async () => {
+    const config = await mkdtemp(join(tmpdir(), 'model-gateway-config-'))
+    cleanups.push(() => rm(config, { force: true, recursive: true }))
+    const w = await workspace({
+      withoutHome: true,
+      env: { XDG_CONFIG_HOME: config },
+      installed: ['vibe'],
+      listings: { vibe: VIBE_PROBE },
+    })
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(1)
   })
 })
 
@@ -4853,7 +5143,7 @@ describe('model-gateway run: climb', () => {
     expect(attemptedModels(result)).toEqual([
       'vibe:deepseek-v4-1-flash-1017',
       'vibe:deepseek-v4-1-flash-1017',
-      'vibe:mistral-large-latest',
+      'vibe:mistral-large-4-0-3',
     ])
   })
 
@@ -5555,10 +5845,13 @@ function filesWithUnreadableExists(broken: string): ModelGatewayFilesPort {
   return {
     exists: (path) => (path === broken ? Promise.reject(new Error(`EACCES: permission denied, access '${path}'`)) : files.exists(path)),
     mkdir: (path) => files.mkdir(path),
+    modifiedMs: (path) => files.modifiedMs(path),
     readText: (path) => files.readText(path),
     remove: (path) => files.remove(path),
+    stamp: (path) => files.stamp(path),
     tempDir: (prefix) => files.tempDir(prefix),
     writeText: (path, content) => files.writeText(path, content),
+    writeTextPrivate: (path, content) => files.writeTextPrivate(path, content),
   }
 }
 

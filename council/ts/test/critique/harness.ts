@@ -1246,7 +1246,7 @@ export async function seedGatewayLedger(h: Harness, records: readonly Record<str
     duration_s: 1,
     family: 'mistral',
     mode: 'read-only',
-    model: 'mistral-large-latest',
+    model: 'mistral-large-4-0-3',
     outcome: 'ok',
     repository: null,
     run_id: '20261030T090000Z-seed',

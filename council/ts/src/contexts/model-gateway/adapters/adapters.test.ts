@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -98,6 +99,50 @@ describe('NodeModelGatewayFiles', () => {
 
     expect(dir).toContain('model-gateway-adapter-')
     expect(await readdir(dir)).toEqual([])
+  })
+
+  it('says when a file was last modified, and nothing when it is not there', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'model-gateway.json')
+    const files = new NodeModelGatewayFiles()
+
+    expect(await files.modifiedMs(path)).toBeUndefined()
+
+    await writeFile(path, '{}')
+    expect(await files.modifiedMs(path)).toBe((await stat(path)).mtimeMs)
+  })
+
+  it('stamps a file with what makes it itself — its real path, change time, size, inode and content — and nothing when it is not there', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'model-gateway.json')
+    const linked = join(dir, 'linked.json')
+    await writeFile(path, 'the file itself')
+    await symlink(path, linked)
+    const files = new NodeModelGatewayFiles()
+
+    const stamp = await files.stamp(linked)
+    const of = await stat(path)
+
+    expect(stamp).toEqual({
+      ctimeMs: of.ctimeMs,
+      ino: of.ino,
+      realpath: path,
+      sha256: createHash('sha256').update('the file itself').digest('hex'),
+      size: of.size,
+    })
+    expect(await files.stamp(join(dir, 'missing.toml'))).toBeUndefined()
+  })
+
+  it('writes a file only its owner can read, in a directory only its owner can look in', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'model-gateway', 'vibe-available.json')
+    const files = new NodeModelGatewayFiles()
+
+    await files.writeTextPrivate(path, '{}')
+
+    expect(await readFile(path, 'utf8')).toBe('{}')
+    expect((await stat(path)).mode & 0o777).toBe(0o600)
+    expect((await stat(dirname(path))).mode & 0o777).toBe(0o700)
   })
 })
 

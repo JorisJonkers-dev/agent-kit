@@ -60,6 +60,10 @@ export class FakeDelegateProcess implements ModelGatewayProcessPort {
     return Promise.resolve(true)
   }
 
+  resolve(binary: string): Promise<string | undefined> {
+    return Promise.resolve(`/usr/bin/${binary}`)
+  }
+
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     const launched = await this.identify(command)
     // A writing delegation's check: `false` fails it, anything else passes.

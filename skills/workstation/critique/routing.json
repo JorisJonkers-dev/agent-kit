@@ -8,7 +8,7 @@
       "model": "mistral-large-4-0",
       "family": "mistral",
       "prices": { "input": 0.7, "cached_input": 0.07, "output": 2.1 },
-      "gateway": { "client": "vibe", "model": "mistral-large-latest" }
+      "gateway": { "client": "vibe", "model": "mistral-large-4-0-3" }
     },
     "agy-gemini-flash-high": {
       "kind": "agy",
@@ -32,8 +32,7 @@
       "agent": "critic-deepseek-flash",
       "model": "deepseek-v4-1-flash-1017",
       "family": "deepseek",
-      "prices": { "input": 0.3, "cached_input": 0.03, "output": 1.2 },
-      "gateway": { "client": "vibe", "model": "deepseek-v4-1-flash-1017" }
+      "prices": { "input": 0.3, "cached_input": 0.03, "output": 1.2 }
     },
     "vibe-mistral-small": {
       "kind": "vibe",
@@ -41,8 +40,7 @@
       "agent": "critic-mistral-small",
       "model": "mistral-small-latest",
       "family": "mistral",
-      "prices": { "input": 0.15, "cached_input": 0.015, "output": 0.6 },
-      "gateway": { "client": "vibe", "model": "mistral-small-latest" }
+      "prices": { "input": 0.15, "cached_input": 0.015, "output": 0.6 }
     }
   },
   "stats": {

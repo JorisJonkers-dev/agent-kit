@@ -55,17 +55,36 @@ its model source. Models are sorted by client, then model id.
 
 - `live` — the client's own listing: Antigravity's `agy models` (a
   `Fetching available models...` line, then one `<id>\t<display name>` per
-  model) and OpenCode's `opencode models` (one `<provider>/<model>` per line).
-  Only the families a client may reach are offered, so Antigravity's Claude and
-  GPT-OSS models are left out. An OpenCode model takes the cost class of its
-  provider: the shipped defaults count OpenCode Go, the owner's subscription,
-  as subsidised, and every other provider as metered-personal.
-- `config` — the models the client's own configuration declares. Vibe's are
-  listed by the alias `vibe --model` accepts, read from `$VIBE_HOME/config.toml`,
-  else `~/.vibe/config.toml`. Hermes has no non-interactive listing — `hermes
-  model` is an interactive picker — so the gateway reads `hermes config get
-  model --json` and offers the one model that names as its default, with the
-  provider it runs on. The other models Hermes could reach are not listed.
+  model), OpenCode's `opencode models` (one `<provider>/<model>` per line), and
+  Vibe's own answer, which the gateway reads by probing it: it runs
+  `vibe --model model-gateway-probe --max-turns 1 --max-tokens 1
+  --max-price 0 -p ping` — a model id reserved for the gateway, never a model
+  — which Vibe refuses before making any request, and it reads the aliases
+  from the `Available:` line of that refusal. The caps leave the probe unable
+  to spend anything even were its id ever accepted as a model: one turn, one
+  token, no price. The connection warnings Vibe prints first are tolerated;
+  the answer's terminal colours are stripped, and every id it names must be
+  one id — letters, digits, dots, underscores and hyphens, starting with a
+  letter or digit — so text Vibe never named as a model is never offered; an
+  answer that names nothing available lists nothing. The probe costs one Vibe
+  start, so its answer is kept in the cache —
+  `$XDG_CACHE_HOME/model-gateway/vibe-available.json`, else
+  `~/.cache/model-gateway/vibe-available.json` — for ten minutes, keyed by
+  the resolved vibe binary's path and mtime and the VIBE_HOME `config.toml`
+  mtime, so an upgrade of either re-probes; a probe that failed is never
+  kept. Vibe's built-in aliases come from Vibe's own
+  catalogue, so `$VIBE_HOME/config.toml` never decides what is offered: it is
+  read only to join each accepted alias to the model name the configuration
+  gives it, which the catalogue may know the model by. Only the families a
+  client may reach are offered, so Antigravity's Claude and GPT-OSS models are
+  left out. An OpenCode model takes the cost class of its provider: the shipped
+  defaults count OpenCode Go, the owner's subscription, as subsidised, and
+  every other provider as metered-personal.
+- `config` — the models the client's own configuration declares. Hermes has no
+  non-interactive listing — `hermes model` is an interactive picker — so the
+  gateway reads `hermes config get model --json` and offers the one model that
+  names as its default, with the provider it runs on. The other models Hermes
+  could reach are not listed.
 - `declared` — the shipped catalogue, for Codex and Claude Code.
 
 A listed model takes its family, tier and notes from the catalogue entry that
@@ -79,7 +98,20 @@ override brings it back.
 
 A listing that fails, or a configuration that cannot be read, leaves that
 client out and names it in `missing` with the reason; the other clients are
-still listed. A Hermes configuration that names no model is such a failure.
+still listed. A Hermes configuration that names no model is such a failure. A
+failed Vibe probe — the command cannot run, it times out, or it answers
+nothing the gateway can read — offers no Vibe model at all, not even the
+catalogue's entries, because the probe is the only measure of what Vibe
+accepts: a run on a model it never named would be refused before it starts,
+so the gateway never falls back to the catalogue. A Vibe home whose
+`config.toml` declares the probe id itself as a model is such a failure too:
+the probe could run that model instead of being refused, so nothing is
+offered and nothing is launched until the alias is renamed or removed. The
+other way round, a probe that does read names every alias Vibe accepts, and
+that is what Vibe offers: a catalogue entry whose alias Vibe does not accept is
+never offered, and is named in `skipped` with the reason, whether Vibe dropped
+the model or the catalogue outlived it. The entry keeps recording the model's
+prices until it is removed from `defaults.json`.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 
@@ -142,7 +174,7 @@ succeeded or failed; only a refusal is an error, and it prints
 `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
 
 ```sh
-node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-4-0","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
+node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-4-0-3","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
 node model-gateway.mjs run --input <file.json>
 ```
 

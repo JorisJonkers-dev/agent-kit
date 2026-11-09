@@ -3,9 +3,12 @@
 What agent-kit#294 settled, for the tickets that build on it. The words in
 bold in [CONTEXT.md](../../CONTEXT.md) under "Model gateway" mean what they
 say there; [ADR-0007](../adr/0007-one-model-gateway-for-every-delegation.md)
-records why there is one gateway, and
+records why there is one gateway,
 [ADR-0008](../adr/0008-agents-write-grants-after-asking.md) why an agent writes
-its own grants.
+its own grants, and
+[ADR-0010](../adr/0010-vibe-lists-vibe-critics-stay-pinned.md) why the
+gateway probes Vibe for its aliases instead of reading `config.toml`, and why
+the vibe critic agents keep their pinned models.
 
 ## Where the files are
 

@@ -24,11 +24,46 @@ export interface ModelGatewayFilesPort {
   tempDir(prefix: string): Promise<string>
   /** Removes a file or a directory with everything in it; a path that is not there is left as it is. */
   remove(path: string): Promise<void>
+  /**
+   * When the file was last modified, in milliseconds since the epoch; undefined
+   * when it is not there. A look the port cannot make reads as undefined too,
+   * so a caller that only watches the time never fails on it.
+   */
+  modifiedMs(path: string): Promise<number | undefined>
+  /**
+   * The file's own stamp — where it really is, when it last changed, how big
+   * it is, its inode and the SHA-256 of its content — which no other file
+   * shares, so a caller that kept one can tell whether the file on disk is
+   * still the one it kept. Undefined when it is not there or cannot be looked
+   * at, so a caller that only reads the stamp never fails on it.
+   */
+  stamp(path: string): Promise<FileStamp | undefined>
+  /**
+   * Writes the file so only its owner can read it: in one step — a temporary
+   * file beside it, then a rename over it — and with mode 0o600, creating the
+   * parent directories it needs with mode 0o700 along the way.
+   */
+  writeTextPrivate(path: string, content: string): Promise<void>
+}
+
+/**
+ * What makes a file itself, so an answer its reader keyed by it belongs to that
+ * one file as long as the values hold: its change time, its size, its inode
+ * and its content.
+ */
+export interface FileStamp {
+  readonly realpath: string
+  readonly ctimeMs: number
+  readonly size: number
+  readonly ino: number
+  readonly sha256: string
 }
 
 /** Whether a client's program is on PATH, and the listing commands it answers. */
 export interface ModelGatewayProcessPort {
   which(binary: string): Promise<boolean>
+  /** The first executable file of that name on PATH, as an absolute path; undefined when there is none. */
+  resolve(binary: string): Promise<string | undefined>
   exec(command: ProcessCommand): Promise<ProcessResult>
 }
 

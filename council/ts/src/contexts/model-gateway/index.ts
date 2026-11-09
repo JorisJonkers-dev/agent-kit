@@ -26,11 +26,13 @@ export { decidePolicyFor, resolveScope } from './application/policy.js'
 export { DELEGATION_MARK, READ_ONLY_AGENT, RunCommand, type RunOutcome, type RunResult } from './application/run.js'
 export { EscalatedRun, type AttemptOptions, type AttemptRunner, type AttemptedRun, type Escalated } from './application/escalation.js'
 export { PlanRefusedError, type PlanProblem } from './domain/batch.js'
+export { NOT_ACCEPTED_BY_CLIENT, parseVibeAvailable } from './domain/models.js'
 export type { ClientOutput } from './domain/outputs.js'
 export { UsageCommand } from './application/usage.js'
 export { keyringQuery, vibeSignedIn, type VibeSignInPorts } from './application/vibe-sign-in.js'
 export type {
   ClientStatusPort,
+  FileStamp,
   LedgerChange,
   ModelGatewayGrantsPort,
   ModelGatewayDependencies,

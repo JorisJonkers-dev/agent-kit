@@ -1998,6 +1998,14 @@ var TomlReader = class {
   }
 };
 
+// src/contexts/model-gateway/domain/models.ts
+var ESCAPE = String.fromCharCode(27);
+var BELL = String.fromCharCode(7);
+var ANSI_ESCAPES = new RegExp(
+  `${ESCAPE}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BELL}]*(?:${BELL}|${ESCAPE}\\\\))`,
+  "g"
+);
+
 // src/contexts/model-gateway/domain/ledger.ts
 function isRunRecord(entry) {
   return !isReservation(entry) && !isSettled(entry);
@@ -2619,10 +2627,21 @@ async function keyringHoldsKey(process2, platform) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join as join6 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
+async function writeFileAtomic(path, content, mode) {
+  const temp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    await writeFile(temp, content, mode === void 0 ? void 0 : { mode });
+    await rename(temp, path);
+  } catch (error) {
+    await rm(temp, { force: true });
+    throw error;
+  }
+}
 var NodeModelGatewayFiles = class {
   async readText(path) {
     return readFile(path, "utf8");
@@ -2650,13 +2669,39 @@ var NodeModelGatewayFiles = class {
   async remove(path) {
     await rm(path, { force: true, recursive: true });
   }
+  async modifiedMs(path) {
+    try {
+      return (await stat(path)).mtimeMs;
+    } catch {
+      return void 0;
+    }
+  }
+  async stamp(path) {
+    try {
+      const real = await realpath(path);
+      const of = await stat(real);
+      return {
+        ctimeMs: of.ctimeMs,
+        ino: of.ino,
+        realpath: real,
+        sha256: createHash("sha256").update(await readFile(real)).digest("hex"),
+        size: of.size
+      };
+    } catch {
+      return void 0;
+    }
+  }
+  async writeTextPrivate(path, content) {
+    await mkdir(dirname(path), { recursive: true, mode: 448 });
+    await writeFileAtomic(path, content, 384);
+  }
 };
 
 // src/contexts/model-gateway/adapters/git/index.ts
 var OUTPUT_LIMIT = 1024 * 1024;
 
 // src/contexts/model-gateway/adapters/lock/index.ts
-import { open, rm as rm2, stat } from "node:fs/promises";
+import { open, rm as rm2, stat as stat2 } from "node:fs/promises";
 var RETRY_MS = 10;
 var TIMEOUT_MS = 1e4;
 var STALE_MS = 5e3;
@@ -2712,7 +2757,7 @@ var FileLock = class {
   /** Whether the lock is older than a live writer could be; a lock that vanished meanwhile is not stale. */
   async stale(lock) {
     try {
-      return Date.now() - (await stat(lock)).mtimeMs > this.staleMs;
+      return Date.now() - (await stat2(lock)).mtimeMs > this.staleMs;
     } catch {
       return false;
     }
@@ -2771,6 +2816,11 @@ var NodeModelGatewayLedger = class {
     return records;
   }
 };
+
+// src/contexts/model-gateway/adapters/clients/index.ts
+var VIBE_PROBE_MODEL = "model-gateway-probe";
+var PROBE_COMMAND = `vibe --model ${VIBE_PROBE_MODEL} --max-turns 1 --max-tokens 1 --max-price 0 -p ping`;
+var PROBE_CACHE_TTL_MS = 10 * 60 * 1e3;
 
 // src/contexts/critique/domain/checks.ts
 var CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:/gm;
@@ -3208,7 +3258,7 @@ function localTicketOpen(text) {
 }
 
 // src/contexts/critique/domain/manifest.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 
 // src/contexts/critique/domain/depth.ts
 var STAGE_MEASURES = {
@@ -4180,7 +4230,7 @@ ${comment.body.trim()}`));
 
 // src/contexts/critique/domain/manifest.ts
 function sha256(content) {
-  return createHash("sha256").update(content).digest("hex");
+  return createHash2("sha256").update(content).digest("hex");
 }
 var PACKET_FILE_KINDS = ["artifact", "reference", "tree", "diff", "ticket", "spec", "check", "feature", "fact"];
 function heldRanges(window) {
@@ -8900,15 +8950,15 @@ function failedOpen2(failure3, detail) {
 }
 
 // src/contexts/critique/application/setup.ts
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 import { join as join27 } from "node:path";
 
 // src/contexts/critique/application/agent-hooks.ts
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import { dirname as dirname7, join as join26 } from "node:path";
 
 // src/contexts/critique/domain/agent-hooks.ts
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 var CRITIQUE_HOOKS = [
   { event: "PreToolUse", matcher: "Bash", name: "critique-commit-gate" },
   { event: "PreToolUse", matcher: "Bash", name: "critique-pr-gate" },
@@ -8956,7 +9006,7 @@ function codexHookHash(event, matcher, handler) {
     ...typeof limit === "number" && limit !== CODEX_DEFAULT_CONTEXT_LIMIT ? { additionalContextLimit: limit } : {}
   };
   const identity = { event_name: CODEX_EVENT_LABELS[event], hooks: [normalized], ...matcher === void 0 ? {} : { matcher } };
-  return `sha256:${createHash2("sha256").update(JSON.stringify(sortKeys(identity))).digest("hex")}`;
+  return `sha256:${createHash3("sha256").update(JSON.stringify(sortKeys(identity))).digest("hex")}`;
 }
 function sortKeys(value) {
   if (Array.isArray(value)) return value.map(sortKeys);
@@ -9124,7 +9174,7 @@ function parseOrUndefined(text) {
   }
 }
 function sha2562(value) {
-  return createHash3("sha256").update(JSON.stringify(value)).digest("hex");
+  return createHash4("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 // src/contexts/critique/application/setup.ts
@@ -9365,7 +9415,7 @@ var SetupCommand = class {
   async runnerHash() {
     const path = join27(this.deps.assetsRoot, "critique.mjs");
     if (!await this.deps.files.exists(path)) return "none";
-    return createHash4("sha256").update(await this.deps.files.readBytes(path)).digest("hex");
+    return createHash5("sha256").update(await this.deps.files.readBytes(path)).digest("hex");
   }
   /** Antigravity reports no quota, so the check passes once the owner has stored the plan's limit in the override. */
   async quotaCheck(routing) {
@@ -9467,7 +9517,7 @@ var SetupCommand = class {
   async agentHash(agent) {
     const path = join27(this.deps.env.require("HOME"), ".vibe", "agents", `${agent}.toml`);
     if (!await this.deps.files.exists(path)) return null;
-    return createHash4("sha256").update(await this.deps.files.readBytes(path)).digest("hex");
+    return createHash5("sha256").update(await this.deps.files.readBytes(path)).digest("hex");
   }
   /** This machine's routing override as it is on disk; none is an empty one. RoutingSource has already checked it is an object. */
   async override() {
@@ -9483,7 +9533,7 @@ var SetupCommand = class {
   }
 };
 function sha2563(value) {
-  return createHash4("sha256").update(JSON.stringify(value)).digest("hex");
+  return createHash5("sha256").update(JSON.stringify(value)).digest("hex");
 }
 function readSetupInput(fields) {
   const action = fields.has("action") ? fields.oneOf("action", ["list", "check", "quota", "kill-switch"]) : "list";
@@ -10686,7 +10736,7 @@ function answerText(reply) {
 import { createInterface } from "node:readline";
 
 // src/contexts/critique/adapters/search/engine.ts
-import { lstat, readdir as readdir2, readFile as readFile4, realpath } from "node:fs/promises";
+import { lstat, readdir as readdir2, readFile as readFile4, realpath as realpath2 } from "node:fs/promises";
 import { isAbsolute as isAbsolute7, join as join32, relative as relative3, sep } from "node:path";
 var OUTSIDE = "Nothing: that path is outside the packet, or is not in it.";
 var PacketSearchEngine = class _PacketSearchEngine {
@@ -10700,7 +10750,7 @@ var PacketSearchEngine = class _PacketSearchEngine {
   tools;
   /** The engine for `root`, which must be a directory; `symbol` is offered when it holds a repo map that is a plain file. */
   static async open(root, limits) {
-    const real = await realpath(root);
+    const real = await realpath2(root);
     if (!(await lstat(real)).isDirectory()) throw new Error(`${root} is not a directory`);
     const map = await lstat(join32(real, REPO_MAP_PATH)).catch(() => void 0);
     return new _PacketSearchEngine(real, limits, offeredSearchTools(map?.isFile() === true));
@@ -10749,14 +10799,14 @@ var PacketSearchEngine = class _PacketSearchEngine {
     if (isAbsolute7(path)) return void 0;
     const target = join32(this.root, path);
     if (!within2(this.root, target)) return void 0;
-    const real = await realpath(target).catch(() => void 0);
+    const real = await realpath2(target).catch(() => void 0);
     if (real !== target) return void 0;
     return target;
   }
   /** Every plain file under `dir`, relative to the root, sorted; symlinks are skipped, never followed. */
   async files(dir) {
-    const stat2 = await lstat(dir);
-    if (stat2.isFile()) return [relative3(this.root, dir)];
+    const stat3 = await lstat(dir);
+    if (stat3.isFile()) return [relative3(this.root, dir)];
     const found = [];
     for (const entry of await readdir2(dir, { withFileTypes: true })) {
       const path = join32(dir, entry.name);

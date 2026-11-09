@@ -1092,15 +1092,39 @@ function hermesDefaultModel(stdout) {
   const provider = typeof parsed.provider === "string" && parsed.provider !== "" ? parsed.provider : void 0;
   return { model, ...provider === void 0 ? {} : { provider } };
 }
+var VIBE_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+var ESCAPE = String.fromCharCode(27);
+var BELL = String.fromCharCode(7);
+var ANSI_ESCAPES = new RegExp(
+  `${ESCAPE}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BELL}]*(?:${BELL}|${ESCAPE}\\\\))`,
+  "g"
+);
+function stripAnsi(text) {
+  return text.replace(ANSI_ESCAPES, "");
+}
+function parseVibeAvailable(output) {
+  const plain = stripAnsi(output);
+  const at = plain.lastIndexOf("Available:");
+  if (at === -1) return void 0;
+  const after = plain.slice(at + "Available:".length).split("\n")[0] ?? "";
+  const ids = (after.split(/\.\s/)[0] ?? "").split(",").map((id) => id.trim().replace(/\.$/, ""));
+  if (ids.some((id) => !VIBE_MODEL_ID.test(id))) return void 0;
+  return ids;
+}
 function vibeModels(toml) {
-  const models = readToml(toml).models;
-  if (!isObject(models)) return [];
   const declared = [];
-  for (const [key, value] of Object.entries(models)) {
-    if (!isObject(value)) continue;
+  const from = (value, key) => {
+    if (!isObject(value)) return;
     const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
+    if (alias === void 0) return;
     const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
     declared.push({ model: alias, names: name === void 0 ? [] : [name] });
+  };
+  const models = readToml(toml).models;
+  if (Array.isArray(models)) {
+    for (const value of models) from(value, void 0);
+  } else if (isObject(models)) {
+    for (const [key, value] of Object.entries(models)) from(value, key);
   }
   return declared;
 }
@@ -1114,24 +1138,34 @@ function listModels(config, installed, listings, unavailable = []) {
       continue;
     }
     if (client.model_source === "declared") {
-      models.push(...catalogueModels(config, id, client));
+      models.push(...catalogueEntries(config, id, client).map(listedEntry(id, client)));
       continue;
     }
     const listing = listings.get(id);
     if (listing === void 0) continue;
     if ("reason" in listing) {
       missing.push({ client: id, reason: listing.reason });
-      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client));
       continue;
     }
     const listed = listedModels(config, id, client, listing.models);
     models.push(...listed.models);
     skipped.push(...listed.skipped);
-    if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched));
+    if (BUILT_IN_MODEL_CLIENTS.includes(id)) {
+      skipped.push(
+        ...catalogueEntries(config, id, client, listed.matched).map(
+          (entry) => ({
+            client: id,
+            model: entry.model,
+            reason: NOT_ACCEPTED_BY_CLIENT
+          })
+        )
+      );
+    }
   }
-  const refused = new Map(
-    unavailable.map((entry) => [modelKey(entry.client, entry.model), entry.reason])
-  );
+  const refused = /* @__PURE__ */ new Map();
+  for (const refusal of unavailable) {
+    for (const key of keysOf(config, refusal.client, refusal.model)) refused.set(key, refusal.reason);
+  }
   const refusedKey = (model) => modelKey(model.client, model.model);
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
   missing.sort((left, right) => compare(left.client, right.client));
@@ -1146,10 +1180,14 @@ function listModels(config, installed, listings, unavailable = []) {
   };
 }
 var BUILT_IN_MODEL_CLIENTS = ["vibe"];
-function catalogueModels(config, id, client, except = /* @__PURE__ */ new Set()) {
+var NOT_ACCEPTED_BY_CLIENT = "the client does not accept it, so a run naming it would be refused before it starts: its own answer names the models it accepts and this is not one of them, so the entry only records the model's prices; remove it from defaults.json or change it to the id the client accepts";
+function catalogueEntries(config, id, client, except = /* @__PURE__ */ new Set()) {
   return config.models.filter(
     (entry) => entry.client === id && !except.has(entry) && (client.families === void 0 || client.families.includes(entry.family)) && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))
-  ).map((entry) => ({
+  );
+}
+function listedEntry(id, client) {
+  return (entry) => ({
     client: id,
     cost_class: client.cost_class,
     family: entry.family,
@@ -1157,7 +1195,7 @@ function catalogueModels(config, id, client, except = /* @__PURE__ */ new Set())
     notes: entry.notes,
     source: "declared",
     tier: entry.tier
-  }));
+  });
 }
 function listedModels(config, id, client, listed) {
   const models = [];
@@ -1195,6 +1233,13 @@ function listedModels(config, id, client, listed) {
   return { matched, models, skipped };
 }
 var FAMILY_UNKNOWN = "no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override";
+function keysOf(config, client, model) {
+  const entry = config.models.find(
+    (candidate) => candidate.client === client && [candidate.model, ...candidate.names ?? []].includes(model)
+  );
+  const keys = entry === void 0 ? [model] : [model, entry.model, ...entry.names ?? []];
+  return [...new Set(keys.filter((key) => key !== ""))].map((key) => modelKey(client, key));
+}
 function modelPart(model) {
   return model.slice(model.lastIndexOf("/") + 1);
 }
@@ -1921,6 +1966,11 @@ function vibeConfigPath(env) {
   const home = env.get("VIBE_HOME");
   if (home !== void 0 && isAbsolute(home)) return join2(home, "config.toml");
   return join2(env.require("HOME"), ".vibe", "config.toml");
+}
+function vibeAvailableCachePath(env) {
+  const xdg = env.get("XDG_CACHE_HOME");
+  const root = xdg !== void 0 && isAbsolute(xdg) ? xdg : join2(env.require("HOME"), ".cache");
+  return join2(root, "model-gateway", "vibe-available.json");
 }
 function routingOverridePath(env) {
   return join2(env.require("HOME"), ".config", "agent-kit", "critique-routing.json");
@@ -4133,15 +4183,15 @@ function createModelGatewayCommands(deps) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { randomBytes as randomBytes4 } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createHash, randomBytes as randomBytes4 } from "node:crypto";
+import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname as dirname2, join as join7 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
-async function writeFileAtomic(path, content) {
+async function writeFileAtomic(path, content, mode) {
   const temp = `${path}.${randomBytes4(6).toString("hex")}.tmp`;
   try {
-    await writeFile(temp, content);
+    await writeFile(temp, content, mode === void 0 ? void 0 : { mode });
     await rename(temp, path);
   } catch (error) {
     await rm(temp, { force: true });
@@ -4174,6 +4224,32 @@ var NodeModelGatewayFiles = class {
   }
   async remove(path) {
     await rm(path, { force: true, recursive: true });
+  }
+  async modifiedMs(path) {
+    try {
+      return (await stat(path)).mtimeMs;
+    } catch {
+      return void 0;
+    }
+  }
+  async stamp(path) {
+    try {
+      const real = await realpath(path);
+      const of = await stat(real);
+      return {
+        ctimeMs: of.ctimeMs,
+        ino: of.ino,
+        realpath: real,
+        sha256: createHash("sha256").update(await readFile(real)).digest("hex"),
+        size: of.size
+      };
+    } catch {
+      return void 0;
+    }
+  }
+  async writeTextPrivate(path, content) {
+    await mkdir(dirname2(path), { recursive: true, mode: 448 });
+    await writeFileAtomic(path, content, 384);
   }
 };
 
@@ -4299,7 +4375,7 @@ import { mkdir as mkdir2, readFile as readFile2 } from "node:fs/promises";
 import { dirname as dirname3 } from "node:path";
 
 // src/contexts/model-gateway/adapters/lock/index.ts
-import { open, rm as rm3, stat } from "node:fs/promises";
+import { open, rm as rm3, stat as stat2 } from "node:fs/promises";
 var RETRY_MS = 10;
 var TIMEOUT_MS2 = 1e4;
 var STALE_MS = 5e3;
@@ -4355,7 +4431,7 @@ var FileLock = class {
   /** Whether the lock is older than a live writer could be; a lock that vanished meanwhile is not stale. */
   async stale(lock) {
     try {
-      return Date.now() - (await stat(lock)).mtimeMs > this.staleMs;
+      return Date.now() - (await stat2(lock)).mtimeMs > this.staleMs;
     } catch {
       return false;
     }
@@ -4583,30 +4659,173 @@ var HermesModelSource = class {
     return { models: [model] };
   }
 };
+var VIBE_PROBE_MODEL = "model-gateway-probe";
+var PROBE_TIMEOUT_MS = 3e4;
+var PROBE_ARGS = [
+  "--model",
+  VIBE_PROBE_MODEL,
+  "--max-turns",
+  "1",
+  "--max-tokens",
+  "1",
+  "--max-price",
+  "0",
+  "-p",
+  "ping"
+];
+var PROBE_COMMAND = `vibe --model ${VIBE_PROBE_MODEL} --max-turns 1 --max-tokens 1 --max-price 0 -p ping`;
+var PROBE_CACHE_TTL_MS = 10 * 60 * 1e3;
+var CACHE_VERSION = 2;
 var VibeModelSource = class {
+  constructor(files, env, process2, clock) {
+    this.files = files;
+    this.env = env;
+    this.process = process2;
+    this.clock = clock;
+  }
+  files;
+  env;
+  process;
+  clock;
+  async list() {
+    const declared = await this.declaredModels();
+    if (declared.clash !== void 0) return { reason: declared.clash };
+    const key = await this.probeKey();
+    const cache = new VibeAvailableCache(this.files, this.env);
+    const cached = await cache.read(key, this.clock.now().getTime());
+    if (cached !== void 0) return this.listing(cached, declared.names);
+    let result2;
+    try {
+      result2 = await this.process.exec({
+        args: [...PROBE_ARGS],
+        command: "vibe",
+        timeoutMs: PROBE_TIMEOUT_MS
+      });
+    } catch (error) {
+      return { reason: `listing failed: ${PROBE_COMMAND}: ${messageOf7(error)}` };
+    }
+    if (result2.timedOut === true) {
+      return { reason: `listing failed: ${PROBE_COMMAND} did not answer within ${String(PROBE_TIMEOUT_MS / 1e3)}s` };
+    }
+    const accepted = parseVibeAvailable(`${result2.stderr}
+${result2.stdout}`);
+    if (accepted === void 0) return { reason: failureReason(PROBE_COMMAND, result2) };
+    await cache.write(key, accepted, this.clock.now().getTime());
+    return this.listing(accepted, declared.names);
+  }
+  listing(accepted, names) {
+    return { models: accepted.map((alias) => ({ model: alias, names: names.get(alias) ?? [] })) };
+  }
+  /** The probe's cache key, built from the Vibe it would run and the home's configuration. */
+  async probeKey() {
+    try {
+      const configPath = vibeConfigPath(this.env);
+      const resolved = await this.process.resolve("vibe");
+      const binary = resolved === void 0 ? void 0 : await this.files.stamp(resolved);
+      const config = await this.files.stamp(configPath);
+      return {
+        binary: binary?.realpath ?? null,
+        binaryCtimeMs: binary?.ctimeMs ?? null,
+        binarySize: binary?.size ?? null,
+        binaryIno: binary?.ino ?? null,
+        configPath: config?.realpath ?? configPath,
+        configSha256: config?.sha256 ?? null
+      };
+    } catch {
+      return { binary: null, binaryCtimeMs: null, binarySize: null, binaryIno: null, configPath: null, configSha256: null };
+    }
+  }
+  /**
+   * The name the home's configuration gives each alias it declares, which
+   * joins an accepted alias to the catalogue entry that knows the model by
+   * that name — and the clash, when the configuration declares the probe id
+   * itself as a model. Nothing about the configuration can fail the listing —
+   * it never decides what is offered — so a home the environment does not
+   * name, a file that is not there and one that is not TOML read no names.
+   * The one exception is the clash: a configuration that makes the probe id a
+   * model has made the probe's refusal impossible to rely on.
+   */
+  async declaredModels() {
+    try {
+      const path = vibeConfigPath(this.env);
+      if (!await this.files.exists(path)) return { names: /* @__PURE__ */ new Map(), clash: void 0 };
+      const declared = vibeModels(await this.files.readText(path));
+      if (declared.some(({ model }) => model === VIBE_PROBE_MODEL)) {
+        return {
+          clash: `listing failed: ${path} declares the gateway's probe id '${VIBE_PROBE_MODEL}' as a model, so the probe could run it instead of being refused: rename or remove the alias`,
+          names: /* @__PURE__ */ new Map()
+        };
+      }
+      return {
+        names: new Map(declared.map(({ model, names = [] }) => [model, names])),
+        clash: void 0
+      };
+    } catch {
+      return { names: /* @__PURE__ */ new Map(), clash: void 0 };
+    }
+  }
+};
+var VibeAvailableCache = class {
   constructor(files, env) {
     this.files = files;
     this.env = env;
   }
   files;
   env;
-  async list() {
-    let path = "~/.vibe/config.toml";
+  async read(key, now) {
+    let entry;
     try {
-      path = vibeConfigPath(this.env);
-      if (!await this.files.exists(path)) return { reason: `no configuration: ${path} is not there` };
-      return { models: vibeModels(await this.files.readText(path)) };
-    } catch (error) {
-      return { reason: `configuration unreadable: ${path}: ${messageOf7(error)}` };
+      const path = vibeAvailableCachePath(this.env);
+      if (!await this.files.exists(path)) return void 0;
+      entry = JSON.parse(await this.files.readText(path));
+    } catch {
+      return void 0;
+    }
+    if (!isCacheEntry(entry, key, now)) return void 0;
+    return entry.models;
+  }
+  /** Best effort, because a listing that worked never fails on one that could not be written. */
+  async write(key, models, now) {
+    const entry = {
+      binary: key.binary,
+      binary_ctime_ms: key.binaryCtimeMs,
+      binary_ino: key.binaryIno,
+      binary_size: key.binarySize,
+      config_path: key.configPath,
+      config_sha256: key.configSha256,
+      models,
+      version: CACHE_VERSION,
+      written_at_ms: now
+    };
+    try {
+      await this.files.writeTextPrivate(vibeAvailableCachePath(this.env), JSON.stringify(entry));
+    } catch {
     }
   }
 };
+function isCacheEntry(entry, key, now) {
+  if (typeof entry !== "object" || entry === null) return false;
+  const record = entry;
+  if (record.version !== CACHE_VERSION) return false;
+  if (record.binary !== key.binary) return false;
+  if (record.binary_ctime_ms !== key.binaryCtimeMs) return false;
+  if (record.binary_size !== key.binarySize) return false;
+  if (record.binary_ino !== key.binaryIno) return false;
+  if (record.config_path !== key.configPath) return false;
+  if (record.config_sha256 !== key.configSha256) return false;
+  const writtenAt = record.written_at_ms;
+  if (typeof writtenAt !== "number" || !Number.isFinite(writtenAt)) return false;
+  const age = now - writtenAt;
+  if (!(age >= 0 && age < PROBE_CACHE_TTL_MS)) return false;
+  const models = record.models;
+  return Array.isArray(models) && models.length > 0 && models.every((model) => typeof model === "string" && VIBE_MODEL_ID.test(model));
+}
 function modelSources(deps) {
   return {
     agy: new AntigravityModelSource(deps.process),
     hermes: new HermesModelSource(deps.process),
     opencode: new OpenCodeModelSource(deps.process),
-    vibe: new VibeModelSource(deps.files, deps.env)
+    vibe: new VibeModelSource(deps.files, deps.env, deps.process, deps.clock)
   };
 }
 function failureReason(command, result2) {
@@ -4844,15 +5063,19 @@ var NodeModelGatewayProcess = class {
   path;
   adapter = new NodeProcessAdapter();
   async which(binary) {
+    return await this.resolve(binary) !== void 0;
+  }
+  async resolve(binary) {
     for (const folder of this.path.split(delimiter)) {
       if (folder === "") continue;
+      const candidate = join8(folder, binary);
       try {
-        await access2(join8(folder, binary), constants.X_OK);
-        return true;
+        await access2(candidate, constants.X_OK);
+        return candidate;
       } catch {
       }
     }
-    return false;
+    return void 0;
   }
   async exec(command) {
     return this.adapter.exec(command);
@@ -4883,7 +5106,7 @@ var NodeModelGatewayProof = class {
 var MODEL_GATEWAY_USAGE = `usage: model-gateway models --json '{"repo": "/path/to/repo"}'
        model-gateway usage --json '{"days": 7, "workflow": "spec-293"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "vibe",
-                                 "model": "zai-glm-5-3", "mode": "read-only",
+                                 "model": "glm-5-3", "mode": "read-only",
                                  "prompt": "read this", "repo": "/path/to/repo"}'
        model-gateway run --json '{"workflow": "spec-293", "client": "claude",
                                  "model": "claude-sonnet-5-5", "mode": "write",
@@ -5125,9 +5348,10 @@ function defaultModelGatewayRuntime(options = {}) {
   const files = overrides.files ?? new NodeModelGatewayFiles();
   const git = overrides.git ?? new NodeModelGatewayGit();
   const process2 = overrides.process ?? new NodeModelGatewayProcess();
+  const clock = overrides.clock ?? new SystemClockAdapter();
   return {
     commands: createModelGatewayCommands({
-      clock: new SystemClockAdapter(),
+      clock,
       defaultsPath: join9(import.meta.dirname, "defaults.json"),
       env,
       files,
@@ -5137,7 +5361,7 @@ function defaultModelGatewayRuntime(options = {}) {
       ledger: new NodeModelGatewayLedger(env),
       process: process2,
       proof: new NodeModelGatewayProof({ env, files, routingPath }),
-      sources: modelSources({ env, files, process: process2 }),
+      sources: modelSources({ clock, env, files, process: process2 }),
       statuses: clientStatuses({ process: process2 }),
       workflows: new NodeModelGatewayWorkflows(env),
       ...overrides

@@ -100,7 +100,7 @@ describe("the gateway's ledger", () => {
       finding_count: 1,
       kind: 'vibe',
       mode: 'read-only',
-      model: 'mistral-large-latest',
+      model: 'mistral-large-4-0-3',
       outcome: 'ok',
       repository: REPOSITORY,
       role: 'spec-redteam',
