@@ -44,6 +44,15 @@ was never rendered. Both are one test.
 nowhere. That is what the `knowledge` MCP entry is now, and a test asserts it
 does not creep back into a generated artifact.
 
+## The package proxy
+
+The top-level `package_proxy:` key declares the estate's packages proxy
+itself: the URL of each ecosystem's registry, the first-party destinations
+that stay direct, the Vault path and the token file the key comes from, and
+the URL a key is verified against. The proxy step of
+`installer/setup-workstation.sh` renders from it, and those URLs live there
+only — never in code (see [SETUP.md](SETUP.md#package-proxy)).
+
 ## Plugins and their marketplaces
 
 A Claude Code plugin is pinned through its **marketplace**, never on its

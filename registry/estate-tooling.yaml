@@ -121,6 +121,39 @@ workstation_secrets:
     export: true
 
 # -------------------------------------------------------------------
+# The packages proxy.
+#
+# Every package manager on a workstation resolves third-party packages
+# through packages.jorisjonkers.dev, keyed with the workstation key.
+# Setup reads that key from PACKAGES_PROXY_TOKEN, from Vault
+# (vault_path, field vault_field) or from the stored token file, then
+# verifies it against verify_url before it writes anything. First-party
+# hosts stay direct (go_private, npm_scope, maven_github). The URLs
+# live here, so a change is one edit rendered into setup-workstation.sh.
+# -------------------------------------------------------------------
+package_proxy:
+  base: "https://packages.jorisjonkers.dev"
+  go: "https://packages.jorisjonkers.dev/go"
+  npm: "https://packages.jorisjonkers.dev/npm/"
+  pypi: "https://packages.jorisjonkers.dev/pypi/simple/"
+  cargo: "sparse+https://packages.jorisjonkers.dev/cargo/"
+  maven:
+    main: "https://packages.jorisjonkers.dev/maven/"
+    spring_milestone: "https://packages.jorisjonkers.dev/maven/spring-milestone/"
+    sonatype_snapshots: "https://packages.jorisjonkers.dev/maven/sonatype-snapshots/"
+    google_maven: "https://packages.jorisjonkers.dev/maven/google-maven/"
+  first_party:
+    npm_scope: "@jorisjonkers-dev"
+    npm_registry: "https://npm.pkg.github.com"
+    maven_github: "https://maven.pkg.github.com/JorisJonkers-dev/"
+    go_private: "github.com/JorisJonkers-dev/*"
+  vault_path: "packages-system/keys"
+  vault_field: "workstation"
+  # Relative to XDG_CONFIG_HOME, mode 0600.
+  token_file: "jorisjonkers/packages-token"
+  verify_url: "https://packages.jorisjonkers.dev/npm/typescript"
+
+# -------------------------------------------------------------------
 # Claude Code profiles.
 #
 # One login per profile. CLAUDE_CONFIG_DIR moves the WHOLE config root,

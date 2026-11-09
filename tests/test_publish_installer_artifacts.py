@@ -42,6 +42,7 @@ KIT_FILES = (
     "installer/antigravity-mcp-proxy",
     "installer/model-gateway",
     "scripts/instruction-block.py",
+    "scripts/package-proxy-merge.py",
     "scripts/antigravity-merge-mcp.py",
     "registry/generated/antigravity/mcp_config.json",
     "scripts/opencode-merge-mcp.py",
