@@ -1,0 +1,13 @@
+[package]
+name = "ticket-export"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Exports a GitHub ticket and its sub-issues to requirement.md, reading only."
+
+# std only, by design. Adding any dependency puts the 7-day crate cooldown in
+# scope for this crate: the version must be at least seven days old and
+# crate-age must be able to prove it (the standards repo's ADR-0014,
+# docs/RUST.md). A git or path dependency outside this workspace is never
+# allowed; a shared crate joins the workspace as a new member instead.
+[dependencies]
