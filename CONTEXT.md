@@ -331,3 +331,12 @@ setup installs it beside the git hook that enforces it. Every AI agent and
 model provider is refused, whatever the name. A per-machine
 `allowed-identities.local` may add human names and emails only.
 _Avoid_: whitelist, human authorship (a human other than the owner is not allowed)
+
+
+## Packages
+
+**Package proxy**:
+The estate's gateway for third-party dependencies,
+packages.jorisjonkers.dev, that setup points every package manager at;
+first-party packages stay direct.
+_Avoid_: registry (that is the tooling registry), mirror

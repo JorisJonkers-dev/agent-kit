@@ -478,6 +478,66 @@ credential. It reports `Authorization header is badly formatted` when that
 credential is missing or malformed — which reads like an unconfigured server
 rather than a missing token.
 
+## Package proxy
+
+One step of the run then points every package manager on the machine at the
+estate's packages proxy, `https://packages.jorisjonkers.dev`, so third-party
+dependencies all arrive through one host with one key. First-party packages
+stay direct: the `@jorisjonkers-dev` scope on npm.pkg.github.com, Maven
+artifacts from `maven.pkg.github.com/JorisJonkers-dev/*`, and Go modules
+from `github.com/JorisJonkers-dev/*`.
+
+The key is fetched in a fixed order: a `PACKAGES_PROXY_TOKEN` already in
+the environment; else
+`vault kv get -mount=secret -field=workstation packages-system/keys`, only
+when `vault token lookup` succeeds; else the stored token file; else a
+no-echo prompt, which only a run in a terminal asks. Whatever answers, the
+key is checked against `https://packages.jorisjonkers.dev/npm/typescript`
+before anything is written, and a refused key writes nothing at all — not
+the token file, not one package manager. A working key is stored at
+`${XDG_CONFIG_HOME:-~/.config}/jorisjonkers/packages-token`, mode 0600, so
+a later run finds it there and never asks again while it still works.
+
+What the step writes — each writer owns one marked block or one file:
+
+| Target | What setup puts there |
+|---|---|
+| `~/.netrc` | the proxy machine line (`machine packages.jorisjonkers.dev login packages`) |
+| `go env` | `GOPROXY` and `GOPRIVATE` |
+| `~/.npmrc` | the proxy registry and `_authToken` |
+| `~/.config/uv/uv.toml` | the default index, and `exclude-newer = "7 days"` so a build never depends on a package newer than its lock |
+| `~/.config/pip/pip.conf` | the proxy `index-url` under `[global]` |
+| `~/.cargo/config.toml` and `~/.cargo/credentials.toml` | the sparse registry, and the token |
+| `~/.gradle/init.d/packages-proxy.init.gradle.kts` | the init script, with no key inside it |
+| `~/.gradle/gradle.properties` | the key (`packagesProxyToken`), 0600 |
+| `~/.m2/settings.xml` | the mirror and its server — written only when the file does not exist, 0600; a `settings.xml` you already have is never edited, and the snippet to add by hand is printed with `PACKAGES_PROXY_KEY` standing in for the key |
+
+`~/.config` is `$XDG_CONFIG_HOME` when that is set. The Gradle init script
+filters third-party repositories at the settings level and adds the proxy
+there; at project level it only filters, and it adds the proxy to a project
+only when that project declares its own third-party repository — so a build
+with `FAIL_ON_PROJECT_REPOS` still works.
+
+A setting outside the block that would clash with it (your own `registry=`
+line in `.npmrc`, your own `exclude-newer`, your own `index-url`) makes that
+one writer refuse with a warning and leave the file exactly as it was; the
+other writers still get their blocks. The first write of each file is backed
+up once to `<file>.bak-agent-kit`. Re-running setup just re-applies the same
+blocks, so it is the way back after a refused or partial write.
+
+The step is skipped under `--check` (report only), in a `--cloud` session
+(the cloud environment brings its own), and when `HOME` is unset or `/`.
+With no key at all it warns and skips — no other step depends on it, so a
+machine without the proxy still gets its full setup.
+
+Known limits:
+
+- The Gradle init script is tested by static assertions only, never under a
+  real Gradle build.
+- The Vault path needs a Vault login first: without one the order falls
+  through to the stored token file or the prompt.
+- Personal Tokens (identity#174/#175) will replace the key source later.
+
 ## What the exit code means
 
 The script is `set -uo pipefail`, not `-e`, on purpose: one unavailable

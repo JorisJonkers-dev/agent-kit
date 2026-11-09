@@ -149,6 +149,569 @@ tokens_and_keys() {
   fi
 }
 
+# -----------------------------------------------------------------
+# The packages proxy
+# -----------------------------------------------------------------
+
+# pp_resolve_key prints the proxy key (always captured, never logged),
+# in order: PACKAGES_PROXY_TOKEN, the vault secret, the stored token file.
+# The last resort is a prompt, and only in an interactive run.
+pp_resolve_key() {
+  local root="$1"
+  local token="${XDG_CONFIG_HOME:-${root}/.config}/jorisjonkers/packages-token"
+  local key=""
+  if [ -n "${PACKAGES_PROXY_TOKEN:-}" ]; then
+    printf '%s' "${PACKAGES_PROXY_TOKEN}"
+    return 0
+  fi
+  if command -v vault >/dev/null 2>&1 && vault token lookup >/dev/null 2>&1; then
+    key="$(vault kv get -mount=secret -field=workstation packages-system/keys 2>/dev/null)"
+    if [ -n "${key}" ]; then
+      printf '%s' "${key}"
+      return 0
+    fi
+  fi
+  if [ -s "${token}" ]; then
+    printf '%s' "$(cat "${token}" 2>/dev/null)"
+    return 0
+  fi
+  if interactive; then
+    printf 'packages proxy key: ' >&2
+    read -rs key <"${PROMPT_TTY}"
+    printf '\n' >&2
+    if [ -n "${key}" ]; then
+      printf '%s' "${key}"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# pp_store_key writes the key to the token file, atomically and 0600: a
+# temp file under umask 077 in the same directory, then a rename. A file
+# that already holds the key is only chmodded back to 0600.
+pp_store_key() {
+  local root="$1" key="$2"
+  local config_root="${XDG_CONFIG_HOME:-${root}/.config}"
+  local dest="${config_root}/jorisjonkers/packages-token"
+  case "${config_root}" in
+    "${root}"|"${root}"/*) ;;
+    *)
+      warn "packages proxy: the config root is not under ${root}, so the key is not stored"
+      return 1 ;;
+  esac
+  if [ -f "${dest}" ] && [ "$(cat "${dest}" 2>/dev/null)" = "${key}" ]; then
+    chmod 600 "${dest}" 2>/dev/null || true
+    return 0
+  fi
+  (
+    umask 077
+    mkdir -p "$(dirname "${dest}")"
+    local tmp
+    tmp="$(mktemp "${dest}.tmp.XXXXXX")"
+    printf '%s' "${key}" >"${tmp}"
+    mv -f "${tmp}" "${dest}"
+  )
+  chmod 600 "${dest}"
+}
+
+# pp_write_netrc owns exactly the proxy machine entry of ROOT/.netrc.
+# netrc has no comment markers, so there is no marked block to own:
+# an existing proxy entry, single- or multi-line, is replaced where it
+# stands (the entry runs to the next machine/default/token line) and
+# every other line keeps as the user wrote it. The first change is
+# backed up once to .netrc.bak-agent-kit, the file ends up 0600, and
+# the key travels in shell memory only, never on argv.
+pp_write_netrc() {
+  local root="$1" key="$2"
+  local netrc="${root}/.netrc" host="packages.jorisjonkers.dev"
+  local entry="machine ${host} login packages password ${key}"
+  local text="" line="" first="" second="" skip=0 found=0 tmp
+  local nl=$'\n'
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would set up the ${host} machine entry in ${netrc}"
+    return 0
+  fi
+  if [ -f "${netrc}" ]; then
+    while IFS= read -r line || [ -n "${line}" ]; do
+      read -r first second rest <<< "${line}"
+      if [ "${skip}" = 1 ]; then
+        case "${first}" in
+          login|password|account|force) continue ;;
+        esac
+        skip=0
+      fi
+      if [ "${first}" = machine ] && [ "${second}" = "${host}" ]; then
+        text="${text}${entry}${nl}"
+        skip=1
+        found=1
+        continue
+      fi
+      text="${text}${line}${nl}"
+    done < "${netrc}"
+  fi
+  if [ "${found}" = 0 ]; then
+    text="${text}${entry}${nl}"
+  fi
+  if [ -f "${netrc}" ] && [ "$(cat "${netrc}")" = "${text%"${nl}"}" ]; then
+    chmod 600 "${netrc}" 2>/dev/null || true
+    log "packages proxy: ${netrc} is already set up"
+    return 0
+  fi
+  if [ -f "${netrc}" ] && [ ! -f "${netrc}.bak-agent-kit" ]; then
+    cp "${netrc}" "${netrc}.bak-agent-kit"
+  fi
+  (
+    umask 077
+    tmp="$(mktemp "${netrc}.tmp.XXXXXX")"
+    printf '%s\n' "${text%"${nl}"}" > "${tmp}"
+    mv -f "${tmp}" "${netrc}"
+  )
+  chmod 600 "${netrc}"
+  log "packages proxy: ${netrc} is set up"
+}
+
+# pp_write_go points go at the proxy -- but only when go is on PATH,
+# and only into this root's env file: GOENV names it (ROOT/.config/go/env
+# by default), and a GOENV outside the root is refused outright. No
+# GOSUMDB and no ,direct: the proxy is the only source. CHECK_ONLY
+# never calls go.
+pp_write_go() {
+  local root="$1"
+  local goenv="${GOENV:-${root}/.config/go/env}"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would point go at the packages proxy through ${goenv}"
+    return 0
+  fi
+  if ! command -v go >/dev/null 2>&1; then
+    log "packages proxy: go is not on PATH, its env stays as it is"
+    return 0
+  fi
+  case "${goenv}" in
+    "${root}"|"${root}"/*) ;;
+    *)
+      warn "packages proxy: GOENV is not under ${root}, go env left alone"
+      return 0 ;;
+  esac
+  mkdir -p "$(dirname "${goenv}")"
+  if ! GOENV="${goenv}" go env -w "GOPROXY=https://packages.jorisjonkers.dev/go" "GOPRIVATE=github.com/JorisJonkers-dev/*"; then
+    return 1
+  fi
+  ok "packages proxy: go env points at the proxy (${goenv})"
+}
+
+# pp_write_npmrc sets the proxy registry and its token in ONE marked
+# block of ROOT/.npmrc, through the merge helper: everything outside the
+# block keeps as the user wrote it (the first-party scope and its GitHub
+# token line included), a registry= line outside the block refuses the
+# merge outright, and the file ends up 0600. The token rides stdin,
+# never argv or a log line.
+pp_write_npmrc() {
+  local root="$1" key="$2"
+  local npmrc="${root}/.npmrc"
+  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would set up the packages registry and token in ${npmrc}"
+    return 0
+  fi
+  printf 'registry=https://packages.jorisjonkers.dev/npm/\n//packages.jorisjonkers.dev/npm/:_authToken=%s\n' "${key}" \
+    | python3 "${helper}" "${npmrc}" packages-proxy --mode 600 --refuse '^registry=' >/dev/null
+  case $? in
+    0) ok "packages proxy: ${npmrc} is set up" ;;
+    3) warn "packages proxy: ${npmrc} has its own registry= line, nothing written" ;;
+    *) return 1 ;;
+  esac
+}
+
+# pp_write_uv points uv at the proxy through ONE marked block of the uv
+# config: a default index served by the proxy, capped at a week of
+# package age. A user exclude-newer outside the block refuses the
+# merge, and everything else in the file keeps as the user wrote it.
+# The config root is XDG_CONFIG_HOME when it sits under the root, else
+# ROOT/.config -- a config root outside the root is never written.
+pp_write_uv() {
+  local root="$1"
+  local config_root="${XDG_CONFIG_HOME:-${root}/.config}"
+  local uv_toml="${config_root}/uv/uv.toml"
+  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would set up the packages pypi index in ${uv_toml}"
+    return 0
+  fi
+  case "${config_root}" in
+    "${root}"|"${root}"/*) ;;
+    *)
+      warn "packages proxy: the config root is not under ${root}, uv is left alone"
+      return 0 ;;
+  esac
+  printf '[[index]]\nurl = "https://packages.jorisjonkers.dev/pypi/simple/"\ndefault = true\nexclude-newer = "7 days"\n' \
+    | python3 "${helper}" "${uv_toml}" packages-proxy --validate toml \
+      --refuse '^exclude-newer' >/dev/null
+  case $? in
+    0) ok "packages proxy: ${uv_toml} is set up" ;;
+    3) warn "packages proxy: ${uv_toml} has its own exclude-newer, nothing written" ;;
+    *) return 1 ;;
+  esac
+}
+
+# pp_write_pip points pip at the proxy through ONE marked block of
+# pip.conf: index-url under [global]. A [global] section the user
+# already wrote must not come through twice, so the helper is asked on
+# a throwaway copy (its --refuse reads the copy without this block)
+# whether one stands outside the block; when it does the merged block
+# carries the bare line, which [global] above already owns. A user
+# index-url outside the block refuses the merge outright.
+pp_write_pip() {
+  local root="$1"
+  local config_root="${XDG_CONFIG_HOME:-${root}/.config}"
+  local pip_conf="${config_root}/pip/pip.conf" body probe
+  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would set up the packages pypi index in ${pip_conf}"
+    return 0
+  fi
+  case "${config_root}" in
+    "${root}"|"${root}"/*) ;;
+    *)
+      warn "packages proxy: the config root is not under ${root}, pip is left alone"
+      return 0 ;;
+  esac
+  body=$'[global]\nindex-url = https://packages.jorisjonkers.dev/pypi/simple/'
+  if [ -f "${pip_conf}" ]; then
+    probe="$(mktemp "${pip_conf}.probe.XXXXXX")"
+    cp "${pip_conf}" "${probe}"
+    python3 "${helper}" "${probe}" packages-proxy --remove \
+      --refuse '^\[global\]' >/dev/null 2>&1 </dev/null
+    case $? in
+      3) body=$'index-url = https://packages.jorisjonkers.dev/pypi/simple/' ;;
+    esac
+    rm -f "${probe}" "${probe}.bak-agent-kit"
+  fi
+  printf '%s\n' "${body}" \
+    | python3 "${helper}" "${pip_conf}" packages-proxy --validate ini \
+      --refuse '^index-url' >/dev/null
+  case $? in
+    0) ok "packages proxy: ${pip_conf} is set up" ;;
+    3) warn "packages proxy: ${pip_conf} has its own index-url, nothing written" ;;
+    *) return 1 ;;
+  esac
+}
+
+# pp_write_cargo points cargo at the proxy through TWO marked blocks of
+# the cargo home: the registry replacement in config.toml (no key in
+# it, so no --mode) and the login token in credentials.toml (written
+# 0600, its key riding stdin). CARGO_HOME counts only when it is set
+# AND under the root; anything else falls back to ROOT/.cargo, so a
+# writer never writes outside its root. A table this step must own
+# that already stands outside the block refuses that file's merge --
+# and the other file still gets its block.
+pp_write_cargo() {
+  local root="$1" key="$2"
+  local cargo_home="${root}/.cargo"
+  case "${CARGO_HOME:-}" in
+    "") ;;
+    "${root}"|"${root}"/*) cargo_home="${CARGO_HOME}" ;;
+    *) log "packages proxy: CARGO_HOME is not under ${root}, cargo is configured in ${cargo_home}" ;;
+  esac
+  local cargo_config="${cargo_home}/config.toml"
+  local credentials="${cargo_home}/credentials.toml"
+  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
+  local guard='^\[(source\.(crates-io|jorisjonkers-packages)|'\
+$'registries\.jorisjonkers-packages|registry)\]'
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would set up the cargo registry in ${cargo_config} and its token in ${credentials}"
+    return 0
+  fi
+  {
+    printf '[source.crates-io]\nreplace-with = "jorisjonkers-packages"\n\n'
+    printf '[source.jorisjonkers-packages]\nregistry = "sparse+https://packages.jorisjonkers.dev/cargo/"\n\n'
+    printf '[registries.jorisjonkers-packages]\nindex = "sparse+https://packages.jorisjonkers.dev/cargo/"\n\n'
+    printf '[registry]\nglobal-credential-providers = ["cargo:token"]\n'
+    printf 'global-min-publish-age = "7 days"\n'
+  } | python3 "${helper}" "${cargo_config}" packages-proxy --validate toml \
+    --refuse "${guard}" >/dev/null
+  case $? in
+    0) ok "packages proxy: ${cargo_config} is set up" ;;
+    3) warn "packages proxy: ${cargo_config} has its own cargo registry tables, nothing written" ;;
+    *) return 1 ;;
+  esac
+  printf '[registries.jorisjonkers-packages]\ntoken = "Bearer %s"\n' "${key}" \
+    | python3 "${helper}" "${credentials}" packages-proxy --validate toml --mode 600 \
+      --refuse '^\[registries\.jorisjonkers-packages\]' >/dev/null
+  case $? in
+    0) ok "packages proxy: ${credentials} is set up" ;;
+    3) warn "packages proxy: ${credentials} has its own registry token, nothing written" ;;
+    *) return 1 ;;
+  esac
+}
+
+# pp_write_gradle writes Gradle's packages-proxy init script -- copied
+# from the estate's setup-java-gradle action, with only the token
+# source changed -- plus the packagesProxyToken Gradle property that
+# carries the key. The init script holds no key (its Kotlin reads the
+# token from the property or the environment at build time), so it is
+# written 0644 through a quoted heredoc (no shell expansion inside
+# it); gradle.properties holds the key and is written 0600 through
+# the merge helper, its key riding stdin -- a packagesProxyToken= line
+# outside the block refusing the merge outright. GRADLE_USER_HOME
+# counts only when it is set AND under the root; anything else falls
+# back to ROOT/.gradle, so the writer never writes outside its root.
+pp_write_gradle() {
+  local root="$1" key="$2"
+  local gradle_home="${root}/.gradle"
+  case "${GRADLE_USER_HOME:-}" in
+    "") ;;
+    "${root}"|"${root}"/*) gradle_home="${GRADLE_USER_HOME}" ;;
+    *) log "packages proxy: GRADLE_USER_HOME is not under ${root}, gradle is configured in ${gradle_home}" ;;
+  esac
+  local init_script="${gradle_home}/init.d/packages-proxy.init.gradle.kts"
+  local gradle_props="${gradle_home}/gradle.properties"
+  local helper="${KIT_ROOT}/scripts/package-proxy-merge.py"
+  local tmp
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would write the gradle init script ${init_script}"
+    log "would set up the gradle token in ${gradle_props}"
+    return 0
+  fi
+  mkdir -p "$(dirname "${init_script}")"
+  (
+    umask 077
+    tmp="$(mktemp "${init_script}.tmp.XXXXXX")"
+    cat >"${tmp}" <<'KTS'
+// Route dependency resolution through the packages proxy. First-party
+// GitHub Packages repositories stay direct; everything else is moved
+// behind the proxy.
+fun ArtifactRepository.isAllowed(): Boolean = when (this) {
+    is MavenArtifactRepository -> {
+        val host = runCatching { url.host }.getOrNull()
+        host == "maven.pkg.github.com" || host == "packages.jorisjonkers.dev"
+    }
+    is FlatDirectoryArtifactRepository, is IvyArtifactRepository -> true
+    else -> false
+}
+
+// The proxy repositories themselves, added to a handler by addPackagesProxy().
+fun RepositoryHandler.addPackagesProxy() {
+    maven {
+        name = "packagesProxy"
+        setUrl("https://packages.jorisjonkers.dev/maven/")
+        packagesProxyAuthentication()
+    }
+    maven {
+        name = "packagesProxySpringMilestone"
+        setUrl("https://packages.jorisjonkers.dev/maven/spring-milestone/")
+        packagesProxyAuthentication()
+    }
+    maven {
+        name = "packagesProxySonatypeSnapshots"
+        setUrl("https://packages.jorisjonkers.dev/maven/sonatype-snapshots/")
+        content { mavenContent { snapshotsOnly() } }
+        packagesProxyAuthentication()
+    }
+    maven {
+        name = "packagesProxyGoogleMaven"
+        setUrl("https://packages.jorisjonkers.dev/maven/google-maven/")
+        packagesProxyAuthentication()
+    }
+}
+
+// Settings level: drop third-party repositories as they are added (`all`
+// also runs for repositories added later, Gradle's own "enterprise
+// repository" init-script pattern), then add the proxy.
+fun RepositoryHandler.usePackagesProxy() {
+    all {
+        if (!isAllowed()) remove(this)
+    }
+    addPackagesProxy()
+}
+
+// Project level: only drop third-party repositories. The proxy is added to a
+// project only when that project itself declares one, once, on the first
+// removal. A project that declares no repository of its own gets nothing
+// added, so settings repositories keep applying to it (and a project set to
+// FAIL_ON_PROJECT_REPOS still builds).
+fun RepositoryHandler.guardProjectRepositories() {
+    var proxied = false
+    all {
+        if (!isAllowed()) {
+            remove(this)
+            if (!proxied) {
+                proxied = true
+                addPackagesProxy()
+            }
+        }
+    }
+}
+
+// The token is never in this file (it is world-readable): Gradle takes it
+// from the property `packagesProxyToken` -- the -PpackagesProxyToken of the
+// command line, else the gradle.properties of the Gradle user home -- or
+// from the environment, and a build without any of them runs keyless.
+fun packagesProxyToken(): String {
+    (gradle.startParameter.projectProperties["packagesProxyToken"] as? String)
+        ?.takeIf { it.isNotEmpty() }?.let { return it }
+    val userHomeProperties = java.io.File(gradle.gradleUserHomeDir, "gradle.properties")
+    if (userHomeProperties.isFile) {
+        val properties = java.util.Properties()
+        userHomeProperties.inputStream().use { properties.load(it) }
+        val fromUserHome = properties.getProperty("packagesProxyToken")
+        if (!fromUserHome.isNullOrEmpty()) return fromUserHome
+    }
+    return System.getenv("PACKAGES_PROXY_TOKEN") ?: ""
+}
+
+fun MavenArtifactRepository.packagesProxyAuthentication() {
+    credentials(HttpHeaderCredentials::class) {
+        name = "Authorization"
+        value = "Bearer " + packagesProxyToken()
+    }
+    authentication {
+        create<HttpHeaderAuthentication>("header")
+    }
+}
+
+settingsEvaluated {
+    pluginManagement.repositories.usePackagesProxy()
+    dependencyResolutionManagement.repositories.usePackagesProxy()
+}
+
+// Before the project's own build script runs, so its `repositories {}`
+// and `buildscript { repositories {} }` blocks add to handlers that
+// already drop third-party repositories.
+beforeProject {
+    buildscript.repositories.guardProjectRepositories()
+    repositories.guardProjectRepositories()
+}
+KTS
+    mv -f "${tmp}" "${init_script}"
+  )
+  chmod 644 "${init_script}"
+  ok "packages proxy: ${init_script} is set up"
+  printf 'packagesProxyToken=%s\n' "${key}" \
+    | python3 "${helper}" "${gradle_props}" packages-proxy --mode 600 \
+      --refuse '^packagesProxyToken=' >/dev/null
+  case $? in
+    0) ok "packages proxy: ${gradle_props} is set up" ;;
+    3) warn "packages proxy: ${gradle_props} has its own packagesProxyToken, nothing written" ;;
+    *) return 1 ;;
+  esac
+}
+
+# pp_write_maven: Maven's settings.xml, create-only. A root with no
+# .m2/settings.xml gets one -- written through a temp file under umask
+# 077 and renamed, so the key is never on disk world-readable -- with
+# the proxy mirror (everything external but github) and its server; a
+# root with its own settings.xml is never edited: the snippet to add
+# is logged with the password as the PACKAGES_PROXY_KEY placeholder,
+# so the run's output never carries the key either.
+pp_write_maven() {
+  local root="$1" key="$2"
+  local settings="${root}/.m2/settings.xml"
+  local tmp
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would set up the packages proxy mirror and server in ${settings}"
+    return 0
+  fi
+  if [ -f "${settings}" ]; then
+    log "packages proxy: ${settings} already exists, add this to it (PACKAGES_PROXY_KEY stands for the key):"
+    cat <<'XML'
+  <mirrors>
+    <mirror>
+      <id>packages-proxy</id>
+      <url>https://packages.jorisjonkers.dev/maven/</url>
+      <mirrorOf>external:*,!github</mirrorOf>
+    </mirror>
+  </mirrors>
+  <servers>
+    <server>
+      <id>packages-proxy</id>
+      <username>packages</username>
+      <password>PACKAGES_PROXY_KEY</password>
+    </server>
+  </servers>
+XML
+    return 0
+  fi
+  mkdir -p "$(dirname "${settings}")"
+  (
+    umask 077
+    tmp="$(mktemp "${settings}.tmp.XXXXXX")"
+    cat >"${tmp}" <<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+  <mirrors>
+    <mirror>
+      <id>packages-proxy</id>
+      <url>https://packages.jorisjonkers.dev/maven/</url>
+      <mirrorOf>external:*,!github</mirrorOf>
+    </mirror>
+  </mirrors>
+  <servers>
+    <server>
+      <id>packages-proxy</id>
+      <username>packages</username>
+      <password>${key}</password>
+    </server>
+  </servers>
+</settings>
+XML
+    mv -f "${tmp}" "${settings}"
+  )
+  chmod 600 "${settings}"
+  ok "packages proxy: ${settings} is set up"
+}
+
+# package_proxy_setup: refuse without a home to write into, skip a cloud
+# session, report only under --check; then resolve the key, verify it,
+# store it and call the eight writers -- netrc, go env, npmrc, uv, pip,
+# cargo, gradle and maven -- each guarded, so a writer that fails warns
+# without stopping the run; a missing or refused key warns and skips --
+# no other step depends on it. The verify call carries the key in a
+# stdin ("-K -"), never on argv or in a log line.
+package_proxy_setup() {
+  local root="${1:-}" key
+  if [ -z "${root}" ] || [ "${root}" = "/" ]; then
+    warn "packages proxy: no home directory to configure for the packages proxy, skipped"
+    return 1
+  fi
+  if [ "${CLOUD}" = 1 ]; then
+    log "packages proxy: the cloud session brings its own"
+    return 0
+  fi
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "would look up the packages proxy key and verify it against https://packages.jorisjonkers.dev/npm/typescript"
+    log "would store it under jorisjonkers/packages-token and write .netrc, go env, .npmrc, uv, pip, cargo, gradle and maven"
+    return 0
+  fi
+  if ! key="$(pp_resolve_key "${root}")"; then
+    warn "packages proxy: no key found (PACKAGES_PROXY_TOKEN, vault or the prompt), skipped"
+    return 0
+  fi
+  if ! printf 'header = "Authorization: Bearer %s"\n' "${key}" \
+    | curl -sf -o /dev/null -K - https://packages.jorisjonkers.dev/npm/typescript; then
+    warn "packages proxy: the key was refused by https://packages.jorisjonkers.dev/npm/typescript, nothing was written"
+    return 0
+  fi
+  pp_store_key "${root}" "${key}" || return 1
+  pp_write_netrc "${root}" "${key}" \
+    || warn "packages proxy: the netrc writer failed, the run continues"
+  pp_write_go "${root}" \
+    || warn "packages proxy: the go env writer failed, the run continues"
+  pp_write_npmrc "${root}" "${key}" \
+    || warn "packages proxy: the npmrc writer failed, the run continues"
+  pp_write_uv "${root}" \
+    || warn "packages proxy: the uv writer failed, the run continues"
+  pp_write_pip "${root}" \
+    || warn "packages proxy: the pip writer failed, the run continues"
+  pp_write_cargo "${root}" "${key}" \
+    || warn "packages proxy: the cargo writer failed, the run continues"
+  pp_write_gradle "${root}" "${key}" \
+    || warn "packages proxy: the gradle writer failed, the run continues"
+  pp_write_maven "${root}" "${key}" \
+    || warn "packages proxy: the maven writer failed, the run continues"
+  ok "packages proxy: the key is verified and stored"
+}
+
 run() {
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would run: $*"
@@ -1701,6 +2264,8 @@ fi
 # -----------------------------------------------------------------
 tokens_and_keys
 
+package_proxy_setup "${HOME:-}"
+
 log "command-line tools"
 
 # Claude Code CLI.
@@ -3199,7 +3764,6 @@ attribution_rule "${CODEX_HOME}/AGENTS.md"
 if [ "${CLOUD}" != 1 ]; then
   attribution_rule "${HOME}/.hermes/SOUL.md"
 fi
-
 # -----------------------------------------------------------------
 # 7. First-party skills that ship in this repository.
 #
