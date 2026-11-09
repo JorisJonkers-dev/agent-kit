@@ -1677,6 +1677,62 @@ def _converge_mcp(data: dict[str, Any], w: Any) -> None:
     w("")
 
 
+def _gold_band_validate_fn(w: Any) -> None:
+    """``gold_band_validate``: the Gold Band agents, refused before anything is written.
+
+    converge.py flattens the registry's ``gold_band.agents`` into the
+    gold-band-registry crate's line protocol and the crate's binary rules on
+    it, refusing a declaration that breaks an owner rule (#332). The crate's
+    lines are logged; a refusal stops the run, so no Gold Band file is ever
+    written from a declaration the crate refuses. A failure that is no
+    verdict -- ``uv`` itself, or converge.py's own (exit 3) -- stops the run
+    with its own message too, so nothing is written either way.
+    """
+    w("# -----------------------------------------------------------------")
+    w("# The Gold Band agents, validated before anything is written.")
+    w("# converge.py flattens gold_band.agents into the gold-band-registry")
+    w("# crate's line protocol and the crate refuses a declaration that breaks")
+    w("# an owner rule (#332): no Codex anywhere, no OpenRouter, OpenCode")
+    w("# models only from opencode-go/, no literal secret, a well-formed id")
+    w("# declared once, only the fields the crate knows. Its verdict is logged,")
+    w("# and a refusal stops the run here; nothing was written yet, so nothing")
+    w("# needs unwinding. A failure that is no verdict -- uv itself, or")
+    w("# converge.py's own (exit 3) -- stops the run with its own message, so")
+    w("# nothing is written either way. Without a built crate converge.py says")
+    w("# so and the declarations are not validated.")
+    w("# -----------------------------------------------------------------")
+    w("gold_band_validate() {")
+    w("  local out rc=0 line refusal=0")
+    w('  if ! command -v uv >/dev/null 2>&1; then')
+    w('    warn "uv is not on PATH; the Gold Band declarations are not validated"')
+    w("    return 0")
+    w("  fi")
+    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-validate \\')
+    w('    --registry "${KIT_ROOT}/registry/estate-tooling.yaml" 2>&1) || rc=$?')
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  [ "${rc}" = 0 ] && return 0')
+    w("  # Exit 1 with the canary crate's line in the output is the")
+    w("  # gold-band-registry crate's refusal: converge.py prints that line")
+    w("  # whenever it ran at all, so an exit 1 without it is uv itself")
+    w("  # failing to run converge.py, and converge.py's own failures exit 3.")
+    w("  # Either way nothing arrived that the run could act on, so it stops")
+    w("  # with nothing written: a refusal is refused, a broken step fails")
+    w("  # closed.")
+    w('  if [ "${rc}" = 1 ]; then')
+    w('    case "${out}" in')
+    w('      *"agent-kit-setup: "*) refusal=1 ;;')
+    w("    esac")
+    w("  fi")
+    w('  if [ "${refusal}" = 1 ]; then')
+    w('    fail "the Gold Band registry is refused; nothing was written"')
+    w("  else")
+    w('    fail "the Gold Band declarations could not be validated (exit ${rc}; see above)"')
+    w("  fi")
+    w("  exit 1")
+    w("}")
+    w("")
+
+
 def _critic_agents_step(data: dict[str, Any], w: Any) -> None:
     """The shell function that converges the critic agents in one Vibe home.
 
@@ -2523,6 +2579,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
     _converge_mcp(data, w)
     _converge_plugins(data, w)
+    _gold_band_validate_fn(w)
     w("# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.")
     w("claude_in_profile() {")
     w('  local dir="$1"; shift')
@@ -2945,6 +3002,16 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w('  [ "${failures}" = 0 ]')
     w("  exit $?")
     w("fi")
+    w("")
+
+    # --- Gold Band: the registry's declarations, refused before anything is written ---
+    w("# -----------------------------------------------------------------")
+    w("# 0. Gold Band agents. The registry's declarations are validated before")
+    w("# anything is written: a refusal prints the crate's lines and stops the")
+    w("# run, so setup never writes from a declaration the crate refuses, and a")
+    w("# validation that could not run stops the run with its own message.")
+    w("# -----------------------------------------------------------------")
+    w("gold_band_validate")
     w("")
 
     # --- CLIs ---
