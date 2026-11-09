@@ -549,9 +549,9 @@ BLOCK
 # Every chat model the Mistral login can use, kept current in one Vibe home.
 _vibe_models() {
   local home="$1"
-  if VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+  if VIBE_HOME="${home}" uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
       --config "${home}/config.toml" --has-key; then
-    VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+    VIBE_HOME="${home}" uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
       --config "${home}/config.toml" \
       || warn "Vibe model sync failed (${home})"
   else

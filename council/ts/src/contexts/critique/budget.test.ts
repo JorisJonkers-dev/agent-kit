@@ -801,6 +801,45 @@ describe('a Vibe critic that cannot run here', () => {
     })
   })
 
+  it("asks the Secret Service for Vibe's own sign-in item on Linux, and counts it as signed in", async () => {
+    const h = await opened({ families: ['mistral'], platform: 'linux' })
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
+    expect(h.process.checks[0]).toMatchObject({ command: 'gdbus' })
+    expect(h.process.checks[0]?.args).toContain("{'service': 'ai.mistral.vibe', 'username': 'MISTRAL_API_KEY'}")
+    expect(h.process.checks.some((check) => check.command === 'security')).toBe(false)
+  })
+
+  it("names a Vibe that is not signed in on Linux in setup's words", async () => {
+    const h = await opened({ families: ['mistral', 'google'], platform: 'linux', vibeSignIn: 'none' })
+
+    const run = await prepare(h)
+
+    expect(run.dropped[0]).toMatchObject({
+      client: 'vibe-mistral-large',
+      detail: 'vibe: not signed in; run vibe and sign in with your Mistral account, then re-run setup',
+      reason: 'unavailable',
+    })
+  })
+
+  it("counts a key in the personal home's .env as signed in on Linux where there is no gdbus to ask", async () => {
+    const h = await opened({ families: ['mistral'], platform: 'linux', vibeSignIn: 'env-file-no-keychain' })
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
+  })
+
+  it("counts a key in the personal home's .env as signed in on Linux", async () => {
+    const h = await opened({ families: ['mistral'], platform: 'linux', vibeSignIn: 'env-file' })
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
+  })
+
   it("counts a key in the personal home's .env as signed in", async () => {
     const h = await opened({ families: ['mistral'], vibeSignIn: 'env-file' })
 

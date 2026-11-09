@@ -2465,9 +2465,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# Every chat model the Mistral login can use, kept current in one Vibe home.")
     w("_vibe_models() {")
     w('  local home="$1"')
-    w('  if VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
+    # keyring reads Vibe's key from the Secret Service on Linux.
+    sync = 'uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py"'
+    w(f'  if VIBE_HOME="${{home}}" {sync} \\')
     w('      --config "${home}/config.toml" --has-key; then')
-    w('    VIBE_HOME="${home}" uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py" \\')
+    w(f'    VIBE_HOME="${{home}}" {sync} \\')
     w('      --config "${home}/config.toml" \\')
     w('      || warn "Vibe model sync failed (${home})"')
     w("  else")

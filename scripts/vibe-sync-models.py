@@ -2,7 +2,9 @@
 """Give Mistral Vibe every Mistral chat model the key can use, and keep the list current.
 
 The key is the one Vibe signed in with: MISTRAL_API_KEY when set, else Vibe's
-keychain item (service ai.mistral.vibe), else its ~/.vibe/.env.
+item in the OS keyring (service ai.mistral.vibe, account MISTRAL_API_KEY: the
+macOS Keychain, or elsewhere Python's keyring, which is the Secret Service on
+Linux, as Vibe itself stores it), else its ~/.vibe/.env.
 
 Vibe lists only the models under ``[[models]]`` in its config (its built-in
 default is Mistral Medium 3.5). This reads Mistral's ``/v1/models`` with
@@ -25,6 +27,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import shutil
@@ -72,6 +75,10 @@ def login_key() -> str:
         )
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip()
+    if sys.platform != "darwin":
+        key = secret_service_key()
+        if key:
+            return key
     try:
         for line in (vibe_home() / ".env").read_text().splitlines():
             name, _, value = line.partition("=")
@@ -80,6 +87,24 @@ def login_key() -> str:
     except OSError:
         pass
     return ""
+
+
+def secret_service_key() -> str:
+    """Vibe's key from Python's keyring, read the way Vibe stores it off macOS.
+
+    On Linux that is the Secret Service. Vibe writes it with keyring (service ai.mistral.vibe, username
+    MISTRAL_API_KEY). Without keyring importable, with Vibe's own
+    VIBE_TEST_DISABLE_KEYRING=1, or with no Secret Service to answer, there is
+    no key here and the .env decides.
+    """
+    if os.environ.get("VIBE_TEST_DISABLE_KEYRING") == "1":
+        return ""
+    try:
+        # Optional, and untyped here: setup runs this with --with keyring.
+        keyring = importlib.import_module("keyring")
+        return str(keyring.get_password("ai.mistral.vibe", "MISTRAL_API_KEY") or "")
+    except Exception:  # any keyring failure means no key from it
+        return ""
 
 
 def fetch(key: str) -> list[dict[str, Any]]:
