@@ -44,20 +44,20 @@ the registry, not directories on disk, and get no rows.)
 | --- | --- | --- | --- | --- | --- | --- |
 | agent-session-bootstrap | `skills/workstation/agent-session-bootstrap/` | Checklist for configuring a Claude Code/Codex session: config layers, MCP servers, memory-file hygiene, parity. | skill set | read | yes — whether client-session configuration guidance has a Gold Band equivalent (specs #350/#367 unread) | - |
 | build-tracker | `skills/workstation/build-tracker/` | Renders each ticket's status for a spec being implemented into a one-page summary with dependency graph, from a per-spec state file. | workflow | write-scoped | yes — bundled runner `build-tracker.mjs` needs a Gold Band execution story (Rust workspace #331) | - |
-| council | `skills/workstation/council/` | Cross-model orchestrator (Claude + Codex): triage, cross-model planning, grill, design checkpoint, guarded fan-out, review council. | stays outside | n/a | no — verified fact: no Codex in Gold Band, and cross-model fan-out is council's core | - |
+| council | `skills/workstation/council/` | Cross-model orchestrator (Claude + Codex): triage, cross-model planning, grill, design checkpoint, guarded fan-out, review council. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
 | critique | `skills/workstation/critique/` | The critique pipeline's shared bundle: bundled runner `critique.mjs`, prompt preamble, roles, lenses, finding schema, default routing. | workflow | run-one-command | yes — whether a Gold Band template invokes the runner or the Rust workspace (#331) reimplements it | - |
 | critique-stats | `skills/workstation/critique-stats/` | Reports how each critic client performs per stage from the ledger, ending with routing suggestions; writes nothing. | workflow | read | yes — runs the runner's `stats` command (Rust workspace #331) | - |
 | delegate | `skills/workstation/delegate/` | Plan work to hand to other model clients through the model gateway: tier rating, split, cheapest cost class, one batch, verify. | workflow | write | yes — whether Gold Band retains a model gateway to delegate through (ADR-0007; specs unread) | - |
 | flow | `skills/workstation/flow/` | The pipeline's stepper: says where the current feature stands and names the single next step, running a stage on the owner's word. | workflow | run-one-command | yes — runs the runner's `state` command (Rust workspace #331) | - |
 | kb-first | `skills/workstation/kb-first/` | Consult the memory platform before designing or changing behaviour that may depend on prior captures; capture durable lessons near task completion. | skill set | write | yes — whether a skill set gets write reach to the memory MCP server in Gold Band | - |
 | model-gateway | `skills/workstation/model-gateway/` | The model gateway's runner and shipped defaults: client catalogue, difficulty tiers, capabilities, caps and thresholds. | workflow | full | yes — whether delegation survives in Gold Band or judgment nodes replace the gateway; specs unread | - |
-| pr-composer | `skills/workstation/pr-composer/` | Compose a pull request in the repository's house style: reads the PR template, mines merged PRs, gates on explicit confirmation before push/create. | workflow | write | no | - |
-| review-grill | `skills/workstation/review-grill/` | Critique a feature's decisions after grilling and before /to-spec: gap critics list the unasked questions. | workflow | read | no — already Wave 2 (critique stages as templates, #363) | - |
-| review-implementation | `skills/workstation/review-implementation/` | Review one ticket's staged change before its commit: risk triage, one critic on the diff, each bug finding decided by running its failing test. | workflow | run-one-command | no — already Wave 2 (critique stages as templates, #363) | - |
-| review-pr | `skills/workstation/review-pr/` | Review the whole feature diff before the pull request: critics from two other families read spec, tickets and diff; accepted findings become follow-up tickets. | workflow | write-scoped | no — already Wave 2 (critique stages as templates, #363) | - |
-| review-spec | `skills/workstation/review-spec/` | Critique a spec after /to-spec: critics from other families review it read-only and the orchestrator rules on findings. | workflow | read | no — already Wave 2 (critique stages as templates, #363) | - |
-| review-tickets | `skills/workstation/review-tickets/` | Check a spec's tickets after /to-tickets: deterministic ticket checker plus one critic linting structure read-only. | workflow | run-one-command | no — already Wave 2 (critique stages as templates, #363) | - |
-| token-economy | `skills/workstation/token-economy/` | Token-budget discipline: progressive disclosure, bounded recall, narrow MCP profiles, prompt-cache-friendly ordering. | skill set | read | no | - |
+| pr-composer | `skills/workstation/pr-composer/` | Compose a pull request in the repository's house style: reads the PR template, mines merged PRs, gates on explicit confirmation before push/create. | workflow | write | yes — whether PR composition ports as a workflow with write reach is unverified | - |
+| review-grill | `skills/workstation/review-grill/` | Critique a feature's decisions after grilling and before /to-spec: gap critics list the unasked questions. | workflow | read | no — #367 Implementation Decisions, Waves: the critique stages are Wave 2 (#363) templates | - |
+| review-implementation | `skills/workstation/review-implementation/` | Review one ticket's staged change before its commit: risk triage, one critic on the diff, each bug finding decided by running its failing test. | workflow | run-one-command | no — #367 Implementation Decisions, Waves: the critique stages are Wave 2 (#363) templates | - |
+| review-pr | `skills/workstation/review-pr/` | Review the whole feature diff before the pull request: critics from two other families read spec, tickets and diff; accepted findings become follow-up tickets. | workflow | write-scoped | no — #367 Implementation Decisions, Waves: the critique stages are Wave 2 (#363) templates | - |
+| review-spec | `skills/workstation/review-spec/` | Critique a spec after /to-spec: critics from other families review it read-only and the orchestrator rules on findings. | workflow | read | no — #367 Implementation Decisions, Waves: the critique stages are Wave 2 (#363) templates | - |
+| review-tickets | `skills/workstation/review-tickets/` | Check a spec's tickets after /to-tickets: deterministic ticket checker plus one critic linting structure read-only. | workflow | run-one-command | no — #367 Implementation Decisions, Waves: the critique stages are Wave 2 (#363) templates | - |
+| token-economy | `skills/workstation/token-economy/` | Token-budget discipline: progressive disclosure, bounded recall, narrow MCP profiles, prompt-cache-friendly ordering. | skill set | read | yes — whether a guidance skill set ports with read reach is unverified | - |
 
 ### skills/repo (17)
 
@@ -65,21 +65,21 @@ the registry, not directories on disk, and get no rows.)
 | --- | --- | --- | --- | --- | --- | --- |
 | add-public-service | `skills/repo/add-public-service/` | Add a new SSO-protected service to the estate stack: the aligned file set across `fleet.yaml`, auth-api and app-ui, plus render and test. | workflow | write-scoped | yes — whether repo/fleet-specific skills are in the port's scope (#350 unread) | - |
 | agent-session-bootstrap | `skills/repo/agent-session-bootstrap/` | Repo-source variant of the session-configuration checklist, rendered per CLI target. | skill set | read | yes — same session-configuration question as the workstation variant | - |
-| council | `skills/repo/council/` | The council skill's repo source (Claude + Codex targets): orchestrate large decomposable work cross-model. | stays outside | n/a | no — verified fact: no Codex | - |
-| council-amend | `skills/repo/council-amend/` | Amend an existing council brief, design, task DAG or run after feedback, failed validation or changed constraints. | stays outside | n/a | no — verified fact: no Codex | - |
-| council-design | `skills/repo/council-design/` | Produce a council-ready design, consolidated plan and parallel task DAG from a clear brief. | stays outside | n/a | no — verified fact: no Codex | - |
-| council-grill | `skills/repo/council-grill/` | Stress-test a plan, patch, task DAG or decision through a council-style adversarial review. | stays outside | n/a | no — verified fact: no Codex | - |
-| council-inject | `skills/repo/council-inject/` | Inject new constraints, evidence or operator guidance into an active council flow. | stays outside | n/a | no — verified fact: no Codex | - |
-| council-run | `skills/repo/council-run/` | Execute an approved council plan or task DAG through supervised workers. | stays outside | n/a | no — verified fact: no Codex | - |
-| council-supervise | `skills/repo/council-supervise/` | Supervise a single cross-CLI delegate with bounded scope and progress relay. | stays outside | n/a | no — verified fact: no Codex | - |
-| council-triage | `skills/repo/council-triage/` | Decide whether work belongs in a normal session, a council split skill, or a full council run. | stays outside | n/a | no — verified fact: no Codex | - |
+| council | `skills/repo/council/` | The council skill's repo source (Claude + Codex targets): orchestrate large decomposable work cross-model. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| council-amend | `skills/repo/council-amend/` | Amend an existing council brief, design, task DAG or run after feedback, failed validation or changed constraints. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| council-design | `skills/repo/council-design/` | Produce a council-ready design, consolidated plan and parallel task DAG from a clear brief. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| council-grill | `skills/repo/council-grill/` | Stress-test a plan, patch, task DAG or decision through a council-style adversarial review. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| council-inject | `skills/repo/council-inject/` | Inject new constraints, evidence or operator guidance into an active council flow. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| council-run | `skills/repo/council-run/` | Execute an approved council plan or task DAG through supervised workers. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| council-supervise | `skills/repo/council-supervise/` | Supervise a single cross-CLI delegate with bounded scope and progress relay. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| council-triage | `skills/repo/council-triage/` | Decide whether work belongs in a normal session, a council split skill, or a full council run. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
 | deploy-status | `skills/repo/deploy-status/` | Fetch and summarise the gate status for a homelab-deploy pull request: the four required checks and merge-readiness. | workflow | read | yes — same scope question for repo-specific skills (#350 unread) | - |
 | fleet-change | `skills/repo/fleet-change/` | Edit `platform/inventory/fleet.yaml` safely: render generated Traefik/catalog YAML, run tooling tests, commit the rendered output. | workflow | write-scoped | yes — same scope question (#350 unread) | - |
 | kb-first | `skills/repo/kb-first/` | Repo-source variant of the memory-first consultation and capture skill. | skill set | write | yes — memory write reach in Gold Band (gb-dsl-facts.md unread) | - |
 | open-pr | `skills/repo/open-pr/` | Open a pull request the way this repo requires: assignee, label, impersonal PR-body voice, no assistant attribution. | workflow | write | yes — same scope question (#350 unread) | - |
 | prepare-rollback | `skills/repo/prepare-rollback/` | Prepare a rollback branch pinning one service to a prior artifact version; returns a COMPARE URL, never merges or approves. | workflow | write-scoped | yes — same scope question (#350 unread) | - |
 | run-tests | `skills/repo/run-tests/` | Run the right tests before pushing a change in the fleet monorepo: Kotlin suites, platform tooling, Vue/TS typecheck + lint + vitest. | workflow | run-one-command | yes — same scope question (#350 unread) | - |
-| token-economy | `skills/repo/token-economy/` | Repo-source variant of the token-budget discipline skill. | skill set | read | no | - |
+| token-economy | `skills/repo/token-economy/` | Repo-source variant of the token-budget discipline skill. | skill set | read | yes — whether a guidance skill set ports with read reach is unverified | - |
 
 ## Hooks
 
@@ -91,11 +91,11 @@ Band has no hook system and hooks always stay outside — every hook row is
 
 | Name | Path | What it does | Target kind | Reach | Depends on unverified Gold Band fact | Target |
 | --- | --- | --- | --- | --- | --- | --- |
-| critique-commit-gate | `manifest.yaml` (`hooks:`), `skills/workstation/critique/hooks/critique-commit-gate.sh` | Blocks a risky staged diff before `git commit` until a passing /review-implementation run matches it. | stays outside | n/a | no — verified: Gold Band has no hook system | - |
-| critique-pr-gate | `manifest.yaml` (`hooks:`), `skills/workstation/critique/hooks/critique-pr-gate.sh` | Blocks `gh pr create` or a push outside the feature branch patterns unless /review-pr passed for the head. | stays outside | n/a | no — verified: Gold Band has no hook system | - |
-| critique-session-start | `manifest.yaml` (`hooks:`), `skills/workstation/critique/hooks/critique-session-start.sh` | Prints one line suggesting /flow setup in an opted-in repository whose machine setup is missing or failing. | stays outside | n/a | no — verified: Gold Band has no hook system | - |
-| hindsight recall hooks | `registry/estate-tooling.yaml` (`coding_agents:`), wired by `installer/setup-workstation.sh` (`hindsight_coding_agents`) | The `@vectorize-io/hindsight-coding-agents` plugin wires its hooks and a `hindsight` server into Claude Code and Codex; locked to recall-once at session start. | stays outside | n/a | no — the hooks stay outside (verified); the recall capability itself is a question, below | - |
-| security-guidance plugin hooks | `registry/estate-tooling.yaml` (`plugins: security-guidance`) | The plugin ships its own PreToolUse and Stop hooks for security review of generated code; the plugin is declared here, its hooks come with it. | stays outside | n/a | no — verified: Gold Band has no hook system | - |
+| critique-commit-gate | `manifest.yaml` (`hooks:`), `skills/workstation/critique/hooks/critique-commit-gate.sh` | Blocks a risky staged diff before `git commit` until a passing /review-implementation run matches it. | stays outside | n/a | no — #367 Implementation Decisions, Stays outside: hooks have no Gold Band equivalent | - |
+| critique-pr-gate | `manifest.yaml` (`hooks:`), `skills/workstation/critique/hooks/critique-pr-gate.sh` | Blocks `gh pr create` or a push outside the feature branch patterns unless /review-pr passed for the head. | stays outside | n/a | no — #367 Implementation Decisions, Stays outside: hooks have no Gold Band equivalent | - |
+| critique-session-start | `manifest.yaml` (`hooks:`), `skills/workstation/critique/hooks/critique-session-start.sh` | Prints one line suggesting /flow setup in an opted-in repository whose machine setup is missing or failing. | stays outside | n/a | no — #367 Implementation Decisions, Stays outside: hooks have no Gold Band equivalent | - |
+| hindsight recall hooks | `registry/estate-tooling.yaml` (`coding_agents:`), wired by `installer/setup-workstation.sh` (`hindsight_coding_agents`) | The `@vectorize-io/hindsight-coding-agents` plugin wires its hooks and a `hindsight` server into Claude Code and Codex; locked to recall-once at session start. | stays outside | n/a | no — #367 Implementation Decisions, Stays outside: hooks have no Gold Band equivalent; the recall question stays open | - |
+| security-guidance plugin hooks | `registry/estate-tooling.yaml` (`plugins: security-guidance`) | The plugin ships its own PreToolUse and Stop hooks for security review of generated code; the plugin is declared here, its hooks come with it. | stays outside | n/a | no — #367 Implementation Decisions, Stays outside: hooks have no Gold Band equivalent | - |
 
 Not installed (found, recorded so nothing is invented): the retired
 knowledge-recall hooks (edit recall, git-commit capture, session digest,
@@ -117,11 +117,11 @@ Role-like files elsewhere are listed too, so every one is in exactly one row.
 | refuter | `skills/workstation/critique/roles/refuter.md` | In the refute round, may only refute or downgrade an accepted critical finding, with evidence. | role | read | yes — whether the refute round is a Gold Band judgment node (Opus-only, per the #327 fact) or a critic role | - |
 | spec-redteam | `skills/workstation/critique/roles/spec-redteam.md` | Redteams a spec for failure modes and omissions. | role | read | yes — same #363 question | - |
 | ticket-linter | `skills/workstation/critique/roles/ticket-linter.md` | Lints a spec's ticket structure read-only. | role | read | yes — same #363 question | - |
-| council role prompts | `council/prompts/` (mirrored byte-for-byte at `skills/workstation/council/prompts/`, pinned in `manifest.yaml` `council.files`) | Role prompts for council members: baseline, designer, planner, critic, reviewers (acceptance/adversarial/edgecase), consolidators, triage judge, verifier, worker, and companions. | stays outside | n/a | no — verified fact: no Codex; council does not port | - |
+| council role prompts | `council/prompts/` (mirrored byte-for-byte at `skills/workstation/council/prompts/`, pinned in `manifest.yaml` `council.files`) | Role prompts for council members: baseline, designer, planner, critic, reviewers (acceptance/adversarial/edgecase), consolidators, triage judge, verifier, worker, and companions. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
 | Vibe critic agents | `registry/generated/vibe/agents/critic-mistral-large.toml`, `critic-mistral-small.toml`, `critic-glm.toml`, `critic-deepseek-flash.toml` (from `registry/estate-tooling.yaml` `vibe_critic_agents:`) | Read-only critic client agents for the critique pipeline, each pinning a model and its prices so caps fire. | role | read | yes — whether Gold Band renders its own critic-client agent configs or replaces critic clients with judgment nodes (#350/#367 unread) | - |
 | Vibe delegate agents | `registry/generated/vibe/agents/delegate-readonly.toml`, `delegate-write.toml` (from `vibe_delegate_agents:`) | Read-only and worktree-write delegate agents of the model gateway, with no shell, no MCP, nothing outside scope. | role | read | yes — whether a Gold Band delegate role exists without the model gateway (ADR-0007; specs unread) | - |
-| codex-med | `agents/codex-med.md` (rendered to `.claude/agents/codex-med.md`) | Claude Code subagent supervising a Codex gpt-5.5 delegate at medium reasoning effort behind the model gateway and grants. | stays outside | n/a | no — verified fact: no Codex | - |
-| codex-xhigh | `agents/codex-xhigh.md` (rendered to `.claude/agents/codex-xhigh.md`) | Same supervisor at high reasoning effort for difficult reasoning or deep review. | stays outside | n/a | no — verified fact: no Codex | - |
+| codex-med | `agents/codex-med.md` (rendered to `.claude/agents/codex-med.md`) | Claude Code subagent supervising a Codex gpt-5.5 delegate at medium reasoning effort behind the model gateway and grants. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
+| codex-xhigh | `agents/codex-xhigh.md` (rendered to `.claude/agents/codex-xhigh.md`) | Same supervisor at high reasoning effort for difficult reasoning or deep review. | stays outside | n/a | no — #327 Implementation Decisions, Hard rules in validation: Codex never appears in a Gold Band binding | - |
 
 Not found on disk: the review-stage skills ADR-0003 names (`/critique-adrs`,
 `/recover-decisions`, `/review-architecture`) have no skill directories in
@@ -136,25 +136,48 @@ Retired and disabled records are listed and marked.
 
 | Name | Path | What it does | Target kind | Reach | Depends on unverified Gold Band fact | Target |
 | --- | --- | --- | --- | --- | --- | --- |
-| memory-api | `registry/estate-tooling.yaml` (`mcp_servers:`) | Hindsight long-term memory for the shared bank: explicit read/write/search knowledge tools; workstation, Hermes and runner surfaces. | MCP server | write | no | - |
+| memory-api | `registry/estate-tooling.yaml` (`mcp_servers:`) | Hindsight long-term memory for the shared bank: explicit read/write/search knowledge tools; workstation, Hermes and runner surfaces. | MCP server | write | yes — which MCP servers port, and at which reach, is unverified | - |
 | memory-private | `registry/estate-tooling.yaml` (`mcp_servers:`) | Private Memory, the personal Hindsight bank, only in vibe-private behind the passphrase gate. | stays outside | n/a | yes — whether Gold Band has (or should have) a passphrase-gated private surface (specs unread) | - |
-| memory-mcp | `registry/estate-tooling.yaml` (`mcp_servers:`) | Retired record: Basic Memory over the knowledge-vault; `surfaces: []`, registered nowhere. | stays outside | n/a | no | - |
-| n8n | `registry/estate-tooling.yaml` | n8n workflows through the instance-level MCP server, OAuth per client. | MCP server | write | no | - |
-| n8n-mcp | `registry/estate-tooling.yaml` | n8n node docs and schemas, docs-only, no API key. | MCP server | read | no | - |
-| kubernetes | `registry/estate-tooling.yaml` | Read-only cluster diagnostics through the server's own ClusterRole; workstation reaches it via a port-forward. | MCP server | read | no | - |
-| github | `registry/estate-tooling.yaml` (`mcp_servers:`, Hermes/runner; the `github` Claude Code plugin on the workstation) | GitHub issues, branches, pull requests; delete and label tools excluded to stop invented labels. | MCP server | write | no | - |
-| grimoire | `registry/estate-tooling.yaml` | Grimoire D&D 5e table companion via its MCP server, an account-scoped token. | MCP server | write-scoped | no | - |
-| outline | `registry/estate-tooling.yaml` | Outline wiki at notes.jorisjonkers.dev, reached as a separate Outline user with that user's visibility. | MCP server | write | no | - |
-| vuetify | `registry/estate-tooling.yaml` | Vuetify component API; disabled (`enabled: false`) on every surface today. | stays outside | n/a | no | - |
-| playwright | `registry/estate-tooling.yaml` | Headless Chromium browser automation via playwright-mcp. | MCP server | full | no | - |
-| drawio | `registry/estate-tooling.yaml` | Native .drawio diagram authoring and export via drawio-mcp. | MCP server | write-scoped | no | - |
-| overleaf | `registry/estate-tooling.yaml` | Self-hosted Overleaf: pull, push, compile, review comments via olcli-mcp. | MCP server | write | no | - |
+| memory-mcp | `registry/estate-tooling.yaml` (`mcp_servers:`) | Retired record: Basic Memory over the knowledge-vault; `surfaces: []`, registered nowhere. | stays outside | n/a | yes — whether a retired record stays outside without a Gold Band decision is unverified | - |
+| n8n | `registry/estate-tooling.yaml` | n8n workflows through the instance-level MCP server, OAuth per client. | MCP server | write | yes — which MCP servers port, and at which reach, is unverified | - |
+| n8n-mcp | `registry/estate-tooling.yaml` | n8n node docs and schemas, docs-only, no API key. | MCP server | read | yes — which MCP servers port, and at which reach, is unverified | - |
+| kubernetes | `registry/estate-tooling.yaml` | Read-only cluster diagnostics through the server's own ClusterRole; workstation reaches it via a port-forward. | MCP server | read | yes — which MCP servers port, and at which reach, is unverified | - |
+| github | `registry/estate-tooling.yaml` (`mcp_servers:`, Hermes/runner; the `github` Claude Code plugin on the workstation) | GitHub issues, branches, pull requests; delete and label tools excluded to stop invented labels. | MCP server | write | yes — which MCP servers port, and at which reach, is unverified | - |
+| grimoire | `registry/estate-tooling.yaml` | Grimoire D&D 5e table companion via its MCP server, an account-scoped token. | MCP server | write-scoped | yes — which MCP servers port, and at which reach, is unverified | - |
+| outline | `registry/estate-tooling.yaml` | Outline wiki at notes.jorisjonkers.dev, reached as a separate Outline user with that user's visibility. | MCP server | write | yes — which MCP servers port, and at which reach, is unverified | - |
+| vuetify | `registry/estate-tooling.yaml` | Vuetify component API; disabled (`enabled: false`) on every surface today. | stays outside | n/a | yes — whether a server disabled on every surface today gets a Gold Band target is unverified | - |
+| playwright | `registry/estate-tooling.yaml` | Headless Chromium browser automation via playwright-mcp. | MCP server | full | yes — which MCP servers port, and at which reach, is unverified | - |
+| drawio | `registry/estate-tooling.yaml` | Native .drawio diagram authoring and export via drawio-mcp. | MCP server | write-scoped | yes — which MCP servers port, and at which reach, is unverified | - |
+| overleaf | `registry/estate-tooling.yaml` | Self-hosted Overleaf: pull, push, compile, review comments via olcli-mcp. | MCP server | write | yes — which MCP servers port, and at which reach, is unverified | - |
 | hindsight | `registry/estate-tooling.yaml` (`coding_agents:`), registered in every Claude profile and Codex by `installer/setup-workstation.sh` | Hindsight recall-inject memory server for Claude Code and Codex: one recall at a session's first prompt, saves are deliberate. | MCP server | read | yes — whether Gold Band is a supported harness for hindsight coding agents (its hooks already stay outside) | - |
-| git-host | `runner/manifests/runtime/mcp/claude-mcp-servers.*.json`, `codex-mcp-servers.*.toml` (all profiles), via `bin/gh-mcp-wrapper` | GitHub MCP for the runner image through the wrapper and its gh-app token, minted at session start. | MCP server | write | no | - |
-| code-intel | `runner/manifests/runtime/mcp/*code-intel*`, `*cluster*`, `*full-diagnostic*` (serena; also a registry `clis:` container entry) | LSP-backed semantic code intelligence (serena), no-memories mode. | MCP server | read | no | - |
-| frontend-docs | `runner/manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json`, `...cluster.json`, cod equivalents | Frontend docs server via a build-time `@FRONTEND_DOCS_MCP_URL@` placeholder. | MCP server | read | no | - |
-| ui-docs | same runner profiles | UI docs server via a build-time `@UI_DOCS_MCP_URL@` placeholder. | MCP server | read | no | - |
-| cluster | same runner profiles (plus `claude-mcp-servers.cluster.json`) | Cluster MCP via a build-time `@CLUSTER_MCP_URL@` placeholder. | MCP server | read | no | - |
+| git-host | `runner/manifests/runtime/mcp/claude-mcp-servers.*.json`, `codex-mcp-servers.*.toml` (all profiles), via `bin/gh-mcp-wrapper` | GitHub MCP for the runner image through the wrapper and its gh-app token, minted at session start. | MCP server | write | yes — which MCP servers port, and at which reach, is unverified | - |
+| code-intel | `runner/manifests/runtime/mcp/*code-intel*`, `*cluster*`, `*full-diagnostic*` (serena; also a registry `clis:` container entry) | LSP-backed semantic code intelligence (serena), no-memories mode. | MCP server | read | yes — which MCP servers port, and at which reach, is unverified | - |
+| frontend-docs | `runner/manifests/runtime/mcp/claude-mcp-servers.full-diagnostic.json`, `...cluster.json`, cod equivalents | Frontend docs server via a build-time `@FRONTEND_DOCS_MCP_URL@` placeholder. | MCP server | read | yes — which MCP servers port, and at which reach, is unverified | - |
+| ui-docs | same runner profiles | UI docs server via a build-time `@UI_DOCS_MCP_URL@` placeholder. | MCP server | read | yes — which MCP servers port, and at which reach, is unverified | - |
+| cluster | same runner profiles (plus `claude-mcp-servers.cluster.json`) | Cluster MCP via a build-time `@CLUSTER_MCP_URL@` placeholder. | MCP server | read | yes — which MCP servers port, and at which reach, is unverified | - |
+
+## Older issues
+
+Each overlapping older issue this port touches gets exactly one row, resolved
+by a named target or by staying outside, so none is closed twice or left
+dangling (#367's Overlapping older issues rule; issue #370).
+
+| Name | Path | What it does | Target kind | Reach | Depends on unverified Gold Band fact | Target |
+| --- | --- | --- | --- | --- | --- | --- |
+| #24 | issue #24 | Cross-provider review harness | workflow | write | no — #367 Implementation Decisions, Overlapping older issues: #24 is Workflow B in #350 | - |
+| #167 | issue #167 | Critique pipeline foundation and /critique-spec | workflow | run-one-command | no — #367 Implementation Decisions, Overlapping older issues: critique-pipeline rows are Wave 2 (#363) | - |
+| #181 | issue #181 | The remaining critique stages | workflow | run-one-command | no — #367 Implementation Decisions, Overlapping older issues: critique-pipeline rows are Wave 2 (#363) | - |
+| #182 | issue #182 | /flow, hooks and /critique-stats | workflow | run-one-command | no — #367 Implementation Decisions, Overlapping older issues: critique-pipeline rows are Wave 2 (#363) | - |
+| #198 | issue #198 | Install the three critique hooks through setup | stays outside | n/a | no — #367 Implementation Decisions, Overlapping older issues: #198 (hooks) stays outside | - |
+| #214 | issue #214 | ADR review, decision recovery, architecture review and refactoring plans | workflow | run-one-command | no — #367 Implementation Decisions, Overlapping older issues: critique-pipeline rows are Wave 2 (#363) | - |
+| #285 | issue #285 | Research delegation with web access and citation checks | workflow | research | no — #367 Implementation Decisions, Overlapping older issues: #285 is Workflow A in #350 | - |
+| #286 | issue #286 | Estate workstation skills (umbrella) | skill set | read | yes — proposed mapping; #367 leaves the estate-skill issues unverified pending #351; the owner confirms it in #374 | - |
+| #287 | issue #287 | Skill sources drift check (a weekly CI workflow) | stays outside | n/a | yes — proposed mapping; #367 leaves the estate-skill issues unverified pending #351; the owner confirms it in #374 | - |
+| #288 | issue #288 | estate-project-intent skill | skill set | write | yes — proposed mapping; #367 leaves the estate-skill issues unverified pending #351; the owner confirms it in #374 | - |
+| #289 | issue #289 | estate-delivery-status skill | skill set | read | yes — proposed mapping; #367 leaves the estate-skill issues unverified pending #351; the owner confirms it in #374 | - |
+| #290 | issue #290 | estate-rollback skill (plans, never dispatches) | skill set | read | yes — proposed mapping; #367 leaves the estate-skill issues unverified pending #351; the owner confirms it in #374 | - |
+| #291 | issue #291 | estate-bootstrap skill | skill set | write | yes — proposed mapping; #367 leaves the estate-skill issues unverified pending #351; the owner confirms it in #374 | - |
+| #292 | issue #292 | Retire the six personal-stack repo skills | stays outside | n/a | yes — proposed mapping; #367 leaves the estate-skill issues unverified pending #351; the owner confirms it in #374 | - |
 
 ## Check script
 
@@ -184,6 +207,13 @@ is an agent id or skill-set name the registry declares as `id: <name>` or
 `name: <name>` (the Gold Band section is not built yet, so that text match is
 the rule for now), and a "stays outside" target must be `-`; anything else fails
 as "target <target> does not exist".
+
+A row in any section whose `Depends on unverified Gold Band fact` cell starts
+with `no` must cite one of `#327`, `#350` or `#367`; a `no` without such a
+citation fails as `<section>/<name>: "no" without a spec citation`. A
+`workflow` target must stay inside the repository: an absolute path or a path
+with a `..` segment is refused as not existing, because `root.join(target)`
+would otherwise escape it.
 
 ## Proposed wave order after Wave 2
 
