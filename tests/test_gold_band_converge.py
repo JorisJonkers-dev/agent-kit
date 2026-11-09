@@ -95,6 +95,23 @@ OPENCODE_SETTINGS: dict[str, Any] = {
     "externalSessionSyncEnabled": False,
 }
 
+# The registry's declared agents, in declaration order (#338). Their
+# adapter commands are declared with a leading `~/` and written absolute,
+# expanded to the home of the run, because Gold Band reads settings.json
+# without shell expansion; no declaration carries a key.
+DECLARED_AGENT_IDS = ["opencode", "vibe", "vibe-study", "agy", "hermes"]
+
+
+def _declared_adapters(home: Path) -> dict[str, Any]:
+    """Each declared agent's adapter block as converge writes it: home-expanded."""
+    return {
+        "opencode": OPENCODE_SETTINGS["adapter"],
+        "vibe": {"command": f"{home}/.local/bin/vibe-acp", "displayName": "Vibe"},
+        "vibe-study": {"command": f"{home}/.local/bin/vibe-study-acp", "displayName": "Vibe (Study)"},
+        "agy": {"command": "/opt/homebrew/bin/agy", "args": ["acp"], "displayName": "Antigravity"},
+        "hermes": {"command": f"{home}/.local/bin/hermes-acp", "displayName": "Hermes"},
+    }
+
 
 def _seeded_settings(home: Path, keep: tuple[str, ...] = ("mine", "codex-acp", "old-friend")) -> None:
     """A settings.json with extra keys and undeclared, kept, retired and codex agents."""
@@ -137,7 +154,7 @@ def _gate(root: Path, running: str = "0") -> dict[str, str]:
             "AGENT_KIT_GOLD_BAND_RUNNING": running}
 
 
-def test_a_first_run_holds_exactly_opencode_and_the_kept_agents(tmp_path: Path, built_crate: None) -> None:
+def test_a_first_run_holds_the_declared_agents_and_the_kept_agents(tmp_path: Path, built_crate: None) -> None:
     run = setup_run(tmp_path, "Linux", prepare_home=_seeded_settings,
                     stubs={"uv": _uv_stub(tmp_path)}, extra_env=_gate(tmp_path))
     settings = run.home / ".gold-band" / "settings.json"
@@ -146,8 +163,11 @@ def test_a_first_run_holds_exactly_opencode_and_the_kept_agents(tmp_path: Path, 
     assert list(document) == ["theme", "agents", "window"]
     assert document["theme"] == "dark"
     assert document["window"] == {"width": 1280}
-    # Exactly the declared agent plus the kept one, the declared one first.
-    assert list(document["agents"]) == ["opencode", "mine"]
+    # The five declared agents in declaration order, then the kept one.
+    assert list(document["agents"]) == [*DECLARED_AGENT_IDS, "mine"]
+    adapters = _declared_adapters(run.home)
+    for agent_id in DECLARED_AGENT_IDS:
+        assert document["agents"][agent_id]["adapter"] == adapters[agent_id], agent_id
     assert document["agents"]["opencode"] == OPENCODE_SETTINGS
     assert document["agents"]["mine"] == SEEDED_SETTINGS["agents"]["mine"]
     # The old document was backed up before anything was written.
@@ -155,6 +175,30 @@ def test_a_first_run_holds_exactly_opencode_and_the_kept_agents(tmp_path: Path, 
     assert json.loads(backup.read_text())["agents"]["stray-agent"]["adapter"]["command"] == (
         "/usr/local/bin/stray"
     )
+
+
+def test_no_value_in_settings_equals_the_study_key(tmp_path: Path, built_crate: None) -> None:
+    """No declared Gold Band agent holds a key: the launcher reads it at start (#336)."""
+    stub_key = "study-stub-key-336"
+
+    def seeded_with_a_key(home: Path) -> None:
+        """The seeded settings plus a secret store that holds the Study key."""
+        _seeded_settings(home)
+        env_sh = home / ".config" / "agent-kit" / "env.sh"
+        env_sh.write_text(
+            '_agent_kit_secret() { [ "$1" = MISTRAL_STUDY_API_KEY ] '
+            f"&& printf '%s' \"{stub_key}\"; }}\n"
+        )
+
+    run = setup_run(
+        tmp_path, "Linux", prepare_home=seeded_with_a_key,
+        stubs={"uv": _uv_stub(tmp_path)},
+        extra_env={**_gate(tmp_path), "MISTRAL_STUDY_API_KEY": stub_key})
+    document = json.loads((run.home / ".gold-band" / "settings.json").read_text())
+    assert list(document["agents"]) == [*DECLARED_AGENT_IDS, "mine"]
+    # No value, and no name, of the converged document is the stub key.
+    assert stub_key not in json.dumps(document)
+    assert "MISTRAL_STUDY_API_KEY" not in json.dumps(document)
 
 
 def test_a_second_run_changes_nothing(tmp_path: Path, built_crate: None) -> None:
@@ -175,7 +219,7 @@ def test_a_codex_id_in_the_keep_file_is_removed_anyway(tmp_path: Path, built_cra
                     prepare_home=lambda home: _seeded_settings(home, keep=("codex-acp",)),
                     stubs={"uv": _uv_stub(tmp_path)}, extra_env=_gate(tmp_path))
     document = json.loads((run.home / ".gold-band" / "settings.json").read_text())
-    assert list(document["agents"]) == ["opencode"]
+    assert list(document["agents"]) == DECLARED_AGENT_IDS
 
 
 def test_a_retired_id_is_removed_even_when_kept(tmp_path: Path, built_crate: None) -> None:
@@ -187,7 +231,7 @@ def test_a_retired_id_is_removed_even_when_kept(tmp_path: Path, built_crate: Non
                     prepare_home=lambda home: _seeded_settings(home, keep=("mine", "old-friend")),
                     stubs={"uv": _uv_stub(tmp_path, registry)}, extra_env=_gate(tmp_path))
     document = json.loads((run.home / ".gold-band" / "settings.json").read_text())
-    assert list(document["agents"]) == ["opencode", "mine"]
+    assert list(document["agents"]) == [*DECLARED_AGENT_IDS, "mine"]
     assert "old-friend" not in document["agents"]
 
 

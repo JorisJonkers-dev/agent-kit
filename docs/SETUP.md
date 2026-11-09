@@ -86,7 +86,7 @@ asks only for what is missing or refused by its host. Optional credentials
 | `HINDSIGHT_API_URL` | anything that reads it; Coding Agents takes its URL from its own config | set by env.sh |
 | `MEMORY_PRIVATE_TOKEN` | the `memory-private` MCP server (Private Memory), in `vibe-private` only | never exported; sealed behind your passphrase, given to `vibe-private` per launch |
 | `GRIMOIRE_API_TOKEN` | the `grimoire` MCP server (Grimoire at grimoire.jorisjonkers.dev) | required for `grimoire`; without it the server is not registered |
-| `MISTRAL_STUDY_API_KEY` | `vibe-study`: Vibe signed in with the Study account | optional; you get it with `vibe-study --login` (setup never asks); never exported, read only by `vibe-study` |
+| `MISTRAL_STUDY_API_KEY` | `vibe-study`: Vibe signed in with the Study account | optional; you get it with `vibe-study --login` (setup never asks); never exported, read only by `vibe-study` and its ACP twin `vibe-study-acp` |
 | `MISTRAL_API_KEY` | not set on the workstation: Vibe uses your account login. Only cloud sessions pass one in | cloud only |
 | `OUTLINE_API_KEY` | the `outline` MCP server (Outline at notes.jorisjonkers.dev) | required for `outline`; without it the server is not registered |
 | `OVERLEAF_SESSION` | the `overleaf` MCP server (self-hosted Overleaf) | optional |
@@ -232,7 +232,8 @@ shared-bank recall at all. For one session only: `HINDSIGHT_DISABLED=true claude
 Personal notes go to Private Memory, a separate Hindsight bank (`private`),
 served only on `hindsight-private.jorisjonkers.dev` and only to a
 `MEMORY_PRIVATE` service token. Every other agent and launcher gets Shared
-Memory (`memory-api`) only. Vibe has three launchers:
+Memory (`memory-api`) only. Vibe has three launchers (and one ACP twin,
+below):
 
 | Launcher | Mistral account | Memory | Passphrase | Vibe home | Who may run it |
 |---|---|---|---|---|---|
@@ -265,6 +266,10 @@ launcher behind the passphrase gate. See [ADR-0023](https://github.com/JorisJonk
   `vibe-study` refuses rather than falling back to the personal account. It drops an inherited `MEMORY_PRIVATE_TOKEN` and never
   uses vibe-private's home, even when started from inside a vibe-private
   session.
+- **`vibe-study-acp`** is that launch over ACP, for Gold Band: the same
+  read of the key, the same shared home, then
+  `exec ~/.local/bin/vibe-acp`. The key is read at start, never written
+  to any Gold Band file, and a missing one starts nothing (#336).
 - **`vibe-private`** runs Vibe in its own home, `~/.vibe-private`, the only
   one whose config holds `memory-private` and whose `AGENTS.md` asks it to
   recall from both banks. Its sessions never share a directory with `vibe`

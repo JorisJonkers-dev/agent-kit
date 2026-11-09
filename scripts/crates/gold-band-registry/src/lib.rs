@@ -39,6 +39,10 @@
 //!   outputDir, provider, model, throwawayOnly) never reach the
 //!   file; the settings map REPLACES the app's runtime agent list, it is
 //!   not merged with the built-in catalog;
+//! * a leading `~/` in `adapter.command` and in each `adapter.args` value
+//!   is expanded to the user's home directory (`$HOME`) as it is written,
+//!   because Gold Band needs absolute paths; nothing else expands, and
+//!   validation rules on the declared value, so it is unchanged;
 //! * a built-in id ([`BUILT_INS`]) is written without `adapter.command` and
 //!   `adapter.args`: the app strips those two when it saves and re-injects
 //!   them from its catalog when it loads, so writing them would make the
@@ -545,7 +549,10 @@ fn agent_value(a: &Agent) -> Value {
 fn entry(a: &Agent, path: &str) -> Option<Value> {
     match path {
         "compatibleAgentDirs" => {
-            let dirs = array(a, "compatibleAgentDirs.");
+            let dirs: Vec<Value> = array(a, "compatibleAgentDirs.")
+                .into_iter()
+                .map(Value::String)
+                .collect();
             if dirs.is_empty() {
                 None
             } else {
@@ -561,13 +568,22 @@ fn entry(a: &Agent, path: &str) -> Option<Value> {
 
 /// The agent's `adapter` block, in Gold Band's field order; a built-in id
 /// leaves command and args out, which the app re-injects from its catalog.
+/// A leading `~/` in the command or in an arg is expanded to the user's
+/// home directory as it is written, because Gold Band needs absolute paths.
 fn adapter_value(a: &Agent) -> Map<String, Value> {
+    let home = std::env::var_os("HOME");
     let mut adapter = Map::new();
     if !BUILT_INS.contains(&a.id.as_str()) {
         if let Some(command) = value(a, "adapter.command") {
-            adapter.insert("command".to_string(), Value::String(command.to_string()));
+            adapter.insert(
+                "command".to_string(),
+                Value::String(expand_home(command, home.as_deref())),
+            );
         }
-        let args = array(a, "adapter.args.");
+        let args: Vec<Value> = array(a, "adapter.args.")
+            .into_iter()
+            .map(|arg| Value::String(expand_home(&arg, home.as_deref())))
+            .collect();
         if !args.is_empty() {
             adapter.insert("args".to_string(), Value::Array(args));
         }
@@ -590,10 +606,10 @@ fn adapter_value(a: &Agent) -> Map<String, Value> {
     adapter
 }
 
-/// The lines of one array field (`adapter.args`, `compatibleAgentDirs`) in
-/// index order.
-fn array(a: &Agent, prefix: &str) -> Vec<Value> {
-    let mut items: Vec<(usize, Value)> = Vec::new();
+/// The declared strings of one array field (`adapter.args`,
+/// `compatibleAgentDirs`) in index order.
+fn array(a: &Agent, prefix: &str) -> Vec<String> {
+    let mut items: Vec<(usize, String)> = Vec::new();
     for (path, body) in &a.fields {
         let Some(index) = path.strip_prefix(prefix) else {
             continue;
@@ -601,13 +617,25 @@ fn array(a: &Agent, prefix: &str) -> Vec<Value> {
         if !decimal(index) {
             continue;
         }
-        items.push((
-            index.parse().unwrap_or_default(),
-            Value::String(body.clone()),
-        ));
+        items.push((index.parse().unwrap_or_default(), body.clone()));
     }
     items.sort_by_key(|(index, _)| *index);
     items.into_iter().map(|(_, body)| body).collect()
+}
+
+/// A declared value with a leading `~/` expanded to the user's home
+/// directory (`$HOME`): Gold Band reads settings.json without shell
+/// expansion, so the converge writes an absolute path where the
+/// declaration shortens the home. A value with no leading `~/`, or a
+/// home that is not set (or empty), is written exactly as declared.
+fn expand_home(value: &str, home: Option<&OsStr>) -> String {
+    let Some(rest) = value.strip_prefix("~/") else {
+        return value.to_string();
+    };
+    let Some(home) = home.filter(|home| !home.is_empty()) else {
+        return value.to_string();
+    };
+    format!("{}/{}", home.to_string_lossy(), rest)
 }
 
 /// Writes `document` to `settings` atomically -- a temporary file in the same
@@ -1842,5 +1870,65 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         assert_eq!(converge("cv-mode", declared, "", "", &settings, false), 0);
         let mode = fs::metadata(&settings).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
+    }
+
+    #[test]
+    fn a_leading_home_shortcut_expands_and_anything_else_stays_declared() {
+        let home = std::ffi::OsStr::new("/Users/example");
+        assert_eq!(
+            expand_home("~/.local/bin/vibe-acp", Some(home)),
+            "/Users/example/.local/bin/vibe-acp"
+        );
+        // No leading ~/: an absolute command is written as declared.
+        assert_eq!(
+            expand_home("/opt/homebrew/bin/agy", Some(home)),
+            "/opt/homebrew/bin/agy"
+        );
+        // ~ without the slash is not the home shortcut.
+        assert_eq!(expand_home("~other/x", Some(home)), "~other/x");
+        // No home set, or an empty one: writing as declared beats an empty
+        // path, and validation never sees an expansion.
+        assert_eq!(expand_home("~/bin/x", None), "~/bin/x");
+        assert_eq!(
+            expand_home("~/bin/x", Some(std::ffi::OsStr::new(""))),
+            "~/bin/x"
+        );
+    }
+
+    #[test]
+    fn converge_writes_home_expanded_absolute_adapter_paths() {
+        let home = std::env::var_os("HOME").expect("a home directory");
+        let prefix = home.to_string_lossy();
+        let declared = "agent\tvibe\nfield\tadapter.command\t~/.local/bin/vibe-acp\nfield\tadapter.displayName\tVibe\nfield\treach\twrite\nagent\texotic\nfield\tadapter.command\t/opt/homebrew/bin/exotic\nfield\tadapter.args.0\t~/.config/exotic\nfield\tadapter.displayName\tExotic\nfield\treach\twrite\n";
+        let settings = temp("cv-expand", "{}");
+        assert_eq!(converge("cv-expand", declared, "", "", &settings, false), 0);
+        let agents = agents_of(&settings);
+        let command = agents
+            .get("vibe")
+            .and_then(|entry| entry.get("adapter"))
+            .and_then(|adapter| adapter.get("command"));
+        assert_eq!(
+            command,
+            Some(&Value::String(format!("{prefix}/.local/bin/vibe-acp")))
+        );
+        let args = agents
+            .get("exotic")
+            .and_then(|entry| entry.get("adapter"))
+            .and_then(|adapter| adapter.get("args"));
+        assert_eq!(
+            args,
+            Some(&Value::Array(vec![Value::String(format!(
+                "{prefix}/.config/exotic"
+            ))]))
+        );
+        let display = agents
+            .get("exotic")
+            .and_then(|entry| entry.get("adapter"))
+            .and_then(|adapter| adapter.get("displayName"));
+        assert_eq!(display, Some(&Value::String("Exotic".to_string())));
+        // The expansion is deterministic, so a second run changes nothing.
+        let bytes = fs::read_to_string(&settings).unwrap();
+        assert_eq!(converge("cv-expand", declared, "", "", &settings, false), 0);
+        assert_eq!(fs::read_to_string(&settings).unwrap(), bytes);
     }
 }
