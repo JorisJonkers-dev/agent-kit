@@ -478,68 +478,30 @@ pp_write_gradle() {
     umask 077
     tmp="$(mktemp "${init_script}.tmp.XXXXXX")"
     cat >"${tmp}" <<'KTS'
-// Route dependency resolution through the packages proxy. First-party
-// GitHub Packages repositories stay direct; everything else is moved
-// behind the proxy.
-fun ArtifactRepository.isAllowed(): Boolean = when (this) {
-    is MavenArtifactRepository -> {
-        val host = runCatching { url.host }.getOrNull()
-        host == "maven.pkg.github.com" || host == "packages.jorisjonkers.dev"
-    }
-    is FlatDirectoryArtifactRepository, is IvyArtifactRepository -> true
-    else -> false
-}
-
-// The proxy repositories themselves, added to a handler by addPackagesProxy().
-fun RepositoryHandler.addPackagesProxy() {
-    maven {
-        name = "packagesProxy"
-        setUrl("https://packages.jorisjonkers.dev/maven/")
-        packagesProxyAuthentication()
-    }
-    maven {
-        name = "packagesProxySpringMilestone"
-        setUrl("https://packages.jorisjonkers.dev/maven/spring-milestone/")
-        packagesProxyAuthentication()
-    }
-    maven {
-        name = "packagesProxySonatypeSnapshots"
-        setUrl("https://packages.jorisjonkers.dev/maven/sonatype-snapshots/")
-        content { mavenContent { snapshotsOnly() } }
-        packagesProxyAuthentication()
-    }
-    maven {
-        name = "packagesProxyGoogleMaven"
-        setUrl("https://packages.jorisjonkers.dev/maven/google-maven/")
-        packagesProxyAuthentication()
+// Route dependency resolution through the packages proxy. First-party GitHub
+// Packages and local (file) repositories stay as they are; every other Maven
+// repository keeps its place but has its URL rewritten to the proxy's
+// equivalent, with the proxy's credentials. Nothing is added or removed, so
+// repository order, the settings-versus-project choice and
+// FAIL_ON_PROJECT_REPOS all behave as the build declared them.
+fun proxyUrlFor(url: java.net.URI): String? {
+    val host = url.host ?: return null
+    if (url.scheme == "file" || host == "maven.pkg.github.com" || host == "packages.jorisjonkers.dev") return null
+    val path = url.path ?: ""
+    return when {
+        host == "repo.spring.io" && path.startsWith("/milestone") -> "https://packages.jorisjonkers.dev/maven/spring-milestone/"
+        host.endsWith("sonatype.org") || host == "central.sonatype.com" && path.contains("snapshots") -> "https://packages.jorisjonkers.dev/maven/sonatype-snapshots/"
+        host == "maven.google.com" || host == "dl.google.com" -> "https://packages.jorisjonkers.dev/maven/google-maven/"
+        else -> "https://packages.jorisjonkers.dev/maven/" // Maven Central, the Gradle Plugin Portal, and any other mirror of Central
     }
 }
 
-// Settings level: drop third-party repositories as they are added (`all`
-// also runs for repositories added later, Gradle's own "enterprise
-// repository" init-script pattern), then add the proxy.
 fun RepositoryHandler.usePackagesProxy() {
     all {
-        if (!isAllowed()) remove(this)
-    }
-    addPackagesProxy()
-}
-
-// Project level: only drop third-party repositories. The proxy is added to a
-// project only when that project itself declares one, once, on the first
-// removal. A project that declares no repository of its own gets nothing
-// added, so settings repositories keep applying to it (and a project set to
-// FAIL_ON_PROJECT_REPOS still builds).
-fun RepositoryHandler.guardProjectRepositories() {
-    var proxied = false
-    all {
-        if (!isAllowed()) {
-            remove(this)
-            if (!proxied) {
-                proxied = true
-                addPackagesProxy()
-            }
-        }
+        val repo = this as? MavenArtifactRepository ?: return@all
+        val target = runCatching { proxyUrlFor(repo.url) }.getOrNull() ?: return@all
+        repo.setUrl(target)
+        repo.packagesProxyAuthentication()
     }
 }
 
@@ -575,12 +537,9 @@ settingsEvaluated {
     dependencyResolutionManagement.repositories.usePackagesProxy()
 }
 
-// Before the project's own build script runs, so its `repositories {}`
-// and `buildscript { repositories {} }` blocks add to handlers that
-// already drop third-party repositories.
 beforeProject {
-    buildscript.repositories.guardProjectRepositories()
-    repositories.guardProjectRepositories()
+    buildscript.repositories.usePackagesProxy()
+    repositories.usePackagesProxy()
 }
 KTS
     mv -f "${tmp}" "${init_script}"
