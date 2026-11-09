@@ -19,6 +19,8 @@ import type { ModelGatewayFilesPort, ModelGatewayProcessPort } from './ports.js'
  *
  * A keyring that cannot be asked (no `security`, no `gdbus`, no Secret
  * Service on the bus) counts as holding nothing, so the `.env` decides.
+ * Elsewhere (Windows, where Vibe's keyring is the Credential Manager) no
+ * keyring is asked yet, so only the `.env` counts there.
  */
 export async function vibeSignedIn(ports: VibeSignInPorts, home: string, platform: NodeJS.Platform): Promise<boolean> {
   if (await keyringHoldsKey(ports.process, platform)) return true
@@ -45,7 +47,7 @@ const DOTENV_KEY = /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/
 
 /**
  * The command that asks this platform's keyring whether Vibe's item exists;
- * undefined where Vibe uses none. The Keychain may wait for its owner to
+ * undefined on a platform this check does not ask a keyring on. The Keychain may wait for its owner to
  * unlock it, so only the Secret Service lookup is timed.
  */
 export function keyringQuery(platform: NodeJS.Platform): ProcessCommand | undefined {

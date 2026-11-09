@@ -127,15 +127,19 @@ keyring takes it does Vibe write a `MISTRAL_API_KEY=` line to `~/.vibe/.env`
 
 | OS | Where the key is | How agent-kit checks it, without reading the key |
 | --- | --- | --- |
-| macOS | the login Keychain, through `/usr/bin/security` | `security find-generic-password -s ai.mistral.vibe -a MISTRAL_API_KEY` (no `-w`, so nothing is printed) |
-| Linux | the Secret Service (GNOME Keyring, KeePassXC, or KWallet's Secret Service mode), through Python's `keyring` with its `SecretService` backend. The item has the attributes `service=ai.mistral.vibe` and `username=MISTRAL_API_KEY` | `gdbus call --session --dest org.freedesktop.secrets --object-path /org/freedesktop/secrets --method org.freedesktop.Secret.Service.SearchItems "{'service': 'ai.mistral.vibe', 'username': 'MISTRAL_API_KEY'}"`, which returns item paths only, never the secret |
+| macOS | the login Keychain, which Vibe asks through `/usr/bin/security` | `security` on `PATH`: `find-generic-password -s ai.mistral.vibe -a MISTRAL_API_KEY` (no `-w`, so nothing is printed) |
+| Linux | the Secret Service (GNOME Keyring, KeePassXC, or KWallet's Secret Service mode), through Python's `keyring` with its `SecretService` backend. The item has the attributes `service=ai.mistral.vibe` and `username=MISTRAL_API_KEY` | `gdbus call --session --dest org.freedesktop.secrets --object-path /org/freedesktop/secrets --method org.freedesktop.Secret.Service.SearchItems "{'service': 'ai.mistral.vibe', 'username': 'MISTRAL_API_KEY'}"` (the runner adds `--timeout 5`), which returns item paths only, never the secret |
 | any | `~/.vibe/.env` | a non-empty `MISTRAL_API_KEY=` line |
 
 This was found by reading the installed Vibe (`vibe/utils/keyring.py` and
 `vibe/setup/auth/api_key_persistence.py`; `mistral-vibe` 3.x), and not from
 its documentation. Vibe also reads the pre-rename service `vibe` and moves it to
 `ai.mistral.vibe` on its next start, so after one run of `vibe` the item is
-under the new name. `secret-tool` is not needed, and NixOS does not install it
+under the new name. The check looks only for the new name: if a critic is
+dropped as not signed in right after an upgrade, run `vibe` once. On Windows
+the check asks no keyring (Vibe's is the Credential Manager there), so only
+the `.env` line counts. Setup's model sync reads the key through `keyring` on
+every platform except macOS. `secret-tool` is not needed, and NixOS does not install it
 by default.
 
 The critique runner uses one check for this, `vibeSignedIn` in the model
@@ -147,7 +151,7 @@ line. An exported `MISTRAL_API_KEY` does not count, because a critic runs
 with it unset. When the check finds neither, prepare drops the Vibe critics
 with `vibe: not signed in; ...`. Setup's model sync
 (`scripts/vibe-sync-models.py`) needs the key itself to call the Mistral API.
-On Linux it reads the key through `keyring`, which is why setup runs that
+Off macOS it reads the key through `keyring`, which is why setup runs that
 script with `--with keyring`.
 
 To see which store holds it without printing the key: on Linux run the

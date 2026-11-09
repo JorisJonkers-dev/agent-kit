@@ -54,9 +54,25 @@ describe("Vibe's sign-in", () => {
     const { answer, process } = await signedIn('linux', { gdbus: found("([objectpath '/org/freedesktop/secrets/collection/login/3'], @ao [])\n") })
 
     expect(answer).toBe(true)
-    expect(process.ran.map((command) => command.command)).toEqual(['gdbus'])
-    expect(process.ran[0]?.args).toContain('org.freedesktop.Secret.Service.SearchItems')
-    expect(process.ran[0]?.args).toContain("{'service': 'ai.mistral.vibe', 'username': 'MISTRAL_API_KEY'}")
+    expect(process.ran).toEqual([
+      {
+        args: [
+          'call',
+          '--session',
+          '--timeout',
+          '5',
+          '--dest',
+          'org.freedesktop.secrets',
+          '--object-path',
+          '/org/freedesktop/secrets',
+          '--method',
+          'org.freedesktop.Secret.Service.SearchItems',
+          "{'service': 'ai.mistral.vibe', 'username': 'MISTRAL_API_KEY'}",
+        ],
+        command: 'gdbus',
+        timeoutMs: 6000,
+      },
+    ])
   })
 
   it('counts a locked Secret Service item on Linux: it exists, and Vibe unlocks it', async () => {
@@ -87,7 +103,7 @@ describe("Vibe's sign-in", () => {
     expect(keyringQuery('darwin')?.timeoutMs).toBeUndefined()
   })
 
-  it('asks no keyring where Vibe uses none, so only the .env counts', async () => {
+  it('asks no keyring on a platform it does not know the keyring of, so only the .env counts', async () => {
     const { answer, process } = await signedIn('win32', {}, 'MISTRAL_API_KEY=placeholder\n')
 
     expect(answer).toBe(true)

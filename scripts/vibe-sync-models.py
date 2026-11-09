@@ -3,8 +3,8 @@
 
 The key is the one Vibe signed in with: MISTRAL_API_KEY when set, else Vibe's
 item in the OS keyring (service ai.mistral.vibe, account MISTRAL_API_KEY: the
-macOS Keychain, or on Linux the Secret Service through Python's keyring, as
-Vibe itself stores it), else its ~/.vibe/.env.
+macOS Keychain, or elsewhere Python's keyring, which is the Secret Service on
+Linux, as Vibe itself stores it), else its ~/.vibe/.env.
 
 Vibe lists only the models under ``[[models]]`` in its config (its built-in
 default is Mistral Medium 3.5). This reads Mistral's ``/v1/models`` with
@@ -89,9 +89,9 @@ def login_key() -> str:
 
 
 def secret_service_key() -> str:
-    """Vibe's key from the Secret Service, read the way Vibe stores it on Linux.
+    """Vibe's key from Python's keyring, read the way Vibe stores it off macOS.
 
-    Vibe writes it with Python's keyring (service ai.mistral.vibe, username
+    On Linux that is the Secret Service. Vibe writes it with keyring (service ai.mistral.vibe, username
     MISTRAL_API_KEY). Without keyring importable, with Vibe's own
     VIBE_TEST_DISABLE_KEYRING=1, or with no Secret Service to answer, there is
     no key here and the .env decides.

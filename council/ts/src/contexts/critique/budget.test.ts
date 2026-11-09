@@ -824,6 +824,14 @@ describe('a Vibe critic that cannot run here', () => {
     })
   })
 
+  it("counts a key in the personal home's .env as signed in on Linux where there is no gdbus to ask", async () => {
+    const h = await opened({ families: ['mistral'], platform: 'linux', vibeSignIn: 'env-file-no-keychain' })
+
+    const run = await prepare(h)
+
+    expect(run.critics.map((critic) => critic.critic_id)).toEqual([VIBE])
+  })
+
   it("counts a key in the personal home's .env as signed in on Linux", async () => {
     const h = await opened({ families: ['mistral'], platform: 'linux', vibeSignIn: 'env-file' })
 
