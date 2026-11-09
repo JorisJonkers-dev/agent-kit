@@ -1,7 +1,7 @@
 # Gold Band roles from the critique pipeline
 
 Gold Band calls a critic a **profile**: a Markdown file with YAML front
-matter that it reads from `~/.gold-band/presets/profiles/<profile name>.md`.
+matter that it reads from `~/.gold-band/context/profiles/<profile name>.md`.
 The `gold-band-roles` crate (`scripts/crates/gold-band-roles`) renders the
 six critique roles into that directory (#345): the decision-gap critic, the
 spec red team, the ticket linter, the diff reviewer, the feature reviewer

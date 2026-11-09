@@ -53,7 +53,7 @@ documents its tooling); this page is how agent-kit follows it.
 
 * **The Gold Band roles.** `crates/gold-band-roles` renders the critique
   pipeline's role and lens files into the six Gold Band profiles ("roles")
-  of `~/.gold-band/presets/profiles/`, rule for rule with templating off,
+  of `~/.gold-band/context/profiles/`, rule for rule with templating off,
   and converges that directory: a retired role disappears, a kept
   hand-made one survives, and a Gold Band built-in is never touched
   (#345); `docs/gold-band-roles.md` maps each role to the model families
