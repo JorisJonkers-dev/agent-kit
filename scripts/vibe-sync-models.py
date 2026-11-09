@@ -27,6 +27,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import shutil
@@ -99,9 +100,10 @@ def secret_service_key() -> str:
     if os.environ.get("VIBE_TEST_DISABLE_KEYRING") == "1":
         return ""
     try:
-        import keyring  # noqa: PLC0415 - optional: setup runs this with --with keyring
-        return keyring.get_password("ai.mistral.vibe", "MISTRAL_API_KEY") or ""
-    except Exception:  # noqa: BLE001 - any keyring failure means no key from it
+        # Optional, and untyped here: setup runs this with --with keyring.
+        keyring = importlib.import_module("keyring")
+        return str(keyring.get_password("ai.mistral.vibe", "MISTRAL_API_KEY") or "")
+    except Exception:  # any keyring failure means no key from it
         return ""
 
 

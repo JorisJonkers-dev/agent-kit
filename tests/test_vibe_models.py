@@ -256,7 +256,8 @@ def test_the_secret_service_key_is_used_on_linux(tmp_path: Path, api: tuple[_Api
 @pytest.mark.skipif(sys.platform == "darwin", reason="Vibe uses the Keychain on macOS, not the Secret Service")
 def test_has_key_sees_the_secret_service_on_linux(tmp_path: Path, api: tuple[_Api, str]) -> None:
     state, url = api
-    assert _sync_env(tmp_path, url, _vibe_login(tmp_path, secret_service="mk_secret_service"), "--has-key").returncode == 0
+    signed_in = _vibe_login(tmp_path, secret_service="mk_secret_service")
+    assert _sync_env(tmp_path, url, signed_in, "--has-key").returncode == 0
     disabled = {**_vibe_login(tmp_path, secret_service="mk_secret_service"), "VIBE_TEST_DISABLE_KEYRING": "1"}
     assert _sync_env(tmp_path, url, disabled, "--has-key").returncode == 1
     assert state.auth == []
