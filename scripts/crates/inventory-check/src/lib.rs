@@ -16,11 +16,16 @@
 //! * every row whose `Depends on unverified Gold Band fact` cell starts with
 //!   `no` cites one of [`SPECS`];
 //! * a `workflow` target stays inside the repository: an absolute path or a
-//!   path with a `..` segment is treated as not existing.
+//!   path with a `..` segment is treated as not existing;
+//! * every item of an `### Wave ...` subsection of the `## Waves` section
+//!   names an inventory row as `<section>: <name>`, with an optional
+//!   [`LOOP`] suffix, or is new work written [`NEW`]: a row whose kind ports
+//!   sits in exactly one wave, a row that stays outside sits in none, and
+//!   an item that names no row fails.
 //!
 //! Usage: `inventory-check <REPO_ROOT>`. Exit 0 clean, 1 problems, 2 bad usage.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path};
@@ -49,7 +54,13 @@ pub const REACHES: [&str; 7] = [
 /// The `Target` cell of a row whose entry is not ported yet.
 pub const NO_TARGET: &str = "-";
 /// The specs a dependency cell that says `no` must cite.
-pub const SPECS: [&str; 3] = ["#327", "#350", "#367"];
+pub const SPECS: [&str; 4] = ["#327", "#350", "#367", "#374"];
+/// The section that cuts the port into waves.
+pub const WAVES: &str = "Waves";
+/// Prefix of a wave item that names new work, not an inventory row.
+pub const NEW: &str = "new:";
+/// Suffix marking a wave item whose skill assumes a loop.
+pub const LOOP: &str = "(loop)";
 /// The section whose every row must stay outside Gold Band.
 const HOOKS: &str = "Hooks";
 
@@ -80,6 +91,41 @@ fn rows(text: &str) -> Vec<(String, Vec<&str>)> {
         }
     }
     out
+}
+
+/// The numbered waves of the `## Waves` section: each `### Wave ...`
+/// subsection's label (its first two words, such as `Wave 3`) and the
+/// `- ` items under it. Subsections that are not waves are skipped, as is
+/// every line before the first wave; a document without the section has no
+/// waves, so every row that ports then fails the wave rules.
+fn waves(text: &str) -> Vec<(String, Vec<String>)> {
+    let mut listed: Vec<(String, Vec<String>)> = Vec::new();
+    let mut in_waves = false;
+    let mut current: Option<usize> = None;
+    for line in text.lines() {
+        if let Some(title) = line.strip_prefix("## ") {
+            in_waves = title.trim() == WAVES;
+            current = None;
+        } else if in_waves {
+            if let Some(title) = line.strip_prefix("### ") {
+                current = None;
+                if title.trim().starts_with("Wave ") {
+                    let label = title
+                        .split_whitespace()
+                        .take(2)
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    listed.push((label, Vec::new()));
+                    current = Some(listed.len() - 1);
+                }
+            } else if let Some(i) = current {
+                if let Some(item) = line.trim().strip_prefix("- ") {
+                    listed[i].1.push(item.trim().to_string());
+                }
+            }
+        }
+    }
+    listed
 }
 
 /// Names of the sub-directories of `dir`, sorted.
@@ -244,6 +290,67 @@ fn row_problems(root: &Path, registry: &str, row: &Row) -> Vec<String> {
     out
 }
 
+/// Every wave-placement problem: a row whose kind ports but that sits in no
+/// wave, a row that sits in two waves, a row that stays outside but sits in
+/// a wave, and a wave item that names a row that does not exist. Items
+/// starting with [`NEW`] are new work and are exempt; a [`LOOP`] suffix on
+/// a row item is part of its name and changes nothing.
+fn wave_problems(table: &[(String, Vec<&str>)], listed: &[(String, Vec<String>)]) -> Vec<String> {
+    let mut ported = BTreeSet::new();
+    let mut outside = BTreeSet::new();
+    let mut known = BTreeSet::new();
+    for (section, c) in table {
+        let key = (section.as_str(), c[0]);
+        known.insert(key);
+        if c.len() >= 5 && KINDS[..4].contains(&c[3]) {
+            ported.insert(key);
+        } else if c.len() >= 5 && c[3] == KINDS[4] {
+            outside.insert(key);
+        }
+    }
+    let mut problems = Vec::new();
+    let mut placed: BTreeMap<(&str, &str), Vec<&str>> = BTreeMap::new();
+    for (wave, items) in listed {
+        for raw in items {
+            if raw.starts_with(NEW) {
+                continue;
+            }
+            let Some((section, name)) = raw.split_once(':') else {
+                problems.push(format!("{wave}: {raw:?} names no inventory row"));
+                continue;
+            };
+            let name = name.trim();
+            let key = (
+                section.trim(),
+                name.strip_suffix(LOOP).map(str::trim).unwrap_or(name),
+            );
+            if !known.contains(&key) {
+                problems.push(format!("{wave}: {raw:?} names no inventory row"));
+            } else if outside.contains(&key) {
+                problems.push(format!(
+                    "{wave}: {}/{} stays outside and may not sit in a wave",
+                    key.0, key.1
+                ));
+            } else if ported.contains(&key) {
+                placed.entry(key).or_default().push(wave.as_str());
+            }
+        }
+    }
+    for key in &ported {
+        match placed.get(key).map_or(0, Vec::len) {
+            0 => problems.push(format!("{}/{}: row sits in no wave", key.0, key.1)),
+            1 => {}
+            n => problems.push(format!(
+                "{}/{}: row sits in {n} waves ({})",
+                key.0,
+                key.1,
+                placed.get(key).unwrap().join(", ")
+            )),
+        }
+    }
+    problems
+}
+
 /// Every problem found for `root`, in a stable order.
 pub fn check(root: &Path) -> Vec<String> {
     let text = match fs::read_to_string(root.join(INVENTORY)) {
@@ -310,6 +417,7 @@ pub fn check(root: &Path) -> Vec<String> {
         };
         problems.extend(row_problems(root, &registry, &row));
     }
+    problems.extend(wave_problems(&table, &waves(&text)));
     problems
 }
 
@@ -346,7 +454,24 @@ mod tests {
     const ROLES7: &str = "| r | p | w | role | read | no — #367 x | - |\n";
     const SERVERS7: &str = "| m | p | w | MCP server | read | no — #367 x | - |\n| m2 | p | w | MCP server | write | no — #367 x | - |\n";
 
-    fn fixture(tag: &str, skills: &[(&str, &str)], inventory: &str) -> std::path::PathBuf {
+    /// One `## Waves` section that places every ported row of `doc` in a
+    /// single wave, so a fixture passes the wave rules unless its test owns
+    /// the section (through `fixture_raw`).
+    fn with_waves(doc: &str) -> String {
+        let items: Vec<String> = rows(doc)
+            .iter()
+            .filter(|(_, c)| c.len() >= 5 && c[3] != KINDS[4])
+            .map(|(s, c)| format!("- {s}: {}", c[0]))
+            .collect();
+        format!(
+            "{doc}\n## Waves\n\n### Wave 2 — every row\n\n{}\n",
+            items.join("\n")
+        )
+    }
+
+    /// A fixture whose inventory is written exactly as given, for tests that
+    /// own the `## Waves` section themselves.
+    fn fixture_raw(tag: &str, skills: &[(&str, &str)], inventory: &str) -> std::path::PathBuf {
         let root =
             std::env::temp_dir().join(format!("inventory-check-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
@@ -374,6 +499,23 @@ mod tests {
         )
         .unwrap();
         root
+    }
+
+    fn fixture(tag: &str, skills: &[(&str, &str)], inventory: &str) -> std::path::PathBuf {
+        fixture_raw(tag, skills, &with_waves(inventory))
+    }
+
+    /// A `## Waves` section: each pair is one `### <title>` subsection with
+    /// its `- ` items, so a test can own the section without inline escapes.
+    fn waves_doc(doc: &str, subsections: &[(&str, &[&str])]) -> String {
+        let mut out = format!("{doc}\n## Waves\n");
+        for (title, items) in subsections {
+            out.push_str(&format!("\n### {title}\n\n"));
+            for item in *items {
+                out.push_str(&format!("- {item}\n"));
+            }
+        }
+        out
     }
 
     const SECTIONS: &str = "\n## Hooks\n\n{H}| h | p | w | stays outside | n/a | no — #367 x |\n\n## Roles\n\n{H}| r | p | w | role | read | no — #367 x |\n\n## MCP servers\n\n{H}| m | p | w | MCP server | read | no — #367 x |\n| m2 | p | w | MCP server | write | no — #367 x |\n";
@@ -746,6 +888,130 @@ mod tests {
             "| b | p | w | stays outside | n/a | yes — x | - |\n",
         );
         let root = fixture("seven", &[("workstation", "a"), ("repo", "b")], &d7);
+        assert!(check(&root).is_empty());
+    }
+
+    #[test]
+    fn a_ported_row_must_sit_in_a_wave() {
+        let d = doc7("| a | p | w | workflow | read | no — #367 x | - |\n", "");
+        let own = waves_doc(
+            &d,
+            &[(
+                "Wave 2 — all",
+                &[
+                    "skills/workstation: critique",
+                    "Roles: r",
+                    "MCP servers: m",
+                    "MCP servers: m2",
+                ],
+            )],
+        );
+        let root = fixture_raw("nowave", &[("workstation", "a")], &own);
+        assert_eq!(
+            check(&root),
+            vec!["skills/workstation/a: row sits in no wave"]
+        );
+    }
+
+    #[test]
+    fn a_ported_row_may_not_sit_in_two_waves() {
+        let d = doc7("| a | p | w | workflow | read | no — #367 x | - |\n", "");
+        let own = waves_doc(
+            &d,
+            &[
+                (
+                    "Wave 2 — first",
+                    &[
+                        "skills/workstation: a",
+                        "skills/workstation: critique",
+                        "Roles: r",
+                        "MCP servers: m",
+                        "MCP servers: m2",
+                    ],
+                ),
+                ("Wave 3 — second", &["skills/workstation: a"]),
+            ],
+        );
+        let root = fixture_raw("twowaves", &[("workstation", "a")], &own);
+        assert_eq!(
+            check(&root),
+            vec!["skills/workstation/a: row sits in 2 waves (Wave 2, Wave 3)"]
+        );
+    }
+
+    #[test]
+    fn a_stays_outside_row_may_not_sit_in_a_wave() {
+        let d = doc7("", "| b | p | w | stays outside | n/a | yes — x | - |\n");
+        let own = waves_doc(
+            &d,
+            &[(
+                "Wave 2 — all",
+                &[
+                    "skills/workstation: critique",
+                    "skills/repo: b (loop)",
+                    "Roles: r",
+                    "MCP servers: m",
+                    "MCP servers: m2",
+                ],
+            )],
+        );
+        let root = fixture_raw("outsidewave", &[("repo", "b")], &own);
+        assert_eq!(
+            check(&root),
+            vec!["Wave 2: skills/repo/b stays outside and may not sit in a wave"]
+        );
+    }
+
+    #[test]
+    fn a_wave_may_not_name_a_row_that_does_not_exist() {
+        let d = doc7("| a | p | w | workflow | read | no — #367 x | - |\n", "");
+        let own = waves_doc(
+            &d,
+            &[(
+                "Wave 2 — all",
+                &[
+                    "skills/workstation: a",
+                    "skills/workstation: critique",
+                    "Roles: r",
+                    "MCP servers: m",
+                    "MCP servers: m2",
+                    "Nowhere: ghost",
+                    "ghost",
+                ],
+            )],
+        );
+        let root = fixture_raw("norownamed", &[("workstation", "a")], &own);
+        assert_eq!(
+            check(&root),
+            vec![
+                "Wave 2: \"Nowhere: ghost\" names no inventory row",
+                "Wave 2: \"ghost\" names no inventory row",
+            ]
+        );
+    }
+
+    #[test]
+    fn loop_marks_new_work_and_plain_prose_in_waves_pass() {
+        let d = doc7("| a | p | w | workflow | read | no — #367 x | - |\n", "");
+        let own = waves_doc(
+            &d,
+            &[
+                (
+                    "Wave 2 — stages",
+                    &[
+                        "skills/workstation: a (loop)",
+                        "skills/workstation: critique",
+                        "Roles: r",
+                        "MCP servers: m",
+                        "MCP servers: m2",
+                        "new: gate-report node (#353)",
+                    ],
+                ),
+                ("Stays outside", &["Hooks: h"]),
+                ("Wave 3 — crates", &["new: critique runner crate"]),
+            ],
+        );
+        let root = fixture_raw("waveitems", &[("workstation", "a")], &own);
         assert!(check(&root).is_empty());
     }
 }
