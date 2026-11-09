@@ -20,6 +20,10 @@
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'run': 'uv sync --frozen'
       - 'run': 'uv run ruff check .'
@@ -31,6 +35,10 @@
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'run': 'uv sync --frozen'
       - 'run': 'uv run python scripts/render_agent_kit.py --check'
@@ -57,6 +65,10 @@
     'runs-on': 'ubuntu-latest'
     'steps':
       - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
       - 'uses': 'actions/setup-node@v6'
         'with':
           'node-version': '22'
@@ -125,6 +137,10 @@
       'BASE_SHA': '${{ github.event.pull_request.base.sha }}'
     'steps':
       - 'uses': 'actions/checkout@v6'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
       - 'run': 'git fetch --quiet --depth 1 origin "${BASE_SHA}"'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'run': 'uv sync --frozen'

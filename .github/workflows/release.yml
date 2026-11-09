@@ -39,6 +39,10 @@
       - 'uses': 'actions/checkout@v6'
         'with':
           'ref': '${{ needs.release-please.outputs.tag_name }}'
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
       - 'uses': 'astral-sh/setup-uv@v8.2.0'
       - 'uses': 'oras-project/setup-oras@v2'
       - 'run': 'uv sync --frozen'
