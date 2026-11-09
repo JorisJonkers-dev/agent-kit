@@ -3,8 +3,9 @@
 //!
 //! Python flattens each declaration into the line protocol this crate reads:
 //! `agent<TAB><id>` opens a declaration, `field<TAB><path><TAB><value>` sets
-//! one field, and blank or `#` lines are ignored. The rules, each reported as
-//! one problem line `<id>: <what>` (never printing a secret value):
+//! one field, `support<TAB><kind><TAB><level><TAB><state>` sets one
+//! support-record cell, and blank or `#` lines are ignored. The rules, each
+//! reported as one problem line `<id>: <what>` (never printing a secret value):
 //! * id grammar: lowercase letters and digits in dash-separated groups, and
 //!   a duplicate id, which is named only once;
 //! * no Codex anywhere: the id, `adapter.command`, any `adapter.args` value,
@@ -20,9 +21,23 @@
 //!   [`SECRET_SHAPES`] and is not an environment reference (a value whose
 //!   `/`-separated segments are all shorter than 32 characters is a path,
 //!   not a long opaque token);
-//! * reach: one of `read`, `read-web`, `research`, `write-scoped`, `write`,
-//!   `full`, `run-one-command`; `research` and `write-scoped` need an
-//!   `outputDir` field, and `full` needs `throwawayOnly` `true`.
+//! * reach: one of `read`, `read-web`, `research`, `write-scoped`, `write`
+//!   and `full` (spec #327, Reach levels); `research` and `write-scoped` need an
+//!   `outputDir` field, and `full` needs `throwawayOnly` `true`;
+//! * reach support (#339): the id's agent kind -- the `agent` field, which
+//!   names the agent kind the id runs and defaults to the id itself -- must
+//!   hold a cell for its reach in the support record the same file carries,
+//!   and a kind with no cell for a level supports that level not at all
+//!   (`<id>: agent <kind> does not support reach <level>`); a cell whose
+//!   state is not `verified` is refused
+//!   (`<id>: reach <level> for agent <kind> is unverified; refused`), which a
+//!   misspelled state falls under too, because only a verified cell allows
+//!   the level;
+//! * one id per agent, reach and skill set (#339): the second id with the
+//!   same kind, reach and skill set (`skillSet`, `default` when unset) is
+//!   named with the first (`<id>: same agent, reach and skill set as <other>`);
+//! * the `agent` and `skillSet` fields are plain declared strings, which the
+//!   settings convergence never writes: they belong to the reach rules.
 //!
 //! `gold-band-agents converge --declared <FILE> --keep <FILE> --retired
 //! <FILE> --settings <PATH> [--check]` makes the `agents` map of Gold Band's
@@ -32,9 +47,9 @@
 //! * each declared agent is written with only the fields Gold Band knows
 //!   (#328), typed the way its settings hold them -- booleans as JSON
 //!   booleans, `adapter.args` and `compatibleAgentDirs` as arrays,
-//!   `adapter.env` as an object -- and the registry-only fields (reach,
-//!   outputDir, provider, model, throwawayOnly) never reach the
-//!   file; the settings map REPLACES the app's runtime agent list, it is
+//!   `adapter.env` as an object -- and the registry-only fields (agent,
+//!   skillSet, reach, outputDir, provider, model, throwawayOnly) never reach
+//!   the file; the settings map REPLACES the app's runtime agent list, it is
 //!   not merged with the built-in catalog;
 //! * a leading `~/` in `adapter.command`, in each `adapter.args` value and
 //!   in each `adapter.env` value (#335) is expanded to the user's home
@@ -69,18 +84,32 @@
 //! say) is reported, the old file is left in place and any staged file is
 //! removed.
 //!
-//! Usage: `gold-band-agents validate <FILE> | converge --declared <FILE>
-//! --keep <FILE> --retired <FILE> --settings <PATH> [--guard <COMMAND>]
-//! [--check]`. Exit 0 clean (printing `ok (<n> agents)` for a validate),
-//! 1 rule problems on stderr, or a guard veto that replaced nothing, 2 bad
-//! usage (a usage line), an unreadable file, malformed input, a settings
-//! document that is not a JSON object or a replace that could not happen.
+//! `gold-band-agents launch <FILE> <ID>` starts one declared agent
+//! (#339): the launcher refuses with exit 1 and one line on stderr -- the
+//! id unknown, no reach declared, its reach without a verified support
+//! cell for its kind, a research or write-scoped reach with no `outputDir`
+//! field, a full one without `throwawayOnly` `true`, or no
+//! `adapter.command` to start -- BEFORE STARTING ANYTHING; otherwise it
+//! exec's the id's `adapter.command` with its `adapter.args` and
+//! `adapter.env` (a leading `~/` expanded to `$HOME`, as the convergence
+//! expands it), the stdio inherited, and the caller sees the agent's own
+//! exit code, because the process is replaced by the agent.
+//!
+//! Usage: `gold-band-agents validate <FILE> | launch <FILE> <ID> |
+//! converge --declared <FILE> --keep <FILE> --retired <FILE> --settings
+//! <PATH> [--guard <COMMAND>] [--check]`. Exit 0 clean (printing
+//! `ok (<n> agents)` for a validate), 1 rule problems on stderr, a guard
+//! veto that replaced nothing, or a launch refusal that started nothing,
+//! 2 bad usage (a usage line), an unreadable file, malformed input, a
+//! settings document that is not a JSON object or a replace that could not
+//! happen.
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, ErrorKind, Write};
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, ExitStatus};
 
@@ -90,14 +119,13 @@ use serde_json::{Map, Value};
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
 /// The reach values the registry allows.
-pub const REACHES: [&str; 7] = [
+pub const REACHES: [&str; 6] = [
     "read",
     "read-web",
     "research",
     "write-scoped",
     "write",
     "full",
-    "run-one-command",
 ];
 
 /// The Gold Band agent ids the app ships in its own catalog (#328): for one of
@@ -128,10 +156,29 @@ pub struct Agent {
     pub fields: Vec<(String, String)>,
 }
 
-/// Parses the registry's line protocol into its agents, or names the first
-/// malformed line.
-pub fn parse(text: &str) -> Result<Vec<Agent>, String> {
-    let mut agents: Vec<Agent> = Vec::new();
+/// One support-record cell (#339): the state `kind` holds for `level`.
+#[derive(Debug)]
+pub struct SupportCell {
+    pub kind: String,
+    pub level: String,
+    pub state: String,
+}
+
+/// One parsed declaration: the agents and the support-record cells, in the
+/// order the file declared them.
+#[derive(Debug)]
+pub struct Declaration {
+    pub agents: Vec<Agent>,
+    pub support: Vec<SupportCell>,
+}
+
+/// Parses the registry's line protocol into its declaration, or names the
+/// first malformed line.
+pub fn parse(text: &str) -> Result<Declaration, String> {
+    let mut declaration = Declaration {
+        agents: Vec::new(),
+        support: Vec::new(),
+    };
     for (index, line) in text.lines().enumerate() {
         let number = index + 1;
         let trimmed = line.trim();
@@ -142,41 +189,87 @@ pub fn parse(text: &str) -> Result<Vec<Agent>, String> {
         let head = parts.next().unwrap_or("");
         let rest: Vec<&str> = parts.collect();
         if head == "agent" && rest.len() == 1 {
-            agents.push(Agent {
+            declaration.agents.push(Agent {
                 id: rest[0].to_string(),
                 line: number,
                 fields: Vec::new(),
             });
         } else if head == "field" && rest.len() == 2 {
-            let agent = agents
+            let agent = declaration
+                .agents
                 .last_mut()
                 .ok_or_else(|| format!("line {number}: field before any agent"))?;
             agent
                 .fields
                 .push((rest[0].to_string(), rest[1].to_string()));
+        } else if head == "support" && rest.len() == 3 {
+            declaration.support.push(SupportCell {
+                kind: rest[0].to_string(),
+                level: rest[1].to_string(),
+                state: rest[2].to_string(),
+            });
         } else {
             return Err(format!("line {number}: malformed line"));
         }
     }
-    Ok(agents)
+    Ok(declaration)
 }
 
-/// Every rule violation in `agents`, in declaration order: one line per
-/// problem, each naming the agent id.
-pub fn problems(agents: &[Agent]) -> Vec<String> {
+/// The support record as the rules read it: (kind, level) to its state. A
+/// cell declared twice keeps the last state, the flat file being a
+/// flattened YAML mapping whose keys are unique already.
+fn support_of(d: &Declaration) -> HashMap<(&str, &str), &str> {
+    d.support
+        .iter()
+        .map(|cell| {
+            (
+                (cell.kind.as_str(), cell.level.as_str()),
+                cell.state.as_str(),
+            )
+        })
+        .collect()
+}
+
+/// Every rule violation in the declaration, in declaration order: one line
+/// per problem, each naming the agent id.
+pub fn problems(d: &Declaration) -> Vec<String> {
+    let support = support_of(d);
     let mut out = Vec::new();
     let mut seen: HashMap<&str, usize> = HashMap::new();
-    for agent in agents {
-        let count = seen.entry(agent.id.as_str()).or_insert(0);
+    let mut first: HashMap<(&str, &str, &str), &str> = HashMap::new();
+    for agent in &d.agents {
+        let id = agent.id.as_str();
+        let count = seen.entry(id).or_insert(0);
         *count += 1;
-        out.extend(agent_problems(agent, *count == 2));
+        // A duplicate id is named once by its own rule, and never doubles as
+        // the second of a kind/reach/skill-set pair with itself.
+        // An id with no reach shares no level with anyone; its own rule names it.
+        let same_as = if *count == 1 && value(agent, "reach").is_some() {
+            let triple = (kind_of(agent), reach_of(agent), skill_set_of(agent));
+            match first.get(&triple) {
+                Some(other) => Some(format!("{id}: same agent, reach and skill set as {other}")),
+                None => {
+                    first.insert(triple, id);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        out.extend(agent_problems(agent, &support, *count == 2, same_as));
     }
     out
 }
 
 /// One agent's rule violations, in rule order; `duplicate` asks for the
-/// once-per-id duplicate line.
-fn agent_problems(a: &Agent, duplicate: bool) -> Vec<String> {
+/// once-per-id duplicate line and `same_as` is the one-id-per-kind-reach-and-
+/// skill-set line, when this agent is the second of its triple (#339).
+fn agent_problems(
+    a: &Agent,
+    support: &HashMap<(&str, &str), &str>,
+    duplicate: bool,
+    same_as: Option<String>,
+) -> Vec<String> {
     let id = a.id.as_str();
     let grammar = "id must be lowercase letters and digits in dash-separated groups";
     let mut p = Vec::new();
@@ -237,15 +330,27 @@ fn agent_problems(a: &Agent, duplicate: bool) -> Vec<String> {
         p.push(format!("{id}: reach is required"));
     }
     if let Some(reach) = value(a, "reach") {
-        let needs_dir = reach == "research" || reach == "write-scoped";
-        let needs_throwaway = reach == "full";
         if !REACHES.contains(&reach) {
             p.push(bad_reach(id, reach));
-        } else if needs_dir && value(a, "outputDir").is_none() {
-            p.push(format!("{id}: reach \"{reach}\" needs an outputDir field"));
-        } else if needs_throwaway && value(a, "throwawayOnly") != Some("true") {
-            p.push(format!("{id}: reach \"full\" needs throwawayOnly \"true\""));
+        } else {
+            if (reach == "research" || reach == "write-scoped") && value(a, "outputDir").is_none() {
+                p.push(format!("{id}: reach \"{reach}\" needs an outputDir field"));
+            }
+            if reach == "full" && value(a, "throwawayOnly") != Some("true") {
+                p.push(format!("{id}: reach \"full\" needs throwawayOnly \"true\""));
+            }
+            let kind = kind_of(a);
+            match support.get(&(kind, reach)) {
+                None => p.push(format!("{id}: agent {kind} does not support reach {reach}")),
+                Some(state) if *state != "verified" => p.push(format!(
+                    "{id}: reach {reach} for agent {kind} is unverified; refused"
+                )),
+                _ => {}
+            }
         }
+    }
+    if let Some(line) = same_as {
+        p.push(line);
     }
     p
 }
@@ -258,9 +363,127 @@ fn bad_reach(id: &str, reach: &str) -> String {
     )
 }
 
-/// Runs one command line and returns its exit code: 0 clean, 1 rule problems,
-/// 2 bad usage, an unreadable file or malformed input. Success prints to
-/// stdout, problems to stderr.
+/// The agent's kind (#339): the `agent` field names the agent kind the id
+/// runs (`opencode`, `vibe`, `agy`, `hermes`, `claude`); with no field, or an
+/// empty one, the id is its own kind, the declared default.
+fn kind_of(a: &Agent) -> &str {
+    value(a, "agent")
+        .filter(|kind| !kind.is_empty())
+        .unwrap_or(a.id.as_str())
+}
+
+/// The agent's skill set (#339): the `skillSet` field, `default` when the
+/// declaration sets none -- with the kind and the reach, it is what one id
+/// exists per.
+fn skill_set_of(a: &Agent) -> &str {
+    value(a, "skillSet")
+        .filter(|set| !set.is_empty())
+        .unwrap_or("default")
+}
+
+/// The agent's reach, empty when it declared none.
+fn reach_of(a: &Agent) -> &str {
+    value(a, "reach").unwrap_or("")
+}
+
+/// The one refusal line that stops the launch, if there is one (#339): the
+/// launcher starts nothing while any of these holds, and each names the id,
+/// never a secret value.
+fn launch_refusal(a: &Agent, support: &HashMap<(&str, &str), &str>) -> Option<String> {
+    let id = a.id.as_str();
+    let reach = match value(a, "reach") {
+        Some(reach) => reach,
+        None => return Some(format!("{id}: reach is required")),
+    };
+    if !REACHES.contains(&reach) {
+        return Some(bad_reach(id, reach));
+    }
+    let kind = kind_of(a);
+    let state = match support.get(&(kind, reach)) {
+        Some(state) => *state,
+        None => return Some(format!("{id}: agent {kind} does not support reach {reach}")),
+    };
+    if state != "verified" {
+        return Some(format!(
+            "{id}: reach {reach} for agent {kind} is unverified; refused"
+        ));
+    }
+    if (reach == "research" || reach == "write-scoped") && value(a, "outputDir").is_none() {
+        return Some(format!("{id}: reach \"{reach}\" needs an outputDir field"));
+    }
+    if reach == "full" && value(a, "throwawayOnly") != Some("true") {
+        return Some(format!("{id}: reach \"full\" needs throwawayOnly \"true\""));
+    }
+    if value(a, "adapter.command").is_none() {
+        return Some(format!("{id}: no adapter.command to launch"));
+    }
+    None
+}
+
+/// One `launch` command line: 1 refused with the reason on stderr and nothing
+/// started, 2 an unreadable or malformed file or bad usage.
+fn launch_file(file: &OsStr, id: &OsStr) -> i32 {
+    let shown = file.to_string_lossy();
+    let text = match fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("{NAME}: cannot read {shown}: {e}");
+            eprintln!("{}", usage());
+            return 2;
+        }
+    };
+    let declaration = match parse(&text) {
+        Ok(declaration) => declaration,
+        Err(e) => {
+            eprintln!("{NAME}: {shown}: {e}");
+            return 2;
+        }
+    };
+    let support = support_of(&declaration);
+    let wanted = id.to_string_lossy().into_owned();
+    let Some(agent) = declaration.agents.iter().find(|a| a.id == wanted) else {
+        eprintln!("{NAME}: {wanted}: unknown agent id");
+        return 1;
+    };
+    if let Some(line) = launch_refusal(agent, &support) {
+        eprintln!("{NAME}: {line}");
+        return 1;
+    }
+    start(agent)
+}
+
+/// Starts the agent's adapter command and never comes back when it starts:
+/// `exec` replaces this process with the agent, so the agent inherits this
+/// stdio and the exit code the caller sees is the agent's own (#339). A
+/// command that cannot start is the one error path back (exit 1, the reason
+/// on stderr); a started agent is the one behavior no unit test can show,
+/// because the test process would be the agent, proven instead end to end
+/// with the fake agent of tests/test_gold_band_launch.py (docs/RUST.md's
+/// named exception beside the code).
+fn start(a: &Agent) -> i32 {
+    let command = expand_home(
+        value(a, "adapter.command").expect("launch refused a missing adapter.command"),
+        std::env::var_os("HOME").as_deref(),
+    );
+    let home = std::env::var_os("HOME");
+    let mut agent = Command::new(command);
+    for arg in array(a, "adapter.args.") {
+        agent.arg(expand_home(&arg, home.as_deref()));
+    }
+    for (path, body) in &a.fields {
+        if let Some(name) = path.strip_prefix("adapter.env.") {
+            agent.env(name, body);
+        }
+    }
+    let failed = agent.exec();
+    eprintln!("{NAME}: cannot start {}: {failed}", a.id);
+    1
+}
+
+/// Runs one command line and returns its exit code: 0 clean, 1 rule
+/// problems (or a launch refusal, which started nothing), 2 bad usage, an
+/// unreadable file or malformed input. Success prints to stdout, problems
+/// to stderr.
 pub fn run<I>(args: I) -> i32
 where
     I: IntoIterator<Item = OsString>,
@@ -275,6 +498,13 @@ where
             validate_file(file)
         }
         Some(cmd) if cmd == OsStr::new("converge") => converge_cli(&args[1..]),
+        Some(cmd) if cmd == OsStr::new("launch") => match (args.get(1), args.get(2), args.get(3)) {
+            (Some(file), Some(id), None) => launch_file(file, id),
+            _ => {
+                eprintln!("{}", usage());
+                2
+            }
+        },
         _ => {
             eprintln!("{}", usage());
             2
@@ -287,7 +517,7 @@ fn validate_file(file: &OsString) -> i32 {
     let shown = file.to_string_lossy();
     match fs::read_to_string(file) {
         Ok(text) => match parse(&text) {
-            Ok(agents) => report(&agents),
+            Ok(declaration) => report(&declaration),
             Err(e) => {
                 eprintln!("{NAME}: {shown}: {e}");
                 2
@@ -352,8 +582,8 @@ fn converge_cli(args: &[OsString]) -> i32 {
         eprintln!("{}", usage());
         return 2;
     };
-    let agents = match declared_agents(declared.as_os_str()) {
-        Ok(agents) => agents,
+    let declaration = match declared_agents(declared.as_os_str()) {
+        Ok(declaration) => declaration,
         Err(code) => return code,
     };
     let keep = match ids(keep.as_os_str()) {
@@ -365,7 +595,7 @@ fn converge_cli(args: &[OsString]) -> i32 {
         Err(code) => return code,
     };
     converge(
-        &agents,
+        &declaration.agents,
         &keep,
         &retired,
         Path::new(&settings),
@@ -377,7 +607,7 @@ fn converge_cli(args: &[OsString]) -> i32 {
 /// The declared agents of the line-protocol file, validated with the rules
 /// first; Err carries the exit code with every line already printed: 1 a
 /// refusal, 2 an unreadable or malformed file.
-fn declared_agents(file: &OsStr) -> Result<Vec<Agent>, i32> {
+fn declared_agents(file: &OsStr) -> Result<Declaration, i32> {
     let shown = file.to_string_lossy();
     let text = match fs::read_to_string(file) {
         Ok(text) => text,
@@ -387,16 +617,16 @@ fn declared_agents(file: &OsStr) -> Result<Vec<Agent>, i32> {
             return Err(2);
         }
     };
-    let agents = match parse(&text) {
-        Ok(agents) => agents,
+    let declaration = match parse(&text) {
+        Ok(declaration) => declaration,
         Err(e) => {
             eprintln!("{NAME}: {shown}: {e}");
             return Err(2);
         }
     };
-    let found = problems(&agents);
+    let found = problems(&declaration);
     if found.is_empty() {
-        return Ok(agents);
+        return Ok(declaration);
     }
     for problem in &found {
         eprintln!("{NAME}: {problem}");
@@ -724,16 +954,16 @@ fn name_of(settings: &Path) -> String {
 /// The usage line every command-line problem prints.
 fn usage() -> String {
     format!(
-        "usage: {NAME} validate <FILE> | {NAME} converge --declared <FILE> --keep <FILE> \\\n       --retired <FILE> --settings <PATH> [--guard <COMMAND>] [--check]"
+        "usage: {NAME} validate <FILE> | {NAME} launch <FILE> <ID> | {NAME} converge --declared <FILE> --keep <FILE> \\\n       --retired <FILE> --settings <PATH> [--guard <COMMAND>] [--check]"
     )
 }
 
-/// Prints the verdict for parsed agents: either the clean line or every
-/// problem; returns the exit code it earns.
-fn report(agents: &[Agent]) -> i32 {
-    let found = problems(agents);
+/// Prints the verdict for a parsed declaration: either the clean line or
+/// every problem; returns the exit code it earns.
+fn report(d: &Declaration) -> i32 {
+    let found = problems(d);
     if found.is_empty() {
-        println!("{NAME}: ok ({} agents)", agents.len());
+        println!("{NAME}: ok ({} agents)", d.agents.len());
         0
     } else {
         for problem in &found {
@@ -794,6 +1024,7 @@ fn kind(path: &str) -> Kind {
         "family" | "projectPrimaryAgentDir" | "outputDir" | "provider" | "model" | "reach" => {
             Kind::Known
         }
+        "agent" | "skillSet" => Kind::Known,
         _ => prefixed(path),
     }
 }
@@ -1082,9 +1313,19 @@ mod tests {
     use super::*;
     use std::{fs, path::PathBuf};
 
+    /// The declaration a parseable fixture parses to.
+    fn parsed(text: &str) -> Declaration {
+        parse(text).expect("the fixture parses")
+    }
+
     /// The problems a parseable fixture carries.
     fn problems_of(text: &str) -> Vec<String> {
-        problems(&parse(text).expect("the fixture parses"))
+        problems(&parsed(text))
+    }
+
+    /// A verified support cell for `kind` at `level`, as a flat-file line.
+    fn verified(kind: &str, level: &str) -> String {
+        format!("support\t{kind}\t{level}\tverified\n")
     }
 
     /// Asserts the fixture's problems are exactly `want`, in order.
@@ -1128,13 +1369,16 @@ field\tuseLocalClaude\ttrue
 field\toutputDir\t/Users/me/gold-band/out
 field\tprovider\tanthropic
 field\tmodel\tclaude-sonnet-4
+field\tagent\tclaude
+field\tskillSet\tdefault
 field\treach\tread
+support\tclaude\tread\tverified
 ";
-        let agents = parse(text).unwrap();
-        assert_eq!(agents.len(), 1);
-        assert_eq!(agents[0].line, 2);
-        assert_eq!(agents[0].id, "claude-code");
-        assert!(problems(&agents).is_empty());
+        let declaration = parse(text).unwrap();
+        assert_eq!(declaration.agents.len(), 1);
+        assert_eq!(declaration.agents[0].line, 2);
+        assert_eq!(declaration.agents[0].id, "claude-code");
+        assert!(problems(&declaration).is_empty());
         let file = temp("clean-declaration", text).into_os_string();
         assert_eq!(run(vec!["validate".into(), file]), 0);
     }
@@ -1142,7 +1386,10 @@ field\treach\tread
     #[test]
     fn the_family_field_is_a_known_plain_string_field() {
         expect(
-            "agent\tzeta\nfield\tfamily\tdeepseek\nfield\treach\tread\n",
+            &format!(
+                "agent\tzeta\nfield\tfamily\tdeepseek\nfield\treach\tread\n{}",
+                verified("zeta", "read")
+            ),
             &[],
         );
     }
@@ -1162,8 +1409,12 @@ agent\tjules
 field\treach\tread
 agent\tjules
 field\treach\tread
+support\tClaude\tread\tverified
+support\tjules\tread\tverified
+support\ta--b\tread\tverified
+support\t\tread\tverified
 ";
-        let agents = parse(text).unwrap();
+        let agents = &parse(text).unwrap().agents;
         assert_eq!(agents[3].line, 7);
         expect(
             text,
@@ -1179,6 +1430,9 @@ field\treach\tread
             found.iter().filter(|l| l.contains("duplicate id")).count(),
             1
         );
+        // A duplicate id is its own rule's problem, never also a second id
+        // of the same kind, reach and skill set as itself.
+        assert!(!found.iter().any(|l| l.contains("same agent")));
     }
 
     #[test]
@@ -1190,6 +1444,7 @@ field\tadapter.command\t/Applications/Codex.app/Contents/MacOS/codex
 field\tadapter.args.0\tcodex exec
 field\tprovider\tOpenAI Codex CLI
 field\tmodel\tcodex-5
+support\tmy-codex\tread\tverified
 ";
         expect(
             text,
@@ -1212,30 +1467,33 @@ field\tprovider\topenrouter
 field\tmodel\topenrouter/anthropic/claude-3
 field\tadapter.args.0\t--provider openrouter
 field\tadapter.env.OPENROUTER_API_URL\thttps://openrouter.ai/api/v1
+support\tmixer\tread\tverified
 ";
         expect(text, &[]);
     }
 
     #[test]
     fn opencode_models_and_opencode_agents_are_accepted() {
-        let text = "agent\tsidekick\nfield\treach\tread\nfield\tmodel\topencode/zeta\n";
+        let text = "agent\tsidekick\nfield\treach\tread\nfield\tmodel\topencode/zeta\nsupport\tsidekick\tread\tverified\n";
         expect(text, &[]);
         let text = "\
 agent\tsidekick
 field\treach\tread
 field\tadapter.command\t/usr/local/bin/opencode
 field\tmodel\tzeta-3
+support\tsidekick\tread\tverified
 ";
         expect(text, &[]);
-        let text = "agent\topencode\nfield\treach\tread\nfield\tmodel\tzeta-3\n";
+        let text = "agent\topencode\nfield\treach\tread\nfield\tmodel\tzeta-3\nsupport\topencode\tread\tverified\n";
         expect(text, &[]);
-        let text = "agent\topencode\nfield\treach\tread\nfield\tmodel\topencode/zeta\n";
+        let text = "agent\topencode\nfield\treach\tread\nfield\tmodel\topencode/zeta\nsupport\topencode\tread\tverified\n";
         expect(text, &[]);
         let text = "\
 agent\topencode
 field\treach\tread
 field\tadapter.command\topencode serve
 field\tmodel\topencode-go/zeta
+support\topencode\tread\tverified
 ";
         expect(text, &[]);
     }
@@ -1249,6 +1507,7 @@ field\tfavouriteColour\tblue
 field\tadapter.args.not-a-number\t1
 field\tadapter.env.lower\t2
 field\tcompatibleAgentDirs.oops\t3
+support\tzeta\tread\tverified
 ";
         expect(
             text,
@@ -1271,6 +1530,7 @@ field\tthrowawayOnly\t1
 field\texternalSessionSyncSupported\tTRUE
 field\texternalSessionSyncEnabled\tmaybe
 field\tsystemPromptDelivery\tinline
+support\tzeta\tread\tverified
 ";
         expect(
             text,
@@ -1290,25 +1550,127 @@ field\tsystemPromptDelivery\tinline
         expect(
             text,
             &["zeta: reach \"banana\" is not one of \
-                 read, read-web, research, write-scoped, write, full, run-one-command"],
+                 read, read-web, research, write-scoped, write, full"],
         );
-        let text = "agent\tzeta\nfield\treach\tresearch\n";
-        expect(text, &["zeta: reach \"research\" needs an outputDir field"]);
-        let text = "agent\tzeta\nfield\treach\twrite-scoped\n";
+        let text = format!(
+            "{}agent\tzeta\nfield\treach\tresearch\n",
+            verified("zeta", "research")
+        );
         expect(
-            text,
+            &text,
+            &["zeta: reach \"research\" needs an outputDir field"],
+        );
+        let text = format!(
+            "{}agent\tzeta\nfield\treach\twrite-scoped\n",
+            verified("zeta", "write-scoped")
+        );
+        expect(
+            &text,
             &["zeta: reach \"write-scoped\" needs an outputDir field"],
         );
-        let text = "agent\tzeta\nfield\treach\tfull\nfield\tthrowawayOnly\tfalse\n";
-        expect(text, &["zeta: reach \"full\" needs throwawayOnly \"true\""]);
-        let text = "agent\tzeta\nfield\treach\tread-web\n";
-        expect(text, &[]);
-        let text = "agent\tzeta\nfield\treach\twrite-scoped\nfield\toutputDir\t/Users/me/out\n";
-        expect(text, &[]);
-        let text = "agent\tzeta\nfield\treach\tfull\nfield\tthrowawayOnly\ttrue\n";
-        expect(text, &[]);
-        let text = "agent\tzeta\nfield\treach\trun-one-command\n";
-        expect(text, &[]);
+        let text = format!(
+            "{}agent\tzeta\nfield\treach\tfull\nfield\tthrowawayOnly\tfalse\n",
+            verified("zeta", "full")
+        );
+        expect(
+            &text,
+            &["zeta: reach \"full\" needs throwawayOnly \"true\""],
+        );
+        let text = format!(
+            "{}agent\tzeta\nfield\treach\tread-web\n",
+            verified("zeta", "read-web")
+        );
+        expect(&text, &[]);
+        let text = format!(
+            "{}agent\tzeta\nfield\treach\twrite-scoped\nfield\toutputDir\t/Users/me/out\n",
+            verified("zeta", "write-scoped")
+        );
+        expect(&text, &[]);
+        let text = format!(
+            "{}agent\tzeta\nfield\treach\tfull\nfield\tthrowawayOnly\ttrue\n",
+            verified("zeta", "full")
+        );
+        expect(&text, &[]);
+        // run-one-command is an inventory reach for skills, never an agent
+        // id's: spec #327 names six levels (review of #339).
+        let text = format!(
+            "{}agent\tzeta\nfield\treach\trun-one-command\n",
+            verified("zeta", "run-one-command")
+        );
+        expect(
+            &text,
+            &["zeta: reach \"run-one-command\" is not one of \
+                 read, read-web, research, write-scoped, write, full"],
+        );
+    }
+
+    #[test]
+    fn two_ids_with_no_reach_do_not_share_a_reach() {
+        expect(
+            "agent\tone\nfield\tagent\tvibe\nagent\ttwo\nfield\tagent\tvibe\n",
+            &["one: reach is required", "two: reach is required"],
+        );
+    }
+
+    #[test]
+    fn the_support_record_decides_what_a_kind_may_reach() {
+        // A record with no cell for the kind supports that reach not at all,
+        // including the empty record of a flat file that carries none.
+        let text = "agent\tzeta\nfield\tagent\thermes\nfield\treach\tread\n";
+        expect(text, &["zeta: agent hermes does not support reach read"]);
+        expect(
+            "support\thermes\twrite\tverified\nagent\tyou\nfield\tagent\thermes\nfield\treach\tread\n",
+            &["you: agent hermes does not support reach read"],
+        );
+        // A cell that is not verified -- whatever else it says -- is refused.
+        for state in ["unverified", "banana"] {
+            let text = format!(
+                "support\thermes\tread\t{state}\nagent\tzeta\nfield\tagent\thermes\nfield\treach\tread\n"
+            );
+            expect(
+                &text,
+                &["zeta: reach read for agent hermes is unverified; refused"],
+            );
+        }
+        // A verified cell for the kind and the reach allows it, and only that.
+        expect(
+            "support\thermes\tread\tverified\nsupport\thermes\twrite\tunverified\nagent\tzeta\nfield\tagent\thermes\nfield\treach\tread\n",
+            &[],
+        );
+        expect(
+            "support\thermes\twrite\tunverified\nagent\tzeta\nfield\tagent\thermes\nfield\treach\twrite\n",
+            &["zeta: reach write for agent hermes is unverified; refused"],
+        );
+        // With no `agent` field the id is its own kind, and an empty field
+        // falls back to it too.
+        expect(
+            &format!(
+                "{}agent\tzeta\nfield\tagent\t\nfield\treach\tread\n",
+                verified("zeta", "read")
+            ),
+            &[],
+        );
+    }
+
+    #[test]
+    fn one_id_per_agent_reach_and_skill_set() {
+        // The second id of a kind, reach and skill set is named with the
+        // first; the default skill set is `default` for both.
+        expect(
+            "support\tvibe\twrite\tverified\nagent\tone\nfield\tagent\tvibe\nfield\treach\twrite\nagent\ttwo\nfield\tagent\tvibe\nfield\treach\twrite\n",
+            &["two: same agent, reach and skill set as one"],
+        );
+        // A different skill set, a different reach or a different kind makes
+        // the ids distinct; an id without an `agent` field is its own kind.
+        expect(
+            "support\tvibe\twrite\tverified\nsupport\tvibe\tread\tverified\nsupport\tagy\twrite\tverified\nsupport\tfive\twrite\tverified\nagent\tone\nfield\tagent\tvibe\nfield\tskillSet\tmine\nfield\treach\twrite\nagent\ttwo\nfield\tagent\tvibe\nfield\tskillSet\tyours\nfield\treach\twrite\nagent\tthree\nfield\tagent\tvibe\nfield\tskillSet\tmine\nfield\treach\tread\nagent\tfour\nfield\tagent\tagy\nfield\tskillSet\tmine\nfield\treach\twrite\nagent\tfive\nfield\tskillSet\tmine\nfield\treach\twrite\n",
+            &[],
+        );
+        // An empty skillSet field falls back to `default`, so these two clash.
+        expect(
+            "support\tvibe\twrite\tverified\nagent\tone\nfield\tagent\tvibe\nfield\tskillSet\t\nfield\treach\twrite\nagent\ttwo\nfield\tagent\tvibe\nfield\treach\twrite\n",
+            &["two: same agent, reach and skill set as one"],
+        );
     }
 
     #[test]
@@ -1323,6 +1685,7 @@ field\ticon\tAKIAIOSFODNN7EXAMPLE
 field\tadapter.displayName\tBearer AbCdEf1234567890
 field\tmodel\teyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJSMeKKF2QT4f
 field\tprimaryAgentDir\tAbCdEf1234567890AbCdEf1234567890A1
+support\tzeta\tread\tverified
 ";
         expect(
             text,
@@ -1349,6 +1712,7 @@ field\tadapter.env.ANTHROPIC_API_KEY\t$ANTHROPIC_API_KEY
 field\tadapter.env.OPENAI_API_KEY\t${OPENAI_API_KEY}
 field\tadapter.env.GITHUB_TOKEN\tkeychain-proxy-github-token
 field\tadapter.env.SLACK_TOKEN\t1slack-token
+support\tzeta\tread\tverified
 ";
         expect(
             text,
@@ -1454,13 +1818,28 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
             parse("agent\tz\textra\n").unwrap_err(),
             "line 1: malformed line"
         );
-        let agents = parse("# c\n\nagent\tzeta\nfield\ticon\tx\n").unwrap();
-        assert_eq!(agents.len(), 1);
-        assert_eq!(agents[0].line, 3);
-        assert_eq!(agents[0].id, "zeta");
+        let declaration =
+            parse("# c\n\nagent\tzeta\nfield\ticon\tx\nsupport\tvibe\twrite\tverified\n").unwrap();
+        assert_eq!(declaration.agents.len(), 1);
+        assert_eq!(declaration.agents[0].line, 3);
+        assert_eq!(declaration.agents[0].id, "zeta");
         assert_eq!(
-            agents[0].fields,
+            declaration.agents[0].fields,
             vec![("icon".to_string(), "x".to_string())]
+        );
+        let cells = &declaration.support;
+        assert_eq!(cells.len(), 1);
+        assert_eq!(
+            (
+                cells[0].kind.as_str(),
+                cells[0].level.as_str(),
+                cells[0].state.as_str()
+            ),
+            ("vibe", "write", "verified")
+        );
+        assert_eq!(
+            parse("support\tvibe\twrite\n").unwrap_err(),
+            "line 1: malformed line"
         );
     }
 
@@ -1468,7 +1847,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
     fn run_answers_clean_dirty_broken_and_bad_usage() {
         let clean = temp(
             "run-clean",
-            "agent\tzeta\nfield\treach\tread\nfield\tmodel\tzeta-3\n",
+            "agent\tzeta\nfield\treach\tread\nfield\tmodel\tzeta-3\nsupport\tzeta\tread\tverified\n",
         )
         .into_os_string();
         assert_eq!(run(vec!["validate".into(), clean.clone()]), 0);
@@ -1480,6 +1859,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         assert_eq!(run(vec!["dance".into()]), 2);
         assert_eq!(run(vec!["validate".into()]), 2);
         assert_eq!(run(vec!["validate".into(), clean, "extra".into()]), 2);
+        assert_eq!(run(vec!["launch".into()]), 2);
         assert_eq!(
             run(vec![
                 "validate".into(),
@@ -1487,6 +1867,102 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
             ]),
             2
         );
+    }
+
+    #[test]
+    fn launch_refuses_before_starting_anything() {
+        let refusal = |text: &str| {
+            let declaration = parsed(text);
+            launch_refusal(&declaration.agents[0], &support_of(&declaration))
+                .expect("the fixture is refused")
+        };
+        // No reach at all.
+        assert_eq!(
+            refusal("agent\tzeta\nfield\tadapter.command\t/bin/fake-agent\n"),
+            "zeta: reach is required"
+        );
+        // A kind the record has no cell for, and an unverified cell.
+        assert_eq!(
+            refusal(
+                "agent\tzeta\nfield\tagent\thermes\nfield\treach\tread\nfield\tadapter.command\t/bin/fake-agent\n"
+            ),
+            "zeta: agent hermes does not support reach read"
+        );
+        assert_eq!(
+            refusal(
+                "support\thermes\tread\tunverified\nagent\tzeta\nfield\tagent\thermes\nfield\treach\tread\nfield\tadapter.command\t/bin/fake-agent\n"
+            ),
+            "zeta: reach read for agent hermes is unverified; refused"
+        );
+        // The output-directory and throwaway rules, on cells the record
+        // already verified so the launch reaches them.
+        assert_eq!(
+            refusal(
+                "support\thermes\tresearch\tverified\nagent\tzeta\nfield\tagent\thermes\nfield\treach\tresearch\nfield\tadapter.command\t/bin/fake-agent\n"
+            ),
+            "zeta: reach \"research\" needs an outputDir field"
+        );
+        assert_eq!(
+            refusal(
+                "support\thermes\tfull\tverified\nagent\tzeta\nfield\tagent\thermes\nfield\treach\tfull\nfield\tadapter.command\t/bin/fake-agent\n"
+            ),
+            "zeta: reach \"full\" needs throwawayOnly \"true\""
+        );
+        // Nothing to start.
+        assert_eq!(
+            refusal("support\thermes\twrite\tverified\nagent\tzeta\nfield\tagent\thermes\nfield\treach\twrite\n"),
+            "zeta: no adapter.command to launch"
+        );
+        // A launchable declaration declines nothing.
+        let declaration = parsed(
+            "support\thermes\twrite\tverified\nagent\tzeta\nfield\tagent\thermes\nfield\treach\twrite\nfield\tadapter.command\t/bin/fake-agent\n",
+        );
+        assert!(launch_refusal(&declaration.agents[0], &support_of(&declaration)).is_none());
+    }
+
+    #[test]
+    fn launch_answers_the_command_line_and_a_missing_id_is_refused() {
+        let good = temp(
+            "launch-good",
+            "agent\tzeta\nfield\treach\twrite\nsupport\tzeta\twrite\tverified\n",
+        )
+        .into_os_string();
+        assert_eq!(run(vec!["launch".into()]), 2);
+        assert_eq!(run(vec!["launch".into(), good.clone()]), 2);
+        let missing = OsString::from("/no-such/gold-band-agents-file");
+        assert_eq!(run(vec!["launch".into(), missing, "zeta".into()]), 2);
+        let broken = temp("launch-broken", "oops\n").into_os_string();
+        assert_eq!(run(vec!["launch".into(), broken, "zeta".into()]), 2);
+        let extra = temp(
+            "launch-extra",
+            "agent\tzeta\nfield\treach\twrite\nsupport\tzeta\twrite\tverified\n",
+        )
+        .into_os_string();
+        assert_eq!(
+            run(vec!["launch".into(), extra, "zeta".into(), "junk".into()]),
+            2
+        );
+        // An id the file does not declare is refused (exit 1), not a usage
+        // problem: the launcher simply cannot start it.
+        assert_eq!(run(vec!["launch".into(), good, "no-such-id".into()]), 1);
+        // An id whose cell is unverified is refused the same way, with its
+        // reason on stderr, and nothing started.
+        let refused = temp(
+            "launch-unverified",
+            "agent\tzeta\nfield\tagent\tvibe\nfield\treach\tread\nfield\tadapter.command\t/bin/fake-agent\nsupport\tvibe\tread\tunverified\n",
+        )
+        .into_os_string();
+        assert_eq!(run(vec!["launch".into(), refused, "zeta".into()]), 1);
+    }
+
+    #[test]
+    fn a_command_that_cannot_start_exits_one_after_the_refusals_pass() {
+        let file = temp(
+            "launch-nostart",
+            "agent\tzeta\nfield\tagent\tvibe\nfield\treach\twrite\nfield\tadapter.command\t/no-such/gold-band-launcher-binary\nfield\tadapter.args.0\t--flag\nfield\tadapter.env.VIBE_CONFIG\topencode.json\nsupport\tvibe\twrite\tverified\n",
+        )
+        .into_os_string();
+        assert_eq!(run(vec!["launch".into(), file, "zeta".into()]), 1);
     }
 
     #[test]
@@ -1499,13 +1975,16 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
 
     #[test]
     fn regression_an_opencode_agent_with_no_model_is_accepted() {
-        expect("agent\topencode\nfield\treach\tread\n", &[]);
+        expect(
+            "agent\topencode\nfield\treach\tread\nsupport\topencode\tread\tverified\n",
+            &[],
+        );
     }
 
     #[test]
     fn regression_codex_is_refused_in_env_values_and_display_name() {
         expect(
-            "agent\tzeta\nfield\treach\tread\nfield\tadapter.env.AGENT\tcodex\nfield\tadapter.displayName\tCodex CLI\n",
+            "agent\tzeta\nfield\treach\tread\nfield\tadapter.env.AGENT\tcodex\nfield\tadapter.displayName\tCodex CLI\nsupport\tzeta\tread\tverified\n",
             &[
                 "zeta: adapter.env.AGENT must not name codex",
                 "zeta: adapter.displayName must not name codex",
@@ -1557,7 +2036,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
 
     #[test]
     fn converge_keeps_the_kept_strips_builtins_and_preserves_the_rest() {
-        let declared = "agent\topencode\nfield\tadapter.command\t/usr/local/bin/opencode\nfield\tadapter.args.0\tserve\nfield\tadapter.args.1\t--quiet\nfield\tadapter.displayName\tOpenCode\nfield\tadapter.env.OPENCODE_CONFIG\topencode.json\nfield\ticon\topencode\nfield\tprimaryAgentDir\t.opencode\nfield\tcompatibleAgentDirs.0\t.agents\nfield\tsystemPromptDelivery\tnone\nfield\texternalSessionSyncSupported\tfalse\nfield\texternalSessionSyncEnabled\ttrue\nfield\treach\twrite\nfield\tmodel\topencode-go/kimi-k2.7-code\nagent\tmy-agent\nfield\tadapter.command\t/usr/local/bin/my-agent\nfield\tadapter.args.0\t--continue\nfield\tadapter.displayName\tMy Agent\nfield\ticon\tsparkles\nfield\treach\tread\nfield\tmodel\tzeta-3\n";
+        let declared = "agent\topencode\nfield\tadapter.command\t/usr/local/bin/opencode\nfield\tadapter.args.0\tserve\nfield\tadapter.args.1\t--quiet\nfield\tadapter.displayName\tOpenCode\nfield\tadapter.env.OPENCODE_CONFIG\topencode.json\nfield\ticon\topencode\nfield\tprimaryAgentDir\t.opencode\nfield\tcompatibleAgentDirs.0\t.agents\nfield\tsystemPromptDelivery\tnone\nfield\texternalSessionSyncSupported\tfalse\nfield\texternalSessionSyncEnabled\ttrue\nfield\treach\twrite\nfield\tmodel\topencode-go/kimi-k2.7-code\nagent\tmy-agent\nfield\tadapter.command\t/usr/local/bin/my-agent\nfield\tadapter.args.0\t--continue\nfield\tadapter.displayName\tMy Agent\nfield\ticon\tsparkles\nfield\treach\tread\nfield\tmodel\tzeta-3\nsupport\topencode\twrite\tverified\nsupport\tmy-agent\tread\tverified\n";
         // A stray agent, a kept one, a non-object entry, a retired one kept by
         // the keep file, a codex one the keep file names too, and the app's
         // own injected command inside the built-in's entry.
@@ -1635,7 +2114,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
 
     #[test]
     fn a_declared_use_local_claude_reaches_the_settings_entry() {
-        let declared = "agent\tzeta\nfield\tuseLocalClaude\ttrue\nfield\treach\tread\n";
+        let declared = "agent\tzeta\nfield\tuseLocalClaude\ttrue\nfield\treach\tread\nsupport\tzeta\tread\tverified\n";
         let settings = temp("cv-use-local-claude", "{}");
         assert_eq!(converge("cv-ulc", declared, "", "", &settings, false), 0);
         let agents = agents_of(&settings);
@@ -1650,7 +2129,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
 
     #[test]
     fn check_reports_without_writing_and_a_missing_file_starts_from_empty() {
-        let declared = "agent\topencode\nfield\ticon\topencode\nfield\treach\twrite\nfield\tmodel\topencode-go/kimi-k2.7-code\n";
+        let declared = "agent\topencode\nfield\ticon\topencode\nfield\treach\twrite\nfield\tmodel\topencode-go/kimi-k2.7-code\nsupport\topencode\twrite\tverified\n";
         let home = std::env::temp_dir().join(format!(
             "gold-band-agents-cv-check-home-{}",
             std::process::id()
@@ -1682,7 +2161,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         assert_eq!(
             converge(
                 "cv-refused",
-                "agent\tmy-codex\nfield\treach\tread\n",
+                "agent\tmy-codex\nfield\treach\tread\nsupport\tmy-codex\tread\tverified\n",
                 "mine\n",
                 "",
                 &settings,
@@ -1711,7 +2190,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
             assert_eq!(
                 converge(
                     tag,
-                    "agent\tzeta\nfield\treach\tread\n",
+                    "agent\tzeta\nfield\treach\tread\nsupport\tzeta\tread\tverified\n",
                     "",
                     "",
                     &settings,
@@ -1728,7 +2207,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         assert_eq!(
             converge(
                 "cv-dir",
-                "agent\tzeta\nfield\treach\tread\n",
+                "agent\tzeta\nfield\treach\tread\nsupport\tzeta\tread\tverified\n",
                 "",
                 "",
                 &dir,
@@ -1745,7 +2224,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         assert_eq!(
             converge(
                 "cv-agents-list",
-                "agent\tzeta\nfield\treach\tread\n",
+                "agent\tzeta\nfield\treach\tread\nsupport\tzeta\tread\tverified\n",
                 "",
                 "",
                 &settings,
@@ -1760,7 +2239,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
 
     #[test]
     fn a_backup_or_staged_write_that_cannot_happen_exits_two() {
-        let declared = "agent\tzeta\nfield\ticon\tsparkles\nfield\treach\tread\n";
+        let declared = "agent\tzeta\nfield\ticon\tsparkles\nfield\treach\tread\nsupport\tzeta\tread\tverified\n";
         let json = "{\"agents\":{\"stray\":{\"icon\":\"stray\"}}}";
         let keep = "mine\n";
         // The old file cannot be backed up: its .bak is a directory already.
@@ -1823,7 +2302,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
 
     #[test]
     fn a_guard_rechecks_the_running_app_right_before_the_rename() {
-        let declared = "agent\tzeta\nfield\treach\tread\n";
+        let declared = "agent\tzeta\nfield\treach\tread\nsupport\tzeta\tread\tverified\n";
         let json = "{\"agents\":{}}";
         let settings = temp("cv-guard-settings", json);
         let name = settings.file_name().unwrap().to_string_lossy().into_owned();
@@ -1878,7 +2357,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
     #[test]
     fn a_failed_replace_leaves_the_old_file_in_place_and_no_staged_file_behind() {
         use std::os::unix::fs::PermissionsExt;
-        let declared = "agent\tzeta\nfield\treach\tread\n";
+        let declared = "agent\tzeta\nfield\treach\tread\nsupport\tzeta\tread\tverified\n";
         let json = "{\"agents\":{}}";
         let dir = std::env::temp_dir().join(format!(
             "gold-band-agents-cv-readonly-{}",
@@ -1917,8 +2396,11 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
     #[test]
     fn converge_bad_usage_and_unreadable_files_exit_two() {
         let flag = |name: &str| OsString::from(name);
-        let declared =
-            temp("cv-usage-declared", "agent\tzeta\nfield\treach\tread\n").into_os_string();
+        let declared = temp(
+            "cv-usage-declared",
+            "agent\tzeta\nfield\treach\tread\nsupport\tzeta\tread\tverified\n",
+        )
+        .into_os_string();
         let settings = temp("cv-usage-settings", "{}").into_os_string();
         let missing = OsString::from("/no-such/gold-band-agents-file");
         assert_eq!(run(vec![flag("converge")]), 2);
@@ -1982,7 +2464,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
     #[test]
     fn regression_the_rewritten_settings_file_is_owner_only() {
         use std::os::unix::fs::PermissionsExt;
-        let declared = "agent\tzeta\nfield\treach\tread\n";
+        let declared = "agent\tzeta\nfield\treach\tread\nsupport\tzeta\tread\tverified\n";
         let settings = temp("cv-mode", "{}");
         fs::set_permissions(&settings, fs::Permissions::from_mode(0o644)).unwrap();
         assert_eq!(converge("cv-mode", declared, "", "", &settings, false), 0);
@@ -2017,7 +2499,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
     fn converge_writes_home_expanded_absolute_adapter_paths() {
         let home = std::env::var_os("HOME").expect("a home directory");
         let prefix = home.to_string_lossy();
-        let declared = "agent\tvibe\nfield\tadapter.command\t~/.local/bin/vibe-acp\nfield\tadapter.displayName\tVibe\nfield\treach\twrite\nagent\texotic\nfield\tadapter.command\t/opt/homebrew/bin/exotic\nfield\tadapter.args.0\t~/.config/exotic\nfield\tadapter.displayName\tExotic\nfield\treach\twrite\n";
+        let declared = "agent\tvibe\nfield\tadapter.command\t~/.local/bin/vibe-acp\nfield\tadapter.displayName\tVibe\nfield\treach\twrite\nagent\texotic\nfield\tadapter.command\t/opt/homebrew/bin/exotic\nfield\tadapter.args.0\t~/.config/exotic\nfield\tadapter.displayName\tExotic\nfield\treach\twrite\nsupport\tvibe\twrite\tverified\nsupport\texotic\twrite\tverified\n";
         let settings = temp("cv-expand", "{}");
         assert_eq!(converge("cv-expand", declared, "", "", &settings, false), 0);
         let agents = agents_of(&settings);
@@ -2057,7 +2539,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         // claude-acp is a built-in id, so its env is written with neither
         // command nor args; a custom id shows an env value with no leading
         // `~/` staying exactly as declared.
-        let declared = "agent\tclaude-acp\nfield\tadapter.displayName\tClaude (work)\nfield\tadapter.env.CLAUDE_CONFIG_DIR\t~/.claude\nfield\ticon\tclaude\nfield\tprimaryAgentDir\t.claude\nfield\tsystemPromptDelivery\tmeta-append\nfield\treach\twrite\nagent\tclaude-personal\nfield\tadapter.command\tnpx\nfield\tadapter.args.0\t-y\nfield\tadapter.args.1\t@agentclientprotocol/claude-agent-acp@0.87.0\nfield\tadapter.displayName\tClaude (personal)\nfield\tadapter.env.CLAUDE_CONFIG_DIR\t~/.claude-personal\nfield\tadapter.env.PASSTHROUGH\tas-declared\nfield\ticon\tclaude\nfield\tprimaryAgentDir\t.claude-personal\nfield\tsystemPromptDelivery\tmeta-append\nfield\treach\twrite\n";
+        let declared = "agent\tclaude-acp\nfield\tadapter.displayName\tClaude (work)\nfield\tadapter.env.CLAUDE_CONFIG_DIR\t~/.claude\nfield\ticon\tclaude\nfield\tprimaryAgentDir\t.claude\nfield\tsystemPromptDelivery\tmeta-append\nfield\treach\twrite\nfield\tagent\tclaude\nagent\tclaude-personal\nfield\tagent\tclaude\nfield\tskillSet\tpersonal\nfield\tadapter.command\tnpx\nfield\tadapter.args.0\t-y\nfield\tadapter.args.1\t@agentclientprotocol/claude-agent-acp@0.87.0\nfield\tadapter.displayName\tClaude (personal)\nfield\tadapter.env.CLAUDE_CONFIG_DIR\t~/.claude-personal\nfield\tadapter.env.PASSTHROUGH\tas-declared\nfield\ticon\tclaude\nfield\tprimaryAgentDir\t.claude-personal\nfield\tsystemPromptDelivery\tmeta-append\nfield\treach\twrite\nsupport\tclaude\twrite\tverified\n";
         let settings = temp("cv-env-expand", "{}");
         assert_eq!(
             converge("cv-env-expand", declared, "", "", &settings, false),

@@ -42,7 +42,12 @@ on the Linux workstation.
   submodule (#356).
   `crates/gold-band-agents` validates the Gold Band agent declarations, flattened
   into its line protocol by Python (#332), and refuses one that breaks an owner
-  rule: no Codex, no literal secrets, a constrained reach. Every OpenRouter and
+  rule: no Codex, no literal secrets, a constrained reach enforced by the reach
+  support record (#339). Its `launch <FILE> <ID>` subcommand is the reach-level
+  launcher: it refuses an id whose level the support record has not verified,
+  before starting anything, and otherwise execs the id's adapter command, so the
+  caller sees the agent's own exit code (`tests/test_gold_band_launch.py` proves
+  it end to end with a fake agent). Every OpenRouter and
   every OpenCode model (an `opencode/` one included) is allowed (owner
   decision, 2026-11-08): the per-key LiteLLM budgets are the guard, and the
   model gateway keeps its own refusals.

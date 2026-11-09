@@ -250,6 +250,8 @@ gold_band:
     # OpenCode: the app strips adapter.command and adapter.args from a
     # built-in id when it saves settings.json, so setup must write neither.
     - id: opencode
+      agent: opencode
+      skillSet: default
       adapter:
         displayName: OpenCode
         env: {}
@@ -265,20 +267,28 @@ gold_band:
     # vibe-study-acp below is its Study twin). No declaration holds a key;
     # each Vibe signs in itself, so none is read here.
     - id: vibe
+      agent: vibe
+      skillSet: default
       adapter:
         command: ~/.local/bin/vibe-acp
         displayName: Vibe
       reach: write
     # Vibe signed in with the Study account, over ACP: its launcher reads
     # MISTRAL_STUDY_API_KEY from the agent-kit secret store at start and
-    # starts nothing without it (#336). The key never reaches this file.
+    # starts nothing without it (#336). The key never reaches this file. It
+    # runs the same vibe kind at the same reach as the id above, so it
+    # names its own skill set (#339's one-id-per-kind-reach-and-skill-set).
     - id: vibe-study
+      agent: vibe
+      skillSet: study
       adapter:
         command: ~/.local/bin/vibe-study-acp
         displayName: Vibe (Study)
       reach: write
     # Google Antigravity over ACP (`agy acp`).
     - id: agy
+      agent: agy
+      skillSet: default
       adapter:
         command: /opt/homebrew/bin/agy
         args: [acp]
@@ -292,6 +302,8 @@ gold_band:
     # `write` (and `write-scoped` through the operating-system layer) is
     # possible; a narrower reach would be a lie the session ignores.
     - id: hermes
+      agent: hermes
+      skillSet: default
       adapter:
         command: ~/.local/bin/hermes-acp
         displayName: Hermes
@@ -316,6 +328,7 @@ gold_band:
     # source, recorded on #328). useLocalClaude stays undeclared (pinned
     # off in this build).
     - id: claude-acp
+      agent: claude
       adapter:
         displayName: "Claude (work)"
         env:
@@ -329,6 +342,10 @@ gold_band:
     # Project skills live in <repo>/.claude for both identities: Claude Code
     # reads project skills only from <cwd>/.claude, whatever its config dir.
     - id: claude-personal
+      agent: claude
+      # The second Claude identity: a skill set of its own keeps the one-id-
+      # per-agent-reach-and-skill-set rule (#339), as vibe-study does.
+      skillSet: personal
       adapter:
         command: npx
         args: ["-y", "@agentclientprotocol/claude-agent-acp@0.87.0"]
@@ -341,6 +358,52 @@ gold_band:
       externalSessionSyncSupported: true
       externalSessionSyncEnabled: false
       reach: write
+  # The reach support record (#339, parent spec #327): per agent kind,
+  # which reach level a managed launcher may enforce, verified or
+  # unverified, each cell naming its evidence in one sentence. A mapped
+  # level is what the kind could plausibly support; a level left out is
+  # what it cannot support at all, so `hermes` maps nothing below
+  # write-scoped. `write` is verified for every kind (write needs no
+  # restriction), everything else is unverified until a probe proves it:
+  # no agent has a proven way to enforce read, read-web, research or
+  # write-scoped yet, and `full` is enforceable only as a throwaway run
+  # (throwawayOnly). The record is flattened into the crate's line
+  # protocol beside the agents, and validation refuses an id whose cell
+  # is missing or unverified, so an unverified cell can be flipped to
+  # verified only together with the evidence that proves it.
+  reach_support:
+    opencode:
+      read: {state: unverified, evidence: "opencode shows deny-by-default permission rules (reach-probes.md, OpenCode), but no config key that sets them in ACP mode is known, so a read gate is not proven honoured."}
+      read-web: {state: unverified, evidence: "webfetch and websearch appear as permission actions (reach-checks.md, chk-opencode), but nothing shows ACP mode honours the permission config that would deny them."}
+      research: {state: unverified, evidence: "No declared-output-directory key appears anywhere in OpenCode's bounded strings dump (reach-checks.md, chk-opencode), so an output directory cannot be enforced."}
+      write-scoped: {state: unverified, evidence: "No declared-output-directory key appears anywhere in OpenCode's bounded strings dump (reach-checks.md, chk-opencode), so writes cannot be confined to one directory."}
+      write: {state: verified, evidence: "Write needs no restriction, so it is enforceable for every agent (#339)."}
+      full: {state: unverified, evidence: "Full is enforceable only as a throwaway run (throwawayOnly), which no opencode run has proven yet (#339)."}
+    vibe:
+      read: {state: unverified, evidence: "Vibe's config holds enabled_tools/disabled_tools and per-tool permissions (reach-checks.md, chk-vibe), but the exact read-side tool names and a per-launch pinned config stay unproven, so read is not enforced."}
+      read-web: {state: unverified, evidence: "Vibe's config has the primitives to disable its web tools (reach-checks.md, chk-vibe), but which tool names a launch must disable and whether that config can be pinned per launch are unproven."}
+      research: {state: unverified, evidence: "Path allowlist/denylist config is evidenced only for edit, grep and task (reach-checks.md, chk-vibe); write_file is never shown honoring one, so writes cannot be confined to one directory."}
+      write-scoped: {state: unverified, evidence: "Path allowlist/denylist config is evidenced only for edit, grep and task (reach-checks.md, chk-vibe); write_file is never shown honoring one, so write-scoped is not enforced."}
+      write: {state: verified, evidence: "Write needs no restriction, so it is enforceable for every agent (#339)."}
+      full: {state: unverified, evidence: "Full is enforceable only as a throwaway run (throwawayOnly), which no Vibe run has proven yet (#339)."}
+    agy:
+      read: {state: unverified, evidence: "No settings key, flag or env var for tool gating appears anywhere in agy's evidence (reach-checks.md, chk-agy)."}
+      read-web: {state: unverified, evidence: "No settings key, flag or env var for tool gating appears anywhere in agy's evidence (reach-checks.md, chk-agy)."}
+      research: {state: unverified, evidence: "No declared-output-directory mechanism appears in agy's evidence -- the nearest are --sandbox and --add-dir, neither confining writes (reach-checks.md, chk-agy)."}
+      write-scoped: {state: unverified, evidence: "The nearest mechanisms are --sandbox and --add-dir (reach-checks.md, chk-agy), neither of which confines writes to one declared directory."}
+      write: {state: verified, evidence: "Write needs no restriction, so it is enforceable for every agent (#339)."}
+      full: {state: unverified, evidence: "Full is enforceable only as a throwaway run (throwawayOnly), which no Antigravity run has proven yet (#339)."}
+    hermes:
+      write-scoped: {state: unverified, evidence: "Hermes builds its ACP session from a hard-coded toolset that always includes writes and the shell (reach-probes.md, Hermes), so only an operating-system confinement could scope writes, and that is unproven."}
+      write: {state: verified, evidence: "In ACP mode Hermes builds its session from a hard-coded toolset no tool configuration can restrict, and write is that default (reach-probes.md, Hermes)."}
+      full: {state: unverified, evidence: "Full is enforceable only as a throwaway run (throwawayOnly), which no Hermes run has proven yet (#339)."}
+    claude:
+      read: {state: unverified, evidence: "No reach probe of Claude exists in the Gold Band reports yet, so nothing proves a read level can be enforced (handoff-gold-band/reports)."}
+      read-web: {state: unverified, evidence: "No reach probe of Claude exists in the Gold Band reports yet, so nothing proves a read-web level can be enforced (handoff-gold-band/reports)."}
+      research: {state: unverified, evidence: "No reach probe of Claude exists in the Gold Band reports yet, so nothing proves a research level can be enforced (handoff-gold-band/reports)."}
+      write-scoped: {state: unverified, evidence: "No reach probe of Claude exists in the Gold Band reports yet, so nothing proves a write-scoped level can be enforced (handoff-gold-band/reports)."}
+      write: {state: verified, evidence: "Write needs no restriction, so it is enforceable for every agent (#339)."}
+      full: {state: unverified, evidence: "Full is enforceable only as a throwaway run (throwawayOnly), which no Claude run has proven yet (#339)."}
   # Agent ids setup removes even when the keep file names them (none yet).
   retired: []
   # Placeholder (issue #337 pins and installs Pi here; the declaration lands
@@ -1720,24 +1783,34 @@ gold_band_instances:
 #     `${NAME}`) or a keychain-proxy name, and no other value may be one
 #     of the crate's secret shapes;
 #   * an id of lowercase letters, digits and dash-separated groups,
-#     declared once;
+#     declared once, and one id per agent kind, reach and skill set
+#     (#339): `agent` names the kind the id runs (opencode, vibe, agy,
+#     hermes, claude; it defaults to the id) and the optional `skillSet`
+#     (default `default`) tells two ids of one kind apart;
 #   * only the fields the crate knows (`reach` one of read, read-web,
-#     research, write-scoped, write, full, run-one-command, with
+#     research, write-scoped, write, full, with
 #     research and write-scoped needing outputDir and full needing
-#     throwawayOnly: true).
+#     throwawayOnly: true), and a reach whose cell in `reach_support`
+#     below (the support record, #339) is missing or unverified is
+#     refused, because a level the launcher cannot enforce is not
+#     declared.
 #
 # A refusal is printed by setup and stops the run, so nothing is written
 # from a declaration the owner's rules refuse. Each entry is a mapping
 # with `id` plus the fields the crate knows -- the shape Gold Band's own
-# settings.json uses: adapter {command, args, displayName, env}, icon,
-# primaryAgentDir, projectPrimaryAgentDir, compatibleAgentDirs,
-# systemPromptDelivery (none or meta-append), externalSessionSyncSupported,
-# externalSessionSyncEnabled, useLocalClaude, reach, outputDir, provider,
-# model, throwawayOnly. The agents themselves are converged onto by
-# ticket #333: the settings' agent map REPLACES the app's runtime list (it
-# is not merged with the built-in catalog, #328), and setup writes only
-# the fields Gold Band knows, without adapter.command/adapter.args for a
-# built-in id.
+# settings.json uses: agent, skillSet, adapter {command, args, displayName,
+# env}, icon, primaryAgentDir, projectPrimaryAgentDir,
+# compatibleAgentDirs, systemPromptDelivery (none or meta-append),
+# externalSessionSyncSupported, externalSessionSyncEnabled, useLocalClaude,
+# reach, outputDir, provider, model, throwawayOnly. The agents themselves
+# are converged onto by ticket #333: the settings' agent map REPLACES the
+# app's runtime list (it is not merged with the built-in catalog, #328),
+# and setup writes only the fields Gold Band knows, without
+# adapter.command/adapter.args for a built-in id. The `agent` and
+# `skillSet` fields never reach settings.json: they belong to the reach
+# rules (#339) and the launcher, which converge.py's `gold-band-launch`
+# subcommand runs (a managed start that refuses an id whose level the
+# launcher cannot enforce -- see docs/REGISTRY.md).
 # -------------------------------------------------------------------
 
 # -------------------------------------------------------------------
