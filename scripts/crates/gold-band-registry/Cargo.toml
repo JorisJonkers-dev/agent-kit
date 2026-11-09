@@ -1,0 +1,10 @@
+[package]
+name = "gold-band-registry"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Validates flattened Gold Band agent declarations against the owner's hard rules (issue #332)."
+
+# std only, by design: nothing here has an age for the 7-day crate cooldown
+# (standards ADR-0014, docs/RUST.md) to question.
+[dependencies]
