@@ -13,10 +13,19 @@ subscription does the move, so employer content is processed only under the
 employer's account. The recall from the `nedap` bank is checked before the
 copies are deleted from Shared Memory.
 
+Private Memory gets the same pass. It sits behind the passphrase gate, so no
+agent can search it on its own. The owner starts the pass through
+`vibe-private` and types the passphrase. The agent then finds the employer
+facts and moves them to the `nedap` bank, using the same recall check before
+anything is deleted.
+
 In both Gold Band instances, only judgment nodes may write memory: nodes whose
 id ends in `-acceptance` or `-escalation`. Every other node reads only. The
-workflow lint enforces this, in the same way as the Opus rule. Private Memory
-stays reachable only from `vibe-private`.
+workflow lint enforces this, in the same way as the Opus rule. The
+judgment-node rule applies only inside Gold Band. Direct-lane sessions on
+`nedap` repositories read and write the `nedap` bank, as they write Shared
+Memory today. A session's bank is chosen by the repository's remote owner.
+Private Memory stays reachable only from `vibe-private`.
 
 ## Consequences
 

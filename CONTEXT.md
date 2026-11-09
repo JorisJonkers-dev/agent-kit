@@ -275,7 +275,9 @@ _Avoid_: tier, pricing
 The owner's permission for one named workflow to send delegations to a
 metered-employer client, with a dollar cap. Without a grant the model gateway
 refuses that client. A grant ends when its workflow ends, after 24 hours, or
-when its cap is spent; a lapsed grant needs the owner asked again.
+when its cap is spent; a lapsed grant needs the owner asked again. A Gold Band
+workflow run counts as one workflow, and its grant's cap is counted in Codex
+node starts instead of dollars (ADR-0011).
 _Avoid_: approval, token, allowance
 
 **Workflow**:
@@ -376,13 +378,15 @@ _Avoid_: Gold Band lane, profile
 **Work instance**:
 The Gold Band instance named `gold-band`. It holds only the work Claude agent
 and Codex, runs only on repositories with a `nedap`-owned remote, and runs
-only on the work machine. Every run that binds Codex needs a live grant.
+only on the work machine. Every run that binds Codex needs a live grant, and
+each node that binds Codex is checked against it again before it starts.
 _Avoid_: gold-band-work, work lane
 
 **Personal instance**:
 The Gold Band instance named `gold-band-personal`. It holds every declared
 agent except Codex and the work Claude agent, and refuses repositories with a
-`nedap`-owned remote; a repository with no remote is allowed.
+`nedap`-owned remote; a repository with no remote is allowed. On the work
+machine it runs under a second operating-system user account.
 _Avoid_: personal lane, personal mode
 
 **Direct lane**:

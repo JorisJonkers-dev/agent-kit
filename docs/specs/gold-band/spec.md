@@ -652,3 +652,43 @@ already uses its number.
   - the later wave order, cut from the inventory.
 - **Old trackers.** The build trackers for #327, #350 and #367, and the
   agent-kit build board, get a pointer to the new tracker once it exists.
+- **Issues filed after this spec.** They belong to its ticket graph and are
+  rewritten into it like every other open ticket:
+  - #393: the critique runner did not see Vibe's sign-in on Linux. Fixed by
+    #394 and closed. It is recorded under B1 (the secret store) as done.
+  - #395: the model gateway silently moves a delegation that names a family
+    to Claude when it fails. Belongs to B4 (direct lane).
+  - #396: the operating-system layer limits writes, not reads. So on the
+    work machine, a personal-instance agent can read employer clones. It
+    belongs to B1. Its mitigation is an owner decision that is still open:
+    the recommendation is the second macOS user (ADR-0011), with a read
+    limit in the launcher as defence in depth. Stories 10, 11, 47 and 48 and
+    ADR-0013 are amended when it is decided.
+  - #399: Antigravity on the Linux workstation, so that Linux gets a
+    Google-family critic and the personal instance's Antigravity agent.
+    Belongs to B1 (agents on each OS).
+- **Attribution guard.** Done on 2026-11-09, outside the graph:
+  - #366 merged. It is an allowlist of the owner's identities, and setup
+    turns attribution off in every agent that has a setting for it.
+  - github-workflows#222 adds the same rule as an estate-wide CI check, and
+    is open for review.
+
+  Their follow-ups go under B6:
+  - catch credit lines split across a line break;
+  - make the check required in each repository's pipeline;
+  - bump consumers to the release that carries it;
+  - point the nix-config `agent-kit-setup` wrapper at the projects-layout
+    clone, refusing a non-main branch, and retire the stray clone that kept
+    this machine on an old setup.
+- **Code navigation.** An investigation on 2026-11-09 found this order:
+  1. measure what agents actually use, from transcripts and a fixed question
+     set;
+  2. give every repository an `AGENTS.md`;
+  3. build a small read-only code-navigation MCP server over the live
+     working tree, with no index, kept inside each instance's repository
+     rule;
+  4. add Zoekt, SCIP and vector embeddings only if the measurements show
+     misses.
+
+  Its candidate tickets would form an eighth branch, B7 "Code navigation".
+  Whether B7 is part of this spec is an owner decision that is still open.
