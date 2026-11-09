@@ -490,7 +490,8 @@ fun proxyUrlFor(url: java.net.URI): String? {
     val path = url.path ?: ""
     return when {
         host == "repo.spring.io" && path.startsWith("/milestone") -> "https://packages.jorisjonkers.dev/maven/spring-milestone/"
-        host.endsWith("sonatype.org") || host == "central.sonatype.com" && path.contains("snapshots") -> "https://packages.jorisjonkers.dev/maven/sonatype-snapshots/"
+        host.endsWith("sonatype.org") ||
+            host == "central.sonatype.com" && path.contains("snapshots") -> "https://packages.jorisjonkers.dev/maven/sonatype-snapshots/"
         host == "maven.google.com" || host == "dl.google.com" -> "https://packages.jorisjonkers.dev/maven/google-maven/"
         else -> "https://packages.jorisjonkers.dev/maven/" // Maven Central, the Gradle Plugin Portal, and any other mirror of Central
     }
