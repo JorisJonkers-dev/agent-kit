@@ -425,3 +425,25 @@ def test_a_hook_script_with_no_node_fails_without_exit_2_so_neither_agent_blocks
         env={"HOME": str(tmp_path), "PATH": str(tmp_path)},
     )
     assert result.returncode not in (0, 2) and result.stdout == ""
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+def test_the_hooks_do_nothing_in_the_work_claude_profile(repo: tuple[Path, Path]) -> None:
+    """Critique in the work profile (~/.claude) may use only Codex or Claude, so
+    the hooks must never send a work session to /review-implementation, whose
+    critics are other families. A payload whose transcript lives under
+    ~/.claude/ is let through silently; one under ~/.claude-personal/ is still
+    gated (owner rule, 2026-11-09)."""
+    path, home = repo
+    work = {**_bash(path, 'git commit -m "Expire sessions"'),
+            "transcript_path": f"{home}/.claude/projects/widgets/session.jsonl"}
+    personal = {**work, "transcript_path": f"{home}/.claude-personal/projects/widgets/session.jsonl"}
+    start = {"cwd": str(path), "hook_event_name": "SessionStart", "transcript_path": work["transcript_path"]}
+
+    commit_work, _ = _hook("critique-commit-gate", work, home)
+    pr_work, _ = _hook("critique-pr-gate", {**work, "tool_input": {"command": "gh pr create"}}, home)
+    start_work, _ = _hook("critique-session-start", start, home)
+    commit_personal, _ = _hook("critique-commit-gate", personal, home)
+
+    assert [(r.returncode, r.stdout) for r in (commit_work, pr_work, start_work)] == [(0, ""), (0, ""), (0, "")]
+    assert json.loads(commit_personal.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
