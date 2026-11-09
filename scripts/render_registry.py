@@ -1860,6 +1860,76 @@ def _gold_band_converge_fn(w: Any) -> None:
     w("")
 
 
+def critique_skill_path(data: dict[str, Any]) -> str:
+    """The critique skill's path in this kit: the source of the role files (#345).
+
+    The profiles are rendered from the skill's own tree in the kit -- the
+    very tree setup installs as ``<agent home>/skills/critique`` -- which
+    is why the step runs before that copy: on a first install the source
+    exists only in the kit.
+    """
+    skill = next(
+        (s for s in _entries(data, "local_skills") if str(s.get("name")) == "critique"), None)
+    if skill is None or not on_surface(skill, "workstation"):
+        raise RegistryError(
+            "the gold_band_roles step renders the critique skill's roles; a local skill"
+            " named critique on the workstation surface is missing",
+        )
+    return str(skill["path"])
+
+
+def _gold_band_roles_fn(data: dict[str, Any], w: Any) -> None:
+    """``gold_band_roles``: the critique roles, converged into Gold Band profiles (#345).
+
+    Gold Band reads its profiles from ``~/.gold-band/context/profiles``
+    (v0.19.1, src/app/profiles.rs), never from presets/profiles.
+    converge.py runs the gold-band-roles crate's converge command on the
+    critique skill's own files in this kit and that directory, which the
+    crate converges onto the six rendered profiles: a hand-made one (no
+    front matter ``id``) and a Gold Band built-in are never touched, a
+    retired or stale generated one goes, and the keep file -- read for
+    both its ``keep`` and its ``retired`` lists -- decides one the render
+    does not own. Only while Gold Band is installed -- the same app
+    check as the agent map above, with the same test override -- and
+    converge.py itself refuses to write under a running app; not
+    installed, the step reports the skip and the run carries on.
+    """
+    critique = critique_skill_path(data)
+    w("# -----------------------------------------------------------------")
+    w("# The six critique roles as Gold Band profiles (#345). Gold Band")
+    w("# reads its profiles from ~/.gold-band/context/profiles, never from")
+    w("# presets/profiles, and converge.py renders the six the critique")
+    w("# skill in this kit describes -- the role file, the shared preamble")
+    w("# and output contract, the finding schema, the lenses -- into that")
+    w("# directory, converging it onto them: a hand-made profile and a Gold")
+    w("# Band built-in are never touched, a retired or stale generated one")
+    w("# goes, and the keep file decides one the render does not own. Only")
+    w("# while Gold Band is installed; not installed, the run carries on.")
+    w("# -----------------------------------------------------------------")
+    w("gold_band_roles() {")
+    w("  local out rc=0 line app")
+    w('  app="${AGENT_KIT_GOLD_BAND_APP:-/Applications/Gold Band.app}"')
+    w('  if [ ! -e "${app}" ]; then')
+    w('    log "Gold Band is not installed (${app}); its profiles are left alone"')
+    w("    return 0")
+    w("  fi")
+    w('  if ! command -v uv >/dev/null 2>&1; then')
+    w('    warn "uv is not on PATH; the Gold Band profiles are not converged"')
+    w("    return 0")
+    w("  fi")
+    w(f'  local args=(--critique "${{KIT_ROOT}}/{critique}"'
+      ' --profiles "${HOME}/.gold-band/context/profiles"'
+      ' --keep "${HOME}/.config/agent-kit/keep.yaml")')
+    w('  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)')
+    w('  out=$(uv run --no-project --with pyyaml --with tomlkit python'
+      ' "${KIT_ROOT}/scripts/converge.py" gold-band-roles \\')
+    w('    "${args[@]}" 2>&1) || rc=$?')
+    w('  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"')
+    w('  [ "${rc}" = 0 ] || fail "the Gold Band profiles did not converge (see above)"')
+    w("}")
+    w("")
+
+
 def _critic_agents_step(data: dict[str, Any], w: Any) -> None:
     """The shell function that converges the critic agents in one Vibe home.
 
@@ -2786,6 +2856,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
     _converge_plugins(data, w)
     _gold_band_validate_fn(w)
     _gold_band_converge_fn(w)
+    _gold_band_roles_fn(data, w)
     w("# An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.")
     w("claude_in_profile() {")
     w('  local dir="$1"; shift')
@@ -3229,6 +3300,17 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# run carries on.")
     w("# -----------------------------------------------------------------")
     w("gold_band_converge")
+    w("")
+
+    # --- Gold Band: the critique roles as profiles (#345) ---
+    w("# -----------------------------------------------------------------")
+    w("# 0c. Gold Band profiles. The six critique roles converged into")
+    w("# ~/.gold-band/context/profiles by gold_band_roles, only while")
+    w("# Gold Band is installed: converge.py renders them there from")
+    w("# the critique skill's own files and converges the directory onto")
+    w("# them. Not installed, the step is skipped and the run carries on.")
+    w("# -----------------------------------------------------------------")
+    w("gold_band_roles")
     w("")
 
     # --- CLIs ---
