@@ -17,6 +17,11 @@ byte-identical. Setup runs the step only while Gold Band is installed
 ``AGENT_KIT_GOLD_BAND_RUNNING`` override answers that check in tests);
 a ``--check`` run writes nothing, so it is never refused for a running app.
 
+The registry's two Claude identities (#335) each pin ``CLAUDE_CONFIG_DIR``
+in their ``adapter.env`` -- the work entry ``~/.claude``, the personal one
+``~/.claude-personal``, each expanded to the run's home by the crate's
+converge -- so no ambient ``CLAUDE_CONFIG_DIR`` can switch either identity.
+
 Each case runs the whole checked-in setup script against a temporary home
 (tests/setup_harness.py), with a ``uv`` stub that runs converge.py for
 real against the registry the test names, so the crate's own converge -- not
@@ -28,6 +33,7 @@ setup's own reason where no Rust toolchain is there.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import shutil
 import subprocess
@@ -95,21 +101,49 @@ OPENCODE_SETTINGS: dict[str, Any] = {
     "externalSessionSyncEnabled": False,
 }
 
-# The registry's declared agents, in declaration order (#338). Their
-# adapter commands are declared with a leading `~/` and written absolute,
-# expanded to the home of the run, because Gold Band reads settings.json
-# without shell expansion; no declaration carries a key.
-DECLARED_AGENT_IDS = ["opencode", "vibe", "vibe-study", "agy", "hermes"]
+# What the registry's declared Claude identities become in settings.json
+# (#335): only the Gold Band fields, an explicit CLAUDE_CONFIG_DIR each,
+# and neither command nor args for the built-in claude-acp id.
+CLAUDE_WORK_SETTINGS: dict[str, Any] = {
+    "adapter": {"displayName": "Claude (work)", "env": {}},
+    "icon": "claude",
+    "primaryAgentDir": ".claude",
+    "systemPromptDelivery": "meta-append",
+}
+CLAUDE_PERSONAL_SETTINGS: dict[str, Any] = {
+    "adapter": {
+        "command": "npx",
+        "args": ["-y", "@agentclientprotocol/claude-agent-acp@0.87.0"],
+        "displayName": "Claude (personal)",
+        "env": {},
+    },
+    "icon": "claude",
+    "primaryAgentDir": ".claude-personal",
+    "systemPromptDelivery": "meta-append",
+}
+
+# The registry's declared agents, in declaration order (#338, plus the two
+# Claude identities of #335). Their adapter commands are declared with a
+# leading `~/` and written absolute, expanded to the home of the run,
+# because Gold Band reads settings.json without shell expansion; no
+# declaration carries a key.
+DECLARED_AGENT_IDS = ["opencode", "vibe", "vibe-study", "agy", "hermes", "claude-acp", "claude-personal"]
 
 
 def _declared_adapters(home: Path) -> dict[str, Any]:
     """Each declared agent's adapter block as converge writes it: home-expanded."""
+    work = copy.deepcopy(CLAUDE_WORK_SETTINGS)
+    work["adapter"]["env"] = {"CLAUDE_CONFIG_DIR": f"{home}/.claude"}
+    personal = copy.deepcopy(CLAUDE_PERSONAL_SETTINGS)
+    personal["adapter"]["env"] = {"CLAUDE_CONFIG_DIR": f"{home}/.claude-personal"}
     return {
         "opencode": OPENCODE_SETTINGS["adapter"],
         "vibe": {"command": f"{home}/.local/bin/vibe-acp", "displayName": "Vibe"},
         "vibe-study": {"command": f"{home}/.local/bin/vibe-study-acp", "displayName": "Vibe (Study)"},
         "agy": {"command": "/opt/homebrew/bin/agy", "args": ["acp"], "displayName": "Antigravity"},
         "hermes": {"command": f"{home}/.local/bin/hermes-acp", "displayName": "Hermes"},
+        "claude-acp": work["adapter"],
+        "claude-personal": personal["adapter"],
     }
 
 

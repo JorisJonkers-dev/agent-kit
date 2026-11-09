@@ -36,10 +36,11 @@
 //!   outputDir, provider, model, throwawayOnly) never reach the
 //!   file; the settings map REPLACES the app's runtime agent list, it is
 //!   not merged with the built-in catalog;
-//! * a leading `~/` in `adapter.command` and in each `adapter.args` value
-//!   is expanded to the user's home directory (`$HOME`) as it is written,
-//!   because Gold Band needs absolute paths; nothing else expands, and
-//!   validation rules on the declared value, so it is unchanged;
+//! * a leading `~/` in `adapter.command`, in each `adapter.args` value and
+//!   in each `adapter.env` value (#335) is expanded to the user's home
+//!   directory (`$HOME`) as it is written, because Gold Band needs absolute
+//!   paths and expands no `~` itself; nothing else expands, and validation
+//!   rules on the declared value, so it is unchanged;
 //! * a built-in id ([`BUILT_INS`]) is written without `adapter.command` and
 //!   `adapter.args`: the app strips those two when it saves and re-injects
 //!   them from its catalog when it loads, so writing them would make the
@@ -538,8 +539,9 @@ fn entry(a: &Agent, path: &str) -> Option<Value> {
 
 /// The agent's `adapter` block, in Gold Band's field order; a built-in id
 /// leaves command and args out, which the app re-injects from its catalog.
-/// A leading `~/` in the command or in an arg is expanded to the user's
-/// home directory as it is written, because Gold Band needs absolute paths.
+/// A leading `~/` in the command, in an arg or in an env value is expanded
+/// to the user's home directory as it is written, because Gold Band needs
+/// absolute paths and expands no `~` itself.
 fn adapter_value(a: &Agent) -> Map<String, Value> {
     let home = std::env::var_os("HOME");
     let mut adapter = Map::new();
@@ -567,7 +569,10 @@ fn adapter_value(a: &Agent) -> Map<String, Value> {
     let mut env = Map::new();
     for (path, body) in &a.fields {
         if let Some(name) = path.strip_prefix("adapter.env.") {
-            env.insert(name.to_string(), Value::String(body.clone()));
+            env.insert(
+                name.to_string(),
+                Value::String(expand_home(body, home.as_deref())),
+            );
         }
     }
     if !env.is_empty() {
@@ -595,8 +600,9 @@ fn array(a: &Agent, prefix: &str) -> Vec<String> {
 
 /// A declared value with a leading `~/` expanded to the user's home
 /// directory (`$HOME`): Gold Band reads settings.json without shell
-/// expansion, so the converge writes an absolute path where the
-/// declaration shortens the home. A value with no leading `~/`, or a
+/// expansion, so the converge writes an absolute path -- a command, an
+/// arg (#338) or an env value (#335) -- where the declaration shortens the
+/// home. A value with no leading `~/`, or a
 /// home that is not set (or empty), is written exactly as declared.
 fn expand_home(value: &str, home: Option<&OsStr>) -> String {
     let Some(rest) = value.strip_prefix("~/") else {
@@ -1859,6 +1865,65 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         // The expansion is deterministic, so a second run changes nothing.
         let bytes = fs::read_to_string(&settings).unwrap();
         assert_eq!(converge("cv-expand", declared, "", "", &settings, false), 0);
+        assert_eq!(fs::read_to_string(&settings).unwrap(), bytes);
+    }
+
+    #[test]
+    fn converge_expands_a_leading_home_shortcut_in_adapter_env_values() {
+        let home = std::env::var_os("HOME").expect("a home directory");
+        let prefix = home.to_string_lossy();
+        // claude-acp is a built-in id, so its env is written with neither
+        // command nor args; a custom id shows an env value with no leading
+        // `~/` staying exactly as declared.
+        let declared = "agent\tclaude-acp\nfield\tadapter.displayName\tClaude (work)\nfield\tadapter.env.CLAUDE_CONFIG_DIR\t~/.claude\nfield\ticon\tclaude\nfield\tprimaryAgentDir\t.claude\nfield\tsystemPromptDelivery\tmeta-append\nfield\treach\twrite\nagent\tclaude-personal\nfield\tadapter.command\tnpx\nfield\tadapter.args.0\t-y\nfield\tadapter.args.1\t@agentclientprotocol/claude-agent-acp@0.87.0\nfield\tadapter.displayName\tClaude (personal)\nfield\tadapter.env.CLAUDE_CONFIG_DIR\t~/.claude-personal\nfield\tadapter.env.PASSTHROUGH\tas-declared\nfield\ticon\tclaude\nfield\tprimaryAgentDir\t.claude-personal\nfield\tsystemPromptDelivery\tmeta-append\nfield\treach\twrite\n";
+        let settings = temp("cv-env-expand", "{}");
+        assert_eq!(
+            converge("cv-env-expand", declared, "", "", &settings, false),
+            0
+        );
+        let agents = agents_of(&settings);
+        let env = |id: &str| {
+            agents
+                .get(id)
+                .and_then(|entry| entry.get("adapter"))
+                .and_then(|adapter| adapter.get("env"))
+                .cloned()
+        };
+        assert_eq!(
+            env("claude-acp"),
+            Some(serde_json::json!({
+                "CLAUDE_CONFIG_DIR": format!("{prefix}/.claude")
+            }))
+        );
+        assert_eq!(
+            env("claude-personal"),
+            Some(serde_json::json!({
+                "CLAUDE_CONFIG_DIR": format!("{prefix}/.claude-personal"),
+                "PASSTHROUGH": "as-declared"
+            }))
+        );
+        // The built-in id carries neither command nor args, the custom one
+        // keeps its declared npx launch untouched by the expansion.
+        assert_eq!(
+            agents
+                .get("claude-acp")
+                .and_then(|entry| entry.get("adapter"))
+                .and_then(|adapter| adapter.get("command")),
+            None
+        );
+        assert_eq!(
+            agents
+                .get("claude-personal")
+                .and_then(|entry| entry.get("adapter"))
+                .and_then(|adapter| adapter.get("command")),
+            Some(&Value::String("npx".to_string()))
+        );
+        // The expansion is deterministic, so a second run changes nothing.
+        let bytes = fs::read_to_string(&settings).unwrap();
+        assert_eq!(
+            converge("cv-env-expand", declared, "", "", &settings, false),
+            0
+        );
         assert_eq!(fs::read_to_string(&settings).unwrap(), bytes);
     }
 }
