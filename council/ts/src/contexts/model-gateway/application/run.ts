@@ -9,6 +9,7 @@ import { familyOfModelId, modelKey } from '../domain/models.js'
 import { decidePolicy, type ModelPermission } from '../domain/policy.js'
 import {
   FORBIDDEN_PROVIDERS,
+  namedReset,
   NO_TOKENS,
   PROVIDER_CLIENTS,
   readOnlyProof,
@@ -90,11 +91,14 @@ export interface RunResult {
   readonly summary: string
   /**
    * Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`,
-   * `rate-limited`, `auth`, `launch-failed`, `denied-action`, `client-error`,
-   * `failed` (Hermes' own usage report counts the run as failed) or, for a
-   * writing run, `check-failed`, `check-output-failed` or `stage-failed`.
+   * `rate-limited`, `auth`, `model-unavailable`, `launch-failed`,
+   * `denied-action`, `client-error`, `failed` (Hermes' own usage report counts
+   * the run as failed) or, for a writing run, `check-failed`,
+   * `check-output-failed` or `stage-failed`.
    */
   readonly reason?: string
+  /** When the client model's own answer said it is usable again, so the gateway remembers the refusal until then; absent when it named no reset. */
+  readonly unavailable_until?: string
   /** Set when the run's throwaway worktree could not be removed: what git said, and which directory is left behind. */
   readonly cleanup_warning?: string
   /** One line per plan window of this client at or above the warning ratio. */
@@ -127,6 +131,8 @@ interface Workplace {
 
 /** Everything one launched run needs beyond its input, settled before anything starts. */
 interface Delegation {
+  /** When the attempt started, from which a client's own named reset is measured. */
+  readonly at: Date
   readonly binary: string
   readonly config: GatewayConfig
   readonly entry: ModelEntry | undefined
@@ -293,6 +299,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     let result: RunResult
     try {
       result = await this.delegate({
+        at: startedAt,
         binary: client.binary,
         config,
         entry,
@@ -394,6 +401,10 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output)
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : undefined
     const reason = finished === undefined ? delegateReason : finished.reason
+    const unavailableUntil =
+      delegateReason === 'rate-limited' || delegateReason === 'model-unavailable'
+        ? namedReset(launched.result, output.error, run.at)
+        : undefined
     const cost = priceRun(output.charged, output.tokens, entry?.prices)
     const outputPath = join(runDir, 'output.json')
     await this.deps.files.writeText(outputPath, launched.result.stdout)
@@ -411,6 +422,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       tokens: output.tokens,
       workflow: input.workflow,
       ...(reason === undefined ? {} : { reason }),
+      ...(unavailableUntil === undefined ? {} : { unavailable_until: unavailableUntil.toISOString() }),
       ...finished?.report,
     }
     return result
@@ -760,6 +772,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       tokens: result.tokens,
       workflow: result.workflow,
       ...(result.reason === undefined ? {} : { reason: result.reason }),
+      ...(result.unavailable_until === undefined ? {} : { unavailable_until: result.unavailable_until }),
       ...(result.attempt === undefined ? {} : { attempt: result.attempt }),
       ...(result.attempt_of === undefined ? {} : { attempt_of: result.attempt_of }),
       ...tag,

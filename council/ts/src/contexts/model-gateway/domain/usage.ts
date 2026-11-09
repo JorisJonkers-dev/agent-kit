@@ -56,6 +56,18 @@ export interface ClientStatusReading {
   readonly detail: string
 }
 
+/**
+ * A client model whose own answer said it cannot run, and why: the gateway
+ * remembers it until the reset the answer named, or, when it named none, until
+ * a run of the client model succeeded.
+ */
+export interface StandingRefusal {
+  readonly client: string
+  readonly model: string
+  /** One line naming what the answer said, and when it said it ends. */
+  readonly reason: string
+}
+
 /** What the gateway found out about one client before it read the ledger. */
 export interface ClientReading {
   readonly client: string
@@ -238,13 +250,50 @@ function stateOf(ratio: number, warningRatio: number): PlanState {
   return ratio >= warningRatio ? 'warning' : 'ok'
 }
 
+/** One line naming what a run's own answer said: the refusal it reported, and the reset it named when it named one. */
+export function refusalReason(record: LedgerRecord): string {
+  const said = `${record.reason ?? 'failed'} at ${record.at}`
+  return record.unavailable_until === undefined ? said : `${said}: unavailable until ${record.unavailable_until}`
+}
+
+/**
+ * The client models whose own answers said they cannot run: a quota answer
+ * with the reset it named on the run's line, and the answer for a model the
+ * account cannot use, which names no moment. An answer stands until the
+ * moment it named, and one that named none stands until a later run of the
+ * client model succeeded; one whose moment has passed stands no more.
+ */
+export function standingRefusals(records: readonly LedgerRecord[], now: Date): readonly StandingRefusal[] {
+  const standing = new Map<string, LedgerRecord>()
+  for (const record of [...records].sort((left, right) => Date.parse(left.at) - Date.parse(right.at))) {
+    const key = `${record.client}:${record.model}`
+    if (record.outcome === 'ok') standing.delete(key)
+    else if (record.unavailable_until !== undefined || record.reason === 'model-unavailable')
+      standing.set(key, record)
+  }
+  return [...standing]
+    .filter(
+      ([, record]) =>
+        record.unavailable_until === undefined ||
+        Date.parse(record.unavailable_until) > now.getTime(),
+    )
+    .map(([, record]) => ({
+      client: record.client,
+      model: record.model,
+      reason: refusalReason(record),
+    }))
+}
+
 /**
  * Whether a client can run now. A client that is not installed, one whose own
  * status command says it is signed out, and one whose last run in the
  * availability window was rate-limited or refused for its credentials are all
- * unavailable; a plan window at 100% makes it unable to start. A status
- * command the gateway cannot run leaves the reading `unknown`, which does not
- * stop a run: silence is not a refusal.
+ * unavailable; a client model whose own answer said it cannot run — its
+ * account's quota, which named when it resets, or a model the account cannot
+ * use — makes the client unavailable until that answer no longer stands; and
+ * a plan window at 100% makes it unable to start. A status command the
+ * gateway cannot run leaves the reading `unknown`, which does not stop a run:
+ * silence is not a refusal.
  */
 function availabilityOf(
   client: string,
@@ -268,11 +317,13 @@ function availabilityOf(
   if (exhausted !== undefined) {
     return { installed: true, reason: `at 100% of ${describeWindow(exhausted)}`, signed_in: signedIn, status: 'unable_to_start' }
   }
-  const error = recentError(
-    records.filter((record) => record.client === client),
-    now,
-    windowMinutes,
-  )
+  const mine = records.filter((record) => record.client === client)
+  const standing = standingRefusals(mine, now)
+  if (standing.length > 0) {
+    const latest = standing[standing.length - 1]
+    return { installed: true, reason: latest.reason, signed_in: signedIn, status: 'unavailable' }
+  }
+  const error = recentError(mine, now, windowMinutes)
   if (error !== undefined) {
     return {
       installed: true,
