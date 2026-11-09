@@ -72,6 +72,18 @@ def _fixed_lines(run: Run) -> list[str]:
     return [line for line in run.stdout.splitlines() if "fixed:" in line]
 
 
+def _owner_config(home: Path) -> str:
+    # Setup also registers its own no-agent-attribution hooks
+    # (tests/test_no_agent_attribution.py); the owner's settings are the rest.
+    kept, ours = [], False
+    for line in (home / ".gitconfig").read_text().splitlines(keepends=True):
+        if line.startswith("["):
+            ours = line.startswith('[hook "agent-kit-no-attribution-')
+        if not ours:
+            kept.append(line)
+    return "".join(kept)
+
+
 def test_setup_removes_the_leaked_runner_git_settings_and_says_so_once(tmp_path: Path) -> None:
     run = _run(tmp_path, LEAKED)
 
@@ -104,7 +116,7 @@ def test_the_helper_on_path_means_the_settings_are_real_and_stay(tmp_path: Path)
     # Inside the runner image the helper exists, so its settings are not a leak.
     run = _run(tmp_path, LEAKED, helper_on_path=True)
 
-    assert (run.home / ".gitconfig").read_text() == LEAKED
+    assert _owner_config(run.home) == LEAKED
     assert _fixed_lines(run) == []
 
 
@@ -113,5 +125,5 @@ def test_without_the_agent_gh_app_helper_nothing_is_touched(tmp_path: Path) -> N
     own = "[credential]\n\thelper = osxkeychain\n\tuseHttpPath = true\n[safe]\n\tdirectory = /workspace\n"
     run = _run(tmp_path, own)
 
-    assert (run.home / ".gitconfig").read_text() == own
+    assert _owner_config(run.home) == own
     assert _fixed_lines(run) == []

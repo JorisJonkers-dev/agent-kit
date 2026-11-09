@@ -1,0 +1,82 @@
+# Who a commit or pull request may name as its author, committer or
+# co-author, and what it may never carry. Read by
+# installer/git-hooks/no-agent-attribution (setup installs both into
+# ~/.config/agent-kit/git-hooks) and meant for any CI guard that wants the
+# same rule. The owner's decision: the owner's own identity, plus GitHub App
+# bots that are not AI agents. Every AI agent and model provider is refused.
+#
+# One rule per line, "<kind> <value>"; blank lines and # comments are skipped.
+# Everything is compared in lower case.
+#
+#   name <full name>        an allowed human name; exact match
+#   email <address>         an allowed human email; exact match
+#                           A human identity is allowed when both its name
+#                           and its email are listed.
+#   bot <ERE>               the email of a GitHub App bot. Allowed unless its
+#                           name or its login matches an agent-bot pattern.
+#   agent-bot <ERE>         a bot name or login that is an AI agent: refused
+#   automation <name>       a non-AI automation that commits under its own
+#                           name (flux, a worker): allowed as a commit's
+#                           author or committer, never as a co-author, and
+#                           only when its email matches no refuse pattern
+#   committer <address>     an extra committer email (GitHub's own, for a
+#                           commit merged or edited on github.com)
+#   refuse <ERE>            any message line that matches is refused
+#
+# A per-machine file, ~/.config/agent-kit/allowed-identities.local, may add
+# name and email lines (a work identity, say). Other kinds there are ignored.
+
+name j.w. jonkers
+name joris jonkers
+name joris wouter jonkers
+email info@jorisjonkers.dev
+email joriswouterjonkers@gmail.com
+email extratoast@users.noreply.github.com
+email 74975850+extratoast@users.noreply.github.com
+
+bot ^([0-9]+\+)?[a-z0-9-]+\[bot\]@users\.noreply\.github\.com$
+
+agent-bot copilot
+agent-bot claude
+agent-bot anthropic
+agent-bot codex
+agent-bot openai
+agent-bot chatgpt
+agent-bot gpt
+agent-bot gemini
+agent-bot jules
+agent-bot mistral
+agent-bot vibe
+agent-bot devin
+agent-bot cursor
+agent-bot aider
+agent-bot opencode
+agent-bot hermes
+agent-bot deepseek
+agent-bot qwen
+agent-bot grok
+agent-bot coderabbit
+agent-bot sweep
+agent-bot codegen
+agent-bot windsurf
+agent-bot codeium
+agent-bot amazon-q
+agent-bot cline
+agent-bot (^|[^a-z])ai([^a-z]|$)
+
+automation flux
+automation fluxcdbot
+automation knowledge-ingest-worker
+automation basic-memory-vault
+automation estate-composition
+
+committer noreply@github.com
+
+refuse (^|[^a-z])generated (with|by)([^a-z]|$)
+refuse 🤖
+refuse @([a-z0-9-]+\.)*(anthropic\.com|claude\.(ai|com)|openai\.com|chatgpt\.com|mistral\.ai|deepseek\.com|zhipuai\.cn|bigmodel\.cn|z\.ai|opencode\.ai|nousresearch\.com|cursor\.(com|sh)|anysphere\.co|cognition\.ai|devin\.ai|aider\.chat|x\.ai|moonshot\.(ai|cn)|deepmind\.com|gemini\.google\.com)([^a-z0-9.-]|$)
+refuse (gemini|jules|antigravity)[a-z0-9.+-]*@google\.com
+refuse copilot[a-z0-9.+-]*@([a-z0-9-]+\.)*github\.com
+refuse (claude\.(ai|com)/(claude-)?code|chatgpt\.com/codex|opencode\.ai/|vibe\.mistral\.ai)
+refuse ^[a-z0-9-]+-session(-[a-z]+)?:
+refuse (^|[^a-z])(written|co-written|reviewed|authored|co-authored|drafted|generated|assisted) (by|with|through|using|via):? *[[(]?(the |an? )?(claude|opus|sonnet|haiku|fable|anthropic|gpt(-?[0-9][a-z0-9.]*)?|chatgpt|openai|codex|mistral|vibe|devstral|codestral|magistral|glm|zhipu|deepseek|kimi|moonshot|qwen|gemini|gemma|antigravity|jules|opencode|hermes|pi-agent|copilot|cursor|devin|aider|grok|llama|windsurf|cline|llm|ai|model|agent|coding agent)([^a-z0-9]|$)

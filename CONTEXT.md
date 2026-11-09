@@ -320,3 +320,14 @@ live check. A ticket belongs to the first milestone whose closing ticket
 depends on it, directly or through other tickets; a ticket in no milestone is
 shown under "Other".
 _Avoid_: phase (a phase is a span of the flow), stage
+
+## Attribution
+
+**Allowed identity**:
+A name and email a commit may carry as its author, committer or co-author:
+the owner's own (both the name and the email listed), or a GitHub App bot that
+is not an AI agent. `installer/git-hooks/allowed-identities` holds the list;
+setup installs it beside the git hook that enforces it. Every AI agent and
+model provider is refused, whatever the name. A per-machine
+`allowed-identities.local` may add human names and emails only.
+_Avoid_: whitelist, human authorship (a human other than the owner is not allowed)
