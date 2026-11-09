@@ -212,8 +212,10 @@ The per-repository list of model families a critique or a delegation may
 send content to, kept per machine outside the repository, so nothing about it
 is committed.
 It is keyed by the repository's remote. A repository with no entry, or with
-no remote, sends nothing; a repository owned by the `nedap` GitHub
-organisation sends nothing to critics, whatever its entry says. An entry allows
+no remote, sends nothing. A repository owned by the `nedap` GitHub
+organisation has a work-only critic roster, whatever its entry says: its
+critics may be Codex on the nedap account (under a grant) and the work Claude
+agent, and nothing else, and never the orchestrator's own family. An entry allows
 documents only unless its code permission is on; the code stages refuse
 while it is off. Its history permission, also off by default, separately
 lets a stage send the repository's commit messages and issue text; while it
