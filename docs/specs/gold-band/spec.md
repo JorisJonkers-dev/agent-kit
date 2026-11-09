@@ -1,9 +1,12 @@
 # Spec: agent-kit on Gold Band — two instances, one backlog
 
 This spec replaces every open agent-kit epic and spec: #368, #326, #327, #350,
-#367, #111, #113, #167, #181, #182, #214 and #286. Each open ticket in this
-repository, except the Renovate Dependency Dashboard (#33), is rewritten as a
-ticket under this spec. The old issues are closed as "superseded by" their new
+#367, #111, #113, #167, #181, #182, #214 and #286. It accounts by name for
+every open issue and every open pull request in this repository. The
+Coverage section at the end lists each one, with its branch, its disposition
+and the user stories that carry it. Each open ticket, except the Renovate
+Dependency Dashboard (#33), is rewritten as a ticket under this spec, closed
+as done, or closed as superseded. The old issues are closed as "superseded by" their new
 ticket, with a mapping from old ticket to new ticket. The owner's decisions
 come from the grilling session of 2026-11-09. The ADRs that record the
 hard-to-reverse ones are ADR-0011 (two Gold Band instances), ADR-0012 (the
@@ -92,6 +95,12 @@ The Gold Band workflows are:
 Each Gold Band workflow is proven headless against stub agents before any
 model is spent. Only judgment nodes may use Opus, and only judgment nodes may
 write memory.
+
+Agents also get a cheaper way to find code. The first step is measuring what
+they use today. Then every repository gets an `AGENTS.md`, and a small
+read-only code-navigation server searches the live working tree, gives
+outlines and repository maps, and stays inside each instance's repository
+rule. An index is added only if the measurements show it is needed.
 
 The backlog is rebuilt as code. The spec and a ticket graph live in this
 repository. A Rust sync tool creates the issues from them, links the
@@ -299,9 +308,30 @@ owner approves. One new build tracker shows every ticket of this spec.
 ### Documentation
 
 145. As a maintainer, I want the glossary to define the instances, the direct lane, agent ids, reach levels and the Nedap bank with one meaning each, so that the model stays learnable.
-146. As a maintainer, I want the setup guide to describe both instances on both OSes, including the second-user fallback, so that a new machine can be set up from the guide.
+146. As a maintainer, I want the setup guide to describe both instances on both OSes, including the second macOS user on the work machine, so that a new machine can be set up from the guide.
 147. As a future contributor, I want every guarantee the critique runner enforces and a bare Gold Band node does not listed one by one, so that nobody assumes Gold Band enforces them.
 148. As a future contributor, I want it written down which parts are proven by tests, which by live checks on which host, and which still depend on the app, so that I know what to trust.
+
+### Code navigation
+
+149. As the owner, I want a transcript analyser that reports which tools each agent uses to find code (search, reads, the language-server tool, the knowledge pages), and how many tokens each task spends exploring, so that retrieval work starts from what agents actually do.
+150. As the owner, I want a frozen set of about twenty questions with known answers about my personal repositories, run on several model families, so that every retrieval change is measured the same way.
+151. As the owner, I want every repository to carry an `AGENTS.md`, a pointer to its `CLAUDE.md` or a short curated file, so that every agent, not only Claude Code, reads the repository's own guidance.
+152. As the owner, I want a lint that fails when an `AGENTS.md` names a path or symbol that no longer exists, so that the guidance does not rot.
+153. As the owner, I want it found out why agents leave the installed language-server tool unused, so that the next tool is not ignored in the same way.
+154. As the owner, I want one small read-only code-navigation MCP server that searches the live working tree, ranks and caps its results, and keeps no index, so that agents explore with fewer tokens and never see stale results.
+155. As the owner, I want that server to give an outline of a file and expand one symbol on request, so that agents stop reading whole files to find one function.
+156. As the owner, I want it to give a ranked map of a repository's files and symbols, and the repositories related to it from a manifest generated from the workspace and the build files, so that cross-repository questions get a short answer.
+157. As the owner, I want the server to search only an allowlist of canonical roots that fit the instance's repository rule, to refuse symlinks out of them, and to refuse secret files, so that it never crosses the employer boundary or leaks a key.
+158. As the owner, I want the server listed for every reach level, including `read`, because it writes nothing and opens no socket, so that every agent id can use it.
+159. As the owner, I want an index (BM25 over identifiers first, dense vectors only after that, on the workstation GPU) added only when the measurements show that questions asked as concepts miss more than 15 percent of the time, so that maintenance cost is paid only where it earns its keep.
+160. As the owner, I want the "no vector index for code" decision recorded with the conditions for revisiting it, so that it is not reopened without new evidence.
+
+### Filed during review
+
+161. As the owner, I want a model-gateway delegation that names a model family never to be answered by another family, and any escalation to be stated in the summary with both families and the cause, so that a second opinion is really from the family I asked for.
+162. As the owner, I want the attribution guard to catch credit lines split across a line break, to be a required check in each repository's pipeline, and to reach every repository through the shared workflow release, so that new work never credits an AI.
+163. As the owner, I want the nix-config `agent-kit-setup` wrapper to run from the projects-layout clone and refuse a non-main branch, so that setup never runs stale code from a forgotten clone.
 
 ## Implementation Decisions
 
@@ -519,10 +549,10 @@ Dependencies may cross branches.
   - bank selection by remote owner;
   - the write rule;
   - the migration;
-  - the cross-agent recall check.
+  - the cross-agent recall check;
+  - Private Memory in Vibe.
 - **B6 Workstation and hygiene.** It covers:
   - Playwright;
-  - Private Memory in Vibe;
   - OpenCode parity;
   - the container language servers;
   - the SSO install remainder;
@@ -530,14 +560,30 @@ Dependencies may cross branches.
   - the kubeconfig helper;
   - the pnpm and uv cooldowns;
   - the dependency PR queue;
-  - closing delivered issues with evidence.
+  - closing delivered issues with evidence;
+  - the attribution-guard follow-ups and the setup wrapper (stories 162–163).
+- **B7 Code navigation.** It covers:
+  - the transcript analyser and the question set (measure first);
+  - `AGENTS.md` everywhere, with its lint;
+  - the investigation of why the language-server tool goes unused;
+  - the code-navigation server: boundary checks and search, outline and
+    expand, the repository map, symbols and related repositories;
+  - its registry entry and instance binding, and its boundary proof under
+    each OS's write limit;
+  - the measurement runs per layer, the ADR against a vector index for code,
+    and the two conditional tickets (an identifier index, and a
+    language-server bridge for non-Claude agents);
+  - the critique runner reading the server's repository map after the
+    runner's Rust port.
 
 ### Work outside the tickets
 
 These happen outside the ticket graph and are not blocked by it:
 
-- Merging the green fix for the Vibe model list (#391).
-- Merging the agent-attribution guard (#366).
+- Done: the Vibe model-list fix (#391), the Vibe sign-in check on Linux
+  (#394, closing #393) and the allowlist attribution guard (#366) are merged.
+- Open: the estate-wide attribution check (github-workflows#222) and the
+  extended attribution rule text (#400).
 - Deleting the stray duplicate clone outside the projects layout.
 
 The ADR on the old integration branch that records "Gold Band workflows run
@@ -621,6 +667,13 @@ already uses its number.
   - Playwright on a cold cache;
   - Private Memory in Vibe;
   - the `/flow` run on a work repository.
+- **Code navigation.** The server's own Rust crate carries its tests: search
+  ranking and caps, outline and expand, the repository map, and refusals
+  (a root outside the allowlist, a symlink out, a secret file). Its boundary
+  is also proven in seam 3: an agent id at `read` reach can use the server,
+  and the server writes nothing. The question set is a measurement, not a
+  CI gate: each layer is run on it and the token and accuracy results are
+  recorded per layer.
 - **Coverage.** The 100 percent line-coverage standard applies to all new
   Rust code. `crate-age` runs over the workspace lockfile in the pre-commit
   hook and the pull-request workflow.
@@ -712,5 +765,152 @@ already uses its number.
   4. add Zoekt, SCIP and vector embeddings only if the measurements show
      misses.
 
-  Its candidate tickets would form an eighth branch, B7 "Code navigation".
-  Whether B7 is part of this spec is an owner decision that is still open.
+  This is branch B7, stories 149–160.
+
+## Coverage
+
+Every open issue and pull request in this repository on 2026-11-09, by name.
+"Done on the integration branch" means the work landed on #383's branch, not
+on `main`: its ticket is rewritten, and its code is reused there. The ticket
+sync closes each superseded issue with a comment naming its new ticket.
+
+### Issues
+
+| Issue | Title | Branch | Disposition | Stories |
+| :- | :- | :- | :- | :- |
+| #23 | codex worker adapter: worktree-aware sandbox, fresh tokens, commit fallback | B4 | Rewrite: gateway Codex worktree support | 115 |
+| #24 | cross-provider review harness: one command from branch to verdict | B3 | Close: absorbed by Workflow B and the review stages | 88–90 |
+| #26 | runner: fetch the latest kit at session bootstrap instead of relying on bake-time pins | B4 | Rewrite: runner fetches the newest kit | 118 |
+| #31 | Add a robust 'wait for CI fully green' tool for agents | B2 | Rewrite: CI-wait gate, also for the direct lane | 92 |
+| #33 | Dependency Dashboard | — | Outside: Renovate dashboard | Out of Scope |
+| #35 | Publish the installer artifacts to the static host on release | B6 | Close: done (installer from GitHub releases, install.sh retired) | 132 |
+| #40 | Make setup-workstation.sh a true superset and retire install.sh | B6 | Close: done (installer from GitHub releases, install.sh retired) | 132 |
+| #41 | SSO-gated install: bootstrap any host without a shared token | B6 | Rewrite: SSO install remainder | 127 |
+| #42 | Agent A learns a fact, agent B recalls it in a fresh session | B5 | Rewrite: cross-agent recall per bank (live check) | 71 |
+| #43 | Inject a bounded session brief from accepted knowledge and memory | B5 | Close: covered by Hindsight's session recall | — |
+| #48 | Repair or report the failing github MCP server | B6 | Rewrite: github MCP server | 128 |
+| #61 | Add the Kotlin and Java language servers and oras to the container setup script | B6 | Rewrite: container language servers and oras | 125–126 |
+| #111 | Epic: Playwright MCP starts in every agent from one pinned binary | B6 | Close: umbrella superseded by this spec | 122–123 |
+| #113 | Epic: private Hindsight bank verified in Vibe and its issues closed | B6 | Close: umbrella superseded by this spec | 122–123 |
+| #116 | [LIVE: workstation] Vibe lists the Playwright tools on a cold npx cache | B6 | Rewrite: Playwright on a cold cache (live check) | 122 |
+| #126 | [LIVE: workstation] Private Hindsight bank works in Vibe | B5 | Rewrite: Private Memory in Vibe (live check) | 123 |
+| #127 | [LIVE: GitHub] Close the private-bank and Vibe issues with evidence | B5 | Rewrite: Private Memory in Vibe (live check) | 123 |
+| #132 | Hindsight memory tools in Vibe | B1 | Rewrite: Hindsight MCP in Vibe, per instance bank | 59–64 |
+| #167 | Cross-provider critique pipeline: foundation and /critique-spec | B4 | Close: umbrella superseded by this spec | 110–114 |
+| #178 | Critique: live smoke check and seeded sample run | B4 | Rewrite: remaining live checks | 114 |
+| #181 | Cross-provider critique pipeline: the remaining critique stages | B4 | Close: umbrella superseded by this spec | 110–114 |
+| #182 | Cross-provider critique pipeline: /flow, hooks and /critique-stats | B4 | Close: umbrella superseded by this spec | 110–114 |
+| #190 | Critique: live checks for the decision, ticket and code stages | B4 | Rewrite: remaining live checks | 114 |
+| #198 | Critique: install the three hooks through setup | B4 | Rewrite: remaining live checks | 114 |
+| #200 | Critique: one real feature through the whole pipeline | B4 | Rewrite: one feature through /flow on a work repository | 113 |
+| #214 | Critique pipeline: ADR review, decision recovery, architecture review and refactoring plans | B4 | Close: umbrella superseded by this spec | 110–114 |
+| #226 | Critique: check-adrs pre-check | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #227 | Critique: adr-reviewer role with adr-record and decision-log lenses | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #228 | Critique: editorial ADR rewrites and check-rewrite | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #229 | Critique: cold-read check for rewritten ADRs | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #230 | Critique: adr-record critic at the decisions stage | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #231 | Critique: phase 1 live check on agent-kit | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #232 | Critique: history facts | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #233 | Critique: code facts | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #234 | Critique: drift and stale checks in /critique-adrs | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #235 | Critique: decision-recovery stage in the runner | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #236 | Critique: /recover-decisions skill | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #237 | Critique: phase 2 live check on agent-kit | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #238 | Critique: dependency, domain and aggregate lenses and the design-evidence fragment | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #239 | Critique: architecture-review stage in the runner | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #240 | Critique: /review-architecture skill | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #241 | Critique: phase 3 live check on agent-kit | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #242 | Critique: refactoring plan format and check-plan | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #243 | Critique: plan stage in the feature flow | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #244 | Critique: plan-critic role, plan lenses and the plan evidence rule | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #245 | Critique: phase 4 live check on agent-kit | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #246 | Critique: calibration in /critique-stats | B4 | Rewrite: calibration in the stats | 112 |
+| #247 | Critique: phase 5 live check on agent-kit | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #249 | Critique: /critique-adrs core | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #250 | Critique: coupling, test-seam and quality-scenario lenses | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #251 | Critique: /critique-plan skill | B4 | Rewrite: ADR review stages in the runner | 110–112 |
+| #279 | build-tracker: one page for several specs | B0 | Rewrite: one tracker for this spec | 139–140 |
+| #284 | vibe headless runs get no working web_search or web_fetch, and stall until the time limit | B4 | Rewrite: fail fast, document workaround | 117 |
+| #285 | Research delegation: fan a research question out to several model families with web access, and verify the citations | B4 | Rewrite: research front door | 87 |
+| #286 | Estate workstation skills: bootstrap, Project Intent, delivery status and rollback, kept current by a drift check | B3 | Close: superseded by this spec | 107–109 |
+| #287 | Skill sources drift check: sources.yaml, check_skill_sources.py and a weekly workflow | B3 | Rewrite (PR #386): drift check | 109 |
+| #288 | estate-project-intent skill: author and validate deploy-kit Project Intent | B3 | Rewrite: estate skills in both lanes | 108 |
+| #289 | estate-delivery-status skill: did my release land | B3 | Rewrite: estate skills in both lanes | 108 |
+| #290 | estate-rollback skill: plan a pause, rollback or resume without dispatching | B3 | Rewrite: estate skills in both lanes | 108 |
+| #291 | estate-bootstrap skill: start or audit a repo against templates, workflows and testing standards | B3 | Rewrite: estate skills in both lanes | 108 |
+| #292 | Retire the six personal-stack repo skills | B3 | Rewrite: retire the six old skills | 107 |
+| #326 | Gold Band surface: setup converges Gold Band agents, roles and MCP servers | — | Close: superseded by this spec | — |
+| #327 | Gold Band surface: Rust launcher, capability profiles and 7-day crate cooldown (amends #326) | — | Close: superseded by this spec | — |
+| #328 | Gold Band real-app facts: merge semantics, Claude env, hooks, skills, node settings | B0 | Rewrite: re-verify every Gold Band fact on each OS | Further Notes: facts to re-verify |
+| #329 | Same-name MCP overlap test | B1 | Rewrite: overlap test per instance | 59 |
+| #330 | Settle the unverified reach cells | B1 | Rewrite: reach cells per agent and OS | 51 |
+| #331 | Rust workspace with the 7-day crate cooldown | B0 | Done on the integration branch; reuse | Carried decisions (Code) |
+| #332 | Registry declares the Gold Band surface and validation refuses bad input | B1 | Done on the integration branch; extend to two instances | 13–16, 52, 55 |
+| #333 | Setup converges Gold Band agents (OpenCode first) | B1 | Done on the integration branch, Mac paths; rewrite for both OSes | 21–23, 32–33 |
+| #334 | Safe writes: running-app guard, backup, not-installed skip, hardening | B1 | Done on the integration branch, Mac paths; rewrite | 28–31 |
+| #335 | Claude work and personal identities | B1 | Done on the integration branch; split per instance | 36–37 |
+| #336 | Vibe and Vibe-study launcher | B1 | Done on the integration branch, macOS keychain; rewrite on the secret store | 39–40 |
+| #337 | Pi pinned install and declaration | B1 | Done on the integration branch; install on Linux too | 41 |
+| #338 | Declare Antigravity and Hermes | B1 | Done on the integration branch, Homebrew path; rewrite | 42 |
+| #339 | Reach-level launcher and support record | B1 | Done on the integration branch; add the OS dimension | 44–46 |
+| #340 | Pi reach levels | B1 | Rewrite: reach levels per agent and OS | 44–52 |
+| #341 | Vibe reach levels | B1 | Rewrite: reach levels per agent and OS | 44–52 |
+| #342 | Claude reach levels | B1 | Rewrite: reach levels per agent and OS | 44–52 |
+| #343 | Operating-system write confinement | B1 | Rewrite: Landlock and sandbox-exec behind one interface | 47–50 |
+| #344 | Skill sets per agent id | B1 | Rewrite: skill sets per agent id | 58 |
+| #345 | Roles generated from the critique role files | B1 | Done on the integration branch; reuse | 57 |
+| #346 | MCP fleet into Gold Band | B1 | Rewrite: MCP servers per instance, overlay for work | 59–61 |
+| #347 | Headless Gold Band binary with the cooldown check | B0 | Done on the integration branch, Mac only; rewrite for both OSes | 24–25 |
+| #348 | Spec-stage workflow template and headless proof | B2 | Done on the integration branch, Mac binary; re-prove on both OSes | 79 |
+| #349 | Docs: glossary, setup guide, lost guarantees | B1 | Rewrite: docs for both instances | 145–148 |
+| #350 | Delegation workflows on Gold Band: research, implementation, and grill-to-tickets | — | Close: superseded by this spec | — |
+| #351 | Port inventory of skills, hooks, roles and MCP servers | B3 | Done on the integration branch; add the lane column | 100–101 |
+| #352 | Family allowlist check at setup and the ADR amending ADR-0007 | B2 | Done on the integration branch (crate); fold into the run-start shim | 7 |
+| #353 | Gate wrapper, gate report and read-only copier | B2 | Rewrite: gate shim | 74–76 |
+| #354 | LiteLLM per-key budgets and the Pi route | B2 | Rewrite: LiteLLM in the estate cluster | 96–98 |
+| #355 | Ticket-to-requirement export wrapper | B2 | Done on the integration branch; reuse | 95 |
+| #356 | Research repository scaffold and layout validator | B2 | Done on the integration branch; reuse | 85 |
+| #357 | Coverage gate on changed files | B2 | Rewrite | 74, 91 |
+| #358 | Finding check node for implementation critics | B2 | Rewrite | 74, 91 |
+| #359 | Workflow B skeleton: unrolled repair loop with stub proof | B2 | Rewrite: Workflow B, work and personal variants | 88–92 |
+| #360 | Workflow B real agents, families and skill sets | B2 | Rewrite: Workflow B, work and personal variants | 88–92 |
+| #361 | Workflow A: deep research with Pi fetchers | B2 | Rewrite: Workflow A, work and personal variants | 82–87 |
+| #362 | Workflow C: grill to tickets with human gates | B2 | Rewrite: Workflow C with per-repository tracker setup | 93–95 |
+| #363 | Wave 2: critique stages as Gold Band templates | B3 | Rewrite: Wave 2 critique templates over the runner | 102, 111 |
+| #364 | Docs: glossary, setup guide and recorded gaps | B2 | Rewrite: docs | 145–148 |
+| #365 | Real-run smoke: one research run and one ticket | B2 | Rewrite: real-run smoke per instance (live check) | 79, 144 |
+| #367 | Port skills, roles, hooks and MCP servers to Gold Band | — | Close: superseded by this spec | — |
+| #368 | Epic: adopt Gold Band for agent setup, delegation workflows and the skills port | — | Close: superseded by this spec | — |
+| #369 | Inventory check enforces one target per row | B3 | Done on the integration branch; reuse | 100 |
+| #370 | Inventory records every overlapping older issue | B3 | Done on the integration branch; reuse | 100 |
+| #371 | Workflow lint for the model and loop rules | B2 | Done on the integration branch; add the memory-write rule | 69, 77 |
+| #372 | Registry validation of port bindings | B3 | Rewrite: port-binding validation | 100 |
+| #373 | Real run refused when its headless proof was skipped | B2 | Rewrite | 79 |
+| #374 | Wave plan after Wave 2 recorded in the inventory | B3 | Done on the integration branch; decisions 1, 3, 5 and 8 replaced by this spec | 106 |
+| #377 | Upstream Gold Band contributions: validate CLI first, then a command-node proposal | B0 | Rewrite: upstream contributions, under the cooldown | Out of Scope (upstream) |
+| #379 | Setup installs the work Claude profile into ~/.claude whatever CLAUDE_CONFIG_DIR says | B1 | Rewrite (do early): work Claude profile in the default directory | 38 |
+| #381 | Install JavaScript dependencies with pnpm and a 7-day cooldown | B6 | Rewrite: pnpm and uv cooldowns | 130 |
+| #382 | Install Python dependencies with a 7-day cooldown | B6 | Rewrite: pnpm and uv cooldowns | 130 |
+| #389 | Workstation kubeconfig helper: read-only agent access, admin only behind sudo | B6 | Rewrite (PR #388): kubeconfig helper; two owner decisions | 129 |
+| #390 | OpenCode on the workstation: skills and MCP coverage after #313 | B6 | Rewrite (PR #387): OpenCode parity | 124 |
+| #392 | Spec: agent-kit on Gold Band — two instances, one backlog | — | This spec | — |
+| #395 | Model gateway silently escalates a cross-family delegation to Claude | B4 | Rewrite: binding family in the gateway | 161 |
+| #396 | Personal Gold Band instance can read employer clones on the work machine | B1 | Decided: second macOS user; live check | 11, 50 |
+| #399 | Set up Antigravity on the Linux workstation | B1 | Rewrite: Antigravity on Linux | 42, 120 |
+
+### Pull requests
+
+| PR | Title | Branch | Disposition |
+| :- | :- | :- | :- |
+| #400 | docs(attribution): never describe AI use in pull requests, commits or issues | B6 | Review and merge on its own |
+| #388 | feat: workstation kubeconfig helper | B6 (#389) | Hold for the two owner decisions, then fix CI |
+| #387 | feat: install and configure OpenCode on the workstation | B6 (#390) | Rebase, review, align with the personal instance's OpenCode declaration |
+| #386 | feat: skill-sources drift check (#287) | B3 (#287) | Rebase off main without the gateway commit, then finish |
+| #385 | feat: editorial ADR rewrites and check-rewrite (#228) | B4 (#228) | Rebase onto the runner stages and finish |
+| #384 | feat: critique pipeline review stages (#214) | B4 (#249, #230) | Rebase and finish in the runner |
+| #383 | feat: Gold Band adoption (epic #368) | B0–B3 | Source of finished code: each ticket lands as its own PR from main; close when empty |
+| #378 | chore(deps): lock file maintenance | B6 | Close or let Renovate retry after the pnpm change (#381) |
+| #268 | chore(main): release 6.0.0 | — | Re-run on the current main and merge to cut the release |
+| #156, #153, #152, #148 | Renovate plugin pin updates | B6 | Review each pin, then merge or close |
+| #73 | chore(deps): update minor and patch dependencies | B6 | Investigate the real CI failures |
+| #70 | fix(deps): pin dependencies | B6 | Investigate, or close in favour of the cooldown tickets |
