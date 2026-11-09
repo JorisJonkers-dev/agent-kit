@@ -28,7 +28,7 @@ for a review of the decision records), which tells you how to drive it.
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-node <this directory>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|stats|triage|state|setup> --input FILE
+node <this directory>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|check-rewrite|stats|triage|state|setup> --input FILE
 node <this directory>/critique.mjs --help
 ```
 
@@ -51,7 +51,14 @@ decision-log checker: it takes `{ "repo" }`, reports numbering gaps and
 duplicates, unknown status values, links and supersede targets that resolve
 to nothing, and records in force citing a superseded one, and on any of
 these prints `"status": "failed"` and exits 3. Prepare for `adr-review`
-freezes the same report as `check/adrs.json`. `stats` reads the ledger and writes nothing;
+freezes the same report as `check/adrs.json`. `check-rewrite` is the
+rewrite check a stage runs after it edits a decision record in place: it
+takes the decision sentences quoted from the frozen packet, the rewritten
+files and the decision sentences labelled in each, and confirms each
+original sentence stays byte-identical in exactly one rewritten file, that
+no rewritten file labels a decision sentence that is not an original one,
+and that a split marks the original record superseded by the split files;
+on any of these it prints `"status": "failed"` and exits 3. `stats` reads the ledger and writes nothing;
 `/critique-stats` drives it. `triage` decides whether a ticket's change
 is `risky` or `low-risk` for ticket review, and names the signal that
 decided it. `state` computes one feature's flow state (keyed by its spec, or

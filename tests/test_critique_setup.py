@@ -241,7 +241,8 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
 
 
 def test_shipped_routing_adds_an_adr_record_critic_to_the_decisions_stage_of_a_family_it_does_not_route() -> None:
-    """#230: an ADR among the decisions adds one critic, which must not clash with the base or deep roster's families."""
+    """#230: an ADR among the decisions adds one critic, which must not clash
+    with the base or deep roster's families."""
     routing = json.loads(ROUTING.read_text())
     decisions = routing["stages"]["decisions"]
     assert [(s["client"], s["role"], s["lenses"], s["max_price_usd"], s["time_limit_s"]) for s in decisions["adr"]] == [
@@ -255,7 +256,8 @@ def test_shipped_routing_adds_an_adr_record_critic_to_the_decisions_stage_of_a_f
 
 
 def test_critique_decisions_rules_on_adr_record_findings_and_their_fixed_severity() -> None:
-    """#230 with the #227 carry-over: the skill says how an adr-record finding is ruled on and how its severity is overridden."""
+    """#230 with the #227 carry-over: the skill says how an adr-record finding
+    is ruled on and how its severity is overridden."""
     text = " ".join((KIT_ROOT / "skills" / "workstation" / "critique-decisions" / "SKILL.md").read_text().split())
     assert "an `adr-record` critic" in text
     assert "`no-record-quote`" in text
@@ -343,10 +345,14 @@ def test_critique_adrs_asks_about_two_readings_and_contradicting_records() -> No
 
 
 def test_critique_adrs_documents_the_severity_override_fields() -> None:
-    """#217's format: a check written `- `id` (critical): ...` fixes its severity; the verdict may override it with a reason."""
+    """#217's format: a check written `- `id` (critical): ...` fixes its
+    severity; the verdict may override it with a reason."""
     text = _critique_adrs()
     assert "A check written `` - `id` (critical): ... `` in its lens fixes its findings' severity" in text
-    assert "give the verdict `severity` (`critical`, `major` or `minor`) and `severity_reason`, a short slug like a `reason_code`" in text
+    assert (
+        "give the verdict `severity` (`critical`, `major` or `minor`) and `severity_reason`,"
+        " a short slug like a `reason_code`" in text
+    )
     assert "`reason`, `reason_code`, `answered`, `severity` and `severity_reason` where they apply" in text
 
 
@@ -376,6 +382,47 @@ def test_the_pipeline_readme_names_critique_adrs_for_the_adr_review_stage() -> N
     row = next(line for line in readme.splitlines() if line.startswith("| `adr-review` |"))
     assert row.startswith("| `adr-review` | `/critique-adrs` |"), row
     assert "none yet" not in row
+
+
+# /critique-adrs rewrites (#228)
+# ---------------------------------------------------------------------------
+
+
+def test_critique_adrs_runs_check_rewrite_after_the_editorial_edits() -> None:
+    text = _critique_adrs()
+    assert "check-rewrite" in text
+    assert "byte-identical in exactly one rewritten file" in text
+    assert "no rewritten file labels a decision sentence that is not an original one" in text
+    assert "a split marks the original superseded by the split files" in text
+
+
+def test_critique_adrs_labels_every_in_place_edit_with_a_kind_from_the_allowed_list() -> None:
+    text = _critique_adrs()
+    assert "the allowed list" in text
+    kinds = ("`status-and-links`", "`broken-reference`", "`glossary-alignment`", "`reorder`", "`cited-fact`", "`split`")
+    for kind in kinds:
+        assert kind in text, kind
+    assert "one line per edit" in text
+    assert "its kind from the allowed list" in text
+
+
+def test_critique_adrs_makes_a_change_outside_the_allowed_list_a_draft_never_an_in_place_edit() -> None:
+    text = _critique_adrs()
+    assert "A change outside the allowed list is never an in-place edit" in text
+    assert "a draft superseding or amending ADR" in text
+    assert "written from the owner's answer" in text
+
+
+def test_critique_adrs_restores_the_original_text_of_a_failing_adr_and_asks_the_new_decision_question() -> None:
+    text = _critique_adrs()
+    assert "restore the original text of the record it names from the frozen packet" in text
+    assert "the new-decision question" in text
+    assert "a new decision or a mistake" in text
+
+
+def test_critique_adrs_runs_adr_record_again_on_every_rewritten_adr() -> None:
+    text = _critique_adrs()
+    assert "`adr-record` runs again on every rewritten ADR" in text
 
 
 def test_shipped_routing_caps_the_repository_packet_at_adr_0004s_starting_limits() -> None:
@@ -498,7 +545,14 @@ def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(s
     assert '"history": true' in text, skill
 
 
-REFUTING_SKILLS = ["critique-decisions", "critique-spec", "check-tickets", "review-ticket", "review-feature", "critique-adrs"]
+REFUTING_SKILLS = [
+    "critique-decisions",
+    "critique-spec",
+    "check-tickets",
+    "review-ticket",
+    "review-feature",
+    "critique-adrs",
+]
 
 
 @pytest.mark.parametrize("skill", REFUTING_SKILLS)

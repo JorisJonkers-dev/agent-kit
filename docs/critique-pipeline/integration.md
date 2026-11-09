@@ -3529,3 +3529,45 @@ The `/critique-adrs` skill and the `adr-review` stage's own rules
 - **Second round.** `adr-review` calls for one after more than three
   critical findings are still accepted after the refute round; a refuted
   critical does not count.
+
+## What #228 settled
+
+The editorial rewrite flow and `check-rewrite` (agent-kit#228):
+
+- **The command.** `critique check-rewrite` takes `{ repo,
+  original_sentences, rewritten, split? }`: the decision sentences the
+  orchestrator quoted from the frozen packet, one `rewritten` entry per
+  edited file (`path` and the `decision_sentences` labelled in it), and for
+  a split `split` with `original` and `files`. It reads the rewritten files
+  from the working tree, writes nothing and sends nothing, and is refused
+  for a repository whose remotes are refused like every other command. A
+  rewritten file missing from the working tree is `invalid-input`. It
+  prints `"status": "failed"` and exits 3 on any failed check.
+- **The three checks and their failure names.** `sentence-preserved`: every
+  original sentence is byte-identical in exactly one rewritten file
+  (`missing` or `duplicated`, with `found_in`). `no-new-decision-sentence`:
+  a labelled sentence that is not an original one. `split-superseded`: the
+  split files the original record does not name on a Superseded by or
+  Replaced by line (by link or ADR number), in `unmarked`. Only the
+  sentences the orchestrator labels are checked against the originals; an
+  unlabelled new sentence is caught only if it displaces an original.
+- **The allowed list.** The in-place edit kinds are `status-and-links`,
+  `broken-reference`, `glossary-alignment`, `reorder`, `cited-fact` and
+  `split`. The change list is one line per edit, naming the record, the
+  finding id or pre-check result, and the kind. A change outside the list
+  is never an in-place edit: it becomes a draft superseding or amending ADR
+  written from the owner's answer.
+- **A failing ADR.** The skill restores the record's original text from the
+  frozen packet (`<packet_dir>/artifact/<path>`; a split failure also
+  deletes the records the split created) and asks the owner the
+  new-decision question: a new decision or a mistake. A mistake keeps the
+  restored record; a deferral leaves it restored. The question and its two
+  outcomes live in `/critique-adrs` step 7.
+- **`adr-record` again.** There is no runner command for a standalone
+  `adr-record` critic. `/critique-adrs` re-checks every rewritten ADR
+  itself against the `adr-record` lens (`lenses/adr-record.md`) and labels
+  the decision sentences check-rewrite reads. #229's cold read is the
+  independent check on the same rewrite.
+- **Skill steps.** `/critique-adrs` now ends: 6 Fix the records, 7 Check
+  the rewrite, 8 Ask the owner, 9 Record, 10 Second round, 11 Return. The
+  cold read belongs in step 7 after `check-rewrite`, before step 8 (#229).

@@ -16,7 +16,7 @@ skill directory installed beside this one (`../critique/critique.mjs` from the
 folder this file is in). Each command takes one JSON object and prints one:
 
 ```sh
-node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow|check-adrs> --json '<object>'
+node <critique dir>/critique.mjs <prepare|fan-out|refute|record|allow|check-adrs|check-rewrite> --json '<object>'
 node <critique dir>/critique.mjs <command> --input <file.json>
 ```
 
@@ -110,7 +110,7 @@ whole log. Its results are settled: build on them and never recompute them.
 
 - **`unresolved_links`** and **`cites_superseded`**: each is a broken
   reference. Where the packet shows the right target, its fix is an
-  editorial edit in step 6; otherwise it is a question in step 7.
+  editorial edit in step 6; otherwise it is a question in step 8.
 - **`numbering`** gaps and duplicates and **`unknown_statuses`**: list each
   in the change list as found. Renumbering or restating a status is the
   owner's call: ask before changing either.
@@ -145,7 +145,7 @@ role rule it comes from. Then rule by the first row that fits:
 | Two choices in one record (`two-choices`) | `accepted` as a split into records built from the record's own sentences, each superseding it; `needs-human` when a split needs a sentence the record does not hold |
 | Wording with two readings (`two-readings`) | `needs-human`: "which reading did you mean?", with both readings |
 | Two records in force that contradict (`records-contradict`), with no text that says one replaces the other | `needs-human`: which record stands |
-| No confirmation where a test, lint rule or script could check the decision (`no-confirmation`) | `accepted` as a follow-up: the record is unchanged, and step 7 asks whether to file an issue for the check |
+| No confirmation where a test, lint rule or script could check the decision (`no-confirmation`) | `accepted` as a follow-up: the record is unchanged, and step 8 asks whether to file an issue for the check |
 | The record need not exist (`not-significant`) | `needs-human`: keep it or not; it is at most minor |
 | The finding argues the chosen option is wrong, or copy-edits wording, grammar, headings or format | `rejected`, `reason_code` `second-guesses-decision` or `copy-edit` |
 | The packet does not show what the finding claims | `rejected`, with `reason` (one sentence) and `reason_code` (a short slug such as `already-covered`) |
@@ -169,7 +169,7 @@ from the packet.
 ### 5. Refute
 
 Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json` with
-the verdicts of step 4, as step 8 describes them, and run refute with
+the verdicts of step 4, as step 9 describes them, and run refute with
 `--input <run_dir>/verdicts.json`. It sends each accepted critical finding
 to one critic of a family that neither raised it nor is yours, and returns
 when the slowest ends; give it as long as fan-out. With no accepted critical
@@ -186,32 +186,75 @@ an `outcome`:
 - `no-objection` or `stands`: your verdict stands.
 - `skipped`: no eligible critic could run (`reason_code` and `detail` say
   why), and your verdict stands. A skipped refute is reported, not retried:
-  the runner refuses a second refute of one run, and step 10 names the skip.
+  the runner refuses a second refute of one run, and step 11 names the skip.
 
 ### 6. Fix the records
 
 Apply every accepted finding, and every pre-check fix from step 3, as an
 editorial edit to the record's file in the working tree, the smallest that
-removes the defect, in the record's own words and the glossary's terms:
+removes the defect, in the record's own words and the glossary's terms.
+These six kinds are the allowed list, and only these are edited in place:
 
-- the status line and Supersedes / Superseded by / Amends links the packet
-  proves;
-- a broken reference pointed at its target;
-- a term aligned with the glossary, the meaning unchanged;
-- the record's own sentences moved, with the decision first;
-- a fact the packet proves, cited;
-- a record split into new records built from its own sentences, each
-  numbered after the last record, with the original marked superseded by
-  them.
+- `status-and-links`: the status line and Supersedes / Superseded by /
+  Amends links the packet proves;
+- `broken-reference`: a broken reference pointed at its target;
+- `glossary-alignment`: a term aligned with the glossary, the meaning
+  unchanged;
+- `reorder`: the record's own sentences moved, with the decision first;
+- `cited-fact`: a fact the packet proves, cited;
+- `split`: a record split into new records built from its own sentences,
+  each numbered after the last record, with the original marked superseded
+  by them.
 
 The chosen option, its scope and conditions, the rationale, the rejected
 alternatives and the stated consequences stay byte for byte as they are.
-A fix that would touch one of them is a question for step 7. A suggestion
-is input to your fix, never text to paste. Keep a change list: one line per
-edit, naming the record, the finding id or pre-check result, and the kind
-of edit from the list above.
+A fix that would touch one of them is a question for step 8. A change
+outside the allowed list is never an in-place edit: it goes to step 8 and
+becomes a draft superseding or amending ADR, written from the owner's
+answer. A suggestion is input to your fix, never text to paste. Keep a
+change list: one line per edit, naming the record, the finding id or
+pre-check result, and its kind from the allowed list.
 
-### 7. Ask the owner
+### 7. Check the rewrite
+
+`adr-record` runs again on every rewritten ADR: re-check the rewritten
+record against the nine checks of `lenses/adr-record.md`, beside the runner,
+and label the decision sentences its text now states. A defect the rewrite
+introduced is a bug in your own edit: fix it with a further edit of step 6,
+or undo the edit, before continuing. The labelled sentences are what
+check-rewrite reads.
+
+Then run check-rewrite; it reads the working tree, writes nothing, and
+sends nothing anywhere:
+
+```sh
+node <critique dir>/critique.mjs check-rewrite --input <file.json>
+```
+
+Its input is `repo` (the repository's root), `original_sentences` (the
+decision sentences you quoted from the frozen packet), one entry per
+rewritten file in `rewritten` (`path`, and the `decision_sentences` you
+labelled in it), and for a split `split` (`original`, and the `files` the
+split created). It confirms each original sentence appears byte-identical
+in exactly one rewritten file, that no rewritten file labels a decision
+sentence that is not an original one, and that a split marks the original
+superseded by the split files.
+
+- `"status": "passed"`: the rewrite kept every decision; go on to step 8.
+- `"status": "failed"` and exit 3: `failures` names the check that failed —
+  `sentence-preserved` (`missing` or `duplicated`, with `found_in`),
+  `no-new-decision-sentence`, or `split-superseded` (with `unmarked`). For
+  each failure, restore the original text of the record it names from the
+  frozen packet (`<packet_dir>/artifact/<path>`; for a `missing` sentence,
+  the record you quoted it from; a split failure also deletes the records
+  the split created), and ask the owner the new-decision question: is this
+  change a new decision or a mistake? A mistake keeps the restored record
+  as it was. A new decision is a change outside the allowed list: it
+  becomes a draft superseding or amending ADR, written from the owner's
+  answer as step 8 describes. When the owner defers, the record stays
+  restored.
+
+### 8. Ask the owner
 
 Ask each `needs-human` question one at a time, critical ones first, and wait
 for the answer before the next. When the owner answers:
@@ -232,16 +275,16 @@ for the answer before the next. When the owner answers:
 Add each change to the change list and mark the verdict `"answered": true`.
 When the owner defers, leave it unanswered.
 
-### 8. Record
+### 9. Record
 
 Write `{"run_dir": ..., "verdicts": [...]}` to `<run_dir>/verdicts.json`, one
-entry per verdict from step 4 as steps 5 to 7 left it: `finding_id`,
+entry per verdict from step 4 as steps 5 to 8 left it: `finding_id`,
 `verdict`, and `reason`, `reason_code`, `answered`, `severity` and
 `severity_reason` where they apply. Run record with
 `--input <run_dir>/verdicts.json`; it applies the refute round. Keep its
 `summary`, `report_path` and `second_round_due`.
 
-### 9. Second round
+### 10. Second round
 
 When record says `second_round_due` (more than three critical findings were
 still accepted after the refute round), the revised records get fresh
@@ -249,7 +292,7 @@ critics: go back to step 1 with the same arguments plus
 `"previous_run_dir": <this run_dir>`, and do steps 1 to 8 again. The runner
 allows two rounds at most; record never asks for a third.
 
-### 10. Return
+### 11. Return
 
 Give the owner the change list of every round: the edits in the working
 tree are not committed, so they review and commit them. Then return the last

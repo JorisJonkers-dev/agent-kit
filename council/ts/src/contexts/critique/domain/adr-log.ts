@@ -62,6 +62,9 @@ const SUPERSEDE_LINE = /\b(?:supersedes|superseded[ \t]+by|amends|amended[ \t]+b
 /** A line on which a record says it replaces the records it names. */
 const REPLACING_LINE = /\b(?:supersedes|replaces)\b/i
 
+/** A line on which a record says the records it names replace it. */
+const REPLACED_BY_LINE = /\b(?:superseded[ \t]+by|replaced[ \t]+by)\b/i
+
 /** An inline link's target, a reference definition's target (never a footnote's `[^1]:`), or an ADR number. */
 const REFERENCE = /\]\(<?([^)\s>]+)>?(?:[ \t]+"[^"]*")?\)|^[ \t]*\[(?!\^)[^\]\n]+\]:[ \t]*<?([^\s>]+)>?|\bADR[- ]?(\d{1,5})\b/gim
 
@@ -79,6 +82,8 @@ interface Reference extends AdrLink {
   readonly number?: number
   /** True on a line where the record says it replaces what it names. */
   readonly replacing: boolean
+  /** True on a line where the record says what it names replaces it. */
+  readonly replacedBy: boolean
 }
 
 /**
@@ -161,6 +166,11 @@ function numbering(records: readonly AdrEntry[]): AdrNumbering {
   }
 }
 
+/** Whether one record marks itself superseded by another: it names the other on a Superseded by or Replaced by line, by link or ADR number. */
+export function markedSupersededBy(record: AdrSource, target: string): boolean {
+  return references(record).some((reference) => reference.replacedBy && namesRecord(reference, target))
+}
+
 /** Every target a record names outside fenced blocks, in text order. */
 function references(source: AdrSource): readonly Reference[] {
   return withoutFences(source.text)
@@ -168,14 +178,22 @@ function references(source: AdrSource): readonly Reference[] {
     .flatMap((line) => {
       const kind = SUPERSEDE_LINE.test(line) ? 'supersede' : 'link'
       const replacing = REPLACING_LINE.test(line)
+      const replacedBy = REPLACED_BY_LINE.test(line)
       return [...line.replace(BARE_URL, ' ').matchAll(REFERENCE)].flatMap((match): Reference[] => {
         const [whole, inline, definition, number] = match
         const record = source.path
-        if (number !== undefined) return [{ kind, number: Number(number), record, replacing, target: whole }]
+        if (number !== undefined) return [{ kind, number: Number(number), record, replacing, replacedBy, target: whole }]
         const target = inline ?? definition ?? ''
-        return NOT_A_FILE.test(target) ? [] : [{ kind, path: repositoryPath(source.path, target), record, replacing, target }]
+        return NOT_A_FILE.test(target) ? [] : [{ kind, path: repositoryPath(source.path, target), record, replacing, replacedBy, target }]
       })
     })
+}
+
+/** Whether a target a record names is the record at `path`, by repository path or by the number its file name starts with. */
+function namesRecord(reference: Reference, path: string): boolean {
+  if (reference.path === path) return true
+  const number = RECORD_NUMBER.exec(posix.basename(path))?.[1]
+  return number !== undefined && reference.number === Number(number)
 }
 
 /** The repository path a link in a record names, without its anchor; null when it climbs out of the repository. */
