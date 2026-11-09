@@ -47,6 +47,17 @@ passes the crate's exit code through, and exits 3 for its own failures,
 like gold-band-validate. Where the app is not installed, setup skips the
 step whole and the run carries on.
 
+``gold-band-launch --id <ID>`` flattens the registry the same way --
+agents plus the reach support record (#339) -- and execs the
+gold-band-registry crate's ``launch`` command, which refuses an agent id
+whose reach the launcher cannot enforce (exit 1, its one-line reason on
+stderr) BEFORE STARTING ANYTHING, and otherwise starts the id's adapter
+command with the stdio inherited, so the exit code that comes back is the
+agent's own. A launch is an action, not a check: a crate that cannot run
+is a failure of the step (exit 3), never a quiet skip, and no running
+Gold Band refuses it -- a running app never blocked starting an agent.
+``--registry`` over the registry path is for the tests.
+
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
 
@@ -62,6 +73,8 @@ Usage::
         [--registry PATH]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
         --keep PATH [--settings PATH] [--registry PATH] [--check]
+    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-launch \\
+        --id ID [--registry PATH]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-running
 
 ``gold-band-running`` is the guard the crate re-checks with immediately
@@ -204,13 +217,32 @@ def _gold_band_field(path: str, value: Any) -> list[str]:
     return [f"field\t{path}\t{'' if value is None else value}"]
 
 
-def _gold_band_agents(registry: Path, step: str) -> tuple[list[dict[str, Any]], list[str]] | int:
-    """The registry's ``gold_band`` section, read as its declared agents and retired ids.
+def gold_band_support_lines(reach_support: dict[str, Any]) -> str:
+    """The reach support record (#339) in the crate's line protocol.
+
+    One ``support<TAB>kind<TAB>level<TAB>state`` line per cell, kinds and
+    levels sorted so the file is byte-stable whatever the registry's key
+    order. The crate reads only the state; the cell's sentence of evidence
+    stays human-only in the registry.
+    """
+    lines = [
+        f"support\t{kind}\t{level}\t{cell.get('state', '')}"
+        for kind, levels in sorted((reach_support or {}).items())
+        for level, cell in sorted(levels.items())
+    ]
+    return "".join(f"{line}\n" for line in lines)
+
+
+def _gold_band_agents(
+    registry: Path, step: str
+) -> tuple[list[dict[str, Any]], list[str], dict[str, dict[str, Any]]] | int:
+    """The registry's ``gold_band`` section, read as its declared agents, retired
+    ids and reach support record.
 
     Returns ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, with the reason printed, when
     the registry is unreadable or the section is the wrong shape, so ``step``
-    (validate or converge) stops there having written nothing; a missing
-    section is an empty list on both sides.
+    (validate, converge or launch) stops there having written nothing; a
+    missing section is an empty list on all three sides.
     """
     try:
         data = yaml.safe_load(registry.read_text()) or {}
@@ -222,7 +254,7 @@ def _gold_band_agents(registry: Path, step: str) -> tuple[list[dict[str, Any]], 
         return GOLD_BAND_CANNOT_VALIDATE_EXIT
     section = data.get("gold_band")
     if section is None:
-        return ([], [])
+        return ([], [], {})
     if not isinstance(section, dict):
         print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}: gold_band must be a mapping")
         return GOLD_BAND_CANNOT_VALIDATE_EXIT
@@ -240,13 +272,44 @@ def _gold_band_agents(registry: Path, step: str) -> tuple[list[dict[str, Any]], 
         print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}:"
               " gold_band.retired must be a list of agent ids")
         return GOLD_BAND_CANNOT_VALIDATE_EXIT
-    return (declared or [], retired)
+    support = section.get("reach_support")
+    if support is None:
+        support = {}
+    if not _gold_band_support_shape(registry, step, support):
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    return (declared or [], retired, support)
+
+
+def _gold_band_support_shape(registry: Path, step: str, support: Any) -> bool:
+    """Whether ``gold_band.reach_support`` is the shape the crate reads (#339):
+    per agent kind, per reach level, a cell holding a ``state`` of verified
+    or unverified (with its evidence sentence). The crate fails closed on
+    anything that is not ``verified``, so an unparseable cell must stop the
+    step before the crate is asked, not reach it as a refusal.
+    """
+    if not isinstance(support, dict):
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}:"
+              " gold_band.reach_support must be a mapping of agent kind to reach level")
+        return False
+    for kind, levels in support.items():
+        if not isinstance(levels, dict):
+            print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}:"
+                  f" gold_band.reach_support.{kind} must be a mapping of reach level to cell")
+            return False
+        for level, cell in levels.items():
+            if not isinstance(cell, dict) or cell.get("state") not in ("verified", "unverified"):
+                print(f"{GOLD_BAND_CRATE_NAME}: cannot {step}: {registry}:"
+                      f" gold_band.reach_support.{kind}.{level} must hold"
+                      ' state: verified or unverified (with its evidence sentence)')
+                return False
+    return True
 
 
 def gold_band_validate(kit_root: Path, registry: Path, cargo: bool) -> int:
     """The registry's Gold Band agents through the crate: 0 clean or skipped, 1 a refusal, 3 its own failures.
 
-    The declared ``gold_band.agents`` flatten into the crate's line protocol
+    The declared ``gold_band.agents`` and the reach support record
+    (#339) flatten into the crate's line protocol
     in a temporary file and the crate's built binary rules on it; the crate's
     own output is printed and its exit code returned, so setup stops before
     anything is written when the verdict is a refusal. A binary that is not
@@ -267,11 +330,12 @@ def gold_band_validate(kit_root: Path, registry: Path, cargo: bool) -> int:
                   if cargo else "no Rust toolchain (cargo) on PATH")
         print(f"{GOLD_BAND_CRATE_NAME}: skipped: {reason}")
         return 0
-    agents, _retired = read
+    agents, _retired, support = read
     descriptor, staged = tempfile.mkstemp(prefix=f"{GOLD_BAND_CRATE_NAME}-", suffix=".txt")
     try:
         with os.fdopen(descriptor, "w") as handle:
             handle.write(gold_band_line_protocol(agents))
+            handle.write(gold_band_support_lines(support))
         try:
             result = subprocess.run(
                 [str(binary), "validate", staged],
@@ -398,12 +462,16 @@ def gold_band(args: argparse.Namespace, cargo: bool) -> int:
     read = _gold_band_agents(args.registry, "converge")
     if isinstance(read, int):
         return read
-    agents, retired = read
+    agents, retired, support = read
     keep = _keep(args.keep)
     staged: list[str] = []
     try:
         for kind, lines in (
-            ("declared", gold_band_line_protocol(agents)),
+            # The same file the validate step hands the crate: the
+            # declarations and the reach support record (#339), so the
+            # converge's own validation run can refuse an
+            # unsupported-or-unverified reach before anything is written.
+            ("declared", gold_band_line_protocol(agents) + gold_band_support_lines(support)),
             ("keep", "".join(f"{name}\n" for name in keep)),
             ("retired", "".join(f"{name}\n" for name in retired)),
         ):
@@ -434,6 +502,49 @@ def gold_band(args: argparse.Namespace, cargo: bool) -> int:
         if output.strip():
             print(output.strip())
     return _gold_band_groups(result, args.check, args.settings)
+
+
+def gold_band_launch(args: argparse.Namespace, cargo: bool) -> int:
+    """Start one declared Gold Band agent through the crate's launcher (#339).
+
+    The registry is flattened -- the agents plus the reach support record
+    -- into a temporary line-protocol file, and the crate's ``launch``
+    command either refuses the id before starting anything (exit 1, its
+    one-line reason on stderr) or exec's the id's adapter command, so the
+    agent inherits this process's stdin, stdout and stderr and the exit
+    code that comes back is the agent's own. Unlike the checks, which skip
+    where no crate is built, a launch is an action: a crate that cannot
+    run fails the step (``GOLD_BAND_CANNOT_VALIDATE_EXIT``), never a
+    quiet skip, and the run is not timed out or refused for a running
+    Gold Band, because the point of the command is to be an agent's
+    process for as long as the agent runs.
+    """
+    read = _gold_band_agents(args.registry, "launch")
+    if isinstance(read, int):
+        return read
+    agents, _retired, support = read
+    binary = crate_binary(KIT_ROOT, GOLD_BAND_CRATE_NAME)
+    if binary is None:
+        reason = ("not built yet; run cargo build --manifest-path scripts/Cargo.toml"
+                  if cargo else "no Rust toolchain (cargo) on PATH")
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot launch: {reason}")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    descriptor, staged = tempfile.mkstemp(prefix=f"{GOLD_BAND_CRATE_NAME}-launch-", suffix=".txt")
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(gold_band_line_protocol(agents))
+            handle.write(gold_band_support_lines(support))
+        # No capture and no timeout: the crate exec's the agent, which
+        # inherits this stdio, and the agent may run for as long as the
+        # caller keeps it; the exit code below is the agent's own.
+        result = subprocess.run(
+            [str(binary), "launch", staged, str(args.id)], check=False
+        )
+    finally:
+        os.unlink(staged)
+    # A signal death comes back the way a shell reports it (128 + signal),
+    # not as Python's negative return code rewritten by sys.exit.
+    return result.returncode if result.returncode >= 0 else 128 - result.returncode
 
 
 def _gold_band_groups(result: subprocess.CompletedProcess[str], check: bool,
@@ -685,6 +796,9 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--settings", type=Path, default=None)
     b.add_argument("--registry", type=Path, default=None)
     b.add_argument("--check", action="store_true")
+    l = sub.add_parser("gold-band-launch")
+    l.add_argument("--id", required=True)
+    l.add_argument("--registry", type=Path, default=None)
     sub.add_parser("gold-band-running")
     args = parser.parse_args(argv)
     # The guard's answer needs no canary, no crate and no timeout: it is the
@@ -702,6 +816,11 @@ def main(argv: list[str] | None = None) -> int:
             # takes the cannot-validate code -- never the refusal's exit 1.
             print(f"{GOLD_BAND_CRATE_NAME}: cannot validate: the canary crate blocked the run")
             return GOLD_BAND_CANNOT_VALIDATE_EXIT
+        if args.surface == "gold-band-launch":
+            # A launch is an action: the canary blocking it is a failed
+            # launch, not a skip, so nothing can look like an agent started.
+            print(f"{GOLD_BAND_CRATE_NAME}: cannot launch: the canary crate blocked the run")
+            return GOLD_BAND_CANNOT_VALIDATE_EXIT
         return crate_code
     if args.surface == "gold-band-validate":
         return gold_band_validate(
@@ -709,6 +828,9 @@ def main(argv: list[str] | None = None) -> int:
             args.registry or KIT_ROOT / "registry" / "estate-tooling.yaml",
             shutil.which("cargo") is not None,
         )
+    if args.surface == "gold-band-launch":
+        args.registry = args.registry or KIT_ROOT / "registry" / "estate-tooling.yaml"
+        return gold_band_launch(args, shutil.which("cargo") is not None)
     if args.surface == "gold-band":
         args.settings = args.settings or Path.home() / ".gold-band" / "settings.json"
         args.registry = args.registry or KIT_ROOT / "registry" / "estate-tooling.yaml"

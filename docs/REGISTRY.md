@@ -283,6 +283,48 @@ absolute path setup prints at the end of the step:
   repositories. Pi is why the field exists (it runs with no permission
   prompts), and the renderer refuses a Pi entry without it.
 
+## Gold Band agents, reach levels and the launcher
+
+`gold_band.agents` declares the Gold Band desktop client's custom agents.
+Setup validates the section before anything is written — a refusal stops the
+run — and converges `~/.gold-band/settings.json` onto it. Each id carries a
+**reach level** — `read`, `read-web`, `research`, `write-scoped`, `write` or
+`full` (#339, parent spec #327) — the most a session of that id may do;
+`research` and `write-scoped` must name an `outputDir`, and `full` must be
+`throwawayOnly: true` (Pi has no permission prompts, so it runs only inside
+throwaway repositories).
+
+- `agent:` names the **kind** the id runs — `opencode`, `vibe`, `agy`,
+  `hermes` or `claude` — and defaults to the id when absent (`vibe-study`'s
+  kind is `vibe`). `skillSet:` (`default` when unset) names the skill set
+  the id runs. One id exists per kind, reach and skill set, which is why
+  `vibe` and `vibe-study` — same kind, same reach — name different skill
+  sets. Neither field ever reaches settings.json: they belong to the reach
+  rules and the launcher.
+- `gold_band.reach_support:` is the **support record**: per kind and level a
+  cell `{state: verified|unverified, evidence: <one sentence>}`. A level a
+  kind cannot support at all is left out — `hermes` maps nothing below
+  `write-scoped`, because its ACP session's toolset is hard-coded.
+  Validation refuses an id whose reach has no cell for its kind or whose
+  cell is unverified, so a cell flips to `verified` only together with the
+  evidence that proves it. Today `write` is verified for every kind (write
+  needs no restriction), and everything else is unverified
+  (`handoff-gold-band/reports/reach-checks.md` and `reach-probes.md`).
+- The launcher is `scripts/converge.py gold-band-launch --id <ID>`: it
+  flattens the registry — agents plus the support record — into the
+  gold-band-registry crate's line protocol and execs its `launch` command.
+  The launcher refuses with exit 1 and one line on stderr **before starting
+  anything** when the id is unknown, its cell is missing or unverified, a
+  research or write-scoped id has no `outputDir`, or a full id is not
+  `throwawayOnly`; otherwise it starts the id's adapter command (a leading
+  `~/` expanded) with the stdio inherited, and the exit code that comes
+  back is the agent's own. `--registry <path>` points it at another
+  registry, for the tests.
+
+Wiring Gold Band's own settings.json to start its agents through the
+launcher — the built-in ids get their command replaced by the app — is a
+later ticket.
+
 ## A first-party skill whose directory is not written yet
 
 A `local_skills:` entry can be registered before the issue that writes the

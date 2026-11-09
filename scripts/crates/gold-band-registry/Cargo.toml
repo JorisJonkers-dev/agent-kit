@@ -3,7 +3,7 @@ name = "gold-band-registry"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "The Gold Band agent registry: validates Gold Band agent declarations and converges settings.json onto them."
+description = "The Gold Band agent registry: validates Gold Band agent declarations, converges settings.json onto them, and launches one declared agent behind the reach rules."
 
 # The only dependencies allowed, pinned exact; both are far older than the
 # 7-day crate cooldown (the standards repo's ADR-0014, docs/RUST.md; the same

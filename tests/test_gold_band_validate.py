@@ -6,7 +6,10 @@ so a declaration that breaks an owner rule (#332) -- no Codex, no literal
 secret, a well-formed id declared once, only known fields -- stops the run
 before any file could be written. Every OpenRouter and every OpenCode model
 (an ``opencode/`` one included) is allowed (owner decision, 2026-11-08): the
-per-key LiteLLM budgets are the guard, not this registry. A failure that is no verdict -- a ``uv`` that cannot run, or
+per-key LiteLLM budgets are the guard, not this registry. The reach support
+record (#339) flattens into the same file, so an id whose agent kind does
+not support its reach, whose support cell is unverified, or that shares its
+kind, reach and skill set with another id is refused with its own line. A failure that is no verdict -- a ``uv`` that cannot run, or
 converge.py's own failure (exit 3) -- stops the run with its own message,
 never the refusal's. The flattening cases call converge.py's function
 directly; each refusal case runs the whole checked-in setup script against a
@@ -44,6 +47,8 @@ from setup_harness import Run, setup_run  # noqa: E402
 def test_every_field_kind_flattens_into_the_line_protocol() -> None:
     agent = {
         "id": "claude-code",
+        "agent": "claude",
+        "skillSet": "default",
         "adapter": {
             "command": "/usr/local/bin/claude",
             "args": ["--continue", "--dangerously-accept"],
@@ -66,6 +71,8 @@ def test_every_field_kind_flattens_into_the_line_protocol() -> None:
     }
     assert converge.gold_band_line_protocol([agent]) == "\n".join([
         "agent\tclaude-code",
+        "field\tagent\tclaude",
+        "field\tskillSet\tdefault",
         "field\tadapter.command\t/usr/local/bin/claude",
         "field\tadapter.args.0\t--continue",
         "field\tadapter.args.1\t--dangerously-accept",
@@ -115,6 +122,7 @@ def test_no_agents_flatten_to_nothing() -> None:
 
 CLEAN_AGENT: dict[str, Any] = {
     "id": "claude-code",
+    "agent": "claude",
     "adapter": {
         "command": "/usr/local/bin/claude",
         "args": ["--continue"],
@@ -135,6 +143,18 @@ CLEAN_AGENT: dict[str, Any] = {
     "throwawayOnly": False,
 }
 
+# The support record a fixture needs (#339): one cell per kind and reach,
+# from a mapping of state -- verified unless a case refuses it -- which the
+# helper wraps with the evidence sentence the registry format carries.
+def _support(cells: dict[str, dict[str, str]]) -> dict[str, Any]:
+    return {
+        kind: {
+            level: {"state": state, "evidence": "test"}
+            for level, state in levels.items()
+        }
+        for kind, levels in cells.items()
+    }
+
 
 @pytest.fixture(scope="module")
 def built_crate() -> None:
@@ -150,15 +170,19 @@ def built_crate() -> None:
     assert build.returncode == 0, build.stderr
 
 
-def _setup_run(root: Path, agents: list[dict[str, Any]]) -> Run:
+def _setup_run(root: Path, agents: list[dict[str, Any]],
+               reach_support: dict[str, Any] | None = None) -> Run:
     """One setup run whose gold-band-validate call reads a registry the test wrote.
 
     The harness's default ``uv`` stub only records the call; this one runs
-    converge.py for real, with the test's registry as its ``--registry``, so
-    the crate's verdict decides the run the way it does on a workstation.
+    converge.py for real, with the test's registry (its agents and its
+    reach support record, #339) as its ``--registry``, so the crate's
+    verdict decides the run the way it does on a workstation.
     """
     registry = root / "gold-band-registry.yaml"
-    registry.write_text(yaml.safe_dump({"gold_band": {"agents": agents}}, sort_keys=False))
+    registry.write_text(yaml.safe_dump(
+        {"gold_band": {"agents": agents, "reach_support": reach_support or {}}},
+        sort_keys=False))
     stub = (
         'case "$*" in *gold-band-validate*)\n'
         f'  exec "{sys.executable}" "{KIT_ROOT / "scripts" / "converge.py"}" '
@@ -205,7 +229,7 @@ def test_an_openrouter_provider_or_model_passes(tmp_path: Path, built_crate: Non
         "reach": "read",
         "provider": "openrouter",
         "model": "openrouter/anthropic/claude-3",
-    }])
+    }], _support({"mixer": {"read": "verified"}}))
     assert "gold-band-registry: ok (1 agents)" in run.stdout
     assert "the Gold Band registry is refused" not in run.stdout + run.stderr
     # The validation stopped nothing: the run reached its next step.
@@ -213,7 +237,8 @@ def test_an_openrouter_provider_or_model_passes(tmp_path: Path, built_crate: Non
 
 
 def test_an_opencode_model_passes(tmp_path: Path, built_crate: None) -> None:
-    run = _setup_run(tmp_path, [{"id": "sidekick", "reach": "read", "model": "opencode/zeta"}])
+    run = _setup_run(tmp_path, [{"id": "sidekick", "reach": "read", "model": "opencode/zeta"}],
+                     _support({"sidekick": {"read": "verified"}}))
     assert "gold-band-registry: ok (1 agents)" in run.stdout
     assert "the Gold Band registry is refused" not in run.stdout + run.stderr
     # The validation stopped nothing: the run reached its next step.
@@ -249,6 +274,43 @@ def test_an_unknown_agent_field_is_refused(tmp_path: Path, built_crate: None) ->
     _refused(run, "zeta: unknown agent field favouriteColour")
 
 
+def test_an_id_whose_kind_does_not_support_its_reach_is_refused(
+    tmp_path: Path, built_crate: None
+) -> None:
+    """A level the agent kind has no cell for is not enforceable (#339)."""
+    run = _setup_run(tmp_path, [{"id": "hermes", "reach": "read"}],
+                     _support({"hermes": {"write": "verified"}}))
+    _refused(run, "hermes: agent hermes does not support reach read")
+
+
+def test_an_id_whose_reach_cell_is_unverified_is_refused(tmp_path: Path, built_crate: None) -> None:
+    """An id is refused at a level nothing has proven the launcher can enforce (#339)."""
+    run = _setup_run(tmp_path, [{"id": "pi-read", "agent": "vibe", "reach": "read"}],
+                     _support({"vibe": {"read": "unverified"}}))
+    _refused(run, "pi-read: reach read for agent vibe is unverified; refused")
+
+
+def test_two_ids_of_one_agent_reach_and_skill_set_are_refused(
+    tmp_path: Path, built_crate: None
+) -> None:
+    """One id exists per agent kind, reach and skill set (#339); a second id
+    with the same triple is named with the first, while a different skill
+    set makes the ids distinct."""
+    support = _support({"vibe": {"write": "verified"}})
+    run = _setup_run(tmp_path, [
+        {"id": "one", "agent": "vibe", "reach": "write"},
+        {"id": "twin", "agent": "vibe", "reach": "write"},
+    ], support)
+    _refused(run, "twin: same agent, reach and skill set as one")
+    (tmp_path / "again").mkdir()
+    run = _setup_run(tmp_path / "again", [
+        {"id": "one", "agent": "vibe", "skillSet": "default", "reach": "write"},
+        {"id": "twin", "agent": "vibe", "skillSet": "study", "reach": "write"},
+    ], support)
+    assert "gold-band-registry: ok (2 agents)" in run.stdout
+    assert "tokens and keys" in run.stdout
+
+
 def test_a_uv_that_cannot_run_is_not_reported_as_a_gold_band_refusal(tmp_path: Path) -> None:
     """A uv that fails is a failed validation step, not the crate refusing a declaration (#332)."""
     run = setup_run(tmp_path, "Linux", stubs={"uv": "exit 1"})
@@ -260,7 +322,7 @@ def test_a_uv_that_cannot_run_is_not_reported_as_a_gold_band_refusal(tmp_path: P
 
 
 def test_a_clean_declaration_passes_and_the_run_carries_on(tmp_path: Path, built_crate: None) -> None:
-    run = _setup_run(tmp_path, [CLEAN_AGENT])
+    run = _setup_run(tmp_path, [CLEAN_AGENT], _support({"claude": {"read": "verified"}}))
     assert "gold-band-registry: ok (1 agents)" in run.stdout
     assert "the Gold Band registry is refused" not in run.stdout + run.stderr
     # The validation came first and stopped nothing: the run reached its next step.
@@ -274,3 +336,21 @@ def test_regression_a_registry_that_is_not_a_mapping_cannot_be_validated(tmp_pat
     registry = tmp_path / "estate-tooling.yaml"
     registry.write_text("- just\n- a\n- list\n")
     assert converge.gold_band_validate(converge.KIT_ROOT, registry, cargo=True) == converge.GOLD_BAND_CANNOT_VALIDATE_EXIT
+
+
+@pytest.mark.parametrize("broken", [
+    "a bare string",
+    {"state": "banana", "evidence": "test"},
+    {"evidence": "no state at all"},
+])
+def test_a_support_record_cell_of_the_wrong_shape_cannot_be_validated(
+    tmp_path: Path, broken: Any
+) -> None:
+    """A cell the crate cannot read stops the step before the crate is asked
+    (#339), never reaching the crate as a refusal."""
+    registry = tmp_path / "estate-tooling.yaml"
+    registry.write_text(yaml.safe_dump(
+        {"gold_band": {"reach_support": {"vibe": {"read": broken}}}}, sort_keys=False))
+    assert converge.gold_band_validate(converge.KIT_ROOT, registry, cargo=True) == (
+        converge.GOLD_BAND_CANNOT_VALIDATE_EXIT
+    )

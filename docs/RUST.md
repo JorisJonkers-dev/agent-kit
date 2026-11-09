@@ -25,10 +25,17 @@ documents its tooling); this page is how agent-kit follows it.
 * **The registry.** `crates/gold-band-registry` validates the Gold Band agent
   declarations — flattened into its line protocol by Python (#332) — and
   refuses a declaration that breaks one of the owner's hard rules (no Codex,
-  no literal secrets, a constrained reach): every OpenRouter and every
-  OpenCode model (an `opencode/` one included) is allowed (owner decision,
-  2026-11-08), the per-key LiteLLM budgets are the guard, and the model
-  gateway keeps its own refusals.
+  no literal secrets, a constrained reach enforced by the reach support
+  record, #339): every OpenRouter and every OpenCode model (an `opencode/`
+  one included) is allowed (owner decision, 2026-11-08), the per-key LiteLLM
+  budgets are the guard, and the model gateway keeps its own refusals. Its
+  `launch <FILE> <ID>` subcommand is the reach-level launcher (#339): it
+  refuses an id whose level the support record has not verified — before
+  starting anything — and execs the id's adapter command otherwise, so the
+  caller sees the agent's own exit code. The one line the unit tests cannot
+  execute is the successful `exec` itself (a started agent replaces the
+  process), the named exception above; `tests/test_gold_band_launch.py`
+  proves it end to end with a fake agent.
 
   * `crates/ticket-export` writes requirement.md from one GitHub issue and
     its sub-issues through read-only GitHub access, so a workflow can start
