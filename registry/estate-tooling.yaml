@@ -292,6 +292,32 @@ clis:
     version_command: "vibe --version"
     requires: [uv]
 
+  - name: pi
+    binary: pi-acp
+    purpose: >-
+      Pi coding agent and its ACP adapter, installed pinned rather than
+      latest (issue #337): npm's install scripts are off, and a release
+      cutoff computed at setup time -- now minus 7 days, UTC -- makes npm
+      resolve every package, transitive ones included, as the registry stood
+      at that moment. Setup refuses a pin published inside that window, and
+      prints the installed binary's absolute path for the Gold Band
+      declaration.
+    surfaces: [workstation]
+    # Pi has no permission prompts: it runs every tool call without asking,
+    # so it may only ever run inside a throwaway repository -- the rule the
+    # Gold Band declaration inherits as throwawayOnly. The renderer refuses
+    # a Pi entry without this flag.
+    throwaway_only: true
+    # The pinned npm install. Setup generates the whole step from this block
+    # -- the release cutoff, the publish-time age check, --ignore-scripts --
+    # so this entry names no install command of its own.
+    pinned_npm:
+      packages:
+        - package: "@earendil-works/pi-coding-agent"
+          version: "1.5.0"
+        - package: "pi-acp"
+          version: "0.0.34"
+
   - name: antigravity-cli
     binary: agy
     cask: antigravity-cli
@@ -1148,6 +1174,13 @@ vibe_delegate_agents:
 # -------------------------------------------------------------------
 gold_band:
   agents: []
+  # Placeholder (issue #337 pins and installs Pi here; the declaration lands
+  # with the converge ticket): once setup converges Gold Band's settings, the
+  # Pi agent is declared here -- id pi, adapter command the installed
+  # pi-acp binary's ABSOLUTE path (`npm prefix -g` + /bin/pi-acp, which setup
+  # prints after installing), reach: full, throwawayOnly: true. Reach full
+  # requires throwawayOnly, and Pi has no permission prompts, so it runs
+  # only in throwaway repositories.
 
 # -------------------------------------------------------------------
 # Vendored third-party skills.

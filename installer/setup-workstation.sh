@@ -1689,6 +1689,78 @@ else
   fi
 fi
 
+# Pi coding agent and its ACP adapter, installed pinned rather
+# than latest (issue #337): npm's install scripts are off, and a
+# release cutoff computed at setup time -- now minus 7 days, UTC
+# -- makes npm resolve every package, transitive ones included, as
+# the registry stood at that moment. Setup refuses a pin published
+# inside that window, and prints the installed binary's absolute
+# path for the Gold Band declaration.
+# Pinned, install scripts off, behind the release cutoff: --before makes
+# npm resolve every package (transitive ones included) as the registry
+# stood at the cutoff, so nothing published in the last 7 days can
+# install. Each pin's own publish time is proven against the same cutoff
+# first: a pin younger than that, or one whose age cannot be proven,
+# fails the step and installs nothing.
+pi_cutoff="$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z"))')"
+pi_installed=1
+npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.5.0" >/dev/null 2>&1 || pi_installed=0
+npm ls -g --depth=0 "pi-acp@0.0.34" >/dev/null 2>&1 || pi_installed=0
+_pi_pin_age() {
+  # $1 package, $2 version: prints the version's own publish time and
+  # exits 0 only when it is no younger than the cutoff; an age that
+  # cannot be proven fails closed.
+  npm view "$1@$2" time --json | python3 -c 'import json, sys
+from datetime import datetime
+
+def when(stamp):
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+try:
+    published = when(json.load(sys.stdin)[sys.argv[2]])
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+print(published.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+sys.exit(0 if published <= when(sys.argv[1]) else 1)' "${pi_cutoff}" "$2"
+}
+if [ "${pi_installed}" = 1 ]; then
+  ok "pi: pinned packages already installed"
+else
+  if [ "${CHECK_ONLY}" = 1 ]; then
+    log "pi would be installed at its pins (@earendil-works/pi-coding-agent@1.5.0, pi-acp@0.0.34), behind the 7-day release cutoff"
+  else
+    pi_refused=0
+    if pi_published="$(_pi_pin_age "@earendil-works/pi-coding-agent" "1.5.0")"; then
+      log "pi: @earendil-works/pi-coding-agent@1.5.0 was published ${pi_published}, outside the cutoff"
+    else
+      pi_refused=1
+      fail "pi: @earendil-works/pi-coding-agent@1.5.0 was published ${pi_published:-<no time proven>}, inside the 7-day release cutoff; nothing installed"
+    fi
+    if pi_published="$(_pi_pin_age "pi-acp" "0.0.34")"; then
+      log "pi: pi-acp@0.0.34 was published ${pi_published}, outside the cutoff"
+    else
+      pi_refused=1
+      fail "pi: pi-acp@0.0.34 was published ${pi_published:-<no time proven>}, inside the 7-day release cutoff; nothing installed"
+    fi
+    if [ "${pi_refused}" = 0 ]; then
+      npm install -g --ignore-scripts --before="${pi_cutoff}" "@earendil-works/pi-coding-agent@1.5.0" "pi-acp@0.0.34"
+      pi_installed=1
+      npm ls -g --depth=0 "@earendil-works/pi-coding-agent@1.5.0" >/dev/null 2>&1 || pi_installed=0
+      npm ls -g --depth=0 "pi-acp@0.0.34" >/dev/null 2>&1 || pi_installed=0
+      if [ "${pi_installed}" = 1 ]; then
+        ok "pi: installed at its pins"
+        new_binaries+=("pi-acp")
+      else
+        fail "pi: npm install did not leave the pins installed"
+      fi
+    fi
+  fi
+fi
+if [ "${pi_installed}" = 1 ]; then
+  pi_bin="$(npm prefix -g)/bin/pi-acp"
+  ok "pi: pi-acp -> ${pi_bin}"
+fi
+
 # Google Antigravity CLI (`agy`). Gets the workstation MCP fleet
 # minus Private Memory, the agent-kit instructions pointer and the
 # kit's skills.
