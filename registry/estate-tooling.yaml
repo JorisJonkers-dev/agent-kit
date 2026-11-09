@@ -1143,11 +1143,32 @@ vibe_delegate_agents:
 # primaryAgentDir, projectPrimaryAgentDir, compatibleAgentDirs,
 # systemPromptDelivery (none or meta-append), externalSessionSyncSupported,
 # externalSessionSyncEnabled, useLocalClaude, reach, outputDir, provider,
-# model, throwawayOnly. The agents themselves are declared by later
-# tickets (#326); the list is empty until then.
+# model, throwawayOnly. The agents themselves are converged onto by
+# ticket #333: the settings' agent map REPLACES the app's runtime list (it
+# is not merged with the built-in catalog, #328), and setup writes only
+# the fields Gold Band knows, without adapter.command/adapter.args for a
+# built-in id.
 # -------------------------------------------------------------------
 gold_band:
-  agents: []
+  agents:
+    # The first declared Gold Band agent, and the app's own built-in id for
+    # OpenCode: the app strips adapter.command and adapter.args from a
+    # built-in id when it saves settings.json, so setup must write neither.
+    - id: opencode
+      adapter:
+        displayName: OpenCode
+        env: {}
+      icon: opencode
+      primaryAgentDir: .opencode
+      compatibleAgentDirs: [.agents]
+      systemPromptDelivery: none
+      externalSessionSyncSupported: false
+      externalSessionSyncEnabled: false
+      reach: write
+      model: opencode-go/kimi-k2.7-code
+  # Agent ids setup removes even when the keep file names them: old-friend,
+  # the agent map's retired one, so no keep-file entry can spare it.
+  retired: [old-friend]
 
 # -------------------------------------------------------------------
 # Vendored third-party skills.

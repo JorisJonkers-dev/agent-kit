@@ -1,9 +1,10 @@
 # The estate's Rust goes in ONE cargo workspace, with ONE lockfile at
 # scripts/Cargo.lock (the standards repo's ADR-0014; see docs/RUST.md).
 #
-# Every member is std-only except crates/research-layout, which pins exactly
-# serde =1.0.219 and serde_json =1.0.140 — both far older than the 7-day crate
-# cooldown. On a workstation, cargo resolves through the crate-gate
+# Every member is std-only except crates/research-layout and
+# crates/gold-band-registry, which pin exactly serde =1.0.219 and
+# serde_json =1.0.140 — both far older than the 7-day crate cooldown (the
+# registry crate with preserve_order, which keeps settings.json's key order). On a workstation, cargo resolves through the crate-gate
 # (127.0.0.1:17342, configured in ~/.cargo/config.toml), which hides any
 # version younger than 7 days; crate-age is the after-the-fact check, wired
 # into this repository's pre-commit hook and pull-request workflow.

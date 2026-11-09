@@ -27,13 +27,48 @@
 //!   `full`, `run-one-command`; `research` and `write-scoped` need an
 //!   `outputDir` field, and `full` needs `throwawayOnly` `true`.
 //!
-//! Usage: `gold-band-registry validate <FILE>`. Exit 0 clean (printing
-//! `ok (<n> agents)`), 1 rule problems on stderr, 2 bad usage (a usage line),
-//! an unreadable file or malformed input.
+//! `gold-band-registry converge --declared <FILE> --keep <FILE> --retired
+//! <FILE> --settings <PATH> [--check]` makes the `agents` map of Gold Band's
+//! settings.json hold exactly the declared agents plus the kept ones (#333):
+//! * the declared agents are validated with the rules above first, and a
+//!   refusal (exit 1) writes nothing;
+//! * each declared agent is written with only the fields Gold Band knows
+//!   (#328), typed the way its settings hold them -- booleans as JSON
+//!   booleans, `adapter.args` and `compatibleAgentDirs` as arrays,
+//!   `adapter.env` as an object -- and the registry-only fields (reach,
+//!   outputDir, provider, model, throwawayOnly) never reach the
+//!   file; the settings map REPLACES the app's runtime agent list, it is
+//!   not merged with the built-in catalog;
+//! * a built-in id ([`BUILT_INS`]) is written without `adapter.command` and
+//!   `adapter.args`: the app strips those two when it saves and re-injects
+//!   them from its catalog when it loads, so writing them would make the
+//!   app's own save look like drift to the next run;
+//! * an existing agent survives only when the keep file names it -- and
+//!   never when its id names codex, which no keep-file entry can keep on
+//!   this surface, nor when it is retired, which the keep file cannot spare;
+//! * every other existing agent is removed, and every other top-level key
+//!   of the document keeps its value and its key order.
+//!
+//! A document that comes out unchanged is written by no one: the command
+//! prints `settings unchanged`. Otherwise the old file is copied to
+//! `settings.json.bak`, the new document goes in atomically (a temporary
+//! file in the same directory, then a rename) and one line per added,
+//! changed and removed agent id is printed; `--check` prints those lines
+//! and writes nothing. A missing settings file starts from `{}`.
+//!
+//! Usage: `gold-band-registry validate <FILE> | converge --declared <FILE>
+//! --keep <FILE> --retired <FILE> --settings <PATH> [--check]`. Exit 0 clean
+//! (printing `ok (<n> agents)` for a validate), 1 rule problems on stderr,
+//! 2 bad usage (a usage line), an unreadable file, malformed input or a
+//! settings document that is not a JSON object.
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs;
+use std::io::ErrorKind;
+use std::path::Path;
+
+use serde_json::{Map, Value};
 
 /// The crate's name, which prefixes every message line.
 pub const NAME: &str = env!("CARGO_PKG_NAME");
@@ -47,6 +82,25 @@ pub const REACHES: [&str; 7] = [
     "write",
     "full",
     "run-one-command",
+];
+
+/// The Gold Band agent ids the app ships in its own catalog (#328): for one of
+/// these, Gold Band strips `adapter.command` and `adapter.args` when it saves
+/// settings.json and re-injects them from the catalog when it loads, so the
+/// converged entry never carries them -- writing them would make the app's own
+/// save differ from what the next setup run expects.
+pub const BUILT_INS: [&str; 11] = [
+    "claude-acp",
+    "codex-acp",
+    "cursor",
+    "gemini",
+    "codebuddy-code",
+    "goose",
+    "qwen-code",
+    "opencode",
+    "kimi",
+    "amp-acp",
+    "pi-acp",
 ];
 
 /// One declared agent: its id, the 1-based line it was declared on, and its
@@ -222,17 +276,27 @@ pub fn run<I>(args: I) -> i32
 where
     I: IntoIterator<Item = OsString>,
 {
-    let mut args = args.into_iter();
-    let (cmd, file, extra) = (args.next(), args.next(), args.next());
-    let file = match (cmd.as_deref(), file, extra) {
-        (Some(cmd), Some(file), None) if cmd == OsStr::new("validate") => file,
+    let args: Vec<OsString> = args.into_iter().collect();
+    match args.first().map(|cmd| cmd.as_os_str()) {
+        Some(cmd) if cmd == OsStr::new("validate") => {
+            let Some(file) = args.get(1).filter(|_| args.len() == 2) else {
+                eprintln!("{}", usage());
+                return 2;
+            };
+            validate_file(file)
+        }
+        Some(cmd) if cmd == OsStr::new("converge") => converge_cli(&args[1..]),
         _ => {
             eprintln!("{}", usage());
-            return 2;
+            2
         }
-    };
+    }
+}
+
+/// One `validate` command line over its file.
+fn validate_file(file: &OsString) -> i32 {
     let shown = file.to_string_lossy();
-    match fs::read_to_string(&file) {
+    match fs::read_to_string(file) {
         Ok(text) => match parse(&text) {
             Ok(agents) => report(&agents),
             Err(e) => {
@@ -248,6 +312,348 @@ where
     }
 }
 
+/// One `converge` command line: 0 converged, unchanged or checked; 1 a
+/// refused declaration; 2 bad usage, an unreadable file or a settings
+/// document that is not a JSON object.
+fn converge_cli(args: &[OsString]) -> i32 {
+    let (mut declared, mut keep, mut retired, mut settings) = (None, None, None, None);
+    let mut check = false;
+    let mut index = 0;
+    while let Some(flag) = args.get(index) {
+        let slot = match flag.to_string_lossy().as_ref() {
+            "--declared" => 0,
+            "--keep" => 1,
+            "--retired" => 2,
+            "--settings" => 3,
+            "--check" => {
+                check = true;
+                index += 1;
+                continue;
+            }
+            _ => {
+                eprintln!("{}", usage());
+                return 2;
+            }
+        };
+        let Some(body) = args.get(index + 1) else {
+            eprintln!("{}", usage());
+            return 2;
+        };
+        match slot {
+            0 => declared = Some(body.clone()),
+            1 => keep = Some(body.clone()),
+            2 => retired = Some(body.clone()),
+            _ => settings = Some(body.clone()),
+        }
+        index += 2;
+    }
+    let (Some(declared), Some(keep), Some(retired), Some(settings)) =
+        (declared, keep, retired, settings)
+    else {
+        eprintln!("{}", usage());
+        return 2;
+    };
+    let agents = match declared_agents(declared.as_os_str()) {
+        Ok(agents) => agents,
+        Err(code) => return code,
+    };
+    let keep = match ids(keep.as_os_str()) {
+        Ok(ids) => ids,
+        Err(code) => return code,
+    };
+    let retired = match ids(retired.as_os_str()) {
+        Ok(ids) => ids,
+        Err(code) => return code,
+    };
+    converge(&agents, &keep, &retired, Path::new(&settings), check)
+}
+
+/// The declared agents of the line-protocol file, validated with the rules
+/// first; Err carries the exit code with every line already printed: 1 a
+/// refusal, 2 an unreadable or malformed file.
+fn declared_agents(file: &OsStr) -> Result<Vec<Agent>, i32> {
+    let shown = file.to_string_lossy();
+    let text = match fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("{NAME}: cannot read {shown}: {e}");
+            eprintln!("{}", usage());
+            return Err(2);
+        }
+    };
+    let agents = match parse(&text) {
+        Ok(agents) => agents,
+        Err(e) => {
+            eprintln!("{NAME}: {shown}: {e}");
+            return Err(2);
+        }
+    };
+    let found = problems(&agents);
+    if found.is_empty() {
+        return Ok(agents);
+    }
+    for problem in &found {
+        eprintln!("{NAME}: {problem}");
+    }
+    Err(1)
+}
+
+/// The ids one keep or retired file holds: one per line, blank lines ignored.
+fn ids(file: &OsStr) -> Result<Vec<String>, i32> {
+    match fs::read_to_string(file) {
+        Ok(text) => Ok(text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_string)
+            .collect()),
+        Err(e) => {
+            eprintln!("{NAME}: cannot read {}: {e}", file.to_string_lossy());
+            Err(2)
+        }
+    }
+}
+
+/// Converges the `agents` map of `settings` onto the declared agents plus the
+/// kept others: 0 converged, unchanged or checked, 2 when the document could
+/// not be read or written. One line is printed per added, changed and removed
+/// agent id; a check prints them without writing.
+fn converge(
+    agents: &[Agent],
+    keep: &[String],
+    retired: &[String],
+    settings: &Path,
+    check: bool,
+) -> i32 {
+    let (mut document, existed) = match read_document(settings) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let before = document.clone();
+    let current = agents_of(&document);
+    let mut fresh = Map::new();
+    for agent in agents {
+        fresh.insert(agent.id.clone(), agent_value(agent));
+    }
+    for (id, entry) in &current {
+        if fresh.contains_key(id) || !kept(id, keep, retired) {
+            continue;
+        }
+        fresh.insert(id.clone(), entry.clone());
+    }
+    let after = fresh.clone();
+    document.insert("agents".to_string(), Value::Object(fresh));
+    if document == before {
+        println!("{NAME}: settings unchanged");
+        return 0;
+    }
+    report_ids(&current, &after);
+    if check {
+        return 0;
+    }
+    write(settings, &Value::Object(document), existed)
+}
+
+/// Whether an existing agent id survives: the keep file names it, it is no
+/// codex id -- which no keep-file entry can keep on this surface -- and it is
+/// not a retired one, which the keep file cannot spare.
+fn kept(id: &str, keep: &[String], retired: &[String]) -> bool {
+    keep.iter().any(|name| name.as_str() == id)
+        && !names(id, "codex")
+        && !retired.iter().any(|gone| gone.as_str() == id)
+}
+
+/// One line per added, changed and removed agent id, in that order.
+fn report_ids(old: &Map<String, Value>, fresh: &Map<String, Value>) {
+    for (id, entry) in fresh {
+        if !old.contains_key(id) {
+            println!("{NAME}: added {id}");
+        } else if old.get(id) != Some(entry) {
+            println!("{NAME}: changed {id}");
+        }
+    }
+    for id in old.keys() {
+        if !fresh.contains_key(id) {
+            println!("{NAME}: removed {id}");
+        }
+    }
+}
+
+/// The settings document and whether the file existed: a missing file starts
+/// from the empty document; an unreadable file, or one that is not a JSON
+/// object, is Err(2) with the reason printed and nothing written.
+fn read_document(path: &Path) -> Result<(Map<String, Value>, bool), i32> {
+    let (text, existed) = match fs::read_to_string(path) {
+        Ok(text) => (text, true),
+        Err(e) if e.kind() == ErrorKind::NotFound => ("{}".to_string(), false),
+        Err(e) => {
+            eprintln!("{NAME}: cannot read {}: {e}", path.display());
+            return Err(2);
+        }
+    };
+    match serde_json::from_str::<Value>(&text) {
+        Ok(Value::Object(document)) => Ok((document, existed)),
+        Ok(_) => {
+            eprintln!("{NAME}: {}: not a JSON object", path.display());
+            Err(2)
+        }
+        Err(e) => {
+            eprintln!("{NAME}: {}: {e}", path.display());
+            Err(2)
+        }
+    }
+}
+
+/// The document's `agents` map: an absent one, or one that holds anything but
+/// a JSON object, is an empty map the convergence then fills.
+fn agents_of(document: &Map<String, Value>) -> Map<String, Value> {
+    match document.get("agents") {
+        Some(Value::Object(agents)) => agents.clone(),
+        _ => Map::new(),
+    }
+}
+
+/// One declared agent as a settings.json entry: only the fields Gold Band
+/// knows (#328), typed, in Gold Band's own field order.
+fn agent_value(a: &Agent) -> Value {
+    let mut agent = Map::new();
+    let adapter = adapter_value(a);
+    if !adapter.is_empty() {
+        agent.insert("adapter".to_string(), Value::Object(adapter));
+    }
+    for path in [
+        "icon",
+        "primaryAgentDir",
+        "projectPrimaryAgentDir",
+        "compatibleAgentDirs",
+        "systemPromptDelivery",
+        "externalSessionSyncSupported",
+        "externalSessionSyncEnabled",
+        "useLocalClaude",
+    ] {
+        if let Some(entry) = entry(a, path) {
+            agent.insert(path.to_string(), entry);
+        }
+    }
+    Value::Object(agent)
+}
+
+/// The typed settings value of one Gold Band field, when the declaration sets
+/// it: booleans as JSON booleans, the directories array, the rest strings.
+fn entry(a: &Agent, path: &str) -> Option<Value> {
+    match path {
+        "compatibleAgentDirs" => {
+            let dirs = array(a, "compatibleAgentDirs.");
+            if dirs.is_empty() {
+                None
+            } else {
+                Some(Value::Array(dirs))
+            }
+        }
+        "externalSessionSyncSupported" | "externalSessionSyncEnabled" | "useLocalClaude" => {
+            value(a, path).map(|body| Value::Bool(body == "true"))
+        }
+        _ => value(a, path).map(|body| Value::String(body.to_string())),
+    }
+}
+
+/// The agent's `adapter` block, in Gold Band's field order; a built-in id
+/// leaves command and args out, which the app re-injects from its catalog.
+fn adapter_value(a: &Agent) -> Map<String, Value> {
+    let mut adapter = Map::new();
+    if !BUILT_INS.contains(&a.id.as_str()) {
+        if let Some(command) = value(a, "adapter.command") {
+            adapter.insert("command".to_string(), Value::String(command.to_string()));
+        }
+        let args = array(a, "adapter.args.");
+        if !args.is_empty() {
+            adapter.insert("args".to_string(), Value::Array(args));
+        }
+    }
+    if let Some(display) = value(a, "adapter.displayName") {
+        adapter.insert(
+            "displayName".to_string(),
+            Value::String(display.to_string()),
+        );
+    }
+    let mut env = Map::new();
+    for (path, body) in &a.fields {
+        if let Some(name) = path.strip_prefix("adapter.env.") {
+            env.insert(name.to_string(), Value::String(body.clone()));
+        }
+    }
+    if !env.is_empty() {
+        adapter.insert("env".to_string(), Value::Object(env));
+    }
+    adapter
+}
+
+/// The lines of one array field (`adapter.args`, `compatibleAgentDirs`) in
+/// index order.
+fn array(a: &Agent, prefix: &str) -> Vec<Value> {
+    let mut items: Vec<(usize, Value)> = Vec::new();
+    for (path, body) in &a.fields {
+        let Some(index) = path.strip_prefix(prefix) else {
+            continue;
+        };
+        if !decimal(index) {
+            continue;
+        }
+        items.push((
+            index.parse().unwrap_or_default(),
+            Value::String(body.clone()),
+        ));
+    }
+    items.sort_by_key(|(index, _)| *index);
+    items.into_iter().map(|(_, body)| body).collect()
+}
+
+/// Writes `document` to `settings` atomically -- a temporary file in the same
+/// directory, then a rename -- after copying the old file to its `.bak`;
+/// 2 when that could not be done.
+fn write(settings: &Path, document: &Value, existed: bool) -> i32 {
+    if let Some(dir) = settings.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    if existed {
+        let backup = settings.with_file_name(format!("{}.bak", name_of(settings)));
+        if let Err(e) = fs::copy(settings, &backup) {
+            eprintln!(
+                "{NAME}: cannot copy {} to {}: {e}",
+                settings.display(),
+                backup.display()
+            );
+            return 2;
+        }
+    }
+    let staged =
+        settings.with_file_name(format!("{}.{}.tmp", name_of(settings), std::process::id()));
+    let body = serde_json::to_string_pretty(document).expect("a Value serialises") + "\n";
+    match fs::write(&staged, body).and_then(|()| fs::rename(&staged, settings)) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("{NAME}: cannot write {}: {e}", settings.display());
+            let _ = fs::remove_file(&staged);
+            2
+        }
+    }
+}
+
+/// The settings file's name, for its backup and staged siblings.
+fn name_of(settings: &Path) -> String {
+    settings.file_name().map_or_else(
+        || "settings.json".to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    )
+}
+
+/// The usage line every command-line problem prints.
+fn usage() -> String {
+    format!(
+        "usage: {NAME} validate <FILE> | {NAME} converge --declared <FILE> --keep <FILE> \\\n       --retired <FILE> --settings <PATH> [--check]"
+    )
+}
+
 /// Prints the verdict for parsed agents: either the clean line or every
 /// problem; returns the exit code it earns.
 fn report(agents: &[Agent]) -> i32 {
@@ -261,11 +667,6 @@ fn report(agents: &[Agent]) -> i32 {
         }
         1
     }
-}
-
-/// The usage line every command-line problem prints.
-fn usage() -> String {
-    format!("usage: {NAME} validate <FILE>")
 }
 
 /// The agent's `path` field value, if it was ever set.
@@ -1073,6 +1474,341 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         assert_eq!(
             secret_shape("/Users/me/gold-band-registry-20261108-backup"),
             None
+        );
+    }
+
+    /// One `converge` command line over temporary fixture files holding the
+    /// declared line protocol, the keep ids, the retired ids and the settings
+    /// document; returns its exit code.
+    fn converge(
+        tag: &str,
+        declared: &str,
+        keep: &str,
+        retired: &str,
+        settings: &Path,
+        check: bool,
+    ) -> i32 {
+        let mut args = vec![
+            OsString::from("converge"),
+            OsString::from("--declared"),
+            temp(&format!("{tag}-declared"), declared).into_os_string(),
+            OsString::from("--keep"),
+            temp(&format!("{tag}-keep"), keep).into_os_string(),
+            OsString::from("--retired"),
+            temp(&format!("{tag}-retired"), retired).into_os_string(),
+            OsString::from("--settings"),
+            settings.as_os_str().to_os_string(),
+        ];
+        if check {
+            args.push(OsString::from("--check"));
+        }
+        run(args)
+    }
+
+    /// The `agents` map of a settings document, parsed.
+    fn agents_of(path: &std::path::Path) -> Map<String, Value> {
+        let written: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        written.get("agents").unwrap().as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn converge_keeps_the_kept_strips_builtins_and_preserves_the_rest() {
+        let declared = "agent\topencode\nfield\tadapter.command\t/usr/local/bin/opencode\nfield\tadapter.args.0\tserve\nfield\tadapter.args.1\t--quiet\nfield\tadapter.displayName\tOpenCode\nfield\tadapter.env.OPENCODE_CONFIG\topencode.json\nfield\ticon\topencode\nfield\tprimaryAgentDir\t.opencode\nfield\tcompatibleAgentDirs.0\t.agents\nfield\tsystemPromptDelivery\tnone\nfield\texternalSessionSyncSupported\tfalse\nfield\texternalSessionSyncEnabled\ttrue\nfield\treach\twrite\nfield\tmodel\topencode-go/kimi-k2.7-code\nagent\tmy-agent\nfield\tadapter.command\t/usr/local/bin/my-agent\nfield\tadapter.args.0\t--continue\nfield\tadapter.displayName\tMy Agent\nfield\ticon\tsparkles\nfield\treach\tread\nfield\tmodel\tzeta-3\n";
+        // A stray agent, a kept one, a non-object entry, a retired one kept by
+        // the keep file, a codex one the keep file names too, and the app's
+        // own injected command inside the built-in's entry.
+        let json = "{\"theme\":\"dark\",\"agents\":{\"stray\":{\"icon\":\"stray\"},\"mine\":{\"icon\":\"mine\"},\"weird\":\"huh\",\"old-friend\":{\"icon\":\"old\"},\"codex-acp\":{\"command\":\"codex\"},\"opencode\":{\"adapter\":{\"displayName\":\"Wrong\"}}},\"window\":{\"width\":1280}}";
+        let settings = temp("cv-full-settings", json);
+        let keep = "mine\nweird\n\nold-friend\ncodex-acp\n\n";
+        let retired = "old-friend\n";
+        assert_eq!(
+            converge("cv-full", declared, keep, retired, &settings, false),
+            0
+        );
+        let written: Value = serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+        let document = written.as_object().unwrap();
+        // Every other key keeps its value and its key order.
+        assert_eq!(
+            document.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["theme", "agents", "window"]
+        );
+        assert_eq!(document.get("theme"), Some(&Value::from("dark")));
+        assert_eq!(
+            document.get("window"),
+            Some(&serde_json::json!({"width": 1280}))
+        );
+        let agents = agents_of(&settings);
+        // The declared agents first, in declaration order, then the kept ones.
+        assert_eq!(
+            agents.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["opencode", "my-agent", "mine", "weird"]
+        );
+        let expected: Value = serde_json::json!({
+            "opencode": {
+                "adapter": {
+                    "displayName": "OpenCode",
+                    "env": {"OPENCODE_CONFIG": "opencode.json"}
+                },
+                "icon": "opencode",
+                "primaryAgentDir": ".opencode",
+                "compatibleAgentDirs": [".agents"],
+                "systemPromptDelivery": "none",
+                "externalSessionSyncSupported": false,
+                "externalSessionSyncEnabled": true
+            },
+            "my-agent": {
+                "adapter": {
+                    "command": "/usr/local/bin/my-agent",
+                    "args": ["--continue"],
+                    "displayName": "My Agent"
+                },
+                "icon": "sparkles"
+            },
+            "mine": {"icon": "mine"}
+        });
+        let want = expected.as_object().unwrap();
+        for id in ["opencode", "my-agent", "mine"] {
+            assert_eq!(agents.get(id), want.get(id), "for {id}");
+        }
+        assert_eq!(agents.get("weird"), Some(&Value::from("huh")));
+        // Undeclared and unkept, retired though kept, and codex though kept.
+        for id in ["stray", "old-friend", "codex-acp"] {
+            assert!(!agents.contains_key(id), "{id} should be gone");
+        }
+        // The old document was backed up before anything was written.
+        let name = settings.file_name().unwrap().to_string_lossy().into_owned();
+        let backup = settings.with_file_name(format!("{name}.bak"));
+        assert_eq!(fs::read_to_string(&backup).unwrap(), json);
+        // A second run changes nothing, by no one.
+        let bytes = fs::read_to_string(&settings).unwrap();
+        assert_eq!(
+            converge("cv-full", declared, keep, retired, &settings, false),
+            0
+        );
+        assert_eq!(fs::read_to_string(&settings).unwrap(), bytes);
+        assert_eq!(fs::read_to_string(&backup).unwrap(), json);
+    }
+
+    #[test]
+    fn a_declared_use_local_claude_reaches_the_settings_entry() {
+        let declared = "agent\tzeta\nfield\tuseLocalClaude\ttrue\nfield\treach\tread\n";
+        let settings = temp("cv-use-local-claude", "{}");
+        assert_eq!(converge("cv-ulc", declared, "", "", &settings, false), 0);
+        let agents = agents_of(&settings);
+        assert_eq!(
+            agents
+                .get("zeta")
+                .and_then(|entry| entry.get("useLocalClaude")),
+            Some(&Value::Bool(true)),
+            "a declared useLocalClaude is validated and then dropped"
+        );
+    }
+
+    #[test]
+    fn check_reports_without_writing_and_a_missing_file_starts_from_empty() {
+        let declared = "agent\topencode\nfield\ticon\topencode\nfield\treach\twrite\nfield\tmodel\topencode-go/kimi-k2.7-code\n";
+        let home = std::env::temp_dir().join(format!(
+            "gold-band-registry-cv-check-home-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&home);
+        let settings = home.join("settings.json");
+        // A checked run creates neither the directory nor the file.
+        assert_eq!(converge("cv-check", declared, "", "", &settings, true), 0);
+        assert!(!settings.exists());
+        // A real run creates both, without a backup of what did not exist.
+        assert_eq!(converge("cv-check", declared, "", "", &settings, false), 0);
+        let bytes = fs::read_to_string(&settings).unwrap();
+        assert!(bytes.contains("opencode"));
+        let name = settings.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(!settings.with_file_name(format!("{name}.bak")).exists());
+        // A checked run on the converged document then changes nothing, and
+        // neither does the unchanged second run.
+        assert_eq!(converge("cv-check", declared, "", "", &settings, true), 0);
+        assert_eq!(fs::read_to_string(&settings).unwrap(), bytes);
+        assert_eq!(converge("cv-check", declared, "", "", &settings, false), 0);
+        assert_eq!(fs::read_to_string(&settings).unwrap(), bytes);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn a_refused_or_malformed_declaration_writes_nothing() {
+        let json = "{\"agents\":{\"mine\":{\"icon\":\"mine\"}}}";
+        let settings = temp("cv-refused-settings", json);
+        assert_eq!(
+            converge(
+                "cv-refused",
+                "agent\tmy-codex\nfield\treach\tread\n",
+                "mine\n",
+                "",
+                &settings,
+                false
+            ),
+            1
+        );
+        assert_eq!(
+            converge(
+                "cv-malformed",
+                "agent\tzeta\nfield\treach\tread\noops\n",
+                "mine\n",
+                "",
+                &settings,
+                false
+            ),
+            2
+        );
+        assert_eq!(fs::read_to_string(&settings).unwrap(), json);
+    }
+
+    #[test]
+    fn a_settings_document_that_is_not_an_object_exits_two() {
+        for (tag, text) in [("cv-broken", "not json at all"), ("cv-array", "[1, 2, 3]")] {
+            let settings = temp(tag, text);
+            assert_eq!(
+                converge(
+                    tag,
+                    "agent\tzeta\nfield\treach\tread\n",
+                    "",
+                    "",
+                    &settings,
+                    false
+                ),
+                2
+            );
+            assert_eq!(fs::read_to_string(&settings).unwrap(), text);
+        }
+        // A directory in place of the settings file is unreadable, not missing.
+        let dir =
+            std::env::temp_dir().join(format!("gold-band-registry-cv-dir-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        assert_eq!(
+            converge(
+                "cv-dir",
+                "agent\tzeta\nfield\treach\tread\n",
+                "",
+                "",
+                &dir,
+                false
+            ),
+            2
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_settings_agents_value_that_is_not_an_object_is_replaced() {
+        let settings = temp("cv-agents-list", "{\"agents\":[\"stray\"]}");
+        assert_eq!(
+            converge(
+                "cv-agents-list",
+                "agent\tzeta\nfield\treach\tread\n",
+                "",
+                "",
+                &settings,
+                false
+            ),
+            0
+        );
+        let agents = agents_of(&settings);
+        assert!(agents.contains_key("zeta"));
+        assert!(!agents.contains_key("stray"));
+    }
+
+    #[test]
+    fn a_backup_or_staged_write_that_cannot_happen_exits_two() {
+        let declared = "agent\tzeta\nfield\ticon\tsparkles\nfield\treach\tread\n";
+        let json = "{\"agents\":{\"stray\":{\"icon\":\"stray\"}}}";
+        let keep = "mine\n";
+        // The old file cannot be backed up: its .bak is a directory already.
+        let blocked = temp("cv-blocked-settings", json);
+        let name = blocked.file_name().unwrap().to_string_lossy().into_owned();
+        let backup = blocked.with_file_name(format!("{name}.bak"));
+        fs::create_dir_all(&backup).unwrap();
+        assert_eq!(
+            converge("cv-blocked", declared, keep, "", &blocked, false),
+            2
+        );
+        assert_eq!(fs::read_to_string(&blocked).unwrap(), json);
+        let _ = fs::remove_dir_all(&backup);
+        // The staged file cannot be written: it is a directory already.
+        let staged_blocked = temp("cv-staged-settings", json);
+        let same = staged_blocked
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let staged = staged_blocked.with_file_name(format!("{same}.{}.tmp", std::process::id()));
+        fs::create_dir_all(&staged).unwrap();
+        assert_eq!(
+            converge("cv-staged", declared, keep, "", &staged_blocked, false),
+            2
+        );
+        assert_eq!(fs::read_to_string(&staged_blocked).unwrap(), json);
+        let _ = fs::remove_dir_all(&staged);
+        let _ = fs::remove_file(staged_blocked.with_file_name(format!("{same}.bak")));
+    }
+
+    #[test]
+    fn converge_bad_usage_and_unreadable_files_exit_two() {
+        let flag = |name: &str| OsString::from(name);
+        let declared =
+            temp("cv-usage-declared", "agent\tzeta\nfield\treach\tread\n").into_os_string();
+        let settings = temp("cv-usage-settings", "{}").into_os_string();
+        let missing = OsString::from("/no-such/gold-band-registry-file");
+        assert_eq!(run(vec![flag("converge")]), 2);
+        assert_eq!(
+            run(vec![flag("converge"), flag("--declared"), declared.clone()]),
+            2
+        );
+        assert_eq!(run(vec![flag("converge"), flag("--declared")]), 2);
+        assert_eq!(run(vec![flag("converge"), flag("--dance")]), 2);
+        assert_eq!(
+            run(vec![flag("converge"), flag("--settings"), settings.clone()]),
+            2
+        );
+        // The declared, keep and retired files must each be readable.
+        assert_eq!(
+            run(vec![
+                flag("converge"),
+                flag("--declared"),
+                missing.clone(),
+                flag("--keep"),
+                missing.clone(),
+                flag("--retired"),
+                missing.clone(),
+                flag("--settings"),
+                settings.clone(),
+            ]),
+            2
+        );
+        assert_eq!(
+            run(vec![
+                flag("converge"),
+                flag("--declared"),
+                declared.clone(),
+                flag("--keep"),
+                missing.clone(),
+                flag("--retired"),
+                missing.clone(),
+                flag("--settings"),
+                settings.clone(),
+            ]),
+            2
+        );
+        // The full command line answers 0 on an empty document.
+        assert_eq!(
+            run(vec![
+                flag("converge"),
+                flag("--declared"),
+                declared,
+                flag("--keep"),
+                temp("cv-usage-keep", "mine\n").into_os_string(),
+                flag("--retired"),
+                temp("cv-usage-retired", "").into_os_string(),
+                flag("--settings"),
+                settings,
+            ]),
+            0
         );
     }
 }

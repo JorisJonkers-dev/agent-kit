@@ -3,11 +3,14 @@ name = "gold-band-registry"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "The Gold Band agent registry: validates Gold Band agent declarations and refuses one that breaks an owner rule."
+description = "The Gold Band agent registry: validates Gold Band agent declarations and converges settings.json onto them."
 
-# std only, by design. Adding any dependency puts the 7-day crate cooldown in
-# scope for this crate: the version must be at least seven days old and
-# crate-age must be able to prove it (the standards repo's ADR-0014,
-# docs/RUST.md). A git or path dependency outside this workspace is never
-# allowed; a shared crate joins the workspace as a new member instead.
+# The only dependencies allowed, pinned exact; both are far older than the
+# 7-day crate cooldown (the standards repo's ADR-0014, docs/RUST.md; the same
+# pair crates/research-layout pins). preserve_order keeps settings.json's key
+# order, which the convergence promises to leave alone. Everything else is
+# std. A git or path dependency outside this workspace is never allowed; a
+# shared crate joins the workspace as a new member instead.
 [dependencies]
+serde = "=1.0.219"
+serde_json = { version = "=1.0.140", features = ["preserve_order"] }
