@@ -3,7 +3,7 @@
 //! directory there (#345).
 //!
 //! Gold Band calls a critic a **profile**: a Markdown file with YAML front
-//! matter it reads from `~/.gold-band/presets/profiles/<profile name>.md`.
+//! matter it reads from `~/.gold-band/context/profiles/<profile name>.md`.
 //! This crate writes the six profiles the critique roles describe — the
 //! decision-gap critic, the spec red team, the ticket linter, the diff
 //! reviewer, the feature reviewer and the adversarial verifier (the
