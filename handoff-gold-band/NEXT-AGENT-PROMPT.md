@@ -1,33 +1,75 @@
 # Prompt for the next agent: full Gold Band adoption
 
-Paste everything below the line into a fresh agent session started in this repository on branch `feat/gold-band-epic`.
+Paste everything below the line into a fresh agent session started in this repository on branch `feat/gold-band-epic` (pushed to origin). Last updated 2026-11-09.
 
 ---
 
-You continue the Gold Band adoption for agent-kit (JorisJonkers-dev/agent-kit). The single epic is https://github.com/JorisJonkers-dev/agent-kit/issues/368 ("Epic: adopt Gold Band for agent setup, delegation workflows and the skills port"). Read it first, then its three specs, then `handoff-gold-band/HANDOFF.md`. The aim is full Gold Band adoption: agents, roles, skills and MCP servers declared in one registry and converged by setup; the three delegation workflows (deep research, implementation, grill to tickets) running headless on Gold Band; the existing skills ported to Gold Band targets or recorded as staying outside.
+You continue the Gold Band adoption for agent-kit (JorisJonkers-dev/agent-kit). The epic is #368. Read it, then its specs #327, #350 and #367, then `handoff-gold-band/HANDOFF.md`.
 
-## Tracker map
+The aim: agents, roles, skills and MCP servers are declared in one registry and converged by setup; the delegation workflows run headless on Gold Band; and every existing skill is ported to a Gold Band target or recorded as staying outside.
 
-- Epic #368 has sub-issues: spec #327 (tickets #328–#349), spec #350 (tickets #351–#365), spec #367 (skills port; tickets not cut yet, they wait on the #351 inventory). Dependency order: #327, then #350, then #367. #326 is the older surface spec, amended by #327 and folded into it; it has no parent and its fate (close or attach to the epic) is an open owner decision. #285 (research delegation) may be superseded by #361; also an open owner decision.
-- Tickets carry native blocked-by links. `node ~/.claude-personal/skills/critique/critique.mjs check-tickets --json '{"repo":"<root>","spec":"350"}'` passes; the 12 "dangling" blockers on #350 tickets are #327 tickets and are expected.
-- Epic rules: new code is Rust under the 7-day crate cooldown (standards ADR-0014); no Codex, no OpenRouter, no `opencode/` Zen models in any Gold Band workflow or provider list (ADR-0007's nedap Codex grant applies only to gateway delegations); Opus only in judgment nodes (escalation after the repair cap, final acceptance); Gold Band facts come from commit 987fc3e and are re-read by the implementer; Gold Band workflows bypass the model gateway (ADR written by #352); the allowlist check runs at setup AND when each run starts (owner decision, now in #352).
-- Budgets: 255 EUR Vibe key, 128 EUR Vibe-study key, 60 EUR OpenCode Go key (LiteLLM per-key `max_budget`, authoritative), Claude Max x5.
+## Owner rules (hard)
 
-## State of the work (this branch)
+- **Work profile:** critique in the work Claude profile (`~/.claude`) may use ONLY Codex or Claude (work). It never uses claude-personal or any other agent.
+  - `~/.claude-personal/settings.json` and `~/.claude-personal/skills` are symlinks into `~/.claude`, so whatever is installed for personal is live in work sessions.
+  - Commit `a627cc8` makes the three critique hooks no-op when the payload's `transcript_path` is under `~/.claude/`. It is installed only once the owner copies the hooks: `cp -p skills/workstation/critique/hooks/critique-*.sh ~/.claude/skills/critique/hooks/`. The classifier blocked the agent from doing it.
+  - Open follow-ups, each needing the owner's answer:
+    - a runner-level guard: a work-profile `/review-*` run may route only to Codex or Claude;
+    - unsharing the two profiles' `settings.json`;
+    - whether the rule covers Gold Band workflows that mix `claude-acp` with other agents.
+- **No Codex** in any Gold Band workflow or provider list.
+- **Gold Band** may use every OpenRouter and OpenCode model, free ones included; budgets guard the paid keys. The model gateway's rules are unchanged.
+- **Opus** only in judgment nodes, with the `-planning` suffix rule (see #371).
+- **New code is Rust** under the 7-day crate cooldown. crate-gate runs at 127.0.0.1:17342; the only allowed dependencies are serde =1.0.219 and serde_json =1.0.140.
+- **Delegation:** non-Claude first.
+  - Vibe `glm-5-3` for writing; DeepSeek, Kimi or Qwen for reviews.
+  - Never above Sonnet at medium effort, and `"escalate": false` on every gateway call.
+  - Antigravity only rarely, because of its low weekly quota.
+- **Two reviewers per change**, from families other than the implementer's: for example the critique runner plus one OpenCode-Go model.
+- **Never bypass hooks.** Run `critique.mjs record` in a separate command from `git commit`.
 
-Branch `feat/gold-band-epic` holds three commits on top of `feat/gateway-known-families-personal-default` (commit 7a52003, which was unpushed when this was written):
+## State (feat/gold-band-epic)
 
-1. #331 DONE and reviewed (`/review-implementation`, 2 findings fixed): a std-only cargo workspace in `scripts/` (member `agent-kit-setup`), called by `scripts/converge.py` with a 30 s timeout and a fail-closed gate; `.githooks/pre-commit` and `.github/workflows/crate-cooldown.yml` run `crate-age --root` (crate-age is built from the standards repo, never copied); waiver route in `docs/RUST.md` and `docs/waivers/crate-cooldown.yaml`. 9 canary tests and the full suite (1131) pass. NOT verified: the 100 percent line coverage of the crate (`cargo llvm-cov` is not installed; decide the tool and measure), the workflow on a real runner (it checks out the standards repo, which may be private), and that `core.hooksPath` is set (`git config core.hooksPath .githooks`).
-2. #351 PARTIAL: `docs/gold-band-port-inventory.md` (68 rows). It was written by a Vibe worker with no access to `gh` or the Gold Band facts, from repository files only, and it has NOT been spot-checked or reviewed. Ticket criteria still open: the Rust check script that fails when a skill directory has no entry (new Rust code, now unblocked by #331), and the proposed wave order must be verified against the specs. Read it critically; open questions listed in it go to the owner.
-3. Handoff documents under `handoff-gold-band/` (HANDOFF.md, spec drafts, reports, config artifacts, this file). `reports/gb-src` (a 57 MB shallow clone of Gold Band at 987fc3e) and a network log are not committed; re-clone Gold Band at 987fc3e if you need source.
+Landed and reviewed: #331, #332, #333, #334, #335, #336, #337, #338, #339, #345 (crate and setup wiring), #347, #348, #351, #352 (crate), #355, #356, #369, #370, #371, #374. Also landed:
+- `a627cc8`: the work-profile hook guard;
+- `9fc2af0`: setup moves a stray cask binary aside, so the `agy` cask install works;
+- `a1f4340`: the Claude adapter is verified to pass `CLAUDE_CONFIG_DIR` on and to load its hooks.
 
-Next on the frontier (all unblocked once #331 is merged): #328 and #329 and #330 need the owner's real Gold Band app/binaries; #332 registry and validation (Rust); #355 export wrapper and #356 research repo scaffold (both need only #331); then #347 headless Gold Band binary (run `crate-age` over Gold Band's `Cargo.lock` first), #353 gate wrapper, and the rest in dependency order. Cut #367's tickets with `/to-tickets 367` once #351 is final, then `/review-tickets 367`.
+Build trackers are one artifact per spec; the URLs are in memory under `gold-band-build-trackers`. `handoff-gold-band/tools/build-report.sh` refreshes them.
 
-## How to work
+Notes on the last commits:
+- **#339** was built before #335. Resolving it on the epic added `agent: claude` to both Claude entries, and `skillSet: personal` to `claude-personal`, so the two identities stay distinct under the one-id rule.
+- **#374 and #345** were reviewed by the critique runner (Mistral). Their Kimi reviews were cut off by a network reset. Re-run a second-family review if you want two.
 
-- Delegate through the model gateway (`/delegate`): cheap first. Vibe `glm-5-3` and `deepseek-v4-1-flash-1017`, Vibe-study, opencode-go models for most work; Sonnet 5.5 or Haiku only for the hardest tasks; Opus orchestrates. Codex is banned, OpenRouter and `opencode/` Zen models never.
-- LESSONS from wave 1: the `claude` client in the gateway's non-interactive worktree had every write and shell command refused (it delivered nothing); Vibe GLM writing delegations work, but their sandbox may deny `gh` and paths outside the worktree, so embed issue text and facts in the prompt. Read every staged diff and run the tests yourself: the Vibe worker invoked `crate-age` with the wrong arguments (the real interface is `--root DIR`) and shipped two off-by-one test assertions. A leftover `.write-probe` file shows up in worktrees; remove it.
-- The repo has a PreToolUse commit gate: risky changes (e.g. `.github/workflows/**`) cannot be committed until the owner runs `/review-implementation`; stage in a command of its own. The review skills (`/review-spec`, `/review-tickets`, `/review-implementation`, `/to-tickets`) cannot be invoked by the agent; ask the owner to run them.
-- Chat style: terse caveman; anything persisted (issue bodies, comments, commits, docs) is normal English. The owner wants multiple-choice questions (AskUserQuestion) for decisions.
-- Unverified items to settle by real runs (record each outcome on its ticket): GLM and DeepSeek reachable via LiteLLM at the keys; LiteLLM `max_budget` window, cap behaviour and unit; how one gate agent id is pinned to one wrapper; what `ai-dynamic` does with self-proposed fan-out; whether the ticket body counts as history; the unrolled-loop routing; and the Gold Band file:line facts (spot-check before relying).
-- Owner-dependent: real API keys (#354), real runs (#360, #365), the real Gold Band app (#328, #329; quit it before applying config), OpenCode and Antigravity reach cells (#330), installing `handoff-gold-band/config/bin/pi-read`.
+Real setup ran from this worktree, run with `env -u CLAUDE_CONFIG_DIR`. Gold Band holds 7 agents (`settings.json` 0600). Outstanding from that run:
+- Pi installs once its pinned 1.5.0 passes the cooldown (2026-11-09 11:05 UTC).
+- `GRIMOIRE_API_TOKEN` is blocked by Grimoire's forward auth; JorisJonkers-dev/grimoire #401 covers it.
+- The n8n sign-in does not stick. It is probably the same forward auth; ask the owner.
+- The kubernetes-skill plugin had to be reinstalled by hand because `claude plugin update` would not move it to its pin. Setup should fall back to uninstall and install.
+
+## Frontier
+
+- **Cut Waves 3–9 into tickets.**
+  - `docs/gold-band-port-inventory.md` "## Waves" holds the ordered rows, and "## Owner decisions" holds the eight decisions.
+  - Show the owner the breakdown first; roughly 40–60 tickets.
+  - A `(loop)` row's ticket must carry its unrolled node sequence.
+- **#329:** MCP overlap. It can be run headlessly; the owner asked the agent to do it, not them.
+- **#330:** settle the unverified reach cells by probing the binaries. Update `gold_band.reach_support` in a reviewed commit that cites the evidence.
+- **#340–#344:** per-agent reach levels and the OS write confinement. #344 also needs #328's remaining UI details, which are minor.
+- **#349, #353, #357–#365, #372, #373** in dependency order.
+- **#354** needs the five API keys. The owner runs `handoff-gold-band/tools/owner/api-keys.sh`, which stores them in the macOS keychain as `agent-kit.<VAR>`: `MISTRAL_API_KEY`, `MISTRAL_STUDY_API_KEY`, `OPENCODE_GO_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`. The owner answered #354's free-models question: Pi may use free OpenRouter and OpenCode models.
+- **#379:** setup under an ambient `CLAUDE_CONFIG_DIR`. The owner's default: always install the work profile into `~/.claude`.
+- **Open PRs.** `gh pr create` is gated on a passing `/review-pr` for the head. Run the feature review first.
+
+## Facts learned (keep)
+
+- **Gold Band headless** (v0.19.1, 987fc3e). The binary is at `~/IDEAProjects/gold-band-src/target/release/gold-band`; see `docs/gold-band-headless-build.md`.
+  - `settings.json` needs `settingsSchemaVersion` (12), or custom agents are silently dropped.
+  - Output schemas use Gold Band's simplified shape.
+  - JSON artifacts get `.json` appended.
+  - Profiles live in `~/.gold-band/context/profiles`.
+  - A model binding needs the agent to offer that model in `session/new` `configOptions`.
+  - A worker sees every earlier node of its round as predecessor context.
+- **Vibe sessions** can crash with "session history too large". The answer is then still in `<output-dir>/session/chunks`.
+- **Vibe GLM** sometimes cannot run commands and leaks drafting text into files. Always re-run the checks yourself and grep for `<arg_value>` or `</think>`.
+- **Monitors run under zsh:** plain `for x in $list` does not split, so use arrays or files.
