@@ -30,8 +30,8 @@ The registry's two Claude identities (#335) each pin ``CLAUDE_CONFIG_DIR``
 in their ``adapter.env`` -- the work entry ``~/.claude``, the personal one
 ``~/.claude-personal``, each expanded to the run's home by the crate's
 converge -- so no ambient ``CLAUDE_CONFIG_DIR`` reaches either adapter in
-place of its own. Whether the adapter passes it on to Claude Code is still
-unverified; the headless probe on #328 settles it.
+place of its own, and the adapter passes it on to Claude Code (verified
+from claude-agent-acp 0.87.0's source, recorded on #328).
 
 Each case runs the whole checked-in setup script against a temporary home
 (tests/setup_harness.py), with a ``uv`` stub that runs converge.py for
