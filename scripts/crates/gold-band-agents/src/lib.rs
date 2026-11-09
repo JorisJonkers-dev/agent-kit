@@ -57,19 +57,31 @@
 //! changed and removed agent id is printed; `--check` prints those lines
 //! and writes nothing. A missing settings file starts from `{}`.
 //!
+//! The replace is safe (#334): a `--guard <COMMAND>` re-check runs
+//! immediately before the backup and the rename, so a Gold Band that starts
+//! mid-run is caught anyway. The command allows the write by exiting 0 and
+//! vetoes with anything else -- including not answering at all, which also
+//! vetoes, failing closed -- and a veto replaces nothing: the old file keeps
+//! its bytes, no backup appears, no staged file remains and the refusal line
+//! exits 1. An unchanged document and a `--check` consult no guard, because
+//! neither writes. A replace that cannot happen (a read-only directory,
+//! say) is reported, the old file is left in place and any staged file is
+//! removed.
+//!
 //! Usage: `gold-band-agents validate <FILE> | converge --declared <FILE>
-//! --keep <FILE> --retired <FILE> --settings <PATH> [--check]`. Exit 0 clean
-//! (printing `ok (<n> agents)` for a validate), 1 rule problems on stderr,
-//! 2 bad usage (a usage line), an unreadable file, malformed input or a
-//! settings document that is not a JSON object.
+//! --keep <FILE> --retired <FILE> --settings <PATH> [--guard <COMMAND>]
+//! [--check]`. Exit 0 clean (printing `ok (<n> agents)` for a validate),
+//! 1 rule problems on stderr, or a guard veto that replaced nothing, 2 bad
+//! usage (a usage line), an unreadable file, malformed input, a settings
+//! document that is not a JSON object or a replace that could not happen.
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs;
-use std::io::ErrorKind;
-use std::io::Write;
+use std::io::{self, ErrorKind, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
+use std::process::{Command, ExitStatus};
 
 use serde_json::{Map, Value};
 
@@ -288,11 +300,12 @@ fn validate_file(file: &OsString) -> i32 {
     }
 }
 
-/// One `converge` command line: 0 converged, unchanged or checked; 1 a
-/// refused declaration; 2 bad usage, an unreadable file or a settings
-/// document that is not a JSON object.
+/// One `converge` command line: 0 converged, unchanged or checked; 1 the
+/// guard vetoed the write (#334); 2 bad usage, an unreadable file or a
+/// settings document that is not a JSON object.
 fn converge_cli(args: &[OsString]) -> i32 {
     let (mut declared, mut keep, mut retired, mut settings) = (None, None, None, None);
+    let mut guard = None;
     let mut check = false;
     let mut index = 0;
     while let Some(flag) = args.get(index) {
@@ -304,6 +317,15 @@ fn converge_cli(args: &[OsString]) -> i32 {
             "--check" => {
                 check = true;
                 index += 1;
+                continue;
+            }
+            "--guard" => {
+                let Some(body) = args.get(index + 1) else {
+                    eprintln!("{}", usage());
+                    return 2;
+                };
+                guard = Some(body.clone());
+                index += 2;
                 continue;
             }
             _ => {
@@ -341,7 +363,14 @@ fn converge_cli(args: &[OsString]) -> i32 {
         Ok(ids) => ids,
         Err(code) => return code,
     };
-    converge(&agents, &keep, &retired, Path::new(&settings), check)
+    converge(
+        &agents,
+        &keep,
+        &retired,
+        Path::new(&settings),
+        check,
+        guard.as_deref(),
+    )
 }
 
 /// The declared agents of the line-protocol file, validated with the rules
@@ -391,15 +420,17 @@ fn ids(file: &OsStr) -> Result<Vec<String>, i32> {
 }
 
 /// Converges the `agents` map of `settings` onto the declared agents plus the
-/// kept others: 0 converged, unchanged or checked, 2 when the document could
-/// not be read or written. One line is printed per added, changed and removed
-/// agent id; a check prints them without writing.
+/// kept others: 0 converged, unchanged or checked, 1 the guard vetoed the
+/// write (#334), 2 when the document could not be read or written. One line
+/// is printed per added, changed and removed agent id; a check prints them
+/// without writing; a vetoed write replaces nothing and is reported instead.
 fn converge(
     agents: &[Agent],
     keep: &[String],
     retired: &[String],
     settings: &Path,
     check: bool,
+    guard: Option<&OsStr>,
 ) -> i32 {
     let (mut document, existed) = match read_document(settings) {
         Ok(pair) => pair,
@@ -423,11 +454,38 @@ fn converge(
         println!("{NAME}: settings unchanged");
         return 0;
     }
+    if guard.is_some_and(|g| !check && guard_vetoes(g)) {
+        eprintln!(
+            "{NAME}: {}: not written: the guard reports Gold Band runs; quit it and re-run setup",
+            settings.display()
+        );
+        return 1;
+    }
     report_ids(&current, &after);
     if check {
         return 0;
     }
     write(settings, &Value::Object(document), existed)
+}
+
+/// Whether the `--guard <COMMAND>` re-check vetoes the write: the command
+/// answers "the write may happen" with exit code 0 and vetoes with anything
+/// else. It runs immediately before the backup and the rename (#334), so a
+/// Gold Band that starts mid-run is caught anyway, and its output is
+/// discarded: the refusal line names the reason, not the guard's own print.
+fn guard_vetoes(guard: &OsStr) -> bool {
+    let answered = Command::new("sh").arg("-c").arg(guard).output();
+    vetoes(answered.map(|answer| answer.status))
+}
+
+/// What the guard's outcome means: a clean exit allows the write, anything
+/// else -- another code, or no answer at all -- vetoes it, failing closed,
+/// because a write under a running Gold Band is the one harm the guard stops.
+fn vetoes(answered: Result<ExitStatus, io::Error>) -> bool {
+    match answered {
+        Ok(answer) => !answer.success(),
+        Err(_) => true,
+    }
 }
 
 /// Whether an existing agent id survives: the keep file names it, it is no
@@ -609,8 +667,9 @@ fn expand_home(value: &str, home: Option<&OsStr>) -> String {
 }
 
 /// Writes `document` to `settings` atomically -- a temporary file in the same
-/// directory, then a rename -- after copying the old file to its `.bak`;
-/// 2 when that could not be done.
+/// directory, then a rename -- after copying the old file to its `.bak`; 2
+/// when that could not be done, in which case the old file is left in place
+/// (#334) and the staged file, if any appeared, is removed.
 fn write(settings: &Path, document: &Value, existed: bool) -> i32 {
     if let Some(dir) = settings.parent() {
         let _ = fs::create_dir_all(dir);
@@ -659,7 +718,7 @@ fn name_of(settings: &Path) -> String {
 /// The usage line every command-line problem prints.
 fn usage() -> String {
     format!(
-        "usage: {NAME} validate <FILE> | {NAME} converge --declared <FILE> --keep <FILE> \\\n       --retired <FILE> --settings <PATH> [--check]"
+        "usage: {NAME} validate <FILE> | {NAME} converge --declared <FILE> --keep <FILE> \\\n       --retired <FILE> --settings <PATH> [--guard <COMMAND>] [--check]"
     )
 }
 
@@ -1727,6 +1786,128 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
         let _ = fs::remove_file(staged_blocked.with_file_name(format!("{same}.bak")));
     }
 
+    /// One `converge` command line with a guard pinned: the running-app
+    /// re-check the crate runs immediately before the rename (#334), over
+    /// the same temporary fixtures the guardless helper stages.
+    fn converge_guarded(
+        tag: &str,
+        guard: &str,
+        declared: &str,
+        settings: &Path,
+        check: bool,
+    ) -> i32 {
+        let mut args = vec![
+            OsString::from("converge"),
+            OsString::from("--declared"),
+            temp(&format!("{tag}-declared"), declared).into_os_string(),
+            OsString::from("--keep"),
+            temp(&format!("{tag}-keep"), "").into_os_string(),
+            OsString::from("--retired"),
+            temp(&format!("{tag}-retired"), "").into_os_string(),
+            OsString::from("--settings"),
+            settings.as_os_str().to_os_string(),
+            OsString::from("--guard"),
+            OsString::from(guard),
+        ];
+        if check {
+            args.push(OsString::from("--check"));
+        }
+        run(args)
+    }
+
+    #[test]
+    fn a_guard_rechecks_the_running_app_right_before_the_rename() {
+        let declared = "agent\tzeta\nfield\treach\tread\n";
+        let json = "{\"agents\":{}}";
+        let settings = temp("cv-guard-settings", json);
+        let name = settings.file_name().unwrap().to_string_lossy().into_owned();
+        let backup = settings.with_file_name(format!("{name}.bak"));
+        let staged = settings.with_file_name(format!("{name}.{}.tmp", std::process::id()));
+        // A vetoing guard -- any non-zero answer, including one that cannot
+        // even be asked, which fails closed -- replaces nothing: the old
+        // file keeps its bytes, no backup appears, no staged file remains,
+        // and the refusal is exit 1.
+        for guard in ["exit 1", "no-such-gold-band-guard-334"] {
+            assert_eq!(
+                converge_guarded("cv-guard", guard, declared, &settings, false),
+                1,
+                "for {guard}"
+            );
+            assert_eq!(fs::read_to_string(&settings).unwrap(), json, "for {guard}");
+            assert!(!backup.exists(), "for {guard}");
+            assert!(!staged.exists(), "for {guard}");
+        }
+        // An allowing guard lets the write happen, with its backup.
+        assert_eq!(
+            converge_guarded("cv-guard", "exit 0", declared, &settings, false),
+            0
+        );
+        let converged = fs::read_to_string(&settings).unwrap();
+        assert!(converged.contains("zeta"));
+        assert!(backup.exists());
+        // Neither an unchanged document nor a --check consults the guard,
+        // because neither writes: a vetoing guard refuses nothing.
+        assert_eq!(
+            converge_guarded("cv-guard", "exit 1", declared, &settings, false),
+            0
+        );
+        assert_eq!(fs::read_to_string(&settings).unwrap(), converged);
+        let checked = temp("cv-guard-check", json);
+        assert_eq!(
+            converge_guarded("cv-guard-check", "exit 1", declared, &checked, true),
+            0
+        );
+        assert_eq!(fs::read_to_string(&checked).unwrap(), json);
+        // The guard outcome's own meaning: a clean exit allows, anything else
+        // vetoes -- another code, or no answer at all.
+        use std::os::unix::process::ExitStatusExt;
+        assert!(!vetoes(Ok(ExitStatus::from_raw(0))));
+        assert!(vetoes(Ok(ExitStatus::from_raw(0x100))));
+        assert!(vetoes(Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "no shell"
+        ))));
+    }
+
+    #[test]
+    fn a_failed_replace_leaves_the_old_file_in_place_and_no_staged_file_behind() {
+        use std::os::unix::fs::PermissionsExt;
+        let declared = "agent\tzeta\nfield\treach\tread\n";
+        let json = "{\"agents\":{}}";
+        let dir = std::env::temp_dir().join(format!(
+            "gold-band-agents-cv-readonly-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let existing = dir.join("settings.json");
+        fs::write(&existing, json).unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o500)).unwrap();
+        // A read-only directory cannot replace either way: an existing file
+        // is reported (exit 2) and keeps its bytes, and a missing one is
+        // never created.
+        assert_eq!(
+            converge("cv-readonly", declared, "", "", &existing, false),
+            2
+        );
+        assert_eq!(fs::read_to_string(&existing).unwrap(), json);
+        let missing = dir.join("gone.json");
+        assert_eq!(
+            converge("cv-readonly", declared, "", "", &missing, false),
+            2
+        );
+        assert!(!missing.exists());
+        // The failed replace left the directory exactly as it was: no
+        // backup, no staged file.
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+        let names: Vec<String> = fs::read_dir(&dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, ["settings.json"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn converge_bad_usage_and_unreadable_files_exit_two() {
         let flag = |name: &str| OsString::from(name);
@@ -1740,6 +1921,7 @@ field\tadapter.env.SLACK_TOKEN\t1slack-token
             2
         );
         assert_eq!(run(vec![flag("converge"), flag("--declared")]), 2);
+        assert_eq!(run(vec![flag("converge"), flag("--guard")]), 2);
         assert_eq!(run(vec![flag("converge"), flag("--dance")]), 2);
         assert_eq!(
             run(vec![flag("converge"), flag("--settings"), settings.clone()]),

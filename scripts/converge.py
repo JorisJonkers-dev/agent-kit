@@ -31,13 +31,21 @@ written with only the fields Gold Band knows, without
 REPLACES the app's runtime agent list, it is not merged with the built-in
 catalog (#328). An existing agent survives only when the keep file names
 it, never when its id names codex, and a retired id (registry
-``gold_band.retired``) goes even when kept; every other top-level key of
-the document is preserved. Nothing is written while Gold Band runs: a
-writing run is refused and the caller told to quit it and re-run; ``--check``
-writes nothing, so a running app never refuses it. The step reuses
+``gold_band.retired``) goes even when kept; every other top-level key of the
+document is preserved. Nothing is written while Gold Band runs: a writing
+run is refused and the caller told to quit it and re-run, and the crate
+re-checks a guard command immediately before its rename (#334), so an app
+that starts mid-run replaces nothing either -- the step then reports each
+group it did not write (``not written: settings (Gold Band started)``) and
+a second run finishes. The report names the installed version and build
+commit from the app's Info.plist, and one line per group says what was
+written; after one, the data directory is closed to its owner (0700, the
+settings file 0600). ``--check`` writes nothing, so a running app never
+refuses it. The step reuses
 gold-band-validate's flattener and crate,
 passes the crate's exit code through, and exits 3 for its own failures,
-like gold-band-validate.
+like gold-band-validate. Where the app is not installed, setup skips the
+step whole and the run carries on.
 
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
@@ -54,6 +62,11 @@ Usage::
         [--registry PATH]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
         --keep PATH [--settings PATH] [--registry PATH] [--check]
+    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-running
+
+``gold-band-running`` is the guard the crate re-checks with immediately
+before the rename (#334): exit 0 means Gold Band is not running, exit 1
+means it is; it takes no flag and asks no crate.
 """
 
 from __future__ import annotations
@@ -61,6 +74,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import plistlib
+import shlex
 import shutil
 import subprocess
 import sys
@@ -70,6 +85,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from xml.parsers.expat import ExpatError
 
 import tomlkit
 import yaml
@@ -96,6 +112,23 @@ GOLD_BAND_CANNOT_VALIDATE_EXIT = 3
 
 # How the tests answer "is Gold Band running" (1: yes, anything else: no).
 GOLD_BAND_RUNNING_ENV = "AGENT_KIT_GOLD_BAND_RUNNING"
+
+# The Gold Band app the steps look at: the real /Applications one, with the
+# path overridable so the harness points every check and report at a stub.
+GOLD_BAND_APP_ENV = "AGENT_KIT_GOLD_BAND_APP"
+GOLD_BAND_APP = "/Applications/Gold Band.app"
+
+# The guard command the crate re-checks with immediately before the rename
+# (#334); a test override stands in for an app that starts mid-run.
+GOLD_BAND_GUARD_ENV = "AGENT_KIT_GOLD_BAND_GUARD"
+
+# The groups a Gold Band converge writes, one report line each (#334):
+# settings today; later tickets add roles, skill directories and launchers.
+GOLD_BAND_GROUPS: tuple[str, ...] = ("settings",)
+
+# What the crate's refusal line says when the guard vetoed the write, which
+# is how the step knows to report "not written" rather than "broken".
+GOLD_BAND_GUARD_REFUSED = "the guard reports Gold Band runs"
 
 
 def crate_binary(kit_root: Path, crate: str = CRATE_NAME) -> Path | None:
@@ -271,14 +304,64 @@ def _gold_band_running() -> bool:
     # "Not running" may be forced only in test mode, where a fake app path
     # stands in for /Applications/Gold Band.app; otherwise pgrep decides, so
     # the environment can never hide a running app.
-    if forced is not None and os.environ.get("AGENT_KIT_GOLD_BAND_APP"):
+    if forced is not None and os.environ.get(GOLD_BAND_APP_ENV):
         return False
     try:
         return subprocess.run(
-            ["pgrep", "-f", "/Applications/Gold Band.app/"], capture_output=True, check=False
+            ["pgrep", "-f", f"{GOLD_BAND_APP}/"], capture_output=True, check=False
         ).returncode == 0
     except OSError:
         return False
+
+
+def _gold_band_app() -> Path:
+    """The Gold Band app the steps look at: the real one, or the test's stub."""
+    return Path(os.environ.get(GOLD_BAND_APP_ENV, GOLD_BAND_APP))
+
+
+def _gold_band_build() -> tuple[str, str]:
+    """The installed Gold Band's version and build commit, from its Info.plist.
+
+    ``CFBundleShortVersionString`` is the version; the commit comes from any
+    key whose name names one when the plist stamps it, because no plist key
+    is standard for it. Either answer is ``unknown`` when the app (or its
+    plist) cannot be read, which is the report saying so, not a failure
+    (#334).
+    """
+    try:
+        with (_gold_band_app() / "Contents" / "Info.plist").open("rb") as handle:
+            info = plistlib.load(handle)
+    except (OSError, ValueError, ExpatError):
+        return ("unknown", "unknown")
+    if not isinstance(info, dict):
+        return ("unknown", "unknown")
+    version = info.get("CFBundleShortVersionString")
+    commit: str | None = next((body for name, body in info.items()
+                               if isinstance(body, str) and "commit" in name.lower()), None)
+    return (str(version) if version is not None else "unknown",
+            commit if commit is not None else "unknown")
+
+
+def _gold_band_guard() -> str:
+    """The command the crate runs immediately before the rename (#334),
+    re-asking this script's own running-check answer, so the re-check sees
+    the same pgrep and the same test overrides as the check before the crate
+    ran. The command allows the write by exiting 0 and vetoes with anything
+    else, so a Gold Band that starts mid-run replaces nothing; a test
+    override stands in for exactly that mid-run start.
+    """
+    if override := os.environ.get(GOLD_BAND_GUARD_ENV):
+        return override
+    return " ".join((shlex.quote(sys.executable),
+                    shlex.quote(str(KIT_ROOT / "scripts" / "converge.py")),
+                    "gold-band-running"))
+
+
+def gold_band_running() -> int:
+    """The guard's answer, asked again right before the crate's rename (#334):
+    0 Gold Band is not running, so the write may happen; 1 it is, so the
+    write is vetoed and the step reports it."""
+    return 1 if _gold_band_running() else 0
 
 
 def gold_band(args: argparse.Namespace, cargo: bool) -> int:
@@ -291,8 +374,12 @@ def gold_band(args: argparse.Namespace, cargo: bool) -> int:
     agents plus the kept ones (#328: the map REPLACES the app's runtime list,
     it is not merged with the built-in catalog). A run that would write never
     happens while Gold Band runs: the caller is told to quit it and re-run;
-    ``--check`` writes nothing, so a running app never refuses it. The crate's
-    exit code is passed through, and this step's own failures carry
+    the crate re-checks a guard command immediately before its rename (#334),
+    so an app that starts mid-run replaces nothing either and the step
+    reports it. The report also names the installed version and build commit
+    from the app's Info.plist, and one line per group says what was written;
+    after a write the data directory is closed to its owner. The crate's exit
+    code is passed through, and this step's own failures carry
     ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, like gold-band-validate's, so a
     broken step is never reported as the crate's refusal (exit 1).
     """
@@ -300,6 +387,8 @@ def gold_band(args: argparse.Namespace, cargo: bool) -> int:
         print(f"{GOLD_BAND_CRATE_NAME}: Gold Band is running;"
               " quit it and re-run setup (nothing was written)")
         return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    version, commit = _gold_band_build()
+    print(f"{GOLD_BAND_CRATE_NAME}: Gold Band {version} (commit {commit})")
     binary = crate_binary(KIT_ROOT, GOLD_BAND_CRATE_NAME)
     if binary is None:
         reason = ("not built yet; run cargo build --manifest-path scripts/Cargo.toml"
@@ -325,7 +414,10 @@ def gold_band(args: argparse.Namespace, cargo: bool) -> int:
                 handle.write(lines)
         command = [str(binary), "converge",
                    "--declared", staged[0], "--keep", staged[1], "--retired", staged[2],
-                   "--settings", str(args.settings)]
+                   "--settings", str(args.settings),
+                   # The re-check the crate runs immediately before the
+                   # rename (#334): a guard that vetoes replaces nothing.
+                   "--guard", _gold_band_guard()]
         if args.check:
             command.append("--check")
         try:
@@ -341,7 +433,49 @@ def gold_band(args: argparse.Namespace, cargo: bool) -> int:
     for output in (result.stdout, result.stderr):
         if output.strip():
             print(output.strip())
+    return _gold_band_groups(result, args.check, args.settings)
+
+
+def _gold_band_groups(result: subprocess.CompletedProcess[str], check: bool,
+                      settings: Path) -> int:
+    """One report line per group the run wrote (``checked`` under ``--check``),
+    then, with a write, the owner-only hardening of the data directory (#334).
+
+    The groups are ``GOLD_BAND_GROUPS`` -- settings today, roles, skill
+    directories and launchers later -- so the report grows one line per group
+    without a change of shape. A run the guard vetoed writes none of them
+    and says so per group, the crate's refusal listed above it, so a second
+    run after quitting the app finishes. Returns the step's exit code.
+    """
+    if result.returncode == 0:
+        unchanged = "settings unchanged" in (result.stdout or "")
+        for group in GOLD_BAND_GROUPS:
+            state = "checked" if check else ("unchanged" if unchanged else "written")
+            print(f"{GOLD_BAND_CRATE_NAME}: {state}: {group}")
+        if check or unchanged:
+            return 0
+        return 0 if _gold_band_owner_only(settings) else GOLD_BAND_CANNOT_VALIDATE_EXIT
+    refused = GOLD_BAND_GUARD_REFUSED in "".join(
+        part for part in (result.stdout, result.stderr) if part)
+    if result.returncode == 1 and refused:
+        for group in GOLD_BAND_GROUPS:
+            print(f"{GOLD_BAND_CRATE_NAME}: not written: {group} (Gold Band started)")
     return result.returncode
+
+
+def _gold_band_owner_only(settings: Path) -> bool:
+    """The data directory and the settings file, owner-only after a write
+    (#334): Gold Band keeps tokens in there, so closing them to the owner is
+    the converge's last act. Prints the reason and answers False when either
+    chmod could not happen."""
+    try:
+        os.chmod(settings.parent, 0o700)
+        os.chmod(settings, 0o600)
+    except OSError as exc:
+        print(f"{GOLD_BAND_CRATE_NAME}: cannot make {settings.parent} and {settings} owner-only: {exc}")
+        return False
+    print(f"{GOLD_BAND_CRATE_NAME}: owner-only: {settings.parent} is 0700 and {settings.name} is 0600")
+    return True
 
 
 @dataclass
@@ -551,7 +685,13 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--settings", type=Path, default=None)
     b.add_argument("--registry", type=Path, default=None)
     b.add_argument("--check", action="store_true")
+    sub.add_parser("gold-band-running")
     args = parser.parse_args(argv)
+    # The guard's answer needs no canary, no crate and no timeout: it is the
+    # one command that must answer fast, because the crate runs it
+    # immediately before its rename (#334).
+    if args.surface == "gold-band-running":
+        return gold_band_running()
     # The workspace's canary crate first: one line proving the Rust path works
     # on this machine, or saying why it could not be called (docs/RUST.md).
     line, crate_code = crate_report(KIT_ROOT, shutil.which("cargo") is not None)
