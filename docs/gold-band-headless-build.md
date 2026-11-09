@@ -49,3 +49,71 @@ cargo build --release -p gold-band --bin gold-band
 
 Point the headless tests at the binary with `GOLD_BAND_BIN=<path>`; without it
 they are skipped with that reason.
+
+## Running the spec-stage workflow proof (#348)
+
+The critique spec stage ships as a Gold Band workflow template,
+`installer/gold-band/workflows/critique-spec-stage.json`, and its proof runs
+the template headless against the stub ACP agent
+`tests/fixtures/gold_band_stub_acp.py` — no model, no network: the test's
+tmp home declares agents `vibe` and `agy` with the stub as their adapter
+command, and the stub answers every `session/prompt` with a fenced JSON
+findings document valid against the finding schema.
+
+```bash
+# Without a binary, only the template tests run:
+uv run --no-project --with pytest --with pyyaml --with tomlkit --with jsonschema \
+  python -m pytest -q tests/test_gold_band_spec_workflow.py
+
+# The headless proof needs the binary:
+GOLD_BAND_BIN=/path/to/gold-band \
+  uv run --no-project --with pytest --with pyyaml --with tomlkit --with jsonschema \
+  python -m pytest -q tests/test_gold_band_spec_workflow.py
+```
+
+What the proof asserts:
+
+- A clean stub run (`STUB_ACP_VERDICT` unset or empty) walks both critics
+  and the merge node, whose merged findings are empty, so the success
+  condition routes to `$end` and `gold-band run` exits **0**.
+- `STUB_ACP_VERDICT=needs-human` makes every findings document carry one
+  needs-human case, the merge node's success condition fails, and the run
+  routes to the manual-check node and pauses there: exit **2**, the verdict
+  resolved out of band in the app or over IM.
+- Every findings artifact the run wrote under the tmp `GOLD_BAND_HOME`
+  validates against `skills/workstation/critique/schemas/finding.schema.json`
+  (with `jsonschema` when the run provides it, else the schema's own
+  required keys).
+- The merge node's prompt carries both critics' artifacts: Gold Band hands a
+  worker every earlier node of its round as predecessor context, not only
+  the last one.
+- Without `GOLD_BAND_BIN`, or without `cargo` on PATH (the proof renders the role
+  profiles with the `gold-band-roles` crate), the binary tests skip with that reason; the
+  template tests (the roster binding, no codex, the personal-repositories-only
+  description, and workflow-lint where cargo is on PATH) run everywhere,
+  including the required `python` CI job, which collects every test file.
+  The optional `gold-band-headless` job runs this file alone.
+
+Facts the binary taught, each one a refusal or a silent drop before the
+proof passed (Gold Band v0.19.1, 987fc3e):
+
+- A `settings.json` without `settingsSchemaVersion` (12 at this commit) goes
+  through the version-0 migration, which rejects any agent id that is not a
+  built-in; the headless runner then loads defaults with no agents at all and
+  says only ``agent `agy` is not configured``.
+- A worker `output.schema` must be Gold Band's simplified shape (field name
+  to type name, one-element arrays), never JSON Schema: any of `type`,
+  `properties`, `required`, `additionalProperties` or `items` at its top is
+  refused. The template's shape is the finding schema's required fields; the
+  full schema is checked on the artifacts.
+- Gold Band appends `.json` to a json artifact's name, so the template names
+  its artifacts without the extension.
+- Every worker, the manual-check node included, needs a profile, and user
+  profiles are read from `~/.gold-band/context/profiles`, not
+  `presets/profiles`.
+- A model binding is accepted only when the agent's `session/new` answer
+  offers that model in a `configOptions` entry of category `model`.
+
+If the binary shows a fact in this proof wrong — the DSL field the template
+uses, the exit codes, where the artifacts land — follow the binary, fix the
+template or the stub, and record what differed on the ticket.

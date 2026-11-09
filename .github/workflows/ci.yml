@@ -195,6 +195,20 @@
           fi
           echo "All $(jq -r '.checked' nixos-packages.json) nixpkgs attributes resolve and evaluate."
 
+  # The spec-stage workflow's headless proof (issue #348), as its own
+  # optional job. GOLD_BAND_BIN is not set here, because no headless binary
+  # reaches CI, so the binary tests skip with the reason pointing at
+  # docs/gold-band-headless-build.md. The template tests in the same file
+  # also run in the required python job, which collects every test file.
+  'gold-band-headless':
+    'name': 'Gold Band Headless Proof'
+    'runs-on': 'ubuntu-latest'
+    'continue-on-error': true
+    'steps':
+      - 'uses': 'actions/checkout@v6'
+      - 'uses': 'astral-sh/setup-uv@v8.2.0'
+      - 'run': 'uv run --no-project --with pytest --with pyyaml --with tomlkit --with jsonschema python -m pytest -q tests/test_gold_band_spec_workflow.py'
+
   'pipeline-complete':
     'name': 'Pipeline Complete'
     'if': 'always()'
