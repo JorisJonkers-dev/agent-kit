@@ -10,4 +10,4 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/agent-kit-setup", "crates/inventory-check"]
+members = ["crates/agent-kit-setup", "crates/gold-band-registry", "crates/inventory-check"]
