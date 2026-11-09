@@ -422,6 +422,23 @@ describe("a ticket review's flow", () => {
   })
 })
 
+describe("a ticket review in the stats", () => {
+  it("counts the review's lines under the spec's feature, not the ticket's path", async () => {
+    const h = await ticketRepository({
+      families: ['mistral', 'zhipu'],
+      routingOverride: { stats: { removal_features: 1 } },
+      scripts: [critic([finding({ id: 'F1' })])],
+    })
+    const run = await prepared(h)
+    await h.commands.fanOut.run({ run_dir: run.run_dir })
+    await h.commands.record.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', reason: 'Not a bug.', verdict: 'rejected' }] })
+
+    const stats = await h.commands.stats.run({})
+
+    expect(stats).toMatchObject({ removal_candidates: [{ features: [SPEC], stage: 'ticket-review' }] })
+  })
+})
+
 describe('reading a staged change', () => {
   it('needs a commit at HEAD to diff the index against', async () => {
     const reader = new StagedDiffReader({ git: new FakeGit('/nowhere', []) })
@@ -534,7 +551,7 @@ describe('accepting a ticket finding', () => {
       { reason_code: 'test-passes', verdict: 'rejected' },
     ])
     const ledger = await readFile(join(h.home, '.local/share/agent-kit/critique/ledger.jsonl'), 'utf8')
-    // The ledger names the ticket's path, so look for the claims themselves.
+    // The ledger holds metadata only, so look for the claims themselves.
     expect(ledger).not.toContain('frobnicate counts')
     expect(ledger).not.toContain('frobnicate fails')
     expect(ledger).not.toContain(REGRESSION_TEST)
