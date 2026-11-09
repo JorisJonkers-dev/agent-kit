@@ -234,7 +234,7 @@ owner approves. One new build tracker shows every ticket of this spec.
 89. As the owner, I want exactly one writer to implement until the tests pass, so that a ticket has one coherent implementation.
 90. As the owner, I want two critics, in families that differ from the writer's, to run in parallel and return findings in the finding schema, so that findings validate against the schema agent-kit already uses.
 91. As the owner, I want a finding without checkable evidence never acted on automatically, so that hints do not drive repairs.
-92. As the owner, I want a "wait for CI to be fully green" gate command, with a structured verdict and a rerun of known-flaky jobs, so that Workflow B and direct sessions stop guessing about CI.
+92. As the owner, I want a "wait for CI to be fully green" gate command, with a structured verdict and at most one rerun per attempt of a job that the repository's setup file lists as flaky with a reviewed reason (a job not on that list is never rerun), so that Workflow B and direct sessions stop guessing about CI.
 
 ### Workflow C: grill to tickets
 
@@ -350,7 +350,12 @@ These earlier owner decisions hold unless this spec says otherwise:
   AGPL-3.0-only, and agent-kit only writes configuration and starts
   processes.
 - **Hooks** stay outside Gold Band, in the Claude Code and Codex homes. The git
-  commit gate and the PR gate hold whatever app makes the commit.
+  global git hooks (commit-msg and pre-push, registered in the global git
+  config) are expected to hold for any git process, Gold Band runs included.
+  A B0 live check proves, on each OS, that they fire for a commit made inside
+  a Gold Band run. Until that check passes, no agent id at `write` or `full`
+  reach is bound in a Gold Band workflow on that OS. The CI gates (Pipeline
+  Complete and the attribution guard) are the backstop either way.
 - **Opus** is used only in judgment nodes: nodes whose id ends in
   `-escalation`, `-acceptance` or `-planning`. Reach levels apply, with one agent id
   per agent, reach level and skill set.
@@ -491,8 +496,9 @@ These earlier owner decisions hold unless this spec says otherwise:
   - Workflow B's gates include the CI-wait command.
 - **Per-repository tracker setup.** It is a small file in each repository
   that records the tracker (GitHub issues), the label vocabulary and the
-  triage labels. A setup command writes it, as the existing skills setup
-  does. Workflow C and the export wrapper refuse a repository without one.
+  triage labels. It also holds the repository's list of known-flaky CI jobs,
+  each with a reviewed reason, which the CI-wait gate reads. A setup command
+  writes it, as the existing skills setup does. Workflow C and the export wrapper refuse a repository without one.
 - **Critique runner.** The review stages (ADR review, decision recovery,
   architecture review), the refactoring-plan critique stage inside the
   feature flow, and calibration are finished in the existing runner. On a
@@ -720,7 +726,8 @@ already uses its number.
   That includes:
   - how the agent map merges;
   - whether the Claude adapter forwards the environment;
-  - whether hooks fire;
+  - whether the global git hooks fire for a commit made in a Gold Band run
+    (this gates `write` and `full` bindings; see Carried decisions);
   - skill-directory handling;
   - per-node working directories;
   - the behaviour of the dynamic node;
