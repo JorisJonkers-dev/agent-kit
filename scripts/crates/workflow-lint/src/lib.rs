@@ -13,8 +13,10 @@
 //! * `banned-binding`: the node binds an agent id or model (any binding
 //!   field — a worker's `provider`/`model`, an `ai-dynamic` strategy's
 //!   fixed, dynamic, bootstrap, acceptance or available-agent bindings, or
-//!   the wrapper's `agentId`/`modelId`) containing `codex` or `openrouter`
-//!   (case-insensitive), or a model starting with `opencode/`;
+//!   the wrapper's `agentId`/`modelId`) containing `codex`
+//!   (case-insensitive). An OpenRouter or `opencode/` (Zen) binding is
+//!   allowed (owner decision, 2026-11-08): the per-key LiteLLM budgets are
+//!   the guard, and the model gateway keeps its own refusals;
 //! * `opus-outside-judgment`: the node binds an agent id or model
 //!   containing `opus` (case-insensitive) without being a judgment node. A
 //!   workflow marks its judgment nodes by naming convention: the
@@ -56,10 +58,10 @@ const WORKFLOW: &str = "workflow";
 const END: &str = "$end";
 /// The reserved edge target that opens a new round.
 const NEW_ROUND: &str = "$new-round";
-/// No agent id or model may contain one of these (case-insensitive).
-const BANNED_IN: [&str; 2] = ["codex", "openrouter"];
-/// No model may start with this prefix (case-insensitive).
-const OPENCODE_PREFIX: &str = "opencode/";
+/// The agent id or model name no binding may contain (case-insensitive).
+/// An OpenRouter or `opencode/` binding is allowed (owner decision,
+/// 2026-11-08); the per-key LiteLLM budgets are the guard.
+const BANNED: &str = "codex";
 /// The agent id or model marker of an Opus binding (case-insensitive).
 const OPUS: &str = "opus";
 
@@ -75,13 +77,7 @@ fn array_field<'a>(value: &'a Value, key: &str) -> Option<&'a Vec<Value>> {
 
 /// Whether an agent id or model names a banned provider, case-insensitive.
 fn banned_text(text: &str) -> bool {
-    let low = text.to_ascii_lowercase();
-    BANNED_IN.iter().any(|b| low.contains(b))
-}
-
-/// Whether a model is an opencode one, case-insensitive.
-fn is_opencode(model: &str) -> bool {
-    model.to_ascii_lowercase().starts_with(OPENCODE_PREFIX)
+    text.to_ascii_lowercase().contains(BANNED)
 }
 
 /// Whether an agent id or model marks an Opus binding, case-insensitive.
@@ -91,9 +87,7 @@ fn is_opus(text: &str) -> bool {
 
 /// The rule-1 verdict on a node's bindings once collected.
 fn banned_binding(agents: &[&str], models: &[&str]) -> bool {
-    let agent = agents.iter().copied().any(banned_text);
-    let model = models.iter().any(|m| banned_text(m) || is_opencode(m));
-    agent || model
+    agents.iter().copied().any(banned_text) || models.iter().any(|m| banned_text(m))
 }
 
 /// Whether any binding of the node is an Opus one.
@@ -596,16 +590,16 @@ mod tests {
     }
 
     #[test]
-    fn openrouter_model_fails() {
+    fn openrouter_models_pass() {
         let nodes = worker("a", "acp", "openrouter/x");
-        assert_eq!(lint_nodes(&nodes), "a: banned-binding");
+        assert_eq!(lint_nodes(&nodes), "");
     }
 
     #[test]
-    fn opencode_model_fails() {
+    fn opencode_models_pass() {
         for model in ["opencode/zen", "OpenCode/Zen"] {
             let nodes = worker("a", "acp", model);
-            assert_eq!(lint_nodes(&nodes), "a: banned-binding");
+            assert_eq!(lint_nodes(&nodes), "");
         }
     }
 
@@ -685,19 +679,22 @@ mod tests {
     }
 
     #[test]
-    fn a_wrapper_model_binding_fails() {
+    fn an_openrouter_wrapper_model_binding_passes() {
         let bindings = r#"{"executionSlotId":"s","modelId":"openrouter/x"}"#;
         let w = wrapped(SLOT, bindings);
-        assert_eq!(lint(&w), Ok(vec!["dev: banned-binding".to_string()]));
+        assert_eq!(lint(&w), Ok(Vec::new()));
     }
 
     #[test]
-    fn ai_dynamic_bindings_fail() {
+    fn ai_dynamic_codex_bindings_fail_while_openrouter_and_opencode_pass() {
         let nodes = concat!(
             r#"{"id":"f","agentStrategy":{"mode":"fixed","provider":"codex","model":"m"}},"#,
             r#"{"id":"d","agentStrategy":{"mode":"dynamic","#,
             r#""bootstrapProvider":"codex","bootstrapModel":"opencode/zen","#,
             r#""acceptanceModel":"opus","routingPrompt":"r","#,
+            r#""availableAgents":[{"model":"openrouter/x"}]}},"#,
+            r#"{"id":"p","agentStrategy":{"mode":"dynamic","#,
+            r#""bootstrapModel":"opencode/zen","routingPrompt":"r","#,
             r#""availableAgents":[{"model":"openrouter/x"}]}}"#
         );
         assert_eq!(

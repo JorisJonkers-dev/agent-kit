@@ -25,8 +25,10 @@ documents its tooling); this page is how agent-kit follows it.
 * **The registry.** `crates/gold-band-registry` validates the Gold Band agent
   declarations — flattened into its line protocol by Python (#332) — and
   refuses a declaration that breaks one of the owner's hard rules (no Codex,
-  no OpenRouter, OpenCode models only from `opencode-go/`, no literal
-  secrets, a constrained reach).
+  no literal secrets, a constrained reach): every OpenRouter and every
+  OpenCode model (an `opencode/` one included) is allowed (owner decision,
+  2026-11-08), the per-key LiteLLM budgets are the guard, and the model
+  gateway keeps its own refusals.
 
   * `crates/ticket-export` writes requirement.md from one GitHub issue and
     its sub-issues through read-only GitHub access, so a workflow can start
