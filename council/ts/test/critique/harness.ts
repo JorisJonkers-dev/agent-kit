@@ -694,16 +694,17 @@ export class LaunchLog {
 }
 
 /**
- * How the personal Vibe home is signed in: Vibe's Keychain item, its
- * `~/.vibe/.env`, the `.env` on a machine with no `security` tool to ask
- * (Linux), or not at all.
+ * How the personal Vibe home is signed in: Vibe's item in the OS keyring
+ * (the Keychain `security` asks on macOS, the Secret Service `gdbus` asks on
+ * Linux), its `~/.vibe/.env`, the `.env` on a machine with no keyring tool
+ * to ask, or not at all.
  */
 export type VibeSignIn = 'keychain' | 'env-file' | 'env-file-no-keychain' | 'none'
 
 /**
  * Plays canned Vibe runs: writes export.json into --output-dir and returns
- * stdout and exit code. It also answers the Keychain lookup the Vibe
- * readiness check makes with `security`; `commands` holds the critic
+ * stdout and exit code. It also answers the keyring lookup the Vibe
+ * readiness check makes with `security` or `gdbus`; `commands` holds the critic
  * launches only, `checks` those lookups.
  */
 export class FakeVibeProcess implements ProcessPort {
@@ -750,6 +751,13 @@ export class FakeVibeProcess implements ProcessPort {
       return this.signIn === 'keychain'
         ? { exitCode: 0, stderr: '', stdout: 'keychain: "/Users/me/Library/Keychains/login.keychain-db"\n' }
         : { exitCode: 44, stderr: 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n', stdout: '' }
+    }
+    if (command.command === 'gdbus') {
+      this.checks.push(command)
+      if (this.signIn === 'env-file-no-keychain') throw new Error('spawn gdbus ENOENT')
+      return this.signIn === 'keychain'
+        ? { exitCode: 0, stderr: '', stdout: "([objectpath '/org/freedesktop/secrets/collection/login/3'], @ao [])\n" }
+        : { exitCode: 0, stderr: '', stdout: '(@ao [], @ao [])\n' }
     }
     if (command.args.length === 1 && command.args[0] === '--version') {
       this.checks.push(command)
@@ -1188,7 +1196,7 @@ export async function harness(
     assetsRoot,
     clients: {
       agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
-      vibe: new VibeCriticClient(process, files, env),
+      vibe: new VibeCriticClient(process, files, env, options.platform ?? 'darwin'),
     },
     clock,
     env,

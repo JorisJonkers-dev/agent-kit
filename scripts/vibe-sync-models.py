@@ -2,7 +2,9 @@
 """Give Mistral Vibe every Mistral chat model the key can use, and keep the list current.
 
 The key is the one Vibe signed in with: MISTRAL_API_KEY when set, else Vibe's
-keychain item (service ai.mistral.vibe), else its ~/.vibe/.env.
+item in the OS keyring (service ai.mistral.vibe, account MISTRAL_API_KEY: the
+macOS Keychain, or on Linux the Secret Service through Python's keyring, as
+Vibe itself stores it), else its ~/.vibe/.env.
 
 Vibe lists only the models under ``[[models]]`` in its config (its built-in
 default is Mistral Medium 3.5). This reads Mistral's ``/v1/models`` with
@@ -72,6 +74,10 @@ def login_key() -> str:
         )
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip()
+    if sys.platform != "darwin":
+        key = secret_service_key()
+        if key:
+            return key
     try:
         for line in (vibe_home() / ".env").read_text().splitlines():
             name, _, value = line.partition("=")
@@ -80,6 +86,23 @@ def login_key() -> str:
     except OSError:
         pass
     return ""
+
+
+def secret_service_key() -> str:
+    """Vibe's key from the Secret Service, read the way Vibe stores it on Linux.
+
+    Vibe writes it with Python's keyring (service ai.mistral.vibe, username
+    MISTRAL_API_KEY). Without keyring importable, with Vibe's own
+    VIBE_TEST_DISABLE_KEYRING=1, or with no Secret Service to answer, there is
+    no key here and the .env decides.
+    """
+    if os.environ.get("VIBE_TEST_DISABLE_KEYRING") == "1":
+        return ""
+    try:
+        import keyring  # noqa: PLC0415 - optional: setup runs this with --with keyring
+        return keyring.get_password("ai.mistral.vibe", "MISTRAL_API_KEY") or ""
+    except Exception:  # noqa: BLE001 - any keyring failure means no key from it
+        return ""
 
 
 def fetch(key: str) -> list[dict[str, Any]]:

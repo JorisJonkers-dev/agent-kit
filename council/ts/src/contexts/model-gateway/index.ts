@@ -28,6 +28,7 @@ export { EscalatedRun, type AttemptOptions, type AttemptRunner, type AttemptedRu
 export { PlanRefusedError, type PlanProblem } from './domain/batch.js'
 export type { ClientOutput } from './domain/outputs.js'
 export { UsageCommand } from './application/usage.js'
+export { keyringQuery, vibeSignedIn, type VibeSignInPorts } from './application/vibe-sign-in.js'
 export type {
   ClientStatusPort,
   LedgerChange,

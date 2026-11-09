@@ -110,13 +110,48 @@ the multi-bank `/mcp` root.
 
 Vibe lists only the models under `[[models]]` in `${VIBE_HOME}/config.toml`;
 its own default is Mistral Medium 3.5. With the key Vibe signed in with (its
-keychain item, or `MISTRAL_API_KEY` in a cloud session), setup reads
+keyring item, see below, or `MISTRAL_API_KEY` in a cloud session), setup reads
 Mistral's model list (`scripts/vibe-sync-models.py`) and offers every chat
 model the key can use: one entry per underlying model, under its `-latest` id
 where there is one, so upgrades arrive on their own. Models without tool
 calling, transcription models and deprecated ones are left out. A model you
 define yourself under the same alias wins, and a model gone upstream is
 removed on the next run.
+
+### Where Vibe keeps its sign-in
+
+Signing in with `vibe` stores the Mistral key in the OS keyring, under the
+service `ai.mistral.vibe` and the account `MISTRAL_API_KEY`. Only when no
+keyring takes it does Vibe write a `MISTRAL_API_KEY=` line to `~/.vibe/.env`
+(mode 0600) instead. Which keyring that is depends on the OS:
+
+| OS | Where the key is | How agent-kit checks it, without reading the key |
+| --- | --- | --- |
+| macOS | the login Keychain, through `/usr/bin/security` | `security find-generic-password -s ai.mistral.vibe -a MISTRAL_API_KEY` (no `-w`, so nothing is printed) |
+| Linux | the Secret Service (GNOME Keyring, KeePassXC, or KWallet's Secret Service mode), through Python's `keyring` with its `SecretService` backend. The item has the attributes `service=ai.mistral.vibe` and `username=MISTRAL_API_KEY` | `gdbus call --session --dest org.freedesktop.secrets --object-path /org/freedesktop/secrets --method org.freedesktop.Secret.Service.SearchItems "{'service': 'ai.mistral.vibe', 'username': 'MISTRAL_API_KEY'}"`, which returns item paths only, never the secret |
+| any | `~/.vibe/.env` | a non-empty `MISTRAL_API_KEY=` line |
+
+This was found by reading the installed Vibe (`vibe/utils/keyring.py` and
+`vibe/setup/auth/api_key_persistence.py`; `mistral-vibe` 3.x), and not from
+its documentation. Vibe also reads the pre-rename service `vibe` and moves it to
+`ai.mistral.vibe` on its next start, so after one run of `vibe` the item is
+under the new name. `secret-tool` is not needed, and NixOS does not install it
+by default.
+
+The critique runner uses one check for this, `vibeSignedIn` in the model
+gateway's `application/vibe-sign-in.ts`. It lives in the gateway so that
+gateway code can reuse it; the gateway itself has no Vibe sign-in check yet,
+and `model-gateway usage` reports Vibe's `signed_in` as `unknown`. A critic
+counts as signed in when that check finds the keyring item or the `.env`
+line. An exported `MISTRAL_API_KEY` does not count, because a critic runs
+with it unset. When the check finds neither, prepare drops the Vibe critics
+with `vibe: not signed in; ...`. Setup's model sync
+(`scripts/vibe-sync-models.py`) needs the key itself to call the Mistral API.
+On Linux it reads the key through `keyring`, which is why setup runs that
+script with `--with keyring`.
+
+To see which store holds it without printing the key: on Linux run the
+`gdbus` command above. An empty answer, `(@ao [], @ao [])`, means no item.
 
 ### Hindsight Coding Agents
 

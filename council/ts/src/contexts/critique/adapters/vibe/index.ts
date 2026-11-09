@@ -1,6 +1,6 @@
 import { isAbsolute, join } from 'node:path'
 
-import { ClientRun, type RunExtras } from '../../../model-gateway/index.js'
+import { ClientRun, vibeSignedIn, type RunExtras } from '../../../model-gateway/index.js'
 import type { EnvPort, ProcessPort } from '../../../../ports/index.js'
 import type {
   CriticClientPort,
@@ -40,14 +40,17 @@ export class VibeCriticClient
     private readonly process: ProcessPort,
     private readonly files: CritiqueFilesPort,
     private readonly env: EnvPort,
+    /** The platform the runner reports: it picks the keyring the sign-in is looked up in. */
+    private readonly platform: NodeJS.Platform,
   ) {
     this.gateway = new ClientRun({ env, files, process })
   }
 
   /**
    * Whether the critic can run on the personal home: `vibe` on `PATH`, the
-   * home signed in the way setup checks it (Vibe's Keychain item, else a key
-   * in `~/.vibe/.env`; `MISTRAL_API_KEY` does not count, since a critic runs
+   * home signed in the way setup checks it (Vibe's item in the OS keyring:
+   * the Keychain on macOS, the Secret Service on Linux; else a key in
+   * `~/.vibe/.env`; `MISTRAL_API_KEY` does not count, since a critic runs
    * with it unset), and the `critic-<model>` agent setup installs. Nothing is
    * launched, so a client that is not ready falls back in prepare and costs
    * nothing.
@@ -92,15 +95,7 @@ export class VibeCriticClient
   }
 
   private async signedIn(home: string): Promise<boolean> {
-    const keychain = await this.process
-      .exec({ args: ['find-generic-password', '-s', 'ai.mistral.vibe', '-a', 'MISTRAL_API_KEY'], command: 'security' })
-      .catch(() => ({ exitCode: 1 }))
-    if (keychain.exitCode === 0) return true
-    const dotenv = join(home, '.env')
-    if (!(await this.files.exists(dotenv))) return false
-    return (await this.files.readText(dotenv))
-      .split('\n')
-      .some((line) => /^\s*MISTRAL_API_KEY\s*=\s*['"]?[^'"\s]/.test(line))
+    return vibeSignedIn({ files: this.files, process: this.process }, home, this.platform)
   }
 
   private async onPath(binary: string): Promise<boolean> {

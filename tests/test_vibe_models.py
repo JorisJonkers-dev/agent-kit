@@ -86,7 +86,8 @@ def api() -> Iterator[tuple[_Api, str]]:
 
 def _sync(tmp_path: Path, url: str, *, key: str | None = "mk_test") -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k != "MISTRAL_API_KEY"}
-    env.update({"HOME": str(tmp_path / "home"), "AGENT_KIT_MISTRAL_MODELS_URL": url})
+    # Vibe's own switch: no test reads this machine's keyring.
+    env.update({"HOME": str(tmp_path / "home"), "AGENT_KIT_MISTRAL_MODELS_URL": url, "VIBE_TEST_DISABLE_KEYRING": "1"})
     if key:
         env["MISTRAL_API_KEY"] = key
     return subprocess.run([sys.executable, str(SYNC), "--config", str(tmp_path / "config.toml")],
@@ -188,7 +189,8 @@ def test_setup_syncs_after_merging_the_mcp_servers() -> None:
     assert private.index('_vibe_models "${VIBE_PRIVATE_HOME}"') < private.index("\n}\n")
     fn = script[script.index("_vibe_models() {") :]
     fn = fn[: fn.index("\n}\n")]
-    sync = 'uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-sync-models.py"'
+    # keyring reads Vibe's key from the Secret Service on Linux.
+    sync = 'uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py"'
     assert f'VIBE_HOME="${{home}}" {sync}' in fn
     assert '--config "${home}/config.toml"' in fn
     publish = (KIT_ROOT / "scripts" / "publish-installer-artifacts.sh").read_text()
@@ -198,7 +200,16 @@ def test_setup_syncs_after_merging_the_mcp_servers() -> None:
 # --- the key is Vibe's own login, not one setup asked for ---
 
 
-def _vibe_login(tmp_path: Path, *, keychain: str | None = None, env_file: str | None = None) -> dict:
+def _vibe_login(
+    tmp_path: Path, *, keychain: str | None = None, env_file: str | None = None, secret_service: str | None = None,
+) -> dict:
+    # A fake keyring module shadows any real one, so no test reads this machine's keyring.
+    fake_keyring = tmp_path / "fake-keyring"
+    fake_keyring.mkdir(exist_ok=True)
+    stored = repr({("ai.mistral.vibe", "MISTRAL_API_KEY"): secret_service} if secret_service else {})
+    (fake_keyring / "keyring.py").write_text(
+        f"def get_password(service, username):\n    return {stored}.get((service, username))\n",
+    )
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     found = f'printf "%s\\n" "{keychain}"; exit 0' if keychain else "exit 44"
@@ -211,7 +222,7 @@ def _vibe_login(tmp_path: Path, *, keychain: str | None = None, env_file: str | 
     (home / ".vibe").mkdir(parents=True, exist_ok=True)
     if env_file:
         (home / ".vibe" / ".env").write_text(f"MISTRAL_API_KEY='{env_file}'\n")
-    return {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+    return {"PATH": f"{bin_dir}:{os.environ['PATH']}", "PYTHONPATH": str(fake_keyring)}
 
 
 def _sync_env(tmp_path: Path, url: str, extra: dict, *args: str) -> subprocess.CompletedProcess:
@@ -232,6 +243,23 @@ def test_vibes_env_file_is_the_fallback(tmp_path: Path, api: tuple[_Api, str]) -
     state, url = api
     _sync_env(tmp_path, url, _vibe_login(tmp_path, env_file="mk_envfile"))
     assert state.auth == ["Bearer mk_envfile"]
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="Vibe uses the Keychain on macOS, not the Secret Service")
+def test_the_secret_service_key_is_used_on_linux(tmp_path: Path, api: tuple[_Api, str]) -> None:
+    state, url = api
+    result = _sync_env(tmp_path, url, _vibe_login(tmp_path, secret_service="mk_secret_service", env_file="mk_envfile"))
+    assert result.returncode == 0, result.stderr
+    assert state.auth == ["Bearer mk_secret_service"]
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="Vibe uses the Keychain on macOS, not the Secret Service")
+def test_has_key_sees_the_secret_service_on_linux(tmp_path: Path, api: tuple[_Api, str]) -> None:
+    state, url = api
+    assert _sync_env(tmp_path, url, _vibe_login(tmp_path, secret_service="mk_secret_service"), "--has-key").returncode == 0
+    disabled = {**_vibe_login(tmp_path, secret_service="mk_secret_service"), "VIBE_TEST_DISABLE_KEYRING": "1"}
+    assert _sync_env(tmp_path, url, disabled, "--has-key").returncode == 1
+    assert state.auth == []
 
 
 def test_has_key_answers_without_fetching(tmp_path: Path, api: tuple[_Api, str]) -> None:
