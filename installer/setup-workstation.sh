@@ -1518,6 +1518,36 @@ gold_band_converge() {
   [ "${rc}" = 0 ] || fail "the Gold Band agent map did not converge (see above)"
 }
 
+# -----------------------------------------------------------------
+# The six critique roles as Gold Band profiles (#345). Gold Band
+# reads its profiles from ~/.gold-band/context/profiles, never from
+# presets/profiles, and converge.py renders the six the critique
+# skill in this kit describes -- the role file, the shared preamble
+# and output contract, the finding schema, the lenses -- into that
+# directory, converging it onto them: a hand-made profile and a Gold
+# Band built-in are never touched, a retired or stale generated one
+# goes, and the keep file decides one the render does not own. Only
+# while Gold Band is installed; not installed, the run carries on.
+# -----------------------------------------------------------------
+gold_band_roles() {
+  local out rc=0 line app
+  app="${AGENT_KIT_GOLD_BAND_APP:-/Applications/Gold Band.app}"
+  if [ ! -e "${app}" ]; then
+    log "Gold Band is not installed (${app}); its profiles are left alone"
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    warn "uv is not on PATH; the Gold Band profiles are not converged"
+    return 0
+  fi
+  local args=(--critique "${KIT_ROOT}/skills/workstation/critique" --profiles "${HOME}/.gold-band/context/profiles" --keep "${HOME}/.config/agent-kit/keep.yaml")
+  [ "${CHECK_ONLY}" = 1 ] && args+=(--check)
+  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" gold-band-roles \
+    "${args[@]}" 2>&1) || rc=$?
+  while IFS= read -r line; do [ -n "${line}" ] && log "${line}"; done <<< "${out}"
+  [ "${rc}" = 0 ] || fail "the Gold Band profiles did not converge (see above)"
+}
+
 # An explicit CLAUDE_CONFIG_DIR=~/.claude moves .claude.json inside it, where a bare `claude` never looks.
 claude_in_profile() {
   local dir="$1"; shift
@@ -2423,6 +2453,15 @@ gold_band_validate
 # run carries on.
 # -----------------------------------------------------------------
 gold_band_converge
+
+# -----------------------------------------------------------------
+# 0c. Gold Band profiles. The six critique roles converged into
+# ~/.gold-band/context/profiles by gold_band_roles, only while
+# Gold Band is installed: converge.py renders them there from
+# the critique skill's own files and converges the directory onto
+# them. Not installed, the step is skipped and the run carries on.
+# -----------------------------------------------------------------
+gold_band_roles
 
 # -----------------------------------------------------------------
 # 1. Command-line tools.

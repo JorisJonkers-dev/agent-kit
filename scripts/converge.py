@@ -47,6 +47,21 @@ passes the crate's exit code through, and exits 3 for its own failures,
 like gold-band-validate. Where the app is not installed, setup skips the
 step whole and the run carries on.
 
+``gold-band-roles`` converges ``~/.gold-band/context/profiles`` onto the
+six critique roles rendered as Gold Band profiles (#345): Gold Band reads
+its profiles there, never from presets/profiles. The gold-band-roles
+crate renders the six from the critique skill's own files -- the ones
+setup installs as the critique skill -- and keeps the directory at them:
+a hand-made profile (no front matter ``id``) and a Gold Band built-in are
+never touched, a retired or stale generated one goes, and the keep file
+is read for both its ``keep`` and its ``retired`` lists, so one file
+names the kept and the retired roles. Nothing is created where the app
+is not installed: the profiles directory, owner-only (0700), is created
+only with Gold Band there, and a running app refuses the write the way
+the agent map's converge does; ``--check`` writes nothing, so it is never
+refused. The crate's exit code is passed through, and this step's own
+failures carry ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, like gold-band's.
+
 ``--check`` prints each removal and changes nothing. A normal run removes the
 entries, reads every surface again and fails if a removed name is still there.
 
@@ -62,6 +77,8 @@ Usage::
         [--registry PATH]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band \\
         --keep PATH [--settings PATH] [--registry PATH] [--check]
+    uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-roles \\
+        --critique DIR --keep PATH [--profiles PATH] [--check]
     uv run --no-project --with pyyaml --with tomlkit python scripts/converge.py gold-band-running
 
 ``gold-band-running`` is the guard the crate re-checks with immediately
@@ -102,6 +119,10 @@ CRATE_TIMEOUT_S = 30.0
 # breaks an owner rule (agent-kit#332).
 GOLD_BAND_CRATE_NAME = "gold-band-agents"
 GOLD_BAND_TIMEOUT_S = 30.0
+
+# The Gold Band roles crate, whose `converge` keeps the profiles directory
+# at the six critique roles (#345).
+GOLD_BAND_ROLES_CRATE_NAME = "gold-band-roles"
 
 # gold-band-validate and gold-band exit 3 for their own failures -- the
 # registry unreadable or malformed, the crate binary not answering, the
@@ -478,6 +499,64 @@ def _gold_band_owner_only(settings: Path) -> bool:
     return True
 
 
+def gold_band_roles(args: argparse.Namespace, cargo: bool) -> int:
+    """Converge ``~/.gold-band/context/profiles`` onto the six critique roles (#345).
+
+    Gold Band reads its profiles from ``context/profiles`` under its data
+    directory (v0.19.1, src/app/profiles.rs), never from presets/profiles.
+    The crate renders the six roles from the critique skill's own files and
+    converges the directory onto them, never touching a hand-made profile
+    (no front matter ``id``) or a Gold Band built-in; the keep file is given
+    to the crate as both its keep and its retired file -- each list is read
+    under its own key -- so one file names the kept and the retired roles.
+    Nothing is created on a machine without an installed Gold Band (the
+    setup step's own check, asked again here); with the app there, the
+    profiles directory is created owner-only (0700) and a running app
+    refuses the write, and only a writing run can be refused, because
+    ``--check`` writes nothing. The crate's lines are printed and its exit
+    code returned; a binary that is not there skips the call with the
+    reason said out loud, like the canary, and this step's own failures
+    carry ``GOLD_BAND_CANNOT_VALIDATE_EXIT``, like gold-band's.
+    """
+    if not _gold_band_app().exists():
+        print(f"{GOLD_BAND_ROLES_CRATE_NAME}: Gold Band is not installed"
+              f" ({_gold_band_app()}); its profiles are left alone")
+        return 0
+    if not args.check and _gold_band_running():
+        print(f"{GOLD_BAND_ROLES_CRATE_NAME}: Gold Band is running;"
+              " quit it and re-run setup (nothing was written)")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    binary = crate_binary(KIT_ROOT, GOLD_BAND_ROLES_CRATE_NAME)
+    if binary is None:
+        reason = ("not built yet; run cargo build --manifest-path scripts/Cargo.toml"
+                  if cargo else "no Rust toolchain (cargo) on PATH")
+        print(f"{GOLD_BAND_ROLES_CRATE_NAME}: skipped: {reason}")
+        return 0
+    if not args.check:
+        try:
+            args.profiles.mkdir(parents=True, exist_ok=True)
+            os.chmod(args.profiles, 0o700)
+        except OSError as exc:
+            print(f"{GOLD_BAND_ROLES_CRATE_NAME}: cannot make {args.profiles} owner-only: {exc}")
+            return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    command = [str(binary), "converge",
+               str(args.critique), str(args.profiles),
+               "--keep", str(args.keep), "--retired", str(args.keep)]
+    if args.check:
+        command.append("--check")
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False,
+                                 timeout=GOLD_BAND_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        print(f"{GOLD_BAND_ROLES_CRATE_NAME}: cannot converge: the built binary at {binary}"
+              f" did not answer within {GOLD_BAND_TIMEOUT_S:g} seconds")
+        return GOLD_BAND_CANNOT_VALIDATE_EXIT
+    for output in (result.stdout, result.stderr):
+        if output.strip():
+            print(output.strip())
+    return result.returncode
+
+
 @dataclass
 class Surface:
     label: str
@@ -685,6 +764,11 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--settings", type=Path, default=None)
     b.add_argument("--registry", type=Path, default=None)
     b.add_argument("--check", action="store_true")
+    r = sub.add_parser("gold-band-roles")
+    r.add_argument("--critique", type=Path, required=True)
+    r.add_argument("--profiles", type=Path, default=None)
+    r.add_argument("--keep", type=Path, required=True)
+    r.add_argument("--check", action="store_true")
     sub.add_parser("gold-band-running")
     args = parser.parse_args(argv)
     # The guard's answer needs no canary, no crate and no timeout: it is the
@@ -713,6 +797,9 @@ def main(argv: list[str] | None = None) -> int:
         args.settings = args.settings or Path.home() / ".gold-band" / "settings.json"
         args.registry = args.registry or KIT_ROOT / "registry" / "estate-tooling.yaml"
         return gold_band(args, shutil.which("cargo") is not None)
+    if args.surface == "gold-band-roles":
+        args.profiles = args.profiles or Path.home() / ".gold-band" / "context" / "profiles"
+        return gold_band_roles(args, shutil.which("cargo") is not None)
     return mcp(args) if args.surface == "mcp" else plugins(args)
 
 

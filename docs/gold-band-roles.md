@@ -20,8 +20,9 @@ routing — and says the role cannot enforce them itself.
 `render` writes the six profiles; `converge` keeps the profiles directory
 at them: it removes a retired role and a generated one that is no longer
 one of the six, and never touches a hand-made profile (no front matter
-`id`) or a Gold Band built-in (`pf-builtin-*`). The setup wiring lands in
-#345's follow-up ticket.
+`id`) or a Gold Band built-in (`pf-builtin-*`). Workstation setup runs it
+on every install: the `gold_band_roles` step in installer/setup-workstation.sh,
+right after the agent map and only while Gold Band is installed.
 
 ## Role to agent
 
