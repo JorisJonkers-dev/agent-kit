@@ -1,0 +1,13 @@
+[package]
+name = "research-layout"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Validates and re-indexes the papers directory, and mounts the papers repository (issue #356)."
+
+# The only dependencies allowed, pinned exact; both are far older than the
+# 7-day crate cooldown (standards ADR-0014, docs/RUST.md). Everything else
+# is std.
+[dependencies]
+serde = { version = "=1.0.219", features = ["derive"] }
+serde_json = "=1.0.140"
