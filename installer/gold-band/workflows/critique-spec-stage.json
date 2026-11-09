@@ -1,0 +1,172 @@
+{
+  "workflow": {
+    "description": "The critique pipeline's spec stage (issue #348): one spec-red-team critic per roster family attacks the requirement document, the two findings documents merge into one, and any finding a critic raised routes to a manual check for a needs-human verdict. For personal repositories only: this path loses the critique runner's read-only proof, packet confinement, quote check and refute round, so it must never run over anyone else's code.",
+    "version": "0.1",
+    "id": "critique-spec-stage",
+    "entry": "spec-critic-vibe",
+    "control": {
+      "max_attempts": 1,
+      "max_rounds": 1
+    },
+    "nodes": [
+      {
+        "type": "worker",
+        "id": "spec-critic-vibe",
+        "executionSlotId": "slot-spec-critic-vibe",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-spec-redteam",
+        "goal": "You are the spec red team (the profile pf-spec-redteam) for the critique pipeline's spec stage, running the lenses fidelity and testability. Attack the requirement document only through those lenses, and report each defect a spec reader would hit as one JSON finding against the finding schema (id, severity, category, check, location, claim, evidence), with a suggestion for each; report no findings and a no_findings_reason when the spec survives both lenses. Answer with one fenced json block holding the findings document and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-findings-vibe",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-critic-agy",
+        "executionSlotId": "slot-spec-critic-agy",
+        "provider": "agy",
+        "model": "gemini-3.8-flash-high",
+        "profile": "pf-spec-redteam",
+        "goal": "You are the spec red team (the profile pf-spec-redteam) for the critique pipeline's spec stage, running the lenses failure-modes and security. Attack the requirement document only through those lenses, judging it on your own: the earlier critic's findings document reaches you as context, but neither repeat nor rely on it, and report each defect a spec reader would hit as one JSON finding against the finding schema (id, severity, category, check, location, claim, evidence), with a suggestion for each; report no findings and a no_findings_reason when the spec survives both lenses. Answer with one fenced json block holding the findings document and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-findings-agy",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-merge-findings",
+        "executionSlotId": "slot-spec-merge-findings",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "profile": "pf-spec-redteam",
+        "goal": "You are the spec stage's verdict writer (the profile pf-spec-redteam). Merge the two critics' findings documents into exactly one findings document against the finding schema, keeping every finding either critic raised, each still carrying its id, severity, category, check, location, claim and evidence, and a no_findings_reason when neither critic raised anything. Answer with one fenced json block holding the merged findings document and nothing else.",
+        "output": {
+          "kind": "json",
+          "artifact": "spec-findings",
+          "schema": {
+            "findings": [
+              {
+                "id": "string",
+                "severity": "string",
+                "category": "string",
+                "check": "string",
+                "location": "string",
+                "claim": "string",
+                "evidence": [
+                  {
+                    "kind": "string",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "success_condition": {
+          "path": "$.findings",
+          "equals": []
+        }
+      },
+      {
+        "type": "worker",
+        "id": "spec-needs-human",
+        "executionSlotId": "slot-spec-needs-human",
+        "provider": "vibe",
+        "model": "mistral-large-4-0",
+        "goal": "You are the spec stage's needs-human verdict presenter. At least one critic raised a finding the stage cannot settle on its own: read the merged findings document and state the needs-human case for the reviewer in one short paragraph, naming each finding's id, its location and what a human must decide. Do not write any file; the manual check after your answer is where the human rules.",
+        "manual_check": true,
+        "profile": "pf-spec-redteam"
+      }
+    ],
+    "edges": [
+      {
+        "from": "spec-critic-vibe",
+        "to": "spec-critic-agy",
+        "on": "success"
+      },
+      {
+        "from": "spec-critic-agy",
+        "to": "spec-merge-findings",
+        "on": "success"
+      },
+      {
+        "from": "spec-merge-findings",
+        "to": "$end",
+        "on": "success"
+      },
+      {
+        "from": "spec-merge-findings",
+        "to": "spec-needs-human",
+        "on": "failure"
+      },
+      {
+        "from": "spec-needs-human",
+        "to": "$end",
+        "on": "success"
+      }
+    ]
+  },
+  "modelBindings": {
+    "bindings": [
+      {
+        "executionSlotId": "slot-spec-critic-vibe",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-spec-critic-agy",
+        "agentId": "agy",
+        "modelId": "gemini-3.8-flash-high"
+      },
+      {
+        "executionSlotId": "slot-spec-merge-findings",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      },
+      {
+        "executionSlotId": "slot-spec-needs-human",
+        "agentId": "vibe",
+        "modelId": "mistral-large-4-0"
+      }
+    ]
+  }
+}
