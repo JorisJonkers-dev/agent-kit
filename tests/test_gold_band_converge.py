@@ -26,6 +26,13 @@ owner-only (0700, the settings file 0600), the report shows the installed
 version and build commit from the app's Info.plist, and no key but ``agents``
 and no file but settings.json (plus its one backup) is ever added or changed.
 
+The registry's two Claude identities (#335) each pin ``CLAUDE_CONFIG_DIR``
+in their ``adapter.env`` -- the work entry ``~/.claude``, the personal one
+``~/.claude-personal``, each expanded to the run's home by the crate's
+converge -- so no ambient ``CLAUDE_CONFIG_DIR`` reaches either adapter in
+place of its own. Whether the adapter passes it on to Claude Code is still
+unverified; the headless probe on #328 settles it.
+
 Each case runs the whole checked-in setup script against a temporary home
 (tests/setup_harness.py), with a ``uv`` stub that runs converge.py for
 real against the registry the test names, so the crate's own converge -- not
@@ -37,6 +44,7 @@ setup's own reason where no Rust toolchain is there.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import plistlib
 import shutil
@@ -105,21 +113,55 @@ OPENCODE_SETTINGS: dict[str, Any] = {
     "externalSessionSyncEnabled": False,
 }
 
-# The registry's declared agents, in declaration order (#338). Their
-# adapter commands are declared with a leading `~/` and written absolute,
-# expanded to the home of the run, because Gold Band reads settings.json
-# without shell expansion; no declaration carries a key.
-DECLARED_AGENT_IDS = ["opencode", "vibe", "vibe-study", "agy", "hermes"]
+# What the registry's declared Claude identities become in settings.json
+# (#335): only the Gold Band fields, an explicit CLAUDE_CONFIG_DIR each,
+# and neither command nor args for the built-in claude-acp id.
+CLAUDE_WORK_SETTINGS: dict[str, Any] = {
+    "adapter": {"displayName": "Claude (work)", "env": {}},
+    "icon": "claude",
+    "primaryAgentDir": ".claude",
+    "systemPromptDelivery": "meta-append",
+    "externalSessionSyncSupported": True,
+    "externalSessionSyncEnabled": False,
+}
+CLAUDE_PERSONAL_SETTINGS: dict[str, Any] = {
+    "adapter": {
+        "command": "npx",
+        "args": ["-y", "@agentclientprotocol/claude-agent-acp@0.87.0"],
+        "displayName": "Claude (personal)",
+        "env": {},
+    },
+    "icon": "claude",
+    "primaryAgentDir": ".claude",
+    "systemPromptDelivery": "meta-append",
+    "externalSessionSyncSupported": True,
+    "externalSessionSyncEnabled": False,
+}
+
+# The registry's declared agents, in declaration order (#338, plus the two
+# Claude identities of #335). An adapter command declared with a leading
+# `~/` is written absolute, expanded to the home of the run, because Gold
+# Band reads settings.json without shell expansion; a bare command such as
+# claude-personal's `npx` is resolved on the login shell's PATH, which Gold
+# Band merges into the adapter's environment (src/process.rs at 987fc3e).
+# No declaration carries a key.
+DECLARED_AGENT_IDS = ["opencode", "vibe", "vibe-study", "agy", "hermes", "claude-acp", "claude-personal"]
 
 
 def _declared_adapters(home: Path) -> dict[str, Any]:
     """Each declared agent's adapter block as converge writes it: home-expanded."""
+    work = copy.deepcopy(CLAUDE_WORK_SETTINGS)
+    work["adapter"]["env"] = {"CLAUDE_CONFIG_DIR": f"{home}/.claude"}
+    personal = copy.deepcopy(CLAUDE_PERSONAL_SETTINGS)
+    personal["adapter"]["env"] = {"CLAUDE_CONFIG_DIR": f"{home}/.claude-personal"}
     return {
         "opencode": OPENCODE_SETTINGS["adapter"],
         "vibe": {"command": f"{home}/.local/bin/vibe-acp", "displayName": "Vibe"},
         "vibe-study": {"command": f"{home}/.local/bin/vibe-study-acp", "displayName": "Vibe (Study)"},
         "agy": {"command": "/opt/homebrew/bin/agy", "args": ["acp"], "displayName": "Antigravity"},
         "hermes": {"command": f"{home}/.local/bin/hermes-acp", "displayName": "Hermes"},
+        "claude-acp": work["adapter"],
+        "claude-personal": personal["adapter"],
     }
 
 
@@ -228,7 +270,7 @@ def test_a_first_run_holds_the_declared_agents_and_the_kept_agents(tmp_path: Pat
     assert list(document) == ["theme", "agents", "window"]
     assert document["theme"] == "dark"
     assert document["window"] == {"width": 1280}
-    # The five declared agents in declaration order, then the kept one.
+    # The declared agents in declaration order, then the kept one.
     assert list(document["agents"]) == [*DECLARED_AGENT_IDS, "mine"]
     adapters = _declared_adapters(run.home)
     for agent_id in DECLARED_AGENT_IDS:

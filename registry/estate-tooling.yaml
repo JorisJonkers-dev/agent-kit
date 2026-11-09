@@ -296,6 +296,51 @@ gold_band:
         command: ~/.local/bin/hermes-acp
         displayName: Hermes
       reach: write
+    # Claude twice, one identity each (#335): the work account and the
+    # personal one. Each entry pins CLAUDE_CONFIG_DIR explicitly in
+    # adapter.env, and Gold Band passes an agent's adapter.env to the
+    # spawned adapter process (source facts at 987fc3e, recorded on #328),
+    # which also inherits Gold Band's own environment -- so the explicit
+    # entry overrides it and no ambient CLAUDE_CONFIG_DIR reaches either
+    # adapter in place of its own. Both share the SAME Claude Code binary, hooks and
+    # skills: claude-acp is the app's own built-in id (so its entry carries
+    # no adapter.command or adapter.args -- the app strips and re-injects
+    # those), and claude-personal is a custom id whose command runs the
+    # same adapter package and version Gold Band's catalogue pins for
+    # claude-acp, and agent-kit installs the same skills and critique
+    # hooks into both homes (the `claude_profiles` work and personal
+    # config dirs above). UNVERIFIED, to be settled by the owner with the
+    # headless probe recorded on #328: whether the Claude adapter passes
+    # CLAUDE_CONFIG_DIR on to Claude Code is NOT settled by Gold Band's
+    # source. That does not block this ticket, because the variable is
+    # forwarded to the adapter either way; useLocalClaude stays undeclared
+    # (pinned off in this build).
+    - id: claude-acp
+      adapter:
+        displayName: "Claude (work)"
+        env:
+          CLAUDE_CONFIG_DIR: ~/.claude
+      icon: claude
+      primaryAgentDir: .claude
+      systemPromptDelivery: meta-append
+      externalSessionSyncSupported: true
+      externalSessionSyncEnabled: false
+      reach: write
+    # Project skills live in <repo>/.claude for both identities: Claude Code
+    # reads project skills only from <cwd>/.claude, whatever its config dir.
+    - id: claude-personal
+      adapter:
+        command: npx
+        args: ["-y", "@agentclientprotocol/claude-agent-acp@0.87.0"]
+        displayName: "Claude (personal)"
+        env:
+          CLAUDE_CONFIG_DIR: ~/.claude-personal
+      icon: claude
+      primaryAgentDir: .claude
+      systemPromptDelivery: meta-append
+      externalSessionSyncSupported: true
+      externalSessionSyncEnabled: false
+      reach: write
   # Agent ids setup removes even when the keep file names them (none yet).
   retired: []
   # Placeholder (issue #337 pins and installs Pi here; the declaration lands
