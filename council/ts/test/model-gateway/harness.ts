@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -55,6 +55,10 @@ export class FakeProcess implements ModelGatewayProcessPort {
   which(binary: string): Promise<boolean> {
     this.asked.push(binary)
     return Promise.resolve(this.installed.includes(binary))
+  }
+
+  resolve(binary: string): Promise<string | undefined> {
+    return Promise.resolve(this.installed.includes(binary) ? `/usr/bin/${binary}` : undefined)
   }
 
   exec(command: ProcessCommand): Promise<ProcessResult> {
@@ -266,6 +270,14 @@ export class FakeFiles implements ModelGatewayFilesPort {
   async remove(path: string): Promise<void> {
     await rm(path, { force: true, recursive: true })
   }
+
+  async modifiedMs(path: string): Promise<number | undefined> {
+    try {
+      return (await stat(path)).mtimeMs
+    } catch {
+      return undefined
+    }
+  }
 }
 
 /** A ledger that keeps every record in memory, so a test can read what a run appended. */
@@ -458,6 +470,10 @@ export class FakeHermesProcess implements ModelGatewayProcessPort {
     return Promise.resolve(true)
   }
 
+  resolve(binary: string): Promise<string | undefined> {
+    return Promise.resolve(`/usr/bin/${binary}`)
+  }
+
   async exec(command: ProcessCommand): Promise<ProcessResult> {
     const status = statusAnswer(command)
     if (status !== undefined) return status
@@ -493,6 +509,10 @@ export class FakeVibeProcess implements ModelGatewayProcessPort {
 
   which(): Promise<boolean> {
     return Promise.resolve(true)
+  }
+
+  resolve(binary: string): Promise<string | undefined> {
+    return Promise.resolve(`/usr/bin/${binary}`)
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {

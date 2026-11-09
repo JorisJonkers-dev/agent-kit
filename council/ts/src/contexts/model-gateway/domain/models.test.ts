@@ -641,10 +641,36 @@ describe('parseVibeAvailable', () => {
     expect(parseVibeAvailable('Available: one\nAvailable: two, three\n')).toEqual(['two', 'three'])
   })
 
+  it('reads the aliases through the terminal colours the answer carries', () => {
+    const output = '\u001B[31mError:\u001B[0m Unknown model: probe. \u001B[1mAvailable:\u001B[0m \u001B[32mglm-5-3\u001B[0m, \u001B[32mmistral-medium-3.5\u001B[0m\n'
+
+    expect(parseVibeAvailable(output)).toEqual(['glm-5-3', 'mistral-medium-3.5'])
+  })
+
+  it('drops the full stop of a refusal that ends as a sentence, and only one', () => {
+    expect(parseVibeAvailable('Unknown model: probe. Available: glm-5-3, mistral-medium-3.5.')).toEqual([
+      'glm-5-3',
+      'mistral-medium-3.5',
+    ])
+  })
+
+  it('reads the aliases from the stdout as well as the stderr the answer may arrive on', () => {
+    const stdout = 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-3.5\n'
+
+    expect(parseVibeAvailable(`\n${stdout}`)).toEqual(['glm-5-3', 'mistral-medium-3.5'])
+  })
+
+  it('fails closed on an id that is not one shape, so text the client did not name as a model is never offered', () => {
+    expect(parseVibeAvailable('Available: glm-5-3, --danger-file\n')).toBeUndefined()
+    expect(parseVibeAvailable('Available: glm-5-3, two words\n')).toBeUndefined()
+    expect(parseVibeAvailable('Available: glm-5-3, , mistral-medium-3.5\n')).toBeUndefined()
+  })
+
   it('fails closed on an answer that names nothing available, however else it reads', () => {
     expect(parseVibeAvailable('')).toBeUndefined()
     expect(parseVibeAvailable('Warning: MCP server memory failed to connect\nsomething went wrong\n')).toBeUndefined()
-    expect(parseVibeAvailable('Error: Unknown model: probe. Available:\n')).toEqual([])
+    expect(parseVibeAvailable('Error: Unknown model: probe. Available:\n')).toBeUndefined()
+    expect(parseVibeAvailable('Error: Unknown model: probe. Available: \n')).toBeUndefined()
   })
 })
 

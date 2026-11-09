@@ -135,22 +135,50 @@ export function hermesDefaultModel(stdout: string): ClientModel | undefined {
 }
 
 /**
+ * A model id Vibe may name, held to one shape so the listing never acts on
+ * text that cannot be one: a letter or digit first, then letters, digits, dots,
+ * underscores and hyphens.
+ */
+export const VIBE_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+/** The control characters a terminal escape starts with: escape itself, and the bell that can end a title. */
+const ESCAPE = String.fromCharCode(0x1b)
+const BELL = String.fromCharCode(0x7)
+
+/** The escape sequences a terminal answer can carry: colour, and the title a terminal may be given. */
+const ANSI_ESCAPES = new RegExp(
+  `${ESCAPE}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BELL}]*(?:${BELL}|${ESCAPE}\\\\))`,
+  'g',
+)
+
+/** The text of an answer without its terminal escapes, so the words, not their colour, are read. */
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_ESCAPES, '')
+}
+
+/**
  * The models Vibe itself accepts, from its answer to a model id it does not
  * know: its refusal ends with `Available: <id>, <id>, ...`, every line it
  * printed is looked at, so the connection warnings it prints first are
  * tolerated, and the ids after `Available:` are kept in the order they stand.
- * An answer with no such line has said nothing about what Vibe accepts, so
- * it reads none: the caller fails closed rather than offering a model a run
- * would be refused on.
+ * The answer is stripped of its terminal escapes first, split on commas,
+ * trimmed, and one full stop at the end of an id is dropped, because the
+ * refusal may end with a sentence. Every id left must be one id of the only
+ * shape Vibe names them in: one that is not — or a refusal that names nothing
+ * at all — has said nothing the gateway can safely read, so it reads none and
+ * the caller fails closed rather than offering a model a run would be
+ * refused on, or text Vibe never named as a model.
  */
 export function parseVibeAvailable(output: string): readonly string[] | undefined {
-  const at = output.lastIndexOf('Available:')
+  const plain = stripAnsi(output)
+  const at = plain.lastIndexOf('Available:')
   if (at === -1) return undefined
-  const line = output.slice(at + 'Available:'.length).split('\n')[0] ?? ''
-  return line
+  const line = plain.slice(at + 'Available:'.length).split('\n')[0] ?? ''
+  const ids = line
     .split(',')
-    .map((id) => id.trim())
-    .filter((id) => id !== '')
+    .map((id) => id.trim().replace(/\.$/, ''))
+  if (ids.some((id) => !VIBE_MODEL_ID.test(id))) return undefined
+  return ids
 }
 
 /**

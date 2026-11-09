@@ -1,11 +1,12 @@
-import type { EnvPort, ProcessResult } from '../../../../ports/index.js'
-import { vibeConfigPath } from '../../application/locations.js'
+import type { ClockPort, EnvPort, ProcessResult } from '../../../../ports/index.js'
+import { vibeAvailableCachePath, vibeConfigPath } from '../../application/locations.js'
 import type { ModelGatewayDependencies, ModelGatewayFilesPort, ModelGatewayProcessPort, ModelSourcePort } from '../../application/ports.js'
 import {
   hermesDefaultModel,
   parseAntigravityModels,
   parseOpenCodeModels,
   parseVibeAvailable,
+  VIBE_MODEL_ID,
   vibeModels,
   type ClientListing,
 } from '../../domain/models.js'
@@ -88,6 +89,57 @@ export const VIBE_PROBE_MODEL = 'model-gateway-probe'
 const PROBE_TIMEOUT_MS = 30_000
 
 /**
+ * The probe's own command, probed with the strictest caps Vibe takes, so
+ * even a Vibe that somehow accepted the probe id as a model could buy
+ * nothing with it: one turn, one token, no price. The outer timeout already
+ * stops a Vibe that never answers, so the probe takes no `--time-limit` of
+ * its own — a small one races the refusal the answer is read from.
+ */
+const PROBE_ARGS: readonly string[] = [
+  '--model',
+  VIBE_PROBE_MODEL,
+  '--max-turns',
+  '1',
+  '--max-tokens',
+  '1',
+  '--max-price',
+  '0',
+  '-p',
+  'ping',
+]
+
+/** The probe as its reasons name it. */
+const PROBE_COMMAND = `vibe --model ${VIBE_PROBE_MODEL} --max-turns 1 --max-tokens 1 --max-price 0 -p ping`
+
+/** How long one probe's answer holds, so the `models` calls inside it cost nothing. */
+export const PROBE_CACHE_TTL_MS = 10 * 60 * 1000
+
+/**
+ * What one probe's answer is keyed by: the Vibe that gave it, by the path
+ * `PATH` resolves to and the time that file was last modified — so an upgrade
+ * re-probes — and the home's `config.toml` by the time it was last modified.
+ * A file that is not there, or whose time cannot be read, reads as null.
+ */
+export interface VibeProbeKey {
+  readonly binary: string | null
+  readonly binaryMtimeMs: number | null
+  readonly configMtimeMs: number | null
+}
+
+/** The shape of the cache file, as it is written and read back. */
+interface VibeProbeCacheEntry {
+  readonly version: number
+  readonly binary: string | null
+  readonly binary_mtime_ms: number | null
+  readonly config_mtime_ms: number | null
+  readonly written_at_ms: number
+  readonly models: readonly string[]
+}
+
+/** The one cache file shape the gateway reads; a later one re-probes. */
+const CACHE_VERSION = 1
+
+/**
  * Vibe's own answer, the only measure of what it accepts: the gateway runs
  * `vibe --model <probe id> -p ping`, which Vibe refuses before any request,
  * and reads the aliases from the `Available:` line of its refusal. Vibe gets
@@ -97,60 +149,171 @@ const PROBE_TIMEOUT_MS = 30_000
  * catalogue may know the model by. A probe that cannot run, times out or
  * says nothing the gateway can read leaves Vibe out with the reason — it
  * offers no model rather than one a run would be refused on.
+ *
+ * A configuration that declares the probe id as a model of its own would let
+ * the probe run a model instead of being refused, so it fails closed before
+ * anything is launched: the listing is left unreadable with the reason, and
+ * no probe runs at all.
+ *
+ * The probe costs a Vibe start every time it runs, so its answer is kept for
+ * ten minutes beside the Vibe that gave it: before probing, the gateway looks
+ * for an answer the same Vibe binary and the same `config.toml` gave within
+ * the window, and only probes when there is none. A probe that failed is
+ * never kept, so a bad moment does not stick for ten minutes; an answer that
+ * does not read — a corrupt file, a key that no longer matches — is a plain
+ * miss, and the probe runs.
  */
 export class VibeModelSource implements ModelSourcePort {
   constructor(
     private readonly files: ModelGatewayFilesPort,
     private readonly env: EnvPort,
     private readonly process: ModelGatewayProcessPort,
+    private readonly clock: ClockPort,
   ) {}
 
   async list(): Promise<ClientListing> {
-    const command = `vibe --model ${VIBE_PROBE_MODEL} -p ping`
+    const declared = await this.declaredModels()
+    if (declared.clash !== undefined) return { reason: declared.clash }
+    const key = await this.probeKey()
+    const cache = new VibeAvailableCache(this.files, this.env)
+    const cached = await cache.read(key, this.clock.now().getTime())
+    if (cached !== undefined) return this.listing(cached, declared.names)
     let result: ProcessResult
     try {
       result = await this.process.exec({
-        args: ['--model', VIBE_PROBE_MODEL, '-p', 'ping'],
+        args: [...PROBE_ARGS],
         command: 'vibe',
         timeoutMs: PROBE_TIMEOUT_MS,
       })
     } catch (error) {
-      return { reason: `listing failed: ${command}: ${messageOf(error)}` }
+      return { reason: `listing failed: ${PROBE_COMMAND}: ${messageOf(error)}` }
     }
     if (result.timedOut === true) {
-      return { reason: `listing failed: ${command} did not answer within ${String(PROBE_TIMEOUT_MS / 1000)}s` }
+      return { reason: `listing failed: ${PROBE_COMMAND} did not answer within ${String(PROBE_TIMEOUT_MS / 1000)}s` }
     }
     const accepted = parseVibeAvailable(`${result.stderr}\n${result.stdout}`)
-    if (accepted === undefined) return { reason: failureReason(command, result) }
-    const names = await this.configNames()
+    if (accepted === undefined) return { reason: failureReason(PROBE_COMMAND, result) }
+    // Only an answer worth keeping is kept: a failed probe is never cached.
+    await cache.write(key, accepted, this.clock.now().getTime())
+    return this.listing(accepted, declared.names)
+  }
+
+  private listing(accepted: readonly string[], names: ReadonlyMap<string, readonly string[]>): ClientListing {
     return { models: accepted.map((alias) => ({ model: alias, names: names.get(alias) ?? [] })) }
+  }
+
+  /** The probe's cache key, built from the Vibe it would run and the home's configuration. */
+  private async probeKey(): Promise<VibeProbeKey> {
+    try {
+      const of = async (path: string): Promise<number | null> => (await this.files.modifiedMs(path)) ?? null
+      const binary = await this.process.resolve('vibe')
+      return {
+        binary: binary ?? null,
+        binaryMtimeMs: binary === undefined ? null : await of(binary),
+        configMtimeMs: await of(vibeConfigPath(this.env)),
+      }
+    } catch {
+      // A machine the environment cannot name a home for has no answer it can
+      // keep either: nothing matches, so the probe runs and nothing is written.
+      return { binary: null, binaryMtimeMs: null, configMtimeMs: null }
+    }
   }
 
   /**
    * The name the home's configuration gives each alias it declares, which
    * joins an accepted alias to the catalogue entry that knows the model by
-   * that name. Nothing about the configuration can fail the listing — it
-   * never decides what is offered — so a home the environment does not name,
-   * a file that is not there and one that is not TOML read no names.
+   * that name — and the clash, when the configuration declares the probe id
+   * itself as a model. Nothing about the configuration can fail the listing —
+   * it never decides what is offered — so a home the environment does not
+   * name, a file that is not there and one that is not TOML read no names.
+   * The one exception is the clash: a configuration that makes the probe id a
+   * model has made the probe's refusal impossible to rely on.
    */
-  private async configNames(): Promise<ReadonlyMap<string, readonly string[]>> {
+  private async declaredModels(): Promise<{ readonly names: ReadonlyMap<string, readonly string[]>; readonly clash: undefined | string }> {
     try {
       const path = vibeConfigPath(this.env)
-      if (!(await this.files.exists(path))) return new Map()
-      return new Map(vibeModels(await this.files.readText(path)).map(({ model, names = [] }) => [model, names]))
+      if (!(await this.files.exists(path))) return { names: new Map(), clash: undefined }
+      const declared = vibeModels(await this.files.readText(path))
+      if (declared.some(({ model }) => model === VIBE_PROBE_MODEL)) {
+        return {
+          clash: `listing failed: ${path} declares the gateway's probe id '${VIBE_PROBE_MODEL}' as a model, so the probe could run it instead of being refused: rename or remove the alias`,
+          names: new Map(),
+        }
+      }
+      return {
+        names: new Map(declared.map(({ model, names = [] }) => [model, names])),
+        clash: undefined,
+      }
     } catch {
-      return new Map()
+      return { names: new Map(), clash: undefined }
     }
   }
 }
 
+/**
+ * What one probe's answer looks like on disk, read before a probe runs and
+ * written after one that read. Every failure reads as a miss, so the cache
+ * can never make a listing fail: only a probe can do that, and its failures
+ * are never written.
+ */
+class VibeAvailableCache {
+  constructor(
+    private readonly files: ModelGatewayFilesPort,
+    private readonly env: EnvPort,
+  ) {}
+
+  async read(key: VibeProbeKey, now: number): Promise<readonly string[] | undefined> {
+    let entry: unknown
+    try {
+      const path = vibeAvailableCachePath(this.env)
+      if (!(await this.files.exists(path))) return undefined
+      entry = JSON.parse(await this.files.readText(path))
+    } catch {
+      return undefined
+    }
+    if (!isCacheEntry(entry, key, now)) return undefined
+    return entry.models
+  }
+
+  /** Best effort, because a listing that worked never fails on one that could not be written. */
+  async write(key: VibeProbeKey, models: readonly string[], now: number): Promise<void> {
+    const entry: VibeProbeCacheEntry = {
+      binary: key.binary,
+      binary_mtime_ms: key.binaryMtimeMs,
+      config_mtime_ms: key.configMtimeMs,
+      models,
+      version: CACHE_VERSION,
+      written_at_ms: now,
+    }
+    try {
+      await this.files.writeText(vibeAvailableCachePath(this.env), JSON.stringify(entry))
+    } catch {
+      // The answer could not be kept; the next call probes again.
+    }
+  }
+}
+
+/** Whether the entry read is the answer of this Vibe, this configuration, inside its window. */
+function isCacheEntry(entry: unknown, key: VibeProbeKey, now: number): entry is VibeProbeCacheEntry {
+  if (typeof entry !== 'object' || entry === null) return false
+  const record = entry as Readonly<Record<string, unknown>>
+  if (record.version !== CACHE_VERSION) return false
+  if (record.binary !== key.binary) return false
+  if (record.binary_mtime_ms !== key.binaryMtimeMs) return false
+  if (record.config_mtime_ms !== key.configMtimeMs) return false
+  const writtenAt = record.written_at_ms
+  if (typeof writtenAt !== 'number' || !Number.isFinite(writtenAt) || now - writtenAt >= PROBE_CACHE_TTL_MS) return false
+  const models = record.models
+  return Array.isArray(models) && models.length > 0 && models.every((model) => typeof model === 'string' && VIBE_MODEL_ID.test(model))
+}
+
 /** The clients whose models the gateway reads from the client itself or from its configuration. */
-export function modelSources(deps: Pick<ModelGatewayDependencies, 'env' | 'files' | 'process'>): Readonly<Record<string, ModelSourcePort>> {
+export function modelSources(deps: Pick<ModelGatewayDependencies, 'clock' | 'env' | 'files' | 'process'>): Readonly<Record<string, ModelSourcePort>> {
   return {
     agy: new AntigravityModelSource(deps.process),
     hermes: new HermesModelSource(deps.process),
     opencode: new OpenCodeModelSource(deps.process),
-    vibe: new VibeModelSource(deps.files, deps.env, deps.process),
+    vibe: new VibeModelSource(deps.files, deps.env, deps.process, deps.clock),
   }
 }
 

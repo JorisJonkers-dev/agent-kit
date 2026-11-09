@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -55,5 +55,13 @@ export class NodeModelGatewayFiles implements ModelGatewayFilesPort {
 
   async remove(path: string): Promise<void> {
     await rm(path, { force: true, recursive: true })
+  }
+
+  async modifiedMs(path: string): Promise<number | undefined> {
+    try {
+      return (await stat(path)).mtimeMs
+    } catch {
+      return undefined
+    }
   }
 }

@@ -108,15 +108,28 @@ the multi-bank `/mcp` root.
 
 ### Vibe's models
 
-Vibe lists only the models under `[[models]]` in `${VIBE_HOME}/config.toml`;
-its own default is Mistral Medium 3.5. With the key Vibe signed in with (its
-keyring item, see below, or `MISTRAL_API_KEY` in a cloud session), setup reads
-Mistral's model list (`scripts/vibe-sync-models.py`) and offers every chat
-model the key can use: one entry per underlying model, under its `-latest` id
-where there is one, so upgrades arrive on their own. Models without tool
-calling, transcription models and deprecated ones are left out. A model you
-define yourself under the same alias wins, and a model gone upstream is
-removed on the next run.
+What the model gateway offers of Vibe is decided by the probe's answer, not
+by this file: the gateway runs
+`vibe --model model-gateway-probe --max-turns 1 --max-tokens 1
+--max-price 0 -p ping` — a model id reserved for the gateway, never a model —
+which Vibe refuses before making any request, and
+lists the aliases named in the `Available:` line of that refusal. Vibe gets
+its aliases from its built-in catalogue too, so the answer can name an alias
+`config.toml` does not declare, and nothing else can add to or subtract from
+what the gateway lists. `${VIBE_HOME}/config.toml` never decides the offer:
+it only supplies the name joins, because each accepted alias is joined to the
+model name the configuration gives it, which the gateway's catalogue may know
+the model by.
+
+Separately from the gateway, `scripts/vibe-sync-models.py` keeps
+`config.toml` itself in shape; Vibe's own default is Mistral Medium 3.5. With
+the key Vibe signed in with (its keyring item, see below, or `MISTRAL_API_KEY`
+in a cloud session), setup reads Mistral's model
+list and writes one `[[models]]` entry for every chat model the key can use:
+one entry per underlying model, under its `-latest` id where there is one, so
+upgrades arrive on their own. Models without tool calling, transcription
+models and deprecated ones are left out. A model you define yourself under
+the same alias wins, and a model gone upstream is removed on the next run.
 
 ### Where Vibe keeps its sign-in
 

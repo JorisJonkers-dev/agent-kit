@@ -24,11 +24,19 @@ export interface ModelGatewayFilesPort {
   tempDir(prefix: string): Promise<string>
   /** Removes a file or a directory with everything in it; a path that is not there is left as it is. */
   remove(path: string): Promise<void>
+  /**
+   * When the file was last modified, in milliseconds since the epoch; undefined
+   * when it is not there. A look the port cannot make reads as undefined too,
+   * so a caller that only watches the time never fails on it.
+   */
+  modifiedMs(path: string): Promise<number | undefined>
 }
 
 /** Whether a client's program is on PATH, and the listing commands it answers. */
 export interface ModelGatewayProcessPort {
   which(binary: string): Promise<boolean>
+  /** The first executable file of that name on PATH, as an absolute path; undefined when there is none. */
+  resolve(binary: string): Promise<string | undefined>
   exec(command: ProcessCommand): Promise<ProcessResult>
 }
 

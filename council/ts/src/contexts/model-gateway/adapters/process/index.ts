@@ -18,16 +18,21 @@ export class NodeModelGatewayProcess implements ModelGatewayProcessPort {
   constructor(private readonly path: string = process.env.PATH ?? '') {}
 
   async which(binary: string): Promise<boolean> {
+    return (await this.resolve(binary)) !== undefined
+  }
+
+  async resolve(binary: string): Promise<string | undefined> {
     for (const folder of this.path.split(delimiter)) {
       if (folder === '') continue
+      const candidate = join(folder, binary)
       try {
-        await access(join(folder, binary), constants.X_OK)
-        return true
+        await access(candidate, constants.X_OK)
+        return candidate
       } catch {
         // Not here, or not executable here: PATH lookup moves on to the next folder.
       }
     }
-    return false
+    return undefined
   }
 
   async exec(command: ProcessCommand): Promise<ProcessResult> {

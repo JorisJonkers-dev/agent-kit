@@ -57,11 +57,22 @@ its model source. Models are sorted by client, then model id.
   `Fetching available models...` line, then one `<id>\t<display name>` per
   model), OpenCode's `opencode models` (one `<provider>/<model>` per line), and
   Vibe's own answer, which the gateway reads by probing it: it runs
-  `vibe --model model-gateway-probe -p ping` — a model id reserved for the
-  gateway, never a model — which Vibe refuses before making any request, and it
-  reads the aliases from the `Available:` line of that refusal. The connection
-  warnings Vibe prints first are tolerated; an answer that names nothing
-  available lists nothing. Vibe's built-in aliases come from Vibe's own
+  `vibe --model model-gateway-probe --max-turns 1 --max-tokens 1
+  --max-price 0 -p ping` — a model id reserved for the gateway, never a model
+  — which Vibe refuses before making any request, and it reads the aliases
+  from the `Available:` line of that refusal. The caps leave the probe unable
+  to spend anything even were its id ever accepted as a model: one turn, one
+  token, no price. The connection warnings Vibe prints first are tolerated;
+  the answer's terminal colours are stripped, and every id it names must be
+  one id — letters, digits, dots, underscores and hyphens, starting with a
+  letter or digit — so text Vibe never named as a model is never offered; an
+  answer that names nothing available lists nothing. The probe costs one Vibe
+  start, so its answer is kept in the cache —
+  `$XDG_CACHE_HOME/model-gateway/vibe-available.json`, else
+  `~/.cache/model-gateway/vibe-available.json` — for ten minutes, keyed by
+  the resolved vibe binary's path and mtime and the VIBE_HOME `config.toml`
+  mtime, so an upgrade of either re-probes; a probe that failed is never
+  kept. Vibe's built-in aliases come from Vibe's own
   catalogue, so `$VIBE_HOME/config.toml` never decides what is offered: it is
   read only to join each accepted alias to the model name the configuration
   gives it, which the catalogue may know the model by. Only the families a
@@ -92,12 +103,15 @@ failed Vibe probe — the command cannot run, it times out, or it answers
 nothing the gateway can read — offers no Vibe model at all, not even the
 catalogue's entries, because the probe is the only measure of what Vibe
 accepts: a run on a model it never named would be refused before it starts,
-so the gateway never falls back to the catalogue. The other way round, a probe
-that does read names every alias Vibe accepts, and that is what Vibe offers: a
-catalogue entry whose alias Vibe does not accept is never offered, and is
-named in `skipped` with the reason, whether Vibe dropped the model or the
-catalogue outlived it. The entry keeps recording the model's prices until it
-is removed from `defaults.json`.
+so the gateway never falls back to the catalogue. A Vibe home whose
+`config.toml` declares the probe id itself as a model is such a failure too:
+the probe could run that model instead of being refused, so nothing is
+offered and nothing is launched until the alias is renamed or removed. The
+other way round, a probe that does read names every alias Vibe accepts, and
+that is what Vibe offers: a catalogue entry whose alias Vibe does not accept is
+never offered, and is named in `skipped` with the reason, whether Vibe dropped
+the model or the catalogue outlived it. The entry keeps recording the model's
+prices until it is removed from `defaults.json`.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 

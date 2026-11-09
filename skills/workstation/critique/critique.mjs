@@ -1998,6 +1998,14 @@ var TomlReader = class {
   }
 };
 
+// src/contexts/model-gateway/domain/models.ts
+var ESCAPE = String.fromCharCode(27);
+var BELL = String.fromCharCode(7);
+var ANSI_ESCAPES = new RegExp(
+  `${ESCAPE}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BELL}]*(?:${BELL}|${ESCAPE}\\\\))`,
+  "g"
+);
+
 // src/contexts/model-gateway/domain/ledger.ts
 function isRunRecord(entry) {
   return !isReservation(entry) && !isSettled(entry);
@@ -2619,7 +2627,7 @@ async function keyringHoldsKey(process2, platform) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join as join6 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
@@ -2650,13 +2658,20 @@ var NodeModelGatewayFiles = class {
   async remove(path) {
     await rm(path, { force: true, recursive: true });
   }
+  async modifiedMs(path) {
+    try {
+      return (await stat(path)).mtimeMs;
+    } catch {
+      return void 0;
+    }
+  }
 };
 
 // src/contexts/model-gateway/adapters/git/index.ts
 var OUTPUT_LIMIT = 1024 * 1024;
 
 // src/contexts/model-gateway/adapters/lock/index.ts
-import { open, rm as rm2, stat } from "node:fs/promises";
+import { open, rm as rm2, stat as stat2 } from "node:fs/promises";
 var RETRY_MS = 10;
 var TIMEOUT_MS = 1e4;
 var STALE_MS = 5e3;
@@ -2712,7 +2727,7 @@ var FileLock = class {
   /** Whether the lock is older than a live writer could be; a lock that vanished meanwhile is not stale. */
   async stale(lock) {
     try {
-      return Date.now() - (await stat(lock)).mtimeMs > this.staleMs;
+      return Date.now() - (await stat2(lock)).mtimeMs > this.staleMs;
     } catch {
       return false;
     }
@@ -2771,6 +2786,11 @@ var NodeModelGatewayLedger = class {
     return records;
   }
 };
+
+// src/contexts/model-gateway/adapters/clients/index.ts
+var VIBE_PROBE_MODEL = "model-gateway-probe";
+var PROBE_COMMAND = `vibe --model ${VIBE_PROBE_MODEL} --max-turns 1 --max-tokens 1 --max-price 0 -p ping`;
+var PROBE_CACHE_TTL_MS = 10 * 60 * 1e3;
 
 // src/contexts/critique/domain/checks.ts
 var CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:/gm;
@@ -10755,8 +10775,8 @@ var PacketSearchEngine = class _PacketSearchEngine {
   }
   /** Every plain file under `dir`, relative to the root, sorted; symlinks are skipped, never followed. */
   async files(dir) {
-    const stat2 = await lstat(dir);
-    if (stat2.isFile()) return [relative3(this.root, dir)];
+    const stat3 = await lstat(dir);
+    if (stat3.isFile()) return [relative3(this.root, dir)];
     const found = [];
     for (const entry of await readdir2(dir, { withFileTypes: true })) {
       const path = join32(dir, entry.name);
