@@ -1,7 +1,8 @@
 # The estate's Rust goes in ONE cargo workspace, with ONE lockfile at
 # scripts/Cargo.lock (the standards repo's ADR-0014; see docs/RUST.md).
 #
-# Every member is std-only except crates/research-layout, which pins exactly
+# Every member is std-only except crates/research-layout and
+# crates/gold-band-allowlist, which pin exactly
 # serde =1.0.219 and serde_json =1.0.140 — both far older than the 7-day crate
 # cooldown. On a workstation, cargo resolves through the crate-gate
 # (127.0.0.1:17342, configured in ~/.cargo/config.toml), which hides any
@@ -12,6 +13,7 @@
 resolver = "2"
 members = [
     "crates/agent-kit-setup",
+    "crates/gold-band-allowlist",
     "crates/gold-band-registry",
     "crates/inventory-check",
     "crates/research-layout",
