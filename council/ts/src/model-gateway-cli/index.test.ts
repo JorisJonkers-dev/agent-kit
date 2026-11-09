@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
@@ -205,6 +205,8 @@ interface WorkspaceOptions {
   readonly env?: Readonly<Record<string, string>>
   readonly listings?: Readonly<Record<string, ProcessResult>>
   readonly repositories?: Readonly<Record<string, FakeRepository>>
+  /** The path `PATH` resolves each program to, for a test that points it at a real file on disk. */
+  readonly resolved?: Readonly<Record<string, string>>
   /** Leaves HOME out of the environment, as a session that never set it has none. */
   readonly withoutHome?: boolean
   /** The clock the listing keeps the probe's answer till under; one shared instance lets a test move it on. */
@@ -217,7 +219,7 @@ async function workspace(options: WorkspaceOptions = {}): Promise<Workspace> {
   const home = join(dir, 'home')
   const defaults = join(dir, 'defaults.json')
   await writeFile(defaults, await readFile(SHIPPED_DEFAULTS, 'utf8'))
-  const process = new FakeProcess(options.installed ?? ['claude', 'codex'], options.listings ?? {})
+  const process = new FakeProcess(options.installed ?? ['claude', 'codex'], options.listings ?? {}, options.resolved ?? {})
   const runtime = defaultModelGatewayRuntime({
     clock: options.clock ?? new FixedClock(),
     defaultsPath: defaults,
@@ -1513,37 +1515,90 @@ describe('models: Vibe, read from its own answer', () => {
     expect((JSON.parse(await readFile(w.vibeCache, 'utf8')) as Record<string, unknown>).models).toEqual(VIBE_PROBE_MODELS)
   })
 
-  it('ignores an answer that belongs to another Vibe, another window or no ids at all, and probes again', async () => {
+  it('ignores an answer that belongs to another Vibe, another configuration, another window or no ids at all, and probes again', async () => {
     const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
-    await mkdir(join(w.dir, 'cache', 'model-gateway'), { recursive: true })
-    const at = new Date('2026-11-04T10:52:15.000Z').getTime()
-    const entry = (over: Readonly<Record<string, unknown>>): string =>
-      JSON.stringify({
-        binary: '/usr/bin/vibe',
-        binary_mtime_ms: null,
-        config_mtime_ms: null,
-        models: VIBE_PROBE_MODELS,
-        version: 1,
-        written_at_ms: at,
-        ...over,
-      })
+    await w.run('models', '--json', '{}')
+    expect(w.ran).toHaveLength(1)
+    const kept = JSON.parse(await readFile(w.vibeCache, 'utf8')) as Record<string, unknown>
+    const entry = (over: Readonly<Record<string, unknown>>): string => JSON.stringify({ ...kept, ...over })
     const notTheAnswer = [
       'null',
-      entry({ version: 2 }),
+      entry({ version: 3 }),
       entry({ binary: '/opt/vibe/bin/vibe' }),
-      entry({ binary_mtime_ms: 1_712_345_678_901 }),
-      entry({ config_mtime_ms: 1_712_345_678_901 }),
+      entry({ binary_ctime_ms: 1_712_345_678_901 }),
+      entry({ binary_size: 1 }),
+      entry({ binary_ino: 1 }),
+      entry({ config_path: join(w.home, 'other-vibe', 'config.toml') }),
+      entry({ config_sha256: 'ef537f25c8959fa9b5defbbecb6a0dbf6d0e107ec3c2ecc9fa08a90ffd1e0036' }),
       entry({ written_at_ms: 'not a number' }),
+      entry({ written_at_ms: (kept.written_at_ms as number) - 10 * 60 * 1000 }),
       entry({ models: [] }),
       entry({ models: ['--not an id'] }),
-      `{"binary":"/usr/bin/vibe","binary_mtime_ms":null,"config_mtime_ms":null,"models":${JSON.stringify(VIBE_PROBE_MODELS)},"version":1,"written_at_ms":1e999}`,
+      JSON.stringify({ ...kept }).replace(`"written_at_ms":${JSON.stringify(kept.written_at_ms)}`, '"written_at_ms":1e999'),
     ]
     for (const bad of notTheAnswer) {
       await writeFile(w.vibeCache, bad)
       const result = await w.run('models', '--json', '{}')
       expect(listed(result)).toEqual(VIBE_LISTED)
     }
-    expect(w.ran).toHaveLength(notTheAnswer.length)
+    expect(w.ran).toHaveLength(notTheAnswer.length + 1)
+  })
+
+  it('probes again when the symlink PATH resolves to Vibe now names another binary with the same mtime', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'model-gateway-vibe-bin-'))
+    cleanups.push(() => rm(dir, { force: true, recursive: true }))
+    const first = join(dir, 'vibe-1')
+    const second = join(dir, 'vibe-2')
+    const when = new Date('2026-11-04T10:52:15.000Z')
+    await writeFile(first, '#!/bin/sh\nfirst Vibe\n', { mode: 0o755 })
+    await writeFile(second, '#!/bin/sh\nsecond Vibe\n', { mode: 0o755 })
+    for (const binary of [first, second]) await utimes(binary, when, when)
+    const onPath = join(dir, 'vibe')
+    await symlink(first, onPath)
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE }, resolved: { vibe: onPath } })
+
+    await w.run('models', '--json', '{}')
+    await rm(onPath)
+    await symlink(second, onPath)
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('probes again when the home configuration was rewritten with its mtime held still, so the answer never outlives its content', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+    const config = await w.writeVibeConfig(VIBE_CONFIG)
+
+    await w.run('models', '--json', '{}')
+    const of = await stat(config)
+    await writeFile(config, '[[models]]\nname = "mistral-large-latest"\nprovider = "mistral"\nalias = "glm-5-3"\n')
+    await utimes(config, of.atime, of.mtime)
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('treats an answer written in the future — a clock that stepped back — as no answer, and probes again', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+
+    await w.run('models', '--json', '{}')
+    const kept = JSON.parse(await readFile(w.vibeCache, 'utf8')) as Record<string, unknown>
+    await writeFile(w.vibeCache, JSON.stringify({ ...kept, written_at_ms: (kept.written_at_ms as number) + 60_000 }))
+    const again = await w.run('models', '--json', '{}')
+
+    expect(listed(again)).toEqual(VIBE_LISTED)
+    expect(w.ran).toHaveLength(2)
+  })
+
+  it('keeps the answer where only its owner can read it: the file 0o600, the directory it sits in 0o700', async () => {
+    const w = await workspace({ installed: ['vibe'], listings: { vibe: VIBE_PROBE } })
+
+    await w.run('models', '--json', '{}')
+
+    expect((await stat(w.vibeCache)).mode & 0o777).toBe(0o600)
+    expect((await stat(dirname(w.vibeCache))).mode & 0o777).toBe(0o700)
   })
 
   it('lists Vibe anyway, keeping nothing, on a machine whose environment names no home and no cache', async () => {
@@ -5793,8 +5848,10 @@ function filesWithUnreadableExists(broken: string): ModelGatewayFilesPort {
     modifiedMs: (path) => files.modifiedMs(path),
     readText: (path) => files.readText(path),
     remove: (path) => files.remove(path),
+    stamp: (path) => files.stamp(path),
     tempDir: (prefix) => files.tempDir(prefix),
     writeText: (path, content) => files.writeText(path, content),
+    writeTextPrivate: (path, content) => files.writeTextPrivate(path, content),
   }
 }
 

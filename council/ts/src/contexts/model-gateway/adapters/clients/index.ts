@@ -115,29 +115,38 @@ const PROBE_COMMAND = `vibe --model ${VIBE_PROBE_MODEL} --max-turns 1 --max-toke
 export const PROBE_CACHE_TTL_MS = 10 * 60 * 1000
 
 /**
- * What one probe's answer is keyed by: the Vibe that gave it, by the path
- * `PATH` resolves to and the time that file was last modified — so an upgrade
- * re-probes — and the home's `config.toml` by the time it was last modified.
- * A file that is not there, or whose time cannot be read, reads as null.
+ * What one probe's answer is keyed by: the Vibe that gave it, by the file its
+ * name on PATH resolves to — through every symlink to the file itself — with
+ * what makes that file the one it is: its change time, its size and its
+ * inode; and the home's `config.toml` by its path and the SHA-256 of its
+ * content, so a retargeted symlink or a rewrite within the same modification
+ * time is still another configuration. A file that is not there, or whose
+ * stamp cannot be read, has no key but its own: null, which no stamp equals.
  */
 export interface VibeProbeKey {
   readonly binary: string | null
-  readonly binaryMtimeMs: number | null
-  readonly configMtimeMs: number | null
+  readonly binaryCtimeMs: number | null
+  readonly binarySize: number | null
+  readonly binaryIno: number | null
+  readonly configPath: string | null
+  readonly configSha256: string | null
 }
 
 /** The shape of the cache file, as it is written and read back. */
 interface VibeProbeCacheEntry {
   readonly version: number
   readonly binary: string | null
-  readonly binary_mtime_ms: number | null
-  readonly config_mtime_ms: number | null
+  readonly binary_ctime_ms: number | null
+  readonly binary_size: number | null
+  readonly binary_ino: number | null
+  readonly config_path: string | null
+  readonly config_sha256: string | null
   readonly written_at_ms: number
   readonly models: readonly string[]
 }
 
 /** The one cache file shape the gateway reads; a later one re-probes. */
-const CACHE_VERSION = 1
+const CACHE_VERSION = 2
 
 /**
  * Vibe's own answer, the only measure of what it accepts: the gateway runs
@@ -205,17 +214,22 @@ export class VibeModelSource implements ModelSourcePort {
   /** The probe's cache key, built from the Vibe it would run and the home's configuration. */
   private async probeKey(): Promise<VibeProbeKey> {
     try {
-      const of = async (path: string): Promise<number | null> => (await this.files.modifiedMs(path)) ?? null
-      const binary = await this.process.resolve('vibe')
+      const configPath = vibeConfigPath(this.env)
+      const resolved = await this.process.resolve('vibe')
+      const binary = resolved === undefined ? undefined : await this.files.stamp(resolved)
+      const config = await this.files.stamp(configPath)
       return {
-        binary: binary ?? null,
-        binaryMtimeMs: binary === undefined ? null : await of(binary),
-        configMtimeMs: await of(vibeConfigPath(this.env)),
+        binary: binary?.realpath ?? null,
+        binaryCtimeMs: binary?.ctimeMs ?? null,
+        binarySize: binary?.size ?? null,
+        binaryIno: binary?.ino ?? null,
+        configPath: config?.realpath ?? configPath,
+        configSha256: config?.sha256 ?? null,
       }
     } catch {
       // A machine the environment cannot name a home for has no answer it can
       // keep either: nothing matches, so the probe runs and nothing is written.
-      return { binary: null, binaryMtimeMs: null, configMtimeMs: null }
+      return { binary: null, binaryCtimeMs: null, binarySize: null, binaryIno: null, configPath: null, configSha256: null }
     }
   }
 
@@ -251,10 +265,12 @@ export class VibeModelSource implements ModelSourcePort {
 }
 
 /**
- * What one probe's answer looks like on disk, read before a probe runs and
- * written after one that read. Every failure reads as a miss, so the cache
- * can never make a listing fail: only a probe can do that, and its failures
- * are never written.
+ * What one probe's answer looks like on disk: a file only its owner can read,
+ * written in one step so a reader never sees half of it, read before a probe
+ * runs and written after one that read. Every failure reads as a miss, so the
+ * cache can never make a listing fail: only a probe can do that, and its
+ * failures are never written. An answer written in the future — a clock that
+ * stepped back — is outside the window too, so it is a miss.
  */
 class VibeAvailableCache {
   constructor(
@@ -279,14 +295,17 @@ class VibeAvailableCache {
   async write(key: VibeProbeKey, models: readonly string[], now: number): Promise<void> {
     const entry: VibeProbeCacheEntry = {
       binary: key.binary,
-      binary_mtime_ms: key.binaryMtimeMs,
-      config_mtime_ms: key.configMtimeMs,
+      binary_ctime_ms: key.binaryCtimeMs,
+      binary_ino: key.binaryIno,
+      binary_size: key.binarySize,
+      config_path: key.configPath,
+      config_sha256: key.configSha256,
       models,
       version: CACHE_VERSION,
       written_at_ms: now,
     }
     try {
-      await this.files.writeText(vibeAvailableCachePath(this.env), JSON.stringify(entry))
+      await this.files.writeTextPrivate(vibeAvailableCachePath(this.env), JSON.stringify(entry))
     } catch {
       // The answer could not be kept; the next call probes again.
     }
@@ -299,10 +318,15 @@ function isCacheEntry(entry: unknown, key: VibeProbeKey, now: number): entry is 
   const record = entry as Readonly<Record<string, unknown>>
   if (record.version !== CACHE_VERSION) return false
   if (record.binary !== key.binary) return false
-  if (record.binary_mtime_ms !== key.binaryMtimeMs) return false
-  if (record.config_mtime_ms !== key.configMtimeMs) return false
+  if (record.binary_ctime_ms !== key.binaryCtimeMs) return false
+  if (record.binary_size !== key.binarySize) return false
+  if (record.binary_ino !== key.binaryIno) return false
+  if (record.config_path !== key.configPath) return false
+  if (record.config_sha256 !== key.configSha256) return false
   const writtenAt = record.written_at_ms
-  if (typeof writtenAt !== 'number' || !Number.isFinite(writtenAt) || now - writtenAt >= PROBE_CACHE_TTL_MS) return false
+  if (typeof writtenAt !== 'number' || !Number.isFinite(writtenAt)) return false
+  const age = now - writtenAt
+  if (!(age >= 0 && age < PROBE_CACHE_TTL_MS)) return false
   const models = record.models
   return Array.isArray(models) && models.length > 0 && models.every((model) => typeof model === 'string' && VIBE_MODEL_ID.test(model))
 }

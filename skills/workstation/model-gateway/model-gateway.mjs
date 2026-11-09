@@ -1106,8 +1106,8 @@ function parseVibeAvailable(output) {
   const plain = stripAnsi(output);
   const at = plain.lastIndexOf("Available:");
   if (at === -1) return void 0;
-  const line = plain.slice(at + "Available:".length).split("\n")[0] ?? "";
-  const ids = line.split(",").map((id) => id.trim().replace(/\.$/, ""));
+  const after = plain.slice(at + "Available:".length).split("\n")[0] ?? "";
+  const ids = (after.split(/\.\s/)[0] ?? "").split(",").map((id) => id.trim().replace(/\.$/, ""));
   if (ids.some((id) => !VIBE_MODEL_ID.test(id))) return void 0;
   return ids;
 }
@@ -4183,15 +4183,15 @@ function createModelGatewayCommands(deps) {
 }
 
 // src/contexts/model-gateway/adapters/fs/index.ts
-import { randomBytes as randomBytes4 } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { createHash, randomBytes as randomBytes4 } from "node:crypto";
+import { access, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname as dirname2, join as join7 } from "node:path";
 var ABSENT = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
-async function writeFileAtomic(path, content) {
+async function writeFileAtomic(path, content, mode) {
   const temp = `${path}.${randomBytes4(6).toString("hex")}.tmp`;
   try {
-    await writeFile(temp, content);
+    await writeFile(temp, content, mode === void 0 ? void 0 : { mode });
     await rename(temp, path);
   } catch (error) {
     await rm(temp, { force: true });
@@ -4231,6 +4231,25 @@ var NodeModelGatewayFiles = class {
     } catch {
       return void 0;
     }
+  }
+  async stamp(path) {
+    try {
+      const real = await realpath(path);
+      const of = await stat(real);
+      return {
+        ctimeMs: of.ctimeMs,
+        ino: of.ino,
+        realpath: real,
+        sha256: createHash("sha256").update(await readFile(real)).digest("hex"),
+        size: of.size
+      };
+    } catch {
+      return void 0;
+    }
+  }
+  async writeTextPrivate(path, content) {
+    await mkdir(dirname2(path), { recursive: true, mode: 448 });
+    await writeFileAtomic(path, content, 384);
   }
 };
 
@@ -4656,7 +4675,7 @@ var PROBE_ARGS = [
 ];
 var PROBE_COMMAND = `vibe --model ${VIBE_PROBE_MODEL} --max-turns 1 --max-tokens 1 --max-price 0 -p ping`;
 var PROBE_CACHE_TTL_MS = 10 * 60 * 1e3;
-var CACHE_VERSION = 1;
+var CACHE_VERSION = 2;
 var VibeModelSource = class {
   constructor(files, env, process2, clock) {
     this.files = files;
@@ -4700,15 +4719,20 @@ ${result2.stdout}`);
   /** The probe's cache key, built from the Vibe it would run and the home's configuration. */
   async probeKey() {
     try {
-      const of = async (path) => await this.files.modifiedMs(path) ?? null;
-      const binary = await this.process.resolve("vibe");
+      const configPath = vibeConfigPath(this.env);
+      const resolved = await this.process.resolve("vibe");
+      const binary = resolved === void 0 ? void 0 : await this.files.stamp(resolved);
+      const config = await this.files.stamp(configPath);
       return {
-        binary: binary ?? null,
-        binaryMtimeMs: binary === void 0 ? null : await of(binary),
-        configMtimeMs: await of(vibeConfigPath(this.env))
+        binary: binary?.realpath ?? null,
+        binaryCtimeMs: binary?.ctimeMs ?? null,
+        binarySize: binary?.size ?? null,
+        binaryIno: binary?.ino ?? null,
+        configPath: config?.realpath ?? configPath,
+        configSha256: config?.sha256 ?? null
       };
     } catch {
-      return { binary: null, binaryMtimeMs: null, configMtimeMs: null };
+      return { binary: null, binaryCtimeMs: null, binarySize: null, binaryIno: null, configPath: null, configSha256: null };
     }
   }
   /**
@@ -4764,14 +4788,17 @@ var VibeAvailableCache = class {
   async write(key, models, now) {
     const entry = {
       binary: key.binary,
-      binary_mtime_ms: key.binaryMtimeMs,
-      config_mtime_ms: key.configMtimeMs,
+      binary_ctime_ms: key.binaryCtimeMs,
+      binary_ino: key.binaryIno,
+      binary_size: key.binarySize,
+      config_path: key.configPath,
+      config_sha256: key.configSha256,
       models,
       version: CACHE_VERSION,
       written_at_ms: now
     };
     try {
-      await this.files.writeText(vibeAvailableCachePath(this.env), JSON.stringify(entry));
+      await this.files.writeTextPrivate(vibeAvailableCachePath(this.env), JSON.stringify(entry));
     } catch {
     }
   }
@@ -4781,10 +4808,15 @@ function isCacheEntry(entry, key, now) {
   const record = entry;
   if (record.version !== CACHE_VERSION) return false;
   if (record.binary !== key.binary) return false;
-  if (record.binary_mtime_ms !== key.binaryMtimeMs) return false;
-  if (record.config_mtime_ms !== key.configMtimeMs) return false;
+  if (record.binary_ctime_ms !== key.binaryCtimeMs) return false;
+  if (record.binary_size !== key.binarySize) return false;
+  if (record.binary_ino !== key.binaryIno) return false;
+  if (record.config_path !== key.configPath) return false;
+  if (record.config_sha256 !== key.configSha256) return false;
   const writtenAt = record.written_at_ms;
-  if (typeof writtenAt !== "number" || !Number.isFinite(writtenAt) || now - writtenAt >= PROBE_CACHE_TTL_MS) return false;
+  if (typeof writtenAt !== "number" || !Number.isFinite(writtenAt)) return false;
+  const age = now - writtenAt;
+  if (!(age >= 0 && age < PROBE_CACHE_TTL_MS)) return false;
   const models = record.models;
   return Array.isArray(models) && models.length > 0 && models.every((model) => typeof model === "string" && VIBE_MODEL_ID.test(model));
 }

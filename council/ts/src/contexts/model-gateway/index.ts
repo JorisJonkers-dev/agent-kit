@@ -32,6 +32,7 @@ export { UsageCommand } from './application/usage.js'
 export { keyringQuery, vibeSignedIn, type VibeSignInPorts } from './application/vibe-sign-in.js'
 export type {
   ClientStatusPort,
+  FileStamp,
   LedgerChange,
   ModelGatewayGrantsPort,
   ModelGatewayDependencies,

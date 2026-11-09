@@ -161,20 +161,22 @@ export function stripAnsi(text: string): string {
  * know: its refusal ends with `Available: <id>, <id>, ...`, every line it
  * printed is looked at, so the connection warnings it prints first are
  * tolerated, and the ids after `Available:` are kept in the order they stand.
- * The answer is stripped of its terminal escapes first, split on commas,
- * trimmed, and one full stop at the end of an id is dropped, because the
- * refusal may end with a sentence. Every id left must be one id of the only
- * shape Vibe names them in: one that is not — or a refusal that names nothing
- * at all — has said nothing the gateway can safely read, so it reads none and
- * the caller fails closed rather than offering a model a run would be
- * refused on, or text Vibe never named as a model.
+ * The answer is stripped of its terminal escapes first, and the list is read to
+ * the end of its line and no further than the sentence that may follow it —
+ * the first full stop a whitespace follows — then split on commas, trimmed,
+ * and one full stop at the end of an id is dropped, because the refusal may
+ * end with a sentence. Every id left must be one id of the only shape Vibe
+ * names them in: one that is not — or a refusal that names nothing at all —
+ * has said nothing the gateway can safely read, so it reads none and the
+ * caller fails closed rather than offering a model a run would be refused on,
+ * or text Vibe never named as a model.
  */
 export function parseVibeAvailable(output: string): readonly string[] | undefined {
   const plain = stripAnsi(output)
   const at = plain.lastIndexOf('Available:')
   if (at === -1) return undefined
-  const line = plain.slice(at + 'Available:'.length).split('\n')[0] ?? ''
-  const ids = line
+  const after = plain.slice(at + 'Available:'.length).split('\n')[0] ?? ''
+  const ids = (after.split(/\.\s/)[0] ?? '')
     .split(',')
     .map((id) => id.trim().replace(/\.$/, ''))
   if (ids.some((id) => !VIBE_MODEL_ID.test(id))) return undefined

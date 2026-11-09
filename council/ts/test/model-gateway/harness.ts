@@ -1,8 +1,10 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import type {
+  FileStamp,
   Grant,
   GrantChange,
   LedgerChange,
@@ -42,7 +44,11 @@ export class FakeEnv implements EnvPort {
   }
 }
 
-/** A PATH that holds exactly the programs the test names, and the listings they answer. */
+/**
+ * A PATH that holds exactly the programs the test names, and the listings they
+ * answer. `resolved` names the file `PATH` resolves a binary to itself, for a
+ * test that points the gateway at a real file on disk.
+ */
 export class FakeProcess implements ModelGatewayProcessPort {
   readonly asked: string[] = []
   readonly ran: ProcessCommand[] = []
@@ -50,6 +56,7 @@ export class FakeProcess implements ModelGatewayProcessPort {
   constructor(
     private readonly installed: readonly string[],
     private readonly listings: Readonly<Record<string, ProcessResult>> = {},
+    private readonly resolved: Readonly<Record<string, string>> = {},
   ) {}
 
   which(binary: string): Promise<boolean> {
@@ -58,7 +65,8 @@ export class FakeProcess implements ModelGatewayProcessPort {
   }
 
   resolve(binary: string): Promise<string | undefined> {
-    return Promise.resolve(this.installed.includes(binary) ? `/usr/bin/${binary}` : undefined)
+    const path = this.resolved[binary]
+    return Promise.resolve(path ?? (this.installed.includes(binary) ? `/usr/bin/${binary}` : undefined))
   }
 
   exec(command: ProcessCommand): Promise<ProcessResult> {
@@ -277,6 +285,27 @@ export class FakeFiles implements ModelGatewayFilesPort {
     } catch {
       return undefined
     }
+  }
+
+  async stamp(path: string): Promise<FileStamp | undefined> {
+    try {
+      const real = await realpath(path)
+      const of = await stat(real)
+      return {
+        ctimeMs: of.ctimeMs,
+        ino: of.ino,
+        realpath: real,
+        sha256: createHash('sha256').update(await readFile(real)).digest('hex'),
+        size: of.size,
+      }
+    } catch {
+      return undefined
+    }
+  }
+
+  async writeTextPrivate(path: string, content: string): Promise<void> {
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+    await writeFile(path, content, { mode: 0o600 })
   }
 }
 

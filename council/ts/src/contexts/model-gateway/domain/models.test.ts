@@ -654,6 +654,13 @@ describe('parseVibeAvailable', () => {
     ])
   })
 
+  it('tolerates the sentence that follows the list, and reads no id after it', () => {
+    expect(parseVibeAvailable('Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-3.5. Please check the configuration.\n')).toEqual([
+      'glm-5-3',
+      'mistral-medium-3.5',
+    ])
+  })
+
   it('reads the aliases from the stdout as well as the stderr the answer may arrive on', () => {
     const stdout = 'Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-medium-3.5\n'
 
