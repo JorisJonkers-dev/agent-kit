@@ -2148,6 +2148,40 @@ def _pinned_npm_cli_block(cli: dict[str, Any], pin: dict[str, Any]) -> list[str]
     return block
 
 
+def _cask_stray_binary(name: str, binary: str) -> tuple[list[str], list[str]]:
+    """A cask-with-binary step's stray-file lines: aside before the install, back after a failure.
+
+    Homebrew refuses ``brew install --cask <cask>`` while its own bin
+    directory already holds a file of the name the cask ships -- one an
+    earlier manual install put there, on exactly the machine the cask is
+    for. Such a file (or symlink) is moved aside to ``<path>.bak-<stamp>``
+    first, never deleted; when the install still fails, the backup moves
+    back and the step fails as it did before. Both moves go through
+    ``run``, so ``--check`` only prints them, and the log lines that name
+    the old file and its destination never claim a move that did not
+    happen.
+    """
+    v = name.replace("-", "_")
+    stray = [
+        f'  {v}_bin="$(brew --prefix)/bin/{binary}"',
+        f'  {v}_bak=""',
+        f'  if [ -e "${{{v}_bin}}" ] || [ -L "${{{v}_bin}}" ]; then',
+        f'    {v}_bak="${{{v}_bin}}.bak-$(date +%Y%m%d%H%M%S)"',
+        f'    run mv "${{{v}_bin}}" "${{{v}_bak}}"',
+        f'    if [ "${{CHECK_ONLY}}" != 1 ]; then',
+        f'      log "{name}: moved ${{{v}_bin}} aside to ${{{v}_bak}}"',
+        f'    fi',
+        f'  fi',
+    ]
+    restore = [
+        f'    if [ -n "${{{v}_bak}}" ]; then',
+        f'      run mv "${{{v}_bak}}" "${{{v}_bin}}"',
+        f'      log "{name}: restored ${{{v}_bin}} from ${{{v}_bak}}"',
+        f'    fi',
+    ]
+    return stray, restore
+
+
 def render_setup_script(data: dict[str, Any]) -> str:
     out: list[str] = []
     w = out.append
@@ -3257,6 +3291,8 @@ def render_setup_script(data: dict[str, Any]) -> str:
             continue
         block: list[str] = []
         b = block.append
+        stray: list[str] = []    # Runs before the install: moves an existing binary aside
+        restore: list[str] = []  # Runs when the install still fails: moves it back
         if cask:
             # Homebrew owns the cask, so presence is the cask list rather than a
             # binary on PATH (the desktop app has none), and `brew upgrade` is a
@@ -3266,6 +3302,11 @@ def render_setup_script(data: dict[str, Any]) -> str:
             update = f"run brew upgrade --cask {cask}"
             label = name
             failed = f"{name}: brew install --cask {cask} did not install it; is Homebrew on PATH?"
+            # A cask that ships a binary cannot install over a file of that
+            # name already sitting in Homebrew's bin directory, so an entry
+            # that names a binary also moves any such stray aside first.
+            if binary:
+                stray, restore = _cask_stray_binary(name, str(binary))
         else:
             install_cmd = str(cli.get("install") or "")
             if not install_cmd:
@@ -3282,6 +3323,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         else:
             b(f'  ok "{label} present"')
         b("else")
+        block.extend(stray)
         b(f"  {install}")
         b('  if [ "${CHECK_ONLY}" = 1 ]; then')
         b(f'    log "{label} would be installed"')
@@ -3291,6 +3333,7 @@ def render_setup_script(data: dict[str, Any]) -> str:
         for bin_name in provides:
             b(f'    new_binaries+=("{bin_name}")')
         b("  else")
+        block.extend(restore)
         b(f'    fail "{failed}"')
         b("  fi")
         b("fi")

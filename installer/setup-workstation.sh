@@ -1815,6 +1815,15 @@ else
       run brew upgrade --cask antigravity-cli
       ok "agy $(agy --version 2>/dev/null | head -1)"
     else
+      antigravity_cli_bin="$(brew --prefix)/bin/agy"
+      antigravity_cli_bak=""
+      if [ -e "${antigravity_cli_bin}" ] || [ -L "${antigravity_cli_bin}" ]; then
+        antigravity_cli_bak="${antigravity_cli_bin}.bak-$(date +%Y%m%d%H%M%S)"
+        run mv "${antigravity_cli_bin}" "${antigravity_cli_bak}"
+        if [ "${CHECK_ONLY}" != 1 ]; then
+          log "antigravity-cli: moved ${antigravity_cli_bin} aside to ${antigravity_cli_bak}"
+        fi
+      fi
       run brew install --cask antigravity-cli
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "antigravity-cli would be installed"
@@ -1822,6 +1831,10 @@ else
         ok "antigravity-cli installed"
         new_binaries+=("agy")
       else
+        if [ -n "${antigravity_cli_bak}" ]; then
+          run mv "${antigravity_cli_bak}" "${antigravity_cli_bin}"
+          log "antigravity-cli: restored ${antigravity_cli_bin} from ${antigravity_cli_bak}"
+        fi
         fail "antigravity-cli: brew install --cask antigravity-cli did not install it; is Homebrew on PATH?"
       fi
     fi
