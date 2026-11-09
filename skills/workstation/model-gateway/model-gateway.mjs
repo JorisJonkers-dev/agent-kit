@@ -1092,6 +1092,12 @@ function hermesDefaultModel(stdout) {
   const provider = typeof parsed.provider === "string" && parsed.provider !== "" ? parsed.provider : void 0;
   return { model, ...provider === void 0 ? {} : { provider } };
 }
+function parseVibeAvailable(output) {
+  const at = output.lastIndexOf("Available:");
+  if (at === -1) return void 0;
+  const line = output.slice(at + "Available:".length).split("\n")[0] ?? "";
+  return line.split(",").map((id) => id.trim()).filter((id) => id !== "");
+}
 function vibeModels(toml) {
   const declared = [];
   const from = (value, key) => {
@@ -1126,7 +1132,6 @@ function listModels(config, installed, listings, unavailable = []) {
     if (listing === void 0) continue;
     if ("reason" in listing) {
       missing.push({ client: id, reason: listing.reason });
-      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueEntries(config, id, client).map(listedEntry(id, client)));
       continue;
     }
     const listed = listedModels(config, id, client, listing.models);
@@ -1138,15 +1143,16 @@ function listModels(config, installed, listings, unavailable = []) {
           (entry) => ({
             client: id,
             model: entry.model,
-            reason: NOT_DECLARED_BY_CLIENT
+            reason: NOT_ACCEPTED_BY_CLIENT
           })
         )
       );
     }
   }
-  const refused = new Map(
-    unavailable.map((entry) => [modelKey(entry.client, entry.model), entry.reason])
-  );
+  const refused = /* @__PURE__ */ new Map();
+  for (const refusal of unavailable) {
+    for (const key of keysOf(config, refusal.client, refusal.model)) refused.set(key, refusal.reason);
+  }
   const refusedKey = (model) => modelKey(model.client, model.model);
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model));
   missing.sort((left, right) => compare(left.client, right.client));
@@ -1161,7 +1167,7 @@ function listModels(config, installed, listings, unavailable = []) {
   };
 }
 var BUILT_IN_MODEL_CLIENTS = ["vibe"];
-var NOT_DECLARED_BY_CLIENT = "the client's own configuration does not declare it, so the client would reject it: declare it in the client's configuration or remove the entry from defaults.json";
+var NOT_ACCEPTED_BY_CLIENT = "the client does not accept it, so a run naming it would be refused before it starts: its own answer names the models it accepts and this is not one of them, so the entry only records the model's prices; remove it from defaults.json or change it to the id the client accepts";
 function catalogueEntries(config, id, client, except = /* @__PURE__ */ new Set()) {
   return config.models.filter(
     (entry) => entry.client === id && !except.has(entry) && (client.families === void 0 || client.families.includes(entry.family)) && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))
@@ -1214,6 +1220,13 @@ function listedModels(config, id, client, listed) {
   return { matched, models, skipped };
 }
 var FAMILY_UNKNOWN = "no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override";
+function keysOf(config, client, model) {
+  const entry = config.models.find(
+    (candidate) => candidate.client === client && [candidate.model, ...candidate.names ?? []].includes(model)
+  );
+  const keys = entry === void 0 ? [model] : [model, entry.model, ...entry.names ?? []];
+  return [...new Set(keys.filter((key) => key !== ""))].map((key) => modelKey(client, key));
+}
 function modelPart(model) {
   return model.slice(model.lastIndexOf("/") + 1);
 }
@@ -4602,21 +4615,52 @@ var HermesModelSource = class {
     return { models: [model] };
   }
 };
+var VIBE_PROBE_MODEL = "model-gateway-probe";
+var PROBE_TIMEOUT_MS = 3e4;
 var VibeModelSource = class {
-  constructor(files, env) {
+  constructor(files, env, process2) {
     this.files = files;
     this.env = env;
+    this.process = process2;
   }
   files;
   env;
+  process;
   async list() {
-    let path = "~/.vibe/config.toml";
+    const command = `vibe --model ${VIBE_PROBE_MODEL} -p ping`;
+    let result2;
     try {
-      path = vibeConfigPath(this.env);
-      if (!await this.files.exists(path)) return { reason: `no configuration: ${path} is not there` };
-      return { models: vibeModels(await this.files.readText(path)) };
+      result2 = await this.process.exec({
+        args: ["--model", VIBE_PROBE_MODEL, "-p", "ping"],
+        command: "vibe",
+        timeoutMs: PROBE_TIMEOUT_MS
+      });
     } catch (error) {
-      return { reason: `configuration unreadable: ${path}: ${messageOf7(error)}` };
+      return { reason: `listing failed: ${command}: ${messageOf7(error)}` };
+    }
+    if (result2.timedOut === true) {
+      return { reason: `listing failed: ${command} did not answer within ${String(PROBE_TIMEOUT_MS / 1e3)}s` };
+    }
+    const accepted = parseVibeAvailable(`${result2.stderr}
+${result2.stdout}`);
+    if (accepted === void 0) return { reason: failureReason(command, result2) };
+    const names = await this.configNames();
+    return { models: accepted.map((alias) => ({ model: alias, names: names.get(alias) ?? [] })) };
+  }
+  /**
+   * The name the home's configuration gives each alias it declares, which
+   * joins an accepted alias to the catalogue entry that knows the model by
+   * that name. Nothing about the configuration can fail the listing — it
+   * never decides what is offered — so a home the environment does not name,
+   * a file that is not there and one that is not TOML read no names.
+   */
+  async configNames() {
+    try {
+      const path = vibeConfigPath(this.env);
+      if (!await this.files.exists(path)) return /* @__PURE__ */ new Map();
+      return new Map(vibeModels(await this.files.readText(path)).map(({ model, names = [] }) => [model, names]));
+    } catch {
+      return /* @__PURE__ */ new Map();
     }
   }
 };
@@ -4625,7 +4669,7 @@ function modelSources(deps) {
     agy: new AntigravityModelSource(deps.process),
     hermes: new HermesModelSource(deps.process),
     opencode: new OpenCodeModelSource(deps.process),
-    vibe: new VibeModelSource(deps.files, deps.env)
+    vibe: new VibeModelSource(deps.files, deps.env, deps.process)
   };
 }
 function failureReason(command, result2) {

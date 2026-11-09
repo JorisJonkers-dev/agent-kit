@@ -135,6 +135,25 @@ export function hermesDefaultModel(stdout: string): ClientModel | undefined {
 }
 
 /**
+ * The models Vibe itself accepts, from its answer to a model id it does not
+ * know: its refusal ends with `Available: <id>, <id>, ...`, every line it
+ * printed is looked at, so the connection warnings it prints first are
+ * tolerated, and the ids after `Available:` are kept in the order they stand.
+ * An answer with no such line has said nothing about what Vibe accepts, so
+ * it reads none: the caller fails closed rather than offering a model a run
+ * would be refused on.
+ */
+export function parseVibeAvailable(output: string): readonly string[] | undefined {
+  const at = output.lastIndexOf('Available:')
+  if (at === -1) return undefined
+  const line = output.slice(at + 'Available:'.length).split('\n')[0] ?? ''
+  return line
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id !== '')
+}
+
+/**
  * The models a Vibe `config.toml` declares, in the order it declares them: the
  * alias is what `vibe --model` accepts, and the model's own name is kept
  * beside it when it differs, because the catalogue may know the model by
@@ -142,8 +161,8 @@ export function hermesDefaultModel(stdout: string): ClientModel | undefined {
  * entry per alias; a hand-written configuration may key them by table instead
  * (`[models.<alias>]`), whose key stands in when the entry names no alias. An
  * entry that is not a table declares no model, and an array entry that names
- * no alias declares none either. Throws on a file that is not TOML, so the
- * caller never acts on half a file.
+ * no alias declares none either. Throws on a file that is not TOML, so a
+ * caller that acts on its words never acts on half a file.
  */
 export function vibeModels(toml: string): readonly ClientModel[] {
   const declared: ClientModel[] = []
@@ -167,17 +186,18 @@ export function vibeModels(toml: string): readonly ClientModel[] {
  * Every model the gateway can list now, sorted by client then model id.
  *
  * A client whose program is not on PATH is left out and named in `missing`,
- * whatever its model source. A declared client lists its catalogue entries. A
- * client whose models come from itself or from its configuration lists what
- * `listings` holds for it, joined to the catalogue; a listing that failed is
- * named in `missing` with its reason (Vibe still lists its catalogue entries),
- * and a client the gateway has no listing for lists nothing and is not
- * reported missing. A catalogue entry of a client with built-in models — Vibe
- * — that its own listing did not name is not offered, whatever it declares:
- * the listing read what the client accepts, so a run on such an entry would be
- * refused by the client itself; it is reported in `skipped`, with the reason.
- * A client model the gateway remembers its own answer said cannot run
- * (`unavailable`, from the ledger) is not offered either: it is moved to
+ * whatever its model source. A declared client lists its catalogue entries —
+ * and one whose own configuration declares models (Hermes) or answers for
+ * itself (Antigravity, OpenCode, Vibe) lists what `listings` holds for it,
+ * joined to the catalogue. A listing that failed is named in `missing` with
+ * its reason and lists NOTHING, Vibe included: the only measure of what a
+ * client accepts is its own answer, and offering a catalogue entry the client
+ * never named would send a run to a model the client refuses. A client the
+ * gateway has no listing for lists nothing and is not reported missing. A
+ * catalogue entry of a client with built-in models — Vibe — that its own
+ * answer did not name is not offered either: it is reported in `skipped`, with
+ * the reason. A client model the gateway remembers its own answer said cannot
+ * run (`unavailable`, from the ledger) is not offered either: it is moved to
  * `skipped`, with the reason its answer gave.
  */
 export function listModels(
@@ -202,7 +222,6 @@ export function listModels(
     if (listing === undefined) continue
     if ('reason' in listing) {
       missing.push({ client: id, reason: listing.reason })
-      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueEntries(config, id, client).map(listedEntry(id, client)))
       continue
     }
     const listed = listedModels(config, id, client, listing.models)
@@ -214,15 +233,19 @@ export function listModels(
           (entry): SkippedModel => ({
             client: id,
             model: entry.model,
-            reason: NOT_DECLARED_BY_CLIENT,
+            reason: NOT_ACCEPTED_BY_CLIENT,
           }),
         ),
       )
     }
   }
-  const refused = new Map(
-    unavailable.map((entry) => [modelKey(entry.client, entry.model), entry.reason]),
-  )
+  const refused = new Map<string, string>()
+  for (const refusal of unavailable) {
+    // An answer the ledger recorded under a name the client no longer lists
+    // still names the same catalogue entry, whose other ids and names are the
+    // same client model, so the refusal hides them all.
+    for (const key of keysOf(config, refusal.client, refusal.model)) refused.set(key, refusal.reason)
+  }
   const refusedKey = (model: ListedModel): string => modelKey(model.client, model.model)
   models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
   missing.sort((left, right) => compare(left.client, right.client))
@@ -240,20 +263,20 @@ export function listModels(
 }
 
 /**
- * The clients that offer models of their own beside the ones their
- * configuration declares: Vibe's built-ins, which `config.toml` does not
- * name, are the catalogue's entries for it. Those entries are offered only
- * while the client's own listing cannot be read (`missing` names the reason):
- * once it reads, the models the listing names are all the gateway offers, and
- * a catalogue entry the listing did not join to is reported in `skipped`,
- * because the client would refuse a run on it. Hermes has no built-ins; its
+ * The clients that offer built-in models of their own, which only the client
+ * itself can be asked about: Vibe's answer to a model id it does not know
+ * names every alias it accepts, and `config.toml`'s declarations are not a
+ * measure of that — the aliases Vibe accepts come from its built-in catalogue
+ * too. A matching catalogue entry supplies family, tier and notes; an entry
+ * the client's own answer did not name is reported in `skipped`, because a
+ * run on it would be refused before it starts. Hermes has no built-ins; its
  * catalogue entries only describe the model its configuration names.
  */
 const BUILT_IN_MODEL_CLIENTS: readonly string[] = ['vibe']
 
-/** Why a built-in catalogue entry the client's own listing did not name is never offered. */
-export const NOT_DECLARED_BY_CLIENT =
-  "the client's own configuration does not declare it, so the client would reject it: declare it in the client's configuration or remove the entry from defaults.json"
+/** Why a built-in catalogue entry the client's own answer did not name is never offered. */
+export const NOT_ACCEPTED_BY_CLIENT =
+  "the client does not accept it, so a run naming it would be refused before it starts: its own answer names the models it accepts and this is not one of them, so the entry only records the model's prices; remove it from defaults.json or change it to the id the client accepts"
 
 /**
  * The catalogue entries a client offers, minus everything but them: an entry
@@ -351,6 +374,21 @@ function listedModels(
 
 /** Why a listed model is not offered: the catalogue gives it no family and tier, and its id names no known family. */
 const FAMILY_UNKNOWN = 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override'
+
+/**
+ * The `<client>:<model>` keys that name one client model: the id the ledger
+ * or a run named, plus every id and name of the catalogue entry it belongs
+ * to, which are the same model under other names. A model no catalogue entry
+ * names is itself alone.
+ */
+function keysOf(config: GatewayConfig, client: string, model: string): readonly string[] {
+  const entry = config.models.find(
+    (candidate) =>
+      candidate.client === client && [candidate.model, ...(candidate.names ?? [])].includes(model),
+  )
+  const keys = entry === undefined ? [model] : [model, entry.model, ...(entry.names ?? [])]
+  return [...new Set(keys.filter((key) => key !== ''))].map((key) => modelKey(client, key))
+}
 
 /** The model part of a `<provider>/<model>` id, which is what names its family. */
 export function modelPart(model: string): string {

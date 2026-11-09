@@ -1,7 +1,7 @@
 {
   "version": 1,
   "clients": {
-    "vibe":   {"binary": "vibe",   "cost_class": "subsidised",       "model_source": "config"},
+    "vibe":   { "binary": "vibe", "cost_class": "subsidised",       "model_source": "live"},
     "agy":    {"binary": "agy",    "cost_class": "subsidised",       "model_source": "live", "families": ["google"]},
     "claude": {"binary": "claude", "cost_class": "subsidised",       "model_source": "declared"},
     "hermes": {"binary": "hermes", "cost_class": "metered-personal", "model_source": "config"},

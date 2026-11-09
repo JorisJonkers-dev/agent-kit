@@ -437,9 +437,10 @@ DeepSeek Flash's real cost is not known from these runs. Through the home's
 own entry it reports $0.00, and the $0.0163 comes from the placeholder
 prices in the test agent file (0.3 and 1.0 per million tokens).
 
-The personal home also lists `zai-glm-5-3-flash`, `zai-glm-latest`,
-`glm-5-2`, `mistral-large-latest` and `mistral-small-latest`; the routing
-configuration chooses among them.
+The personal home accepts `glm-5-3`, `mistral-large-4-0-3`,
+`mistral-medium-3.5` and `zai-glm-5-3-flash` — the `Available:` line its
+refusal of an unknown `--model` names, which is what the model gateway reads
+(#380); the routing configuration chooses among them.
 
 ## Antigravity (agy)
 

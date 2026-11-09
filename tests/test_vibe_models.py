@@ -1,10 +1,14 @@
-"""Vibe offers every Mistral chat model the key can use, kept current by setup.
+"""The models Vibe's configuration declares, kept current by setup.
 
-Vibe only lists the models under [[models]] in its config; its default is one
-(Mistral Medium 3.5). scripts/vibe-sync-models.py reads Mistral's /v1/models
-with MISTRAL_API_KEY and writes one entry per underlying model, preferring the
--latest id so upgrades arrive without a change here. Your own entries and
-everything else in the config are kept.
+Vibe's own catalogue decides what `vibe --model` accepts: its built-ins —
+Mistral Medium 3.5 among them — are served with no configuration entry at
+all, so `[[models]]` never limits what Vibe offers (the model gateway asks
+Vibe itself what it accepts, through #380's probe). setup keeps
+`[[models]]` in step with the account's models all the same:
+scripts/vibe-sync-models.py reads Mistral's /v1/models with MISTRAL_API_KEY
+and writes one entry per underlying model, preferring the -latest id so
+upgrades arrive without a change here. Your own entries and everything else
+in the config are kept.
 """
 
 from __future__ import annotations

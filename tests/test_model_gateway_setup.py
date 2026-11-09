@@ -82,7 +82,7 @@ def macos_run(tmp_path_factory: pytest.TempPathFactory) -> Run:
 def test_the_shipped_defaults_name_every_client_with_its_cost_class_and_source() -> None:
     clients = json.loads(DEFAULTS.read_text())["clients"]
     assert {name: (c["binary"], c["cost_class"], c["model_source"]) for name, c in clients.items()} == {
-        "vibe": ("vibe", "subsidised", "config"),
+        "vibe": ("vibe", "subsidised", "live"),
         "agy": ("agy", "subsidised", "live"),
         "claude": ("claude", "subsidised", "declared"),
         "hermes": ("hermes", "metered-personal", "config"),

@@ -7,9 +7,10 @@ import {
   hermesDefaultModel,
   listModels,
   modelKey,
-  NOT_DECLARED_BY_CLIENT,
+  NOT_ACCEPTED_BY_CLIENT,
   parseAntigravityModels,
   parseOpenCodeModels,
+  parseVibeAvailable,
   vibeModels,
   type ClientListing,
   type ListedModel,
@@ -29,7 +30,7 @@ function config(): GatewayConfig {
         model_source: 'live',
         provider_cost_classes: { 'opencode-go': 'subsidised' },
       },
-      vibe: { binary: 'vibe', cost_class: 'subsidised', model_source: 'config' },
+      vibe: { binary: 'vibe', cost_class: 'subsidised', model_source: 'live' },
     },
     models: [
       { client: 'claude', family: 'anthropic', model: 'claude-sonnet-5-5', notes: 'general', tier: 'hard' },
@@ -64,9 +65,9 @@ function withClient(base: GatewayConfig, id: string, patch: Partial<ClientConfig
   return { ...base, clients: { ...base.clients, [id]: { ...client, ...patch } } }
 }
 
-/** The Vibe models its configuration declared, leaving the catalogue's built-ins aside. */
-function fromConfig(gateway: GatewayConfig, listed: ReadonlyMap<string, ClientListing>): readonly ListedModel[] {
-  return listModels(gateway, new Set(['vibe']), listed).models.filter((entry) => entry.source === 'config')
+/** The Vibe models its own answer listed, leaving the catalogue's built-ins aside. */
+function probed(gateway: GatewayConfig, listed: ReadonlyMap<string, ClientListing>): readonly ListedModel[] {
+  return listModels(gateway, new Set(['vibe']), listed).models.filter((entry) => entry.client === 'vibe')
 }
 
 describe('listModels', () => {
@@ -76,10 +77,10 @@ describe('listModels', () => {
     expect(listModels(config(), new Set(['opencode']), listed).models).toHaveLength(1)
   })
 
-  it('lists a configured Vibe GLM model the catalogue does not know', () => {
+  it('lists an accepted Vibe alias the catalogue does not know', () => {
     const listed = listings({ vibe: { models: [{ model: 'zai-glm-6' }] } })
 
-    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.family])).toEqual([['zai-glm-6', 'zhipu']])
+    expect(probed(config(), listed).map((entry) => [entry.model, entry.family])).toEqual([['zai-glm-6', 'zhipu']])
   })
 
   it('lists the declared models of an installed client with its cost class and source', () => {
@@ -202,17 +203,17 @@ describe('listModels', () => {
     ])
   })
 
-  it('lists a configured client by the aliases its configuration declares, marked config', () => {
+  it('lists the aliases Vibe itself accepts, marked live', () => {
     const listed = listings({ vibe: { models: [{ model: 'mistral-large-latest' }, { model: 'mistral-medium-4-1' }] } })
 
-    expect(fromConfig(config(), listed)).toEqual([
+    expect(probed(config(), listed)).toEqual([
       {
         client: 'vibe',
         cost_class: 'subsidised',
         family: 'mistral',
         model: 'mistral-large-latest',
         notes: 'broad',
-        source: 'config',
+        source: 'live',
         tier: 'hard',
       },
       {
@@ -221,23 +222,23 @@ describe('listModels', () => {
         family: 'mistral',
         model: 'mistral-medium-4-1',
         notes: '',
-        source: 'config',
+        source: 'live',
         tier: null,
       },
     ])
   })
 
-  it('joins a Vibe model to the catalogue on its config name and lists it once, by its alias', () => {
+  it('joins a Vibe model to the catalogue on a name the listing gives and lists it once, by its alias', () => {
     const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }, { model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
 
-    expect(fromConfig(config(), listed)).toEqual([
+    expect(probed(config(), listed)).toEqual([
       {
         client: 'vibe',
         cost_class: 'subsidised',
         family: 'zhipu',
         model: 'glm-5-3',
         notes: 'review',
-        source: 'config',
+        source: 'live',
         tier: 'hard',
       },
     ])
@@ -246,7 +247,7 @@ describe('listModels', () => {
   it('joins a Vibe model on its name when its alias is not the catalogue id', () => {
     const listed = listings({ vibe: { models: [{ model: 'large', names: ['mistral-large-4-0'] }] } })
 
-    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.tier, entry.notes])).toEqual([
+    expect(probed(config(), listed).map((entry) => [entry.model, entry.tier, entry.notes])).toEqual([
       ['large', 'hard', 'broad'],
     ])
   })
@@ -254,13 +255,13 @@ describe('listModels', () => {
   it('joins a Vibe model on an alias the catalogue lists among its names', () => {
     const listed = listings({ vibe: { models: [{ model: 'zai-glm-5-3' }] } })
 
-    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.tier])).toEqual([['zai-glm-5-3', 'hard']])
+    expect(probed(config(), listed).map((entry) => [entry.model, entry.tier])).toEqual([['zai-glm-5-3', 'hard']])
   })
 
   it('lists a Vibe model whose alias and names both miss the catalogue with no tier, its family from its name', () => {
     const listed = listings({ vibe: { models: [{ model: 'fast', names: ['mistral-medium-4-1'] }] } })
 
-    expect(fromConfig(config(), listed).map((entry) => [entry.model, entry.family, entry.tier, entry.notes])).toEqual([
+    expect(probed(config(), listed).map((entry) => [entry.model, entry.family, entry.tier, entry.notes])).toEqual([
       ['fast', 'mistral', null, ''],
     ])
   })
@@ -275,8 +276,8 @@ describe('listModels', () => {
         model: 'fast',
         reason: 'no catalogue entry with a family and a tier, and the id names no known family: add one to defaults.json or the machine override',
       },
-      { client: 'vibe', model: 'glm-5-3', reason: NOT_DECLARED_BY_CLIENT },
-      { client: 'vibe', model: 'mistral-large-latest', reason: NOT_DECLARED_BY_CLIENT },
+      { client: 'vibe', model: 'glm-5-3', reason: NOT_ACCEPTED_BY_CLIENT },
+      { client: 'vibe', model: 'mistral-large-latest', reason: NOT_ACCEPTED_BY_CLIENT },
     ])
   })
 
@@ -285,15 +286,30 @@ describe('listModels', () => {
     const byAlias = { ...config(), disabled: [modelKey('vibe', 'glm-5-3')] }
     const byName = { ...config(), disabled: [modelKey('vibe', 'mistral-large-latest')] }
 
-    expect(fromConfig(byAlias, listed).map((entry) => entry.model)).toEqual(['mistral-large-latest'])
-    expect(fromConfig(byName, listed).map((entry) => entry.model)).toEqual(['glm-5-3'])
+    expect(probed(byAlias, listed).map((entry) => entry.model)).toEqual(['mistral-large-latest'])
+    expect(probed(byName, listed).map((entry) => entry.model)).toEqual(['glm-5-3'])
   })
 
   it('leaves out a Vibe model whose recorded catalogue name the override disabled', () => {
     const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
     const disabled = { ...config(), disabled: [modelKey('vibe', 'zai-glm-5-3')] }
 
-    expect(fromConfig(disabled, listed)).toEqual([])
+    expect(probed(disabled, listed)).toEqual([])
+  })
+
+  it('hides a listed model a ledger answer refused under another name of its catalogue entry', () => {
+    // The ledger recorded the answer under `mistral-large-4-0`, a name of the
+    // catalogue entry `mistral-large-latest`, so the answer hides both.
+    const listed = listings({ vibe: { models: [{ model: 'mistral-large-latest' }] } })
+    const refused = [{ client: 'vibe', model: 'mistral-large-4-0', reason: 'rate-limited at 2026-11-09T10:00:00.000Z' }]
+
+    const listing = listModels(config(), new Set(['vibe']), listed, refused)
+
+    expect(listing.models).toEqual([])
+    expect(listing.skipped).toEqual([
+      { client: 'vibe', model: 'glm-5-3', reason: NOT_ACCEPTED_BY_CLIENT },
+      { client: 'vibe', model: 'mistral-large-latest', reason: 'rate-limited at 2026-11-09T10:00:00.000Z' },
+    ])
   })
 
   it('leaves out a model the override disabled', () => {
@@ -506,40 +522,40 @@ describe('modelKey', () => {
 describe('listModels: Vibe built-in models', () => {
   const installed = new Set(['vibe'])
 
-  it('offers none of the catalogue entries when the configuration declares nothing, and reports each in skipped with the reason', () => {
+  it('offers none of the catalogue entries when Vibe accepts nothing, and reports each in skipped with the reason', () => {
     const listing = listModels(config(), installed, listings({ vibe: { models: [] } }))
 
     expect(listing.models).toEqual([])
     expect(listing.skipped).toEqual([
-      { client: 'vibe', model: 'glm-5-3', reason: NOT_DECLARED_BY_CLIENT },
-      { client: 'vibe', model: 'mistral-large-latest', reason: NOT_DECLARED_BY_CLIENT },
+      { client: 'vibe', model: 'glm-5-3', reason: NOT_ACCEPTED_BY_CLIENT },
+      { client: 'vibe', model: 'mistral-large-latest', reason: NOT_ACCEPTED_BY_CLIENT },
     ])
     expect(listing.missing.filter((entry) => entry.client === 'vibe')).toEqual([])
   })
 
-  it('lists a model the configuration declares once, marked config, and skips the rest with the reason', () => {
+  it('lists an accepted model once, marked live, and skips the entries its answer did not name', () => {
     const listed = listings({ vibe: { models: [{ model: 'glm-5-3', names: ['zai-glm-5-3'] }] } })
 
     const listing = listModels(config(), installed, listed)
-    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([['glm-5-3', 'config']])
-    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_DECLARED_BY_CLIENT }])
+    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([['glm-5-3', 'live']])
+    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_ACCEPTED_BY_CLIENT }])
   })
 
-  it('lists a configured alias that names a catalogue entry once, under the alias, and skips the entry it did not match', () => {
+  it('lists an accepted alias that names a catalogue entry once, under the alias, and skips the entry it did not match', () => {
     const listed = listings({ vibe: { models: [{ model: 'large', names: ['mistral-large-4-0'] }] } })
 
     const listing = listModels(config(), installed, listed)
-    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([['large', 'config']])
-    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'glm-5-3', reason: NOT_DECLARED_BY_CLIENT }])
+    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([['large', 'live']])
+    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'glm-5-3', reason: NOT_ACCEPTED_BY_CLIENT }])
   })
 
-  it('does not bring back a catalogue entry whose configured model the override disabled', () => {
+  it('does not bring back a catalogue entry whose accepted model the override disabled', () => {
     const listed = listings({ vibe: { models: [{ model: 'large', names: ['mistral-large-4-0'] }] } })
     const disabled = { ...config(), disabled: [modelKey('vibe', 'large')] }
 
     const listing = listModels(disabled, installed, listed)
     expect(listing.models).toEqual([])
-    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'glm-5-3', reason: NOT_DECLARED_BY_CLIENT }])
+    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'glm-5-3', reason: NOT_ACCEPTED_BY_CLIENT }])
   })
 
   it('leaves out a catalogue entry the override disabled, offered or skipped', () => {
@@ -547,17 +563,17 @@ describe('listModels: Vibe built-in models', () => {
 
     const listing = listModels(disabled, installed, listings({ vibe: { models: [] } }))
     expect(listing.models).toEqual([])
-    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_DECLARED_BY_CLIENT }])
+    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_ACCEPTED_BY_CLIENT }])
   })
 
-  it('lists the catalogue entries for Vibe when its configuration cannot be read, and still reports the reason', () => {
-    const listing = listModels(config(), installed, listings({ vibe: { reason: 'no configuration' } }))
+  it('offers no Vibe model — not even the catalogue entries — when its own answer could not be read, and reports the reason', () => {
+    const listing = listModels(config(), installed, listings({ vibe: { reason: 'listing failed: vibe --model model-gateway-probe -p ping exited 1: no such file' } }))
 
-    expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([
-      ['glm-5-3', 'declared'],
-      ['mistral-large-latest', 'declared'],
+    expect(listing.models).toEqual([])
+    expect(listing.skipped.filter((entry) => entry.client === 'vibe')).toEqual([])
+    expect(listing.missing.filter((entry) => entry.client === 'vibe')).toEqual([
+      { client: 'vibe', reason: 'listing failed: vibe --model model-gateway-probe -p ping exited 1: no such file' },
     ])
-    expect(listing.missing.filter((entry) => entry.client === 'vibe')).toEqual([{ client: 'vibe', reason: 'no configuration' }])
   })
 
   it('lists no model for a client without built-in models when its listing cannot be read', () => {
@@ -572,10 +588,10 @@ describe('listModels: Vibe built-in models', () => {
 
     const listing = listModels(restricted, installed, listings({ vibe: { models: [] } }))
     expect(listing.models).toEqual([])
-    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_DECLARED_BY_CLIENT }])
+    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_ACCEPTED_BY_CLIENT }])
   })
 
-  it('leaves out a configured model of a barred family without hiding or leaking its catalogue entry', () => {
+  it('leaves out an accepted model of a barred family without hiding or leaking its catalogue entry', () => {
     const restricted = withClient(config(), 'vibe', { families: ['mistral'] })
     const gateway = {
       ...restricted,
@@ -584,10 +600,10 @@ describe('listModels: Vibe built-in models', () => {
     const listing = listModels(gateway, installed, listings({ vibe: { models: [{ model: 'glm', names: ['zai-glm-5-3'] }] } }))
 
     expect(listing.models).toEqual([])
-    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_DECLARED_BY_CLIENT }])
+    expect(listing.skipped).toEqual([{ client: 'vibe', model: 'mistral-large-latest', reason: NOT_ACCEPTED_BY_CLIENT }])
   })
 
-  it('lists no catalogue entry for a configured client that has no built-in models, Hermes included', () => {
+  it('lists no catalogue entry for a client that has no built-in models, Hermes included', () => {
     const base = withClient(config(), 'hermes', { model_source: 'config' })
     const hermes = {
       ...base,
@@ -597,6 +613,38 @@ describe('listModels: Vibe built-in models', () => {
     const listing = listModels(hermes, new Set(['hermes']), listings({ hermes: { models: [{ model: 'gpt-5.5' }] } }))
 
     expect(listing.models.map((entry) => [entry.model, entry.source])).toEqual([['gpt-5.5', 'config']])
+  })
+})
+
+describe('parseVibeAvailable', () => {
+  it('reads the aliases from the refusal of a model id Vibe does not know', () => {
+    expect(parseVibeAvailable('Error: Unknown model: model-gateway-probe. Available: glm-5-3, mistral-large-4-0-3, mistral-medium-3.5, zai-glm-5-3-flash\n')).toEqual([
+      'glm-5-3',
+      'mistral-large-4-0-3',
+      'mistral-medium-3.5',
+      'zai-glm-5-3-flash',
+    ])
+  })
+
+  it('tolerates the connection warnings the client prints before its refusal', () => {
+    const output = [
+      'Warning: MCP server memory failed to connect',
+      'Warning: MCP server fetch failed to connect',
+      'Error: Unknown model: zz. Available: glm-5-3, mistral-medium-3.5',
+      '',
+    ].join('\n')
+
+    expect(parseVibeAvailable(output)).toEqual(['glm-5-3', 'mistral-medium-3.5'])
+  })
+
+  it('keeps the ids of the last refusal only, however many there were', () => {
+    expect(parseVibeAvailable('Available: one\nAvailable: two, three\n')).toEqual(['two', 'three'])
+  })
+
+  it('fails closed on an answer that names nothing available, however else it reads', () => {
+    expect(parseVibeAvailable('')).toBeUndefined()
+    expect(parseVibeAvailable('Warning: MCP server memory failed to connect\nsomething went wrong\n')).toBeUndefined()
+    expect(parseVibeAvailable('Error: Unknown model: probe. Available:\n')).toEqual([])
   })
 })
 
