@@ -80,6 +80,13 @@ override brings it back.
 A listing that fails, or a configuration that cannot be read, leaves that
 client out and names it in `missing` with the reason; the other clients are
 still listed. A Hermes configuration that names no model is such a failure.
+Vibe is the one exception: a configuration it cannot read still leaves the
+catalogue's Vibe entries offered, marked `declared`, so the home's built-ins
+stay reachable. The other way round, a Vibe configuration that does read is
+the one thing that decides what Vibe offers: every catalogue entry it does
+not declare is never offered — `vibe --model` would reject it — and is named
+in `skipped` with the reason, whether the model left Vibe's configuration or
+the catalogue outlived it.
 
 Any other subcommand answers `{"status":"error","code":"unknown-command",...}`.
 
@@ -142,7 +149,7 @@ succeeded or failed; only a refusal is an error, and it prints
 `{"status":"error","code":"<slug>","message":"<one line>"}` and exits 1.
 
 ```sh
-node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-4-0","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
+node model-gateway.mjs run --json '{"workflow":"review","client":"vibe","model":"mistral-large-4-0-3","mode":"read-only","prompt":"Review src/app.ts","repo":"/path/to/repo"}'
 node model-gateway.mjs run --input <file.json>
 ```
 

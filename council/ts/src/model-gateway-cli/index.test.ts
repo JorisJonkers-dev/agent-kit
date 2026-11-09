@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { ModelGatewayError, NodeModelGatewayFiles } from '../contexts/model-gateway/index.js'
+import { ModelGatewayError, NOT_DECLARED_BY_CLIENT, NodeModelGatewayFiles } from '../contexts/model-gateway/index.js'
 import type {
   LedgerEntry,
   LedgerRecord,
@@ -77,16 +77,22 @@ const OPENCODE_LISTING: ProcessResult = {
   ].join('\n'),
 }
 
-/** What `models` lists for Vibe with the shipped catalogue and no configured model. */
-const VIBE_CATALOGUE_LISTED = ['vibe:deepseek-v4-1-flash-1017', 'vibe:glm-5-3', 'vibe:mistral-large-latest', 'vibe:mistral-small-latest']
-
-/** What `models` lists for Vibe with the configuration below: its three models and the catalogue entries it does not declare. */
-const VIBE_LISTED_WITH_CONFIG = [
+/** What `models` lists for Vibe with the shipped catalogue and no readable configuration: every catalogue entry, marked declared. */
+const VIBE_CATALOGUE_LISTED = [
   'vibe:deepseek-v4-1-flash-1017',
   'vibe:glm-5-3',
-  'vibe:mistral-large-latest',
-  'vibe:mistral-medium-4-1',
+  'vibe:mistral-large-4-0-3',
+  'vibe:mistral-medium-3.5',
   'vibe:mistral-small-latest',
+  'vibe:zai-glm-5-3-flash',
+]
+
+/** What `models` lists for Vibe with the configuration below: the aliases it declares and nothing else. */
+const VIBE_LISTED_WITH_CONFIG = [
+  'vibe:glm-5-3',
+  'vibe:mistral-large-4-0-3',
+  'vibe:mistral-medium-4-1',
+  'vibe:zai-glm-5-3-flash',
 ]
 
 /** An OpenCode listing with Zen and other providers beside one OpenCode Go model. */
@@ -149,17 +155,26 @@ const AGY_PLAN_LISTING: ProcessResult = {
 }
 
 /** A Vibe configuration: three models, two of them in the shipped catalogue, declared with their aliases and names. */
-const VIBE_CONFIG = `[models.mistral-large-4-0]
-name = "mistral-large-4-0"
+/** The models a Vibe configuration declares, in the shape `vibe-sync-models.py` writes them. */
+const VIBE_CONFIG = `[[models]]
+name = "mistral-large-4-0-3"
 provider = "mistral"
-alias = "mistral-large-latest"
+alias = "mistral-large-4-0-3"
+supports_images = true
+thinking = "off"
+thinking_levels = ["off"]
 
-[models.zai-glm-5-3]
-name = "zai-glm-5-3"
+[[models]]
+name = "glm-5-3"
 provider = "mistral"
 alias = "glm-5-3"
 
-[models.mistral-medium-4-1]
+[[models]]
+name = "zai-glm-5-3-flash"
+provider = "mistral"
+alias = "zai-glm-5-3-flash"
+
+[[models]]
 name = "mistral-medium-4-1"
 provider = "mistral"
 alias = "mistral-medium-4-1"
@@ -273,6 +288,11 @@ function listed(result: ModelGatewayCliResult): string[] {
 /** Every listed model, as printed. */
 function models(result: ModelGatewayCliResult): Record<string, unknown>[] {
   return printed(result).models as Record<string, unknown>[]
+}
+
+/** The models the run refused to offer, as printed, by their model id. */
+function skippedModels(result: ModelGatewayCliResult): string[] {
+  return (printed(result).skipped as { client: string; model: string }[]).map((entry) => entry.model)
 }
 
 /** One listed model, by its `<client>:<model>` key. */
@@ -730,8 +750,8 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'mistral',
-          model: 'mistral-large-latest',
-          names: ['mistral-large-4-0'],
+          model: 'mistral-large-4-0-3',
+          names: ['mistral-large-latest', 'mistral-large-4-0'],
           notes: 'Broad general model.',
           prices: { cached_input: 0.07, input: 0.7, output: 2.1 },
           tier: 'hard',
@@ -739,11 +759,25 @@ describe('the shipped defaults', () => {
         {
           client: 'vibe',
           family: 'mistral',
+          model: 'mistral-medium-3.5',
+          notes: "Vibe's built-in default; general coding, tool use and reasoning.",
+          tier: 'routine',
+        },
+        {
+          client: 'vibe',
+          family: 'mistral',
           model: 'mistral-small-latest',
-          names: ['mistral-small-latest'],
           notes: 'Very cheap; short summaries and classification.',
           prices: { cached_input: 0.015, input: 0.15, output: 0.6 },
           tier: 'trivial',
+        },
+        {
+          client: 'vibe',
+          family: 'zhipu',
+          model: 'zai-glm-5-3-flash',
+          notes: 'Cheap and quick; well-specified code changes and lint-like review.',
+          prices: { cached_input: 0.03, input: 0.15, output: 0.5 },
+          tier: 'routine',
         },
         {
           client: 'agy',
@@ -1220,33 +1254,56 @@ describe('models: Vibe, read from its own configuration', () => {
       tier: 'hard',
     })
     expect(model(result, 'vibe:mistral-medium-4-1')).toMatchObject({ family: 'mistral', notes: '', source: 'config', tier: null })
-    expect(model(result, 'vibe:mistral-small-latest')).toMatchObject({ family: 'mistral', source: 'declared', tier: 'trivial' })
   })
 
-  it('lists the catalogue entries for Vibe, marked declared, when its configuration declares nothing', async () => {
+  it('never offers a catalogue entry its configuration does not declare, and reports it in skipped with the reason', async () => {
+    const w = await workspace({ installed: ['vibe'] })
+    await w.writeVibeConfig(VIBE_CONFIG)
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).not.toContain('vibe:deepseek-v4-1-flash-1017')
+    expect(listed(result)).not.toContain('vibe:mistral-small-latest')
+    expect(printed(result).skipped).toEqual(
+      ['deepseek-v4-1-flash-1017', 'mistral-medium-3.5', 'mistral-small-latest'].map((m) => ({
+        client: 'vibe',
+        model: m,
+        reason: NOT_DECLARED_BY_CLIENT,
+      })),
+    )
+  })
+
+  it('offers none of the catalogue entries when its configuration declares no model, and reports each in skipped', async () => {
     const w = await workspace({ installed: ['vibe'] })
     await w.writeVibeConfig('active_model = "devstral"\n')
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
-    expect(models(result).map((entry) => entry.source)).toEqual(['declared', 'declared', 'declared', 'declared'])
-    expect(model(result, 'vibe:glm-5-3')).toMatchObject({ family: 'zhipu', notes: 'Strong code review and integration reasoning.', tier: 'hard' })
-    expect(printed(result).missing).not.toContainEqual(expect.objectContaining({ client: 'vibe' }))
+    expect(listed(result)).toEqual([])
+    expect(skippedModels(result)).toEqual([
+      'deepseek-v4-1-flash-1017',
+      'glm-5-3',
+      'mistral-large-4-0-3',
+      'mistral-medium-3.5',
+      'mistral-small-latest',
+      'zai-glm-5-3-flash',
+    ])
   })
 
-  it('lists a catalogue entry its configuration declares once, marked config, and the rest declared', async () => {
+  it('lists a catalogue entry its configuration declares once, marked config, and skips the rest declared', async () => {
     const w = await workspace({ installed: ['vibe'] })
     await w.writeVibeConfig('[models.glm]\nname = "zai-glm-5-3"\nprovider = "mistral"\nalias = "glm-5-3"\n')
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
-    expect(models(result).map((entry) => [entry.model, entry.source])).toEqual([
-      ['deepseek-v4-1-flash-1017', 'declared'],
-      ['glm-5-3', 'config'],
-      ['mistral-large-latest', 'declared'],
-      ['mistral-small-latest', 'declared'],
+    expect(listed(result)).toEqual(['vibe:glm-5-3'])
+    expect(models(result).map((entry) => [entry.model, entry.source])).toEqual([['glm-5-3', 'config']])
+    expect(skippedModels(result)).toEqual([
+      'deepseek-v4-1-flash-1017',
+      'mistral-large-4-0-3',
+      'mistral-medium-3.5',
+      'mistral-small-latest',
+      'zai-glm-5-3-flash',
     ])
   })
 
@@ -1256,7 +1313,7 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual(VIBE_CATALOGUE_LISTED)
+    expect(listed(result)).toEqual(['vibe:glm-5-3'])
     expect(model(result, 'vibe:glm-5-3')).toMatchObject({
       family: 'zhipu',
       notes: 'Strong code review and integration reasoning.',
@@ -1270,7 +1327,7 @@ describe('models: Vibe, read from its own configuration', () => {
 
     const result = await w.run('models', '--json', '{}')
 
-    expect(listed(result)).toEqual([...VIBE_CATALOGUE_LISTED, 'vibe:medium'].sort())
+    expect(listed(result)).toEqual(['vibe:medium'].sort())
     expect(model(result, 'vibe:medium')).toMatchObject({ family: 'mistral', notes: '', tier: null })
   })
 
@@ -4853,7 +4910,7 @@ describe('model-gateway run: climb', () => {
     expect(attemptedModels(result)).toEqual([
       'vibe:deepseek-v4-1-flash-1017',
       'vibe:deepseek-v4-1-flash-1017',
-      'vibe:mistral-large-latest',
+      'vibe:mistral-large-4-0-3',
     ])
   })
 

@@ -102,8 +102,10 @@ def test_the_shipped_defaults_declare_every_client_model_with_its_tier() -> None
         ("codex", "gpt-5.5", "openai", "frontier"),
         ("vibe", "deepseek-v4-1-flash-1017", "deepseek", "routine"),
         ("vibe", "glm-5-3", "zhipu", "hard"),
-        ("vibe", "mistral-large-latest", "mistral", "hard"),
+        ("vibe", "mistral-large-4-0-3", "mistral", "hard"),
+        ("vibe", "mistral-medium-3.5", "mistral", "routine"),
         ("vibe", "mistral-small-latest", "mistral", "trivial"),
+        ("vibe", "zai-glm-5-3-flash", "zhipu", "routine"),
         ("agy", "gemini-3.8-flash-high", "google", "hard"),
         ("agy", "gemini-3.8-flash-medium", "google", "routine"),
         ("agy", "gemini-3.8-flash-low", "google", "trivial"),
@@ -124,8 +126,10 @@ def test_the_shipped_vibe_models_are_named_by_alias_and_record_their_config_name
     assert {m["model"]: m.get("names") for m in models if m["client"] == "vibe"} == {
         "deepseek-v4-1-flash-1017": None,
         "glm-5-3": ["zai-glm-5-3"],
-        "mistral-large-latest": ["mistral-large-4-0"],
-        "mistral-small-latest": ["mistral-small-latest"],
+        "mistral-large-4-0-3": ["mistral-large-latest", "mistral-large-4-0"],
+        "mistral-medium-3.5": None,
+        "mistral-small-latest": None,
+        "zai-glm-5-3-flash": None,
     }
 
 
@@ -151,7 +155,8 @@ def test_the_schema_allows_an_output_allowance_per_tier() -> None:
 
 def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() -> None:
     """A run whose client prices nothing is counted at these, so they are the
-    prices critique already pays for the same models (routing.json)."""
+    prices critique already pays for the same models (routing.json). A model the
+    pricing page does not price carries none."""
     routing = json.loads(ROUTING.read_text())["clients"]
     priced = {
         client["model"]: client["prices"]
@@ -164,7 +169,7 @@ def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() ->
     by_name = {
         name: m["prices"]
         for m in models
-        if m["client"] == "vibe"
+        if m["client"] == "vibe" and "prices" in m
         for name in [m["model"], *m.get("names", [])]
     }
     assert {name: by_name[name] for name in priced} == priced
@@ -173,21 +178,44 @@ def test_the_shipped_defaults_price_every_vibe_model_from_critiques_routing() ->
 
 def test_every_critic_client_names_a_gateway_client_model() -> None:
     """#306: a critic client is a client model pinned for critique, so routing
-    names one the gateway lists, by the alias the gateway lists it under."""
+    names one the gateway lists, by the alias the gateway lists it under. A
+    critic the gateway lists no alias for -- its model left Vibe's
+    configuration, though the agent still pins it -- names none, and the
+    ledger counts its run under the model it really ran."""
     routing = json.loads(ROUTING.read_text())["clients"]
     defaults = json.loads(DEFAULTS.read_text())
     listed = {(m["client"], name) for m in defaults["models"] for name in [m["model"], *m.get("names", [])]}
     assert routing, "routing has no critic client, so this test proves nothing"
     for name, client in routing.items():
-        gateway = client["gateway"]
+        known, kind = name, client["kind"]
+        assert kind in defaults["clients"], f"{known} runs on a client the gateway does not know: {kind}"
+        gateway = client.get("gateway")
+        if gateway is None:
+            continue
         assert gateway["client"] == client["kind"], (
             f"{name} runs on {client['kind']} but names the gateway client {gateway['client']}"
         )
-        assert gateway["client"] in defaults["clients"], (
-            f"{name} names a client the gateway does not know: {gateway['client']}"
-        )
         assert (gateway["client"], gateway["model"]) in listed, (
             f"{name} names a model the gateway does not list: {gateway['client']}:{gateway['model']}"
+        )
+
+
+def test_the_vibe_critic_routes_name_the_alias_not_a_config_name() -> None:
+    """#380: a route names the alias the gateway offers, which is the `model` of
+    a catalogue entry -- never one of its `names`, which only the client's own
+    configuration matches."""
+    routing = json.loads(ROUTING.read_text())["clients"]
+    defaults = json.loads(DEFAULTS.read_text())
+    by_client = {
+        client: {m["model"] for m in defaults["models"] if m["client"] == client}
+        for client in defaults["clients"]
+    }
+    for name, client in routing.items():
+        gateway = client.get("gateway")
+        if gateway is None:
+            continue
+        assert gateway["model"] in by_client[gateway["client"]], (
+            f"{name} routes at {gateway['client']}:{gateway['model']}, which is not an alias the gateway lists"
         )
 
 

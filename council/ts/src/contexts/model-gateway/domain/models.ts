@@ -138,18 +138,27 @@ export function hermesDefaultModel(stdout: string): ClientModel | undefined {
  * The models a Vibe `config.toml` declares, in the order it declares them: the
  * alias is what `vibe --model` accepts, and the model's own name is kept
  * beside it when it differs, because the catalogue may know the model by
- * either. An entry that is not a table declares no model. Throws on a file
- * that is not TOML, so the caller never acts on half a file.
+ * either. Setup writes the models as an array of tables (`[[models]]`), one
+ * entry per alias; a hand-written configuration may key them by table instead
+ * (`[models.<alias>]`), whose key stands in when the entry names no alias. An
+ * entry that is not a table declares no model, and an array entry that names
+ * no alias declares none either. Throws on a file that is not TOML, so the
+ * caller never acts on half a file.
  */
 export function vibeModels(toml: string): readonly ClientModel[] {
-  const models = readToml(toml).models
-  if (!isObject(models)) return []
   const declared: ClientModel[] = []
-  for (const [key, value] of Object.entries(models)) {
-    if (!isObject(value)) continue
+  const from = (value: unknown, key: string | undefined): void => {
+    if (!isObject(value)) return
     const alias = typeof value.alias === 'string' && value.alias !== '' ? value.alias : key
+    if (alias === undefined) return
     const name = typeof value.name === 'string' && value.name !== '' && value.name !== alias ? value.name : undefined
     declared.push({ model: alias, names: name === undefined ? [] : [name] })
+  }
+  const models = readToml(toml).models
+  if (Array.isArray(models)) {
+    for (const value of models) from(value, undefined)
+  } else if (isObject(models)) {
+    for (const [key, value] of Object.entries(models)) from(value, key)
   }
   return declared
 }
@@ -161,10 +170,15 @@ export function vibeModels(toml: string): readonly ClientModel[] {
  * whatever its model source. A declared client lists its catalogue entries. A
  * client whose models come from itself or from its configuration lists what
  * `listings` holds for it, joined to the catalogue; a listing that failed is
- * named in `missing` with its reason (Vibe still lists its catalogue entries), and a client the gateway has no listing
- * for lists nothing and is not reported missing. A client model the gateway
- * remembers its own answer said cannot run (`unavailable`, from the ledger)
- * is not offered: it is moved to `skipped`, with the reason its answer gave.
+ * named in `missing` with its reason (Vibe still lists its catalogue entries),
+ * and a client the gateway has no listing for lists nothing and is not
+ * reported missing. A catalogue entry of a client with built-in models — Vibe
+ * — that its own listing did not name is not offered, whatever it declares:
+ * the listing read what the client accepts, so a run on such an entry would be
+ * refused by the client itself; it is reported in `skipped`, with the reason.
+ * A client model the gateway remembers its own answer said cannot run
+ * (`unavailable`, from the ledger) is not offered either: it is moved to
+ * `skipped`, with the reason its answer gave.
  */
 export function listModels(
   config: GatewayConfig,
@@ -181,20 +195,30 @@ export function listModels(
       continue
     }
     if (client.model_source === 'declared') {
-      models.push(...catalogueModels(config, id, client))
+      models.push(...catalogueEntries(config, id, client).map(listedEntry(id, client)))
       continue
     }
     const listing = listings.get(id)
     if (listing === undefined) continue
     if ('reason' in listing) {
       missing.push({ client: id, reason: listing.reason })
-      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client))
+      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueEntries(config, id, client).map(listedEntry(id, client)))
       continue
     }
     const listed = listedModels(config, id, client, listing.models)
     models.push(...listed.models)
     skipped.push(...listed.skipped)
-    if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched))
+    if (BUILT_IN_MODEL_CLIENTS.includes(id)) {
+      skipped.push(
+        ...catalogueEntries(config, id, client, listed.matched).map(
+          (entry): SkippedModel => ({
+            client: id,
+            model: entry.model,
+            reason: NOT_DECLARED_BY_CLIENT,
+          }),
+        ),
+      )
+    }
   }
   const refused = new Map(
     unavailable.map((entry) => [modelKey(entry.client, entry.model), entry.reason]),
@@ -218,39 +242,51 @@ export function listModels(
 /**
  * The clients that offer models of their own beside the ones their
  * configuration declares: Vibe's built-ins, which `config.toml` does not
- * name, are the catalogue's entries for it. Hermes has none; its catalogue
- * entries only describe the model its configuration names.
+ * name, are the catalogue's entries for it. Those entries are offered only
+ * while the client's own listing cannot be read (`missing` names the reason):
+ * once it reads, the models the listing names are all the gateway offers, and
+ * a catalogue entry the listing did not join to is reported in `skipped`,
+ * because the client would refuse a run on it. Hermes has no built-ins; its
+ * catalogue entries only describe the model its configuration names.
  */
 const BUILT_IN_MODEL_CLIENTS: readonly string[] = ['vibe']
 
+/** Why a built-in catalogue entry the client's own listing did not name is never offered. */
+export const NOT_DECLARED_BY_CLIENT =
+  "the client's own configuration does not declare it, so the client would reject it: declare it in the client's configuration or remove the entry from defaults.json"
+
 /**
- * The models a client offers as the catalogue describes them, marked
- * `declared`; a catalogue entry in `except` is already listed from the
- * client's own source, which wins, so it is not listed twice.
+ * The catalogue entries a client offers, minus everything but them: an entry
+ * in `except` is already listed from the client's own source, which wins, so
+ * it is not offered twice; one of a family the client may not reach is left
+ * out, and so is one the machine disabled under its id or any of its names.
  */
-function catalogueModels(
+function catalogueEntries(
   config: GatewayConfig,
   id: string,
   client: ClientConfig,
   except: ReadonlySet<ModelEntry> = new Set(),
-): readonly ListedModel[] {
-  return config.models
-    .filter(
-      (entry) =>
-        entry.client === id &&
-        !except.has(entry) &&
-        (client.families === undefined || client.families.includes(entry.family)) &&
-        ![entry.model, ...(entry.names ?? [])].some((key) => config.disabled.includes(modelKey(id, key))),
-    )
-    .map((entry) => ({
-      client: id,
-      cost_class: client.cost_class,
-      family: entry.family,
-      model: entry.model,
-      notes: entry.notes,
-      source: 'declared',
-      tier: entry.tier,
-    }))
+): readonly ModelEntry[] {
+  return config.models.filter(
+    (entry) =>
+      entry.client === id &&
+      !except.has(entry) &&
+      (client.families === undefined || client.families.includes(entry.family)) &&
+      ![entry.model, ...(entry.names ?? [])].some((key) => config.disabled.includes(modelKey(id, key))),
+  )
+}
+
+/** One catalogue entry as the gateway lists it, marked `declared`. */
+function listedEntry(id: string, client: ClientConfig): (entry: ModelEntry) => ListedModel {
+  return (entry) => ({
+    client: id,
+    cost_class: client.cost_class,
+    family: entry.family,
+    model: entry.model,
+    notes: entry.notes,
+    source: 'declared' as const,
+    tier: entry.tier,
+  })
 }
 
 /**

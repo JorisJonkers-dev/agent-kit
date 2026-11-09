@@ -1093,14 +1093,19 @@ function hermesDefaultModel(stdout) {
   return { model, ...provider === void 0 ? {} : { provider } };
 }
 function vibeModels(toml) {
-  const models = readToml(toml).models;
-  if (!isObject(models)) return [];
   const declared = [];
-  for (const [key, value] of Object.entries(models)) {
-    if (!isObject(value)) continue;
+  const from = (value, key) => {
+    if (!isObject(value)) return;
     const alias = typeof value.alias === "string" && value.alias !== "" ? value.alias : key;
+    if (alias === void 0) return;
     const name = typeof value.name === "string" && value.name !== "" && value.name !== alias ? value.name : void 0;
     declared.push({ model: alias, names: name === void 0 ? [] : [name] });
+  };
+  const models = readToml(toml).models;
+  if (Array.isArray(models)) {
+    for (const value of models) from(value, void 0);
+  } else if (isObject(models)) {
+    for (const [key, value] of Object.entries(models)) from(value, key);
   }
   return declared;
 }
@@ -1114,20 +1119,30 @@ function listModels(config, installed, listings, unavailable = []) {
       continue;
     }
     if (client.model_source === "declared") {
-      models.push(...catalogueModels(config, id, client));
+      models.push(...catalogueEntries(config, id, client).map(listedEntry(id, client)));
       continue;
     }
     const listing = listings.get(id);
     if (listing === void 0) continue;
     if ("reason" in listing) {
       missing.push({ client: id, reason: listing.reason });
-      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client));
+      if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueEntries(config, id, client).map(listedEntry(id, client)));
       continue;
     }
     const listed = listedModels(config, id, client, listing.models);
     models.push(...listed.models);
     skipped.push(...listed.skipped);
-    if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched));
+    if (BUILT_IN_MODEL_CLIENTS.includes(id)) {
+      skipped.push(
+        ...catalogueEntries(config, id, client, listed.matched).map(
+          (entry) => ({
+            client: id,
+            model: entry.model,
+            reason: NOT_DECLARED_BY_CLIENT
+          })
+        )
+      );
+    }
   }
   const refused = new Map(
     unavailable.map((entry) => [modelKey(entry.client, entry.model), entry.reason])
@@ -1146,10 +1161,14 @@ function listModels(config, installed, listings, unavailable = []) {
   };
 }
 var BUILT_IN_MODEL_CLIENTS = ["vibe"];
-function catalogueModels(config, id, client, except = /* @__PURE__ */ new Set()) {
+var NOT_DECLARED_BY_CLIENT = "the client's own configuration does not declare it, so the client would reject it: declare it in the client's configuration or remove the entry from defaults.json";
+function catalogueEntries(config, id, client, except = /* @__PURE__ */ new Set()) {
   return config.models.filter(
     (entry) => entry.client === id && !except.has(entry) && (client.families === void 0 || client.families.includes(entry.family)) && ![entry.model, ...entry.names ?? []].some((key) => config.disabled.includes(modelKey(id, key)))
-  ).map((entry) => ({
+  );
+}
+function listedEntry(id, client) {
+  return (entry) => ({
     client: id,
     cost_class: client.cost_class,
     family: entry.family,
@@ -1157,7 +1176,7 @@ function catalogueModels(config, id, client, except = /* @__PURE__ */ new Set())
     notes: entry.notes,
     source: "declared",
     tier: entry.tier
-  }));
+  });
 }
 function listedModels(config, id, client, listed) {
   const models = [];

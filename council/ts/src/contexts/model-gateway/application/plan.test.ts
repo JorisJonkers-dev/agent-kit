@@ -45,7 +45,7 @@ function vibeRun(at: string, cost: number): LedgerRecord {
     duration_s: 1,
     family: 'mistral',
     mode: 'read-only',
-    model: 'mistral-large-latest',
+    model: 'mistral-large-4-0-3',
     outcome: 'ok',
     repository: null,
     run_id: `run-${at}`,
