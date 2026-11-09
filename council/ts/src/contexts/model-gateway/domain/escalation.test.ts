@@ -81,7 +81,7 @@ describe('failures', () => {
       true,
     ])
     expect([undefined, 'timeout', 'exit-1', 'check-failed', 'parse-error'].map(isRefusal)).toEqual([false, false, false, false, false])
-    expect(['auth', 'rate-limited', 'launch-failed'].map(isCannotStart)).toEqual([true, true, true])
+    expect(['auth', 'rate-limited', 'launch-failed', 'quota-exhausted'].map(isCannotStart)).toEqual([true, true, true, true])
     expect([undefined, 'timeout', 'exit-1', 'check-failed'].map(isCannotStart)).toEqual([false, false, false, false])
   })
 

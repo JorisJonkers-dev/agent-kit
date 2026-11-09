@@ -1419,6 +1419,55 @@ describe('models: OpenCode, read from its own listing', () => {
     expect(printed(result).missing).toContainEqual({ client: 'opencode', reason: 'listing failed: opencode models exited 2' })
     expect(listed(result)).toEqual(['claude:claude-haiku-5-5', 'claude:claude-opus-5-5', 'claude:claude-sonnet-5-5'])
   })
+
+  it('leaves out a model whose answer said the account cannot use it, and names it in skipped with why', async () => {
+    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING } })
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:30:00.000Z', 'opencode', { model: 'opencode-go/kimi-k3' }),
+      ledgerRecord('2026-11-04T10:40:00.000Z', 'opencode', { model: 'opencode-go/glm-5.3', outcome: 'failed', reason: 'quota-exhausted' }),
+    ])
+
+    const result = await w.run('models', '--json', '{}')
+
+    expect(listed(result)).toEqual(['opencode:opencode-go/deepseek-v4.1-flash', 'opencode:opencode-go/gemini-4-argon', 'opencode:opencode-go/kimi-k3'])
+    expect(printed(result).skipped).toEqual([
+      { client: 'opencode', model: 'opencode-go/glm-5.3', reason: 'quota-exhausted at 2026-11-04T10:40:00.000Z' },
+      {
+        client: 'opencode',
+        model: 'opencode-go/hy3',
+        reason: 'family unknown: add it to the catalogue in defaults.json or the machine override',
+      },
+    ])
+  })
+
+  it('lists the model again once the reset its answer named has passed, or a later run of it succeeded', async () => {
+    const w = await workspace({ installed: ['opencode'], listings: { opencode: OPENCODE_LISTING } })
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:40:00.000Z', 'opencode', {
+        model: 'opencode-go/glm-5.3',
+        outcome: 'failed',
+        reason: 'quota-exhausted',
+        resets_at: '2026-11-04T11:00:00.000Z',
+      }),
+    ])
+    expect(listed(await w.run('models', '--json', '{}'))).not.toContain('opencode:opencode-go/glm-5.3')
+
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:40:00.000Z', 'opencode', {
+        model: 'opencode-go/glm-5.3',
+        outcome: 'failed',
+        reason: 'quota-exhausted',
+        resets_at: '2026-11-04T10:45:00.000Z',
+      }),
+    ])
+    expect(listed(await w.run('models', '--json', '{}'))).toContain('opencode:opencode-go/glm-5.3')
+
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T10:40:00.000Z', 'opencode', { model: 'opencode-go/glm-5.3', outcome: 'failed', reason: 'quota-exhausted' }),
+      ledgerRecord('2026-11-04T10:50:00.000Z', 'opencode', { model: 'opencode-go/glm-5.3' }),
+    ])
+    expect(listed(await w.run('models', '--json', '{}'))).toContain('opencode:opencode-go/glm-5.3')
+  })
 })
 
 /** A Vibe journal: one assistant message whose text is `text`. */
@@ -4898,6 +4947,112 @@ describe('model-gateway run: fall-through', () => {
 
     expect(attemptedModels(result)).toEqual(['opencode:opencode-go/glm-5.3'])
     expect(printed(result)).toMatchObject({ status: 'ok' })
+  })
+})
+
+describe('model-gateway run: a quota an answer names', () => {
+  const MODEL = 'gemini-3.8-flash-high'
+
+  /**
+   * A fake Antigravity answering the quota error of #309: its individual plan
+   * is exhausted, and its answer says the moment it resets.
+   */
+  const AGY_QUOTA: VibeScript = {
+    exitCode: 3,
+    stdout: agyResult('sorry: Individual quota reached for Antigravity this month. Please try again later. Resets in 29h2m9s'),
+  }
+
+  /** A fake OpenCode answering the region restriction its account cannot use, which names no reset. */
+  const OPENCODE_REGION: VibeScript = {
+    stdout: openCodeEvents(OPENCODE_STEP_START, openCodeText('This model is hosted outside Europe and the United States.\nSelect Global')),
+  }
+
+  it('runs a client that answers the quota error once, never retries it, and falls through to the next permitted client model', async () => {
+    const w = await escalating({ scripts: [AGY_QUOTA, CLAUDE_SUCCEEDS] })
+
+    const result = await w.run(delegation(w, { client: 'agy', model: MODEL }))
+
+    expect(attemptsOf(result)).toMatchObject([
+      { client: 'agy', model: MODEL, reason: 'quota-exhausted', status: 'failed' },
+      { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
+    ])
+    expect(w.vibe.commands).toHaveLength(2)
+    expect(binariesOf(w.vibe.commands)).toEqual(['agy', 'claude'])
+    expect(printed(result).skipped).toEqual([{ client: 'agy', model: MODEL, reason: 'quota-exhausted' }])
+    expect((await ledgerOf(w, undefined))[0]).toMatchObject({
+      outcome: 'failed',
+      reason: 'quota-exhausted',
+      resets_at: '2026-11-05T15:54:24.000Z',
+    })
+  })
+
+  it('remembers the quota until it resets: usage names the client unavailable with the moment, and free after it', async () => {
+    const clock = new FixedClock()
+    const w = await escalating({ clock, scripts: [AGY_QUOTA, CLAUDE_SUCCEEDS] })
+
+    await w.run(delegation(w, { client: 'agy', model: MODEL }))
+    const before = await w.cli('usage', '--json', '{}')
+
+    expect(usageClient(before, 'agy').availability).toEqual({
+      installed: true,
+      reason:
+        'quota-exhausted at 2026-11-04T10:52:15.000Z, with no later run of it that succeeded; the quota resets at 2026-11-05T15:54:24.000Z',
+      signed_in: 'unknown',
+      status: 'unavailable',
+    })
+
+    clock.advance(2 * 60 * 60 * 1000)
+    expect(availability(await w.cli('usage', '--json', '{}'), 'agy').status).toBe('unavailable')
+
+    clock.advance(27 * 60 * 60 * 1000 + 2 * 60 * 1000 + 10 * 1000)
+    expect(availability(await w.cli('usage', '--json', '{}'), 'agy')).toEqual({
+      installed: true,
+      reason: 'agy has no status command, so the gateway cannot tell whether it is signed in',
+      signed_in: 'unknown',
+      status: 'available',
+    })
+  })
+
+  it('passes a client whose quota has not reset over without launching it, so later delegations skip it', async () => {
+    const w = await escalating({ scripts: [CLAUDE_SUCCEEDS] })
+    await w.writeLedger([
+      ledgerRecord('2026-11-04T09:00:00.000Z', 'agy', {
+        model: MODEL,
+        outcome: 'failed',
+        reason: 'quota-exhausted',
+        resets_at: '2026-11-05T15:54:24.000Z',
+      }),
+    ])
+
+    const result = await w.run(delegation(w, { client: 'agy', model: MODEL }))
+
+    expect(attemptedModels(result)).toEqual(['claude:claude-sonnet-5-5'])
+    expect(printed(result).skipped).toEqual([
+      {
+        client: 'agy',
+        model: MODEL,
+        reason:
+          'unavailable: quota-exhausted at 2026-11-04T09:00:00.000Z, with no later run of it that succeeded; the quota resets at 2026-11-05T15:54:24.000Z',
+      },
+    ])
+    expect(binariesOf(w.vibe.commands)).toEqual(['claude'])
+  })
+
+  it('treats an OpenCode answer that a region restriction stands in the way of the same way, for that model', async () => {
+    const w = await escalating({
+      override: { models: [{ client: 'opencode', family: 'zhipu', model: 'opencode-go/glm-5.3', notes: 'x', tier: 'hard' }] },
+      scripts: [OPENCODE_REGION, CLAUDE_SUCCEEDS],
+    })
+
+    const result = await w.run(delegation(w, { client: 'opencode', model: 'opencode-go/glm-5.3' }))
+
+    expect(attemptsOf(result)).toMatchObject([
+      { client: 'opencode', model: 'opencode-go/glm-5.3', reason: 'quota-exhausted', status: 'failed' },
+      { client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' },
+    ])
+    expect(w.vibe.commands).toHaveLength(2)
+    expect(binariesOf(w.vibe.commands)).toEqual(['opencode', 'claude'])
+    expect(printed(result)).toMatchObject({ client: 'claude', model: 'claude-sonnet-5-5', status: 'ok' })
   })
 })
 

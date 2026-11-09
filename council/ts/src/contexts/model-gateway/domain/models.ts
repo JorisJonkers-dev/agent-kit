@@ -1,5 +1,6 @@
 import { readToml } from '../../../shared-kernel/toml.js'
 import { isObject, type ClientConfig, type CostClass, type GatewayConfig, type ModelEntry, type ModelSource, type Tier } from './config.js'
+import type { LedgerRecord } from './ledger.js'
 import { isProviderAllowed, openCodeProvider } from './run.js'
 
 /** One model the gateway can list now, with where its list came from. */
@@ -162,12 +163,15 @@ export function vibeModels(toml: string): readonly ClientModel[] {
  * client whose models come from itself or from its configuration lists what
  * `listings` holds for it, joined to the catalogue; a listing that failed is
  * named in `missing` with its reason (Vibe still lists its catalogue entries), and a client the gateway has no listing
- * for lists nothing and is not reported missing.
+ * for lists nothing and is not reported missing. A model `blocked` names — the
+ * ledger says the account cannot use it — is left out and named in `skipped`
+ * with the reason its last run gave.
  */
 export function listModels(
   config: GatewayConfig,
   installed: ReadonlySet<string>,
   listings: ReadonlyMap<string, ClientListing>,
+  blocked: readonly BlockedModel[] = [],
 ): ModelListing {
   const models: ListedModel[] = []
   const missing: MissingClient[] = []
@@ -193,10 +197,47 @@ export function listModels(
     skipped.push(...listed.skipped)
     if (BUILT_IN_MODEL_CLIENTS.includes(id)) models.push(...catalogueModels(config, id, client, listed.matched))
   }
-  models.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
+  const barred = new Map(blocked.map((entry) => [modelKey(entry.client, entry.model), entry.reason]))
+  const offered: ListedModel[] = []
+  for (const entry of models) {
+    const reason = barred.get(modelKey(entry.client, entry.model))
+    if (reason === undefined) offered.push(entry)
+    else skipped.push({ client: entry.client, model: entry.model, reason })
+  }
+  offered.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
   missing.sort((left, right) => compare(left.client, right.client))
   skipped.sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
-  return { models, missing, skipped }
+  return { models: offered, missing, skipped }
+}
+
+/** One client model the ledger says the account cannot use, and why. */
+export interface BlockedModel {
+  readonly client: string
+  readonly model: string
+  readonly reason: string
+}
+
+/**
+ * The client models the ledger says the account cannot use, as each model's
+ * own runs said: a model whose last run answered with the client's quota
+ * exhaustion is named until the moment its answer said its quota resets, or
+ * until a later run of it succeeded when it named no moment. Anything else a
+ * run of the model did — succeed, or fail another way — leaves it listed.
+ */
+export function blockedModels(records: readonly LedgerRecord[], now: Date): readonly BlockedModel[] {
+  const blocked = new Map<string, BlockedModel>()
+  for (const record of [...records].sort((left, right) => Date.parse(left.at) - Date.parse(right.at))) {
+    const key = modelKey(record.client, record.model)
+    blocked.delete(key)
+    if (record.outcome === 'ok' || record.reason !== 'quota-exhausted') continue
+    if (record.resets_at !== undefined && Date.parse(record.resets_at) <= now.getTime()) continue
+    blocked.set(key, {
+      client: record.client,
+      model: record.model,
+      reason: `quota-exhausted at ${record.at}${record.resets_at === undefined ? '' : `; the quota resets at ${record.resets_at}`}`,
+    })
+  }
+  return [...blocked.values()].sort((left, right) => compare(left.client, right.client) || compare(left.model, right.model))
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   FORBIDDEN_PROVIDERS,
   NO_TOKENS,
   PROVIDER_CLIENTS,
+  quotaExhaustionOf,
   readOnlyProof,
   readRunInput,
   requireAllowedProvider,
@@ -90,7 +91,8 @@ export interface RunResult {
   readonly summary: string
   /**
    * Why a failed run failed: `timeout`, `parse-error`, `exit-<n>`,
-   * `rate-limited`, `auth`, `launch-failed`, `denied-action`, `client-error`,
+   * `rate-limited`, `quota-exhausted` (the run's own answer named its quota or
+   * the model's region), `auth`, `launch-failed`, `denied-action`, `client-error`,
    * `failed` (Hermes' own usage report counts the run as failed) or, for a
    * writing run, `check-failed`, `check-output-failed` or `stage-failed`.
    */
@@ -108,6 +110,12 @@ export interface RunResult {
   readonly attempt?: number
   /** The run id of the delegation's first attempt, on every later one. */
   readonly attempt_of?: string
+  /**
+   * The moment the allowance a run whose answer named its quota exhausted
+   * resets, as the answer named it; the ledger keeps it so `usage` and the
+   * delegations after it hold the client out until then.
+   */
+  readonly resets_at?: string
 }
 
 /** What a delegation comes to: its last run with the attempts that led to it, or `unavailable` when nothing could start. */
@@ -391,7 +399,8 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
     await this.deps.files.writeText(join(runDir, 'input.json'), `${JSON.stringify(input, null, 2)}\n`)
     const launched = await this.launch(run.binary, input, paths, prompt)
     const output = launched.output
-    const delegateReason = launched.failure ?? runFailureReason(launched.result, output.answer, output)
+    const quota = quotaExhaustionOf(output.answer, this.deps.clock.now())
+    const delegateReason = quota?.reason ?? launched.failure ?? runFailureReason(launched.result, output.answer, output)
     const finished = isWriting(input) ? await this.finishWrite(run, input, delegateReason) : undefined
     const reason = finished === undefined ? delegateReason : finished.reason
     const cost = priceRun(output.charged, output.tokens, entry?.prices)
@@ -411,6 +420,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       tokens: output.tokens,
       workflow: input.workflow,
       ...(reason === undefined ? {} : { reason }),
+      ...(quota?.resetsAt === undefined ? {} : { resets_at: quota.resetsAt.toISOString() }),
       ...finished?.report,
     }
     return result
@@ -760,6 +770,7 @@ export class RunCommand implements ModelGatewayCommand<unknown, RunOutcome> {
       tokens: result.tokens,
       workflow: result.workflow,
       ...(result.reason === undefined ? {} : { reason: result.reason }),
+      ...(result.resets_at === undefined ? {} : { resets_at: result.resets_at }),
       ...(result.attempt === undefined ? {} : { attempt: result.attempt }),
       ...(result.attempt_of === undefined ? {} : { attempt_of: result.attempt_of }),
       ...tag,

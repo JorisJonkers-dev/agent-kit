@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseDefaults, type ClientConfig, type GatewayConfig } from './config.js'
+import type { LedgerRecord } from './ledger.js'
 import {
+  blockedModels,
   familyOf,
   familyOfModelId,
   hermesDefaultModel,
@@ -319,6 +321,83 @@ describe('listModels', () => {
       'vibe:glm-5-3',
       'vibe:mistral-large-latest',
     ])
+  })
+
+  it('leaves a model the ledger says the account cannot use out of models, and names it in skipped with why', () => {
+    const blocked = [{ client: 'opencode', model: 'opencode-go/glm-5.3', reason: 'quota-exhausted at 2026-11-04T09:00:00.000Z' }]
+    const listed = listings({
+      opencode: {
+        models: [
+          { model: 'opencode-go/glm-5.3', provider: 'opencode-go' },
+          { model: 'opencode-go/kimi-k3', provider: 'opencode-go' },
+        ],
+      },
+    })
+
+    const listing = listModels(config(), new Set(['opencode']), listed, blocked)
+
+    expect(listing.models.map((entry) => entry.model)).toEqual(['opencode-go/kimi-k3'])
+    expect(listing.skipped).toEqual([{ client: 'opencode', model: 'opencode-go/glm-5.3', reason: 'quota-exhausted at 2026-11-04T09:00:00.000Z' }])
+  })
+})
+
+/** One run's line, as a run of `client:model` at `at` that ended with `reason` left it. */
+function runLine(at: string, client: string, model: string, reason?: string, resetsAt?: string): LedgerRecord {
+  return {
+    at,
+    client,
+    cost_usd: 0,
+    duration_s: 1,
+    family: 'zhipu',
+    mode: 'read-only',
+    model,
+    outcome: reason === undefined ? 'ok' : 'failed',
+    ...(reason === undefined ? {} : { reason }),
+    ...(resetsAt === undefined ? {} : { resets_at: resetsAt }),
+    repository: null,
+    run_id: `${client}-${model}-${at}`,
+    tokens: { cached: 0, input: 0, output: 0 },
+    workflow: 'spec-293',
+  }
+}
+
+describe('blockedModels', () => {
+  const now = new Date('2026-11-04T10:52:15.000Z')
+
+  it('names the models whose last run answered with an exhausted quota, with the reason and the reset it named', () => {
+    expect(
+      blockedModels(
+        [
+          runLine('2026-11-04T09:00:00.000Z', 'opencode', 'opencode-go/glm-5.3', 'quota-exhausted', '2026-11-05T15:54:24.000Z'),
+          runLine('2026-11-04T10:00:00.000Z', 'agy', 'gemini-3.8-flash-high', 'quota-exhausted'),
+        ],
+        now,
+      ),
+    ).toEqual([
+      { client: 'agy', model: 'gemini-3.8-flash-high', reason: 'quota-exhausted at 2026-11-04T10:00:00.000Z' },
+      {
+        client: 'opencode',
+        model: 'opencode-go/glm-5.3',
+        reason: 'quota-exhausted at 2026-11-04T09:00:00.000Z; the quota resets at 2026-11-05T15:54:24.000Z',
+      },
+    ])
+  })
+
+  it('unblocks a model once its reset has passed, and one whose later run succeeded, and keys them by client and model', () => {
+    expect(
+      blockedModels([runLine('2026-11-04T09:00:00.000Z', 'opencode', 'opencode-go/glm-5.3', 'quota-exhausted', '2026-11-04T10:00:00.000Z')], now),
+    ).toEqual([])
+    expect(
+      blockedModels([runLine('2026-11-04T09:00:00.000Z', 'opencode', 'opencode-go/glm-5.3', 'quota-exhausted'), runLine('2026-11-04T09:30:00.000Z', 'opencode', 'opencode-go/glm-5.3')], now),
+    ).toEqual([])
+    expect(
+      blockedModels([runLine('2026-11-04T09:00:00.000Z', 'opencode', 'opencode-go/glm-5.3', 'quota-exhausted'), runLine('2026-11-04T09:30:00.000Z', 'opencode', 'opencode-go/kimi-k3')], now).map((entry) => entry.model),
+    ).toEqual(['opencode-go/glm-5.3'])
+  })
+
+  it('blocks only what a quota answer said, and only a failed run', () => {
+    expect(blockedModels([runLine('2026-11-04T09:00:00.000Z', 'vibe', 'glm-5-3', 'rate-limited')], now)).toEqual([])
+    expect(blockedModels([runLine('2026-11-04T09:00:00.000Z', 'vibe', 'glm-5-3')], now)).toEqual([])
   })
 })
 

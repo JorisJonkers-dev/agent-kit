@@ -242,7 +242,8 @@ function stateOf(ratio: number, warningRatio: number): PlanState {
  * Whether a client can run now. A client that is not installed, one whose own
  * status command says it is signed out, and one whose last run in the
  * availability window was rate-limited or refused for its credentials are all
- * unavailable; a plan window at 100% makes it unable to start. A status
+ * unavailable; a plan window at 100% makes it unable to start; and a quota an
+ * answer named exhausted keeps it until the moment the answer named. A status
  * command the gateway cannot run leaves the reading `unknown`, which does not
  * stop a run: silence is not a refusal.
  */
@@ -276,7 +277,7 @@ function availabilityOf(
   if (error !== undefined) {
     return {
       installed: true,
-      reason: `${error.reason ?? 'failed'} at ${error.at}, with no later run of it that succeeded`,
+      reason: `${error.reason ?? 'failed'} at ${error.at}, with no later run of it that succeeded${namedReset(error)}`,
       signed_in: signedIn,
       status: 'unavailable',
     }
@@ -284,20 +285,36 @@ function availabilityOf(
   return { installed: true, reason, signed_in: signedIn, status: 'available' }
 }
 
+/** The tail of the reason a quota error stands on: the reset it named, as availability words it; nothing for any other error. */
+function namedReset(error: LedgerRecord): string {
+  if (error.reason !== 'quota-exhausted' || error.resets_at === undefined) return ''
+  return `; the quota resets at ${error.resets_at}`
+}
+
 /**
- * The last rate-limit or auth error a client's runs left in the availability
- * window, unless a later run of it succeeded: one success clears the errors
- * before it, and an error after it stands.
+ * The last error a client's runs left that still stands, unless a later run of
+ * it succeeded: one success clears the errors before it, and an error after it
+ * stands. A rate-limit and an auth failure stand inside the availability
+ * window; a quota-exhausted answer stands until the moment it named — a quota
+ * that resets in 29 hours is not forgotten in one — and inside the window
+ * when it named none.
  */
 function recentError(records: readonly LedgerRecord[], now: Date, windowMinutes: number): LedgerRecord | undefined {
   const since = now.getTime() - windowMinutes * 60_000
   let error: LedgerRecord | undefined
   for (const record of [...records].sort((left, right) => Date.parse(left.at) - Date.parse(right.at))) {
-    if (Date.parse(record.at) < since) continue
     if (record.outcome === 'ok') error = undefined
-    else if (record.reason === 'rate-limited' || record.reason === 'auth') error = record
+    else if (stands(record, now, since)) error = record
   }
   return error
+}
+
+/** Whether the error a failed run left still stands: a quota answer until its reset, a rate limit or an auth failure inside the window. */
+function stands(record: LedgerRecord, now: Date, since: number): boolean {
+  if (record.reason === 'quota-exhausted') {
+    return record.resets_at === undefined ? Date.parse(record.at) >= since : Date.parse(record.resets_at) > now.getTime()
+  }
+  return (record.reason === 'rate-limited' || record.reason === 'auth') && Date.parse(record.at) >= since
 }
 
 /** What a client itself says is left of its plan. No client's status command reports one, so it is `unknown`. */

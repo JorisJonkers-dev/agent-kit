@@ -25,6 +25,12 @@ export interface LedgerRecord {
   readonly outcome: 'ok' | 'failed'
   /** Why a failed run failed: `timeout`, `parse-error`, `exit-<n>` or `launch-failed`. */
   readonly reason?: string
+  /**
+   * When the allowance a `quota-exhausted` run's answer said it has no more of
+   * resets, as the answer named it with the run's own clock; absent when it
+   * named no moment. Readers hold the client out until this passes.
+   */
+  readonly resets_at?: string
   /** The repository the run worked in, keyed `<host>/<owner>/<repo>`; null for an inline run. */
   readonly repository: string | null
   readonly run_id: string

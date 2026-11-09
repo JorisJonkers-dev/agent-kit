@@ -1,5 +1,6 @@
 import { isObject, ModelGatewayError } from '../domain/config.js'
-import { listModels, sortedClients, type ClientListing } from '../domain/models.js'
+import { runRecords } from '../domain/ledger.js'
+import { blockedModels, listModels, sortedClients, type ClientListing } from '../domain/models.js'
 import { decidePolicy, permittedModels, type PolicyListing } from '../domain/policy.js'
 import { loadConfig } from './config.js'
 import { overridePath } from './locations.js'
@@ -20,7 +21,9 @@ export interface ModelsResult extends PolicyListing {
 /**
  * Lists every client model this machine can use now for the repository the
  * caller works in, and the clients it cannot. The data policy decides which
- * of them a delegation may reach and what it may carry.
+ * of them a delegation may reach and what it may carry, and the ledger says
+ * which of them the account cannot use at all, until the reset a quota
+ * answer named.
  */
 export class ModelsCommand implements ModelGatewayCommand<ModelsInput, ModelsResult> {
   constructor(private readonly deps: ModelGatewayDependencies) {}
@@ -38,7 +41,12 @@ export class ModelsCommand implements ModelGatewayCommand<ModelsInput, ModelsRes
       if (source === undefined || !installed.has(id) || client.model_source === 'declared') continue
       listings.set(id, await source.list())
     }
-    const listing = listModels(config, installed, listings)
+    const listing = listModels(
+      config,
+      installed,
+      listings,
+      blockedModels(runRecords(await this.deps.ledger.read()), this.deps.clock.now()),
+    )
     const decision = decidePolicy(config, await resolveScope(this.deps, input.repo), listing.models)
     return { policy: decision.reason, status: 'ok', ...permittedModels(listing, decision) }
   }

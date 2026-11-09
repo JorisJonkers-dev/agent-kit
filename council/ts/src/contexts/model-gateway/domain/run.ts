@@ -425,6 +425,40 @@ const RATE_LIMITED = /rate.?limit|too many requests|quota exceeded/i
 /** What a client prints when it will not run without a login or a valid key. */
 const REFUSED_CREDENTIALS = /unauthori[sz]ed|unauthenticated|not logged in|log ?in required|invalid api key|authentication failed|forbidden/i
 
+/**
+ * A quota the run's own answer says is exhausted. These answers are a client's
+ * own status, printed in place of the task's answer — Antigravity answers
+ * with its individual plan quota and the moment it resets, OpenCode with the
+ * region restriction its account cannot use — so the gateway reads them
+ * although they travel in the answer, which no other refusal does.
+ */
+export interface QuotaExhaustion {
+  readonly reason: 'quota-exhausted'
+  /** The moment the answer named its quota resets; undefined when it named none. */
+  readonly resetsAt?: Date
+}
+
+/** What a client prints as its answer when its own allowance will not serve the model the run asked for. */
+const QUOTA_EXHAUSTED = /individual quota reached|hosted outside europe and the united states/i
+
+/** The reset a quota answer names, as Antigravity prints it: `Resets in 29h2m9s`. */
+const RESETS_IN = /resets in (?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i
+
+/**
+ * The quota the run's answer says is exhausted, with the moment it resets, or
+ * undefined when the answer is a task's answer. The reset is counted from `now`,
+ * the moment the answer was read, since the answer says how long is left.
+ */
+export function quotaExhaustionOf(answer: string | undefined, now: Date): QuotaExhaustion | undefined {
+  if (answer === undefined || !QUOTA_EXHAUSTED.test(answer)) return undefined
+  const named = RESETS_IN.exec(answer)
+  const seconds =
+    named === null ? 0 : (Number(named[1] ?? 0) * 60 + Number(named[2] ?? 0)) * 60 + Number(named[3] ?? 0)
+  return seconds === 0
+    ? { reason: 'quota-exhausted' }
+    : { reason: 'quota-exhausted', resetsAt: new Date(now.getTime() + seconds * 1000) }
+}
+
 /** A UTC moment as a run id's first half: `20261104T105215Z`. */
 export function compactTimestamp(at: Date): string {
   return at.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')

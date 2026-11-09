@@ -10,6 +10,7 @@ import {
   oneShotAnswer,
   openCodeProvider,
   priceRun,
+  quotaExhaustionOf,
   readOnlyProof,
   requireAllowedProvider,
   type ProofFiles,
@@ -289,6 +290,34 @@ describe('runFailureReason', () => {
     ).toBe('rate-limited')
     expect(runFailureReason({ exitCode: 0 }, 'text', { error: { text: 'invalid api key' }, failure: 'client-error' })).toBe('auth')
     expect(runFailureReason({ exitCode: 0 }, 'text', undefined)).toBeUndefined()
+  })
+})
+
+describe('quotaExhaustionOf', () => {
+  const at = new Date('2026-11-04T10:52:15.000Z')
+
+  it('reads the quota Antigravity says it reached, and the moment its answer names it resets', () => {
+    expect(quotaExhaustionOf('Individual quota reached for Antigravity. Resets in 29h2m9s', at)).toEqual({
+      reason: 'quota-exhausted',
+      resetsAt: new Date('2026-11-05T15:54:24.000Z'),
+    })
+    expect(quotaExhaustionOf('Individual quota reached. Resets in 2m30s', at)).toEqual({
+      reason: 'quota-exhausted',
+      resetsAt: new Date('2026-11-04T10:54:45.000Z'),
+    })
+  })
+
+  it('reads the region restriction OpenCode answers with, which names no moment', () => {
+    expect(quotaExhaustionOf('This model is hosted outside Europe and the United States. Select Global', at)).toEqual({
+      reason: 'quota-exhausted',
+    })
+    expect(quotaExhaustionOf('Individual quota reached, but no reset in sight', at)).toEqual({ reason: 'quota-exhausted' })
+  })
+
+  it('says nothing for a task’s own answer, and for an answer that is not there', () => {
+    expect(quotaExhaustionOf(undefined, at)).toBeUndefined()
+    expect(quotaExhaustionOf('here is the review you asked for; the quota looks healthy', at)).toBeUndefined()
+    expect(quotaExhaustionOf('the abbot says: resets in 29h2m9s, and do not quote him out of context', at)).toBeUndefined()
   })
 })
 
