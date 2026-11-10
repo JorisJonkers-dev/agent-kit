@@ -2551,6 +2551,10 @@ claude_mcp_allows
 # Claude Code credits neither itself nor its model in commits or PRs.
 claude_no_attribution
 
+# On NixOS rustup arrives from Nix with no default toolchain: cargo fails
+# until it is set, with or without Claude Code on this machine.
+rustup_default_toolchain
+
 # Before anything touches a Vibe home (MCP merge, converge, skills), and
 # whether or not vibe is on PATH yet.
 [ "${CLOUD}" = 1 ] || _vibe_split_homes
@@ -2903,10 +2907,6 @@ for install in installs:
       fi
     fi
   fi
-
-  # rust-analyzer's plugin needs a toolchain, and on NixOS rustup arrives
-  # from Nix with no default one: cargo fails until it is set.
-  rustup_default_toolchain
 
   # ---------------------------------------------------------------
   # 5. Language servers: the plugin AND the binary it drives.

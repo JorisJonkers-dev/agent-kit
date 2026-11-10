@@ -4170,6 +4170,13 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# Claude Code credits neither itself nor its model in commits or PRs.")
     w("claude_no_attribution")
     w("")
+    # Outside the claude gate below: a fresh NixOS machine may not have Claude
+    # Code yet, and cargo needs the toolchain either way. It runs before the
+    # language servers, so rust-analyzer's plugin sees a working toolchain.
+    w("# On NixOS rustup arrives from Nix with no default toolchain: cargo fails")
+    w("# until it is set, with or without Claude Code on this machine.")
+    w("rustup_default_toolchain")
+    w("")
     w("# Before anything touches a Vibe home (MCP merge, converge, skills), and")
     w("# whether or not vibe is on PATH yet.")
     w('[ "${CLOUD}" = 1 ] || _vibe_split_homes')
@@ -4318,12 +4325,6 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("")
 
     # --- Language servers ---
-    # rust-analyzer's plugin drives cargo, so the toolchain has to work before
-    # the plugin is installed and enabled.
-    w("  # rust-analyzer's plugin needs a toolchain, and on NixOS rustup arrives")
-    w("  # from Nix with no default one: cargo fails until it is set.")
-    w("  rustup_default_toolchain")
-    w("")
     w("  # ---------------------------------------------------------------")
     w("  # 5. Language servers: the plugin AND the binary it drives.")
     w("  #")
