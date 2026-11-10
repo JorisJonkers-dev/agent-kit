@@ -236,6 +236,116 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
     assert "adr-review" not in routing["antigravity_quota"]["reserved_stages"]
 
 
+# ---------------------------------------------------------------------------
+# /critique-adrs (#249)
+# ---------------------------------------------------------------------------
+
+
+def _critique_adrs() -> str:
+    return " ".join((KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md").read_text().split())
+
+
+def _ruling_rows() -> dict[str, str]:
+    """The ruling table's rows of /critique-adrs, finding cell to verdict cell."""
+    text = (KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md").read_text()
+    table = text[text.index("| Finding | Verdict |"):].split("\n\n", 1)[0]
+    rows = [line.strip("|").split(" | ") for line in table.splitlines()[2:]]
+    return {cells[0].strip(): cells[1].strip() for cells in rows}
+
+
+def test_critique_adrs_is_declared_for_every_agent_and_built() -> None:
+    skill = _skill(_registry(), "critique-adrs")
+    assert skill["path"] == "skills/workstation/critique-adrs"
+    assert set(skill["agents"]) == EVERY_AGENT
+    assert skill["surfaces"] == ["workstation"]
+    assert "pending" not in skill
+    assert (KIT_ROOT / skill["path"] / "SKILL.md").is_file()
+
+
+def test_critique_adrs_loads_when_the_owner_asks_for_a_review_of_the_decision_log() -> None:
+    text = (KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md").read_text()
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == "critique-adrs"
+    assert front["description"].startswith("Use when the owner asks to review a repository's ADRs or decision log.")
+
+
+def test_setup_installs_critique_adrs_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
+    """The skill finds the runner at ../critique/critique.mjs, so both land side by side."""
+    source = KIT_ROOT / "skills" / "workstation" / "critique-adrs" / "SKILL.md"
+    homes = (".claude", ".codex", ".vibe", ".vibe-private", ".gemini/config", ".gemini/antigravity-cli")
+    for home in homes:
+        skills = macos_run.home / home / "skills"
+        assert (skills / "critique-adrs" / "SKILL.md").read_bytes() == source.read_bytes(), home
+        assert (skills / "critique-adrs" / ".." / "critique" / "critique.mjs").is_file(), home
+
+
+def test_critique_adrs_runs_the_adr_review_stage_on_every_record_or_the_named_ones() -> None:
+    text = _critique_adrs()
+    assert 'stage: "adr-review"' in text
+    assert '`"adrs": [...]` when the owner named records' in text
+    assert "With none, every record in `docs/adr/` is reviewed" in text
+    assert "Never pass `flow`: a review run is its own flow." in text
+
+
+def test_critique_adrs_accepts_the_supersede_links_the_packet_proves() -> None:
+    row = next(verdict for finding, verdict in _ruling_rows().items() if "`replacement-unlinked`" in finding)
+    assert row == "`accepted`: add the status and the links the packet proves"
+
+
+def test_critique_adrs_asks_for_a_missing_alternative_cost_or_rationale_unless_the_packet_quotes_it() -> None:
+    finding, verdict = next((f, v) for f, v in _ruling_rows().items() if "`no-rejected-alternative`" in f)
+    for check in ("`no-rejected-alternative`", "`no-cost`", "`no-because`"):
+        assert check in finding, check
+    assert verdict.startswith("`needs-human`")
+    assert "`accepted` only when another packet file quotes it" in verdict
+    assert "Never write rationale yourself." in verdict
+
+
+def test_critique_adrs_asks_about_two_readings_and_contradicting_records() -> None:
+    rows = _ruling_rows()
+    assert next(v for f, v in rows.items() if "`two-readings`" in f).startswith("`needs-human`")
+    assert next(v for f, v in rows.items() if "`records-contradict`" in f).startswith("`needs-human`")
+
+
+def test_critique_adrs_documents_the_severity_override_fields() -> None:
+    """#217's format: a check written `- `id` (critical): ...` fixes its severity; a verdict may override it."""
+    text = _critique_adrs()
+    assert "A check written `` - `id` (critical): ... `` in its lens fixes its findings' severity" in text
+    assert (
+        "give the verdict `severity` (`critical`, `major` or `minor`) and `severity_reason`, "
+        "a short slug like a `reason_code`"
+    ) in text
+    assert "`reason`, `reason_code`, `answered`, `severity` and `severity_reason` where they apply" in text
+
+
+def test_critique_adrs_names_the_documents_only_hints_and_keeps_the_skipped_line() -> None:
+    text = _critique_adrs()
+    for code in ("`no-record-quote`", "`one-file-contradiction`", "`needs-tree`"):
+        assert code in text, code
+    assert "the run is **documents only**" in text
+    assert "A documents-only run's summary names the checks it skipped" in text
+
+
+def test_critique_adrs_drafts_a_superseding_record_only_from_the_owners_answer() -> None:
+    text = _critique_adrs()
+    assert "draft a new record that supersedes the old one, or an amending record" in text
+    assert "write it only once they approve it" in text
+    assert "stay byte for byte as they are" in text
+
+
+def test_critique_adrs_runs_a_second_round_when_record_says_one_is_due() -> None:
+    text = _critique_adrs()
+    assert "When record says `second_round_due`" in text
+    assert '`"previous_run_dir": <this run_dir>`' in text
+
+
+def test_the_pipeline_readme_names_critique_adrs_for_the_adr_review_stage() -> None:
+    readme = (KIT_ROOT / "skills" / "workstation" / "critique" / "README.md").read_text()
+    row = next(line for line in readme.splitlines() if line.startswith("| `adr-review` |"))
+    assert row.startswith("| `adr-review` | `/critique-adrs` |"), row
+    assert "none yet" not in row
+
+
 def test_shipped_routing_caps_the_repository_packet_at_adr_0004s_starting_limits() -> None:
     """#221: the phase-0 live check retunes these in routing, so the runner reads them from there."""
     packet = json.loads(ROUTING.read_text())["packet"]
@@ -356,7 +466,14 @@ def test_the_opt_in_names_the_history_permission_and_says_it_is_off_by_default(s
     assert '"history": true' in text, skill
 
 
-REFUTING_SKILLS = ["review-grill", "review-spec", "review-tickets", "review-implementation", "review-pr"]
+REFUTING_SKILLS = [
+    "review-grill",
+    "review-spec",
+    "review-tickets",
+    "review-implementation",
+    "review-pr",
+    "critique-adrs",
+]
 
 
 @pytest.mark.parametrize("skill", REFUTING_SKILLS)

@@ -106,6 +106,7 @@ export class RecordCommand implements CritiqueCommand<RecordResult> {
       ...(manifest.plan_warnings === undefined ? {} : { plan_warnings: manifest.plan_warnings }),
       ...(refutes === undefined ? {} : { refutes }),
       run_id: manifest.run_id,
+      ...(merged.skipped_checks === undefined ? {} : { skipped_checks: merged.skipped_checks }),
       spec: specReference(manifest),
       stage: manifest.stage,
       ...(manifest.ticket_check === undefined ? {} : { ticket_check: manifest.ticket_check }),

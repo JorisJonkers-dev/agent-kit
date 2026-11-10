@@ -12,7 +12,7 @@ const CONTEXT_DIR = dirname(fileURLToPath(import.meta.url))
 describe('the critique stage table', () => {
   it('gives each stage its per-stage behaviour', () => {
     expect(STAGE_TABLE).toEqual({
-      'adr-review': { doNotStart: null, evidence: 'spec', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
+      'adr-review': { doNotStart: null, evidence: 'adrs', flowKey: 'run', packet: 'adrs', removal: 'runs', secondRound: true },
       decisions: { doNotStart: '/to-tickets', evidence: 'decisions', flowKey: 'draft', packet: 'decisions', removal: 'features', secondRound: false },
       'feature-review': { doNotStart: '/to-tickets', evidence: 'code', flowKey: 'spec', packet: 'code', removal: 'features', secondRound: true },
       spec: { doNotStart: '/to-tickets', evidence: 'spec', flowKey: 'spec', packet: 'document', removal: 'features', secondRound: true },

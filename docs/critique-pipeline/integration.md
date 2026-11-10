@@ -3424,3 +3424,88 @@ Run on agent-kit with the integration branch's build of the runner (`feat/critiq
 - **Scratch entry:** `github.com/jorisjonkers-dev/critique-smoke` was added for the refute run and removed afterwards.
 
 **Still open:** a machine override raises Vibe's own `--max-price` for ticket-review critics to $3. The installed critic agent files lack `cached_input_price`, so Vibe stops on its threefold estimate. It is removed once setup installs the files #261 generates.
+
+## What #226 settled
+
+The decision-log pre-check (agent-kit#226), the ADR review's counterpart of
+`check-tickets`:
+
+- **The command.** `critique check-adrs` takes `{ "repo" }`. It resolves the
+  repository as prepare does, so a refused remote is refused the same way,
+  but it needs no family allowlist entry and writes nothing. A repository
+  with no records in `docs/adr/` is refused with `no-adrs`. The result is
+  `{ status, records, numbering, unknown_statuses, unresolved_links,
+  cites_superseded }`; each record lists its path, the number its file name
+  starts with, its title, the status it states (or null) and whether it is
+  in force.
+- **What fails it.** `status` is `failed`, and the command line exits 3,
+  while there is any of: a numbering gap between the lowest and highest
+  number the log uses; two records with one number; a stated status other
+  than proposed, accepted, rejected, deprecated or superseded; a link, or
+  an ADR number such as `ADR-0004`, outside fenced blocks that resolves to
+  no file or record (a link that climbs out of the repository never
+  resolves; URLs, anchors and footnotes such as `[^1]:` are not checked,
+  and an ADR number inside a bare URL is not a reference); and a record in
+  force that cites a superseded one. A file whose name starts with no
+  number, such as a README, or with a date such as `2024-01-15` or
+  `2024-1-5`, is listed under `numbering.unnumbered` and never fails it.
+- **Supersede links.** A keyword governs only the targets in its own clause
+  (up to a semicolon or the end of a sentence), so an unrelated link beside
+  it keeps its own kind. A target in a clause saying Supersedes, Superseded by,
+  Amends, Amended by, Replaces or Replaced by is reported with kind
+  `supersede`; any other with kind `link`. A record is superseded when it
+  says so in its status, when it says it was superseded or replaced by a
+  record, or when a record in force names it in a Supersedes or Replaces
+  clause; a record replaced that way is also out of
+  force, so what it cites is not reported. Supersede links are not
+  citations, so the record that replaces another never counts as citing
+  it.
+- **In the packet.** Prepare for `adr-review` freezes the report on the
+  whole log, whatever records are under review, as `check/adrs.json`
+  (kind `check`, source `check-adrs docs/adr`), after the references and
+  before any `tree/` or `facts/`. The prompt describes it as settled: build
+  on it, never recompute it. agent-kit's own ADRs, with no status lines,
+  pass.
+## What #249 settled
+
+The `/critique-adrs` skill and the `adr-review` stage's own rules
+(agent-kit#249):
+
+- **The skill.** `skills/workstation/critique-adrs/SKILL.md` drives
+  prepare, fan-out, the pre-check in `check/adrs.json`, the verdicts, the
+  refute round, editorial fixes, owner questions one at a time, record and
+  a second round. With no records named it reviews every record in
+  `docs/adr/`; named records go in `"adrs"`, and the rest of the log goes in
+  as references. Its ruling table follows §5.1 of the architecture report: a
+  status or supersede link the packet proves is accepted; a missing
+  alternative, rejection reason, cost or rationale is needs-human unless
+  another packet file quotes it; two readings and contradicting records are
+  needs-human. A change to a decision is never made in place: it becomes a
+  superseding or amending record drafted from the owner's answer and
+  written once they approve it. The skill documents the `severity` and
+  `severity_reason` verdict fields for checks that fix their severity.
+  Setup installs it beside the shared skill in every agent home
+  (`local_skills` in `registry/estate-tooling.yaml`).
+- **The evidence rule.** `adr-review` has its own rule, `adrs`, in place
+  of the spec stage's: every finding quotes a record under review
+  (`no-record-quote`); a contradiction quotes two distinct files, each a
+  record or a reference, never a fact (`one-file-contradiction`), and the
+  two quotes must be told apart by file: one file holds the first and not
+  the second, another the second and not the first, so two quotes of one
+  record stay one file even when another record repeats one of them; and an
+  `unasked-question`, the category for wording with two readings, gives
+  both readings as an input (`no-scenario`). Each miss is a hint.
+- **Documents only.** With no code under `tree/`, a `drift` or `stale`
+  finding, and a finding of a check marked "Needs `tree/`" (so far
+  `adr-record`'s `no-confirmation`), is a hint, `needs-tree`. A role rule
+  may carry the mark like a lens check. Fan-out lists these checks in
+  `findings.json` as `skipped_checks`, read from the same role and lens
+  files as the hint, each named by its file (`role <name>` or
+  `lens <name>`); the report gives
+  them a `## Skipped checks` section, and the summary one line,
+  `Skipped, documents only: ...`. A packet that holds code skips none. The
+  drift and stale checks themselves, with their `tree/` trace rule, are
+  #234's.
+- **Second round.** `adr-review` calls for one after more than three
+  critical findings are still accepted after the refute round; a refuted
+  critical does not count.

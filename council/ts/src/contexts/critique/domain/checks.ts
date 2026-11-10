@@ -5,14 +5,16 @@ import { SEVERITIES, type FindingBody, type PreVerdict, type RunFinding, type Se
  * slug at the start of a top-level bullet, followed by a colon, as in
  * "- `dependency-fails`: For each external dependency ...". A check may
  * declare a fixed severity in brackets before the colon, as in
- * "- `no-rollback` (critical): ...".
+ * "- `no-rollback` (critical): ...". A check that reads code opens its text
+ * with "Needs `tree/`.", as in "- `no-confirmation` (minor): Needs `tree/`. ...".
  */
-const CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:/gm
+const CHECK_BULLET = /^- `([a-z0-9]+(?:-[a-z0-9]+)*)`(?: \((critical|major|minor)\))?:( Needs `tree\/`\.)?/gm
 
-/** A check a critic's role or lens declares, and the severity it fixes, if it fixes one. */
+/** A check a critic's role or lens declares, the severity it fixes, if it fixes one, and whether it needs code under `tree/`. */
 export interface DeclaredCheck {
   readonly id: string
   readonly severity?: Severity
+  readonly needsTree?: true
 }
 
 const CHECK_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -25,9 +27,9 @@ export function isCheckId(check: string | undefined): check is string {
 /** The checks a critic's role and lens files declare, in the order they appear; an id declared twice counts once, as first declared. */
 export function declaredChecks(texts: readonly string[]): readonly DeclaredCheck[] {
   const checks = new Map<string, DeclaredCheck>()
-  for (const [, id = '', named] of texts.flatMap((text) => [...text.matchAll(CHECK_BULLET)])) {
+  for (const [, id = '', named, tree] of texts.flatMap((text) => [...text.matchAll(CHECK_BULLET)])) {
     const severity = SEVERITIES.find((level) => level === named)
-    if (!checks.has(id)) checks.set(id, severity === undefined ? { id } : { id, severity })
+    if (!checks.has(id)) checks.set(id, { id, ...(severity === undefined ? {} : { severity }), ...(tree === undefined ? {} : { needsTree: true }) })
   }
   return [...checks.values()]
 }
@@ -55,4 +57,22 @@ export function checkNamed(finding: Pick<FindingBody, 'check'>, declared: readon
     reason_code: 'unknown-check',
     verdict: 'hint',
   }
+}
+
+/**
+ * A finding of a check that needs code under `tree/` cannot be checked in a
+ * packet that holds none, so it is a hint: the check was skipped, and the
+ * report names it as skipped. A role rule and a lens check are marked alike,
+ * and the skipped list reads the same role and lens files.
+ */
+export function checkRunnable(finding: Pick<FindingBody, 'check'>, declared: readonly DeclaredCheck[], tree: boolean): PreVerdict | undefined {
+  if (tree || declared.find((check) => check.id === finding.check)?.needsTree !== true) return undefined
+  return NEEDS_TREE
+}
+
+/** The hint a finding gets when what it checks needs code under `tree/` and the packet holds none. */
+export const NEEDS_TREE: PreVerdict = {
+  reason: 'the check needs code under tree/, which this packet does not hold',
+  reason_code: 'needs-tree',
+  verdict: 'hint',
 }

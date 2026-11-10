@@ -81,6 +81,18 @@ describe('critique runner command line', () => {
     })
   })
 
+  it('exits 3 when check-adrs finds a structural error in the decision log', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.writeText(join(h.repo, 'docs', 'adr', '0001-a.md'), '# A\n\nWe decided.\n')
+    await h.writeText(join(h.repo, 'docs', 'adr', '0003-c.md'), '# C\n\nWe decided again.\n')
+
+    const result = await runCritiqueCli(['check-adrs', '--json', JSON.stringify({ repo: h.repo })], cli(h))
+
+    expect(result.exitCode).toBe(3)
+    expect(JSON.parse(result.stdout)).toMatchObject({ numbering: { gaps: [2] }, status: 'failed' })
+  })
+
   it('reports critique stats from the ledger', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)

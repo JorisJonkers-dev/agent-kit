@@ -3,7 +3,9 @@ import { join } from 'node:path'
 import { ADR_DIRECTORY, GLOSSARIES } from '../domain/decision-docs.js'
 import type { ArtifactSource } from '../domain/manifest.js'
 import { refusal, type Refusal } from '../domain/outcomes.js'
+import { ADR_CHECK_PATH } from '../domain/adr-log.js'
 import { FACTS_INDEX_PATH, MANIFEST_PATH, NO_FACTS, sampleRepository, type PacketLimits } from '../domain/repository-packet.js'
+import { checkLog, logRecords, type CheckAdrsResult } from './check-adrs.js'
 import { TREE_DIR, type UnfrozenFile } from './code-packet.js'
 import { insideRepository } from './paths.js'
 import type { CritiqueDeps } from './ports.js'
@@ -64,7 +66,7 @@ export class AdrPacketReader {
 
   async read(root: string, request: AdrPacketRequest): Promise<AdrPacket | Refusal> {
     const { files } = this.deps
-    const records = (await files.listFiles(join(root, ADR_DIRECTORY))).filter((name) => name.endsWith('.md')).map((name) => join(ADR_DIRECTORY, name))
+    const records = await logRecords(files, root)
     const reviewed = request.adrs === undefined ? records : request.adrs.map((path) => insideRepository(root, path))
     if (reviewed.length === 0) return refusal('no-adrs', `found no decision records in ${ADR_DIRECTORY}/ to review`)
     const references = request.references?.map((path) => insideRepository(root, path)) ?? [
@@ -78,7 +80,8 @@ export class AdrPacketReader {
       text: await files.readText(join(root, source)),
     })
     const artifact = await Promise.all(reviewed.map((source) => read('artifact', source)))
-    const documents = [...artifact, ...(await Promise.all(references.map((source) => read('reference', source))))]
+    const check = await checkLog(files, root, records)
+    const documents = [...artifact, ...(await Promise.all(references.map((source) => read('reference', source)))), checkReportFile(check)]
     const text = artifact.map((file) => file.text).join('\n\n')
     const packet: AdrPacket = {
       adrs: artifact.length,
@@ -140,4 +143,9 @@ export class AdrPacketReader {
     const found = GLOSSARIES.find((name) => present.includes(name))
     return found === undefined ? [] : [found]
   }
+}
+
+/** What check-adrs reports on the whole log, settled before any critic reads the records. */
+function checkReportFile(check: CheckAdrsResult): UnfrozenFile {
+  return { kind: 'check', path: ADR_CHECK_PATH, source: `check-adrs ${ADR_DIRECTORY}`, text: `${JSON.stringify(check, null, 2)}\n` }
 }

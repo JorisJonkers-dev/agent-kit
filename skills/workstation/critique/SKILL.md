@@ -10,7 +10,8 @@ its own: `/flow` says which stage is due and runs it, or start a critique
 with the stage skill (`/review-spec` after
 `/to-spec` produced or changed a spec, `/review-tickets` after `/to-tickets`
 and before the first `/implement`, `/review-implementation` after a ticket's
-`/code-review` and before its commit), which tells you how to drive it.
+`/code-review` and before its commit, `/critique-adrs` when the owner asks
+for a review of the decision records), which tells you how to drive it.
 
 ## What is here
 
@@ -27,7 +28,7 @@ and before the first `/implement`, `/review-implementation` after a ticket's
 The runner takes one command and one JSON object, and prints one JSON object:
 
 ```sh
-node <this directory>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets|stats|triage|state|setup> --input FILE
+node <this directory>/critique.mjs <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|stats|triage|state|setup> --input FILE
 node <this directory>/critique.mjs --help
 ```
 
@@ -45,7 +46,12 @@ a critic of another family with the `refuter` role, and writes
 A refusal is a normal result with `"status": "refused"`. An error prints
 `"status": "error"` with a `code` and exits 1. `check-tickets` is the
 deterministic ticket checker; while it finds a dependency cycle it prints
-`"status": "failed"` and exits 3. `stats` reads the ledger and writes nothing;
+`"status": "failed"` and exits 3. `check-adrs` is the deterministic
+decision-log checker: it takes `{ "repo" }`, reports numbering gaps and
+duplicates, unknown status values, links and supersede targets that resolve
+to nothing, and records in force citing a superseded one, and on any of
+these prints `"status": "failed"` and exits 3. Prepare for `adr-review`
+freezes the same report as `check/adrs.json`. `stats` reads the ledger and writes nothing;
 `/critique-stats` drives it. `triage` decides whether a ticket's change
 is `risky` or `low-risk` for ticket review, and names the signal that
 decided it. `state` computes one feature's flow state (keyed by its spec, or
