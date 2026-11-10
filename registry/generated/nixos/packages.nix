@@ -21,6 +21,7 @@
     { attr = "kotlin-lsp"; source = "nixos-modules"; }
     { attr = "lua-language-server"; source = "nixpkgs"; }
     { attr = "marksman"; source = "nixpkgs"; }
+    { attr = "mise"; source = "nixpkgs"; }
     { attr = "nil"; source = "nixpkgs"; }
     { attr = "nodejs_24"; source = "nixpkgs"; }
     { attr = "openssl"; source = "nixpkgs"; }
