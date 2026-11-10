@@ -1,0 +1,970 @@
+{
+  "schema": 1,
+  "note": "Frozen code-navigation question set (B7-02, agent-kit#517). Each question is pinned to the commits in pins; gold answers were verified against git show at those commits.",
+  "pins": {
+    "agent-kit": "8e6eeb8ef5bfb4cca46a32608a9d78bde20bc432",
+    "agents-api": "14ef81f85d75322434df2202b053086774ca405a",
+    "api-contract-checks": "cb990bb10b2311c96b7a7924f81893349170a385",
+    "auth-api": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+    "auth-ui": "dc4603dc2592489eb187b3bfcf5e3b373f204868",
+    "deploy-config-schema": "f9eac8e81e2fbb79092fd6128e89a208fdfde01b",
+    "go-commons": "798daacd75da6f10c27d3ddec07a7db57eb927b2",
+    "kotlin-spring-commons": "7bc9f3521b05021d73a0aa91a454be938148e8cb",
+    "openapi-client-gradle": "c1c0b5cadb489bfd9150936ff4b486335589efe9",
+    "python-commons": "dbafcd30770d9e06b73e85349c8ed7ba44fac507",
+    "rust-commons": "4bd8ad0d38482fd36ccba38b90f76b2d9717b844",
+    "vue-web-commons": "3de52560c87172d895b4db857576ad996bb811ac"
+  },
+  "questions": [
+    {
+      "id": "NK-01",
+      "family": "name-known",
+      "repo": "go-commons",
+      "question": "Where is the `Headers` function in go-commons' `secure` package defined, and what does it do when the Policy has an empty ContentSecurityPolicy?",
+      "gold_answer": "`Headers` is defined in secure/secure.go at line 34; it returns a middleware that sets the Content-Security-Policy, X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy headers on each response. With an empty ContentSecurityPolicy it returns a nil middleware and ErrNoContentSecurityPolicy.",
+      "gold_files": [
+        {
+          "repo": "go-commons",
+          "path": "secure/secure.go"
+        }
+      ],
+      "must_contain": [
+        "ErrNoContentSecurityPolicy",
+        "func Headers(p Policy)"
+      ],
+      "commit": "798daacd75da6f10c27d3ddec07a7db57eb927b2",
+      "evidence": [
+        {
+          "repo": "go-commons",
+          "path": "secure/secure.go",
+          "line": 34,
+          "text": "func Headers(p Policy) (func(http.Handler) http.Handler, error) {"
+        },
+        {
+          "repo": "go-commons",
+          "path": "secure/secure.go",
+          "line": 35,
+          "text": "\tif p.ContentSecurityPolicy == \"\" {"
+        },
+        {
+          "repo": "go-commons",
+          "path": "secure/secure.go",
+          "line": 36,
+          "text": "\t\treturn nil, ErrNoContentSecurityPolicy"
+        }
+      ]
+    },
+    {
+      "id": "NK-02",
+      "family": "name-known",
+      "repo": "go-commons",
+      "question": "What does `RefuseTools` in go-commons' identity package check, and what HTTP status does it answer when it refuses a request?",
+      "gold_answer": "`RefuseTools` (identity/policy.go line 68) is a guard whose allow predicate is `p.Via != ViaTool`, so a tool acting for a User is refused; the shared guard answers 403 Forbidden to a principal that fails the predicate (`case !allow(p):`) and 401 when there is no principal.",
+      "gold_files": [
+        {
+          "repo": "go-commons",
+          "path": "identity/policy.go"
+        }
+      ],
+      "must_contain": [
+        "p.Via != ViaTool",
+        "StatusForbidden"
+      ],
+      "commit": "798daacd75da6f10c27d3ddec07a7db57eb927b2",
+      "evidence": [
+        {
+          "repo": "go-commons",
+          "path": "identity/policy.go",
+          "line": 68,
+          "text": "func RefuseTools() func(http.Handler) http.Handler {"
+        },
+        {
+          "repo": "go-commons",
+          "path": "identity/policy.go",
+          "line": 69,
+          "text": "\treturn guard(func(p Principal) bool { return p.Via != ViaTool })"
+        },
+        {
+          "repo": "go-commons",
+          "path": "identity/policy.go",
+          "line": 52,
+          "text": "\t\t\tcase !allow(p):"
+        }
+      ]
+    },
+    {
+      "id": "NK-03",
+      "family": "name-known",
+      "repo": "rust-commons",
+      "question": "Where is `ReqwestFetch` defined in rust-commons, and where does `PrincipalReader::new` use it?",
+      "gold_answer": "`ReqwestFetch` is a tuple struct wrapping `reqwest::Client`, defined in src/identity/fetch.rs at line 31 and gated behind the `reqwest` feature; `PrincipalReader::new` in src/identity/reader.rs line 152 calls `with_fetch(config, super::ReqwestFetch::default())`, making it the default Fetch.",
+      "gold_files": [
+        {
+          "repo": "rust-commons",
+          "path": "src/identity/fetch.rs"
+        },
+        {
+          "repo": "rust-commons",
+          "path": "src/identity/reader.rs"
+        }
+      ],
+      "must_contain": [
+        "ReqwestFetch(pub reqwest::Client)",
+        "ReqwestFetch::default()"
+      ],
+      "commit": "4bd8ad0d38482fd36ccba38b90f76b2d9717b844",
+      "evidence": [
+        {
+          "repo": "rust-commons",
+          "path": "src/identity/fetch.rs",
+          "line": 31,
+          "text": "pub struct ReqwestFetch(pub reqwest::Client);"
+        },
+        {
+          "repo": "rust-commons",
+          "path": "src/identity/reader.rs",
+          "line": 152,
+          "text": "        Self::with_fetch(config, super::ReqwestFetch::default())"
+        }
+      ]
+    },
+    {
+      "id": "NK-04",
+      "family": "name-known",
+      "repo": "python-commons",
+      "question": "Where is `urllib_fetch` defined in python-commons, what is its default timeout, and what is it used as by default?",
+      "gold_answer": "`urllib_fetch` is defined in src/jorisjonkers_commons/identity/reader.py at line 79 with a default timeout of 5.0 seconds, and it is the default value of the `fetch` parameter of `PrincipalReader.__init__` at line 109.",
+      "gold_files": [
+        {
+          "repo": "python-commons",
+          "path": "src/jorisjonkers_commons/identity/reader.py"
+        }
+      ],
+      "must_contain": [
+        "timeout: float = 5.0",
+        "fetch: Fetch = urllib_fetch"
+      ],
+      "commit": "dbafcd30770d9e06b73e85349c8ed7ba44fac507",
+      "evidence": [
+        {
+          "repo": "python-commons",
+          "path": "src/jorisjonkers_commons/identity/reader.py",
+          "line": 79,
+          "text": "def urllib_fetch(request: Request, timeout: float = 5.0) -> Response:"
+        },
+        {
+          "repo": "python-commons",
+          "path": "src/jorisjonkers_commons/identity/reader.py",
+          "line": 109,
+          "text": "        fetch: Fetch = urllib_fetch,"
+        }
+      ]
+    },
+    {
+      "id": "NK-05",
+      "family": "name-known",
+      "repo": "kotlin-spring-commons",
+      "question": "What does the `Introspector` class in kotlin-spring-commons do with identity's introspection answers, and where is it constructed?",
+      "gold_answer": "`Introspector` (identity/principal/Introspector.kt, line 15) asks identity about opaque tokens and keeps each answer for `ANSWER_LIFETIME`, which is 30 seconds; `PrincipalReader` constructs it at PrincipalReader.kt line 44 as `Introspector(config)`.",
+      "gold_files": [
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "identity/src/main/kotlin/com/jorisjonkers/personalstack/common/identity/principal/Introspector.kt"
+        },
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "identity/src/main/kotlin/com/jorisjonkers/personalstack/common/identity/principal/PrincipalReader.kt"
+        }
+      ],
+      "must_contain": [
+        "Introspector(config)",
+        "Duration.ofSeconds(30)"
+      ],
+      "commit": "7bc9f3521b05021d73a0aa91a454be938148e8cb",
+      "evidence": [
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "identity/src/main/kotlin/com/jorisjonkers/personalstack/common/identity/principal/Introspector.kt",
+          "line": 15,
+          "text": "internal class Introspector("
+        },
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "identity/src/main/kotlin/com/jorisjonkers/personalstack/common/identity/principal/Introspector.kt",
+          "line": 66,
+          "text": "        val ANSWER_LIFETIME: Duration = Duration.ofSeconds(30)"
+        },
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "identity/src/main/kotlin/com/jorisjonkers/personalstack/common/identity/principal/PrincipalReader.kt",
+          "line": 44,
+          "text": "    private val introspector = Introspector(config)"
+        }
+      ]
+    },
+    {
+      "id": "NK-06",
+      "family": "name-known",
+      "repo": "vue-web-commons",
+      "question": "Where is `useFormErrors` defined in vue-web-commons, and what does its `captureFromCatch` store when the thrown value is not an ApiError?",
+      "gold_answer": "`useFormErrors` is defined in src/composables/useFormErrors.ts at line 64. For a non-ApiError value, `captureFromCatch` stores a synthetic ApiError from `syntheticApiError(detail)` (status 0, title 'Request failed') where detail is the Error message or String(e), and it clears the per-field error map.",
+      "gold_files": [
+        {
+          "repo": "vue-web-commons",
+          "path": "src/composables/useFormErrors.ts"
+        }
+      ],
+      "must_contain": [
+        "syntheticApiError(detail)",
+        "useFormErrors"
+      ],
+      "commit": "3de52560c87172d895b4db857576ad996bb811ac",
+      "evidence": [
+        {
+          "repo": "vue-web-commons",
+          "path": "src/composables/useFormErrors.ts",
+          "line": 64,
+          "text": "export function useFormErrors(): UseFormErrorsReturn {"
+        },
+        {
+          "repo": "vue-web-commons",
+          "path": "src/composables/useFormErrors.ts",
+          "line": 88,
+          "text": "    const detail = e instanceof Error ? e.message : String(e)"
+        },
+        {
+          "repo": "vue-web-commons",
+          "path": "src/composables/useFormErrors.ts",
+          "line": 89,
+          "text": "    current.value = syntheticApiError(detail)"
+        }
+      ]
+    },
+    {
+      "id": "CO-01",
+      "family": "concept",
+      "repo": "auth-api",
+      "question": "When someone submits an email confirmation link after its validity period has passed, where does the service decide to reject it, and what reason does it report?",
+      "gold_answer": "The check lives in ConfirmEmailCommandHandler.resolveValidToken, which maps an expired record to the message \"Confirmation token has expired\" by calling isExpired(); isExpired() is defined on EmailConfirmationToken as the current time being after expiresAt.",
+      "gold_files": [
+        {
+          "repo": "auth-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/auth/application/command/ConfirmEmailCommandHandler.kt"
+        },
+        {
+          "repo": "auth-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/auth/domain/model/EmailConfirmationToken.kt"
+        }
+      ],
+      "must_contain": [
+        "isExpired",
+        "Confirmation token has expired"
+      ],
+      "commit": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+      "evidence": [
+        {
+          "repo": "auth-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/auth/application/command/ConfirmEmailCommandHandler.kt",
+          "line": 31,
+          "text": "                token.isExpired() -> \"Confirmation token has expired\""
+        },
+        {
+          "repo": "auth-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/auth/domain/model/EmailConfirmationToken.kt",
+          "line": 14,
+          "text": "    fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)"
+        }
+      ]
+    },
+    {
+      "id": "CO-02",
+      "family": "concept",
+      "repo": "kotlin-spring-commons",
+      "question": "When an outgoing message fails to send, how long does the sender pause before the next attempt, and where is that pause defined?",
+      "gold_answer": "In EmailService.trySend, after a failed attempt that is below the maximum, the thread sleeps attempt multiplied by RETRY_BACKOFF_MS, which is 1000 ms, so the pause grows linearly (1 s, then 2 s); no sleep follows the final attempt.",
+      "gold_files": [
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "email/src/main/kotlin/com/jorisjonkers/personalstack/common/email/EmailService.kt"
+        }
+      ],
+      "must_contain": [
+        "RETRY_BACKOFF_MS",
+        "1000L"
+      ],
+      "commit": "7bc9f3521b05021d73a0aa91a454be938148e8cb",
+      "evidence": [
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "email/src/main/kotlin/com/jorisjonkers/personalstack/common/email/EmailService.kt",
+          "line": 79,
+          "text": "                Thread.sleep(attempt * RETRY_BACKOFF_MS)"
+        },
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "email/src/main/kotlin/com/jorisjonkers/personalstack/common/email/EmailService.kt",
+          "line": 111,
+          "text": "        private const val RETRY_BACKOFF_MS = 1000L"
+        }
+      ]
+    },
+    {
+      "id": "CO-03",
+      "family": "concept",
+      "repo": "deploy-config-schema",
+      "question": "Where is the code that turns a cluster description holding internal-only details into a version safe to publish, and what happens if a sensitive value still shows up in the result?",
+      "gold_answer": "In src/cluster-context/redact.ts, redactToPublic refuses non-internal input, deletes spec.internal from a copy, sets visibility to public, then scans every string field against the SC-8 patterns and throws E_REDACT_LEAK_RESIDUAL on any hit.",
+      "gold_files": [
+        {
+          "repo": "deploy-config-schema",
+          "path": "src/cluster-context/redact.ts"
+        }
+      ],
+      "must_contain": [
+        "E_REDACT_LEAK_RESIDUAL",
+        "\"internal\""
+      ],
+      "commit": "f9eac8e81e2fbb79092fd6128e89a208fdfde01b",
+      "evidence": [
+        {
+          "repo": "deploy-config-schema",
+          "path": "src/cluster-context/redact.ts",
+          "line": 20,
+          "text": "  delete (pub.spec as Record<string, unknown>)[\"internal\"];"
+        },
+        {
+          "repo": "deploy-config-schema",
+          "path": "src/cluster-context/redact.ts",
+          "line": 27,
+          "text": "    throw new Error(`E_REDACT_LEAK_RESIDUAL: SC-8 pattern '${first.category}' survived redaction at field '${first.path}'`);"
+        }
+      ]
+    },
+    {
+      "id": "CO-04",
+      "family": "concept",
+      "repo": "python-commons",
+      "question": "When a presented access credential names a signing key the identity provider has not published, how often does the reader download the provider's key list again, and where is that limit enforced?",
+      "gold_answer": "In the reader's _key method, an unknown key id triggers a re-download of the published keys only if the last fetch was at least _REFETCH_AFTER (one minute) ago; otherwise it raises PrincipalRefused(\"unknown-key\").",
+      "gold_files": [
+        {
+          "repo": "python-commons",
+          "path": "src/jorisjonkers_commons/identity/reader.py"
+        }
+      ],
+      "must_contain": [
+        "_REFETCH_AFTER",
+        "minutes=1"
+      ],
+      "commit": "dbafcd30770d9e06b73e85349c8ed7ba44fac507",
+      "evidence": [
+        {
+          "repo": "python-commons",
+          "path": "src/jorisjonkers_commons/identity/reader.py",
+          "line": 33,
+          "text": "_REFETCH_AFTER = timedelta(minutes=1)"
+        },
+        {
+          "repo": "python-commons",
+          "path": "src/jorisjonkers_commons/identity/reader.py",
+          "line": 187,
+          "text": "            if self._fetched is not None and self._now() - self._fetched < _REFETCH_AFTER:"
+        }
+      ]
+    },
+    {
+      "id": "CO-05",
+      "family": "concept",
+      "repo": "agents-api",
+      "question": "When starting an agent process on the gateway fails with a connection error, where does the code try again, how many attempts are allowed, and how long does it wait between attempts?",
+      "gold_answer": "In RunnerAgentSpawner's spawn function, a connection failure is retried up to MAX_SPAWN_ATTEMPTS (3) times; the wait after each failure is backoffInitialMs times (attempt + 1), which RunnerSessionBinder sets to BACKOFF_INITIAL_MS = 1_000 ms by default, so the wait grows linearly and the final failure throws AgentRunnerUnavailableException.",
+      "gold_files": [
+        {
+          "repo": "agents-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/agents/application/sessionbinding/RunnerAgentSpawner.kt"
+        },
+        {
+          "repo": "agents-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/agents/application/sessionbinding/RunnerSessionBinder.kt"
+        }
+      ],
+      "must_contain": [
+        "MAX_SPAWN_ATTEMPTS",
+        "backoffInitialMs * (attempt + 1)"
+      ],
+      "commit": "14ef81f85d75322434df2202b053086774ca405a",
+      "evidence": [
+        {
+          "repo": "agents-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/agents/application/sessionbinding/RunnerAgentSpawner.kt",
+          "line": 26,
+          "text": "        repeat(MAX_SPAWN_ATTEMPTS) { attempt ->"
+        },
+        {
+          "repo": "agents-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/agents/application/sessionbinding/RunnerAgentSpawner.kt",
+          "line": 60,
+          "text": "        val sleepMs = backoffInitialMs * (attempt + 1)"
+        },
+        {
+          "repo": "agents-api",
+          "path": "api/src/main/kotlin/com/jorisjonkers/personalstack/agents/application/sessionbinding/RunnerSessionBinder.kt",
+          "line": 392,
+          "text": "        const val BACKOFF_INITIAL_MS: Long = 1_000"
+        }
+      ]
+    },
+    {
+      "id": "XR-01",
+      "family": "cross-repo",
+      "repo": "kotlin-spring-commons",
+      "question": "Which repositories in the pinned set consume the kotlin-spring-commons Maven modules (dev.jorisjonkers:kotlin-commons-*), and which file in each one points Gradle at the kotlin-spring-commons GitHub Packages Maven repository?",
+      "gold_answer": "Two repositories consume them: auth-api and agents-api. Each declares the GitHub Packages Maven repository for kotlin-spring-commons in settings.gradle.kts and lists the dev.jorisjonkers:kotlin-commons-* modules in gradle/libs.versions.toml. kotlin-spring-commons itself publishes to that repository from build.gradle.kts.",
+      "gold_files": [
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "build.gradle.kts"
+        },
+        {
+          "repo": "auth-api",
+          "path": "settings.gradle.kts"
+        },
+        {
+          "repo": "auth-api",
+          "path": "gradle/libs.versions.toml"
+        },
+        {
+          "repo": "agents-api",
+          "path": "settings.gradle.kts"
+        },
+        {
+          "repo": "agents-api",
+          "path": "gradle/libs.versions.toml"
+        }
+      ],
+      "must_contain": [
+        "settings.gradle.kts",
+        "auth-api",
+        "agents-api"
+      ],
+      "commit": "7bc9f3521b05021d73a0aa91a454be938148e8cb",
+      "commits": {
+        "kotlin-spring-commons": "7bc9f3521b05021d73a0aa91a454be938148e8cb",
+        "auth-api": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+        "agents-api": "14ef81f85d75322434df2202b053086774ca405a"
+      },
+      "evidence": [
+        {
+          "repo": "kotlin-spring-commons",
+          "path": "build.gradle.kts",
+          "line": 91,
+          "text": "                    url = uri(\"https://maven.pkg.github.com/JorisJonkers-dev/kotlin-spring-commons\")"
+        },
+        {
+          "repo": "auth-api",
+          "path": "settings.gradle.kts",
+          "line": 44,
+          "text": "            url = uri(\"https://maven.pkg.github.com/JorisJonkers-dev/kotlin-spring-commons\")"
+        },
+        {
+          "repo": "auth-api",
+          "path": "gradle/libs.versions.toml",
+          "line": 7,
+          "text": "kotlin-commons-archunit-test = { module = \"dev.jorisjonkers:kotlin-commons-archunit-test\", version.ref = \"jorisjonkers-commons\" }"
+        },
+        {
+          "repo": "agents-api",
+          "path": "settings.gradle.kts",
+          "line": 48,
+          "text": "            url = uri(\"https://maven.pkg.github.com/JorisJonkers-dev/kotlin-spring-commons\")"
+        },
+        {
+          "repo": "agents-api",
+          "path": "gradle/libs.versions.toml",
+          "line": 8,
+          "text": "kotlin-commons-blocks = { module = \"dev.jorisjonkers:kotlin-commons-blocks\", version.ref = \"jorisjonkers-commons\" }"
+        }
+      ]
+    },
+    {
+      "id": "XR-02",
+      "family": "cross-repo",
+      "repo": "openapi-client-gradle",
+      "question": "Which API repositories in the pinned set pass an openapi-client-gradle version into their client-publish workflow, and which version do they pass?",
+      "gold_answer": "auth-api and agents-api. Both pass openapi-client-gradle-version 0.3.1 in their ci.yml and release.yml to the shared publish-api-clients workflow. The plugin they select is dev.jorisjonkers.openapi-client, published by openapi-client-gradle.",
+      "gold_files": [
+        {
+          "repo": "openapi-client-gradle",
+          "path": "README.md"
+        },
+        {
+          "repo": "openapi-client-gradle",
+          "path": "build.gradle.kts"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/release.yml"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/ci.yml"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/release.yml"
+        }
+      ],
+      "must_contain": [
+        "auth-api",
+        "agents-api",
+        "0.3.1"
+      ],
+      "commit": "c1c0b5cadb489bfd9150936ff4b486335589efe9",
+      "commits": {
+        "openapi-client-gradle": "c1c0b5cadb489bfd9150936ff4b486335589efe9",
+        "auth-api": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+        "agents-api": "14ef81f85d75322434df2202b053086774ca405a"
+      },
+      "evidence": [
+        {
+          "repo": "openapi-client-gradle",
+          "path": "README.md",
+          "line": 23,
+          "text": "    id(\"dev.jorisjonkers.openapi-client\") version \"<version>\""
+        },
+        {
+          "repo": "openapi-client-gradle",
+          "path": "build.gradle.kts",
+          "line": 43,
+          "text": "            id = \"dev.jorisjonkers.openapi-client\""
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml",
+          "line": 66,
+          "text": "      openapi-client-gradle-version: '0.3.1'"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/release.yml",
+          "line": 66,
+          "text": "      openapi-client-gradle-version: 0.3.1"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/ci.yml",
+          "line": 80,
+          "text": "      openapi-client-gradle-version: '0.3.1'"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/release.yml",
+          "line": 70,
+          "text": "      openapi-client-gradle-version: '0.3.1'"
+        }
+      ]
+    },
+    {
+      "id": "XR-03",
+      "family": "cross-repo",
+      "repo": "auth-ui",
+      "question": "auth-ui depends on @jorisjonkers-dev/auth-api-client and @jorisjonkers-dev/vue-web-commons. Which two pinned repositories own those packages?",
+      "gold_answer": "auth-api owns @jorisjonkers-dev/auth-api-client: its ci.yml sets ts-package to that name for the shared client build. vue-web-commons owns @jorisjonkers-dev/vue-web-commons, as its package.json name shows. auth-ui lists both in its package.json.",
+      "gold_files": [
+        {
+          "repo": "auth-ui",
+          "path": "package.json"
+        },
+        {
+          "repo": "vue-web-commons",
+          "path": "package.json"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml"
+        }
+      ],
+      "must_contain": [
+        "auth-api",
+        "vue-web-commons"
+      ],
+      "commit": "dc4603dc2592489eb187b3bfcf5e3b373f204868",
+      "commits": {
+        "auth-ui": "dc4603dc2592489eb187b3bfcf5e3b373f204868",
+        "vue-web-commons": "3de52560c87172d895b4db857576ad996bb811ac",
+        "auth-api": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1"
+      },
+      "evidence": [
+        {
+          "repo": "auth-ui",
+          "path": "package.json",
+          "line": 26,
+          "text": "    \"@jorisjonkers-dev/auth-api-client\": \"0.9.0\","
+        },
+        {
+          "repo": "auth-ui",
+          "path": "package.json",
+          "line": 27,
+          "text": "    \"@jorisjonkers-dev/vue-web-commons\": \"0.4.1\","
+        },
+        {
+          "repo": "vue-web-commons",
+          "path": "package.json",
+          "line": 2,
+          "text": "  \"name\": \"@jorisjonkers-dev/vue-web-commons\","
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml",
+          "line": 62,
+          "text": "      ts-package: '@jorisjonkers-dev/auth-api-client'"
+        }
+      ]
+    },
+    {
+      "id": "XR-04",
+      "family": "cross-repo",
+      "repo": "auth-api",
+      "question": "Which API repositories call the shared publish-api-clients reusable workflow from JorisJonkers-dev/github-workflows, and at which tagged revision does each pin it?",
+      "gold_answer": "Two repositories: auth-api pins publish-api-clients.yml at 2e0d884 (v0.45.2) in ci.yml and release.yml, and agents-api pins it at f3bb6ca (v0.38.0) in the same two workflow files.",
+      "gold_files": [
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/release.yml"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/ci.yml"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/release.yml"
+        }
+      ],
+      "must_contain": [
+        "v0.45.2",
+        "v0.38.0"
+      ],
+      "commit": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+      "commits": {
+        "auth-api": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+        "agents-api": "14ef81f85d75322434df2202b053086774ca405a"
+      },
+      "evidence": [
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml",
+          "line": 52,
+          "text": "    uses: 'JorisJonkers-dev/github-workflows/.github/workflows/publish-api-clients.yml@2e0d88483fbb70fdb54034c85e9930dec066f906' # v0.45.2"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/release.yml",
+          "line": 52,
+          "text": "    uses: JorisJonkers-dev/github-workflows/.github/workflows/publish-api-clients.yml@2e0d88483fbb70fdb54034c85e9930dec066f906 # v0.45.2"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/ci.yml",
+          "line": 67,
+          "text": "    uses: JorisJonkers-dev/github-workflows/.github/workflows/publish-api-clients.yml@f3bb6cabaa6ee33694f8632ce273a4e703d60780 # v0.38.0"
+        },
+        {
+          "repo": "agents-api",
+          "path": ".github/workflows/release.yml",
+          "line": 57,
+          "text": "    uses: JorisJonkers-dev/github-workflows/.github/workflows/publish-api-clients.yml@f3bb6cabaa6ee33694f8632ce273a4e703d60780 # v0.38.0"
+        }
+      ]
+    },
+    {
+      "id": "RF-01",
+      "family": "refs",
+      "repo": "auth-api",
+      "question": "Which files in auth-api reference the committed OpenAPI contract path `client-spec/openapi/auth-api.json`? If that path were renamed or moved, which files would have to change?",
+      "gold_answer": "Seven files reference the exact path: .github/workflows/ci.yml, .github/workflows/release.yml, CONTRACT.md, Dockerfile, README.md, api/build.gradle.kts, and api/src/integrationTest/kotlin/com/jorisjonkers/personalstack/auth/contract/OpenApiSpecExportTest.kt. Each would need the new path, since the export task writes there and the CI drift check diffs it.",
+      "gold_files": [
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/release.yml"
+        },
+        {
+          "repo": "auth-api",
+          "path": "CONTRACT.md"
+        },
+        {
+          "repo": "auth-api",
+          "path": "Dockerfile"
+        },
+        {
+          "repo": "auth-api",
+          "path": "README.md"
+        },
+        {
+          "repo": "auth-api",
+          "path": "api/build.gradle.kts"
+        },
+        {
+          "repo": "auth-api",
+          "path": "api/src/integrationTest/kotlin/com/jorisjonkers/personalstack/auth/contract/OpenApiSpecExportTest.kt"
+        }
+      ],
+      "must_contain": [
+        "Dockerfile",
+        "OpenApiSpecExportTest.kt"
+      ],
+      "commit": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+      "evidence": [
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/ci.yml",
+          "line": 59,
+          "text": "      spec-path: 'client-spec/openapi/auth-api.json'"
+        },
+        {
+          "repo": "auth-api",
+          "path": ".github/workflows/release.yml",
+          "line": 59,
+          "text": "      spec-path: client-spec/openapi/auth-api.json"
+        },
+        {
+          "repo": "auth-api",
+          "path": "CONTRACT.md",
+          "line": 3,
+          "text": "`client-spec/openapi/auth-api.json` is the committed API contract for auth-api consumers."
+        },
+        {
+          "repo": "auth-api",
+          "path": "Dockerfile",
+          "line": 14,
+          "text": "COPY client-spec/openapi/auth-api.json client-spec/openapi/auth-api.json"
+        },
+        {
+          "repo": "auth-api",
+          "path": "README.md",
+          "line": 26,
+          "text": "- OpenAPI spec: [client-spec/openapi/auth-api.json](./client-spec/openapi/auth-api.json)"
+        },
+        {
+          "repo": "auth-api",
+          "path": "api/build.gradle.kts",
+          "line": 77,
+          "text": "    description = \"Exports the OpenAPI spec to client-spec/openapi/auth-api.json from a springdoc MVC slice\""
+        },
+        {
+          "repo": "auth-api",
+          "path": "api/src/integrationTest/kotlin/com/jorisjonkers/personalstack/auth/contract/OpenApiSpecExportTest.kt",
+          "line": 239,
+          "text": "        return Paths.get(System.getProperty(\"user.dir\")).resolve(\"client-spec/openapi/auth-api.json\")"
+        }
+      ],
+      "grep": "git -C /home/ExtraToast/Projects/JorisJonkers-dev/auth-api grep -l -F -e 'client-spec/openapi/auth-api.json' 8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1"
+    },
+    {
+      "id": "RF-02",
+      "family": "refs",
+      "repo": "api-contract-checks",
+      "question": "Which files in api-contract-checks reference the environment variable or identifier `BREAKING_BASE_SPEC_PATH`? What would break if it were renamed?",
+      "gold_answer": "Three files reference it: action.yml (it maps the breaking-base-spec-path input onto that variable and passes it as --breaking-base-spec-path), scripts/api-contract-checks.sh (usage text and the local variable the check reads), and tests/self-test.sh (the self-test writes it into a profile). A rename would break the action input wiring and the self-test profile, and the script's local variable.",
+      "gold_files": [
+        {
+          "repo": "api-contract-checks",
+          "path": "action.yml"
+        },
+        {
+          "repo": "api-contract-checks",
+          "path": "scripts/api-contract-checks.sh"
+        },
+        {
+          "repo": "api-contract-checks",
+          "path": "tests/self-test.sh"
+        }
+      ],
+      "must_contain": [
+        "action.yml",
+        "self-test.sh"
+      ],
+      "commit": "cb990bb10b2311c96b7a7924f81893349170a385",
+      "evidence": [
+        {
+          "repo": "api-contract-checks",
+          "path": "action.yml",
+          "line": 70,
+          "text": "        INPUT_BREAKING_BASE_SPEC_PATH: ${{ inputs.breaking-base-spec-path }}"
+        },
+        {
+          "repo": "api-contract-checks",
+          "path": "scripts/api-contract-checks.sh",
+          "line": 35,
+          "text": "  BREAKING_BASE_SPEC_PATH      optional previous spec file path"
+        },
+        {
+          "repo": "api-contract-checks",
+          "path": "tests/self-test.sh",
+          "line": 45,
+          "text": "    printf 'BREAKING_BASE_SPEC_PATH=\"examples/basic/committed/openapi.json\"\\n'"
+        }
+      ],
+      "grep": "git -C /home/ExtraToast/Projects/JorisJonkers-dev/api-contract-checks grep -l -F -e 'BREAKING_BASE_SPEC_PATH' cb990bb10b2311c96b7a7924f81893349170a385"
+    },
+    {
+      "id": "RF-03",
+      "family": "refs",
+      "repo": "auth-ui",
+      "question": "Which files in auth-ui reference the package name `@jorisjonkers-dev/auth-api-client`? What would break if that package were renamed?",
+      "gold_answer": "Five files reference it: package.json (dependency pin 0.9.0), pnpm-lock.yaml (lockfile entries), .dependency-cruiser.cjs (boundary rule path), src/features/auth/services/authService.ts (imports), and src/features/auth/__tests__/authService.test.ts (vi.mock). A rename would break the dependency, the lockfile, the dependency-cruiser boundary rule and the imports and mocks in the auth service and its test.",
+      "gold_files": [
+        {
+          "repo": "auth-ui",
+          "path": ".dependency-cruiser.cjs"
+        },
+        {
+          "repo": "auth-ui",
+          "path": "package.json"
+        },
+        {
+          "repo": "auth-ui",
+          "path": "pnpm-lock.yaml"
+        },
+        {
+          "repo": "auth-ui",
+          "path": "src/features/auth/__tests__/authService.test.ts"
+        },
+        {
+          "repo": "auth-ui",
+          "path": "src/features/auth/services/authService.ts"
+        }
+      ],
+      "must_contain": [
+        "authService.ts",
+        ".dependency-cruiser.cjs"
+      ],
+      "commit": "dc4603dc2592489eb187b3bfcf5e3b373f204868",
+      "evidence": [
+        {
+          "repo": "auth-ui",
+          "path": ".dependency-cruiser.cjs",
+          "line": 55,
+          "text": "        path: '^@jorisjonkers-dev/auth-api-client',"
+        },
+        {
+          "repo": "auth-ui",
+          "path": "package.json",
+          "line": 26,
+          "text": "    \"@jorisjonkers-dev/auth-api-client\": \"0.9.0\","
+        },
+        {
+          "repo": "auth-ui",
+          "path": "pnpm-lock.yaml",
+          "line": 17,
+          "text": "      '@jorisjonkers-dev/auth-api-client':"
+        },
+        {
+          "repo": "auth-ui",
+          "path": "src/features/auth/__tests__/authService.test.ts",
+          "line": 14,
+          "text": "vi.mock('@jorisjonkers-dev/auth-api-client', () => clientMocks)"
+        },
+        {
+          "repo": "auth-ui",
+          "path": "src/features/auth/services/authService.ts",
+          "line": 1,
+          "text": "import type { RegisterUserRequest } from '@jorisjonkers-dev/auth-api-client'"
+        }
+      ],
+      "grep": "git -C /home/ExtraToast/Projects/JorisJonkers-dev/auth-ui grep -l -F -e '@jorisjonkers-dev/auth-api-client' dc4603dc2592489eb187b3bfcf5e3b373f204868"
+    },
+    {
+      "id": "FR-01",
+      "family": "freshness",
+      "repo": "auth-api",
+      "question": "At this commit, what memory request does the auth-api placement in deploy/auth.project.yml declare, and what was it before the most recent right-sizing change?",
+      "gold_answer": "The auth-api placement requests memory: 2Gi (with cpu: 400m); commit 63e4c89 lowered the request to match the roughly 800Mi each live pod uses.",
+      "gold_files": [
+        {
+          "repo": "auth-api",
+          "path": "deploy/auth.project.yml"
+        }
+      ],
+      "must_contain": [
+        "2Gi",
+        "cpu: 400m"
+      ],
+      "commit": "8c9772fa078ee95230e07cf1cc6b34e6ffb4e2b1",
+      "evidence": [
+        {
+          "repo": "auth-api",
+          "path": "deploy/auth.project.yml",
+          "line": 50,
+          "text": "          memory: 2Gi"
+        },
+        {
+          "repo": "auth-api",
+          "path": "deploy/auth.project.yml",
+          "line": 47,
+          "text": "        # Each live pod uses about 800Mi; the model sets request to limit. The heap cap,"
+        }
+      ],
+      "stale_answer": "The auth-api placement requested memory: 4Gi, matching the 4Gi limit on the live pods.",
+      "changed_by": "63e4c89 fix(deploy): right-size auth-api's memory request to its use (#128)"
+    },
+    {
+      "id": "FR-02",
+      "family": "freshness",
+      "repo": "agent-kit",
+      "question": "At this commit, does a model-gateway delegation stay within the family it names, and which request field lets the gateway move to another family?",
+      "gold_answer": "Yes: the family a delegation names is binding by default, so its retry, climb and fall-through stay inside that family and an unanswerable delegation ends failed or unavailable. A caller must pass \"family_binding\": false to let the gateway move to another family.",
+      "gold_files": [
+        {
+          "repo": "agent-kit",
+          "path": "skills/workstation/model-gateway/SKILL.md"
+        },
+        {
+          "repo": "agent-kit",
+          "path": "skills/workstation/model-gateway/model-gateway.mjs"
+        }
+      ],
+      "must_contain": [
+        "family_binding\": false"
+      ],
+      "commit": "8e6eeb8ef5bfb4cca46a32608a9d78bde20bc432",
+      "must_not_contain": [
+        "no family binding"
+      ],
+      "evidence": [
+        {
+          "repo": "agent-kit",
+          "path": "skills/workstation/model-gateway/SKILL.md",
+          "line": 409,
+          "text": "- **The family is binding by default.** The model a delegation names fixes its"
+        },
+        {
+          "repo": "agent-kit",
+          "path": "skills/workstation/model-gateway/SKILL.md",
+          "line": 416,
+          "text": "  family defeats that. `\"family_binding\": false` lets the gateway move to another"
+        },
+        {
+          "repo": "agent-kit",
+          "path": "skills/workstation/model-gateway/model-gateway.mjs",
+          "line": 1379,
+          "text": "  return input.family_binding === false ? pool : pool.filter((candidate) => candidate.family === requested.family);"
+        }
+      ],
+      "stale_answer": "There was no family binding: retry, climb and fall-through could be answered by a model of any permitted family, and no family_binding option existed.",
+      "changed_by": "8e6eeb8 feat(model-gateway): binding family and stated escalation (#535)"
+    }
+  ]
+}
