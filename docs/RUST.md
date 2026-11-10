@@ -15,9 +15,11 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Two members: `crates/inventory-check` (fails when an on-disk skill, hook, role file or MCP server is missing from docs/gold-band-port-inventory.md, has two targets or no lanes) and `crates/agent-kit-setup`, the canary: a
+* **The workspace.** Three members: `crates/inventory-check` (fails when an on-disk skill, hook, role file or MCP server is missing from docs/gold-band-port-inventory.md, has two targets or no lanes) and `crates/agent-kit-setup`, the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
-  `--version` proves the build and whose `validate <PATH>` checks a path. New
+  `--version` proves the build and whose `validate <PATH>` checks a path. The
+  third, `crates/gold-band-registry`, is std-only too and validates the Gold
+  Band instances and the overlay (docs/REGISTRY.md). New
   Rust joins this workspace as a new member, never as its own Cargo project.
 
 ```bash

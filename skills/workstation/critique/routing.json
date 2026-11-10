@@ -1,6 +1,20 @@
 {
   "version": 1,
   "clients": {
+    "codex-work": {
+      "kind": "codex",
+      "binary": "codex",
+      "model": "gpt-5.5",
+      "family": "openai",
+      "gateway": { "client": "codex", "model": "gpt-5.5" }
+    },
+    "claude-work": {
+      "kind": "claude",
+      "binary": "claude",
+      "model": "claude-sonnet-5-5",
+      "family": "anthropic",
+      "gateway": { "client": "claude", "model": "claude-sonnet-5-5" }
+    },
     "vibe-mistral-large": {
       "kind": "vibe",
       "binary": "vibe",
@@ -124,6 +138,22 @@
   "stages": {
     "decisions": {
       "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions", "failure-modes"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        },
+        {
+          "client": "claude-work",
+          "role": "gap-critic",
+          "lenses": ["unasked-questions", "failure-modes"],
+          "max_price_usd": 0.3,
+          "time_limit_s": 240
+        }
+      ],
       "base": [
         {
           "client": "vibe-mistral-large",
@@ -171,6 +201,22 @@
     },
     "spec": {
       "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "spec-redteam",
+          "lenses": ["fidelity", "testability", "failure-modes", "security"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "claude-work",
+          "role": "spec-redteam",
+          "lenses": ["fidelity", "testability", "failure-modes", "security"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
       "base": [
         {
           "client": "vibe-mistral-large",
@@ -226,6 +272,22 @@
     },
     "tickets": {
       "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "ticket-linter",
+          "lenses": ["testability"],
+          "max_price_usd": 1,
+          "time_limit_s": 600
+        },
+        {
+          "client": "claude-work",
+          "role": "ticket-linter",
+          "lenses": ["testability"],
+          "max_price_usd": 1,
+          "time_limit_s": 600
+        }
+      ],
       "base": [
         {
           "client": "vibe-deepseek-flash",
@@ -268,6 +330,22 @@
     },
     "ticket-review": {
       "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "diff-reviewer",
+          "lenses": ["failure-modes", "security"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 480
+        },
+        {
+          "client": "claude-work",
+          "role": "diff-reviewer",
+          "lenses": ["failure-modes", "security"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 480
+        }
+      ],
       "base": [
         {
           "client": "agy-gemini-flash-high",
@@ -293,6 +371,22 @@
     },
     "feature-review": {
       "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "feature-reviewer",
+          "lenses": ["integration", "failure-modes"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        },
+        {
+          "client": "claude-work",
+          "role": "feature-reviewer",
+          "lenses": ["integration", "failure-modes"],
+          "max_price_usd": 1,
+          "time_limit_s": 720
+        }
+      ],
       "base": [
         {
           "client": "vibe-mistral-large",
@@ -331,6 +425,22 @@
     },
     "adr-review": {
       "distinct_families": true,
+      "work": [
+        {
+          "client": "codex-work",
+          "role": "spec-redteam",
+          "lenses": ["fidelity", "integration"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        },
+        {
+          "client": "claude-work",
+          "role": "spec-redteam",
+          "lenses": ["fidelity", "integration"],
+          "max_price_usd": 0.5,
+          "time_limit_s": 600
+        }
+      ],
       "base": [
         {
           "client": "vibe-mistral-large",

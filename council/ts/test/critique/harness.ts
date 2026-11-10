@@ -23,11 +23,18 @@ import type {
 import {
   AgyCriticClient,
   createCritiqueCommands,
+  GatewayGrants,
   GatewayPlanLimit,
   NodeCritiqueFiles,
   ProcessSearchClient,
   runSearchServer,
   VibeCriticClient,
+  type ClaudeCriticClient,
+  type ClientReadiness,
+  type CodexCriticClient,
+  type CriticClient,
+  type CriticClientPort,
+  type CriticClients,
   type CritiqueCommands,
   type CritiqueGhPort,
   type CritiqueGitPort,
@@ -1064,6 +1071,23 @@ export async function writeFlowState(
   await h.writeText(join(h.repo, '.git', 'critique', 'flows', `${options.name ?? 'widgets'}.json`), `${JSON.stringify(state)}\n`)
 }
 
+/** A work critic client that reports the readiness it is given and launches nothing. */
+function workClient<Config extends CriticClient>(readiness: ClientReadiness): CriticClientPort<Config> {
+  return {
+    readiness: () => Promise.resolve(readiness),
+    review: () => Promise.reject(new Error('the harness launches no work critic')),
+    signIn: () => Promise.resolve(readiness),
+    version: () => Promise.resolve('1.0.0'),
+  }
+}
+
+function workClients(named: { readonly codex?: ClientReadiness; readonly claude?: ClientReadiness } | undefined): Pick<CriticClients, 'codex' | 'claude'> {
+  return {
+    ...(named?.codex === undefined ? {} : { codex: workClient<CodexCriticClient>(named.codex) }),
+    ...(named?.claude === undefined ? {} : { claude: workClient<ClaudeCriticClient>(named.claude) }),
+  }
+}
+
 export const AGENT_KIT_REMOTE: GitRemote = {
   name: 'origin',
   url: 'git@github.com:JorisJonkers-dev/agent-kit.git',
@@ -1127,6 +1151,13 @@ export async function harness(
      * declared: a value is written as JSON, a string as it is.
      */
     readonly gatewayOverride?: unknown
+    /**
+     * Whether the Codex and work Claude critic clients are wired and can run.
+     * Neither is wired unless named, as on a machine with no launcher for them.
+     */
+    readonly workClients?: { readonly codex?: ClientReadiness; readonly claude?: ClientReadiness }
+    /** The grants the owner gave, in `~/.config/agent-kit/model-gateway-grants.json`. */
+    readonly grants?: readonly Record<string, unknown>[]
   } = {},
 ): Promise<Harness> {
   const base = await mkdtemp(join(tmpdir(), 'critique-'))
@@ -1147,6 +1178,10 @@ export async function harness(
       join(home, '.config', 'agent-kit', 'critique-routing.json'),
       typeof override === 'string' ? override : JSON.stringify(override),
     )
+  }
+  if (options.grants !== undefined) {
+    await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
+    await writeFile(join(home, '.config', 'agent-kit', 'model-gateway-grants.json'), JSON.stringify({ grants: options.grants, version: 1 }))
   }
   if (options.gatewayOverride !== undefined) {
     await mkdir(join(home, '.config', 'agent-kit'), { recursive: true })
@@ -1197,6 +1232,7 @@ export async function harness(
     clients: {
       agy: new AgyCriticClient(agy, files, env, options.platform ?? 'darwin'),
       vibe: new VibeCriticClient(process, files, env, options.platform ?? 'darwin'),
+      ...workClients(options.workClients),
     },
     clock,
     env,
@@ -1205,6 +1241,7 @@ export async function harness(
     git,
     // Every critic run is recorded in the gateway's ledger, and Vibe's plan
     // limit is read the way the gateway reads it.
+    grants: new GatewayGrants(env, clock),
     ledger: new NodeModelGatewayLedger(env),
     plan: new GatewayPlanLimit(env, clock, GATEWAY_DEFAULTS),
     ...(options.search === true ? { search: new ProcessSearchClient(process, SEARCH_COMMAND) } : {}),

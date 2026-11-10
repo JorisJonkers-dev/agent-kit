@@ -70,10 +70,13 @@ export class CriticTools {
   }
 
   async choose(critic: RosterCritic, packetDir: string): Promise<CriticToolChoice> {
-    if (critic.client_config.kind === 'agy') return this.agy(critic.client)
+    const config = critic.client_config
+    if (config.kind === 'agy') return this.agy(critic.client)
+    // Codex and the work Claude agent read the packet alone: the runner's search server is a Vibe client's.
+    if (config.kind !== 'vibe') return { toolset: READ_ONLY_TOOLSET }
     const search = this.deps.search
     if (search === undefined) return { toolset: READ_ONLY_TOOLSET }
-    const blocked = await this.deps.clients.vibe.searchBlocked(critic.client_config)
+    const blocked = await this.deps.clients.vibe.searchBlocked(config)
     if (blocked !== undefined) return { searchFailure: blocked, toolset: READ_ONLY_TOOLSET }
     // A proof that throws (a symlink the file system refuses, say) is a proof
     // that failed, and is not kept: the next critic tries it again.

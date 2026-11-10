@@ -103,6 +103,7 @@ export type {
 } from './domain/usage.js'
 export type { WorkflowChange, WorkflowRecord, WorkflowState, WorkflowView } from './domain/workflows.js'
 export { nodeEngineGuard, type NodeEngineGuardOptions } from './adapters/engine-guard/index.js'
+export { nodeGrantGuard, type NodeGrantGuardOptions } from './adapters/grant-guard/index.js'
 export { modelSources } from './adapters/clients/index.js'
 export { clientStatuses } from './adapters/clients/status.js'
 export { NodeModelGatewayFiles } from './adapters/fs/index.js'

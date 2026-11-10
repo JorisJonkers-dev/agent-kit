@@ -14,4 +14,6 @@ resolver = "2"
 members = [
     "crates/agent-kit-setup",
     "crates/inventory-check",
+    "crates/gold-band-registry",
+    "crates/code-nav-eval",
 ]

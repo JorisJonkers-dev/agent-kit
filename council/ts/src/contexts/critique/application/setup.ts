@@ -3,8 +3,8 @@ import { join } from 'node:path'
 
 import { isJsonObject, type JsonFields } from '../domain/json.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
-import type { AllowlistFamily, ModelFamily } from '../domain/family.js'
-import type { CriticClient, RosterCritic, Routing } from '../domain/routing.js'
+import type { AllowlistFamily, CriticFamily } from '../domain/family.js'
+import { isWorkClient, type CriticClient, type RosterCritic, type Routing } from '../domain/routing.js'
 import {
   EMPTY_SETUP_RESULTS,
   parseSetupResults,
@@ -50,7 +50,7 @@ export type RepositorySetup =
       /** Whether the entry lets a stage send the repository's commit messages and issue text. */
       readonly history: boolean
       /** The families routing's critic clients come from, in routing order: what an opt-in would usually allow. */
-      readonly routed_families: readonly ModelFamily[]
+      readonly routed_families: readonly CriticFamily[]
     }
 
 export interface SetupListResult {
@@ -506,7 +506,7 @@ export class SetupCommand implements CritiqueCommand<SetupResult> {
     if (resolved.status === 'refused') return resolved
     const entry = (await this.repositories.allowlist()).repositories[resolved.key]
     const routed_families = [
-      ...new Set(Object.values(routing.clients).map((client) => client.family)),
+      ...new Set(Object.values(routing.clients).filter((client) => !isWorkClient(client)).map((client) => client.family)),
     ]
     return entry === undefined
       ? { code: false, families: [], history: false, key: resolved.key, routed_families, status: 'not-opted-in' }

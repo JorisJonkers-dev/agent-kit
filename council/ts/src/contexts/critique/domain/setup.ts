@@ -1,5 +1,5 @@
 import { JsonFields } from './json.js'
-import type { CriticClient } from './routing.js'
+import { isWorkClient, type CriticClient } from './routing.js'
 
 /**
  * What running a check spends: nothing, Vibe money on the personal
@@ -170,7 +170,8 @@ export const WRITE_PROOF_PENDING = "agent-kit#178's live smoke check adds the re
 export function setupChecklist(
   clients: Readonly<Record<string, CriticClient>>,
 ): readonly SetupCheck[] {
-  const entries = Object.entries(clients)
+  // The work clients have no setup check yet: only a nedap repository's roster names them.
+  const entries = Object.entries(clients).filter((entry): entry is [string, SetupClient] => !isWorkClient(entry[1]))
   const vibe = entries.filter(([, config]) => config.kind === 'vibe')
   const agy = entries.filter(([, config]) => config.kind === 'agy')
   const [firstVibe] = vibe
@@ -241,7 +242,10 @@ const AGY_QUOTA: Omit<ClientCheck, 'client_config'> = {
   why: 'agy reports no quota, so the runner counts its own launches against a daily cap, which should be your plan’s real limit.',
 }
 
-function criticCheck(client: string, config: CriticClient): ClientCheck {
+/** A critic client setup checks: the work clients are not among them. */
+type SetupClient = Exclude<CriticClient, { readonly kind: 'codex' | 'claude' }>
+
+function criticCheck(client: string, config: SetupClient): ClientCheck {
   const through = config.kind === 'vibe' ? `the ${config.agent} agent` : 'agy'
   return {
     client,
@@ -271,7 +275,7 @@ function unprovenReadOnlyCheck({ client, reason }: { readonly client: string; re
   }
 }
 
-function readOnlyCheck(client: string, config: CriticClient): ClientCheck {
+function readOnlyCheck(client: string, config: SetupClient): ClientCheck {
   const vibe = config.kind === 'vibe'
   return {
     client,

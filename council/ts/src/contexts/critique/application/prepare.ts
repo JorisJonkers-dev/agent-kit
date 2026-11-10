@@ -18,11 +18,16 @@ import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
 import {
   candidateClients,
   resolveRoster,
+  resolveWorkRoster,
   stageRouting,
+  workCandidateClients,
   type ClientAvailability,
   type DroppedCritic,
+  type Roster,
   type Routing,
   type RosterRequest,
+  type WorkGrant,
+  type WorkRosterRequest,
 } from '../domain/routing.js'
 import { CRITIQUE_STAGES, DEPTHS, isCodeStage, type CritiqueStage, type Depth, type Round } from '../domain/stage.js'
 import { STAGE_TABLE } from '../domain/stage-table.js'
@@ -52,6 +57,11 @@ interface PrepareInput {
    * path for local markdown. Every stage but decisions needs it.
    */
   readonly spec: string | undefined
+  /**
+   * The model-gateway workflow whose grant lets Codex critique a `nedap`
+   * repository; the run's flow when not named.
+   */
+  readonly workflow: string | undefined
   /** The decisions stage's feature statement. */
   readonly feature: string | undefined
   /** The decisions stage's decision summary, after `/grill-me`. */
@@ -200,14 +210,16 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       stage: fields.oneOf('stage', CRITIQUE_STAGES),
       staged: stagedInput(fields, fields.oneOf('stage', CRITIQUE_STAGES)),
       ticket: fields.optionalString('ticket'),
+      workflow: fields.optionalString('workflow'),
     }))
     const { orchestratorFamily, stage } = input
     if (STAGE_TABLE[stage].flowKey === 'run' && input.flow !== undefined) {
       throw new CritiqueError('invalid-input', `${stage} is a review stage: each run is a flow of its own, so it takes no flow`)
     }
-    const repository = await this.repositories.resolve(input.repo)
+    const repository = await this.repositories.resolveForRoster(input.repo)
     if (repository.status === 'refused') return repository
-    const entry = (await this.repositories.allowlist()).repositories[repository.key]
+    // A nedap repository has the work-only roster whatever the allowlist says, so it needs no entry.
+    const entry = repository.work ? this.repositories.workEntry() : (await this.repositories.allowlist()).repositories[repository.key]
     if (entry === undefined) {
       return refusal('not-opted-in', `${repository.key} has no family allowlist entry on this machine; record one with allow`)
     }
@@ -239,8 +251,9 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
         : { labels: artifact.labels, text: contents.files.map((file) => file.text).join('\n\n'), tickets: ticketCheck.tickets.length },
       input.depth,
     )
-    const request = { allowedFamilies: entry.families, depth, orchestratorFamily, stage }
-    const roster = resolveRoster(routing, request, await this.readiness(routing, request))
+    const roster = repository.work
+      ? await this.workRoster(routing, { grant: await this.workGrant(input), orchestratorFamily, stage })
+      : await this.openRoster(routing, { allowedFamilies: entry.families, depth, orchestratorFamily, stage })
     const planWarnings = roster.critics.some((critic) => critic.client_config.kind === 'vibe')
       ? (await this.deps.plan.read('vibe')).warnings
       : []
@@ -351,6 +364,40 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
       )
     }
     return { previousFlow: previous.flow, previous_run_id: previous.run_id, round: 2 }
+  }
+
+  private async openRoster(routing: Routing, request: RosterRequest): Promise<Roster> {
+    return resolveRoster(routing, request, await this.readiness(routing, request))
+  }
+
+  /**
+   * A `nedap` repository's roster: only the work clients, each asked whether
+   * it can run here once the family and grant rules let it.
+   */
+  private async workRoster(routing: Routing, request: WorkRosterRequest): Promise<Roster> {
+    const checks = workCandidateClients(routing, request).map(async ([name, client]): Promise<readonly [string, ClientAvailability]> => [
+      name,
+      await clientReadiness(this.deps.clients, client),
+    ])
+    return resolveWorkRoster(routing, request, new Map(await Promise.all(checks)))
+  }
+
+  /** Whether a live grant covers the run's workflow for Codex, or what is missing. */
+  private async workGrant(input: PrepareInput): Promise<WorkGrant> {
+    const workflow = input.workflow ?? input.flow
+    if (workflow === undefined) {
+      return { detail: 'name the model-gateway workflow with workflow so a grant for it can be found', live: false }
+    }
+    const covered = await this.deps.grants.covers(workflow, 'codex').then(
+      (live) => ({ live }),
+      (error: unknown) => ({ error: error instanceof Error ? error.message : String(error), live: false }),
+    )
+    if (covered.live) return { live: true }
+    if ('error' in covered) return { detail: `the grants could not be read, so Codex is left out: ${covered.error}`, live: false }
+    return {
+      detail: `no live grant covers workflow ${workflow} for codex: ask the owner, then write one with model-gateway grant write`,
+      live: false,
+    }
   }
 
   /**

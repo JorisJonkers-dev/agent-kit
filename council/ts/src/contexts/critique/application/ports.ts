@@ -3,7 +3,7 @@ import type { ModelGatewayLedgerPort, PlanLimitReading } from '../../model-gatew
 import type { CriticFailure, CriticOutcome, CriticTokens } from '../domain/critic.js'
 import type { CriticToolset, SearchServerLaunch, ToolCall } from '../domain/critic-tools.js'
 import type { SearchCall, SearchLimits, SearchToolName } from '../domain/packet-search.js'
-import type { AgyCriticClient, ClientReadiness, CriticClient, RosterCritic, VibeCriticClient } from '../domain/routing.js'
+import type { AgyCriticClient, ClaudeCriticClient, ClientReadiness, CodexCriticClient, CriticClient, RosterCritic, VibeCriticClient } from '../domain/routing.js'
 
 /**
  * The repository facts the critique needs: council's git port, narrowed to
@@ -140,31 +140,92 @@ export interface SearchingClientPort<Config extends CriticClient> {
   searchBlocked(config: Config): Promise<string | undefined>
 }
 
-/** The client each kind of critic runs through. Vibe also answers triage's question, and its critics search through the runner's server. */
+/**
+ * The client each kind of critic runs through. Vibe also answers triage's
+ * question, and its critics search through the runner's server. Codex and the
+ * work Claude agent serve only a `nedap` repository's work roster; a machine
+ * that wires neither has no work critic, and prepare drops it as unavailable.
+ */
 export interface CriticClients {
   readonly agy: CriticClientPort<AgyCriticClient>
   readonly vibe: CriticClientPort<VibeCriticClient> & QuestionClientPort<VibeCriticClient> & SearchingClientPort<VibeCriticClient>
+  readonly codex?: CriticClientPort<CodexCriticClient>
+  readonly claude?: CriticClientPort<ClaudeCriticClient>
+}
+
+/** Why a work critic cannot run on a machine that wires no client for its kind. */
+function unwired(kind: CriticClient['kind']): ClientReadiness {
+  return { detail: `no ${kind} critic client is wired on this machine`, ready: false }
 }
 
 /** Asks the client of `config`'s kind whether it can run. */
 export function clientReadiness(clients: CriticClients, config: CriticClient): Promise<ClientReadiness> {
-  return config.kind === 'agy' ? clients.agy.readiness(config) : clients.vibe.readiness(config)
+  switch (config.kind) {
+    case 'agy':
+      return clients.agy.readiness(config)
+    case 'vibe':
+      return clients.vibe.readiness(config)
+    case 'codex':
+      return clients.codex?.readiness(config) ?? Promise.resolve(unwired('codex'))
+    case 'claude':
+      return clients.claude?.readiness(config) ?? Promise.resolve(unwired('claude'))
+  }
 }
 
 /** Asks the client of `config`'s kind whether its CLI is installed and signed in. */
 export function clientSignIn(clients: CriticClients, config: CriticClient): Promise<ClientReadiness> {
-  return config.kind === 'agy' ? clients.agy.signIn(config) : clients.vibe.signIn(config)
+  switch (config.kind) {
+    case 'agy':
+      return clients.agy.signIn(config)
+    case 'vibe':
+      return clients.vibe.signIn(config)
+    case 'codex':
+      return clients.codex?.signIn(config) ?? Promise.resolve(unwired('codex'))
+    case 'claude':
+      return clients.claude?.signIn(config) ?? Promise.resolve(unwired('claude'))
+  }
 }
 
 /** The version of the CLI `config` runs through. */
 export function clientVersion(clients: CriticClients, config: CriticClient): Promise<string | null> {
-  return config.kind === 'agy' ? clients.agy.version(config) : clients.vibe.version(config)
+  switch (config.kind) {
+    case 'agy':
+      return clients.agy.version(config)
+    case 'vibe':
+      return clients.vibe.version(config)
+    case 'codex':
+      return clients.codex?.version(config) ?? Promise.resolve(null)
+    case 'claude':
+      return clients.claude?.version(config) ?? Promise.resolve(null)
+  }
 }
 
 /** Runs the launch's critic through the client of its kind. */
 export function reviewWith(clients: CriticClients, launch: CriticLaunch): Promise<CriticReport> {
   const config = launch.critic.client_config
-  return config.kind === 'agy' ? clients.agy.review(launch, config) : clients.vibe.review(launch, config)
+  switch (config.kind) {
+    case 'agy':
+      return clients.agy.review(launch, config)
+    case 'vibe':
+      return clients.vibe.review(launch, config)
+    case 'codex':
+      return reviewThrough(clients.codex, launch, config)
+    case 'claude':
+      return reviewThrough(clients.claude, launch, config)
+  }
+}
+
+function reviewThrough<Config extends CriticClient>(
+  client: CriticClientPort<Config> | undefined,
+  launch: CriticLaunch,
+  config: Config,
+): Promise<CriticReport> {
+  if (client === undefined) return Promise.reject(new Error(unwiredDetail(config.kind)))
+  return client.review(launch, config)
+}
+
+function unwiredDetail(kind: CriticClient['kind']): string {
+  return `no ${kind} critic client is wired on this machine`
 }
 
 /** One runner command: it takes the JSON the skill sends and returns a JSON result. */
@@ -206,6 +267,15 @@ export interface PlanLimitPort {
   read(client: string): Promise<PlanLimitReading>
 }
 
+/**
+ * The model gateway's grants as critique reads them: only whether a live
+ * grant covers a workflow for a client, which is what lets Codex critique a
+ * `nedap` repository (ADR-0008). Critique never writes or renews one.
+ */
+export interface GrantsPort {
+  covers(workflow: string, client: string): Promise<boolean>
+}
+
 export interface CritiqueDeps {
   /** Directory holding the shipped prompts, lenses, schema and routing. */
   readonly assetsRoot: string
@@ -221,6 +291,8 @@ export interface CritiqueDeps {
   readonly search?: SearchClientPort
   /** The gateway's ledger, where every critic run is recorded beside the gateway's own runs. */
   readonly ledger: ModelGatewayLedgerPort
+  /** The gateway's grants, which Codex critics of a `nedap` repository need. */
+  readonly grants: GrantsPort
   /** The gateway's plan-limit reading, which replaces the per-flow Vibe cap. */
   readonly plan: PlanLimitPort
 }
