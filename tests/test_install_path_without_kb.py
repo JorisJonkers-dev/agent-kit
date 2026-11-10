@@ -19,7 +19,11 @@ def _doctor(*flags: str, **env: str) -> subprocess.CompletedProcess:
     clean = {k: v for k, v in os.environ.items() if k not in ("KB_URL", "KB_BEARER_TOKEN")}
     return subprocess.run(
         [sys.executable, str(KIT_ROOT / "scripts" / "render_agent_kit.py"), "--doctor", *flags],
-        capture_output=True, text=True, check=False, cwd=KIT_ROOT, env={**clean, **env},
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=KIT_ROOT,
+        env={**clean, **env},
     )
 
 

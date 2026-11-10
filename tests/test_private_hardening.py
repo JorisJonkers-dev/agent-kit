@@ -38,26 +38,36 @@ def _fn(script: str, name: str) -> str:
 
 def test_the_rules_cover_both_vibe_homes_and_the_gate_for_file_tools_and_bash() -> None:
     rules = _registry()["claude_private_deny"]
-    for rule in ("Read(~/.vibe/**)", "Edit(~/.vibe/**)", "Read(~/.vibe-private/**)", "Edit(~/.vibe-private/**)",
-                 "Bash(*.vibe*)",
-                 "Read(~/.config/agent-kit/private/**)", "Edit(~/.config/agent-kit/private/**)",
-                 "Bash(*agent-kit/private*)", "Bash(*agent-kit-private*)"):
+    for rule in (
+        "Read(~/.vibe/**)",
+        "Edit(~/.vibe/**)",
+        "Read(~/.vibe-private/**)",
+        "Edit(~/.vibe-private/**)",
+        "Bash(*.vibe*)",
+        "Read(~/.config/agent-kit/private/**)",
+        "Edit(~/.config/agent-kit/private/**)",
+        "Bash(*agent-kit/private*)",
+        "Bash(*agent-kit-private*)",
+    ):
         assert rule in rules
 
 
-@pytest.mark.parametrize("command", [
-    "git add registry/generated/vibe-private/mcp-servers.toml",
-    "uv run pytest tests/test_vibe_launchers.py -k vibe_private",
-    "grep -n vibe-private installer/setup-workstation.sh",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git add registry/generated/vibe-private/mcp-servers.toml",
+        "uv run pytest tests/test_vibe_launchers.py -k vibe_private",
+        "grep -n vibe-private installer/setup-workstation.sh",
+    ],
+)
 def test_the_bash_rules_leave_work_on_the_kit_itself_alone(command: str) -> None:
-    patterns = [r[len("Bash("):-1] for r in _registry()["claude_private_deny"] if r.startswith("Bash(")]
+    patterns = [r[len("Bash(") : -1] for r in _registry()["claude_private_deny"] if r.startswith("Bash(")]
     assert not [p for p in patterns if fnmatch.fnmatchcase(command, p)]
 
 
 @pytest.mark.parametrize("command", ["cat ~/.vibe-private/logs/session/s1.json", "ls ~/.vibe/logs"])
 def test_the_bash_rules_still_cover_both_vibe_homes(command: str) -> None:
-    patterns = [r[len("Bash("):-1] for r in _registry()["claude_private_deny"] if r.startswith("Bash(")]
+    patterns = [r[len("Bash(") : -1] for r in _registry()["claude_private_deny"] if r.startswith("Bash(")]
     assert [p for p in patterns if fnmatch.fnmatchcase(command, p)]
 
 
@@ -71,11 +81,11 @@ def _merge(tmp_path: Path, settings: dict | None, cloud: bool = False) -> Path:
     body = (
         f"set -u\nCLOUD={int(cloud)}\nCHECK_ONLY=0\nCLAUDE_PROFILE_DIRS=({profile})\nfailures=0\nwarnings=0\n"
         "todo_failures=()\ntodo_warnings=()\n"
-        "log() { :; }\nok() { :; }\nwarn() { echo \"warn $*\" >&2; }\nfail() { echo \"fail $*\" >&2; }\n"
-        + _fn(script, "claude_private_denies") + "claude_private_denies\n"
+        'log() { :; }\nok() { :; }\nwarn() { echo "warn $*" >&2; }\nfail() { echo "fail $*" >&2; }\n'
+        + _fn(script, "claude_private_denies")
+        + "claude_private_denies\n"
     )
-    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False,
-                            env={**os.environ})
+    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env={**os.environ})
     assert result.returncode == 0 and not result.stderr, result.stderr
     return path
 
@@ -129,8 +139,11 @@ def test_setup_removes_the_retired_hook_and_its_command(tmp_path: Path) -> None:
     (home / ".local" / "bin").mkdir(parents=True)
     managed = home / ".local" / "bin" / "vibe-retain-private"
     managed.write_text("#!/bin/sh\n# managed by agent-kit setup-workstation.sh\n")
-    body = (f"HOME={home}\nCHECK_ONLY=0\nlog() {{ :; }}\nok() {{ :; }}\n" + _fn(script, "retire_kit_command")
-            + "retire_kit_command vibe-retain-private\n")
+    body = (
+        f"HOME={home}\nCHECK_ONLY=0\nlog() {{ :; }}\nok() {{ :; }}\n"
+        + _fn(script, "retire_kit_command")
+        + "retire_kit_command vibe-retain-private\n"
+    )
     subprocess.run(["/bin/bash", "-c", body], check=True)
     assert not managed.exists()
 
@@ -141,8 +154,11 @@ def test_a_command_setup_did_not_write_is_not_retired(tmp_path: Path) -> None:
     (home / ".local" / "bin").mkdir(parents=True)
     mine = home / ".local" / "bin" / "vibe-retain-private"
     mine.write_text("#!/bin/sh\necho mine\n")
-    body = (f"HOME={home}\nCHECK_ONLY=0\nlog() {{ :; }}\nok() {{ :; }}\n" + _fn(script, "retire_kit_command")
-            + "retire_kit_command vibe-retain-private\n")
+    body = (
+        f"HOME={home}\nCHECK_ONLY=0\nlog() {{ :; }}\nok() {{ :; }}\n"
+        + _fn(script, "retire_kit_command")
+        + "retire_kit_command vibe-retain-private\n"
+    )
     subprocess.run(["/bin/bash", "-c", body], check=True)
     assert mine.exists()
 

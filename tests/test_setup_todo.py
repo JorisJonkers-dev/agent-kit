@@ -38,7 +38,11 @@ def _helpers(script: str) -> str:
 def _bash(body: str, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         # /bin/bash is 3.2 on macOS: no associative arrays, and set -u trips on empty ones.
-        ["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env={**os.environ, **(env or {})},
+        ["/bin/bash", "-c", body],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, **(env or {})},
     )
 
 
@@ -48,8 +52,10 @@ def _prelude(script: str) -> str:
 
 def test_the_list_holds_every_warning_and_failure_once_failures_first() -> None:
     script = _script()
-    body = _prelude(script) + _fn(script, "print_todo") + (
-        'warn "export A"\nfail "B did not install"\nwarn "export A"\nwarn "export C"\nprint_todo\n'
+    body = (
+        _prelude(script)
+        + _fn(script, "print_todo")
+        + ('warn "export A"\nfail "B did not install"\nwarn "export A"\nwarn "export C"\nprint_todo\n')
     )
     out = _bash(body).stdout.splitlines()
     todo = out[out.index("setup: Still to do (3):") + 1 :]

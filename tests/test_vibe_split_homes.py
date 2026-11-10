@@ -22,8 +22,12 @@ PRIVATE_CONFIG = 'active_model = "mine"\n\n[[mcp_servers]]\nname = "memory-priva
 
 
 def _split(shared: Path, private: Path, *flags: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(SPLIT), "--shared", str(shared), "--private", str(private), *flags],
-                          capture_output=True, text=True, check=False)
+    return subprocess.run(
+        [sys.executable, str(SPLIT), "--shared", str(shared), "--private", str(private), *flags],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def _old_home(home: Path) -> Path:
@@ -33,7 +37,7 @@ def _old_home(home: Path) -> Path:
     (old / "vibehistory").write_text("private prompt\n")
     (old / ".env").write_text("MISTRAL_API_KEY=x\n")
     (old / "config.toml").write_text(PRIVATE_CONFIG)
-    (old / "hooks.toml").write_text("[[hooks]]\nname = \"mine\"\n")
+    (old / "hooks.toml").write_text('[[hooks]]\nname = "mine"\n')
     (old / "AGENTS.md").write_text("my own instructions\n")
     (old / "skills" / "pr-composer").mkdir(parents=True)
     (old / "skills" / "pr-composer" / "SKILL.md").write_text("skill\n")
@@ -138,17 +142,17 @@ def test_setup_splits_the_home_before_merging_into_either_and_never_in_a_cloud_r
     lines = script.splitlines()
     # Top level: it runs whether or not vibe is on PATH, before converge or a skill copy can touch a home.
     split = lines.index('[ "${CLOUD}" = 1 ] || _vibe_split_homes')
-    shared_merge = next(i for i, line in enumerate(lines) if "generated/vibe/mcp-servers.toml\" --config" in line)
+    shared_merge = next(i for i, line in enumerate(lines) if 'generated/vibe/mcp-servers.toml" --config' in line)
     converge = lines.index("    converge_mcp")
     private_skill = next(i for i, line in enumerate(lines) if 'dest="${VIBE_PRIVATE_HOME}/skills/' in line)
     assert split < min(shared_merge, converge, private_skill)
-    fn = script[script.index("_vibe_split_homes() {"):]
+    fn = script[script.index("_vibe_split_homes() {") :]
     fn = fn[: fn.index("\n}\n")]
     assert 'scripts/vibe-split-homes.py" --shared "${VIBE_HOME}" --private "${VIBE_PRIVATE_HOME}"' in fn
 
 
 def test_the_split_runs_in_check_mode_without_moving_anything() -> None:
     script = render_registry.render_setup_script(render_registry.load_registry())
-    fn = script[script.index("_vibe_split_homes() {"):]
+    fn = script[script.index("_vibe_split_homes() {") :]
     fn = fn[: fn.index("\n}\n")]
     assert '[ "${CHECK_ONLY}" = 1 ] && args+=(--check)' in fn

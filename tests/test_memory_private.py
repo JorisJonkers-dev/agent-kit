@@ -38,7 +38,12 @@ HERMETIC_GIT = {
 
 def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["bash", str(CMD), *args], capture_output=True, text=True, check=False, cwd=cwd, env=HERMETIC_GIT,
+        ["bash", str(CMD), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=cwd,
+        env=HERMETIC_GIT,
     )
 
 
@@ -98,7 +103,7 @@ def test_unknown_command_fails_with_usage(tmp_path: Path) -> None:
 def test_setup_installs_the_command() -> None:
     data = yaml.safe_load((KIT_ROOT / "registry" / "estate-tooling.yaml").read_text())
     script = render_registry.render_setup_script(data)
-    assert 'install_kit_command memory-private' in script
+    assert "install_kit_command memory-private" in script
 
 
 def test_the_bundle_ships_the_command() -> None:
@@ -135,7 +140,11 @@ def test_install_leaves_a_foreign_file_alone(tmp_path: Path) -> None:
 
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(
-        ["git", "-C", str(repo), *args], capture_output=True, text=True, check=True, env=HERMETIC_GIT,
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=HERMETIC_GIT,
     ).stdout
 
 

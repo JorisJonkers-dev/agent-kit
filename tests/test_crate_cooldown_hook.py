@@ -45,12 +45,13 @@ def fake_crate_age(tmp_path: Path, status: int) -> Path:
 
 
 def git_only_path(tmp_path: Path) -> str:
-    """A PATH holding git and nothing else, so no crate-age on the machine can be found."""
+    """A PATH holding git and the hook's two helpers and nothing else, so no crate-age on the machine can be found."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
-    link = bin_dir / "git"
-    if not link.exists():
-        link.symlink_to(shutil.which("git") or "git")
+    for tool in ("git", "mktemp", "rm"):
+        link = bin_dir / tool
+        if not link.exists():
+            link.symlink_to(shutil.which(tool) or tool)
     return str(bin_dir)
 
 

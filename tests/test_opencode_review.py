@@ -39,8 +39,12 @@ def test_a_second_merge_on_a_fresh_machine_writes_nothing(tmp_path: Path) -> Non
     config = tmp_path / "opencode.json"
 
     def once() -> subprocess.CompletedProcess[str]:
-        return subprocess.run([sys.executable, str(MERGE), str(FRAGMENT), "--config", str(config)],
-                              capture_output=True, text=True, check=False)
+        return subprocess.run(
+            [sys.executable, str(MERGE), str(FRAGMENT), "--config", str(config)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
     assert once().returncode == 0
     before = sorted(p.name for p in tmp_path.iterdir())
@@ -55,13 +59,17 @@ def test_a_copy_whose_ledger_write_was_lost_is_replaced_not_left_alone(tmp_path:
     plugin = tmp_path / "plugin"
     (plugin / "skills" / "alpha").mkdir(parents=True)
     (plugin / "skills" / "alpha" / "SKILL.md").write_text("---\nname: alpha\n---\none\n")
-    env = _fake_claude(tmp_path, [{"id": "alpha@market", "scope": "user", "enabled": True,
-                                   "installPath": str(plugin)}])
+    env = _fake_claude(tmp_path, [{"id": "alpha@market", "scope": "user", "enabled": True, "installPath": str(plugin)}])
     skills = tmp_path / "skills"
 
     def once() -> subprocess.CompletedProcess[str]:
-        return subprocess.run([sys.executable, str(PLUGIN_SKILLS), "--skills-dir", str(skills),
-                               "--plugins", "alpha@market"], capture_output=True, text=True, check=False, env=env)
+        return subprocess.run(
+            [sys.executable, str(PLUGIN_SKILLS), "--skills-dir", str(skills), "--plugins", "alpha@market"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
 
     assert once().returncode == 0
     # A run killed while it built the next copy leaves its staging folder behind.
@@ -81,8 +89,7 @@ def test_an_opencode_1_config_is_not_fed_the_v2_shape(tmp_path: Path) -> None:
         config.parent.mkdir(parents=True)
         config.write_text(json.dumps({"mcp": {"mine": {"type": "local", "command": ["x"]}}}))
 
-    run = setup_run(tmp_path, "Darwin", prepare_home=seed,
-                    stubs={"opencode": '[ "$1" = --version ] && echo "1.19.5"'})
+    run = setup_run(tmp_path, "Darwin", prepare_home=seed, stubs={"opencode": '[ "$1" = --version ] && echo "1.19.5"'})
     doc = json.loads((run.home / ".config" / "opencode" / "opencode.json").read_text())
     assert doc == {"mcp": {"mine": {"type": "local", "command": ["x"]}}}
 
@@ -95,10 +102,20 @@ def test_a_malformed_plugin_json_is_a_note_not_a_traceback(tmp_path: Path) -> No
     bad = tmp_path / "bad"
     (bad / ".claude-plugin").mkdir(parents=True)
     (bad / ".claude-plugin" / "plugin.json").write_text("{not json")
-    env = _fake_claude(tmp_path, [{"id": "bad@m", "scope": "user", "installPath": str(bad)},
-                                  {"id": "good@m", "scope": "user", "installPath": str(good)}])
-    result = subprocess.run([sys.executable, str(PLUGIN_SKILLS), "--skills-dir", str(tmp_path / "skills"),
-                             "--plugins", "bad@m,good@m"], capture_output=True, text=True, check=False, env=env)
+    env = _fake_claude(
+        tmp_path,
+        [
+            {"id": "bad@m", "scope": "user", "installPath": str(bad)},
+            {"id": "good@m", "scope": "user", "installPath": str(good)},
+        ],
+    )
+    result = subprocess.run(
+        [sys.executable, str(PLUGIN_SKILLS), "--skills-dir", str(tmp_path / "skills"), "--plugins", "bad@m,good@m"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
     assert "Traceback" not in result.stderr
     assert (tmp_path / "skills" / "one" / "SKILL.md").is_file()
     assert "bad@m:" in result.stdout

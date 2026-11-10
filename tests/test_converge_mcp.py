@@ -98,8 +98,9 @@ class Machine:
             path.write_text(json.dumps({"mcpServers": {s: entry for s in servers}, "other": 1}))
         self.codex_config.write_text(
             'model = "gpt"\n\n'
-            + "".join(f'[mcp_servers."{s}"]\nurl = "https://x/mcp"\n\n[mcp_servers."{s}".env]\nA = "b"\n\n'
-                      for s in servers)
+            + "".join(
+                f'[mcp_servers."{s}"]\nurl = "https://x/mcp"\n\n[mcp_servers."{s}".env]\nA = "b"\n\n' for s in servers
+            )
         )
         for config in (self.vibe_config, self.vibe_private_config):
             config.write_text(
@@ -140,24 +141,28 @@ class Machine:
         }
 
     def files(self) -> dict[Path, str]:
-        paths = [self.home / ".claude.json", self.personal / ".claude.json", self.codex_config, self.vibe_config,
-                 self.vibe_private_config]
+        paths = [
+            self.home / ".claude.json",
+            self.personal / ".claude.json",
+            self.codex_config,
+            self.vibe_config,
+            self.vibe_private_config,
+        ]
         return {p: p.read_text() for p in paths}
 
-    def setup(self, *, check: bool = False, stuck: str = "", data: dict | None = None,
-              homes_ready: bool = True) -> subprocess.CompletedProcess:
+    def setup(
+        self, *, check: bool = False, stuck: str = "", data: dict | None = None, homes_ready: bool = True
+    ) -> subprocess.CompletedProcess:
         script = render_registry.render_setup_script(data or _registry())
         body = (
             f"CHECK_ONLY={int(check)}\nKIT_ROOT={KIT_ROOT}\nCLAUDE_HOME={self.work}\n"
             f"CODEX_HOME={self.codex}\nVIBE_HOME={self.vibe}\nVIBE_PRIVATE_HOME={self.vibe_private}\nfailures=0\n"
             f"VIBE_HOMES_READY={int(homes_ready)}\n"
             f"CLAUDE_PROFILE_DIRS=({self.work} {self.personal})\n"
-            "log() { echo \"setup: $*\"; }\nok() { echo \"setup: ok $*\"; }\n"
-            "warn() { echo \"setup: warn $*\" >&2; }\n"
-            "fail() { echo \"setup: FAIL $*\" >&2; failures=$((failures + 1)); }\n"
-            "run() { \"$@\"; }\n"
-            + _fn(script, "converge_mcp")
-            + "converge_mcp\necho \"failures=${failures}\"\n"
+            'log() { echo "setup: $*"; }\nok() { echo "setup: ok $*"; }\n'
+            'warn() { echo "setup: warn $*" >&2; }\n'
+            'fail() { echo "setup: FAIL $*" >&2; failures=$((failures + 1)); }\n'
+            'run() { "$@"; }\n' + _fn(script, "converge_mcp") + 'converge_mcp\necho "failures=${failures}"\n'
         )
         env = {
             "PATH": f"{_bin(self.tmp)}:/usr/bin:/bin",

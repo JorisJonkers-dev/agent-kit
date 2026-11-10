@@ -120,8 +120,12 @@ def test_hermes_gateway_skips_the_bearer_header_when_credential_hermes_is_false(
     """
     data = copy.deepcopy(_registry())
     server = copy.deepcopy(next(s for s in data["mcp_servers"] if s["name"] == "memory-api"))
-    server.update(name="netpol-only", credential="NETPOL_ONLY_TOKEN", credential_hermes=False,
-                  url_hermes="http://netpol-only.example.svc.cluster.local:8000/mcp")
+    server.update(
+        name="netpol-only",
+        credential="NETPOL_ONLY_TOKEN",
+        credential_hermes=False,
+        url_hermes="http://netpol-only.example.svc.cluster.local:8000/mcp",
+    )
     server["surfaces"] = ["hermes"]
     data["mcp_servers"].append(server)
     fragment = render_registry.render_hermes_mcp(data)
@@ -152,7 +156,7 @@ def test_plugin_required_env_is_checked_and_reported() -> None:
         assert f'missing_plugin_env+=("{name}: export {var}")' in script
         # The warning is what puts it on the closing to-do list.
         assert f'warn "{name}: {var} is not set' in script
-    assert 'missing_plugin_env=()' in script
+    assert "missing_plugin_env=()" in script
 
 
 def test_spec_kit_is_not_in_the_registry() -> None:
@@ -273,9 +277,7 @@ def test_claude_env_flags_come_after_the_server_name() -> None:
         ):
             continue
         name = server["name"]
-        line = next(
-            cand for cand in script.splitlines() if f"claude mcp add --scope user {name}" in cand
-        )
+        line = next(cand for cand in script.splitlines() if f"claude mcp add --scope user {name}" in cand)
         name_pos = line.index(f"--scope user {name}")
         env_pos = line.index("--env")
         # The --env flags that belong to THIS server come after the name.
@@ -352,10 +354,7 @@ ensure_port_forward kubernetes agents-system kubernetes-mcp-server 18080 8080
 
 
 def _plist(tmp_path: Path) -> Path:
-    return (
-        tmp_path / "home" / "Library" / "LaunchAgents"
-        / "dev.jorisjonkers.agent-kit.port-forward.kubernetes.plist"
-    )
+    return tmp_path / "home" / "Library" / "LaunchAgents" / "dev.jorisjonkers.agent-kit.port-forward.kubernetes.plist"
 
 
 def test_macos_installs_a_keepalive_launchd_agent(tmp_path: Path) -> None:
@@ -367,8 +366,15 @@ def test_macos_installs_a_keepalive_launchd_agent(tmp_path: Path) -> None:
     text = plist.read_text()
     assert "<key>KeepAlive</key>\n  <true/>" in text
     # Pinned to the setup-time context, loopback only, the declared ports.
-    for arg in ("port-forward", "--context", "prod-ctx", "svc/kubernetes-mcp-server",
-                "--address", "127.0.0.1", "18080:8080"):
+    for arg in (
+        "port-forward",
+        "--context",
+        "prod-ctx",
+        "svc/kubernetes-mcp-server",
+        "--address",
+        "127.0.0.1",
+        "18080:8080",
+    ):
         assert f"<string>{arg}</string>" in text
     assert f"<string>{tmp_path / 'kubeconfig'}</string>" in text
     if shutil.which("plutil"):
@@ -479,7 +485,10 @@ def test_every_mcp_registration_reaches_every_profile() -> None:
     ],
 )
 def test_the_primary_profile_keeps_claudes_own_config_file(
-    tmp_path: Path, user_dir: str, profile: str, expected: str,
+    tmp_path: Path,
+    user_dir: str,
+    profile: str,
+    expected: str,
 ) -> None:
     """CLAUDE_CONFIG_DIR=~/.claude writes ~/.claude/.claude.json, which a bare `claude` never reads."""
     dirs = {"primary": str(tmp_path / ".claude"), "secondary": str(tmp_path / ".claude-personal")}
@@ -697,9 +706,12 @@ def test_an_optional_credential_survives_being_unset(tmp_path: Path) -> None:
 
     # And prove it against bash: the expansion, under the script's own flags.
     probe = tmp_path / "probe.sh"
-    probe.write_text("set -uo pipefail\necho \"[${OVERLEAF_SESSION:-}]\"\necho reached-the-end\n")
+    probe.write_text('set -uo pipefail\necho "[${OVERLEAF_SESSION:-}]"\necho reached-the-end\n')
     result = subprocess.run(
-        ["bash", str(probe)], capture_output=True, text=True, check=False,
+        ["bash", str(probe)],
+        capture_output=True,
+        text=True,
+        check=False,
         env={"PATH": "/usr/bin:/bin"},
     )
     assert result.returncode == 0, result.stderr
@@ -768,10 +780,7 @@ def test_container_tools_install_after_what_they_require() -> None:
 def test_renovate_tracks_every_container_pin() -> None:
     """A pin Renovate cannot see never moves, so prove the manager matches each one."""
     renovate = json.loads((KIT_ROOT / ".github" / "renovate.json").read_text())
-    manager = next(
-        m for m in renovate["customManagers"]
-        if "estate-tooling" in "".join(m["managerFilePatterns"])
-    )
+    manager = next(m for m in renovate["customManagers"] if "estate-tooling" in "".join(m["managerFilePatterns"]))
     text = (KIT_ROOT / "registry" / "estate-tooling.yaml").read_text()
     found = set()
     for pattern in manager["matchStrings"]:
@@ -850,7 +859,10 @@ def _container_check(tmp_path: Path, override: dict[str, str] | None = None) -> 
         _stub(bin_dir, name, "\n".join(dict.fromkeys(lines)))
     _stub(bin_dir, "dpkg", "ok")
     return subprocess.run(
-        ["bash", str(script), "--check"], capture_output=True, text=True, check=False,
+        ["bash", str(script), "--check"],
+        capture_output=True,
+        text=True,
+        check=False,
         env={"PATH": f"{bin_dir}:/usr/bin:/bin"},
     )
 
@@ -870,7 +882,10 @@ def test_container_check_fails_when_a_tool_is_missing(tmp_path: Path) -> None:
     script = tmp_path / "setup-container.sh"
     script.write_text(render_registry.render_container_setup_script(_registry()))
     result = subprocess.run(
-        ["bash", str(script), "--check"], capture_output=True, text=True, check=False,
+        ["bash", str(script), "--check"],
+        capture_output=True,
+        text=True,
+        check=False,
         env={"PATH": "/usr/bin:/bin"},
     )
     assert result.returncode != 0
@@ -882,7 +897,10 @@ def test_container_install_refuses_to_run_as_non_root(tmp_path: Path) -> None:
     script = tmp_path / "setup-container.sh"
     script.write_text(render_registry.render_container_setup_script(_registry()))
     result = subprocess.run(
-        ["bash", str(script)], capture_output=True, text=True, check=False,
+        ["bash", str(script)],
+        capture_output=True,
+        text=True,
+        check=False,
         env={"PATH": "/usr/bin:/bin"},
     )
     assert result.returncode == 77
@@ -1112,7 +1130,7 @@ def test_a_retired_server_is_removed_from_every_local_agent() -> None:
     retired = render_registry.retired_servers(data)
     assert "memory-mcp" in retired
     script = render_registry.render_setup_script(data)
-    hermes_line = next(line for line in script.splitlines() if "mcp-servers.local.yaml\" --remove memory" in line)
+    hermes_line = next(line for line in script.splitlines() if 'mcp-servers.local.yaml" --remove memory' in line)
     assert f"--retired {','.join(retired)} " in script
     for name in retired:
         assert f"--remove {name}" in hermes_line

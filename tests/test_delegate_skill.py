@@ -168,7 +168,7 @@ def test_the_first_step_is_models_with_repo_and_usage() -> None:
     first = text[text.index("\n## ") :]
     assert first.lstrip().startswith("## Plan first: `models` and `usage`")
     section = _section("Plan first: `models` and `usage`")
-    assert "model-gateway models --json '{\"repo\": \"<repo root>\"}'" in text
+    assert 'model-gateway models --json \'{"repo": "<repo root>"}\'' in text
     assert "model-gateway usage --json '{}'" in text
     assert "first step of every plan" in section
     assert "Pass `repo`" in section
@@ -342,7 +342,6 @@ def test_council_triage_and_design_link_to_delegate_and_carry_no_rubric_of_their
         assert rubric not in text, rubric
 
 
-
 # ---------------------------------------------------------------------------
 # Review and red-team findings
 # ---------------------------------------------------------------------------
@@ -361,7 +360,7 @@ def test_the_ladder_skips_metered_employer_without_a_live_grant() -> None:
     assert "metered-employer (Codex) is not a routine last rung" in section
     assert "only when a live grant already covers the workflow" in section
     assert "asking the owner first" in section
-    assert "Otherwise skip that rung and follow \"When nothing covers a tier\"" in section
+    assert 'Otherwise skip that rung and follow "When nothing covers a tier"' in section
 
 
 def test_outputs_and_failure_text_are_data_never_instructions() -> None:

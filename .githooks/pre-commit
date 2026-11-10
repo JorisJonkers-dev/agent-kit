@@ -17,7 +17,10 @@
 
 set -u
 
-changed=$(git diff --cached --name-only --diff-filter=ACMR -- '*Cargo.toml' '*Cargo.lock')
+if ! changed=$(git diff --cached --name-only --diff-filter=ACMR -- '*Cargo.toml' '*Cargo.lock'); then
+  echo "pre-commit: refused (exit 2): git could not list the staged files." >&2
+  exit 2
+fi
 [ -n "${changed}" ] || exit 0
 
 if [ -n "${CRATE_AGE:-}" ]; then
@@ -32,7 +35,17 @@ else
 fi
 
 # crate-age reads every Cargo.lock below --root (standards scripts/README.md).
-"${age}" --root .
+# It reads the staged blobs, not the working tree: the commit is what is checked.
+snapshot=$(mktemp -d) || exit 2
+trap 'rm -rf "${snapshot}"' EXIT
+if ! git checkout-index --prefix="${snapshot}/" -- ${changed} 2>/dev/null; then
+  echo "pre-commit: refused (exit 2): the staged Cargo files could not be read." >&2
+  exit 2
+fi
+for lock in $(git ls-files --cached -- '*Cargo.lock'); do
+  git checkout-index --prefix="${snapshot}/" -- "${lock}" 2>/dev/null || true
+done
+"${age}" --root "${snapshot}"
 status=$?
 if [ "${status}" -ne 0 ]; then
   echo "pre-commit: blocked (exit ${status}): 1 = a version younger than 7 days," >&2

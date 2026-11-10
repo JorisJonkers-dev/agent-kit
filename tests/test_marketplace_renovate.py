@@ -32,8 +32,9 @@ def _deps() -> list[tuple[str, str, str, str]]:
     for manager in _managers():
         for pattern in manager["matchStrings"]:
             for match in re.finditer(pattern.replace("(?<", "(?P<"), text):
-                deps.append((match["depName"], match["currentValue"], match["currentDigest"],
-                             manager["datasourceTemplate"]))
+                deps.append(
+                    (match["depName"], match["currentValue"], match["currentDigest"], manager["datasourceTemplate"])
+                )
     return deps
 
 
@@ -43,8 +44,7 @@ def _registry() -> dict:
 
 def _coupled() -> list[dict]:
     markets = {m["repo"].lower() for m in _registry()["marketplaces"]}
-    return [s for s in _registry()["skill_sources"]
-            if s["repo"].removeprefix("https://github.com/").lower() in markets]
+    return [s for s in _registry()["skill_sources"] if s["repo"].removeprefix("https://github.com/").lower() in markets]
 
 
 def test_every_marketplace_pin_is_found_once_with_its_ref() -> None:
@@ -85,8 +85,11 @@ def test_a_bump_automerges_only_through_renovate_once_every_check_passes() -> No
 
 
 def test_a_branch_pin_has_no_release_age_to_wait_for() -> None:
-    rule = next(r for r in RENOVATE["packageRules"]
-                if r.get("matchDepTypes") == [DEP_TYPE] and r.get("matchDatasources") == ["git-refs"])
+    rule = next(
+        r
+        for r in RENOVATE["packageRules"]
+        if r.get("matchDepTypes") == [DEP_TYPE] and r.get("matchDatasources") == ["git-refs"]
+    )
     assert rule["minimumReleaseAge"] is None
 
 

@@ -33,9 +33,7 @@ def bullet_lists(text: str) -> list[list[str]]:
     """The top-level bullets of each list, a list being a blank-line-separated block that opens with a bullet."""
     blocks = [block.splitlines() for block in re.split(r"\n\s*\n", text)]
     return [
-        [line for line in block if line.startswith("- ")]
-        for block in blocks
-        if block and block[0].startswith("- ")
+        [line for line in block if line.startswith("- ")] for block in blocks if block and block[0].startswith("- ")
     ]
 
 

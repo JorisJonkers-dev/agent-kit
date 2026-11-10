@@ -119,13 +119,14 @@ class Machine:
         body = (
             f"CHECK_ONLY=0\nCLOUD=0\nKIT_ROOT={KIT_ROOT}\nCLAUDE_HOME={self.work}\nfailures=0\n"
             f"CLAUDE_PROFILE_DIRS=({self.work} {self.personal})\n"
-            "log() { echo \"setup: $*\"; }\nok() { echo \"setup: ok $*\"; }\n"
-            "warn() { echo \"setup: warn $*\" >&2; }\n"
-            "fail() { echo \"setup: FAIL $*\" >&2; failures=$((failures + 1)); }\n"
-            + "".join(_fn(script, f) for f in ("run", "run_sh", "run_redacted", "claude_in_profile",
-                                               "claude_each_profile"))
+            'log() { echo "setup: $*"; }\nok() { echo "setup: ok $*"; }\n'
+            'warn() { echo "setup: warn $*" >&2; }\n'
+            'fail() { echo "setup: FAIL $*" >&2; failures=$((failures + 1)); }\n'
+            + "".join(
+                _fn(script, f) for f in ("run", "run_sh", "run_redacted", "claude_in_profile", "claude_each_profile")
+            )
             + _server_block(script, _server()["purpose"])
-            + "echo \"failures=${failures}\"\n"
+            + 'echo "failures=${failures}"\n'
         )
         env = {
             "PATH": f"{self.bin}:/usr/bin:/bin",
@@ -161,9 +162,21 @@ def test_vibe_starts_n8n_mcp_with_no_api_key(tmp_path: Path) -> None:
     fragment.write_text(render_registry.render_vibe_mcp(_registry()))
     config = tmp_path / "config.toml"
     subprocess.run(
-        ["uv", "run", "--no-project", "--with", "tomlkit", "python", str(MERGE), str(fragment),
-         "--config", str(config)],
-        capture_output=True, text=True, check=True,
+        [
+            "uv",
+            "run",
+            "--no-project",
+            "--with",
+            "tomlkit",
+            "python",
+            str(MERGE),
+            str(fragment),
+            "--config",
+            str(config),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     server = next(s for s in tomllib.loads(config.read_text())["mcp_servers"] if s["name"] == "n8n-mcp")
     assert (server["command"], server["args"]) == ("n8n-mcp", [])

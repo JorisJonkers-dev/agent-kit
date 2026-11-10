@@ -47,7 +47,7 @@ fail=0
 echo "== 1. committed config, gate up"
 if out=$(run "$config"); then
   if ls "$work"/home/registry/index/127.0.0.1-*/ >/dev/null 2>&1 \
-     && ! ls "$work"/home/registry/index 2>/dev/null | grep -q 'crates.io\|github.com'; then
+     && ! ls "$work"/home/registry/index 2>/dev/null | grep -Eq 'crates\.io|github\.com'; then
     echo "ok: resolved, and the only registry used is the gate"
   else
     echo "FAIL: resolved but not only through the gate"; fail=1

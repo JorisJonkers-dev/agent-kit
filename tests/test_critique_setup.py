@@ -126,8 +126,16 @@ def test_routing_carries_the_stats_thresholds() -> None:
 
 def test_the_shared_skill_carries_the_runner_prompts_lenses_schema_and_routing() -> None:
     root = KIT_ROOT / "skills" / "workstation" / "critique"
-    for path in ("SKILL.md", "critique.mjs", "routing.json", "prompts/preamble.md", "prompts/triage.md",
-                 "roles/spec-redteam.md", "lenses/fidelity.md", "schemas/finding.schema.json"):
+    for path in (
+        "SKILL.md",
+        "critique.mjs",
+        "routing.json",
+        "prompts/preamble.md",
+        "prompts/triage.md",
+        "roles/spec-redteam.md",
+        "lenses/fidelity.md",
+        "schemas/finding.schema.json",
+    ):
         assert (root / path).is_file(), path
 
 
@@ -209,9 +217,7 @@ def test_review_feature_says_it_applies_after_all_tickets_landed_and_before_the_
     text = (KIT_ROOT / "skills" / "workstation" / "review-pr" / "SKILL.md").read_text()
     front = yaml.safe_load(text.split("---")[1])
     assert front["name"] == "review-pr"
-    assert front["description"].startswith(
-        "Reviews the whole feature diff before the pull request;"
-    )
+    assert front["description"].startswith("Reviews the whole feature diff before the pull request;")
 
 
 def test_setup_installs_review_feature_beside_the_shared_skill_in_every_agent_home(macos_run: Run) -> None:
@@ -228,7 +234,8 @@ def test_shipped_routing_defines_the_adr_review_stage_outside_the_antigravity_re
     routing = json.loads(ROUTING.read_text())
     review = routing["stages"]["adr-review"]
     assert [(s["client"], s["max_price_usd"]) for s in review["base"]] == [
-        ("vibe-mistral-large", 0.5), ("agy-gemini-flash-high", 0.5)
+        ("vibe-mistral-large", 0.5),
+        ("agy-gemini-flash-high", 0.5),
     ]
     assert [s["client"] for s in review["deep"]] == ["vibe-glm"]
     assert review["depth_signals"]["thresholds"] == {"adrs": 10}
@@ -262,7 +269,7 @@ def test_shipped_routing_caps_a_repository_packets_manifest_inside_the_packet_ca
 def test_flow_reaches_the_review_stages_through_a_separate_entry_that_never_calls_one_due() -> None:
     flow = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
     assert "| `/flow reviews` |" in flow
-    entry = flow[flow.index("## /flow reviews"):]
+    entry = flow[flow.index("## /flow reviews") :]
     end = entry.find("\n## ", 1)
     entry = " ".join((entry if end < 0 else entry[:end]).split())
     assert "critique.mjs reviews" in entry
@@ -336,7 +343,7 @@ def test_flow_loads_only_when_the_owner_asks_about_the_critique_pipeline() -> No
 def test_flow_explain_reads_every_section_it_names_from_the_pipeline_readme() -> None:
     """/flow explain answers from skills/workstation/critique/README.md, so each section it names must be there."""
     flow = (KIT_ROOT / "skills" / "workstation" / "flow" / "SKILL.md").read_text()
-    explain = flow[flow.index("## /flow explain"):]
+    explain = flow[flow.index("## /flow explain") :]
     end = explain.find("\n## ", 1)
     explain = explain if end < 0 else explain[:end]
     assert "../critique/README.md" in explain
@@ -414,7 +421,7 @@ def _flow_part(heading: str) -> str:
     text = _flow_text()
     start = text.index(heading)
     level = len(heading) - len(heading.lstrip("#"))
-    rest = text[start + len(heading):]
+    rest = text[start + len(heading) :]
     end = re.search(rf"\n#{{1,{level}}} ", rest)
     part = text[start:] if end is None else text[start : start + len(heading) + end.start()]
     return " ".join(part.split())
@@ -422,11 +429,14 @@ def _flow_part(heading: str) -> str:
 
 def test_flow_refreshes_the_build_tracker_before_it_reports() -> None:
     text = _flow_text()
-    flow = text[text.index("## /flow\n"):text.index("## /flow finish")]
+    flow = text[text.index("## /flow\n") : text.index("## /flow finish")]
     headings = re.findall(r"^### (\d+)\. (.+)$", flow, re.M)
     assert headings == [
-        ("1", "Find the feature"), ("2", "Read the state"), ("3", "Refresh the build tracker"),
-        ("4", "Report"), ("5", "Act on the answer"),
+        ("1", "Find the feature"),
+        ("2", "Read the state"),
+        ("3", "Refresh the build tracker"),
+        ("4", "Report"),
+        ("5", "Act on the answer"),
     ], headings
 
 
@@ -465,7 +475,7 @@ def test_flow_reports_the_build_tracker_on_a_build_tracker_line() -> None:
 
 
 def test_flow_never_calls_the_build_tracker_tracker_alone() -> None:
-    """"Tracker" alone means the issue tracker (CONTEXT.md)."""
+    """ "Tracker" alone means the issue tracker (CONTEXT.md)."""
     assert re.findall(r"(?<!Build )(?<!build )\bTracker\b", _flow_text()) == []
 
 
@@ -504,11 +514,10 @@ def test_a_pending_skill_installs_once_its_directory_exists() -> None:
     skill["path"] = "skills/no-such-skill"
     skill["pending"] = "https://github.com/JorisJonkers-dev/agent-kit/issues/177"
     script = render_registry.render_setup_script(data)
-    block = script[script.index('src="${KIT_ROOT}/skills/no-such-skill"'):]
+    block = script[script.index('src="${KIT_ROOT}/skills/no-such-skill"') :]
     block = block[: block.index("\nfi\n")]
     assert (
-        'log "review-spec: not built yet '
-        '(https://github.com/JorisJonkers-dev/agent-kit/issues/177); skipped"'
+        'log "review-spec: not built yet (https://github.com/JorisJonkers-dev/agent-kit/issues/177); skipped"'
     ) in block
     assert "fail " not in block.split("else", 1)[0]
     assert 'dest="${CLAUDE_HOME}/skills/review-spec"' in block
@@ -885,10 +894,17 @@ def test_model_sync_never_rewrites_a_critic_agents_model_entry(tmp_path: Path, m
     installed.write_text((KIT_ROOT / AGENTS_DIR / "critic-mistral-large.toml").read_text())
     before = installed.read_bytes()
     sync = _sync_module()
-    entries = sync.wanted([{
-        "id": "mistral-large-4-0-3", "name": "mistral-large-4-0-3", "aliases": [], "deprecation": None,
-        "capabilities": {"completion_chat": True, "function_calling": True},
-    }])
+    entries = sync.wanted(
+        [
+            {
+                "id": "mistral-large-4-0-3",
+                "name": "mistral-large-4-0-3",
+                "aliases": [],
+                "deprecation": None,
+                "capabilities": {"completion_chat": True, "function_calling": True},
+            }
+        ]
+    )
     assert sync.sync(home / "config.toml", entries) == 0
     assert installed.read_bytes() == before
     aliases = {m["alias"] for m in tomllib.loads((home / "config.toml").read_text())["models"]}

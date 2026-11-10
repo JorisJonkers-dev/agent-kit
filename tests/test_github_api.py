@@ -126,9 +126,7 @@ class TestGithubAPIGet:
         mock_response.json.return_value = {"test": "data"}
         mock_get.return_value = mock_response
 
-        result = github_api_get(
-            "/repos/test/repo/issues", token="test-token", params={"state": "open"}
-        )
+        result = github_api_get("/repos/test/repo/issues", token="test-token", params={"state": "open"})
 
         assert result == {"test": "data"}
         mock_get.assert_called_once()

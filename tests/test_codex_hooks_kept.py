@@ -42,11 +42,11 @@ def _purge(tmp_path: Path, check_only: bool = False) -> Path:
     body = (
         f"CHECK_ONLY={int(check_only)}\nCLAUDE_HOME={tmp_path}/.claude\nCODEX_HOME={codex}\n"
         f"CLAUDE_HOOKS_DIR={tmp_path}/.claude/hooks\nCODEX_HOOKS_DIR={codex}/hooks\n"
-        "log() { :; }\nok() { :; }\nwarn() { echo \"warn $*\" >&2; }\nfail() { echo \"fail $*\" >&2; }\n"
-        + _fn(script, "purge_retired_hooks") + "purge_retired_hooks\n"
+        'log() { :; }\nok() { :; }\nwarn() { echo "warn $*" >&2; }\nfail() { echo "fail $*" >&2; }\n'
+        + _fn(script, "purge_retired_hooks")
+        + "purge_retired_hooks\n"
     )
-    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False,
-                            env={**os.environ})
+    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env={**os.environ})
     assert result.returncode == 0 and "fail" not in result.stderr, result.stderr
     return hooks
 

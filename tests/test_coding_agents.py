@@ -103,7 +103,10 @@ def test_the_deprecated_plugin_and_its_marketplace_are_retired() -> None:
 
 
 def _run(
-    tmp_path: Path, *, cloud: bool = False, config: dict | None = None,
+    tmp_path: Path,
+    *,
+    cloud: bool = False,
+    config: dict | None = None,
 ) -> tuple[subprocess.CompletedProcess, Path]:
     script = _script()
     home = tmp_path / "home"
@@ -121,7 +124,7 @@ def _run(
         f"set -u\nHOME={home}\nCLOUD={int(cloud)}\nCHECK_ONLY=0\nfailures=0\nwarnings=0\n"
         "todo_failures=()\ntodo_warnings=()\n"
         f"CLAUDE_PROFILE_DIRS=({profiles})\n"
-        "log() { :; }\nok() { :; }\nwarn() { echo \"warn $*\" >&2; }\nfail() { echo \"fail $*\" >&2; }\n"
+        'log() { :; }\nok() { :; }\nwarn() { echo "warn $*" >&2; }\nfail() { echo "fail $*" >&2; }\n'
         'run() { "$@"; }\n'
         'claude_each_profile() { local d; for d in "${CLAUDE_PROFILE_DIRS[@]}"; do\n'
         '  CLAUDE_CONFIG_DIR="$d" "$@"; done; }\n'
@@ -139,8 +142,10 @@ def test_setup_installs_the_pinned_package_for_both_agents(tmp_path: Path) -> No
     assert result.returncode == 0, result.stderr
     calls = log.read_text().splitlines()
     version = _registry()["coding_agents"]["version"]
-    assert (f"npx -y {PACKAGE}@{version} install claude-code codex --server self-hosted "
-            "--api-url https://hindsight-api.jorisjonkers.dev") in calls
+    assert (
+        f"npx -y {PACKAGE}@{version} install claude-code codex --server self-hosted "
+        "--api-url https://hindsight-api.jorisjonkers.dev"
+    ) in calls
 
 
 def test_the_locked_config_wins_and_no_token_stays_on_disk(tmp_path: Path) -> None:
@@ -156,8 +161,11 @@ def test_the_locked_config_wins_and_no_token_stays_on_disk(tmp_path: Path) -> No
 
 def test_every_claude_profile_gets_the_memory_tools(tmp_path: Path) -> None:
     _, log = _run(tmp_path)
-    adds = [c for c in log.read_text().splitlines()
-            if c.startswith("claude mcp add --scope user hindsight --env HINDSIGHT_MCP_HARNESS=claude-code")]
+    adds = [
+        c
+        for c in log.read_text().splitlines()
+        if c.startswith("claude mcp add --scope user hindsight --env HINDSIGHT_MCP_HARNESS=claude-code")
+    ]
     assert len(adds) == 2, "primary and personal profile"
     assert all(c.endswith("/.hindsight/coding-agents/dist/mcp-server.js") for c in adds)
 

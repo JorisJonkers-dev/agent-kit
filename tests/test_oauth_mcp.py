@@ -117,8 +117,13 @@ class Machine:
             path.write_text(json.dumps({"mcpServers": {}}))
         self.bin = tmp_path / "bin"
         self.bin.mkdir()
-        for name, body in (("claude", FAKE_CLAUDE), ("codex", FAKE_CODEX), ("security", FAKE_SECURITY),
-                           ("uv", FAKE_UV), ("vibe", "#!/bin/sh\n")):
+        for name, body in (
+            ("claude", FAKE_CLAUDE),
+            ("codex", FAKE_CODEX),
+            ("security", FAKE_SECURITY),
+            ("uv", FAKE_UV),
+            ("vibe", "#!/bin/sh\n"),
+        ):
             (self.bin / name).write_text(body)
             (self.bin / name).chmod(0o755)
         self.log = tmp_path / "calls.log"
@@ -134,19 +139,22 @@ class Machine:
     def codex(self) -> dict:
         return tomllib.loads(self.codex_config.read_text())["mcp_servers"]
 
-    def setup(self, *, check: bool = False, signed_in: str = "",
-              codex_unreadable: bool = False) -> subprocess.CompletedProcess:
+    def setup(
+        self, *, check: bool = False, signed_in: str = "", codex_unreadable: bool = False
+    ) -> subprocess.CompletedProcess:
         script = render_registry.render_setup_script(_registry())
         body = (
             f"CHECK_ONLY={int(check)}\nCLOUD=0\nKIT_ROOT={KIT_ROOT}\nCLAUDE_HOME={self.work}\nfailures=0\n"
             f"CLAUDE_PROFILE_DIRS=({self.work} {self.personal})\n"
-            "log() { echo \"setup: $*\"; }\nok() { echo \"setup: ok $*\"; }\n"
-            "warn() { echo \"setup: warn $*\"; }\n"
-            "fail() { echo \"setup: FAIL $*\"; failures=$((failures + 1)); }\n"
-            + "".join(_fn(script, f) for f in ("run", "run_sh", "run_redacted", "claude_in_profile",
-                                               "claude_each_profile", "oauth_status"))
+            'log() { echo "setup: $*"; }\nok() { echo "setup: ok $*"; }\n'
+            'warn() { echo "setup: warn $*"; }\n'
+            'fail() { echo "setup: FAIL $*"; failures=$((failures + 1)); }\n'
+            + "".join(
+                _fn(script, f)
+                for f in ("run", "run_sh", "run_redacted", "claude_in_profile", "claude_each_profile", "oauth_status")
+            )
             + _server_block(script, _n8n()["purpose"])
-            + "echo \"failures=${failures}\"\n"
+            + 'echo "failures=${failures}"\n'
         )
         env = {
             "PATH": f"{self.bin}:/usr/bin:/bin",
@@ -219,9 +227,21 @@ def test_vibe_registers_n8n_with_oauth_and_no_token(tmp_path: Path) -> None:
     fragment.write_text(render_registry.render_vibe_mcp(_registry()))
     config = tmp_path / "config.toml"
     subprocess.run(
-        ["uv", "run", "--no-project", "--with", "tomlkit", "python", str(MERGE), str(fragment),
-         "--config", str(config)],
-        capture_output=True, text=True, check=True,
+        [
+            "uv",
+            "run",
+            "--no-project",
+            "--with",
+            "tomlkit",
+            "python",
+            str(MERGE),
+            str(fragment),
+            "--config",
+            str(config),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     server = next(s for s in tomllib.loads(config.read_text())["mcp_servers"] if s["name"] == "n8n")
     assert server["url"] == URL

@@ -108,7 +108,9 @@ def test_the_shipped_runner_renders_a_page_with_node(tmp_path: Path) -> None:
 
     rendered = subprocess.run(
         ["node", str(RUNNER), "render", "--state", str(state), "--out", str(page)],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert rendered.returncode == 0, rendered.stderr
     assert json.loads(rendered.stdout)["status"] == "rendered"
@@ -116,11 +118,16 @@ def test_the_shipped_runner_renders_a_page_with_node(tmp_path: Path) -> None:
 
     changed = subprocess.run(
         ["node", str(RUNNER), "set", "--state", str(state), "1=merged:abc1234"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert changed.returncode == 0, changed.stderr
     assert json.loads(state.read_text())["tickets"]["1"] == {
-        "title": "widget store", "blocked_by": [], "status": "merged", "note": "abc1234",
+        "title": "widget store",
+        "blocked_by": [],
+        "status": "merged",
+        "note": "abc1234",
     }
 
 
@@ -128,7 +135,9 @@ def test_the_shipped_runner_renders_a_page_with_node(tmp_path: Path) -> None:
 def test_the_shipped_runner_names_init_for_a_missing_state(tmp_path: Path) -> None:
     result = subprocess.run(
         ["node", str(RUNNER), "set", "--state", str(tmp_path / "state.json"), "1=merged"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 1
     assert json.loads(result.stdout)["code"] == "missing-state"
@@ -149,7 +158,11 @@ def test_the_shipped_runner_refreshes_a_local_spec_as_flow_runs_it(tmp_path: Pat
     def refresh() -> dict:
         result = subprocess.run(
             ["node", str(RUNNER), "refresh", "--spec", "specs/spec.md", "--landed", "01"],
-            capture_output=True, text=True, check=False, cwd=repo, env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=repo,
+            env=env,
         )
         assert result.returncode == 0, result.stderr
         return json.loads(result.stdout)
@@ -188,7 +201,7 @@ def _section(text: str, heading: str) -> str:
     """From `heading` to the next heading of the same or a higher level."""
     start = text.index(heading)
     level = len(heading) - len(heading.lstrip("#"))
-    rest = text[start + len(heading):]
+    rest = text[start + len(heading) :]
     end = re.search(rf"\n#{{1,{level}}} ", rest)
     return text[start:] if end is None else text[start : start + len(heading) + end.start()]
 

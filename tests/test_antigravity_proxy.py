@@ -26,15 +26,20 @@ TOKEN = "hindsight_token_Ab-1"
 URL = "https://hindsight-api.jorisjonkers.dev/mcp/default/"
 
 INIT = {
-    "jsonrpc": "2.0", "id": 1, "method": "initialize",
-    "params": {"protocolVersion": "2025-06-18", "capabilities": {},
-               "clientInfo": {"name": "antigravity", "version": "1"}},
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "antigravity", "version": "1"},
+    },
 }
 CALL = {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
 NOTIFICATION = {"jsonrpc": "2.0", "method": "notifications/initialized"}
 
 # Stands in for macOS `security`: one generic password per file, keyed by service.
-FAKE_SECURITY = r'''#!/usr/bin/env python3
+FAKE_SECURITY = r"""#!/usr/bin/env python3
 import os, sys
 store = os.environ["FAKE_KEYCHAIN"]
 args = sys.argv[1:]
@@ -47,7 +52,7 @@ if args[:1] == ["find-generic-password"]:
     print(open(path).read())
     sys.exit(0)
 sys.exit(1)
-'''
+"""
 
 Reply = Callable[[dict], "tuple[int, str, str]"]
 
@@ -63,8 +68,7 @@ class Upstream:
     def reply(self, message: dict) -> tuple[int, str, str]:
         if "id" not in message:
             return 202, "", ""
-        return 200, "application/json", json.dumps(
-            {"jsonrpc": "2.0", "id": message["id"], "result": {"ok": True}})
+        return 200, "application/json", json.dumps({"jsonrpc": "2.0", "id": message["id"], "result": {"ok": True}})
 
 
 @pytest.fixture
@@ -75,13 +79,15 @@ def upstream() -> Iterator[Upstream]:
         def do_POST(self) -> None:
             body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode()
             message = json.loads(body)
-            state.requests.append({
-                "message": message,
-                "authorization": self.headers.get("Authorization", ""),
-                "accept": self.headers.get("Accept", ""),
-                "session": self.headers.get("Mcp-Session-Id", ""),
-                "protocol": self.headers.get("MCP-Protocol-Version", ""),
-            })
+            state.requests.append(
+                {
+                    "message": message,
+                    "authorization": self.headers.get("Authorization", ""),
+                    "accept": self.headers.get("Accept", ""),
+                    "session": self.headers.get("Mcp-Session-Id", ""),
+                    "protocol": self.headers.get("MCP-Protocol-Version", ""),
+                }
+            )
             status, content_type, reply = state.reply(message)
             self.send_response(status)
             if content_type:
@@ -123,15 +129,23 @@ class Workstation:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
 
-    def run(self, url: str, *messages: dict, var: str = VAR, raw: str | None = None,
-            **env: str) -> subprocess.CompletedProcess:
+    def run(
+        self, url: str, *messages: dict, var: str = VAR, raw: str | None = None, **env: str
+    ) -> subprocess.CompletedProcess:
         run_env = {k: v for k, v in os.environ.items() if k != "AGENT_KIT_SECRETS_BACKEND"}
-        run_env.update({"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin",
-                        "FAKE_KEYCHAIN": str(self.keychain)}, **env)
+        run_env.update(
+            {"HOME": str(self.home), "PATH": f"{self.bin}:/usr/bin:/bin", "FAKE_KEYCHAIN": str(self.keychain)}, **env
+        )
         stdin = raw if raw is not None else "".join(json.dumps(m) + "\n" for m in messages)
-        return subprocess.run([sys.executable, str(PROXY), "--url", url, "--secret", var],
-                              input=stdin, capture_output=True, text=True, check=False,
-                              env=run_env, timeout=60)
+        return subprocess.run(
+            [sys.executable, str(PROXY), "--url", url, "--secret", var],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=run_env,
+            timeout=60,
+        )
 
 
 def _lines(result: subprocess.CompletedProcess) -> list[dict]:
@@ -150,7 +164,8 @@ def test_the_helper_is_executable_and_carries_the_marker_setup_checks() -> None:
 
 
 def test_it_reads_the_token_from_the_keychain_and_attaches_it_to_every_request(
-    tmp_path: Path, upstream: Upstream,
+    tmp_path: Path,
+    upstream: Upstream,
 ) -> None:
     ws = Workstation(tmp_path)
     ws.store()
@@ -188,7 +203,8 @@ def test_an_empty_token_in_the_secrets_file_is_missing_too(tmp_path: Path, upstr
 
 
 def test_the_token_reaches_neither_the_helpers_output_nor_any_file_it_writes(
-    tmp_path: Path, upstream: Upstream,
+    tmp_path: Path,
+    upstream: Upstream,
 ) -> None:
     ws = Workstation(tmp_path)
     ws.store()
@@ -203,7 +219,8 @@ def test_the_token_reaches_neither_the_helpers_output_nor_any_file_it_writes(
 
 
 def test_it_writes_each_upstream_response_back_as_one_json_rpc_line(
-    tmp_path: Path, upstream: Upstream,
+    tmp_path: Path,
+    upstream: Upstream,
 ) -> None:
     ws = Workstation(tmp_path)
     ws.store()
@@ -213,7 +230,8 @@ def test_it_writes_each_upstream_response_back_as_one_json_rpc_line(
 
 
 def test_it_asks_for_both_response_shapes_the_streamable_transport_allows(
-    tmp_path: Path, upstream: Upstream,
+    tmp_path: Path,
+    upstream: Upstream,
 ) -> None:
     ws = Workstation(tmp_path)
     ws.store()
@@ -235,9 +253,13 @@ def test_it_sends_the_protocol_version_the_server_negotiated(tmp_path: Path, ups
     ws.store()
 
     def negotiate(message: dict) -> tuple[int, str, str]:
-        return 200, "application/json", json.dumps(
-            {"jsonrpc": "2.0", "id": message["id"],
-             "result": {"protocolVersion": "2025-06-18", "capabilities": {}}})
+        return (
+            200,
+            "application/json",
+            json.dumps(
+                {"jsonrpc": "2.0", "id": message["id"], "result": {"protocolVersion": "2025-06-18", "capabilities": {}}}
+            ),
+        )
 
     upstream.reply = negotiate
     result = ws.run(upstream.url, INIT, CALL)
@@ -252,9 +274,11 @@ def test_an_sse_response_body_is_written_back_as_json_rpc_lines(tmp_path: Path, 
     def stream(message: dict) -> tuple[int, str, str]:
         progress = {"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progress": 1}}
         answer = {"jsonrpc": "2.0", "id": message["id"], "result": {"ok": True}}
-        return 200, "text/event-stream", (
-            f"event: message\ndata: {json.dumps(progress)}\n\n"
-            f"event: message\ndata: {json.dumps(answer)}\n\n")
+        return (
+            200,
+            "text/event-stream",
+            (f"event: message\ndata: {json.dumps(progress)}\n\nevent: message\ndata: {json.dumps(answer)}\n\n"),
+        )
 
     upstream.reply = stream
     result = ws.run(upstream.url, INIT)
@@ -293,15 +317,19 @@ def test_an_upstream_refusal_is_reported_without_the_token(tmp_path: Path, upstr
 def test_a_json_rpc_error_body_on_an_error_status_is_forwarded(tmp_path: Path, upstream: Upstream) -> None:
     ws = Workstation(tmp_path)
     ws.store()
-    upstream.reply = lambda message: (400, "application/json", json.dumps(
-        {"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32602, "message": "bad params"}}))
+    upstream.reply = lambda message: (
+        400,
+        "application/json",
+        json.dumps({"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32602, "message": "bad params"}}),
+    )
     result = ws.run(upstream.url, CALL)
     assert result.returncode == 0, result.stderr
     assert _lines(result) == [{"jsonrpc": "2.0", "id": 2, "error": {"code": -32602, "message": "bad params"}}]
 
 
 def test_a_request_the_upstream_leaves_unanswered_still_gets_an_answer(
-    tmp_path: Path, upstream: Upstream,
+    tmp_path: Path,
+    upstream: Upstream,
 ) -> None:
     ws = Workstation(tmp_path)
     ws.store()
@@ -331,7 +359,11 @@ def test_a_dropped_session_is_reopened_and_the_request_retried(tmp_path: Path, u
     assert result.returncode == 0, result.stderr
     sent = [(r["message"].get("method"), r["session"]) for r in upstream.requests]
     assert sent == [
-        ("initialize", ""), ("notifications/initialized", "s1"), ("tools/list", "s1"),
-        ("initialize", ""), ("notifications/initialized", "s2"), ("tools/list", "s2"),
+        ("initialize", ""),
+        ("notifications/initialized", "s1"),
+        ("tools/list", "s1"),
+        ("initialize", ""),
+        ("notifications/initialized", "s2"),
+        ("tools/list", "s2"),
     ]
     assert [line["id"] for line in _lines(result)] == [1, 2], "the replayed handshake is not answered twice"

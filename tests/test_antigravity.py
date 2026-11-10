@@ -40,7 +40,8 @@ def _script() -> str:
 def _antigravity_skills() -> list[str]:
     """The skills a run installs for Antigravity: a pending one has nothing to install yet."""
     return [
-        s["name"] for s in _registry()["local_skills"]
+        s["name"]
+        for s in _registry()["local_skills"]
         if "antigravity" in (s.get("agents") or []) and not s.get("pending")
     ]
 
@@ -253,11 +254,7 @@ def test_the_runner_hermes_and_container_outputs_have_no_antigravity() -> None:
 # What agy 1.4.12 prints for `agy models`: a progress line on stderr, then one
 # model per line on stdout; signed out, an error line and exit 1.
 FETCHING = "Fetching available models..."
-SIGNED_IN = (
-    f'echo "{FETCHING}" >&2\n'
-    "printf 'gemini-3.8-flash-high\\tGemini 3.8 Flash (High)\\n'\n"
-    "exit 0"
-)
+SIGNED_IN = f"echo \"{FETCHING}\" >&2\nprintf 'gemini-3.8-flash-high\\tGemini 3.8 Flash (High)\\n'\nexit 0"
 SIGNED_OUT = (
     f'echo "{FETCHING}" >&2\n'
     'echo "Error: Please sign in to view available models. Launch the CLI without arguments to sign in." >&2\n'

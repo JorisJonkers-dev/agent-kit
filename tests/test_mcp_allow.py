@@ -44,11 +44,11 @@ def _merge(tmp_path: Path, settings: dict | None, check: bool = False) -> Path:
         path.write_text(json.dumps(settings))
     body = (
         f"set -u\nCHECK_ONLY={int(check)}\nCLAUDE_PROFILE_DIRS=({profile})\n"
-        "log() { :; }\nok() { :; }\nwarn() { echo \"warn $*\" >&2; }\nfail() { echo \"fail $*\" >&2; }\n"
-        + _fn(script, "claude_mcp_allows") + "claude_mcp_allows\n"
+        'log() { :; }\nok() { :; }\nwarn() { echo "warn $*" >&2; }\nfail() { echo "fail $*" >&2; }\n'
+        + _fn(script, "claude_mcp_allows")
+        + "claude_mcp_allows\n"
     )
-    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False,
-                            env={**os.environ})
+    result = subprocess.run(["/bin/bash", "-c", body], capture_output=True, text=True, check=False, env={**os.environ})
     assert result.returncode == 0 and not result.stderr, result.stderr
     return path
 

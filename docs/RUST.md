@@ -134,8 +134,7 @@ which waiting seven days is the worse risk. The route:
    The approval is recorded by that owner in
    [`docs/waivers/crate-cooldown.yaml`](waivers/crate-cooldown.yaml):
    package, exact version, reason, PR link, approver, approval date and an
-   **expiry date** — no more than `approved_at` plus the days left of the
-   cooldown, and 7 days out at the very most.
+   **expiry date** — never later than `approved_at` plus 7 days.
 3. Only the approving owner merges the PR, with the failing gate overridden
    by that human approval, and the waiver entry is linked from the PR.
 4. **The waiver expires.** On its `expires` date the entry is dead: it is

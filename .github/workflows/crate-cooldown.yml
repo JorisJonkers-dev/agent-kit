@@ -58,16 +58,11 @@
           'path': 'standards'
           'token': '${{ steps.app-token.outputs.token }}'
           'persist-credentials': false
-      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
-        'with':
-          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
-          'require-package-proxy': 'true'
       - 'name': 'Build crate-gate and crate-age'
         'working-directory': 'standards/scripts'
-        # The proxy is an authenticated registry; the action exports its token,
-        # and cargo needs to be told to read it.
-        'env':
-          'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
+        # --locked builds exactly the versions the standards repo locked. The
+        # packages proxy is not used here: its authenticated cargo registry did
+        # not accept the action's token under cargo's credential providers.
         'run': 'cargo build --release --locked --bin crate-gate --bin crate-age'
 
       # crate-age's command line is owned by the standards repo

@@ -281,9 +281,7 @@ def test_uninstall_drops_a_hooks_section_left_empty(tmp_path: Path) -> None:
 
 def test_setup_fails_rather_than_wiring_a_hook_to_a_missing_script() -> None:
     script = render_registry.render_setup_script(render_registry.load_registry())
-    assert (
-        'fail "critique hooks: ${home}/skills/${name}.sh is missing; not wired into ${path}"' in script
-    )
+    assert 'fail "critique hooks: ${home}/skills/${name}.sh is missing; not wired into ${path}"' in script
     # The scripts are copied in step 7, the hooks merged in step 9.
     assert script.index('cp -R "${src}" "${dest}"') < script.index("\ncritique_hooks install\n")
 
