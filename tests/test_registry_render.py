@@ -8,8 +8,8 @@ import os
 import re
 import shutil
 import subprocess
-import time
 import sys
+import time
 from pathlib import Path
 
 import pytest
