@@ -10,7 +10,8 @@ URL only and keeps everything else in the file; setup then checks that
 
 Usage::
 
-    uv run --no-project --with tomlkit python scripts/codex-add-url-mcp.py <config.toml> <name> <url>
+    uv run --no-project --exclude-newer "7 days" --with tomlkit \\
+        python scripts/codex-add-url-mcp.py <config.toml> <name> <url>
 """
 
 from __future__ import annotations

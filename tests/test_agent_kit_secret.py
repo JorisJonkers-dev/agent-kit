@@ -79,10 +79,11 @@ def delete_password(service, name):
     os.remove(_path(service, name))
 '''
 
-# `uv run --no-project --quiet --with keyring python SCRIPT ARGS...`: run the script with the fake module.
+# `uv run --no-project --exclude-newer "7 days" --quiet --with keyring python SCRIPT ARGS...`:
+# run the script with the fake module.
 FAKE_UV = '''#!/bin/sh
 echo "$*" >> "$FAKE_KEYRING_DIR/uv.log"
-shift 6
+shift 8
 PYTHONPATH="$FAKE_KEYRING_DIR/mod" exec ''' + sys.executable + ''' "$@"
 '''
 

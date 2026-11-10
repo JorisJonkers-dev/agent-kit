@@ -161,7 +161,8 @@ def test_vibe_starts_n8n_mcp_with_no_api_key(tmp_path: Path) -> None:
     fragment.write_text(render_registry.render_vibe_mcp(_registry()))
     config = tmp_path / "config.toml"
     subprocess.run(
-        ["uv", "run", "--no-project", "--with", "tomlkit", "python", str(MERGE), str(fragment),
+        ["uv", "run", "--no-project", "--exclude-newer", "7 days", "--with", "tomlkit",
+          "python", str(MERGE), str(fragment),
          "--config", str(config)],
         capture_output=True, text=True, check=True,
     )

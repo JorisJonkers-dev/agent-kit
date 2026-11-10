@@ -10,7 +10,8 @@ read back, so the caller can trust the value rather than the exit code.
 
 Usage::
 
-    uv run --no-project --with tomlkit python scripts/vibe-no-commit-signature.py --config <config.toml>
+    uv run --no-project --exclude-newer "7 days" --with tomlkit \\
+        python scripts/vibe-no-commit-signature.py --config <config.toml>
 """
 
 from __future__ import annotations

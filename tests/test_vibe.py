@@ -35,7 +35,7 @@ def test_vibe_is_installed_with_uv_on_the_workstation() -> None:
     cli = next(c for c in _registry()["clis"] if c["name"] == "mistral-vibe")
     assert cli["binary"] == "vibe"
     assert "workstation" in cli["surfaces"]
-    assert cli["install"].startswith("uv tool install")
+    assert cli["install"].startswith('uv tool install --exclude-newer "7 days"')
     assert ">=3.12" in cli["install"], "mistral-vibe needs Python 3.12+"
     script = render_registry.render_setup_script(_registry())
     assert render_registry._q(cli["install"]) in script
@@ -84,7 +84,8 @@ def _merge(tmp_path: Path, *extra: str) -> subprocess.CompletedProcess:
     fragment = tmp_path / "fragment.toml"
     fragment.write_text(render_registry.render_vibe_mcp(_registry()))
     return subprocess.run(
-        ["uv", "run", "--no-project", "--with", "tomlkit", "python", str(MERGE), str(fragment),
+        ["uv", "run", "--no-project", "--exclude-newer", "7 days", "--with", "tomlkit",
+          "python", str(MERGE), str(fragment),
          "--config", str(tmp_path / "config.toml"), *extra],
         capture_output=True, text=True, check=False,
     )

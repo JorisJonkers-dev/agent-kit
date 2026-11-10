@@ -1072,9 +1072,9 @@ BLOCK
 # Every chat model the Mistral login can use, kept current in one Vibe home.
 _vibe_models() {
   local home="$1"
-  if VIBE_HOME="${home}" uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+  if VIBE_HOME="${home}" uv run --no-project --exclude-newer "7 days" --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
       --config "${home}/config.toml" --has-key; then
-    VIBE_HOME="${home}" uv run --no-project --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
+    VIBE_HOME="${home}" uv run --no-project --exclude-newer "7 days" --with tomlkit --with keyring python "${KIT_ROOT}/scripts/vibe-sync-models.py" \
       --config "${home}/config.toml" \
       || warn "Vibe model sync failed (${home})"
   else
@@ -1085,7 +1085,7 @@ _vibe_models() {
 # The kit's hooks into one Vibe home; extra arguments are --remove NAME pairs.
 _vibe_hooks() {
   local home="$1"; shift
-  uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+  uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
     "${KIT_ROOT}/installer/vibe-hooks.toml" --key hooks --config "${home}/hooks.toml" "$@" \
     && ok "Vibe hooks merged (${home})" \
     || fail "Vibe hooks merge failed (${home})"
@@ -1113,7 +1113,7 @@ _vibe_private_home() {
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "would merge vibe-private MCP servers into ${VIBE_PRIVATE_HOME}/config.toml"
   else
-    uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+    uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
       "${KIT_ROOT}/registry/generated/vibe-private/mcp-servers.toml" --config "${VIBE_PRIVATE_HOME}/config.toml" \
       && ok "vibe-private MCP servers merged" \
       || fail "vibe-private MCP merge failed"
@@ -1306,7 +1306,7 @@ converge_mcp() {
     warn "uv is not on PATH; MCP servers not converged"
     return 0
   fi
-  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" mcp \
     "${args[@]}" \
     --declared claude=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
     --declared codex=memory-api,n8n,n8n-mcp,kubernetes,grimoire,outline,playwright,drawio,overleaf,hindsight \
@@ -1327,7 +1327,7 @@ converge_plugins() {
     warn "uv is not on PATH; plugins not converged"
     return 0
   fi
-  out=$(uv run --no-project --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" plugins \
+  out=$(uv run --no-project --exclude-newer "7 days" --with pyyaml --with tomlkit python "${KIT_ROOT}/scripts/converge.py" plugins \
     "${args[@]}" --declared-markets agent-kit-official,caveman,drawio,kubernetes-skill,ai-software-architect \
     --declared-plugins caveman@caveman,drawio@drawio,frontend-design@agent-kit-official,mattpocock-skills@agent-kit-official,security-guidance@agent-kit-official,kubernetes-skill@kubernetes-skill,github@agent-kit-official,ai-software-architect@ai-software-architect,typescript-lsp@agent-kit-official,pyright-lsp@agent-kit-official,kotlin-lsp@agent-kit-official,jdtls-lsp@agent-kit-official,ruby-lsp@agent-kit-official,gopls-lsp@agent-kit-official,rust-analyzer-lsp@agent-kit-official,lua-lsp@agent-kit-official,clangd-lsp@agent-kit-official,php-lsp@agent-kit-official,csharp-lsp@agent-kit-official,swift-lsp@agent-kit-official,liquid-lsp@agent-kit-official \
     --retired-markets hindsight \
@@ -1713,7 +1713,7 @@ vibe_no_commit_signature() {
     log "would set include_commit_signature = false in ${home}/config.toml"
     return 0
   fi
-  uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-no-commit-signature.py" \
+  uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-no-commit-signature.py" \
     --config "${home}/config.toml" >/dev/null \
     && ok "no Vibe commit signature in ${home}/config.toml" \
     || fail "could not turn off the Vibe commit signature in ${home}/config.toml"
@@ -2278,10 +2278,10 @@ fi
 # `hermes doctor` / `hermes skills list` against a local config;
 # the in-cluster gateway runs the container image, not this.
 if command -v hermes >/dev/null 2>&1; then
-  run_sh 'uv tool upgrade '\''hermes-agent[mcp]'\'''
+  run_sh 'uv tool upgrade --exclude-newer "7 days" '\''hermes-agent[mcp]'\'''
   ok "hermes $(hermes --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp]'\'''
+  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp]'\'''
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "hermes would be installed"
   elif command -v hermes >/dev/null 2>&1; then
@@ -2297,10 +2297,10 @@ fi
 # Codex; its MCP servers are merged into ~/.vibe/config.toml from
 # registry/generated/vibe/mcp-servers.toml.
 if command -v vibe >/dev/null 2>&1; then
-  run_sh 'uv tool upgrade mistral-vibe'
+  run_sh 'uv tool upgrade --exclude-newer "7 days" mistral-vibe'
   ok "vibe $(vibe --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --python '\''>=3.12'\'' mistral-vibe'
+  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.12'\'' mistral-vibe'
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "vibe would be installed"
   elif command -v vibe >/dev/null 2>&1; then
@@ -3389,7 +3389,7 @@ for install in installs:
         fi
       fi
       if command -v codex >/dev/null 2>&1; then
-        if run uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/codex-add-url-mcp.py" "${CODEX_HOME:-${HOME}/.codex}/config.toml" n8n https://n8n.jorisjonkers.dev/mcp-server/http \
+        if run uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/codex-add-url-mcp.py" "${CODEX_HOME:-${HOME}/.codex}/config.toml" n8n https://n8n.jorisjonkers.dev/mcp-server/http \
           && run codex mcp get n8n >/dev/null; then
           ok "n8n registered (codex)"
         else
@@ -3585,14 +3585,14 @@ for install in installs:
       if [ "${CHECK_ONLY}" = 1 ]; then
         log "would merge local Hermes MCP servers"
       else
-        uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+        uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" \
           || fail "local Hermes MCP merge failed"
-        uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+        uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove memory-mcp --remove vuetify \
           || fail "local Hermes retired MCP cleanup failed"
         if [ "${CLOUD}" = 1 ]; then
-          uv run --no-project --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
+          uv run --no-project --exclude-newer "7 days" --with pyyaml python "${KIT_ROOT}/scripts/hermes-merge-mcp.py" \
             "${KIT_ROOT}/registry/generated/hermes/mcp-servers.local.yaml" --remove n8n --remove kubernetes --remove grimoire --remove outline \
             || fail "local Hermes MCP cleanup failed"
         fi
@@ -3610,7 +3610,7 @@ for install in installs:
       else
         vibe_remove=()
         [ "${CLOUD}" = 1 ] && vibe_remove+=(--remove n8n --remove kubernetes --remove grimoire --remove outline)
-        uv run --no-project --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
+        uv run --no-project --exclude-newer "7 days" --with tomlkit python "${KIT_ROOT}/scripts/vibe-merge-mcp.py" \
           "${KIT_ROOT}/registry/generated/vibe/mcp-servers.toml" --config "${VIBE_HOME}/config.toml" --remove memory-private ${vibe_remove[@]+"${vibe_remove[@]}"} \
           && ok "Vibe MCP servers merged" \
           || fail "Vibe MCP merge failed"
