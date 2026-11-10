@@ -1154,7 +1154,10 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
         (lambda d: d["litellm"]["routes"][0].update(models=["*"]), "must sit beneath vibe/"),
         (lambda d: d["litellm"]["routes"][0].update(models=["vibe/zai-*"]), "only wildcard is vibe/"),
         (lambda d: d["litellm"]["routes"][0].update(models=["vibe/a b"]), "plain model names"),
-        (lambda d: d["litellm"]["routes"][2].update(agent="opencode", models=["opencode/zen-model"]), "no opencode Zen"),
+        (
+            lambda d: d["litellm"]["routes"][2].update(agent="opencode", models=["opencode/zen-model"]),
+            "no opencode Zen",
+        ),
         (lambda d: d["litellm"]["routes"][4].update(budget_eur=-1), "positive whole number"),
         (lambda d: d["litellm"]["routes"][1].update(agent="vibe"), "unique lower-case agent id"),
         (lambda d: d["litellm"]["routes"][1].update(key_env="LITELLM_VIBE_KEY"), "unique variable name"),

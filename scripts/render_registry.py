@@ -5157,7 +5157,9 @@ def _validate_litellm(data: dict[str, Any]) -> None:
             )
         budget = route["budget_eur"]
         if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0):
-            raise RegistryError(f"litellm route {agent}: budget_eur must be a positive whole number, or null for no cap")
+            raise RegistryError(
+                f"litellm route {agent}: budget_eur must be a positive whole number, or null for no cap",
+            )
         models = route["models"]
         if not models or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9._:/*-]+", m) for m in models):
             raise RegistryError(f"litellm route {agent}: models must be plain model names")
