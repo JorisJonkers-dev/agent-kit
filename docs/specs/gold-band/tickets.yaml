@@ -2,1507 +2,2446 @@
 # from it. `issue` records the published number. `supersedes` lists the old
 # issues each ticket replaces; they are closed by B0-06 after owner approval.
 spec: 392
-labels: [ready-for-agent, "area: agents"]
+labels:
+- ready-for-agent
+- 'area: agents'
 branches:
-  B0: {title: "B0 Foundations", issue: 403, what: "The Rust workspace and cooldown on Linux, the pinned Gold Band build on both OSes, the re-verified Gold Band facts, the ticket sync tool, the tracker and the closing of superseded issues."}
-  B1: {title: "B1 Instances and setup", issue: 404, what: "The two Gold Band instances converged by setup on each OS: registry model and overlay, isolation and the second macOS user, the secret store, agents and launchers, reach levels and both write-limit backends, skill sets, roles and MCP servers."}
-  B2: {title: "B2 Gold Band workflows", issue: 405, what: "The run-start, grant-check and gate shims, Workflows A, B and C in personal and work variants, the workflow lint, headless proofs, LiteLLM budgets, the per-repository setup file and the CI-wait gate."}
-  B3: {title: "B3 Port", issue: 406, what: "The port inventory with lanes, the Wave 2 critique templates, the estate skills replacing the six old repo skills, and the later waves cut from the inventory."}
-  B4: {title: "B4 Direct lane", issue: 407, what: "The review stages and refactoring-plan stage finished in the critique runner, the work-only critic roster, the remaining live checks, model-gateway fixes, the in-cluster runner, the research front door and the Rust port of the Node runners."}
-  B5: {title: "B5 Memory", issue: 408, what: "The Nedap bank, the migration of employer facts out of Shared Memory and Private Memory, and the recall checks."}
-  B6: {title: "B6 Workstation and hygiene", issue: 409, what: "Workstation tooling and repository hygiene that sit outside Gold Band: Playwright, OpenCode parity, container language servers, SSO install, github MCP, kubeconfig helper, package cooldowns, the dependency queue, the attribution guard follow-ups and the setup wrapper."}
-  B7: {title: "B7 Code navigation", issue: 410, what: "Measure how agents find code, give every repository an AGENTS.md, build the read-only code-navigation server, and add an index only when measurements show it is needed."}
+  B0:
+    title: B0 Foundations
+    issue: 403
+    what: The Rust workspace and cooldown on Linux, the pinned Gold Band build on both OSes, the re-verified Gold Band facts, the ticket sync tool, the tracker and the closing of superseded issues.
+  B1:
+    title: B1 Instances and setup
+    issue: 404
+    what: 'The two Gold Band instances converged by setup on each OS: registry model and overlay, isolation and the second macOS user, the secret store, agents and launchers, reach levels and both write-limit backends, skill sets, roles and MCP servers.'
+  B2:
+    title: B2 Gold Band workflows
+    issue: 405
+    what: The run-start, grant-check and gate shims, Workflows A, B and C in personal and work variants, the workflow lint, headless proofs, LiteLLM budgets, the per-repository setup file and the CI-wait gate.
+  B3:
+    title: B3 Port
+    issue: 406
+    what: The port inventory with lanes, the Wave 2 critique templates, the estate skills replacing the six old repo skills, and the later waves cut from the inventory.
+  B4:
+    title: B4 Direct lane
+    issue: 407
+    what: The review stages and refactoring-plan stage finished in the critique runner, the work-only critic roster, the remaining live checks, model-gateway fixes, the in-cluster runner, the research front door and the Rust port of the Node runners.
+  B5:
+    title: B5 Memory
+    issue: 408
+    what: The Nedap bank, the migration of employer facts out of Shared Memory and Private Memory, and the recall checks.
+  B6:
+    title: B6 Workstation and hygiene
+    issue: 409
+    what: 'Workstation tooling and repository hygiene that sit outside Gold Band: Playwright, OpenCode parity, container language servers, SSO install, github MCP, kubeconfig helper, package cooldowns, the dependency queue, the attribution guard follow-ups and the setup wrapper.'
+  B7:
+    title: B7 Code navigation
+    issue: 410
+    what: Measure how agents find code, give every repository an AGENTS.md, build the read-only code-navigation server, and add an index only when measurements show it is needed.
 tickets:
-# ---------------- B0 ----------------
 - key: B0-01
   issue: 411
   branch: B0
-  stories: [25]
-  title: "Rust workspace and the 7-day crate cooldown on Linux"
+  stories:
+  - 25
+  title: Rust workspace and the 7-day crate cooldown on Linux
   blocked_by: []
-  supersedes: [331]
-  lanes: [all]
-  hosts: [linux, mac]
-  what: "One cargo workspace in agent-kit, with crate-gate resolving every cargo command and crate-age failing closed in the pre-commit hook and the pull-request workflow. Reuse the workspace landed on the old integration branch (#383) and make it run on the Linux workstation."
+  supersedes:
+  - 331
+  lanes:
+  - all
+  hosts:
+  - linux
+  - mac
+  what: One cargo workspace in agent-kit, with crate-gate resolving every cargo command and crate-age failing closed in the pre-commit hook and the pull-request workflow. Reuse the workspace landed on the old integration branch (#383) and make it run on the Linux workstation.
   ac:
-    - "A cargo build in the workspace on Linux resolves through crate-gate."
-    - "A commit that adds a crate younger than 7 days is refused by the pre-commit hook and by CI (exit 1); unprovable age exits 2."
-    - "CI runs crate-age on every Cargo.toml or Cargo.lock change."
+  - With crate-gate's replacement source removed from the cargo configuration, a cargo build in the workspace on Linux fails to resolve; with it present, the build resolves only through crate-gate.
+  - A commit that adds a crate younger than 7 days is refused by the pre-commit hook and by CI (exit 1); a crate whose age cannot be proven exits 2.
+  - CI runs crate-age on every Cargo.toml or Cargo.lock change.
 - key: B0-02
   issue: 412
   branch: B0
-  stories: [24, 25, 26, 27]
-  title: "Setup builds the pinned Gold Band on Linux"
-  blocked_by: [B0-01]
-  supersedes: [347]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux]
-  what: "Setup makes the pinned Gold Band (987fc3e = v0.19.1) present on the host: it runs crate-age over Gold Band's lockfile, builds the desktop app and the headless binary through crate-gate, installs them, and reports version and build commit. Upstream packages are not used."
+  stories:
+  - 24
+  - 25
+  - 26
+  - 27
+  title: Setup builds the pinned Gold Band on Linux
+  blocked_by:
+  - B0-01
+  supersedes:
+  - 347
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  what: 'Setup makes the pinned Gold Band (987fc3e = v0.19.1) present on the host: it runs crate-age over Gold Band''s lockfile, builds the desktop app and the headless binary through crate-gate, installs them, and reports version and build commit. Upstream packages are not used.'
   ac:
-    - "On the Linux workstation setup builds both binaries from the pinned commit and reports version and build."
-    - "A crate in Gold Band's lockfile younger than 7 days stops the build and is reported."
-    - "A machine without Gold Band skips the surface and says so; setup still succeeds."
+  - On the Linux workstation setup builds both binaries from the pinned commit and reports version and build.
+  - A crate in Gold Band's lockfile younger than 7 days stops the build and is reported.
+  - A machine without Gold Band skips the surface and says so; setup still succeeds.
 - key: B0-03
   issue: 413
   branch: B0
-  stories: [143, 144]
-  title: "Re-verify the Gold Band facts at the pin on Linux (live)"
-  blocked_by: [B0-02]
-  supersedes: [328]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux]
-  what: "Re-check on Linux every Gold Band fact the old specs cite at 987fc3e and record the outcome with file and line: how the agent map merges, whether the Claude adapter forwards the environment, whether the global git hooks fire for a commit made in a Gold Band run, skill-directory handling, per-node working directories, dynamic-node fan-out, headless exit codes."
+  stories:
+  - 143
+  - 144
+  title: Re-verify the Gold Band facts at the pin on Linux (live)
+  blocked_by:
+  - B0-02
+  supersedes:
+  - 328
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  what: 'Re-check on Linux every Gold Band fact the old specs cite at 987fc3e and record the outcome with file and line: how the agent map merges, whether the Claude adapter forwards the environment, whether the global git hooks fire for a commit made in a Gold Band run, skill-directory handling, per-node working directories, dynamic-node fan-out, headless exit codes.'
   ac:
-    - "Each fact is recorded as verified or refuted on Linux, with evidence."
-    - "If the git hooks do not fire in a Gold Band run, that is recorded and agent ids at write or full reach stay unbound on Linux."
-    - "The spec's Further Notes list is updated with the outcomes."
+  - Each fact is recorded in the spec's Further Notes as verified or refuted on Linux, with the file and line or command that shows it.
+  - When the git hooks do not fire in a Gold Band run on Linux, the Linux bindings setup writes contain no agent id at write or full reach, and a setup-harness test asserts it.
+  - The spec's Further Notes list is updated with the outcomes.
 - key: B0-04
   issue: 414
   branch: B0
-  stories: [24, 144]
-  title: "Build and re-verify Gold Band on the work Mac (live)"
-  blocked_by: [B0-03]
+  stories:
+  - 24
+  - 144
+  title: Build and re-verify Gold Band on the work Mac (live)
+  blocked_by:
+  - B0-03
   supersedes: []
-  lanes: [gold-band, gold-band-personal]
-  hosts: [mac]
-  what: "The same pinned build and fact re-check on the work Mac, so nothing proven on one OS is assumed on the other."
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - mac
+  what: The same pinned build and fact re-check on the work Mac, so nothing proven on one OS is assumed on the other.
   ac:
-    - "Setup builds both binaries on the Mac from the pin and reports version and build."
-    - "Each fact from B0-03 is recorded for macOS, including whether the git hooks fire in a Gold Band run."
+  - Setup builds both binaries on the Mac from the pin and reports version and build.
+  - Each fact from B0-03 is recorded for macOS, including whether the git hooks fire in a Gold Band run.
 - key: B0-05
   issue: 415
   branch: B0
-  stories: [133, 134, 135, 136, 138, 141]
-  title: "Ticket sync tool with a dry run"
-  blocked_by: [B0-01]
+  stories:
+  - 133
+  - 134
+  - 135
+  - 136
+  - 138
+  - 141
+  title: Ticket sync tool with a dry run
+  blocked_by:
+  - B0-01
   supersedes: []
-  lanes: [all]
-  hosts: [linux, mac]
-  what: "A Rust tool that turns this ticket file into GitHub issues, sub-issue links and blocked-by links, records each issue number against its key, and prints a full dry-run plan first. A second run changes nothing. It adopts the issues already published from this file."
+  lanes:
+  - all
+  hosts:
+  - linux
+  - mac
+  what: A Rust tool that turns this ticket file into GitHub issues, sub-issue links and blocked-by links, records each issue number against its key, and prints a full dry-run plan first. A second run changes nothing. It adopts the issues already published from this file.
   ac:
-    - "Given a fixture graph and fixture GitHub state, the dry-run plan lists exactly the create, update, link and close actions; a second plan is empty."
-    - "Run against this file, the plan shows no creations for already-published tickets."
-    - "GitHub is faked at the tool's client interface in tests; 100 percent line coverage."
+  - Given a fixture graph and fixture GitHub state, the dry-run plan lists exactly the create, update, link and close actions; a second plan is empty.
+  - Run against this file, the plan shows no creations for already-published tickets.
+  - GitHub is faked at the tool's client interface in tests; 100 percent line coverage.
 - key: B0-06
   issue: 416
   branch: B0
-  stories: [116, 132, 137, 142]
-  title: "Close superseded and delivered issues with mapping comments"
-  blocked_by: [B0-05]
-  supersedes: [326, 327, 350, 367, 368, 111, 113, 167, 181, 182, 214, 286, 35, 40, 43, 24]
-  lanes: [all]
-  hosts: [linux]
-  what: "After the owner approves the dry-run plan, the sync tool closes every issue listed under `supersedes` in this file with a comment naming its new ticket, and closes delivered issues with their evidence."
+  stories:
+  - 116
+  - 132
+  - 137
+  - 142
+  title: Close superseded and delivered issues with mapping comments
+  blocked_by:
+  - B0-05
+  supersedes:
+  - 326
+  - 327
+  - 350
+  - 367
+  - 368
+  - 111
+  - 113
+  - 167
+  - 181
+  - 182
+  - 214
+  - 286
+  - 35
+  - 40
+  - 43
+  - 24
+  lanes:
+  - all
+  hosts:
+  - linux
+  what: After the owner approves the dry-run plan, the sync tool closes every issue listed under `supersedes` in this file with a comment naming its new ticket, and closes delivered issues with their evidence.
   ac:
-    - "The owner approves the printed plan before anything is closed."
-    - "Every superseded issue is closed with a comment that links its new ticket."
-    - "No issue outside the plan is touched."
+  - Without an approval recorded for the current plan, the sync tool's close action closes nothing and exits non-zero.
+  - With approval recorded, it closes exactly the issues in the plan, each with a comment that links its new ticket.
+  - No issue outside the plan is touched; a fixture test at the tool's client interface asserts both cases.
 - key: B0-07
   issue: 417
   branch: B0
-  stories: [139, 140]
-  title: "One build tracker for this spec"
-  blocked_by: [B0-05]
-  supersedes: [279]
-  lanes: [all]
-  hosts: [linux]
-  what: "One tracker page shows every ticket of spec #392, read from this ticket file and the GitHub state. The old tracker pages for #327, #350, #367 and the agent-kit build board point to it."
+  stories:
+  - 139
+  - 140
+  title: One build tracker for this spec
+  blocked_by:
+  - B0-05
+  supersedes:
+  - 279
+  lanes:
+  - all
+  hosts:
+  - linux
+  what: 'One tracker page shows every ticket of spec #392, rendered by the build tracker''s render command from this ticket file and the GitHub state. The old tracker pages for #327, #350, #367 and the agent-kit build board point to it.'
   ac:
-    - "The tracker lists all tickets by branch with their state."
-    - "Each old tracker page shows a pointer to the new one."
+  - Given a fixture ticket file and fixture GitHub state, the render command produces a page listing every ticket by branch with its state.
+  - Each old tracker page shows a pointer to the new one.
 - key: B0-08
   issue: 418
   branch: B0
   stories: []
-  title: "Upstream contribution: Gold Band validate command"
-  blocked_by: [B0-03]
-  supersedes: [377]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux]
-  what: "Propose the standalone validate command upstream, adding no crate that fails the 7-day rule. Record the other gaps (command node, static fan-out, budgets) as upstream issues."
+  title: 'Upstream contribution: Gold Band validate command'
+  blocked_by:
+  - B0-03
+  supersedes:
+  - 377
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  what: Propose the standalone validate command upstream, adding no crate that fails the 7-day rule. Record the other gaps (command node, static fan-out, budgets) as upstream issues.
   ac:
-    - "crate-age passes on the proposal's lockfile before it is opened."
-    - "The gaps are recorded as upstream issues or proposals with links in the spec."
-# ---------------- B1 ----------------
+  - crate-age passes on the proposal's lockfile before it is opened.
+  - The gaps are recorded as upstream issues or proposals with links in the spec.
 - key: B1-01
   issue: 419
   branch: B1
-  stories: [53, 54, 55, 56]
-  title: "One secret store: Keychain on macOS, libsecret on Linux"
+  stories:
+  - 53
+  - 54
+  - 55
+  - 56
+  title: 'One secret store: Keychain on macOS, libsecret on Linux'
   blocked_by: []
   supersedes: []
-  lanes: [all]
-  hosts: [linux, mac]
-  what: "One 'read secret by name' interface with a macOS Keychain backend and a Linux libsecret backend, used by the launchers, the MCP stdio proxy and the key script. The Linux plain-file fallback for agent keys is retired; a missing backend or key fails closed."
+  lanes:
+  - all
+  hosts:
+  - linux
+  - mac
+  what: One 'read secret by name' interface with a macOS Keychain backend and a Linux libsecret backend, used by the launchers, the MCP stdio proxy and the key script. The Linux plain-file fallback for agent keys is retired; a missing backend or key fails closed.
   ac:
-    - "On Linux a launcher reads its key from libsecret; on macOS from the Keychain."
-    - "A missing key or backend stops the launch with a message; no plain file is used."
-    - "No secret value is printed or written by any step."
+  - On Linux a launcher reads its key from libsecret; on macOS from the Keychain.
+  - A missing key or backend stops the launch with a message; no plain file is used.
+  - No secret value is printed or written by any step.
 - key: B1-02
   issue: 420
   branch: B1
-  stories: [1, 4, 5, 6, 13, 14, 15, 16, 52]
-  title: "Registry models both instances and the overlay"
-  blocked_by: [B0-01]
-  supersedes: [332]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The registry declares `gold-band` and `gold-band-personal` with their allowed agents, repository rules, hosts and banks. The work instance's employer-specific entries come from a per-machine overlay beside the keep file. Validation refuses any declaration that crosses an instance boundary, literal secrets, unknown fields and bad ids."
+  stories:
+  - 1
+  - 4
+  - 5
+  - 6
+  - 13
+  - 14
+  - 15
+  - 16
+  - 52
+  title: Registry models both instances and the overlay
+  blocked_by:
+  - B0-01
+  supersedes:
+  - 332
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The registry declares `gold-band` and `gold-band-personal` with their allowed agents, repository rules, hosts and banks. The work instance's employer-specific entries come from a per-machine overlay beside the keep file. Validation refuses any declaration that crosses an instance boundary, literal secrets, unknown fields and bad ids.
   ac:
-    - "Codex or the work Claude agent declared for the personal instance is refused, also from the overlay."
-    - "Any agent other than the work Claude agent and Codex declared for the work instance is refused."
-    - "The overlay may add MCP servers and settings to the work instance only."
+  - Codex or the work Claude agent declared for the personal instance is refused, also from the overlay.
+  - Any agent other than the work Claude agent and Codex declared for the work instance is refused.
+  - 'Each instance''s repository rule is recorded in the registry (work: nedap-owned remotes only, no remote refused; personal: nedap-owned refused, no remote allowed), and an instance declared without one is refused.'
+  - The overlay may add MCP servers and settings to the work instance only.
 - key: B1-03a
   issue: 421
   branch: B1
-  stories: [3, 21, 22, 23, 32, 33, 43]
-  title: "Setup converges the personal instance's agents on Linux (OpenCode first)"
-  blocked_by: [B1-02, B0-02]
-  supersedes: [333]
-  lanes: [gold-band-personal]
-  hosts: [linux]
-  what: "A setup run makes the personal instance's agent map match the registry, starting with OpenCode, removes undeclared agents unless kept, removes retired records, skips agents not installed, and a second run changes nothing."
+  stories:
+  - 3
+  - 21
+  - 22
+  - 23
+  - 32
+  - 33
+  - 43
+  title: Setup converges the personal instance's agents on Linux (OpenCode first)
+  blocked_by:
+  - B1-02
+  - B0-02
+  supersedes:
+  - 333
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  what: A setup run makes the personal instance's agent map match the registry, starting with OpenCode, removes undeclared agents unless kept, removes retired records, skips agents not installed, and a second run changes nothing.
   ac:
-    - "After setup the agent map holds exactly the declared plus kept entries."
-    - "A second run changes nothing."
-    - "An agent not installed on the machine is skipped and reported."
+  - After setup the agent map holds exactly the declared plus kept entries.
+  - A second run changes nothing.
+  - An agent not installed on the machine is skipped and reported.
 - key: B1-03b
   issue: 422
   branch: B1
-  stories: [28, 29, 30, 31, 34, 35]
-  title: "Safe writes for Gold Band settings on both OSes"
-  blocked_by: [B1-03a]
-  supersedes: [334]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Setup refuses to write while an instance runs (detected by process and data directory, no hard-coded application path), checks before each write group, replaces settings atomically with one backup, keeps the app's own keys, makes the data directory owner-only and never enables updater, metrics, feedback or connectors."
+  stories:
+  - 30
+  - 31
+  - 34
+  - 35
+  title: Atomic settings writes and hardening on both OSes
+  blocked_by:
+  - B1-03a
+  - B1-03d
+  supersedes:
+  - 334
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Setup replaces each instance's settings atomically with one backup, keeps every key it does not declare, makes the data directory owner-only and never enables the updater, metrics, feedback or connectors.
   ac:
-    - "With an instance running, setup refuses and names the instance to quit."
-    - "A failed replace leaves the old file in place; one backup is kept."
-    - "Keys setup does not declare are unchanged; the data directory is owner-only."
+  - A failed replace leaves the old settings file in place, and one backup is kept.
+  - Keys setup does not declare are unchanged after a run.
+  - The data directory is owner-only and the updater, metrics, feedback and connectors are off after setup; the setup harness asserts each.
 - key: B1-03c
   issue: 423
   branch: B1
-  stories: [57]
-  title: "Generated roles in each instance"
-  blocked_by: [B1-03a]
-  supersedes: [345]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The declared roles are rendered from agent-kit's critique role and lens files with templating off, retired roles are removed and kept hand-made roles survive."
+  stories:
+  - 57
+  title: Generated roles in each instance
+  blocked_by:
+  - B1-03a
+  supersedes:
+  - 345
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The declared roles are rendered from agent-kit's critique role and lens files with templating off, retired roles are removed and kept hand-made roles survive.
   ac:
-    - "Each generated role matches its source role and lens files; braces survive."
-    - "A retired role disappears; a role on the keep list stays."
+  - Each generated role matches its source role and lens files; braces survive.
+  - A retired role disappears; a role on the keep list stays.
+- key: B1-03d
+  branch: B1
+  title: Running-instance guard on both OSes
+  blocked_by:
+  - B1-03a
+  supersedes: []
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  stories:
+  - 28
+  - 29
+  what: Setup refuses to write while an instance runs, detected by process and data directory on each OS, never by a hard-coded application path; the check runs before each write group, and setup stops and reports what was written when an instance starts mid-run.
+  ac:
+  - With an instance running, setup writes nothing and names the instance to quit.
+  - When an instance starts between two write groups, setup stops, reports the groups written, and a second run finishes the rest.
+  issue: 530
 - key: B1-04
   issue: 424
   branch: B1
-  stories: [2, 8]
-  title: "Setup converges the work instance on the Mac from the overlay"
-  blocked_by: [B1-03b, B1-03c]
+  stories:
+  - 2
+  - 8
+  title: Setup converges the work instance on the Mac from the overlay
+  blocked_by:
+  - B1-03b
+  - B1-03c
   supersedes: []
-  lanes: [gold-band]
-  hosts: [mac]
-  what: "On the work Mac setup converges `gold-band` with only `claude-work` and `codex`, taking employer-specific settings from the per-machine overlay."
+  lanes:
+  - gold-band
+  hosts:
+  - mac
+  what: On the work Mac setup converges `gold-band` with only `claude-work` and `codex`, taking employer-specific settings from the per-machine overlay.
   ac:
-    - "The work instance holds exactly the work Claude agent and Codex, plus overlay settings."
-    - "Nothing employer-specific is read from or written to the public registry."
+  - The work instance holds exactly the work Claude agent and Codex, plus overlay settings.
+  - Nothing employer-specific is read from or written to the public registry.
 - key: B1-05
   issue: 425
   branch: B1
-  stories: [9, 10, 11, 12]
-  title: "Personal instance under a second macOS user (live)"
-  blocked_by: [B1-04]
-  supersedes: [396]
-  lanes: [gold-band-personal]
-  hosts: [mac]
-  what: "On the work Mac the personal instance always runs under a second macOS user with its own data directory, keychain, keep file and overlay; setup runs once in each account."
+  stories:
+  - 9
+  - 10
+  - 11
+  - 12
+  title: Personal instance under a second macOS user (live)
+  blocked_by:
+  - B1-04
+  supersedes:
+  - 396
+  lanes:
+  - gold-band-personal
+  hosts:
+  - mac
+  what: On the work Mac the personal instance always runs under a second macOS user with its own data directory, keychain, keep file and overlay; setup runs once in each account.
   ac:
-    - "Setup in the second account prepares only the personal instance; setup in the work account only the work instance."
-    - "Live check: a personal-instance agent cannot read an employer clone in the work account."
+  - Setup in the second account prepares only the personal instance; setup in the work account only the work instance.
+  - 'Live check: a personal-instance agent cannot read an employer clone in the work account.'
 - key: B1-06
   issue: 426
   branch: B1
-  stories: [38]
-  title: "Work Claude profile in the default Claude directory"
+  stories:
+  - 38
+  title: Work Claude profile in the default Claude directory
   blocked_by: []
-  supersedes: [379]
-  lanes: [direct, gold-band]
-  hosts: [linux, mac]
-  what: "Setup installs the work Claude profile into the home directory's default Claude directory whatever CLAUDE_CONFIG_DIR says, so direct use and the work instance agree."
+  supersedes:
+  - 379
+  lanes:
+  - direct
+  - gold-band
+  hosts:
+  - linux
+  - mac
+  what: Setup installs the work Claude profile into the home directory's default Claude directory whatever CLAUDE_CONFIG_DIR says, so direct use and the work instance agree.
   ac:
-    - "With CLAUDE_CONFIG_DIR set elsewhere, setup still writes the work profile to the default directory."
-    - "A setup-harness test covers it."
+  - With CLAUDE_CONFIG_DIR set elsewhere, setup still writes the work profile to the default directory.
+  - A setup-harness test covers it.
 - key: B1-07
   issue: 427
   branch: B1
-  stories: [36, 37]
-  title: "Claude agents in each instance with a fixed configuration directory"
-  blocked_by: [B1-03a, B1-06]
-  supersedes: [335]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The work instance holds the work Claude agent and the personal instance the personal Claude agent, each started with an explicit configuration directory so no ambient variable can switch identity."
+  stories:
+  - 36
+  - 37
+  title: Claude agents in each instance with a fixed configuration directory
+  blocked_by:
+  - B1-03a
+  - B1-06
+  supersedes:
+  - 335
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The work instance holds the work Claude agent and the personal instance the personal Claude agent, each started with an explicit configuration directory so no ambient variable can switch identity.
   ac:
-    - "Each Claude agent entry sets its configuration directory explicitly."
-    - "The adapter's environment forwarding is verified (from B0-03/B0-04) or the ticket is blocked."
+  - Each Claude agent entry sets its configuration directory explicitly.
+  - With a conflicting CLAUDE_CONFIG_DIR in the environment, the Claude process the launcher starts has the instance's configuration directory in its environment; a launcher test asserts it.
 - key: B1-08
   issue: 428
   branch: B1
-  stories: [39, 40]
-  title: "Vibe and Vibe-study in the personal instance"
-  blocked_by: [B1-01, B1-03a]
-  supersedes: [336]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Vibe and Vibe-study agents in the personal instance; the Vibe-study launcher reads its key from the secret store at launch and exits with a message when the key is missing."
+  stories:
+  - 39
+  - 40
+  title: Vibe and Vibe-study in the personal instance
+  blocked_by:
+  - B1-01
+  - B1-03a
+  supersedes:
+  - 336
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Vibe and Vibe-study agents in the personal instance; the Vibe-study launcher reads its key from the secret store at launch and exits with a message when the key is missing.
   ac:
-    - "No key is written into any Gold Band file."
-    - "With the key missing, the Vibe-study launcher starts nothing and says why."
+  - No key is written into any Gold Band file.
+  - With the key missing, the Vibe-study launcher starts nothing and says why.
 - key: B1-09
   issue: 429
   branch: B1
-  stories: [41]
-  title: "Pi pinned install on both OSes"
-  blocked_by: [B1-03a]
-  supersedes: [337]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Pi and its ACP adapter installed from pinned versions without install scripts on Linux and macOS, declared with its binary path and recorded as throwaway-repositories-only."
+  stories:
+  - 41
+  title: Pi pinned install on both OSes
+  blocked_by:
+  - B1-03a
+  supersedes:
+  - 337
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Pi and its ACP adapter installed from pinned versions without install scripts on Linux and macOS, declared with its binary path and recorded as throwaway-repositories-only.
   ac:
-    - "Gold Band never fetches Pi at launch."
-    - "The registry records Pi as throwaway-only."
+  - Gold Band never fetches Pi at launch.
+  - The registry records Pi as throwaway-only.
 - key: B1-10
   issue: 430
   branch: B1
-  stories: [42]
-  title: "OpenCode, Hermes and Antigravity declared per OS"
-  blocked_by: [B1-03a]
-  supersedes: [338]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Each agent declared with the launch command it provides on the current OS; no macOS path (Homebrew, /Applications) is written on Linux."
+  stories:
+  - 42
+  title: OpenCode, Hermes and Antigravity declared per OS
+  blocked_by:
+  - B1-03a
+  supersedes:
+  - 338
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Each agent declared with the launch command it provides on the current OS; no macOS path (Homebrew, /Applications) is written on Linux.
   ac:
-    - "On a Linux host no declared command points at a macOS path."
-    - "An agent absent on a host is skipped and reported."
+  - On a Linux host no declared command points at a macOS path.
+  - An agent absent on a host is skipped and reported.
 - key: B1-11
   issue: 431
   branch: B1
-  stories: [120]
-  title: "Antigravity on the Linux workstation"
-  blocked_by: [B1-01]
-  supersedes: [399]
-  lanes: [direct, gold-band-personal]
-  hosts: [linux]
-  what: "Find out whether Antigravity has an official Linux build; if so install it (one owner: nix-config or setup), converge its surface and make the critique runner's readiness check work on Linux; if not, record it so routing can pick another Google-family client."
+  stories:
+  - 120
+  title: Antigravity on the Linux workstation
+  blocked_by:
+  - B1-01
+  supersedes:
+  - 399
+  lanes:
+  - direct
+  - gold-band-personal
+  hosts:
+  - linux
+  what: 'Find out whether Antigravity has an official Linux build; if so install it (one owner: nix-config or setup), converge its surface and make the critique runner''s readiness check work on Linux; if not, record it so routing can pick another Google-family client.'
   ac:
-    - "Setup on Linux converges Antigravity with no 'macOS only' skip, or the issue records why not."
-    - "Critique prepare on Linux lists the Google critic as ready when signed in, or routing names a replacement."
+  - The finding on whether Antigravity has an official Linux build is recorded in the setup guide with its source.
+  - 'If a Linux build exists: setup on Linux converges the Antigravity surface with no ''macOS only'' skip, and critique prepare on Linux lists the Google critic as ready when it is signed in.'
+  - 'If no Linux build exists: the critique routing names another Google-family client for Linux, and prepare on Linux lists it.'
 - key: B1-12
   issue: 432
   branch: B1
-  stories: [44, 45, 46]
-  title: "Launcher with reach levels and a per-OS support record"
-  blocked_by: [B0-01, B1-02]
-  supersedes: [339]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "One Rust launcher that starts each agent id with its reach level's tool configuration and refuses a level the agent cannot hold. The support record gains an OS dimension; validation refuses an unverified cell."
+  stories:
+  - 44
+  - 45
+  - 46
+  title: Launcher with reach levels and a per-OS support record
+  blocked_by:
+  - B0-01
+  - B1-02
+  supersedes:
+  - 339
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: One Rust launcher that starts each agent id with its reach level's tool configuration and refuses a level the agent cannot hold. The support record gains an OS dimension; validation refuses an unverified cell.
   ac:
-    - "An agent id at a reach level its agent does not support on this OS is refused before anything starts."
-    - "Validation fails on a missing reach level or a write-scoped/research id without an output directory."
+  - An agent id at a reach level its agent does not support on this OS is refused before anything starts.
+  - Validation fails on a missing reach level or a write-scoped/research id without an output directory.
 - key: B1-13
   issue: 433
   branch: B1
-  stories: [47, 48, 49, 50]
-  title: "Landlock write limit on Linux with the ADR-0013 table"
-  blocked_by: [B1-12]
-  supersedes: [343]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux]
-  what: "The launcher's write-limit interface gets its Landlock backend, built from ADR-0013's table of writable paths per reach level; the launcher refuses to start when Landlock is unavailable."
+  stories:
+  - 47
+  - 48
+  - 49
+  - 50
+  title: Landlock write limit on Linux with the ADR-0013 table
+  blocked_by:
+  - B1-12
+  supersedes:
+  - 343
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  what: The launcher's write-limit interface gets its Landlock backend, built from ADR-0013's table of writable paths per reach level; the launcher refuses to start when Landlock is unavailable.
   ac:
-    - "Seam 3 on a Linux CI runner: a stub agent's write outside its allowed paths is refused by the OS."
-    - "A write-level agent cannot change .git/hooks or .git/config."
-    - "With Landlock unavailable the launcher refuses to start."
+  - On a Linux CI runner, the launcher's write-limit interface starts a stub agent at each reach level; a write outside that level's allowed paths fails with the operating-system error, with the tool configuration out of the way.
+  - A write-level stub cannot change .git/hooks or .git/config.
+  - With Landlock unavailable the launcher refuses to start the agent.
 - key: B1-14
   issue: 434
   branch: B1
-  stories: [48, 49]
-  title: "sandbox-exec write limit on macOS"
-  blocked_by: [B1-12]
+  stories:
+  - 48
+  - 49
+  title: sandbox-exec write limit on macOS
+  blocked_by:
+  - B1-12
+  - B1-13
   supersedes: []
-  lanes: [gold-band, gold-band-personal]
-  hosts: [mac]
-  what: "The macOS backend of the same interface, from the same table."
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - mac
+  what: The macOS backend of the same interface, from the same table.
   ac:
-    - "Seam 3 on a macOS CI runner passes the same assertions as B1-13."
+  - On a macOS CI runner, the launcher's write-limit interface starts a stub agent at each reach level; a write outside that level's allowed paths fails with the operating-system error.
+  - A write-level stub cannot change .git/hooks or .git/config.
+  - With sandbox-exec unavailable the launcher refuses to start the agent.
 - key: B1-15
   issue: 435
   branch: B1
-  stories: [51]
-  title: "Claude reach levels on each OS"
-  blocked_by: [B1-13, B1-14, B1-07]
-  supersedes: [342]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Verify each Claude reach-level cell on Linux and macOS and record it in the support record with the check that proves it."
+  stories:
+  - 51
+  title: Claude reach levels on each OS
+  blocked_by:
+  - B1-13
+  - B1-14
+  - B1-07
+  supersedes:
+  - 342
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Verify each Claude reach-level cell on Linux and macOS and record it in the support record with the check that proves it.
   ac:
-    - "Every Claude cell has a verified or refused state per OS, citing its check."
+  - Every Claude cell has a verified or refused state per OS, citing its check.
 - key: B1-16
   issue: 436
   branch: B1
-  stories: [51]
-  title: "Vibe reach levels on each OS"
-  blocked_by: [B1-13, B1-14, B1-08]
-  supersedes: [341, 330]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Verify each Vibe reach-level cell per OS, including the read-web finding that headless Vibe drops its search tools under a restricted tool list."
+  stories:
+  - 51
+  title: Vibe reach levels on each OS
+  blocked_by:
+  - B1-13
+  - B1-14
+  - B1-08
+  supersedes:
+  - 341
+  - 330
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Verify each Vibe reach-level cell per OS, including the read-web finding that headless Vibe drops its search tools under a restricted tool list.
   ac:
-    - "Every Vibe cell has a verified or refused state per OS, citing its check."
+  - Every Vibe cell has a verified or refused state per OS, citing its check.
 - key: B1-17
   issue: 437
   branch: B1
-  stories: [51]
-  title: "Pi, OpenCode, Hermes and Antigravity reach levels on each OS"
-  blocked_by: [B1-13, B1-14, B1-09, B1-10]
-  supersedes: [340]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Verify the remaining agents' reach-level cells per OS; a level an agent cannot hold is refused, never downgraded."
+  stories:
+  - 51
+  title: Pi, OpenCode, Hermes and Antigravity reach levels on each OS
+  blocked_by:
+  - B1-13
+  - B1-14
+  - B1-09
+  - B1-10
+  supersedes:
+  - 340
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Verify the remaining agents' reach-level cells per OS; a level an agent cannot hold is refused, never downgraded.
   ac:
-    - "Every cell for these agents has a verified or refused state per OS, citing its check."
+  - Every cell for these agents has a verified or refused state per OS, citing its check.
 - key: B1-18
   issue: 438
   branch: B1
-  stories: [58]
-  title: "Skill sets per agent id"
-  blocked_by: [B1-12]
-  supersedes: [344]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Setup builds one skill directory per skill set and installs it only for the agent ids that name it, so a node sees only the skills it needs."
+  stories:
+  - 58
+  title: Skill sets per agent id
+  blocked_by:
+  - B1-12
+  supersedes:
+  - 344
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Setup builds one skill directory per skill set and installs it only for the agent ids that name it, so a node sees only the skills it needs.
   ac:
-    - "Each agent id's skill directory holds exactly its declared skill set."
-    - "No single shared skill directory serves all ids."
+  - Each agent id's skill directory holds exactly its declared skill set.
+  - No single shared skill directory serves all ids.
 - key: B1-19
   issue: 439
   branch: B1
-  stories: [59]
-  title: "Same-name MCP overlap test in each instance (live)"
-  blocked_by: [B1-03a]
-  supersedes: [329]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Declare one harmless MCP server in both layers for Claude, Vibe and OpenCode in an instance and record whether tools appear twice or the name overrides; the result fixes the layering rule."
+  stories:
+  - 59
+  title: Same-name MCP overlap test in each instance (live)
+  blocked_by:
+  - B1-03a
+  supersedes:
+  - 329
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Declare one harmless MCP server in both layers for Claude, Vibe and OpenCode in an instance and record whether tools appear twice or the name overrides; the result fixes the layering rule.
   ac:
-    - "The result is recorded in the setup guide and decides the layering rule."
+  - The setup guide records, per agent (Claude, Vibe, OpenCode) and per instance, whether a same-name server appears twice or one overrides the other.
+  - The registry's layering rule cites that record.
 - key: B1-20
   issue: 441
   branch: B1
-  stories: [60, 61]
-  title: "MCP servers per instance"
-  blocked_by: [B1-19, B1-01, B5-01]
-  supersedes: [346, 132]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Each instance gets its MCP servers in exactly one layer per agent, token-bearing servers through the secret-store proxy, work servers from the overlay only, and the Hindsight server bound to the instance's bank (Nedap for work, Shared for personal)."
+  stories:
+  - 60
+  - 61
+  title: MCP servers per instance
+  blocked_by:
+  - B1-19
+  - B1-01
+  - B5-01
+  supersedes:
+  - 346
+  - 132
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Each instance gets its MCP servers in exactly one layer per agent, token-bearing servers through the secret-store proxy, work servers from the overlay only, and the Hindsight server bound to the instance's bank (Nedap for work, Shared for personal).
   ac:
-    - "A literal token in a declared MCP record is refused."
-    - "Work MCP servers never appear in the personal instance."
-    - "Each instance's Hindsight server reaches only its own bank."
+  - A literal token in a declared MCP record is refused.
+  - Work MCP servers never appear in the personal instance.
+  - Each instance's Hindsight server reaches only its own bank.
 - key: B1-21
   issue: 442
   branch: B1
-  stories: [121]
-  title: "macOS-only setup paths behind OS checks"
+  stories:
+  - 121
+  title: macOS-only setup paths behind OS checks
   blocked_by: []
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Every macOS-only path in setup (the application path, Homebrew paths, launchd in the port-forward agent, keychain calls, ~/Library) gets a Linux equivalent or an explicit reported skip."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Every macOS-only path in setup (the application path, Homebrew paths, launchd in the port-forward agent, keychain calls, ~/Library) gets a Linux equivalent or an explicit reported skip.
   ac:
-    - "A setup run on a Linux host writes no macOS path; the setup harness asserts it."
-    - "Each remaining macOS-only step reports its skip on Linux."
+  - A setup run on a Linux host writes no macOS path; the setup harness asserts it.
+  - Each remaining macOS-only step reports its skip on Linux.
 - key: B1-22
   issue: 443
   branch: B1
-  stories: [145, 146, 147, 148]
-  title: "Docs: both instances and the lost guarantees"
-  blocked_by: [B1-05, B1-13]
-  supersedes: [349]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The setup guide describes both instances on both OSes, including the second macOS user; the guarantees the critique runner enforces and a bare Gold Band node does not are listed one by one; what is proven by tests, live checks or the app is written down."
+  stories:
+  - 145
+  - 146
+  - 147
+  - 148
+  title: 'Docs: both instances and the lost guarantees'
+  blocked_by:
+  - B1-05
+  - B1-13
+  supersedes:
+  - 349
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The setup guide describes both instances on both OSes, including the second macOS user; the guarantees the critique runner enforces and a bare Gold Band node does not are listed one by one; what is proven by tests, live checks or the app is written down.
   ac:
-    - "A new machine can be set up from the guide alone."
-    - "The lost-guarantee list names each guarantee."
-# ---------------- B2 ----------------
+  - The setup guide has a section per instance per OS, and every command it names is one the setup harness runs.
+  - The lost-guarantee list names each guarantee the critique runner enforces and a bare Gold Band node does not.
 - key: B2-01
   issue: 444
   branch: B2
-  stories: [7, 17, 19]
-  title: "Run-start shim"
-  blocked_by: [B1-12, B0-02]
-  supersedes: [352]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Every Gold Band workflow starts with a cheap read-only node that runs one pinned wrapper checking, from the working copy only, the instance's repository rule, the family allowlist (with code and history permissions, and the work-only roster on nedap repositories) and, in the work instance, a live grant for the run. A failed check ends the run before any model node runs. Includes the ADR amending ADR-0007."
+  stories:
+  - 4
+  - 5
+  - 6
+  - 7
+  - 17
+  - 19
+  title: Run-start shim
+  blocked_by:
+  - B1-12
+  - B0-02
+  supersedes:
+  - 352
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Every Gold Band workflow starts with a cheap read-only node that runs one pinned wrapper checking, from the working copy only, the instance's repository rule, the family allowlist (with code and history permissions, and the work-only roster on nedap repositories) and, in the work instance, a live grant for the run. A failed check ends the run before any model node runs. Includes the ADR amending ADR-0007.
   ac:
-    - "Headless proof: a wrong-instance repository, a forbidden family and a missing grant each end the run before any model node."
-    - "The shim's report is written like a gate report."
+  - 'Headless proof: a wrong-instance repository, a forbidden family and a missing grant each end the run before any model node.'
+  - The shim writes a report with the same fields as a gate report (run id, attempt, command, exit code, output hash, timestamp), and the report of a refused run names the failed check.
 - key: B2-02
   issue: 445
   branch: B2
-  stories: [73, 74, 75, 76]
-  title: "Gate shim"
-  blocked_by: [B1-13]
-  supersedes: [353]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A gate node is a cheap worker whose agent id runs only one pinned wrapper; the wrapper writes a gate report the gate agent cannot write; a read-only copier node fails the run on a missing, stale, other-attempt or mismatching report; a hung command times out into a failed report."
+  stories:
+  - 73
+  - 74
+  - 75
+  - 76
+  title: Gate shim
+  blocked_by:
+  - B1-13
+  supersedes:
+  - 353
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A gate node is a cheap worker whose agent id runs only one pinned wrapper; the wrapper writes a gate report the gate agent cannot write; a read-only copier node fails the run on a missing, stale, other-attempt or mismatching report; a hung command times out into a failed report.
   ac:
-    - "Tamper tests: missing, wrong-hash and wrong-command reports each end the run in failure."
-    - "A timed-out command produces a failed gate report with a distinct exit code."
+  - 'Tamper tests: missing, wrong-hash and wrong-command reports each end the run in failure.'
+  - A timed-out command produces a failed gate report with a distinct exit code.
 - key: B2-03
   issue: 446
   branch: B2
-  stories: [68, 69, 77]
-  title: "Workflow lint: Opus, memory and loop rules"
-  blocked_by: [B0-01]
-  supersedes: [371]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The workflow lint refuses Opus outside judgment nodes (-escalation, -acceptance, -planning), a memory-writing binding outside -acceptance or -escalation nodes, and any loop not unrolled into fixed nodes."
+  stories:
+  - 68
+  - 69
+  - 77
+  title: 'Workflow lint: Opus, memory and loop rules'
+  blocked_by:
+  - B0-01
+  supersedes:
+  - 371
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The workflow lint refuses Opus outside judgment nodes (-escalation, -acceptance, -planning), a memory-writing binding outside -acceptance or -escalation nodes, and any loop not unrolled into fixed nodes.
   ac:
-    - "Fixture workflows breaking each rule are refused with a clear message; valid ones pass."
+  - Fixture workflows breaking each rule are refused with a clear message; valid ones pass.
 - key: B2-04
   issue: 447
   branch: B2
-  stories: [72, 79]
-  title: "Headless proof harness and refusal of unproven runs"
-  blocked_by: [B0-02]
-  supersedes: [373, 348]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Seam 2: a fixture stub ACP agent stands in for every agent id, `gold-band run` runs a workflow headless and the test asserts run state and exit code (0, 1, 2). A real run is refused when the workflow's headless proof was skipped. The spec-stage template from the integration branch is re-proven on Linux and macOS."
+  stories:
+  - 72
+  - 79
+  title: Headless proof harness and refusal of unproven runs
+  blocked_by:
+  - B0-02
+  supersedes:
+  - 373
+  - 348
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Seam 2: a fixture stub ACP agent stands in for every agent id, `gold-band run` runs a workflow headless and the test asserts run state and exit code (0, 1, 2). A real run is refused when the workflow''s headless proof was skipped. The spec-stage template from the integration branch is re-proven on Linux and macOS.'
   ac:
-    - "The spec-stage template passes headless on both OSes in CI (skipped with a reason when no binary is supplied)."
-    - "A real run of a workflow without a recorded proof is refused."
+  - The spec-stage template passes headless on Linux and macOS in CI; the job is skipped, with the reason printed, only when no Gold Band binary is supplied.
+  - A real run of a workflow without a recorded proof is refused.
 - key: B2-05a
   issue: 448
   branch: B2
-  stories: [88, 89]
-  title: "Workflow B path with stubs: test author, writer and gates"
-  blocked_by: [B2-01, B2-02, B2-03, B2-04, B1-18]
-  supersedes: [359]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Workflow B's main path, proven headless with stubs: a test author from another family writes failing tests from the ticket, one writer implements to green, and build, test and lint run through the gate shim."
+  stories:
+  - 88
+  - 89
+  title: 'Workflow B path with stubs: test author, writer and gates'
+  blocked_by:
+  - B2-01
+  - B2-02
+  - B2-03
+  - B2-04
+  - B1-18
+  supersedes:
+  - 359
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Workflow B''s main path, proven headless with stubs: a test author from another family writes failing tests from the ticket, one writer implements to green, and build, test and lint run through the gate shim.'
   ac:
-    - "Headless proof ends in success on the happy path and in failure when a gate fails."
+  - Headless proof ends in success on the happy path and in failure when a gate fails.
 - key: B2-05b
   issue: 449
   branch: B2
-  stories: [74]
-  title: "Coverage gate on changed files"
-  blocked_by: [B2-05a]
-  supersedes: [357]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A gate-shim command that fails unless changed files have 100 percent line coverage, added to Workflow B's gates."
+  stories:
+  - 74
+  title: Coverage gate on changed files
+  blocked_by:
+  - B2-05a
+  supersedes:
+  - 357
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A gate-shim command that fails unless changed files have 100 percent line coverage, added to Workflow B's gates.
   ac:
-    - "A change with an uncovered line fails the gate; full coverage passes."
+  - A change with an uncovered line fails the gate; full coverage passes.
 - key: B2-05c
   issue: 450
   branch: B2
-  stories: [91]
-  title: "Finding check node"
-  blocked_by: [B2-05a]
-  supersedes: [358]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A gate-shim node validates critic findings against the finding schema and quotes against the diff and ticket; only findings with checkable evidence drive repairs."
+  stories:
+  - 91
+  title: Finding check node
+  blocked_by:
+  - B2-05a
+  supersedes:
+  - 358
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A gate-shim node validates critic findings against the finding schema and quotes against the diff and ticket; only findings with checkable evidence drive repairs.
   ac:
-    - "A finding without checkable evidence is kept as a hint and never sent back to the writer."
+  - A finding without checkable evidence is kept as a hint and never sent back to the writer.
 - key: B2-05d
   issue: 451
   branch: B2
-  stories: [78, 90]
-  title: "Workflow B critics, unrolled repairs and escalation"
-  blocked_by: [B2-05b, B2-05c]
+  stories:
+  - 78
+  - 90
+  title: Workflow B critics, unrolled repairs and escalation
+  blocked_by:
+  - B2-05b
+  - B2-05c
   supersedes: []
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Two critics in families different from the writer's run in parallel in one dynamic node; failures send the ticket back to the writer, capped at two repairs by fixed nodes, then an Opus escalation node and a manual check."
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Two critics in families different from the writer's run in parallel in one dynamic node; failures send the ticket back to the writer, capped at two repairs by fixed nodes, then an Opus escalation node and a manual check.
   ac:
-    - "Headless proof: the second failed repair reaches the escalation node and pauses with exit 2; the run never ends on the control-limit error."
+  - 'Headless proof: the second failed repair reaches the escalation node and pauses with exit 2; the run never ends on the control-limit error.'
 - key: B2-06
   issue: 453
   branch: B2
-  stories: [92]
-  title: "CI-wait gate"
-  blocked_by: [B2-02, B2-10]
-  supersedes: [31]
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A 'wait for CI to be fully green' command with a structured verdict, usable from direct sessions and as a Workflow B gate. It reruns a job at most once per attempt and only when the repository's setup file lists it as flaky with a reviewed reason."
+  stories:
+  - 92
+  title: CI-wait gate
+  blocked_by:
+  - B2-02
+  - B2-10
+  supersedes:
+  - 31
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A 'wait for CI to be fully green' command with a structured verdict, usable from direct sessions and as a Workflow B gate. It reruns a job at most once per attempt and only when the repository's setup file lists it as flaky with a reviewed reason.
   ac:
-    - "A listed flaky job that fails once and then passes yields green; an unlisted failing job yields red without a rerun."
-    - "The verdict is machine-readable."
+  - A listed flaky job that fails once and then passes yields green; an unlisted failing job yields red without a rerun.
+  - The command prints one JSON object with verdict (green or red), jobs and reruns, and exits 0 only for green.
 - key: B2-07
   issue: 454
   branch: B2
-  stories: [96, 97, 98]
-  title: "LiteLLM in the estate cluster with per-key budgets"
-  blocked_by: [B1-01]
-  supersedes: [354]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "One LiteLLM proxy in the estate cluster, shared by both machines, with per-key max budgets of 255 EUR (Vibe), 128 EUR (Vibe-study) and 60 EUR (OpenCode Go), and the Pi route through it. A budget refusal fails the node."
+  stories:
+  - 96
+  - 97
+  - 98
+  title: LiteLLM in the estate cluster with per-key budgets
+  blocked_by:
+  - B1-01
+  supersedes:
+  - 354
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: One LiteLLM proxy in the estate cluster, shared by both machines, with per-key max budgets of 255 EUR (Vibe), 128 EUR (Vibe-study) and 60 EUR (OpenCode Go), and the Pi route through it. A budget refusal fails the node.
   ac:
-    - "A stub that returns budget-exhausted ends the run in failure (exit 1)."
-    - "Behaviour at the cap (window, reset) is recorded from the real proxy."
+  - A stub that returns budget-exhausted for a key ends the run in failure (exit 1); the same stub below the cap lets the node pass.
+  - The setup guide states the cap's window and reset as measured on the real proxy, with the request that measured them.
 - key: B2-08
   issue: 455
   branch: B2
-  stories: [99]
-  title: "Workflow B with real agents in the personal instance (live)"
-  blocked_by: [B2-05d, B2-07, B1-15, B1-16, B1-17]
-  supersedes: [360]
-  lanes: [gold-band-personal]
-  hosts: [linux]
-  what: "Bind Workflow B's nodes to real personal-instance agent ids and families, and run it on one real personal ticket."
+  stories:
+  - 99
+  title: Workflow B with real agents in the personal instance (live)
+  blocked_by:
+  - B2-05d
+  - B2-07
+  - B1-15
+  - B1-16
+  - B1-17
+  supersedes:
+  - 360
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  what: Bind Workflow B's nodes to real personal-instance agent ids and families, and run it on one real personal ticket.
   ac:
-    - "One real ticket goes through Workflow B to a passing gate or a recorded escalation."
+  - One real ticket goes through Workflow B to a passing gate or a recorded escalation.
 - key: B2-09
   issue: 456
   branch: B2
-  stories: [82, 83, 84, 85]
-  title: "Workflow A in the personal instance"
-  blocked_by: [B2-04, B2-07, B1-17]
-  supersedes: [361, 356]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Deep research: an Opus planning node, cheap fetchers fanned out with declared width and depth limits, merge workers writing into the private research repository in the papers layout, a read-only verifier checking quotes, and Opus acceptance."
+  stories:
+  - 82
+  - 83
+  - 84
+  - 85
+  title: Workflow A in the personal instance
+  blocked_by:
+  - B2-04
+  - B2-07
+  - B1-17
+  supersedes:
+  - 361
+  - 356
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Deep research: an Opus planning node, cheap fetchers fanned out with declared width and depth limits, merge workers writing into the private research repository in the papers layout, a read-only verifier checking quotes, and Opus acceptance.'
   ac:
-    - "Headless proof routes through planning, fan-out, merge, verify and acceptance."
-    - "A quote that is not on its fetched page fails verification."
+  - Headless proof routes through planning, fan-out, merge, verify and acceptance.
+  - A quote that is not on its fetched page fails verification.
 - key: B2-10
   issue: 452
   branch: B2
-  stories: [94]
-  title: "Per-repository setup file and its setup command"
+  stories:
+  - 94
+  title: Per-repository setup file and its setup command
   blocked_by: []
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A small file in each repository records its tracker (GitHub issues), label vocabulary, triage labels and known-flaky CI jobs with reasons; a setup command writes it. Workflow C and the export wrapper refuse a repository without one."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A file in each repository records its tracker (GitHub issues), label vocabulary, triage labels and known-flaky CI jobs with reasons; a setup command writes it. Workflow C and the export wrapper refuse a repository without one.
   ac:
-    - "The setup command writes a valid file for a personal and a work repository."
-    - "Workflow C refuses a repository without the file."
+  - The setup command writes a file that parses against the setup-file schema and holds the tracker, labels, triage labels and, for each flaky job, a reason; tested for a personal and a work fixture repository.
+  - Workflow C refuses a repository without the file.
 - key: B2-11
   issue: 459
   branch: B2
-  stories: [93, 95, 104]
-  title: "Workflow C in the personal instance"
-  blocked_by: [B2-04, B2-10, B3-02]
-  supersedes: [362, 355]
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "Grill to tickets inside Gold Band: a manual check per grill round, review-spec and review-tickets equivalents through the critique templates, manual checks on needs-human findings and on publication, publishing through the repository's setup file, and export of the published issue to a requirement file for Workflow B."
+  stories:
+  - 93
+  - 104
+  title: Workflow C in the personal instance
+  blocked_by:
+  - B2-04
+  - B2-10
+  - B3-02
+  supersedes:
+  - 362
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Grill to tickets inside Gold Band: a manual check per grill round, review-spec and review-tickets equivalents through the critique templates, manual checks on needs-human findings and on publication, and publishing through the repository''s setup file.'
   ac:
-    - "Headless proof pauses (exit 2) at each grill round, needs-human finding and publication."
-    - "The export wrapper turns a fixture issue and sub-issues into the requirement file; no agent holds GitHub write access."
+  - Headless proof pauses (exit 2) at each grill round, needs-human finding and publication.
+  - Publication writes the tickets to the tracker the repository's setup file names, only after the publication manual check.
+- key: B2-11b
+  branch: B2
+  title: Export a published issue to a requirement file
+  blocked_by:
+  - B2-10
+  supersedes:
+  - 355
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  stories:
+  - 95
+  what: A wrapper exports a published issue and its sub-issues to the requirement file Workflow B consumes, reading the tracker through the repository's setup file, so no agent holds GitHub write access.
+  ac:
+  - Given a fixture issue and sub-issues, the wrapper writes the requirement file Workflow B reads.
+  - The wrapper refuses a repository without a setup file.
+  issue: 531
 - key: B2-13
   issue: 460
   branch: B2
-  stories: [18, 20]
-  title: "Grant-check node with reservation"
-  blocked_by: [B2-01]
+  stories:
+  - 18
+  - 20
+  title: Grant-check node with reservation
+  blocked_by:
+  - B2-01
   supersedes: []
-  lanes: [gold-band]
-  hosts: [mac]
-  what: "Before every Codex node, a grant-check node reserves one Codex node start against the run's grant in the gateway's grant record and refuses when it does not fit; a lapsed grant fails the node and routes to a manual check. Each run names its gateway workflow `<gold band workflow>@<repository>@<run id>`."
+  lanes:
+  - gold-band
+  hosts:
+  - mac
+  what: Before every Codex node, a grant-check node reserves one Codex node start against the run's grant in the gateway's grant record and refuses when it does not fit; a lapsed grant fails the node and routes to a manual check. Each run names its gateway workflow `<gold band workflow>@<repository>@<run id>`.
   ac:
-    - "Headless proof: a grant that lapses mid-run pauses the run at the next Codex node."
-    - "Two parallel Codex nodes cannot both pass on the grant's last start."
+  - 'Headless proof: a grant that lapses mid-run pauses the run at the next Codex node.'
+  - Two parallel Codex nodes cannot both pass on the grant's last start.
 - key: B2-12a
   issue: 461
   branch: B2
-  stories: [80, 86]
-  title: "Workflow A in the work instance"
-  blocked_by: [B2-09, B1-04, B2-13]
+  stories:
+  - 80
+  - 86
+  title: Workflow A in the work instance
+  blocked_by:
+  - B2-09
+  - B1-04
+  - B2-13
   supersedes: []
-  lanes: [gold-band]
-  hosts: [mac]
-  what: "Workflow A bound to the work Claude agent and Codex only, writing research into a research directory inside the nedap repository and using the Nedap bank."
+  lanes:
+  - gold-band
+  hosts:
+  - mac
+  what: Workflow A bound to the work Claude agent and Codex only, writing research into a research directory inside the nedap repository and using the Nedap bank.
   ac:
-    - "Headless proof with work bindings; output lands only inside the work repository."
+  - Headless proof with work bindings; output lands only inside the work repository.
 - key: B2-12b
   issue: 462
   branch: B2
-  stories: [80, 81]
-  title: "Workflow B in the work instance"
-  blocked_by: [B2-05d, B1-04, B2-13]
+  stories:
+  - 80
+  - 81
+  title: Workflow B in the work instance
+  blocked_by:
+  - B2-05d
+  - B1-04
+  - B2-13
   supersedes: []
-  lanes: [gold-band]
-  hosts: [mac]
-  what: "Workflow B bound to the work Claude agent and Codex, author and reviewer always of different families, with a grant-check node before every Codex node."
+  lanes:
+  - gold-band
+  hosts:
+  - mac
+  what: Workflow B bound to the work Claude agent and Codex, author and reviewer always of different families, with a grant-check node before every Codex node.
   ac:
-    - "Headless proof with work bindings, including a missing-grant refusal."
+  - Headless proof with work bindings, including a missing-grant refusal.
 - key: B2-12c
   issue: 463
   branch: B2
-  stories: [80]
-  title: "Workflow C in the work instance"
-  blocked_by: [B2-11, B1-04, B2-13]
+  stories:
+  - 80
+  title: Workflow C in the work instance
+  blocked_by:
+  - B2-11
+  - B1-04
+  - B2-13
   supersedes: []
-  lanes: [gold-band]
-  hosts: [mac]
-  what: "Workflow C bound to the work agents, publishing to the work repository's GitHub issues through its setup file, with critique using the work-only critic roster."
+  lanes:
+  - gold-band
+  hosts:
+  - mac
+  what: Workflow C bound to the work agents, publishing to the work repository's GitHub issues through its setup file, with critique using the work-only critic roster.
   ac:
-    - "Headless proof with work bindings; publication pauses for the owner."
+  - Headless proof with work bindings; publication pauses for the owner.
 - key: B2-14
   issue: 464
   branch: B2
-  stories: [79]
-  title: "Real-run smoke in each instance (live)"
-  blocked_by: [B2-08, B2-09, B2-11, B2-12a, B2-12b, B2-12c]
-  supersedes: [365]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "One real research run and one real ticket in each instance, with the owner present."
+  stories:
+  - 79
+  title: Real-run smoke in each instance (live)
+  blocked_by:
+  - B2-08
+  - B2-09
+  - B2-11
+  - B2-12a
+  - B2-12b
+  - B2-12c
+  supersedes:
+  - 365
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: One real research run and one real ticket in each instance, with the owner present.
   ac:
-    - "Each run's outcome and cost per key are recorded."
+  - Each real run is recorded in the setup guide's Gold Band runs record with run id, instance, workflow, exit code and spend per key read from the proxy.
 - key: B2-15
   issue: 465
   branch: B2
-  stories: [148]
-  title: "Docs: gaps found in real runs"
-  blocked_by: [B2-14]
-  supersedes: [364]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Glossary and setup-guide updates and the recorded Gold Band gaps from the real runs."
+  stories:
+  - 148
+  title: 'Docs: gaps found in real runs'
+  blocked_by:
+  - B2-14
+  supersedes:
+  - 364
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Glossary and setup-guide updates and the recorded Gold Band gaps from the real runs.
   ac:
-    - "Every gap is recorded with its upstream link or shim."
-# ---------------- B3 ----------------
+  - Each gap in the Gold Band runs record appears in the setup guide's Gold Band gaps list with an upstream issue link or the shim that closes it.
 - key: B3-01
   issue: 457
   branch: B3
-  stories: [100, 101, 103, 105]
-  title: "Port inventory with lanes and its check"
-  blocked_by: [B0-01]
-  supersedes: [351, 369, 370, 372]
-  lanes: [all]
-  hosts: [linux]
-  what: "Every skill, hook, role file and MCP server has exactly one Gold Band target and its lanes; the inventory check fails on a missing or double-targeted item, and the registry validation checks port bindings."
+  stories:
+  - 100
+  - 101
+  - 103
+  - 105
+  title: Port inventory with lanes and its check
+  blocked_by:
+  - B0-01
+  supersedes:
+  - 351
+  - 369
+  - 370
+  - 372
+  lanes:
+  - all
+  hosts:
+  - linux
+  what: Every skill, hook, role file and MCP server has exactly one Gold Band target and its lanes; the inventory check fails on a missing or double-targeted item, and the registry validation checks port bindings.
   ac:
-    - "The check fails on an on-disk item missing from the inventory or with two targets."
-    - "Each row states which lanes keep the item."
+  - The inventory check fails on an on-disk item missing from the inventory or with two targets.
+  - The inventory check fails on a row with no lanes.
 - key: B3-02
   issue: 458
   branch: B3
-  stories: [102, 111]
-  title: "Wave 2: critique templates over the runner"
-  blocked_by: [B2-02, B2-04, B3-01]
-  supersedes: [363]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The critique stages as Gold Band workflow templates whose nodes run the critique runner through the gate shim, so the runner keeps its read-only tripwire, packet confinement, timeouts and family allowlist."
+  stories:
+  - 102
+  - 111
+  title: 'Wave 2: critique templates over the runner'
+  blocked_by:
+  - B2-02
+  - B2-04
+  - B3-01
+  supersedes:
+  - 363
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The critique stages as Gold Band workflow templates whose nodes run the critique runner through the gate shim, so the runner keeps its read-only tripwire, packet confinement, timeouts and family allowlist.
   ac:
-    - "Headless proof of each template."
-    - "The runner's guarantees hold inside the template run."
+  - Headless proof of each template ends in the stage's expected state.
+  - In a template run, a critic that writes outside its packet is refused by the read-only tripwire.
+  - A critic's search outside its packet returns nothing, and a critic past its time limit is stopped by the runner.
+  - On a repository whose allowlist entry forbids a bound family, the template run is refused.
 - key: B3-03
   issue: 466
   branch: B3
-  stories: [109]
-  title: "Skill-sources drift check"
+  stories:
+  - 109
+  title: Skill-sources drift check
   blocked_by: []
-  supersedes: [287]
-  lanes: [direct]
-  hosts: [linux]
-  what: "A sources record per skill and a weekly workflow that flags a source an estate skill was checked against when it moves. Finish PR #386 rebased on main."
+  supersedes:
+  - 287
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: 'A sources record per skill and a weekly workflow that flags a source an estate skill was checked against when it moves. Finish PR #386 rebased on main.'
   ac:
-    - "A moved source makes the weekly check fail with the skill and source named."
+  - Given a sources record and a stub source fetcher returning a changed body, the check fails and names the skill and the source.
+  - The weekly workflow runs the check.
 - key: B3-04
   issue: 467
   branch: B3
-  stories: [108]
-  title: "estate-project-intent skill"
-  blocked_by: [B3-03]
-  supersedes: [288]
-  lanes: [direct, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Write and validate a Project's Intent for deploy-kit 1.x and wire its publishing, reading the canonical docs live."
+  stories:
+  - 108
+  title: estate-project-intent skill
+  blocked_by:
+  - B3-03
+  supersedes:
+  - 288
+  lanes:
+  - direct
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Write and validate a Project's Intent for deploy-kit 1.x and wire its publishing, reading the canonical docs live.
   ac:
-    - "The skill names its sources and the drift check covers them."
+  - Given a fixture Project, the skill writes an Intent that deploy-kit validation accepts, and reports the validation error for one missing a required field.
+  - The skill names its sources and the drift check covers them.
 - key: B3-05
   issue: 468
   branch: B3
-  stories: [108]
-  title: "estate-delivery-status skill"
-  blocked_by: [B3-03]
-  supersedes: [289]
-  lanes: [direct, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Answer 'did my release land' from the estate compose run, the commit status and the deployment; 'landed' only when all agree, otherwise 'mixed' with each signal."
+  stories:
+  - 108
+  title: estate-delivery-status skill
+  blocked_by:
+  - B3-03
+  supersedes:
+  - 289
+  lanes:
+  - direct
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Answer 'did my release land' from the estate compose run, the commit status and the deployment; 'landed' only when all agree, otherwise 'mixed' with each signal.
   ac:
-    - "A fixture with disagreeing signals reports 'mixed' with links."
+  - A fixture with disagreeing signals reports 'mixed' with links.
 - key: B3-06
   issue: 469
   branch: B3
-  stories: [108]
-  title: "estate-rollback skill"
-  blocked_by: [B3-03]
-  supersedes: [290]
-  lanes: [direct, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Plan a pause, rollback or resume of one Project and hand the owner the exact command; never dispatch a workflow itself."
+  stories:
+  - 108
+  title: estate-rollback skill
+  blocked_by:
+  - B3-03
+  supersedes:
+  - 290
+  lanes:
+  - direct
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Plan a pause, rollback or resume of one Project and hand the owner the exact command; never dispatch a workflow itself.
   ac:
-    - "The skill never runs a workflow dispatch."
+  - Given a fixture Project, the skill returns the exact pause, rollback and resume commands for it.
+  - The skill makes no workflow dispatch call; a test with a fake gh asserts none is made.
 - key: B3-07
   issue: 470
   branch: B3
-  stories: [108]
-  title: "estate-bootstrap skill"
-  blocked_by: [B3-03]
-  supersedes: [291]
-  lanes: [direct, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Start or audit a repository against the estate templates, shared workflows, Renovate preset, commons libraries and testing standards, reporting gaps with evidence and drafting issues only after the owner says yes."
+  stories:
+  - 108
+  title: estate-bootstrap skill
+  blocked_by:
+  - B3-03
+  supersedes:
+  - 291
+  lanes:
+  - direct
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Start or audit a repository against the estate templates, shared workflows, Renovate preset, commons libraries and testing standards, reporting gaps with evidence and drafting issues only after the owner says yes.
   ac:
-    - "An audit of a fixture repository lists each gap with its file."
+  - An audit of a fixture repository lists each gap with its file.
 - key: B3-08
   issue: 471
   branch: B3
-  stories: [107]
-  title: "Retire the six old repo skills"
-  blocked_by: [B3-04, B3-05, B3-06, B3-07]
-  supersedes: [292]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Remove add-public-service, deploy-status, fleet-change, open-pr, prepare-rollback and run-tests, their helpers and their manifest entries."
+  stories:
+  - 107
+  title: Retire the six old repo skills
+  blocked_by:
+  - B3-04
+  - B3-05
+  - B3-06
+  - B3-07
+  supersedes:
+  - 292
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Remove add-public-service, deploy-status, fleet-change, open-pr, prepare-rollback and run-tests, their helpers and their manifest entries.
   ac:
-    - "No reference to the six remains outside the changelog; the runtime package builds without them; CI passes."
+  - No reference to the six remains outside the changelog; the runtime package builds without them; CI passes.
 - key: B3-09
   issue: 472
   branch: B3
-  stories: [108]
-  title: "Estate skills as a personal-instance skill set"
-  blocked_by: [B3-04, B3-05, B3-06, B3-07, B1-18]
+  stories:
+  - 108
+  title: Estate skills as a personal-instance skill set
+  blocked_by:
+  - B3-04
+  - B3-05
+  - B3-06
+  - B3-07
+  - B1-18
   supersedes: []
-  lanes: [gold-band-personal]
-  hosts: [linux, mac]
-  what: "The four estate skills installed as one skill set for the personal-instance agent ids that need them."
+  lanes:
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The four estate skills installed as one skill set for the personal-instance agent ids that need them.
   ac:
-    - "Only the agent ids that name the set see the estate skills."
+  - Resolving the skill set for an agent id that names it returns the four estate skills, and for an id that does not, none.
 - key: B3-10
   issue: 473
   branch: B3
-  stories: [106]
-  title: "Cut the later waves from the inventory"
-  blocked_by: [B3-01, B3-02]
-  supersedes: [374]
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux]
-  what: "Record the waves after Wave 2 as ordered groups of inventory rows, each row with its target decided; publish their tickets under this spec."
+  stories:
+  - 106
+  title: Cut the later waves from the inventory
+  blocked_by:
+  - B3-01
+  - B3-02
+  supersedes:
+  - 374
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  what: Record the waves after Wave 2 as ordered groups of inventory rows, each row with its target decided; publish their tickets under this spec.
   ac:
-    - "Every row in a wave has one decided target; the wave tickets are published."
-# ---------------- B4 ----------------
+  - Every row in a wave has one decided target; the wave tickets are published.
 - key: B4-01a
   issue: 474
   branch: B4
-  stories: [110]
-  title: "/critique-adrs core and its pre-check"
+  stories:
+  - 110
+  title: /critique-adrs core and its pre-check
   blocked_by: []
-  supersedes: [249, 226]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The ADR review stage's core in the critique runner with its deterministic pre-check. Rebase and reuse PR #384."
+  supersedes:
+  - 249
+  - 226
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: 'The ADR review stage''s core in the critique runner with its deterministic pre-check. Rebase and reuse PR #384.'
   ac:
-    - "The stage runs on agent-kit's ADRs and the pre-check flags a malformed ADR."
+  - The stage runs on agent-kit's ADRs and the pre-check flags a malformed ADR.
 - key: B4-01b
   issue: 475
   branch: B4
-  stories: [110]
-  title: "adr-reviewer role and the ADR-record critic"
-  blocked_by: [B4-01a]
-  supersedes: [227, 230]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The adr-reviewer role with its adr-record and decision-log lenses, and the ADR-record critic at the decisions stage."
+  stories:
+  - 110
+  title: adr-reviewer role and the ADR-record critic
+  blocked_by:
+  - B4-01a
+  supersedes:
+  - 227
+  - 230
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The adr-reviewer role with its adr-record and decision-log lenses, and the ADR-record critic at the decisions stage.
   ac:
-    - "Role and lens files render and are used by the stage."
+  - The stage's output cites the adr-reviewer role and each of its two lenses by name.
 - key: B4-02
   issue: 476
   branch: B4
-  stories: [110]
-  title: "Editorial ADR rewrites, check-rewrite and cold read"
-  blocked_by: [B4-01b]
-  supersedes: [228, 229]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "Editorial rewrites of ADRs with a deterministic check-rewrite and a cheap cold-read check. Rebase and reuse PR #385."
+  stories:
+  - 110
+  title: Editorial ADR rewrites, check-rewrite and cold read
+  blocked_by:
+  - B4-01b
+  supersedes:
+  - 228
+  - 229
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: 'Editorial rewrites of ADRs with a deterministic check-rewrite and a cheap cold-read check. Rebase and reuse PR #385.'
   ac:
-    - "A rewrite that changes a decision fails check-rewrite."
+  - A rewrite that changes a decision fails check-rewrite.
 - key: B4-03
   issue: 477
   branch: B4
-  stories: [110]
-  title: "Drift and stale checks in /critique-adrs"
-  blocked_by: [B4-01a]
-  supersedes: [234]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "Flag ADRs that drifted from the code or went stale."
+  stories:
+  - 110
+  title: Drift and stale checks in /critique-adrs
+  blocked_by:
+  - B4-01a
+  supersedes:
+  - 234
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: Flag ADRs that drifted from the code (they name code that no longer exists) or went stale (their decision is older than the last change to the code they name).
   ac:
-    - "A fixture ADR naming a removed symbol is flagged."
+  - A fixture ADR naming a removed symbol is flagged as drifted.
+  - A fixture ADR whose decision date precedes the last change to the file it names is flagged as stale.
 - key: B4-04
   issue: 478
   branch: B4
-  stories: [114]
-  title: "Review stages phase 1 live check (live)"
-  blocked_by: [B4-02, B4-03]
-  supersedes: [231]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Run /critique-adrs on agent-kit and record the result."
+  stories:
+  - 114
+  title: Review stages phase 1 live check (live)
+  blocked_by:
+  - B4-02
+  - B4-03
+  supersedes:
+  - 231
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Run /critique-adrs on agent-kit and record the result.
   ac:
-    - "The run and its findings are recorded."
+  - The /critique-adrs run on agent-kit exits 0, and its record lists its findings, including one on an ADR seeded with a known defect.
 - key: B4-05
   issue: 479
   branch: B4
-  stories: [110]
-  title: "History facts and code facts"
-  blocked_by: [B4-01a]
-  supersedes: [232, 233]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "Deterministic git-history facts and import-graph facts for the review stages, computed by the runner, never by critics."
+  stories:
+  - 110
+  title: History facts and code facts
+  blocked_by:
+  - B4-01a
+  supersedes:
+  - 232
+  - 233
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: Deterministic git-history facts and import-graph facts for the review stages, computed by the runner, never by critics.
   ac:
-    - "Facts are produced from fixture repositories and checked by tests."
+  - On a fixture repository, the history facts report the last commit that changed a named file, and the code facts report a named module's imports.
+  - Tests assert both against the fixture's known values.
 - key: B4-06
   issue: 480
   branch: B4
-  stories: [110]
-  title: "Decision-recovery stage and /recover-decisions"
-  blocked_by: [B4-05]
-  supersedes: [235, 236]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The decision-recovery stage in the runner and its skill."
+  stories:
+  - 110
+  title: Decision-recovery stage and /recover-decisions
+  blocked_by:
+  - B4-05
+  supersedes:
+  - 235
+  - 236
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The decision-recovery stage in the runner and its skill.
   ac:
-    - "A fixture repository yields recovered decisions with evidence."
+  - A fixture repository yields recovered decisions with evidence.
 - key: B4-07
   issue: 481
   branch: B4
-  stories: [114]
-  title: "Review stages phase 2 live check (live)"
-  blocked_by: [B4-06]
-  supersedes: [237]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Run /recover-decisions on agent-kit and record the result."
+  stories:
+  - 114
+  title: Review stages phase 2 live check (live)
+  blocked_by:
+  - B4-06
+  supersedes:
+  - 237
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Run /recover-decisions on agent-kit and record the result.
   ac:
-    - "The run and its findings are recorded."
+  - The /recover-decisions run on agent-kit exits 0, and its record lists recovered decisions, including one seeded in a fixture commit.
 - key: B4-08
   issue: 482
   branch: B4
-  stories: [110]
-  title: "Architecture lenses"
+  stories:
+  - 110
+  title: Architecture lenses
   blocked_by: []
-  supersedes: [238, 250]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "Dependency, domain, aggregate, coupling, test-seam and quality-scenario lenses and the design-evidence fragment."
+  supersedes:
+  - 238
+  - 250
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: Dependency, domain, aggregate, coupling, test-seam and quality-scenario lenses and the design-evidence fragment.
   ac:
-    - "Each lens file renders and is referenced by the architecture-review routing."
+  - Each lens file renders and is referenced by the architecture-review routing.
 - key: B4-09
   issue: 483
   branch: B4
-  stories: [110]
-  title: "Architecture-review stage and /review-architecture"
-  blocked_by: [B4-05, B4-08]
-  supersedes: [239, 240]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The architecture-review stage in the runner and its skill."
+  stories:
+  - 110
+  title: Architecture-review stage and /review-architecture
+  blocked_by:
+  - B4-05
+  - B4-08
+  supersedes:
+  - 239
+  - 240
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The architecture-review stage in the runner and its skill.
   ac:
-    - "The stage runs on a fixture repository and records findings."
+  - The stage runs on a fixture repository and records findings.
 - key: B4-10
   issue: 484
   branch: B4
-  stories: [114]
-  title: "Review stages phase 3 live check (live)"
-  blocked_by: [B4-09]
-  supersedes: [241]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Run /review-architecture on agent-kit and record the result."
+  stories:
+  - 114
+  title: Review stages phase 3 live check (live)
+  blocked_by:
+  - B4-09
+  supersedes:
+  - 241
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Run /review-architecture on agent-kit and record the result.
   ac:
-    - "The run and its findings are recorded."
+  - The /review-architecture run on agent-kit exits 0, and its record lists its findings, including one on a seeded coupling defect.
 - key: B4-11a
   issue: 485
   branch: B4
-  stories: [110]
-  title: "Refactoring plan format and check-plan"
-  blocked_by: [B4-01a]
-  supersedes: [242]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The refactoring plan format and its deterministic check."
+  stories:
+  - 110
+  title: Refactoring plan format and check-plan
+  blocked_by:
+  - B4-01a
+  supersedes:
+  - 242
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The refactoring plan format and its deterministic check.
   ac:
-    - "A malformed plan fails check-plan."
+  - A malformed plan fails check-plan.
 - key: B4-11b
   issue: 486
   branch: B4
-  stories: [110]
-  title: "Plan stage, plan critic and plan lenses"
-  blocked_by: [B4-11a]
-  supersedes: [243, 244]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The refactoring-plan critique stage inside the feature flow, with the plan-critic role, plan lenses and the plan evidence rule."
+  stories:
+  - 110
+  title: Plan stage, plan critic and plan lenses
+  blocked_by:
+  - B4-11a
+  supersedes:
+  - 243
+  - 244
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The refactoring-plan critique stage inside the feature flow, with the plan-critic role, plan lenses and the plan evidence rule.
   ac:
-    - "The feature flow runs the plan stage in place of the decisions stage for a refactor."
+  - The feature flow runs the plan stage in place of the decisions stage for a refactor.
 - key: B4-11c
   issue: 487
   branch: B4
-  stories: [110]
-  title: "/critique-plan skill"
-  blocked_by: [B4-11b]
-  supersedes: [251]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The skill that starts the refactoring-plan critique stage."
+  stories:
+  - 110
+  title: /critique-plan skill
+  blocked_by:
+  - B4-11b
+  supersedes:
+  - 251
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The skill that starts the refactoring-plan critique stage.
   ac:
-    - "The skill runs the stage on a fixture plan."
+  - The skill runs the stage on a fixture plan.
 - key: B4-12
   issue: 488
   branch: B4
-  stories: [114]
-  title: "Review stages phase 4 live check (live)"
-  blocked_by: [B4-11c]
-  supersedes: [245]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Run /critique-plan on a real refactor plan and record the result."
+  stories:
+  - 114
+  title: Review stages phase 4 live check (live)
+  blocked_by:
+  - B4-11c
+  supersedes:
+  - 245
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Run /critique-plan on a real refactor plan and record the result.
   ac:
-    - "The run and its findings are recorded."
+  - The /critique-plan run on a real refactor plan exits 0, and its record lists its findings, including one on a seeded plan defect.
 - key: B4-13
   issue: 489
   branch: B4
-  stories: [112, 114]
-  title: "Calibration in critique stats and phase 5 live check"
-  blocked_by: [B4-12]
-  supersedes: [246, 247]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Calibration of critics over time in the critique stats, then its live check."
+  stories:
+  - 112
+  - 114
+  title: Calibration in critique stats and phase 5 live check
+  blocked_by:
+  - B4-12
+  supersedes:
+  - 246
+  - 247
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Calibration of critics over time in the critique stats, then its live check.
   ac:
-    - "The stats show calibration per critic once enough findings are adjudicated."
+  - Once a critic has 20 adjudicated findings (the routing's minimum), the stats show its calibration.
+  - The phase 5 live check is recorded with the calibration it shows.
 - key: B4-14
   issue: 490
   branch: B4
-  stories: [80, 110]
-  title: "Work-only critic roster for nedap repositories"
+  stories:
+  - 80
+  - 110
+  title: Work-only critic roster for nedap repositories
   blocked_by: []
   supersedes: []
-  lanes: [direct, gold-band]
-  hosts: [linux, mac]
-  what: "On a nedap repository the runner's routing uses only Codex on the nedap account (under a grant) and the work Claude agent, never the orchestrator's family, and runs that one critic instead of refusing the stage."
+  lanes:
+  - direct
+  - gold-band
+  hosts:
+  - linux
+  - mac
+  what: On a nedap repository the runner's routing uses only Codex on the nedap account (under a grant) and the work Claude agent, never the orchestrator's family, and runs that one critic instead of refusing the stage.
   ac:
-    - "Prepare on a nedap fixture with a Claude orchestrator picks the Codex critic only."
-    - "Prepare on a nedap fixture without a grant drops Codex with a clear reason."
+  - Prepare on a nedap fixture with a Claude orchestrator picks the Codex critic only.
+  - Prepare on a nedap fixture without a grant drops Codex with a clear reason.
 - key: B4-15
   issue: 491
   branch: B4
-  stories: [114]
-  title: "Remaining critique live checks (live)"
+  stories:
+  - 114
+  title: Remaining critique live checks (live)
   blocked_by: []
-  supersedes: [178, 190, 198]
-  lanes: [direct]
-  hosts: [linux]
-  what: "The critique live smoke and seeded sample, the planted-defect checks for the decision, ticket and code stages, and the three hooks firing in a live Claude session."
+  supersedes:
+  - 178
+  - 190
+  - 198
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: The critique live smoke and seeded sample, the planted-defect checks for the decision, ticket and code stages, and the three hooks firing in a live Claude session.
   ac:
-    - "Each check's result is recorded."
+  - The critique live smoke and seeded sample run are recorded with their run ids.
+  - The planted-defect check of the decision stage finds its planted defect.
+  - The planted-defect check of the ticket stage finds its planted defect.
+  - The planted-defect check of the code stage finds its planted defect.
+  - In a live Claude session, each of the three critique hooks fires, shown by its log line.
 - key: B4-16
   issue: 492
   branch: B4
-  stories: [113]
-  title: "One feature through /flow on a work repository (live)"
-  blocked_by: [B4-14]
-  supersedes: [200]
-  lanes: [direct]
-  hosts: [mac]
-  what: "Take one real feature on a nedap repository through /flow to a passing gate."
+  stories:
+  - 113
+  title: One feature through /flow on a work repository (live)
+  blocked_by:
+  - B4-14
+  supersedes:
+  - 200
+  lanes:
+  - direct
+  hosts:
+  - mac
+  what: Take one real feature on a nedap repository through /flow to a passing gate.
   ac:
-    - "The flow ends at GATE: PASS with every stage recorded."
+  - 'The flow ends at GATE: PASS with every stage recorded.'
 - key: B4-17
   issue: 493
   branch: B4
-  stories: [115]
-  title: "Gateway: Codex worktree workers"
+  stories:
+  - 115
+  title: 'Gateway: Codex worktree workers'
   blocked_by: []
-  supersedes: [23]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The model gateway's Codex client gives a worktree worker a writable git directory and a per-repository brief, so Codex delegations in worktrees can commit."
+  supersedes:
+  - 23
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The model gateway's Codex client gives a worktree worker a writable git directory and a per-repository brief, so Codex delegations in worktrees can commit.
   ac:
-    - "A Codex delegation in a worktree commits its change."
+  - A Codex delegation in a worktree commits its change.
 - key: B4-18
   issue: 494
   branch: B4
-  stories: [161]
-  title: "Gateway: binding family and stated escalation"
+  stories:
+  - 161
+  title: 'Gateway: binding family and stated escalation'
   blocked_by: []
-  supersedes: [395]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "A delegation that names a model family is never answered by another family; any escalation is stated in the summary with both families and the cause."
+  supersedes:
+  - 395
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: A delegation that names a model family is never answered by another family; any escalation is stated in the summary with both families and the cause.
   ac:
-    - "A binding delegation whose client fails ends failed, with no answer from another family."
-    - "An escalation summary names both families and the cause."
+  - A binding delegation whose client fails ends failed, with no answer from another family.
+  - An escalation summary names both families and the cause.
 - key: B4-19
   issue: 495
   branch: B4
-  stories: [117]
-  title: "Vibe headless runs fail fast without web tools"
+  stories:
+  - 117
+  title: Vibe headless runs fail fast without web tools
   blocked_by: []
-  supersedes: [284]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "A Vibe headless delegation that lacks working web tools fails fast instead of stalling, and the workaround is documented."
+  supersedes:
+  - 284
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: A Vibe headless delegation that lacks working web tools fails fast instead of stalling, and the workaround is documented.
   ac:
-    - "A delegation needing web tools without them fails within seconds with a clear message."
+  - A Vibe headless delegation that needs web tools without them fails before its first model call, with a non-zero exit and a message naming the missing tool.
+  - The workaround is written in the model-gateway docs.
 - key: B4-20
   issue: 496
   branch: B4
-  stories: [118]
-  title: "In-cluster runner fetches the newest kit"
+  stories:
+  - 118
+  title: In-cluster runner fetches the newest kit
   blocked_by: []
-  supersedes: [26]
-  lanes: [direct]
-  hosts: [linux]
-  what: "The in-cluster runner overlays the newest kit at session start instead of relying on bake-time pins."
+  supersedes:
+  - 26
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: The in-cluster runner overlays the newest kit at session start instead of relying on bake-time pins.
   ac:
-    - "A runner session reports the kit version it fetched."
+  - A runner session reports the kit version it fetched.
 - key: B4-21
   issue: 497
   branch: B4
-  stories: [87]
-  title: "Research front-door skill"
-  blocked_by: [B2-09]
-  supersedes: [285]
-  lanes: [direct, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A direct-lane research skill that starts a Workflow A run, and falls back to direct delegation when no instance is available or the repository is not allowed."
+  stories:
+  - 87
+  title: Research front-door skill
+  blocked_by:
+  - B2-09
+  supersedes:
+  - 285
+  lanes:
+  - direct
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A direct-lane research skill that starts a Workflow A run, and falls back to direct delegation when no instance is available or the repository is not allowed.
   ac:
-    - "On a personal repository with the instance present, it starts Workflow A; otherwise it falls back and says why."
+  - On a personal repository with the personal instance present, the skill starts a Workflow A run.
+  - With no instance available, it falls back to direct delegation and says that no instance is available.
+  - On a repository the instance's rule refuses, it falls back to direct delegation and names the rule.
 - key: B4-22a
   issue: 498
   branch: B4
-  stories: [119]
-  title: "Rust port of the critique runner"
-  blocked_by: [B4-04, B4-07, B4-10, B4-13]
+  stories:
+  - 119
+  title: Rust port of the critique runner
+  blocked_by:
+  - B4-04
+  - B4-07
+  - B4-10
+  - B4-13
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Port the critique runner to Rust behind the same commands and JSON contract."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Port the critique runner to Rust behind the same commands and JSON contract.
   ac:
-    - "The existing critique tests pass against the Rust runner unchanged."
+  - The existing critique tests pass against the Rust runner unchanged.
 - key: B4-22b
   issue: 499
   branch: B4
-  stories: [119]
-  title: "Rust port of the build tracker"
-  blocked_by: [B0-07]
+  stories:
+  - 119
+  title: Rust port of the build tracker
+  blocked_by:
+  - B0-07
   supersedes: []
-  lanes: [all]
-  hosts: [linux, mac]
-  what: "Port the build tracker to Rust behind the same commands."
+  lanes:
+  - all
+  hosts:
+  - linux
+  - mac
+  what: Port the build tracker to Rust behind the same commands.
   ac:
-    - "The tracker for this spec renders the same from the Rust port."
+  - The tracker for this spec renders the same from the Rust port.
 - key: B4-22c
   issue: 500
   branch: B4
-  stories: [119]
-  title: "Rust port of the model gateway"
-  blocked_by: [B4-17, B4-18, B4-19]
+  stories:
+  - 119
+  title: Rust port of the model gateway
+  blocked_by:
+  - B4-17
+  - B4-18
+  - B4-19
   supersedes: []
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "Port the model gateway to Rust behind the same commands and contract."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: Port the model gateway to Rust behind the same commands and contract.
   ac:
-    - "The existing gateway tests pass against the Rust port unchanged."
-# ---------------- B5 ----------------
+  - The existing gateway tests pass against the Rust port unchanged.
 - key: B5-01
   issue: 440
   branch: B5
-  stories: [62, 63, 64, 70]
-  title: "Nedap bank with bank selection by remote owner"
+  stories:
+  - 62
+  - 63
+  - 64
+  - 70
+  title: Nedap bank with bank selection by remote owner
   blocked_by: []
   supersedes: []
-  lanes: [direct, gold-band]
-  hosts: [linux, mac]
-  what: "A Nedap memory bank; direct-lane sessions choose their bank by the repository's remote owner (nedap goes to the Nedap bank, everything else to Shared Memory) and read and write it as today."
+  lanes:
+  - direct
+  - gold-band
+  hosts:
+  - linux
+  - mac
+  what: A Nedap memory bank; the memory server's bank resolver chooses a session's bank by the repository's remote owner (nedap goes to the Nedap bank, everything else to Shared Memory), and direct-lane sessions read and write it as today.
   ac:
-    - "A session on a nedap repository recalls and retains in the Nedap bank only."
-    - "A personal session never reaches the Nedap bank."
+  - Through the bank resolver, a session on a nedap repository recalls and retains in the Nedap bank only.
+  - Through the bank resolver, a personal session never reaches the Nedap bank.
+  - No Gold Band instance agent id reaches Private Memory; only vibe-private does, behind the passphrase.
 - key: B5-02
   issue: 501
   branch: B5
-  stories: [65, 66, 67]
-  title: "Move employer facts out of Shared Memory (live)"
-  blocked_by: [B5-01]
+  stories:
+  - 65
+  - 66
+  - 67
+  title: Move employer facts out of Shared Memory (live)
+  blocked_by:
+  - B5-01
   supersedes: []
-  lanes: [direct, gold-band]
-  hosts: [mac]
-  what: "An owner-run procedure under the work Claude subscription: select employer facts in Shared Memory, copy them to the Nedap bank, check recall against a recorded question set, then delete them from Shared Memory, with a report."
+  lanes:
+  - direct
+  - gold-band
+  hosts:
+  - mac
+  what: 'An owner-run procedure under the work Claude subscription: the owner records a question set (each question with the employer fact it must return), then the procedure selects employer facts in Shared Memory, copies them to the Nedap bank, checks recall, and deletes them from Shared Memory, with a report.'
   ac:
-    - "Recall from the Nedap bank passes the question set before any deletion."
-    - "The report lists what was moved and deleted."
+  - Every question in the recorded set returns its fact from the Nedap bank before any deletion runs.
+  - The report lists what was moved and deleted.
 - key: B5-03
   issue: 502
   branch: B5
-  stories: [66]
-  title: "Move employer facts out of Private Memory (live)"
-  blocked_by: [B5-02]
+  stories:
+  - 66
+  title: Move employer facts out of Private Memory (live)
+  blocked_by:
+  - B5-02
   supersedes: []
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The same pass over Private Memory, started by the owner through vibe-private after the passphrase."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The same pass over Private Memory, started by the owner through vibe-private after the passphrase.
   ac:
-    - "No employer fact remains in Private Memory after the recall check."
+  - After the pass, no question in the recorded set returns an employer fact from Private Memory, and each returns it from the Nedap bank.
 - key: B5-04
   issue: 503
   branch: B5
-  stories: [123]
-  title: "Private Memory in Vibe (live)"
+  stories:
+  - 123
+  title: Private Memory in Vibe (live)
   blocked_by: []
-  supersedes: [126, 127]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Prove the passphrase gate and the retain/recall isolation of Private Memory in Vibe, then close the related fleet-infra issues with that evidence."
+  supersedes:
+  - 126
+  - 127
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Prove the passphrase gate and the retain/recall isolation of Private Memory in Vibe, then close the related fleet-infra issues with that evidence.
   ac:
-    - "Retain and recall work only behind the passphrase; Shared Memory does not see the facts."
+  - Retain and recall work only behind the passphrase; Shared Memory does not see the facts.
 - key: B5-05
   issue: 504
   branch: B5
-  stories: [71]
-  title: "Cross-agent recall within each bank (live)"
-  blocked_by: [B5-02]
-  supersedes: [42]
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A fact one agent learns is recalled by another agent in a fresh session, within the same bank, after the bank split."
+  stories:
+  - 71
+  title: Cross-agent recall within each bank (live)
+  blocked_by:
+  - B5-02
+  supersedes:
+  - 42
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A fact one agent learns is recalled by another agent in a fresh session, within the same bank, after the bank split.
   ac:
-    - "Recorded for Shared Memory and for the Nedap bank."
-# ---------------- B6 ----------------
+  - A fact retained by one agent is returned by another agent's recall in a fresh session, in Shared Memory.
+  - The same holds in the Nedap bank.
 - key: B6-01
   issue: 505
   branch: B6
-  stories: [122]
-  title: "Playwright on a cold cache (live)"
+  stories:
+  - 122
+  title: Playwright on a cold cache (live)
   blocked_by: []
-  supersedes: [116]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Vibe, Claude and Codex list the Playwright tools from the one pinned binary on a cold cache."
+  supersedes:
+  - 116
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Vibe, Claude and Codex list the Playwright tools from the one pinned binary on a cold cache.
   ac:
-    - "Each agent lists the tools on a cold cache."
+  - With the cache empty, Vibe, Claude and Codex each list the Playwright tools, and each resolves them from the same pinned binary path.
 - key: B6-02
   issue: 506
   branch: B6
-  stories: [124]
-  title: "OpenCode skills and MCP parity"
+  stories:
+  - 124
+  title: OpenCode skills and MCP parity
   blocked_by: []
-  supersedes: [390]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "OpenCode in the direct lane gets the same skills and MCP servers as the other agents, consistent with its personal-instance declaration. Rebase and finish PR #387."
+  supersedes:
+  - 390
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: 'OpenCode in the direct lane gets the same skills and MCP servers as the other agents, consistent with its personal-instance declaration. Rebase and finish PR #387.'
   ac:
-    - "OpenCode lists the declared skills and servers after setup."
+  - After a setup run, OpenCode's skill and MCP listings equal the skills and MCP servers the registry declares for OpenCode.
 - key: B6-03
   issue: 507
   branch: B6
-  stories: [125, 126]
-  title: "Container language servers and oras"
+  stories:
+  - 125
+  - 126
+  title: Container language servers and oras
   blocked_by: []
-  supersedes: [61]
-  lanes: [direct]
-  hosts: [linux]
-  what: "The container setup installs the Kotlin and Java language servers and keeps oras for the in-cluster runner."
+  supersedes:
+  - 61
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: The container setup installs the Kotlin and Java language servers and keeps oras for the in-cluster runner.
   ac:
-    - "The container image has both language servers and oras on PATH."
+  - The container image has both language servers and oras on PATH.
 - key: B6-04
   issue: 508
   branch: B6
-  stories: [127]
-  title: "SSO-gated install remainder"
+  stories:
+  - 127
+  title: SSO-gated install remainder
   blocked_by: []
-  supersedes: [41]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "The revoke demonstration, the per-host OpenRouter key and a recorded decision for the Overleaf CLI login."
+  supersedes:
+  - 41
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: The revoke demonstration, the per-host OpenRouter key and a recorded decision for the Overleaf CLI login.
   ac:
-    - "A revoked host token stops working; the Overleaf decision is recorded."
+  - A revoked host token stops working.
+  - Each host resolves its own OpenRouter key from the secret store.
+  - The Overleaf CLI login decision is written in the setup guide.
 - key: B6-05
   issue: 509
   branch: B6
-  stories: [128]
-  title: "Fix or report the github MCP server"
+  stories:
+  - 128
+  title: Fix or report the github MCP server
   blocked_by: []
-  supersedes: [48]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "Find why the github MCP server fails with a badly formatted authorization header, and fix or report it."
+  supersedes:
+  - 48
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: Find why the github MCP server fails with a badly formatted authorization header, and fix or report it.
   ac:
-    - "Direct sessions get GitHub tools, or the cause is reported upstream with a link."
+  - Direct sessions list the github MCP tools, or the setup guide names the upstream issue URL and the failing authorization header shape.
 - key: B6-06
   issue: 510
   branch: B6
-  stories: [129]
-  title: "Workstation kubeconfig helper"
+  stories:
+  - 129
+  title: Workstation kubeconfig helper
   blocked_by: []
-  supersedes: [389]
-  lanes: [direct]
-  hosts: [linux]
-  what: "Agents get read-only cluster access; admin stays behind sudo. The two open decisions in the issue are put to the owner first; then finish PR #388."
+  supersedes:
+  - 389
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: 'Agents get read-only cluster access; admin stays behind sudo. First the owner decides: whether the second workstation node gets its own read-only credential set, and the CA rotation plan. Then finish PR #388.'
   ac:
-    - "An agent can list cluster resources but not change them."
+  - Both owner decisions are recorded in the ticket.
+  - An agent can list cluster resources but cannot change them or read the admin credentials.
 - key: B6-07
   issue: 511
   branch: B6
-  stories: [130]
-  title: "pnpm with a 7-day cooldown"
+  stories:
+  - 130
+  title: pnpm with a 7-day cooldown
   blocked_by: []
-  supersedes: [381]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "JavaScript dependencies are installed with pnpm under a 7-day release cooldown."
+  supersedes:
+  - 381
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: JavaScript dependencies are installed with pnpm under a 7-day release cooldown.
   ac:
-    - "A package version younger than 7 days is not installed."
+  - A package version younger than 7 days is not installed.
 - key: B6-08
   issue: 512
   branch: B6
-  stories: [130]
-  title: "uv with a 7-day cooldown"
+  stories:
+  - 130
+  title: uv with a 7-day cooldown
   blocked_by: []
-  supersedes: [382]
-  lanes: [direct]
-  hosts: [linux, mac]
-  what: "Python dependencies resolve with a 7-day exclude-newer window."
+  supersedes:
+  - 382
+  lanes:
+  - direct
+  hosts:
+  - linux
+  - mac
+  what: Python dependencies resolve with a 7-day exclude-newer window.
   ac:
-    - "A package version younger than 7 days is not resolved."
+  - A package version younger than 7 days is not resolved.
 - key: B6-09
   issue: 513
   branch: B6
-  stories: [131]
-  title: "Dependency PR queue"
+  stories:
+  - 131
+  title: Dependency PR queue
   blocked_by: []
   supersedes: []
-  lanes: [direct]
-  hosts: [linux]
-  what: "Review the Renovate plugin pins (#148, #152, #153, #156) and merge or close them; investigate the failing #73 and #70; close or retry #378."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: 'Review the Renovate plugin pins (#148, #152, #153, #156) and merge or close them; investigate the failing #73 and #70; close or retry #378.'
   ac:
-    - "Each PR is merged or closed with a reason."
+  - Each PR is merged or closed with a reason.
 - key: B6-10
   issue: 514
   branch: B6
-  stories: [162]
-  title: "Attribution guard follow-ups"
+  stories:
+  - 162
+  title: Attribution guard follow-ups
   blocked_by: []
   supersedes: []
-  lanes: [all]
-  hosts: [linux, mac]
-  what: "The local hook and the CI check catch credit lines split across a line break; the CI check is required in each repository's pipeline; consumers are bumped to the release that carries it."
+  lanes:
+  - all
+  hosts:
+  - linux
+  - mac
+  what: The local hook and the CI check catch credit lines split across a line break; the CI check is required in each repository's pipeline; consumers are bumped to the release that carries it.
   ac:
-    - "A credit split across two lines is refused by the hook and the CI check."
-    - "The check blocks a merge in agent-kit."
+  - A credit split across two lines is refused by the hook and the CI check.
+  - The check blocks a merge in agent-kit.
 - key: B6-11
   issue: 515
   branch: B6
-  stories: [163]
-  title: "Setup wrapper uses the projects-layout clone"
+  stories:
+  - 163
+  title: Setup wrapper uses the projects-layout clone
   blocked_by: []
   supersedes: []
-  lanes: [all]
-  hosts: [linux]
-  what: "The nix-config agent-kit-setup wrapper runs from the projects-layout clone and refuses a non-main branch; the stray clone outside the layout is retired."
+  lanes:
+  - all
+  hosts:
+  - linux
+  what: The nix-config agent-kit-setup wrapper runs from the projects-layout clone and refuses a non-main branch; the stray clone outside the layout is retired.
   ac:
-    - "The wrapper refuses to run on a branch other than main."
-    - "The stray clone is removed after its unpushed work is checked."
-# ---------------- B7 ----------------
+  - The wrapper refuses to run on a branch other than main.
+  - The stray clone's unpushed commits and dirty files are listed in the ticket before it is removed, and its path no longer exists afterwards.
 - key: B7-01
   issue: 516
   branch: B7
-  stories: [149]
-  title: "Transcript tool-mix analyser"
-  blocked_by: [B0-01]
+  stories:
+  - 149
+  title: Transcript tool-mix analyser
+  blocked_by:
+  - B0-01
   supersedes: []
-  lanes: [direct]
-  hosts: [linux]
-  what: "Report, from agent transcripts, which tools each agent uses to find code and how many tokens a task spends exploring."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: An analyser command that reads agent transcripts over a given window and prints, per agent, which tools were used to find code and how many tokens a task spent exploring (tokens in tool calls before the task's first edit).
   ac:
-    - "A report over recent transcripts lists tool use and exploration tokens per agent."
+  - Given fixture transcripts and a window, the command prints per agent the tool counts and the exploration tokens, matching the fixture's known values.
 - key: B7-02
   issue: 517
   branch: B7
-  stories: [150]
-  title: "Frozen question set and runner"
+  stories:
+  - 150
+  title: Frozen question set and runner
   blocked_by: []
   supersedes: []
-  lanes: [direct]
-  hosts: [linux]
-  what: "About twenty questions with known answers and file sets about personal repositories, run on several model families, recording tokens and accuracy."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: About twenty questions with known answers and file sets about personal repositories, run on several model families, recording tokens and accuracy.
   ac:
-    - "The runner produces a per-question, per-family result table."
+  - The runner produces a per-question, per-family result table.
 - key: B7-03
   issue: 518
   branch: B7
-  stories: [151, 152]
-  title: "AGENTS.md in every repository, with a lint"
+  stories:
+  - 151
+  - 152
+  title: AGENTS.md in every repository, with a lint
   blocked_by: []
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux]
-  what: "Every personal repository carries an AGENTS.md (a pointer to its CLAUDE.md or a short curated file); a lint fails on a path or symbol that no longer exists."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  what: Every personal repository carries an AGENTS.md (a pointer to its CLAUDE.md or a short curated file); a lint fails on a path or symbol that no longer exists.
   ac:
-    - "Every personal repository has an AGENTS.md."
-    - "The lint fails on a dead path."
+  - Every personal repository has an AGENTS.md.
+  - The lint fails on a dead path.
 - key: B7-04
   issue: 519
   branch: B7
-  stories: [153]
-  title: "Why agents leave the language-server tool unused"
-  blocked_by: [B7-01]
+  stories:
+  - 153
+  title: Why agents leave the language-server tool unused
+  blocked_by:
+  - B7-01
   supersedes: []
-  lanes: [direct]
-  hosts: [linux]
-  what: "Find out from transcripts and configuration why the installed language-server tool is not used, and record what would change that."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Find out from transcripts and configuration why the installed language-server tool is not used, and record what would change that.
   ac:
-    - "The finding is recorded with evidence."
+  - A findings record lists each candidate cause with the transcript ids and configuration keys that support it, and the change it predicts would raise the tool's use.
 - key: B7-05
   issue: 520
   branch: B7
-  stories: [154, 157]
-  title: "code-nav core: boundary and search"
-  blocked_by: [B0-01, B7-02]
+  stories:
+  - 154
+  - 157
+  title: 'code-nav core: boundary and search'
+  blocked_by:
+  - B0-01
+  - B7-02
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A read-only Rust MCP server over stdio that searches the live working tree with ranked, capped results, limited to an allowlist of canonical roots that fit the instance's repository rule, refusing symlinks out and secret files."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A read-only Rust MCP server over stdio that searches the live working tree with ranked, capped results, limited to an allowlist of canonical roots that fit the instance's repository rule, refusing symlinks out and secret files.
   ac:
-    - "A root outside the allowlist, a symlink out and a secret file are refused."
-    - "Results are ranked and capped."
+  - A root outside the allowlist, a symlink out and a secret file are refused.
+  - Search results are capped at a configurable limit with a documented default, and ranked by a documented rule; tests assert both on a fixture.
 - key: B7-06
   issue: 521
   branch: B7
-  stories: [155]
-  title: "code-nav outline and expand"
-  blocked_by: [B7-05]
+  stories:
+  - 155
+  title: code-nav outline and expand
+  blocked_by:
+  - B7-05
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Outline a file and expand one symbol on request."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Outline a file and expand one symbol on request.
   ac:
-    - "Expand returns one symbol's source without the rest of the file."
+  - Expand returns one symbol's source without the rest of the file.
 - key: B7-07
   issue: 522
   branch: B7
-  stories: [156]
-  title: "code-nav repository map"
-  blocked_by: [B7-06]
+  stories:
+  - 156
+  title: code-nav repository map
+  blocked_by:
+  - B7-06
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "A ranked map of a repository's files and symbols."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: A ranked map of a repository's files and symbols.
   ac:
-    - "The map's top entries match a fixture's most-referenced symbols."
+  - The map's top entries match a fixture's most-referenced symbols.
 - key: B7-08
   issue: 523
   branch: B7
-  stories: [156]
-  title: "code-nav symbols and related repositories"
-  blocked_by: [B7-07]
+  stories:
+  - 156
+  title: code-nav symbols and related repositories
+  blocked_by:
+  - B7-07
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Cross-repository symbol lookup and related repositories from a manifest generated from the workspace and the build files."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Cross-repository symbol lookup and related repositories from a manifest generated from the workspace and the build files.
   ac:
-    - "related_repos lists depends-on and depended-on-by for a fixture repository."
+  - related_repos lists depends-on and depended-on-by for a fixture repository.
 - key: B7-09
   issue: 524
   branch: B7
-  stories: [158]
-  title: "code-nav registry entry and instance binding"
-  blocked_by: [B7-05, B1-02]
+  stories:
+  - 158
+  title: code-nav registry entry and instance binding
+  blocked_by:
+  - B7-05
+  - B1-02
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The server is declared in the registry for every surface and reach level, with personal roots in the registry and work roots only in the work machine's overlay."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The server is declared in the registry for every surface and reach level, with personal roots in the registry and work roots only in the work machine's overlay.
   ac:
-    - "Work roots never appear in the public registry or the personal instance."
+  - Work roots never appear in the public registry or the personal instance.
 - key: B7-10
   issue: 525
   branch: B7
-  stories: [158]
-  title: "code-nav boundary and read-reach proof"
-  blocked_by: [B7-05, B1-13, B1-14]
+  stories:
+  - 158
+  title: code-nav boundary and read-reach proof
+  blocked_by:
+  - B7-05
+  - B1-13
+  - B1-14
   supersedes: []
-  lanes: [gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Seam 3 proves an agent id at read reach can use the server and that the server writes nothing, under Landlock and sandbox-exec."
+  lanes:
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: Seam 3 proves an agent id at read reach can use the server and that the server writes nothing, under Landlock and sandbox-exec.
   ac:
-    - "The proof passes on Linux and macOS CI runners."
+  - On Linux and macOS CI runners, an agent id at read reach started by the launcher can call the server, and the server writes no file.
 - key: B7-11
   issue: 526
   branch: B7
-  stories: [160]
-  title: "Measurement runs per layer and the no-vector-index ADR"
-  blocked_by: [B7-02, B7-03, B7-06, B7-07, B7-08]
+  stories:
+  - 160
+  title: Measurement runs per layer and the no-vector-index ADR
+  blocked_by:
+  - B7-02
+  - B7-03
+  - B7-06
+  - B7-07
+  - B7-08
   supersedes: []
-  lanes: [direct]
-  hosts: [linux]
-  what: "Run the question set before and after each layer and record tokens and accuracy; record the ADR against a vector index for code with the conditions for revisiting it."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: Run the question set before and after each layer and record tokens and accuracy; record the ADR against a vector index for code with the conditions for revisiting it.
   ac:
-    - "Results per layer are recorded; the ADR is written."
+  - The question-set runner's per-layer results (tokens and accuracy per question and family) are written to the measurement record in the repository.
+  - The ADR against a vector index for code is written with the conditions for revisiting it.
 - key: B7-12
   issue: 527
   branch: B7
   stories: []
-  title: "Language-server bridge trial (conditional)"
-  blocked_by: [B7-11]
+  title: Language-server bridge trial (conditional)
+  blocked_by:
+  - B7-11
   supersedes: []
-  lanes: [direct]
-  hosts: [linux]
-  what: "Only if B7-11 shows reference misses: trial a language-server bridge for the agents that lack one, and measure it."
+  lanes:
+  - direct
+  hosts:
+  - linux
+  what: 'Only if B7-11 shows reference misses: trial a language-server bridge for the agents that lack one, and measure it.'
   ac:
-    - "Closed as not needed, or measured with results recorded."
+  - The trial starts only after the owner records a go decision from B7-11's results; then the reference-miss rate on the question set is recorded before and after the bridge.
 - key: B7-13
   issue: 528
   branch: B7
-  stories: [159]
-  title: "Identifier index (conditional)"
-  blocked_by: [B7-11]
+  stories:
+  - 159
+  title: Identifier index (conditional)
+  blocked_by:
+  - B7-11
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "Only if B7-11 shows concept questions miss more than 15 percent: add BM25 over identifiers, doc comments and paths to code-nav, keyed to git for freshness."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: 'Only if B7-11 shows concept questions miss more than 15 percent: add BM25 over identifiers, doc comments and paths to code-nav, keyed to git for freshness.'
   ac:
-    - "Closed as not needed, or the miss rate drops below the threshold."
+  - Closed as not needed, or the miss rate drops below the threshold.
 - key: B7-14
   issue: 529
   branch: B7
   stories: []
-  title: "Critique runner uses the code-nav repository map"
-  blocked_by: [B7-07, B4-22a]
+  title: Critique runner uses the code-nav repository map
+  blocked_by:
+  - B7-07
+  - B4-22a
   supersedes: []
-  lanes: [direct, gold-band, gold-band-personal]
-  hosts: [linux, mac]
-  what: "The Rust critique runner reads code-nav's repository map instead of its own scan."
+  lanes:
+  - direct
+  - gold-band
+  - gold-band-personal
+  hosts:
+  - linux
+  - mac
+  what: The Rust critique runner reads code-nav's repository map instead of its own scan.
   ac:
-    - "The runner's packet repo map comes from code-nav and its tests pass."
+  - The runner's packet repo map comes from code-nav and its tests pass.
