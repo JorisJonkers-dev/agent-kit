@@ -1,5 +1,5 @@
 //! Literal-secret detection for registry and overlay values: a secret-named
-//! field must hold an environment reference or a keychain-proxy name, and no
+//! field must hold an environment reference, and no
 //! value may contain one of the credential shapes below.
 
 /// Why `value` at `path` may not be declared, or `None` when it may. The
@@ -7,11 +7,11 @@
 pub fn secret_problem(path: &str, value: &str) -> Option<String> {
     if secret_named(path) {
         let plain = matches!(value, "true" | "false");
-        if plain || env_ref(value) || keychain_name(value) {
+        if plain || env_ref(value) {
             return None;
         }
         return Some(format!(
-            "{path} is secret-named and must hold an environment reference ($NAME) or a keychain name, not a literal"
+            "{path} is secret-named and must hold an environment reference ($NAME), not a literal"
         ));
     }
     if env_ref(value) {
@@ -47,23 +47,19 @@ fn env_ref(body: &str) -> bool {
     }
 }
 
-/// True when `body` is a keychain-proxy field name: one leading letter then
-/// letters, digits, `_`, `.` or `-`, 64 characters at most — and no secret
-/// shape.
-fn keychain_name(body: &str) -> bool {
-    let length = body.chars().count();
-    if length == 0 || length > 64 {
-        return false;
-    }
-    let mut chars = body.chars();
-    chars.next().is_some_and(|c| c.is_ascii_alphabetic())
-        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
-        && secret_shape(body).is_none()
-}
-
 /// True when the field path's last segment, lowercased, names a secret.
 fn secret_named(path: &str) -> bool {
-    const WORDS: [&str; 5] = ["token", "secret", "key", "password", "authorization"];
+    const WORDS: [&str; 9] = [
+        "token",
+        "secret",
+        "key",
+        "password",
+        "passwd",
+        "authorization",
+        "credential",
+        "auth",
+        "pat",
+    ];
     let last = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
     WORDS.iter().any(|word| last.contains(word))
 }
@@ -115,6 +111,10 @@ pub const SECRET_SHAPES: [SecretShape; 7] = [
 ];
 
 /// The shape a value literally contains, if any.
+pub(crate) fn secret_shape_of(value: &str) -> Option<&'static str> {
+    secret_shape(value)
+}
+
 fn secret_shape(value: &str) -> Option<&'static str> {
     SECRET_SHAPES
         .iter()
@@ -279,13 +279,12 @@ mod tests {
     fn env_reference_and_keychain_name_pass_in_secret_named_fields() {
         assert_eq!(secret_problem("env.API_TOKEN", "$API_TOKEN"), None);
         assert_eq!(secret_problem("env.API_TOKEN", "${API_TOKEN}"), None);
-        assert_eq!(secret_problem("url.key", "work-api.key"), None);
         assert_eq!(secret_problem("settings.keyboard", "true"), None);
     }
 
     #[test]
     fn literal_in_secret_named_field_is_refused_without_printing_it() {
-        for bad in ["hunter2 hunter2", "", "$lower", "${A", "1abc", &"a".repeat(65)] {
+        for bad in ["hunter2", "hunter2 hunter2", "", "$lower", "${A", "1abc"] {
             let problem = secret_problem("env.API_TOKEN", bad).expect("refused");
             assert!(problem.contains("secret-named"));
             if !bad.is_empty() {
@@ -293,6 +292,9 @@ mod tests {
             }
         }
         assert!(secret_problem("env.API_KEY", "sk-aaaaaaaaaaaaaaaaaaaa").is_some());
+        for name in ["env.DB_PASSWD", "env.X_CREDENTIAL", "env.GITHUB_PAT", "env.AUTH"] {
+            assert!(secret_problem(name, "hunter2").is_some(), "{name}");
+        }
     }
 
     #[test]

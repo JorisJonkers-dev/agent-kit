@@ -35,7 +35,7 @@
 //!   overlay adds, it never relaxes a rule.
 //!
 //! Everywhere: no literal secret in any value (a secret-named field holds an
-//! environment reference or a keychain name), unknown fields refused.
+//! environment reference, `$NAME`), unknown fields refused.
 //!
 //! Usage: `gold-band-registry validate <FILE>`. Exit 0 clean (printing
 //! `ok (<n> instances)`), 1 rule problems on stderr, 2 bad usage, an
@@ -123,7 +123,7 @@ pub fn problems(instances: &[Instance]) -> Vec<String> {
     for source in [Source::Registry, Source::Overlay] {
         let mut seen: Vec<&str> = Vec::new();
         for instance in instances.iter().filter(|i| i.source == source) {
-            let place = format!("{} {}", source.label(), instance.id);
+            let place = format!("{} {}", source.label(), shown(&instance.id));
             if !INSTANCES.contains(&instance.id.as_str()) {
                 out.push(format!(
                     "{place}: unknown instance (only {WORK} and {PERSONAL})"
@@ -157,6 +157,7 @@ fn registry_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
     let mut agents = Vec::new();
     let mut remotes = None;
     let mut no_remote = None;
+    refuse_repeats(instance, place, out);
     let mut hosts = Vec::new();
     let mut banks = Vec::new();
     for (path, value) in &instance.fields {
@@ -225,6 +226,7 @@ fn registry_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
 fn overlay_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
     let id = instance.id.as_str();
     let work = id == WORK;
+    refuse_repeats(instance, place, out);
     let mut agents = Vec::new();
     let mut servers: Vec<(&str, bool, bool)> = Vec::new();
     for (path, value) in &instance.fields {
@@ -238,7 +240,7 @@ fn overlay_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
             "mcp_servers" if work => mcp_field(place, path, rest, &mut servers, out),
             "settings" if work => {
                 if rest.is_empty() || rest.split('.').any(|s| !setting_segment(s)) {
-                    out.push(format!("{place}: bad settings path {path}"));
+                    out.push(format!("{place}: bad settings path {}", shown(path)));
                 }
             }
             _ => out.push(format!("{place}: unknown field {}", shown(path))),
@@ -248,7 +250,8 @@ fn overlay_problems(instance: &Instance, place: &str, out: &mut Vec<String>) {
     for (name, has_command, has_url) in servers {
         if has_command == has_url {
             out.push(format!(
-                "{place}: mcp server {name} needs exactly one of command or url"
+                "{place}: mcp server {} needs exactly one of command or url",
+                shown(name)
             ));
         }
     }
@@ -267,7 +270,7 @@ fn mcp_field<'a>(
         return;
     };
     if !id_ok(name) {
-        out.push(format!("{place}: bad mcp server name {name}"));
+        out.push(format!("{place}: bad mcp server name {}", shown(name)));
     }
     if !servers.iter().any(|s| s.0 == name) {
         servers.push((name, false, false));
@@ -310,6 +313,18 @@ fn agent_problems(instance: &str, place: &str, agents: &[&str], out: &mut Vec<St
     }
 }
 
+/// A path set twice would let the last value win, so a repeat is refused.
+fn refuse_repeats(instance: &Instance, place: &str, out: &mut Vec<String>) {
+    let mut seen: Vec<&str> = Vec::new();
+    for (path, _) in &instance.fields {
+        if seen.contains(&path.as_str()) {
+            out.push(format!("{place}: field {} is set more than once", shown(path)));
+        } else {
+            seen.push(path);
+        }
+    }
+}
+
 /// A value as a message may show it: never one that is a literal secret.
 fn shown(value: &str) -> &str {
     if secret_problem("value", value).is_some() {
@@ -320,6 +335,11 @@ fn shown(value: &str) -> &str {
 }
 
 fn secret_check(place: &str, path: &str, value: &str, out: &mut Vec<String>) {
+    for segment in path.split('.') {
+        if let Some(shape) = secrets::secret_shape_of(segment) {
+            out.push(format!("{place}: a field name holds a literal secret ({shape})"));
+        }
+    }
     if let Some(problem) = secret_problem(path, value) {
         out.push(format!("{place}: {problem}"));
     }
@@ -479,6 +499,27 @@ mod tests {
     }
 
     #[test]
+    fn repeated_fields_are_refused() {
+        let text = format!("{}field\trepository_rule.remotes\tnedap-only\n", registry());
+        has(&text, "field repository_rule.remotes is set more than once");
+        has(&overlay("instance\tgold-band\nfield\tsettings.a\tb\nfield\tsettings.a\tc\n"), "settings.a is set more than once");
+    }
+
+    #[test]
+    fn secrets_in_names_and_ids_are_refused_and_never_printed() {
+        let secret = "ghp_aaaaaaaaaaaaaaaaaaaaaaaa";
+        let body = format!("instance\t{secret}\ninstance\tgold-band\nfield\tsettings.{secret}\tx\nfield\tmcp_servers.{secret}.url\tx\n");
+        let all = found(&overlay(&body));
+        assert!(all.iter().any(|p| p.contains("a field name holds a literal secret (github token)")), "{all:?}");
+        assert!(all.iter().any(|p| p.contains("unknown instance")));
+        assert!(all.iter().all(|p| !p.contains(secret)), "{all:?}");
+        let upper = "AKIAAAAAAAAAAAAAAAAA";
+        let body = format!("instance\tgold-band\nfield\tmcp_servers.{upper}.command\tx\nfield\tmcp_servers.a.env.{upper}\tx\nfield\tmcp_servers.b.url\tx\nfield\tmcp_servers.b.command\tx\n");
+        let all = found(&overlay(&body));
+        assert!(all.iter().all(|p| !p.contains(upper)), "{all:?}");
+    }
+
+    #[test]
     fn empty_lists_are_refused() {
         let bare = "source\tregistry\ninstance\tgold-band\ninstance\tgold-band-personal\n";
         for what in ["declares no agents", "declares no hosts", "declares no banks"] {
@@ -551,7 +592,7 @@ mod tests {
 
     #[test]
     fn overlay_literal_secrets_are_refused() {
-        let body = "instance\tgold-band\nfield\tmcp_servers.a.command\tx\nfield\tmcp_servers.a.env.API_TOKEN\tnot a ref\n\
+        let body = "instance\tgold-band\nfield\tmcp_servers.a.command\tx\nfield\tmcp_servers.a.env.API_TOKEN\thunter2\n\
             field\tsettings.endpoint\tBearer abcdefghijklmnopqrstuv\n";
         has(&overlay(body), "secret-named");
         has(&overlay(body), "literal secret (bearer token)");

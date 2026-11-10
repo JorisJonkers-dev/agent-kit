@@ -99,6 +99,22 @@ def test_load_overlay_reads_a_missing_empty_and_odd_file(tmp_path: Path) -> None
         gbi.load_overlay(_overlay(tmp_path, "keep: []\n"))
 
 
+def test_an_unreadable_overlay_is_an_error(tmp_path: Path) -> None:
+    with pytest.raises(gbi.InstanceError, match="cannot be read"):
+        gbi.load_overlay(_overlay(tmp_path, "a: [unclosed\n"))
+    with pytest.raises(gbi.InstanceError, match="tab or newline"):
+        gbi.flatten({gbi.REGISTRY_KEY: {"gold-band\r": {}}}, None)
+
+
+def test_a_binary_that_fails_without_a_reason_is_an_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    quiet = tmp_path / "quiet"
+    quiet.write_text("#!/bin/sh\nexit 1\n")
+    quiet.chmod(0o755)
+    monkeypatch.setenv(gbi.BIN_ENV, str(quiet))
+    with pytest.raises(gbi.InstanceError, match="failed"):
+        gbi.validate(_registry())
+
+
 def test_a_binary_that_cannot_run_is_an_error_not_a_pass(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(gbi.BIN_ENV, "/nonexistent/gold-band-registry")
     with pytest.raises(gbi.InstanceError, match="could not run"):
@@ -171,7 +187,7 @@ def test_the_overlay_may_add_servers_and_settings_to_the_work_instance(tmp_path:
         ("gold-band: {agents: [vibe]}", "overlay gold-band: agent vibe is not allowed on the work instance"),
         ("gold-band: {hosts: [linux]}", "unknown field hosts.0"),
         ("gold-band: {mcp_servers: {x: {command: npx, token: abc}}}", "unknown field mcp_servers.x.token"),
-        ("gold-band: {mcp_servers: {x: {command: npx, env: {API_TOKEN: not a ref}}}}", "secret-named"),
+        ("gold-band: {mcp_servers: {x: {command: npx, env: {API_TOKEN: hunter2}}}}", "secret-named"),
         ("gold-band: {settings: {a: sk-aaaaaaaaaaaaaaaaaaaaaaaa}}", "literal secret"),
         ("other: {agents: [vibe]}", "unknown instance"),
     ],
@@ -180,7 +196,7 @@ def test_overlay_declarations_that_cross_a_boundary_are_refused(tmp_path: Path, 
     refused = gbi.validate(_registry(), _overlay(tmp_path, f"instances:\n  {body}\n"))
 
     assert any(expected in line for line in refused), refused
-    assert not any("sk-aaaa" in line or "not a ref" in line for line in refused)
+    assert not any("sk-aaaa" in line or "hunter2" in line for line in refused)
 
 
 @needs_crate

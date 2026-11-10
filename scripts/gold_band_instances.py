@@ -71,7 +71,7 @@ def _section(label: str, block: Any, where: str) -> list[str]:
         raise InstanceError(f"{where} must be a mapping of instance id to declaration")
     lines = [f"source\t{label}"]
     for instance, body in block.items():
-        if "\t" in str(instance) or "\n" in str(instance):
+        if any(c in str(instance) for c in "\t\r\n"):
             raise InstanceError(f"{where}: instance id holds a tab or newline")
         lines.append(f"instance\t{instance}")
         if body is None:
@@ -99,7 +99,10 @@ def load_overlay(path: Path) -> dict[str, Any] | None:
     """The overlay at ``path``, or None when the machine has none."""
     if not path.is_file():
         return None
-    data = yaml.safe_load(path.read_text())
+    try:
+        data = yaml.safe_load(path.read_text())
+    except (yaml.YAMLError, UnicodeDecodeError) as exc:
+        raise InstanceError(f"{path} cannot be read: {exc}") from exc
     if data is None:
         return {}
     if not isinstance(data, dict):
@@ -147,6 +150,6 @@ def validate(registry: dict[str, Any], overlay_path: Path | None = None) -> list
     if result.returncode == 0:
         return []
     lines = [line for line in result.stderr.splitlines() if line.strip()]
-    if result.returncode != 1:
+    if result.returncode != 1 or not lines:
         raise InstanceError(f"the {CRATE} crate failed ({result.returncode}): " + "; ".join(lines))
     return lines
