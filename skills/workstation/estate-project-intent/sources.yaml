@@ -49,6 +49,36 @@ sources:
     path: CLAUDE.md
     blob: 0993e8da9b17b2cde03085f21eff430b87b24e20
     checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/examples/minimal/README.md
+    blob: 0f9d2c6c94b1fb8e861505e836e1b7bce2807413
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/deploy-kit
+    path: spec/v1/examples/minimal/env/notes-api/base.env
+    blob: 4d795bc46303dfdb48da4eeb5e7b5548cf0d64ce
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/n8n
+    path: .github/workflows/publish.yml
+    blob: 87e9f895f72ceefb966e5e0e0b70b64c2335b79a
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/n8n
+    path: tools/deploy-kit/package.json
+    blob: fd0e9a81b32863abf41744f6a85857a5d68e05a4
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/github-workflows
+    path: .github/workflows/publish-fragment.yml
+    blob: aa4968aa6e29cb61e968d60d68728f3e956c329d
+    checked: 2026-11-10
+  - kind: file
+    repo: JorisJonkers-dev/estate
+    path: toolkit.yml
+    blob: 9321479890d8bceba9ccfbb2fd3684bb5e7bd121
+    checked: 2026-11-10
   - kind: release
     repo: JorisJonkers-dev/github-workflows
     tag: v0.45.4

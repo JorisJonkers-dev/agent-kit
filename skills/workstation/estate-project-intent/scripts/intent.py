@@ -6,8 +6,8 @@
   intent.py validate PATH [EXTRA_PATH ...]
 
 scaffold writes DIR/deploy/<project>.project.yml in the shape of the minimal
-example, plus DIR/deploy/env/<process>/base.env. Values the spec leaves to the
-author are marked CHECK; read the live spec before trusting them.
+example, plus DIR/deploy/env/<process>/base.env. Lines marked CHECK are the author's
+choices; read the live spec before trusting them.
 
 validate runs `deploy-kit validate PATH [EXTRA_PATH ...]` and passes its output
 through unchanged. Exit status mirrors deploy-kit: 0 accepted, 1 refused,
@@ -22,11 +22,15 @@ from pathlib import Path
 
 AUDIENCES = ("anonymous", "authenticated", "internal", "lan")
 DNS_LABEL = re.compile(r"^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$")
+HOST = re.compile(r"^(?=.{1,253}$)[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$")
+OWNER = re.compile(r"^[A-Za-z0-9][-A-Za-z0-9_.]{0,62}$")
+IMAGE = re.compile(r"^[a-z0-9]([a-z0-9._/-]{0,198}[a-z0-9])?$")
+VALIDATE_TIMEOUT = 300  # seconds
 
 PROJECT_TEMPLATE = """\
-# Project Intent for {project}. Requirements only, no mechanisms
-# (deploy-kit spec/v1/10-project-intent.md). Lines marked CHECK are defaults
-# this skill chose; confirm them against the live spec before validating.
+# Project Intent for {project}. See spec/v1/10-project-intent.md.
+# Lines marked CHECK are defaults this skill chose; confirm each against the
+# live spec before validating.
 
 apiVersion: intent.jorisjonkers.dev/v1
 kind: Project
@@ -47,35 +51,47 @@ applications:
     processes:
       - name: {process}
         lifecycle: application
-        image: {image}   # an alias; the lock resolves digest, uid and gid
-        runtime: node    # CHECK: the runtime the image runs on
+        image: {image}
+        runtime: node    # CHECK
 
         provides:
           http: {port}
 
-        # memory and cpu are required on every Process
         placement:
           memory: 256Mi  # CHECK
           cpu: 50m       # CHECK
 
         probes:
-          readiness: {{ path: /healthz/ready, port: {port} }}  # CHECK path
-          liveness: {{ path: /healthz/live, port: {port} }}    # CHECK path
+          readiness: {{ path: /healthz/ready, port: {port} }}  # CHECK
+          liveness: {{ path: /healthz/live, port: {port} }}    # CHECK
 
         startupBudget: 20s   # CHECK
-        cutover: continuous  # required; use interrupted only with a reason
+        cutover: continuous  # CHECK
 """
 
 ENV_TEMPLATE = """\
-# Environment for the {process} Process. Literal values, ${{secret:<granted-path>#<key>}}
-# for a granted secret, or ${{dependency:...}} for another Application's coordinate.
+# Environment for the {process} Process. See spec/v1/10-project-intent.md.
 """
+
+
+def write_new(path, text):
+    """Create path exclusively, so an existing file is never overwritten."""
+    with open(path, "x", encoding="utf-8") as handle:
+        handle.write(text)
 
 
 def scaffold(args):
     for label, value in (("--project", args.project), ("--process", args.process)):
-        if not DNS_LABEL.match(value):
+        if not DNS_LABEL.fullmatch(value):
             print(f"intent.py: {label} must be a DNS-1123 label, got {value!r}", file=sys.stderr)
+            return 2
+    for label, value, pattern, what in (
+        ("--host", args.host, HOST, "a lowercase DNS name"),
+        ("--owner", args.owner, OWNER, "letters, digits, '-', '_' or '.'"),
+        ("--image", args.image, IMAGE, "an image alias of lowercase letters, digits, '.', '_', '/' or '-'"),
+    ):
+        if not pattern.fullmatch(value):
+            print(f"intent.py: {label} must be {what}, got {value!r}", file=sys.stderr)
             return 2
     if args.audience not in AUDIENCES:
         print(f"intent.py: --audience must be one of {', '.join(AUDIENCES)}", file=sys.stderr)
@@ -98,10 +114,14 @@ def scaffold(args):
         "audience": args.audience, "image": args.image, "process": args.process,
         "port": args.port,
     }
-    project_file.parent.mkdir(parents=True, exist_ok=True)
-    project_file.write_text(PROJECT_TEMPLATE.format(**values))
-    env_file.parent.mkdir(parents=True, exist_ok=True)
-    env_file.write_text(ENV_TEMPLATE.format(process=args.process))
+    try:
+        project_file.parent.mkdir(parents=True, exist_ok=True)
+        write_new(project_file, PROJECT_TEMPLATE.format(**values))
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        write_new(env_file, ENV_TEMPLATE.format(process=args.process))
+    except OSError as error:
+        print(f"intent.py: cannot write the scaffold: {error}", file=sys.stderr)
+        return 2
     print(f"wrote {project_file}")
     print(f"wrote {env_file}")
     return 0
@@ -118,14 +138,21 @@ def validate(args):
             return 2
     tool = shutil.which("deploy-kit")
     if tool is None:
-        print("intent.py: deploy-kit is not installed on PATH; install the release the "
-              "repository pins and rerun. Nothing was validated.", file=sys.stderr)
+        print("intent.py: deploy-kit is not installed on PATH; install the publish "
+              "version (and the repository's pin, when different) and rerun. Nothing was validated.", file=sys.stderr)
         return 2
 
     sys.stdout.flush()
     sys.stderr.flush()
     # deploy-kit's own output is inherited, so it reaches the owner verbatim.
-    code = subprocess.run([tool, "validate", args.path, *args.extra]).returncode
+    try:
+        code = subprocess.run([tool, "validate", args.path, *args.extra], timeout=VALIDATE_TIMEOUT).returncode
+    except subprocess.TimeoutExpired:
+        print(f"intent.py: deploy-kit did not finish within {VALIDATE_TIMEOUT}s. Nothing was validated.", file=sys.stderr)
+        return 2
+    except OSError as error:
+        print(f"intent.py: cannot run deploy-kit: {error}. Nothing was validated.", file=sys.stderr)
+        return 2
     if code == 0:
         print("deploy-kit validate: accepted (exit 0)")
     elif code == 1:

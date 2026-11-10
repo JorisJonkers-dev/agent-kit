@@ -158,6 +158,13 @@ def test_scaffold_refuses_to_overwrite_and_leaves_the_files_alone(scaffolded: Pa
         ({"--project": "Notes_App"}, "--project must be a DNS-1123 label"),
         ({"--process": "Bad"}, "--process must be a DNS-1123 label"),
         ({"--audience": "everyone"}, "--audience must be one of anonymous, authenticated, internal, lan"),
+        ({"--host": "a: b"}, "--host must be a lowercase DNS name"),
+        ({"--host": "Notes.example.dev"}, "--host must be a lowercase DNS name"),
+        ({"--host": "bad_host.dev"}, "--host must be a lowercase DNS name"),
+        ({"--owner": "team\nnotes"}, "--owner must be letters, digits"),
+        ({"--owner": "a: b"}, "--owner must be letters, digits"),
+        ({"--image": "img #x"}, "--image must be an image alias"),
+        ({"--image": "Img\nx"}, "--image must be an image alias"),
         ({"--port": "0"}, "--port must be 1-65535"),
         ({"--port": "70000"}, "--port must be 1-65535"),
     ],
@@ -167,6 +174,38 @@ def test_scaffold_refuses_bad_values_and_writes_nothing(tmp_path: Path, override
     assert result.returncode == 2
     assert message in result.stderr
     assert not (tmp_path / "repo").exists()
+
+
+def test_scaffold_template_comments_are_pointers_not_spec_prose(scaffolded: Path) -> None:
+    text = (scaffolded / "deploy" / "notes.project.yml").read_text()
+    assert "spec/v1/10-project-intent.md" in text
+    comments = [line for line in text.splitlines() if line.lstrip().startswith("#")]
+    assert len(comments) <= 4
+    assert "Requirements only" not in text
+    assert "an alias; the lock resolves" not in text
+
+
+def test_scaffold_into_an_unwritable_place_exits_2_with_the_message(
+    intent_module: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "deploy").write_text("a file where the directory should be\n")
+    assert intent_module.main(["scaffold", *_scaffold_args(repo)]) == 2
+    assert "intent.py: cannot write the scaffold:" in capsys.readouterr().err
+
+
+def test_scaffold_creates_files_exclusively_even_when_the_check_is_raced(
+    intent_module: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A dangling symlink is invisible to exists() but blocks exclusive creation.
+    env_dir = tmp_path / "deploy"
+    env_dir.mkdir()
+    victim = tmp_path / "victim"
+    (env_dir / "notes.project.yml").symlink_to(victim)
+    assert intent_module.main(["scaffold", *_scaffold_args(tmp_path)]) == 2
+    assert "cannot write the scaffold" in capsys.readouterr().err
+    assert not victim.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +255,43 @@ def test_validate_names_an_extra_path_that_does_not_exist(tmp_path: Path, scaffo
     result = _run("validate", str(scaffolded / "deploy"), str(tmp_path / "gone"), path="/nonexistent")
     assert result.returncode == 2
     assert f"no such path: {tmp_path / 'gone'}" in result.stderr
+
+
+def test_validate_times_out_and_exits_2(
+    intent_module: ModuleType,
+    tmp_path: Path,
+    scaffolded: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bin_dir = tmp_path / "slowbin"
+    bin_dir.mkdir()
+    tool = bin_dir / "deploy-kit"
+    tool.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n")
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setattr(intent_module, "VALIDATE_TIMEOUT", 0.2)
+    assert intent_module.main(["validate", str(scaffolded / "deploy")]) == 2
+    err = capsys.readouterr().err
+    assert "did not finish within" in err
+    assert "Nothing was validated" in err
+
+
+def test_validate_reports_a_deploy_kit_that_cannot_be_run(
+    intent_module: ModuleType,
+    tmp_path: Path,
+    scaffolded: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bin_dir = tmp_path / "brokenbin"
+    bin_dir.mkdir()
+    tool = bin_dir / "deploy-kit"
+    tool.write_text("#!/nonexistent/interpreter\n")
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    assert intent_module.main(["validate", str(scaffolded / "deploy")]) == 2
+    assert "cannot run deploy-kit" in capsys.readouterr().err
 
 
 def test_the_fake_deploy_kit_exits_2_without_paths(tmp_path: Path) -> None:
@@ -269,7 +345,15 @@ def test_main_runs_in_process_for_both_commands(
 ) -> None:
     assert intent_module.main(["scaffold", *_scaffold_args(tmp_path / "repo")]) == 0
     assert intent_module.main(["scaffold", *_scaffold_args(tmp_path / "repo")]) == 2
-    bad = [("--project", "A"), ("--audience", "x"), ("--port", "0")]
+    bad = [
+        ("--project", "A"),
+        ("--audience", "x"),
+        ("--port", "0"),
+        ("--host", "a b"),
+        ("--owner", "a: b"),
+        ("--image", "x\n"),
+        ("--host", "notes.example.dev\n"),
+    ]
     for flag, value in bad:
         assert intent_module.main(["scaffold", *_scaffold_args(tmp_path / "other", **{flag: value})]) == 2
     deploy = str(tmp_path / "repo" / "deploy")
@@ -321,13 +405,56 @@ def test_sources_yaml_is_accepted_by_the_drift_checker() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_skill_md_states_the_two_disagreements() -> None:
+def _disagreement_section() -> str:
     text = SKILL_MD.read_text()
-    assert "`platform/`" in text
-    assert "`deploy/`" in text
-    assert "1.0.0" in text
-    assert "1.10.0" in text
-    assert "Where the docs and reality disagree" in text
+    start = text.index("## Where the docs and reality disagree")
+    end = text.index("## When a doc cannot be read")
+    return text[start:end]
+
+
+def test_skill_md_states_the_location_disagreement() -> None:
+    section = _disagreement_section()
+    assert "(a) Location" in section
+    assert "`platform/`" in section
+    assert "`deploy/`" in section
+
+
+def test_skill_md_states_the_toolkit_pin_disagreement() -> None:
+    section = _disagreement_section()
+    assert "(b) Toolkit pin" in section
+    assert "1.0.0" in section
+    assert "1.10.0" in section
+    assert "toolkit.yml" in section
+
+
+def test_skill_md_names_every_file_source_it_reads_in_sources_yaml() -> None:
+    text = SKILL_MD.read_text()
+    recorded = {(s["repo"], s["path"]) for s in yaml.safe_load(SOURCES.read_text())["sources"] if s["kind"] == "file"}
+    for needed in (
+        ("JorisJonkers-dev/deploy-kit", "spec/v1/examples/minimal/README.md"),
+        ("JorisJonkers-dev/deploy-kit", "spec/v1/examples/minimal/env/notes-api/base.env"),
+        ("JorisJonkers-dev/n8n", ".github/workflows/publish.yml"),
+        ("JorisJonkers-dev/n8n", "tools/deploy-kit/package.json"),
+        ("JorisJonkers-dev/github-workflows", ".github/workflows/publish-fragment.yml"),
+        ("JorisJonkers-dev/estate", "toolkit.yml"),
+    ):
+        assert needed in recorded, needed
+        assert needed[1].split("/")[-1] in text, needed
+
+
+def test_skill_md_validation_step_says_which_deploy_kit_gates_publishing() -> None:
+    text = SKILL_MD.read_text()
+    step = text[text.index("3. Validate.") : text.index("4. Wire publishing.")]
+    assert "gates publishing" in step
+    assert "toolkit.yml" in step
+    assert "tools/deploy-kit" in step
+
+
+def test_skill_md_step_4_commands_print_what_they_claim() -> None:
+    text = SKILL_MD.read_text()
+    step = text[text.index("4. Wire publishing.") : text.index("5. Propose")]
+    assert "'.object.type + \" \" + .object.sha'" in step
+    assert "Accept: application/vnd.github.raw" in step
 
 
 def test_skill_md_says_to_stop_and_name_the_doc_that_cannot_be_read() -> None:
