@@ -4,9 +4,10 @@ Setup and its helpers write files under the home directory: kubeconfig, netrc,
 npmrc, Claude and Codex settings. A test that reaches the real home overwrites
 the developer's own copies. Two guards stop that:
 
-* Every test runs with HOME, XDG_CONFIG_HOME, XDG_DATA_HOME, XDG_CACHE_HOME and
-  KUBECONFIG pointing into its own temporary directory, so code that finds the
-  home through the environment, and every subprocess it starts, stays there.
+* Every test runs with HOME in its own temporary directory, and with the XDG
+  directory variables and KUBECONFIG unset so they fall back under it. Code that
+  finds the home through the environment, and every subprocess it starts, stays
+  there.
 * The session records the real home's sensitive files (found through passwd,
   which the environment cannot redirect) before the first test, and fails the
   run if any of them was created, changed or removed. That catches code that
@@ -91,8 +92,8 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 def _isolated_home(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> Path:
     home = tmp_path_factory.mktemp("home")
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
-    monkeypatch.setenv("XDG_DATA_HOME", str(home / ".local" / "share"))
-    monkeypatch.setenv("XDG_CACHE_HOME", str(home / ".cache"))
-    monkeypatch.setenv("KUBECONFIG", str(home / ".kube" / "config"))
+    # Unset rather than set: each falls back to a path under HOME, and a test that sets one
+    # itself still can. Some scripts refuse to run while KUBECONFIG is set at all.
+    for name in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "KUBECONFIG"):
+        monkeypatch.delenv(name, raising=False)
     return home
