@@ -299,8 +299,8 @@ clis:
     # The `[mcp]` extra is what lets LOCAL hermes run any MCP server at
     # all (it is a no-op otherwise); install it up front so the local
     # `mcp` CLI can actually register and connect servers.
-    install: "uv tool install --python '>=3.11,<3.14' 'hermes-agent[mcp]'"
-    update: "uv tool upgrade 'hermes-agent[mcp]'"
+    install: "uv tool install --exclude-newer \"7 days\" --python '>=3.11,<3.14' 'hermes-agent[mcp]'"
+    update: "uv tool upgrade --exclude-newer \"7 days\" 'hermes-agent[mcp]'"
     version_command: "hermes --version"
     requires: [uv]
     # CLI only in the container; Agent Sessions use the in-cluster Hermes.
@@ -308,7 +308,7 @@ clis:
       datasource: pypi
       package: "hermes-agent"
       version: "0.19.0"
-      install: 'uv tool install --python 3.13 "hermes-agent[mcp]==${VERSION}"'
+      install: 'uv tool install --exclude-newer "7 days" --python 3.13 "hermes-agent[mcp]==${VERSION}"'
       requires: [uv]
 
   - name: mistral-vibe
@@ -321,8 +321,8 @@ clis:
     latest: true
     surfaces: [workstation]
     # uv tool for its own interpreter: mistral-vibe needs Python 3.12+.
-    install: "uv tool install --python '>=3.12' mistral-vibe"
-    update: "uv tool upgrade mistral-vibe"
+    install: "uv tool install --exclude-newer \"7 days\" --python '>=3.12' mistral-vibe"
+    update: "uv tool upgrade --exclude-newer \"7 days\" mistral-vibe"
     version_command: "vibe --version"
     requires: [uv]
 
@@ -517,7 +517,7 @@ clis:
       datasource: pypi
       package: "serena-agent"
       version: "1.7.0"
-      install: 'uv tool install --python 3.13 "serena-agent==${VERSION}"'
+      install: 'uv tool install --exclude-newer "7 days" --python 3.13 "serena-agent==${VERSION}"'
       requires: [uv]
 
 # -------------------------------------------------------------------

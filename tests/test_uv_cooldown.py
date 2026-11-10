@@ -73,20 +73,29 @@ def test_lock_records_the_relative_window_and_no_entry_is_younger_than_seven_day
     assert younger == []
 
 
-def _uv_with_call_sites() -> Iterator[tuple[str, int, str]]:
+def _uv_call_sites() -> Iterator[tuple[str, int, str]]:
+    """Every line that adds packages through uv: `uv run ... --with` or `uv tool install/upgrade`."""
     paths = [
-        *sorted((KIT_ROOT / "scripts").rglob("*.py")),
-        *sorted((KIT_ROOT / "scripts").rglob("*.sh")),
-        *sorted((KIT_ROOT / "installer").glob("*.sh")),
+        *sorted((KIT_ROOT / "scripts").rglob("*")),
+        *sorted((KIT_ROOT / "installer").rglob("*")),
+        *sorted((KIT_ROOT / "registry").glob("*.yaml")),
+        *sorted((KIT_ROOT / "tests").glob("*.py")),
     ]
     for path in paths:
-        for number, line in enumerate(path.read_text().splitlines(), start=1):
-            if "uv run" in line and "--with" in line:
+        if not path.is_file() or path.name == "test_uv_cooldown.py" or path.suffix in {".pyc", ".png", ".gz"}:
+            continue
+        try:
+            lines = path.read_text().splitlines()
+        except UnicodeDecodeError:
+            continue
+        for number, line in enumerate(lines, start=1):
+            adds = ("uv run" in line and "--with" in line) or "uv tool install" in line or "uv tool upgrade" in line
+            if adds:
                 yield path.relative_to(KIT_ROOT).as_posix(), number, line
 
 
 def test_every_uv_run_that_adds_packages_passes_the_window() -> None:
-    sites = list(_uv_with_call_sites())
+    sites = list(_uv_call_sites())
     # The installer and the scripts carry about a dozen such calls; a near-empty
     # scan would mean the pattern above stopped matching anything.
     assert len(sites) >= 10

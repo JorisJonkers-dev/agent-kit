@@ -2278,10 +2278,10 @@ fi
 # `hermes doctor` / `hermes skills list` against a local config;
 # the in-cluster gateway runs the container image, not this.
 if command -v hermes >/dev/null 2>&1; then
-  run_sh 'uv tool upgrade '\''hermes-agent[mcp]'\'''
+  run_sh 'uv tool upgrade --exclude-newer "7 days" '\''hermes-agent[mcp]'\'''
   ok "hermes $(hermes --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp]'\'''
+  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.11,<3.14'\'' '\''hermes-agent[mcp]'\'''
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "hermes would be installed"
   elif command -v hermes >/dev/null 2>&1; then
@@ -2297,10 +2297,10 @@ fi
 # Codex; its MCP servers are merged into ~/.vibe/config.toml from
 # registry/generated/vibe/mcp-servers.toml.
 if command -v vibe >/dev/null 2>&1; then
-  run_sh 'uv tool upgrade mistral-vibe'
+  run_sh 'uv tool upgrade --exclude-newer "7 days" mistral-vibe'
   ok "vibe $(vibe --version 2>/dev/null | head -1)"
 else
-  run_sh 'uv tool install --python '\''>=3.12'\'' mistral-vibe'
+  run_sh 'uv tool install --exclude-newer "7 days" --python '\''>=3.12'\'' mistral-vibe'
   if [ "${CHECK_ONLY}" = 1 ]; then
     log "vibe would be installed"
   elif command -v vibe >/dev/null 2>&1; then

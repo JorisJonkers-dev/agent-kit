@@ -83,7 +83,7 @@ def delete_password(service, name):
 # run the script with the fake module.
 FAKE_UV = '''#!/bin/sh
 echo "$*" >> "$FAKE_KEYRING_DIR/uv.log"
-shift 6
+shift 8
 PYTHONPATH="$FAKE_KEYRING_DIR/mod" exec ''' + sys.executable + ''' "$@"
 '''
 
