@@ -68,7 +68,10 @@ else:
 # sudo and ssh run their command here; chown only records, since tests are not root.
 FAKE_SUDO = """#!/bin/sh
 echo "sudo $*" >> "$FAKE_ARGV_LOG"
-while [ "${1#-}" != "$1" ]; do [ "$1" = "-u" ] && shift; shift; done
+noninteractive=
+while [ "${1#-}" != "$1" ]; do [ "$1" = "-n" ] && noninteractive=1; [ "$1" = "-u" ] && shift; shift; done
+if [ -n "$noninteractive" ] && [ -z "$FAKE_NOPASSWD" ]; then echo "sudo: a password is required" >&2; exit 1; fi
+if [ -n "$FAKE_NOPASSWD" ]; then shift; exec @REAL_CAT@ "$@"; fi
 exec "$@"
 """
 FAKE_SSH = """#!/bin/sh
@@ -342,3 +345,11 @@ def test_each_device_has_its_own_credentials_revocable_alone(device: Device) -> 
     after = device.tokens()
     assert all(after[k] == before[k] for k in before if "rx7900xtx" in k)
     assert all(after[k] != before[k] for k in before if "macbook" in k)
+
+
+def test_check_fails_when_sudo_would_read_the_admin_token_without_a_password(device: Device) -> None:
+    device.install()
+    device.env["FAKE_NOPASSWD"] = "1"
+    result = device.run("check", agent=True)
+    assert result.returncode == 1
+    assert "FAIL personal: admin token not readable through sudo without a password" in result.stdout

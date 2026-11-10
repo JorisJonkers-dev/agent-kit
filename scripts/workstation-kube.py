@@ -389,9 +389,13 @@ def ca_matches(target: Target, cluster: str) -> bool:
 
 def report(target: Target, device: str, clusters: list[str]) -> int:
     failures = 0
-    readable = target.as_user(["cat", admin_token_path(target.layout, clusters[0])])
-    failures += line("admin token unreadable without sudo", readable.returncode != 0)
     for cluster in clusters:
+        path = admin_token_path(target.layout, cluster)
+        plain = target.as_user(["cat", path])
+        failures += line(f"{cluster}: admin token unreadable without sudo", plain.returncode != 0)
+        # sudo -n fails when it would need a password; a NOPASSWD or cached grant would let an agent through.
+        silent = target.as_user(["sudo", "-n", target.layout.cat, path])
+        failures += line(f"{cluster}: admin token not readable through sudo without a password", silent.returncode != 0)
         for kubectl_args, want in EXPECTED:
             got = target.as_user(["kubectl", "--context", cluster, *kubectl_args]).stdout.strip().splitlines()
             failures += line(f"{cluster}: {' '.join(kubectl_args[2:])} -> {want}", (got[-1] if got else "") == want)
