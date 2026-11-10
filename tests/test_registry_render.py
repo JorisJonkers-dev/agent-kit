@@ -1155,6 +1155,10 @@ def test_litellm_keys_are_stored_unexported_and_unchecked() -> None:
         (lambda d: d["litellm"].update(routes=[]), "at least one agent id"),
         (lambda d: d["litellm"].update(key_header="X_Key"), "lower-case header"),
         (lambda d: d["litellm"].update(edge_token_env="bad name"), "environment variable name"),
+        (lambda d: d["litellm"].update(edge_token_env="NOT_A_SECRET"), "must be a workstation secret"),
+        (lambda d: d.update(litellm="x"), "must be a mapping"),
+        (lambda d: d["litellm"]["routes"].append("x"), "must be a mapping"),
+        (lambda d: d["litellm"]["routes"][0].update(models=["OpenRouter/x"]), "no wildcard"),
     ],
 )
 def test_a_bad_litellm_section_is_refused(mutate, message: str) -> None:

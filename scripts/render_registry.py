@@ -5060,6 +5060,8 @@ def _validate_litellm(data: dict[str, Any]) -> None:
     section = data.get("litellm")
     if section is None:
         return
+    if not isinstance(section, dict):
+        raise RegistryError("litellm must be a mapping")
     base = str(section.get("base_url") or "")
     if not re.fullmatch(r"https://[A-Za-z0-9.-]+(/[A-Za-z0-9._-]+)*", base):
         raise RegistryError("litellm.base_url must be an https URL with no trailing slash")
@@ -5072,9 +5074,13 @@ def _validate_litellm(data: dict[str, Any]) -> None:
     if not routes:
         raise RegistryError("litellm.routes must name at least one agent id")
     secrets_by_env = {str(e["env"]): e for e in _entries(data, "workstation_secrets") if not e.get("retired")}
+    if secrets_by_env.get(edge, {}).get("export") is not False:
+        raise RegistryError(f"litellm.edge_token_env {edge} must be a workstation secret with export: false")
     seen_agents: set[str] = set()
     seen_envs: set[str] = set()
     for route in routes:
+        if not isinstance(route, dict):
+            raise RegistryError("each litellm route must be a mapping")
         agent = str(route.get("agent") or "")
         if set(route) != LITELLM_ROUTE_KEYS:
             raise RegistryError(f"litellm route {agent!r} takes exactly {sorted(LITELLM_ROUTE_KEYS)}")
@@ -5097,7 +5103,7 @@ def _validate_litellm(data: dict[str, Any]) -> None:
         models = route["models"]
         if not models or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9._:/-]+", m) for m in models):
             raise RegistryError(f"litellm route {agent}: models must be plain model names")
-        if any(m.startswith(("openrouter/", "opencode/")) or "*" in m for m in models):
+        if any(m.lower().startswith(("openrouter/", "opencode/")) or "*" in m for m in models):
             raise RegistryError(f"litellm route {agent}: no wildcard, openrouter or opencode Zen model")
 
 

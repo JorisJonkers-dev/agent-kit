@@ -23,8 +23,8 @@ it is the owner's to rescale if the exchange rate matters.
 
 The proxy is internal only: its host is `audience: authenticated`, so the edge
 signs a caller in first. A request carries an auth-api service token as
-`Authorization: Bearer` (`LITELLM_EDGE_TOKEN`, from your own sign-in; no
-`LITELLM` service exists in auth-api yet) and its virtual key in
+`Authorization: Bearer` (`LITELLM_EDGE_TOKEN`, pasted once at setup like the
+keys; no `LITELLM` service exists in auth-api yet, so it is minted by hand) and its virtual key in
 `x-litellm-api-key`. Pi, Vibe and OpenCode are configured from `routes.json`
 with those two values. The Pi and launcher wiring that reads it lands with the
 Gold Band instances (B1); this repository ships the table and the gate.
@@ -48,11 +48,15 @@ litellm-gate check --node research-fetch --url https://litellm.jorisjonkers.dev/
 
 With the proxy's master key (never stored in this repository):
 
+Put the headers in a curl config on stdin so no token reaches argv:
+
 ```bash
-curl -sS https://litellm.jorisjonkers.dev/key/generate \
-  -H "Authorization: Bearer $EDGE_TOKEN" -H "x-litellm-api-key: Bearer $MASTER" \
-  -H 'Content-Type: application/json' \
-  -d '{"key_alias":"vibe","max_budget":255,"models":["vibe/zai-glm-5-3-flash","vibe/deepseek-v4-1-flash-1017"]}'
+curl -sS --config - https://litellm.jorisjonkers.dev/key/generate <<CFG
+header = "Authorization: Bearer $EDGE_TOKEN"
+header = "x-litellm-api-key: Bearer $MASTER"
+header = "Content-Type: application/json"
+data = "{\"key_alias\":\"vibe\",\"max_budget\":255,\"models\":[\"vibe/zai-glm-5-3-flash\",\"vibe/deepseek-v4-1-flash-1017\"]}"
+CFG
 ```
 
 Repeat for `vibe-study` (128) and `opencode-go` (60) with their models, then run

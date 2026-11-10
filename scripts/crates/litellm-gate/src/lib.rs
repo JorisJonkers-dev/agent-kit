@@ -89,7 +89,7 @@ fn parse(args: Vec<OsString>) -> Result<Options, String> {
             "--model" => &mut model,
             "--header" => &mut header,
             "--edge-token-env" => &mut edge,
-            _ => return Err(format!("unknown argument `{flag}`")),
+            _ => return Err("unknown argument".into()),
         };
         let value = args.next().ok_or(format!("{flag} needs a value"))?;
         *slot = Some(value.map_err(|_| "non-UTF-8 argument")?);
@@ -131,12 +131,36 @@ fn model_is_safe(model: &str) -> bool {
     only(model, "._:/-")
 }
 
-/// A base URL must be http(s) and free of anything a curl config could misread.
+/// A base URL must be https, or http to the loopback host only (stubs), and
+/// free of anything a curl config could misread.
 fn url_is_safe(url: &str) -> bool {
-    (url.starts_with("http://") || url.starts_with("https://"))
+    let scheme_ok = url.starts_with("https://")
+        || url.strip_prefix("http://").is_some_and(|rest| {
+            let host = rest.split(['/', ':']).next();
+            matches!(host, Some("127.0.0.1" | "localhost"))
+        });
+    scheme_ok
         && url
             .chars()
             .all(|c| c.is_ascii_graphic() && c != '"' && c != '\\')
+}
+
+/// An environment variable name: `[A-Z][A-Z0-9_]*`. Anything else is never
+/// echoed back; messages say `<invalid name>` instead.
+fn name_is_valid(name: &str) -> bool {
+    name.starts_with(|c: char| c.is_ascii_uppercase())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// The name as it may be shown.
+fn shown(name: &str) -> &str {
+    if name_is_valid(name) {
+        name
+    } else {
+        "<invalid name>"
+    }
 }
 
 /// The JSON probe body; the model name has been vetted so it needs no escaping
@@ -213,6 +237,9 @@ fn read_secret<E>(env: &E, var: &str) -> Result<String, String>
 where
     E: Fn(&str) -> Option<String>,
 {
+    if !name_is_valid(var) {
+        return Err("environment variable name is not [A-Z][A-Z0-9_]*".into());
+    }
     let value = env(var).filter(|v| !v.is_empty());
     let value = value.ok_or(format!("environment variable {var} is not set or is empty"))?;
     if secret_is_safe(&value) {
@@ -234,7 +261,9 @@ where
         return Err("--model must be letters, digits and . _ : / -".into());
     }
     if !url_is_safe(&options.url) {
-        return Err("--url must be an http(s) URL without quotes or spaces".into());
+        return Err(
+            "--url must be https (or http to 127.0.0.1/localhost) without quotes or spaces".into(),
+        );
     }
     let key = read_secret(env, &options.key_env)?;
     let edge = match &options.edge_token_env {
@@ -254,7 +283,7 @@ where
 /// The line and exit code a result earns.
 fn report(options: &Options, result: Result<Verdict, String>) -> (String, i32) {
     let node = &options.node;
-    let var = &options.key_env;
+    let var = shown(&options.key_env);
     let failed = |why: String| (format!("{NAME}: node {node} failed: {why}"), 1);
     match result {
         Ok(Verdict::Within) => (
@@ -280,24 +309,28 @@ where
     run_program(args, env, "curl")
 }
 
-fn run_program<I, E>(args: I, env: E, program: &str) -> i32
+/// Answers one command line: the line to print and the exit code it earns.
+fn execute<I, E>(args: I, env: E, program: &str) -> (String, i32)
 where
     I: IntoIterator<Item = OsString>,
     E: Fn(&str) -> Option<String>,
 {
     let args: Vec<OsString> = args.into_iter().collect();
     if args.first().is_some_and(|a| a == "--version") {
-        println!("{NAME} {}", env!("CARGO_PKG_VERSION"));
-        return 0;
+        return (format!("{NAME} {}", env!("CARGO_PKG_VERSION")), 0);
     }
-    let options = match parse(args) {
-        Ok(options) => options,
-        Err(why) => {
-            eprintln!("{NAME}: {why}\n{}", usage());
-            return 2;
-        }
-    };
-    let (message, code) = report(&options, check(&options, &env, program));
+    match parse(args) {
+        Ok(options) => report(&options, check(&options, &env, program)),
+        Err(why) => (format!("{NAME}: {why}\n{}", usage()), 2),
+    }
+}
+
+fn run_program<I, E>(args: I, env: E, program: &str) -> i32
+where
+    I: IntoIterator<Item = OsString>,
+    E: Fn(&str) -> Option<String>,
+{
+    let (message, code) = execute(args, env, program);
     if code == 0 {
         println!("{message}");
     } else {
@@ -323,6 +356,7 @@ mod tests {
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::thread::JoinHandle;
+    use std::time::{Duration, Instant};
 
     const BUDGET_BODY: &str = r#"{"error":{"message":"Budget has been exceeded! Current cost: 5.1, Max budget: 5.0","type":"budget_exceeded","param":null,"code":"400"}}"#;
     const KEY: &str = "sk-test_KEY.123";
@@ -332,11 +366,29 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/v1", listener.local_addr().unwrap());
         let handle = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            // Bounded: a client that never connects must not hang the test.
+            listener.set_nonblocking(true).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(_) if Instant::now() < deadline => {
+                        std::thread::sleep(Duration::from_millis(10))
+                    }
+                    Err(_) => return String::new(),
+                }
+            };
+            stream.set_nonblocking(false).unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
             let mut request = Vec::new();
             let mut chunk = [0u8; 1024];
             loop {
-                let n = stream.read(&mut chunk).unwrap();
+                let n = stream.read(&mut chunk).unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
                 request.extend_from_slice(&chunk[..n]);
                 let text = String::from_utf8_lossy(&request).into_owned();
                 if let Some((head, rest)) = text.split_once("\r\n\r\n") {
@@ -354,7 +406,7 @@ mod tests {
                 "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
             );
-            stream.write_all(reply.as_bytes()).unwrap();
+            let _ = stream.write_all(reply.as_bytes());
             String::from_utf8_lossy(&request).into_owned()
         });
         (url, handle)
@@ -395,13 +447,23 @@ mod tests {
         assert!(!request.contains("Authorization"));
         assert!(request.contains(r#""model":"gpt-4o""#));
         assert!(request.contains(r#""max_tokens":1"#));
-        assert!(CURL_ARGS.iter().all(|a| !a.contains(KEY)));
     }
 
     #[test]
     fn exhausted_budget_fails_and_the_same_stub_within_budget_passes() {
         let (url, server) = stub(400, BUDGET_BODY);
-        assert_eq!(run_with(check_args(&url, &[]), env), 1);
+        let (message, code) = execute(check_args(&url, &[]), env, "curl");
+        assert_eq!(code, 1);
+        assert_eq!(
+            message,
+            "litellm-gate: node n1 failed: budget exhausted for key LITELLM_KEY"
+        );
+        server.join().unwrap();
+        let (url, server) = stub(400, r#"{"error":{"message":"bad request"}}"#);
+        let (message, code) = execute(check_args(&url, &[]), env, "curl");
+        assert_eq!(code, 1);
+        assert!(message.contains("refused") && message.contains("HTTP 400"));
+        assert!(!message.contains("budget exhausted"));
         server.join().unwrap();
         let (url, server) = stub(200, "{}");
         assert_eq!(run_with(check_args(&url, &[]), env), 0);
@@ -418,7 +480,9 @@ mod tests {
     #[test]
     fn a_server_error_is_refused() {
         let (url, server) = stub(500, "boom");
-        assert_eq!(run_with(check_args(&url, &[]), env), 1);
+        let (message, code) = execute(check_args(&url, &[]), env, "curl");
+        assert_eq!(code, 1);
+        assert!(message.contains("refused"));
         server.join().unwrap();
         assert_eq!(
             report(
@@ -504,6 +568,10 @@ mod tests {
         assert_eq!(run_with(a.iter().map(OsString::from), env), 1);
         let a = check_args("ftp://h/v1", &[]);
         assert_eq!(run_with(a, env), 1);
+        let a = check_args("http://example.com/v1", &[]);
+        assert_eq!(run_with(a, env), 1);
+        assert!(url_is_safe("http://localhost:4000/v1") && url_is_safe("http://127.0.0.1/v1"));
+        assert!(!url_is_safe("http://127.0.0.1.evil.com/v1"));
     }
 
     #[test]
@@ -537,6 +605,46 @@ mod tests {
             assert_eq!(run_with(a.clone(), env), 2, "{a:?}");
         }
         assert!(usage().contains("check --node"));
+    }
+
+    #[test]
+    fn unknown_flags_and_invalid_names_are_never_echoed() {
+        let (message, code) = execute(args(&["--sk-secret-flag", "x"]), env, "curl");
+        assert_eq!(code, 2);
+        assert!(message.contains("unknown argument") && !message.contains("sk-secret"));
+        let a = args(&["--url", "https://h/v1", "--key-env", "sk-secret value"]);
+        let (message, code) = execute(a, env, "curl");
+        assert_eq!(code, 1);
+        assert!(message.contains("<invalid name>") && !message.contains("sk-secret"));
+        let a = check_args("https://h/v1", &["--edge-token-env", "bad-name"]);
+        let (message, code) = execute(a, env, "curl");
+        assert_eq!(code, 1);
+        assert!(!message.contains("bad-name"));
+        assert!(name_is_valid("A1_B") && !name_is_valid("1A") && !name_is_valid("a"));
+    }
+
+    #[test]
+    fn secrets_reach_curl_on_stdin_and_never_in_argv() {
+        let dir = std::env::temp_dir().join(format!("litellm-gate-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (argv, stdin, fake) = (dir.join("argv"), dir.join("stdin"), dir.join("curl"));
+        let script = format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\ncat > '{}'\nprintf '{{}}\\n200'\n",
+            argv.display(),
+            stdin.display()
+        );
+        std::fs::write(&fake, script).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let a = check_args("https://l.example/v1", &["--edge-token-env", "EDGE_TOKEN"]);
+        let (message, code) = execute(a, env, fake.to_str().unwrap());
+        assert_eq!((code, message.contains("within")), (0, true));
+        let argv = std::fs::read_to_string(&argv).unwrap();
+        assert!(argv.contains("--config") && argv.contains("--max-time"));
+        assert!(!argv.contains(KEY) && !argv.contains("edge.tok-1"));
+        let stdin = std::fs::read_to_string(&stdin).unwrap();
+        assert!(stdin.contains(KEY) && stdin.contains("edge.tok-1"));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[cfg(unix)]

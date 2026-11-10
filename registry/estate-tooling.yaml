@@ -111,6 +111,13 @@ workstation_secrets:
   # No check: the proxy sits behind the sign-in edge, which wants a service
   # token as the bearer, so the key cannot be tried on its own. litellm-gate
   # is what proves a key works and has budget left.
+  # The auth-api service token the sign-in edge wants as the bearer in front of
+  # the proxy. Minted by hand while signed in (no LITELLM service in auth-api
+  # yet), pasted once; unchecked for the same reason as the keys below.
+  - env: LITELLM_EDGE_TOKEN
+    paste: "an auth-api service token that the edge accepts for litellm.jorisjonkers.dev"
+    unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the token
+    export: false
   - env: LITELLM_VIBE_KEY
     paste: "the LiteLLM virtual key for the vibe agent id, made on the proxy with a max budget of 255"
     unchecked: the proxy sits behind the sign-in edge; litellm-gate checks the key
