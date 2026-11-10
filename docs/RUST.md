@@ -36,7 +36,7 @@ cargo test --manifest-path scripts/Cargo.toml
 ```
 
 The workspace aims at **100 percent line coverage** of every crate: the unit
-tests in `src/lib.rs` execute each of its lines, with one exception that each
+tests in `src/tests.rs` execute each of its lines, with one exception that each
 crate names in a comment beside the code, the single executable line in
 `src/main.rs` (the exit wrapper).
 
@@ -63,8 +63,8 @@ executable line in `src/main.rs`.
 
 ## Measuring line coverage
 
-One command, from the repository root, on the Linux workstation, the Mac and
-in CI:
+One command, from the repository root, on the Linux workstation and
+in CI (Linux only: one code-nav-eval test needs `/dev/full`):
 
 ```bash
 scripts/coverage.sh
