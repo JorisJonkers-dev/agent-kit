@@ -120,6 +120,8 @@ export interface GitLastChange {
 export interface GitHistoryPort {
   /** The newest commit reachable from HEAD that changed the path (a file or a directory); null when none did. */
   lastChange(cwd: string, path: string): Promise<GitLastChange | null>
+  /** Every commit reachable from `revision` that changed the path, newest first: its id and committer date only, never an author or a message. */
+  fileCommits(cwd: string, revision: string, path: string): Promise<readonly GitLastChange[]>
 }
 
 /**

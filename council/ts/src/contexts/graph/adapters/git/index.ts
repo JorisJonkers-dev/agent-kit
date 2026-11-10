@@ -202,6 +202,17 @@ export class GitCliAdapter implements GitDagExecutorPort, GitHistoryPort {
     return commit === '' ? null : { commit, date }
   }
 
+  async fileCommits(cwd: string, revision: string, path: string): Promise<readonly GitLastChange[]> {
+    const result = await this.git(cwd, ['--literal-pathspecs', 'log', '--format=%H%x00%cI', '--end-of-options', revision, '--', path])
+    return result.stdout
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        const [commit = '', date = ''] = line.trim().split('\0')
+        return { commit, date }
+      })
+  }
+
   async treeEntries(cwd: string, revision: string): Promise<string> {
     const result = await this.git(cwd, ['ls-tree', '-r', '-z', '--full-tree', revision])
     // `<mode> <type> <object>\t<path>` becomes `<mode> <object> 0\t<path>`,

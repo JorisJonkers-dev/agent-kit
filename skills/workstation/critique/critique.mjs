@@ -4624,7 +4624,7 @@ function dependencyCycles(tickets) {
   const edges = tickets.map((ticket) => [
     ...new Set(ticket.blockedBy.flatMap((blocker) => index.has(blocker) ? [index.get(blocker) ?? 0] : []))
   ]);
-  const cycles = [];
+  const cycles2 = [];
   for (let start = 0; start < tickets.length; start += 1) {
     const blocked2 = /* @__PURE__ */ new Set();
     const blockedBy = /* @__PURE__ */ new Map();
@@ -4642,7 +4642,7 @@ function dependencyCycles(tickets) {
       const next = (edges[node] ?? []).filter((other) => other >= start);
       for (const other of next) {
         if (other === start) {
-          cycles.push(path.map((i) => tickets[i]?.id ?? ""));
+          cycles2.push(path.map((i) => tickets[i]?.id ?? ""));
           found = true;
         } else if (!blocked2.has(other) && circuit(other)) {
           found = true;
@@ -4655,7 +4655,7 @@ function dependencyCycles(tickets) {
     };
     circuit(start);
   }
-  return cycles;
+  return cycles2;
 }
 function localTickets(files) {
   const parsed2 = files.map((file) => {
@@ -6439,6 +6439,216 @@ var CheckTicketsCommand = class {
     if (tracker.status === "refused") return tracker;
     const checked = await readCheckedTickets(tracker, { comments: false, spec: input.spec });
     return checked.status === "refused" ? checked : checked.result;
+  }
+};
+
+// src/contexts/critique/domain/import-scan.ts
+var EXTENSIONS = {
+  ".ts": "typescript",
+  ".tsx": "typescript",
+  ".mts": "typescript",
+  ".cts": "typescript",
+  ".js": "typescript",
+  ".jsx": "typescript",
+  ".mjs": "typescript",
+  ".cjs": "typescript",
+  ".py": "python",
+  ".kt": "kotlin",
+  ".kts": "kotlin",
+  ".go": "go",
+  ".rs": "rust"
+};
+function languageOf(path) {
+  const dot = path.lastIndexOf(".");
+  const slash = path.lastIndexOf("/");
+  return dot > slash ? EXTENSIONS[path.slice(dot)] ?? null : null;
+}
+function withoutComments(text, language) {
+  const blockless = language === "python" ? text : text.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ""));
+  const marker = language === "python" ? "#" : "//";
+  return blockless.split("\n").map((line2) => line2.trimStart().startsWith(marker) ? "" : line2).join("\n");
+}
+var PATTERNS = {
+  typescript: [
+    /^\s*(?:import|export)\b[^'"`\n]*?\bfrom\s*['"]([^'"\n]+)['"]/gm,
+    /^\s*import\s*['"]([^'"\n]+)['"]/gm,
+    /\b(?:require|import)\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g
+  ],
+  python: [/^\s*from\s+(\.*[\w.]*)\s+import\b/gm, /^\s*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)/gm],
+  kotlin: [/^\s*import\s+([\w.]+)/gm],
+  go: [/^\s*import\s+(?:[\w.]+\s+)?"([^"\n]+)"/gm, /^\s+(?:[\w.]+\s+)?"([^"\n]+)"\s*$/gm],
+  rust: [/^\s*(?:pub\s+)?use\s+([\w:]+)/gm, /^\s*(?:pub\s+)?mod\s+(\w+)\s*;/gm]
+};
+function scanImports(language, text) {
+  const code = withoutComments(text, language);
+  const found = [];
+  const lines = language === "go" ? goImportLines(code) : code;
+  for (const [position, pattern] of PATTERNS[language].entries()) {
+    const kind = language === "rust" && position === 1 ? "module" : "import";
+    for (const match of lines.matchAll(pattern)) {
+      const raw = language === "kotlin" || language === "rust" ? (match[1] ?? "").replace(/[.:]+$/, "") : match[1] ?? "";
+      const names = language === "python" && !raw.startsWith(".") ? raw.split(",").map((name) => name.trim()) : [raw];
+      for (const specifier of names) found.push({ index: match.index, kind, specifier });
+    }
+  }
+  const ordered = found.filter((entry2) => entry2.specifier !== "").sort((a, b) => a.index - b.index);
+  const seen = /* @__PURE__ */ new Set();
+  return ordered.flatMap(({ specifier, kind }) => {
+    if (seen.has(`${kind} ${specifier}`)) return [];
+    seen.add(`${kind} ${specifier}`);
+    return [{ kind, specifier }];
+  });
+}
+function goImportLines(code) {
+  const lines = code.split("\n");
+  let inBlock = false;
+  return lines.map((line2) => {
+    if (inBlock) {
+      inBlock = !/^\s*\)/.test(line2);
+      return inBlock ? line2 : "";
+    }
+    if (/^\s*import\s*\(/.test(line2)) {
+      inBlock = true;
+      return "";
+    }
+    return /^\s*import\s/.test(line2) ? line2 : "";
+  }).join("\n");
+}
+var dirOf = (path) => path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+function joined(directory, relative4) {
+  const parts = directory === "" ? [] : directory.split("/");
+  for (const part of relative4.split("/")) {
+    if (part === "..") {
+      if (parts.pop() === void 0) return null;
+    } else if (part !== "." && part !== "") parts.push(part);
+  }
+  return parts.join("/");
+}
+function firstIn(tree, candidates) {
+  return candidates.find((candidate) => candidate !== null && tree.has(candidate)) ?? null;
+}
+function resolveImport2(language, from, found, tree) {
+  const { specifier } = found;
+  switch (language) {
+    case "typescript": {
+      if (!specifier.startsWith(".")) return null;
+      const base = joined(dirOf(from), specifier);
+      if (base === null) return null;
+      const stem = base.replace(/\.(?:[cm]?js|jsx)$/, "");
+      const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+      return firstIn(tree, [
+        base,
+        ...extensions.map((extension) => `${stem}${extension}`),
+        ...extensions.map((extension) => `${base}/index${extension}`)
+      ]);
+    }
+    case "python": {
+      const dots = /^\.*/.exec(specifier)?.[0].length ?? 0;
+      const directory = dots === 0 ? "" : joined(dirOf(from), Array(dots - 1).fill("..").join("/"));
+      if (directory === null) return null;
+      const base = [directory, specifier.slice(dots).split(".").join("/")].filter((part) => part !== "").join("/");
+      return base === "" ? null : firstIn(tree, [`${base}.py`, `${base}/__init__.py`]);
+    }
+    case "kotlin": {
+      const path = specifier.split(".").join("/");
+      const matches = [...tree].filter((file) => file === `${path}.kt` || file.endsWith(`/${path}.kt`));
+      return matches.length === 1 ? matches[0] ?? null : null;
+    }
+    case "go":
+      return null;
+    case "rust": {
+      if (found.kind !== "module") return null;
+      const name = from.slice(from.lastIndexOf("/") + 1);
+      const directory = ["lib.rs", "main.rs", "mod.rs"].includes(name) ? dirOf(from) : from.replace(/\.rs$/, "");
+      return firstIn(tree, [joined(directory, `${specifier}.rs`), joined(directory, `${specifier}/mod.rs`)]);
+    }
+  }
+}
+
+// src/contexts/critique/domain/code-facts.ts
+function historyFacts(histories) {
+  return histories.map(({ path, commits }) => ({
+    churn: commits.length,
+    last_commit: commits[0]?.commit ?? null,
+    last_date: commits[0]?.date ?? null,
+    path
+  }));
+}
+function codeFacts2(sources, tree) {
+  const notes = [];
+  const scanned = sources.map(({ path, text }) => {
+    const language = languageOf(path);
+    if (language === null) notes.push(`${path}: no import facts were computed (the import scan does not know this language)`);
+    else if (text === null) notes.push(`${path}: no import facts were computed (the file is not in the commit)`);
+    const imports = language === null || text === null ? [] : scanImports(language, text).map((found) => ({ resolved: resolveImport2(language, path, found, tree), specifier: found.specifier }));
+    return { imports, language, path };
+  });
+  const named = new Set(sources.map((source) => source.path));
+  const edges = new Map(
+    scanned.map(({ path, imports }) => [
+      path,
+      [...new Set(imports.flatMap(({ resolved }) => resolved !== null && resolved !== path && named.has(resolved) ? [resolved] : []))].sort()
+    ])
+  );
+  const modules = scanned.map(({ path, language, imports }) => {
+    const fanOut = edges.get(path)?.length ?? 0;
+    const fanIn = [...edges.values()].filter((targets) => targets.includes(path)).length;
+    return { fan_in: fanIn, fan_out: fanOut, imports, instability: fanIn + fanOut === 0 ? null : fanOut / (fanIn + fanOut), language, path };
+  });
+  return { cycles: cycles(edges), modules, notes };
+}
+function cycles(edges) {
+  const index = /* @__PURE__ */ new Map();
+  const low = /* @__PURE__ */ new Map();
+  const stack = [];
+  const found = [];
+  const visit = (node) => {
+    index.set(node, index.size);
+    low.set(node, index.get(node) ?? 0);
+    stack.push(node);
+    for (const next of edges.get(node) ?? []) {
+      if (!index.has(next)) {
+        visit(next);
+        low.set(node, Math.min(low.get(node) ?? 0, low.get(next) ?? 0));
+      } else if (stack.includes(next)) low.set(node, Math.min(low.get(node) ?? 0, index.get(next) ?? 0));
+    }
+    if (low.get(node) === index.get(node)) {
+      const component = stack.splice(stack.indexOf(node));
+      if (component.length > 1) found.push(component.sort());
+    }
+  };
+  for (const node of [...edges.keys()].sort()) if (!index.has(node)) visit(node);
+  return found.sort((a, b) => (a[0] ?? "") < (b[0] ?? "") ? -1 : 1);
+}
+
+// src/contexts/critique/application/facts.ts
+var FactsCommand = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.repositories = new RepositoryGate(deps);
+  }
+  deps;
+  repositories;
+  async run(raw) {
+    const input = readInput(raw, "facts", (fields) => ({
+      files: fields.has("files") ? fields.strings("files") : [],
+      modules: fields.has("modules") ? fields.strings("modules") : [],
+      repo: fields.string("repo")
+    }));
+    const repository = await this.repositories.resolve(input.repo);
+    if (repository.status === "refused") return repository;
+    const { git } = this.deps;
+    const root = repository.root;
+    const commit = await git.resolveCommit(root, "HEAD").catch(() => void 0);
+    if (commit === void 0) return refusal("no-commit", "the repository has no commit to read facts at");
+    const files = [...new Set(input.files)].sort();
+    const modules = [...new Set(input.modules)].sort();
+    const histories = await Promise.all(files.map(async (path) => ({ commits: await git.fileCommits(root, commit, path), path })));
+    const tree = new Set(await git.treeFiles(root, commit));
+    const sources = await Promise.all(
+      modules.map(async (path) => ({ path, text: tree.has(path) ? await git.fileAt(root, commit, path) : null }))
+    );
+    return { commit, history: historyFacts(histories), status: "reported", ...codeFacts2(sources, tree) };
   }
 };
 
@@ -9731,14 +9941,14 @@ function ticketCheckLines(run) {
   const check = run.ticket_check;
   if (check === void 0) return [];
   const tickets = `${String(check.ticket_ids.length)} ticket${check.ticket_ids.length === 1 ? "" : "s"}`;
-  const cycles = check.cycles.length === 0 ? "no cycle" : `${check.cycles.length === 1 ? "cycle" : "cycles"} ${check.cycles.map((cycle) => [...cycle, cycle[0]].join(" \u2192 ")).join(", ")}`;
+  const cycles2 = check.cycles.length === 0 ? "no cycle" : `${check.cycles.length === 1 ? "cycle" : "cycles"} ${check.cycles.map((cycle) => [...cycle, cycle[0]].join(" \u2192 ")).join(", ")}`;
   const dangling = check.dangling_blockers;
   const shown = dangling.slice(0, DANGLING_SHOWN).map((d) => `${d.ticket} blocked by ${d.blocker}`);
   const more = dangling.length > DANGLING_SHOWN ? [`${String(dangling.length - DANGLING_SHOWN)} more in the packet's check/tickets.json`] : [];
   const blockers = dangling.length === 0 ? "no dangling blocker" : `${String(dangling.length)} dangling blocker${dangling.length === 1 ? "" : "s"} to check (${[...shown, ...more].join(", ")})`;
   const uncited = check.uncited_stories;
   const coverage = uncited === null ? `user story coverage not checkable (${check.coverage_reason ?? "not checked"})` : uncited.length === 0 ? "every user story cited" : `user stor${uncited.length === 1 ? "y" : "ies"} ${uncited.join(", ")} cited by no ticket`;
-  return [`Ticket check: ${check.status}: ${[tickets, cycles, blockers, coverage].join("; ")}`];
+  return [`Ticket check: ${check.status}: ${[tickets, cycles2, blockers, coverage].join("; ")}`];
 }
 function acceptedTail(verdict) {
   if (verdict.answered === true) return "(answered)";
@@ -11436,6 +11646,7 @@ function createCritiqueCommands(deps) {
     budget: new BudgetCommand(deps),
     checkAdrs: new CheckAdrsCommand(deps),
     checkTickets: new CheckTicketsCommand(deps),
+    facts: new FactsCommand(deps),
     fanOut: new FanOutCommand(deps),
     gate: new GateCommand(deps),
     prepare: new PrepareCommand(deps),
@@ -12503,6 +12714,13 @@ var GitCliAdapter = class {
     const [commit = "", date = ""] = result.stdout.trim().split("\0");
     return commit === "" ? null : { commit, date };
   }
+  async fileCommits(cwd, revision, path) {
+    const result = await this.git(cwd, ["--literal-pathspecs", "log", "--format=%H%x00%cI", "--end-of-options", revision, "--", path]);
+    return result.stdout.split("\n").filter((line2) => line2.trim().length > 0).map((line2) => {
+      const [commit = "", date = ""] = line2.trim().split("\0");
+      return { commit, date };
+    });
+  }
   async treeEntries(cwd, revision) {
     const result = await this.git(cwd, ["ls-tree", "-r", "-z", "--full-tree", revision]);
     return result.stdout.split("\0").flatMap((entry2) => {
@@ -12675,6 +12893,7 @@ var COMMANDS = {
   budget: "budget",
   "check-adrs": "checkAdrs",
   "check-tickets": "checkTickets",
+  facts: "facts",
   "fan-out": "fanOut",
   gate: "gate",
   prepare: "prepare",
@@ -12687,7 +12906,7 @@ var COMMANDS = {
   stats: "stats",
   triage: "triage"
 };
-var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
+var CRITIQUE_USAGE = `usage: critique <prepare|fan-out|refute|record|allow|check-tickets|check-adrs|facts|stats|triage|state|budget|reviews|gate|session-start|setup> [--input FILE | --json TEXT]
        critique hook <critique-commit-gate|critique-pr-gate|critique-session-start>
        critique search-server --root DIR [--max-matches N] [--max-bytes N]
 

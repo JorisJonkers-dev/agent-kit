@@ -202,6 +202,19 @@ export class FakeGit implements CritiqueGitPort {
     return Promise.resolve(null)
   }
 
+  /** Every commit on HEAD's line, newest first, whose tree differs from its first parent's at the path, or under it. */
+  async fileCommits(_cwd: string, revision: string, path: string): Promise<readonly GitLastChange[]> {
+    const slice = (tree: ReadonlyMap<string, string>): string =>
+      JSON.stringify([...tree].filter(([name]) => name === path || name.startsWith(`${path}/`)).sort())
+    const changes: GitLastChange[] = []
+    for (const id of this.line.slice(0, this.line.indexOf(revision) + 1).reverse()) {
+      const parent = this.history.find((entry) => entry.id === id)?.parents[0]
+      const before = parent === undefined ? new Map<string, string>() : this.treeOfCommit(parent)
+      if (slice(this.treeOfCommit(id)) !== slice(before)) changes.push({ commit: id, date: this.dates.get(id) ?? '' })
+    }
+    return Promise.resolve(changes)
+  }
+
   /** Points a branch at a commit without moving HEAD, as a fetch moves a remote-tracking branch. */
   setBranch(name: string, commit: string): void {
     this.branches.set(name, commit)

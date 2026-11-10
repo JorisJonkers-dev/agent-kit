@@ -4,6 +4,7 @@ import { AllowCommand, type AllowResult } from './allow.js'
 import { BudgetCommand, type BudgetResult } from './budget-view.js'
 import { CheckAdrsCommand, type CheckAdrsResult } from './check-adrs.js'
 import { CheckTicketsCommand, type CheckTicketsResult } from './check-tickets.js'
+import { FactsCommand, type FactsResult } from './facts.js'
 import { FanOutCommand, type FanOutResult } from './fan-out.js'
 import { GateCommand } from './gate.js'
 import type { CritiqueCommand, CritiqueDeps } from './ports.js'
@@ -20,6 +21,7 @@ import { TriageCommand, type TriageResult } from './triage.js'
 /** The runner's commands. */
 export interface CritiqueCommands {
   readonly prepare: CritiqueCommand<PrepareResult | Refusal>
+  readonly facts: CritiqueCommand<FactsResult | Refusal>
   readonly fanOut: CritiqueCommand<FanOutResult>
   readonly record: CritiqueCommand<RecordResult>
   readonly refute: CritiqueCommand<RefuteResult>
@@ -42,6 +44,7 @@ export function createCritiqueCommands(deps: CritiqueDeps): CritiqueCommands {
     budget: new BudgetCommand(deps),
     checkAdrs: new CheckAdrsCommand(deps),
     checkTickets: new CheckTicketsCommand(deps),
+    facts: new FactsCommand(deps),
     fanOut: new FanOutCommand(deps),
     gate: new GateCommand(deps),
     prepare: new PrepareCommand(deps),
