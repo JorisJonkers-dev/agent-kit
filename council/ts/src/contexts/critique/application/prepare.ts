@@ -388,7 +388,12 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     if (workflow === undefined) {
       return { detail: 'name the model-gateway workflow with workflow so a grant for it can be found', live: false }
     }
-    if (await this.deps.grants.covers(workflow, 'codex')) return { live: true }
+    const covered = await this.deps.grants.covers(workflow, 'codex').then(
+      (live) => ({ live }),
+      (error: unknown) => ({ error: error instanceof Error ? error.message : String(error), live: false }),
+    )
+    if (covered.live) return { live: true }
+    if ('error' in covered) return { detail: `the grants could not be read, so Codex is left out: ${covered.error}`, live: false }
     return {
       detail: `no live grant covers workflow ${workflow} for codex: ask the owner, then write one with model-gateway grant write`,
       live: false,

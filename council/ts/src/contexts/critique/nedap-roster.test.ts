@@ -1,3 +1,5 @@
+import { join } from 'node:path'
+
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { AGENT_KIT_REMOTE, harness, type Harness } from '../../../test/critique/harness.js'
@@ -88,6 +90,18 @@ describe('the work-only critic roster of a nedap repository', () => {
     const h = await nedap({ grants: [{ ...GRANT, expires_at: '2026-10-30T11:30:00Z' }] })
 
     expect((await prepare(h)).dropped).toContainEqual(expect.objectContaining({ client: 'codex-work', reason: 'no-grant' }))
+  })
+
+  it('drops Codex, rather than failing the stage, when the grants cannot be read', async () => {
+    const h = await nedap()
+    await h.writeText(join(h.home, '.config', 'agent-kit', 'model-gateway-grants.json'), 'not json')
+
+    const result = await prepare(h, { orchestrator_family: 'openai' })
+    const claude = await prepare(h)
+
+    expect(result.critics.map((critic) => critic.client)).toEqual(['claude-work'])
+    expect(claude.dropped).toContainEqual(expect.objectContaining({ client: 'codex-work', reason: 'no-grant' }))
+    expect(JSON.stringify(claude.dropped)).toContain('the grants could not be read')
   })
 
   it('drops Codex and says how to name the workflow when the run names none', async () => {
