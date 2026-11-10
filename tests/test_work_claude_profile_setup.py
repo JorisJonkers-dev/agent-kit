@@ -13,11 +13,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from setup_harness import setup_run  # noqa: E402
+from setup_harness import setup_run
 
 
 def _surfaces(home: Path) -> set[str]:
-    return {p.name for p in (home / ".claude" / "skills").iterdir()} if (home / ".claude" / "skills").is_dir() else set()
+    skills = home / ".claude" / "skills"
+    return {p.name for p in skills.iterdir()} if skills.is_dir() else set()
 
 
 def test_ambient_config_dir_does_not_redirect_the_work_profile(tmp_path: Path) -> None:

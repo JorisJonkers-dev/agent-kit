@@ -3519,7 +3519,10 @@ def render_setup_script(data: dict[str, Any]) -> str:
     w("# its own). Dropping it keeps every claude call below on that directory.")
     w('CLAUDE_HOME="${HOME}/.claude"')
     w('if [ -n "${CLAUDE_CONFIG_DIR:-}" ] && [ "${CLAUDE_CONFIG_DIR%/}" != "${CLAUDE_HOME}" ]; then')
-    w('  echo "setup: ignoring CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR}; the work profile installs into ${CLAUDE_HOME}" >&2')
+    w(
+        '  echo "setup: ignoring CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR};'
+        ' the work profile installs into ${CLAUDE_HOME}" >&2'
+    )
     w("fi")
     w("unset CLAUDE_CONFIG_DIR")
     w('CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"')
