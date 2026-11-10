@@ -270,3 +270,19 @@ export function attemptInput(input: RunInput, candidate: Candidate, prompt: stri
     ...(candidate.provider === undefined ? {} : { provider: candidate.provider }),
   }
 }
+
+/**
+ * The catalogue a delegation may move through: all of it when the caller let
+ * the gateway change family, else only the models of the family it asked for.
+ */
+export function bindFamily(input: RunInput, requested: Candidate, pool: readonly Candidate[]): readonly Candidate[] {
+  return input.family_binding === false ? pool : pool.filter((candidate) => candidate.family === requested.family)
+}
+
+/**
+ * The line a summary starts with when a delegation was answered by another
+ * family than the one it asked for: both families and the cause.
+ */
+export function escalationNotice(from: { client: string; family: string }, cause: string, to: { family: string }): string {
+  return `escalated from ${from.family} (${from.client}: ${cause}) to ${to.family}`
+}

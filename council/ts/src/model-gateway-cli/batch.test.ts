@@ -664,13 +664,73 @@ describe('model-gateway batch: reserving up front', () => {
     })
     await w.writeLedger([TODAYS_VIBE_RUN])
 
-    const result = await w.batch([vibe('a', { escalate: undefined })])
+    const result = await w.batch([vibe('a', { escalate: undefined, family_binding: false })])
 
     expect(delegationsOf(result)[0]).toMatchObject({ client: 'claude', id: 'a', status: 'done' })
     const lines = await w.ledgerLines()
     expect(lines.filter((line) => line.kind === 'settled' && line.reason === 'not-started')).toHaveLength(1)
     expect(lines.filter((line) => line.kind === 'settled' && line.reason === 'not-run')).toEqual([])
     expect(printed(result).reservations_released_usd).toBe(0)
+  })
+
+  it('shows the escalation to another family in that delegation’s summary when the caller allowed it', async () => {
+    const w = await batchWorkspace({
+      families: ALL_FAMILIES,
+      override: {
+        clients: {
+          claude: { cost_class: 'metered-personal' },
+          vibe: { cost_class: 'metered-personal', plan_limits: [{ limit_runs: 1, window: 'day' }] },
+        },
+        models: [
+          {
+            client: 'claude',
+            family: 'anthropic',
+            model: 'claude-sonnet-5-5',
+            prices: { cached_input: 0.3, input: 3, output: 15 },
+            tier: 'hard',
+          },
+        ],
+        settings: { metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 1 } },
+      },
+    })
+    await w.writeLedger([TODAYS_VIBE_RUN])
+
+    const result = await w.batch([vibe('a', { escalate: undefined, family_binding: false })])
+
+    expect(String(delegationsOf(result)[0]?.summary)).toMatch(/^escalated from zhipu \(vibe: .+\) to anthropic\n/)
+  })
+
+  it('fails a delegation whose binding family cannot start rather than answering it from another family', async () => {
+    const w = await batchWorkspace({
+      families: ALL_FAMILIES,
+      override: {
+        clients: {
+          claude: { cost_class: 'metered-personal' },
+          vibe: { cost_class: 'metered-personal', plan_limits: [{ limit_runs: 1, window: 'day' }] },
+        },
+        models: [
+          {
+            client: 'claude',
+            family: 'anthropic',
+            model: 'claude-sonnet-5-5',
+            prices: { cached_input: 0.3, input: 3, output: 15 },
+            tier: 'hard',
+          },
+        ],
+        settings: { metered_personal_caps: { per_day_usd: 5, per_workflow_usd: 1 } },
+      },
+    })
+    await w.writeLedger([TODAYS_VIBE_RUN])
+
+    const result = await w.batch([vibe('a', { escalate: undefined })])
+
+    expect(delegationsOf(result)[0]).toMatchObject({
+      client: 'vibe',
+      id: 'a',
+      reason: 'unavailable',
+      status: 'failed',
+    })
+    expect(delegationsOf(result)[0]?.summary).toContain('is binding')
   })
 
   it('gives every reservation back even when one release fails, and still returns the batch', async () => {
@@ -823,9 +883,9 @@ describe('model-gateway batch: parallel delegations', () => {
     await w.writeLedger([{ ...TODAYS_VIBE_RUN, client: 'claude', family: 'anthropic', model: 'claude-sonnet-5-5' }])
 
     const result = await w.batch([
-      claude('a', { escalate: undefined }),
-      claude('b', { escalate: undefined }),
-      claude('c', { escalate: undefined }),
+      claude('a', { escalate: undefined, family_binding: false }),
+      claude('b', { escalate: undefined, family_binding: false }),
+      claude('c', { escalate: undefined, family_binding: false }),
       vibe('x'),
       vibe('y'),
       vibe('z'),

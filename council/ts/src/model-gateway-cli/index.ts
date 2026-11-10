@@ -94,7 +94,7 @@ characters. It takes "workflow", "client" (vibe, agy, claude, opencode or
 hermes), "model", "mode", "prompt", and optionally "repo", "carries" (code and
 history), "time_limit_s" (900 by default), "max_price_usd" (Vibe only),
 "provider" (which a hermes run must name, and which this machine must allow),
-"escalate" and "max_attempts".
+"escalate", "family_binding" and "max_attempts".
 The workflow's life, the data policy and the client model's read-only proof are
 checked before anything is launched; a model without a passing proof (every one
 but a proven Vibe or Antigravity model) works in a throwaway worktree of the
@@ -104,7 +104,9 @@ default), never opencode. A client near its plan limit adds "warnings" to the
 result.
 
 A delegation that fails does not come straight back: "escalate" (true by
-default; false turns it all off) and "max_attempts" (3 by default) govern it. A
+default; false turns it all off), "family_binding" (true by default: only a
+model of the requested family ever answers; false lets another family answer,
+and the summary then says so) and "max_attempts" (3 by default) govern it. A
 failed result (a timeout, output that cannot be parsed, a failed check, a
 non-zero exit) is retried once on the same client model with the failure in the
 prompt, but an answer that says the client model cannot run — the account's

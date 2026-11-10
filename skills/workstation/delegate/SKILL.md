@@ -155,5 +155,11 @@ the Workflow tool for those tasks.
 - Codex is metered-employer: never without a live grant.
 - OpenRouter is never used.
 - OpenCode only through its `opencode-go/...` models, never `opencode/...`.
+- The family you name is binding: a delegation to a model of one family is never
+  answered by another. If no model of that family can answer it ends failed (or `unavailable`, when none can start) with
+  the cause; keep the task or pick another model of the family. Pass
+  `"family_binding": false` only when you want any family to answer, and then
+  read the summary: it opens with `escalated from <family> (...) to <family>`
+  when the answer came from another family.
 - The gateway enforces the caps and the grants. When it refuses, do not work
   around the refusal: keep the task or split it.
