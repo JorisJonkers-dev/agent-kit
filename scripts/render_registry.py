@@ -25,6 +25,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+import gold_band_instances
 import yaml
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
@@ -5101,12 +5102,24 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--write", action="store_true", help="write the generated artifacts")
     group.add_argument("--check", action="store_true", help="fail if any artifact is stale")
+    parser.add_argument(
+        "--overlay",
+        type=Path,
+        default=gold_band_instances.DEFAULT_OVERLAY,
+        help="the per-machine Gold Band overlay to validate with the instances (a missing file is empty)",
+    )
     args = parser.parse_args(argv)
 
     try:
         data = load_registry()
-    except RegistryError as exc:
+        refused = gold_band_instances.validate(data, args.overlay)
+    except (RegistryError, gold_band_instances.InstanceError) as exc:
         print(f"registry invalid: {exc}", file=sys.stderr)
+        return 1
+    if refused:
+        print("registry invalid: the Gold Band instances are refused:", file=sys.stderr)
+        for line in refused:
+            print(f"  {line}", file=sys.stderr)
         return 1
 
     if args.check:

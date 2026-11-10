@@ -303,6 +303,36 @@ price per million input and output tokens, nothing else:
   the installed one. Agents in that directory the registry does not name are
   the owner's, and setup leaves them alone.
 
+## Gold Band instances and the overlay
+
+`gold_band_instances` declares the two Gold Band instances (ADR-0011):
+`gold-band` (work: `claude-work` and `codex` only, `nedap`-owned remotes only,
+no remote refused, the mac only, the `nedap` bank only) and `gold-band-personal`
+(every other agent, `nedap`-owned remotes refused, no remote allowed, the `shared` bank only). Each
+instance records its `repository_rule`; an instance without one is refused.
+
+The per-machine overlay, `~/.config/agent-kit/overlay.yaml` beside the keep
+file, holds the employer-specific entries:
+
+```yaml
+instances:
+  gold-band:
+    mcp_servers:
+      jira: {command: npx, args: [-y, some-mcp], env: {JIRA_TOKEN: $JIRA_TOKEN}}
+    settings: {editor: {theme: dark}}
+```
+
+It may add `mcp_servers` and `settings` to `gold-band` only, and `agents`
+under the same rules as the registry's. The `gold-band-registry` crate
+(`scripts/crates/gold-band-registry`) validates both on every
+`render_registry.py --check` and `--write` (`--overlay PATH` points it at
+another overlay; a missing file is empty). It refuses Codex or `claude-work`
+on the personal instance, from the registry or the overlay; any agent but
+`claude-work` and `codex` on the work instance; literal secrets (use `$NAME`);
+unknown fields; bad ids; a repository rule that is missing or the other instance's; a host the instance may not run on; and a bank other than `nedap` (work) or `shared` (personal). The step runs the crate with `cargo run`, or the
+binary named by `GOLD_BAND_REGISTRY_BIN`, and fails when neither exists. This
+section writes no settings files.
+
 ## Adding a tool to the agents image
 
 Give the entry a `container:` block and add `container` to its `surfaces:`.
