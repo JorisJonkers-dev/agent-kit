@@ -19,7 +19,7 @@ function checkIds(text: string): string[] {
 }
 
 /** One spec-stage critic routed with `lens` alone, whose reply names `check`. */
-async function routedWith(lens: string, check: string): Promise<{ prompt: string; preVerdict: unknown }> {
+async function routedWith(lens: string, check: string): Promise<{ findings: readonly { pre_verdict?: unknown }[]; prompt: string }> {
   const h = await harness({
     routing: {
       clients: {
@@ -42,7 +42,7 @@ async function routedWith(lens: string, check: string): Promise<{ prompt: string
   const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
   const args = h.process.commands[0]?.args ?? []
   const prompt = await readFile(args[args.indexOf('--prompt-file') + 1] ?? '', 'utf8')
-  return { preVerdict: result.findings[0]?.pre_verdict, prompt }
+  return { findings: result.findings, prompt }
 }
 
 describe('the architecture lenses render into a critic prompt', () => {
@@ -50,10 +50,11 @@ describe('the architecture lenses render into a critic prompt', () => {
     const ids = checkIds(await readFile(join(ASSETS_ROOT, 'lenses', `${lens}.md`), 'utf8'))
     expect(ids.length).toBeGreaterThan(0)
 
-    const { prompt, preVerdict } = await routedWith(lens, ids[0] ?? '')
+    const { findings, prompt } = await routedWith(lens, ids[0] ?? '')
 
     for (const id of ids) expect(prompt).toContain(`- \`${id}\`:`)
     // The prompt declares the check, so a finding naming it is not an unknown-check hint.
-    expect(preVerdict).toBeUndefined()
+    expect(findings).toHaveLength(1)
+    expect(findings[0]?.pre_verdict).toBeUndefined()
   })
 })
