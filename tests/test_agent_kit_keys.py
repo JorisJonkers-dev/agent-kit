@@ -237,6 +237,8 @@ def home(tmp_path: Path, auth: tuple[Auth, str]) -> dict:
             "HOME": str(tmp_path / "home"),
             "SHELL": "/bin/zsh",
             "FAKE_KEYCHAIN": str(keychain),
+            # The stand-in stands for macOS; the default is by platform.
+            "AGENT_KIT_SECRETS_BACKEND": "keychain",
             "AGENT_KIT_TTY": str(_tty(tmp_path)),
             "AGENT_KIT_AUTH_URL": base,
         },

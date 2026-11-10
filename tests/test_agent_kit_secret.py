@@ -91,6 +91,7 @@ PYTHONPATH="$FAKE_KEYRING_DIR/mod" exec ''' + sys.executable + ''' "$@"
 class Machine:
     def __init__(self, tmp_path: Path) -> None:
         self.bin = tmp_path / "bin"
+        self.backend = ""
         self.keychain = tmp_path / "keychain"
         self.ring = tmp_path / "ring"
         (self.ring / "mod").mkdir(parents=True)
@@ -109,6 +110,8 @@ class Machine:
         base = {"PATH": path if path is not None else str(self.bin), "HOME": str(self.bin.parent / "home"),
                 "FAKE_KEYCHAIN": str(self.keychain), "FAKE_KEYRING_DIR": str(self.ring),
                 "PYTHONPATH": str(self.ring / "none")}
+        if self.backend:
+            base["AGENT_KIT_SECRETS_BACKEND"] = self.backend
         return subprocess.run([sys.executable, str(SECRET), *args], input=stdin, capture_output=True, text=True,
                               check=False, env={**base, **env}, timeout=60)
 
@@ -117,6 +120,7 @@ class Machine:
 def mac(tmp_path: Path) -> Machine:
     machine = Machine(tmp_path)
     machine.tool("security", FAKE_SECURITY)
+    machine.backend = "keychain"  # the default is by platform, and this suite may run on Linux
     return machine
 
 

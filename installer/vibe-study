@@ -50,7 +50,7 @@ store_key() {
 read_personal_login() {
   local rc=0
   personal_value=""
-  if ! command -v security >/dev/null 2>&1; then
+  if [ "$(uname -s)" != Darwin ] || ! command -v security >/dev/null 2>&1; then
     personal_state=unchecked
     return
   fi

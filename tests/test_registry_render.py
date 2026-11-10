@@ -314,6 +314,16 @@ case "$1" in
   bootout) rm -f "$STATE/loaded" "$STATE/up" ;;
 esac
 """,
+    # systemctl --user keeps "active" state in a file; restart brings the port up.
+    "systemctl": """#!/bin/bash
+echo "$*" >> "$STATE/systemctl.log"
+[ -f "$STATE/no-systemd" ] && exit 1
+case "$2" in
+  is-active) [ -f "$STATE/active" ] ;;
+  restart) touch "$STATE/active" "$STATE/up" ;;
+esac
+exit 0
+""",
     "curl": '#!/bin/bash\n[ -f "$STATE/up" ]\n',
     "kubectl": """#!/bin/bash
 if [ "$1 $2" = "config current-context" ]; then echo prod-ctx; exit 0; fi
@@ -395,10 +405,56 @@ def test_check_mode_installs_nothing(tmp_path: Path) -> None:
     assert "bootstrap" not in (tmp_path / "state" / "launchctl.log").read_text()
 
 
-def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
+def _unit(tmp_path: Path) -> Path:
+    return (
+        tmp_path / "home" / ".config" / "systemd" / "user"
+        / "dev.jorisjonkers.agent-kit.port-forward.kubernetes.service"
+    )
+
+
+def test_linux_installs_a_restarting_systemd_user_unit(tmp_path: Path) -> None:
     result = _run_helper(tmp_path, "Linux")
+    assert "FAIL" not in result.stdout and "warn" not in result.stdout, result.stdout + result.stderr
+    assert "ok kubernetes: systemd user unit" in result.stdout
+    text = _unit(tmp_path).read_text()
+    assert "Restart=always" in text and "WantedBy=default.target" in text
+    assert '"--context" "prod-ctx"' in text and '"svc/kubernetes-mcp-server"' in text
+    assert '"127.0.0.1" "18080:8080"' in text
+    assert f'Environment="KUBECONFIG={tmp_path / "kubeconfig"}"' in text
+    assert not _plist(tmp_path).exists()
+    calls = (tmp_path / "state" / "systemctl.log").read_text()
+    assert "--user daemon-reload" in calls and "--user restart" in calls
+
+
+def test_linux_rerun_leaves_an_active_unit_alone(tmp_path: Path) -> None:
+    _run_helper(tmp_path, "Linux")
+    log = tmp_path / "state" / "systemctl.log"
+    log.write_text("")
+    result = _run_helper(tmp_path, "Linux")
+    assert "already active" in result.stdout, result.stdout
+    assert "restart" not in log.read_text()
+
+
+def test_linux_check_mode_writes_no_unit(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "Linux", check_only=1)
+    assert "would install systemd user unit" in result.stdout, result.stdout
+    assert not _unit(tmp_path).exists()
+
+
+def test_linux_without_a_systemd_session_reports_the_skip(tmp_path: Path) -> None:
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "no-systemd").touch()
+    result = _run_helper(tmp_path, "Linux")
+    assert "no systemd user session; skipped the user unit" in result.stdout, result.stdout
+    assert not _unit(tmp_path).exists()
+    assert not _plist(tmp_path).exists()
+
+
+def test_other_os_falls_back_to_a_one_shot_forward(tmp_path: Path) -> None:
+    result = _run_helper(tmp_path, "FreeBSD")
     assert "one-shot kubectl port-forward" in result.stdout, result.stdout
     assert not _plist(tmp_path).exists()
+    assert not _unit(tmp_path).exists()
     assert not (tmp_path / "state" / "launchctl.log").exists()
 
 

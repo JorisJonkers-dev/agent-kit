@@ -69,7 +69,7 @@ def login_key() -> str:
     """The key Vibe itself uses, in the order it looks."""
     if os.environ.get("MISTRAL_API_KEY"):
         return os.environ["MISTRAL_API_KEY"]
-    if shutil.which("security"):
+    if sys.platform == "darwin" and shutil.which("security"):
         out = subprocess.run(
             ["security", "find-generic-password", "-s", "ai.mistral.vibe", "-a", "MISTRAL_API_KEY", "-w"],
             capture_output=True, text=True, check=False,
