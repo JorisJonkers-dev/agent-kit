@@ -124,6 +124,8 @@ interface PacketContents {
   readonly specReference?: string
   /** Only for an ADR review: how many records are under review. */
   readonly adrs?: number
+  /** Only for the decisions stage: whether the decisions under review include a decision record. */
+  readonly holdsAdr?: boolean
   /** Only for a repository packet: what of the tree it sent. */
   readonly repository?: PreparedRepository
   /** Only for a code stage: what of the tree the cap let in. */
@@ -253,7 +255,7 @@ export class PrepareCommand implements CritiqueCommand<PrepareResult | Refusal> 
     )
     const roster = repository.work
       ? await this.workRoster(routing, { grant: await this.workGrant(input), orchestratorFamily, stage })
-      : await this.openRoster(routing, { allowedFamilies: entry.families, depth, orchestratorFamily, stage })
+      : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry.families, depth, orchestratorFamily, stage })
     const planWarnings = roster.critics.some((critic) => critic.client_config.kind === 'vibe')
       ? (await this.deps.plan.read('vibe')).warnings
       : []

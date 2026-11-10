@@ -1153,6 +1153,12 @@ function quotaReached(count2, quota, stage) {
 }
 
 // src/contexts/critique/domain/stage-table.ts
+var ROLE_EVIDENCE = {
+  decisions: { "adr-reviewer": "records" }
+};
+function evidenceRule(stage, role) {
+  return (role === void 0 ? void 0 : ROLE_EVIDENCE[stage]?.[role]) ?? STAGE_TABLE[stage].evidence;
+}
 var STAGE_TABLE = {
   // With the code permission on, the ADR packet is a repository packet (#221);
   // with it off, the evidence rule skips what needs code (#249).
@@ -4875,6 +4881,7 @@ function parseRouting(text) {
     packet: file.has("packet") ? readPacketLimits(file.object("packet")) : DEFAULT_PACKET_LIMITS,
     stages: file.entries("stages", (stage, name) => ({
       base: onlyOpenClients(stage.list("base", readRosterSlot), clients, `stages.${name}.base`),
+      adr: onlyOpenClients(stage.has("adr") ? stage.list("adr", readRosterSlot) : [], clients, `stages.${name}.adr`),
       deep: onlyOpenClients(stage.has("deep") ? stage.list("deep", readRosterSlot) : [], clients, `stages.${name}.deep`),
       work: onlyWorkClients(stage.has("work") ? stage.list("work", readRosterSlot) : [], clients, `stages.${name}.work`),
       depth_signals: stage.has("depth_signals") ? readDepthSignalsConfig(stage.object("depth_signals"), name) : NO_DEPTH_SIGNALS,
@@ -4991,7 +4998,7 @@ function readDroppedCritic(fields) {
   };
 }
 function candidateClients(routing, request) {
-  const names = new Set(slotsAt(stageRouting(routing, request), request.depth).flatMap(({ slot }) => slotCandidates(routing, slot.client)));
+  const names = new Set(slotsAt(stageRouting(routing, request), request).flatMap(({ slot }) => slotCandidates(routing, slot.client)));
   return [...names].map((name) => [name, clientNamed(routing, request, name)]).filter(([, client]) => familyReason(client.family, request) === void 0);
 }
 function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) {
@@ -5005,7 +5012,7 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
     if (ready?.ready !== false) return void 0;
     return { detail: ready.detail, reason: "reason" in ready ? ready.reason : "unavailable" };
   };
-  for (const { slot, deep } of slotsAt(stage, request.depth)) {
+  for (const { slot, deep } of slotsAt(stage, request)) {
     const primary = clientNamed(routing, request, slot.client);
     const primaryRefusal = refusal2(slot.client, primary);
     const name = slotCandidates(routing, slot.client).find(
@@ -5034,8 +5041,12 @@ function resolveRoster(routing, request, readiness = /* @__PURE__ */ new Map()) 
   }
   return { critics, depth: request.depth, distinct_families: stage.distinct_families, dropped };
 }
-function slotsAt(stage, depth) {
-  return [...stage.base.map((slot) => ({ slot })), ...depth === "deep" ? stage.deep.map((slot) => ({ deep: true, slot })) : []];
+function slotsAt(stage, request) {
+  return [
+    ...stage.base.map((slot) => ({ slot })),
+    ...request.adr === true ? stage.adr.map((slot) => ({ slot })) : [],
+    ...request.depth === "deep" ? stage.deep.map((slot) => ({ deep: true, slot })) : []
+  ];
 }
 function stageRouting(routing, request) {
   const stage = routing.stages[request.stage];
@@ -6122,6 +6133,9 @@ import { posix as posix2 } from "node:path";
 var DOMAIN_DOC = "docs/agents/domain.md";
 var GLOSSARIES = ["GLOSSARY.md", "CONTEXT.md"];
 var ADR_DIRECTORY = "docs/adr";
+function isDecisionRecord(path) {
+  return path.endsWith(".md") && path.split("/").at(-2) === "adr";
+}
 var CONTEXT_MAP = "CONTEXT-MAP.md";
 function namedPaths2(markdown) {
   const prose2 = withoutFences(markdown);
@@ -6512,14 +6526,14 @@ function indexPacket(packet2, tickets = []) {
 }
 var TREE_DIR = "tree";
 var DECISION_CATEGORIES = ["omission", "invention"];
-function checkEvidence(finding, stage, packet2) {
+function checkEvidence(finding, stage, packet2, role) {
   const found = evidenceFound(finding, packet2);
   if (typeof found === "number") return fabricated(`evidence ${String(found + 1)} quotes text that is not in the packet`);
   if (isCodeStage(stage) || packet2.tree) {
     const missing = missingLine(finding, packet2);
     if (missing !== void 0) return fabricated(missing);
   }
-  const hint = found.items === 0 ? "no-evidence" : EVIDENCE_RULES[STAGE_TABLE[stage].evidence](finding, found, packet2);
+  const hint = found.items === 0 ? "no-evidence" : EVIDENCE_RULES[evidenceRule(stage, role)](finding, found, packet2);
   return hint === void 0 ? void 0 : { reason: HINT_REASONS[hint], reason_code: hint, verdict: "hint" };
 }
 function evidenceFound(finding, packet2) {
@@ -6542,6 +6556,8 @@ var EVIDENCE_RULES = {
   adrs: adrRule,
   code: (finding) => codeRule(finding.evidence),
   decisions: (finding, found) => decisionsRule(finding.category, found),
+  // A record finding quotes the record it is about, which is among the decisions under review.
+  records: (_finding, found) => found.spec ? void 0 : "no-record-quote",
   spec: (finding, found) => specRule(finding.category, found),
   tickets: (finding, _found, packet2) => ticketRule(finding.location, packet2.tickets)
 };
@@ -6607,6 +6623,7 @@ var CODE_CATEGORIES = {
   ],
   code: [],
   decisions: [],
+  records: [],
   spec: [],
   tickets: []
 };
@@ -6628,7 +6645,7 @@ function quotesTwoFiles(evidence, packet2) {
 }
 function skippedChecks(stage, packet2, sources) {
   if (packet2.tree) return [];
-  const categories = CODE_CATEGORIES[STAGE_TABLE[stage].evidence];
+  const categories = CODE_CATEGORIES[evidenceRule(stage, void 0)];
   const skipped = categories.map(({ about, category }) => ({ about, check: category, from: "category" }));
   for (const source of sources) {
     for (const check of source.checks) {
@@ -7345,10 +7362,11 @@ var ReadOnlyTripwire = class _ReadOnlyTripwire {
 };
 
 // src/contexts/critique/application/fan-out.ts
-function withPreVerdict(finding, stage, packet2, checks) {
-  const declared = checks.get(finding.raised_by[0] ?? "") ?? [];
+function withPreVerdict(finding, stage, packet2, critics) {
+  const raiser2 = critics.get(finding.raised_by[0] ?? "");
+  const declared = raiser2?.checks ?? [];
   const rated = withDeclaredSeverity(finding, declared);
-  const preVerdict = checkEvidence(rated, stage, packet2) ?? checkNamed(rated, declared) ?? checkRunnable(rated, declared, packet2.tree);
+  const preVerdict = checkEvidence(rated, stage, packet2, raiser2?.role) ?? checkNamed(rated, declared) ?? checkRunnable(rated, declared, packet2.tree);
   return preVerdict === void 0 ? rated : { ...rated, pre_verdict: preVerdict };
 }
 function parseFanOutResult(text) {
@@ -7380,8 +7398,8 @@ var FanOutCommand = class {
     const first = await Promise.all(manifest.critics.map((critic) => this.attempt({ budget, manifest, tools, tripwire }, critic)));
     const outcomes = [...first, ...await this.retries({ budget, manifest, tools, tripwire }, first)];
     const merged = mergeFindings(outcomes.map((outcome) => ({ critic_id: outcome.run.critic_id, findings: outcome.findings })));
-    const checks = new Map(outcomes.map((outcome) => [outcome.run.critic_id, outcome.checks]));
-    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet2, checks));
+    const critics = new Map(outcomes.map(({ checks, run }) => [run.critic_id, { checks, role: run.role }]));
+    const findings = merged.map((finding) => withPreVerdict(finding, manifest.stage, packet2, critics));
     const ledgerWarnings = outcomes.flatMap((outcome) => outcome.ledger_warning === void 0 ? [] : [outcome.ledger_warning]);
     const skipped = skippedChecks(manifest.stage, packet2, await this.checkSources(manifest));
     const result = {
@@ -8944,7 +8962,7 @@ var DecisionsPacketReader = class {
         text: decisionSummary(request.summary)
       };
       const references2 = await Promise.all(docs.map((source) => read("reference", source)));
-      return packet(DECISION_ARTIFACTS.summary, [feature, summary, ...references2]);
+      return packet(DECISION_ARTIFACTS.summary, [feature, summary, ...references2], false);
     }
     if (docs.length === 0) {
       return refusal(
@@ -8952,12 +8970,13 @@ var DecisionsPacketReader = class {
         `found no decision docs (${DOMAIN_DOC}, ${GLOSSARIES.join(", ")} or ${ADR_DIRECTORY}/); after /grill-me, pass the decisions as decision_summary`
       );
     }
-    return packet(DECISION_ARTIFACTS.docs, [feature, ...await Promise.all(docs.map((source) => read("artifact", source)))]);
+    const artifacts = await Promise.all(docs.map((source) => read("artifact", source)));
+    return packet(DECISION_ARTIFACTS.docs, [feature, ...artifacts], docs.some(isDecisionRecord));
   }
 };
-function packet(reference, files) {
+function packet(reference, files, holdsAdr) {
   const text = files.filter((file) => file.kind === "artifact").map((file) => file.text).join("\n\n");
-  return { artifact: { labels: [], reference, text, tracker: "none" }, code: void 0, files, status: "read" };
+  return { artifact: { labels: [], reference, text, tracker: "none" }, code: void 0, files, holdsAdr, status: "read" };
 }
 
 // src/contexts/critique/application/prepare.ts
@@ -9035,7 +9054,7 @@ var PrepareCommand = class {
       ticketCheck === void 0 ? { labels: artifact.labels, text: artifact.text, ...measured, ...contents.adrs === void 0 ? {} : { adrs: contents.adrs } } : { labels: artifact.labels, text: contents.files.map((file) => file.text).join("\n\n"), tickets: ticketCheck.tickets.length },
       input.depth
     );
-    const roster = repository.work ? await this.workRoster(routing, { grant: await this.workGrant(input), orchestratorFamily, stage }) : await this.openRoster(routing, { allowedFamilies: entry2.families, depth, orchestratorFamily, stage });
+    const roster = repository.work ? await this.workRoster(routing, { grant: await this.workGrant(input), orchestratorFamily, stage }) : await this.openRoster(routing, { adr: contents.holdsAdr === true, allowedFamilies: entry2.families, depth, orchestratorFamily, stage });
     const planWarnings = roster.critics.some((critic) => critic.client_config.kind === "vibe") ? (await this.deps.plan.read("vibe")).warnings : [];
     const runId2 = await this.freshRunId(repository, stage);
     const runDir = join24(repository.commonDir, "critique", runId2);
@@ -9363,7 +9382,7 @@ function judgeReply(finding, reply, context) {
     return invalid4(`names the check ${answer2 ?? "(none)"}; a refuter answers refute or downgrade`, objection);
   }
   if (answer2 === "downgrade" && objection.severity === "critical") return invalid4("a downgrade that leaves the finding critical", objection, answer2);
-  const pre = checkEvidence({ ...objection, category: finding.category, location: finding.location }, context.stage, context.packet);
+  const pre = checkEvidence({ ...objection, category: finding.category, location: finding.location }, context.stage, context.packet, context.role);
   if (pre !== void 0) return { answer: answer2, detail: pre.reason, outcome: "stands", reason_code: pre.reason_code, reply: objection };
   return { answer: answer2, outcome: answer2, reply: objection, ...answer2 === "downgrade" ? { severity: objection.severity } : {} };
 }
@@ -10026,7 +10045,8 @@ var RefuteCommand = class {
     const reply = await runCritic(this.deps, { critic: refuter, criticDir, prompt, tools: round3.tools, tripwire: round3.tripwire });
     const ledgerWarning = await round3.budget.logInvocation(manifest, reply.run, refuter.client_config, specReference(manifest));
     if (ledgerWarning !== void 0) round3.ledgerWarnings.push(ledgerWarning);
-    const judged = judgeReply(finding, reply, { declared: round3.declared, packet: round3.packet, stage: manifest.stage });
+    const role = round3.merged.critics.find((critic) => critic.critic_id === finding.raised_by[0])?.role;
+    const judged = judgeReply(finding, reply, { declared: round3.declared, packet: round3.packet, stage: manifest.stage, ...role === void 0 ? {} : { role } });
     return { finding_id: finding.id, ...judged, refuter: reply.run };
   }
   /**
@@ -11085,7 +11105,7 @@ var StatsCommand = class {
       ledger,
       filter,
       thresholds,
-      (stage) => routing.stages[stage]?.base.map((slot) => slot.client) ?? []
+      (stage) => [...routing.stages[stage]?.base ?? [], ...routing.stages[stage]?.adr ?? []].map((slot) => slot.client)
     );
     return {
       ...stats,

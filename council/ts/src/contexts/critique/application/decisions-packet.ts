@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { ADR_DIRECTORY, DOMAIN_DOC, GLOSSARIES } from '../domain/decision-docs.js'
+import { ADR_DIRECTORY, DOMAIN_DOC, GLOSSARIES, isDecisionRecord } from '../domain/decision-docs.js'
 import { DECISION_ARTIFACTS, decisionSummary, FEATURE_PATH, featureStatement, SUMMARY_NAME } from '../domain/decisions.js'
 import type { ArtifactSource } from '../domain/manifest.js'
 import { CritiqueError, refusal, type Refusal } from '../domain/outcomes.js'
@@ -24,6 +24,8 @@ export interface DecisionsPacket {
   readonly artifact: ArtifactSource & { readonly text: string }
   readonly files: readonly UnfrozenFile[]
   readonly code: undefined
+  /** Whether the decisions under review include a decision record, which adds the stage's ADR critics. */
+  readonly holdsAdr: boolean
 }
 
 /**
@@ -32,7 +34,9 @@ export interface DecisionsPacket {
  * paths. After `/grill-me` the orchestrator's summary is the artifact, and
  * the decision docs the repository already has are reference material. The
  * feature statement goes to `feature/`, so critics know which decisions bear
- * on the feature. No tracker is read: grilling comes before any spec.
+ * on the feature. No tracker is read: grilling comes before any spec. The
+ * packet holds an ADR when a decision record is among the decision docs
+ * under review; a summary's references never count.
  */
 export class DecisionsPacketReader {
   private readonly decisionDocs: DecisionDocs
@@ -64,7 +68,7 @@ export class DecisionsPacketReader {
         text: decisionSummary(request.summary),
       }
       const references = await Promise.all(docs.map((source) => read('reference', source)))
-      return packet(DECISION_ARTIFACTS.summary, [feature, summary, ...references])
+      return packet(DECISION_ARTIFACTS.summary, [feature, summary, ...references], false)
     }
     if (docs.length === 0) {
       return refusal(
@@ -72,14 +76,15 @@ export class DecisionsPacketReader {
         `found no decision docs (${DOMAIN_DOC}, ${GLOSSARIES.join(', ')} or ${ADR_DIRECTORY}/); after /grill-me, pass the decisions as decision_summary`,
       )
     }
-    return packet(DECISION_ARTIFACTS.docs, [feature, ...(await Promise.all(docs.map((source) => read('artifact', source))))])
+    const artifacts = await Promise.all(docs.map((source) => read('artifact', source)))
+    return packet(DECISION_ARTIFACTS.docs, [feature, ...artifacts], docs.some(isDecisionRecord))
   }
 }
 
-function packet(reference: string, files: readonly UnfrozenFile[]): DecisionsPacket {
+function packet(reference: string, files: readonly UnfrozenFile[], holdsAdr: boolean): DecisionsPacket {
   const text = files
     .filter((file) => file.kind === 'artifact')
     .map((file) => file.text)
     .join('\n\n')
-  return { artifact: { labels: [], reference, text, tracker: 'none' }, code: undefined, files, status: 'read' }
+  return { artifact: { labels: [], reference, text, tracker: 'none' }, code: undefined, files, holdsAdr, status: 'read' }
 }

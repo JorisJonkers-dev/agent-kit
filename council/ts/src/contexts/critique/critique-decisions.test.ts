@@ -186,6 +186,120 @@ describe('the shipped decisions roster', () => {
   })
 })
 
+const EVERY_FAMILY = ['mistral', 'google', 'zhipu', 'deepseek'] as const
+const ADR_PATH = join('docs', 'adr', '0001-nightly-job.md')
+const ADR_DECISION = 'We frobnicate widgets in the nightly job only, because daytime load is already at its limit.'
+const ADR_CRITIC = ['c3-vibe-deepseek-flash', 'adr-reviewer', ['adr-record'], 0.3, 240]
+
+async function withAdr(h: Harness): Promise<Harness> {
+  await h.writeText(join(h.repo, ADR_PATH), `# The nightly job frobnicates\n\n${ADR_DECISION}\n`)
+  return h
+}
+
+describe('an ADR among the decisions under review', () => {
+  it('adds DeepSeek Flash as an adr-reviewer on the adr-record lens, at the stage’s caps', async () => {
+    const h = await withAdr(await allowing(EVERY_FAMILY))
+
+    const run = await prepared(h)
+
+    expect(slots(await manifestOf(run))).toEqual([
+      ['c1-vibe-mistral-large', 'gap-critic', ['unasked-questions'], 0.3, 240],
+      ['c2-agy-gemini-flash-high', 'gap-critic', ['unasked-questions', 'failure-modes'], 0.3, 240],
+      ADR_CRITIC,
+    ])
+    expect(run.critics.map((critic) => [critic.critic_id, critic.role, critic.lenses])).toContainEqual([
+      'c3-vibe-deepseek-flash',
+      'adr-reviewer',
+      ['adr-record'],
+    ])
+  })
+
+  it('adds no adr-record critic when the decisions under review hold no ADR', async () => {
+    const h = await allowing(EVERY_FAMILY)
+
+    const run = await prepared(h)
+
+    expect(run.critics.map((critic) => critic.role)).toEqual(['gap-critic', 'gap-critic'])
+  })
+
+  it('adds none after /grill-me, whose ADRs are reference material rather than the artifact', async () => {
+    const h = await withAdr(await allowing(EVERY_FAMILY))
+
+    const run = await prepared(h, { decision_summary: '- The window is seven seconds.\n' })
+
+    expect(run.packet_files).toContain('references/docs/adr/0001-nightly-job.md')
+    expect(run.critics.map((critic) => critic.role)).toEqual(['gap-critic', 'gap-critic'])
+  })
+
+  it('counts a record of a context’s own ADR directory, but not another doc the domain doc names', async () => {
+    const h = await allowing(EVERY_FAMILY)
+    await h.writeText(join(h.repo, 'docs', 'agents', 'domain.md'), '# Domain docs\n\nSee `docs/decisions.md`.\n')
+    await h.writeText(join(h.repo, 'docs', 'decisions.md'), '# Decisions\n')
+    const plain = await prepared(h)
+    await h.writeText(join(h.repo, 'docs', 'agents', 'domain.md'), '# Domain docs\n\nSee `src/billing/docs/adr/`.\n')
+    await h.writeText(join(h.repo, 'src', 'billing', 'docs', 'adr', '0001-invoices.md'), '# Invoices are monthly\n')
+    const context = await prepared(h)
+
+    expect(plain.critics.map((critic) => critic.role)).toEqual(['gap-critic', 'gap-critic'])
+    expect(context.critics.map((critic) => critic.role)).toEqual(['gap-critic', 'gap-critic', 'adr-reviewer'])
+  })
+
+  it('runs it before the deep critics, so a deep run keeps it', async () => {
+    const h = await withAdr(await allowing(EVERY_FAMILY))
+
+    const run = await prepared(h, { depth: 'deep' })
+
+    expect(slots(await manifestOf(run)).map(([id, role]) => [id, role])).toEqual([
+      ['c1-vibe-mistral-large', 'gap-critic'],
+      ['c2-agy-gemini-flash-high', 'gap-critic'],
+      ['c3-vibe-deepseek-flash', 'adr-reviewer'],
+      ['c4-vibe-glm', 'gap-critic'],
+    ])
+  })
+})
+
+describe('the adr-record critic’s family rules', () => {
+  it('drops it when DeepSeek is the orchestrator’s family', async () => {
+    const h = await withAdr(await allowing(EVERY_FAMILY))
+
+    const run = await prepared(h, { orchestrator_family: 'deepseek' })
+
+    expect(run.critics.map((critic) => critic.role)).toEqual(['gap-critic', 'gap-critic'])
+    expect(run.dropped).toEqual([{ client: 'vibe-deepseek-flash', family: 'deepseek', reason: 'orchestrator-family' }])
+  })
+
+  it('drops it when the allowlist does not permit DeepSeek', async () => {
+    const h = await withAdr(await allowing(['mistral', 'google']))
+
+    const run = await prepared(h)
+
+    expect(run.dropped).toEqual([{ client: 'vibe-deepseek-flash', family: 'deepseek', reason: 'family-not-allowed' }])
+  })
+
+  it('never runs it beside a critic of its own family, taking a fallback of another instead', async () => {
+    const h = await withAdr(
+      await allowing(EVERY_FAMILY, {
+        routingOverride: {
+          stages: {
+            decisions: {
+              adr: [{ client: 'vibe-mistral-large', lenses: ['adr-record'], max_price_usd: 0.3, role: 'adr-reviewer', time_limit_s: 240 }],
+            },
+          },
+        },
+      }),
+    )
+
+    const run = await prepared(h)
+
+    expect(slots(await manifestOf(run)).map(([id, role]) => [id, role])).toEqual([
+      ['c1-vibe-mistral-large', 'gap-critic'],
+      ['c2-agy-gemini-flash-high', 'gap-critic'],
+      ['c3-vibe-glm', 'adr-reviewer'],
+    ])
+    expect(run.dropped).toEqual([{ client: 'vibe-mistral-large', family: 'mistral', reason: 'same-family', replaced_by: 'c3-vibe-glm' }])
+  })
+})
+
 describe('the decisions depth signals', () => {
   it('stays at base for a small set of decisions, and says what it measured', async () => {
     const h = await optedIn()
@@ -391,6 +505,142 @@ describe('recording the owner’s answers', () => {
     })
 
     expect(recorded.second_round_due).toBe(false)
+  })
+})
+
+const ADR_FILE = 'artifact/docs/adr/0001-nightly-job.md'
+const NO_GAPS = { findings: [], no_findings_reason: 'Every branch the feature meets is decided.' }
+
+/** A finding the adr-record critic reports on the frozen ADR. */
+function recordFinding(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return finding({
+    category: 'omission',
+    check: 'no-cost',
+    claim: 'The record names no cost of frobnicating only at night.',
+    evidence: [{ file: ADR_FILE, kind: 'quote', value: ADR_DECISION }],
+    location: 'docs/adr/0001-nightly-job.md: no-cost',
+    severity: 'minor',
+    suggestion: 'Ask the owner what frobnicating only at night costs.',
+    ...overrides,
+  })
+}
+
+/**
+ * A decisions run over the glossary and one ADR, with Mistral Large as the
+ * gap critic and DeepSeek Flash as the adr-record critic (`c2`), since the
+ * allowlist permits only their two families.
+ */
+async function recordsReviewed(records: readonly Record<string, unknown>[], gaps: unknown = NO_GAPS) {
+  const h = await withAdr(
+    await allowing(['mistral', 'deepseek'], {
+      scripts: [
+        { agent: 'critic-mistral-large', exitCode: 0, exportJson: isolatedExport(), stdout: vibeStdout(fenced(gaps)) },
+        { agent: 'critic-deepseek-flash', ...critic(records) },
+      ],
+    }),
+  )
+  const run = await prepared(h)
+  const result = await h.commands.fanOut.run({ run_dir: run.run_dir })
+  return { h, result, run }
+}
+
+describe('the adr-record critic at the decisions stage', () => {
+  it('is told the adr-reviewer role and the adr-record lens', async () => {
+    const { h } = await recordsReviewed([recordFinding()])
+
+    const launch = h.process.commands.find((command) => command.args.includes('critic-deepseek-flash'))
+    const args = launch?.args ?? []
+    const prompt = await readFile(args[args.indexOf('--prompt-file') + 1] ?? '', 'utf8')
+    expect(prompt).toContain((await asset('roles/adr-reviewer.md')).trim())
+    expect(prompt).toContain((await asset('lenses/adr-record.md')).trim())
+    expect(prompt).toContain(`- \`${ADR_FILE}\`: the artifact under review`)
+  })
+
+  it('is told by its role to keep to the records the feature bears on, in a packet with no ADR check report', async () => {
+    const role = (await asset('roles/adr-reviewer.md')).replace(/\s+/g, ' ')
+
+    expect(role).toContain('When the packet holds `feature/feature.md`')
+    expect(role).toContain('When the packet holds `check/adrs.json`')
+  })
+
+  it('leaves a finding that quotes its record for the orchestrator, at the severity its check fixes', async () => {
+    const { result } = await recordsReviewed([recordFinding()])
+
+    expect(result.findings).toHaveLength(1)
+    expect(result.findings[0]).toMatchObject({ declared_severity: 'major', raised_by: ['c2-vibe-deepseek-flash'], severity: 'major' })
+    expect(result.findings[0]?.pre_verdict).toBeUndefined()
+  })
+
+  it('makes a finding that quotes none of the decisions under review a hint', async () => {
+    const { result } = await recordsReviewed([recordFinding({ evidence: [{ file: 'feature/feature.md', kind: 'quote', value: FEATURE }] })])
+
+    expect(result.findings[0]?.pre_verdict).toEqual({
+      reason: 'no quote from a record under review',
+      reason_code: 'no-record-quote',
+      verdict: 'hint',
+    })
+  })
+
+  it('still holds the gap critic’s findings to the gap rule in the same run', async () => {
+    const { result } = await recordsReviewed([recordFinding()], { findings: [gap({ category: 'omission', id: 'G1' })] })
+
+    expect(result.findings.map((f) => [f.raised_by, f.pre_verdict?.reason_code])).toEqual([
+      [['c1-vibe-mistral-large'], 'not-a-decision-gap'],
+      [['c2-vibe-deepseek-flash'], undefined],
+    ])
+  })
+
+  it('is ruled on with the stage’s verdicts: an accepted question the owner answered, and a rejection', async () => {
+    const { h, run } = await recordsReviewed([recordFinding(), recordFinding({ check: 'undated-claim', id: 'F2', location: 'docs/adr/0001-nightly-job.md: undated-claim' })])
+
+    const recorded = await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [
+        { answered: true, finding_id: 'F1', verdict: 'accepted' },
+        { finding_id: 'F2', reason: 'The record bears on no part of the feature.', reason_code: 'outside-feature', verdict: 'rejected' },
+      ],
+    })
+
+    expect(recorded.summary).toContain(
+      '- F1 [major omission] docs/adr/0001-nightly-job.md: no-cost: The record names no cost of frobnicating only at night. (answered)',
+    )
+    const findings = (await ledger(h)).filter((line) => line.type === 'finding')
+    expect(findings.map((line) => [line.finding_id, line.role, line.check, line.verdict, line.reason_code])).toEqual([
+      ['F1', 'adr-reviewer', 'no-cost', 'accepted', null],
+      ['F2', 'adr-reviewer', 'undated-claim', 'rejected', 'outside-feature'],
+    ])
+  })
+
+  it('takes a severity override with its reason, as the ledger records it', async () => {
+    const { h, run } = await recordsReviewed([recordFinding()])
+
+    await h.commands.record.run({
+      run_dir: run.run_dir,
+      verdicts: [{ answered: true, finding_id: 'F1', severity: 'minor', severity_reason: 'cost-in-context', verdict: 'accepted' }],
+    })
+
+    const [line] = (await ledger(h)).filter((entry) => entry.type === 'finding')
+    expect(line).toMatchObject({ declared_severity: 'major', severity_override: 'minor', severity_reason: 'cost-in-context' })
+  })
+
+  it('has an accepted critical finding refuted by a quote of its record', async () => {
+    const { h, run } = await recordsReviewed([
+      recordFinding({ check: 'no-decision-sentence', claim: 'No sentence says what was decided.', location: 'docs/adr/0001-nightly-job.md: no-decision-sentence' }),
+    ])
+    h.process.queue({
+      agent: 'critic-mistral-large',
+      ...critic([
+        finding({
+          check: 'refute',
+          claim: 'The record’s second line states the decision.',
+          evidence: [{ file: ADR_FILE, kind: 'quote', value: ADR_DECISION }],
+        }),
+      ]),
+    })
+
+    const result = await h.commands.refute.run({ run_dir: run.run_dir, verdicts: [{ finding_id: 'F1', verdict: 'accepted' }] })
+
+    expect(result.results[0]).toMatchObject({ answer: 'refute', finding_id: 'F1', outcome: 'refute' })
   })
 })
 

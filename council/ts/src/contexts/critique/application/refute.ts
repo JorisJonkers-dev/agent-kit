@@ -175,7 +175,8 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
     const reply = await runCritic(this.deps, { critic: refuter, criticDir, prompt, tools: round.tools, tripwire: round.tripwire })
     const ledgerWarning = await round.budget.logInvocation(manifest, reply.run, refuter.client_config, specReference(manifest))
     if (ledgerWarning !== undefined) round.ledgerWarnings.push(ledgerWarning)
-    const judged = judgeReply(finding, reply, { declared: round.declared, packet: round.packet, stage: manifest.stage })
+    const role = round.merged.critics.find((critic) => critic.critic_id === finding.raised_by[0])?.role
+    const judged = judgeReply(finding, reply, { declared: round.declared, packet: round.packet, stage: manifest.stage, ...(role === undefined ? {} : { role }) })
     return { finding_id: finding.id, ...judged, refuter: reply.run }
   }
 

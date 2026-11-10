@@ -198,7 +198,13 @@ export interface RefuterReply {
 export function judgeReply(
   finding: RunFinding,
   reply: RefuterReply,
-  context: { readonly declared: readonly string[]; readonly stage: CritiqueStage; readonly packet: PacketIndex },
+  context: {
+    readonly declared: readonly string[]
+    readonly stage: CritiqueStage
+    readonly packet: PacketIndex
+    /** The role of the critic that raised the finding first, whose evidence rule the objection meets. */
+    readonly role?: string
+  },
 ): Omit<RefuteRecord, 'finding_id' | 'refuter'> {
   const { run, findings } = reply
   if (run.status !== 'ok') return { detail: run.detail ?? run.status, outcome: 'stands', reason_code: 'no-review' }
@@ -213,7 +219,7 @@ export function judgeReply(
     return invalid(`names the check ${answer ?? '(none)'}; a refuter answers refute or downgrade`, objection)
   }
   if (answer === 'downgrade' && objection.severity === 'critical') return invalid('a downgrade that leaves the finding critical', objection, answer)
-  const pre = checkEvidence({ ...objection, category: finding.category, location: finding.location }, context.stage, context.packet)
+  const pre = checkEvidence({ ...objection, category: finding.category, location: finding.location }, context.stage, context.packet, context.role)
   if (pre !== undefined) return { answer, detail: pre.reason, outcome: 'stands', reason_code: pre.reason_code, reply: objection }
   return { answer, outcome: answer, reply: objection, ...(answer === 'downgrade' ? { severity: objection.severity } : {}) }
 }

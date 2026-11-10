@@ -58,6 +58,9 @@ as (not of the app you run in), so no critic shares your family:
 - **After `/grill-with-docs`**: leave `decision_summary` out. Prepare freezes
   the decision docs it wrote (the domain docs `docs/agents/domain.md` names,
   else `GLOSSARY.md` or `CONTEXT.md`, plus the ADRs in `docs/adr/`).
+  When an ADR is among them, the roster adds a DeepSeek Flash critic with
+  the `adr-reviewer` role and the `adr-record` lens, whose findings quote
+  the record they are about.
 - **After `/grill-me`**, which writes no docs: write `decision_summary`, at
   most 40 lines, one top-level `- ` item per decision the owner made, in the
   owner's terms. Record only what was decided; an open question is not a
@@ -77,7 +80,7 @@ when `/flow` named one.
   allowlist** entry, so nothing may be sent yet. Offer the opt-in: name the
   families (`mistral`, `zhipu`, `deepseek`, `google`), point at
   `routing.json` in the critique directory for which critic clients each one
-  feeds, and say that this stage's base roster needs Mistral and Google. If
+  feeds, and say that this stage's base roster needs Mistral and Google (and DeepSeek for the ADR critic when an ADR is among the decisions; a `dropped` entry with reason `family-not-allowed` means that critic did not run). If
   the owner chooses families, run allow with `repo` and `families`, then
   prepare again. If they decline, stop: nothing was sent. In the offer, say
   that the entry's code permission and its history permission (commit

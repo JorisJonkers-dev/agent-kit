@@ -6,7 +6,7 @@ import { diffShownLines } from './diff-window.js'
 import { heldRanges, type PacketFile, type PacketWindow } from './manifest.js'
 import { mergeRanges, type LineRange } from './tree-sample.js'
 import { isCodeStage, type CritiqueStage } from './stage.js'
-import { STAGE_TABLE, type EvidenceRule } from './stage-table.js'
+import { evidenceRule, type EvidenceRule } from './stage-table.js'
 import { ticketTarget } from './tickets.js'
 
 /** One packet file's text, as it was frozen before any critic ran. */
@@ -73,18 +73,19 @@ const DECISION_CATEGORIES: readonly Category[] = ['omission', 'invention']
  * sees it. Every quote must occur in the packet, and at a code stage every
  * file and line the location or a trace step cites must be in the packet's
  * frozen copy, or the finding is rejected as fabricated evidence. Then the
- * stage's evidence rule decides whether the finding has anything checkable;
+ * stage's evidence rule, or the one the role of the critic that raised the
+ * finding takes at that stage, decides whether the finding has anything checkable;
  * if not, it is a hint. Returns nothing when the orchestrator must
  * adjudicate the finding itself.
  */
-export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet: PacketIndex): PreVerdict | undefined {
+export function checkEvidence(finding: FindingBody, stage: CritiqueStage, packet: PacketIndex, role?: string): PreVerdict | undefined {
   const found = evidenceFound(finding, packet)
   if (typeof found === 'number') return fabricated(`evidence ${String(found + 1)} quotes text that is not in the packet`)
   if (isCodeStage(stage) || packet.tree) {
     const missing = missingLine(finding, packet)
     if (missing !== undefined) return fabricated(missing)
   }
-  const hint = found.items === 0 ? 'no-evidence' : EVIDENCE_RULES[STAGE_TABLE[stage].evidence](finding, found, packet)
+  const hint = found.items === 0 ? 'no-evidence' : EVIDENCE_RULES[evidenceRule(stage, role)](finding, found, packet)
   return hint === undefined ? undefined : { reason: HINT_REASONS[hint], reason_code: hint, verdict: 'hint' }
 }
 
@@ -116,6 +117,8 @@ const EVIDENCE_RULES: Readonly<Record<EvidenceRule, (finding: FindingBody, found
   adrs: adrRule,
   code: (finding) => codeRule(finding.evidence),
   decisions: (finding, found) => decisionsRule(finding.category, found),
+  // A record finding quotes the record it is about, which is among the decisions under review.
+  records: (_finding, found) => (found.spec ? undefined : 'no-record-quote'),
   spec: (finding, found) => specRule(finding.category, found),
   tickets: (finding, _found, packet) => ticketRule(finding.location, packet.tickets),
 }
@@ -227,6 +230,7 @@ const CODE_CATEGORIES: Readonly<Record<EvidenceRule, readonly { readonly categor
   ],
   code: [],
   decisions: [],
+  records: [],
   spec: [],
   tickets: [],
 }
@@ -287,7 +291,7 @@ export function skippedChecks(
   sources: readonly { readonly from: string; readonly checks: readonly DeclaredCheck[] }[],
 ): readonly SkippedCheck[] {
   if (packet.tree) return []
-  const categories = CODE_CATEGORIES[STAGE_TABLE[stage].evidence]
+  const categories = CODE_CATEGORIES[evidenceRule(stage, undefined)]
   const skipped: SkippedCheck[] = categories.map(({ about, category }) => ({ about, check: category, from: 'category' }))
   for (const source of sources) {
     for (const check of source.checks) {
