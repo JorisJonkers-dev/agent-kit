@@ -110,7 +110,9 @@ export function driftAndStale(
     )
     const decided = decisionDate(record.text)
     if (decided === undefined) continue
-    for (const path of record.paths.filter((named) => !missing.includes(named))) {
+    const logDir = record.path.includes('/') ? record.path.slice(0, record.path.lastIndexOf('/') + 1) : ''
+    // A record naming another decision (or itself) is not naming code: editing a record never makes it stale.
+    for (const path of record.paths.filter((named) => !missing.includes(named) && !(logDir !== '' && named.startsWith(logDir)))) {
       const change = facts.lastChange(path)
       if (change !== undefined && change.date.slice(0, 10) > decided)
         stale.push({ decision_date: decided, last_change: change.date, last_commit: change.commit, path, record: record.path })

@@ -557,6 +557,16 @@ describe('check-adrs on records that name code', () => {
     expect(await checked(fresh)).toMatchObject({ drifted: [], stale: [] })
   })
 
+  it('does not call a record stale for naming another decision record or itself', async () => {
+    const h = await withLog({
+      '0001-window.md': record('Supersedes nothing; see `docs/adr/0002-other.md`.', 'Date: 2026-01-15\n\n'),
+      '0002-other.md': record('Other.', 'Date: 2026-01-15\n\n'),
+    })
+    await h.git.commit('2026-03-02T10:00:00+00:00')
+
+    expect((await checked(h)).stale).toEqual([])
+  })
+
   it('does not call a path stale when no commit ever touched it', async () => {
     const h = await withLog({ '0001-window.md': record('Names `src/untracked.ts`.', 'Date: 2020-01-01\n\n') })
     await h.writeText(join(h.repo, 'src', 'untracked.ts'), 'x\n')
