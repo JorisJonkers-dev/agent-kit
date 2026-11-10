@@ -8,6 +8,6 @@ description = "Plans (dry run) and applies the spec ticket graph to GitHub issue
 # Registry dependencies are pinned exactly, each at a version at least seven
 # days old (docs/RUST.md); crate-age checks every transitive version.
 [dependencies]
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.145"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
 serde_yaml = "=0.9.34"
