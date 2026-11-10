@@ -102,3 +102,13 @@
       - 'name': 'Check the Gold Band port inventory'
         'working-directory': 'agent-kit'
         'run': 'cargo run --locked --manifest-path scripts/Cargo.toml -p inventory-check -- .'
+
+      # Line coverage of the workspace must stay at 100 percent (docs/RUST.md).
+      # rustc's own instrumentation plus the llvm-tools component of the same
+      # toolchain, so no further crate is involved and the profile format
+      # always matches. src/main.rs exit wrappers are excluded.
+      - 'name': 'Rust line coverage is 100 percent'
+        'working-directory': 'agent-kit'
+        'run': |
+          rustup component add llvm-tools
+          scripts/coverage.sh
