@@ -99,16 +99,26 @@ export function pathsIn(text: string): readonly string[] {
   return text.replace(URL, ' ').match(PATH_LIKE) ?? []
 }
 
-function sectionsOf(lines: readonly string[]): ReadonlyMap<string, readonly string[]> {
+function sectionsOf(lines: readonly string[], errors: PlanError[]): ReadonlyMap<string, readonly string[]> {
   const sections = new Map<string, string[]>()
   let current: string[] | undefined
   for (const line of lines) {
     const heading = /^##[ \t]+(.*?)[ \t]*$/.exec(line)
-    if (heading !== null) {
-      const name = PLAN_SECTIONS.find((section) => section.toLowerCase() === heading[1]?.toLowerCase())
-      current = name === undefined || sections.has(name) ? undefined : []
-      if (name !== undefined && current !== undefined) sections.set(name, current)
-    } else current?.push(line)
+    if (heading === null) {
+      current?.push(line)
+      continue
+    }
+    const name = PLAN_SECTIONS.find((section) => section.toLowerCase() === heading[1]?.toLowerCase())
+    if (name === undefined) {
+      errors.push({ message: `the plan has an unknown section "## ${heading[1] ?? ''}"; its content is not checked`, rule: 'unknown-section' })
+      current = undefined
+    } else if (sections.has(name)) {
+      errors.push({ message: `the plan has more than one "## ${name}" section; its second content is not checked`, rule: 'duplicate-section' })
+      current = undefined
+    } else {
+      current = []
+      sections.set(name, current)
+    }
   }
   return sections
 }
@@ -149,19 +159,22 @@ function fieldsOf(lines: readonly string[]): Pick<RawStep, 'duplicates' | 'field
 
 function parseSteps(lines: readonly string[], errors: PlanError[]): readonly RawStep[] {
   const steps: { id: string; title: string; lines: string[] }[] = []
+  let current: { lines: string[] } | undefined
   for (const line of lines) {
     if (!line.startsWith('###')) {
-      steps.at(-1)?.lines.push(line)
+      current?.lines.push(line)
       continue
     }
     const heading = STEP_HEADING.exec(line)
     if (heading === null) {
       errors.push({ message: `the heading "${line.trim()}" is not "### S01: <title>"`, rule: 'bad-step-heading' })
+      current = undefined
       continue
     }
     const id = heading[1] ?? ''
     if (steps.some((step) => step.id === id)) errors.push({ message: `step ${id} is defined twice`, rule: 'duplicate-step', step: id })
-    steps.push({ id, lines: [], title: heading[2] ?? '' })
+    current = { lines: [] }
+    steps.push({ id, lines: current.lines, title: heading[2] ?? '' })
   }
   return steps.map((step) => ({ ...fieldsOf(step.lines), id: step.id, title: step.title }))
 }
@@ -227,7 +240,7 @@ function cyclesOf(edges: ReadonlyMap<string, readonly string[]>): readonly (read
 export function checkPlan(text: string, size: TicketSize, adrs: PlanAdrs | undefined): PlanCheck {
   const errors: PlanError[] = []
   const notes: string[] = []
-  const sections = sectionsOf(withoutFences(text).split(/\r?\n/))
+  const sections = sectionsOf(withoutFences(text).split(/\r?\n/), errors)
   for (const name of PLAN_SECTIONS) {
     if (!sections.has(name)) errors.push({ message: `the plan has no "## ${name}" section`, rule: 'missing-section' })
   }

@@ -3440,7 +3440,8 @@ The decision-log pre-check (agent-kit#226), the ADR review's counterpart of
   but it needs no family allowlist entry and writes nothing. A repository
   with no records in `docs/adr/` is refused with `no-adrs`. The result is
   `{ status, records, numbering, unknown_statuses, unresolved_links,
-  cites_superseded }`; each record lists its path, the number its file name
+  cites_superseded, superseded }`; `superseded` lists the paths of the records
+  the log supersedes; each record lists its path, the number its file name
   starts with, its title, the status it states (or null) and whether it is
   in force.
 - **What fails it.** `status` is `failed`, and the command line exits 3,

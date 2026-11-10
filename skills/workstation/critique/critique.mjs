@@ -18,8 +18,8 @@ var SystemClockAdapter = class {
     return performance.now();
   }
   async sleep(ms) {
-    await new Promise((resolve3) => {
-      setTimeout(resolve3, ms);
+    await new Promise((resolve4) => {
+      setTimeout(resolve4, ms);
     });
   }
 };
@@ -178,10 +178,10 @@ var NodeProcessAdapter = class {
     child.stdin.on("error", () => void 0);
     child.stdin.end(command2.stdin);
     const timer = new ProcessTimer(child, command2.timeoutMs, this.killGraceMs);
-    const exitCode = await new Promise((resolve3, reject) => {
+    const exitCode = await new Promise((resolve4, reject) => {
       child.once("error", reject);
       child.once("close", (code) => {
-        resolve3(processExitCode(code));
+        resolve4(processExitCode(code));
       });
     }).finally(() => {
       timer.clear();
@@ -3382,7 +3382,7 @@ var NodeModelGatewayGit = class {
   }
   /** The command's exit code and output; a git that cannot start or does not answer in time rejects. */
   git(path, args, timeoutMs = this.timeoutMs) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve4, reject) => {
       const options = {
         encoding: "utf8",
         env: { ...process.env, PATH: this.path },
@@ -3390,8 +3390,8 @@ var NodeModelGatewayGit = class {
         timeout: timeoutMs
       };
       execFile("git", ["-C", path, ...args], options, (error, stdout, stderr) => {
-        if (error === null) resolve3({ exitCode: 0, stderr, stdout });
-        else if (typeof error.code === "number") resolve3({ exitCode: error.code, stderr, stdout });
+        if (error === null) resolve4({ exitCode: 0, stderr, stdout });
+        else if (typeof error.code === "number") resolve4({ exitCode: error.code, stderr, stdout });
         else if (error.killed === true) reject(new Error(`git did not answer within ${String(timeoutMs)} ms`));
         else reject(new Error(`cannot run git: ${error.message}`));
       });
@@ -3446,8 +3446,8 @@ var FileLock = class {
       if (Date.now() >= deadline) {
         throw new Error(`${lock}: another gateway process held the ${this.name} lock for ${String(this.timeoutMs)} ms`);
       }
-      await new Promise((resolve3) => {
-        setTimeout(resolve3, this.retryMs);
+      await new Promise((resolve4) => {
+        setTimeout(resolve4, this.retryMs);
       });
     }
   }
@@ -4665,12 +4665,12 @@ function localTickets(files) {
     const title = heading?.replace(/^#?\d+\s*[:.\-–]\s*/, "") ?? stem;
     return { blockers: blockerNames(file.text), id, reference: file.reference, text: file.text, title };
   });
-  const resolve3 = (name) => {
+  const resolve4 = (name) => {
     const number = /^#?(\d+)(?=$|[\s\-:.(])/.exec(name)?.[1];
     const match = number === void 0 ? parsed2.find((ticket) => ticket.title.toLowerCase() === name.toLowerCase()) : parsed2.find((ticket) => /^\d+$/.test(ticket.id) && Number(ticket.id) === Number(number));
     return match?.id ?? name;
   };
-  return parsed2.map(({ blockers, ...ticket }) => ({ ...ticket, blockedBy: blockers.map(resolve3) }));
+  return parsed2.map(({ blockers, ...ticket }) => ({ ...ticket, blockedBy: blockers.map(resolve4) }));
 }
 var NO_BLOCKER = /^(none|n\/a|nothing|-+)\b/i;
 var EMPHASIS = /[*_`"']+/g;
@@ -6270,6 +6270,7 @@ function checkAdrLog(sources, existing) {
     }),
     numbering: numbering(records),
     records,
+    superseded: [...superseded],
     unknown_statuses: records.flatMap(
       (record) => record.status === null || STATUSES.includes(record.status) ? [] : [{ record: record.path, status: record.status }]
     ),
@@ -6411,7 +6412,7 @@ var CheckAdrsCommand = class {
 };
 
 // src/contexts/critique/application/check-plan.ts
-import { join as join14 } from "node:path";
+import { join as join14, resolve as resolve2 } from "node:path";
 
 // src/contexts/critique/domain/refactoring-plan.ts
 var PLAN_SECTIONS = ["Goal", "Target", "Safety net", "Steps", "Not doing", "Open decisions"];
@@ -6449,16 +6450,26 @@ var PREREQUISITE = /\bprerequisite-of:[ \t]*(S\d+)\b/gi;
 function pathsIn(text) {
   return text.replace(URL2, " ").match(PATH_LIKE) ?? [];
 }
-function sectionsOf(lines) {
+function sectionsOf(lines, errors) {
   const sections = /* @__PURE__ */ new Map();
   let current;
   for (const line2 of lines) {
     const heading = /^##[ \t]+(.*?)[ \t]*$/.exec(line2);
-    if (heading !== null) {
-      const name = PLAN_SECTIONS.find((section2) => section2.toLowerCase() === heading[1]?.toLowerCase());
-      current = name === void 0 || sections.has(name) ? void 0 : [];
-      if (name !== void 0 && current !== void 0) sections.set(name, current);
-    } else current?.push(line2);
+    if (heading === null) {
+      current?.push(line2);
+      continue;
+    }
+    const name = PLAN_SECTIONS.find((section2) => section2.toLowerCase() === heading[1]?.toLowerCase());
+    if (name === void 0) {
+      errors.push({ message: `the plan has an unknown section "## ${heading[1] ?? ""}"; its content is not checked`, rule: "unknown-section" });
+      current = void 0;
+    } else if (sections.has(name)) {
+      errors.push({ message: `the plan has more than one "## ${name}" section; its second content is not checked`, rule: "duplicate-section" });
+      current = void 0;
+    } else {
+      current = [];
+      sections.set(name, current);
+    }
   }
   return sections;
 }
@@ -6497,19 +6508,22 @@ function fieldsOf(lines) {
 }
 function parseSteps(lines, errors) {
   const steps = [];
+  let current;
   for (const line2 of lines) {
     if (!line2.startsWith("###")) {
-      steps.at(-1)?.lines.push(line2);
+      current?.lines.push(line2);
       continue;
     }
     const heading = STEP_HEADING.exec(line2);
     if (heading === null) {
       errors.push({ message: `the heading "${line2.trim()}" is not "### S01: <title>"`, rule: "bad-step-heading" });
+      current = void 0;
       continue;
     }
     const id = heading[1] ?? "";
     if (steps.some((step) => step.id === id)) errors.push({ message: `step ${id} is defined twice`, rule: "duplicate-step", step: id });
-    steps.push({ id, lines: [], title: heading[2] ?? "" });
+    current = { lines: [] };
+    steps.push({ id, lines: current.lines, title: heading[2] ?? "" });
   }
   return steps.map((step) => ({ ...fieldsOf(step.lines), id: step.id, title: step.title }));
 }
@@ -6560,7 +6574,7 @@ function cyclesOf(edges) {
 function checkPlan(text, size, adrs) {
   const errors = [];
   const notes = [];
-  const sections = sectionsOf(withoutFences(text).split(/\r?\n/));
+  const sections = sectionsOf(withoutFences(text).split(/\r?\n/), errors);
   for (const name of PLAN_SECTIONS) {
     if (!sections.has(name)) errors.push({ message: `the plan has no "## ${name}" section`, rule: "missing-section" });
   }
@@ -6671,7 +6685,7 @@ var CheckPlanCommand = class {
     }));
     const repository = input.repo === void 0 ? void 0 : await this.repositories.resolve(input.repo);
     if (repository?.status === "refused") return repository;
-    const path = repository === void 0 ? input.plan : join14(repository.root, input.plan);
+    const path = repository === void 0 ? input.plan : resolve2(repository.root, input.plan);
     if (!await this.deps.files.exists(path)) throw new CritiqueError("invalid-input", `check-plan input: ${path} does not exist`);
     const text = await this.deps.files.readText(path);
     const size = stageRouting(await this.routing.load(), { stage: "tickets" }).ticket_size;
@@ -6683,11 +6697,12 @@ var CheckPlanCommand = class {
     const sources = await Promise.all(
       (await logRecords(this.deps.files, root)).map(async (path) => ({ path, text: await this.deps.files.readText(join14(root, path)) }))
     );
-    const records = checkAdrLog(sources, /* @__PURE__ */ new Set()).records.flatMap((record) => record.number === null ? [] : [{ ...record, number: record.number }]);
-    const superseded = (record) => !record.in_force && (record.status === null || record.status === "superseded");
+    const log = checkAdrLog(sources, /* @__PURE__ */ new Set());
+    const records = log.records.flatMap((record) => record.number === null ? [] : [{ ...record, number: record.number }]);
+    const superseded = new Set(log.superseded);
     return {
       present: new Set(records.map((record) => record.number)),
-      superseded: new Set(records.filter(superseded).map((record) => record.number))
+      superseded: new Set(records.filter((record) => superseded.has(record.path)).map((record) => record.number))
     };
   }
 };
@@ -8089,7 +8104,7 @@ function fallbackRetries(manifest, first, blocked2) {
 import { join as join20 } from "node:path";
 
 // src/contexts/critique/domain/shell-command.ts
-import { isAbsolute as isAbsolute4, resolve as resolve2 } from "node:path";
+import { isAbsolute as isAbsolute4, resolve as resolve3 } from "node:path";
 function simpleCommands(line2) {
   return new ShellScanner(line2).commands();
 }
@@ -8336,8 +8351,8 @@ function changeDirectory(dir, args, home) {
 }
 function within(dir, path, home) {
   if (dir === null || path === "-" || path.includes("$")) return null;
-  if (path === "~" || path.startsWith("~/")) return home === void 0 ? null : resolve2(home, path.slice(2));
-  return isAbsolute4(path) ? path : resolve2(dir, path);
+  if (path === "~" || path.startsWith("~/")) return home === void 0 ? null : resolve3(home, path.slice(2));
+  return isAbsolute4(path) ? path : resolve3(dir, path);
 }
 function gitSubcommand(args, dir, home) {
   let cwd = dir;

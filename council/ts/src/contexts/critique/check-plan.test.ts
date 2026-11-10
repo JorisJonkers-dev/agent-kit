@@ -137,10 +137,9 @@ describe('check-plan on a plan that follows the format', () => {
     expect(await broken(text)).toEqual([])
   })
 
-  it('also reads a heading in another case and a plan with a duplicate section once', async () => {
-    const text = `${plan()}\n## goal\n\nBehaviour changes.\n`
-
-    expect(await broken(text)).toEqual([])
+  it('reads a heading in another case, and flags the same section given twice', async () => {
+    expect(await broken(plan({ sections: { goal: undefined } }).replace('## Goal', '## goal'))).toEqual([])
+    expect(await broken(`${plan()}\n## goal\n\nBehaviour changes.\n`)).toEqual(['duplicate-section'])
   })
 })
 
@@ -153,6 +152,16 @@ describe('check-plan rules, each broken by one fixture', () => {
     expect(await broken(plan({ raw: '' }))).toEqual(['no-steps'])
     expect(await broken(plan({ raw: `### Step one\n\n${stepText({ id: 'S01' })}` }))).toEqual(['bad-step-heading'])
     expect(await broken(plan({ steps: [{ id: 'S01' }, { id: 'S01' }] }))).toEqual(['S01:duplicate-step'])
+  })
+
+  it('a malformed step heading ends the step before it', async () => {
+    const raw = `${stepText({ id: 'S01' })}\n### Step two\n- **Kind**: tidy\n`
+    expect(await broken(plan({ raw }))).toEqual(['bad-step-heading'])
+  })
+
+  it('duplicate-section and unknown-section keep their content out of the checks', async () => {
+    expect(await broken(`${plan()}\n## Steps\n\n${stepText({ id: 'S02' })}`)).toEqual(['duplicate-section'])
+    expect(await broken(`${plan()}\n## Appendix\n\nSee src/app/main.ts for more.\n`)).toEqual(['unknown-section'])
   })
 
   it('missing-field', async () => {
@@ -338,6 +347,8 @@ describe('check-plan ADR anchors', () => {
     'docs/adr/0001-first.md': '# First\n\nWe decided.\n',
     'docs/adr/0002-second.md': '# Second\n\nStatus: superseded\n\nWe decided.\n',
     'docs/adr/0003-third.md': '# Third\n\nSupersedes ADR-0001.\n',
+    'docs/adr/0004-fourth.md': '# Fourth\n\nStatus: Accepted\n\nWe decided.\n',
+    'docs/adr/0005-fifth.md': '# Fifth\n\nStatus: Accepted\n\nSupersedes ADR-0004.\n',
   }
   const anchored = (anchor: string): string => plan({ steps: [{ fields: { Anchor: anchor }, id: 'S01' }] })
 
@@ -346,6 +357,8 @@ describe('check-plan ADR anchors', () => {
     expect(await broken(anchored('ADR-0002'), log)).toEqual(['S01:adr-superseded'])
     expect(await broken(anchored('ADR-0001'), log)).toEqual(['S01:adr-superseded'])
     expect(await broken(anchored('ADR-0003'), log)).toEqual([])
+    expect(await broken(anchored('ADR-0004'), log)).toEqual(['S01:adr-superseded'])
+    expect(await broken(anchored('ADR-0005'), log)).toEqual([])
   })
 
   it('skips the ADR checks with a note when no repo is given', async () => {
@@ -370,6 +383,12 @@ describe('check-plan command', () => {
     open.push(h)
 
     expect(await h.commands.checkPlan.run({ plan: 'refactoring-plan.md', repo: h.repo })).toMatchObject({ reason: 'no-remote', status: 'refused' })
+  })
+
+  it('resolves an absolute plan path as it is', async () => {
+    const h = await withPlan(plan())
+
+    expect(await h.commands.checkPlan.run({ plan: join(h.repo, 'refactoring-plan.md'), repo: h.repo })).toMatchObject({ status: 'passed' })
   })
 
   it('is an error for a plan that does not exist', async () => {

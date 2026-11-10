@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import { checkAdrLog } from '../domain/adr-log.js'
 import { CritiqueError, type Refusal } from '../domain/outcomes.js'
@@ -38,7 +38,7 @@ export class CheckPlanCommand implements CritiqueCommand<CheckPlanResult | Refus
     }))
     const repository = input.repo === undefined ? undefined : await this.repositories.resolve(input.repo)
     if (repository?.status === 'refused') return repository
-    const path = repository === undefined ? input.plan : join(repository.root, input.plan)
+    const path = repository === undefined ? input.plan : resolve(repository.root, input.plan)
     if (!(await this.deps.files.exists(path))) throw new CritiqueError('invalid-input', `check-plan input: ${path} does not exist`)
     const text = await this.deps.files.readText(path)
     const size = stageRouting(await this.routing.load(), { stage: 'tickets' }).ticket_size
@@ -51,12 +51,12 @@ export class CheckPlanCommand implements CritiqueCommand<CheckPlanResult | Refus
     const sources = await Promise.all(
       (await logRecords(this.deps.files, root)).map(async (path) => ({ path, text: await this.deps.files.readText(join(root, path)) })),
     )
-    const records = checkAdrLog(sources, new Set()).records.flatMap((record) => (record.number === null ? [] : [{ ...record, number: record.number }]))
-    const superseded = (record: { readonly in_force: boolean; readonly status: string | null }): boolean =>
-      !record.in_force && (record.status === null || record.status === 'superseded')
+    const log = checkAdrLog(sources, new Set())
+    const records = log.records.flatMap((record) => (record.number === null ? [] : [{ ...record, number: record.number }]))
+    const superseded = new Set(log.superseded)
     return {
       present: new Set(records.map((record) => record.number)),
-      superseded: new Set(records.filter(superseded).map((record) => record.number)),
+      superseded: new Set(records.filter((record) => superseded.has(record.path)).map((record) => record.number)),
     }
   }
 }
