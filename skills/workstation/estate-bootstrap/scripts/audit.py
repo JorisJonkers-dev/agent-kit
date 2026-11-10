@@ -21,7 +21,10 @@ from pathlib import Path
 
 PIN_RE = re.compile(r"JorisJonkers-dev/github-workflows/([^@\s'\"]+)@([^\s'\"#]+)")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-NAME_RE = re.compile(r"^\s*name:\s*['\"]?Pipeline Complete['\"]?\s*$")
+NAME_RE = re.compile(r"^name:\s*['\"]?Pipeline Complete['\"]?\s*$")
+COMMENT_RE = re.compile(r"(^|\s)#.*$")
+JSON_TOKEN_RE = re.compile(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', re.DOTALL)
+MAX_TEXT_BYTES = 1_000_000
 RENOVATE_PRESET = "github>JorisJonkers-dev/renovate-config"
 PRUNE = {".git", "node_modules", "vendor", ".venv", "target", "build"}
 
@@ -30,7 +33,7 @@ SRC_RELEASE = "github-workflows latest release"
 SRC_CI = "workspace docs/decisions/ADR-0018-repository-templates.md"
 SRC_RENOVATE = "renovate-config README.md"
 SRC_DEPLOY = "workspace CLAUDE.md (Flux reads deploy/production)"
-SRC_KIT = "deploy-kit README.md"
+SRC_NONE = "none (unverified)"
 SRC_PROXY = "github-workflows README.md (packages-proxy-token is a deprecated alias)"
 SRC_ORG = "workspace CLAUDE.md (old-org references are guarded)"
 
@@ -46,11 +49,24 @@ def workflow_files(root):
     return sorted(p for p in wf.iterdir() if p.suffix in (".yml", ".yaml"))
 
 
+def pin_files(root):
+    """Workflows, composite actions, and the .tmpl workflow templates."""
+    found = list(workflow_files(root))
+    for base, suffixes in ((root / ".github" / "actions", (".yml", ".yaml")), (root / "templates", (".tmpl",))):
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if d not in PRUNE]
+            found += [Path(dirpath) / f for f in sorted(filenames) if f.endswith(suffixes)]
+    return found
+
+
+def strip_comment(line):
+    return COMMENT_RE.sub("", line)
+
+
 def check_pins(root, latest, gaps):
-    for path in workflow_files(root):
-        for lineno, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-            if line.lstrip().startswith("#"):
-                continue
+    for path in pin_files(root):
+        for lineno, raw in enumerate(path.read_text(errors="replace").splitlines(), 1):
+            line = strip_comment(raw)
             for m in PIN_RE.finditer(line):
                 ref = m.group(2)
                 where = f"line {lineno}: github-workflows {m.group(1)}@{ref}"
@@ -62,12 +78,34 @@ def check_pins(root, latest, gaps):
                     gaps.append((rel(path, root), f"{where} is not the latest release SHA {latest}", SRC_RELEASE))
 
 
-def check_pipeline(root, gaps):
+def count_pipeline_jobs(text):
+    """Count job-level `name: Pipeline Complete` lines under the top-level jobs: key."""
     hits = 0
-    for path in workflow_files(root):
-        for line in path.read_text(errors="replace").splitlines():
-            if not line.lstrip().startswith("#") and NAME_RE.match(line):
+    in_jobs = False
+    job_indent = None
+    key_indent = None
+    for raw in text.splitlines():
+        line = strip_comment(raw).rstrip()
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent == 0:
+            in_jobs = line.strip() == "jobs:"
+            job_indent = key_indent = None
+        elif in_jobs:
+            if job_indent is None:
+                job_indent = indent
+            if indent == job_indent:
+                key_indent = None
+            elif key_indent is None:
+                key_indent = indent
+            if indent == key_indent and NAME_RE.match(line.strip()):
                 hits += 1
+    return hits
+
+
+def check_pipeline(root, gaps):
+    hits = sum(count_pipeline_jobs(p.read_text(errors="replace")) for p in workflow_files(root))
     if hits == 0:
         gaps.append((".github/workflows", "no job named Pipeline Complete (the one required check)", SRC_CI))
     elif hits > 1:
@@ -81,22 +119,40 @@ def check_renovate(root, gaps):
         gaps.append(("renovate.json", "no renovate.json at the root or in .github", SRC_RENOVATE))
         return
     path = present[0]
+    text = JSON_TOKEN_RE.sub(
+        lambda m: m.group(0) if m.group(0).startswith('"') else "", path.read_text(errors="replace")
+    )
     try:
-        data = json.loads(path.read_text(errors="replace"))
+        data = json.loads(text)
     except ValueError:
-        gaps.append((rel(path, root), "not valid JSON, so the preset cannot be confirmed", SRC_RENOVATE))
+        gaps.append((rel(path, root), "could not confirm the preset (renovate.json could not be parsed)", SRC_RENOVATE))
         return
     extends = data.get("extends", []) if isinstance(data, dict) else []
-    if RENOVATE_PRESET not in extends:
+    if isinstance(extends, str):
+        extends = [extends]
+    if not isinstance(extends, list):
+        extends = []
+    if not any(isinstance(e, str) and (e == RENOVATE_PRESET or e.startswith(RENOVATE_PRESET + "#")) for e in extends):
         gaps.append((rel(path, root), f'does not extend "{RENOVATE_PRESET}"', SRC_RENOVATE))
 
 
-RETIRED_TEXT = [
-    ("packages-proxy-token:", SRC_PROXY),
+PROXY_TOKEN = ("packages-proxy-token", SRC_PROXY)
+SCOPED_TEXT = [
     ("deploy-config-schema", "deploy-kit README.md (deploy-config-schema is archived)"),
     ("ExtraToast/", SRC_ORG),
 ]
-TEXT_SCOPES = (".github", "deploy", "Taskfile.yml", "renovate.json")
+SCOPED_ROOTS = (".github", "deploy", "Taskfile.yml", "renovate.json")
+SCOPED_SUFFIXES = (".yml", ".yaml", ".json", ".tf", ".sh", ".mjs")
+
+
+def read_text_file(path):
+    """The text of a small regular text file, or None for binary, large or non-regular files."""
+    if not path.is_file() or path.stat().st_size > MAX_TEXT_BYTES:
+        return None
+    data = path.read_bytes()
+    if b"\0" in data[:8192]:
+        return None
+    return data.decode(errors="replace")
 
 
 def check_retired(root, gaps):
@@ -104,32 +160,27 @@ def check_retired(root, gaps):
         gaps.append(("platform/", "top-level platform/ directory; deploy files belong in deploy/", SRC_DEPLOY))
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in PRUNE]
-        for name in filenames:
+        for name in sorted(filenames):
+            path = Path(dirpath) / name
+            relpath = rel(path, root)
             if name.lower() in ("fleet.yaml", "fleet.yml"):
-                path = Path(dirpath) / name
                 gaps.append(
                     (
-                        rel(path, root),
+                        relpath,
                         "fleet.yaml is flagged as retired (unverified: no live doc says so); projects are <name>.project.yml",
-                        SRC_KIT,
+                        SRC_NONE,
                     )
                 )
-    scoped = []
-    for scope in TEXT_SCOPES:
-        target = root / scope
-        if target.is_file():
-            scoped.append(target)
-        elif target.is_dir():
-            for dirpath, dirnames, filenames in os.walk(target):
-                dirnames[:] = [d for d in dirnames if d not in PRUNE]
-                scoped += [
-                    Path(dirpath) / f for f in filenames if f.endswith((".yml", ".yaml", ".json", ".tf", ".sh", ".mjs"))
-                ]
-    for path in scoped:
-        for lineno, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-            for token, source in RETIRED_TEXT:
-                if token in line:
-                    gaps.append((rel(path, root), f"line {lineno}: retired reference {token!r}", source))
+            text = read_text_file(path)
+            if text is None:
+                continue
+            tokens = [PROXY_TOKEN]
+            if relpath.split("/")[0] in SCOPED_ROOTS and name.endswith(SCOPED_SUFFIXES):
+                tokens += SCOPED_TEXT
+            for lineno, line in enumerate(text.splitlines(), 1):
+                for token, source in tokens:
+                    if token in line:
+                        gaps.append((relpath, f"line {lineno}: retired reference {token!r}", source))
 
 
 def main(argv=None):

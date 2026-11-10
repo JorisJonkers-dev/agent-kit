@@ -50,12 +50,19 @@ Run the audit on the repository and on the template it came from. Each run needs
 python3 <skill-dir>/scripts/audit.py <repo-dir> --latest-sha <release-sha>
 ```
 
-The script prints one line per gap, `<file>: <gap> (source: <doc>)`, or `no gaps`. It exits 2 for a missing directory. It checks: pins to `main` or a non-SHA ref, and pins behind the latest release SHA; the single `Pipeline Complete` job; the Renovate preset; retired paths and names (a top-level `platform/`, `fleet.yaml`, `deploy-config-schema`, the old `packages-proxy-token` input, and `ExtraToast/`).
+The script prints one line per gap, `<file>: <gap> (source: <doc>)`, or `no gaps`. It exits 2 for a missing directory. It checks:
+
+- Pins to `main` or a non-SHA ref, and pins behind the latest release SHA. A trailing `# ...` comment is ignored. Scope: `.github/workflows/`, `.github/actions/` and `templates/**/*.tmpl` (`repo-template` carries its workflows as `.tmpl` files).
+- The single `Pipeline Complete` job: only a job-level `name:` under the top-level `jobs:` key counts, in `.github/workflows/` only. `.tmpl` files are not checked for it.
+- The Renovate preset: `extends` is read as a list, and an entry must equal the preset string from the `renovate-config` README, optionally followed by a `#ref`. Comments in `renovate.json` are tolerated. A file that still cannot be parsed is reported as "could not confirm the preset".
+- Retired paths and names: a top-level `platform/`, `fleet.yaml`, `deploy-config-schema`, the old `packages-proxy-token` input, and `ExtraToast/`. `packages-proxy-token` is searched in every small text file outside `.git`, `node_modules`, `vendor`, `.venv`, `target` and `build`; the others only in `.github`, `deploy`, `Taskfile.yml` and `renovate.json`. Binary files and files over 1 MB are skipped.
+
+The `platform/` check is meant for application repositories and templates. It is not meaningful for the `workspace` repository, which keeps its own `platform/` paths; ignore that line there.
 
 Check these by hand, reading the live documents, and record each gap with its file path and the document that says otherwise:
 
 - CI shape: one job with steps, plus `Pipeline Complete` as the only required check. A second job is allowed only when it is a reusable `uses:` job, gated from `Pipeline Complete` with `needs:` and a check that the result is `success`.
-- Testing: the unit coverage gate from `testing-standards` section 6 and the coverage script; the mutation job on changed lines; the quarantine check; no `retry` setting; every skip carries a marker in the form the standards give, with a date at most 14 days away.
+- Testing: the unit coverage gate from `testing-standards` section 6 and the coverage script; the mutation job on changed lines; the quarantine check; no `retry` setting; every skip carries a marker in the form the standards give, with a date inside the window the standards give.
 - Deploy kit: a CI step runs deploy-kit `validate` on the project file before merge. None of the three templates runs it today.
 - Migrations: a repository with a database changes its schema through liquibase-runner, as `ADR-0021` says. Look at `go.mod`, the build files and any `db/` directory for goose, Flyway or migrations embedded in the binary.
 
@@ -65,17 +72,17 @@ For a gap in the repository, fix it on a branch in a worktree under the projects
 
 ## 5. Where the docs and reality disagree
 
-Verified live on 2026-11-10. The local clones were older than the live repositories, so they were not used as evidence.
+Verified live on 2026-11-10. The local clones were older than the live repositories, so they were not used as evidence. Each bullet says which side this procedure follows and whether the audit script reports it.
 
-- `repo-template` is not a GitHub template (`is_template` is false), though REPO_SETUP says to use it as one.
-- Workflow pins across the org, found by code search (partial, not exhaustive), run from the v0.18.0 tag to the latest v0.45.4, plus about 29 references to `main`. The `repo-template` workflow templates pin v0.45.3. The github-workflows README example still shows v0.7.3. No live pin to v0.7.3 or v0.43.0 was found.
-- `template-go-vue` migrates with goose (`pressly/goose` in `go.mod`, `internal/platform/pg/store.go`). ADR-0021 says templates move to liquibase-runner, and that has not happened.
-- `template-go` and `template-go-vue` run several CI jobs (check, images, quarantine, mutation, and for `template-go-vue` end-to-end jobs). ADR-0018 asks for one job. `Pipeline Complete` is still the required check in both.
-- Coverage: REPO_SETUP asks for at least 80% line coverage. `testing-standards` section 6 and ADR-0022 ask for a 100% unit gate. The template coverage scripts count uncovered functions and report branches and conditions.
-- `workspace` CLAUDE.md recovery scripts: only `scripts/ops/recover-wedged-apiserver-cache.sh` exists in `fleet-infra`. The six others it names (`unseal-vault.sh`, `fix-vault-bootstrap-auth.sh`, `rotate-discord-webhook.sh`, `mint-vault-metrics-token.sh`, `resume-mail-provisioner.sh`, `scripts/cutover/rollback-source.sh`) are absent. That trap is stale. The `platform/fleet-infra` path it gives is correct.
-- `workspace` CLAUDE.md deploy-config-schema trap: `deploy-config-schema` is archived. Its README still shows `validate deployment`. The current validator is deploy-kit, so the trap is stale and the audit flags any use of the archived tool.
-- `go-commons`, `template-go` and `template-go-vue` are placed under `inbox/` in `workspace/.gitmodules`, which means they have no group topic.
-- `fleet.yaml` is flagged by the audit as retired. No live document says so. Deploy-kit's examples use `<name>.project.yml`, which is the basis for the flag, so treat it as unverified.
+- `repo-template` is not a GitHub template (`is_template` is false), though REPO_SETUP says to use it as one. Followed: the live repository setting, so step 2 of section 2 stops and asks. The audit reports it: no, the script is offline; the `gh api` check in section 2 finds it.
+- Workflow pins across the org (found by partial code search) range from old tags to `main`, and the github-workflows README example is older than the latest release. Followed: the latest github-workflows release, resolved live in section 1. The audit reports it: yes, every pin that is `main`, not a 40-hex SHA, or behind `--latest-sha`.
+- `template-go-vue` migrates with goose (`pressly/goose` in `go.mod`, `internal/platform/pg/store.go`), while `ADR-0021` says templates move to liquibase-runner. Followed: `ADR-0021`. The audit reports it: no; the Migrations check in section 3 is by hand.
+- `template-go` and `template-go-vue` run several CI jobs, while `ADR-0018` asks for one job. `Pipeline Complete` is still the required check in both. Followed: `ADR-0018`. The audit reports it: only the count of `Pipeline Complete` jobs; the CI shape check in section 3 is by hand.
+- `workspace` CLAUDE.md names recovery scripts, and only `scripts/ops/recover-wedged-apiserver-cache.sh` exists in `fleet-infra`; the others it names are absent. Its `platform/fleet-infra` path is correct. Followed: what exists in `fleet-infra`, read live. The audit reports it: no; that repository is not audited here.
+- `workspace` CLAUDE.md deploy-config-schema trap: `deploy-config-schema` is archived, its README still shows `validate deployment`, and the current validator is deploy-kit. Followed: deploy-kit. The audit reports it: yes, any use of `deploy-config-schema` in the scoped files.
+- Coverage: REPO_SETUP and `testing-standards` section 6 with `ADR-0022` state different unit coverage gates, and the template coverage scripts count uncovered functions and report branches and conditions. Followed: `testing-standards` section 6 and `ADR-0022`, not REPO_SETUP. The audit reports it: no; the Testing check in section 3 is by hand.
+- `go-commons`, `template-go` and `template-go-vue` are placed under `inbox/` in `workspace/.gitmodules`, which means they have no group topic. Followed: REPO_SETUP, which requires a group topic. The audit reports it: no.
+- `fleet.yaml` is flagged by the audit as retired, but no live document says so. Deploy-kit's examples use `<name>.project.yml`. Followed: no document; treat it as unverified. The audit reports it: yes, with the source `none (unverified)`.
 
 ## When a doc cannot be read
 
