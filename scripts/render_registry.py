@@ -499,10 +499,10 @@ def validate(data: dict[str, Any]) -> None:
                     "by agent-kit, never by Nix",
                 )
     seen_attrs: set[tuple[str, str]] = set()
-    for _group, attr, source in nixos_entries(data):
-        if (source, attr) in seen_attrs:
-            raise RegistryError(f"nixos package {attr} from {source} is declared twice")
-        seen_attrs.add((source, attr))
+    for _group, attr, nixos_source in nixos_entries(data):
+        if (nixos_source, attr) in seen_attrs:
+            raise RegistryError(f"nixos package {attr} from {nixos_source} is declared twice")
+        seen_attrs.add((nixos_source, attr))
 
     for server in _entries(data, "mcp_servers"):
         if "auth" in server and not (
