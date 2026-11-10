@@ -13,4 +13,4 @@ description = "Refuses a Gold Band workflow definition that breaks the model and
 # serde_core, serde_derive, syn, unicode-ident), all of which the
 # pre-commit hook's `crate-age --root .` checks too.
 [dependencies]
-serde_json = "=1.0.145"
+serde_json = "=1.0.154"
