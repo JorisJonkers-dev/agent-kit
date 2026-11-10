@@ -20,7 +20,7 @@ export const DENIED_OWNER = 'nedap'
  * `github-work` stay as written.
  */
 export function parseRemote(url: string): RemoteLocation | undefined {
-  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url)
+  const scp = /^(?:[^@/\s]+@)?([^:/\s]+):(?!\/\/)(.+)$/.exec(url)
   const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url)
   const match = scp ?? standard
   if (match === null) return undefined

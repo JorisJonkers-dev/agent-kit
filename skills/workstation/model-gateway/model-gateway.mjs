@@ -3138,7 +3138,7 @@ function readListInput(raw) {
 // src/shared-kernel/git-remote.ts
 var DENIED_OWNER = "nedap";
 function parseRemote(url) {
-  const scp = /^[^@/\s]+@([^:/\s]+):(.+)$/.exec(url);
+  const scp = /^(?:[^@/\s]+@)?([^:/\s]+):(?!\/\/)(.+)$/.exec(url);
   const standard = /^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(url);
   const match = scp ?? standard;
   if (match === null) return void 0;
