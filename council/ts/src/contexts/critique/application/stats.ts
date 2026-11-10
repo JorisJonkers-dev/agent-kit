@@ -70,7 +70,7 @@ export class StatsCommand implements CritiqueCommand<StatsResult | Refusal> {
       ledger,
       filter,
       thresholds,
-      (stage) => routing.stages[stage]?.base.map((slot) => slot.client) ?? [],
+      (stage) => [...(routing.stages[stage]?.base ?? []), ...(routing.stages[stage]?.adr ?? [])].map((slot) => slot.client),
     )
     return {
       ...stats,

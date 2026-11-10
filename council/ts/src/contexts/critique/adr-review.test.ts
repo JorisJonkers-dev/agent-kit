@@ -668,7 +668,7 @@ describe('the adr-reviewer critics an adr-review run routes (#227)', () => {
     ).toEqual(FIXED.map(([check, severity]) => [check, severity, severity]))
   })
 
-  it("names the adr-reviewer role and both lenses in the stage's report and summary", async () => {
+  it("names the adr-reviewer role and both lenses in the stage's report", async () => {
     const h = await withAdrs({
       agyScripts: [agyFindings({ findings: [], no_findings_reason: 'Read every record.' })],
       scripts: [noFindings()],

@@ -80,7 +80,7 @@ when `/flow` named one.
   allowlist** entry, so nothing may be sent yet. Offer the opt-in: name the
   families (`mistral`, `zhipu`, `deepseek`, `google`), point at
   `routing.json` in the critique directory for which critic clients each one
-  feeds, and say that this stage's base roster needs Mistral and Google. If
+  feeds, and say that this stage's base roster needs Mistral and Google (and DeepSeek for the ADR critic when an ADR is among the decisions; a `dropped` entry with reason `family-not-allowed` means that critic did not run). If
   the owner chooses families, run allow with `repo` and `families`, then
   prepare again. If they decline, stop: nothing was sent. In the offer, say
   that the entry's code permission and its history permission (commit

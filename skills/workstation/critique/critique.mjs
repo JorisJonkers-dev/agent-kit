@@ -11085,7 +11085,7 @@ var StatsCommand = class {
       ledger,
       filter,
       thresholds,
-      (stage) => routing.stages[stage]?.base.map((slot) => slot.client) ?? []
+      (stage) => [...routing.stages[stage]?.base ?? [], ...routing.stages[stage]?.adr ?? []].map((slot) => slot.client)
     );
     return {
       ...stats,
