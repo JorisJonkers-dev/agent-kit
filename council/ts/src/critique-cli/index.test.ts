@@ -93,6 +93,17 @@ describe('critique runner command line', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ numbering: { gaps: [2] }, status: 'failed' })
   })
 
+  it('exits 3 when check-plan finds a malformed plan', async () => {
+    const h = await harness()
+    cleanups.push(h.cleanup)
+    await h.writeText(join(h.repo, 'plan.md'), '# Plan\n\n## Goal\n\nNothing.\n')
+
+    const result = await runCritiqueCli(['check-plan', '--json', JSON.stringify({ plan: 'plan.md', repo: h.repo })], cli(h))
+
+    expect(result.exitCode).toBe(3)
+    expect(JSON.parse(result.stdout)).toMatchObject({ errors: expect.arrayContaining([{ message: expect.any(String) as unknown, rule: 'missing-section' }]) as unknown, status: 'failed' })
+  })
+
   it('reports critique stats from the ledger', async () => {
     const h = await harness()
     cleanups.push(h.cleanup)
