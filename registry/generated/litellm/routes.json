@@ -1,0 +1,48 @@
+{
+  "generated_from": "registry/estate-tooling.yaml",
+  "base_url": "https://litellm.jorisjonkers.dev/v1",
+  "key_header": "x-litellm-api-key",
+  "edge_token_env": "LITELLM_EDGE_TOKEN",
+  "routes": [
+    {
+      "agent": "vibe",
+      "key_env": "LITELLM_VIBE_KEY",
+      "budget_eur": 255,
+      "models": [
+        "vibe/*"
+      ]
+    },
+    {
+      "agent": "vibe-study",
+      "key_env": "LITELLM_VIBE_STUDY_KEY",
+      "budget_eur": 128,
+      "models": [
+        "vibe-study/*"
+      ]
+    },
+    {
+      "agent": "opencode-go",
+      "key_env": "LITELLM_OPENCODE_GO_KEY",
+      "budget_eur": 60,
+      "models": [
+        "opencode-go/*"
+      ]
+    },
+    {
+      "agent": "openrouter",
+      "key_env": "LITELLM_OPENROUTER_KEY",
+      "budget_eur": 5,
+      "models": [
+        "openrouter/*"
+      ]
+    },
+    {
+      "agent": "local",
+      "key_env": "LITELLM_LOCAL_KEY",
+      "budget_eur": null,
+      "models": [
+        "local/*"
+      ]
+    }
+  ]
+}

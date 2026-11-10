@@ -25,6 +25,7 @@ uv run pytest tests/test_registry_render.py
 | `registry/generated/antigravity/mcp_config.json` | a workstation's `~/.gemini/config/mcp_config.json`, via `scripts/antigravity-merge-mcp.py` |
 | `registry/generated/opencode/opencode.json` | a workstation's `~/.config/opencode/opencode.json`, via `scripts/opencode-merge-mcp.py` |
 | `registry/generated/workstation-secrets.json` | `scripts/agent-kit-keys.py`, as the table of tokens and keys to get |
+| `registry/generated/litellm/routes.json` | the LiteLLM route table: agent ids, key variable names, caps (none for a free route) ([LITELLM.md](LITELLM.md)) |
 
 A hand edit to any of them fails `--check`, and so does a registry change that
 was never rendered. Both are one test.

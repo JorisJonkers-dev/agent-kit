@@ -1,0 +1,11 @@
+[package]
+name = "litellm-gate"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Node-side check that a LiteLLM per-key budget is not exhausted."
+
+# std only, by design (see agent-kit-setup): the probe is made by spawning
+# curl with its config on stdin, so no HTTP client crate is needed and the
+# lockfile holds nothing whose age the 7-day cooldown could question.
+[dependencies]

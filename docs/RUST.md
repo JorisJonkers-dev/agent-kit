@@ -15,7 +15,7 @@ on the Linux workstation.
   days, `2` for a version whose age cannot be proven, and `0` only when every
   locked version is proven old enough. The gate **fails closed**: an unprovable
   age blocks the change.
-* **The workspace.** Six members. `crates/agent-kit-setup` is the canary: a
+* **The workspace.** Seven members. `crates/agent-kit-setup` is the canary: a
   std-only crate (nothing in the lockfile has an age to question) whose
   `--version` proves the build and whose `validate <PATH>` checks a path.
   `crates/inventory-check` fails when an on-disk skill, hook, role file or MCP
@@ -24,8 +24,11 @@ on the Linux workstation.
   instances and the overlay (docs/REGISTRY.md). `crates/code-nav-eval` runs the
   frozen code-navigation question set. `crates/workflow-lint` is the Gold Band
   workflow lint (below). `crates/ticket-sync` is the ticket sync tool (below);
-  it takes serde, serde_json and serde_yaml, each pinned exactly. New Rust joins
-  this workspace as a new member, never as its own Cargo project.
+  it takes serde, serde_json and serde_yaml, each pinned exactly.
+  `crates/litellm-gate` is the node-side check that a LiteLLM per-key budget is
+  not exhausted: one probe request through curl with the key on stdin, exit 1
+  when the budget is spent or the proxy cannot be asked. New Rust joins this
+  workspace as a new member, never as its own Cargo project.
 
 ```bash
 cargo build --manifest-path scripts/Cargo.toml
