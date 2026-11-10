@@ -156,7 +156,7 @@ the Workflow tool for those tasks.
 - OpenRouter is never used.
 - OpenCode only through its `opencode-go/...` models, never `opencode/...`.
 - The family you name is binding: a delegation to a model of one family is never
-  answered by another. If no model of that family can answer it ends failed with
+  answered by another. If no model of that family can answer it ends failed (or `unavailable`, when none can start) with
   the cause; keep the task or pick another model of the family. Pass
   `"family_binding": false` only when you want any family to answer, and then
   read the summary: it opens with `escalated from <family> (...) to <family>`
