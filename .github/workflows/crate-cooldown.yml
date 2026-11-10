@@ -1,0 +1,99 @@
+'name': 'Crate Cooldown'
+
+'on':
+  'pull_request':
+  'push':
+    'branches':
+      - 'main'
+  'workflow_dispatch':
+
+'concurrency':
+  'group': 'crate-cooldown-${{ github.workflow }}-${{ github.ref }}'
+  'cancel-in-progress': '${{ github.ref != ''refs/heads/main'' }}'
+
+'permissions':
+  'contents': 'read'
+
+# The 7-day crate cooldown (the standards repo's ADR-0014; docs/RUST.md).
+# This runs on every pull request, so every Cargo.toml or Cargo.lock change is
+# covered (and a change to neither costs one cached build): crate-age refuses a
+# change that adds or updates a crate version younger than seven days (exit 1)
+# and one whose age cannot be proven (exit 2), failing this job either way.
+# The pre-commit hook (.githooks/pre-commit) is the same check before the
+# commit exists; this workflow is the gate a pull request cannot skip. The
+# workspace then builds and tests with cargo resolving only through a crate-gate
+# started on the runner, the same wiring a workstation has (.cargo/config.toml).
+
+'jobs':
+  'crate-cooldown':
+    'name': 'Crate Cooldown Gate (crate-age) and Rust Workspace'
+    'runs-on': 'ubuntu-latest'
+    'steps':
+      # agent-kit and the standards sources are siblings, never nested: the
+      # gate and crate-age are built from the standards checkout with the
+      # packages proxy, and must not read agent-kit's .cargo/config.toml, which
+      # points at a gate that is not running yet.
+      - 'name': 'Check out agent-kit'
+        'uses': 'actions/checkout@v6'
+        'with':
+          'path': 'agent-kit'
+      # The standards repo is private, so reading it needs the release app,
+      # which has to be installed on that repository. A token or checkout that
+      # fails fails this job closed. crate-gate and crate-age are never copied
+      # into agent-kit; the pin below is the commit scripts/gate/install-linux.sh
+      # builds too. Move both together when the standards repo tags a release.
+      - 'name': 'Mint a token to read the standards repo'
+        'id': 'app-token'
+        'uses': 'actions/create-github-app-token@v3'
+        'with':
+          'app-id': '${{ secrets.RELEASE_APP_ID }}'
+          'private-key': '${{ secrets.RELEASE_APP_PRIVATE_KEY }}'
+          'owner': '${{ github.repository_owner }}'
+          'repositories': 'standards'
+      - 'name': 'Check out the standards repo (crate-gate and crate-age sources)'
+        'uses': 'actions/checkout@v6'
+        'with':
+          'repository': 'JorisJonkers-dev/standards'
+          'ref': '7d0673432f10f4a515a5dc700f78daae8e389cd5'
+          'path': 'standards'
+          'token': '${{ steps.app-token.outputs.token }}'
+          'persist-credentials': false
+      - 'uses': 'JorisJonkers-dev/github-workflows/actions/setup-package-proxy@f8f0a5ae583913de18143bbbbe0db9ecab970435' # v0.45.0
+        'with':
+          'token': '${{ secrets.PACKAGES_PROXY_TOKEN }}'
+          'require-package-proxy': 'true'
+      - 'name': 'Build crate-gate and crate-age'
+        'working-directory': 'standards/scripts'
+        # The proxy's cargo registry is authenticated. The action writes the
+        # source replacement and exports the token; cargo also needs the
+        # registry declared by name and told to read tokens from the environment.
+        'env':
+          'CARGO_REGISTRIES_JORISJONKERS_PACKAGES_INDEX': 'sparse+https://packages.jorisjonkers.dev/cargo/'
+          'CARGO_REGISTRY_GLOBAL_CREDENTIAL_PROVIDERS': 'cargo:token'
+        'run': 'cargo build --release --locked --bin crate-gate --bin crate-age'
+
+      # crate-age's command line is owned by the standards repo
+      # (scripts/README.md there); this gate points it at the checkout.
+      - 'name': 'Run crate-age over the checkout'
+        'run': 'standards/scripts/target/release/crate-age --root agent-kit'
+
+      - 'name': 'Start the crate-gate'
+        'run': |
+          nohup standards/scripts/target/release/crate-gate --addr 127.0.0.1 --port 17342 --min-days 7 \
+            > "$RUNNER_TEMP/crate-gate.log" 2>&1 &
+          for _ in $(seq 1 50); do
+            curl -fsS -m 2 http://127.0.0.1:17342/health >/dev/null 2>&1 && exit 0
+            sleep 0.2
+          done
+          echo "the gate did not come up; refusing to build unfiltered" >&2
+          cat "$RUNNER_TEMP/crate-gate.log" >&2
+          exit 2
+      # Resolution goes through .cargo/config.toml, which names the gate and
+      # nothing else: with the gate down this step fails, it never reaches
+      # crates.io.
+      - 'name': 'Build the workspace'
+        'working-directory': 'agent-kit'
+        'run': 'cargo build --locked --manifest-path scripts/Cargo.toml'
+      - 'name': 'Test the workspace'
+        'working-directory': 'agent-kit'
+        'run': 'cargo test --locked --manifest-path scripts/Cargo.toml'

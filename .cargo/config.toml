@@ -1,0 +1,17 @@
+# Every cargo command in this repository resolves through the crate-gate, the
+# local filtering mirror of crates.io that hides any version younger than 7
+# days (docs/RUST.md). The gate listens on 127.0.0.1:17342; scripts/gate/
+# install-linux.sh runs it as a systemd user service (the Mac runs it under
+# launchd). With the gate down cargo fails with connection refused and never
+# falls back to crates.io.
+#
+# The replacement is split on purpose. `replace-with` below names the source;
+# the source's address is `[source.crate-gate]`. Remove that table and cargo
+# refuses to resolve ("could not find a configured source with the name
+# `crate-gate`") instead of quietly using crates.io.
+
+[source.crates-io]
+replace-with = "crate-gate"
+
+[source.crate-gate]
+registry = "sparse+http://127.0.0.1:17342/"

@@ -1,0 +1,58 @@
+#!/bin/sh
+# The 7-day crate cooldown, enforced after the fact (the standards repo's
+# ADR-0014; docs/RUST.md). A commit that adds or updates a crate version
+# younger than seven days is refused, and so is one whose age cannot be
+# proven: crate-age exits 1 for too young, 2 for unproven, and both block.
+#
+# This hook holds no copy of crate-age. It finds it, in order:
+#   1. $CRATE_AGE -- a full path to the crate-age executable
+#   2. crate-age on PATH -- installed once from its source in the standards
+#      repo at scripts/crates/crate-age, per that repo's scripts/README.md
+# Without the checker, no age can be proven, so the hook fails closed.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+# (and: chmod +x .githooks/pre-commit, if the checkout lost the bit).
+# The waiver route for a security fix: docs/waivers/crate-cooldown.yaml and
+# docs/RUST.md.
+
+set -u
+
+if ! changed=$(git diff --cached --name-only --diff-filter=ACMR -- '*Cargo.toml' '*Cargo.lock'); then
+  echo "pre-commit: refused (exit 2): git could not list the staged files." >&2
+  exit 2
+fi
+[ -n "${changed}" ] || exit 0
+
+if [ -n "${CRATE_AGE:-}" ]; then
+  age="${CRATE_AGE}"
+elif command -v crate-age >/dev/null 2>&1; then
+  age=crate-age
+else
+  echo "pre-commit: refused (exit 2): crate-age is not available, so the age of a" >&2
+  echo "pre-commit: changed crate version cannot be proven. Install it from the" >&2
+  echo "pre-commit: standards repo (scripts/crates/crate-age) or set CRATE_AGE." >&2
+  exit 2
+fi
+
+# crate-age reads every Cargo.lock below --root (standards scripts/README.md).
+# It reads the staged blobs, not the working tree: the commit is what is checked.
+snapshot=$(mktemp -d) || exit 2
+trap 'rm -rf "${snapshot}"' EXIT
+if ! git checkout-index --prefix="${snapshot}/" -- ${changed} 2>/dev/null; then
+  echo "pre-commit: refused (exit 2): the staged Cargo files could not be read." >&2
+  exit 2
+fi
+for lock in $(git ls-files --cached -- '*Cargo.lock'); do
+  if ! git checkout-index --force --prefix="${snapshot}/" -- "${lock}" 2>/dev/null; then
+    echo "pre-commit: refused (exit 2): ${lock} could not be read for the age check." >&2
+    exit 2
+  fi
+done
+"${age}" --root "${snapshot}"
+status=$?
+if [ "${status}" -ne 0 ]; then
+  echo "pre-commit: blocked (exit ${status}): 1 = a version younger than 7 days," >&2
+  echo "pre-commit: 2 = its age cannot be proven. The security-fix waiver route is" >&2
+  echo "pre-commit: docs/waivers/crate-cooldown.yaml (docs/RUST.md)." >&2
+fi
+exit "${status}"

@@ -1,0 +1,13 @@
+[package]
+name = "agent-kit-setup"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The setup canary: proves the agent-kit Rust workspace path end to end."
+
+# std only, by design. Adding any dependency puts the 7-day crate cooldown in
+# scope for this crate: the version must be at least seven days old and
+# crate-age must be able to prove it (the standards repo's ADR-0014,
+# docs/RUST.md). A git or path dependency outside this workspace is never
+# allowed; a shared crate joins the workspace as a new member instead.
+[dependencies]

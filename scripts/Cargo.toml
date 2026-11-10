@@ -1,0 +1,16 @@
+# The estate's Rust goes in ONE cargo workspace, with ONE lockfile at
+# scripts/Cargo.lock (the standards repo's ADR-0014; see docs/RUST.md).
+#
+# agent-kit-setup is the std-only canary: nothing in the lockfile has an age
+# to question. A member that takes a registry dependency pins it exactly, at a
+# version at least 7 days old, and crate-age checks every transitive version.
+# No member has a git or path dependency outside this workspace. cargo resolves
+# through the crate-gate (127.0.0.1:17342, set in .cargo/config.toml), which
+# hides any version younger than 7 days; crate-age is the after-the-fact check
+# in the pre-commit hook and the pull-request workflow.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/agent-kit-setup",
+]
