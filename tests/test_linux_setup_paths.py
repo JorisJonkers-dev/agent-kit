@@ -12,7 +12,7 @@ from pathlib import Path
 from setup_harness import Run, setup_run
 
 MAC_HOME_DIRS = ("Library", "Applications")
-MAC_STRINGS = ("/Applications", "/opt/homebrew", "Library/LaunchAgents", "Library/Preferences")
+MAC_STRINGS = ("/Applications", "/opt/homebrew", "Library/LaunchAgents", "Library/Preferences", "Library/Logs")
 
 
 def _linux_run(tmp_path: Path) -> Run:
