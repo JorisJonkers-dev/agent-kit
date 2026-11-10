@@ -977,6 +977,15 @@ nixos_packages:
   - name: mise
     nixos: mise
     group: core
+  - name: dig
+    nixos: dnsutils
+    group: core
+  - name: file
+    nixos: file
+    group: core
+  - name: objdump
+    nixos: binutils
+    group: core
   - name: task
     nixos: go-task
     group: core
