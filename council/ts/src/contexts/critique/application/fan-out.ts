@@ -10,7 +10,7 @@ import { listedFiles, parseManifest, specReference, type RunManifest } from '../
 import { mergeFindings } from '../domain/merge.js'
 import type { CriticToolset } from '../domain/critic-tools.js'
 import { assemblePrompt, type CriticPrompt } from '../domain/prompt.js'
-import type { RosterCritic } from '../domain/routing.js'
+import type { CriticClient, RosterCritic } from '../domain/routing.js'
 import { CRITIQUE_STAGES, type CritiqueStage } from '../domain/stage.js'
 import { FlowBudget } from './budget.js'
 import { FINDING_SCHEMA, readFrozenPacket, runCritic } from './critic-run.js'
@@ -204,6 +204,11 @@ interface FallbackRetry {
 /** Which kinds of client may not be launched now: agy past its quota, Vibe at 100% of its plan. */
 type Blocked = Readonly<Record<'agy' | 'vibe', boolean>>
 
+/** Whether a client may not be launched now; only agy and Vibe have a quota to reach. */
+function isBlocked(blocked: Blocked, kind: CriticClient['kind']): boolean {
+  return kind === 'agy' || kind === 'vibe' ? blocked[kind] : false
+}
+
 function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[], blocked: Blocked): readonly FallbackRetry[] {
   const taken = new Set(first.filter((attempt) => attempt.run.status === 'ok').map((attempt) => attempt.run.family))
   const retries: FallbackRetry[] = []
@@ -211,7 +216,7 @@ function fallbackRetries(manifest: RunManifest, first: readonly CriticAttempt[],
     if (first[index]?.run.status !== 'failed') return
     const fallback = critic.fallbacks.find(
       (candidate) =>
-        !blocked[candidate.client_config.kind] &&
+        !isBlocked(blocked, candidate.client_config.kind) &&
         (!manifest.distinct_families || !taken.has(candidate.client_config.family)),
     )
     if (fallback === undefined) return

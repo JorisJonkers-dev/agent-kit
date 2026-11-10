@@ -1,6 +1,6 @@
 import { readLimits, type CritiqueLimits } from './budget.js'
 import { NO_DEPTH_SIGNALS, readDepthSignalsConfig, type DepthSignalsConfig } from './depth.js'
-import { MODEL_FAMILIES, type AllowlistFamily, type ModelFamily, type OrchestratorFamily } from './family.js'
+import { CRITIC_FAMILIES, MODEL_FAMILIES, type AllowlistFamily, type CriticFamily, type ModelFamily, type OrchestratorFamily } from './family.js'
 import { JsonFields, JsonShapeError } from './json.js'
 import { readTokenPrices, type TokenPrices } from './pricing.js'
 import { CritiqueError } from './outcomes.js'
@@ -52,9 +52,40 @@ export interface AgyCriticClient {
   readonly gateway?: GatewayModel
 }
 
-export type CriticClient = VibeCriticClient | AgyCriticClient
+/**
+ * Codex on the nedap account. Only the work roster of a `nedap` repository
+ * names it, and only under a live model-gateway grant (ADR-0008).
+ */
+export interface CodexCriticClient {
+  readonly kind: 'codex'
+  readonly binary: string
+  readonly model: string
+  readonly family: 'openai'
+  /** The gateway client model this critic client is pinned to; without it the client runs its own kind and model. */
+  readonly gateway?: GatewayModel
+}
 
-export const CLIENT_KINDS = ['vibe', 'agy'] as const satisfies readonly CriticClient['kind'][]
+/** The work Claude agent. Only the work roster of a `nedap` repository names it. */
+export interface ClaudeCriticClient {
+  readonly kind: 'claude'
+  readonly binary: string
+  readonly model: string
+  readonly family: 'anthropic'
+  /** The gateway client model this critic client is pinned to; without it the client runs its own kind and model. */
+  readonly gateway?: GatewayModel
+}
+
+export type CriticClient = VibeCriticClient | AgyCriticClient | CodexCriticClient | ClaudeCriticClient
+
+export const CLIENT_KINDS = ['vibe', 'agy', 'codex', 'claude'] as const satisfies readonly CriticClient['kind'][]
+
+/** The client kinds only a `nedap` repository's work roster may use. */
+export const WORK_CLIENT_KINDS = ['codex', 'claude'] as const satisfies readonly CriticClient['kind'][]
+
+/** Whether a client belongs to the work roster, and so to no other. */
+export function isWorkClient(client: CriticClient): client is CodexCriticClient | ClaudeCriticClient {
+  return client.kind === 'codex' || client.kind === 'claude'
+}
 
 /** Whether a critic client can run on this machine now; `detail` says why not, in setup's words where setup has them. */
 export type ClientReadiness = { readonly ready: true } | { readonly ready: false; readonly detail: string }
@@ -96,6 +127,12 @@ export interface StageRouting {
   readonly base: readonly RosterSlot[]
   /** The critics deep depth adds after the base roster, each subject to the same family rules. */
   readonly deep: readonly RosterSlot[]
+  /**
+   * The stage's work-only roster, which a `nedap` repository uses instead of
+   * base and deep: its slots name the Codex and work Claude clients, one
+   * critic each, and no other roster may name those clients.
+   */
+  readonly work: readonly RosterSlot[]
   /** What makes the stage go deep when the caller names no depth. */
   readonly depth_signals: DepthSignalsConfig
   /** When a ticket is likely too big for one `/implement` context; only the tickets stage reads it. */
@@ -146,12 +183,12 @@ export interface RosterCritic extends RosterSlot {
   readonly fallbacks: readonly RosterFallback[]
 }
 
-export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable', 'quota'] as const
+export const DROP_REASONS = ['family-not-allowed', 'orchestrator-family', 'same-family', 'unavailable', 'quota', 'no-grant'] as const
 
 /** A routed critic that does not run, and the fallback critic that runs in its slot, if one could. */
 export interface DroppedCritic {
   readonly client: string
-  readonly family: ModelFamily
+  readonly family: CriticFamily
   readonly reason: (typeof DROP_REASONS)[number]
   /** Why an unavailable client cannot run on this machine. */
   readonly detail?: string
@@ -174,12 +211,13 @@ export function parseRouting(text: string): Routing {
   const triage = file.has('triage') ? readTriageRouting(file.object('triage'), clients) : undefined
   return {
     clients,
-    fallbacks: file.has('fallbacks') ? file.stringLists('fallbacks') : {},
+    fallbacks: file.has('fallbacks') ? openFallbacks(file.stringLists('fallbacks'), clients) : {},
     limits: readLimits(file),
     packet: file.has('packet') ? readPacketLimits(file.object('packet')) : DEFAULT_PACKET_LIMITS,
     stages: file.entries('stages', (stage, name) => ({
-      base: stage.list('base', readRosterSlot),
-      deep: stage.has('deep') ? stage.list('deep', readRosterSlot) : [],
+      base: onlyOpenClients(stage.list('base', readRosterSlot), clients, `stages.${name}.base`),
+      deep: onlyOpenClients(stage.has('deep') ? stage.list('deep', readRosterSlot) : [], clients, `stages.${name}.deep`),
+      work: onlyWorkClients(stage.has('work') ? stage.list('work', readRosterSlot) : [], clients, `stages.${name}.work`),
       depth_signals: stage.has('depth_signals') ? readDepthSignalsConfig(stage.object('depth_signals'), name) : NO_DEPTH_SIGNALS,
       distinct_families: stage.boolean('distinct_families'),
       ticket_size: stage.has('ticket_size') ? readTicketSize(stage.object('ticket_size')) : DEFAULT_TICKET_SIZE,
@@ -189,6 +227,39 @@ export function parseRouting(text: string): Routing {
     ...(file.has('stats') ? { stats: readStatsThresholds(file.object('stats')) } : {}),
     ...(file.has('gate') ? { gate: readGateRouting(file.object('gate')) } : {}),
   }
+}
+
+/** A client is open when a base or deep roster may use it: anything but the work clients. */
+function isOpen(clients: Readonly<Record<string, CriticClient>>, name: string): boolean {
+  const client = clients[name]
+  return client === undefined || !isWorkClient(client)
+}
+
+function onlyOpenClients(slots: readonly RosterSlot[], clients: Readonly<Record<string, CriticClient>>, where: string): readonly RosterSlot[] {
+  const work = slots.find((slot) => !isOpen(clients, slot.client))
+  if (work !== undefined) {
+    throw new JsonShapeError(`${where} names ${work.client}, a work client: only a stage's work roster may name Codex or the work Claude agent`)
+  }
+  return slots
+}
+
+function onlyWorkClients(slots: readonly RosterSlot[], clients: Readonly<Record<string, CriticClient>>, where: string): readonly RosterSlot[] {
+  const open = slots.find((slot) => isOpen(clients, slot.client))
+  if (open !== undefined) {
+    throw new JsonShapeError(`${where} names ${open.client}, which is not a codex or claude client: a work roster holds nothing else`)
+  }
+  return slots
+}
+
+function openFallbacks(
+  fallbacks: Readonly<Record<string, readonly string[]>>,
+  clients: Readonly<Record<string, CriticClient>>,
+): Readonly<Record<string, readonly string[]>> {
+  for (const [client, names] of Object.entries(fallbacks)) {
+    const work = [client, ...names].find((name) => !isOpen(clients, name))
+    if (work !== undefined) throw new JsonShapeError(`fallbacks.${client} names ${work}, a work client: it has no fallbacks`)
+  }
+  return fallbacks
 }
 
 function readStatsThresholds(fields: JsonFields): StatsThresholds {
@@ -205,6 +276,12 @@ function readTicketSize(fields: JsonFields): TicketSize {
 export function readCriticClient(fields: JsonFields): CriticClient {
   const kind = fields.oneOf('kind', CLIENT_KINDS)
   const gateway = fields.has('gateway') ? { gateway: readGatewayModel(fields.object('gateway'), kind) } : {}
+  if (kind === 'codex') {
+    return { binary: fields.string('binary'), family: fields.literal('family', 'openai'), kind, model: fields.string('model'), ...gateway }
+  }
+  if (kind === 'claude') {
+    return { binary: fields.string('binary'), family: fields.literal('family', 'anthropic'), kind, model: fields.string('model'), ...gateway }
+  }
   if (kind === 'agy') {
     return {
       binary: fields.string('binary'),
@@ -269,7 +346,7 @@ export function readDroppedCritic(fields: JsonFields): DroppedCritic {
   const replacedBy = fields.optionalString('replaced_by')
   return {
     client: fields.string('client'),
-    family: fields.oneOf('family', MODEL_FAMILIES),
+    family: fields.oneOf('family', CRITIC_FAMILIES),
     reason: fields.oneOf('reason', DROP_REASONS),
     ...(detail === undefined ? {} : { detail }),
     ...(replacedBy === undefined ? {} : { replaced_by: replacedBy }),
@@ -378,7 +455,7 @@ function slotCandidates(routing: Routing, client: string): readonly string[] {
   return [client, ...(routing.fallbacks[client] ?? [])]
 }
 
-function clientNamed(routing: Routing, request: RosterRequest, name: string): CriticClient {
+function clientNamed(routing: Routing, request: Pick<RosterRequest, 'stage'>, name: string): CriticClient {
   const client = routing.clients[name]
   if (client === undefined) {
     throw new CritiqueError('invalid-routing', `routing stage ${request.stage} names unknown client ${name}`)
@@ -386,8 +463,67 @@ function clientNamed(routing: Routing, request: RosterRequest, name: string): Cr
   return client
 }
 
-function familyReason(family: ModelFamily, request: RosterRequest): DroppedCritic['reason'] | undefined {
+function familyReason(family: CriticFamily, request: RosterRequest): DroppedCritic['reason'] | undefined {
   if (!request.allowedFamilies.includes(family)) return 'family-not-allowed'
   if (family === request.orchestratorFamily) return 'orchestrator-family'
   return undefined
+}
+
+/**
+ * Whether Codex may run for a `nedap` repository now: a live model-gateway
+ * grant covers the run's workflow, or `detail` says what is missing.
+ */
+export type WorkGrant = { readonly live: true } | { readonly live: false; readonly detail: string }
+
+export interface WorkRosterRequest {
+  readonly stage: CritiqueStage
+  readonly orchestratorFamily: OrchestratorFamily
+  readonly grant: WorkGrant
+}
+
+/** Codex needs the grant; the work Claude agent runs on the work account and needs none. */
+function workReason(client: CriticClient, request: WorkRosterRequest): Pick<DroppedCritic, 'reason' | 'detail'> | undefined {
+  if (client.family === request.orchestratorFamily) return { reason: 'orchestrator-family' }
+  if (client.kind === 'codex' && !request.grant.live) return { detail: request.grant.detail, reason: 'no-grant' }
+  return undefined
+}
+
+/**
+ * The work clients of a stage whose family is not the orchestrator's and that
+ * the grant lets run: the ones whose readiness is worth checking.
+ */
+export function workCandidateClients(routing: Routing, request: WorkRosterRequest): readonly (readonly [string, CriticClient])[] {
+  return stageRouting(routing, request)
+    .work.map((slot) => [slot.client, clientNamed(routing, request, slot.client)] as const)
+    .filter(([, client]) => workReason(client, request) === undefined)
+}
+
+/**
+ * Resolves a `nedap` repository's roster from the stage's work slots: Codex
+ * on the nedap account under a live grant, and the work Claude agent, each
+ * never in the orchestrator's own family, so a Claude orchestrator gets the
+ * Codex critic and a Codex orchestrator the work Claude critic. A slot that
+ * may not run is dropped with its reason and has no fallback; the roster
+ * holds no family a work slot does not name, and no deep critics.
+ */
+export function resolveWorkRoster(
+  routing: Routing,
+  request: WorkRosterRequest,
+  readiness: ReadonlyMap<string, ClientAvailability> = new Map(),
+): Roster {
+  const critics: RosterCritic[] = []
+  const dropped: DroppedCritic[] = []
+  for (const slot of stageRouting(routing, request).work) {
+    const client = clientNamed(routing, request, slot.client)
+    const ready = readiness.get(slot.client)
+    const refusal =
+      workReason(client, request) ??
+      (ready?.ready === false ? { detail: ready.detail, reason: 'reason' in ready ? ready.reason : ('unavailable' as const) } : undefined)
+    if (refusal !== undefined) {
+      dropped.push({ client: slot.client, family: client.family, ...refusal })
+      continue
+    }
+    critics.push({ ...slot, client_config: client, critic_id: `c${String(critics.length + 1)}-${slot.client}`, fallbacks: [] })
+  }
+  return { critics, depth: 'base', distinct_families: true, dropped }
 }

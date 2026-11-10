@@ -7,6 +7,7 @@ import {
   AgyCriticClient,
   createCritiqueCommands,
   CritiqueError,
+  GatewayGrants,
   GatewayPlanLimit,
   NodeCritiqueFiles,
   ProcessSearchClient,
@@ -172,6 +173,8 @@ export function defaultCritiqueRuntime(
       // Every critic run is recorded in the gateway's ledger, and Vibe's plan
       // limit is read the way the gateway reads it, from its shipped defaults
       // beside this bundle.
+      // Codex critics of a nedap repository run under the gateway's grants.
+      grants: new GatewayGrants(env, clock),
       ledger: new NodeModelGatewayLedger(env),
       plan: new GatewayPlanLimit(env, clock, join(assetsRoot, '..', 'model-gateway', 'defaults.json')),
       // Vibe starts the search server as `node critique.mjs search-server ...`.

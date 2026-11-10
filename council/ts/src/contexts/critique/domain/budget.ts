@@ -61,7 +61,7 @@ export interface InvocationLine {
   readonly round: Round
   readonly critic_id: string
   readonly client: string
-  readonly kind: 'vibe' | 'agy'
+  readonly kind: 'vibe' | 'agy' | 'codex' | 'claude'
   readonly family: string
   readonly model: string
   readonly status: string
@@ -93,7 +93,7 @@ export function invocationLines(ledger: string): readonly LoggedInvocation[] {
           charged_usd: line.number('charged_usd'),
           critic_id: line.string('critic_id'),
           flow: line.string('flow'),
-          kind: line.oneOf('kind', ['vibe', 'agy']),
+          kind: line.oneOf('kind', ['vibe', 'agy', 'codex', 'claude']),
           recorded_at: line.string('recorded_at'),
           repository: line.string('repository'),
           run_id: line.optionalString('run_id'),

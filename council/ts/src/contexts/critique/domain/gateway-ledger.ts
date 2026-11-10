@@ -49,7 +49,7 @@ export interface CritiqueLedgerRecord {
   readonly critic_id: string
   readonly stage: CritiqueStage
   readonly round: Round
-  readonly kind: 'vibe' | 'agy'
+  readonly kind: 'vibe' | 'agy' | 'codex' | 'claude'
   readonly charged_usd: number
   readonly status: CriticStatus
   readonly exit_code: number | null
@@ -66,7 +66,7 @@ export interface CritiqueLedgerRecord {
 
 /** The critic client a run went through, as the gateway's record names it. */
 export interface LedgerClient {
-  readonly kind: 'vibe' | 'agy'
+  readonly kind: 'vibe' | 'agy' | 'codex' | 'claude'
   /** The gateway client model the critic client is pinned to; without it the client runs its own model. */
   readonly gateway?: { readonly client: string; readonly model: string }
 }
@@ -227,7 +227,7 @@ function readRecord(
     charged_usd: fields.number('charged_usd'),
     critic_id: fields.string('critic_id'),
     flow: context.flow,
-    kind: fields.oneOf('kind', ['vibe', 'agy']),
+    kind: fields.oneOf('kind', ['vibe', 'agy', 'codex', 'claude']),
     recorded_at: context.recorded_at,
     repository: context.repository,
     run_id: context.run_id,

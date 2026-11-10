@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { quotaReached } from '../domain/budget.js'
 import { declaredChecks } from '../domain/checks.js'
 import { indexPacket, type PacketIndex } from '../domain/evidence.js'
-import type { ModelFamily } from '../domain/family.js'
+import type { CriticFamily } from '../domain/family.js'
 import type { RunFinding } from '../domain/findings.js'
 import { listedFiles, parseManifest, specReference, type RunManifest } from '../domain/manifest.js'
 import { CritiqueError } from '../domain/outcomes.js'
@@ -162,7 +162,7 @@ export class RefuteCommand implements CritiqueCommand<RefuteResult> {
 
   private async refute(round: Round, finding: RunFinding): Promise<RefuteRecord> {
     const { manifest } = round
-    const raisers: readonly ModelFamily[] = round.merged.critics.filter((c) => finding.raised_by.includes(c.critic_id)).map((c) => c.family)
+    const raisers: readonly CriticFamily[] = round.merged.critics.filter((c) => finding.raised_by.includes(c.critic_id)).map((c) => c.family)
     const rules = { allowedFamilies: manifest.allowed_families, orchestratorFamily: manifest.orchestrator_family }
     const choice = chooseRefuter(finding, round.candidates, {
       blocked: (client) => round.blocked.get(client),

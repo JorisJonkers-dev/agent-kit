@@ -1,4 +1,4 @@
-import { MODEL_FAMILIES, type ModelFamily } from './family.js'
+import { CRITIC_FAMILIES, type CriticFamily } from './family.js'
 import { FINDINGS_FAILURES, type CriticFinding, type FindingsFailure } from './findings.js'
 import { isOneOf, type JsonFields } from './json.js'
 import type { PromptHashes } from './prompt.js'
@@ -8,7 +8,7 @@ import type { RosterCritic } from './routing.js'
 export interface CriticIdentity {
   readonly critic_id: string
   readonly client: string
-  readonly family: ModelFamily
+  readonly family: CriticFamily
   readonly model: string
   readonly role: string
   readonly lenses: readonly string[]
@@ -125,7 +125,7 @@ export function readCriticRun(fields: JsonFields): CriticRun {
     critic_id: fields.string('critic_id'),
     duration_ms: fields.number('duration_ms'),
     exit_code: fields.nullableNumber('exit_code'),
-    family: fields.oneOf('family', MODEL_FAMILIES),
+    family: fields.oneOf('family', CRITIC_FAMILIES),
     finding_count: fields.number('finding_count'),
     lens_hashes: fields.stringMap('lens_hashes'),
     lenses: fields.strings('lenses'),

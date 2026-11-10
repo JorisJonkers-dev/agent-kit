@@ -21,6 +21,26 @@ export function identifyRepository(remotes: readonly GitRemote[]): RepositoryDec
   return { key: identity.key, status: 'identified' }
 }
 
+/**
+ * A repository as the roster sees it: one that is not `nedap`'s keeps the
+ * allowlist key it always had, and a `nedap` one gets a work-only roster
+ * whatever its entry says, keyed by its own location so its tracker reads.
+ */
+export type RosterRepositoryDecision = Refusal | { readonly status: 'identified'; readonly key: string; readonly work: boolean }
+
+export function identifyForRoster(remotes: readonly GitRemote[]): RosterRepositoryDecision {
+  const identity = identify(remotes)
+  if (identity.status !== 'denied-owner') {
+    const decision = identifyRepository(remotes)
+    return decision.status === 'refused' ? decision : { ...decision, work: false }
+  }
+  const { host, owner, repo } = identity.location
+  return { key: `${host}/${owner}/${repo}`, status: 'identified', work: true }
+}
+
+/** What a `nedap` repository's entry is, whatever its allowlist says: the work families, with code and history. */
+export const WORK_ENTRY: AllowlistEntry = { code: true, families: ['anthropic', 'openai'], history: true, updated_at: '' }
+
 export interface AllowlistEntry {
   readonly families: readonly AllowlistFamily[]
   /**

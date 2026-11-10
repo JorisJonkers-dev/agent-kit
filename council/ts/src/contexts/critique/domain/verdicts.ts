@@ -1,7 +1,7 @@
 import type { CriticRun } from './critic.js'
 import type { DepthChoice } from './depth.js'
 import type { GateRecord } from './feature-review.js'
-import type { ModelFamily } from './family.js'
+import type { CriticFamily } from './family.js'
 import type { RunFinding, Severity } from './findings.js'
 import type { PacketFile } from './manifest.js'
 import type { RefuteRecord } from './refute.js'
@@ -131,7 +131,7 @@ export function openCriticalQuestions(run: AdjudicatedRun): readonly Adjudicated
 }
 
 /** The families of the critics that raised a finding. */
-export function familiesOf(run: AdjudicatedRun, finding: RunFinding): readonly ModelFamily[] {
+export function familiesOf(run: AdjudicatedRun, finding: RunFinding): readonly CriticFamily[] {
   const families = run.critics.filter((critic) => finding.raised_by.includes(critic.critic_id)).map((c) => c.family)
   return [...new Set(families)]
 }
