@@ -112,6 +112,12 @@ whole log. Its results are settled: build on them and never recompute them.
 - **`unresolved_links`** and **`cites_superseded`**: each is a broken
   reference. Where the packet shows the right target, its fix is an
   editorial edit in step 6; otherwise it is a question in step 7.
+- **`drifted`** and **`stale`**: the runner computed both from the working
+  tree and its history. A drifted record names a path or a symbol (in
+  backticks) that no file holds any more; a stale one states a decision date
+  earlier than the last change to a file it names. They never make the check
+  `failed`. Whether the record or the code is right is the owner's call:
+  list each in step 7 as a question, and edit nothing for them.
 - **`numbering`** gaps and duplicates and **`unknown_statuses`**: list each
   in the change list as found. Renumbering or restating a status is the
   owner's call: ask before changing either.

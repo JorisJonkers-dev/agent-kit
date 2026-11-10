@@ -4,7 +4,13 @@ The artifact is a repository's decision log, or the records of it under
 review: architecture decision records (ADRs) in an `adr` directory under
 `artifact/`, such as `artifact/docs/adr/`. The other files hold the glossary
 and the other records of the log. When the packet holds `check/adrs.json`,
-it is a script's report on the whole log, and it is settled. When the
+it is a script's report on the whole log, and it is settled. Its
+`drifted` list (a record in force names a path or symbol the tree no
+longer holds) and its `stale` list (the record's decision date precedes the
+last change to a path it names) are facts the runner computed: never
+recompute them, never report again what they list, and rate a drift
+finding of your own as `needs-human`: whether the record or the code is
+right is the owner's question. When the
 packet holds `feature/feature.md`, the records sit among decisions made
 for that feature: review the records that bear on it, and leave the rest.
 Each record has to let a reader who was not there say what was decided,

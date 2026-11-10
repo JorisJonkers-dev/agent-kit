@@ -80,7 +80,7 @@ export class AdrPacketReader {
       text: await files.readText(join(root, source)),
     })
     const artifact = await Promise.all(reviewed.map((source) => read('artifact', source)))
-    const check = await checkLog(files, root, records)
+    const check = await checkLog(this.deps, root, records)
     const documents = [...artifact, ...(await Promise.all(references.map((source) => read('reference', source)))), checkReportFile(check)]
     const text = artifact.map((file) => file.text).join('\n\n')
     const packet: AdrPacket = {

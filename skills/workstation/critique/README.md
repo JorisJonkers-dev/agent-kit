@@ -46,6 +46,15 @@ review in `artifact/`, and the glossary and the other records in
 and skips the checks that need the code: `drift`, `stale` (against the
 code) and `adr-record`'s `no-confirmation`. A finding of one is a hint
 (`needs-tree`), and the report and the summary name each skipped check.
+The runner's own pre-check, `check/adrs.json`, covers the repository either
+way: for each record in force it lists `drifted` (a path or symbol named in
+backticks that the working tree no longer holds; a symbol needs an internal
+capital, as `computeWindow`, or a `path#symbol` anchor) and `stale` (the record's
+decision date, the first `YYYY-MM-DD` on a `Date:` line, a bold `**Date**:`
+or list-item date line, or a frontmatter `date:` key, precedes the last commit
+that changed a path it names). Both are
+computed facts for the owner, not errors: they never make `check-adrs`
+fail.
 With it on, the packet is a **repository packet**: it adds `tree/`, a sample
 of the code chosen by rule (the files the records name, then the top
 hotspots, each module's entry file, then the files on each import cycle),
