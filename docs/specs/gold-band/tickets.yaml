@@ -17,6 +17,7 @@ tickets:
 - key: B0-01
   issue: 411
   branch: B0
+  stories: [25]
   title: "Rust workspace and the 7-day crate cooldown on Linux"
   blocked_by: []
   supersedes: [331]
@@ -30,6 +31,7 @@ tickets:
 - key: B0-02
   issue: 412
   branch: B0
+  stories: [24, 25, 26, 27]
   title: "Setup builds the pinned Gold Band on Linux"
   blocked_by: [B0-01]
   supersedes: [347]
@@ -43,6 +45,7 @@ tickets:
 - key: B0-03
   issue: 413
   branch: B0
+  stories: [143, 144]
   title: "Re-verify the Gold Band facts at the pin on Linux (live)"
   blocked_by: [B0-02]
   supersedes: [328]
@@ -56,6 +59,7 @@ tickets:
 - key: B0-04
   issue: 414
   branch: B0
+  stories: [24, 144]
   title: "Build and re-verify Gold Band on the work Mac (live)"
   blocked_by: [B0-03]
   supersedes: []
@@ -68,6 +72,7 @@ tickets:
 - key: B0-05
   issue: 415
   branch: B0
+  stories: [133, 134, 135, 136, 138, 141]
   title: "Ticket sync tool with a dry run"
   blocked_by: [B0-01]
   supersedes: []
@@ -81,6 +86,7 @@ tickets:
 - key: B0-06
   issue: 416
   branch: B0
+  stories: [116, 132, 137, 142]
   title: "Close superseded and delivered issues with mapping comments"
   blocked_by: [B0-05]
   supersedes: [326, 327, 350, 367, 368, 111, 113, 167, 181, 182, 214, 286, 35, 40, 43, 24]
@@ -94,6 +100,7 @@ tickets:
 - key: B0-07
   issue: 417
   branch: B0
+  stories: [139, 140]
   title: "One build tracker for this spec"
   blocked_by: [B0-05]
   supersedes: [279]
@@ -106,6 +113,7 @@ tickets:
 - key: B0-08
   issue: 418
   branch: B0
+  stories: []
   title: "Upstream contribution: Gold Band validate command"
   blocked_by: [B0-03]
   supersedes: [377]
@@ -119,6 +127,7 @@ tickets:
 - key: B1-01
   issue: 419
   branch: B1
+  stories: [53, 54, 55, 56]
   title: "One secret store: Keychain on macOS, libsecret on Linux"
   blocked_by: []
   supersedes: []
@@ -132,6 +141,7 @@ tickets:
 - key: B1-02
   issue: 420
   branch: B1
+  stories: [1, 4, 5, 6, 13, 14, 15, 16, 52]
   title: "Registry models both instances and the overlay"
   blocked_by: [B0-01]
   supersedes: [332]
@@ -145,6 +155,7 @@ tickets:
 - key: B1-03a
   issue: 421
   branch: B1
+  stories: [3, 21, 22, 23, 32, 33, 43]
   title: "Setup converges the personal instance's agents on Linux (OpenCode first)"
   blocked_by: [B1-02, B0-02]
   supersedes: [333]
@@ -158,6 +169,7 @@ tickets:
 - key: B1-03b
   issue: 422
   branch: B1
+  stories: [28, 29, 30, 31, 34, 35]
   title: "Safe writes for Gold Band settings on both OSes"
   blocked_by: [B1-03a]
   supersedes: [334]
@@ -171,6 +183,7 @@ tickets:
 - key: B1-03c
   issue: 423
   branch: B1
+  stories: [57]
   title: "Generated roles in each instance"
   blocked_by: [B1-03a]
   supersedes: [345]
@@ -183,6 +196,7 @@ tickets:
 - key: B1-04
   issue: 424
   branch: B1
+  stories: [2, 8]
   title: "Setup converges the work instance on the Mac from the overlay"
   blocked_by: [B1-03b, B1-03c]
   supersedes: []
@@ -195,6 +209,7 @@ tickets:
 - key: B1-05
   issue: 425
   branch: B1
+  stories: [9, 10, 11, 12]
   title: "Personal instance under a second macOS user (live)"
   blocked_by: [B1-04]
   supersedes: [396]
@@ -207,6 +222,7 @@ tickets:
 - key: B1-06
   issue: 426
   branch: B1
+  stories: [38]
   title: "Work Claude profile in the default Claude directory"
   blocked_by: []
   supersedes: [379]
@@ -219,6 +235,7 @@ tickets:
 - key: B1-07
   issue: 427
   branch: B1
+  stories: [36, 37]
   title: "Claude agents in each instance with a fixed configuration directory"
   blocked_by: [B1-03a, B1-06]
   supersedes: [335]
@@ -231,6 +248,7 @@ tickets:
 - key: B1-08
   issue: 428
   branch: B1
+  stories: [39, 40]
   title: "Vibe and Vibe-study in the personal instance"
   blocked_by: [B1-01, B1-03a]
   supersedes: [336]
@@ -243,6 +261,7 @@ tickets:
 - key: B1-09
   issue: 429
   branch: B1
+  stories: [41]
   title: "Pi pinned install on both OSes"
   blocked_by: [B1-03a]
   supersedes: [337]
@@ -255,6 +274,7 @@ tickets:
 - key: B1-10
   issue: 430
   branch: B1
+  stories: [42]
   title: "OpenCode, Hermes and Antigravity declared per OS"
   blocked_by: [B1-03a]
   supersedes: [338]
@@ -267,6 +287,7 @@ tickets:
 - key: B1-11
   issue: 431
   branch: B1
+  stories: [120]
   title: "Antigravity on the Linux workstation"
   blocked_by: [B1-01]
   supersedes: [399]
@@ -279,6 +300,7 @@ tickets:
 - key: B1-12
   issue: 432
   branch: B1
+  stories: [44, 45, 46]
   title: "Launcher with reach levels and a per-OS support record"
   blocked_by: [B0-01, B1-02]
   supersedes: [339]
@@ -291,6 +313,7 @@ tickets:
 - key: B1-13
   issue: 433
   branch: B1
+  stories: [47, 48, 49, 50]
   title: "Landlock write limit on Linux with the ADR-0013 table"
   blocked_by: [B1-12]
   supersedes: [343]
@@ -304,6 +327,7 @@ tickets:
 - key: B1-14
   issue: 434
   branch: B1
+  stories: [48, 49]
   title: "sandbox-exec write limit on macOS"
   blocked_by: [B1-12]
   supersedes: []
@@ -315,6 +339,7 @@ tickets:
 - key: B1-15
   issue: 435
   branch: B1
+  stories: [51]
   title: "Claude reach levels on each OS"
   blocked_by: [B1-13, B1-14, B1-07]
   supersedes: [342]
@@ -326,6 +351,7 @@ tickets:
 - key: B1-16
   issue: 436
   branch: B1
+  stories: [51]
   title: "Vibe reach levels on each OS"
   blocked_by: [B1-13, B1-14, B1-08]
   supersedes: [341, 330]
@@ -337,6 +363,7 @@ tickets:
 - key: B1-17
   issue: 437
   branch: B1
+  stories: [51]
   title: "Pi, OpenCode, Hermes and Antigravity reach levels on each OS"
   blocked_by: [B1-13, B1-14, B1-09, B1-10]
   supersedes: [340]
@@ -348,6 +375,7 @@ tickets:
 - key: B1-18
   issue: 438
   branch: B1
+  stories: [58]
   title: "Skill sets per agent id"
   blocked_by: [B1-12]
   supersedes: [344]
@@ -360,6 +388,7 @@ tickets:
 - key: B1-19
   issue: 439
   branch: B1
+  stories: [59]
   title: "Same-name MCP overlap test in each instance (live)"
   blocked_by: [B1-03a]
   supersedes: [329]
@@ -371,6 +400,7 @@ tickets:
 - key: B1-20
   issue: 441
   branch: B1
+  stories: [60, 61]
   title: "MCP servers per instance"
   blocked_by: [B1-19, B1-01, B5-01]
   supersedes: [346, 132]
@@ -384,6 +414,7 @@ tickets:
 - key: B1-21
   issue: 442
   branch: B1
+  stories: [121]
   title: "macOS-only setup paths behind OS checks"
   blocked_by: []
   supersedes: []
@@ -396,6 +427,7 @@ tickets:
 - key: B1-22
   issue: 443
   branch: B1
+  stories: [145, 146, 147, 148]
   title: "Docs: both instances and the lost guarantees"
   blocked_by: [B1-05, B1-13]
   supersedes: [349]
@@ -409,6 +441,7 @@ tickets:
 - key: B2-01
   issue: 444
   branch: B2
+  stories: [7, 17, 19]
   title: "Run-start shim"
   blocked_by: [B1-12, B0-02]
   supersedes: [352]
@@ -421,6 +454,7 @@ tickets:
 - key: B2-02
   issue: 445
   branch: B2
+  stories: [73, 74, 75, 76]
   title: "Gate shim"
   blocked_by: [B1-13]
   supersedes: [353]
@@ -433,6 +467,7 @@ tickets:
 - key: B2-03
   issue: 446
   branch: B2
+  stories: [68, 69, 77]
   title: "Workflow lint: Opus, memory and loop rules"
   blocked_by: [B0-01]
   supersedes: [371]
@@ -444,6 +479,7 @@ tickets:
 - key: B2-04
   issue: 447
   branch: B2
+  stories: [72, 79]
   title: "Headless proof harness and refusal of unproven runs"
   blocked_by: [B0-02]
   supersedes: [373, 348]
@@ -456,6 +492,7 @@ tickets:
 - key: B2-05a
   issue: 448
   branch: B2
+  stories: [88, 89]
   title: "Workflow B path with stubs: test author, writer and gates"
   blocked_by: [B2-01, B2-02, B2-03, B2-04, B1-18]
   supersedes: [359]
@@ -467,6 +504,7 @@ tickets:
 - key: B2-05b
   issue: 449
   branch: B2
+  stories: [74]
   title: "Coverage gate on changed files"
   blocked_by: [B2-05a]
   supersedes: [357]
@@ -478,6 +516,7 @@ tickets:
 - key: B2-05c
   issue: 450
   branch: B2
+  stories: [91]
   title: "Finding check node"
   blocked_by: [B2-05a]
   supersedes: [358]
@@ -489,6 +528,7 @@ tickets:
 - key: B2-05d
   issue: 451
   branch: B2
+  stories: [78, 90]
   title: "Workflow B critics, unrolled repairs and escalation"
   blocked_by: [B2-05b, B2-05c]
   supersedes: []
@@ -500,6 +540,7 @@ tickets:
 - key: B2-06
   issue: 453
   branch: B2
+  stories: [92]
   title: "CI-wait gate"
   blocked_by: [B2-02, B2-10]
   supersedes: [31]
@@ -512,6 +553,7 @@ tickets:
 - key: B2-07
   issue: 454
   branch: B2
+  stories: [96, 97, 98]
   title: "LiteLLM in the estate cluster with per-key budgets"
   blocked_by: [B1-01]
   supersedes: [354]
@@ -524,6 +566,7 @@ tickets:
 - key: B2-08
   issue: 455
   branch: B2
+  stories: [99]
   title: "Workflow B with real agents in the personal instance (live)"
   blocked_by: [B2-05d, B2-07, B1-15, B1-16, B1-17]
   supersedes: [360]
@@ -535,6 +578,7 @@ tickets:
 - key: B2-09
   issue: 456
   branch: B2
+  stories: [82, 83, 84, 85]
   title: "Workflow A in the personal instance"
   blocked_by: [B2-04, B2-07, B1-17]
   supersedes: [361, 356]
@@ -547,6 +591,7 @@ tickets:
 - key: B2-10
   issue: 452
   branch: B2
+  stories: [94]
   title: "Per-repository setup file and its setup command"
   blocked_by: []
   supersedes: []
@@ -559,6 +604,7 @@ tickets:
 - key: B2-11
   issue: 459
   branch: B2
+  stories: [93, 95, 104]
   title: "Workflow C in the personal instance"
   blocked_by: [B2-04, B2-10, B3-02]
   supersedes: [362, 355]
@@ -571,6 +617,7 @@ tickets:
 - key: B2-13
   issue: 460
   branch: B2
+  stories: [18, 20]
   title: "Grant-check node with reservation"
   blocked_by: [B2-01]
   supersedes: []
@@ -583,6 +630,7 @@ tickets:
 - key: B2-12a
   issue: 461
   branch: B2
+  stories: [80, 86]
   title: "Workflow A in the work instance"
   blocked_by: [B2-09, B1-04, B2-13]
   supersedes: []
@@ -594,6 +642,7 @@ tickets:
 - key: B2-12b
   issue: 462
   branch: B2
+  stories: [80, 81]
   title: "Workflow B in the work instance"
   blocked_by: [B2-05d, B1-04, B2-13]
   supersedes: []
@@ -605,6 +654,7 @@ tickets:
 - key: B2-12c
   issue: 463
   branch: B2
+  stories: [80]
   title: "Workflow C in the work instance"
   blocked_by: [B2-11, B1-04, B2-13]
   supersedes: []
@@ -616,6 +666,7 @@ tickets:
 - key: B2-14
   issue: 464
   branch: B2
+  stories: [79]
   title: "Real-run smoke in each instance (live)"
   blocked_by: [B2-08, B2-09, B2-11, B2-12a, B2-12b, B2-12c]
   supersedes: [365]
@@ -627,6 +678,7 @@ tickets:
 - key: B2-15
   issue: 465
   branch: B2
+  stories: [148]
   title: "Docs: gaps found in real runs"
   blocked_by: [B2-14]
   supersedes: [364]
@@ -639,6 +691,7 @@ tickets:
 - key: B3-01
   issue: 457
   branch: B3
+  stories: [100, 101, 103, 105]
   title: "Port inventory with lanes and its check"
   blocked_by: [B0-01]
   supersedes: [351, 369, 370, 372]
@@ -651,6 +704,7 @@ tickets:
 - key: B3-02
   issue: 458
   branch: B3
+  stories: [102, 111]
   title: "Wave 2: critique templates over the runner"
   blocked_by: [B2-02, B2-04, B3-01]
   supersedes: [363]
@@ -663,6 +717,7 @@ tickets:
 - key: B3-03
   issue: 466
   branch: B3
+  stories: [109]
   title: "Skill-sources drift check"
   blocked_by: []
   supersedes: [287]
@@ -674,6 +729,7 @@ tickets:
 - key: B3-04
   issue: 467
   branch: B3
+  stories: [108]
   title: "estate-project-intent skill"
   blocked_by: [B3-03]
   supersedes: [288]
@@ -685,6 +741,7 @@ tickets:
 - key: B3-05
   issue: 468
   branch: B3
+  stories: [108]
   title: "estate-delivery-status skill"
   blocked_by: [B3-03]
   supersedes: [289]
@@ -696,6 +753,7 @@ tickets:
 - key: B3-06
   issue: 469
   branch: B3
+  stories: [108]
   title: "estate-rollback skill"
   blocked_by: [B3-03]
   supersedes: [290]
@@ -707,6 +765,7 @@ tickets:
 - key: B3-07
   issue: 470
   branch: B3
+  stories: [108]
   title: "estate-bootstrap skill"
   blocked_by: [B3-03]
   supersedes: [291]
@@ -718,6 +777,7 @@ tickets:
 - key: B3-08
   issue: 471
   branch: B3
+  stories: [107]
   title: "Retire the six old repo skills"
   blocked_by: [B3-04, B3-05, B3-06, B3-07]
   supersedes: [292]
@@ -729,6 +789,7 @@ tickets:
 - key: B3-09
   issue: 472
   branch: B3
+  stories: [108]
   title: "Estate skills as a personal-instance skill set"
   blocked_by: [B3-04, B3-05, B3-06, B3-07, B1-18]
   supersedes: []
@@ -740,6 +801,7 @@ tickets:
 - key: B3-10
   issue: 473
   branch: B3
+  stories: [106]
   title: "Cut the later waves from the inventory"
   blocked_by: [B3-01, B3-02]
   supersedes: [374]
@@ -752,6 +814,7 @@ tickets:
 - key: B4-01a
   issue: 474
   branch: B4
+  stories: [110]
   title: "/critique-adrs core and its pre-check"
   blocked_by: []
   supersedes: [249, 226]
@@ -763,6 +826,7 @@ tickets:
 - key: B4-01b
   issue: 475
   branch: B4
+  stories: [110]
   title: "adr-reviewer role and the ADR-record critic"
   blocked_by: [B4-01a]
   supersedes: [227, 230]
@@ -774,6 +838,7 @@ tickets:
 - key: B4-02
   issue: 476
   branch: B4
+  stories: [110]
   title: "Editorial ADR rewrites, check-rewrite and cold read"
   blocked_by: [B4-01b]
   supersedes: [228, 229]
@@ -785,6 +850,7 @@ tickets:
 - key: B4-03
   issue: 477
   branch: B4
+  stories: [110]
   title: "Drift and stale checks in /critique-adrs"
   blocked_by: [B4-01a]
   supersedes: [234]
@@ -796,6 +862,7 @@ tickets:
 - key: B4-04
   issue: 478
   branch: B4
+  stories: [114]
   title: "Review stages phase 1 live check (live)"
   blocked_by: [B4-02, B4-03]
   supersedes: [231]
@@ -807,6 +874,7 @@ tickets:
 - key: B4-05
   issue: 479
   branch: B4
+  stories: [110]
   title: "History facts and code facts"
   blocked_by: [B4-01a]
   supersedes: [232, 233]
@@ -818,6 +886,7 @@ tickets:
 - key: B4-06
   issue: 480
   branch: B4
+  stories: [110]
   title: "Decision-recovery stage and /recover-decisions"
   blocked_by: [B4-05]
   supersedes: [235, 236]
@@ -829,6 +898,7 @@ tickets:
 - key: B4-07
   issue: 481
   branch: B4
+  stories: [114]
   title: "Review stages phase 2 live check (live)"
   blocked_by: [B4-06]
   supersedes: [237]
@@ -840,6 +910,7 @@ tickets:
 - key: B4-08
   issue: 482
   branch: B4
+  stories: [110]
   title: "Architecture lenses"
   blocked_by: []
   supersedes: [238, 250]
@@ -851,6 +922,7 @@ tickets:
 - key: B4-09
   issue: 483
   branch: B4
+  stories: [110]
   title: "Architecture-review stage and /review-architecture"
   blocked_by: [B4-05, B4-08]
   supersedes: [239, 240]
@@ -862,6 +934,7 @@ tickets:
 - key: B4-10
   issue: 484
   branch: B4
+  stories: [114]
   title: "Review stages phase 3 live check (live)"
   blocked_by: [B4-09]
   supersedes: [241]
@@ -873,6 +946,7 @@ tickets:
 - key: B4-11a
   issue: 485
   branch: B4
+  stories: [110]
   title: "Refactoring plan format and check-plan"
   blocked_by: [B4-01a]
   supersedes: [242]
@@ -884,6 +958,7 @@ tickets:
 - key: B4-11b
   issue: 486
   branch: B4
+  stories: [110]
   title: "Plan stage, plan critic and plan lenses"
   blocked_by: [B4-11a]
   supersedes: [243, 244]
@@ -895,6 +970,7 @@ tickets:
 - key: B4-11c
   issue: 487
   branch: B4
+  stories: [110]
   title: "/critique-plan skill"
   blocked_by: [B4-11b]
   supersedes: [251]
@@ -906,6 +982,7 @@ tickets:
 - key: B4-12
   issue: 488
   branch: B4
+  stories: [114]
   title: "Review stages phase 4 live check (live)"
   blocked_by: [B4-11c]
   supersedes: [245]
@@ -917,6 +994,7 @@ tickets:
 - key: B4-13
   issue: 489
   branch: B4
+  stories: [112, 114]
   title: "Calibration in critique stats and phase 5 live check"
   blocked_by: [B4-12]
   supersedes: [246, 247]
@@ -928,6 +1006,7 @@ tickets:
 - key: B4-14
   issue: 490
   branch: B4
+  stories: [80, 110]
   title: "Work-only critic roster for nedap repositories"
   blocked_by: []
   supersedes: []
@@ -940,6 +1019,7 @@ tickets:
 - key: B4-15
   issue: 491
   branch: B4
+  stories: [114]
   title: "Remaining critique live checks (live)"
   blocked_by: []
   supersedes: [178, 190, 198]
@@ -951,6 +1031,7 @@ tickets:
 - key: B4-16
   issue: 492
   branch: B4
+  stories: [113]
   title: "One feature through /flow on a work repository (live)"
   blocked_by: [B4-14]
   supersedes: [200]
@@ -962,6 +1043,7 @@ tickets:
 - key: B4-17
   issue: 493
   branch: B4
+  stories: [115]
   title: "Gateway: Codex worktree workers"
   blocked_by: []
   supersedes: [23]
@@ -973,6 +1055,7 @@ tickets:
 - key: B4-18
   issue: 494
   branch: B4
+  stories: [161]
   title: "Gateway: binding family and stated escalation"
   blocked_by: []
   supersedes: [395]
@@ -985,6 +1068,7 @@ tickets:
 - key: B4-19
   issue: 495
   branch: B4
+  stories: [117]
   title: "Vibe headless runs fail fast without web tools"
   blocked_by: []
   supersedes: [284]
@@ -996,6 +1080,7 @@ tickets:
 - key: B4-20
   issue: 496
   branch: B4
+  stories: [118]
   title: "In-cluster runner fetches the newest kit"
   blocked_by: []
   supersedes: [26]
@@ -1007,6 +1092,7 @@ tickets:
 - key: B4-21
   issue: 497
   branch: B4
+  stories: [87]
   title: "Research front-door skill"
   blocked_by: [B2-09]
   supersedes: [285]
@@ -1018,6 +1104,7 @@ tickets:
 - key: B4-22a
   issue: 498
   branch: B4
+  stories: [119]
   title: "Rust port of the critique runner"
   blocked_by: [B4-04, B4-07, B4-10, B4-13]
   supersedes: []
@@ -1029,6 +1116,7 @@ tickets:
 - key: B4-22b
   issue: 499
   branch: B4
+  stories: [119]
   title: "Rust port of the build tracker"
   blocked_by: [B0-07]
   supersedes: []
@@ -1040,6 +1128,7 @@ tickets:
 - key: B4-22c
   issue: 500
   branch: B4
+  stories: [119]
   title: "Rust port of the model gateway"
   blocked_by: [B4-17, B4-18, B4-19]
   supersedes: []
@@ -1052,6 +1141,7 @@ tickets:
 - key: B5-01
   issue: 440
   branch: B5
+  stories: [62, 63, 64, 70]
   title: "Nedap bank with bank selection by remote owner"
   blocked_by: []
   supersedes: []
@@ -1064,6 +1154,7 @@ tickets:
 - key: B5-02
   issue: 501
   branch: B5
+  stories: [65, 66, 67]
   title: "Move employer facts out of Shared Memory (live)"
   blocked_by: [B5-01]
   supersedes: []
@@ -1076,6 +1167,7 @@ tickets:
 - key: B5-03
   issue: 502
   branch: B5
+  stories: [66]
   title: "Move employer facts out of Private Memory (live)"
   blocked_by: [B5-02]
   supersedes: []
@@ -1087,6 +1179,7 @@ tickets:
 - key: B5-04
   issue: 503
   branch: B5
+  stories: [123]
   title: "Private Memory in Vibe (live)"
   blocked_by: []
   supersedes: [126, 127]
@@ -1098,6 +1191,7 @@ tickets:
 - key: B5-05
   issue: 504
   branch: B5
+  stories: [71]
   title: "Cross-agent recall within each bank (live)"
   blocked_by: [B5-02]
   supersedes: [42]
@@ -1110,6 +1204,7 @@ tickets:
 - key: B6-01
   issue: 505
   branch: B6
+  stories: [122]
   title: "Playwright on a cold cache (live)"
   blocked_by: []
   supersedes: [116]
@@ -1121,6 +1216,7 @@ tickets:
 - key: B6-02
   issue: 506
   branch: B6
+  stories: [124]
   title: "OpenCode skills and MCP parity"
   blocked_by: []
   supersedes: [390]
@@ -1132,6 +1228,7 @@ tickets:
 - key: B6-03
   issue: 507
   branch: B6
+  stories: [125, 126]
   title: "Container language servers and oras"
   blocked_by: []
   supersedes: [61]
@@ -1143,6 +1240,7 @@ tickets:
 - key: B6-04
   issue: 508
   branch: B6
+  stories: [127]
   title: "SSO-gated install remainder"
   blocked_by: []
   supersedes: [41]
@@ -1154,6 +1252,7 @@ tickets:
 - key: B6-05
   issue: 509
   branch: B6
+  stories: [128]
   title: "Fix or report the github MCP server"
   blocked_by: []
   supersedes: [48]
@@ -1165,6 +1264,7 @@ tickets:
 - key: B6-06
   issue: 510
   branch: B6
+  stories: [129]
   title: "Workstation kubeconfig helper"
   blocked_by: []
   supersedes: [389]
@@ -1176,6 +1276,7 @@ tickets:
 - key: B6-07
   issue: 511
   branch: B6
+  stories: [130]
   title: "pnpm with a 7-day cooldown"
   blocked_by: []
   supersedes: [381]
@@ -1187,6 +1288,7 @@ tickets:
 - key: B6-08
   issue: 512
   branch: B6
+  stories: [130]
   title: "uv with a 7-day cooldown"
   blocked_by: []
   supersedes: [382]
@@ -1198,6 +1300,7 @@ tickets:
 - key: B6-09
   issue: 513
   branch: B6
+  stories: [131]
   title: "Dependency PR queue"
   blocked_by: []
   supersedes: []
@@ -1209,6 +1312,7 @@ tickets:
 - key: B6-10
   issue: 514
   branch: B6
+  stories: [162]
   title: "Attribution guard follow-ups"
   blocked_by: []
   supersedes: []
@@ -1221,6 +1325,7 @@ tickets:
 - key: B6-11
   issue: 515
   branch: B6
+  stories: [163]
   title: "Setup wrapper uses the projects-layout clone"
   blocked_by: []
   supersedes: []
@@ -1234,6 +1339,7 @@ tickets:
 - key: B7-01
   issue: 516
   branch: B7
+  stories: [149]
   title: "Transcript tool-mix analyser"
   blocked_by: [B0-01]
   supersedes: []
@@ -1245,6 +1351,7 @@ tickets:
 - key: B7-02
   issue: 517
   branch: B7
+  stories: [150]
   title: "Frozen question set and runner"
   blocked_by: []
   supersedes: []
@@ -1256,6 +1363,7 @@ tickets:
 - key: B7-03
   issue: 518
   branch: B7
+  stories: [151, 152]
   title: "AGENTS.md in every repository, with a lint"
   blocked_by: []
   supersedes: []
@@ -1268,6 +1376,7 @@ tickets:
 - key: B7-04
   issue: 519
   branch: B7
+  stories: [153]
   title: "Why agents leave the language-server tool unused"
   blocked_by: [B7-01]
   supersedes: []
@@ -1279,6 +1388,7 @@ tickets:
 - key: B7-05
   issue: 520
   branch: B7
+  stories: [154, 157]
   title: "code-nav core: boundary and search"
   blocked_by: [B0-01, B7-02]
   supersedes: []
@@ -1291,6 +1401,7 @@ tickets:
 - key: B7-06
   issue: 521
   branch: B7
+  stories: [155]
   title: "code-nav outline and expand"
   blocked_by: [B7-05]
   supersedes: []
@@ -1302,6 +1413,7 @@ tickets:
 - key: B7-07
   issue: 522
   branch: B7
+  stories: [156]
   title: "code-nav repository map"
   blocked_by: [B7-06]
   supersedes: []
@@ -1313,6 +1425,7 @@ tickets:
 - key: B7-08
   issue: 523
   branch: B7
+  stories: [156]
   title: "code-nav symbols and related repositories"
   blocked_by: [B7-07]
   supersedes: []
@@ -1324,6 +1437,7 @@ tickets:
 - key: B7-09
   issue: 524
   branch: B7
+  stories: [158]
   title: "code-nav registry entry and instance binding"
   blocked_by: [B7-05, B1-02]
   supersedes: []
@@ -1335,6 +1449,7 @@ tickets:
 - key: B7-10
   issue: 525
   branch: B7
+  stories: [158]
   title: "code-nav boundary and read-reach proof"
   blocked_by: [B7-05, B1-13, B1-14]
   supersedes: []
@@ -1346,6 +1461,7 @@ tickets:
 - key: B7-11
   issue: 526
   branch: B7
+  stories: [160]
   title: "Measurement runs per layer and the no-vector-index ADR"
   blocked_by: [B7-02, B7-03, B7-06, B7-07, B7-08]
   supersedes: []
@@ -1357,6 +1473,7 @@ tickets:
 - key: B7-12
   issue: 527
   branch: B7
+  stories: []
   title: "Language-server bridge trial (conditional)"
   blocked_by: [B7-11]
   supersedes: []
@@ -1368,6 +1485,7 @@ tickets:
 - key: B7-13
   issue: 528
   branch: B7
+  stories: [159]
   title: "Identifier index (conditional)"
   blocked_by: [B7-11]
   supersedes: []
@@ -1379,6 +1497,7 @@ tickets:
 - key: B7-14
   issue: 529
   branch: B7
+  stories: []
   title: "Critique runner uses the code-nav repository map"
   blocked_by: [B7-07, B4-22a]
   supersedes: []
