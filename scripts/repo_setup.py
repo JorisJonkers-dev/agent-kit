@@ -27,8 +27,8 @@ job that is listed here with a reviewed reason.
 (exit 3 and nothing written otherwise); with no ``--label`` it reads the
 vocabulary from ``gh label list``. Re-running with the same input leaves the
 file byte-identical (give --reviewed-on to pin the date of new flaky
-jobs); a rerun without --flaky keeps the flaky jobs already listed. ``check`` exits 0 for a valid file and 3 for a missing or
-invalid one, printing each problem to stderr; consumers call ``load`` and
+jobs); a rerun without --flaky keeps the flaky jobs already listed.
+``check`` exits 0 for a valid file and 3 for a missing or invalid one, printing each problem to stderr; consumers call ``load`` and
 refuse a repository whose file raises ``SetupFileError``.
 """
 
