@@ -6,11 +6,11 @@ publish = false
 description = "Refuses a Gold Band workflow definition that breaks the model and loop rules every port shares (issue #446)."
 
 # The one dependency this crate is allowed (issue #446), pinned to the exact
-# version its author named: serde_json 1.0.140 is already older than the 7-day
+# version its author named: serde_json 1.0.145 (the pin ticket-sync shares) is already older than the 7-day
 # crate cooldown (standards ADR-0014, docs/RUST.md). Its pin is not the only
 # age crate-age checks: serde_json brings transitive registry versions into
 # scripts/Cargo.lock (itoa, memchr, proc-macro2, quote, ryu, serde,
 # serde_core, serde_derive, syn, unicode-ident), all of which the
 # pre-commit hook's `crate-age --root .` checks too.
 [dependencies]
-serde_json = "=1.0.140"
+serde_json = "=1.0.145"

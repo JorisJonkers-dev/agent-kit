@@ -18,4 +18,5 @@ members = [
     "crates/gold-band-registry",
     "crates/code-nav-eval",
     "crates/workflow-lint",
+    "crates/ticket-sync",
 ]
