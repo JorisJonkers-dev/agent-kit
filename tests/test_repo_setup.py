@@ -11,6 +11,7 @@ in the one test that stubs it.
 
 from __future__ import annotations
 
+import datetime
 import importlib.util
 import subprocess
 import sys
@@ -166,6 +167,9 @@ def test_good_document_is_valid() -> None:
     ("mutate", "expected"),
     [
         (lambda d: d.update(version=2), "version must be 1"),
+        (lambda d: d.update(version=True), "version must be 1"),
+        (lambda d: d["tracker"].update(repo="../.."), "tracker.repo must be OWNER/NAME"),
+        (lambda d: d["flaky_jobs"][0].update(reviewed_on=datetime.datetime(2026, 11, 1, 10)), "reviewed_on must be"),
         (lambda d: d.update(extra=1), "unknown key: extra"),
         (lambda d: d.update(tracker="x"), "tracker must be a mapping"),
         (lambda d: d["tracker"].update(kind="jira", other=1), "tracker.kind must be one of"),
@@ -224,3 +228,51 @@ def test_cli_entry_point(tmp_path: Path) -> None:
     run = subprocess.run([sys.executable, str(script), "check", "--repo", str(repo)], capture_output=True, text=True)
     assert run.returncode == 3
     assert "missing" in run.stderr
+
+
+def test_rerun_without_flaky_keeps_reviewed_jobs(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path, "https://github.com/acme-corp/billing")
+    assert rs.main(work_args(repo)) == 0
+    args = [a for a in work_args(repo)[:-6]]
+    assert rs.main(args) == 0
+    assert len(rs.load(repo)["flaky_jobs"]) == 2
+
+
+@pytest.mark.parametrize("bad", ["needs-tirage=x", "needs-triage"])
+def test_bad_triage_argument_is_refused(tmp_path: Path, bad: str) -> None:
+    repo = make_repo(tmp_path, "https://github.com/acme-corp/billing")
+    assert rs.main([*personal_args(repo), "--triage", bad]) == 3
+
+
+def test_missing_repo_directory_is_not_created(tmp_path: Path) -> None:
+    assert rs.main(["write", "--repo", str(tmp_path / "typo")]) == 3
+    assert not (tmp_path / "typo").exists()
+
+
+def test_ssh_alias_origin_names_the_tracker(tmp_path: Path) -> None:
+    assert rs._git_tracker_repo(make_repo(tmp_path, "git@github.com-work:acme/billing.git")) == "acme/billing"
+
+
+def test_lookalike_host_is_not_github(tmp_path: Path) -> None:
+    assert rs._git_tracker_repo(make_repo(tmp_path, "https://notgithub.com/a/b")) == ""
+
+
+def test_gh_failure_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    (stub / "gh").write_text("#!/bin/sh\necho 'not logged in' >&2\nexit 1\n")
+    (stub / "gh").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stub}:/usr/bin:/bin:/run/current-system/sw/bin")
+    assert rs._gh_labels("a/b") == []
+    assert "not logged in" in capsys.readouterr().err
+
+
+def test_non_utf8_file_is_refused(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path, "https://github.com/acme-corp/billing")
+    path = repo / rs.SETUP_FILE
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"\xff\xfe")
+    with pytest.raises(rs.SetupFileError):
+        rs.load(repo)

@@ -26,7 +26,8 @@ job that is listed here with a reviewed reason.
 ``write`` builds the file, validates it and writes it only when it is valid
 (exit 3 and nothing written otherwise); with no ``--label`` it reads the
 vocabulary from ``gh label list``. Re-running with the same input leaves the
-file byte-identical. ``check`` exits 0 for a valid file and 3 for a missing or
+file byte-identical (give --reviewed-on to pin the date of new flaky
+jobs); a rerun without --flaky keeps the flaky jobs already listed. ``check`` exits 0 for a valid file and 3 for a missing or
 invalid one, printing each problem to stderr; consumers call ``load`` and
 refuse a repository whose file raises ``SetupFileError``.
 """
@@ -34,6 +35,7 @@ refuse a repository whose file raises ``SetupFileError``.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime
 import re
 import subprocess
@@ -47,7 +49,7 @@ SETUP_FILE = Path("docs") / "agents" / "setup.yaml"
 VERSION = 1
 TRACKER_KINDS = ("github",)
 TRIAGE_ROLES = ("needs-triage", "needs-info", "ready-for-agent", "ready-for-human", "wontfix")
-_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+_REPO_RE = re.compile(r"^(?!\.+/)[A-Za-z0-9_.-]+/(?!\.+$)[A-Za-z0-9_.-]+$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TOP_KEYS = {"version", "tracker", "labels", "triage_labels", "flaky_jobs"}
 _FLAKY_KEYS = {"name", "reason", "reviewed_by", "reviewed_on"}
@@ -70,7 +72,7 @@ def validate(data: object) -> list[str]:
     if not isinstance(data, dict):
         return ["the file must be a mapping"]
     problems = [f"unknown key: {k}" for k in sorted(set(data) - _TOP_KEYS, key=str)]
-    if data.get("version") != VERSION:
+    if data.get("version") != VERSION or isinstance(data.get("version"), bool):
         problems.append(f"version must be {VERSION}")
     problems += _validate_tracker(data.get("tracker"))
     labels = data.get("labels")
@@ -135,6 +137,8 @@ def _validate_flaky(jobs: object) -> list[str]:
 
 
 def _valid_date(value: object) -> bool:
+    if isinstance(value, datetime.datetime):
+        return False
     if isinstance(value, datetime.date):  # YAML reads an unquoted date as a date
         return True
     if not isinstance(value, str) or not _DATE_RE.match(value):
@@ -152,8 +156,8 @@ def load(repo: Path) -> dict[str, Any]:
     if not path.is_file():
         raise SetupFileError([f"{SETUP_FILE} is missing; run repo_setup.py write"])
     try:
-        data = yaml.safe_load(path.read_text())
-    except yaml.YAMLError as exc:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (yaml.YAMLError, UnicodeDecodeError) as exc:
         raise SetupFileError([f"{SETUP_FILE} is not valid YAML: {exc}"]) from exc
     problems = validate(data)
     if problems:
@@ -191,7 +195,7 @@ def _git_tracker_repo(repo: Path) -> str:
     url = subprocess.run(
         ["git", "-C", str(repo), "remote", "get-url", "origin"], capture_output=True, text=True, check=False
     ).stdout.strip()
-    match = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?/?$", url)
+    match = re.search(r"(?:^|[@/])github\.com(?:-[\w.-]+)?[:/]([^/]+/[^/]+?)(?:\.git)?/?$", url)
     return match.group(1) if match else ""
 
 
@@ -202,6 +206,8 @@ def _gh_labels(tracker_repo: str) -> list[str]:
         text=True,
         check=False,
     )
+    if out.returncode != 0:
+        print(f"repo-setup: gh label list failed: {out.stderr.strip()}", file=sys.stderr)
     return [line for line in out.stdout.splitlines() if line.strip()]
 
 
@@ -217,9 +223,13 @@ def cmd_write(args: argparse.Namespace) -> int:
     labels = list(dict.fromkeys(args.label)) or _gh_labels(tracker_repo)
     triage: dict[str, str] = {}
     for item in args.triage:
-        role, _, label = item.partition("=")
+        role, sep, label = item.partition("=")
+        if not sep or role not in TRIAGE_ROLES:
+            return _fail([f"--triage {item!r} must be ROLE=LABEL with ROLE one of {', '.join(TRIAGE_ROLES)}"])
         triage[role] = label
     flaky = [(name, reason) for name, reason in args.flaky]
+    if not repo.is_dir():
+        return _fail([f"--repo {repo} is not a directory"])
     if flaky and not args.reviewed_by:
         return _fail(["--reviewed-by is required when a flaky job is listed"])
     data = build(
@@ -230,6 +240,9 @@ def cmd_write(args: argparse.Namespace) -> int:
         args.reviewed_by or "",
         args.reviewed_on or datetime.date.today().isoformat(),
     )
+    if not flaky:  # a rerun without --flaky keeps the reviewed jobs already listed
+        with contextlib.suppress(SetupFileError):
+            data["flaky_jobs"] = load(repo)["flaky_jobs"]
     problems = validate(data)
     if problems:
         return _fail(problems)
