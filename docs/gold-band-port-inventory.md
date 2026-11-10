@@ -36,6 +36,7 @@ cargo run --manifest-path scripts/Cargo.toml -p inventory-check -- .
 | review-spec | `skills/workstation/review-spec/` | Critiques a spec after `/to-spec`: critics from other families review it read-only. | workflow | direct, gold-band, gold-band-personal | Ported as Wave 2 templates over the runner. |
 | review-tickets | `skills/workstation/review-tickets/` | Checks a spec's tickets after `/to-tickets`: deterministic checker plus one critic linting structure. | workflow | direct, gold-band, gold-band-personal | Ported as Wave 2 templates over the runner. |
 | token-economy | `skills/workstation/token-economy/` | Token-budget discipline: progressive disclosure, bounded recall, narrow MCP profiles, cache-friendly ordering. | skill set | direct, gold-band, gold-band-personal | |
+| estate-project-intent | `skills/workstation/estate-project-intent/` | Writes and validates a Project's deploy-kit Intent and wires its publishing, reading the canonical docs live. | skill set | direct, gold-band-personal | Replaces add-public-service and fleet-change (#467). |
 
 ### skills/repo
 
@@ -98,13 +99,13 @@ Declared in `registry/estate-tooling.yaml` (`mcp_servers:`, and `hindsight` via
 
 | Name | Path | What it does | Target | Lanes | Notes |
 | --- | --- | --- | --- | --- | --- |
-| memory-api | `registry/estate-tooling.yaml` (`mcp_servers:`) | Hindsight long-term memory for the shared bank: explicit read, write and search knowledge tools. | MCP server | direct, gold-band, gold-band-personal | |
+| memory-api | `registry/estate-tooling.yaml` (`mcp_servers:`) | Hindsight long-term memory for the shared bank: explicit read, write and search knowledge tools. | MCP server | direct, gold-band-personal | |
 | memory-private | `registry/estate-tooling.yaml` (`mcp_servers:`) | Private Memory, the personal Hindsight bank, only in vibe-private behind the passphrase gate. | stays outside | direct | Stays outside (decision 5). |
 | memory-mcp | `registry/estate-tooling.yaml` (`mcp_servers:`) | Retired record: Basic Memory over the knowledge-vault; registered nowhere. | stays outside | direct | Retired record. |
 | n8n | `registry/estate-tooling.yaml` (`mcp_servers:`) | n8n workflows through the instance-level MCP server, OAuth per client. | MCP server | direct, gold-band-personal | |
-| n8n-mcp | `registry/estate-tooling.yaml` (`mcp_servers:`) | n8n node docs and schemas, docs-only, no API key. | MCP server | direct, gold-band, gold-band-personal | |
-| kubernetes | `registry/estate-tooling.yaml` (`mcp_servers:`) | Read-only cluster diagnostics through the server's own ClusterRole. | MCP server | direct, gold-band, gold-band-personal | |
-| github | `registry/estate-tooling.yaml` (`mcp_servers:`) | GitHub issues, branches and pull requests; delete and label tools excluded. | MCP server | direct, gold-band, gold-band-personal | |
+| n8n-mcp | `registry/estate-tooling.yaml` (`mcp_servers:`) | n8n node docs and schemas, docs-only, no API key. | MCP server | direct, gold-band-personal | |
+| kubernetes | `registry/estate-tooling.yaml` (`mcp_servers:`) | Read-only cluster diagnostics through the server's own ClusterRole. | MCP server | direct, gold-band-personal | |
+| github | `registry/estate-tooling.yaml` (`mcp_servers:`) | GitHub issues, branches and pull requests; delete and label tools excluded. | MCP server | direct, gold-band-personal | |
 | grimoire | `registry/estate-tooling.yaml` (`mcp_servers:`) | Grimoire D&D 5e table companion, account-scoped token. | MCP server | direct, gold-band-personal | |
 | outline | `registry/estate-tooling.yaml` (`mcp_servers:`) | Outline wiki at notes.jorisjonkers.dev, as a separate Outline user. | MCP server | direct, gold-band-personal | |
 | vuetify | `registry/estate-tooling.yaml` (`mcp_servers:`) | Vuetify component API; disabled on every surface today. | stays outside | direct | Stays outside. |
@@ -124,10 +125,9 @@ Rows for work with no directory yet.
 
 | Name | Path | What it does | Target | Lanes | Notes |
 | --- | --- | --- | --- | --- | --- |
-| estate-bootstrap | (no directory yet) | Bootstraps an estate repository and its agent setup. | skill set | direct, gold-band, gold-band-personal | Replaces the six retired repo skills. |
-| estate-project-intent | (no directory yet) | Records and checks a project's intent. | skill set | direct, gold-band, gold-band-personal | Replaces the six retired repo skills. |
-| estate-delivery-status | (no directory yet) | Reports delivery and gate status across the estate. | skill set | direct, gold-band, gold-band-personal | Replaces the six retired repo skills. |
-| estate-rollback | (no directory yet) | Plans a service rollback; never dispatches it. | skill set | direct, gold-band, gold-band-personal | Replaces the six retired repo skills. |
+| estate-bootstrap | (no directory yet) | Bootstraps an estate repository and its agent setup. | skill set | direct, gold-band-personal | Replaces the six retired repo skills. |
+| estate-delivery-status | (no directory yet) | Reports delivery and gate status across the estate. | skill set | direct, gold-band-personal | Replaces the six retired repo skills. |
+| estate-rollback | (no directory yet) | Plans a service rollback; never dispatches it. | skill set | direct, gold-band-personal | Replaces the six retired repo skills. |
 | grill-me | (no directory yet) | Grills the user on a plan, decision or idea. | workflow | direct, gold-band, gold-band-personal | Human-gate workflow: each question round is a manual-check node, and the human answers in the app or over IM. Also kept in the direct lane. |
 | grill-with-docs | (no directory yet) | Grilling that writes answers that change a decision into the decision docs. | workflow | direct, gold-band, gold-band-personal | Same human-gate mapping as grill-me. Also kept in the direct lane. |
 | brainstorming | (no directory yet) | Explores user intent, requirements and design before implementation. | workflow | direct, gold-band, gold-band-personal | Same human-gate mapping; each exploration round is one manual-check node. Also kept in the direct lane. |
